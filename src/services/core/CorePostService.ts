@@ -89,13 +89,31 @@ export class CorePostService {
 
       debug.log('✅ Core: Content validation passed')
 
+      // Enforce max media attachments per post (instance config, default 20)
+      let mediaAttachments = data.media_attachments || []
+      const { data: limitRow } = await supabase
+        .from('instance_config')
+        .select('config_value')
+        .eq('config_key', 'max_media_attachments_per_post')
+        .maybeSingle()
+      const maxMedia = (() => {
+        const v = limitRow?.config_value
+        if (typeof v === 'number' && v >= 1) return v
+        const parsed = typeof v === 'string' ? parseInt(String(v), 10) : NaN
+        return !isNaN(parsed) && parsed >= 1 ? parsed : 20
+      })()
+      if (mediaAttachments.length > maxMedia) {
+        mediaAttachments = mediaAttachments.slice(0, maxMedia)
+        debug.warn(`Core: Truncated media_attachments to ${maxMedia} (instance limit)`)
+      }
+
       const postData = {
         author_id: profileId,
         content: data.content, // Direct JSONB insertion - Supabase handles serialization
         visibility: data.visibility,
         content_warning: data.content_warning || null,
         in_reply_to: data.in_reply_to || null,
-        media_attachments: data.media_attachments || [],
+        media_attachments: mediaAttachments,
         is_sensitive: data.is_sensitive || false,
         language: data.language || 'en',
         is_local: true,

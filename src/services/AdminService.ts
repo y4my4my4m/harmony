@@ -761,6 +761,7 @@ class AdminService {
 
       let maxServerSize = 1000
       let maxMessageLength = 2000
+      let maxMediaAttachmentsPerPost = 20
       let allowFileUploads = true
       let enableVoiceChannels = true
       let maxPostLength = 500
@@ -774,7 +775,7 @@ class AdminService {
         const { data: configData } = await supabase
           .from('instance_config')
           .select('config_key, config_value')
-          .in('config_key', ['instance_name', 'instance_description', 'domain', 'open_registration', 'approval_required', 'oauth_providers', 'terms_url', 'privacy_url', 'max_server_size', 'max_message_length', 'allow_file_uploads', 'enable_voice_channels', 'max_post_length', 'federation_retry_attempts', 'max_custom_emojis_per_server', 'allow_custom_emojis_in_display_names', 'instance_icon', 'instance_banner', 'theme_color', 'maintainer_name', 'maintainer_email'])
+          .in('config_key', ['instance_name', 'instance_description', 'domain', 'open_registration', 'approval_required', 'oauth_providers', 'terms_url', 'privacy_url', 'max_server_size', 'max_message_length', 'max_media_attachments_per_post', 'allow_file_uploads', 'enable_voice_channels', 'max_post_length', 'federation_retry_attempts', 'max_custom_emojis_per_server', 'allow_custom_emojis_in_display_names', 'instance_icon', 'instance_banner', 'theme_color', 'maintainer_name', 'maintainer_email'])
 
         if (configData) {
           configData.forEach((config) => {
@@ -833,6 +834,9 @@ class AdminService {
                 case 'max_message_length':
                   maxMessageLength = typeof value === 'number' ? value : parseInt(String(value), 10) || 2000
                   break
+                case 'max_media_attachments_per_post':
+                  maxMediaAttachmentsPerPost = typeof value === 'number' ? value : parseInt(String(value), 10) || 20
+                  break
                 case 'allow_file_uploads':
                   allowFileUploads = value === true || value === 'true'
                   break
@@ -880,6 +884,7 @@ class AdminService {
         chat: {
           maxServerSize,
           maxMessageLength,
+          maxMediaAttachmentsPerPost,
           allowFileUploads,
           enableVoiceChannels
         },

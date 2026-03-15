@@ -371,6 +371,7 @@ const emit = defineEmits<{
 
 // Store
 const profileStore = useProfileStore();
+const instanceSettings = useInstanceSettingsStore();
 
 // Refs
 const richEditorRef = ref<InstanceType<typeof RichTextEditor>>();
@@ -399,7 +400,9 @@ const mediaAttachments = ref<any[]>([]);
 
 // Constants
 const characterLimit = 500;
-const maxMediaAttachments = 4;
+
+// Computed
+const maxMediaAttachments = computed(() => instanceSettings.settings.maxMediaAttachmentsPerPost ?? 20);
 
 // Computed
 const remainingCharacters = computed(() => characterLimit - content.value.length);

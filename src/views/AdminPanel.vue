@@ -994,6 +994,11 @@
               <label>Max Message Length</label>
               <input v-model.number="config.chat.maxMessageLength" type="number" class="cyber-input" />
             </div>
+            <div class="setting-group">
+              <label>Max Media Attachments per Post/Message</label>
+              <input v-model.number="config.chat.maxMediaAttachmentsPerPost" type="number" class="cyber-input" min="1" />
+              <span class="setting-hint">Maximum images/videos/files per post or chat message. Default: 20.</span>
+            </div>
             <div class="setting-row">
               <label class="toggle-label">
                 <input type="checkbox" v-model="config.chat.allowFileUploads" />
@@ -2145,6 +2150,7 @@ const config = ref({
   chat: {
     maxServerSize: 1000,
     maxMessageLength: 2000,
+    maxMediaAttachmentsPerPost: 20,
     allowFileUploads: true,
     enableVoiceChannels: true
   },
@@ -3290,6 +3296,7 @@ const saveConfig = async () => {
     await adminService.setInstanceConfigs({
       max_server_size: config.value.chat.maxServerSize,
       max_message_length: config.value.chat.maxMessageLength,
+      max_media_attachments_per_post: config.value.chat.maxMediaAttachmentsPerPost ?? 20,
       allow_file_uploads: config.value.chat.allowFileUploads,
       enable_voice_channels: config.value.chat.enableVoiceChannels,
       max_post_length: config.value.federation.maxPostLength,
