@@ -1688,20 +1688,9 @@ export const useActivityPubStore = defineStore('activitypub', {
           throw new Error('Invalid content format - must be MessagePart[] or string');
         }
         
-        // Add media attachments to content as MessageParts with type 'file'
-        if (mediaUrls && mediaUrls.length > 0) {
-          const mediaParts: MessagePart[] = mediaUrls.map(media => ({
-            type: 'file',
-            fileType: media.type === 'Image' ? 'image' : 
-                      media.type === 'Video' ? 'video' : 
-                      media.type === 'Audio' ? 'audio' : 'file',
-            url: media.url,
-            fileName: media.name
-          }));
-          
-          // Append media parts to content
-          finalContent = [...finalContent, ...mediaParts];
-        }
+        // Don't add media to content when we have media_attachments — MonyMediaGallery
+        // shows them with lightbox. Federated posts often have media in content only
+        // (no media_attachments), so they render via MonyContent's grid.
         
         const post = await services.posts.createPost({
           content: finalContent,

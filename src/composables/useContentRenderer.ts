@@ -226,11 +226,95 @@ export function useContentRenderer(
     return result;
   };
 
+  // Helper: get file type from part (handles both camelCase and snake_case, mimeType, and type)
+  const getPartFileType = (p: any): string => {
+    const ft = p?.fileType || p?.file_type || '';
+    if (ft) return ft;
+    const mt = (p?.mimeType || p?.mime_type || p?.mediaType || p?.media_type || '').toLowerCase();
+    if (mt.startsWith('image/')) return 'image';
+    if (mt.startsWith('video/') || mt.includes('gif')) return 'video';
+    const url = p?.url || '';
+    if (isImageUrl(url)) return 'image';
+    if (isVideoUrl(url)) return 'video';
+    return ft;
+  };
+
+  // Check if part is viewable media (image/video) for grid grouping
+  const isViewableMediaPart = (p: MessagePart): boolean => {
+    if (renderOptions.mode === 'preview') return false;
+    const partType = String((p as any).type || '').toLowerCase();
+    if (partType === 'file') {
+      const ft = getPartFileType(p);
+      return (ft === 'image' && renderOptions.showImages) ||
+        (ft === 'video' && renderOptions.showVideos);
+    }
+    // Some formats use type: 'image' or type: 'video' directly (e.g. contentUtils, Fedi embeds)
+    if (partType === 'image' && renderOptions.showImages) return true;
+    if (partType === 'video' && renderOptions.showVideos) return true;
+    if (partType === 'gifv' && renderOptions.showVideos) return true;
+    if (partType === 'url') {
+      const url = (p as any).url || '';
+      return (renderOptions.showImages && isImageUrl(url)) ||
+        (renderOptions.showVideos && isVideoUrl(url));
+    }
+    return false;
+  };
+
+  // Render a single media item's HTML (for grid)
+  const renderMediaItemHtml = (p: MessagePart): string => {
+    const partType = String((p as any).type || '').toLowerCase();
+    if (partType === 'file') {
+      const fileName = escapeHtml((p as any).fileName || (p as any).filename || 'file');
+      const safeUrl = escapeHtml((p as any).url || '');
+      const ft = getPartFileType(p);
+      if (ft === 'image') {
+        return `<div class="media-gallery__item"><img src="${safeUrl}" alt="${fileName}" class="content-image" loading="lazy" draggable="false" /></div>`;
+      }
+      if (ft === 'video') {
+        return `<div class="media-gallery__item"><video src="${safeUrl}" controls class="content-video"></video></div>`;
+      }
+    }
+    // Some formats use type: 'image' or type: 'video' directly
+    if (partType === 'image' || partType === 'gifv') {
+      const safeUrl = escapeHtml((p as any).url || '');
+      const alt = escapeHtml((p as any).description || (p as any).alt || 'Image');
+      return `<div class="media-gallery__item"><img src="${safeUrl}" alt="${alt}" class="content-image" loading="lazy" draggable="false" /></div>`;
+    }
+    if (partType === 'video') {
+      const safeUrl = escapeHtml((p as any).url || '');
+      return `<div class="media-gallery__item"><video src="${safeUrl}" controls class="content-video"></video></div>`;
+    }
+    if (partType === 'url') {
+      const url = (p as any).url || '';
+      const safeUrl = escapeHtml(url);
+      if (isImageUrl(url)) {
+        return `<div class="media-gallery__item"><img src="${safeUrl}" alt="Image" class="content-image" loading="lazy" draggable="false" /></div>`;
+      }
+      if (isVideoUrl(url)) {
+        return `<div class="media-gallery__item"><video src="${safeUrl}" controls class="content-video"></video></div>`;
+      }
+    }
+    // Direct type: 'image' or type: 'video' (e.g. some Fedi/API formats)
+    if ((partType === 'image' || partType === 'gifv') && renderOptions.showImages) {
+      const safeUrl = escapeHtml((p as any).url || (p as any).preview_url || '');
+      const alt = escapeHtml((p as any).description || (p as any).alt || 'Image');
+      return `<div class="media-gallery__item"><img src="${safeUrl}" alt="${alt}" class="content-image" loading="lazy" draggable="false" /></div>`;
+    }
+    if ((partType === 'video') && renderOptions.showVideos) {
+      const safeUrl = escapeHtml((p as any).url || '');
+      return `<div class="media-gallery__item"><video src="${safeUrl}" controls class="content-video"></video></div>`;
+    }
+    return '';
+  };
+
   // Generate HTML string for v-html rendering (like MonyContent)
   const formattedHTML = computed(() => {
     const parts = renderableContent.value;
-    
-    return parts.map(part => {
+    const chunks: string[] = [];
+    let i = 0;
+
+    // Group consecutive image/video parts into a single media grid (Misskey/federated inline media)
+    const renderPart = (part: MessagePart): string => {
       switch (part.type) {
         case 'text': {
           let text = escapeHtml(part.text || '');
@@ -451,7 +535,27 @@ export function useContentRenderer(
         default:
           return '';
       }
-    }).join('');
+    };
+
+    // Loop: group consecutive viewable media into a single grid, or render other parts
+    while (i < parts.length) {
+      const part = parts[i];
+      if (isViewableMediaPart(part)) {
+        const mediaGroup: MessagePart[] = [];
+        while (i < parts.length && isViewableMediaPart(parts[i])) {
+          mediaGroup.push(parts[i]);
+          i++;
+        }
+        const count = Math.min(mediaGroup.length, 4);
+        const gridClass = `media-gallery media-gallery-count-${count}`;
+        const itemsHtml = mediaGroup.map(p => renderMediaItemHtml(p)).join('');
+        chunks.push(`<div class="${gridClass}">${itemsHtml}</div>`);
+      } else {
+        chunks.push(renderPart(part));
+        i++;
+      }
+    }
+    return chunks.join('');
   });
 
   // Event handlers

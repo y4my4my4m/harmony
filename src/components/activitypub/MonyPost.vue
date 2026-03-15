@@ -150,8 +150,8 @@
             </div>
             
             <div class="quoted-post-content">
-              <MonyContent 
-                :content="displayContent" 
+              <MonyContent
+                :content="contentForMonyContent"
                 @user-mention-click="handleMentionClick"
                 @hashtag-click="handleHashtagClick"
                 @image-click="handleImageClick"
@@ -171,8 +171,8 @@
         <div v-else>
           <!-- Text Content -->
           <div class="post-text">
-            <MonyContent 
-              :content="displayContent" 
+            <MonyContent
+              :content="contentForMonyContent"
               @user-mention-click="handleMentionClick"
               @hashtag-click="handleHashtagClick"
               @image-click="handleImageClick"
@@ -826,6 +826,54 @@ const displayMediaAttachments = computed(() => {
     }
     return { ...m, id: m.id || `m-${idx}`, url, type };
   }).filter(Boolean);
+});
+
+// Content for MonyContent: when we have media_attachments, exclude file/image parts from content
+// so they're only shown once in MonyMediaGallery (which has the lightbox). Federated posts often
+// have media in content only (no media_attachments) — then we show them in MonyContent's grid.
+const contentForMonyContent = computed(() => {
+  const content = displayContent.value;
+  const mediaAttachments = displayMediaAttachments.value;
+  if (!content || !Array.isArray(content)) return content;
+  if (mediaAttachments.length === 0) return content;
+
+  // Build set of media URLs (normalized) so we filter content parts that duplicate attachments.
+  // Normalize: strip query string, use pathname for matching (handles protocol/host differences).
+  const normalizeUrl = (url: string) => {
+    try {
+      const u = url.split('?')[0];
+      const path = u.includes('/') ? u.replace(/^[^/]*\/\/[^/]+/, '') : u;
+      return path || u;
+    } catch {
+      return url;
+    }
+  };
+  const mediaUrlPaths = new Set(
+    mediaAttachments
+      .map((m: any) => (m.url || m.remote_url || m.href) && normalizeUrl(String(m.url || m.remote_url || m.href)))
+      .filter(Boolean)
+  );
+
+  const isMediaPartOrDuplicate = (p: any): boolean => {
+    const partUrl = p?.url;
+    if (partUrl && (mediaUrlPaths.has(normalizeUrl(partUrl)) || mediaUrlPaths.has(partUrl))) return true;
+    const t = String(p?.type || '').toLowerCase();
+    if (t === 'file') {
+      const ft = p?.fileType || p?.file_type || '';
+      if (ft === 'image' || ft === 'video' || ft === 'audio') return true;
+      const mt = (p?.mimeType || p?.mime_type || p?.mediaType || p?.media_type || '').toLowerCase();
+      if (mt.startsWith('image/') || mt.startsWith('video/') || mt.includes('gif')) return true;
+      if (partUrl && /\.(jpe?g|png|gif|webp|avif|mp4|webm|ogv|mov)(\?|$)/i.test(partUrl)) return true;
+      return false;
+    }
+    if (t === 'image' || t === 'video' || t === 'gifv') return true;
+    if (t === 'url' && partUrl) {
+      return /\.(jpg|jpeg|png|gif|webp|svg|bmp|ico)(\?|$)/i.test(partUrl) ||
+        /\.(mp4|webm|ogg|avi|mov|wmv|flv|m4v)(\?|$)/i.test(partUrl);
+    }
+    return false;
+  };
+  return content.filter((p: any) => !isMediaPartOrDuplicate(p));
 });
 
 const displayContentWarning = computed(() => {
