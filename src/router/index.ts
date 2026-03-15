@@ -37,6 +37,12 @@ const router = createRouter({
       meta: { requiresAuth: false }
     },
     {
+      path: '/logout',
+      name: 'Logout',
+      component: () => import('@/views/LogoutView.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
       path: '/invite/:code',
       name: 'InviteAccept',
       component: () => import('@/components/InviteAccept.vue'),

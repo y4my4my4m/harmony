@@ -45,6 +45,11 @@
     "login": "Login",
     "register": "Register",
     "logout": "Logout",
+    "logoutConfirm": {
+      "title": "Log out from this device?",
+      "description": "You will need to sign in again to access your account.",
+      "cancel": "Cancel"
+    },
     "email": "Email",
     "password": "Password",
     "confirmPassword": "Confirm Password",
