@@ -1859,7 +1859,7 @@ BEGIN
                     IF content_part->>'type' = 'mention' THEN
                         mentioned_username := content_part->>'username';
                         
-                        IF (content_part->>'isLocal')::boolean = true THEN
+                        IF content_part->>'isLocal' = 'true' THEN
                             SELECT id INTO mentioned_user_id
                             FROM profiles 
                             WHERE username = mentioned_username 

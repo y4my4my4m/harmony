@@ -323,6 +323,7 @@ import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { debug } from '@/utils/debug'
 import { useI18n } from 'vue-i18n';
 import { useProfileStore } from '@/stores/useProfile';
+import { useInstanceSettingsStore } from '@/stores/useInstanceSettings';
 import type { TimelinePost, Post, FederatedUser } from '@/types';
 
 // Composables

@@ -1781,7 +1781,7 @@ BEGIN
   INSERT INTO public.remote_emojis_cache (
     shortcode, origin_domain, full_code, url, static_url, category, is_animated
   ) VALUES (
-    p_shortcode, p_origin_domain, p_full_code, p_url, p_static_url, p_category, COALESCE(p_is_animated, false)
+    p_shortcode, p_origin_domain, p_full_code, p_url, p_static_url, p_category, p_is_animated
   )
   ON CONFLICT (shortcode, origin_domain) DO UPDATE SET
     url = EXCLUDED.url,
