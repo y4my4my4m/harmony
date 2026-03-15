@@ -2,6 +2,7 @@
 <template>
   <div 
     v-if="mediaAttachments && mediaAttachments.length > 0" 
+    ref="galleryRef"
     class="media-gallery"
     :class="galleryClass"
   >
@@ -9,7 +10,8 @@
       v-for="(media, index) in mediaAttachments"
       :key="media.id"
       class="media-item"
-      @click="openMedia(index)"
+      :class="{ 'media-item-clickable': shouldOpenLightbox(media) }"
+      @click.capture="handleMediaClick($event, index, media)"
     >
       <!-- Image -->
       <img
@@ -107,7 +109,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { debug } from '@/utils/debug'
 import type { MediaAttachment } from '@/types';
 import Icon from '@/components/common/Icon.vue';
@@ -123,10 +125,18 @@ const props = withDefaults(defineProps<Props>(), {
 });
 
 // State
+const galleryRef = ref<HTMLElement | null>(null);
 const showSensitive = ref(!props.isSensitive);
 const showAltText = ref(false);
 const showModal = ref(false);
 const currentMediaIndex = ref(0);
+
+// Pause all gallery videos when lightbox opens to avoid double audio
+watch(showModal, (visible) => {
+  if (visible && galleryRef.value) {
+    galleryRef.value.querySelectorAll<HTMLVideoElement>('video').forEach((v) => v.pause());
+  }
+});
 
 // Computed
 const galleryClass = computed(() => {
@@ -153,6 +163,16 @@ function isVideoUrl(url: string): boolean {
 }
 
 // Prepare items for MediaLightbox (images + videos)
+const viewableCount = computed(() =>
+  props.mediaAttachments.filter(
+    (m) =>
+      m.type === 'image' ||
+      m.type === 'video' ||
+      m.type === 'gifv' ||
+      (m.type === 'unknown' && isVideoUrl(m.url))
+  ).length
+);
+
 const lightboxImages = computed(() => {
   return props.mediaAttachments
     .filter(media => media.type === 'image' || media.type === 'video' || media.type === 'gifv' || (media.type === 'unknown' && isVideoUrl(media.url)))
@@ -163,7 +183,8 @@ const lightboxImages = computed(() => {
         return {
           src: media.url,
           type: 'video',
-          poster: media.preview_url
+          poster: media.preview_url,
+          isGifv: media.type === 'gifv'
         };
       }
       return media.url;
@@ -197,21 +218,41 @@ const handleVideoError = (event: Event) => {
   debug.warn('Failed to load video:', video.src);
 };
 
+function isViewableMedia(media: MediaAttachment): boolean {
+  return media.type === 'image' || media.type === 'video' || media.type === 'gifv' || (media.type === 'unknown' && isVideoUrl(media.url));
+}
+
+function isVideoMedia(media: MediaAttachment): boolean {
+  return media.type === 'video' || media.type === 'gifv' || (media.type === 'unknown' && isVideoUrl(media.url));
+}
+
+function shouldOpenLightbox(media: MediaAttachment): boolean {
+  if (!isViewableMedia(media)) return false;
+  // Single video: play in place, no lightbox
+  if (viewableCount.value === 1 && isVideoMedia(media)) return false;
+  return true;
+}
+
+function handleMediaClick(e: MouseEvent, index: number, media: MediaAttachment) {
+  if (!isViewableMedia(media)) return;
+  // Single video: don't open lightbox, let the video play in place
+  if (viewableCount.value === 1 && isVideoMedia(media)) return;
+  e.preventDefault();
+  e.stopPropagation();
+  openMedia(index);
+}
+
 const openMedia = (index: number) => {
   const media = props.mediaAttachments[index];
-  const isViewable = media.type === 'image' || media.type === 'video' || media.type === 'gifv' || (media.type === 'unknown' && isVideoUrl(media.url));
-  if (isViewable) {
-    // Find the corresponding index in the lightbox images array
-    let lightboxIndex = 0;
-    for (let i = 0; i < index; i++) {
-      const m = props.mediaAttachments[i];
-      if (m.type === 'image' || m.type === 'video' || m.type === 'gifv' || (m.type === 'unknown' && isVideoUrl(m.url))) {
-        lightboxIndex++;
-      }
-    }
-    currentMediaIndex.value = lightboxIndex;
-    showModal.value = true;
+  if (!isViewableMedia(media)) return;
+  // Find the corresponding index in the lightbox images array
+  let lightboxIndex = 0;
+  for (let i = 0; i < index; i++) {
+    const m = props.mediaAttachments[i];
+    if (isViewableMedia(m)) lightboxIndex++;
   }
+  currentMediaIndex.value = lightboxIndex;
+  showModal.value = true;
 };
 
 const closeModal = () => {
@@ -259,11 +300,14 @@ const closeModal = () => {
   position: relative;
   background: var(--h-chat, #313338);
   overflow: hidden;
-  cursor: pointer;
   transition: opacity 0.2s;
 }
 
-.media-item:hover {
+.media-item-clickable {
+  cursor: pointer;
+}
+
+.media-item-clickable:hover {
   opacity: 0.9;
 }
 
