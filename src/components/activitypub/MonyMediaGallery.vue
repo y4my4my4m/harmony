@@ -106,15 +106,19 @@
     :visible="showModal"
     :imgs="lightboxImages"
     :index="currentMediaIndex"
-    :move-disabled="currentLightboxIsVideo"
-    :zoom-disabled="currentLightboxIsVideo"
-    :rotate-disabled="currentLightboxIsVideo"
-    :dblclick-disabled="currentLightboxIsVideo"
     @hide="closeModal"
     @on-index-change="onLightboxIndexChange"
-  />
+  >
+    <!-- Custom toolbar for video: our own zoom/rotate that directly transform the video -->
+    <template v-if="currentLightboxIsVideo" #toolbar>
+      <button class="toolbar-btn" @click="videoZoomIn"><Icon name="zoom-in" :size="18" /></button>
+      <button class="toolbar-btn" @click="videoZoomOut"><Icon name="zoom-out" :size="18" /></button>
+      <button class="toolbar-btn" @click="videoRotateLeft"><Icon name="rotate-ccw" :size="18" /></button>
+      <button class="toolbar-btn" @click="videoRotateRight"><Icon name="rotate-cw" :size="18" /></button>
+    </template>
+  </vue-easy-lightbox>
 
-  <!-- Video overlay: shown on top of vue-easy-lightbox when current item is a video -->
+  <!-- Video overlay: centered on top of vue-easy-lightbox when current item is a video -->
   <Teleport to="body">
     <Transition name="vel-fade">
       <div
@@ -127,12 +131,16 @@
           :src="currentVideoSrc"
           :poster="currentVideoPoster"
           class="video-lightbox-player"
+          :style="{ transform: videoTransformStyle }"
           controls
           autoplay
           preload="auto"
           playsinline
           :muted="videoMuted"
           @volumechange="onVideoVolumeChange"
+          @loadeddata="onVideoLoadedData"
+          @wheel.prevent="onVideoWheel"
+          @dblclick.prevent="onVideoDblClick"
         >
           Your browser does not support the video tag.
         </video>
@@ -142,7 +150,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch, onUnmounted } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { debug } from '@/utils/debug'
 import type { MediaAttachment } from '@/types';
 import Icon from '@/components/common/Icon.vue';
@@ -167,6 +175,7 @@ const showAltText = ref(false);
 const showModal = ref(false);
 const currentMediaIndex = ref(0);
 const videoMuted = ref(localStorage.getItem(MUTE_KEY) === 'true');
+const videoPositions = new Map<string, number>();
 
 // Pause all gallery videos when lightbox opens to avoid double audio
 watch(showModal, (visible) => {
@@ -182,8 +191,71 @@ function onVideoVolumeChange() {
   }
 }
 
-function onLightboxIndexChange(_old: number, newIdx: number) {
+// -- Playback position persistence --
+
+function saveCurrentVideoPosition() {
+  const video = lightboxVideoRef.value;
+  const src = currentVideoSrc.value;
+  if (video && src && !isNaN(video.currentTime) && video.currentTime > 0) {
+    videoPositions.set(src, video.currentTime);
+  }
+}
+
+function onVideoLoadedData() {
+  const video = lightboxVideoRef.value;
+  const src = currentVideoSrc.value;
+  if (video && src) {
+    const saved = videoPositions.get(src);
+    if (saved !== undefined && saved > 0) {
+      video.currentTime = saved;
+    }
+  }
+}
+
+function onLightboxIndexChange(_oldIdx: number, newIdx: number) {
+  saveCurrentVideoPosition();
+  resetVideoTransforms();
   currentMediaIndex.value = newIdx;
+}
+
+// -- Video transform controls (self-contained zoom/rotate applied directly to the video) --
+
+const videoZoom = ref(1);
+const videoRotation = ref(0);
+
+const videoTransformStyle = computed(() => {
+  if (videoZoom.value === 1 && videoRotation.value === 0) return '';
+  return `scale(${videoZoom.value}) rotate(${videoRotation.value}deg)`;
+});
+
+function videoZoomIn() {
+  videoZoom.value = Math.min(videoZoom.value * 1.25, 10);
+}
+function videoZoomOut() {
+  videoZoom.value = Math.max(videoZoom.value / 1.25, 0.1);
+}
+function videoRotateLeft() {
+  videoRotation.value -= 90;
+}
+function videoRotateRight() {
+  videoRotation.value += 90;
+}
+function resetVideoTransforms() {
+  videoZoom.value = 1;
+  videoRotation.value = 0;
+}
+
+function onVideoWheel(e: WheelEvent) {
+  const factor = e.deltaY < 0 ? 1.1 : 1 / 1.1;
+  videoZoom.value = Math.max(0.1, Math.min(10, videoZoom.value * factor));
+}
+
+function onVideoDblClick() {
+  if (videoZoom.value !== 1) {
+    resetVideoTransforms();
+  } else {
+    videoZoom.value = 2;
+  }
 }
 
 // Computed
@@ -206,7 +278,6 @@ function isVideoUrl(url: string): boolean {
   return /\.(mp4|webm|ogv|mov|gif)(\?|$)/i.test(url);
 }
 
-// Prepare items for MediaLightbox (images + videos)
 const viewableCount = computed(() =>
   props.mediaAttachments.filter(
     (m) =>
@@ -217,14 +288,12 @@ const viewableCount = computed(() =>
   ).length
 );
 
-// Viewable media items with their original data preserved for video overlay
 const viewableMedia = computed(() =>
   props.mediaAttachments.filter(
     (m) => m.type === 'image' || m.type === 'video' || m.type === 'gifv' || (m.type === 'unknown' && isVideoUrl(m.url))
   )
 );
 
-// For vue-easy-lightbox: pass poster/preview for videos so it shows a thumbnail (no error state)
 const lightboxImages = computed(() =>
   viewableMedia.value.map((media) => {
     if (isVideoMedia(media)) {
@@ -234,7 +303,6 @@ const lightboxImages = computed(() =>
   })
 );
 
-// Video overlay state
 const currentLightboxIsVideo = computed(() => {
   const media = viewableMedia.value[currentMediaIndex.value];
   return media ? isVideoMedia(media) : false;
@@ -249,12 +317,6 @@ const currentVideoPoster = computed(() => {
   const media = viewableMedia.value[currentMediaIndex.value];
   return media?.preview_url;
 });
-
-// Hide lightbox toolbar when video overlay is active (zoom/rotate don't apply to video)
-watch([showModal, currentLightboxIsVideo], ([visible, isVideo]) => {
-  document.body.classList.toggle('vel-video-active', !!(visible && isVideo));
-});
-onUnmounted(() => document.body.classList.remove('vel-video-active'));
 
 // Methods
 const formatFileSize = (bytes?: number): string => {
@@ -293,14 +355,12 @@ function isVideoMedia(media: MediaAttachment): boolean {
 
 function shouldOpenLightbox(media: MediaAttachment): boolean {
   if (!isViewableMedia(media)) return false;
-  // Single video: play in place, no lightbox
   if (viewableCount.value === 1 && isVideoMedia(media)) return false;
   return true;
 }
 
 function handleMediaClick(e: MouseEvent, index: number, media: MediaAttachment) {
   if (!isViewableMedia(media)) return;
-  // Single video: don't open lightbox, let the video play in place
   if (viewableCount.value === 1 && isVideoMedia(media)) return;
   e.preventDefault();
   e.stopPropagation();
@@ -310,7 +370,6 @@ function handleMediaClick(e: MouseEvent, index: number, media: MediaAttachment) 
 const openMedia = (index: number) => {
   const media = props.mediaAttachments[index];
   if (!isViewableMedia(media)) return;
-  // Find the corresponding index in the lightbox images array
   let lightboxIndex = 0;
   for (let i = 0; i < index; i++) {
     const m = props.mediaAttachments[i];
@@ -321,6 +380,8 @@ const openMedia = (index: number) => {
 };
 
 const closeModal = () => {
+  saveCurrentVideoPosition();
+  resetVideoTransforms();
   showModal.value = false;
 };
 </script>
@@ -511,7 +572,7 @@ const closeModal = () => {
   color: var(--text-primary);
 }
 
-/* Video overlay on top of vue-easy-lightbox (covers the poster image, lets chrome show through) */
+/* Video overlay: centered on top of lightbox, lets chrome (close, arrows, toolbar) show through */
 .video-lightbox-overlay {
   position: fixed;
   inset: 0;
@@ -528,6 +589,8 @@ const closeModal = () => {
   background: #000;
   box-shadow: 0 5px 20px 2px rgba(0, 0, 0, 0.7);
   pointer-events: auto;
+  transform-origin: center center;
+  transition: transform 0.3s ease;
 }
 
 /* Mobile responsiveness */
@@ -546,12 +609,5 @@ const closeModal = () => {
     max-width: 95vw;
     max-height: 85vh;
   }
-}
-</style>
-
-<style>
-/* Global (unscoped): hide lightbox toolbar when video overlay is active */
-body.vel-video-active .vel-toolbar {
-  display: none !important;
 }
 </style>
