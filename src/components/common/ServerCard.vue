@@ -76,9 +76,6 @@
         class="btn btn--primary btn--server-action"
         :disabled="isLoading"
       >
-        <svg viewBox="0 0 24 24" class="btn-icon">
-          <path d="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z" fill="currentColor"/>
-        </svg>
         <span v-if="!isLoading">{{ $t('server.join') }}</span>
         <span v-else>{{ $t('server.joining') }}</span>
       </button>
