@@ -1,24 +1,22 @@
 <template>
-    <svg class="MicIcon" aria-hidden="true" role="img" xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24">
-        <path class="MicIconPath" d="M12 2a4 4 0 0 0-4 4v4a4 4 0 0 0 8 0V6a4 4 0 0 0-4-4Z"></path>
-        <path class="MicIconPath" d="M6 10a1 1 0 0 0-2 0 8 8 0 0 0 7 7.94V20H9a1 1 0 1 0 0 2h6a1 1 0 1 0 0-2h-2v-2.06A8 8 0 0 0 20 10a1 1 0 1 0-2 0 6 6 0 0 1-12 0Z"></path>
-    </svg>
+  <svg class="icon-component" width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+    <!-- Material filled mic only (no slash) – capsule, stem, base -->
+    <path d="M12 2a3 3 0 0 1 3 3v6a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3zm0 14c1.66 0 3-1.34 3-3v-1H9v1c0 1.66 1.34 3 3 3zm5-3h-2c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92z"/>
+  </svg>
 </template>
 
-<script lang="ts">import { defineComponent} from 'vue';
+<script lang="ts">
+import { defineComponent } from 'vue';
 
 export default defineComponent({
-    name: 'MicIcon',
+  name: 'MicIcon',
 });
 </script>
 
 <style scoped>
-    .MicIcon .MicIconPath {
-        fill: #aaa;
-        transition: .2s;
-        cursor:pointer;
-    }
-    .MicIcon:hover .MicIconPath {
-        fill: #fff;
-    }
+.icon-component {
+  color: currentColor;
+  transition: color 0.2s;
+  cursor: pointer;
+}
 </style>

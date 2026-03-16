@@ -96,7 +96,7 @@ defineEmits<Emits>()
 .info-icon {
   width: 20px;
   height: 20px;
-  color: rgba(88, 101, 242, 0.7);
+  color: rgba(14, 165, 233, 0.7);
 }
 
 .info-text {

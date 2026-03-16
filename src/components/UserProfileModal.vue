@@ -46,11 +46,11 @@
         <template v-if="isInServerContext && !isCurrentUser">
           <div class="action-divider"></div>
           <div v-if="canKick" class="action-item danger" @click="openKickModal">
-            <Icon name="log-out" class="action-item-icon" />
+            <Icon name="door-open" class="action-item-icon" :size="16" />
             Kick from Server
           </div>
           <div v-if="canBan" class="action-item danger" @click="openBanModal">
-            <Icon name="ban" class="action-item-icon" />
+            <Icon name="user-x" class="action-item-icon" :size="16" />
             Ban from Server
           </div>
         </template>
@@ -755,7 +755,7 @@ const bannerStyle = computed(() => {
     }
   }
   return {
-    background: userColor.value || '#5865f2'
+    background: userColor.value || '#0EA5E9'
   }
 })
 
@@ -1235,7 +1235,7 @@ onMounted(() => {
 .profile-banner {
   position: relative;
   height: 120px;
-  background: linear-gradient(135deg, #5865f2, #616ae5);
+  background: linear-gradient(135deg, #0EA5E9, #38BDF8);
   overflow: hidden;
 }
 
@@ -1278,8 +1278,8 @@ onMounted(() => {
 }
 
 .action-button.active {
-  background: rgba(88, 101, 242, 0.8);
-  border-color: #5865f2;
+  background: rgba(14, 165, 233, 0.8);
+  border-color: #0EA5E9;
 }
 
 .action-icon,
@@ -1374,7 +1374,7 @@ onMounted(() => {
   height: 80px;
   border-radius: 50%;
   border: 6px solid  var(--background-quinary);
-  background: #36393f;
+  background: var(--background-secondary);
   object-fit: cover;
 }
 
@@ -1464,8 +1464,8 @@ onMounted(() => {
   display: inline-flex;
   align-items: center;
   padding: 0 2px;
-  background: rgba(88, 101, 242, 0.2);
-  border: 1px solid rgba(88, 101, 242, 0.3);
+  background: rgba(14, 165, 233, 0.2);
+  border: 1px solid rgba(14, 165, 233, 0.3);
   border-radius: 6px;
   font-size: 11px;
   font-weight: 600;
@@ -1550,12 +1550,12 @@ onMounted(() => {
 }
 
 .stat-item.clickable:hover {
-  background: rgba(88, 101, 242, 0.15);
+  background: rgba(14, 165, 233, 0.15);
   transform: scale(1.05);
 }
 
 .stat-item.clickable:hover .stat-value {
-  color: #5865f2;
+  color: #0EA5E9;
 }
 
 .stat-value {
@@ -1588,7 +1588,7 @@ onMounted(() => {
 .section-icon {
   width: 16px;
   height: 16px;
-  color: #5865f2;
+  color: #0EA5E9;
 }
 
 .bio-section {
@@ -1690,13 +1690,13 @@ onMounted(() => {
 }
 
 .activity-card.clickable:hover {
-  background: rgba(88, 101, 242, 0.1);
-  border-color: rgba(88, 101, 242, 0.3);
+  background: rgba(14, 165, 233, 0.1);
+  border-color: rgba(14, 165, 233, 0.3);
   transform: translateY(-1px);
 }
 
 .activity-card.clickable:hover .activity-icon {
-  background: rgba(88, 101, 242, 0.3);
+  background: rgba(14, 165, 233, 0.3);
 }
 
 .activity-icon {
@@ -1705,9 +1705,9 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(88, 101, 242, 0.2);
+  background: rgba(14, 165, 233, 0.2);
   border-radius: 8px;
-  color: #5865f2;
+  color: #0EA5E9;
   flex-shrink: 0;
 }
 
@@ -1770,7 +1770,7 @@ onMounted(() => {
 }
 
 .federation-link {
-  color: #5865f2;
+  color: #0EA5E9;
   text-decoration: none;
   font-weight: 600;
 }
@@ -1841,12 +1841,12 @@ onMounted(() => {
 
 .note-input:focus {
   outline: none;
-  border-color: #5865f2;
+  border-color: #0EA5E9;
   background: rgba(255, 255, 255, 0.04);
 }
 
 .note-input::placeholder {
-  color: #72767d;
+  color: var(--text-muted);
 }
 
 .note-counter {
@@ -1854,7 +1854,7 @@ onMounted(() => {
   bottom: 8px;
   right: 8px;
   font-size: 10px;
-  color: #72767d;
+  color: var(--text-muted);
   pointer-events: none;
 }
 
@@ -1891,9 +1891,9 @@ onMounted(() => {
 }
 
 .primary-action-btn {
-  background: linear-gradient(135deg, #5865f2, #4752c4);
+  background: linear-gradient(135deg, #0EA5E9, #0284C7);
   color: var(--text-primary);
-  box-shadow: 0 2px 8px rgba(88, 101, 242, 0.3);
+  box-shadow: 0 2px 8px rgba(14, 165, 233, 0.3);
 }
 
 
@@ -1904,7 +1904,7 @@ onMounted(() => {
 
 .primary-action-btn:hover {
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(88, 101, 242, 0.4);
+  box-shadow: 0 4px 12px rgba(14, 165, 233, 0.4);
 }
 
 .primary-action-btn.following:hover {
@@ -1943,6 +1943,7 @@ onMounted(() => {
 /* Server invite picker */
 .invite-btn-wrapper {
   position: relative;
+  display: flex;
 }
 
 .server-picker-dropdown {

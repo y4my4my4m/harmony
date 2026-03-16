@@ -1033,7 +1033,7 @@ export default defineComponent({
 }
 
 .text-content :deep(.md-code) {
-  background-color: #2f3136;
+  background-color: var(--background-tertiary);
   border-radius: 3px;
   padding: 2px 4px;
   font-family: 'Monaco', 'Consolas', 'Courier New', monospace;
@@ -1234,7 +1234,7 @@ export default defineComponent({
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
-  background-color: #2f3136;
+  background-color: var(--background-tertiary);
   border-radius: 8px;
   margin: 4px 0;
   max-width: 400px;
@@ -1361,14 +1361,14 @@ export default defineComponent({
 }
 
 .system-username:hover {
-  color: #5865f2;
+  color: #0EA5E9;
   text-decoration: underline;
 }
 
 /* Mention styling */
 .mention {
-  color: #5865f2;
-  background-color: rgba(88, 101, 242, 0.15);
+  color: #0EA5E9;
+  background-color: rgba(14, 165, 233, 0.15);
   border-radius: 3px;
   padding: 0 2px;
   cursor: pointer;
@@ -1381,13 +1381,13 @@ export default defineComponent({
 }
 
 .mention:hover {
-  background-color: rgba(88, 101, 242, 0.3);
+  background-color: rgba(14, 165, 233, 0.3);
   text-decoration: underline;
 }
 
 /* Discord bridged mentions */
 .mention.discord-mention {
-  background-color: rgba(88, 101, 242, 0.2);
+  background-color: rgba(14, 165, 233, 0.2);
   padding: 0 4px;
 }
 

@@ -359,7 +359,7 @@ const formatDate = (dateString: string | undefined): string => {
 
 .stat-label {
   font-size: 12px;
-  color: #72767d;
+  color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.02em;
   margin-bottom: 4px;
@@ -556,7 +556,7 @@ const formatDate = (dateString: string | undefined): string => {
 
 .confirmation-input:focus {
   outline: none;
-  border-color: #5865f2;
+  border-color: #0EA5E9;
 }
 
 .confirmation-input.error {

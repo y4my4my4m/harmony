@@ -268,7 +268,7 @@ const loadServerRoles = async (): Promise<ServerRole[]> => {
   // This would typically fetch from your roles API
   // For now, return mock data
   return [
-    { id: '1', name: 'Moderator', color: '#5865f2', member_count: 5 },
+    { id: '1', name: 'Moderator', color: '#0EA5E9', member_count: 5 },
     { id: '2', name: 'Trusted Member', color: '#57f287', member_count: 12 },
     { id: '3', name: 'Member', color: '#b5bac1', member_count: 48 }
   ]
@@ -414,7 +414,7 @@ watch(() => props.serverId, () => {
   width: 20px;
   height: 20px;
   margin: 2px 0 0 0;
-  accent-color: #5865f2;
+  accent-color: #0EA5E9;
 }
 
 .radio-content {
@@ -496,7 +496,7 @@ watch(() => props.serverId, () => {
 .role-checkbox input[type="checkbox"] {
   width: 16px;
   height: 16px;
-  accent-color: #5865f2;
+  accent-color: #0EA5E9;
 }
 
 .role-info {
@@ -555,7 +555,7 @@ watch(() => props.serverId, () => {
 
 .setting-select:focus {
   outline: none;
-  border-color: #5865f2;
+  border-color: #0EA5E9;
   background: rgba(255, 255, 255, 0.06);
 }
 
@@ -661,13 +661,13 @@ watch(() => props.serverId, () => {
 }
 
 .action-button.primary {
-  background: linear-gradient(135deg, #5865f2, #4752c4);
+  background: linear-gradient(135deg, #0EA5E9, #0284C7);
   color: var(--text-primary);
 }
 
 .action-button.primary:hover:not(:disabled) {
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(88, 101, 242, 0.3);
+  box-shadow: 0 4px 12px rgba(14, 165, 233, 0.3);
 }
 
 .button-icon {

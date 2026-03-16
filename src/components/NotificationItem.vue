@@ -497,16 +497,16 @@ const typeIcon = computed(() => {
 
 .notification-item--clickable:focus {
   outline: none;
-  background: rgba(88, 101, 242, 0.1);
+  background: rgba(14, 165, 233, 0.1);
   box-shadow: inset 3px 0 0 var(--h-brand);
 }
 
 .notification-item--unread {
-  background: rgba(88, 101, 242, 0.04);
+  background: rgba(14, 165, 233, 0.04);
 }
 
 .notification-item--unread.notification-item--clickable:hover {
-  background: rgba(88, 101, 242, 0.08);
+  background: rgba(14, 165, 233, 0.08);
 }
 
 .notification-item--hovering .hover-gradient {
@@ -536,7 +536,7 @@ const typeIcon = computed(() => {
 .indicator--dm,
 .indicator--chat_message,
 .indicator--activitypub_dm {
-  background: linear-gradient(180deg, #616ae5, #5865f2);
+  background: linear-gradient(180deg, #38BDF8, #0EA5E9);
 }
 
 .indicator--reaction,
@@ -586,8 +586,8 @@ const typeIcon = computed(() => {
 }
 
 .notification-item--unread .avatar-image {
-  border-color: rgba(88, 101, 242, 0.3);
-  box-shadow: 0 0 0 2px rgba(88, 101, 242, 0.1);
+  border-color: rgba(14, 165, 233, 0.3);
+  box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.1);
 }
 
 .type-icon-overlay {
@@ -615,8 +615,8 @@ const typeIcon = computed(() => {
 .overlay--dm svg,
 .overlay--chat_message svg,
 .overlay--activitypub_dm svg{
-  /* background: linear-gradient(135deg, #616ae5, #5865f2); */
-  fill: #616ae5;
+  /* background: linear-gradient(135deg, #38BDF8, #0EA5E9); */
+  fill: #38BDF8;
   stroke: #d5d8e6;
 }
 
@@ -678,7 +678,7 @@ const typeIcon = computed(() => {
   right: -2px;
   width: 12px;
   height: 12px;
-  background: radial-gradient(circle, rgba(88, 101, 242, 0.8) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(14, 165, 233, 0.8) 0%, transparent 70%);
   border-radius: 50%;
   animation: notification-pulse 2s ease-in-out infinite;
 }
@@ -737,7 +737,7 @@ const typeIcon = computed(() => {
   align-items: center;
   gap: 6px;
   font-size: 11px;
-  color: #72767d;
+  color: var(--text-muted);
   line-height: 1;
 }
 
@@ -756,7 +756,7 @@ const typeIcon = computed(() => {
 
 .server-name {
   font-weight: 500;
-  color: #616ae5;
+  color: #38BDF8;
 }
 
 /* Actions */
@@ -782,7 +782,7 @@ const typeIcon = computed(() => {
   border: none;
   border-radius: 4px;
   background: transparent;
-  color: #72767d;
+  color: var(--text-muted);
   cursor: pointer;
   transition: all 0.2s ease;
 }
@@ -797,7 +797,7 @@ const typeIcon = computed(() => {
 }
 
 .read-toggle.active:hover {
-  background: rgba(88, 101, 242, 0.15);
+  background: rgba(14, 165, 233, 0.15);
 }
 
 .dismiss-btn:hover {
@@ -839,7 +839,7 @@ const typeIcon = computed(() => {
   background: var(--background-quaternary, rgba(79, 84, 92, 0.3));
   border-radius: 6px;
   padding: 8px 10px;
-  border-left: 3px solid rgba(88, 101, 242, 0.5);
+  border-left: 3px solid rgba(14, 165, 233, 0.5);
 }
 
 .preview-content {
@@ -861,11 +861,11 @@ const typeIcon = computed(() => {
 
 .channel-name {
   font-weight: 600;
-  color: #616ae5;
+  color: #38BDF8;
 }
 
 .in-server {
-  color: #72767d;
+  color: var(--text-muted);
 }
 
 .reaction-display {
@@ -956,16 +956,16 @@ const typeIcon = computed(() => {
 
 .quick-action-btn.reply,
 .quick-action-btn.jump {
-  background: linear-gradient(135deg, rgba(88, 101, 242, 0.15), rgba(88, 101, 242, 0.25));
+  background: linear-gradient(135deg, rgba(14, 165, 233, 0.15), rgba(14, 165, 233, 0.25));
   color: var(--h-brand);
-  border: 1px solid rgba(88, 101, 242, 0.3);
+  border: 1px solid rgba(14, 165, 233, 0.3);
 }
 
 .quick-action-btn.reply:hover,
 .quick-action-btn.jump:hover {
-  background: linear-gradient(135deg, rgba(88, 101, 242, 0.25), rgba(88, 101, 242, 0.35));
+  background: linear-gradient(135deg, rgba(14, 165, 233, 0.25), rgba(14, 165, 233, 0.35));
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(88, 101, 242, 0.2);
+  box-shadow: 0 4px 12px rgba(14, 165, 233, 0.2);
 }
 
 .quick-action-icon {
@@ -977,7 +977,7 @@ const typeIcon = computed(() => {
 .hover-gradient {
   position: absolute;
   inset: 0;
-  background: linear-gradient(90deg, transparent, rgba(88, 101, 242, 0.03), transparent);
+  background: linear-gradient(90deg, transparent, rgba(14, 165, 233, 0.03), transparent);
   opacity: 0;
   transition: opacity 0.3s ease;
   pointer-events: none;
@@ -1006,7 +1006,7 @@ const typeIcon = computed(() => {
 
 .notification-item--dm.notification-item--unread,
 .notification-item--chat_message.notification-item--unread {
-  border-left-color: #616ae5;
+  border-left-color: #38BDF8;
 }
 
 .notification-item--reaction.notification-item--unread {

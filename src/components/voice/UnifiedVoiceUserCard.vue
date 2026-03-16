@@ -625,7 +625,7 @@ watch(
 <style scoped>
 .harmony-voice-card {
   position: relative;
-  background: linear-gradient(145deg, #2f3136, #36393f);
+  background: linear-gradient(145deg, var(--background-tertiary), var(--background-secondary));
   border-radius: 16px;
   padding: 16px;
   border: 2px solid transparent;
@@ -664,7 +664,7 @@ watch(
 
 /* Self user */
 .harmony-voice-card.self {
-  border-color: #5865f2;
+  border-color: #0EA5E9;
   background: linear-gradient(145deg, #1e2140, #2a2d50);
 }
 
@@ -767,7 +767,7 @@ watch(
 
 .pip-toggle-btn.active {
   background: var(--harmony-primary);
-  border-color: #5865f2;
+  border-color: #0EA5E9;
   color: var(--text-primary);
 }
 
@@ -791,7 +791,7 @@ watch(
 
 .connection-bars span {
   width: 3px;
-  background: #40444b;
+  background: var(--h-black-lighter);
   border-radius: 1px;
   transition: all 0.3s ease;
 }
@@ -847,9 +847,9 @@ watch(
 }
 
 .control-btn.active {
-  background: linear-gradient(145deg, #5865f2, #4752c4);
-  border-color: rgba(88, 101, 242, 0.6);
-  box-shadow: 0 2px 8px rgba(88, 101, 242, 0.4);
+  background: linear-gradient(145deg, #0EA5E9, #0284C7);
+  border-color: rgba(14, 165, 233, 0.6);
+  box-shadow: 0 2px 8px rgba(14, 165, 233, 0.4);
 }
 
 /* Avatar Container */
@@ -872,7 +872,7 @@ watch(
   width: 82px;
   height: 82px;
   border-radius: 50%;
-  background: linear-gradient(145deg, #40444b, #2f3136);
+  background: linear-gradient(145deg, var(--h-black-lighter), var(--background-tertiary));
   transition: all 0.3s ease;
   padding: 4px;
   display: flex;
@@ -944,7 +944,7 @@ watch(
   align-items: center;
   justify-content: center;
   font-size: 10px;
-  border: 2px solid #2f3136;
+  border: 2px solid var(--background-tertiary);
   color: var(--text-primary);
 }
 

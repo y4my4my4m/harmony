@@ -14,7 +14,7 @@
     >
       <!-- Bell Icon with Glow Effect -->
       <div class="bell-icon-wrapper">
-        <svg class="bell-icon" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+        <svg class="bell-icon" width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
           <path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/>
         </svg>
         
@@ -67,9 +67,7 @@
                   :disabled="isMarkingAllAsRead"
                   :aria-label="'Mark all notifications as read'"
                 >
-                  <svg v-if="!isMarkingAllAsRead" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
-                  </svg>
+                  <Icon v-if="!isMarkingAllAsRead" name="check" :size="16" />
                   <div v-else class="loading-spinner"></div>
                   <span>Mark all read</span>
                 </button>
@@ -77,16 +75,12 @@
               
               <!-- Settings Button -->
               <button @click="openSettings" class="action-button settings-btn" aria-label="Notification settings">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.07-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.74,8.87C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.82,11.69,4.82,12s0.02,0.64,0.07,0.94l-2.03,1.58c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.43-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.47-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/>
-                </svg>
+                <Icon name="settings" :size="16" />
               </button>
               
               <!-- Close Button -->
               <button @click="closePanel" class="action-button close-btn" aria-label="Close notifications">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
-                </svg>
+                <Icon name="x" :size="16" />
               </button>
             </div>
           </div>
@@ -109,7 +103,12 @@
                 class="filter-tab"
                 :class="{ active: activeFilter === filter.key }"
               >
-                <span class="filter-icon">{{ filter.icon }}</span>
+                <Icon
+                  :name="filter.icon"
+                  class="filter-icon"
+                  :class="{ 'filter-icon-unread': filter.key === 'unread' }"
+                  :size="14"
+                />
                 <span class="filter-label">{{ filter.label }}</span>
                 <span v-if="filter.count > 0" class="filter-count">{{ filter.count }}</span>
               </button>
@@ -193,6 +192,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useRouter } from 'vue-router'
 import { useLayoutState } from '@/composables/useLayoutState'
 import NotificationItem from './NotificationItem.vue'
+import Icon from '@/components/common/Icon.vue'
 import type { Notification } from '@/types'
 
 const notificationStore = useNotificationStore()
@@ -372,7 +372,7 @@ onUnmounted(() => {
 }
 
 .notification-bell:focus {
-  box-shadow: 0 0 0 3px rgba(88, 101, 242, 0.3);
+  box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.3);
 }
 
 .notification-bell.has-unread {
@@ -380,7 +380,7 @@ onUnmounted(() => {
 }
 
 .notification-bell.is-open {
-  background: rgba(88, 101, 242, 0.15);
+  background: rgba(14, 165, 233, 0.15);
   color: var(--h-brand);
 }
 
@@ -419,7 +419,7 @@ onUnmounted(() => {
   position: absolute;
   inset: -4px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(88, 101, 242, 0.4) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(14, 165, 233, 0.4) 0%, transparent 70%);
   animation: pulse 2s ease-in-out infinite;
 }
 
@@ -499,7 +499,7 @@ onUnmounted(() => {
 
 /* Panel header with gradient */
 .panel-header {
-  background: linear-gradient(135deg, var(--h-chat-darker) 0%, rgba(88, 101, 242, 0.1) 100%);
+  background: linear-gradient(135deg, var(--h-chat-darker) 0%, rgba(14, 165, 233, 0.1) 100%);
   padding: 20px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   position: relative;
@@ -752,7 +752,16 @@ onUnmounted(() => {
 .filter-tab.active {
   background: linear-gradient(135deg, var(--h-brand), #7c3aed);
   color: var(--text-primary);
-  box-shadow: 0 2px 8px rgba(88, 101, 242, 0.3);
+  box-shadow: 0 2px 8px rgba(14, 165, 233, 0.3);
+}
+
+.filter-icon {
+  flex-shrink: 0;
+  color: inherit;
+}
+
+.filter-icon-unread {
+  color: #ef4444;
 }
 
 .filter-count {

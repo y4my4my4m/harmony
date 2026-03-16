@@ -757,7 +757,7 @@ export default defineComponent({
 }
 
 .setting-value {
-  color: #5865f2;
+  color: #0EA5E9;
   font-weight: 600;
 }
 
@@ -774,7 +774,7 @@ export default defineComponent({
 
 .setting-select:focus {
   outline: none;
-  border-color: #5865f2;
+  border-color: #0EA5E9;
   background: rgba(255, 255, 255, 0.08);
 }
 
@@ -801,7 +801,7 @@ export default defineComponent({
   background: var(--harmony-primary);
   border-radius: 50%;
   cursor: pointer;
-  box-shadow: 0 2px 8px rgba(88, 101, 242, 0.3);
+  box-shadow: 0 2px 8px rgba(14, 165, 233, 0.3);
 }
 
 .volume-indicator {
@@ -809,7 +809,7 @@ export default defineComponent({
   top: 10px;
   left: 0;
   height: 6px;
-  background: linear-gradient(90deg, #00d4aa, #5865f2);
+  background: linear-gradient(90deg, #00d4aa, #0EA5E9);
   border-radius: 3px;
   pointer-events: none;
   transition: width 0.1s ease;
@@ -853,7 +853,7 @@ export default defineComponent({
 
 .setting-checkbox:checked + .checkbox-custom {
   background: var(--harmony-primary);
-  border-color: #5865f2;
+  border-color: #0EA5E9;
 }
 
 .setting-checkbox:checked + .checkbox-custom::after {
@@ -904,7 +904,7 @@ export default defineComponent({
 }
 
 .test-btn:hover {
-  background: #4752c4;
+  background: #0284C7;
 }
 
 .test-btn.active {
@@ -921,7 +921,7 @@ export default defineComponent({
 
 .test-level {
   height: 100%;
-  background: linear-gradient(90deg, #00d4aa, #5865f2);
+  background: linear-gradient(90deg, #00d4aa, #0EA5E9);
   transition: width 0.1s ease;
 }
 
@@ -953,7 +953,7 @@ export default defineComponent({
 
 .keybind-hint {
   font-size: 12px;
-  color: #72767d;
+  color: var(--text-muted);
   margin: 0 0 12px 0;
   font-style: italic;
 }
@@ -1044,7 +1044,7 @@ kbd {
 }
 
 .save-btn:hover {
-  background: #4752c4;
+  background: #0284C7;
 }
 
 /* Custom scrollbar */

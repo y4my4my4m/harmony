@@ -178,7 +178,7 @@ watch(() => props.show, (isVisible) => {
 }
 
 .modal-container {
-  background: #36393f;
+  background: var(--background-secondary);
   border-radius: 8px;
   box-shadow: 0 8px 16px rgba(0, 0, 0, 0.24);
   width: 100%;
@@ -248,12 +248,12 @@ watch(() => props.show, (isVisible) => {
 }
 
 .form-input:focus {
-  border-color: #616ae5;
+  border-color: #38BDF8;
 }
 
 .character-count {
   font-size: 11px;
-  color: #72767d;
+  color: var(--text-muted);
   text-align: right;
   margin-top: 4px;
 }
@@ -273,12 +273,12 @@ watch(() => props.show, (isVisible) => {
   width: 18px;
   height: 18px;
   cursor: pointer;
-  accent-color: #616ae5;
+  accent-color: #38BDF8;
 }
 
 .archive-note {
   font-size: 13px;
-  color: #72767d;
+  color: var(--text-muted);
   padding: 8px 12px;
   background: rgba(255, 255, 255, 0.02);
   border-radius: 4px;
@@ -290,7 +290,7 @@ watch(() => props.show, (isVisible) => {
   justify-content: flex-end;
   gap: 8px;
   padding: 16px;
-  background: #2f3136;
+  background: var(--background-tertiary);
 }
 
 .btn {
@@ -318,7 +318,7 @@ watch(() => props.show, (isVisible) => {
 }
 
 .btn-primary {
-  background: #616ae5;
+  background: #38BDF8;
   color: var(--text-primary);
 }
 

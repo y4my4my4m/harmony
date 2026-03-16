@@ -23,7 +23,7 @@
     <div class="settings-section">
       <h3 class="section-title">{{ $t('common.preview') }}</h3>
       <p class="section-description">Test how different actions will sound with your current theme</p>
-      
+      <br>
       <div class="sound-test-grid">
         <button
           v-for="action in testActions"
@@ -429,7 +429,7 @@ onMounted(async () => {
 
 .theme-card.active {
   border-color: var(--h-brand);
-  background: rgba(88, 101, 242, 0.05);
+  background: rgba(14, 165, 233, 0.05);
 }
 
 .theme-card.loading {
@@ -514,7 +514,7 @@ onMounted(async () => {
 
 .theme-author-small {
   font-size: 12px;
-  color: #72767d;
+  color: var(--text-muted);
 }
 
 .test-theme-btn {
@@ -566,7 +566,7 @@ onMounted(async () => {
 .sound-test-btn:hover:not(:disabled) {
   border-color: var(--h-brand);
   color: var(--text-primary);
-  background: rgba(88, 101, 242, 0.1);
+  background: rgba(14, 165, 233, 0.1);
 }
 
 .sound-test-btn:disabled {

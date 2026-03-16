@@ -8,8 +8,8 @@
   --safe-area-inset-left: env(safe-area-inset-left);
   
   /* PWA specific colors */
-  --pwa-primary: #5865f2;
-  --pwa-primary-dark: #4752c4;
+  --pwa-primary: #0EA5E9;
+  --pwa-primary-dark: #0284C7;
   --pwa-background: #1e1f22;
   --pwa-surface: #2b2d31;
   --pwa-text: #ffffff;
@@ -346,7 +346,7 @@ input, textarea, [contenteditable], .message-content, .selectable {
 .keyboard-focused {
   outline: 2px solid var(--pwa-primary) !important;
   outline-offset: 2px;
-  box-shadow: 0 0 0 4px rgba(88, 101, 242, 0.2);
+  box-shadow: 0 0 0 4px rgba(14, 165, 233, 0.2);
 }
 
 /* Native-like card interactions */
@@ -398,7 +398,7 @@ input, textarea, [contenteditable], .message-content, .selectable {
   border: none;
   border-radius: 50%;
   box-shadow: 
-    0 6px 20px rgba(88, 101, 242, 0.4),
+    0 6px 20px rgba(14, 165, 233, 0.4),
     0 2px 8px rgba(0, 0, 0, 0.2);
   color: white;
   display: flex;
@@ -413,7 +413,7 @@ input, textarea, [contenteditable], .message-content, .selectable {
 .fab:hover {
   transform: scale(1.1);
   box-shadow: 
-    0 8px 25px rgba(88, 101, 242, 0.5),
+    0 8px 25px rgba(14, 165, 233, 0.5),
     0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
@@ -451,7 +451,7 @@ input, textarea, [contenteditable], .message-content, .selectable {
 
 .bottom-nav-item.active {
   color: var(--pwa-primary);
-  background: rgba(88, 101, 242, 0.1);
+  background: rgba(14, 165, 233, 0.1);
 }
 
 .bottom-nav-item:hover {
@@ -488,7 +488,7 @@ input, textarea, [contenteditable], .message-content, .selectable {
 
 .native-input:focus {
   border-color: var(--pwa-primary);
-  box-shadow: 0 0 0 4px rgba(88, 101, 242, 0.1);
+  box-shadow: 0 0 0 4px rgba(14, 165, 233, 0.1);
 }
 
 .native-input::placeholder {
@@ -700,7 +700,7 @@ input, textarea, [contenteditable], .message-content, .selectable {
 .keyboard-focused {
   outline: 2px solid var(--pwa-primary) !important;
   outline-offset: 2px;
-  box-shadow: 0 0 0 4px rgba(88, 101, 242, 0.2);
+  box-shadow: 0 0 0 4px rgba(14, 165, 233, 0.2);
 }
 
 /* Native-like card interactions */
@@ -752,7 +752,7 @@ input, textarea, [contenteditable], .message-content, .selectable {
   border: none;
   border-radius: 50%;
   box-shadow: 
-    0 6px 20px rgba(88, 101, 242, 0.4),
+    0 6px 20px rgba(14, 165, 233, 0.4),
     0 2px 8px rgba(0, 0, 0, 0.2);
   color: white;
   display: flex;
@@ -767,7 +767,7 @@ input, textarea, [contenteditable], .message-content, .selectable {
 .fab:hover {
   transform: scale(1.1);
   box-shadow: 
-    0 8px 25px rgba(88, 101, 242, 0.5),
+    0 8px 25px rgba(14, 165, 233, 0.5),
     0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
@@ -805,7 +805,7 @@ input, textarea, [contenteditable], .message-content, .selectable {
 
 .bottom-nav-item.active {
   color: var(--pwa-primary);
-  background: rgba(88, 101, 242, 0.1);
+  background: rgba(14, 165, 233, 0.1);
 }
 
 .bottom-nav-item:hover {
@@ -842,7 +842,7 @@ input, textarea, [contenteditable], .message-content, .selectable {
 
 .native-input:focus {
   border-color: var(--pwa-primary);
-  box-shadow: 0 0 0 4px rgba(88, 101, 242, 0.1);
+  box-shadow: 0 0 0 4px rgba(14, 165, 233, 0.1);
 }
 
 .native-input::placeholder {

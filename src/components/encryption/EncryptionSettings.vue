@@ -14,7 +14,7 @@
         </p>
         
         <div class="status-card" :class="statusClass">
-          <div class="status-icon">{{ statusIcon }}</div>
+          <Icon :name="statusIcon" class="status-icon" :size="24" />
           <div class="status-info">
             <strong>{{ statusTitle }}</strong>
             <p>{{ statusDescription }}</p>
@@ -41,7 +41,7 @@
         <h4 class="subsection-title">Recovery Key</h4>
         
         <div class="info-card">
-          <div class="info-icon">🔑</div>
+          <Icon name="key" class="info-icon" :size="24" />
           <div class="info-content">
             <strong>Recovery Key Active</strong>
             <p>Your encryption keys are protected by a 12-word recovery phrase.</p>
@@ -54,7 +54,7 @@
         </div>
 
         <div class="backup-status" v-if="encryptionStatus.hasBackup">
-          <span class="backup-icon">☁️</span>
+          <Icon name="server" class="backup-icon" :size="18" />
           <span>Encrypted backup stored on server</span>
           <span class="backup-time" v-if="lastBackupTime">
             Last backup: {{ formatTime(lastBackupTime) }}
@@ -85,7 +85,7 @@
           class="btn btn-secondary"
         >
           <span v-if="isSyncing">Syncing...</span>
-          <span v-else>🔄 Sync Keys</span>
+          <span v-else class="sync-label"><Icon name="refresh-cw" :size="16" /> Sync Keys</span>
         </button>
       </div>
       
@@ -95,7 +95,7 @@
         
         <div class="backup-options">
           <div class="option-card">
-            <div class="option-icon">📥</div>
+            <Icon name="server" class="option-icon" :size="22" />
             <div class="option-info">
               <strong>Create Backup Now</strong>
               <p>Manually trigger an encrypted backup to the server</p>
@@ -110,7 +110,7 @@
           </div>
           
           <div class="option-card">
-            <div class="option-icon">💾</div>
+            <Icon name="save" class="option-icon" :size="22" />
             <div class="option-info">
               <strong>Export Backup File</strong>
               <p>Download an encrypted backup file to store locally</p>
@@ -119,7 +119,7 @@
           </div>
           
           <div class="option-card">
-            <div class="option-icon">📤</div>
+            <Icon name="upload" class="option-icon" :size="22" />
             <div class="option-info">
               <strong>Import Backup File</strong>
               <p>Restore from an exported backup file</p>
@@ -128,7 +128,7 @@
           </div>
           
           <div class="option-card">
-            <div class="option-icon">📱</div>
+            <Icon name="smartphone" class="option-icon" :size="22" />
             <div class="option-info">
               <strong>Restore on New Device</strong>
               <p>Use your recovery key to restore encryption on another device</p>
@@ -144,7 +144,7 @@
         
         <div class="backup-options">
           <div class="option-card">
-            <div class="option-icon">🔑</div>
+            <Icon name="key" class="option-icon" :size="22" />
             <div class="option-info">
               <strong>Restore with Recovery Key</strong>
               <p>Have a recovery phrase? Enter it to restore your encryption</p>
@@ -155,7 +155,7 @@
           </div>
           
           <div class="option-card">
-            <div class="option-icon">📤</div>
+            <Icon name="upload" class="option-icon" :size="22" />
             <div class="option-info">
               <strong>Import Backup File</strong>
               <p>Restore from an exported backup file</p>
@@ -170,7 +170,7 @@
         <h4 class="subsection-title">Danger Zone</h4>
         
         <div class="option-card warning">
-          <div class="option-icon">⚠️</div>
+          <Icon name="alert-triangle" class="option-icon" :size="22" />
           <div class="option-info">
             <strong>Reset Encryption</strong>
             <p>Delete all encryption keys and start fresh. You will lose access to all encrypted messages.</p>
@@ -202,7 +202,7 @@
     <Teleport to="body">
       <div v-if="showViewRecoveryInfo" class="modal-overlay" @click.self="showViewRecoveryInfo = false">
         <div class="modal">
-          <h2>🔑 Recovery Key Information</h2>
+          <h2 class="modal-title-with-icon"><Icon name="key" :size="24" /> Recovery Key Information</h2>
           <div class="recovery-info-content">
             <div class="info-item">
               <span class="label">Status:</span>
@@ -222,7 +222,7 @@
             </div>
           </div>
           <div class="warning-note">
-            <p>⚠️ Your recovery key is never stored on the server. Only you have it.</p>
+            <p><Icon name="alert-triangle" class="inline-warning-icon" :size="16" /> Your recovery key is never stored on the server. Only you have it.</p>
             <p>If you've lost your recovery key, you should set up new encryption.</p>
           </div>
           <div class="modal-actions">
@@ -236,7 +236,7 @@
     <Teleport to="body">
       <div v-if="confirmReset" class="modal-overlay" @click.self="confirmReset = false">
         <div class="modal">
-          <h2>⚠️ Reset Encryption?</h2>
+          <h2 class="modal-title-with-icon"><Icon name="alert-triangle" :size="24" /> Reset Encryption?</h2>
           <p>
             This will permanently delete all your encryption keys and backups.
             <strong>You will not be able to read any previously encrypted messages.</strong>
@@ -258,7 +258,7 @@
     <Teleport to="body">
       <div v-if="showImportModal" class="modal-overlay" @click.self="showImportModal = false">
         <div class="modal">
-          <h2>📤 Import Backup File</h2>
+          <h2 class="modal-title-with-icon"><Icon name="upload" :size="24" /> Import Backup File</h2>
           <p>Select your encrypted backup file to restore your encryption keys.</p>
           <div class="form-group">
             <label>Backup File</label>
@@ -291,6 +291,7 @@ import { debug } from '@/utils/debug'
 import { useToast } from 'vue-toastification'
 import RecoveryKeySetupWizard from './RecoveryKeySetupWizard.vue'
 import KeyRecoveryModal from './KeyRecoveryModal.vue'
+import Icon from '@/components/common/Icon.vue'
 
 const toast = useToast()
 
@@ -332,9 +333,9 @@ const statusClass = computed(() => {
 })
 
 const statusIcon = computed(() => {
-  if (!encryptionStatus.value.hasRecoveryKey) return '🔓'
-  if (!encryptionStatus.value.enabled) return '🔐'
-  return '🛡️'
+  if (!encryptionStatus.value.hasRecoveryKey) return 'unlock'
+  if (!encryptionStatus.value.enabled) return 'lock'
+  return 'shield'
 })
 
 const statusTitle = computed(() => {
@@ -583,7 +584,7 @@ onMounted(() => {
   width: 48px;
   height: 48px;
   border: 4px solid var(--bg-secondary, #2a2a3e);
-  border-top-color: var(--primary, #5865f2);
+  border-top-color: var(--primary, #0EA5E9);
   border-radius: 50%;
   animation: spin 1s linear infinite;
   margin: 0 auto 16px;
@@ -645,8 +646,8 @@ onMounted(() => {
 }
 
 .status-icon {
-  font-size: 32px;
   flex-shrink: 0;
+  color: currentColor;
 }
 
 .status-info {
@@ -678,8 +679,8 @@ onMounted(() => {
 }
 
 .info-icon {
-  font-size: 28px;
   flex-shrink: 0;
+  color: currentColor;
 }
 
 .info-content {
@@ -710,7 +711,8 @@ onMounted(() => {
 }
 
 .backup-icon {
-  font-size: 18px;
+  flex-shrink: 0;
+  color: currentColor;
 }
 
 .backup-time {
@@ -774,8 +776,8 @@ onMounted(() => {
 }
 
 .option-icon {
-  font-size: 24px;
   flex-shrink: 0;
+  color: currentColor;
 }
 
 .option-info {
@@ -824,6 +826,23 @@ onMounted(() => {
   font-size: 20px;
   color: var(--text-primary, #fff);
   margin: 0 0 16px 0;
+}
+
+.modal-title-with-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.inline-warning-icon {
+  vertical-align: middle;
+  margin-right: 4px;
+}
+
+.sync-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .modal p {
@@ -946,12 +965,12 @@ onMounted(() => {
 }
 
 .btn-primary {
-  background: var(--primary, #5865f2);
+  background: var(--primary, #0EA5E9);
   color: var(--text-primary);
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: var(--primary-hover, #4752c4);
+  background: var(--primary-hover, #0284C7);
 }
 
 .btn-secondary {

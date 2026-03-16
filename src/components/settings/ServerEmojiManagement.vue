@@ -700,7 +700,7 @@ const getEmojiAnalytics = () => {
 
 .form-hint {
   font-size: 12px;
-  color: #72767d;
+  color: var(--text-muted);
   margin-top: 4px;
 }
 
@@ -738,7 +738,7 @@ const getEmojiAnalytics = () => {
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: #72767d;
+  background-color: var(--text-muted);
   transition: 0.3s;
   border-radius: 24px;
 }
@@ -775,12 +775,12 @@ input:checked + .toggle-slider:before {
 
 .emoji-upload-area:hover,
 .emoji-upload-area.dragover {
-  border-color: #5865f2;
-  background-color: rgba(88, 101, 242, 0.1);
+  border-color: #0EA5E9;
+  background-color: rgba(14, 165, 233, 0.1);
 }
 
 .upload-icon {
-  color: #72767d;
+  color: var(--text-muted);
   margin-bottom: 12px;
 }
 
@@ -792,7 +792,7 @@ input:checked + .toggle-slider:before {
 
 .upload-hint {
   font-size: 12px;
-  color: #72767d;
+  color: var(--text-muted);
   margin: 0;
 }
 
@@ -822,7 +822,7 @@ input:checked + .toggle-slider:before {
 
 .emoji-count {
   font-size: 12px;
-  color: #72767d;
+  color: var(--text-muted);
   background-color: var(--h-chat-darker);
   padding: 4px 8px;
   border-radius: 12px;
@@ -857,7 +857,7 @@ input:checked + .toggle-slider:before {
 
 .progress-count {
   font-size: 12px;
-  color: #72767d;
+  color: var(--text-muted);
 }
 
 .progress-bar {
@@ -936,7 +936,7 @@ input:checked + .toggle-slider:before {
 }
 
 .empty-icon {
-  color: #72767d;
+  color: var(--text-muted);
   margin-bottom: 16px;
 }
 
@@ -948,7 +948,7 @@ input:checked + .toggle-slider:before {
 
 .empty-hint {
   font-size: 14px;
-  color: #72767d;
+  color: var(--text-muted);
   margin: 0;
 }
 
@@ -974,13 +974,13 @@ input:checked + .toggle-slider:before {
 }
 
 .emoji-item.selection-mode:hover {
-  background-color: rgba(88, 101, 242, 0.1);
-  border-color: rgba(88, 101, 242, 0.3);
+  background-color: rgba(14, 165, 233, 0.1);
+  border-color: rgba(14, 165, 233, 0.3);
 }
 
 .emoji-item.selected {
-  background-color: rgba(88, 101, 242, 0.2);
-  border-color: #5865f2;
+  background-color: rgba(14, 165, 233, 0.2);
+  border-color: #0EA5E9;
 }
 
 .emoji-item.renaming {
@@ -1046,7 +1046,7 @@ input:checked + .toggle-slider:before {
   display: flex;
   gap: 8px;
   font-size: 12px;
-  color: #72767d;
+  color: var(--text-muted);
 }
 
 .emoji-actions {

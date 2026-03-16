@@ -48,7 +48,7 @@
         <div class="info-card federation">
           <div class="info-header">
             <svg class="info-icon" width="20" height="20" viewBox="0 0 24 24">
-              <path fill="#5865f2" d="M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4M12,6A6,6 0 0,1 18,12A6,6 0 0,1 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6Z"/>
+              <path fill="#0EA5E9" d="M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4M12,6A6,6 0 0,1 18,12A6,6 0 0,1 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6Z"/>
             </svg>
             <h4 class="info-title">{{ $t('server.federationActive', 'Federation Active') }}</h4>
           </div>
@@ -152,7 +152,7 @@
         <div class="info-card private">
           <div class="info-header">
             <svg class="info-icon" width="20" height="20" viewBox="0 0 24 24">
-              <path fill="#5865f2" d="M18,8A2,2 0 0,1 20,10V20A2,2 0 0,1 18,22H6A2,2 0 0,1 4,20V10A2,2 0 0,1 6,8H7V6A5,5 0 0,1 12,1A5,5 0 0,1 17,6V8H18M12,3A3,3 0 0,0 9,6V8H15V6A3,3 0 0,0 12,3Z"/>
+              <path fill="#0EA5E9" d="M18,8A2,2 0 0,1 20,10V20A2,2 0 0,1 18,22H6A2,2 0 0,1 4,20V10A2,2 0 0,1 6,8H7V6A5,5 0 0,1 12,1A5,5 0 0,1 17,6V8H18M12,3A3,3 0 0,0 9,6V8H15V6A3,3 0 0,0 12,3Z"/>
             </svg>
             <h4 class="info-title">{{ $t('server.privateServer') }}</h4>
           </div>
@@ -392,7 +392,7 @@ const setDiscoveryMode = (mode: 'invite-only' | 'public-directory') => {
 
 .form-hint {
   font-size: 12px;
-  color: #72767d;
+  color: var(--text-muted);
   margin-top: 4px;
 }
 
@@ -432,7 +432,7 @@ const setDiscoveryMode = (mode: 'invite-only' | 'public-directory') => {
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: #72767d;
+  background-color: var(--text-muted);
   transition: 0.3s;
   border-radius: 24px;
 }
@@ -478,7 +478,7 @@ input:checked + .toggle-slider:before {
 
 .info-card.private,
 .info-card.federation {
-  border-left-color: #5865f2;
+  border-left-color: #0EA5E9;
 }
 
 .federation-info {
@@ -488,7 +488,7 @@ input:checked + .toggle-slider:before {
 .federated-member-count {
   margin-top: 12px;
   padding: 8px 12px;
-  background: rgba(88, 101, 242, 0.1);
+  background: rgba(14, 165, 233, 0.1);
   border-radius: 6px;
   font-size: 13px;
   color: #8b9dff;
@@ -669,7 +669,7 @@ input:checked + .toggle-slider:before {
 
 .option-description {
   font-size: 12px;
-  color: #72767d;
+  color: var(--text-muted);
   line-height: 1.4;
 }
 
@@ -685,7 +685,7 @@ input:checked + .toggle-slider:before {
   display: block;
   width: 20px;
   height: 20px;
-  border: 2px solid #72767d;
+  border: 2px solid var(--text-muted);
   border-radius: 50%;
   background-color: transparent;
   cursor: pointer;
@@ -708,7 +708,7 @@ input:checked + .toggle-slider:before {
 }
 
 input[type="radio"]:checked + .radio-label {
-  border-color: #5865f2;
+  border-color: #0EA5E9;
 }
 
 input[type="radio"]:checked + .radio-label:before {

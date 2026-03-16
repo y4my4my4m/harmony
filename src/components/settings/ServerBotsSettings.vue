@@ -487,7 +487,7 @@ onMounted(() => {
 
 .search-input:focus {
   outline: none;
-  border-color: #5865f2;
+  border-color: #0EA5E9;
 }
 
 .loading-state {
@@ -499,7 +499,7 @@ onMounted(() => {
   width: 48px;
   height: 48px;
   border: 4px solid var(--h-chat-light);
-  border-top-color: #5865f2;
+  border-top-color: #0EA5E9;
   border-radius: 50%;
   animation: spin 1s linear infinite;
   margin: 0 auto 16px;
@@ -534,7 +534,7 @@ onMounted(() => {
 }
 
 .bot-card:hover {
-  border-color: #5865f2;
+  border-color: #0EA5E9;
   transform: translateY(-2px);
 }
 
@@ -571,7 +571,7 @@ onMounted(() => {
 
 .bot-stats {
   font-size: 12px;
-  color: #72767d;
+  color: var(--text-muted);
   margin-top: 8px;
 }
 
@@ -609,7 +609,7 @@ onMounted(() => {
 
 .install-date {
   font-size: 12px;
-  color: #72767d;
+  color: var(--text-muted);
   display: block;
   margin-top: 4px;
 }
@@ -638,7 +638,7 @@ onMounted(() => {
 }
 
 .btn-primary:hover:not(:disabled) {
-  background-color: #4752c4;
+  background-color: #0284C7;
 }
 
 .btn-secondary {

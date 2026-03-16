@@ -875,7 +875,7 @@ onUnmounted(() => {
 .panel-icon {
   width: 40px;
   height: 40px;
-  background: linear-gradient(145deg, #5865f2, #4752c4);
+  background: linear-gradient(145deg, #0EA5E9, #0284C7);
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -925,9 +925,9 @@ onUnmounted(() => {
 }
 
 .control-btn.active {
-  background: linear-gradient(145deg, #5865f2, #4752c4);
+  background: linear-gradient(145deg, #0EA5E9, #0284C7);
   color: var(--text-primary);
-  border-color: rgba(88, 101, 242, 0.6);
+  border-color: rgba(14, 165, 233, 0.6);
 }
 
 .toggle-btn.active {
@@ -1033,7 +1033,7 @@ onUnmounted(() => {
 
 .checkbox-input:checked + .checkbox-custom {
   background: var(--harmony-primary);
-  border-color: #5865f2;
+  border-color: #0EA5E9;
 }
 
 .checkbox-input:checked + .checkbox-custom::after {
@@ -1136,8 +1136,8 @@ onUnmounted(() => {
 }
 
 .spatial-avatar.is-self .avatar-image {
-  border-color: #5865f2;
-  box-shadow: 0 0 20px rgba(88, 101, 242, 0.4);
+  border-color: #0EA5E9;
+  box-shadow: 0 0 20px rgba(14, 165, 233, 0.4);
 }
 
 .spatial-avatar.is-speaking .avatar-image {
@@ -1191,7 +1191,7 @@ onUnmounted(() => {
   position: absolute;
   top: -8px;
   right: -8px;
-  background: rgba(88, 101, 242, 0.9);
+  background: rgba(14, 165, 233, 0.9);
   color: var(--text-primary);
   padding: 2px 4px;
   border-radius: 8px;
@@ -1212,7 +1212,7 @@ onUnmounted(() => {
 }
 
 .distance-line {
-  stroke: rgba(88, 101, 242, 0.4);
+  stroke: rgba(14, 165, 233, 0.4);
   stroke-width: 1;
   stroke-dasharray: 3, 3;
 }

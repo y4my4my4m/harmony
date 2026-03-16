@@ -380,7 +380,7 @@ onMounted(async () => {
 }
 
 .add-btn {
-  background: var(--harmony-primary, #5865f2);
+  background: var(--harmony-primary, #0EA5E9);
   color: var(--text-primary);
 }
 

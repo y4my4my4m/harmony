@@ -198,7 +198,7 @@ const formatStats = (filtered: number, total: number): string => {
 .category-toggle-btn {
   width: 100%;
   background: linear-gradient(135deg, rgba(32, 34, 37, 0.8), rgba(47, 49, 54, 0.6));
-  border: 1px solid rgba(88, 101, 242, 0.2);
+  border: 1px solid rgba(14, 165, 233, 0.2);
   border-radius: 12px;
   padding: 16px 20px;
   cursor: pointer;
@@ -217,7 +217,7 @@ const formatStats = (filtered: number, total: number): string => {
   left: -100%;
   width: 100%;
   height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(88, 101, 242, 0.1), transparent);
+  background: linear-gradient(90deg, transparent, rgba(14, 165, 233, 0.1), transparent);
   transition: left 0.4s ease;
 }
 
@@ -226,16 +226,16 @@ const formatStats = (filtered: number, total: number): string => {
 }
 
 .category-toggle-btn:hover {
-  border-color: rgba(88, 101, 242, 0.4);
+  border-color: rgba(14, 165, 233, 0.4);
   background: linear-gradient(135deg, rgba(47, 49, 54, 0.9), rgba(54, 57, 63, 0.7));
   transform: translateY(-2px);
-  box-shadow: 0 8px 25px rgba(88, 101, 242, 0.15);
+  box-shadow: 0 8px 25px rgba(14, 165, 233, 0.15);
 }
 
 .category-toggle-btn--expanded {
-  border-color: rgba(88, 101, 242, 0.6);
-  background: linear-gradient(135deg, rgba(88, 101, 242, 0.1), rgba(114, 137, 218, 0.05));
-  box-shadow: 0 4px 20px rgba(88, 101, 242, 0.2);
+  border-color: rgba(14, 165, 233, 0.6);
+  background: linear-gradient(135deg, rgba(14, 165, 233, 0.1), rgba(14, 165, 233, 0.05));
+  box-shadow: 0 4px 20px rgba(14, 165, 233, 0.2);
 }
 
 .category-toggle-content {
@@ -255,7 +255,7 @@ const formatStats = (filtered: number, total: number): string => {
 .toggle-chevron {
   width: 20px;
   height: 20px;
-  color: rgba(88, 101, 242, 0.8);
+  color: rgba(14, 165, 233, 0.8);
   transition: transform 0.2s ease;
 }
 
@@ -287,15 +287,15 @@ const formatStats = (filtered: number, total: number): string => {
 
 .selected-category-preview {
   font-size: 12px;
-  color: rgba(88, 101, 242, 0.9);
+  color: rgba(14, 165, 233, 0.9);
   font-weight: 600;
   margin-top: 2px;
   text-transform: uppercase;
   letter-spacing: 0.8px;
-  background: rgba(88, 101, 242, 0.1);
+  background: rgba(14, 165, 233, 0.1);
   padding: 2px 8px;
   border-radius: 10px;
-  border: 1px solid rgba(88, 101, 242, 0.2);
+  border: 1px solid rgba(14, 165, 233, 0.2);
   display: inline-block;
 }
 
@@ -333,7 +333,7 @@ const formatStats = (filtered: number, total: number): string => {
   padding: 20px;
   background: rgba(32, 34, 37, 0.4);
   border-radius: 12px;
-  border: 1px solid rgba(88, 101, 242, 0.1);
+  border: 1px solid rgba(14, 165, 233, 0.1);
   margin-top: 16px;
 }
 
@@ -379,21 +379,21 @@ const formatStats = (filtered: number, total: number): string => {
   border-color: rgba(255, 255, 255, 0.2);
   color: var(--text-primary);
   transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(88, 101, 242, 0.15);
+  box-shadow: 0 6px 20px rgba(14, 165, 233, 0.15);
 }
 
 .category-pill--active {
-  background: linear-gradient(135deg, #5865f2, #616ae5);
-  border-color: #5865f2;
+  background: linear-gradient(135deg, #0EA5E9, #38BDF8);
+  border-color: #0EA5E9;
   color: var(--text-primary);
-  box-shadow: 0 4px 15px rgba(88, 101, 242, 0.3);
+  box-shadow: 0 4px 15px rgba(14, 165, 233, 0.3);
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
 }
 
 .category-pill--active:hover {
-  background: linear-gradient(135deg, #4752c4, #5b6ecd);
+  background: linear-gradient(135deg, #0284C7, #5b6ecd);
   transform: translateY(-3px);
-  box-shadow: 0 8px 25px rgba(88, 101, 242, 0.4);
+  box-shadow: 0 8px 25px rgba(14, 165, 233, 0.4);
 }
 
 .category-pill-text {
@@ -459,7 +459,7 @@ const formatStats = (filtered: number, total: number): string => {
 .stats-icon {
   width: 16px;
   height: 16px;
-  color: rgba(88, 101, 242, 0.8);
+  color: rgba(14, 165, 233, 0.8);
 }
 
 .stats-text {

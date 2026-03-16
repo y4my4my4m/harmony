@@ -54,6 +54,96 @@ const SAVED_THEMES_KEY = 'custom-themes'
 
 export const COMMUNITY_PRESETS: ThemePreset[] = [
   {
+    name: 'Harmony Teal',
+    description: 'The signature Harmony look — fresh, modern, and inviting',
+    settings: {
+      theme: 'custom',
+      customThemeMode: 'dark',
+      customPrimaryColor: '#0EA5E9',
+      customAccentColor: '#0EA5E9',
+      customBackgroundColor: '#0EA5E9',
+      customBackgroundLightness: 20,
+      customBackgroundChroma: 2,
+      customCssOverrides: {
+        '--harmony-primary': '#0EA5E9',
+        '--harmony-primary-hover': '#0284C7',
+        '--harmony-accent': '#38BDF8',
+      }
+    }
+  },
+  {
+    name: 'Emerald',
+    description: 'Growth, balance, and natural harmony',
+    settings: {
+      theme: 'custom',
+      customThemeMode: 'dark',
+      customPrimaryColor: '#10B981',
+      customAccentColor: '#10B981',
+      customBackgroundColor: '#10B981',
+      customBackgroundLightness: 20,
+      customBackgroundChroma: 2,
+      customCssOverrides: {
+        '--harmony-primary': '#10B981',
+        '--harmony-primary-hover': '#059669',
+        '--harmony-accent': '#34D399',
+      }
+    }
+  },
+  {
+    name: 'Coral',
+    description: 'Warm, energetic, and community-driven',
+    settings: {
+      theme: 'custom',
+      customThemeMode: 'dark',
+      customPrimaryColor: '#F97316',
+      customAccentColor: '#F97316',
+      customBackgroundColor: '#F97316',
+      customBackgroundLightness: 20,
+      customBackgroundChroma: 1,
+      customCssOverrides: {
+        '--harmony-primary': '#F97316',
+        '--harmony-primary-hover': '#EA580C',
+        '--harmony-accent': '#FB923C',
+      }
+    }
+  },
+  {
+    name: 'Violet',
+    description: 'Creative and distinctive with deep purple tones',
+    settings: {
+      theme: 'custom',
+      customThemeMode: 'dark',
+      customPrimaryColor: '#8B5CF6',
+      customAccentColor: '#8B5CF6',
+      customBackgroundColor: '#8B5CF6',
+      customBackgroundLightness: 20,
+      customBackgroundChroma: 2,
+      customCssOverrides: {
+        '--harmony-primary': '#8B5CF6',
+        '--harmony-primary-hover': '#7C3AED',
+        '--harmony-accent': '#A78BFA',
+      }
+    }
+  },
+  {
+    name: 'Rose',
+    description: 'Bold, warm, and community-focused',
+    settings: {
+      theme: 'custom',
+      customThemeMode: 'dark',
+      customPrimaryColor: '#F43F5E',
+      customAccentColor: '#F43F5E',
+      customBackgroundColor: '#F43F5E',
+      customBackgroundLightness: 20,
+      customBackgroundChroma: 2,
+      customCssOverrides: {
+        '--harmony-primary': '#F43F5E',
+        '--harmony-primary-hover': '#E11D48',
+        '--harmony-accent': '#FB7185',
+      }
+    }
+  },
+  {
     name: 'Ocean Blue',
     description: 'A deep ocean blue theme with cool tones',
     settings: {
@@ -68,8 +158,6 @@ export const COMMUNITY_PRESETS: ThemePreset[] = [
         '--harmony-primary': '#1258fa',
         '--harmony-primary-hover': '#0e47d4',
         '--harmony-accent': '#4ecdc4',
-        '--status-online': '#2ecc71',
-        '--success': '#27ae60',
       }
     }
   },
@@ -117,36 +205,36 @@ export const COMMUNITY_PRESETS: ThemePreset[] = [
 // Preset theme color mappings
 const PRESET_THEMES = {
   dark: {
-    primary: '#5865f2',
+    primary: '#0EA5E9',
     bgChat: '#313338',
     bgSidebar: '#292b2f',
     textPrimary: '#f2f3f5',
     textSecondary: '#b5bac1',
     borderPrimary: 'rgba(255, 255, 255, 0.08)',
     isLightTheme: false,
-    secondary: '#616ae5',
+    secondary: '#38BDF8',
     accent: '#ff7675',
   },
   light: {
-    primary: '#5865f2',
+    primary: '#0EA5E9',
     bgChat: '#ffffff',
     bgSidebar: '#f2f3f5',
     textPrimary: '#2e3338',
     textSecondary: '#4e5058',
     borderPrimary: 'rgba(0, 0, 0, 0.12)',
     isLightTheme: true,
-    secondary: '#616ae5',
+    secondary: '#38BDF8',
     accent: '#ff7675',
   },
   midnight: {
-    primary: '#5865f2',
+    primary: '#0EA5E9',
     bgChat: '#1e2124',
     bgSidebar: '#1a1d20',
     textPrimary: '#f2f3f5',
     textSecondary: '#b5bac1',
     borderPrimary: 'rgba(255, 255, 255, 0.08)',
     isLightTheme: false,
-    secondary: '#616ae5',
+    secondary: '#38BDF8',
     accent: '#ff7675',
   },
 }
@@ -155,9 +243,9 @@ const PRESET_THEMES = {
 const settings = ref<VisualThemeSettings>({
   theme: 'dark',
   customThemeMode: 'dark',
-  customPrimaryColor: '#5865f2',
-  customAccentColor: '#5865f2',
-  customBackgroundColor: '#5865f2',
+  customPrimaryColor: '#0EA5E9',
+  customAccentColor: '#0EA5E9',
+  customBackgroundColor: '#0EA5E9',
   customBackgroundLightness: 0,
   customBackgroundChroma: 0,
   fontSize: 14,
@@ -185,26 +273,27 @@ function applyPresetTheme(themeName: 'dark' | 'light' | 'midnight') {
   
   // Primary colors
   root.style.setProperty('--harmony-primary', theme.primary)
-  root.style.setProperty('--harmony-primary-hover', '#4752c4')
-  root.style.setProperty('--harmony-primary-light', 'rgba(88, 101, 242, 0.1)')
-  root.style.setProperty('--harmony-primary-alpha', 'rgba(88, 101, 242, 0.15)')
-  root.style.setProperty('--harmony-primary-alpha-light', 'rgba(88, 101, 242, 0.1)')
-  root.style.setProperty('--harmony-primary-alpha-strong', 'rgba(88, 101, 242, 0.25)')
+  root.style.setProperty('--harmony-primary-hover', '#0284C7')
+  root.style.setProperty('--harmony-primary-light', 'rgba(14, 165, 233, 0.1)')
+  root.style.setProperty('--harmony-primary-alpha', 'rgba(14, 165, 233, 0.15)')
+  root.style.setProperty('--harmony-primary-alpha-light', 'rgba(14, 165, 233, 0.1)')
+  root.style.setProperty('--harmony-primary-alpha-strong', 'rgba(14, 165, 233, 0.25)')
   root.style.setProperty('--harmony-secondary', theme.secondary)
-  root.style.setProperty('--harmony-secondary-hover', '#4752c4')
-  root.style.setProperty('--harmony-secondary-light', 'rgba(88, 101, 242, 0.1)')
-  root.style.setProperty('--harmony-secondary-alpha', 'rgba(88, 101, 242, 0.15)')
-  root.style.setProperty('--harmony-secondary-alpha-light', 'rgba(88, 101, 242, 0.1)')
-  root.style.setProperty('--harmony-secondary-alpha-strong', 'rgba(88, 101, 242, 0.25)')
+  root.style.setProperty('--harmony-secondary-hover', '#0284C7')
+  root.style.setProperty('--harmony-secondary-light', 'rgba(14, 165, 233, 0.1)')
+  root.style.setProperty('--harmony-secondary-alpha', 'rgba(14, 165, 233, 0.15)')
+  root.style.setProperty('--harmony-secondary-alpha-light', 'rgba(14, 165, 233, 0.1)')
+  root.style.setProperty('--harmony-secondary-alpha-strong', 'rgba(14, 165, 233, 0.25)')
   root.style.setProperty('--harmony-accent', theme.accent)
-  root.style.setProperty('--harmony-accent-hover', '#4752c4')
-  root.style.setProperty('--harmony-accent-light', 'rgba(88, 101, 242, 0.1)')
-  root.style.setProperty('--harmony-accent-alpha', 'rgba(88, 101, 242, 0.15)')
-  root.style.setProperty('--harmony-accent-alpha-light', 'rgba(88, 101, 242, 0.1)')
-  root.style.setProperty('--harmony-accent-alpha-strong', 'rgba(88, 101, 242, 0.25)')
+  root.style.setProperty('--harmony-accent-hover', '#0284C7')
+  root.style.setProperty('--harmony-accent-light', 'rgba(14, 165, 233, 0.1)')
+  root.style.setProperty('--harmony-accent-alpha', 'rgba(14, 165, 233, 0.15)')
+  root.style.setProperty('--harmony-accent-alpha-light', 'rgba(14, 165, 233, 0.1)')
+  root.style.setProperty('--harmony-accent-alpha-strong', 'rgba(14, 165, 233, 0.25)')
   root.style.setProperty('--h-primary', theme.primary)
-  root.style.setProperty('--h-primary-light', '#5983c8')
-  root.style.setProperty('--h-primary-dark', '#1e3585')
+  root.style.setProperty('--h-primary-light', '#38BDF8')
+  root.style.setProperty('--h-primary-dark', '#0369A1')
+  root.style.setProperty('--h-brand', theme.primary)
   
   // Background colors - use proper defaults based on theme
   if (themeName === 'dark') {
@@ -313,6 +402,17 @@ function applyPresetTheme(themeName: 'dark' | 'light' | 'midnight') {
   root.style.setProperty('--border-focus', theme.primary)
   root.style.setProperty('--border-color', theme.isLightTheme ? 'rgba(0, 0, 0, 0.12)' : '#232529')
   
+  // Icon colors for light/dark
+  root.style.setProperty('--icon-primary', theme.isLightTheme ? '#5e6168' : '#9999a0')
+  root.style.setProperty('--icon-secondary', theme.isLightTheme ? '#80838a' : '#66666b')
+  root.style.setProperty('--icon-active', theme.isLightTheme ? '#2e3338' : '#fbfbfb')
+
+  // Shadow adjustments for light theme
+  root.style.setProperty('--shadow-small', theme.isLightTheme
+    ? '0 2px 4px rgba(0, 0, 0, 0.06)' : '0 2px 4px rgba(0, 0, 0, 0.1)')
+  root.style.setProperty('--shadow-medium', theme.isLightTheme
+    ? '0 4px 8px rgba(0, 0, 0, 0.08)' : '0 4px 8px rgba(0, 0, 0, 0.15)')
+
   root.setAttribute('data-theme', themeName)
   root.setAttribute('data-theme-type', theme.isLightTheme ? 'light' : 'dark')
   
@@ -587,6 +687,7 @@ export function useVisualTheme() {
    * Update theme
    */
   function setTheme(theme: 'dark' | 'light' | 'midnight' | 'custom', customColor?: string, customBgColor?: string) {
+    const previousTheme = settings.value.theme
     settings.value.theme = theme
     if (theme === 'custom') {
       if (customColor) {
@@ -595,7 +696,7 @@ export function useVisualTheme() {
       if (customBgColor) {
         settings.value.customBackgroundColor = customBgColor
       }
-    } else {
+    } else if (previousTheme !== theme) {
       clearCssOverrides()
     }
   }
@@ -718,15 +819,35 @@ export function useVisualTheme() {
     return [
       {
         category: 'Brand',
-        vars: ['--harmony-primary', '--harmony-primary-hover', '--harmony-primary-light', '--harmony-secondary', '--harmony-accent']
+        vars: ['--harmony-primary', '--harmony-primary-hover', '--harmony-primary-light', '--harmony-secondary', '--harmony-accent', '--h-brand']
+      },
+      {
+        category: 'Chat Surfaces',
+        vars: ['--h-chat', '--h-chat-light', '--h-chat-lighter', '--h-chat-dark', '--h-chat-darker']
+      },
+      {
+        category: 'Sidebar Surfaces',
+        vars: ['--h-sidebar', '--h-sidebar-light', '--h-channel-sidebar']
+      },
+      {
+        category: 'Dark Surfaces',
+        vars: ['--h-black', '--h-black-light', '--h-black-lighter', '--h-black-darker']
+      },
+      {
+        category: 'Primary (Layout)',
+        vars: ['--h-primary', '--h-primary-light', '--h-primary-dark']
       },
       {
         category: 'Background',
-        vars: ['--background-primary', '--background-secondary', '--background-tertiary', '--background-quaternary', '--background-quinary']
+        vars: ['--background-primary', '--background-secondary', '--background-tertiary', '--background-quaternary', '--background-quinary', '--background-senary']
       },
       {
         category: 'Text',
         vars: ['--text-primary', '--text-secondary', '--text-tertiary', '--text-muted']
+      },
+      {
+        category: 'Icons',
+        vars: ['--icon-active', '--icon-primary', '--icon-secondary', '--icon-tertiary', '--icon-muted']
       },
       {
         category: 'Status',
@@ -739,6 +860,14 @@ export function useVisualTheme() {
       {
         category: 'Borders',
         vars: ['--border-primary', '--border-secondary', '--border-hover', '--border-focus']
+      },
+      {
+        category: 'Alpha / Transparency',
+        vars: ['--h-chat-alpha', '--h-chat-alpha-light', '--h-sidebar-alpha', '--h-black-alpha', '--background-primary-alpha', '--background-secondary-alpha', '--background-tertiary-alpha', '--background-senary-alpha']
+      },
+      {
+        category: 'Tooltips & Overlays',
+        vars: ['--tooltip-bg', '--tooltip-text', '--tooltip-arrow']
       }
     ]
   }
@@ -752,9 +881,9 @@ export function useVisualTheme() {
     settings.value = {
       theme: 'dark',
       customThemeMode: 'dark',
-      customPrimaryColor: '#5865f2',
-      customAccentColor: '#5865f2',
-      customBackgroundColor: '#5865f2',
+      customPrimaryColor: '#0EA5E9',
+      customAccentColor: '#0EA5E9',
+      customBackgroundColor: '#0EA5E9',
       customBackgroundLightness: 0,
       customBackgroundChroma: 0,
       fontSize: 14,
@@ -778,9 +907,9 @@ export function useVisualTheme() {
     settings.value = {
       theme: 'dark',
       customThemeMode: 'dark',
-      customPrimaryColor: '#5865f2',
-      customAccentColor: '#5865f2',
-      customBackgroundColor: '#5865f2',
+      customPrimaryColor: '#0EA5E9',
+      customAccentColor: '#0EA5E9',
+      customBackgroundColor: '#0EA5E9',
       customBackgroundLightness: 0,
       customBackgroundChroma: 0,
       fontSize: 14,

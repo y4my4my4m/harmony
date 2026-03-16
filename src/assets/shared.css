@@ -2,8 +2,8 @@
 .btn {
   padding: 10px 15px;
   border: none;
-  border-radius: 5px;
-  color: white;
+  border-radius: var(--radius-base);
+  color: var(--text-primary);
   cursor: pointer;
   transition: background-color 0.2s, opacity 0.2s;
   font-size: 1em;
@@ -19,15 +19,15 @@
 }
 
 .btn-success {
-  background-color: #43b581;
+  background-color: var(--success);
 }
 
 .btn-danger {
-  background-color: #f04747;
+  background-color: var(--error);
 }
 
 .btn-secondary {
-  background-color: #4752c4;
+  background-color: var(--harmony-primary-hover);
 }
 
 /* Shared Input Styles */
@@ -35,22 +35,22 @@
   display: block;
   width: 100%;
   padding: 10px;
-  border-radius: 6px;
-  border: 1px solid #40444b;
-  background-color: #2f3136;
-  color: white;
+  border-radius: var(--radius-base);
+  border: 1px solid var(--border-primary);
+  background-color: var(--background-tertiary);
+  color: var(--text-primary);
   outline: none;
   font-size: 1em;
   transition: border-color 0.2s, box-shadow 0.2s;
 }
 
 .input-base:focus {
-  border: 1px solid #616ae5;
-  box-shadow: 0 0 0 3px rgba(114, 137, 218, 0.3);
+  border: 1px solid var(--harmony-primary);
+  box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.3);
 }
 
 .input-base::placeholder {
-  color: #72767d;
+  color: var(--text-muted);
 }
 
 /* Shared Modal/Overlay Styles */
@@ -64,50 +64,50 @@
   display: flex;
   justify-content: center;
   align-items: center;
-  z-index: 1000;
+  z-index: var(--z-modal-backdrop);
 }
 
 .modal-content {
   background-color: var(--background-primary-alpha);
   padding: 20px;
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   max-width: 600px;
   width: 100%;
   max-height: 90vh;
   overflow-y: auto;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-modal);
 }
 
 /* Shared Card Styles */
 .card {
-  background-color: #36393f;
-  border-radius: 8px;
-  padding: 16px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  background-color: var(--background-secondary);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  box-shadow: var(--shadow-small);
 }
 
 .card-header {
   font-size: 1.2em;
   font-weight: 600;
   margin-bottom: 12px;
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 /* User Status Styles */
 .status-online {
-  background-color: #43b581;
+  background-color: var(--status-online);
 }
 
 .status-away {
-  background-color: #faa81a;
+  background-color: var(--status-away);
 }
 
 .status-busy {
-  background-color: #f04747;
+  background-color: var(--status-busy);
 }
 
 .status-offline {
-  background-color: #747f8d;
+  background-color: var(--status-offline);
 }
 
 .user-status {
@@ -180,37 +180,39 @@
   justify-content: center;
   width: 32px;
   height: 32px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   transition: background-color 0.2s;
   background-color: transparent;
   border: none;
+  color: var(--icon-primary);
 }
 
 .icon-button:hover {
-  background-color: rgba(255, 255, 255, 0.1);
+  background-color: var(--border-primary);
+  color: var(--text-primary);
 }
 
 .icon-button.muted {
-  color:#f04747;
-  fill:#f04747;
-  background-color: #f047472f;
+  color: var(--error);
+  fill: var(--error);
+  background-color: rgba(240, 71, 71, 0.18);
 }
 
 /* Shared Form Styles */
 .form-group {
-  margin-bottom: 16px;
+  margin-bottom: var(--space-4);
 }
 
 .form-label {
   display: block;
-  margin-bottom: 4px;
+  margin-bottom: var(--space-1);
   font-weight: 500;
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .form-error {
-  color: #f04747;
-  font-size: 0.875em;
-  margin-top: 4px;
+  color: var(--error);
+  font-size: var(--font-size-sm);
+  margin-top: var(--space-1);
 }

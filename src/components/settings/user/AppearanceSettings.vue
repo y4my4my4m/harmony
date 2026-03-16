@@ -45,7 +45,7 @@
               <div class="preview-header" :style="{ backgroundColor: getSavedThemePreview(saved).bgHeader }"></div>
               <div class="preview-sidebar" :style="{ backgroundColor: getSavedThemePreview(saved).bgSidebar }"></div>
               <div class="preview-chat" :style="{ backgroundColor: getSavedThemePreview(saved).bgMain }"></div>
-              <div class="preview-accent-dot" :style="{ backgroundColor: saved.settings.customPrimaryColor || '#5865f2' }"></div>
+              <div class="preview-accent-dot" :style="{ backgroundColor: saved.settings.customPrimaryColor || '#0EA5E9' }"></div>
             </div>
             <button
               class="saved-theme-delete-btn"
@@ -212,9 +212,11 @@
         <p class="section-help">Export your theme as JSON or import a previously exported theme</p>
         <div class="import-export-buttons">
           <button class="preset-card export-btn" @click="exportTheme">
+            <Icon name="download" :size="18" />
             Export theme
           </button>
           <button class="preset-card import-btn" @click="triggerImportInput">
+            <Icon name="upload" :size="18" />
             Import theme
           </button>
           <input
@@ -227,15 +229,24 @@
         </div>
       </div>
 
-      <!-- Advanced CSS Variable Overrides -->
-      <div v-if="settings.theme === 'custom'" class="advanced-css-section">
+      <!-- Advanced CSS Variable Overrides (available for all themes) -->
+      <div class="advanced-css-section">
         <button class="toggle-advanced-btn" @click="showAdvancedCss = !showAdvancedCss">
           {{ showAdvancedCss ? 'Hide' : 'Show' }} Advanced CSS Variables
+          <span v-if="overrideCount > 0" class="override-badge">{{ overrideCount }}</span>
           <span class="toggle-arrow" :class="{ open: showAdvancedCss }">&#9660;</span>
         </button>
 
         <div v-if="showAdvancedCss" class="css-overrides-panel">
-          <p class="section-help">Override individual CSS variables for full control. Changes apply in real-time.</p>
+          <p class="section-help">Override individual CSS variables for full control. Changes apply in real-time. Overrides persist on top of any theme.</p>
+
+          <div v-if="overrideCount > 0" class="overrides-toolbar">
+            <span class="override-summary">{{ overrideCount }} override{{ overrideCount !== 1 ? 's' : '' }} active</span>
+            <button class="reset-all-btn" @click="resetAllOverrides" title="Remove all overrides and restore defaults">
+              Reset all overrides
+            </button>
+          </div>
+
           <div
             v-for="group in themableVariables"
             :key="group.category"
@@ -243,15 +254,28 @@
           >
             <h5 class="var-group-title">{{ group.category }}</h5>
             <div class="var-list">
-              <div v-for="varName in group.vars" :key="varName" class="var-item">
+              <div v-for="varName in group.vars" :key="varName" class="var-item" :class="{ 'has-override': settings.customCssOverrides?.[varName] }">
                 <label class="var-name">{{ varName }}</label>
                 <div class="var-controls">
-                  <input
-                    type="color"
-                    class="var-color-input"
-                    :value="getCssVarValue(varName)"
-                    @input="setCssOverrideFromInput(varName, ($event.target as HTMLInputElement).value)"
-                  />
+                  <div
+                    v-if="isHexCompatible(varName)"
+                    class="var-swatch var-swatch-clickable"
+                    :style="{ backgroundColor: getComputedVar(varName) || 'transparent' }"
+                    :title="getComputedVar(varName)"
+                  >
+                    <input
+                      type="color"
+                      class="var-color-input-hidden"
+                      :value="getHexForPicker(varName)"
+                      @input="setCssOverrideFromInput(varName, ($event.target as HTMLInputElement).value)"
+                    />
+                  </div>
+                  <div
+                    v-else
+                    class="var-swatch"
+                    :style="{ backgroundColor: getComputedVar(varName) || 'transparent' }"
+                    :title="getComputedVar(varName)"
+                  ></div>
                   <input
                     type="text"
                     class="var-text-input"
@@ -519,6 +543,7 @@ import { useEmojiPacks } from '@/services/emojiPackService'
 // Components
 import ToggleSwitch from '@/components/common/ToggleSwitch.vue'
 import ColorPicker from '@/components/common/ColorPicker.vue'
+import Icon from '@/components/common/Icon.vue'
 
 // Props
 interface Props {
@@ -543,9 +568,9 @@ const instanceSettings = useInstanceSettingsStore()
 const settings = ref({
   theme: 'dark' as 'dark' | 'light' | 'midnight' | 'custom',
   customThemeMode: 'dark' as 'dark' | 'light',
-  customPrimaryColor: '#5865f2',
-  customAccentColor: '#5865f2',
-  customBackgroundColor: '#5865f2',
+  customPrimaryColor: '#0EA5E9',
+  customAccentColor: '#0EA5E9',
+  customBackgroundColor: '#0EA5E9',
   customBackgroundLightness: 0,
   customBackgroundChroma: 0,
   customCssOverrides: {} as Record<string, string>,
@@ -590,7 +615,7 @@ function refreshSavedThemes() {
 
 function getSavedThemePreview(saved: { settings: Partial<typeof settings.value> }) {
   return generatePreviewColors(
-    saved.settings.customBackgroundColor || '#5865f2',
+    saved.settings.customBackgroundColor || '#0EA5E9',
     saved.settings.customThemeMode || 'dark',
     saved.settings.customBackgroundLightness || 0,
     saved.settings.customBackgroundChroma || 0
@@ -676,6 +701,16 @@ const applyPresetTheme = (preset: ThemePreset) => {
   Object.assign(settings.value, preset.settings)
 }
 
+const ALPHA_VAR_NAMES = new Set([
+  '--h-chat-alpha', '--h-chat-alpha-light', '--h-sidebar-alpha', '--h-black-alpha',
+  '--background-primary-alpha', '--background-secondary-alpha', '--background-tertiary-alpha',
+  '--background-senary-alpha',
+])
+
+const overrideCount = computed(() => {
+  return Object.keys(settings.value.customCssOverrides || {}).length
+})
+
 const getCssVarValue = (varName: string): string => {
   if (settings.value.customCssOverrides?.[varName]) {
     return settings.value.customCssOverrides[varName]
@@ -687,6 +722,23 @@ const getComputedVar = (varName: string): string => {
   return getComputedStyle(document.documentElement).getPropertyValue(varName).trim() || ''
 }
 
+const isHexColor = (value: string): boolean => {
+  return /^#[0-9a-fA-F]{3,8}$/.test(value.trim())
+}
+
+const isHexCompatible = (varName: string): boolean => {
+  if (ALPHA_VAR_NAMES.has(varName)) return false
+  const current = getCssVarValue(varName)
+  if (!current) return true
+  return isHexColor(current) || !current.includes('(')
+}
+
+const getHexForPicker = (varName: string): string => {
+  const val = getCssVarValue(varName)
+  if (isHexColor(val)) return val.substring(0, 7)
+  return '#000000'
+}
+
 const setCssOverrideFromInput = (varName: string, value: string) => {
   if (!value) return
   visualTheme.setCssOverride(varName, value)
@@ -696,10 +748,10 @@ const setCssOverrideFromInput = (varName: string, value: string) => {
 
 const removeCssOverrideVar = (varName: string) => {
   visualTheme.removeCssOverride(varName)
-  if (settings.value.customCssOverrides) {
-    delete settings.value.customCssOverrides[varName]
-  }
-  onCustomColorChange()
+}
+
+const resetAllOverrides = () => {
+  visualTheme.clearCssOverrides()
 }
 
 // Theme options
@@ -708,10 +760,10 @@ const themes = [
     id: 'dark',
     name: 'Dark',
     description: 'A dark theme that\'s easier on the eyes.',
-    preview: '#36393f',
-    headerColor: '#2f3136',
-    sidebarColor: '#2f3136',
-    chatColor: '#36393f'
+    preview: 'var(--background-secondary)',
+    headerColor: 'var(--background-tertiary)',
+    sidebarColor: 'var(--background-tertiary)',
+    chatColor: 'var(--background-secondary)'
   },
   {
     id: 'light',
@@ -735,10 +787,10 @@ const themes = [
     id: 'custom',
     name: 'Custom',
     description: 'Create your own theme with a custom color.',
-    preview: '#5865f2',
-    headerColor: '#4752c4',
-    sidebarColor: '#4752c4',
-    chatColor: '#5865f2'
+    preview: '#0EA5E9',
+    headerColor: '#0284C7',
+    sidebarColor: '#0284C7',
+    chatColor: '#0EA5E9'
   }
 ]
 
@@ -861,9 +913,9 @@ onMounted(async () => {
   settings.value = {
     theme: currentSettings.theme,
     customThemeMode: currentSettings.customThemeMode || 'dark',
-    customPrimaryColor: currentSettings.customPrimaryColor || '#5865f2',
-    customAccentColor: currentSettings.customAccentColor || '#5865f2',
-    customBackgroundColor: currentSettings.customBackgroundColor || '#5865f2',
+    customPrimaryColor: currentSettings.customPrimaryColor || '#0EA5E9',
+    customAccentColor: currentSettings.customAccentColor || '#0EA5E9',
+    customBackgroundColor: currentSettings.customBackgroundColor || '#0EA5E9',
     customBackgroundLightness: currentSettings.customBackgroundLightness || 0,
     customBackgroundChroma: currentSettings.customBackgroundChroma || 0,
     fontSize: currentSettings.fontSize,
@@ -934,12 +986,12 @@ onMounted(async () => {
 }
 
 .theme-option:hover {
-  border-color: var(--h-primary, #5865f2);
+  border-color: var(--h-primary, #0EA5E9);
 }
 
 .theme-option.active {
-  border-color: var(--h-primary, #5865f2);
-  background-color: rgba(88, 101, 242, 0.1);
+  border-color: var(--h-primary, #0EA5E9);
+  background-color: rgba(14, 165, 233, 0.1);
 }
 
 .theme-preview {
@@ -1148,13 +1200,13 @@ onMounted(async () => {
 }
 
 .mode-btn:hover {
-  border-color: var(--h-primary, #5865f2);
+  border-color: var(--h-primary, #0EA5E9);
   background-color: var(--h-chat-light);
 }
 
 .mode-btn.active {
-  border-color: var(--h-primary, #5865f2);
-  background-color: rgba(88, 101, 242, 0.15);
+  border-color: var(--h-primary, #0EA5E9);
+  background-color: rgba(14, 165, 233, 0.15);
   color: var(--text-primary, #ffffff);
 }
 
@@ -1182,13 +1234,13 @@ onMounted(async () => {
 }
 
 .emoji-pack-btn:hover {
-  border-color: var(--h-primary, #5865f2);
+  border-color: var(--h-primary, #0EA5E9);
   background-color: var(--h-chat-light);
 }
 
 .emoji-pack-btn.active {
-  border-color: var(--h-primary, #5865f2);
-  background-color: rgba(88, 101, 242, 0.15);
+  border-color: var(--h-primary, #0EA5E9);
+  background-color: rgba(14, 165, 233, 0.15);
   color: var(--text-primary, #ffffff);
 }
 
@@ -1265,7 +1317,7 @@ onMounted(async () => {
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  background: var(--h-primary, #5865f2);
+  background: var(--h-primary, #0EA5E9);
   cursor: pointer;
   border: 3px solid var(--text-primary, #ffffff);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
@@ -1280,7 +1332,7 @@ onMounted(async () => {
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  background: var(--h-primary, #5865f2);
+  background: var(--h-primary, #0EA5E9);
   cursor: pointer;
   border: 3px solid var(--text-primary, #ffffff);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
@@ -1338,7 +1390,7 @@ onMounted(async () => {
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  background: var(--h-primary, #5865f2);
+  background: var(--h-primary, #0EA5E9);
   cursor: pointer;
   border: 3px solid var(--text-primary, #ffffff);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
@@ -1353,7 +1405,7 @@ onMounted(async () => {
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  background: var(--h-primary, #5865f2);
+  background: var(--h-primary, #0EA5E9);
   cursor: pointer;
   border: 3px solid var(--text-primary, #ffffff);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
@@ -1425,7 +1477,7 @@ onMounted(async () => {
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  background: var(--h-primary, #5865f2);
+  background: var(--h-primary, #0EA5E9);
   cursor: pointer;
 }
 
@@ -1433,7 +1485,7 @@ onMounted(async () => {
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  background: var(--h-primary, #5865f2);
+  background: var(--h-primary, #0EA5E9);
   cursor: pointer;
   border: none;
 }
@@ -1494,7 +1546,7 @@ onMounted(async () => {
 
 .select-input:focus {
   outline: none;
-  border-color: var(--h-primary, #5865f2);
+  border-color: var(--h-primary, #0EA5E9);
 }
 
 .settings-actions {
@@ -1654,6 +1706,10 @@ onMounted(async () => {
 .export-btn,
 .import-btn {
   min-width: 120px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
 }
 
 .hidden-file-input {
@@ -1740,6 +1796,21 @@ onMounted(async () => {
   color: var(--text-primary);
 }
 
+.override-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 10px;
+  background: var(--harmony-primary);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+}
+
 .toggle-arrow {
   font-size: 10px;
   transition: transform 0.2s;
@@ -1751,6 +1822,38 @@ onMounted(async () => {
 
 .css-overrides-panel {
   margin-top: 16px;
+}
+
+.overrides-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  margin-bottom: 16px;
+  background: var(--h-chat-dark, #141618);
+  border-radius: 6px;
+  border: 1px solid var(--h-chat-light);
+}
+
+.override-summary {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.reset-all-btn {
+  padding: 4px 12px;
+  border-radius: 4px;
+  border: 1px solid var(--error, #ed4245);
+  background: transparent;
+  color: var(--error, #ed4245);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.reset-all-btn:hover {
+  background: var(--error, #ed4245);
+  color: #fff;
 }
 
 .css-var-group {
@@ -1769,7 +1872,7 @@ onMounted(async () => {
 .var-list {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
 }
 
 .var-item {
@@ -1777,12 +1880,19 @@ onMounted(async () => {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 6px 8px;
+  padding: 5px 8px;
   border-radius: 4px;
+  border-left: 2px solid transparent;
+  transition: border-color 0.15s;
 }
 
 .var-item:hover {
   background: var(--h-chat-light);
+}
+
+.var-item.has-override {
+  border-left-color: var(--harmony-primary);
+  background: rgba(14, 165, 233, 0.04);
 }
 
 .var-name {
@@ -1793,6 +1903,10 @@ onMounted(async () => {
   min-width: 180px;
 }
 
+.var-item.has-override .var-name {
+  color: var(--text-primary);
+}
+
 .var-controls {
   display: flex;
   align-items: center;
@@ -1801,18 +1915,33 @@ onMounted(async () => {
   justify-content: flex-end;
 }
 
-.var-color-input {
-  width: 28px;
-  height: 28px;
-  border: 1px solid var(--h-chat-light);
-  border-radius: 4px;
-  padding: 2px;
+.var-swatch {
+  width: 20px;
+  height: 20px;
+  border-radius: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  flex-shrink: 0;
+}
+
+.var-swatch-clickable {
+  position: relative;
   cursor: pointer;
-  background: none;
+}
+
+.var-color-input-hidden {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  border: none;
+  padding: 0;
+  margin: 0;
 }
 
 .var-text-input {
-  width: 100px;
+  width: 140px;
   padding: 4px 8px;
   background: var(--h-chat-dark, #141618);
   border: 1px solid var(--h-chat-light);
@@ -1834,6 +1963,7 @@ onMounted(async () => {
   font-size: 14px;
   padding: 2px 6px;
   border-radius: 4px;
+  flex-shrink: 0;
 }
 
 .var-reset-btn:hover {

@@ -719,7 +719,7 @@ const closeInviteModal = () => {
 }
 
 .search-input-wrapper:focus-within {
-  border-color: rgba(88, 101, 242, 0.6);
+  border-color: rgba(14, 165, 233, 0.6);
 }
 
 .search-input {
@@ -734,7 +734,7 @@ const closeInviteModal = () => {
 }
 
 .search-input::placeholder {
-  color: #72767d;
+  color: var(--text-muted);
 }
 
 .search-icon {
@@ -744,7 +744,7 @@ const closeInviteModal = () => {
   transform: translateY(-50%);
   width: 16px;
   height: 16px;
-  color: #72767d;
+  color: var(--text-muted);
   pointer-events: none;
 }
 
@@ -755,7 +755,7 @@ const closeInviteModal = () => {
   transform: translateY(-50%);
   background: none;
   border: none;
-  color: #72767d;
+  color: var(--text-muted);
   cursor: pointer;
   padding: 0;
   width: 16px;
@@ -1070,7 +1070,7 @@ const closeInviteModal = () => {
 .federation-icon {
   width: 12px;
   height: 12px;
-  color: var(--accent-primary, #5865f2);
+  color: var(--accent-primary, #0EA5E9);
   opacity: 0.8;
   transition: opacity 0.15s ease;
 }
@@ -1099,7 +1099,7 @@ const closeInviteModal = () => {
 }
 
 .user-domain {
-  color: var(--text-muted, #72767d);
+  color: var(--text-muted, var(--text-muted));
   font-size: 11px;
   font-weight: 400;
   white-space: nowrap;
@@ -1129,7 +1129,7 @@ const closeInviteModal = () => {
 .control-btn:focus-visible,
 .group-header:focus-visible,
 .user-item:focus-visible {
-  outline: 2px solid #5865f2;
+  outline: 2px solid #0EA5E9;
   outline-offset: 2px;
 }
 
@@ -1180,9 +1180,7 @@ const closeInviteModal = () => {
 }
 
 /* Dark theme specific adjustments */
-@media (prefers-color-scheme: dark) {
-  .search-input-wrapper {
-    background-color: rgba(0, 0, 0, 0.2);
-  }
+:root[data-theme-type="dark"] .search-input-wrapper {
+  background-color: rgba(0, 0, 0, 0.2);
 }
 </style>

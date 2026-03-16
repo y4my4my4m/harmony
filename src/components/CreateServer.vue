@@ -506,7 +506,7 @@ const createServer = async () => {
   overflow: hidden;
   cursor: pointer;
   position: relative;
-  background: linear-gradient(135deg, #36393f, #2f3136);
+  background: linear-gradient(135deg, var(--background-secondary), var(--background-tertiary));
   transition: all 0.3s ease;
   flex-shrink: 0;
 }
@@ -628,7 +628,7 @@ const createServer = async () => {
 
 .modern-input::placeholder,
 .modern-textarea::placeholder {
-  color: #72767d;
+  color: var(--text-muted);
 }
 
 .input-accent {
@@ -657,7 +657,7 @@ const createServer = async () => {
 
 .char-count {
   font-size: 12px;
-  color: #72767d;
+  color: var(--text-muted);
 }
 
 .error-text {
@@ -755,7 +755,7 @@ const createServer = async () => {
   height: 48px;
   border-radius: 50%;
   overflow: hidden;
-  background: #36393f;
+  background: var(--background-secondary);
   flex-shrink: 0;
 }
 

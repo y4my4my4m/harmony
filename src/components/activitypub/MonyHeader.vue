@@ -228,7 +228,7 @@ const getIconPath = (iconName: string): string => {
   align-items: center;
   gap: 4px;
   background: var(--background-tertiary-alpha);
-  /* border: 2px solid rgba(88, 101, 242, 0.3); */
+  /* border: 2px solid rgba(14, 165, 233, 0.3); */
   border: 2px solid var(--harmony-primary-alpha);
   border-radius: 16px;
   padding: 4px;
@@ -257,7 +257,7 @@ const getIconPath = (iconName: string): string => {
   content: '';
   position: absolute;
   inset: 0;
-  /* background: linear-gradient(135deg, rgba(88, 101, 242, 0.1), rgba(88, 101, 242, 0.05)); */
+  /* background: linear-gradient(135deg, rgba(14, 165, 233, 0.1), rgba(14, 165, 233, 0.05)); */
   background: linear-gradient(135deg, var(--harmony-primary-alpha), var(--harmony-primary-alpha-light));
   opacity: 0;
   transition: opacity 0.3s ease;
@@ -273,11 +273,11 @@ const getIconPath = (iconName: string): string => {
 }
 
 .feed-tab.active {
-  /* background: linear-gradient(135deg, var(--harmony-primary), #4752c4); */
+  /* background: linear-gradient(135deg, var(--harmony-primary), #0284C7); */
   background: linear-gradient(135deg, var(--harmony-primary), var(--harmony-primary-hover));
   color: var(--text-primary);
   /* box-shadow:  */
-    /* 0 0 13px rgba(88, 101, 242, 0.4), */
+    /* 0 0 13px rgba(14, 165, 233, 0.4), */
     /* inset 0 -2px 2px rgba(0, 0, 0, 0.3), */
     /* inset 0 1px 0 rgba(255, 255, 255, 0.2); */
   box-shadow:
@@ -343,12 +343,12 @@ const getIconPath = (iconName: string): string => {
 }
 
 .action-btn:hover {
-  background: var(--harmony-primary-hover, #4752c4);
+  background: var(--harmony-primary-hover, #0284C7);
   color: var(--text-light);
 }
 
 .action-btn:active {
-  background: var(--harmony-primary-hover, #4752c4);
+  background: var(--harmony-primary-hover, #0284C7);
   color: var(--text-light);
 }
 
@@ -360,8 +360,8 @@ const getIconPath = (iconName: string): string => {
   height: 18px;
 }
 .sidebar-btn.active {
-  color: var(--harmony-primary, #5865f2);
-  /* background: var(--harmony-primary-alpha, rgba(88, 101, 242, 0.1)); */
+  color: var(--harmony-primary, #0EA5E9);
+  /* background: var(--harmony-primary-alpha, rgba(14, 165, 233, 0.1)); */
 }
 .sidebar-btn:hover {
   color: var(--text-light);

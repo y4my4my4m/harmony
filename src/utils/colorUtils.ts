@@ -488,6 +488,7 @@ export function applyThemePalette(palette: ThemePalette): void {
   root.style.setProperty('--h-primary', palette.primary)
   root.style.setProperty('--h-primary-light', palette.primaryLight)
   root.style.setProperty('--h-primary-dark', palette.primaryDark)
+  root.style.setProperty('--h-brand', palette.primary)
   
   // Secondary / accent brand colors
   root.style.setProperty('--harmony-secondary', palette.secondary)
@@ -563,13 +564,16 @@ export function applyThemePalette(palette: ThemePalette): void {
     root.style.setProperty('--background-quinary', oklchToString(bgTertiaryOklch.l + 2, bgTertiaryOklch.c, bgTertiaryOklch.h))
     // Alpha variant
     root.style.setProperty('--background-tertiary-alpha', oklchToStringAlpha(bgTertiaryOklch.l, bgTertiaryOklch.c, bgTertiaryOklch.h, 0.67))
+  }
 
-    // Senary: darkest layer (picker tabs, scrollbars, overlays) – derived from tertiary with theme hue
+  // Senary: darkest layer (picker tabs, emoji/gif popup header, overlays) – always set with theme hue when we have any background
+  const senarySource = bgTertiaryOklch ?? bgPrimaryOklch ?? bgSecondaryOklch
+  if (senarySource) {
     const senaryL = palette.isLightTheme
       ? 22  // Light: dark overlay (L22) with theme hue for dropdowns/pickers
-      : Math.max(1, bgTertiaryOklch.l - 4)  // Dark: one step darker than tertiary
-    root.style.setProperty('--background-senary', oklchToString(senaryL, bgTertiaryOklch.c, bgTertiaryOklch.h))
-    root.style.setProperty('--background-senary-alpha', oklchToStringAlpha(senaryL, bgTertiaryOklch.c, bgTertiaryOklch.h, 0.78))
+      : Math.max(1, senarySource.l - 4)  // Dark: one step darker than source
+    root.style.setProperty('--background-senary', oklchToString(senaryL, senarySource.c, senarySource.h))
+    root.style.setProperty('--background-senary-alpha', oklchToStringAlpha(senaryL, senarySource.c, senarySource.h, 0.78))
   }
   
   // Text colors

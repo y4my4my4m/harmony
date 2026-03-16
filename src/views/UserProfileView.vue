@@ -441,8 +441,8 @@ const bannerUrl = computed(() => {
 })
 
 const userColor = computed(() => {
-  if (!user.value) return '#5865f2'
-  return getUserColor(user.value.id).value || '#5865f2'
+  if (!user.value) return '#0EA5E9'
+  return getUserColor(user.value.id).value || '#0EA5E9'
 })
 
 const bannerStyle = computed(() => {
@@ -458,7 +458,7 @@ const bannerStyle = computed(() => {
     }
   }
   return {
-    background: userColor.value || '#5865f2'
+    background: userColor.value || '#0EA5E9'
   }
 })
 
@@ -1408,7 +1408,7 @@ onUnmounted(() => {
 
 .action-item.active {
   color: var(--harmony-primary);
-  background: rgba(88, 101, 242, 0.1);
+  background: rgba(14, 165, 233, 0.1);
 }
 
 .action-item.danger {
@@ -1465,7 +1465,7 @@ onUnmounted(() => {
 }
 
 .tab-btn.active .tab-count {
-  background: rgba(88, 101, 242, 0.2);
+  background: rgba(14, 165, 233, 0.2);
   color: var(--harmony-primary);
 }
 
@@ -1551,8 +1551,8 @@ onUnmounted(() => {
   margin-top: 0.5rem;
   padding: 8px 24px;
   background: transparent;
-  border: 1px solid var(--brand-color, #5865f2);
-  color: var(--brand-color, #5865f2);
+  border: 1px solid var(--brand-color, #0EA5E9);
+  color: var(--brand-color, #0EA5E9);
   border-radius: 20px;
   font-weight: 600;
   cursor: pointer;
@@ -1560,7 +1560,7 @@ onUnmounted(() => {
 }
 
 .unblock-btn:hover {
-  background: var(--brand-color, #5865f2);
+  background: var(--brand-color, #0EA5E9);
   color: var(--text-primary);
 }
 

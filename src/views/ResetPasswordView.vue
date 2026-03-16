@@ -200,8 +200,8 @@
         <div class="modal-header">
           <div class="modal-icon">
             <svg width="48" height="48" viewBox="0 0 24 24" fill="none">
-              <circle cx="12" cy="12" r="10" stroke="#5865f2" stroke-width="2"/>
-              <path d="M12 6v6l4 2" stroke="#5865f2" stroke-width="2" stroke-linecap="round"/>
+              <circle cx="12" cy="12" r="10" stroke="#0EA5E9" stroke-width="2"/>
+              <path d="M12 6v6l4 2" stroke="#0EA5E9" stroke-width="2" stroke-linecap="round"/>
             </svg>
           </div>
           <h2 class="modal-title">Two-Factor Authentication</h2>
@@ -701,7 +701,7 @@ const toggleRecoveryCode = () => {
 
 .particle {
   position: absolute;
-  background: linear-gradient(45deg, #5865f2, #616ae5);
+  background: linear-gradient(45deg, #0EA5E9, #38BDF8);
   border-radius: 50%;
   opacity: 0.6;
   animation: float var(--duration) ease-in-out infinite var(--delay);
@@ -747,13 +747,13 @@ const toggleRecoveryCode = () => {
   height: 120px;
   position: relative;
   z-index: 2;
-  filter: drop-shadow(0 10px 30px rgba(88, 101, 242, 0.3));
+  filter: drop-shadow(0 10px 30px rgba(14, 165, 233, 0.3));
 }
 
 .logo-glow {
   position: absolute;
   inset: -20px;
-  background: radial-gradient(circle, rgba(88, 101, 242, 0.4) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(14, 165, 233, 0.4) 0%, transparent 70%);
   border-radius: 50%;
   animation: pulse 3s ease-in-out infinite;
   z-index: 1;
@@ -768,7 +768,7 @@ const toggleRecoveryCode = () => {
   font-size: 3rem;
   font-weight: 700;
   margin-bottom: 16px;
-  background: linear-gradient(135deg, #5865f2 0%, #616ae5 100%);
+  background: linear-gradient(135deg, #0EA5E9 0%, #38BDF8 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -861,7 +861,7 @@ const toggleRecoveryCode = () => {
 
 .form-input:focus {
   outline: none;
-  border-color: #5865f2;
+  border-color: #0EA5E9;
   background: rgba(0, 0, 0, 0.5);
 }
 
@@ -899,7 +899,7 @@ const toggleRecoveryCode = () => {
 .submit-btn {
   width: 100%;
   padding: 14px 24px;
-  background: linear-gradient(135deg, #5865f2 0%, #616ae5 100%);
+  background: linear-gradient(135deg, #0EA5E9 0%, #38BDF8 100%);
   border: none;
   border-radius: 8px;
   color: var(--text-primary);
@@ -912,7 +912,7 @@ const toggleRecoveryCode = () => {
 
 .submit-btn:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 0 8px 20px rgba(88, 101, 242, 0.4);
+  box-shadow: 0 8px 20px rgba(14, 165, 233, 0.4);
 }
 
 .submit-btn:disabled {

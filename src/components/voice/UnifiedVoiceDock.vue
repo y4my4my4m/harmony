@@ -1284,8 +1284,8 @@ onUnmounted(() => {
    ============================================================================= */
 
 .dock-container {
-  /* background: linear-gradient(145deg, #2f3136, #36393f);  */
-  background:linear-gradient(145deg, #2f313663, #36393f59);
+  /* background: linear-gradient(145deg, var(--background-tertiary), var(--background-secondary));  */
+  background:linear-gradient(145deg, var(--background-tertiary)63, var(--background-secondary)59);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 12px;
   padding: 16px;
@@ -1309,7 +1309,7 @@ onUnmounted(() => {
 }
 
 .dock-container:hover:not(.is-dragging) {
-  background: linear-gradient(145deg, #36393f63, #40444b59);
+  background: linear-gradient(145deg, var(--background-secondary)63, var(--h-black-lighter)59);
   transform: translateY(-2px);
   box-shadow: 
     0 12px 40px rgba(0, 0, 0, 0.7),
@@ -1347,7 +1347,7 @@ onUnmounted(() => {
   height: 48px;
   border-radius: 50%;
   object-fit: cover;
-  border: 2px solid #40444b;
+  border: 2px solid var(--h-black-lighter);
   transition: all 0.3s ease;
 }
 
@@ -1432,8 +1432,8 @@ onUnmounted(() => {
 }
 
 .dock-connection-badge.p2p {
-  background: rgba(88, 101, 242, 0.2);
-  color: #5865f2;
+  background: rgba(14, 165, 233, 0.2);
+  color: #0EA5E9;
 }
 
 /* Voice Controls */
@@ -1570,14 +1570,14 @@ onUnmounted(() => {
   background: #000;
   cursor: pointer !important; /* Override parent grab cursor for video preview */
   transition: all 0.2s ease;
-  border: 2px solid rgba(88, 101, 242, 0.4);
+  border: 2px solid rgba(14, 165, 233, 0.4);
   flex-shrink: 0;
 }
 
 .dock-video-preview:hover {
   transform: scale(1.05);
-  border-color: rgba(88, 101, 242, 0.8);
-  box-shadow: 0 4px 12px rgba(88, 101, 242, 0.3);
+  border-color: rgba(14, 165, 233, 0.8);
+  box-shadow: 0 4px 12px rgba(14, 165, 233, 0.3);
 }
 
 .dock-video {
@@ -1612,9 +1612,9 @@ onUnmounted(() => {
 }
 
 .expand-btn:hover {
-  background: linear-gradient(145deg, #5865f2, #4752c4);
+  background: linear-gradient(145deg, #0EA5E9, #0284C7);
   color: var(--text-primary);
-  border-color: rgba(88, 101, 242, 0.6);
+  border-color: rgba(14, 165, 233, 0.6);
 }
 
 .minimize-btn:hover {
@@ -1636,8 +1636,8 @@ onUnmounted(() => {
 .minimized-container {
   position: relative;
   z-index: 200;
-  /* background: linear-gradient(145deg, #2f3136, #36393f); */
-  background: linear-gradient(145deg, #2f313663, #36393f59);
+  /* background: linear-gradient(145deg, var(--background-tertiary), var(--background-secondary)); */
+  background: linear-gradient(145deg, var(--background-tertiary)63, var(--background-secondary)59);
   backdrop-filter: blur(8px);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 12px;
@@ -1653,8 +1653,8 @@ onUnmounted(() => {
 }
 
 .minimized-container:hover:not(.is-dragging) {
-  /* background: linear-gradient(145deg, #36393f, #40444b); */
-  background: linear-gradient(145deg, #36393f63, #40444b59);
+  /* background: linear-gradient(145deg, var(--background-secondary), var(--h-black-lighter)); */
+  background: linear-gradient(145deg, var(--background-secondary)63, var(--h-black-lighter)59);
   transform: translateY(-1px);
   box-shadow: 
     0 8px 25px rgba(0, 0, 0, 0.5),
@@ -1758,9 +1758,9 @@ onUnmounted(() => {
 }
 
 .channel-icon {
-  background: rgba(88, 101, 242, 0.2);
+  background: rgba(14, 165, 233, 0.2);
   border-radius: 10px;
-  color: #5865f2;
+  color: #0EA5E9;
   width: 24px;
   height: 24px;
   padding: 4px;
@@ -1780,8 +1780,8 @@ onUnmounted(() => {
 }
 
 .participant-count {
-  background: rgba(88, 101, 242, 0.2);
-  color: #5865f2;
+  background: rgba(14, 165, 233, 0.2);
+  color: #0EA5E9;
   padding: 2px 6px;
   border-radius: 10px;
   font-size: 12px;
@@ -1851,7 +1851,7 @@ onUnmounted(() => {
   border-radius: 0 0 10px 10px;
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-top: none;
-  background: linear-gradient(145deg, #2f313663, #36393f59);
+  background: linear-gradient(145deg, var(--background-tertiary)63, var(--background-secondary)59);
   backdrop-filter: blur(8px);
   color: var(--text-secondary);
   cursor: pointer;
@@ -1866,14 +1866,14 @@ onUnmounted(() => {
 }
 
 .participants-dropdown-btn:hover:not(.active) {
-  background: linear-gradient(145deg, #36393f63, #40444b59);
+  background: linear-gradient(145deg, var(--background-secondary)63, var(--h-black-lighter)59);
   color: var(--text-primary);
   border-color: rgba(255, 255, 255, 0.3);
   transform: translateY(2px);
 }
 
 .participants-dropdown-btn.active {
-  background: linear-gradient(145deg, #36393f63, #40444b59);
+  background: linear-gradient(145deg, var(--background-secondary)63, var(--h-black-lighter)59);
   color: var(--text-primary);
   border-color: rgba(255, 255, 255, 0.4);
   transform: translateY(2px);
@@ -1891,7 +1891,7 @@ onUnmounted(() => {
   width: 300px;
   max-height: 400px;
   overflow-y: auto;
-  background: linear-gradient(145deg, #2f313663, #36393f59);
+  background: linear-gradient(145deg, var(--background-tertiary)63, var(--background-secondary)59);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 12px;
   box-shadow: 

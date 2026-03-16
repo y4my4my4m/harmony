@@ -4,10 +4,10 @@
 /* === CSS CUSTOM PROPERTIES === */
 :root {
   /* Brand Colors */
-  --harmony-primary: #5865f2;
-  --harmony-primary-hover: #4752c4;
-  --harmony-primary-light: rgba(88, 101, 242, 0.1);
-  --harmony-secondary: #616ae5;
+  --harmony-primary: #0EA5E9;
+  --harmony-primary-hover: #0284C7;
+  --harmony-primary-light: rgba(14, 165, 233, 0.1);
+  --harmony-secondary: #38BDF8;
   --harmony-accent: #ff7675;
   
   /* Status Colors */
@@ -122,26 +122,82 @@
   --breakpoint-2xl: 1536px;
 }
 
-/* Dark mode overrides */
-@media (prefers-color-scheme: dark) {
-  :root {
-    color-scheme: dark;
-  }
+/* === LAYOUT SURFACE TOKENS (from base.css) === */
+:root {
+  /* Layout surface colors */
+  --h-primary: #0EA5E9;
+  --h-primary-light: #38BDF8;
+  --h-primary-dark: #0369A1;
+
+  --h-black: #1e1f22;
+  --h-black-light: #313336;
+  --h-black-lighter: #40444b;
+  --h-black-darker: #000000;
+
+  --h-sidebar: #292b2f;
+  --h-sidebar-light: #36393f;
+
+  --h-chat: #313338;
+  --h-chat-light: #383a40;
+  --h-chat-lighter: #313336;
+  --h-chat-dark: #141618;
+  --h-chat-darker: #0c0d0e;
+
+  --h-brand: var(--harmony-primary, #0EA5E9);
+  --h-channel-sidebar: var(--background-tertiary);
+
+  /* Icon palette */
+  --icon-muted: #9c343a;
+  --icon-active: #fbfbfb;
+  --icon-primary: #9999a0;
+  --icon-secondary: #66666b;
+  --icon-tertiary: #444447;
+
+  /* Layout tokens */
+  --gutter: 16px;
+  --avatar-size: 40px;
+  --reply-spacing: 4px;
+  --spine-width: 2px;
+  --interactive-muted: hsl(228 calc(1 * 6%) 32.5% / 1);
+
+  /* Legacy aliases (map to the canonical --background-* and --text-* vars) */
+  --color-background: var(--background-tertiary);
+  --color-background-soft: var(--background-secondary);
+  --color-background-mute: var(--background-quaternary);
+  --color-text: var(--text-primary);
+  --color-heading: var(--text-primary);
+  --color-border: var(--border-secondary);
+  --color-border-hover: var(--border-hover);
+  --border-color: #232529;
+
+  /* Alias --bg-* to --background-* so components using the short form work */
+  --bg-primary: var(--background-primary);
+  --bg-secondary: var(--background-secondary);
+  --bg-tertiary: var(--background-tertiary);
+  --bg-hover: var(--background-quaternary);
+  --bg-active: var(--background-quinary);
+  --bg-modal: var(--background-senary);
 }
 
-/* Light mode overrides */
-@media (prefers-color-scheme: light) {
-  /* :root {
-    --bg-primary: #ffffff;
-    --bg-secondary: #f8f9fa;
-    --bg-tertiary: #e9ecef;
-    --bg-quaternary: #dee2e6;
-    --text-primary: #212529;
-    --text-secondary: #495057;
-    --text-tertiary: #6c757d;
-    --text-muted: #adb5bd;
-    --text-inverse: #ffffff;
-  } */
+/* Theme-driven color-scheme hint for native form controls */
+:root[data-theme-type="dark"] { color-scheme: dark; }
+:root[data-theme-type="light"] { color-scheme: light; }
+
+/* Tooltip and overlay surfaces – work in both themes (dark surface, light text) */
+:root {
+  --tooltip-bg: #18191c;
+  --tooltip-text: #f2f3f5;
+  --tooltip-arrow: #18191c;
+}
+:root[data-theme-type="light"] {
+  --tooltip-bg: #2b2d31;
+  --tooltip-text: #f2f3f5;
+  --tooltip-arrow: #2b2d31;
+}
+
+/* Text on primary/accent background (e.g. active nav item) – always light for contrast */
+:root {
+  --text-on-primary: #ffffff;
 }
 
 /* === BASE RESET & TYPOGRAPHY === */
@@ -151,6 +207,24 @@
   box-sizing: border-box;
   margin: 0;
   padding: 0;
+  font-weight: normal;
+  -drag: none;
+  user-select: none;
+}
+
+.selectableText { user-select: text; }
+.draggable { user-select: auto; }
+
+.emoji-icon,
+.inline-emoji,
+.emoji-svg,
+.frequent-emoji-img,
+.emoji-img,
+.reaction-emoji,
+.md-emoji {
+  -webkit-touch-callout: none;
+  -webkit-user-drag: none;
+  pointer-events: auto;
 }
 
 html {
@@ -160,14 +234,75 @@ html {
 
 body {
   height: 100%;
+  min-height: 100vh;
   font-family: var(--font-family);
   font-size: var(--font-size-base);
   line-height: var(--line-height-normal);
   color: var(--text-primary);
-  background-color: var(--bg-primary);
+  background-color: var(--background-primary);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
   overflow-x: hidden;
+  transition: color 0.5s, background-color 0.5s;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+  border-radius: 12px;
+}
+
+::-webkit-scrollbar-track {
+  background-color: var(--background-secondary);
+  border-radius: 12px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-primary);
+  border-radius: 12px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--border-hover);
+}
+
+/* Base element styles */
+#app {
+  font-weight: normal;
+}
+
+a {
+  text-decoration: none;
+  color: var(--harmony-primary);
+  transition: 0.4s;
+}
+
+strong {
+  font-weight: 900;
+}
+
+.posts-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0 auto;
+  gap: var(--space-4);
+  width: 600px;
+}
+
+@media (hover: hover) {
+  a:hover {
+    background-color: rgba(14, 165, 233, 0.15);
+  }
+}
+
+@media (max-width: 768px) {
+  .posts-list {
+    gap: var(--space-3);
+    width: 100%;
+    padding: 10px;
+  }
 }
 
 /* Text selection */
@@ -639,7 +774,7 @@ body {
   width: 32px;
   height: 32px;
   border: 3px solid rgba(255, 255, 255, 0.08);
-  border-top: 3px solid var(--h-brand, #5865f2);
+  border-top: 3px solid var(--h-brand, #0EA5E9);
   border-radius: 50%;
   animation: spin 1s linear infinite;
   margin-bottom: 1rem;
@@ -790,7 +925,7 @@ body {
   font-family: 'IBM Plex Mono', 'SFMono-Regular', Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
   letter-spacing: 0.15em;
   user-select: none;
-  background: linear-gradient(90deg, rgba(88, 101, 242, 0.05), rgba(88, 101, 242, 0.1), rgba(88, 101, 242, 0.05));
+  background: linear-gradient(90deg, rgba(14, 165, 233, 0.05), rgba(14, 165, 233, 0.1), rgba(14, 165, 233, 0.05));
   border-radius: 4px;
   padding: 2px 6px;
   display: inline-block;
@@ -799,22 +934,22 @@ body {
 
 .glyph-char {
   display: inline-block;
-  color: #616ae5;
+  color: #38BDF8;
   opacity: 0.7;
   animation: glyphFloat 3s ease-in-out infinite, glyphGlitch 5s ease-in-out infinite;
   text-shadow: 
-    0 0 5px rgba(114, 137, 218, 0.5),
-    0 0 10px rgba(114, 137, 218, 0.3);
+    0 0 5px rgba(14, 165, 233, 0.5),
+    0 0 10px rgba(14, 165, 233, 0.3);
   transition: all 0.3s ease;
 }
 
 .glyph-char:hover {
-  color: #5865f2;
+  color: #0EA5E9;
   opacity: 1;
   text-shadow: 
-    0 0 8px rgba(88, 101, 242, 0.8),
-    0 0 15px rgba(88, 101, 242, 0.5),
-    0 0 20px rgba(88, 101, 242, 0.3);
+    0 0 8px rgba(14, 165, 233, 0.8),
+    0 0 15px rgba(14, 165, 233, 0.5),
+    0 0 20px rgba(14, 165, 233, 0.3);
   transform: scale(1.1);
 }
 
@@ -873,16 +1008,16 @@ body {
 @keyframes glyphGlow {
   0%, 100% {
     text-shadow: 
-      0 0 5px rgba(114, 137, 218, 0.5),
-      0 0 10px rgba(114, 137, 218, 0.3);
-    color: #616ae5;
+      0 0 5px rgba(14, 165, 233, 0.5),
+      0 0 10px rgba(14, 165, 233, 0.3);
+    color: #38BDF8;
   }
   50% {
     text-shadow: 
-      0 0 10px rgba(88, 101, 242, 0.9),
-      0 0 20px rgba(88, 101, 242, 0.6),
-      0 0 30px rgba(88, 101, 242, 0.4);
-    color: #5865f2;
+      0 0 10px rgba(14, 165, 233, 0.9),
+      0 0 20px rgba(14, 165, 233, 0.6),
+      0 0 30px rgba(14, 165, 233, 0.4);
+    color: #0EA5E9;
   }
 }
 
@@ -898,7 +1033,7 @@ body {
 }
 
 .encrypted-click-target:hover {
-  background-color: rgba(88, 101, 242, 0.15);
+  background-color: rgba(14, 165, 233, 0.15);
 }
 
 .encrypted-click-target:hover .glyph-char {
@@ -907,7 +1042,7 @@ body {
 }
 
 .encrypted-click-target:active {
-  background-color: rgba(88, 101, 242, 0.25);
+  background-color: rgba(14, 165, 233, 0.25);
 }
 
 /* Decrypting state */

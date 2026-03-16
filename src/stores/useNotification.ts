@@ -303,37 +303,37 @@ export const useNotificationStore = defineStore('notification', {
         {
           key: 'all',
           label: 'All',
-          icon: '📋',
+          icon: 'list',
           count: state.notifications.length
         },
         {
           key: 'unread',
           label: 'Unread',
-          icon: '🔴',
+          icon: 'circle',
           count: state.notifications.filter(n => !n.is_read).length
         },
         {
           key: 'mentions',
           label: 'Mentions',
-          icon: '@',
+          icon: 'at-sign',
           count: state.notifications.filter(n => n.type === 'mention' || n.type === 'activitypub_mention').length
         },
         {
           key: 'dms',
           label: 'Messages',
-          icon: '💬',
+          icon: 'message-circle',
           count: state.notifications.filter(n => n.type === 'dm').length
         },
         {
           key: 'social',
           label: 'Social',
-          icon: '🌐',
+          icon: 'globe',
           count: state.notifications.filter(n => n.type.startsWith('activitypub_')).length
         },
         {
           key: 'follows',
           label: 'Follows',
-          icon: '👥',
+          icon: 'users',
           count: state.notifications.filter(n => n.type === 'activitypub_follow' || n.type === 'activitypub_follow_request').length
         }
       ]

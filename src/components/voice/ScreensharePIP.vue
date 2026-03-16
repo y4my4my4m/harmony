@@ -260,7 +260,7 @@ onUnmounted(() => {
   bottom: 80px;
   right: 20px;
   width: 400px;
-  background: linear-gradient(145deg, #2f3136, #36393f);
+  background: linear-gradient(145deg, var(--background-tertiary), var(--background-secondary));
   border-radius: 12px;
   border: 2px solid rgba(255, 255, 255, 0.2);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
@@ -276,7 +276,7 @@ onUnmounted(() => {
 /* Draggable PIP */
 .pip-draggable {
   position: fixed;
-  background: linear-gradient(145deg, #2f3136, #36393f);
+  background: linear-gradient(145deg, var(--background-tertiary), var(--background-secondary));
   border-radius: 12px;
   border: 2px solid rgba(255, 255, 255, 0.2);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);

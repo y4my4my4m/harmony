@@ -275,7 +275,7 @@ onMounted(async () => {
 
 .progress-bar-fill {
   height: 100%;
-  background: var(--harmony-primary, #5865f2);
+  background: var(--harmony-primary, #0EA5E9);
   border-radius: 5px;
   transition: width 0.4s ease;
 }
@@ -327,7 +327,7 @@ onMounted(async () => {
 }
 
 .funding-link:hover {
-  border-color: var(--harmony-primary, #5865f2);
+  border-color: var(--harmony-primary, #0EA5E9);
 }
 
 .link-platform {

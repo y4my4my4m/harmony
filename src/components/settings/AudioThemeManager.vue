@@ -1,5 +1,5 @@
 <template>
-  <div :class="['audio-theme-manager', { compact }]">
+  <div :class="[{ compact }]">
     <!-- Header Section -->
     <div class="manager-header">
       <div class="header-content">
@@ -86,7 +86,7 @@
             loading="lazy"
           />
           <div v-else class="preview-placeholder">
-            <Icon :name="getThemeIcon(theme.id)" />
+            <Icon :name="getThemeIconName(theme.id)" filled />
           </div>
           
           <!-- Loading Overlay -->
@@ -280,6 +280,7 @@ const {
   isTesting,
   themes,
   getThemeIcon,
+  getThemeIconName,
   selectTheme: baseSelectTheme,
   testCurrentTheme,
   testTheme: baseTestTheme,
@@ -413,15 +414,11 @@ watch(() => themeStore.currentAudioTheme, () => {
 
 <style scoped>
 .audio-theme-manager {
-  background: linear-gradient(135deg, #1a1d23 0%, #2d3748 100%);
-  border-radius: 16px;
+  background: var(--background-primary);
+  border-radius: 8px;
   padding: 24px;
   color: var(--text-primary);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(10px);
-  box-shadow: 
-    0 20px 25px -5px rgba(0, 0, 0, 0.4),
-    0 10px 10px -5px rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--border-primary);
 }
 
 /* Header */
@@ -441,7 +438,7 @@ watch(() => themeStore.currentAudioTheme, () => {
 .header-icon {
   width: 48px;
   height: 48px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: var(--harmony-primary);
   border-radius: 12px;
   display: flex;
   align-items: center;
@@ -458,14 +455,11 @@ watch(() => themeStore.currentAudioTheme, () => {
   font-size: 24px;
   font-weight: 700;
   margin: 0 0 4px 0;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: var(--text-primary);
 }
 
 .header-subtitle {
-  color: #a0aec0;
+  color: var(--text-secondary);
   font-size: 14px;
   margin: 0;
   line-height: 1.4;
@@ -482,7 +476,7 @@ watch(() => themeStore.currentAudioTheme, () => {
   border: 1px solid rgba(255, 255, 255, 0.2);
   background: rgba(255, 255, 255, 0.05);
   border-radius: 10px;
-  color: #a0aec0;
+  color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.2s ease;
   display: flex;
@@ -531,21 +525,21 @@ watch(() => themeStore.currentAudioTheme, () => {
 }
 
 .status-indicator.ready {
-  color: #68d391;
+  color: var(--status-online);
 }
 
 .status-indicator.loading,
 .status-indicator.preloading {
-  color: #63b3ed;
+  color: var(--harmony-primary);
 }
 
 .status-indicator.error {
-  color: #fc8181;
+  color: var(--error);
 }
 
 .cache-info {
   font-size: 12px;
-  color: #a0aec0;
+  color: var(--text-secondary);
 }
 
 /* Error Banner */
@@ -557,7 +551,7 @@ watch(() => themeStore.currentAudioTheme, () => {
   background: rgba(245, 101, 101, 0.1);
   border: 1px solid rgba(245, 101, 101, 0.3);
   border-radius: 8px;
-  color: #fc8181;
+  color: var(--error);
   margin-bottom: 20px;
 }
 
@@ -602,7 +596,7 @@ watch(() => themeStore.currentAudioTheme, () => {
 }
 
 .theme-card.active {
-  border-color: #667eea;
+  border-color: var(--harmony-primary);
   background: rgba(102, 126, 234, 0.1);
   box-shadow: 0 0 20px rgba(102, 126, 234, 0.3);
 }
@@ -616,7 +610,7 @@ watch(() => themeStore.currentAudioTheme, () => {
 .theme-preview {
   position: relative;
   height: 120px;
-  background: linear-gradient(135deg, #2d3748 0%, #4a5568 100%);
+  background: var(--background-tertiary);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -630,7 +624,7 @@ watch(() => themeStore.currentAudioTheme, () => {
 
 .preview-placeholder {
   font-size: 32px;
-  color: #a0aec0;
+  color: var(--text-secondary);
 }
 
 .loading-overlay,
@@ -683,7 +677,7 @@ watch(() => themeStore.currentAudioTheme, () => {
 }
 
 .built-in-badge {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: var(--harmony-primary);
   color: var(--text-primary);
   padding: 2px 8px;
   border-radius: 4px;
@@ -694,7 +688,7 @@ watch(() => themeStore.currentAudioTheme, () => {
 }
 
 .theme-version {
-  color: #a0aec0;
+  color: var(--text-secondary);
   font-size: 12px;
 }
 
@@ -712,7 +706,7 @@ watch(() => themeStore.currentAudioTheme, () => {
 }
 
 .theme-author {
-  color: #a0aec0;
+  color: var(--text-secondary);
   font-size: 12px;
 }
 
@@ -722,7 +716,7 @@ watch(() => themeStore.currentAudioTheme, () => {
   border: 1px solid rgba(255, 255, 255, 0.2);
   background: rgba(255, 255, 255, 0.05);
   border-radius: 6px;
-  color: #a0aec0;
+  color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.2s ease;
   display: flex;
@@ -740,7 +734,7 @@ watch(() => themeStore.currentAudioTheme, () => {
   position: absolute;
   top: 12px;
   right: 12px;
-  color: #667eea;
+  color: var(--harmony-primary);
   background: var(--text-primary);
   border-radius: 50%;
   width: 24px;
@@ -764,7 +758,7 @@ watch(() => themeStore.currentAudioTheme, () => {
 
 .progress-bar {
   height: 100%;
-  background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+  background: var(--harmony-primary);
   transition: width 0.3s ease;
 }
 
@@ -790,7 +784,7 @@ watch(() => themeStore.currentAudioTheme, () => {
 }
 
 .volume-value {
-  color: #667eea;
+  color: var(--harmony-primary);
   font-weight: 600;
   font-size: 14px;
 }
@@ -807,7 +801,7 @@ watch(() => themeStore.currentAudioTheme, () => {
   border: 1px solid rgba(255, 255, 255, 0.2);
   background: rgba(255, 255, 255, 0.05);
   border-radius: 8px;
-  color: #a0aec0;
+  color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.2s ease;
   display: flex;
@@ -821,8 +815,8 @@ watch(() => themeStore.currentAudioTheme, () => {
 }
 
 .volume-mute-btn.muted {
-  color: #fc8181;
-  border-color: #fc8181;
+  color: var(--error);
+  border-color: var(--error);
 }
 
 .volume-slider-container {
@@ -859,7 +853,7 @@ watch(() => themeStore.currentAudioTheme, () => {
 
 .volume-fill {
   height: 100%;
-  background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+  background: var(--harmony-primary);
   border-radius: 3px;
   transition: width 0.2s ease;
 }
@@ -870,7 +864,7 @@ watch(() => themeStore.currentAudioTheme, () => {
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  background: #667eea;
+  background: var(--harmony-primary);
   cursor: pointer;
   border: 2px solid #ffffff;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
@@ -892,7 +886,7 @@ watch(() => themeStore.currentAudioTheme, () => {
   border: 1px solid rgba(255, 255, 255, 0.2);
   background: rgba(255, 255, 255, 0.05);
   border-radius: 6px;
-  color: #a0aec0;
+  color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.2s ease;
   font-size: 12px;
@@ -905,8 +899,8 @@ watch(() => themeStore.currentAudioTheme, () => {
 }
 
 .preset-btn.active {
-  background: #667eea;
-  border-color: #667eea;
+  background: var(--harmony-primary);
+  border-color: var(--harmony-primary);
   color: var(--text-primary);
 }
 
@@ -960,7 +954,7 @@ watch(() => themeStore.currentAudioTheme, () => {
 }
 
 .cache-stats {
-  color: #a0aec0;
+  color: var(--text-secondary);
   font-size: 14px;
 }
 
@@ -979,7 +973,7 @@ watch(() => themeStore.currentAudioTheme, () => {
   border: 1px solid rgba(255, 255, 255, 0.2);
   background: rgba(255, 255, 255, 0.05);
   border-radius: 8px;
-  color: #a0aec0;
+  color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.2s ease;
   font-size: 14px;
@@ -992,12 +986,12 @@ watch(() => themeStore.currentAudioTheme, () => {
 
 .option-btn.danger {
   border-color: rgba(245, 101, 101, 0.3);
-  color: #fc8181;
+  color: var(--error);
 }
 
 .option-btn.danger:hover {
   background: rgba(245, 101, 101, 0.1);
-  border-color: #fc8181;
+  border-color: var(--error);
 }
 
 /* Transitions */

@@ -382,9 +382,9 @@ watch(isOpen, (newVal) => {
 }
 
 .selector-trigger.open {
-  background: rgba(88, 101, 242, 0.3);
+  background: rgba(14, 165, 233, 0.3);
   color: var(--text-primary);
-  border-color: rgba(88, 101, 242, 0.5);
+  border-color: rgba(14, 165, 233, 0.5);
 }
 
 .chevron {
@@ -400,7 +400,7 @@ watch(isOpen, (newVal) => {
 .device-dropdown {
   position: fixed;
   z-index: 10010;
-  background: linear-gradient(145deg, #2f3136, #36393f);
+  background: linear-gradient(145deg, var(--background-tertiary), var(--background-secondary));
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 12px;
   box-shadow: 
@@ -443,7 +443,7 @@ watch(isOpen, (newVal) => {
   padding: 6px 16px;
   font-size: 11px;
   font-weight: 600;
-  color: #72767d;
+  color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -474,12 +474,12 @@ watch(isOpen, (newVal) => {
 }
 
 .device-item.active {
-  background: rgba(88, 101, 242, 0.15);
-  color: #5865f2;
+  background: rgba(14, 165, 233, 0.15);
+  color: #0EA5E9;
 }
 
 .device-item.active:hover {
-  background: rgba(88, 101, 242, 0.25);
+  background: rgba(14, 165, 233, 0.25);
 }
 
 .device-label {
@@ -491,7 +491,7 @@ watch(isOpen, (newVal) => {
 
 .no-devices {
   padding: 12px 16px;
-  color: #72767d;
+  color: var(--text-muted);
   font-size: 12px;
   font-style: italic;
 }

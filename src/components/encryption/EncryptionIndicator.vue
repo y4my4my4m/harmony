@@ -193,13 +193,11 @@ const indicatorClass = computed(() => {
 }
 
 /* Dark mode adjustments */
-@media (prefers-color-scheme: dark) {
-  .encryption-indicator.encrypted {
-    background: rgba(var(--color-success-rgb), 0.15);
-  }
+:root[data-theme-type="dark"] .encryption-indicator.encrypted {
+  background: rgba(var(--color-success-rgb), 0.15);
+}
 
-  .encryption-indicator.unencrypted {
-    background: rgba(var(--color-warning-rgb), 0.15);
-  }
+:root[data-theme-type="dark"] .encryption-indicator.unencrypted {
+  background: rgba(var(--color-warning-rgb), 0.15);
 }
 </style>

@@ -37,7 +37,7 @@
   }
   
   .auth-content {
-    padding: 1rem;
+    /* padding: 1rem; */
   }
 }
 </style>

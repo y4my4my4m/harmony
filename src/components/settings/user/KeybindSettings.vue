@@ -491,14 +491,14 @@ onUnmounted(() => {
 }
 
 .keybind-button:hover {
-  background-color: rgba(88, 101, 242, 0.2);
-  border-color: #5865f2;
+  background-color: rgba(14, 165, 233, 0.2);
+  border-color: #0EA5E9;
 }
 
 .keybind-button.recording {
-  background-color: rgba(88, 101, 242, 0.3);
-  border-color: #5865f2;
-  color: #5865f2;
+  background-color: rgba(14, 165, 233, 0.3);
+  border-color: #0EA5E9;
+  color: #0EA5E9;
   animation: pulse-keybind 1.5s ease-in-out infinite;
 }
 
@@ -545,7 +545,7 @@ onUnmounted(() => {
 .mode-note {
   display: block;
   font-size: 11px;
-  color: #72767d;
+  color: var(--text-muted);
   font-style: italic;
   margin-top: 4px;
 }

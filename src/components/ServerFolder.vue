@@ -436,7 +436,7 @@ const onIconError = (event: Event) => {
   flex-direction: column;
   align-items: center;
   margin: 4px 0;
-  --folder-color: #5865f2;
+  --folder-color: #0EA5E9;
   position: relative;
 }
 
@@ -444,7 +444,7 @@ const onIconError = (event: Event) => {
 .folder-collapsed {
   width: 48px;
   height: 48px;
-  background: color-mix(in srgb, var(--folder-color) 40%, var(--h-black-light, #2f3136));
+  background: color-mix(in srgb, var(--folder-color) 40%, var(--h-black-light, var(--background-tertiary)));
   border-radius: 16px;
   cursor: pointer;
   position: relative;
@@ -787,7 +787,7 @@ const onIconError = (event: Event) => {
   position: fixed;
   left: 80px;
   transform: translateY(-50%);
-  background: #18191c;
+  background: var(--tooltip-bg, #18191c);
   border-radius: 8px;
   padding: 10px 14px;
   box-shadow: var(--shadow-small);
@@ -799,7 +799,7 @@ const onIconError = (event: Event) => {
 .server-tooltip-name {
   font-size: 15px;
   font-weight: 600;
-  color: var(--text-primary);
+  color: var(--tooltip-text, var(--text-primary));
 }
 
 .server-tooltip-arrow {
@@ -811,7 +811,7 @@ const onIconError = (event: Event) => {
   height: 0;
   border-top: 6px solid transparent;
   border-bottom: 6px solid transparent;
-  border-right: 6px solid #18191c;
+  border-right: 6px solid var(--tooltip-arrow, #18191c);
 }
 
 /* Tooltip animation */
@@ -845,7 +845,7 @@ const onIconError = (event: Event) => {
 .server-folder-context-menu.context-menu {
   position: fixed;
   background: #18191c;
-  border: 1px solid #40444b;
+  border: 1px solid var(--h-black-lighter);
   border-radius: 6px;
   padding: 6px 0;
   min-width: 180px;
@@ -865,7 +865,7 @@ const onIconError = (event: Event) => {
 }
 
 .server-folder-context-menu .context-menu-item:hover {
-  background-color: var(--harmony-primary, #5865f2);
+  background-color: var(--harmony-primary, #0EA5E9);
   color: var(--text-primary);
 }
 
@@ -873,7 +873,7 @@ const onIconError = (event: Event) => {
   position: fixed;
   left: 80px;
   transform: translateY(-50%);
-  background: #18191c;
+  background: var(--tooltip-bg, #18191c);
   border-radius: 8px;
   padding: 10px 14px;
   box-shadow: var(--shadow-small);
@@ -885,7 +885,7 @@ const onIconError = (event: Event) => {
 .server-tooltip-name {
   font-size: 15px;
   font-weight: 600;
-  color: var(--text-primary);
+  color: var(--tooltip-text, var(--text-primary));
 }
 
 .server-tooltip-arrow {
@@ -897,6 +897,6 @@ const onIconError = (event: Event) => {
   height: 0;
   border-top: 6px solid transparent;
   border-bottom: 6px solid transparent;
-  border-right: 6px solid #18191c;
+  border-right: 6px solid var(--tooltip-arrow, #18191c);
 }
 </style>

@@ -182,8 +182,8 @@ defineExpose({
 }
 
 .modern-input:focus {
-  border-color: #5865f2;
-  box-shadow: 0 0 0 1px #5865f2;
+  border-color: #0EA5E9;
+  box-shadow: 0 0 0 1px #0EA5E9;
 }
 
 .modern-input:hover:not(:focus):not(:disabled) {
@@ -221,7 +221,7 @@ defineExpose({
   bottom: 0;
   left: 0;
   height: 2px;
-  background: linear-gradient(90deg, #5865f2, #616ae5);
+  background: linear-gradient(90deg, #0EA5E9, #38BDF8);
   border-radius: 1px;
   width: 0;
   transition: width 0.3s ease;
@@ -282,7 +282,7 @@ defineExpose({
 
 /* Focus ring for accessibility */
 .modern-input:focus-visible {
-  outline: 2px solid #5865f2;
+  outline: 2px solid #0EA5E9;
   outline-offset: 2px;
 }
 

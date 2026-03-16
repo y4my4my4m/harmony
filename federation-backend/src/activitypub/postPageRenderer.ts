@@ -329,12 +329,12 @@ export function renderPostPage(post: any, author: any): string {
       color: #f2f3f5;
     }
     .content a {
-      color: #5865f2;
+      color: #0EA5E9;
       text-decoration: none;
     }
     .content a:hover { text-decoration: underline; }
-    .content .mention { color: #5865f2; }
-    .content .hashtag { color: #5865f2; }
+    .content .mention { color: #0EA5E9; }
+    .content .hashtag { color: #0EA5E9; }
     .media-grid {
       margin-top: 12px;
       display: grid;
@@ -383,12 +383,12 @@ export function renderPostPage(post: any, author: any): string {
       align-items: center;
     }
     .meta a { color: #6d6f78; text-decoration: none; }
-    .meta a:hover { color: #5865f2; }
+    .meta a:hover { color: #0EA5E9; }
     .cta {
       display: block;
       text-align: center;
       padding: 12px 24px;
-      background: #5865f2;
+      background: #0EA5E9;
       color: #fff;
       text-decoration: none;
       border-radius: 8px;
@@ -403,7 +403,7 @@ export function renderPostPage(post: any, author: any): string {
       color: #6d6f78;
       font-size: 13px;
     }
-    .branding a { color: #5865f2; text-decoration: none; }
+    .branding a { color: #0EA5E9; text-decoration: none; }
     .visibility-badge {
       display: inline-block;
       padding: 2px 8px;

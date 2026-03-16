@@ -954,7 +954,7 @@ watch(
 
 .search-input:focus {
   border-color: var(--color-primary);
-  box-shadow: 0 0 0 2px rgba(88, 101, 242, 0.2);
+  box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.2);
 }
 
 .search-input::placeholder {
@@ -1116,7 +1116,7 @@ watch(
   width: 16px;
   height: 16px;
   border: 2px solid rgba(255, 255, 255, 0.2);
-  border-top-color: var(--color-primary, #5865f2);
+  border-top-color: var(--color-primary, #0EA5E9);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
@@ -1130,7 +1130,7 @@ watch(
   align-items: center;
   justify-content: center;
   height: 200px;
-  color: var(--color-text-secondary, #72767d);
+  color: var(--color-text-secondary, var(--text-muted));
   font-size: 14px;
   text-align: center;
   padding: 16px;
@@ -1254,7 +1254,7 @@ watch(
 }
 
 .emoji-ctx-item:hover {
-  background-color: var(--harmony-primary, #5865f2);
+  background-color: var(--harmony-primary, #0EA5E9);
   color: var(--text-primary, #fff);
 }
 

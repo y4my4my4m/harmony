@@ -215,7 +215,7 @@ const formatFileSize = (bytes?: number): string => {
 }
 
 .media-size {
-  color: #72767d;
+  color: var(--text-muted);
   font-size: 12px;
   margin-top: 2px;
 }
@@ -227,7 +227,7 @@ const formatFileSize = (bytes?: number): string => {
   border-radius: 4px;
   overflow: hidden;
   flex-shrink: 0;
-  background-color: rgba(88, 101, 242, 0.2);
+  background-color: rgba(14, 165, 233, 0.2);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -236,7 +236,7 @@ const formatFileSize = (bytes?: number): string => {
 .audio-icon {
   width: 24px;
   height: 24px;
-  color: #5865f2;
+  color: #0EA5E9;
 }
 
 /* File Preview */
@@ -250,14 +250,14 @@ const formatFileSize = (bytes?: number): string => {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #72767d;
+  color: var(--text-muted);
 }
 
 /* Remove Button */
 .remove-btn {
   background: none;
   border: none;
-  color: #72767d;
+  color: var(--text-muted);
   cursor: pointer;
   padding: 4px;
   border-radius: 4px;

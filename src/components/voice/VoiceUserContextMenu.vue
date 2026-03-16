@@ -574,7 +574,7 @@ watch(
 .voice-context-menu {
   position: fixed;
   z-index: 10006;
-  background: linear-gradient(145deg, #2f3136, #36393f);
+  background: linear-gradient(145deg, var(--background-tertiary), var(--background-secondary));
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 12px;
   box-shadow: 
@@ -658,13 +658,13 @@ watch(
 
 .volume-value {
   margin-left: auto;
-  color: #5865f2;
+  color: #0EA5E9;
   font-weight: 700;
 }
 
 .no-audio-hint {
   font-size: 10px;
-  color: #72767d;
+  color: var(--text-muted);
   opacity: 0.7;
 }
 
@@ -689,7 +689,7 @@ watch(
   background: var(--harmony-primary);
   border-radius: 50%;
   cursor: pointer;
-  box-shadow: 0 2px 6px rgba(88, 101, 242, 0.4);
+  box-shadow: 0 2px 6px rgba(14, 165, 233, 0.4);
   transition: transform 0.15s ease;
 }
 
@@ -712,7 +712,7 @@ watch(
   justify-content: space-between;
   margin-top: 4px;
   font-size: 10px;
-  color: #72767d;
+  color: var(--text-muted);
 }
 
 .volume-presets {
@@ -745,7 +745,7 @@ watch(
 .preset-btn.active {
   background: var(--harmony-primary);
   color: var(--text-primary);
-  border-color: #5865f2;
+  border-color: #0EA5E9;
 }
 
 .boost-indicator {
@@ -811,7 +811,7 @@ watch(
 .quality-btn.active {
   background: var(--harmony-primary);
   color: var(--text-primary);
-  border-color: #5865f2;
+  border-color: #0EA5E9;
 }
 
 /* Actions */

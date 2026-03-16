@@ -451,7 +451,7 @@ export class PWAManager {
         left: '0',
         right: '0',
         height: '80px',
-        background: 'linear-gradient(to bottom, #5865f2, transparent)',
+        background: 'linear-gradient(to bottom, #0EA5E9, transparent)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',

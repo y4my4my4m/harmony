@@ -512,7 +512,7 @@ const closeModal = () => {
 }
 
 .download-btn {
-  color: var(--h-brand, #5865f2);
+  color: var(--h-brand, #0EA5E9);
   text-decoration: none;
   padding: 0.5rem;
   border-radius: 6px;
@@ -520,7 +520,7 @@ const closeModal = () => {
 }
 
 .download-btn:hover {
-  background: rgba(88, 101, 242, 0.1);
+  background: rgba(14, 165, 233, 0.1);
 }
 
 .sensitive-overlay {
@@ -540,7 +540,7 @@ const closeModal = () => {
 }
 
 .show-btn {
-  background: var(--h-brand, #5865f2);
+  background: var(--h-brand, #0EA5E9);
   border: none;
   border-radius: 6px;
   color: var(--text-primary);
@@ -551,7 +551,7 @@ const closeModal = () => {
 }
 
 .show-btn:hover {
-  background: #4752c4;
+  background: #0284C7;
 }
 
 .media-description {

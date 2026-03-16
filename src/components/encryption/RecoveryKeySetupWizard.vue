@@ -506,8 +506,8 @@ onMounted(() => {
 }
 
 .step.active .step-indicator {
-  background: var(--primary, #5865f2);
-  border-color: var(--primary, #5865f2);
+  background: var(--primary, #0EA5E9);
+  border-color: var(--primary, #0EA5E9);
   color: var(--text-primary);
 }
 
@@ -552,7 +552,7 @@ onMounted(() => {
 .intro-card {
   text-align: center;
   padding: 32px;
-  background: linear-gradient(135deg, rgba(88, 101, 242, 0.1) 0%, rgba(88, 101, 242, 0.05) 100%);
+  background: linear-gradient(135deg, rgba(14, 165, 233, 0.1) 0%, rgba(14, 165, 233, 0.05) 100%);
   border-radius: 12px;
   margin-bottom: 24px;
 }
@@ -652,7 +652,7 @@ onMounted(() => {
   width: 40px;
   height: 40px;
   border: 3px solid var(--bg-secondary, #2a2a3e);
-  border-top-color: var(--primary, #5865f2);
+  border-top-color: var(--primary, #0EA5E9);
   border-radius: 50%;
   animation: spin 1s linear infinite;
   margin: 0 auto 16px;
@@ -757,7 +757,7 @@ onMounted(() => {
 
 .verify-input input:focus {
   outline: none;
-  border-color: var(--primary, #5865f2);
+  border-color: var(--primary, #0EA5E9);
 }
 
 .verify-status {
@@ -829,8 +829,8 @@ onMounted(() => {
   display: flex;
   gap: 12px;
   padding: 16px;
-  background: rgba(88, 101, 242, 0.1);
-  border: 1px solid rgba(88, 101, 242, 0.3);
+  background: rgba(14, 165, 233, 0.1);
+  border: 1px solid rgba(14, 165, 233, 0.3);
   border-radius: 8px;
   text-align: left;
 }
@@ -879,12 +879,12 @@ onMounted(() => {
 }
 
 .btn-primary {
-  background: var(--primary, #5865f2);
+  background: var(--primary, #0EA5E9);
   color: var(--text-primary);
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: var(--primary-hover, #4752c4);
+  background: var(--primary-hover, #0284C7);
 }
 
 .btn-secondary {

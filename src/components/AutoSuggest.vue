@@ -176,10 +176,10 @@ watch(() => props.selectedIndex, (newIndex) => {
 
 <style>
 .auto-suggest {
-  background: #2f3136;
+  background: var(--background-tertiary);
   border-radius: 8px;
   box-shadow: 0 8px 16px rgba(0, 0, 0, 0.24);
-  border: 1px solid #40444b;
+  border: 1px solid var(--h-black-lighter);
   overflow-y: auto;
   min-width: 200px;
   max-width: 300px;
@@ -191,8 +191,8 @@ watch(() => props.selectedIndex, (newIndex) => {
   font-weight: 600;
   text-transform: uppercase;
   color: var(--text-secondary);
-  background: #36393f;
-  border-bottom: 1px solid #40444b;
+  background: var(--background-secondary);
+  border-bottom: 1px solid var(--h-black-lighter);
 }
 
 .suggest-item {
@@ -204,7 +204,7 @@ watch(() => props.selectedIndex, (newIndex) => {
 
 .suggest-item:hover,
 .suggest-item.selected {
-  background: #40444b;
+  background: var(--h-black-lighter);
 }
 
 .suggest-item.selected {
@@ -304,7 +304,7 @@ watch(() => props.selectedIndex, (newIndex) => {
 }
 
 .bridge-badge.discord {
-  color: #5865F2;
+  color: #0EA5E9;
 }
 
 .bridge-badge.role-badge {
@@ -313,8 +313,8 @@ watch(() => props.selectedIndex, (newIndex) => {
   text-transform: uppercase;
   padding: 2px 4px;
   border-radius: 3px;
-  background: rgba(88, 101, 242, 0.2);
-  color: #5865F2;
+  background: rgba(14, 165, 233, 0.2);
+  color: #0EA5E9;
 }
 
 .role-icon {
@@ -334,13 +334,13 @@ watch(() => props.selectedIndex, (newIndex) => {
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  background: var(--accent-color, #5865f2);
+  background: var(--accent-color, #0EA5E9);
   color: var(--text-primary);
 }
 
 .command-name {
   font-weight: 600;
-  color: var(--accent-color, #5865f2);
+  color: var(--accent-color, #0EA5E9);
 }
 
 .suggest-description {
@@ -370,14 +370,14 @@ watch(() => props.selectedIndex, (newIndex) => {
 
 .suggest-server {
   font-size: 12px;
-  color: #72767d;
+  color: var(--text-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .suggest-domain {
   font-size: 12px;
-  color: #72767d;
+  color: var(--text-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -396,7 +396,7 @@ watch(() => props.selectedIndex, (newIndex) => {
 }
 
 .auto-suggest::-webkit-scrollbar-thumb {
-  background: #40444b;
+  background: var(--h-black-lighter);
   border-radius: 2px;
 }
 

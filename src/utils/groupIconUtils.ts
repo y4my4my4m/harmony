@@ -87,7 +87,7 @@ export function getDefaultGroupIcon(conversationId: string, size: number = DEFAU
   }, 0)
 
   const colors = [
-    '#5865F2', // Discord Blue
+    '#0EA5E9', // Discord Blue
     '#57F287', // Green
     '#FEE75C', // Yellow
     '#ED4245', // Red

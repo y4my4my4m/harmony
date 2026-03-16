@@ -478,7 +478,7 @@ onMounted(() => {
   width: 48px;
   height: 48px;
   border: 4px solid var(--h-chat-light);
-  border-top-color: #5865f2;
+  border-top-color: #0EA5E9;
   border-radius: 50%;
   animation: spin 1s linear infinite;
   margin: 0 auto 16px;

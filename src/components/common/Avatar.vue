@@ -197,7 +197,7 @@ watch(() => props.src, () => {
 
 /* .avatar-container.interactive .avatar-image:hover {
   transform: scale(1.05);
-  border-color: #5865f2;
+  border-color: #0EA5E9;
 } */
 
 /* Size classes - following voice overlay pattern */
@@ -363,7 +363,7 @@ watch(() => props.src, () => {
 }
 
 .avatar-edit-btn:hover:not(:disabled) {
-  background-color: #4752c4;
+  background-color: #0284C7;
   transform: scale(1.1);
 }
 

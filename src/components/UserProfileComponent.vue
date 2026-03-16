@@ -18,8 +18,10 @@
       </div>
     </div>
 
-    <div class="buttons">
-      <NotificationBell />
+    <div class="buttons profile-bar-buttons">
+      <div class="icon-button">
+        <NotificationBell />
+      </div>
       <div 
         class="icon-button" 
         @click="toggleMic" 
@@ -468,13 +470,31 @@ onBeforeUnmount(() => {
 
 .buttons {
   display: flex;
-  gap: 4px;
+  align-items: center;
+  gap: 6px;
+}
+
+/* NotificationBell matches icon-button styling when in profile bar */
+.buttons :deep(.notification-bell) {
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  min-height: 32px;
+  border-radius: 6px;
+  color: var(--text-secondary);
+}
+
+.buttons :deep(.notification-bell:hover) {
+  background-color: rgba(79, 84, 92, 0.4);
+  transform: none; /* match other icon buttons - no lift effect */
 }
 
 .icon-button {
   width: 32px;
   height: 32px;
-  border-radius: 4px;
+  min-width: 32px;
+  min-height: 32px;
+  border-radius: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -498,13 +518,13 @@ onBeforeUnmount(() => {
 }
 
 .icon-button.voice-active {
-  border: 1px solid rgba(88, 101, 242, 0.3);
-  box-shadow: 0 0 4px rgba(88, 101, 242, 0.2);
+  border: 1px solid rgba(14, 165, 233, 0.3);
+  box-shadow: 0 0 4px rgba(14, 165, 233, 0.2);
 }
 
 .icon-button.voice-active:hover {
-  border-color: rgba(88, 101, 242, 0.5);
-  box-shadow: 0 0 6px rgba(88, 101, 242, 0.3);
+  border-color: rgba(14, 165, 233, 0.5);
+  box-shadow: 0 0 6px rgba(14, 165, 233, 0.3);
 }
 
 .icon-button.settings:hover {
@@ -567,7 +587,7 @@ onBeforeUnmount(() => {
 }
 
 .custom-status-preview .emoji-placeholder {
-  color: var(--text-muted, #72767d);
+  color: var(--text-muted, var(--text-muted));
   flex-shrink: 0;
 }
 
@@ -582,7 +602,7 @@ onBeforeUnmount(() => {
 .clear-status-btn {
   background: none;
   border: none;
-  color: var(--text-muted, #72767d);
+  color: var(--text-muted, var(--text-muted));
   cursor: pointer;
   padding: 4px;
   border-radius: 4px;
@@ -622,7 +642,7 @@ onBeforeUnmount(() => {
 
 .custom-status-input {
   flex: 1;
-  background: #2f3136;
+  background: var(--background-tertiary);
   border: none;
   border-radius: 4px;
   padding: 8px 10px;
@@ -633,11 +653,11 @@ onBeforeUnmount(() => {
 }
 
 .custom-status-input::placeholder {
-  color: #72767d;
+  color: var(--text-muted);
 }
 
 .custom-status-input:focus {
-  box-shadow: 0 0 0 2px #5865f2;
+  box-shadow: 0 0 0 2px #0EA5E9;
 }
 
 .custom-status-btn {
@@ -683,7 +703,7 @@ onBeforeUnmount(() => {
 
 .status-divider {
   height: 1px;
-  background: #2f3136;
+  background: var(--background-tertiary);
   margin: 4px 0;
 }
 

@@ -401,7 +401,7 @@ onMounted(() => {
 }
 
 .pack-option.active {
-  background: rgba(88, 101, 242, 0.15);
+  background: rgba(14, 165, 233, 0.15);
 }
 
 .pack-icon {
@@ -415,7 +415,7 @@ onMounted(() => {
 }
 
 .check-mark {
-  color: #5865f2;
+  color: #0EA5E9;
   font-size: 14px;
 }
 

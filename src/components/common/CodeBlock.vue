@@ -348,9 +348,9 @@ export default defineComponent({
 .code-block-wrapper {
   position: relative;
   margin: 4px 0;
-  background-color: #2f3136;
+  background-color: var(--background-tertiary);
   border-radius: 8px;
-  border: 1px solid #40444b;
+  border: 1px solid var(--h-black-lighter);
   overflow: hidden;
   font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', 'source-code-pro', monospace;
 }
@@ -379,10 +379,10 @@ export default defineComponent({
   /* gap: 4px; */
   padding: 4px 8px;
   margin-right: 180px;
-  background-color: #40444b;
-  border: 1px solid #5865f2;
+  background-color: var(--h-black-lighter);
+  border: 1px solid #0EA5E9;
   border-radius: 4px;
-  color: #5865f2;
+  color: #0EA5E9;
   font-size: 0.75rem;
   font-weight: 500;
   cursor: pointer;
@@ -416,7 +416,7 @@ export default defineComponent({
 .code-block {
   margin: 0;
   padding: 12px;
-  /* background-color: #2f3136; */
+  /* background-color: var(--background-tertiary); */
   background-color: var(--background-primary-alpha);
   /* color: var(--text-secondary); */
   color: var(--text-primary);
@@ -511,7 +511,7 @@ export default defineComponent({
 }
 
 .code-block::-webkit-scrollbar-track {
-  background: #2f3136;
+  background: var(--background-tertiary);
 }
 
 .code-block::-webkit-scrollbar-thumb {

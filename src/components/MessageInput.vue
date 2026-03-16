@@ -787,7 +787,7 @@ const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText);
 
   /* Send button - mobile only */
   .send-button {
-    background-color: var(--harmony--primary, #5865f2) !important;
+    background-color: var(--harmony--primary, #0EA5E9) !important;
     border-radius: 50% !important;
     width: 36px !important;
     height: 36px !important;
@@ -797,7 +797,7 @@ const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText);
   }
 
   .send-button:hover {
-    background-color: var(--harmony--primary-dark, #4752c4) !important;
+    background-color: var(--harmony--primary-dark, #0284C7) !important;
   }
 
   .send-button:active {

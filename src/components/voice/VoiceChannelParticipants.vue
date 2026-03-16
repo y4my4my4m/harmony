@@ -176,7 +176,7 @@ onUnmounted(() => {
 }
 
 .status-icon.screen {
-  color: #5865f2;
+  color: #0EA5E9;
 }
 </style>
 

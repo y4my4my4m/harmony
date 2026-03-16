@@ -271,7 +271,7 @@ const handleFileSelect = (event: Event) => {
 }
 
 .server-edit-btn:hover:not(:disabled) {
-  background-color: #4752c4;
+  background-color: #0284C7;
   transform: scale(1.1);
 }
 

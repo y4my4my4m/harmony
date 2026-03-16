@@ -434,7 +434,7 @@ const updateServerDescription = (event: Event) => {
 .form-input:focus,
 .form-textarea:focus {
   outline: none;
-  border-color: #5865f2;
+  border-color: #0EA5E9;
 }
 
 .form-input:disabled,
@@ -458,13 +458,13 @@ const updateServerDescription = (event: Event) => {
 
 .form-hint {
   font-size: 12px;
-  color: #72767d;
+  color: var(--text-muted);
   margin-top: 8px;
 }
 
 .read-only-hint {
   font-size: 12px;
-  color: #72767d;
+  color: var(--text-muted);
   margin: 0;
   font-style: italic;
 }
@@ -517,7 +517,7 @@ const updateServerDescription = (event: Event) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #72767d;
+  color: var(--text-muted);
 }
 
 .icon-upload-controls {
@@ -598,7 +598,7 @@ const updateServerDescription = (event: Event) => {
 }
 
 .banner-preview:hover {
-  border-color: #5865f2;
+  border-color: #0EA5E9;
 }
 
 .banner-placeholder {
@@ -608,7 +608,7 @@ const updateServerDescription = (event: Event) => {
   justify-content: center;
   height: 100%;
   gap: 8px;
-  color: #72767d;
+  color: var(--text-muted);
   font-size: 13px;
 }
 

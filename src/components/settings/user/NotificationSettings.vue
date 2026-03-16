@@ -1233,7 +1233,7 @@ font-size: 12px;
   align-items: center;
   gap: 8px;
   padding: 10px 16px;
-  background: var(--harmony--primary, #5865f2);
+  background: var(--harmony--primary, #0EA5E9);
   color: var(--text-primary);
   border: none;
   border-radius: 8px;
@@ -1244,7 +1244,7 @@ font-size: 12px;
 }
 
 .test-haptic-btn:hover {
-  background: var(--harmony--primary-dark, #4752c4);
+  background: var(--harmony--primary-dark, #0284C7);
   transform: translateY(-1px);
 }
 
@@ -1307,7 +1307,7 @@ font-size: 12px;
 
 .time-input:focus {
   outline: none;
-  border-color: #5865f2;
+  border-color: #0EA5E9;
 }
 
 .time-separator {
@@ -1327,7 +1327,7 @@ font-size: 12px;
 
 .select-input:focus {
   outline: none;
-  border-color: #5865f2;
+  border-color: #0EA5E9;
 }
 
 .volume-control {
@@ -1393,7 +1393,7 @@ font-size: 12px;
 }
 
 .permission-btn:hover {
-  background: #4752c4;
+  background: #0284C7;
 }
 
 .permission-btn:disabled {
@@ -1436,7 +1436,7 @@ font-size: 12px;
 }
 
 .category-icon.chat {
-  background: linear-gradient(135deg, #5865f2, #4752c4);
+  background: linear-gradient(135deg, #0EA5E9, #0284C7);
 }
 
 .category-icon.activitypub {
@@ -1582,7 +1582,7 @@ font-size: 12px;
 }
 
 .test-all-btn:hover {
-  background: #4752c4;
+  background: #0284C7;
 }
 
 .reset-btn {
@@ -1633,8 +1633,8 @@ font-size: 12px;
 }
 
 .push-status-badge.available {
-  background: rgba(88, 101, 242, 0.1);
-  color: #5865f2;
+  background: rgba(14, 165, 233, 0.1);
+  color: #0EA5E9;
 }
 
 .push-status-badge.denied,
@@ -1707,7 +1707,7 @@ font-size: 12px;
 }
 
 .push-error-with-retry .retry-btn:hover:not(:disabled) {
-  background: var(--harmony-primary-hover, #4752c4);
+  background: var(--harmony-primary-hover, #0284C7);
 }
 
 .push-error-with-retry .retry-btn:disabled {
@@ -1756,13 +1756,13 @@ font-size: 12px;
 }
 
 .push-test-btn {
-  background: rgba(88, 101, 242, 0.1);
-  color: #5865f2;
-  border: 1px solid rgba(88, 101, 242, 0.3);
+  background: rgba(14, 165, 233, 0.1);
+  color: #0EA5E9;
+  border: 1px solid rgba(14, 165, 233, 0.3);
 }
 
 .push-test-btn:hover:not(:disabled) {
-  background: rgba(88, 101, 242, 0.2);
+  background: rgba(14, 165, 233, 0.2);
 }
 
 .push-subscribe-btn:disabled,
@@ -1820,9 +1820,9 @@ font-size: 12px;
   width: 32px;
   height: 32px;
   padding: 6px;
-  background: rgba(88, 101, 242, 0.1);
+  background: rgba(14, 165, 233, 0.1);
   border-radius: 8px;
-  color: #5865f2;
+  color: #0EA5E9;
 }
 
 .device-details {
@@ -1838,7 +1838,7 @@ font-size: 12px;
 
 .device-date {
   font-size: 12px;
-  color: #72767d;
+  color: var(--text-muted);
 }
 
 .device-remove-btn {
@@ -1846,7 +1846,7 @@ font-size: 12px;
   border: none;
   padding: 8px;
   border-radius: 6px;
-  color: #72767d;
+  color: var(--text-muted);
   cursor: pointer;
   transition: all 0.2s ease;
 }

@@ -613,13 +613,13 @@ onMounted(() => {
 }
 
 .create-button {
-  background: linear-gradient(135deg, #5865f2, #4752c4);
+  background: linear-gradient(135deg, #0EA5E9, #0284C7);
   color: var(--text-primary);
 }
 
 .create-button:hover {
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(88, 101, 242, 0.3);
+  box-shadow: 0 4px 12px rgba(14, 165, 233, 0.3);
 }
 
 .refresh-icon,
@@ -677,7 +677,7 @@ onMounted(() => {
   transform: translateY(-50%);
   width: 16px;
   height: 16px;
-  color: #72767d;
+  color: var(--text-muted);
   pointer-events: none;
 }
 
@@ -692,7 +692,7 @@ onMounted(() => {
 }
 
 .search-input::placeholder {
-  color: #72767d;
+  color: var(--text-muted);
 }
 
 .stats-section {
@@ -745,7 +745,7 @@ onMounted(() => {
   width: 32px;
   height: 32px;
   border: 3px solid rgba(255, 255, 255, 0.1);
-  border-top-color: #5865f2;
+  border-top-color: #0EA5E9;
   border-radius: 50%;
   animation: spin 1s linear infinite;
   margin-bottom: 16px;
@@ -754,7 +754,7 @@ onMounted(() => {
 .empty-icon {
   width: 48px;
   height: 48px;
-  color: #72767d;
+  color: var(--text-muted);
   margin-bottom: 16px;
 }
 
@@ -835,7 +835,7 @@ onMounted(() => {
   height: 24px;
   background: transparent;
   border: none;
-  color: #72767d;
+  color: var(--text-muted);
   cursor: pointer;
   border-radius: 4px;
   transition: all 0.2s ease;
@@ -903,7 +903,7 @@ onMounted(() => {
 
 .status-badge.revoked {
   background: rgba(114, 118, 125, 0.2);
-  color: #72767d;
+  color: var(--text-muted);
 }
 
 .usage-info {
@@ -919,7 +919,7 @@ onMounted(() => {
 }
 
 .usage-separator {
-  color: #72767d;
+  color: var(--text-muted);
 }
 
 .usage-max {
@@ -947,7 +947,7 @@ onMounted(() => {
 }
 
 .never-expires {
-  color: #72767d;
+  color: var(--text-muted);
   font-style: italic;
   font-size: 13px;
 }
@@ -982,8 +982,8 @@ onMounted(() => {
 }
 
 .action-btn.copy:hover:not(:disabled) {
-  border-color: #5865f2;
-  color: #5865f2;
+  border-color: #0EA5E9;
+  color: #0EA5E9;
 }
 
 .action-btn.revoke:hover:not(:disabled) {

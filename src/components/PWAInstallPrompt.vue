@@ -161,7 +161,7 @@ onUnmounted(() => {
   bottom: 20px;
   left: 20px;
   right: 20px;
-  background: linear-gradient(135deg, #5865f2, #4752c4);
+  background: linear-gradient(135deg, #0EA5E9, #0284C7);
   border-radius: 12px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
   z-index: 1000;
@@ -260,7 +260,7 @@ onUnmounted(() => {
   align-items: center;
   gap: 8px;
   width: 100%;
-  background: linear-gradient(135deg, #5865f2, #4752c4);
+  background: linear-gradient(135deg, #0EA5E9, #0284C7);
   color: var(--text-primary);
   border: none;
   border-radius: 8px;
@@ -273,7 +273,7 @@ onUnmounted(() => {
 
 .settings-install-btn:hover {
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(88, 101, 242, 0.3);
+  box-shadow: 0 4px 12px rgba(14, 165, 233, 0.3);
 }
 
 .share-btn {

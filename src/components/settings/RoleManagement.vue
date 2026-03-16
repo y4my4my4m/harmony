@@ -854,7 +854,7 @@ onMounted(() => {
 }
 
 .role-item.active {
-  background: var(--harmony-primary-alpha, rgba(88, 101, 242, 0.15));
+  background: var(--harmony-primary-alpha, rgba(14, 165, 233, 0.15));
 }
 
 .drag-handle {
@@ -1317,7 +1317,7 @@ onMounted(() => {
 }
 
 .member-item.available:hover {
-  background: var(--harmony-primary-alpha, rgba(88, 101, 242, 0.15));
+  background: var(--harmony-primary-alpha, rgba(14, 165, 233, 0.15));
 }
 
 .add-member-btn {
@@ -1332,7 +1332,7 @@ onMounted(() => {
 }
 
 .add-member-btn:hover {
-  background: rgba(88, 101, 242, 0.2);
+  background: rgba(14, 165, 233, 0.2);
 }
 
 .members-header {

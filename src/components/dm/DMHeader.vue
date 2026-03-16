@@ -70,7 +70,7 @@
                 Call in progress
               </span>
               <!-- Show federated handle for remote users -->
-              <span v-else-if="isFederatedUser" class="federated-handle" :style="{ color: conversation.other_user?.color || '#5865F2' }">
+              <span v-else-if="isFederatedUser" class="federated-handle" :style="{ color: conversation.other_user?.color || '#0EA5E9' }">
                 {{ conversation.other_user?.handle || `@${conversation.other_user?.username}@${conversation.other_user?.domain}` }}
               </span>
               <span v-else-if="otherUserStatus !== 'offline'" class="status">
@@ -1202,7 +1202,7 @@ const getDefaultGroupName = (): string => {
   font-size: 12px;
   color: var(--text-secondary);
   font-family: 'Roboto Mono', monospace;
-  background: rgba(88, 101, 242, 0.1);
+  background: rgba(14, 165, 233, 0.1);
   padding: 2px 6px;
   border-radius: 4px;
   white-space: nowrap;

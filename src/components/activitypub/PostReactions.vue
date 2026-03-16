@@ -344,9 +344,9 @@ defineExpose({
 }
 
 .reaction.reacted {
-  /* background-color: rgba(88, 101, 242, 0.15); */
+  /* background-color: rgba(14, 165, 233, 0.15); */
   background-color: var(--harmony-primary-alpha);
-  /* border-color: rgba(88, 101, 242, 0.5); */
+  /* border-color: rgba(14, 165, 233, 0.5); */
   border-color: var(--harmony-primary);
 }
 

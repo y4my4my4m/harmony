@@ -309,7 +309,7 @@ onMounted(() => {
 
 .daily-stat {
   font-size: 0.8rem;
-  color: var(--harmony-primary, #5865f2);
+  color: var(--harmony-primary, #0EA5E9);
   font-weight: 500;
 }
 

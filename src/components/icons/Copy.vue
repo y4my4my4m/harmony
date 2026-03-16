@@ -1,26 +1,20 @@
 <template>
-  <svg 
-    width="16" 
-    height="16" 
-    viewBox="0 0 24 24" 
-    fill="none" 
-    xmlns="http://www.w3.org/2000/svg"
-  >
-    <path 
-      d="M19 21H8V7h11v14zm-2-12H10v10h7V9z" 
-      fill="currentColor"
-    />
-    <path 
-      d="M16 1H4v14h2V3h10V1z" 
-      fill="currentColor"
-    />
-  </svg>
+  <Copy class="icon-component" :size="size" :stroke-width="2" />
 </template>
 
 <script lang="ts">
 import { defineComponent } from 'vue';
+import { Copy } from 'lucide-vue-next';
 
 export default defineComponent({
-  name: 'CopyIcon'
+  name: 'CopyIcon',
+  components: { Copy },
+  props: {
+    size: { type: [Number, String], default: 20 }
+  }
 });
 </script>
+
+<style scoped>
+.icon-component { color: currentColor; }
+</style>

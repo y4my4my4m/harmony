@@ -205,7 +205,7 @@ const loadMore = () => {
 .loading-spinner {
   width: 48px;
   height: 48px;
-  color: rgba(88, 101, 242, 0.8);
+  color: rgba(14, 165, 233, 0.8);
   margin-bottom: 24px;
 }
 
@@ -244,13 +244,13 @@ const loadMore = () => {
 .empty-icon {
   width: 64px;
   height: 64px;
-  background: rgba(88, 101, 242, 0.1);
+  background: rgba(14, 165, 233, 0.1);
   border-radius: 16px;
   display: flex;
   align-items: center;
   justify-content: center;
   margin-bottom: 24px;
-  color: rgba(88, 101, 242, 0.6);
+  color: rgba(14, 165, 233, 0.6);
 }
 
 .empty-icon.search-empty {
@@ -279,7 +279,7 @@ const loadMore = () => {
 }
 
 .refresh-btn {
-  background: linear-gradient(135deg, #5865f2, #616ae5);
+  background: linear-gradient(135deg, #0EA5E9, #38BDF8);
   border: none;
   border-radius: 8px;
   padding: 12px 24px;
@@ -294,9 +294,9 @@ const loadMore = () => {
 }
 
 .refresh-btn:hover {
-  background: linear-gradient(135deg, #4752c4, #5b6ecd);
+  background: linear-gradient(135deg, #0284C7, #5b6ecd);
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(88, 101, 242, 0.4);
+  box-shadow: 0 4px 12px rgba(14, 165, 233, 0.4);
 }
 
 .refresh-icon {
@@ -322,7 +322,7 @@ const loadMore = () => {
 .section-decoration {
   flex: 1;
   height: 1px;
-  background: linear-gradient(90deg, rgba(88, 101, 242, 0.5), transparent);
+  background: linear-gradient(90deg, rgba(14, 165, 233, 0.5), transparent);
 }
 
 /* Featured Grid */

@@ -24,7 +24,7 @@
             v-model="localColor"
             type="text"
             class="hex-input"
-            placeholder="#5865f2"
+            placeholder="#0EA5E9"
             @input="onHexInput"
             @blur="validateAndEmit"
           />
@@ -57,7 +57,7 @@ interface Props {
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  color: '#5865f2'
+  color: '#0EA5E9'
 })
 
 // Emits
@@ -71,7 +71,7 @@ const localColor = ref(props.color)
 
 // Preset colors (Main palette)
 const presetColors = [
-  '#5865f2', // Main
+  '#0EA5E9', // Main
   '#57f287', // Green
   '#fee75c', // Yellow
   '#eb459e', // Pink
@@ -201,7 +201,7 @@ onMounted(() => {
 
 .hex-input:focus {
   outline: none;
-  border-color: var(--h-primary, #5865f2);
+  border-color: var(--h-primary, #0EA5E9);
 }
 
 .color-input {

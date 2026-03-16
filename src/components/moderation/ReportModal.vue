@@ -285,7 +285,7 @@ const hideAndClose = () => {
 .proof-quote {
   margin: 0;
   padding: 10px 14px;
-  border-left: 3px solid var(--harmony-primary, #5865f2);
+  border-left: 3px solid var(--harmony-primary, #0EA5E9);
   background: var(--background-secondary, #2b2d31);
   border-radius: 0 6px 6px 0;
   color: var(--text-primary);
@@ -333,8 +333,8 @@ const hideAndClose = () => {
 }
 
 .reason-option.selected {
-  border-color: var(--harmony-primary, #5865f2);
-  background: rgba(88, 101, 242, 0.1);
+  border-color: var(--harmony-primary, #0EA5E9);
+  background: rgba(14, 165, 233, 0.1);
   color: var(--text-primary);
 }
 
@@ -343,7 +343,7 @@ const hideAndClose = () => {
   margin: 0;
   width: 18px;
   height: 18px;
-  accent-color: var(--harmony-primary, #5865f2);
+  accent-color: var(--harmony-primary, #0EA5E9);
   vertical-align: middle;
   margin-right: 8px;
 }
@@ -368,7 +368,7 @@ textarea {
 
 textarea:focus {
   outline: none;
-  border-color: var(--harmony-primary, #5865f2);
+  border-color: var(--harmony-primary, #0EA5E9);
 }
 
 .char-count {
@@ -489,7 +489,7 @@ textarea:focus {
 }
 
 .btn-done {
-  background: var(--harmony-primary, #5865f2);
+  background: var(--harmony-primary, #0EA5E9);
   border: none;
   color: var(--text-primary);
 }
