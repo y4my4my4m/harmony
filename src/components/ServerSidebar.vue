@@ -1476,7 +1476,7 @@ const removeServerFromFolder = async () => {
   position: fixed;
   left: 80px;
   transform: translateY(-50%);
-  background: #18191c;
+  background: var(--tooltip-bg, #18191c);
   border-radius: 8px;
   padding: 6px 14px;
   box-shadow: var(--shadow-small);
@@ -1494,12 +1494,13 @@ const removeServerFromFolder = async () => {
 .sidebar-tooltip-name {
   font-size: 15px;
   font-weight: 600;
-  color: var(--text-primary);
+  color: var(--tooltip-text, var(--text-primary));
 }
 
 .sidebar-tooltip-count {
   font-size: 12px;
-  color: #b9bbbe;
+  color: var(--tooltip-text, #b9bbbe);
+  opacity: 0.9;
 }
 
 .sidebar-tooltip-arrow {
@@ -1511,7 +1512,7 @@ const removeServerFromFolder = async () => {
   height: 0;
   border-top: 6px solid transparent;
   border-bottom: 6px solid transparent;
-  border-right: 6px solid #18191c;
+  border-right: 6px solid var(--tooltip-arrow, #18191c);
 }
 
 /* Tooltip animation */
@@ -1546,7 +1547,7 @@ const removeServerFromFolder = async () => {
   position: fixed;
   left: 80px;
   transform: translateY(-50%);
-  background: #18191c;
+  background: var(--tooltip-bg, #18191c);
   border-radius: 8px;
   padding: 6px 14px;
   box-shadow: var(--shadow-small);
@@ -1564,12 +1565,13 @@ const removeServerFromFolder = async () => {
 .sidebar-tooltip-name {
   font-size: 15px;
   font-weight: 600;
-  color: var(--text-primary);
+  color: var(--tooltip-text, var(--text-primary));
 }
 
 .sidebar-tooltip-count {
   font-size: 12px;
-  color: #b9bbbe;
+  color: var(--tooltip-text, #b9bbbe);
+  opacity: 0.9;
 }
 
 .sidebar-tooltip-arrow {
@@ -1581,6 +1583,6 @@ const removeServerFromFolder = async () => {
   height: 0;
   border-top: 6px solid transparent;
   border-bottom: 6px solid transparent;
-  border-right: 6px solid #18191c;
+  border-right: 6px solid var(--tooltip-arrow, #18191c);
 }
 </style>

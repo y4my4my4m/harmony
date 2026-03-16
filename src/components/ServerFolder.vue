@@ -787,7 +787,7 @@ const onIconError = (event: Event) => {
   position: fixed;
   left: 80px;
   transform: translateY(-50%);
-  background: #18191c;
+  background: var(--tooltip-bg, #18191c);
   border-radius: 8px;
   padding: 10px 14px;
   box-shadow: var(--shadow-small);
@@ -799,7 +799,7 @@ const onIconError = (event: Event) => {
 .server-tooltip-name {
   font-size: 15px;
   font-weight: 600;
-  color: var(--text-primary);
+  color: var(--tooltip-text, var(--text-primary));
 }
 
 .server-tooltip-arrow {
@@ -811,7 +811,7 @@ const onIconError = (event: Event) => {
   height: 0;
   border-top: 6px solid transparent;
   border-bottom: 6px solid transparent;
-  border-right: 6px solid #18191c;
+  border-right: 6px solid var(--tooltip-arrow, #18191c);
 }
 
 /* Tooltip animation */
@@ -873,7 +873,7 @@ const onIconError = (event: Event) => {
   position: fixed;
   left: 80px;
   transform: translateY(-50%);
-  background: #18191c;
+  background: var(--tooltip-bg, #18191c);
   border-radius: 8px;
   padding: 10px 14px;
   box-shadow: var(--shadow-small);
@@ -885,7 +885,7 @@ const onIconError = (event: Event) => {
 .server-tooltip-name {
   font-size: 15px;
   font-weight: 600;
-  color: var(--text-primary);
+  color: var(--tooltip-text, var(--text-primary));
 }
 
 .server-tooltip-arrow {
@@ -897,6 +897,6 @@ const onIconError = (event: Event) => {
   height: 0;
   border-top: 6px solid transparent;
   border-bottom: 6px solid transparent;
-  border-right: 6px solid #18191c;
+  border-right: 6px solid var(--tooltip-arrow, #18191c);
 }
 </style>

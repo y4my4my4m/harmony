@@ -2550,7 +2550,8 @@ const closeLightbox = () => {
 .reaction-tooltip {
   position: fixed;
   z-index: var(--z-tooltip);
-  background: var(--background-tertiary);
+  background: var(--tooltip-bg, var(--background-tertiary));
+  color: var(--tooltip-text, var(--text-primary));
   border: 1px solid var(--border-primary);
   border-radius: var(--radius-md);
   padding: var(--space-3);
@@ -2577,7 +2578,7 @@ const closeLightbox = () => {
 .emoji-name {
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-medium);
-  color: var(--text-primary);
+  color: var(--tooltip-text, var(--text-primary));
 }
 
 .tooltip-user {
@@ -2586,7 +2587,8 @@ const closeLightbox = () => {
   gap: var(--space-2);
   padding: var(--space-1) 0;
   font-size: var(--font-size-sm);
-  color: var(--text-secondary);
+  color: var(--tooltip-text, var(--text-secondary));
+  opacity: 0.95;
 }
 
 .tooltip-avatar {
@@ -2594,11 +2596,11 @@ const closeLightbox = () => {
 }
 
 .tooltip-username {
-  color: var(--text-primary);
+  color: var(--tooltip-text, var(--text-primary));
 }
 
 .tooltip-domain {
-  color: var(--text-muted);
+  color: var(--tooltip-text, var(--text-muted));
   font-size: var(--font-size-xs);
   opacity: 0.7;
 }

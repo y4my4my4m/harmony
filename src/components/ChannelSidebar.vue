@@ -125,9 +125,11 @@
               'has-visible-channels': shouldShowCategoryContent(category)
             }"
           >
-            <ArrowDownIcon 
+            <Icon 
+              name="chevron-down" 
               class="category-arrow" 
               :class="{ 'rotated': collapsedCategories.has(category.id) }"
+              :size="12"
             />
             <span class="category-name">{{ category.name.toUpperCase() }}</span>
           </div>
@@ -345,10 +347,10 @@ import { statePersistence } from '@/services/StatePersistence';
 import type { PropType } from 'vue';
 import type { Channel, Category } from '@/types';
 
-import ArrowDownIcon from '@/components/icons/ArrowDown.vue';
 import HashTagIcon from '@/components/icons/HashTag.vue';
 import SpeakerIcon from '@/components/icons/Speaker.vue';
 import ChatBubbleIcon from '@/components/icons/ChatBubble.vue';
+import Icon from '@/components/common/Icon.vue';
 import ServerDropdown from './ServerDropdown.vue';
 import CategoryCreator from './CategoryCreator.vue';
 import InviteModal from './InviteModal.vue';

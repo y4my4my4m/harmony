@@ -860,14 +860,14 @@ onMounted(async () => {
    CSS Variables & Base Styles
    ======================================== */
 .auth-wrapper {
-  --primary: #6366f1;
-  --primary-hover: #818cf8;
-  --primary-glow: rgba(99, 102, 241, 0.4);
+  --primary: var(--harmony-primary, #0EA5E9);
+  --primary-hover: var(--harmony-primary-hover, #0284C7);
+  --primary-glow: rgba(14, 165, 233, 0.4);
   --surface: rgba(17, 17, 23, 0.92);
   --surface-light: rgba(255, 255, 255, 0.03);
   --surface-hover: rgba(255, 255, 255, 0.06);
   --border: rgba(255, 255, 255, 0.08);
-  --border-focus: rgba(99, 102, 241, 0.5);
+  --border-focus: rgba(14, 165, 233, 0.5);
   --text: #ffffff;
   --text-muted: rgba(255, 255, 255, 0.6);
   --text-dim: rgba(255, 255, 255, 0.4);
@@ -892,7 +892,7 @@ onMounted(async () => {
   inset: 0;
   background: 
     radial-gradient(ellipse 80% 50% at var(--mouse-x, 50%) var(--mouse-y, 50%), 
-      rgba(99, 102, 241, 0.12) 0%, 
+      rgba(14, 165, 233, 0.12) 0%, 
       transparent 50%),
     linear-gradient(135deg, 
       rgba(0, 0, 0, 0.7) 0%, 
@@ -945,7 +945,7 @@ onMounted(async () => {
 .brand-logo {
   width: 100px;
   height: 100px;
-  filter: drop-shadow(0 8px 24px rgba(99, 102, 241, 0.3));
+  filter: drop-shadow(0 8px 24px rgba(14, 165, 233, 0.3));
   transition: transform 0.3s ease;
 }
 
@@ -1061,11 +1061,11 @@ onMounted(async () => {
 
 .auth-card:hover,
 .auth-card.card-focused {
-  border-color: rgba(99, 102, 241, 0.2);
+  border-color: rgba(14, 165, 233, 0.2);
   box-shadow: 
     0 0 0 1px rgba(255, 255, 255, 0.04) inset,
     0 32px 64px rgba(0, 0, 0, 0.5),
-    0 0 80px rgba(99, 102, 241, 0.08);
+    0 0 80px rgba(14, 165, 233, 0.08);
 }
 
 .auth-card.loading-state {
@@ -1395,7 +1395,7 @@ onMounted(async () => {
 .submit-btn {
   width: 100%;
   padding: 16px;
-  background: linear-gradient(135deg, var(--primary) 0%, #818cf8 100%);
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%);
   border: none;
   border-radius: 12px;
   font-size: 1rem;
@@ -1612,7 +1612,7 @@ onMounted(async () => {
 .modal-icon-wrapper {
   position: absolute;
   inset: 8px;
-  background: linear-gradient(135deg, var(--primary) 0%, #818cf8 100%);
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%);
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -1737,7 +1737,7 @@ onMounted(async () => {
 }
 
 .modal-icon.shield {
-  background: rgba(99, 102, 241, 0.1);
+  background: rgba(14, 165, 233, 0.1);
 }
 
 .modal-actions {
@@ -1757,7 +1757,7 @@ onMounted(async () => {
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, var(--primary) 0%, #818cf8 100%);
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%);
   border: none;
   color: var(--text-primary);
 }

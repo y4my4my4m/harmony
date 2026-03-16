@@ -1943,6 +1943,7 @@ onMounted(() => {
 /* Server invite picker */
 .invite-btn-wrapper {
   position: relative;
+  display: flex;
 }
 
 .server-picker-dropdown {

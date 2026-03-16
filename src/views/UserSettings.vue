@@ -766,7 +766,7 @@ onUnmounted(() => {
 
 .nav-item.active {
   background-color: var(--harmony-primary);
-  color: var(--text-primary);
+  color: var(--text-on-primary, #ffffff);
 }
 
 .nav-icon {

@@ -3147,8 +3147,8 @@ defineExpose({ editLastOwnMessage });
 /* Tooltip */
 .tooltip {
   position: fixed;
-  background-color: #18191c;
-  color: var(--text-primary);
+  background-color: var(--tooltip-bg, #18191c);
+  color: var(--tooltip-text, var(--text-primary));
   border-radius: 8px;
   padding: 8px 12px;
   font-size: 0.875rem;
@@ -3194,7 +3194,8 @@ defineExpose({ editLastOwnMessage });
 }
 .tooltip-emoji-name {
   font-size: 0.875rem;
-  color: var(--text-secondary);
+  color: var(--tooltip-text, var(--text-secondary));
+  opacity: 0.9;
 }
 
 /* Loading skeletons */

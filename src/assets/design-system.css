@@ -180,6 +180,23 @@
 :root[data-theme-type="dark"] { color-scheme: dark; }
 :root[data-theme-type="light"] { color-scheme: light; }
 
+/* Tooltip and overlay surfaces – work in both themes (dark surface, light text) */
+:root {
+  --tooltip-bg: #18191c;
+  --tooltip-text: #f2f3f5;
+  --tooltip-arrow: #18191c;
+}
+:root[data-theme-type="light"] {
+  --tooltip-bg: #2b2d31;
+  --tooltip-text: #f2f3f5;
+  --tooltip-arrow: #2b2d31;
+}
+
+/* Text on primary/accent background (e.g. active nav item) – always light for contrast */
+:root {
+  --text-on-primary: #ffffff;
+}
+
 /* === BASE RESET & TYPOGRAPHY === */
 *,
 *::before,
