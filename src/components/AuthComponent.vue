@@ -8,14 +8,6 @@
     <div class="auth-container">
       <!-- Branding Section (Desktop) -->
       <div class="auth-branding">
-        <!-- Floating decorative 3D shapes -->
-        <div class="floating-shapes" aria-hidden="true">
-          <div class="shape shape-1"></div>
-          <div class="shape shape-2"></div>
-          <div class="shape shape-3"></div>
-          <div class="shape shape-4"></div>
-        </div>
-
         <div class="brand-card">
           <div class="brand-content">
             <div class="logo-container" @click="themeStore.playAudio('ui_click')">
@@ -954,83 +946,6 @@ onMounted(async () => {
   padding: 48px;
   position: relative;
   overflow: hidden;
-}
-
-/* Floating 3D decorative shapes */
-.floating-shapes {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  z-index: 0;
-}
-
-.shape {
-  position: absolute;
-  border-radius: 30% 70% 70% 30% / 30% 30% 70% 70%;
-  background: linear-gradient(135deg, rgba(14, 165, 233, 0.15), rgba(14, 165, 233, 0.05));
-  backdrop-filter: blur(1px);
-  border: 1px solid rgba(14, 165, 233, 0.08);
-}
-
-.shape-1 {
-  width: 180px;
-  height: 180px;
-  top: 8%;
-  left: 5%;
-  background: linear-gradient(135deg, rgba(14, 165, 233, 0.12), rgba(99, 102, 241, 0.06));
-  animation: floatBlob1 18s ease-in-out infinite;
-}
-
-.shape-2 {
-  width: 120px;
-  height: 120px;
-  bottom: 12%;
-  right: 10%;
-  border-radius: 70% 30% 30% 70% / 70% 70% 30% 30%;
-  background: linear-gradient(135deg, rgba(236, 72, 153, 0.1), rgba(14, 165, 233, 0.06));
-  animation: floatBlob2 22s ease-in-out infinite;
-}
-
-.shape-3 {
-  width: 80px;
-  height: 80px;
-  top: 60%;
-  left: 10%;
-  border-radius: 50% 50% 30% 70% / 60% 40% 60% 40%;
-  background: linear-gradient(135deg, rgba(34, 197, 94, 0.1), rgba(14, 165, 233, 0.05));
-  animation: floatBlob3 15s ease-in-out infinite;
-}
-
-.shape-4 {
-  width: 60px;
-  height: 60px;
-  top: 15%;
-  right: 15%;
-  border-radius: 40% 60% 70% 30% / 50% 60% 40% 50%;
-  background: linear-gradient(135deg, rgba(251, 191, 36, 0.1), rgba(14, 165, 233, 0.05));
-  animation: floatBlob4 20s ease-in-out infinite;
-}
-
-@keyframes floatBlob1 {
-  0%, 100% { transform: translate(0, 0) rotate(0deg) scale(1); }
-  33% { transform: translate(30px, -25px) rotate(120deg) scale(1.05); }
-  66% { transform: translate(-20px, 15px) rotate(240deg) scale(0.95); }
-}
-
-@keyframes floatBlob2 {
-  0%, 100% { transform: translate(0, 0) rotate(0deg); }
-  50% { transform: translate(-25px, -30px) rotate(180deg); }
-}
-
-@keyframes floatBlob3 {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  50% { transform: translate(20px, -20px) scale(1.1); }
-}
-
-@keyframes floatBlob4 {
-  0%, 100% { transform: translate(0, 0) rotate(0deg); }
-  33% { transform: translate(-15px, 20px) rotate(90deg); }
-  66% { transform: translate(10px, -15px) rotate(270deg); }
 }
 
 /* Glass brand card */
@@ -2021,10 +1936,6 @@ onMounted(async () => {
     border-radius: 24px;
   }
 
-  .floating-shapes {
-    display: none;
-  }
-  
   .brand-title {
     font-size: 2.25rem;
   }
@@ -2068,10 +1979,6 @@ onMounted(async () => {
     display: none;
   }
 
-  .floating-shapes {
-    display: none;
-  }
-  
   .auth-panel {
     padding: 0;
     align-items: flex-start;
