@@ -161,7 +161,7 @@ const getTypeIcon = (type: NotificationType) => {
 <style scoped>
 .notification-toasts {
   position: fixed;
-  bottom: 20px;
+  top: 20px;
   right: 20px;
   z-index: 10000;
   display: flex;
