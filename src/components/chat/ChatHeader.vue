@@ -18,12 +18,11 @@
           </svg>
         </div>
         <div class="channel-details">
-          <h2 class="channel-name">
-            {{ channel.name }}
-          </h2>
-          <div v-if="channel.description" class="channel-description">
-            {{ channel.description }}
-          </div>
+          <h2 class="channel-name">{{ channel.name }}</h2>
+          <template v-if="channel.description">
+            <span class="channel-sep" aria-hidden="true">•</span>
+            <span class="channel-description">{{ channel.description }}</span>
+          </template>
         </div>
       </div>
     </div>
@@ -398,6 +397,10 @@ onUnmounted(() => {
 .channel-details {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: baseline;
+  gap: 6px;
 }
 
 .channel-name {
@@ -408,14 +411,23 @@ onUnmounted(() => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  flex-shrink: 0;
+}
+
+.channel-sep {
+  color: var(--text-muted);
+  font-size: 12px;
+  flex-shrink: 0;
+  user-select: none;
 }
 
 .channel-description {
-  font-size: 12px;
+  font-size: 13px;
   color: var(--text-secondary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  min-width: 0;
 }
 
 .header-actions {
@@ -471,7 +483,7 @@ onUnmounted(() => {
   position: relative;
 }
 
-/* Mobile styles */
+/* Mobile styles: two rows – name on first row, description on second */
 @media (max-width: 768px) {
   .mobile-menu-btn {
     display: flex;
@@ -486,9 +498,29 @@ onUnmounted(() => {
     height: 40px;
   }
   
-  .channel-description {
+  .channel-details {
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 2px 6px;
+  }
+  
+  .channel-name {
+    flex: 0 1 auto;
+  }
+  
+  .channel-sep {
     display: none;
   }
+  
+  .channel-description {
+    flex: 1 1 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 12px;
+    padding-left: 0;
+  }
+  
   .pinned-count {
     top: 0;
     right: 0px;
