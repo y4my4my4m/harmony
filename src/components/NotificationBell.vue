@@ -117,11 +117,7 @@
           <!-- Loading State -->
           <div v-if="isLoading" class="notification-state loading-state">
             <div class="state-animation">
-              <div class="loading-rings">
-                <div class="ring ring-1"></div>
-                <div class="ring ring-2"></div>
-                <div class="ring ring-3"></div>
-              </div>
+              <div class="loading-spinner"></div>
             </div>
             <h4 class="state-title">Loading notifications...</h4>
             <p class="state-description">Fetching your latest updates</p>
@@ -409,9 +405,9 @@ onUnmounted(() => {
   position: absolute;
   inset: -8px;
   border-radius: 50%;
-  background: conic-gradient(from 0deg, var(--h-brand), #7c3aed, var(--h-brand));
-  opacity: 0.6;
-  animation: rotate 3s linear infinite;
+  background: var(--h-brand);
+  opacity: 0.4;
+  animation: pulse 2s ease-in-out infinite;
   z-index: -1;
 }
 
@@ -419,7 +415,8 @@ onUnmounted(() => {
   position: absolute;
   inset: -4px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(14, 165, 233, 0.4) 0%, transparent 70%);
+  background: radial-gradient(circle, var(--h-brand) 0%, transparent 70%);
+  opacity: 0.3;
   animation: pulse 2s ease-in-out infinite;
 }
 
@@ -497,9 +494,9 @@ onUnmounted(() => {
   z-index: 1001;
 }
 
-/* Panel header with gradient */
+/* Panel header with subtle brand tint */
 .panel-header {
-  background: linear-gradient(135deg, var(--h-chat-darker) 0%, rgba(14, 165, 233, 0.1) 100%);
+  background: linear-gradient(135deg, var(--h-chat-darker) 0%, rgba(var(--h-brand-rgb, 14, 165, 233), 0.08) 100%);
   padding: 20px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   position: relative;
@@ -613,7 +610,7 @@ onUnmounted(() => {
 }
 
 .panel-content::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, var(--h-brand), #7c3aed);
+  background: rgba(255, 255, 255, 0.2);
   border-radius: 3px;
 }
 
@@ -629,44 +626,15 @@ onUnmounted(() => {
   position: relative;
 }
 
-/* Loading state */
-.loading-rings {
-  display: inline-block;
-  position: relative;
-  width: 64px;
-  height: 64px;
-}
-
-.ring {
-  position: absolute;
-  border: 3px solid transparent;
-  border-top: 3px solid var(--h-brand);
-  border-radius: 50%;
-  animation: spin 1.2s linear infinite;
-}
-
-.ring-1 {
-  width: 64px;
-  height: 64px;
-  animation-delay: 0s;
-}
-
-.ring-2 {
-  width: 48px;
-  height: 48px;
-  top: 8px;
-  left: 8px;
-  animation-delay: -0.4s;
-  border-top-color: #7c3aed;
-}
-
-.ring-3 {
+/* Loading state - uses standard app spinner */
+.loading-state .loading-spinner {
   width: 32px;
   height: 32px;
-  top: 16px;
-  left: 16px;
-  animation-delay: -0.8s;
-  border-top-color: #a855f7;
+  border: 3px solid rgba(255, 255, 255, 0.08);
+  border-top-color: var(--h-brand);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 0;
 }
 
 /* Empty state */
@@ -750,9 +718,9 @@ onUnmounted(() => {
 }
 
 .filter-tab.active {
-  background: linear-gradient(135deg, var(--h-brand), #7c3aed);
-  color: var(--text-primary);
-  box-shadow: 0 2px 8px rgba(14, 165, 233, 0.3);
+  background: rgba(14, 165, 233, 0.2);
+  color: var(--h-brand);
+  border: 1px solid rgba(14, 165, 233, 0.3);
 }
 
 .filter-icon {
