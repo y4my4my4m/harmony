@@ -161,11 +161,11 @@ const getTypeIcon = (type: NotificationType) => {
 <style scoped>
 .notification-toasts {
   position: fixed;
-  top: 20px;
+  bottom: 20px;
   right: 20px;
   z-index: 10000;
   display: flex;
-  flex-direction: column;
+  flex-direction: column-reverse;
   gap: 12px;
   pointer-events: none;
 }
@@ -414,7 +414,7 @@ const getTypeIcon = (type: NotificationType) => {
 /* Responsive design */
 @media (max-width: 768px) {
   .notification-toasts {
-    top: 10px;
+    bottom: 10px;
     right: 10px;
     left: 10px;
   }

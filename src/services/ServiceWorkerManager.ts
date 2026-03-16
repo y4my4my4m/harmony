@@ -182,6 +182,9 @@ export class ServiceWorkerManager {
       case 'MARK_NOTIFICATION_READ':
         this.handleMarkNotificationRead(event.data.data)
         break
+      case 'QUICK_REPLY':
+        this.handleQuickReply(event.data)
+        break
       default:
         debug.log('⚠️ Unknown ServiceWorker message type:', event.data.type)
     }
@@ -198,19 +201,64 @@ export class ServiceWorkerManager {
       if (data.data.conversation_id) {
         await router.push(`/dm/${data.data.conversation_id}`)
       } else if (data.data.server_id && data.data.channel_id) {
-        let path = `/servers/${data.data.server_id}/channels/${data.data.channel_id}`
+        let path = `/chat/${data.data.server_id}/${data.data.channel_id}`
         if (data.data.message_id) {
           path += `?message=${data.data.message_id}`
         }
         await router.push(path)
       } else if (data.data.server_id) {
-        await router.push(`/servers/${data.data.server_id}`)
+        await router.push(`/chat/${data.data.server_id}`)
       }
 
       // Mark notification as read
       await this.handleMarkNotificationRead(data.data)
     } catch (error) {
       debug.error('❌ Error navigating to notification:', error)
+    }
+  }
+
+  /**
+   * Handle quick reply from service worker notification action
+   */
+  private async handleQuickReply(data: any): Promise<void> {
+    try {
+      const replyText = data.replyText
+      const notifData = data.data
+
+      if (!replyText || !notifData) {
+        await this.handleNavigateToNotification(data)
+        return
+      }
+
+      const { supabase } = await import('@/supabase')
+      const { useAuthStore } = await import('@/stores/auth')
+      const authStore = useAuthStore()
+      const profileId = authStore.currentProfile?.id
+
+      if (!profileId) {
+        debug.error('❌ Quick reply: no active profile')
+        return
+      }
+
+      if (notifData.conversation_id) {
+        await supabase.from('messages').insert({
+          conversation_id: notifData.conversation_id,
+          profile_id: profileId,
+          content: replyText
+        })
+      } else if (notifData.server_id && notifData.channel_id) {
+        await supabase.from('messages').insert({
+          channel_id: notifData.channel_id,
+          profile_id: profileId,
+          content: replyText
+        })
+      }
+
+      await this.handleMarkNotificationRead(notifData)
+      debug.log('✅ Quick reply sent successfully')
+    } catch (error) {
+      debug.error('❌ Error handling quick reply:', error)
+      await this.handleNavigateToNotification(data)
     }
   }
 

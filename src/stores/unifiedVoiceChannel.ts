@@ -976,9 +976,14 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       // Voice Activity mode - normal toggle behavior
       if (this.isConnected) {
         const muted = webrtcManager.toggleMute();
-        this.localState = webrtcManager.getLocalState();
-        themeStore.playAudio(muted ? 'mic_off' : 'mic_on');
-        return muted;
+        const newState = webrtcManager.getLocalState();
+        if (newState.userId) {
+          this.localState = newState;
+        } else {
+          this.localState.isMuted = !this.localState.isMuted;
+        }
+        themeStore.playAudio(this.localState.isMuted ? 'mic_off' : 'mic_on');
+        return this.localState.isMuted;
       } else {
         // Toggle local state when not connected
         this.localState.isMuted = !this.localState.isMuted;

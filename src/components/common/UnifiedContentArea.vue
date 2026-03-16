@@ -51,7 +51,11 @@
       <!-- Timeline View -->
       <div v-else class="content-timeline">
         <!-- Composer (if home timeline) -->
-        <div v-if="currentView === 'home'" class="composer-section">
+        <div 
+          v-if="currentView === 'home'" 
+          class="composer-section"
+          :class="{ 'composer-hidden': composerHidden }"
+        >
           <Composer 
             mode="inline"
             type="post"
@@ -85,6 +89,7 @@
 </template>
 
 <script setup lang="ts">
+import { ref, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import ChatComponent from '@/components/ChatComponent.vue'
@@ -98,6 +103,40 @@ import { ViewMode, ViewType } from '@/types/viewTypes'
 import { usePostInteractions } from '@/composables/usePostInteractions'
 
 const router = useRouter()
+
+const composerHidden = ref(false)
+let lastScrollY = 0
+let scrollTicking = false
+
+const isMobileDevice = () => window.innerWidth <= 768
+
+function handleTimelineScroll() {
+  if (!isMobileDevice()) {
+    composerHidden.value = false
+    return
+  }
+  if (scrollTicking) return
+  scrollTicking = true
+  requestAnimationFrame(() => {
+    const currentY = window.scrollY
+    const delta = currentY - lastScrollY
+    if (delta > 8 && currentY > 60) {
+      composerHidden.value = true
+    } else if (delta < -4) {
+      composerHidden.value = false
+    }
+    lastScrollY = currentY
+    scrollTicking = false
+  })
+}
+
+onMounted(() => {
+  window.addEventListener('scroll', handleTimelineScroll, { passive: true })
+})
+
+onUnmounted(() => {
+  window.removeEventListener('scroll', handleTimelineScroll)
+})
 
 interface Props {
   mode: ViewMode;
@@ -276,6 +315,20 @@ const getSpecialViewEmptyMessage = (viewType: any) => {
 .composer-section {
   padding: var(--space-4);
   position: relative;
+  transition: transform 0.25s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+              opacity 0.25s ease,
+              max-height 0.25s ease;
+  max-height: 300px;
+  overflow: hidden;
+}
+
+.composer-section.composer-hidden {
+  transform: translateY(-100%);
+  opacity: 0;
+  max-height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  pointer-events: none;
 }
 
 .special-view {

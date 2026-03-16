@@ -100,7 +100,7 @@ async function handlePushEvent(event) {
           : `harmony-${data.type}-${data.data?.user_id || 'unknown'}`),
       renotify: true,
       data: data.data || {},
-      requireInteraction: data.type === 'mention' || data.type === 'dm',
+      requireInteraction: ['mention', 'dm', 'reply', 'friend_request', 'server_invite'].includes(data.type),
       silent: false,
       timestamp: Date.now(),
       actions: getNotificationActions(data.type),
@@ -147,7 +147,8 @@ async function handleNotificationClick(event) {
   await updateBadgeCount()
 
   if (action === 'reply' && (data.conversation_id || data.server_id)) {
-    return handleQuickReply(data)
+    const replyText = event.reply || null
+    return handleQuickReply(data, replyText)
   }
 
   if (action === 'mark_read') {
@@ -247,11 +248,12 @@ function getNotificationActions(type) {
     { action: 'dismiss', title: 'Dismiss', icon: '/icons/close.png' }
   ]
 
-  // Add type-specific actions
   if (type === 'dm' || type === 'mention' || type === 'reply') {
     baseActions.unshift({
       action: 'reply',
       title: 'Quick Reply',
+      type: 'text',
+      placeholder: 'Type a reply...',
       icon: '/icons/reply.png'
     })
   }
@@ -262,13 +264,17 @@ function getNotificationActions(type) {
 function getVibrationPattern(type) {
   switch (type) {
     case 'mention':
-      return [200, 100, 200] // Strong vibration for mentions
     case 'dm':
-      return [150, 50, 150] // Medium vibration for DMs
+      return [300, 100, 300, 100, 300]
+    case 'reply':
+      return [200, 100, 200, 100, 200]
     case 'reaction':
-      return [100] // Light vibration for reactions
+      return [150, 50, 150]
+    case 'friend_request':
+    case 'server_invite':
+      return [200, 100, 200]
     default:
-      return [100, 50, 100] // Default pattern
+      return [200, 100, 200]
   }
 }
 
@@ -299,7 +305,7 @@ function getNavigationUrl(data) {
   }
 
   if (data.server_id && data.channel_id) {
-    let url = `${baseUrl}/servers/${data.server_id}/channels/${data.channel_id}`
+    let url = `${baseUrl}/chat/${data.server_id}/${data.channel_id}`
     if (data.message_id) {
       url += `?message=${data.message_id}`
     }
@@ -307,7 +313,7 @@ function getNavigationUrl(data) {
   }
 
   if (data.server_id) {
-    return `${baseUrl}/servers/${data.server_id}`
+    return `${baseUrl}/chat/${data.server_id}`
   }
 
   return baseUrl
@@ -331,10 +337,22 @@ async function storeNotification(data) {
   }
 }
 
-async function handleQuickReply(data) {
+async function handleQuickReply(data, replyText) {
   try {
-    // This would open a quick reply interface
-    // For now, just navigate to the conversation
+    if (replyText) {
+      const clients = await self.clients.matchAll({ type: 'window' })
+      const focusedClient = clients.find(c => c.focused) || clients[0]
+
+      if (focusedClient) {
+        focusedClient.postMessage({
+          type: 'QUICK_REPLY',
+          data: data,
+          replyText: replyText
+        })
+        return focusedClient.focus()
+      }
+    }
+
     const url = getNavigationUrl(data)
     return self.clients.openWindow(url)
   } catch (error) {

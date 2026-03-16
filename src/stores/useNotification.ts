@@ -811,13 +811,13 @@ export const useNotificationStore = defineStore('notification', {
           const registration = await navigator.serviceWorker.ready
           await registration.showNotification(formatted.title, {
             ...notificationOptions,
-            requireInteraction: notification.type === 'mention' || notification.type === 'dm'
+            requireInteraction: false
           })
           debug.log(`✅ Desktop notification shown via SW for ${notification.type}`)
         } else {
-          const desktopNotification = new Notification(formatted.title, {
+          const desktopNotification = new window.Notification(formatted.title, {
             ...notificationOptions,
-            requireInteraction: notification.type === 'mention' || notification.type === 'dm'
+            requireInteraction: false
           })
 
           desktopNotification.onclick = () => {
@@ -826,9 +826,8 @@ export const useNotificationStore = defineStore('notification', {
             desktopNotification.close()
           }
 
-          if (notification.type !== 'mention' && notification.type !== 'dm') {
-            setTimeout(() => desktopNotification.close(), 8000)
-          }
+          const timeout = (notification.type === 'mention' || notification.type === 'dm') ? 12000 : 8000
+          setTimeout(() => desktopNotification.close(), timeout)
 
           debug.log(`✅ Desktop notification shown for ${notification.type}`)
         }

@@ -1038,6 +1038,16 @@ export function useVisualTheme() {
     saveCustomThemesToStorage(list)
   }
   
+  /**
+   * Apply instance default theme if the user has no custom theme set.
+   * Called on app init for new / unauthenticated users.
+   */
+  function loadInstanceDefaultTheme(themeJson: string | null): boolean {
+    if (!themeJson) return false
+    if (settings.value.theme !== 'dark' && settings.value.theme !== 'default') return false
+    return importThemeFromJson(themeJson)
+  }
+
   return {
     // State
     settings: computed(() => settings.value),
@@ -1046,6 +1056,7 @@ export function useVisualTheme() {
     
     // Methods
     initialize,
+    loadInstanceDefaultTheme,
     setTheme,
     setCustomThemeMode,
     setCustomPrimaryColor,

@@ -188,7 +188,7 @@ const clearCache = async (): Promise<void> => {
 const resetSystem = async (): Promise<void> => {
   try {
     isLoading.value = true
-    await themeStore.resetAudioSystem()
+    await themeStore.resetToDefaults()
     notificationStore.showToast(
       'ui_success' as any,
       'System Reset',

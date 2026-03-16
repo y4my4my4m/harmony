@@ -259,7 +259,7 @@ class PushNotificationServiceClass {
         JSON.stringify(payload),
         {
           TTL: 86400, // 24 hours
-          urgency: payload.type === 'mention' || payload.type === 'dm' ? 'high' : 'normal',
+          urgency: 'high' as const,
         }
       );
 

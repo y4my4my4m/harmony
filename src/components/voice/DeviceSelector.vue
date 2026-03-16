@@ -268,6 +268,7 @@ const selectInputDevice = async (deviceId: string) => {
   try {
     await webrtcManager.updateInputDevice(deviceId);
     selectedInputDevice.value = deviceId;
+    window.dispatchEvent(new CustomEvent('harmony-device-changed', { detail: { type: 'input', deviceId } }));
   } catch (error) {
     console.error('Failed to switch input device:', error);
   }
@@ -277,6 +278,7 @@ const selectOutputDevice = async (deviceId: string) => {
   try {
     await webrtcManager.updateOutputDevice(deviceId);
     selectedOutputDevice.value = deviceId;
+    window.dispatchEvent(new CustomEvent('harmony-device-changed', { detail: { type: 'output', deviceId } }));
   } catch (error) {
     console.error('Failed to switch output device:', error);
   }
@@ -286,6 +288,7 @@ const selectVideoDevice = async (deviceId: string) => {
   try {
     await webrtcManager.updateVideoDevice(deviceId);
     selectedVideoDevice.value = deviceId;
+    window.dispatchEvent(new CustomEvent('harmony-device-changed', { detail: { type: 'video', deviceId } }));
   } catch (error) {
     console.error('Failed to switch video device:', error);
   }
@@ -322,17 +325,31 @@ const handleKeydown = (event: KeyboardEvent) => {
   }
 };
 
+const handleExternalDeviceChange = (e: Event) => {
+  const { type, deviceId } = (e as CustomEvent).detail || {};
+  if (!deviceId) return;
+  if (type === 'input' && deviceId !== selectedInputDevice.value) {
+    selectedInputDevice.value = deviceId;
+  } else if (type === 'output' && deviceId !== selectedOutputDevice.value) {
+    selectedOutputDevice.value = deviceId;
+  } else if (type === 'video' && deviceId !== selectedVideoDevice.value) {
+    selectedVideoDevice.value = deviceId;
+  }
+};
+
 // Lifecycle
 onMounted(() => {
   document.addEventListener('click', handleClickOutside);
   document.addEventListener('keydown', handleKeydown);
   navigator.mediaDevices.addEventListener('devicechange', handleDeviceChange);
+  window.addEventListener('harmony-device-changed', handleExternalDeviceChange);
 });
 
 onUnmounted(() => {
   document.removeEventListener('click', handleClickOutside);
   document.removeEventListener('keydown', handleKeydown);
   navigator.mediaDevices.removeEventListener('devicechange', handleDeviceChange);
+  window.removeEventListener('harmony-device-changed', handleExternalDeviceChange);
 });
 
 // Watch for window resize to reposition dropdown
