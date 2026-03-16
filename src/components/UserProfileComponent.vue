@@ -18,8 +18,10 @@
       </div>
     </div>
 
-    <div class="buttons">
-      <NotificationBell />
+    <div class="buttons profile-bar-buttons">
+      <div class="icon-button">
+        <NotificationBell />
+      </div>
       <div 
         class="icon-button" 
         @click="toggleMic" 
@@ -468,13 +470,31 @@ onBeforeUnmount(() => {
 
 .buttons {
   display: flex;
-  gap: 4px;
+  align-items: center;
+  gap: 6px;
+}
+
+/* NotificationBell matches icon-button styling when in profile bar */
+.buttons :deep(.notification-bell) {
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  min-height: 32px;
+  border-radius: 6px;
+  color: var(--text-secondary);
+}
+
+.buttons :deep(.notification-bell:hover) {
+  background-color: rgba(79, 84, 92, 0.4);
+  transform: none; /* match other icon buttons - no lift effect */
 }
 
 .icon-button {
   width: 32px;
   height: 32px;
-  border-radius: 4px;
+  min-width: 32px;
+  min-height: 32px;
+  border-radius: 6px;
   display: flex;
   align-items: center;
   justify-content: center;

@@ -1,19 +1,19 @@
 <template>
-  <Headphones v-if="isHeadphonesActive" class="icon-component" :size="20" :stroke-width="2" />
-  <svg v-else class="icon-component icon-deafened" aria-hidden="true" role="img" xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-    <line x1="1" y1="1" x2="23" y2="23"></line>
-    <path d="M3 18v-6a9 9 0 0 1 18 0v6"></path>
-    <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zm-14 0a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3z"></path>
+  <svg v-if="isHeadphonesActive" class="icon-component" width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+    <path d="M12 1c-4.97 0-9 4.03-9 9v7c0 1.1.9 2 2 2h4v-8H5v-1c0-3.87 3.13-7 7-7s7 3.13 7 7v1h-4v8h4c1.1 0 2-.9 2-2v-7c0-4.97-4.03-9-9-9z"/>
+  </svg>
+  <svg v-else class="icon-component icon-deafened" width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+    <!-- Same filled headphones as active, with diagonal slash -->
+    <path d="M12 1c-4.97 0-9 4.03-9 9v7c0 1.1.9 2 2 2h4v-8H5v-1c0-3.87 3.13-7 7-7s7 3.13 7 7v1h-4v8h4c1.1 0 2-.9 2-2v-7c0-4.97-4.03-9-9-9z"/>
+    <line x1="1" y1="1" x2="23" y2="23" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/>
   </svg>
 </template>
 
 <script lang="ts">
 import { defineComponent, type PropType } from 'vue';
-import { Headphones } from 'lucide-vue-next';
 
 export default defineComponent({
   name: 'HeadphonesIcon',
-  components: { Headphones },
   props: {
     isHeadphonesActive: {
       type: Boolean as PropType<boolean>,
@@ -25,16 +25,12 @@ export default defineComponent({
 
 <style scoped>
 .icon-component {
-  color: var(--icon-primary, #9999a0);
+  color: currentColor;
   transition: color 0.2s;
   cursor: pointer;
 }
-.icon-component:hover {
-  color: var(--text-primary, #f2f3f5);
-}
 .icon-deafened {
-  color: var(--text-primary, #f2f3f5);
-  opacity: 0.75;
+  opacity: 0.9;
 }
 .icon-deafened:hover {
   opacity: 1;

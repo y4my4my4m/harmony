@@ -86,7 +86,7 @@
             loading="lazy"
           />
           <div v-else class="preview-placeholder">
-            <Icon :name="getThemeIcon(theme.id)" filled />
+            <Icon :name="getThemeIconName(theme.id)" filled />
           </div>
           
           <!-- Loading Overlay -->
@@ -280,6 +280,7 @@ const {
   isTesting,
   themes,
   getThemeIcon,
+  getThemeIconName,
   selectTheme: baseSelectTheme,
   testCurrentTheme,
   testTheme: baseTestTheme,
