@@ -23,7 +23,7 @@
     <div class="settings-section">
       <h3 class="section-title">{{ $t('common.preview') }}</h3>
       <p class="section-description">Test how different actions will sound with your current theme</p>
-      
+      <br>
       <div class="sound-test-grid">
         <button
           v-for="action in testActions"

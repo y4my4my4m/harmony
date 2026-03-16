@@ -143,6 +143,9 @@
   --h-chat-dark: #141618;
   --h-chat-darker: #0c0d0e;
 
+  --h-brand: var(--harmony-primary, #0EA5E9);
+  --h-channel-sidebar: var(--background-tertiary);
+
   /* Icon palette */
   --icon-muted: #9c343a;
   --icon-active: #fbfbfb;

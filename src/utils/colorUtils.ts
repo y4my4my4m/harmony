@@ -488,6 +488,7 @@ export function applyThemePalette(palette: ThemePalette): void {
   root.style.setProperty('--h-primary', palette.primary)
   root.style.setProperty('--h-primary-light', palette.primaryLight)
   root.style.setProperty('--h-primary-dark', palette.primaryDark)
+  root.style.setProperty('--h-brand', palette.primary)
   
   // Secondary / accent brand colors
   root.style.setProperty('--harmony-secondary', palette.secondary)

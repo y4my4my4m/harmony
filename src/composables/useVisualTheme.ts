@@ -293,6 +293,7 @@ function applyPresetTheme(themeName: 'dark' | 'light' | 'midnight') {
   root.style.setProperty('--h-primary', theme.primary)
   root.style.setProperty('--h-primary-light', '#38BDF8')
   root.style.setProperty('--h-primary-dark', '#0369A1')
+  root.style.setProperty('--h-brand', theme.primary)
   
   // Background colors - use proper defaults based on theme
   if (themeName === 'dark') {
@@ -686,6 +687,7 @@ export function useVisualTheme() {
    * Update theme
    */
   function setTheme(theme: 'dark' | 'light' | 'midnight' | 'custom', customColor?: string, customBgColor?: string) {
+    const previousTheme = settings.value.theme
     settings.value.theme = theme
     if (theme === 'custom') {
       if (customColor) {
@@ -694,7 +696,7 @@ export function useVisualTheme() {
       if (customBgColor) {
         settings.value.customBackgroundColor = customBgColor
       }
-    } else {
+    } else if (previousTheme !== theme) {
       clearCssOverrides()
     }
   }
@@ -817,15 +819,35 @@ export function useVisualTheme() {
     return [
       {
         category: 'Brand',
-        vars: ['--harmony-primary', '--harmony-primary-hover', '--harmony-primary-light', '--harmony-secondary', '--harmony-accent']
+        vars: ['--harmony-primary', '--harmony-primary-hover', '--harmony-primary-light', '--harmony-secondary', '--harmony-accent', '--h-brand']
+      },
+      {
+        category: 'Chat Surfaces',
+        vars: ['--h-chat', '--h-chat-light', '--h-chat-lighter', '--h-chat-dark', '--h-chat-darker']
+      },
+      {
+        category: 'Sidebar Surfaces',
+        vars: ['--h-sidebar', '--h-sidebar-light', '--h-channel-sidebar']
+      },
+      {
+        category: 'Dark Surfaces',
+        vars: ['--h-black', '--h-black-light', '--h-black-lighter', '--h-black-darker']
+      },
+      {
+        category: 'Primary (Layout)',
+        vars: ['--h-primary', '--h-primary-light', '--h-primary-dark']
       },
       {
         category: 'Background',
-        vars: ['--background-primary', '--background-secondary', '--background-tertiary', '--background-quaternary', '--background-quinary']
+        vars: ['--background-primary', '--background-secondary', '--background-tertiary', '--background-quaternary', '--background-quinary', '--background-senary']
       },
       {
         category: 'Text',
         vars: ['--text-primary', '--text-secondary', '--text-tertiary', '--text-muted']
+      },
+      {
+        category: 'Icons',
+        vars: ['--icon-active', '--icon-primary', '--icon-secondary', '--icon-tertiary', '--icon-muted']
       },
       {
         category: 'Status',
@@ -838,6 +860,14 @@ export function useVisualTheme() {
       {
         category: 'Borders',
         vars: ['--border-primary', '--border-secondary', '--border-hover', '--border-focus']
+      },
+      {
+        category: 'Alpha / Transparency',
+        vars: ['--h-chat-alpha', '--h-chat-alpha-light', '--h-sidebar-alpha', '--h-black-alpha', '--background-primary-alpha', '--background-secondary-alpha', '--background-tertiary-alpha', '--background-senary-alpha']
+      },
+      {
+        category: 'Tooltips & Overlays',
+        vars: ['--tooltip-bg', '--tooltip-text', '--tooltip-arrow']
       }
     ]
   }
