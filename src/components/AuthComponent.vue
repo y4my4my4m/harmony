@@ -8,42 +8,66 @@
     <div class="auth-container">
       <!-- Branding Section (Desktop) -->
       <div class="auth-branding">
-        <div class="brand-content">
-          <div class="logo-container" @click="themeStore.playAudio('ui_click')">
-            <img src="/icon_3d.webp" alt="Harmony Logo" class="brand-logo" />
-            <div class="logo-pulse"></div>
-          </div>
-          
-          <h1 class="brand-title">
-            <span class="harmony-text" @mouseenter="isHoveringTitle = true" @mouseleave="isHoveringTitle = false">
-              <span 
-                v-for="(letter, index) in instanceNameLetters" 
-                :key="index"
-                class="letter" 
-                :style="{ 
-                  '--letter-index': index,
-                  '--offset-x': letterOffsets[index]?.x || 0,
-                  '--offset-y': letterOffsets[index]?.y || 0
-                }"
-              >{{ letter }}</span>
-            </span>
-          </h1>
-          
-          <p class="brand-tagline">{{ instanceDescription }}</p>
-          
-          <!-- Feature Pills -->
-          <div class="feature-pills">
-            <div class="pill">
-              <span class="pill-icon">💬</span>
-              <span>{{ $t('auth.features.realTimeMessaging') }}</span>
+        <!-- Floating decorative 3D shapes -->
+        <div class="floating-shapes" aria-hidden="true">
+          <div class="shape shape-1"></div>
+          <div class="shape shape-2"></div>
+          <div class="shape shape-3"></div>
+          <div class="shape shape-4"></div>
+        </div>
+
+        <div class="brand-card">
+          <div class="brand-content">
+            <div class="logo-container" @click="themeStore.playAudio('ui_click')">
+              <img src="/icon_3d.webp" alt="Harmony Logo" class="brand-logo" />
+              <div class="logo-pulse"></div>
             </div>
-            <div class="pill">
-              <span class="pill-icon">🌐</span>
-              <span>{{ $t('auth.features.federated') || 'Federated' }}</span>
-            </div>
-            <div class="pill">
-              <span class="pill-icon">🔒</span>
-              <span>{{ $t('auth.features.endToEnd') || 'E2E Encrypted' }}</span>
+            
+            <h1 class="brand-title">
+              <span class="harmony-text" @mouseenter="isHoveringTitle = true" @mouseleave="isHoveringTitle = false">
+                <span 
+                  v-for="(letter, index) in instanceNameLetters" 
+                  :key="index"
+                  class="letter" 
+                  :style="{ 
+                    '--letter-index': index,
+                    '--offset-x': letterOffsets[index]?.x || 0,
+                    '--offset-y': letterOffsets[index]?.y || 0
+                  }"
+                >{{ letter }}</span>
+              </span>
+            </h1>
+            
+            <p class="brand-tagline">{{ instanceDescription }}</p>
+            
+            <!-- Feature Pills -->
+            <div class="feature-pills">
+              <div class="pill">
+                <span class="pill-icon-wrap">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
+                  </svg>
+                </span>
+                <span>{{ $t('auth.features.realTimeMessaging') }}</span>
+              </div>
+              <div class="pill">
+                <span class="pill-icon-wrap">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="2" y1="12" x2="22" y2="12"/>
+                    <path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/>
+                  </svg>
+                </span>
+                <span>{{ $t('auth.features.federated') || 'Federated' }}</span>
+              </div>
+              <div class="pill">
+                <span class="pill-icon-wrap">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                  </svg>
+                </span>
+                <span>{{ $t('auth.features.endToEnd') || 'E2E Encrypted' }}</span>
+              </div>
             </div>
           </div>
         </div>
@@ -928,29 +952,123 @@ onMounted(async () => {
   align-items: center;
   justify-content: center;
   padding: 48px;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Floating 3D decorative shapes */
+.floating-shapes {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.shape {
+  position: absolute;
+  border-radius: 30% 70% 70% 30% / 30% 30% 70% 70%;
+  background: linear-gradient(135deg, rgba(14, 165, 233, 0.15), rgba(14, 165, 233, 0.05));
+  backdrop-filter: blur(1px);
+  border: 1px solid rgba(14, 165, 233, 0.08);
+}
+
+.shape-1 {
+  width: 180px;
+  height: 180px;
+  top: 8%;
+  left: 5%;
+  background: linear-gradient(135deg, rgba(14, 165, 233, 0.12), rgba(99, 102, 241, 0.06));
+  animation: floatBlob1 18s ease-in-out infinite;
+}
+
+.shape-2 {
+  width: 120px;
+  height: 120px;
+  bottom: 12%;
+  right: 10%;
+  border-radius: 70% 30% 30% 70% / 70% 70% 30% 30%;
+  background: linear-gradient(135deg, rgba(236, 72, 153, 0.1), rgba(14, 165, 233, 0.06));
+  animation: floatBlob2 22s ease-in-out infinite;
+}
+
+.shape-3 {
+  width: 80px;
+  height: 80px;
+  top: 60%;
+  left: 10%;
+  border-radius: 50% 50% 30% 70% / 60% 40% 60% 40%;
+  background: linear-gradient(135deg, rgba(34, 197, 94, 0.1), rgba(14, 165, 233, 0.05));
+  animation: floatBlob3 15s ease-in-out infinite;
+}
+
+.shape-4 {
+  width: 60px;
+  height: 60px;
+  top: 15%;
+  right: 15%;
+  border-radius: 40% 60% 70% 30% / 50% 60% 40% 50%;
+  background: linear-gradient(135deg, rgba(251, 191, 36, 0.1), rgba(14, 165, 233, 0.05));
+  animation: floatBlob4 20s ease-in-out infinite;
+}
+
+@keyframes floatBlob1 {
+  0%, 100% { transform: translate(0, 0) rotate(0deg) scale(1); }
+  33% { transform: translate(30px, -25px) rotate(120deg) scale(1.05); }
+  66% { transform: translate(-20px, 15px) rotate(240deg) scale(0.95); }
+}
+
+@keyframes floatBlob2 {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); }
+  50% { transform: translate(-25px, -30px) rotate(180deg); }
+}
+
+@keyframes floatBlob3 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(20px, -20px) scale(1.1); }
+}
+
+@keyframes floatBlob4 {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); }
+  33% { transform: translate(-15px, 20px) rotate(90deg); }
+  66% { transform: translate(10px, -15px) rotate(270deg); }
+}
+
+/* Glass brand card */
+.brand-card {
+  position: relative;
+  z-index: 1;
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 32px;
+  padding: 48px 40px;
+  max-width: 460px;
+  width: 100%;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.02) inset,
+    0 24px 48px rgba(0, 0, 0, 0.15);
 }
 
 .brand-content {
   text-align: center;
-  max-width: 420px;
 }
 
 .logo-container {
   position: relative;
   display: inline-block;
-  margin-bottom: 24px;
+  margin-bottom: 28px;
   cursor: pointer;
 }
 
 .brand-logo {
-  width: 100px;
-  height: 100px;
+  width: 88px;
+  height: 88px;
   filter: drop-shadow(0 8px 24px rgba(14, 165, 233, 0.3));
-  transition: transform 0.3s ease;
+  transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .logo-container:hover .brand-logo {
-  transform: scale(1.05) rotate(-3deg);
+  transform: scale(1.08) rotate(-5deg);
 }
 
 .logo-pulse {
@@ -962,15 +1080,16 @@ onMounted(async () => {
 }
 
 @keyframes pulse {
-  0%, 100% { transform: scale(1); opacity: 0.4; }
-  50% { transform: scale(1.15); opacity: 0.7; }
+  0%, 100% { transform: scale(1); opacity: 0.3; }
+  50% { transform: scale(1.2); opacity: 0.6; }
 }
 
 .brand-title {
-  font-size: 3rem;
-  font-weight: 700;
+  font-size: 3.25rem;
+  font-weight: 800;
   margin: 0 0 12px;
-  line-height: 1.1;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
 }
 
 .harmony-text {
@@ -979,7 +1098,7 @@ onMounted(async () => {
 
 .letter {
   display: inline-block;
-  background: linear-gradient(135deg, #fff 0%, rgba(255,255,255,0.8) 100%);
+  background: linear-gradient(160deg, #fff 20%, rgba(255,255,255,0.7) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -997,41 +1116,61 @@ onMounted(async () => {
 }
 
 .brand-tagline {
-  font-size: 1.1rem;
+  font-size: 1.05rem;
   color: var(--text-muted);
-  margin: 0 0 40px;
-  line-height: 1.5;
+  margin: 0 0 36px;
+  line-height: 1.6;
+  max-width: 320px;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .feature-pills {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: 10px;
   justify-content: center;
 }
 
 .pill {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 16px;
-  background: var(--surface-light);
-  border: 1px solid var(--border);
+  gap: 10px;
+  padding: 10px 18px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 100px;
-  font-size: 0.875rem;
+  font-size: 0.85rem;
+  font-weight: 500;
   color: var(--text-muted);
-  transition: all 0.2s ease;
+  transition: all 0.25s ease;
 }
 
 .pill:hover {
-  background: var(--surface-hover);
-  border-color: var(--border-focus);
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(14, 165, 233, 0.3);
   color: var(--text);
   transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
 }
 
-.pill-icon {
-  font-size: 1rem;
+.pill-icon-wrap {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, var(--primary), var(--primary-hover));
+  border-radius: 50%;
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(14, 165, 233, 0.3);
+}
+
+.pill-icon-wrap svg {
+  width: 14px;
+  height: 14px;
+  color: #fff;
+  stroke-width: 2.5;
 }
 
 /* ========================================
@@ -1873,15 +2012,35 @@ onMounted(async () => {
   }
   
   .auth-branding {
-    padding: 40px 24px 24px;
+    padding: 32px 24px 24px;
+  }
+
+  .brand-card {
+    padding: 32px 28px;
+    max-width: 100%;
+    border-radius: 24px;
+  }
+
+  .floating-shapes {
+    display: none;
   }
   
   .brand-title {
-    font-size: 2.5rem;
+    font-size: 2.25rem;
+  }
+
+  .brand-logo {
+    width: 64px;
+    height: 64px;
+  }
+
+  .logo-container {
+    margin-bottom: 16px;
   }
   
   .brand-tagline {
-    margin-bottom: 24px;
+    margin-bottom: 20px;
+    font-size: 0.95rem;
   }
   
   .feature-pills {
@@ -1889,13 +2048,27 @@ onMounted(async () => {
   }
   
   .pill {
-    padding: 8px 12px;
+    padding: 8px 14px;
     font-size: 0.8rem;
+  }
+
+  .pill-icon-wrap {
+    width: 24px;
+    height: 24px;
+  }
+
+  .pill-icon-wrap svg {
+    width: 12px;
+    height: 12px;
   }
 }
 
 @media (max-width: 768px) {
   .auth-branding {
+    display: none;
+  }
+
+  .floating-shapes {
     display: none;
   }
   
