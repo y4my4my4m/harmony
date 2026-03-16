@@ -212,9 +212,11 @@
         <p class="section-help">Export your theme as JSON or import a previously exported theme</p>
         <div class="import-export-buttons">
           <button class="preset-card export-btn" @click="exportTheme">
+            <Icon name="download" :size="18" />
             Export theme
           </button>
           <button class="preset-card import-btn" @click="triggerImportInput">
+            <Icon name="upload" :size="18" />
             Import theme
           </button>
           <input
@@ -519,6 +521,7 @@ import { useEmojiPacks } from '@/services/emojiPackService'
 // Components
 import ToggleSwitch from '@/components/common/ToggleSwitch.vue'
 import ColorPicker from '@/components/common/ColorPicker.vue'
+import Icon from '@/components/common/Icon.vue'
 
 // Props
 interface Props {
@@ -1654,6 +1657,10 @@ onMounted(async () => {
 .export-btn,
 .import-btn {
   min-width: 120px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
 }
 
 .hidden-file-input {

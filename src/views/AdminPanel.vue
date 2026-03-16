@@ -858,17 +858,17 @@
             <label class="toggle-label">
               <input type="checkbox" v-model="announcementForm.is_pinned" />
               <span class="toggle-slider"></span>
-              Pinned
+              <span class="toggle-text">Pinned</span>
             </label>
             <label class="toggle-label">
               <input type="checkbox" v-model="announcementForm.show_popup" />
               <span class="toggle-slider"></span>
-              Show popup
+              <span class="toggle-text">Show popup</span>
             </label>
             <label class="toggle-label" v-if="editingAnnouncementId">
               <input type="checkbox" v-model="announcementForm.is_active" />
               <span class="toggle-slider"></span>
-              Active
+              <span class="toggle-text">Active</span>
             </label>
           </div>
           <div class="form-actions">
@@ -1003,22 +1003,26 @@
               <label class="toggle-label">
                 <input type="checkbox" v-model="config.chat.allowFileUploads" />
                 <span class="toggle-slider"></span>
-                Allow File Uploads
+                <span class="toggle-text">Allow File Uploads</span>
               </label>
               <label class="toggle-label">
                 <input type="checkbox" v-model="config.chat.enableVoiceChannels" />
                 <span class="toggle-slider"></span>
-                Enable Voice Channels
+                <span class="toggle-text">Enable Voice Channels</span>
               </label>
             </div>
 
             <h3 style="margin-top: 24px;">Trending & Discovery</h3>
             <div class="setting-group">
               <label>Trending Posts</label>
-              <button type="button" class="cyber-btn-sm" @click="refreshTrendingPosts" :disabled="loadingStates.trendingRefresh">
-                {{ loadingStates.trendingRefresh ? 'Refreshing...' : 'Refresh Trending Now' }}
-              </button>
-              <span class="setting-hint">Manually recalculate trending posts. Normally runs every 15 minutes.</span>
+              <div class="setting-control-row">
+                <button type="button" class="primary-btn-sm refresh-trending-btn" @click="refreshTrendingPosts" :disabled="loadingStates.trendingRefresh">
+                  <Icon v-if="loadingStates.trendingRefresh" name="loader" :size="16" class="spin" />
+                  <Icon v-else name="refresh-cw" :size="16" />
+                  {{ loadingStates.trendingRefresh ? 'Refreshing...' : 'Refresh Trending Now' }}
+                </button>
+                <span class="setting-hint">Manually recalculate trending posts. Normally runs every 15 minutes.</span>
+              </div>
             </div>
 
             <button @click="saveConfig" class="save-btn" :disabled="!configChanged" style="margin-top: 16px;">
@@ -1047,7 +1051,7 @@
               <label class="toggle-label">
                 <input type="checkbox" v-model="config.federation.allowCustomEmojisInDisplayNames" />
                 <span class="toggle-slider"></span>
-                Allow Custom Emojis in Display Names
+                <span class="toggle-text">Allow Custom Emojis in Display Names</span>
               </label>
               <span class="setting-hint">
                 When off, emojis won't display in names and users can't add them.
@@ -1057,12 +1061,12 @@
               <label class="toggle-label">
                 <input type="checkbox" v-model="config.federation.enableOutbound" />
                 <span class="toggle-slider"></span>
-                Enable Outbound Federation
+                <span class="toggle-text">Enable Outbound Federation</span>
               </label>
               <label class="toggle-label">
                 <input type="checkbox" v-model="config.federation.enableInbound" />
                 <span class="toggle-slider"></span>
-                Enable Inbound Federation
+                <span class="toggle-text">Enable Inbound Federation</span>
               </label>
             </div>
 
@@ -4136,6 +4140,29 @@ const handleAddInstance = () => {
   margin-bottom: 8px;
 }
 
+.setting-control-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.setting-control-row .setting-hint {
+  margin-bottom: 0;
+}
+
+.refresh-trending-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.refresh-trending-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+  transform: none;
+}
+
 .cyber-input, .cyber-textarea, .cyber-select {
   width: 100%;
   padding: 12px 16px;
@@ -4172,6 +4199,22 @@ const handleAddInstance = () => {
   font-weight: 500;
   color: var(--text-primary);
   cursor: pointer;
+}
+
+/* Override parent label styles so toggles stay horizontal and text doesn't truncate */
+.setting-group .toggle-label,
+.announcement-form .form-row.checks .toggle-label {
+  display: flex;
+  margin-bottom: 0;
+}
+
+.toggle-label .toggle-slider {
+  flex-shrink: 0;
+}
+
+.toggle-label .toggle-text {
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .toggle-label input[type="checkbox"] {
@@ -6027,6 +6070,7 @@ const handleAddInstance = () => {
 
 .funding-section {
   margin-bottom: 24px;
+  padding-top :24px;
 }
 
 .funding-section h3 {
