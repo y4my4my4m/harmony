@@ -55,7 +55,7 @@
             preload="auto"
             autoplay
             playsinline
-            :loop="isGifv"
+            loop
             :muted="videoMuted"
             @volumechange="onVolumeChange"
             @loadedmetadata="onVideoLoadedMetadata"

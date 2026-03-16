@@ -149,6 +149,7 @@
           autoplay
           preload="auto"
           playsinline
+          loop
           :muted="videoMuted"
           @volumechange="onVideoVolumeChange"
           @loadeddata="onVideoLoadedData"
