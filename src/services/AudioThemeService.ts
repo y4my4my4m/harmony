@@ -2,7 +2,7 @@ import JSZip from 'jszip'
 import type { AudioTheme, AudioAction, AudioThemeSettings } from '@/types'
 import { debug } from '@/utils/debug'
 import { userStorage } from '@/utils/userScopedStorage'
-import { savePackBlob, getAllPackBlobs, deletePackBlobs } from '@/utils/audioPackStorage'
+import { savePackBlob, getPackBlob, getAllPackBlobs, deletePackBlobs } from '@/utils/audioPackStorage'
 
 const PACK_MAX_BYTES = 10 * 1024 * 1024 // 10MB
 const PACK_FORMAT = 'harmony-audio-pack'
@@ -93,6 +93,7 @@ export class AudioThemeService {
           const blob = blobs[action]
           if (blob) sounds[action as AudioAction] = URL.createObjectURL(blob)
         }
+        const bannerBlob = await getPackBlob(meta.id, 'banner')
         const theme: AudioTheme & { soundsMap?: Record<string, string> } = {
           id: meta.id,
           name: meta.name,
@@ -100,7 +101,8 @@ export class AudioThemeService {
           author: meta.author ?? '',
           version: meta.version ?? '1.0.0',
           isBuiltIn: false,
-          sounds
+          sounds,
+          ...(bannerBlob && { preview: URL.createObjectURL(bannerBlob) })
         }
         theme.soundsMap = meta.soundsMap
         this.registerTheme(theme)
@@ -281,7 +283,7 @@ export class AudioThemeService {
 
   /**
    * Export a full audio theme pack as a ZIP archive.
-   * Contains manifest.json (theme metadata + action->filename map) and actual audio files.
+   * Contains manifest.json (theme metadata + action->filename map), optional banner image, and audio files.
    * Max size 10MB.
    */
   public async exportThemePack(themeId: string): Promise<Blob> {
@@ -290,6 +292,7 @@ export class AudioThemeService {
 
     const zip = new JSZip()
     const soundsMap: Record<string, string> = {}
+    let bannerFilename: string | undefined
 
     for (const [action, path] of Object.entries(theme.sounds)) {
       if (!path) continue
@@ -313,6 +316,23 @@ export class AudioThemeService {
       }
     }
 
+    if (theme.preview) {
+      let bannerBlob: Blob | null = null
+      if (theme.preview.startsWith('blob:') || theme.preview.startsWith('data:')) {
+        const res = await fetch(theme.preview)
+        bannerBlob = res.ok ? await res.blob() : null
+      } else {
+        const url = theme.preview.startsWith('/') ? `${window.location.origin}${theme.preview}` : theme.preview
+        const res = await fetch(url)
+        bannerBlob = res.ok ? await res.blob() : null
+      }
+      if (bannerBlob) {
+        const ext = bannerBlob.type.includes('png') ? 'png' : bannerBlob.type.includes('jpeg') || bannerBlob.type.includes('jpg') ? 'jpg' : 'webp'
+        bannerFilename = `banner.${ext}`
+        zip.file(bannerFilename, bannerBlob)
+      }
+    }
+
     const manifest = {
       format: PACK_FORMAT,
       version: PACK_VERSION,
@@ -323,7 +343,8 @@ export class AudioThemeService {
         author: theme.author,
         version: theme.version,
         isBuiltIn: false,
-        sounds: soundsMap
+        sounds: soundsMap,
+        ...(bannerFilename && { banner: bannerFilename })
       }
     }
     zip.file('manifest.json', JSON.stringify(manifest, null, 2))
@@ -349,7 +370,7 @@ export class AudioThemeService {
     if (!manifestFile) throw new Error('Invalid pack: missing manifest.json')
 
     const manifestText = await manifestFile.async('string')
-    const pack = JSON.parse(manifestText) as { format?: string; version?: number; theme?: AudioTheme & { sounds: Record<string, string> } }
+    const pack = JSON.parse(manifestText) as { format?: string; version?: number; theme?: AudioTheme & { sounds: Record<string, string>; banner?: string } }
     if (pack.format !== PACK_FORMAT || !pack.theme) {
       throw new Error('Invalid audio pack format. Use an exported Harmony audio theme pack.')
     }
@@ -360,6 +381,7 @@ export class AudioThemeService {
 
     const id = this.themes.has(meta.id) ? `${meta.id}-${Date.now()}` : meta.id
     const sounds: Partial<Record<AudioAction, string>> = {}
+    let preview: string | undefined
 
     for (const [action, filename] of Object.entries(meta.sounds)) {
       const file = zip.file(filename)
@@ -369,6 +391,15 @@ export class AudioThemeService {
       sounds[action as AudioAction] = URL.createObjectURL(blob)
     }
 
+    if (meta.banner) {
+      const bannerFile = zip.file(meta.banner)
+      if (bannerFile) {
+        const bannerBlob = await bannerFile.async('blob')
+        await savePackBlob(id, 'banner', bannerBlob)
+        preview = URL.createObjectURL(bannerBlob)
+      }
+    }
+
     const toRegister: AudioTheme = {
       id,
       name: meta.name,
@@ -376,7 +407,8 @@ export class AudioThemeService {
       author: meta.author ?? '',
       version: meta.version ?? '1.0.0',
       isBuiltIn: false,
-      sounds
+      sounds,
+      ...(preview && { preview })
     }
     ;(toRegister as AudioTheme & { soundsMap?: Record<string, string> }).soundsMap = meta.sounds
 
