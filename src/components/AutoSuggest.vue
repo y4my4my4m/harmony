@@ -304,7 +304,7 @@ watch(() => props.selectedIndex, (newIndex) => {
 }
 
 .bridge-badge.discord {
-  color: #0EA5E9;
+  color: #5865F2; /* Discord blurple */
 }
 
 .bridge-badge.role-badge {

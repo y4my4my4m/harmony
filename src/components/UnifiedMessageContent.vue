@@ -1385,9 +1385,9 @@ export default defineComponent({
   text-decoration: underline;
 }
 
-/* Discord bridged mentions */
+/* Discord bridged mentions - Discord blurple #5865F2 */
 .mention.discord-mention {
-  background-color: rgba(14, 165, 233, 0.2);
+  background-color: rgba(88, 101, 242, 0.2);
   padding: 0 4px;
 }
 
