@@ -1,5 +1,5 @@
 <template>
-  <div :class="['audio-theme-manager', { compact }]">
+  <div :class="[{ compact }]">
     <!-- Header Section -->
     <div class="manager-header">
       <div class="header-content">
