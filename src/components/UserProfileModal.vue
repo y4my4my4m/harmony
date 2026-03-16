@@ -40,17 +40,17 @@
           {{ isMuted ? 'Unmute User' : 'Mute User' }}
         </div>
         <div class="action-item" :class="{ danger: !isBlocked }" @click="toggleBlock">
-          <Icon :name="isBlocked ? 'user-check' : 'ban'" class="action-item-icon" />
+          <Icon :name="isBlocked ? 'user-check' : 'ban'" class="action-item-icon" :filled="!isBlocked" />
           {{ isBlocked ? 'Unblock User' : 'Block User' }}
         </div>
         <template v-if="isInServerContext && !isCurrentUser">
           <div class="action-divider"></div>
           <div v-if="canKick" class="action-item danger" @click="openKickModal">
-            <Icon name="log-out" class="action-item-icon" />
+            <Icon name="log-out" class="action-item-icon" filled />
             Kick from Server
           </div>
           <div v-if="canBan" class="action-item danger" @click="openBanModal">
-            <Icon name="ban" class="action-item-icon" />
+            <Icon name="ban" class="action-item-icon" filled />
             Ban from Server
           </div>
         </template>

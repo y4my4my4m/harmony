@@ -10,7 +10,8 @@
         <div class="modal-header" v-if="showHeader">
           <div class="header-content">
             <div class="icon-container" v-if="icon">
-              <component :is="icon" class="modal-icon" />
+              <Icon v-if="typeof icon === 'string'" :name="icon" class="modal-icon" :size="28" />
+              <component v-else :is="icon" class="modal-icon" />
             </div>
             <div class="header-text">
               <h2 class="modal-title">{{ title }}</h2>
@@ -40,6 +41,7 @@
 
 <script setup lang="ts">
 import { onMounted, onUnmounted } from 'vue'
+import Icon from '@/components/common/Icon.vue'
 
 interface Props {
   show: boolean

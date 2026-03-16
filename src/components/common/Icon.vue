@@ -291,6 +291,10 @@ export default defineComponent({
     strokeWidth: {
       type: Number,
       default: undefined
+    },
+    filled: {
+      type: Boolean,
+      default: false
     }
   },
   setup(props) {
@@ -313,7 +317,7 @@ export default defineComponent({
     const lucideIcon = computed(() => ICON_MAP[baseName.value] ?? null);
 
     const extraAttrs = computed(() => {
-      if (FILLED_ICONS.has(props.name)) {
+      if (props.filled || FILLED_ICONS.has(props.name)) {
         return { fill: 'currentColor', stroke: 'none' };
       }
       return {};
