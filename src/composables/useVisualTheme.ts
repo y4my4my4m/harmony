@@ -117,36 +117,36 @@ export const COMMUNITY_PRESETS: ThemePreset[] = [
 // Preset theme color mappings
 const PRESET_THEMES = {
   dark: {
-    primary: '#5865f2',
+    primary: '#0EA5E9',
     bgChat: '#313338',
     bgSidebar: '#292b2f',
     textPrimary: '#f2f3f5',
     textSecondary: '#b5bac1',
     borderPrimary: 'rgba(255, 255, 255, 0.08)',
     isLightTheme: false,
-    secondary: '#616ae5',
+    secondary: '#38BDF8',
     accent: '#ff7675',
   },
   light: {
-    primary: '#5865f2',
+    primary: '#0EA5E9',
     bgChat: '#ffffff',
     bgSidebar: '#f2f3f5',
     textPrimary: '#2e3338',
     textSecondary: '#4e5058',
     borderPrimary: 'rgba(0, 0, 0, 0.12)',
     isLightTheme: true,
-    secondary: '#616ae5',
+    secondary: '#38BDF8',
     accent: '#ff7675',
   },
   midnight: {
-    primary: '#5865f2',
+    primary: '#0EA5E9',
     bgChat: '#1e2124',
     bgSidebar: '#1a1d20',
     textPrimary: '#f2f3f5',
     textSecondary: '#b5bac1',
     borderPrimary: 'rgba(255, 255, 255, 0.08)',
     isLightTheme: false,
-    secondary: '#616ae5',
+    secondary: '#38BDF8',
     accent: '#ff7675',
   },
 }
@@ -155,9 +155,9 @@ const PRESET_THEMES = {
 const settings = ref<VisualThemeSettings>({
   theme: 'dark',
   customThemeMode: 'dark',
-  customPrimaryColor: '#5865f2',
-  customAccentColor: '#5865f2',
-  customBackgroundColor: '#5865f2',
+  customPrimaryColor: '#0EA5E9',
+  customAccentColor: '#0EA5E9',
+  customBackgroundColor: '#0EA5E9',
   customBackgroundLightness: 0,
   customBackgroundChroma: 0,
   fontSize: 14,
@@ -185,26 +185,26 @@ function applyPresetTheme(themeName: 'dark' | 'light' | 'midnight') {
   
   // Primary colors
   root.style.setProperty('--harmony-primary', theme.primary)
-  root.style.setProperty('--harmony-primary-hover', '#4752c4')
-  root.style.setProperty('--harmony-primary-light', 'rgba(88, 101, 242, 0.1)')
-  root.style.setProperty('--harmony-primary-alpha', 'rgba(88, 101, 242, 0.15)')
-  root.style.setProperty('--harmony-primary-alpha-light', 'rgba(88, 101, 242, 0.1)')
-  root.style.setProperty('--harmony-primary-alpha-strong', 'rgba(88, 101, 242, 0.25)')
+  root.style.setProperty('--harmony-primary-hover', '#0284C7')
+  root.style.setProperty('--harmony-primary-light', 'rgba(14, 165, 233, 0.1)')
+  root.style.setProperty('--harmony-primary-alpha', 'rgba(14, 165, 233, 0.15)')
+  root.style.setProperty('--harmony-primary-alpha-light', 'rgba(14, 165, 233, 0.1)')
+  root.style.setProperty('--harmony-primary-alpha-strong', 'rgba(14, 165, 233, 0.25)')
   root.style.setProperty('--harmony-secondary', theme.secondary)
-  root.style.setProperty('--harmony-secondary-hover', '#4752c4')
-  root.style.setProperty('--harmony-secondary-light', 'rgba(88, 101, 242, 0.1)')
-  root.style.setProperty('--harmony-secondary-alpha', 'rgba(88, 101, 242, 0.15)')
-  root.style.setProperty('--harmony-secondary-alpha-light', 'rgba(88, 101, 242, 0.1)')
-  root.style.setProperty('--harmony-secondary-alpha-strong', 'rgba(88, 101, 242, 0.25)')
+  root.style.setProperty('--harmony-secondary-hover', '#0284C7')
+  root.style.setProperty('--harmony-secondary-light', 'rgba(14, 165, 233, 0.1)')
+  root.style.setProperty('--harmony-secondary-alpha', 'rgba(14, 165, 233, 0.15)')
+  root.style.setProperty('--harmony-secondary-alpha-light', 'rgba(14, 165, 233, 0.1)')
+  root.style.setProperty('--harmony-secondary-alpha-strong', 'rgba(14, 165, 233, 0.25)')
   root.style.setProperty('--harmony-accent', theme.accent)
-  root.style.setProperty('--harmony-accent-hover', '#4752c4')
-  root.style.setProperty('--harmony-accent-light', 'rgba(88, 101, 242, 0.1)')
-  root.style.setProperty('--harmony-accent-alpha', 'rgba(88, 101, 242, 0.15)')
-  root.style.setProperty('--harmony-accent-alpha-light', 'rgba(88, 101, 242, 0.1)')
-  root.style.setProperty('--harmony-accent-alpha-strong', 'rgba(88, 101, 242, 0.25)')
+  root.style.setProperty('--harmony-accent-hover', '#0284C7')
+  root.style.setProperty('--harmony-accent-light', 'rgba(14, 165, 233, 0.1)')
+  root.style.setProperty('--harmony-accent-alpha', 'rgba(14, 165, 233, 0.15)')
+  root.style.setProperty('--harmony-accent-alpha-light', 'rgba(14, 165, 233, 0.1)')
+  root.style.setProperty('--harmony-accent-alpha-strong', 'rgba(14, 165, 233, 0.25)')
   root.style.setProperty('--h-primary', theme.primary)
-  root.style.setProperty('--h-primary-light', '#5983c8')
-  root.style.setProperty('--h-primary-dark', '#1e3585')
+  root.style.setProperty('--h-primary-light', '#38BDF8')
+  root.style.setProperty('--h-primary-dark', '#0369A1')
   
   // Background colors - use proper defaults based on theme
   if (themeName === 'dark') {
@@ -752,9 +752,9 @@ export function useVisualTheme() {
     settings.value = {
       theme: 'dark',
       customThemeMode: 'dark',
-      customPrimaryColor: '#5865f2',
-      customAccentColor: '#5865f2',
-      customBackgroundColor: '#5865f2',
+      customPrimaryColor: '#0EA5E9',
+      customAccentColor: '#0EA5E9',
+      customBackgroundColor: '#0EA5E9',
       customBackgroundLightness: 0,
       customBackgroundChroma: 0,
       fontSize: 14,
@@ -778,9 +778,9 @@ export function useVisualTheme() {
     settings.value = {
       theme: 'dark',
       customThemeMode: 'dark',
-      customPrimaryColor: '#5865f2',
-      customAccentColor: '#5865f2',
-      customBackgroundColor: '#5865f2',
+      customPrimaryColor: '#0EA5E9',
+      customAccentColor: '#0EA5E9',
+      customBackgroundColor: '#0EA5E9',
       customBackgroundLightness: 0,
       customBackgroundChroma: 0,
       fontSize: 14,

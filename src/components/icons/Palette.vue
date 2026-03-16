@@ -1,5 +1,17 @@
 <template>
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-    <path d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4M12,6A6,6 0 0,0 6,12A6,6 0 0,0 12,18A6,6 0 0,0 18,12A6,6 0 0,0 12,6M9,8H15V10H9V8M9,12H15V14H9V12Z"/>
-  </svg>
+  <Palette :size="size" :stroke-width="2" :class="className" />
 </template>
+
+<script lang="ts">
+import { defineComponent } from 'vue';
+import { Palette } from 'lucide-vue-next';
+
+export default defineComponent({
+  name: 'PaletteIcon',
+  components: { Palette },
+  props: {
+    size: { type: [Number, String], default: 20 },
+    className: { type: String, default: '' }
+  }
+});
+</script>

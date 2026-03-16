@@ -1,28 +1,24 @@
 <template>
-
-<svg class="moreIcon" aria-hidden="true" role="img" xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24">
-    <path fill="currentColor" fill-rule="evenodd" d="M4 14a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm10-2a2 2 0 1 1-4 0 2 2 0 0 1 4 0Zm8 0a2 2 0 1 1-4 0 2 2 0 0 1 4 0Z" clip-rule="evenodd">
-    </path>
-</svg>
+  <MoreHorizontal class="icon-component" :size="20" :stroke-width="2" />
 </template>
 
-<script lang="ts">import { defineComponent} from 'vue';
+<script lang="ts">
+import { defineComponent } from 'vue';
+import { MoreHorizontal } from 'lucide-vue-next';
 
 export default defineComponent({
-    name: 'ReplyIcon',
+  name: 'MoreIcon',
+  components: { MoreHorizontal },
 });
 </script>
+
 <style scoped>
-    .moreIcon{
-        width: 20px;
-        height: 20px;
-    }
-    .moreIcon path {
-        fill: #aaa;
-        transition: fill .2s;
-        cursor:pointer;
-    }
-    .moreIcon:hover path {
-        fill: #fff;
-    }
+.icon-component {
+  color: var(--icon-primary, #9999a0);
+  transition: color 0.2s;
+  cursor: pointer;
+}
+.icon-component:hover {
+  color: var(--text-primary, #f2f3f5);
+}
 </style>

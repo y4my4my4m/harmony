@@ -1,24 +1,24 @@
 <template>
-    <svg class="MicIcon" aria-hidden="true" role="img" xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24">
-        <path class="MicIconPath" d="M12 2a4 4 0 0 0-4 4v4a4 4 0 0 0 8 0V6a4 4 0 0 0-4-4Z"></path>
-        <path class="MicIconPath" d="M6 10a1 1 0 0 0-2 0 8 8 0 0 0 7 7.94V20H9a1 1 0 1 0 0 2h6a1 1 0 1 0 0-2h-2v-2.06A8 8 0 0 0 20 10a1 1 0 1 0-2 0 6 6 0 0 1-12 0Z"></path>
-    </svg>
+  <Mic class="icon-component" :size="20" :stroke-width="2" />
 </template>
 
-<script lang="ts">import { defineComponent} from 'vue';
+<script lang="ts">
+import { defineComponent } from 'vue';
+import { Mic } from 'lucide-vue-next';
 
 export default defineComponent({
-    name: 'MicIcon',
+  name: 'MicIcon',
+  components: { Mic },
 });
 </script>
 
 <style scoped>
-    .MicIcon .MicIconPath {
-        fill: #aaa;
-        transition: .2s;
-        cursor:pointer;
-    }
-    .MicIcon:hover .MicIconPath {
-        fill: #fff;
-    }
+.icon-component {
+  color: var(--icon-primary, #9999a0);
+  transition: color 0.2s;
+  cursor: pointer;
+}
+.icon-component:hover {
+  color: var(--text-primary, #f2f3f5);
+}
 </style>

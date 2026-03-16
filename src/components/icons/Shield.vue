@@ -1,5 +1,17 @@
 <template>
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-    <path d="M12,1L3,5V11C3,16.55 6.84,21.74 12,23C17.16,21.74 21,16.55 21,11V5L12,1M10,17L6,13L7.41,11.59L10,14.17L16.59,7.58L18,9L10,17Z"/>
-  </svg>
+  <Shield :size="size" :stroke-width="2" :class="className" />
 </template>
+
+<script lang="ts">
+import { defineComponent } from 'vue';
+import { Shield } from 'lucide-vue-next';
+
+export default defineComponent({
+  name: 'ShieldIcon',
+  components: { Shield },
+  props: {
+    size: { type: [Number, String], default: 20 },
+    className: { type: String, default: '' }
+  }
+});
+</script>

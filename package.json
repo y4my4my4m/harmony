@@ -68,6 +68,7 @@
     "discord.js": "^14.14.1",
     "dompurify": "^3.3.3",
     "livekit-client": "^2.6.2",
+    "lucide-vue-next": "^0.577.0",
     "mediasoup-client": "^3.7.2",
     "pinia": "^2.1.7",
     "qrcode": "^1.5.4",

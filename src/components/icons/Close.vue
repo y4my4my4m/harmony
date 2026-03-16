@@ -1,22 +1,20 @@
 <template>
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-    <path d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z"/>
-  </svg>
+  <X class="icon-component" :size="size" :stroke-width="2" />
 </template>
 
-<script lang="ts">import { defineComponent} from 'vue';
+<script lang="ts">
+import { defineComponent } from 'vue';
+import { X } from 'lucide-vue-next';
 
 export default defineComponent({
-    name: 'CloseIcon',
+  name: 'CloseIcon',
+  components: { X },
+  props: {
+    size: { type: [Number, String], default: 20 }
+  }
 });
 </script>
+
 <style scoped>
-    .closeIcon path {
-        fill: #aaa;
-        transition: fill .2s;
-        cursor:pointer;
-    }
-    .closeIcon:hover path {
-        fill: #fff;
-    }
+.icon-component { color: currentColor; }
 </style>

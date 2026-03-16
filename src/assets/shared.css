@@ -27,7 +27,7 @@
 }
 
 .btn-secondary {
-  background-color: #4752c4;
+  background-color: #0284C7;
 }
 
 /* Shared Input Styles */
@@ -45,8 +45,8 @@
 }
 
 .input-base:focus {
-  border: 1px solid #616ae5;
-  box-shadow: 0 0 0 3px rgba(114, 137, 218, 0.3);
+  border: 1px solid #0EA5E9;
+  box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.3);
 }
 
 .input-base::placeholder {

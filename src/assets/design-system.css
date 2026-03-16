@@ -4,10 +4,10 @@
 /* === CSS CUSTOM PROPERTIES === */
 :root {
   /* Brand Colors */
-  --harmony-primary: #5865f2;
-  --harmony-primary-hover: #4752c4;
-  --harmony-primary-light: rgba(88, 101, 242, 0.1);
-  --harmony-secondary: #616ae5;
+  --harmony-primary: #0EA5E9;
+  --harmony-primary-hover: #0284C7;
+  --harmony-primary-light: rgba(14, 165, 233, 0.1);
+  --harmony-secondary: #38BDF8;
   --harmony-accent: #ff7675;
   
   /* Status Colors */
@@ -639,7 +639,7 @@ body {
   width: 32px;
   height: 32px;
   border: 3px solid rgba(255, 255, 255, 0.08);
-  border-top: 3px solid var(--h-brand, #5865f2);
+  border-top: 3px solid var(--h-brand, #0EA5E9);
   border-radius: 50%;
   animation: spin 1s linear infinite;
   margin-bottom: 1rem;
@@ -790,7 +790,7 @@ body {
   font-family: 'IBM Plex Mono', 'SFMono-Regular', Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
   letter-spacing: 0.15em;
   user-select: none;
-  background: linear-gradient(90deg, rgba(88, 101, 242, 0.05), rgba(88, 101, 242, 0.1), rgba(88, 101, 242, 0.05));
+  background: linear-gradient(90deg, rgba(14, 165, 233, 0.05), rgba(14, 165, 233, 0.1), rgba(14, 165, 233, 0.05));
   border-radius: 4px;
   padding: 2px 6px;
   display: inline-block;
@@ -799,22 +799,22 @@ body {
 
 .glyph-char {
   display: inline-block;
-  color: #616ae5;
+  color: #38BDF8;
   opacity: 0.7;
   animation: glyphFloat 3s ease-in-out infinite, glyphGlitch 5s ease-in-out infinite;
   text-shadow: 
-    0 0 5px rgba(114, 137, 218, 0.5),
-    0 0 10px rgba(114, 137, 218, 0.3);
+    0 0 5px rgba(14, 165, 233, 0.5),
+    0 0 10px rgba(14, 165, 233, 0.3);
   transition: all 0.3s ease;
 }
 
 .glyph-char:hover {
-  color: #5865f2;
+  color: #0EA5E9;
   opacity: 1;
   text-shadow: 
-    0 0 8px rgba(88, 101, 242, 0.8),
-    0 0 15px rgba(88, 101, 242, 0.5),
-    0 0 20px rgba(88, 101, 242, 0.3);
+    0 0 8px rgba(14, 165, 233, 0.8),
+    0 0 15px rgba(14, 165, 233, 0.5),
+    0 0 20px rgba(14, 165, 233, 0.3);
   transform: scale(1.1);
 }
 
@@ -873,16 +873,16 @@ body {
 @keyframes glyphGlow {
   0%, 100% {
     text-shadow: 
-      0 0 5px rgba(114, 137, 218, 0.5),
-      0 0 10px rgba(114, 137, 218, 0.3);
-    color: #616ae5;
+      0 0 5px rgba(14, 165, 233, 0.5),
+      0 0 10px rgba(14, 165, 233, 0.3);
+    color: #38BDF8;
   }
   50% {
     text-shadow: 
-      0 0 10px rgba(88, 101, 242, 0.9),
-      0 0 20px rgba(88, 101, 242, 0.6),
-      0 0 30px rgba(88, 101, 242, 0.4);
-    color: #5865f2;
+      0 0 10px rgba(14, 165, 233, 0.9),
+      0 0 20px rgba(14, 165, 233, 0.6),
+      0 0 30px rgba(14, 165, 233, 0.4);
+    color: #0EA5E9;
   }
 }
 
@@ -898,7 +898,7 @@ body {
 }
 
 .encrypted-click-target:hover {
-  background-color: rgba(88, 101, 242, 0.15);
+  background-color: rgba(14, 165, 233, 0.15);
 }
 
 .encrypted-click-target:hover .glyph-char {
@@ -907,7 +907,7 @@ body {
 }
 
 .encrypted-click-target:active {
-  background-color: rgba(88, 101, 242, 0.25);
+  background-color: rgba(14, 165, 233, 0.25);
 }
 
 /* Decrypting state */
