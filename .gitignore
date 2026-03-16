@@ -37,6 +37,8 @@ coverage
 .env.production
 .env.test
 
+.venv/
+
 
 docs/.vitepress/cache
 docker
