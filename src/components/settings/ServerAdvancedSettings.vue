@@ -359,7 +359,7 @@ const formatDate = (dateString: string | undefined): string => {
 
 .stat-label {
   font-size: 12px;
-  color: #72767d;
+  color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.02em;
   margin-bottom: 4px;

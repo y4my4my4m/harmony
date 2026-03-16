@@ -835,7 +835,7 @@ const formatFileSize = (bytes: number): string => {
 
 /* Media loading skeletons */
 .media-skeleton {
-  background: linear-gradient(90deg, #36393f 25%, #40444b 50%, #36393f 75%);
+  background: linear-gradient(90deg, var(--background-secondary) 25%, var(--h-black-lighter) 50%, var(--background-secondary) 75%);
   background-size: 200% 100%;
   animation: loading 1.5s infinite;
   border-radius: 4px;
@@ -877,7 +877,7 @@ const formatFileSize = (bytes: number): string => {
 
 /* System messages */
 .system-message {
-  color: #72767d;
+  color: var(--text-muted);
   font-style: italic;
   opacity: 0.8;
 }
@@ -911,7 +911,7 @@ const formatFileSize = (bytes: number): string => {
 
 .content-html :deep(code),
 :deep(code) {
-  background-color: #2f3136;
+  background-color: var(--background-tertiary);
   color: #f8f8f2;
   padding: 2px 4px;
   border-radius: 3px;

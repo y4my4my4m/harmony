@@ -953,7 +953,7 @@ export default defineComponent({
 
 .keybind-hint {
   font-size: 12px;
-  color: #72767d;
+  color: var(--text-muted);
   margin: 0 0 12px 0;
   font-style: italic;
 }

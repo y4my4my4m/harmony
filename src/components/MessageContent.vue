@@ -277,9 +277,9 @@ export default defineComponent({
   min-height: 40px;
   max-height: 200px;
   padding: 8px 12px;
-  border: 1px solid #40444b;
+  border: 1px solid var(--h-black-lighter);
   border-radius: 8px;
-  background-color: #40444b;
+  background-color: var(--h-black-lighter);
   color: var(--text-secondary);
   font-family: inherit;
   font-size: 14px;
@@ -297,18 +297,18 @@ export default defineComponent({
 }
 
 .edit-textarea::placeholder {
-  color: #72767d;
+  color: var(--text-muted);
 }
 
 .edit-actions {
   margin-top: 8px;
   font-size: 12px;
-  color: #72767d;
+  color: var(--text-muted);
 }
 
 .edit-hint {
   font-size: 12px;
-  color: #72767d;
+  color: var(--text-muted);
 }
 
 .edit-action {

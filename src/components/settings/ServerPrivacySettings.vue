@@ -392,7 +392,7 @@ const setDiscoveryMode = (mode: 'invite-only' | 'public-directory') => {
 
 .form-hint {
   font-size: 12px;
-  color: #72767d;
+  color: var(--text-muted);
   margin-top: 4px;
 }
 
@@ -432,7 +432,7 @@ const setDiscoveryMode = (mode: 'invite-only' | 'public-directory') => {
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: #72767d;
+  background-color: var(--text-muted);
   transition: 0.3s;
   border-radius: 24px;
 }
@@ -669,7 +669,7 @@ input:checked + .toggle-slider:before {
 
 .option-description {
   font-size: 12px;
-  color: #72767d;
+  color: var(--text-muted);
   line-height: 1.4;
 }
 
@@ -685,7 +685,7 @@ input:checked + .toggle-slider:before {
   display: block;
   width: 20px;
   height: 20px;
-  border: 2px solid #72767d;
+  border: 2px solid var(--text-muted);
   border-radius: 50%;
   background-color: transparent;
   cursor: pointer;

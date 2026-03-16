@@ -574,7 +574,7 @@ watch(
 .voice-context-menu {
   position: fixed;
   z-index: 10006;
-  background: linear-gradient(145deg, #2f3136, #36393f);
+  background: linear-gradient(145deg, var(--background-tertiary), var(--background-secondary));
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 12px;
   box-shadow: 
@@ -664,7 +664,7 @@ watch(
 
 .no-audio-hint {
   font-size: 10px;
-  color: #72767d;
+  color: var(--text-muted);
   opacity: 0.7;
 }
 
@@ -712,7 +712,7 @@ watch(
   justify-content: space-between;
   margin-top: 4px;
   font-size: 10px;
-  color: #72767d;
+  color: var(--text-muted);
 }
 
 .volume-presets {

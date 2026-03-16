@@ -111,7 +111,7 @@ const renderedHtml = computed(() => {
 }
 
 .markdown-content :deep(.md-code) {
-  background: #2f3136;
+  background: var(--background-tertiary);
   color: #f8f8f2;
   font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
   font-size: 0.875em;
@@ -121,7 +121,7 @@ const renderedHtml = computed(() => {
 }
 
 .markdown-content :deep(.md-codeblock) {
-  background: #2f3136;
+  background: var(--background-tertiary);
   border: 1px solid #202225;
   border-radius: 4px;
   margin: 6px 0;
@@ -129,7 +129,7 @@ const renderedHtml = computed(() => {
 }
 
 .markdown-content :deep(.md-codeblock-header) {
-  background: #36393f;
+  background: var(--background-secondary);
   padding: 4px 8px;
   font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
   font-size: 0.75em;
@@ -137,7 +137,7 @@ const renderedHtml = computed(() => {
 }
 
 .markdown-content :deep(.md-codeblock-lang) {
-  color: #72767d;
+  color: var(--text-muted);
   font-weight: 500;
 }
 
@@ -151,7 +151,7 @@ const renderedHtml = computed(() => {
 }
 
 .markdown-content :deep(.md-codeblock-footer) {
-  background: #36393f;
+  background: var(--background-secondary);
   padding: 4px 8px;
   font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
   font-size: 0.75em;
@@ -167,7 +167,7 @@ const renderedHtml = computed(() => {
 }
 
 .markdown-content :deep(.md-marker) {
-  color: #72767d;
+  color: var(--text-muted);
   opacity: 0.6;
   font-weight: normal;
 }

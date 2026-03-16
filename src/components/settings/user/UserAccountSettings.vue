@@ -682,7 +682,7 @@ onMounted(async () => {
 
 .form-hint {
   font-size: 12px;
-  color: #72767d;
+  color: var(--text-muted);
   margin-top: 8px;
 }
 

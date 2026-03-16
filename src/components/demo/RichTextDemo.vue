@@ -114,16 +114,16 @@ watch(testText, (newValue) => {
   margin: 0 auto;
   padding: 20px;
   color: var(--h-text, #ffffff);
-  background: var(--h-bg, #36393f);
+  background: var(--h-bg, var(--background-secondary));
   min-height: 100vh;
 }
 
 .demo-section {
   margin-bottom: 40px;
   padding: 20px;
-  border: 1px solid #40444b;
+  border: 1px solid var(--h-black-lighter);
   border-radius: 8px;
-  background: var(--h-chat, #2f3136);
+  background: var(--h-chat, var(--background-tertiary));
 }
 
 .demo-section h3 {
@@ -134,9 +134,9 @@ watch(testText, (newValue) => {
 .text-output, .parsed-output, .highlighted-output {
   margin-top: 20px;
   padding: 15px;
-  border: 1px solid #40444b;
+  border: 1px solid var(--h-black-lighter);
   border-radius: 4px;
-  background: #2f3136;
+  background: var(--background-tertiary);
 }
 
 .text-output pre {
@@ -151,9 +151,9 @@ watch(testText, (newValue) => {
   width: 100%;
   min-height: 120px;
   padding: 10px;
-  border: 1px solid #40444b;
+  border: 1px solid var(--h-black-lighter);
   border-radius: 4px;
-  background: #40444b;
+  background: var(--h-black-lighter);
   color: var(--text-primary);
   font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
   resize: vertical;
@@ -171,7 +171,7 @@ watch(testText, (newValue) => {
   gap: 10px;
   padding: 5px 10px;
   border-radius: 4px;
-  background: #40444b;
+  background: var(--h-black-lighter);
 }
 
 .node-type {
@@ -215,10 +215,10 @@ watch(testText, (newValue) => {
 }
 
 .node-codeblock .node-content {
-  background: #2f3136;
+  background: var(--background-tertiary);
   padding: 8px;
   border-radius: 4px;
-  border: 1px solid #40444b;
+  border: 1px solid var(--h-black-lighter);
   color: var(--text-secondary);
 }
 
@@ -232,9 +232,9 @@ watch(testText, (newValue) => {
 select {
   padding: 5px 10px;
   margin-bottom: 10px;
-  border: 1px solid #40444b;
+  border: 1px solid var(--h-black-lighter);
   border-radius: 4px;
-  background: #40444b;
+  background: var(--h-black-lighter);
   color: var(--text-primary);
 }
 
@@ -253,7 +253,7 @@ select {
 }
 
 .syntax-comment {
-  color: #72767d;
+  color: var(--text-muted);
   font-style: italic;
 }
 

@@ -313,10 +313,10 @@ watch(() => props.message.id, (newMessageId, oldMessageId) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: #40444b;
+  background-color: var(--h-black-lighter);
   border-radius: 3px;
   font-size: 10px;
-  color: #72767d;
+  color: var(--text-muted);
   flex-shrink: 0;
 }
 
@@ -329,7 +329,7 @@ watch(() => props.message.id, (newMessageId, oldMessageId) => {
 .loading-spinner {
   width: 16px;
   height: 16px;
-  border: 2px solid #40444b;
+  border: 2px solid var(--h-black-lighter);
   border-top: 2px solid #0EA5E9;
   border-radius: 50%;
   animation: spin 1s linear infinite;

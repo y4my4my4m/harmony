@@ -545,7 +545,7 @@ onUnmounted(() => {
 .mode-note {
   display: block;
   font-size: 11px;
-  color: #72767d;
+  color: var(--text-muted);
   font-style: italic;
   margin-top: 4px;
 }

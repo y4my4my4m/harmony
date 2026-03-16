@@ -106,7 +106,7 @@ async function handlePushEvent(event) {
       actions: getNotificationActions(data.type),
       image: data.data?.image_url,
       vibrate: getVibrationPattern(data.type),
-      color: '#5865f2'
+      color: '#0EA5E9'
     }
 
     // Store notification for later retrieval

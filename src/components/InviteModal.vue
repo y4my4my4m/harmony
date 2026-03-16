@@ -914,7 +914,7 @@ watch(() => props.show, async (newValue) => {
 }
 
 .history-separator {
-  color: #72767d;
+  color: var(--text-muted);
 }
 
 .temp-badge {

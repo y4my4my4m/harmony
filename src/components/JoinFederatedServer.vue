@@ -388,7 +388,7 @@ function formatExpiry(expiresAt: string): string {
 }
 
 .input-wrapper input::placeholder {
-  color: #72767d;
+  color: var(--text-muted);
 }
 
 .discover-btn {
@@ -414,7 +414,7 @@ function formatExpiry(expiresAt: string): string {
 
 .input-hint {
   font-size: 12px;
-  color: #72767d;
+  color: var(--text-muted);
   margin-top: 8px;
 }
 
@@ -570,7 +570,7 @@ function formatExpiry(expiresAt: string): string {
 }
 
 .detail-label {
-  color: #72767d;
+  color: var(--text-muted);
   flex-shrink: 0;
 }
 
@@ -609,7 +609,7 @@ function formatExpiry(expiresAt: string): string {
 
 .more-channels {
   font-size: 12px;
-  color: #72767d;
+  color: var(--text-muted);
   padding: 5px 0;
 }
 

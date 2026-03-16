@@ -1838,7 +1838,7 @@ font-size: 12px;
 
 .device-date {
   font-size: 12px;
-  color: #72767d;
+  color: var(--text-muted);
 }
 
 .device-remove-btn {
@@ -1846,7 +1846,7 @@ font-size: 12px;
   border: none;
   padding: 8px;
   border-radius: 6px;
-  color: #72767d;
+  color: var(--text-muted);
   cursor: pointer;
   transition: all 0.2s ease;
 }

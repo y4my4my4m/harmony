@@ -119,7 +119,7 @@ const deleteCategory = () => {
 
 .context-menu-divider {
   height: 1px;
-  background: var(--border-color, #40444b);
+  background: var(--border-color, var(--h-black-lighter));
   margin: 4px 8px;
 }
 </style>

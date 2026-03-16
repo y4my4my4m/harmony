@@ -1141,7 +1141,7 @@ onMounted(async () => {
 
 .rich-text-editor.is-empty::before {
   content: attr(data-placeholder);
-  color: #72767d;
+  color: var(--text-muted);
   pointer-events: none;
   position: absolute;
   top: 11px;
@@ -1166,7 +1166,7 @@ onMounted(async () => {
 
 /* Markdown markers styling */
 .rich-text-editor :deep(.editor-marker) {
-  color: #72767d;
+  color: var(--text-muted);
   opacity: 0.6;
   font-weight: normal;
 }
@@ -1217,7 +1217,7 @@ onMounted(async () => {
 }
 
 .rich-text-editor :deep(.editor-code-content) {
-  background: #2f3136;
+  background: var(--background-tertiary);
   color: #f8f8f2;
   font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
   font-size: 0.875em;
@@ -1230,7 +1230,7 @@ onMounted(async () => {
 .rich-text-editor :deep(.editor-codeblock-wrapper) {
   display: block;
   margin: 6px 0;
-  background: #2f3136;
+  background: var(--background-tertiary);
   border: 1px solid #202225;
   border-radius: 4px;
   overflow: hidden;
@@ -1238,7 +1238,7 @@ onMounted(async () => {
 
 .rich-text-editor :deep(.editor-codeblock-start),
 .rich-text-editor :deep(.editor-codeblock-end) {
-  background: #36393f;
+  background: var(--background-secondary);
   padding: 4px 8px;
   font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
   font-size: 0.75em;

@@ -567,7 +567,7 @@ onBeforeUnmount(() => {
 }
 
 .custom-status-preview .emoji-placeholder {
-  color: var(--text-muted, #72767d);
+  color: var(--text-muted, var(--text-muted));
   flex-shrink: 0;
 }
 
@@ -582,7 +582,7 @@ onBeforeUnmount(() => {
 .clear-status-btn {
   background: none;
   border: none;
-  color: var(--text-muted, #72767d);
+  color: var(--text-muted, var(--text-muted));
   cursor: pointer;
   padding: 4px;
   border-radius: 4px;
@@ -622,7 +622,7 @@ onBeforeUnmount(() => {
 
 .custom-status-input {
   flex: 1;
-  background: #2f3136;
+  background: var(--background-tertiary);
   border: none;
   border-radius: 4px;
   padding: 8px 10px;
@@ -633,7 +633,7 @@ onBeforeUnmount(() => {
 }
 
 .custom-status-input::placeholder {
-  color: #72767d;
+  color: var(--text-muted);
 }
 
 .custom-status-input:focus {
@@ -683,7 +683,7 @@ onBeforeUnmount(() => {
 
 .status-divider {
   height: 1px;
-  background: #2f3136;
+  background: var(--background-tertiary);
   margin: 4px 0;
 }
 

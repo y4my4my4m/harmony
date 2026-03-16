@@ -737,7 +737,7 @@ const typeIcon = computed(() => {
   align-items: center;
   gap: 6px;
   font-size: 11px;
-  color: #72767d;
+  color: var(--text-muted);
   line-height: 1;
 }
 
@@ -782,7 +782,7 @@ const typeIcon = computed(() => {
   border: none;
   border-radius: 4px;
   background: transparent;
-  color: #72767d;
+  color: var(--text-muted);
   cursor: pointer;
   transition: all 0.2s ease;
 }
@@ -865,7 +865,7 @@ const typeIcon = computed(() => {
 }
 
 .in-server {
-  color: #72767d;
+  color: var(--text-muted);
 }
 
 .reaction-display {

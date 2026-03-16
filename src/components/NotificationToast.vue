@@ -345,7 +345,7 @@ const getTypeIcon = (type: NotificationType) => {
   right: 8px;
   background: transparent;
   border: none;
-  color: #72767d;
+  color: var(--text-muted);
   padding: 4px;
   border-radius: 4px;
   cursor: pointer;

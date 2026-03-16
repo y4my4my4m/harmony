@@ -736,7 +736,7 @@ onUnmounted(() => {
 .nav-section-title {
   font-size: 12px;
   font-weight: 700;
-  color: #72767d;
+  color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.02em;
   margin: 0 0 8px 8px;

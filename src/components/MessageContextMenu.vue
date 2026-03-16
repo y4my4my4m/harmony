@@ -367,7 +367,7 @@ const copyRawData = async () => {
 
 .quick-reaction-btn.more-btn {
   font-size: 14px;
-  color: #72767d;
+  color: var(--text-muted);
 }
 
 .quick-reaction-btn.more-btn:hover {
@@ -392,7 +392,7 @@ const copyRawData = async () => {
 
 .context-menu-divider {
   height: 1px;
-  background: var(--border-primary, #40444b);
+  background: var(--border-primary, var(--h-black-lighter));
   margin: 4px 8px;
 }
 

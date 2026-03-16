@@ -734,7 +734,7 @@ const closeInviteModal = () => {
 }
 
 .search-input::placeholder {
-  color: #72767d;
+  color: var(--text-muted);
 }
 
 .search-icon {
@@ -744,7 +744,7 @@ const closeInviteModal = () => {
   transform: translateY(-50%);
   width: 16px;
   height: 16px;
-  color: #72767d;
+  color: var(--text-muted);
   pointer-events: none;
 }
 
@@ -755,7 +755,7 @@ const closeInviteModal = () => {
   transform: translateY(-50%);
   background: none;
   border: none;
-  color: #72767d;
+  color: var(--text-muted);
   cursor: pointer;
   padding: 0;
   width: 16px;
@@ -1099,7 +1099,7 @@ const closeInviteModal = () => {
 }
 
 .user-domain {
-  color: var(--text-muted, #72767d);
+  color: var(--text-muted, var(--text-muted));
   font-size: 11px;
   font-weight: 400;
   white-space: nowrap;

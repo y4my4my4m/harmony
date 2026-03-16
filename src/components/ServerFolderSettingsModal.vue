@@ -286,7 +286,7 @@ const save = async () => {
 }
 
 .modal-container {
-  background: #2f3136;
+  background: var(--background-tertiary);
   border-radius: 8px;
   width: 100%;
   max-width: 440px;
@@ -302,7 +302,7 @@ const save = async () => {
   align-items: center;
   justify-content: space-between;
   padding: 16px;
-  border-bottom: 1px solid #40444b;
+  border-bottom: 1px solid var(--h-black-lighter);
 }
 
 .modal-title {
@@ -315,7 +315,7 @@ const save = async () => {
 .close-button {
   background: none;
   border: none;
-  color: #72767d;
+  color: var(--text-muted);
   cursor: pointer;
   padding: 4px;
   border-radius: 4px;
@@ -327,7 +327,7 @@ const save = async () => {
 
 .close-button:hover {
   color: #dcddde;
-  background: #40444b;
+  background: var(--h-black-lighter);
 }
 
 .modal-body {
@@ -353,7 +353,7 @@ const save = async () => {
 .form-label .optional {
   font-weight: 400;
   text-transform: none;
-  color: #72767d;
+  color: var(--text-muted);
   font-size: 11px;
 }
 
@@ -374,7 +374,7 @@ const save = async () => {
 }
 
 .form-input::placeholder {
-  color: #72767d;
+  color: var(--text-muted);
 }
 
 /* Color picker */

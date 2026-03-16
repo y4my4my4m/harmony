@@ -1130,7 +1130,7 @@ watch(
   align-items: center;
   justify-content: center;
   height: 200px;
-  color: var(--color-text-secondary, #72767d);
+  color: var(--color-text-secondary, var(--text-muted));
   font-size: 14px;
   text-align: center;
   padding: 16px;

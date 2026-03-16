@@ -1033,7 +1033,7 @@ export default defineComponent({
 }
 
 .text-content :deep(.md-code) {
-  background-color: #2f3136;
+  background-color: var(--background-tertiary);
   border-radius: 3px;
   padding: 2px 4px;
   font-family: 'Monaco', 'Consolas', 'Courier New', monospace;
@@ -1234,7 +1234,7 @@ export default defineComponent({
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
-  background-color: #2f3136;
+  background-color: var(--background-tertiary);
   border-radius: 8px;
   margin: 4px 0;
   max-width: 400px;

@@ -625,7 +625,7 @@ watch(
 <style scoped>
 .harmony-voice-card {
   position: relative;
-  background: linear-gradient(145deg, #2f3136, #36393f);
+  background: linear-gradient(145deg, var(--background-tertiary), var(--background-secondary));
   border-radius: 16px;
   padding: 16px;
   border: 2px solid transparent;
@@ -791,7 +791,7 @@ watch(
 
 .connection-bars span {
   width: 3px;
-  background: #40444b;
+  background: var(--h-black-lighter);
   border-radius: 1px;
   transition: all 0.3s ease;
 }
@@ -872,7 +872,7 @@ watch(
   width: 82px;
   height: 82px;
   border-radius: 50%;
-  background: linear-gradient(145deg, #40444b, #2f3136);
+  background: linear-gradient(145deg, var(--h-black-lighter), var(--background-tertiary));
   transition: all 0.3s ease;
   padding: 4px;
   display: flex;
@@ -944,7 +944,7 @@ watch(
   align-items: center;
   justify-content: center;
   font-size: 10px;
-  border: 2px solid #2f3136;
+  border: 2px solid var(--background-tertiary);
   color: var(--text-primary);
 }
 

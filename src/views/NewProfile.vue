@@ -1157,7 +1157,7 @@ const createProfile = async () => {
   overflow: hidden;
   cursor: pointer;
   position: relative;
-  background: linear-gradient(135deg, #36393f, #2f3136);
+  background: linear-gradient(135deg, var(--background-secondary), var(--background-tertiary));
   transition: all 0.3s ease;
 }
 
@@ -1397,7 +1397,7 @@ const createProfile = async () => {
 
 .modern-input::placeholder,
 .modern-textarea::placeholder {
-  color: #72767d;
+  color: var(--text-muted);
 }
 
 .input-accent {
@@ -1434,7 +1434,7 @@ const createProfile = async () => {
 
 .username-prefix,
 .username-suffix {
-  color: #72767d;
+  color: var(--text-muted);
   font-weight: 500;
   white-space: nowrap;
 }
@@ -1461,7 +1461,7 @@ const createProfile = async () => {
 
 .char-count {
   font-size: 12px;
-  color: #72767d;
+  color: var(--text-muted);
 }
 
 .error-text {
@@ -1515,7 +1515,7 @@ const createProfile = async () => {
   border-radius: 50%;
   border: 4px solid rgba(47, 49, 54, 1);
   overflow: hidden;
-  background: #36393f;
+  background: var(--background-secondary);
   flex-shrink: 0;
 }
 

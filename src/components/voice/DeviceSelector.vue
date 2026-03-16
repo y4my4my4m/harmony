@@ -400,7 +400,7 @@ watch(isOpen, (newVal) => {
 .device-dropdown {
   position: fixed;
   z-index: 10010;
-  background: linear-gradient(145deg, #2f3136, #36393f);
+  background: linear-gradient(145deg, var(--background-tertiary), var(--background-secondary));
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 12px;
   box-shadow: 
@@ -443,7 +443,7 @@ watch(isOpen, (newVal) => {
   padding: 6px 16px;
   font-size: 11px;
   font-weight: 600;
-  color: #72767d;
+  color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -491,7 +491,7 @@ watch(isOpen, (newVal) => {
 
 .no-devices {
   padding: 12px 16px;
-  color: #72767d;
+  color: var(--text-muted);
   font-size: 12px;
   font-style: italic;
 }

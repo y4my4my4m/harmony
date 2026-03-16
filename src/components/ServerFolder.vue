@@ -444,7 +444,7 @@ const onIconError = (event: Event) => {
 .folder-collapsed {
   width: 48px;
   height: 48px;
-  background: color-mix(in srgb, var(--folder-color) 40%, var(--h-black-light, #2f3136));
+  background: color-mix(in srgb, var(--folder-color) 40%, var(--h-black-light, var(--background-tertiary)));
   border-radius: 16px;
   cursor: pointer;
   position: relative;
@@ -845,7 +845,7 @@ const onIconError = (event: Event) => {
 .server-folder-context-menu.context-menu {
   position: fixed;
   background: #18191c;
-  border: 1px solid #40444b;
+  border: 1px solid var(--h-black-lighter);
   border-radius: 6px;
   padding: 6px 0;
   min-width: 180px;

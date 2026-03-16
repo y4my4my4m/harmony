@@ -6280,8 +6280,8 @@ const handleAddInstance = () => {
   left: 0;
   right: 0;
   z-index: 100;
-  background: #2f3136;
-  border: 1px solid #40444b;
+  background: var(--background-tertiary);
+  border: 1px solid var(--h-black-lighter);
   border-radius: 8px;
   box-shadow: 0 8px 16px rgba(0, 0, 0, 0.24);
   max-height: 220px;

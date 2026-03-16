@@ -552,7 +552,7 @@ onMounted(() => {
 .spinner {
   width: 48px;
   height: 48px;
-  border: 4px solid var(--color-border, #40444b);
+  border: 4px solid var(--color-border, var(--h-black-lighter));
   border-top-color: var(--color-primary, #0EA5E9);
   border-radius: 50%;
   animation: spin 1s linear infinite;
@@ -634,7 +634,7 @@ onMounted(() => {
   height: 14px;
   border-radius: 50%;
   background: #747f8d;
-  border: 3px solid var(--color-background-secondary, #2f3136);
+  border: 3px solid var(--color-background-secondary, var(--background-tertiary));
 }
 
 .bot-status.online {
@@ -689,15 +689,15 @@ onMounted(() => {
 
 .bot-meta {
   font-size: 12px;
-  color: var(--color-text-tertiary, #72767d);
+  color: var(--color-text-tertiary, var(--text-muted));
 }
 
 .bot-stats {
   display: flex;
   gap: 24px;
   padding: 12px 0;
-  border-top: 1px solid var(--color-border, #40444b);
-  border-bottom: 1px solid var(--color-border, #40444b);
+  border-top: 1px solid var(--color-border, var(--h-black-lighter));
+  border-bottom: 1px solid var(--color-border, var(--h-black-lighter));
   margin-bottom: 16px;
 }
 
@@ -797,7 +797,7 @@ onMounted(() => {
 }
 
 .modal {
-  background: var(--color-background-primary, #36393f);
+  background: var(--color-background-primary, var(--background-secondary));
   border-radius: 8px;
   width: 90%;
   max-width: 500px;
@@ -823,7 +823,7 @@ onMounted(() => {
   justify-content: space-between;
   align-items: center;
   padding: 20px 24px;
-  border-bottom: 1px solid var(--color-border, #40444b);
+  border-bottom: 1px solid var(--color-border, var(--h-black-lighter));
 }
 
 .modal-header h3 {
@@ -871,7 +871,7 @@ onMounted(() => {
   width: 100%;
   padding: 10px 12px;
   background: var(--color-background-tertiary, #202225);
-  border: 1px solid var(--color-border, #40444b);
+  border: 1px solid var(--color-border, var(--h-black-lighter));
   border-radius: 4px;
   color: var(--color-text-primary, #ffffff);
   font-size: 14px;
@@ -950,7 +950,7 @@ onMounted(() => {
   flex: 1;
   padding: 12px;
   background: var(--color-background-tertiary, #202225);
-  border: 1px solid var(--color-border, #40444b);
+  border: 1px solid var(--color-border, var(--h-black-lighter));
   border-radius: 4px;
   color: var(--color-text-primary, #ffffff);
   font-family: 'Consolas', 'Monaco', monospace;
@@ -973,7 +973,7 @@ onMounted(() => {
   gap: 12px;
   justify-content: flex-end;
   padding: 20px 24px;
-  border-top: 1px solid var(--color-border, #40444b);
+  border-top: 1px solid var(--color-border, var(--h-black-lighter));
 }
 
 .message-banner {

@@ -488,16 +488,16 @@ onUnmounted(() => {
 /* .dm-sidebar {
   width: 240px;
   min-width: 240px;
-  background: var(--h-channel-sidebar, #2f3136);
+  background: var(--h-channel-sidebar, var(--background-tertiary));
   display: flex;
   flex-direction: column;
   height: 100vh;
-  border-right: 1px solid var(--h-chat-light, #40444b);
+  border-right: 1px solid var(--h-chat-light, var(--h-black-lighter));
 } */
 
 .dm-header {
   padding: 16px;
-  border-bottom: 1px solid var(--h-chat-light, #40444b);
+  border-bottom: 1px solid var(--h-chat-light, var(--h-black-lighter));
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -532,7 +532,7 @@ onUnmounted(() => {
 .new-dm-btn:hover,
 .group-chat-btn:hover {
   color: var(--text-primary);
-  background: var(--h-chat-light, #40444b);
+  background: var(--h-chat-light, var(--h-black-lighter));
 }
 
 .icon {
@@ -542,7 +542,7 @@ onUnmounted(() => {
 
 .user-search-section {
   padding: 16px;
-  border-bottom: 1px solid var(--h-chat-light, #40444b);
+  border-bottom: 1px solid var(--h-chat-light, var(--h-black-lighter));
 }
 
 .search-input-container {
@@ -554,8 +554,8 @@ onUnmounted(() => {
 .search-input {
   width: 100%;
   padding: 8px 32px 8px 12px;
-  background: var(--h-chat, #36393f);
-  border: 1px solid var(--h-chat-light, #40444b);
+  background: var(--h-chat, var(--background-secondary));
+  border: 1px solid var(--h-chat-light, var(--h-black-lighter));
   border-radius: 4px;
   color: var(--text-primary);
   font-size: 14px;
@@ -568,7 +568,7 @@ onUnmounted(() => {
 }
 
 .search-input::placeholder {
-  color: #72767d;
+  color: var(--text-muted);
 }
 
 .clear-search-btn {
@@ -578,7 +578,7 @@ onUnmounted(() => {
   height: 16px;
   background: none;
   border: none;
-  color: #72767d;
+  color: var(--text-muted);
   cursor: pointer;
   border-radius: 2px;
   padding: 0;
@@ -599,7 +599,7 @@ onUnmounted(() => {
 .no-results {
   padding: 12px;
   text-align: center;
-  color: #72767d;
+  color: var(--text-muted);
   font-size: 14px;
 }
 
@@ -614,7 +614,7 @@ onUnmounted(() => {
 }
 
 .search-result-item:hover {
-  background: var(--h-chat-light, #40444b);
+  background: var(--h-chat-light, var(--h-black-lighter));
 }
 
 .conversations-section {
@@ -630,14 +630,14 @@ onUnmounted(() => {
   justify-content: center;
   flex-direction: column;
   padding: 40px 20px;
-  color: #72767d;
+  color: var(--text-muted);
   gap: 12px;
 }
 
 .loading-spinner {
   width: 24px;
   height: 24px;
-  border: 2px solid var(--h-chat-light, #40444b);
+  border: 2px solid var(--h-chat-light, var(--h-black-lighter));
   border-top: 2px solid var(--h-brand, #0EA5E9);
   border-radius: 50%;
   animation: spin 1s linear infinite;
@@ -655,7 +655,7 @@ onUnmounted(() => {
   justify-content: center;
   padding: 40px 20px;
   text-align: center;
-  color: #72767d;
+  color: var(--text-muted);
   flex: 1;
 }
 
@@ -700,7 +700,7 @@ onUnmounted(() => {
 }
 
 .conversation-item:hover {
-  background: var(--h-chat-light, #40444b);
+  background: var(--h-chat-light, var(--h-black-lighter));
 }
 
 .conversation-item.active {
@@ -712,7 +712,7 @@ onUnmounted(() => {
 }
 
 .conversation-item.unread:hover {
-  background: var(--h-chat-light, #40444b);
+  background: var(--h-chat-light, var(--h-black-lighter));
 }
 
 .user-avatar,
@@ -752,7 +752,7 @@ onUnmounted(() => {
   width: 12px;
   height: 12px;
   background: #3ba55c;
-  border: 2px solid var(--h-channel-sidebar, #2f3136);
+  border: 2px solid var(--h-channel-sidebar, var(--background-tertiary));
   border-radius: 50%;
 }
 
@@ -791,7 +791,7 @@ onUnmounted(() => {
 
 .conversation-time {
   font-size: 11px;
-  color: #72767d;
+  color: var(--text-muted);
   flex-shrink: 0;
   margin-left: 8px;
 }
@@ -804,7 +804,7 @@ onUnmounted(() => {
 
 .last-message {
   font-size: 12px;
-  color: #72767d;
+  color: var(--text-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

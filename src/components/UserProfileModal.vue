@@ -1374,7 +1374,7 @@ onMounted(() => {
   height: 80px;
   border-radius: 50%;
   border: 6px solid  var(--background-quinary);
-  background: #36393f;
+  background: var(--background-secondary);
   object-fit: cover;
 }
 
@@ -1846,7 +1846,7 @@ onMounted(() => {
 }
 
 .note-input::placeholder {
-  color: #72767d;
+  color: var(--text-muted);
 }
 
 .note-counter {
@@ -1854,7 +1854,7 @@ onMounted(() => {
   bottom: 8px;
   right: 8px;
   font-size: 10px;
-  color: #72767d;
+  color: var(--text-muted);
   pointer-events: none;
 }
 

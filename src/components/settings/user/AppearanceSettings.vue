@@ -708,10 +708,10 @@ const themes = [
     id: 'dark',
     name: 'Dark',
     description: 'A dark theme that\'s easier on the eyes.',
-    preview: '#36393f',
-    headerColor: '#2f3136',
-    sidebarColor: '#2f3136',
-    chatColor: '#36393f'
+    preview: 'var(--background-secondary)',
+    headerColor: 'var(--background-tertiary)',
+    sidebarColor: 'var(--background-tertiary)',
+    chatColor: 'var(--background-secondary)'
   },
   {
     id: 'light',

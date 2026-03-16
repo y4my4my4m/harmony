@@ -710,8 +710,8 @@ const connectionStats = computed(() => voiceStore.connectionStats);
 
 .voice-container {
   position: relative;
-  /* background: linear-gradient(145deg, #2f3136, #36393f); */
-  background: linear-gradient(145deg, #2f313663, #36393f59);
+  /* background: linear-gradient(145deg, var(--background-tertiary), var(--background-secondary)); */
+  background: linear-gradient(145deg, var(--background-tertiary)63, var(--background-secondary)59);
   backdrop-filter: blur(20px);
   border-radius: 20px;
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -765,8 +765,8 @@ const connectionStats = computed(() => voiceStore.connectionStats);
   justify-content: space-between;
   padding: 20px 24px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  /* background: linear-gradient(145deg, #36393f, #2f3136); */
-  background: linear-gradient(145deg, #36393f35, #2f313630);
+  /* background: linear-gradient(145deg, var(--background-secondary), var(--background-tertiary)); */
+  background: linear-gradient(145deg, var(--background-secondary)35, var(--background-tertiary)30);
   /* backdrop-filter: blur(20px); */
 }
 
@@ -1052,8 +1052,8 @@ const connectionStats = computed(() => voiceStore.connectionStats);
   justify-content: space-between;
   padding: 20px 24px;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
-  /* background: linear-gradient(145deg, #2f3136, #36393f); */
-  background: linear-gradient(145deg, #2f313663, #36393f59);
+  /* background: linear-gradient(145deg, var(--background-tertiary), var(--background-secondary)); */
+  background: linear-gradient(145deg, var(--background-tertiary)63, var(--background-secondary)59);
 }
 
 .media-controls {

@@ -1224,7 +1224,7 @@ watch(() => props.currentServer?.id, () => {
   height: 100vh;
 } 
 .channel-sidebar {
-  background: var(--h-channel-sidebar, #2f3136);
+  background: var(--h-channel-sidebar, var(--background-tertiary));
   height: 100%;
 }
 */

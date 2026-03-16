@@ -514,7 +514,7 @@ onMounted(async () => {
 
 .theme-author-small {
   font-size: 12px;
-  color: #72767d;
+  color: var(--text-muted);
 }
 
 .test-theme-btn {

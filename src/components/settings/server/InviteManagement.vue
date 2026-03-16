@@ -677,7 +677,7 @@ onMounted(() => {
   transform: translateY(-50%);
   width: 16px;
   height: 16px;
-  color: #72767d;
+  color: var(--text-muted);
   pointer-events: none;
 }
 
@@ -692,7 +692,7 @@ onMounted(() => {
 }
 
 .search-input::placeholder {
-  color: #72767d;
+  color: var(--text-muted);
 }
 
 .stats-section {
@@ -754,7 +754,7 @@ onMounted(() => {
 .empty-icon {
   width: 48px;
   height: 48px;
-  color: #72767d;
+  color: var(--text-muted);
   margin-bottom: 16px;
 }
 
@@ -835,7 +835,7 @@ onMounted(() => {
   height: 24px;
   background: transparent;
   border: none;
-  color: #72767d;
+  color: var(--text-muted);
   cursor: pointer;
   border-radius: 4px;
   transition: all 0.2s ease;
@@ -903,7 +903,7 @@ onMounted(() => {
 
 .status-badge.revoked {
   background: rgba(114, 118, 125, 0.2);
-  color: #72767d;
+  color: var(--text-muted);
 }
 
 .usage-info {
@@ -919,7 +919,7 @@ onMounted(() => {
 }
 
 .usage-separator {
-  color: #72767d;
+  color: var(--text-muted);
 }
 
 .usage-max {
@@ -947,7 +947,7 @@ onMounted(() => {
 }
 
 .never-expires {
-  color: #72767d;
+  color: var(--text-muted);
   font-style: italic;
   font-size: 13px;
 }

@@ -260,7 +260,7 @@ const hasUploading = computed(() => {
 }
 
 .file-size {
-  color: #72767d;
+  color: var(--text-muted);
   font-size: 12px;
   margin-top: 2px;
 }
@@ -329,7 +329,7 @@ const hasUploading = computed(() => {
 .remove-file-btn {
   background: none;
   border: none;
-  color: #72767d;
+  color: var(--text-muted);
   cursor: pointer;
   padding: 4px;
   border-radius: 4px;
@@ -346,7 +346,7 @@ const hasUploading = computed(() => {
 }
 
 .remove-file-btn:disabled:hover {
-  color: #72767d;
+  color: var(--text-muted);
   background-color: transparent;
 }
 

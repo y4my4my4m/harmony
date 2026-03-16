@@ -2910,7 +2910,7 @@ defineExpose({ editLastOwnMessage });
 
 .edited-indicator {
   font-size: 0.65rem;
-  color: #72767d;
+  color: var(--text-muted);
   font-style: italic;
   margin-left: 0.25rem;
   opacity: 0.8;
@@ -2968,7 +2968,7 @@ defineExpose({ editLastOwnMessage });
   line-height: 1.375rem;
   text-align: center;
   font-size: 0.6875rem;
-  color: #72767d;
+  color: var(--text-muted);
   font-weight: 500;
 }
 
@@ -3013,7 +3013,7 @@ defineExpose({ editLastOwnMessage });
   display: flex;
   align-items: center;
   margin: 24px 16px;
-  color: #72767d;
+  color: var(--text-muted);
   font-size: 0.875rem;
   font-weight: 600;
 }
@@ -3021,12 +3021,12 @@ defineExpose({ editLastOwnMessage });
 .gap-line {
   flex: 1;
   height: 1px;
-  background-color: #40444b;
+  background-color: var(--h-black-lighter);
 }
 
 .gap-text {
   padding: 0 16px;
-  background-color: #36393f;
+  background-color: var(--background-secondary);
   position: relative;
 }
 
@@ -3035,7 +3035,7 @@ defineExpose({ editLastOwnMessage });
   display: flex;
   align-items: center;
   margin: 24px 16px 16px 16px;
-  color: #72767d;
+  color: var(--text-muted);
   font-size: 0.875rem;
   font-weight: 600;
   /* text-transform: uppercase; */
@@ -3045,13 +3045,13 @@ defineExpose({ editLastOwnMessage });
 .date-separator-line {
   flex: 1;
   height: 1px;
-  /* background-color: #40444b; */
+  /* background-color: var(--h-black-lighter); */
   background-color: var(--border-color);
 }
 
 .date-separator-text {
   padding: 0 16px;
-  /* background-color: #36393f; */
+  /* background-color: var(--background-secondary); */
   /* color: var(--text-secondary); */
   color: var(--text-secondary);
   font-size: 0.75rem;
@@ -3140,7 +3140,7 @@ defineExpose({ editLastOwnMessage });
   justify-content: center;
   align-items: center;
   height: 100%;
-  color: #72767d;
+  color: var(--text-muted);
   font-size: 1rem;
 }
 
@@ -3185,7 +3185,7 @@ defineExpose({ editLastOwnMessage });
   gap: 8px;
   padding: 4px 0 8px 0;
   margin-bottom: 8px;
-  border-bottom: 1px solid #40444b49;
+  border-bottom: 1px solid var(--h-black-lighter)49;
 }
 .tooltip-emoji {
   width: 48px;
@@ -3454,7 +3454,7 @@ defineExpose({ editLastOwnMessage });
 }
 
 .call-duration {
-  color: var(--text-muted, #72767d);
+  color: var(--text-muted, var(--text-muted));
   font-size: 0.8rem;
 }
 
@@ -3477,7 +3477,7 @@ defineExpose({ editLastOwnMessage });
 
 .system-timestamp {
   font-size: 0.65rem;
-  color: #72767d;
+  color: var(--text-muted);
   opacity: 0.7;
   flex-shrink: 0;
 }

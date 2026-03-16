@@ -571,7 +571,7 @@ onMounted(() => {
 
 .bot-stats {
   font-size: 12px;
-  color: #72767d;
+  color: var(--text-muted);
   margin-top: 8px;
 }
 
@@ -609,7 +609,7 @@ onMounted(() => {
 
 .install-date {
   font-size: 12px;
-  color: #72767d;
+  color: var(--text-muted);
   display: block;
   margin-top: 4px;
 }
