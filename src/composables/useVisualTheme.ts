@@ -82,7 +82,7 @@ export const COMMUNITY_PRESETS: ThemePreset[] = [
       customPrimaryColor: '#e91e8c',
       customAccentColor: '#e91e8c',
       customBackgroundColor: '#e91e8c',
-      customBackgroundLightness: -8,
+      customBackgroundLightness: 20,
       customBackgroundChroma: 2,
     }
   },
@@ -95,7 +95,7 @@ export const COMMUNITY_PRESETS: ThemePreset[] = [
       customPrimaryColor: '#2d9b4e',
       customAccentColor: '#2d9b4e',
       customBackgroundColor: '#2d9b4e',
-      customBackgroundLightness: -8,
+      customBackgroundLightness: 20,
       customBackgroundChroma: 2,
     }
   },
@@ -108,7 +108,7 @@ export const COMMUNITY_PRESETS: ThemePreset[] = [
       customPrimaryColor: '#f59e0b',
       customAccentColor: '#f59e0b',
       customBackgroundColor: '#f59e0b',
-      customBackgroundLightness: -10,
+      customBackgroundLightness: 20,
       customBackgroundChroma: 1,
     }
   }
@@ -124,7 +124,7 @@ const PRESET_THEMES = {
     textSecondary: '#b5bac1',
     borderPrimary: 'rgba(255, 255, 255, 0.08)',
     isLightTheme: false,
-    secondary: '#7289da',
+    secondary: '#616ae5',
     accent: '#ff7675',
   },
   light: {
@@ -135,7 +135,7 @@ const PRESET_THEMES = {
     textSecondary: '#4e5058',
     borderPrimary: 'rgba(0, 0, 0, 0.12)',
     isLightTheme: true,
-    secondary: '#7289da',
+    secondary: '#616ae5',
     accent: '#ff7675',
   },
   midnight: {
@@ -146,7 +146,7 @@ const PRESET_THEMES = {
     textSecondary: '#b5bac1',
     borderPrimary: 'rgba(255, 255, 255, 0.08)',
     isLightTheme: false,
-    secondary: '#7289da',
+    secondary: '#616ae5',
     accent: '#ff7675',
   },
 }
@@ -223,7 +223,7 @@ function applyPresetTheme(themeName: 'dark' | 'light' | 'midnight') {
     root.style.setProperty('--h-black', '#1e1f22')
     root.style.setProperty('--h-black-light', '#313336')
     root.style.setProperty('--h-black-lighter', '#40444b')
-    root.style.setProperty('--h-black-darker', '#0c0d0e')
+    root.style.setProperty('--h-black-darker', '#000000')
     root.style.setProperty('--h-black-alpha', 'rgba(30, 31, 34, 0.67)')
     
     // Original background system colors
@@ -236,6 +236,8 @@ function applyPresetTheme(themeName: 'dark' | 'light' | 'midnight') {
     root.style.setProperty('--background-primary-alpha', '#1a1a1eaa')
     root.style.setProperty('--background-secondary-alpha', '#17181aaa')
     root.style.setProperty('--background-tertiary-alpha', '#121214aa')
+    root.style.setProperty('--background-senary', '#0a0b0d')
+    root.style.setProperty('--background-senary-alpha', '#0a0b0dc7')
   } else if (themeName === 'light') {
     root.style.setProperty('--h-chat', '#ffffff')
     root.style.setProperty('--h-chat-light', '#f6f6f7')
@@ -264,6 +266,8 @@ function applyPresetTheme(themeName: 'dark' | 'light' | 'midnight') {
     root.style.setProperty('--background-primary-alpha', 'rgba(255, 255, 255, 0.85)')
     root.style.setProperty('--background-secondary-alpha', 'rgba(246, 246, 247, 0.85)')
     root.style.setProperty('--background-tertiary-alpha', 'rgba(242, 243, 245, 0.85)')
+    root.style.setProperty('--background-senary', '#2b2d31')
+    root.style.setProperty('--background-senary-alpha', 'rgba(43, 45, 49, 0.78)')
   } else if (themeName === 'midnight') {
     root.style.setProperty('--h-chat', '#1e2124')
     root.style.setProperty('--h-chat-light', '#25272a')
@@ -292,6 +296,8 @@ function applyPresetTheme(themeName: 'dark' | 'light' | 'midnight') {
     root.style.setProperty('--background-primary-alpha', '#1e2124aa')
     root.style.setProperty('--background-secondary-alpha', '#13151aaa')
     root.style.setProperty('--background-tertiary-alpha', '#0f1012aa')
+    root.style.setProperty('--background-senary', '#0a0b0d')
+    root.style.setProperty('--background-senary-alpha', '#0a0b0dc7')
   }
   
   // Text colors
@@ -761,7 +767,7 @@ export function useVisualTheme() {
       screenReaderSupport: false,
     }
     // Apply default dark theme
-    applyTheme(PRESET_THEMES.dark)
+    applyPresetTheme('dark')
     debug.log('🎨 Visual theme reset for new user')
   }
 

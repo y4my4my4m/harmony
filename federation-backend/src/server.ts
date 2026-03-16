@@ -17,7 +17,7 @@ import compression from 'compression';
 import config from './config/index.js';
 import { logger } from './utils/logger.js';
 import { errorHandler, notFound } from './middleware/errorHandler.js';
-import { apiLimiter, inboxLimiter, linkPreviewLimiter, discoveryLimiter } from './middleware/rateLimit.js';
+import { inboxLimiter, linkPreviewLimiter, discoveryLimiter, pushLimiter } from './middleware/rateLimit.js';
 
 import healthRouter from './routes/health.js';
 import linkPreviewRouter from './routes/linkPreview.js';
@@ -33,7 +33,9 @@ import outboxRouter from './activitypub/OutboxHandler.js';
 import groupRouter from './activitypub/GroupService.js';
 
 import serverDiscoveryRouter from './services/ServerDiscoveryService.js';
+import instanceProbeRouter from './routes/instanceProbe.js';
 import { BlockedInstancesCache } from './services/BlockedInstancesCache.js';
+import { PushNotificationService } from './services/PushNotificationService.js';
 
 export function createApp(): Application {
   const app: Application = express();
@@ -64,18 +66,31 @@ export function createApp(): Application {
 
   app.use('/health', healthRouter);
 
+  // Push, link-preview, livekit, voice: mount BEFORE catch-all '/' routes.
+  // Otherwise these requests hit discoveryLimiter (30/min) and wrongly get "Too many discovery requests".
+  const pushWithLimiter = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    const p = (req.originalUrl || req.path || '').split('?')[0];
+    if (req.method === 'GET') {
+      if (p.endsWith('/vapid-key') || p.endsWith('/status') || p.endsWith('/subscriptions')) return next();
+    }
+    if (req.method === 'POST' && p.endsWith('/test')) return next();
+    return pushLimiter(req, res, next);
+  };
+  app.use('/push', pushWithLimiter, pushRouter);
+  app.use('/api/federation/push', pushWithLimiter, pushRouter);
+  app.use('/link-preview', linkPreviewLimiter, linkPreviewRouter);
+  app.use('/api/livekit', livekitRouter);
+  app.use('/voice', voiceRouter);
+  app.use('/api/federation/voice', voiceRouter);
+
   app.use('/', webFingerRouter);
   app.use('/', nodeInfoRouter);
   app.use('/', discoveryLimiter, actorRouter);
   app.use('/', inboxLimiter, inboxRouter);
   app.use('/', outboxRouter);
   app.use('/', inboxLimiter, groupRouter);
-
   app.use('/', discoveryLimiter, serverDiscoveryRouter);
-  app.use('/link-preview', linkPreviewLimiter, linkPreviewRouter);
-  app.use('/push', apiLimiter, pushRouter);
-  app.use('/api/livekit', livekitRouter);
-  app.use('/', voiceRouter);
+  app.use('/', discoveryLimiter, instanceProbeRouter);
 
   app.use(notFound);
   app.use(errorHandler);
@@ -95,5 +110,11 @@ export async function startServer(): Promise<void> {
     BlockedInstancesCache.initialize().catch((error) => {
       logger.error('Failed to initialize blocked instances cache:', error);
     });
+
+    if (PushNotificationService.initialize()) {
+      logger.info('Push notification service initialized (server)');
+    } else {
+      logger.warn('Push notifications not available (VAPID not configured)');
+    }
   });
 }

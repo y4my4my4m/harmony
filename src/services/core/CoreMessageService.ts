@@ -76,6 +76,21 @@ export class CoreMessageService {
   // =====================================================
 
   /**
+   * Fetch max media attachments limit from instance config (default 20)
+   */
+  private async getMaxMediaAttachments(): Promise<number> {
+    const { data } = await supabase
+      .from('instance_config')
+      .select('config_value')
+      .eq('config_key', 'max_media_attachments_per_post')
+      .maybeSingle()
+    const v = data?.config_value
+    if (typeof v === 'number' && v >= 1) return v
+    const parsed = typeof v === 'string' ? parseInt(String(v), 10) : NaN
+    return !isNaN(parsed) && parsed >= 1 ? parsed : 20
+  }
+
+  /**
    * Send a server channel message (pure local database operation)
    */
   async sendChannelMessage(
@@ -85,6 +100,13 @@ export class CoreMessageService {
     replyTo?: string
   ): Promise<Message> {
     try {
+      // Enforce max media attachments per message (instance config, default 20)
+      const fileParts = content.filter((p: any) => p?.type === 'file')
+      const maxMedia = await this.getMaxMediaAttachments()
+      if (fileParts.length > maxMedia) {
+        throw this.createError('TOO_MANY_ATTACHMENTS', `Maximum ${maxMedia} media attachments per message`)
+      }
+
       // Get current user from cached userDataService (no database calls)
       const currentUser = userDataService.getCurrentUser()
       if (!currentUser?.id) {
@@ -221,13 +243,21 @@ export class CoreMessageService {
     options?: { isSystem?: boolean }
   ): Promise<Message> {
     try {
+      // Enforce max media attachments per message (instance config, default 20)
+      const isSystem = options?.isSystem ?? false
+      if (!isSystem) {
+        const fileParts = content.filter((p: any) => p?.type === 'file')
+        const maxMedia = await this.getMaxMediaAttachments()
+        if (fileParts.length > maxMedia) {
+          throw this.createError('TOO_MANY_ATTACHMENTS', `Maximum ${maxMedia} media attachments per message`)
+        }
+      }
+
       // Get current user from cached userDataService (no database calls)
       const currentUser = userDataService.getCurrentUser()
       if (!currentUser?.id) {
         throw this.createError('AUTH_REQUIRED', 'User not authenticated')
       }
-
-      const isSystem = options?.isSystem ?? false
 
       // System messages: no encryption
       let finalContent = content
@@ -345,6 +375,13 @@ export class CoreMessageService {
    */
   async editMessage(messageId: string, newContent: MessagePart[]): Promise<Message> {
     try {
+      // Enforce max media attachments per message (instance config, default 20)
+      const fileParts = newContent.filter((p: any) => p?.type === 'file')
+      const maxMedia = await this.getMaxMediaAttachments()
+      if (fileParts.length > maxMedia) {
+        throw this.createError('TOO_MANY_ATTACHMENTS', `Maximum ${maxMedia} media attachments per message`)
+      }
+
       // Get current user from cached userDataService (no database calls)
       const currentUser = userDataService.getCurrentUser()
       if (!currentUser?.id) {

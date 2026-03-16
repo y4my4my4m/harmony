@@ -48,7 +48,9 @@ export function convertContentToHTML(content: any): string {
           
         case 'mention':
           const mentionDomain = part.domain || config.INSTANCE_DOMAIN;
-          return `<a href="https://${mentionDomain}/users/${part.username}" class="mention">@${part.username}</a>`;
+          const isLocalMention = !part.domain || part.domain === config.INSTANCE_DOMAIN;
+          const mentionDisplay = isLocalMention ? `@${part.username}` : `@${part.username}@${part.domain}`;
+          return `<span class="h-card"><a href="https://${mentionDomain}/users/${part.username}" class="u-url mention">${mentionDisplay}</a></span>`;
           
         case 'url':
           const url = escapeHtml(part.url || '');

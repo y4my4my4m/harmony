@@ -7,14 +7,14 @@ import { VoiceActivityHandler } from '../activitypub/VoiceActivityHandler.js';
 const router = Router();
 
 /**
- * POST /voice/join (proxied as /api/federation/voice/join)
+ * POST /join (mounted at /voice and /api/federation/voice)
  * Initiate a federated voice channel join
  * 
  * Body: { channelId, serverId }
  * Auth: Bearer token required
  */
 router.post(
-  '/voice/join',
+  '/join',
   asyncHandler(async (req: Request, res: Response) => {
     const authHeader = req.headers.authorization;
     if (!authHeader?.startsWith('Bearer ')) {
@@ -51,14 +51,14 @@ router.post(
 );
 
 /**
- * POST /voice/leave (proxied as /api/federation/voice/leave)
+ * POST /leave (mounted at /voice and /api/federation/voice)
  * Federate a voice channel leave event
  * 
  * Body: { channelId, serverId }
  * Auth: Bearer token required
  */
 router.post(
-  '/voice/leave',
+  '/leave',
   asyncHandler(async (req: Request, res: Response) => {
     const authHeader = req.headers.authorization;
     if (!authHeader?.startsWith('Bearer ')) {

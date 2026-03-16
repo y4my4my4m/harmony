@@ -439,6 +439,10 @@ CREATE POLICY "remote_emojis_cache_select_all" ON public.remote_emojis_cache
 CREATE POLICY "remote_emojis_cache_admin_modify" ON public.remote_emojis_cache
     FOR ALL USING (public.is_current_user_admin());
 
+-- Service role (federation backend) can manage remote emojis
+CREATE POLICY "Service role can manage remote emojis" ON public.remote_emojis_cache
+    USING (auth.role() = 'service_role');
+
 -- ---------------------------------------------------------------------------
 -- NOTIFICATION RATE LIMITS RLS (Admin Only)
 -- ---------------------------------------------------------------------------
@@ -781,6 +785,17 @@ DROP POLICY IF EXISTS "Users can view federation delivery queue" ON public.feder
 CREATE POLICY "Users can view federation delivery queue" ON public.federation_delivery_queue
     FOR SELECT TO authenticated USING (true);
 
+DROP POLICY IF EXISTS "Admins can delete federation deliveries" ON public.federation_delivery_queue;
+CREATE POLICY "Admins can delete federation deliveries" ON public.federation_delivery_queue
+    FOR DELETE TO authenticated
+    USING (
+        EXISTS (
+            SELECT 1 FROM public.profiles
+            WHERE id = public.get_current_profile_id()
+            AND is_admin = true
+        )
+    );
+
 -- ---------------------------------------------------------------------------
 -- FEDERATED VOICE CALLS (schema varies: init vs production)
 -- ---------------------------------------------------------------------------
@@ -822,6 +837,21 @@ CREATE POLICY "Users can insert own gif favorites" ON public.gif_favorites
 
 DROP POLICY IF EXISTS "Users can delete own gif favorites" ON public.gif_favorites;
 CREATE POLICY "Users can delete own gif favorites" ON public.gif_favorites
+    FOR DELETE USING (user_id = public.get_current_profile_id());
+
+-- ---------------------------------------------------------------------------
+-- EMOJI FAVORITES
+-- ---------------------------------------------------------------------------
+DROP POLICY IF EXISTS "Users can view own emoji favorites" ON public.emoji_favorites;
+CREATE POLICY "Users can view own emoji favorites" ON public.emoji_favorites
+    FOR SELECT USING (user_id = public.get_current_profile_id());
+
+DROP POLICY IF EXISTS "Users can insert own emoji favorites" ON public.emoji_favorites;
+CREATE POLICY "Users can insert own emoji favorites" ON public.emoji_favorites
+    FOR INSERT WITH CHECK (user_id = public.get_current_profile_id());
+
+DROP POLICY IF EXISTS "Users can delete own emoji favorites" ON public.emoji_favorites;
+CREATE POLICY "Users can delete own emoji favorites" ON public.emoji_favorites
     FOR DELETE USING (user_id = public.get_current_profile_id());
 
 -- ---------------------------------------------------------------------------

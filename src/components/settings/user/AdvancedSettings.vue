@@ -54,13 +54,34 @@
 
       <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label">{{ $t('common.download') }} Data</h4>
-          <p class="setting-description">Export your user data for backup purposes.</p>
+          <h4 class="setting-label disabled">{{ $t('common.download') }} Data</h4>
+          <p class="setting-description disabled">Export your user data for backup purposes. (Coming Soon)</p>
         </div>
         <div class="setting-control">
-          <button class="btn btn-secondary" @click="exportData">
+          <button class="btn btn-secondary" disabled @click="exportData">
             {{ $t('common.download') }} Data
           </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <h3 class="section-title">{{ $t('settings.advanced.reportBugSection') }}</h3>
+
+      <div class="setting-item">
+        <div class="setting-info">
+          <h4 class="setting-label">{{ $t('settings.advanced.reportBug') }}</h4>
+          <p class="setting-description">{{ $t('settings.advanced.reportBugDescription') }}</p>
+        </div>
+        <div class="setting-control">
+          <a
+            :href="reportBugUrl"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="btn btn-secondary"
+          >
+            {{ $t('settings.advanced.reportBug') }}
+          </a>
         </div>
       </div>
     </div>
@@ -118,6 +139,8 @@ const emit = defineEmits<{
 }>()
 
 const { developerToolsEnabled, setDeveloperToolsEnabled } = useDeveloperTools()
+
+const reportBugUrl = 'https://github.com/y4my4my4m/harmony/issues/'
 
 const settings = ref({
   developerMode: false,
@@ -190,6 +213,14 @@ const deleteAccount = () => {
   font-size: 14px;
   color: var(--text-secondary);
   margin: 0;
+}
+
+.setting-label.disabled {
+  color: var(--text-muted);
+}
+
+.setting-description.disabled {
+  color: var(--text-muted);
 }
 
 .settings-section {

@@ -1761,6 +1761,47 @@ END;
 $$;
 
 -- ---------------------------------------------------------------------------
+-- Function: upsert_remote_emoji
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.upsert_remote_emoji(
+    p_shortcode text,
+    p_origin_domain text,
+    p_full_code text,
+    p_url text,
+    p_static_url text DEFAULT NULL,
+    p_category text DEFAULT NULL,
+    p_is_animated boolean DEFAULT NULL
+) RETURNS uuid
+LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_id uuid;
+BEGIN
+  INSERT INTO public.remote_emojis_cache (
+    shortcode, origin_domain, full_code, url, static_url, category, is_animated
+  ) VALUES (
+    p_shortcode, p_origin_domain, p_full_code, p_url, p_static_url, p_category, p_is_animated
+  )
+  ON CONFLICT (shortcode, origin_domain) DO UPDATE SET
+    url = EXCLUDED.url,
+    static_url = COALESCE(EXCLUDED.static_url, remote_emojis_cache.static_url),
+    last_seen_at = now(),
+    usage_count = remote_emojis_cache.usage_count + 1,
+    category = COALESCE(EXCLUDED.category, remote_emojis_cache.category),
+    is_animated = COALESCE(EXCLUDED.is_animated, remote_emojis_cache.is_animated)
+  RETURNING id INTO v_id;
+
+  RETURN v_id;
+END;
+$$;
+
+COMMENT ON FUNCTION public.upsert_remote_emoji(text, text, text, text, text, text, boolean)
+IS 'Insert or update a remote emoji, incrementing usage count on conflict.';
+
+GRANT EXECUTE ON FUNCTION public.upsert_remote_emoji(text, text, text, text, text, text, boolean) TO service_role;
+
+-- ---------------------------------------------------------------------------
 -- Function: import_remote_emoji
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.import_remote_emoji(p_remote_emoji_id uuid, p_new_name text DEFAULT NULL::text, p_server_id uuid DEFAULT NULL::uuid) RETURNS uuid
@@ -1811,6 +1852,8 @@ BEGIN
   RETURN v_new_id;
 END;
 $$;
+
+GRANT EXECUTE ON FUNCTION public.import_remote_emoji(uuid, text, uuid) TO authenticated;
 
 -- ---------------------------------------------------------------------------
 -- Function: mark_all_notifications_read
@@ -3300,7 +3343,7 @@ BEGIN
         END IF;
 
     ELSIF TG_TABLE_NAME = 'post_interactions' AND TG_OP = 'INSERT' THEN
-        IF NEW.interaction_type = 'emoji_reaction' THEN
+        IF NEW.interaction_type IN ('emoji_reaction', 'favorite') THEN
             SELECT author_id INTO post_author_id 
             FROM posts 
             WHERE id = NEW.post_id;
@@ -3324,7 +3367,7 @@ BEGIN
                 END IF;
                 
                 notification_data := jsonb_build_object(
-                    'type', 'activitypub_reaction',
+                    'type', CASE WHEN NEW.interaction_type = 'favorite' THEN 'activitypub_favorite' ELSE 'activitypub_reaction' END,
                     'post_id', NEW.post_id,
                     'post', jsonb_build_object(
                         'id', post_record.id,
@@ -3349,7 +3392,7 @@ BEGIN
                 );
                 
                 PERFORM send_notification_to_user(
-                    'activitypub_reaction',
+                    CASE WHEN NEW.interaction_type = 'favorite' THEN 'activitypub_favorite' ELSE 'activitypub_reaction' END,
                     post_author_id,
                     notification_data,
                     NULL, NULL, NULL,

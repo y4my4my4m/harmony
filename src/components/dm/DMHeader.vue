@@ -496,8 +496,9 @@ const handleCallSignal = async (signal: CallSignal) => {
   const currentUserId = authStore.session?.user?.id
   if (!currentUserId) return
   
-  // Don't show notifications for our own signals
-  if (signal.callerId === currentUserId) return
+  // Don't show notifications for our own signals, but allow timeout
+  // so the caller stops ringing and leaves the voice channel
+  if (signal.callerId === currentUserId && signal.type !== 'timeout') return
   
   switch (signal.type) {
     case 'initiate':

@@ -142,17 +142,42 @@ export function noteToContent(note: any): any[] {
       if (username.startsWith('@')) username = username.slice(1);
       
       const usernameParts = username.split('@');
-      const actualUsername = usernameParts[0];
-      const domain = usernameParts[1] || null;
+      let actualUsername = usernameParts[0];
+      let domain = usernameParts[1] || null;
       const currentDomain = config.INSTANCE_DOMAIN;
+
+      // Mastodon/Pleroma often send name as "@username" without domain; extract from href
+      const href = tagPos.tag.href;
+      if (href && typeof href === 'string') {
+        try {
+          const url = new URL(href);
+          const hrefDomain = url.hostname;
+          const hrefPath = url.pathname || '';
+          // Mastodon/Pleroma: /users/username
+          const usersMatch = hrefPath.match(/\/users\/([^/]+)\/?$/);
+          // GoToSocial/Misskey: /@username
+          const atMatch = !usersMatch && hrefPath.match(/^\/@([^/]+)\/?$/);
+          if (usersMatch) {
+            actualUsername = usersMatch[1];
+            if (!domain) domain = hrefDomain;
+          } else if (atMatch) {
+            actualUsername = atMatch[1];
+            if (!domain) domain = hrefDomain;
+          }
+        } catch { /* href not a valid URL */ }
+      }
+      
+      const isLocal = !domain || domain === currentDomain;
+      // Ensure username never has leading @ (prevents @@ in display)
+      const cleanUsername = actualUsername.replace(/^@+/, '');
       
       parts.push({
         type: 'mention',
-        username: actualUsername,
+        username: cleanUsername,
         domain: domain || currentDomain,
-        isLocal: !domain || domain === currentDomain,
-        userId: tagPos.tag.href || `remote-${username}`,
-        displayName: actualUsername
+        isLocal,
+        userId: href || `remote-${cleanUsername}`,
+        displayName: cleanUsername
       });
     }
     else if (tagPos.tag.type === 'Hashtag') {

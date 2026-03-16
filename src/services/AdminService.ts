@@ -33,6 +33,19 @@ export interface FederationStats {
   };
 }
 
+export interface DeadEndpoint {
+  id: string;
+  endpoint_url: string;
+  domain: string;
+  consecutive_failures: number;
+  total_failures: number;
+  last_failure_at: string | null;
+  last_success_at: string | null;
+  last_http_status: number | null;
+  last_error_message: string | null;
+  first_failure_at: string | null;
+}
+
 export interface AdminUser {
   id: string;
   username: string;
@@ -123,6 +136,8 @@ export interface InstanceSearchResult {
   admin_contact?: string;
   api_available: boolean;
   federation_enabled: boolean;
+  icon_url?: string;
+  banner_url?: string;
 }
 
 export interface InstanceStats {
@@ -253,6 +268,92 @@ class AdminService {
   }
 
   /**
+   * Permanently delete all dead endpoints and their failed delivery queue entries
+   */
+  async purgeDeadEndpoints(): Promise<{ purgedEndpoints: number; purgedDeliveries: number }> {
+    try {
+      const { data: deadEndpoints, error: fetchError } = await supabase
+        .from('federation_endpoint_health')
+        .select('endpoint_url')
+        .eq('is_dead', true);
+
+      if (fetchError) throw fetchError;
+      if (!deadEndpoints || deadEndpoints.length === 0) {
+        return { purgedEndpoints: 0, purgedDeliveries: 0 };
+      }
+
+      const deadUrls = deadEndpoints.map(e => e.endpoint_url);
+
+      const { count: deliveryCount, error: deliveryError } = await supabase
+        .from('federation_delivery_queue')
+        .delete({ count: 'exact' })
+        .in('target_inbox_url', deadUrls)
+        .in('status', ['dead', 'failed']);
+
+      if (deliveryError) {
+        debug.error('Failed to purge dead deliveries:', deliveryError);
+      }
+
+      const { count: endpointCount, error: endpointError } = await supabase
+        .from('federation_endpoint_health')
+        .delete({ count: 'exact' })
+        .eq('is_dead', true);
+
+      if (endpointError) throw endpointError;
+
+      return {
+        purgedEndpoints: endpointCount || 0,
+        purgedDeliveries: deliveryCount || 0
+      };
+    } catch (error) {
+      debug.error('Failed to purge dead endpoints:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Fetch all dead endpoints with details for the admin UI
+   */
+  async getDeadEndpoints(): Promise<DeadEndpoint[]> {
+    try {
+      const { data, error } = await supabase
+        .from('federation_endpoint_health')
+        .select('id, endpoint_url, domain, consecutive_failures, total_failures, last_failure_at, last_success_at, last_http_status, last_error_message, first_failure_at')
+        .eq('is_dead', true)
+        .order('last_failure_at', { ascending: false });
+
+      if (error) throw error;
+      return (data as DeadEndpoint[]) || [];
+    } catch (error) {
+      debug.error('Failed to get dead endpoints:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Purge a single dead endpoint by ID and its failed deliveries
+   */
+  async purgeSingleEndpoint(endpointId: string, endpointUrl: string): Promise<void> {
+    try {
+      await supabase
+        .from('federation_delivery_queue')
+        .delete()
+        .eq('target_inbox_url', endpointUrl)
+        .in('status', ['dead', 'failed']);
+
+      const { error } = await supabase
+        .from('federation_endpoint_health')
+        .delete()
+        .eq('id', endpointId);
+
+      if (error) throw error;
+    } catch (error) {
+      debug.error('Failed to purge endpoint:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Get system health metrics
    */
   async getSystemHealth(): Promise<SystemHealth> {
@@ -367,6 +468,30 @@ class AdminService {
     } catch (error) {
       debug.error('Failed to get users:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Get total user counts by category (for admin User Management filter stats)
+   */
+  async getUserCounts(): Promise<{ total: number; local: number; federated: number; suspended: number }> {
+    try {
+      const [totalRes, localRes, federatedRes, suspendedRes] = await Promise.all([
+        supabase.from('profiles').select('*', { count: 'exact', head: true }),
+        supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('is_local', true),
+        supabase.from('profiles').select('*', { count: 'exact', head: true }).or('is_local.eq.false,is_local.is.null'),
+        supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('is_suspended', true)
+      ]);
+
+      return {
+        total: totalRes.count ?? 0,
+        local: localRes.count ?? 0,
+        federated: federatedRes.count ?? 0,
+        suspended: suspendedRes.count ?? 0
+      };
+    } catch (error) {
+      debug.error('Failed to get user counts:', error);
+      return { total: 0, local: 0, federated: 0, suspended: 0 };
     }
   }
 
@@ -628,9 +753,15 @@ class AdminService {
       let oauthProviders: string[] | Record<string, boolean> = []
       let termsUrl = ''
       let privacyUrl = ''
+      let instanceIconUrl = ''
+      let instanceBannerUrl = ''
+      let themeColor = ''
+      let maintainerName = ''
+      let maintainerEmail = ''
 
       let maxServerSize = 1000
       let maxMessageLength = 2000
+      let maxMediaAttachmentsPerPost = 20
       let allowFileUploads = true
       let enableVoiceChannels = true
       let maxPostLength = 500
@@ -644,7 +775,7 @@ class AdminService {
         const { data: configData } = await supabase
           .from('instance_config')
           .select('config_key, config_value')
-          .in('config_key', ['instance_name', 'instance_description', 'domain', 'open_registration', 'approval_required', 'oauth_providers', 'terms_url', 'privacy_url', 'max_server_size', 'max_message_length', 'allow_file_uploads', 'enable_voice_channels', 'max_post_length', 'federation_retry_attempts', 'max_custom_emojis_per_server', 'allow_custom_emojis_in_display_names'])
+          .in('config_key', ['instance_name', 'instance_description', 'domain', 'open_registration', 'approval_required', 'oauth_providers', 'terms_url', 'privacy_url', 'max_server_size', 'max_message_length', 'max_media_attachments_per_post', 'allow_file_uploads', 'enable_voice_channels', 'max_post_length', 'federation_retry_attempts', 'max_custom_emojis_per_server', 'allow_custom_emojis_in_display_names', 'instance_icon', 'instance_banner', 'theme_color', 'maintainer_name', 'maintainer_email'])
 
         if (configData) {
           configData.forEach((config) => {
@@ -703,6 +834,9 @@ class AdminService {
                 case 'max_message_length':
                   maxMessageLength = typeof value === 'number' ? value : parseInt(String(value), 10) || 2000
                   break
+                case 'max_media_attachments_per_post':
+                  maxMediaAttachmentsPerPost = typeof value === 'number' ? value : parseInt(String(value), 10) || 20
+                  break
                 case 'allow_file_uploads':
                   allowFileUploads = value === true || value === 'true'
                   break
@@ -721,6 +855,21 @@ class AdminService {
                 case 'allow_custom_emojis_in_display_names':
                   allowCustomEmojisInDisplayNames = value === true || value === 'true'
                   break
+                case 'instance_icon':
+                  instanceIconUrl = (typeof value === 'string' ? value : String(value)) || ''
+                  break
+                case 'instance_banner':
+                  instanceBannerUrl = (typeof value === 'string' ? value : String(value)) || ''
+                  break
+                case 'theme_color':
+                  themeColor = (typeof value === 'string' ? value : String(value)) || ''
+                  break
+                case 'maintainer_name':
+                  maintainerName = (typeof value === 'string' ? value : String(value)) || ''
+                  break
+                case 'maintainer_email':
+                  maintainerEmail = (typeof value === 'string' ? value : String(value)) || ''
+                  break
               }
             } catch (parseError) {
               debug.warn(`Failed to parse config value for ${config.config_key}:`, parseError)
@@ -735,6 +884,7 @@ class AdminService {
         chat: {
           maxServerSize,
           maxMessageLength,
+          maxMediaAttachmentsPerPost,
           allowFileUploads,
           enableVoiceChannels
         },
@@ -755,7 +905,12 @@ class AdminService {
           requiresApproval: requiresApproval,
           oauthProviders: oauthProviders,
           termsUrl: termsUrl,
-          privacyUrl: privacyUrl
+          privacyUrl: privacyUrl,
+          iconUrl: instanceIconUrl,
+          bannerUrl: instanceBannerUrl,
+          themeColor: themeColor,
+          maintainerName: maintainerName,
+          maintainerEmail: maintainerEmail,
         }
       };
     } catch (error) {
@@ -774,16 +929,33 @@ class AdminService {
     maxStageListeners?: number;
   }): Promise<boolean> {
     try {
-      const { error } = await supabase
+      const payload = {
+        webrtc_mode: settings.mode,
+        livekit_url: settings.livekitUrl,
+        allow_federated_voice: settings.allowFederatedVoice,
+        max_stage_listeners: settings.maxStageListeners,
+        updated_at: new Date().toISOString()
+      };
+
+      // Singleton table — fetch the existing row and update, or insert if empty
+      const { data: existing } = await supabase
         .from('instance_webrtc_settings')
-        .upsert({
-          webrtc_mode: settings.mode,
-          livekit_url: settings.livekitUrl,
-          allow_federated_voice: settings.allowFederatedVoice,
-          max_stage_listeners: settings.maxStageListeners,
-          updated_at: new Date().toISOString()
-        });
-      
+        .select('id')
+        .limit(1)
+        .maybeSingle();
+
+      let error;
+      if (existing?.id) {
+        ({ error } = await supabase
+          .from('instance_webrtc_settings')
+          .update(payload)
+          .eq('id', existing.id));
+      } else {
+        ({ error } = await supabase
+          .from('instance_webrtc_settings')
+          .insert(payload));
+      }
+
       if (error) {
         debug.error('Failed to update WebRTC settings:', error);
         return false;
@@ -871,13 +1043,33 @@ class AdminService {
   }
 
   /**
-   * Set multiple instance configuration values
+   * Set multiple instance configuration values in a single RPC call.
+   * Falls back to sequential calls if the batch RPC is not available.
    */
   async setInstanceConfigs(configs: Record<string, any>, adminId: string): Promise<void> {
+    const entries = Object.entries(configs)
+    if (!entries.length) return
+
     try {
-      // Set each config key-value pair
-      for (const [key, value] of Object.entries(configs)) {
-        await this.setInstanceConfig(key, value, adminId);
+      const keys = entries.map(([k]) => k)
+      const values = entries.map(([, v]) => {
+        if (v === null || v === undefined) return null
+        if (typeof v === 'object') return v
+        return v
+      })
+
+      const { error } = await supabase.rpc('batch_set_instance_config', {
+        p_keys: keys,
+        p_values: values,
+      })
+
+      if (error) {
+        if (error.message?.includes('function') || error.code === '42883') {
+          debug.warn('batch_set_instance_config not available, falling back to sequential calls')
+          await Promise.all(entries.map(([key, value]) => this.setInstanceConfig(key, value, adminId)))
+          return
+        }
+        throw error
       }
     } catch (error) {
       debug.error('Failed to set instance configs:', error);
@@ -996,11 +1188,18 @@ class AdminService {
    */
   async updateInstanceTrust(instanceId: string, trusted: boolean, adminId: string): Promise<void> {
     try {
+      const { data: instance } = await supabase
+        .from('federated_instances')
+        .select('metadata')
+        .eq('id', instanceId)
+        .single();
+
       const { error } = await supabase
         .from('federated_instances')
-        .update({ 
+        .update({
           is_trusted: trusted,
           metadata: {
+            ...(instance?.metadata || {}),
             trust_updated_by: adminId,
             trust_updated_at: new Date().toISOString()
           }
@@ -1019,7 +1218,13 @@ class AdminService {
    */
   async updateInstanceBlock(instanceId: string, blocked: boolean, reason: string, adminId: string): Promise<void> {
     try {
-      const metadata = blocked ? {
+      const { data: instance } = await supabase
+        .from('federated_instances')
+        .select('metadata')
+        .eq('id', instanceId)
+        .single();
+
+      const blockFields = blocked ? {
         blocked_reason: reason,
         blocked_by: adminId,
         blocked_at: new Date().toISOString()
@@ -1033,7 +1238,10 @@ class AdminService {
         .from('federated_instances')
         .update({ 
           is_blocked: blocked,
-          metadata
+          metadata: {
+            ...(instance?.metadata || {}),
+            ...blockFields
+          }
         })
         .eq('id', instanceId);
 
@@ -1240,7 +1448,9 @@ class AdminService {
         metadata: {
           added_by: adminId,
           discovery_method: instanceInfo ? 'api' : 'manual',
-          federation_enabled: instanceInfo?.federation_enabled || false
+          federation_enabled: instanceInfo?.federation_enabled || false,
+          ...(instanceInfo?.icon_url && { icon_url: instanceInfo.icon_url }),
+          ...(instanceInfo?.banner_url && { banner_url: instanceInfo.banner_url }),
         }
       };
 
@@ -1266,6 +1476,37 @@ class AdminService {
     } catch (error) {
       debug.error('Failed to add federated instance:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Re-probe an existing instance to enrich its metadata with icon/banner URLs.
+   * Returns the updated metadata or null on failure. Updates the DB row in-place.
+   */
+  async enrichInstanceMetadata(instance: { id: string; domain: string; metadata?: any }): Promise<{ icon_url?: string; banner_url?: string } | null> {
+    try {
+      const discovered = await this.discoverInstance(instance.domain);
+      if (!discovered) return null;
+
+      const newIcon = discovered.icon_url;
+      const newBanner = discovered.banner_url;
+
+      if (!newIcon && !newBanner) return null;
+
+      const updatedMetadata = {
+        ...(instance.metadata || {}),
+        ...(newIcon && { icon_url: newIcon }),
+        ...(newBanner && { banner_url: newBanner }),
+      };
+
+      await supabase
+        .from('federated_instances')
+        .update({ metadata: updatedMetadata })
+        .eq('id', instance.id);
+
+      return { icon_url: newIcon, banner_url: newBanner };
+    } catch {
+      return null;
     }
   }
 
@@ -1365,153 +1606,31 @@ class AdminService {
   }
 
   /**
-   * Discover an instance by probing it directly
-   * Uses standard ActivityPub/Nodeinfo endpoints
+   * Discover an instance by proxying through the federation backend.
+   * This avoids CORS issues — browsers block direct cross-origin requests
+   * to remote fediverse servers that don't set Access-Control-Allow-Origin.
    */
   async discoverInstance(domain: string): Promise<InstanceSearchResult | null> {
     try {
-      // Clean the domain
       const cleanDomain = domain.replace(/^https?:\/\//, '').replace(/\/$/, '').toLowerCase();
-      debug.log(`Probing instance: ${cleanDomain}`);
-      
-      // Try Nodeinfo first (most universal)
-      const nodeinfoResult = await this.probeNodeinfo(cleanDomain);
-      if (nodeinfoResult) {
-        return nodeinfoResult;
+      debug.log(`Probing instance via backend proxy: ${cleanDomain}`);
+
+      const response = await fetch(`/api/federation/instances/probe?domain=${encodeURIComponent(cleanDomain)}`, {
+        headers: { 'Accept': 'application/json' },
+        signal: AbortSignal.timeout(30000),
+      });
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          debug.log(`Could not discover instance: ${cleanDomain}`);
+          return null;
+        }
+        throw new Error(`Probe failed: ${response.statusText}`);
       }
-      
-      // Try Mastodon API as fallback
-      const mastodonResult = await this.probeMastodonAPI(cleanDomain);
-      if (mastodonResult) {
-        return mastodonResult;
-      }
-      
-      // Try ActivityPub actor endpoint as last resort
-      const actorResult = await this.probeActivityPubActor(cleanDomain);
-      if (actorResult) {
-        return actorResult;
-      }
-      
-      debug.log(`Could not discover instance: ${cleanDomain}`);
-      return null;
+
+      return await response.json();
     } catch (error) {
       debug.warn(`Instance discovery failed for ${domain}:`, error);
-      return null;
-    }
-  }
-
-  /**
-   * Probe instance using Nodeinfo (standard for Fediverse)
-   */
-  private async probeNodeinfo(domain: string): Promise<InstanceSearchResult | null> {
-    try {
-      // First, get the nodeinfo location
-      const wellKnownResponse = await fetch(`https://${domain}/.well-known/nodeinfo`, {
-        headers: { 'Accept': 'application/json' },
-        signal: AbortSignal.timeout(10000)
-      });
-      
-      if (!wellKnownResponse.ok) return null;
-      
-      const wellKnown = await wellKnownResponse.json();
-      
-      // Find nodeinfo 2.0 or 2.1 URL
-      const nodeinfoUrl = wellKnown.links?.find((link: any) => 
-        link.rel?.includes('nodeinfo') && (link.rel.includes('2.0') || link.rel.includes('2.1'))
-      )?.href;
-      
-      if (!nodeinfoUrl) return null;
-      
-      // Fetch the actual nodeinfo
-      const nodeinfoResponse = await fetch(nodeinfoUrl, {
-        headers: { 'Accept': 'application/json' },
-        signal: AbortSignal.timeout(10000)
-      });
-      
-      if (!nodeinfoResponse.ok) return null;
-      
-      const nodeinfo = await nodeinfoResponse.json();
-      
-      return {
-        domain: domain,
-        software: nodeinfo.software?.name || 'unknown',
-        version: nodeinfo.software?.version,
-        description: nodeinfo.metadata?.nodeDescription || nodeinfo.metadata?.nodeName,
-        user_count: nodeinfo.usage?.users?.total || 0,
-        status_count: nodeinfo.usage?.localPosts || 0,
-        api_available: true,
-        federation_enabled: nodeinfo.openRegistrations !== false
-      };
-    } catch (error) {
-      return null;
-    }
-  }
-
-  /**
-   * Probe instance using Mastodon API (works for Mastodon, Pleroma, Akkoma, etc)
-   */
-  private async probeMastodonAPI(domain: string): Promise<InstanceSearchResult | null> {
-    try {
-      // Try v2 first, then v1
-      for (const version of ['v2', 'v1']) {
-        try {
-          const response = await fetch(`https://${domain}/api/${version}/instance`, {
-            headers: { 'Accept': 'application/json' },
-            signal: AbortSignal.timeout(10000)
-          });
-          
-          if (response.ok) {
-            const instance = await response.json();
-            
-            return {
-              domain: instance.domain || domain,
-              software: instance.source_url?.includes('mastodon') ? 'mastodon' : 
-                        instance.source_url?.includes('pleroma') ? 'pleroma' :
-                        instance.source_url?.includes('akkoma') ? 'akkoma' : 'mastodon-compatible',
-              version: instance.version,
-              description: instance.description || instance.short_description,
-              user_count: instance.stats?.user_count || instance.usage?.users?.active_month || 0,
-              status_count: instance.stats?.status_count || 0,
-              admin_contact: instance.contact?.email || instance.email,
-              api_available: true,
-              federation_enabled: true
-            };
-          }
-        } catch {
-          continue;
-        }
-      }
-      return null;
-    } catch (error) {
-      return null;
-    }
-  }
-
-  /**
-   * Probe instance by checking if it has an ActivityPub actor
-   */
-  private async probeActivityPubActor(domain: string): Promise<InstanceSearchResult | null> {
-    try {
-      // Try WebFinger for the instance actor
-      const webfingerUrl = `https://${domain}/.well-known/webfinger?resource=acct:instance@${domain}`;
-      const response = await fetch(webfingerUrl, {
-        headers: { 'Accept': 'application/jrd+json, application/json' },
-        signal: AbortSignal.timeout(10000)
-      });
-      
-      if (response.ok) {
-        // Instance is responding to WebFinger, it's likely ActivityPub compatible
-        return {
-          domain: domain,
-          software: 'activitypub-compatible',
-          description: 'ActivityPub-compatible instance',
-          api_available: true,
-          federation_enabled: true
-        };
-      }
-      
-      return null;
-    } catch (error) {
       return null;
     }
   }
@@ -1708,7 +1827,12 @@ class AdminService {
       const updatedInfo = await this.discoverInstance(instance.domain);
       
       if (updatedInfo) {
-        // Update the instance
+        // Count known remote actors from this instance's domain
+        const { count: actorCount } = await supabase
+          .from('ap_actor_cache')
+          .select('*', { count: 'exact', head: true })
+          .eq('domain', instance.domain);
+
         const { data, error } = await supabase
           .from('federated_instances')
           .update({
@@ -1718,11 +1842,15 @@ class AdminService {
             admin_contact: updatedInfo.admin_contact || instance.admin_contact,
             user_count: updatedInfo.user_count || instance.user_count,
             status_count: updatedInfo.status_count || instance.status_count,
+            connection_count: actorCount || 0,
             last_seen_at: new Date().toISOString(),
             metadata: {
               ...instance.metadata,
               last_refresh: new Date().toISOString(),
-              api_available: updatedInfo.api_available
+              api_available: updatedInfo.api_available,
+              federation_enabled: updatedInfo.federation_enabled ?? instance.metadata?.federation_enabled,
+              ...(updatedInfo.icon_url && { icon_url: updatedInfo.icon_url }),
+              ...(updatedInfo.banner_url && { banner_url: updatedInfo.banner_url }),
             }
           })
           .eq('id', instanceId)

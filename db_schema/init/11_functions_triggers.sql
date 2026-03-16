@@ -248,15 +248,24 @@ BEGIN
 END;
 $$;
 
--- Prevent deletion of protected roles
+-- Prevent deletion of protected roles (allows cascade when server is deleted)
 CREATE OR REPLACE FUNCTION public.prevent_protected_role_deletion()
 RETURNS trigger
 LANGUAGE plpgsql
 AS $$
 BEGIN
-    IF OLD.is_default = true THEN
-        RAISE EXCEPTION 'Cannot delete the default @everyone role';
+    IF NOT EXISTS (SELECT 1 FROM servers WHERE id = OLD.server_id) THEN
+        RETURN OLD;
     END IF;
+
+    IF OLD.is_admin = true THEN
+        RAISE EXCEPTION 'Cannot delete the Admin role. This role is protected.';
+    END IF;
+
+    IF OLD.is_default = true THEN
+        RAISE EXCEPTION 'Cannot delete the @everyone role. This role is protected.';
+    END IF;
+
     RETURN OLD;
 END;
 $$;
@@ -466,46 +475,153 @@ BEGIN
 END;
 $$;
 
--- Extract hashtags from post content
+-- Extract hashtags from JSONB content - handles both MessagePart format and #text
+CREATE OR REPLACE FUNCTION public.extract_hashtags_from_content(p_content jsonb)
+RETURNS text[]
+LANGUAGE plpgsql
+IMMUTABLE
+AS $$
+DECLARE
+  hashtags TEXT[] := ARRAY[]::TEXT[];
+  item JSONB;
+  text_content TEXT;
+  hashtag_text TEXT;
+  match_record RECORD;
+  result TEXT[];
+BEGIN
+  IF p_content IS NULL OR jsonb_typeof(p_content) != 'array' THEN
+    RETURN ARRAY[]::TEXT[];
+  END IF;
+
+  FOR item IN SELECT * FROM jsonb_array_elements(p_content)
+  LOOP
+    IF item->>'type' = 'hashtag' THEN
+      hashtag_text := COALESCE(
+        item->>'name',
+        item->>'hashtag',
+        item->>'normalized'
+      );
+      IF hashtag_text IS NOT NULL AND hashtag_text != '' THEN
+        hashtag_text := regexp_replace(hashtag_text, '^#', '');
+        hashtags := array_append(hashtags, lower(hashtag_text));
+      END IF;
+    ELSIF item->>'type' = 'text' THEN
+      text_content := item->>'text';
+      IF text_content IS NOT NULL THEN
+        FOR match_record IN SELECT (regexp_matches(text_content, '#([a-zA-Z0-9_]+)', 'g'))[1] as tag
+        LOOP
+          IF match_record.tag IS NOT NULL THEN
+            hashtags := array_append(hashtags, lower(match_record.tag));
+          END IF;
+        END LOOP;
+      END IF;
+    END IF;
+  END LOOP;
+
+  SELECT COALESCE(array_agg(DISTINCT t), ARRAY[]::TEXT[])
+  INTO result
+  FROM unnest(hashtags) t
+  WHERE t IS NOT NULL;
+
+  RETURN COALESCE(result, ARRAY[]::TEXT[]);
+END;
+$$;
+
+COMMENT ON FUNCTION public.extract_hashtags_from_content(jsonb) IS
+'Extract hashtags from JSONB content array. Handles both hashtag-type MessageParts and #text patterns.';
+
+-- Insert or update hashtag, return ID
+CREATE OR REPLACE FUNCTION public.upsert_hashtag(p_tag text)
+RETURNS uuid
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  v_hashtag_id uuid;
+  v_normalized_tag text;
+BEGIN
+  v_normalized_tag := lower(trim(regexp_replace(p_tag, '^#', '')));
+
+  SELECT id INTO v_hashtag_id
+  FROM public.hashtags
+  WHERE normalized_tag = v_normalized_tag;
+
+  IF v_hashtag_id IS NULL THEN
+    INSERT INTO public.hashtags (tag, normalized_tag, total_uses, daily_uses, first_used_at, last_used_at)
+    VALUES (v_normalized_tag, v_normalized_tag, 1, 1, NOW(), NOW())
+    ON CONFLICT (normalized_tag) DO UPDATE
+    SET
+      total_uses = hashtags.total_uses + 1,
+      daily_uses = COALESCE(hashtags.daily_uses, 0) + 1,
+      last_used_at = NOW()
+    RETURNING id INTO v_hashtag_id;
+  ELSE
+    UPDATE public.hashtags
+    SET
+      total_uses = total_uses + 1,
+      daily_uses = COALESCE(daily_uses, 0) + 1,
+      last_used_at = NOW()
+    WHERE id = v_hashtag_id;
+  END IF;
+
+  RETURN v_hashtag_id;
+END;
+$$;
+
+COMMENT ON FUNCTION public.upsert_hashtag(text) IS
+'Insert or update a hashtag and return its ID. Updates usage counts on conflict.';
+
+-- Process post content to extract and link hashtags
+CREATE OR REPLACE FUNCTION public.process_post_hashtags(p_post_id uuid, p_content jsonb)
+RETURNS integer
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_hashtag_array TEXT[];
+    v_hashtag_text TEXT;
+    v_hashtag_id UUID;
+    v_position_counter INTEGER := 0;
+    v_processed_count INTEGER := 0;
+BEGIN
+    v_hashtag_array := public.extract_hashtags_from_content(p_content);
+
+    IF v_hashtag_array IS NULL THEN
+        v_hashtag_array := ARRAY[]::TEXT[];
+    END IF;
+
+    IF array_length(v_hashtag_array, 1) IS NULL OR array_length(v_hashtag_array, 1) = 0 THEN
+        RETURN 0;
+    END IF;
+
+    FOREACH v_hashtag_text IN ARRAY v_hashtag_array LOOP
+        v_position_counter := v_position_counter + 1;
+        v_hashtag_id := public.upsert_hashtag(v_hashtag_text);
+
+        INSERT INTO public.post_hashtags (post_id, hashtag_id, position_in_content)
+        VALUES (p_post_id, v_hashtag_id, v_position_counter)
+        ON CONFLICT (post_id, hashtag_id) DO NOTHING;
+
+        v_processed_count := v_processed_count + 1;
+    END LOOP;
+
+    RETURN v_processed_count;
+END;
+$$;
+
+COMMENT ON FUNCTION public.process_post_hashtags(uuid, jsonb) IS
+'Process post content to extract and link hashtags. Returns count of hashtags processed.';
+
+-- Extract hashtags from post content (trigger - delegates to process_post_hashtags)
 CREATE OR REPLACE FUNCTION public.trigger_extract_post_hashtags()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
-DECLARE
-    v_hashtags text[];
-    v_tag text;
-    v_hashtag_id uuid;
 BEGIN
-    -- Extract hashtags from content
-    SELECT array_agg(DISTINCT lower(m[1]))
-    INTO v_hashtags
-    FROM regexp_matches(
-        COALESCE((SELECT string_agg(elem->>'text', ' ') FROM jsonb_array_elements(NEW.content) AS elem), ''),
-        '#([a-zA-Z0-9_]+)',
-        'g'
-    ) AS m;
-    
-    IF v_hashtags IS NOT NULL THEN
-        FOREACH v_tag IN ARRAY v_hashtags
-        LOOP
-            -- Insert or update hashtag
-            INSERT INTO hashtags (tag, normalized_tag, total_uses, last_used_at)
-            VALUES (v_tag, lower(v_tag), 1, NOW())
-            ON CONFLICT (normalized_tag) DO UPDATE
-            SET total_uses = hashtags.total_uses + 1,
-                daily_uses = hashtags.daily_uses + 1,
-                last_used_at = NOW()
-            RETURNING id INTO v_hashtag_id;
-            
-            -- Link post to hashtag
-            INSERT INTO post_hashtags (post_id, hashtag_id)
-            VALUES (NEW.id, v_hashtag_id)
-            ON CONFLICT (post_id, hashtag_id) DO NOTHING;
-        END LOOP;
-    END IF;
-    
-    RETURN NEW;
+  IF NEW.content IS NOT NULL AND jsonb_typeof(NEW.content) = 'array' THEN
+    PERFORM public.process_post_hashtags(NEW.id, NEW.content);
+  END IF;
+
+  RETURN NEW;
 END;
 $$;
 
@@ -1337,8 +1453,8 @@ BEGIN
         content_preview := 'New message';
     END IF;
 
-    -- Channel mention notifications
-    IF NEW.channel_id IS NOT NULL AND NOT NEW.is_system AND NOT COALESCE((NEW.metadata->>'federated')::boolean, false) THEN
+    -- Channel mention notifications (includes federated messages)
+    IF NEW.channel_id IS NOT NULL AND NOT NEW.is_system THEN
         v_channel_id := NEW.channel_id;
 
         SELECT c.name, c.server_id INTO v_channel_name, v_server_id
@@ -1637,20 +1753,236 @@ RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
+DECLARE
+    content_part JSONB;
+    mentioned_username TEXT;
+    mentioned_user_id UUID;
+    author_profile RECORD;
+    post_content_preview TEXT;
 BEGIN
-    -- Placeholder
+    IF TG_OP = 'INSERT' THEN
+        SELECT id, username, display_name, avatar_url, domain, is_local
+        INTO author_profile
+        FROM profiles 
+        WHERE id = NEW.author_id;
+        
+        IF FOUND AND NEW.content IS NOT NULL THEN
+            post_content_preview := extract_message_text(NEW.content);
+            IF LENGTH(post_content_preview) > 100 THEN
+                post_content_preview := LEFT(post_content_preview, 100) || '...';
+            END IF;
+            IF post_content_preview = '' OR post_content_preview IS NULL THEN
+                post_content_preview := 'New post';
+            END IF;
+            
+            IF jsonb_typeof(NEW.content) = 'array' THEN
+                FOR content_part IN SELECT jsonb_array_elements(NEW.content)
+                LOOP
+                    IF content_part->>'type' = 'mention' THEN
+                        mentioned_username := content_part->>'username';
+                        
+                        SELECT id INTO mentioned_user_id
+                        FROM profiles
+                        WHERE username = mentioned_username
+                          AND is_local = true
+                          AND id != NEW.author_id;
+                        
+                        IF mentioned_user_id IS NOT NULL THEN
+                            PERFORM send_notification_to_user(
+                                'activitypub_mention',
+                                mentioned_user_id,
+                                jsonb_build_object(
+                                    'actor', jsonb_build_object(
+                                        'id', author_profile.id,
+                                        'username', author_profile.username,
+                                        'display_name', author_profile.display_name,
+                                        'avatar_url', author_profile.avatar_url,
+                                        'domain', author_profile.domain,
+                                        'is_local', author_profile.is_local
+                                    ),
+                                    'post', jsonb_build_object(
+                                        'id', NEW.id,
+                                        'ap_id', NEW.ap_id,
+                                        'content_preview', post_content_preview,
+                                        'content', NEW.content
+                                    ),
+                                    'post_id', NEW.id,
+                                    'post_content', NEW.content,
+                                    'timestamp', NEW.created_at
+                                ),
+                                NULL, NULL, NULL,
+                                author_profile.id,
+                                'normal'
+                            );
+                        END IF;
+                    END IF;
+                END LOOP;
+            END IF;
+        END IF;
+    END IF;
+    
     RETURN NEW;
 END;
 $$;
 
--- Handle post mention notifications
+-- Handle post mention notifications (all posts including federated)
 CREATE OR REPLACE FUNCTION public.handle_post_mention_notifications()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
+DECLARE
+    content_part JSONB;
+    mentioned_username TEXT;
+    mentioned_user_id UUID;
+    author_profile RECORD;
+    post_content_preview TEXT;
 BEGIN
-    -- Placeholder
+    IF TG_OP = 'INSERT' THEN
+        SELECT id, username, display_name, avatar_url, domain, is_local
+        INTO author_profile
+        FROM profiles 
+        WHERE id = NEW.author_id;
+        
+        IF FOUND AND NEW.content IS NOT NULL THEN
+            post_content_preview := extract_message_text(NEW.content);
+            IF LENGTH(post_content_preview) > 100 THEN
+                post_content_preview := LEFT(post_content_preview, 100) || '...';
+            END IF;
+            IF post_content_preview = '' OR post_content_preview IS NULL THEN
+                post_content_preview := 'New post';
+            END IF;
+            
+            IF jsonb_typeof(NEW.content) = 'array' THEN
+                FOR content_part IN SELECT jsonb_array_elements(NEW.content)
+                LOOP
+                    IF content_part->>'type' = 'mention' THEN
+                        mentioned_username := content_part->>'username';
+                        
+                        IF content_part->>'isLocal' = 'true' THEN
+                            SELECT id INTO mentioned_user_id
+                            FROM profiles 
+                            WHERE username = mentioned_username 
+                              AND is_local = true
+                              AND id != NEW.author_id;
+                            
+                            IF mentioned_user_id IS NOT NULL THEN
+                                PERFORM send_notification_to_user(
+                                    'activitypub_mention',
+                                    mentioned_user_id,
+                                    jsonb_build_object(
+                                        'actor', jsonb_build_object(
+                                            'id', author_profile.id,
+                                            'username', author_profile.username,
+                                            'display_name', author_profile.display_name,
+                                            'avatar_url', author_profile.avatar_url,
+                                            'domain', author_profile.domain,
+                                            'is_local', author_profile.is_local
+                                        ),
+                                        'post', jsonb_build_object(
+                                            'id', NEW.id,
+                                            'ap_id', NEW.ap_id,
+                                            'content_preview', post_content_preview,
+                                            'content', NEW.content
+                                        ),
+                                        'post_id', NEW.id,
+                                        'post_content', NEW.content,
+                                        'timestamp', NEW.created_at,
+                                        'federated', NEW.is_federated
+                                    ),
+                                    NULL, NULL, NULL,
+                                    author_profile.id,
+                                    'normal'
+                                );
+                            END IF;
+                        END IF;
+                    END IF;
+                END LOOP;
+            END IF;
+        END IF;
+    END IF;
+    
+    RETURN NEW;
+END;
+$$;
+
+-- Handle post reply notifications
+CREATE OR REPLACE FUNCTION public.handle_post_reply_notifications()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    parent_post RECORD;
+    replier_profile RECORD;
+    reply_preview TEXT;
+BEGIN
+    IF NEW.in_reply_to IS NULL THEN
+        RETURN NEW;
+    END IF;
+
+    SELECT p.id, p.author_id, p.content, pr.is_local
+    INTO parent_post
+    FROM posts p
+    JOIN profiles pr ON pr.id = p.author_id
+    WHERE p.id = NEW.in_reply_to;
+
+    IF NOT FOUND OR parent_post.is_local != true THEN
+        RETURN NEW;
+    END IF;
+
+    IF parent_post.author_id = NEW.author_id THEN
+        RETURN NEW;
+    END IF;
+
+    SELECT id, username, display_name, avatar_url, domain, is_local
+    INTO replier_profile
+    FROM profiles
+    WHERE id = NEW.author_id;
+
+    IF NOT FOUND THEN
+        RETURN NEW;
+    END IF;
+
+    reply_preview := extract_message_text(NEW.content);
+    IF LENGTH(reply_preview) > 100 THEN
+        reply_preview := LEFT(reply_preview, 100) || '...';
+    END IF;
+    IF reply_preview = '' OR reply_preview IS NULL THEN
+        reply_preview := 'New reply';
+    END IF;
+
+    PERFORM send_notification_to_user(
+        'activitypub_reply',
+        parent_post.author_id,
+        jsonb_build_object(
+            'actor', jsonb_build_object(
+                'id', replier_profile.id,
+                'username', replier_profile.username,
+                'display_name', replier_profile.display_name,
+                'avatar_url', replier_profile.avatar_url,
+                'domain', replier_profile.domain,
+                'is_local', replier_profile.is_local
+            ),
+            'post', jsonb_build_object(
+                'id', NEW.id,
+                'ap_id', NEW.ap_id,
+                'content_preview', reply_preview,
+                'content', NEW.content
+            ),
+            'parent_post', jsonb_build_object(
+                'id', parent_post.id,
+                'content_preview', extract_message_text(parent_post.content)
+            ),
+            'post_id', NEW.id,
+            'parent_post_id', parent_post.id,
+            'timestamp', NEW.created_at
+        ),
+        NULL, NULL, NULL,
+        NEW.author_id,
+        'normal'
+    );
+
     RETURN NEW;
 END;
 $$;
@@ -1673,11 +2005,68 @@ RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
+DECLARE
+    v_user_id uuid;
+    v_channel_id uuid;
+    v_server_id uuid;
+    v_conversation_id uuid;
+    existing_count_id uuid;
 BEGIN
-    UPDATE unread_counts
-    SET mentions_count = mentions_count + 1, updated_at = NOW()
-    WHERE user_id = NEW.user_id;
-    
+    IF NEW.type != 'mention' AND NEW.type != 'activitypub_mention' THEN
+        RETURN NEW;
+    END IF;
+
+    v_user_id := NEW.user_id;
+
+    v_channel_id := NULLIF((NEW.data->>'channel_id'), '')::uuid;
+    v_server_id := NULLIF((NEW.data->>'server_id'), '')::uuid;
+    v_conversation_id := NULLIF((NEW.data->>'conversation_id'), '')::uuid;
+
+    IF v_channel_id IS NULL THEN
+        v_channel_id := NULLIF((NEW.data->'location'->>'channel_id'), '')::uuid;
+    END IF;
+    IF v_server_id IS NULL THEN
+        v_server_id := NULLIF((NEW.data->'location'->>'server_id'), '')::uuid;
+    END IF;
+
+    IF v_channel_id IS NOT NULL THEN
+        SELECT id INTO existing_count_id
+        FROM unread_counts
+        WHERE user_id = v_user_id
+          AND channel_id = v_channel_id
+          AND (server_id = v_server_id OR (server_id IS NULL AND v_server_id IS NULL))
+          AND conversation_id IS NULL;
+
+        IF existing_count_id IS NOT NULL THEN
+            UPDATE unread_counts
+            SET unread_mentions = unread_mentions + 1,
+                updated_at = NOW()
+            WHERE id = existing_count_id;
+        ELSE
+            INSERT INTO unread_counts (user_id, channel_id, server_id, unread_mentions, updated_at)
+            VALUES (v_user_id, v_channel_id, v_server_id, 1, NOW());
+        END IF;
+    END IF;
+
+    IF v_conversation_id IS NOT NULL THEN
+        SELECT id INTO existing_count_id
+        FROM unread_counts
+        WHERE user_id = v_user_id
+          AND conversation_id = v_conversation_id
+          AND channel_id IS NULL
+          AND server_id IS NULL;
+
+        IF existing_count_id IS NOT NULL THEN
+            UPDATE unread_counts
+            SET unread_mentions = unread_mentions + 1,
+                updated_at = NOW()
+            WHERE id = existing_count_id;
+        ELSE
+            INSERT INTO unread_counts (user_id, conversation_id, unread_mentions, updated_at)
+            VALUES (v_user_id, v_conversation_id, 1, NOW());
+        END IF;
+    END IF;
+
     RETURN NEW;
 END;
 $$;

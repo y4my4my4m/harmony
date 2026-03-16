@@ -89,13 +89,31 @@ export class CorePostService {
 
       debug.log('✅ Core: Content validation passed')
 
+      // Enforce max media attachments per post (instance config, default 20)
+      let mediaAttachments = data.media_attachments || []
+      const { data: limitRow } = await supabase
+        .from('instance_config')
+        .select('config_value')
+        .eq('config_key', 'max_media_attachments_per_post')
+        .maybeSingle()
+      const maxMedia = (() => {
+        const v = limitRow?.config_value
+        if (typeof v === 'number' && v >= 1) return v
+        const parsed = typeof v === 'string' ? parseInt(String(v), 10) : NaN
+        return !isNaN(parsed) && parsed >= 1 ? parsed : 20
+      })()
+      if (mediaAttachments.length > maxMedia) {
+        mediaAttachments = mediaAttachments.slice(0, maxMedia)
+        debug.warn(`Core: Truncated media_attachments to ${maxMedia} (instance limit)`)
+      }
+
       const postData = {
         author_id: profileId,
         content: data.content, // Direct JSONB insertion - Supabase handles serialization
         visibility: data.visibility,
         content_warning: data.content_warning || null,
         in_reply_to: data.in_reply_to || null,
-        media_attachments: data.media_attachments || [],
+        media_attachments: mediaAttachments,
         is_sensitive: data.is_sensitive || false,
         language: data.language || 'en',
         is_local: true,
@@ -662,8 +680,30 @@ export class CorePostService {
         throw this.createError('LOAD_POST_FAILED', error.message, error)
       }
 
+      const formatted = this.formatTimelinePost(post)
+
+      // Fetch current user's interactions for timeline/embed (favorite + emoji_reaction light up heart)
+      try {
+        const profileId = await authContextService.getCurrentProfileId()
+        if (profileId) {
+          const { data: interactions } = await supabase
+            .from('post_interactions')
+            .select('interaction_type')
+            .eq('post_id', postId)
+            .eq('user_id', profileId)
+            .in('interaction_type', ['favorite', 'emoji_reaction', 'reblog', 'bookmark'])
+
+          const types = new Set(interactions?.map((i) => i.interaction_type) || [])
+          formatted.is_favorited = types.has('favorite') || types.has('emoji_reaction')
+          formatted.is_reblogged = types.has('reblog')
+          formatted.is_bookmarked = types.has('bookmark')
+        }
+      } catch {
+        // User not logged in or profile not found – keep defaults
+      }
+
       debug.log(`✅ Core: Loaded post: ${postId}`)
-      return this.formatTimelinePost(post)
+      return formatted
     } catch (error) {
       debug.error('❌ Core: Failed to load post:', error)
       throw error
@@ -705,6 +745,14 @@ export class CorePostService {
       is_local: post.is_local,
       is_federated: post.is_federated,
       author: post.author,
+      author_id: post.author_id,
+      ap_id: post.ap_id,
+      ap_type: post.ap_type,
+      url: post.url,
+      in_reply_to: post.in_reply_to,
+      conversation_id: post.conversation_id,
+      is_deleted: post.is_deleted,
+      metadata: post.metadata,
       favorites_count: post.favorites_count || 0,
       reblogs_count: post.reblogs_count || 0,
       replies_count: post.replies_count || 0,
@@ -715,7 +763,6 @@ export class CorePostService {
       is_sensitive: post.is_sensitive,
       language: post.language,
       media_attachments: post.media_attachments || [],
-      // Reblog data (stored as JSONB in database)
       reblog: post.reblog || undefined,
       reblog_author: post.reblog_author || undefined
     }

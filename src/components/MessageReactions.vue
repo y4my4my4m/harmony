@@ -128,7 +128,7 @@ const hasUserReacted = (emojiId: string) => {
   return reactionsStore.hasUserReacted(props.message.id, emojiId, currentUserId.value);
 };
 
-// Handle reaction toggle (Discord-style instant feedback)
+// Handle reaction toggle ( instant feedback)
 const handleReactionClick = async (emoji: Emoji, emojiId: string) => {
   if (!currentUserId.value) return;
   
@@ -146,7 +146,7 @@ const handleReactionClick = async (emoji: Emoji, emojiId: string) => {
   
   emit('toggle-reaction', props.message.id, emoji);
   
-  // Discord-style: Instant UI feedback with background API call
+  // : Instant UI feedback with background API call
   const result = await reactionsStore.toggleReaction(props.message.id, emojiId, currentUserId.value);
   
   // Log result but don't show error for duplicate requests (they're expected)
@@ -233,7 +233,8 @@ watch(() => props.message.id, (newMessageId, oldMessageId) => {
 <style scoped>
 .message-reactions {
   display: flex;
-  margin: 2px 0;
+  /* margin: 2px 0; old approach */
+  margin: 6px 4px 0 4px;
 }
 
 .reactions-gutter {

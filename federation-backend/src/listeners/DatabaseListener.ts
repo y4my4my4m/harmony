@@ -548,6 +548,16 @@ async function handleNewPost(postEvent: any): Promise<void> {
       activity = await createPostActivity(post, author);
     }
 
+    // Set ap_id on local post so federation echo dedup works
+    const noteId = activity?.object?.id;
+    if (noteId && !post.ap_id) {
+      await supabase
+        .from('posts')
+        .update({ ap_id: noteId })
+        .eq('id', post.id);
+      logger.info(`📌 Set ap_id on local post ${post.id}: ${noteId}`);
+    }
+
     // Broadcast to followers
     await DeliveryQueue.broadcastToFollowers(author.id, activity);
     

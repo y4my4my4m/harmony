@@ -17,19 +17,16 @@ export const useServerStore = defineStore('server', {
       return data;
     },
 
-    async updateServer(serverData: Partial<Server>, file?: File): Promise<boolean> {
+    async updateServer(serverData: Partial<Server>, file?: File, bannerFile?: File): Promise<boolean> {
       try {
-        // Create a copy of serverData to avoid mutating the original
         const dataToUpdate = { ...serverData }
         
         if (file && serverData.id) {
-          // Define file path
           const ext = file.name.split('.').pop();
           if (!ext) throw new Error('File must have an extension');
           const filePath = `${serverData.id}/${serverData.id}.${ext}`;
 
           debug.log('Uploading server icon to:', filePath);
-          // Upload to Supabase storage
           const { error: uploadError } = await supabase.storage
             .from('server_icons')
             .upload(filePath, file, {
@@ -38,17 +35,32 @@ export const useServerStore = defineStore('server', {
 
           if (uploadError) throw uploadError;
 
-          // Update serverData with the new icon URL
           dataToUpdate.icon = filePath;
         } else if (dataToUpdate.icon && dataToUpdate.icon.startsWith('blob:')) {
-          // If we have a blob URL but no file, remove it (it's just a preview)
           delete dataToUpdate.icon;
         } else if (dataToUpdate.icon === '') {
-          // If icon is explicitly set to empty string (removed), ensure it's saved as empty
           dataToUpdate.icon = '';
         }
 
-        // Update server data in database
+        if (bannerFile && serverData.id) {
+          const ext = bannerFile.name.split('.').pop();
+          if (!ext) throw new Error('Banner file must have an extension');
+          const filePath = `${serverData.id}/${serverData.id}_banner.${ext}`;
+
+          debug.log('Uploading server banner to:', filePath);
+          const { error: uploadError } = await supabase.storage
+            .from('server_banners')
+            .upload(filePath, bannerFile, {
+              upsert: true
+            });
+
+          if (uploadError) throw uploadError;
+
+          dataToUpdate.banner = filePath;
+        } else if (dataToUpdate.banner && dataToUpdate.banner.startsWith('blob:')) {
+          delete dataToUpdate.banner;
+        }
+
         const { error } = await supabase
           .from('servers')
           .upsert(dataToUpdate)

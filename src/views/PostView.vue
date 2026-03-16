@@ -10,7 +10,13 @@
       
       <div class="header-info">
         <h1 class="header-title">Post</h1>
-        <p v-if="threadInfo" class="header-meta">
+        <p v-if="isViewingRemotePost && originalInstanceDomain" class="header-meta">
+          From {{ originalInstanceDomain }}
+          <span v-if="threadInfo && threadInfo.totalPosts > 1">
+            · {{ threadInfo.totalPosts }} posts
+          </span>
+        </p>
+        <p v-else-if="threadInfo" class="header-meta">
           {{ threadInfo.totalPosts }} post{{ threadInfo.totalPosts !== 1 ? 's' : '' }}
           <span v-if="threadInfo.participantCount > 1">
             · {{ threadInfo.participantCount }} participant{{ threadInfo.participantCount !== 1 ? 's' : '' }}
@@ -19,6 +25,16 @@
       </div>
       
       <div class="header-actions">
+        <a
+          v-if="isViewingRemotePost && originalInstanceUrl"
+          :href="originalInstanceUrl"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="action-btn view-original-btn"
+          :title="'View on ' + (originalInstanceDomain || 'original instance')"
+        >
+          <Icon name="external-link" />
+        </a>
         <button @click="sharePost" class="action-btn" title="Share">
           <Icon name="share" />
         </button>
@@ -30,6 +46,33 @@
             <button @click="copyPostLink" class="dropdown-item">
               <Icon name="link" :size="16" />
               <span>Copy link</span>
+            </button>
+            <a
+              v-if="isViewingRemotePost && originalInstanceUrl"
+              :href="originalInstanceUrl"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="dropdown-item"
+              @click="showActionsMenu = false"
+            >
+              <Icon name="external-link" :size="16" />
+              <span>View on {{ originalInstanceDomain || 'original instance' }}</span>
+            </a>
+            <button
+              v-if="isViewingRemotePost && !isFetchingReactions"
+              @click="handleFetchReactions"
+              class="dropdown-item"
+            >
+              <Icon name="heart" :size="16" />
+              <span>Fetch reactions</span>
+            </button>
+            <button
+              v-if="isViewingRemotePost && !isFetchingReplies"
+              @click="handleFetchReplies"
+              class="dropdown-item"
+            >
+              <Icon name="message-circle" :size="16" />
+              <span>Fetch replies</span>
             </button>
             <button v-if="isOwnPost" @click="handleDeletePost" class="dropdown-item danger">
               <Icon name="trash" :size="16" />
@@ -121,8 +164,6 @@ import Icon from '@/components/common/Icon.vue';
 import MonyPost from '@/components/activitypub/MonyPost.vue';
 import Composer from '@/components/activitypub/Composer.vue';
 
-import { supabase } from '@/supabase';
-
 import type { 
   TimelinePost, 
   PostWithContext, 
@@ -158,8 +199,14 @@ const toast = useToast();
 // Resolved post ID (may come from props or remote resolution)
 const resolvedPostId = ref<string | null>(null);
 
-// Reconstruct the likely original URL for remote posts (for "view on original instance" link)
-const remoteOriginalUrl = computed(() => {
+const isViewingRemotePost = computed(() => {
+  if (!mainPost.value) return false;
+  return !mainPost.value.is_local && !!mainPost.value.ap_id;
+});
+
+const originalInstanceUrl = computed(() => {
+  if (mainPost.value?.url && !mainPost.value.is_local) return mainPost.value.url;
+  if (mainPost.value?.ap_id && !mainPost.value.is_local) return mainPost.value.ap_id;
   if (!props.remoteHandle || !props.remoteNoteId) return null;
   const cleaned = props.remoteHandle.replace(/^@/, '');
   const atIdx = cleaned.indexOf('@');
@@ -168,8 +215,19 @@ const remoteOriginalUrl = computed(() => {
   return `https://${domain}/notes/${props.remoteNoteId}`;
 });
 
+const originalInstanceDomain = computed(() => {
+  const url = originalInstanceUrl.value;
+  if (!url) return null;
+  try { return new URL(url).hostname; } catch { return null; }
+});
+
+// Keep old name for error-state template
+const remoteOriginalUrl = originalInstanceUrl;
+
 // Reactive state
 const isLoading = ref(true);
+const isFetchingReactions = ref(false);
+const isFetchingReplies = ref(false);
 const error = ref<string | null>(null);
 const postWithContext = ref<PostWithContext | null>(null);
 const showReplyComposer = ref(false);
@@ -204,88 +262,9 @@ const allPostsInOrder = computed(() => {
 
 // Resolve a remote post reference (@user@domain + noteId) to a local UUID
 const resolveRemotePost = async (handle: string, noteId: string): Promise<string | null> => {
-  const cleaned = handle.replace(/^@/, '');
-  const atIdx = cleaned.indexOf('@');
-  if (atIdx < 0) return null;
-
-  const username = cleaned.slice(0, atIdx);
-  const domain = cleaned.slice(atIdx + 1);
-  if (!username || !domain) return null;
-
-  // Strategy 1: find author profile, then search posts by author + noteId in ap_id
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('id')
-    .eq('username', username)
-    .eq('domain', domain)
-    .limit(1)
-    .maybeSingle();
-
-  if (profile?.id) {
-    const { data: post } = await supabase
-      .from('posts')
-      .select('id')
-      .eq('author_id', profile.id)
-      .like('ap_id', `%${noteId}%`)
-      .eq('is_deleted', false)
-      .limit(1)
-      .maybeSingle();
-
-    if (post?.id) return post.id;
-  }
-
-  // Strategy 2: try common AP URL patterns directly
-  const candidates = [
-    `https://${domain}/notes/${noteId}`,
-    `https://${domain}/users/${username}/statuses/${noteId}`,
-    `https://${domain}/@${username}/${noteId}`,
-    `https://${domain}/@${username}/statuses/${noteId}`,
-    `https://${domain}/notice/${noteId}`,
-    `https://${domain}/objects/${noteId}`,
-  ];
-
-  for (const candidate of candidates) {
-    const { data: post } = await supabase
-      .from('posts')
-      .select('id')
-      .or(`ap_id.eq.${candidate},url.eq.${candidate}`)
-      .eq('is_deleted', false)
-      .limit(1)
-      .maybeSingle();
-
-    if (post?.id) return post.id;
-  }
-
-  // Strategy 3: ask federation backend to resolve/import the post
-  try {
-    const candidateUrl = `https://${domain}/users/${username}/statuses/${noteId}`;
-    const response = await fetch(`${activityPub.federationApiUrl}/resolve-post`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url: candidateUrl }),
-    });
-    if (response.ok) {
-      const data = await response.json();
-      if (data.post_id) return data.post_id;
-    }
-  } catch {
-    // Federation resolve failed, try other candidates
-    for (const candidate of candidates.slice(0, 3)) {
-      try {
-        const response = await fetch(`${activityPub.federationApiUrl}/resolve-post`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url: candidate }),
-        });
-        if (response.ok) {
-          const data = await response.json();
-          if (data.post_id) return data.post_id;
-        }
-      } catch { /* continue */ }
-    }
-  }
-
-  return null;
+  const { postResolverService } = await import('@/services/PostResolverService');
+  const post = await postResolverService.resolveByHandle(handle, noteId);
+  return post?.id || null;
 };
 
 // Methods
@@ -343,12 +322,10 @@ const loadPostWithContext = async () => {
       scrollToTimestamp(props.timestamp);
     }
     
-    // Auto-fetch remote reactions and replies only for REMOTE posts.
-    // Local post data (including reactions from remote users delivered via inbox)
-    // is already in the database and loaded above via fetchMultiplePostReactions.
+    // For remote posts, auto-fetch replies from the origin instance in the background.
+    // Reactions are handled by MonyPost's useRemotePostSync composable on mount.
     if (result.mainPost?.ap_id && !result.mainPost.is_local) {
-      debug.log(`[PostView] Remote post has ap_id: ${result.mainPost.ap_id}, auto-fetching remote data...`);
-      fetchRemoteDataInBackground(result.mainPost);
+      fetchRemoteRepliesInBackground(result.mainPost);
     }
     
   } catch (err) {
@@ -360,85 +337,86 @@ const loadPostWithContext = async () => {
   }
 };
 
-// Auto-fetch reactions and replies from federation in the background
-const fetchRemoteDataInBackground = async (targetPost: TimelinePost) => {
-  const postType = targetPost.is_local ? 'local' : 'remote';
-  const federationApiUrl = activityPub.federationApiUrl;
-  
-  debug.log(`[PostView] Fetching remote data for ${postType} post:`, targetPost.ap_id);
-  
-  // Fetch reactions
+const fetchRemoteRepliesInBackground = async (targetPost: TimelinePost) => {
   try {
-    debug.log(`[PostView] POST ${federationApiUrl}/fetch-reactions`);
-    
-    const reactionsResponse = await fetch(`${federationApiUrl}/fetch-reactions`, {
+    const response = await fetch(`${activityPub.federationApiUrl}/fetch-replies`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         post_ap_id: targetPost.ap_id,
         post_id: targetPost.id,
+        limit: 10,
       }),
     });
-    
-    debug.log(`[PostView] Reactions response: ${reactionsResponse.status}`);
-    
-    if (reactionsResponse.ok) {
-      const result = await reactionsResponse.json();
-      debug.log(`[PostView] Fetched reactions:`, result);
-      
-      // Update post metadata directly for immediate reactivity
-      if (result.remote_reactions && postWithContext.value?.mainPost) {
-        postWithContext.value.mainPost.metadata = {
-          ...(postWithContext.value.mainPost.metadata || {}),
-          remote_reactions: result.remote_reactions,
-          remote_reactions_fetched_at: new Date().toISOString(),
-        };
-        // Update counts
-        if (result.favorites_count !== undefined) {
-          postWithContext.value.mainPost.favorites_count = result.favorites_count;
-        }
+
+    if (response.ok) {
+      const result = await response.json();
+      if (result.count > 0) {
+        const updatedResult = await activityPub.getPostWithContext(targetPost.id, {
+          context: props.contextType,
+          highlightReply: props.highlightReply,
+          maxDepth: maxThreadDepth.value,
+          includeInteractions: true,
+        });
+        postWithContext.value = updatedResult;
       }
     }
   } catch (err) {
-    debug.warn('[PostView] Failed to fetch reactions:', err);
+    debug.warn('[PostView] Failed to fetch remote replies:', err);
   }
-  
-  // Fetch replies (only for remote posts)
-  if (!targetPost.is_local) {
-    try {
-      debug.log(`[PostView] POST ${federationApiUrl}/fetch-replies`);
-      
-      const repliesResponse = await fetch(`${federationApiUrl}/fetch-replies`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          post_ap_id: targetPost.ap_id,
-          post_id: targetPost.id,
-          limit: 10,
-        }),
-      });
-      
-      debug.log(`[PostView] Replies response: ${repliesResponse.status}`);
-      
-      if (repliesResponse.ok) {
-        const result = await repliesResponse.json();
-        debug.log(`[PostView] Fetched ${result.count || 0} replies`);
-        
-        // Reload to include newly fetched replies
-        if (result.count > 0) {
-          // Re-fetch the context to get updated replies
-          const updatedResult = await activityPub.getPostWithContext(targetPost.id, {
-            context: props.contextType,
-            highlightReply: props.highlightReply,
-            maxDepth: maxThreadDepth.value,
-            includeInteractions: true
-          });
-          postWithContext.value = updatedResult;
-        }
-      }
-    } catch (err) {
-      debug.warn('[PostView] Failed to fetch replies:', err);
+};
+
+const handleFetchReactions = async () => {
+  showActionsMenu.value = false;
+  if (!mainPost.value?.ap_id || isFetchingReactions.value) return;
+  isFetchingReactions.value = true;
+  try {
+    const response = await fetch(`${activityPub.federationApiUrl}/fetch-reactions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        post_ap_id: mainPost.value.ap_id,
+        post_id: mainPost.value.id,
+      }),
+    });
+    if (response.ok) {
+      const result = await response.json();
+      toast.success(`Fetched ${result.count || 0} reactions`);
+      await loadPostWithContext();
+    } else {
+      toast.error('Failed to fetch reactions');
     }
+  } catch {
+    toast.error('Failed to fetch reactions');
+  } finally {
+    isFetchingReactions.value = false;
+  }
+};
+
+const handleFetchReplies = async () => {
+  showActionsMenu.value = false;
+  if (!mainPost.value?.ap_id || isFetchingReplies.value) return;
+  isFetchingReplies.value = true;
+  try {
+    const response = await fetch(`${activityPub.federationApiUrl}/fetch-replies`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        post_ap_id: mainPost.value.ap_id,
+        post_id: mainPost.value.id,
+      }),
+    });
+    if (response.ok) {
+      const result = await response.json();
+      toast.success(`Fetched ${result.count || 0} replies`);
+      await loadPostWithContext();
+    } else {
+      toast.error('Failed to fetch replies');
+    }
+  } catch {
+    toast.error('Failed to fetch replies');
+  } finally {
+    isFetchingReplies.value = false;
   }
 };
 
@@ -537,31 +515,7 @@ const handleUserClick = (user: any) => {
   router.push({ name: 'UserProfile', params: { handle } })
 };
 
-// Extract the note/status ID from a fediverse AP URL
-const extractNoteId = (url: string | null | undefined): string | null => {
-  if (!url) return null;
-  try {
-    const path = new URL(url).pathname;
-    const segments = path.split('/').filter(Boolean);
-    // Return the last path segment (works for all common platforms)
-    return segments.length > 0 ? segments[segments.length - 1] : null;
-  } catch {
-    return null;
-  }
-};
-
-// Build the best URL for sharing this post
 const getPostUrl = (): string => {
-  if (props.remoteHandle && props.remoteNoteId) {
-    return `${window.location.origin}/social/posts/${props.remoteHandle}/${props.remoteNoteId}`;
-  }
-  if (mainPost.value && !mainPost.value.is_local && mainPost.value.author) {
-    const author = mainPost.value.author;
-    const noteId = extractNoteId(mainPost.value.ap_id || mainPost.value.url);
-    if (noteId && author.username && author.domain) {
-      return `${window.location.origin}/social/posts/@${author.username}@${author.domain}/${noteId}`;
-    }
-  }
   const id = resolvedPostId.value || props.postId;
   return `${window.location.origin}/posts/${id}`;
 };
@@ -797,6 +751,15 @@ onMounted(loadPostWithContext);
 .action-btn:hover {
   background: var(--color-bg-hover);
   color: var(--color-text-primary);
+}
+
+a.action-btn {
+  text-decoration: none;
+}
+
+a.dropdown-item {
+  text-decoration: none;
+  color: var(--text-primary);
 }
 
 .more-actions-wrapper {

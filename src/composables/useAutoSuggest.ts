@@ -159,7 +159,9 @@ export function useAutoSuggest(
   if (finalConfig.enableMentions) {
     triggers.push({
       char: '@',
-      pattern: /(?:^|\s)@([a-zA-Z0-9_+-]*)$/,
+      // \s* before $ allows trailing whitespace - contenteditable (ActivityPub Composer) can report
+      // cursor after a trailing space, unlike textarea (chat) which has exact selectionStart
+      pattern: /(?:^|\s)@([a-zA-Z0-9_+-]*)\s*$/,
       type: 'mention'
     });
   }
@@ -260,11 +262,14 @@ export function useAutoSuggest(
 
   // Get user mention suggestions based on mode
   const mentionSuggestions = computed((): SuggestionItem[] => {
-    if (!finalConfig.enableMentions || state.value.triggerType !== 'mention' || !state.value.query) {
+    if (!finalConfig.enableMentions || state.value.triggerType !== 'mention') {
       return [];
     }
-
-    const query = state.value.query.toLowerCase();
+    // For chat mode we need a query to filter. For ActivityPub we use search results (may be empty initially).
+    const query = (state.value.query || '').toLowerCase();
+    if (finalConfig.mode === 'chat' && !query) {
+      return [];
+    }
 
     if (finalConfig.mode === 'chat') {
       // Chat mode: Use server context-aware user filtering
@@ -666,7 +671,7 @@ export function useAutoSuggest(
   const searchActivityPubUsers = async (query: string) => {
     debug.log('[DEBUG] searchActivityPubUsers called:', { query, mode: finalConfig.mode });
     
-    if (finalConfig.mode !== 'activitypub' || query.length < 2) {
+    if (finalConfig.mode !== 'activitypub' || query.length < 1) {
       debug.log('[DEBUG] searchActivityPubUsers: Skipping (mode or query too short)', { mode: finalConfig.mode, queryLength: query.length });
       activityPubUsers.value = [];
       return;
@@ -811,6 +816,8 @@ export function useAutoSuggest(
   // Handle input changes and detect triggers
   const handleInput = (value: string, cursorPosition: number) => {
     const textBeforeCursor = value.substring(0, cursorPosition);
+    // RichTextEditor uses \u00A0 (nbsp) for spaces; \s doesn't match it. Normalize for pattern matching.
+    const normalizedForMatch = textBeforeCursor.replace(/\u00A0/g, ' ');
     
     debug.log('[DEBUG] handleInput called:', { value: value.substring(0, 50), cursorPosition, textBeforeCursor: textBeforeCursor.substring(textBeforeCursor.length - 20) });
     
@@ -818,7 +825,7 @@ export function useAutoSuggest(
     let foundTrigger = false;
     
     for (const trigger of triggers) {
-      const match = textBeforeCursor.match(trigger.pattern);
+      const match = normalizedForMatch.match(trigger.pattern);
       debug.log('[DEBUG] Checking trigger:', trigger.type, 'pattern:', trigger.pattern, 'match:', match);
       if (match && match.index !== undefined) {
         foundTrigger = true;
@@ -983,7 +990,15 @@ export function useAutoSuggest(
         }
       } else if (state.value.triggerType === 'mention') {
         if (finalConfig.mode === 'activitypub') {
-          insertText = (suggestion.handle || `@${suggestion.username}`) + ' '; // Add space after mention
+          // Use display form that matches what RichTextEditor renders as data-display-text:
+          //   local users  → @username        (no domain)
+          //   remote users → @username@domain
+          // This prevents cursor position mismatch when setCursorPosition walks the DOM.
+          if (suggestion.user?.is_local) {
+            insertText = `@${suggestion.username} `;
+          } else {
+            insertText = (suggestion.handle || `@${suggestion.username}`) + ' ';
+          }
           debug.log('🔧 ActivityPub mention insert:', {
             handle: suggestion.handle,
             username: suggestion.username,

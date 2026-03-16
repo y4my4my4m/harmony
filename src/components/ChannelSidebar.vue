@@ -86,7 +86,7 @@
               :user-ids="getUsersInVoiceChannel(element.id)"
               :call-start-time="getChannelCallStartTime(element.id)"
             />
-            <!-- Active threads under this channel (Discord-style) -->
+            <!-- Active threads under this channel () -->
             <div 
               v-for="thread in getChannelActiveThreads(element.id)"
               :key="thread.id"
@@ -209,7 +209,7 @@
                     :user-ids="getUsersInVoiceChannel(channel.id)"
                     :call-start-time="getChannelCallStartTime(channel.id)"
                   />
-                  <!-- Active threads under this channel (Discord-style) -->
+                  <!-- Active threads under this channel () -->
                   <div 
                     v-for="thread in getChannelActiveThreads(channel.id)"
                     :key="thread.id"
@@ -1510,7 +1510,7 @@ watch(() => props.currentServer?.id, () => {
   flex: 1;
 }
 
-/* Channel Thread Items (Discord-style nested under channels) */
+/* Channel Thread Items ( nested under channels) */
 .channel-thread-item {
   display: flex;
   align-items: center;

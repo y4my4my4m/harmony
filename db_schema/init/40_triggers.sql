@@ -235,6 +235,13 @@ CREATE TRIGGER trigger_handle_post_mention_notifications
     WHEN (NEW.content IS NOT NULL)
     EXECUTE FUNCTION public.handle_post_mention_notifications();
 
+-- Handle post reply notifications
+CREATE TRIGGER trigger_handle_post_reply_notifications
+    AFTER INSERT ON public.posts
+    FOR EACH ROW
+    WHEN (NEW.in_reply_to IS NOT NULL)
+    EXECUTE FUNCTION public.handle_post_reply_notifications();
+
 -- ---------------------------------------------------------------------------
 -- FEDERATION TRIGGERS
 -- ---------------------------------------------------------------------------

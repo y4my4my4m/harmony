@@ -1092,7 +1092,8 @@ const removeServerFromFolder = async () => {
 .dm-button {
   width: 48px;
   height: 48px;
-  background: linear-gradient(135deg, var(--harmony-primary), var(--harmony-primary-hover));
+  background-color: var(--h-black-darker);
+  color: var(--text-light);
   margin: 10px;
   padding: 4px;
   border-radius: 50%;
@@ -1116,8 +1117,12 @@ const removeServerFromFolder = async () => {
   transition: color 0.2s ease;
 }
 
+.dm-button:hover {
+  background: var(--harmony-primary, --harmony-primary-hover);
+}
+
 .dm-button:hover .dm-icon {
-  color: var(--text-primary);
+  color: var(--text-light);
 }
 
 .dm-button.selected {
@@ -1126,14 +1131,14 @@ const removeServerFromFolder = async () => {
 }
 
 .dm-button.selected .dm-icon {
-  color: var(--text-primary);
+  color: var(--text-light);
 }
 
 /* Monyverse Button */
 .monyverse-button {
   width: 48px;
   height: 48px;
-  background: linear-gradient(135deg, var(--harmony-primary), var(--harmony-primary-hover));
+  background-color: var(--h-black-darker);
   margin: 10px;
   padding: 4px;
   border-radius: 12px;
@@ -1153,20 +1158,23 @@ const removeServerFromFolder = async () => {
 .monyverse-icon {
   font-size: 24px;
   font-weight: bold;
-  color: var(--text-primary);
+  color: var(--text-light);
   font-family: 'Figtree', sans-serif;
   transition: transform 0.2s ease;
 }
 
 .monyverse-button:hover {
+  background: var(--harmony-primary, --harmony-primary-hover);
   left: 5px;
   transform: scale(1.05);
 }
 
 .monyverse-button.selected {
-  background: linear-gradient(135deg, var(--harmony-primary), var(--harmony-primary-hover));
-  border: 3px solid var(--h-primary);
+  background: var(--harmony-primary, --harmony-primary-hover);
   border-radius: 50%;
+}
+.monyverse-button.selected .monyverse-icon {
+  color: var(--text-light);
 }
 
 /* Unread badge */
@@ -1257,7 +1265,7 @@ const removeServerFromFolder = async () => {
   height: 48px;
   /* background: linear-gradient(135deg, var(--harmony-primary), var(--harmony-primary-hover)); */
   /* background: transparent; */
-  background: #000;
+  background-color: var(--h-black-darker);
   margin: 10px 10px 5px 10px;
   transition: background 0.2s ease-in-out;
   padding: 4px;
@@ -1295,7 +1303,7 @@ const removeServerFromFolder = async () => {
   left: 5px;
 }
 
-/* Discord-style white pill indicator */
+/*  white pill indicator */
 .server-pill {
   position: absolute;
   left: -14px;
@@ -1326,11 +1334,13 @@ const removeServerFromFolder = async () => {
   height: 20px;
 }
 
-.dm-button.selected,
+/* .dm-button.selected,
 .monyverse-button.selected,
-.portal.selected,
+.portal.selected {
+} */
+ 
 .server-item.selected {
-  border: 2px solid var(--h-secondary);
+  border: 2px solid var(--harmony-secondary);
   border-radius: 50%;
 }
 

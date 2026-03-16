@@ -815,6 +815,21 @@ class ThreadService {
   }
 
   /**
+   * Fetch max media attachments limit from instance config (default 20)
+   */
+  private async getMaxMediaAttachments(): Promise<number> {
+    const { data } = await supabase
+      .from('instance_config')
+      .select('config_value')
+      .eq('config_key', 'max_media_attachments_per_post')
+      .maybeSingle()
+    const v = data?.config_value
+    if (typeof v === 'number' && v >= 1) return v
+    const parsed = typeof v === 'string' ? parseInt(String(v), 10) : NaN
+    return !isNaN(parsed) && parsed >= 1 ? parsed : 20
+  }
+
+  /**
    * Send a message to a thread
    */
   async sendThreadMessage(
@@ -823,6 +838,13 @@ class ThreadService {
     replyTo?: string
   ): Promise<Message | null> {
     try {
+      // Enforce max media attachments per message (instance config, default 20)
+      const fileParts = content.filter((p: any) => p?.type === 'file')
+      const maxMedia = await this.getMaxMediaAttachments()
+      if (fileParts.length > maxMedia) {
+        throw new Error(`Maximum ${maxMedia} media attachments per message`)
+      }
+
       const profileId = await authContextService.getCurrentProfileId()
 
       // Get channel_id from thread

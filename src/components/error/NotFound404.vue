@@ -266,7 +266,7 @@ onMounted(() => {
   color: var(--h-primary);
   margin: 0;
   text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
-  background: linear-gradient(135deg, var(--h-primary), var(--h-secondary));
+  background: linear-gradient(135deg, var(--harmony-primary), var(--harmony-secondary));
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;

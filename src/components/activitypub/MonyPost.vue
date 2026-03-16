@@ -93,8 +93,17 @@
       <div 
         v-show="!displayContentWarning || showSensitiveContent"
         class="post-body"
-        :class="{ 'is-sensitive': displayIsSensitive }"
+        :class="{ 
+          'is-sensitive': displayIsSensitive, 
+          'revealed': sensitiveRevealedForTouch 
+        }"
       >
+        <!-- Tap-to-reveal overlay on mobile: first tap reveals, second tap opens lightbox -->
+        <div
+          v-if="displayIsSensitive && isTouchDevice && !sensitiveRevealedForTouch"
+          class="sensitive-tap-overlay"
+          @click.stop="sensitiveRevealedForTouch = true"
+        />
         <!-- Unhydrated Reblog/Quote: Show reference link when content not loaded -->
         <div v-if="isUnhydratedReblog" class="unhydrated-reblog">
           <div class="unhydrated-reblog-notice">
@@ -141,8 +150,8 @@
             </div>
             
             <div class="quoted-post-content">
-              <MonyContent 
-                :content="displayContent" 
+              <MonyContent
+                :content="contentForMonyContent"
                 @user-mention-click="handleMentionClick"
                 @hashtag-click="handleHashtagClick"
                 @image-click="handleImageClick"
@@ -150,36 +159,11 @@
             </div>
             
             <!-- Media in quoted post -->
-            <div 
+            <MonyMediaGallery
               v-if="displayMediaAttachments?.length > 0"
-              class="quoted-media-gallery"
-              :class="`media-count-${Math.min(displayMediaAttachments.length, 4)}`"
-            >
-              <div 
-                v-for="media in displayMediaAttachments" 
-                :key="media.id"
-                class="media-item"
-              >
-                <img 
-                  v-if="media.type === 'image'" 
-                  :src="media.url" 
-                  :alt="media.description || 'Media attachment'"
-                  class="media-image"
-                  @click="handleImageClick(media.url)"
-                />
-                <video 
-                  v-else-if="media.type === 'video' || media.type === 'gifv' || (media.type === 'unknown' && isVideoMediaUrl(media.url))" 
-                  :src="media.url" 
-                  controls
-                  :loop="media.type === 'gifv'"
-                  :autoplay="media.type === 'gifv'"
-                  :muted="media.type === 'gifv'"
-                  class="media-video"
-                >
-                  Your browser does not support the video tag.
-                </video>
-              </div>
-            </div>
+              :media-attachments="displayMediaAttachments"
+              :is-sensitive="displayIsSensitive"
+            />
           </div>
         </div>
         
@@ -187,51 +171,20 @@
         <div v-else>
           <!-- Text Content -->
           <div class="post-text">
-            <MonyContent 
-              :content="displayContent" 
+            <MonyContent
+              :content="contentForMonyContent"
               @user-mention-click="handleMentionClick"
               @hashtag-click="handleHashtagClick"
               @image-click="handleImageClick"
             />
           </div>
 
-          <!-- Media Attachments -->
-          <div 
+          <!-- Media Attachments (grid + lightbox) -->
+          <MonyMediaGallery
             v-if="displayMediaAttachments?.length > 0"
-            class="media-gallery"
-            :class="`media-count-${Math.min(displayMediaAttachments.length, 4)}`"
-          >
-            <div 
-              v-for="media in displayMediaAttachments" 
-              :key="media.id"
-              class="media-item"
-            >
-              <img 
-                v-if="media.type === 'image'" 
-                :src="media.url" 
-                :alt="media.description || 'Media attachment'"
-                class="media-image"
-                @click="handleImageClick(media.url)"
-              />
-              <video 
-                v-else-if="media.type === 'video' || media.type === 'gifv' || (media.type === 'unknown' && isVideoMediaUrl(media.url))" 
-                :src="media.url" 
-                controls
-                :loop="media.type === 'gifv'"
-                :autoplay="media.type === 'gifv'"
-                :muted="media.type === 'gifv'"
-                class="media-video"
-              >
-                Your browser does not support the video tag.
-              </video>
-              <audio
-                v-else-if="media.type === 'audio'"
-                :src="media.url"
-                controls
-                class="media-audio"
-              ></audio>
-            </div>
-          </div>
+            :media-attachments="displayMediaAttachments"
+            :is-sensitive="displayIsSensitive"
+          />
         </div>
       </div>
 
@@ -416,7 +369,7 @@
               <button 
                 v-if="isRemotePost && !isFetchingReactions"
                 class="dropdown-item"
-                @click="fetchRemoteReactions"
+                @click="handleFetchRemoteReactions"
               >
                 <Icon name="heart" />
                 <span>Fetch reactions</span>
@@ -425,7 +378,7 @@
               <button 
                 v-if="isRemotePost && !isFetchingReplies"
                 class="dropdown-item"
-                @click="fetchRemoteReplies"
+                @click="handleFetchRemoteReplies"
               >
                 <Icon name="message-circle" />
                 <span>Fetch replies</span>
@@ -536,6 +489,7 @@
     <!-- Lightbox for images (only when not embedded in chat context) -->
     <vue-easy-lightbox
       v-if="!embedded"
+      teleport="body"
       :visible="showLightbox"
       :imgs="[currentLightboxImage]"
       :index="0"
@@ -543,6 +497,9 @@
     />
   </article>
 </template>
+
+<script lang="ts">
+</script>
 
 <script setup lang="ts">
 import { computed, ref, onMounted, onBeforeUnmount, watch, nextTick } from 'vue';
@@ -553,6 +510,7 @@ import { useActivityPubStore } from '@/stores/useActivityPub';
 import { useNotificationStore } from '@/stores/useNotification';
 import { useThemeStore } from '@/stores/useTheme';
 import { usePostInteractions } from '@/composables/usePostInteractions';
+import { useRemotePostSync } from '@/composables/useRemotePostSync';
 import ConversationService from '@/services/ConversationService';
 import { formatDistanceToNow, format } from 'date-fns';
 import DisplayName from '@/components/DisplayName.vue';
@@ -568,6 +526,7 @@ import Icon from '@/components/common/Icon.vue';
 import Avatar from '../common/Avatar.vue';
 import Composer from './Composer.vue';
 import PostReactions from './PostReactions.vue';
+import MonyMediaGallery from './MonyMediaGallery.vue';
 import ConfirmationModal from '../ConfirmationModal.vue';
 import ReportModal from '@/components/moderation/ReportModal.vue';
 import SupporterBadge from '@/components/common/SupporterBadge.vue';
@@ -614,6 +573,8 @@ const { toggleFavorite, toggleReblog, toggleBookmark } = usePostInteractions();
 
 // Local state (removed isToggling since composable handles loading)
 const showSensitiveContent = ref(false);
+const sensitiveRevealedForTouch = ref(false); // On mobile: first tap reveals blur, second tap opens lightbox
+const isTouchDevice = typeof window !== 'undefined' && 'ontouchstart' in window && !window.matchMedia('(pointer: fine)').matches;
 const showMenu = ref(false);
 const menuButtonRef = ref<HTMLElement | null>(null);
 const dropdownRef = ref<HTMLElement | null>(null);
@@ -655,34 +616,7 @@ const tooltipEmojiShortcode = computed(() => {
   return unicodeToShortcode(unicode) || ''
 })
 
-// Extract the note/status ID from a fediverse AP URL (last path segment)
-const extractNoteId = (url: string | null | undefined): string | null => {
-  if (!url) return null;
-  try {
-    const path = new URL(url).pathname;
-    const segments = path.split('/').filter(Boolean);
-    return segments.length > 0 ? segments[segments.length - 1] : null;
-  } catch {
-    return null;
-  }
-};
-
 const handleTimeClick = () => {
-  // For remote/federated posts, use the friendly @handle/noteId URL
-  if (!props.post.is_local && props.post.author) {
-    const postAuthor = props.post.author;
-    const noteId = extractNoteId(props.post.ap_id || props.post.url);
-    if (noteId && postAuthor.username && postAuthor.domain) {
-      router.push({
-        name: 'RemotePostDetail',
-        params: {
-          handle: `@${postAuthor.username}@${postAuthor.domain}`,
-          noteId
-        }
-      });
-      return;
-    }
-  }
   router.push({ name: 'PostDetail', params: { postId: props.post.id } });
 };
 
@@ -727,62 +661,42 @@ const isRemotePost = computed(() => {
   return !props.post.is_local && props.post.ap_id;
 });
 
-// Synthetic posts are built from embed data and don't exist in the local DB
-const isSyntheticPost = computed(() => {
-  return props.post.metadata?.synthetic === true;
-});
-
-// Resolve a synthetic post into a real local post before interactions
-const resolveSyntheticPost = async (): Promise<string | null> => {
-  if (!isSyntheticPost.value) return originalPostId.value;
-
-  const postUrl = props.post.ap_id || props.post.url;
-  if (!postUrl) return null;
-
-  // Check local DB first (fast, no network)
-  try {
-    const { supabase } = await import('@/supabase');
-    const { data: localPost } = await supabase
-      .from('posts')
-      .select('id')
-      .or(`url.eq.${postUrl},ap_id.eq.${postUrl}`)
-      .eq('is_deleted', false)
-      .limit(1)
-      .maybeSingle();
-
-    if (localPost?.id) return localPost.id;
-  } catch {
-    // DB lookup failed, try federation backend
+// Remote post sync (reactions/replies) via composable
+const {
+  isFetchingReactions,
+  isFetchingReplies,
+  fetchRemoteReactions,
+  fetchRemoteReplies,
+} = useRemotePostSync(
+  () => props.post,
+  {
+    isRemote: isRemotePost,
+    autoFetchReactions: true,
+    onReactionsUpdate: (result: any) => {
+      if (result.remote_reactions) {
+        activityPubStore.updatePostMetadataInAllFeeds(props.post.id, {
+          remote_reactions: result.remote_reactions,
+          remote_reactions_fetched_at: new Date().toISOString(),
+        });
+        if (!props.post.metadata) {
+          (props.post as any).metadata = {};
+        }
+        (props.post.metadata as any).remote_reactions = result.remote_reactions;
+        (props.post.metadata as any).remote_reactions_fetched_at = new Date().toISOString();
+      }
+      if (result.favorites_count !== undefined) {
+        (props.post as any).favorites_count = result.favorites_count;
+      }
+      if (result.replies_count !== undefined) {
+        (props.post as any).replies_count = result.replies_count;
+      }
+      if (result.reblogs_count !== undefined) {
+        (props.post as any).reblogs_count = result.reblogs_count;
+      }
+    },
+    onRefresh: (postId: string) => emit('refresh', postId),
   }
-
-  // Not local — ask federation backend to import via ActivityPub
-  try {
-    const { useActivityPubStore } = await import('@/stores/useActivityPub');
-    const apStore = useActivityPubStore();
-    const response = await fetch(`${apStore.federationApiUrl}/resolve-post`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url: postUrl }),
-    });
-    if (response.ok) {
-      const data = await response.json();
-      if (data.post_id) return data.post_id;
-    }
-  } catch {
-    // Federation import failed
-  }
-
-  notificationStore.showToast(
-    'error',
-    'Could not import this post from the remote instance.',
-    5000
-  );
-  return null;
-};
-
-// State for fetching remote data
-const isFetchingReactions = ref(false);
-const isFetchingReplies = ref(false);
+);
 
 // Reblog-related computed properties
 const isReblog = computed(() => {
@@ -896,7 +810,71 @@ const displayContent = computed(() => {
 });
 
 const displayMediaAttachments = computed(() => {
-  return (isReblog.value && props.post.reblog) ? props.post.reblog.media_attachments : props.post.media_attachments;
+  const source = (isReblog.value && props.post.reblog) ? props.post.reblog : props.post;
+  const media = source?.media_attachments ?? source?.mediaAttachments;
+  const raw = Array.isArray(media) ? media : [];
+  // Normalize federated media (ActivityPub uses type 'Document', mediaType 'image/*') so they render in grid
+  return raw.map((m: any, idx: number) => {
+    const url = m.url || m.remote_url || m.href;
+    if (!url) return null;
+    let type = m.type?.toLowerCase?.() || m.type || 'unknown';
+    if (type === 'document' || type === 'unknown') {
+      const mt = (m.mediaType || m.media_type || m.mime_type || '').toLowerCase();
+      if (mt.startsWith('image/')) type = 'image';
+      else if (mt.startsWith('video/') || mt.includes('gif')) type = 'video';
+      else if (/\.(jpe?g|png|gif|webp|avif)/i.test(url)) type = 'image';
+      else if (/\.(mp4|webm|ogv|mov)/i.test(url)) type = 'video';
+    }
+    return { ...m, id: m.id || `m-${idx}`, url, type };
+  }).filter(Boolean);
+});
+
+// Content for MonyContent: when we have media_attachments, exclude file/image parts from content
+// so they're only shown once in MonyMediaGallery (which has the lightbox). Federated posts often
+// have media in content only (no media_attachments) — then we show them in MonyContent's grid.
+const contentForMonyContent = computed(() => {
+  const content = displayContent.value;
+  const mediaAttachments = displayMediaAttachments.value;
+  if (!content || !Array.isArray(content)) return content;
+  if (mediaAttachments.length === 0) return content;
+
+  // Build set of media URLs (normalized) so we filter content parts that duplicate attachments.
+  // Normalize: strip query string, use pathname for matching (handles protocol/host differences).
+  const normalizeUrl = (url: string) => {
+    try {
+      const u = url.split('?')[0];
+      const path = u.includes('/') ? u.replace(/^[^/]*\/\/[^/]+/, '') : u;
+      return path || u;
+    } catch {
+      return url;
+    }
+  };
+  const mediaUrlPaths = new Set(
+    mediaAttachments
+      .map((m: any) => (m.url || m.remote_url || m.href) && normalizeUrl(String(m.url || m.remote_url || m.href)))
+      .filter(Boolean)
+  );
+
+  const isMediaPartOrDuplicate = (p: any): boolean => {
+    const partUrl = p?.url;
+    if (partUrl && (mediaUrlPaths.has(normalizeUrl(partUrl)) || mediaUrlPaths.has(partUrl))) return true;
+    const t = String(p?.type || '').toLowerCase();
+    if (t === 'file') {
+      const ft = p?.fileType || p?.file_type || '';
+      if (ft === 'image' || ft === 'video' || ft === 'audio') return true;
+      const mt = (p?.mimeType || p?.mime_type || p?.mediaType || p?.media_type || '').toLowerCase();
+      if (mt.startsWith('image/') || mt.startsWith('video/') || mt.includes('gif')) return true;
+      if (partUrl && /\.(jpe?g|png|gif|webp|avif|mp4|webm|ogv|mov)(\?|$)/i.test(partUrl)) return true;
+      return false;
+    }
+    if (t === 'image' || t === 'video' || t === 'gifv') return true;
+    if (t === 'url' && partUrl) {
+      return /\.(jpg|jpeg|png|gif|webp|svg|bmp|ico)(\?|$)/i.test(partUrl) ||
+        /\.(mp4|webm|ogg|avi|mov|wmv|flv|m4v)(\?|$)/i.test(partUrl);
+    }
+    return false;
+  };
+  return content.filter((p: any) => !isMediaPartOrDuplicate(p));
 });
 
 const displayContentWarning = computed(() => {
@@ -1020,7 +998,7 @@ const loadOriginalPostInteractions = async () => {
       .select('interaction_type')
       .eq('post_id', props.post.reblog.id)
       .eq('user_id', currentUser.id)
-      .in('interaction_type', ['favorite', 'reblog', 'bookmark']);
+      .in('interaction_type', ['favorite', 'emoji_reaction', 'reblog', 'bookmark']);
 
     if (error) {
       debug.error('Failed to load original post interactions:', error);
@@ -1029,7 +1007,7 @@ const loadOriginalPostInteractions = async () => {
 
     const interactionTypes = new Set(interactions?.map(i => i.interaction_type) || []);
     originalPostInteractions.value = {
-      is_favorited: interactionTypes.has('favorite'),
+      is_favorited: interactionTypes.has('favorite') || interactionTypes.has('emoji_reaction'),
       is_reblogged: interactionTypes.has('reblog'),
       is_bookmarked: interactionTypes.has('bookmark')
     };
@@ -1056,6 +1034,7 @@ onMounted(() => {
   if (isReblog.value) {
     loadOriginalPostInteractions();
   }
+
 });
 
 // The ID of the original post - for reblogs, this is the reblogged post's ID
@@ -1243,14 +1222,6 @@ const closeEmojiPopup = () => {
 const handleEmojiSelected = async (emoji: any) => {
   debug.log('Emoji selected:', emoji);
   
-  if (isSyntheticPost.value) {
-    const resolved = await resolveSyntheticPost();
-    if (!resolved) {
-      closeEmojiPopup();
-      return;
-    }
-  }
-
   const currentUser = getCurrentUser.value;
   if (!currentUser) {
     debug.warn('User not authenticated');
@@ -1636,9 +1607,7 @@ const handleMenuToggle = () => {
 
 // Optimistic favorite toggle — fills/unfills the heart immediately
 const handleToggleFavorite = async () => {
-  const postId = isSyntheticPost.value
-    ? await resolveSyntheticPost()
-    : originalPostId.value;
+  const postId = originalPostId.value;
   if (!postId) return;
 
   const targetPost = isReblog.value ? props.post.reblog : props.post
@@ -1674,17 +1643,10 @@ const handleToggleFavorite = async () => {
 const handleReblogClick = async () => {
   // If already reblogged, undo the reblog directly
   if (displayInteractionCounts.value.is_reblogged) {
-    const postId = isSyntheticPost.value
-      ? await resolveSyntheticPost()
-      : originalPostId.value;
+    const postId = originalPostId.value;
     if (!postId) return;
     toggleReblog(postId);
     return;
-  }
-
-  if (isSyntheticPost.value) {
-    const resolved = await resolveSyntheticPost();
-    if (!resolved) return;
   }
 
   // Otherwise show the menu with options
@@ -1693,9 +1655,7 @@ const handleReblogClick = async () => {
 
 const handleSimpleReblog = async () => {
   showReblogMenu.value = false;
-  const postId = isSyntheticPost.value
-    ? await resolveSyntheticPost()
-    : originalPostId.value;
+  const postId = originalPostId.value;
   if (!postId) return;
   await toggleReblog(postId);
 };
@@ -1712,125 +1672,20 @@ const handleQuoteReblog = () => {
 };
 
 const handleToggleBookmark = async () => {
-  const postId = isSyntheticPost.value
-    ? await resolveSyntheticPost()
-    : originalPostId.value;
+  const postId = originalPostId.value;
   if (!postId) return;
   toggleBookmark(postId);
 };
 
-// Fetch remote reactions for a remote post
-const fetchRemoteReactions = async () => {
-  if (!isRemotePost.value || isFetchingReactions.value) return;
-  
-  const postApId = props.post.ap_id;
-  if (!postApId) return;
-  
-  isFetchingReactions.value = true;
+// Manual menu triggers for fetch — close menu before calling composable methods
+const handleFetchRemoteReactions = () => {
   showMenu.value = false;
-  
-  try {
-    const response = await fetch('/api/federation/fetch-reactions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        post_ap_id: postApId,
-        post_id: props.post.id,
-      }),
-    });
-    
-    if (response.ok) {
-      const result = await response.json();
-      debug.log(`📬 Fetched ${result.count} reactions for remote post`);
-      
-      if (result.count > 0) {
-        debug.log(`✅ Found ${result.count} reactions from remote instance`);
-      } else {
-        debug.log(`📭 No reactions found on remote instance`);
-      }
-      
-      // Update post metadata and counts immediately with the returned data
-      if (result.remote_reactions) {
-        // Update in store feeds
-        activityPubStore.updatePostMetadataInAllFeeds(props.post.id, {
-          remote_reactions: result.remote_reactions,
-          remote_reactions_fetched_at: new Date().toISOString(),
-        });
-        
-        // Also directly update the post's metadata for immediate reactivity
-        // (handles cases where post is in local ref like UserProfileView.userPosts)
-        if (!props.post.metadata) {
-          (props.post as any).metadata = {};
-        }
-        (props.post.metadata as any).remote_reactions = result.remote_reactions;
-        (props.post.metadata as any).remote_reactions_fetched_at = new Date().toISOString();
-        
-        debug.log(`✅ Updated post metadata with ${Object.keys(result.remote_reactions).length} reaction types`);
-      }
-      
-      // Update counts directly on the post for immediate reactivity
-      if (result.favorites_count !== undefined) {
-        (props.post as any).favorites_count = result.favorites_count;
-      }
-      if (result.replies_count !== undefined) {
-        (props.post as any).replies_count = result.replies_count;
-      }
-      if (result.reblogs_count !== undefined) {
-        (props.post as any).reblogs_count = result.reblogs_count;
-      }
-      
-      // Also emit refresh for any parent that wants to fully reload
-      emit('refresh', props.post.id);
-    } else {
-      debug.error('Failed to fetch remote reactions:', await response.text());
-    }
-  } catch (error) {
-    debug.error('Error fetching remote reactions:', error);
-  } finally {
-    isFetchingReactions.value = false;
-  }
+  fetchRemoteReactions();
 };
 
-// Fetch remote replies for a remote post
-const fetchRemoteReplies = async () => {
-  if (!isRemotePost.value || isFetchingReplies.value) return;
-  
-  const postApId = props.post.ap_id;
-  if (!postApId) return;
-  
-  isFetchingReplies.value = true;
+const handleFetchRemoteReplies = () => {
   showMenu.value = false;
-  
-  try {
-    const response = await fetch('/api/federation/fetch-replies', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        post_ap_id: postApId,
-        post_id: props.post.id,
-      }),
-    });
-    
-    if (response.ok) {
-      const result = await response.json();
-      debug.log(`📬 Fetched ${result.count} replies for remote post`);
-      
-      // Emit event to refresh post data
-      emit('refresh', props.post.id);
-      
-      if (result.count > 0) {
-        debug.log(`✅ Found ${result.count} replies from remote instance`);
-      } else {
-        debug.log(`📭 No replies found on remote instance`);
-      }
-    } else {
-      debug.error('Failed to fetch remote replies:', await response.text());
-    }
-  } catch (error) {
-    debug.error('Error fetching remote replies:', error);
-  } finally {
-    isFetchingReplies.value = false;
-  }
+  fetchRemoteReplies();
 };
 
 // Handle emoji picker for original post (for reblogs, target the original)
@@ -2230,6 +2085,7 @@ const closeLightbox = () => {
 
 .post-body {
   margin-bottom: 1rem;
+  position: relative;
 }
 
 .post-body.is-sensitive {
@@ -2237,8 +2093,17 @@ const closeLightbox = () => {
   transition: filter 0.2s;
 }
 
-.post-body.is-sensitive:hover {
+.post-body.is-sensitive:hover,
+.post-body.is-sensitive.revealed {
   filter: blur(0px);
+}
+
+/* Tap-to-reveal overlay on mobile: first tap reveals, second tap opens lightbox */
+.sensitive-tap-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  cursor: pointer;
 }
 
 .post-text {
@@ -2568,10 +2433,14 @@ const closeLightbox = () => {
 }
 
 .quoted-media-gallery.media-count-1 { grid-template-columns: 1fr; }
-.quoted-media-gallery.media-count-2 { grid-template-columns: 1fr 1fr; }
+.quoted-media-gallery.media-count-2 {
+  grid-template-columns: 1fr 1fr;
+  aspect-ratio: 2 / 1;
+}
 .quoted-media-gallery.media-count-3 {
   grid-template-columns: 1fr 1fr;
   grid-template-rows: 1fr 1fr;
+  aspect-ratio: 1 / 1;
 }
 .quoted-media-gallery.media-count-3 .media-item:first-child {
   grid-row: 1 / 3;
@@ -2579,6 +2448,7 @@ const closeLightbox = () => {
 .quoted-media-gallery.media-count-4 {
   grid-template-columns: 1fr 1fr;
   grid-template-rows: 1fr 1fr;
+  aspect-ratio: 1 / 1;
 }
 
 .quoted-media-gallery .media-image,
@@ -2605,11 +2475,13 @@ const closeLightbox = () => {
 
 .media-gallery.media-count-2 {
   grid-template-columns: 1fr 1fr;
+  aspect-ratio: 2 / 1; /* two side-by-side cells */
 }
 
 .media-gallery.media-count-3 {
   grid-template-columns: 1fr 1fr;
   grid-template-rows: 1fr 1fr;
+  aspect-ratio: 1 / 1; /* square grid for L-shape layout */
 }
 
 .media-gallery.media-count-3 .media-item:first-child {
@@ -2619,6 +2491,7 @@ const closeLightbox = () => {
 .media-gallery.media-count-4 {
   grid-template-columns: 1fr 1fr;
   grid-template-rows: 1fr 1fr;
+  aspect-ratio: 1 / 1; /* 2x2 square grid */
 }
 
 .media-item {

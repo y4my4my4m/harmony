@@ -221,7 +221,7 @@ defineExpose({
   bottom: 0;
   left: 0;
   height: 2px;
-  background: linear-gradient(90deg, #5865f2, #7289da);
+  background: linear-gradient(90deg, #5865f2, #616ae5);
   border-radius: 1px;
   width: 0;
   transition: width 0.3s ease;

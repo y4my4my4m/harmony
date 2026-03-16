@@ -24,8 +24,8 @@
       </button>
     </div>
 
-    <!-- Search Input (hidden in favorites view) -->
-    <div v-if="!showFavorites" class="gif-search">
+    <!-- Search Input (disabled in favorites view to maintain consistent height) -->
+    <div class="gif-search">
       <div class="search-wrapper">
         <svg class="search-icon" viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
           <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
@@ -33,9 +33,10 @@
         <input 
           type="text" 
           v-model="searchQuery" 
-          :placeholder="$t('gif.searchTenor')" 
+          :placeholder="showFavorites ? $t('gif.favorites') : $t('gif.searchTenor')" 
           class="search-input"
           ref="searchInput"
+          :disabled="showFavorites"
         >
       </div>
     </div>
@@ -299,8 +300,9 @@ onMounted(async () => {
   display: flex;
   gap: 8px;
   padding: 8px 12px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border-secondary);
   flex-shrink: 0;
+  background: var(--background-senary-alpha);
 }
 
 .category-button {
@@ -336,6 +338,7 @@ onMounted(async () => {
   padding: 8px 12px;
   border-bottom: 1px solid var(--border-color);
   flex-shrink: 0;
+  background: var(--background-senary-alpha);
 }
 
 .search-wrapper {
@@ -354,7 +357,7 @@ onMounted(async () => {
 .search-input {
   width: 100%;
   padding: 8px 12px 8px 36px;
-  background: var(--background-tertiary);
+  background: var(--background-senary-alpha);
   border: none;
   border-radius: 4px;
   color: var(--text-primary);
@@ -370,13 +373,18 @@ onMounted(async () => {
   color: var(--text-muted);
 }
 
+.search-input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* Results Area */
 .gif-results {
   flex: 1;
-  overflow-y: scroll;
+  overflow-y: auto;
   overflow-x: hidden;
   padding: 8px 0 8px 8px;
-  min-height: 200px;
+  min-height: 0;
   scrollbar-gutter: stable;
 }
 
@@ -397,6 +405,8 @@ onMounted(async () => {
 .gif-item img {
   width: 100%;
   height: auto;
+  max-height: 250px;
+  object-fit: cover;
   display: block;
   border-radius: 4px;
 }
@@ -496,12 +506,12 @@ onMounted(async () => {
 }
 
 .gif-results::-webkit-scrollbar-thumb {
-  background: var(--background-quaternary);
+  background: var(--background-senary-alpha, rgba(10, 11, 13, 0.8));
   border-radius: 4px;
 }
 
 .gif-results::-webkit-scrollbar-thumb:hover {
-  background: var(--border-hover);
+  background: var(--background-senary, #0a0b0d);
 }
 </style>
 

@@ -210,7 +210,7 @@ defineExpose({
   left: 0;
   right: 0;
   height: 2px;
-  background: linear-gradient(90deg, #5865f2, #7289da);
+  background: linear-gradient(90deg, #5865f2, #616ae5);
   transform: scaleX(0);
   transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }

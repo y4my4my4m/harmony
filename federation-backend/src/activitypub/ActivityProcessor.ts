@@ -347,6 +347,18 @@ export class ActivityProcessor {
     }
 
     if (object.type === 'Note' || object.type === 'Article') {
+      // Reject our own posts echoed back (federation round-trip)
+      const ownDomain = config.INSTANCE_DOMAIN;
+      if (object.id && typeof object.id === 'string') {
+        try {
+          const objectHost = new URL(object.id).hostname;
+          if (objectHost === ownDomain) {
+            logger.info(`⏭️ Ignoring own post echoed back: ${object.id}`);
+            return;
+          }
+        } catch { /* not a valid URL, continue */ }
+      }
+
       // Check if this is a Harmony channel message (not a regular ActivityPub post)
       const harmonyServerId = object['harmony:serverId'];
       const harmonyChannelName = object['harmony:channelName'];
@@ -538,11 +550,11 @@ export class ActivityProcessor {
    * Resolve reply chain - fetch missing parent posts and find conversation root
    * Returns the parent post ID and conversation root ID
    */
-  private static async resolveReplyChain(inReplyToUrl: string, depth = 0): Promise<{
+  private static async resolveReplyChain(inReplyToRef: string, depth = 0): Promise<{
     parentPostId: string | null;
     conversationRootId: string | null;
   }> {
-    const MAX_DEPTH = 10; // Prevent infinite loops
+    const MAX_DEPTH = 10;
     const supabase = getSupabaseClient();
 
     if (depth > MAX_DEPTH) {
@@ -550,43 +562,52 @@ export class ActivityProcessor {
       return { parentPostId: null, conversationRootId: null };
     }
 
-    // First check if parent post exists locally
     let parentPost = null;
-    
-    // Try by ap_id
-    const { data: postByApId } = await supabase
-      .from('posts')
-      .select('id, in_reply_to, conversation_root_id')
-      .eq('ap_id', inReplyToUrl)
-      .maybeSingle();
-    
-    parentPost = postByApId;
+    const isUuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(inReplyToRef);
 
-    // Try extracting UUID from URL
-    if (!parentPost && inReplyToUrl.includes('/posts/')) {
-      const uuidMatch = inReplyToUrl.match(/\/posts\/([a-f0-9-]{36})/);
-      if (uuidMatch) {
-        const { data: postById } = await supabase
-          .from('posts')
-          .select('id, in_reply_to, conversation_root_id')
-          .eq('id', uuidMatch[1])
-          .maybeSingle();
-        parentPost = postById;
+    if (isUuid) {
+      // Direct UUID lookup (from DB in_reply_to column during recursion)
+      const { data: postById } = await supabase
+        .from('posts')
+        .select('id, in_reply_to, conversation_root_id')
+        .eq('id', inReplyToRef)
+        .maybeSingle();
+      parentPost = postById;
+    } else {
+      // URL-based lookup: try ap_id first
+      const { data: postByApId } = await supabase
+        .from('posts')
+        .select('id, in_reply_to, conversation_root_id')
+        .eq('ap_id', inReplyToRef)
+        .maybeSingle();
+
+      parentPost = postByApId;
+
+      // Try extracting UUID from URL
+      if (!parentPost && inReplyToRef.includes('/posts/')) {
+        const uuidMatch = inReplyToRef.match(/\/posts\/([a-f0-9-]{36})/);
+        if (uuidMatch) {
+          const { data: postById } = await supabase
+            .from('posts')
+            .select('id, in_reply_to, conversation_root_id')
+            .eq('id', uuidMatch[1])
+            .maybeSingle();
+          parentPost = postById;
+        }
+      }
+
+      // Fetch from remote if not found locally
+      if (!parentPost) {
+        logger.info(`🔍 Parent post not found locally, fetching: ${inReplyToRef}`);
+        parentPost = await this.fetchAndCreateRemotePost(inReplyToRef);
       }
     }
 
-    // If parent doesn't exist locally, try to fetch it from remote
     if (!parentPost) {
-      logger.info(`🔍 Parent post not found locally, fetching: ${inReplyToUrl}`);
-      parentPost = await this.fetchAndCreateRemotePost(inReplyToUrl);
-    }
-
-    if (!parentPost) {
-      logger.warn(`Could not resolve parent post: ${inReplyToUrl}`);
+      logger.warn(`Could not resolve parent post: ${inReplyToRef}`);
       return { parentPostId: null, conversationRootId: null };
     }
 
-    // If parent already has a conversation_root_id, use it
     if (parentPost.conversation_root_id) {
       return {
         parentPostId: parentPost.id,
@@ -594,7 +615,6 @@ export class ActivityProcessor {
       };
     }
 
-    // If parent is not a reply (no in_reply_to), it IS the conversation root
     if (!parentPost.in_reply_to) {
       return {
         parentPostId: parentPost.id,
@@ -602,7 +622,7 @@ export class ActivityProcessor {
       };
     }
 
-    // Parent is also a reply - recurse to find the root
+    // Parent is also a reply — in_reply_to is always a UUID (DB column), recurse
     const parentResult = await this.resolveReplyChain(parentPost.in_reply_to, depth + 1);
     
     // Update the parent post with its conversation_root_id if we found it
@@ -708,7 +728,29 @@ export class ActivityProcessor {
       const content = noteToContent(remoteObject);
       const visibility = this.determineVisibility(remoteObject);
 
-      // Create the remote post
+      // Resolve inReplyTo URL to a local post UUID (in_reply_to is a UUID FK)
+      let resolvedInReplyTo: string | null = null;
+      if (remoteObject.inReplyTo) {
+        const { data: parentByApId } = await supabase
+          .from('posts')
+          .select('id')
+          .eq('ap_id', remoteObject.inReplyTo)
+          .maybeSingle();
+        if (parentByApId) {
+          resolvedInReplyTo = parentByApId.id;
+        } else if (remoteObject.inReplyTo.includes('/posts/')) {
+          const uuidMatch = remoteObject.inReplyTo.match(/\/posts\/([a-f0-9-]{36})/);
+          if (uuidMatch) {
+            const { data: parentById } = await supabase
+              .from('posts')
+              .select('id')
+              .eq('id', uuidMatch[1])
+              .maybeSingle();
+            if (parentById) resolvedInReplyTo = parentById.id;
+          }
+        }
+      }
+
       const { data: newPost, error } = await supabase
         .from('posts')
         .insert({
@@ -718,7 +760,7 @@ export class ActivityProcessor {
           content,
           visibility,
           is_local: false,
-          in_reply_to: remoteObject.inReplyTo || null,
+          in_reply_to: resolvedInReplyTo,
           created_at: remoteObject.published || new Date().toISOString(),
           content_warning: remoteObject.summary || null,
           is_sensitive: remoteObject.sensitive === true,

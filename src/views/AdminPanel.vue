@@ -187,6 +187,44 @@
             <div class="warning-banner">
               <Icon name="alert-triangle" :size="16" />
               <span>{{ federationStats.endpoint_health.dead_endpoints }} endpoint(s) marked as dead and removed from follows</span>
+              <button
+                class="danger-btn purge-btn"
+                :disabled="loadingStates.purgingDead"
+                @click="purgeDeadEndpoints"
+              >
+                <Icon v-if="!loadingStates.purgingDead" name="trash" :size="14" />
+                <span v-if="loadingStates.purgingDead" class="spinner-small"></span>
+                Purge All
+              </button>
+            </div>
+            <div class="dead-endpoints-list" v-if="deadEndpointsList.length > 0">
+              <div
+                v-for="ep in deadEndpointsList"
+                :key="ep.id"
+                class="dead-endpoint-row"
+              >
+                <div class="dead-endpoint-info">
+                  <div class="dead-endpoint-url" :title="ep.endpoint_url">{{ ep.endpoint_url }}</div>
+                  <div class="dead-endpoint-meta">
+                    <span class="meta-tag domain">{{ ep.domain }}</span>
+                    <span class="meta-tag" v-if="ep.last_http_status">HTTP {{ ep.last_http_status }}</span>
+                    <span class="meta-tag failures">{{ ep.total_failures }} failures</span>
+                    <span class="meta-tag" v-if="ep.last_failure_at">Last fail: {{ formatTimeAgo(ep.last_failure_at) }}</span>
+                  </div>
+                  <div class="dead-endpoint-error" v-if="ep.last_error_message" :title="ep.last_error_message">
+                    {{ ep.last_error_message }}
+                  </div>
+                </div>
+                <button
+                  class="purge-single-btn"
+                  :disabled="purgingEndpointIds.has(ep.id)"
+                  @click="purgeSingleEndpoint(ep)"
+                  title="Remove this endpoint"
+                >
+                  <span v-if="purgingEndpointIds.has(ep.id)" class="spinner-small"></span>
+                  <Icon v-else name="trash" :size="14" />
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -926,13 +964,27 @@
         <div class="module-header">
           <Icon name="settings" :size="20" />
           <h2>Configuration</h2>
-          <button @click="saveConfig" class="save-btn" :disabled="!configChanged">
-            <Icon name="save" :size="16" />
-            Save Changes
+        </div>
+        <div class="config-tabs">
+          <button
+            v-for="tab in [
+              { key: 'general', label: 'General', icon: 'settings' },
+              { key: 'federation', label: 'Federation', icon: 'globe' },
+              { key: 'branding', label: 'Branding', icon: 'image' },
+              { key: 'oauth', label: 'Authentication', icon: 'shield' },
+              { key: 'webrtc', label: 'Voice & Video', icon: 'mic' },
+            ]"
+            :key="tab.key"
+            :class="['config-tab-btn', { active: configTab === tab.key }]"
+            @click="configTab = tab.key as any"
+          >
+            <Icon :name="tab.icon" :size="16" />
+            {{ tab.label }}
           </button>
         </div>
         <div class="config-sections">
-          <div class="config-section">
+          <!-- General / Chat Settings -->
+          <div v-if="configTab === 'general'" class="config-section">
             <h3>Chat Settings</h3>
             <div class="setting-group">
               <label>Max Server Size</label>
@@ -941,6 +993,11 @@
             <div class="setting-group">
               <label>Max Message Length</label>
               <input v-model.number="config.chat.maxMessageLength" type="number" class="cyber-input" />
+            </div>
+            <div class="setting-group">
+              <label>Max Media Attachments per Post/Message</label>
+              <input v-model.number="config.chat.maxMediaAttachmentsPerPost" type="number" class="cyber-input" min="1" />
+              <span class="setting-hint">Maximum images/videos/files per post or chat message. Default: 20.</span>
             </div>
             <div class="setting-row">
               <label class="toggle-label">
@@ -954,9 +1011,24 @@
                 Enable Voice Channels
               </label>
             </div>
+
+            <h3 style="margin-top: 24px;">Trending & Discovery</h3>
+            <div class="setting-group">
+              <label>Trending Posts</label>
+              <button type="button" class="cyber-btn-sm" @click="refreshTrendingPosts" :disabled="loadingStates.trendingRefresh">
+                {{ loadingStates.trendingRefresh ? 'Refreshing...' : 'Refresh Trending Now' }}
+              </button>
+              <span class="setting-hint">Manually recalculate trending posts. Normally runs every 15 minutes.</span>
+            </div>
+
+            <button @click="saveConfig" class="save-btn" :disabled="!configChanged" style="margin-top: 16px;">
+              <Icon name="save" :size="16" />
+              Save Changes
+            </button>
           </div>
-          
-          <div class="config-section">
+
+          <!-- Federation Settings -->
+          <div v-if="configTab === 'federation'" class="config-section">
             <h3>Federation Settings</h3>
             <div class="setting-group">
               <label>Max Post Length</label>
@@ -972,18 +1044,12 @@
               <span class="setting-hint">Maximum custom emojis allowed per server. 0 = unlimited.</span>
             </div>
             <div class="setting-group">
-              <div class="setting-row">
-                <label class="toggle-label" style="display: flex; align-items: center; gap: 10px; margin-bottom: 0;">
-                  <input 
-                    type="checkbox" 
-                    v-model="config.federation.allowCustomEmojisInDisplayNames"
-                    style="margin-right: 8px;"
-                  />
-                  <span class="toggle-slider" style="margin-right: 8px;"></span>
-                  <span style="white-space: normal;">Allow Custom Emojis in Display Names</span>
-                </label>
-              </div>
-              <span class="setting-hint" style="display: block; margin-left: 2.3em;">
+              <label class="toggle-label">
+                <input type="checkbox" v-model="config.federation.allowCustomEmojisInDisplayNames" />
+                <span class="toggle-slider"></span>
+                Allow Custom Emojis in Display Names
+              </label>
+              <span class="setting-hint">
                 When off, emojis won't display in names and users can't add them.
               </span>
             </div>
@@ -999,20 +1065,15 @@
                 Enable Inbound Federation
               </label>
             </div>
+
+            <button @click="saveConfig" class="save-btn" :disabled="!configChanged" style="margin-top: 16px;">
+              <Icon name="save" :size="16" />
+              Save Changes
+            </button>
           </div>
 
-          <div class="config-section">
-            <h3>Trending & Discovery</h3>
-            <div class="setting-group">
-              <label>Trending Posts</label>
-              <button type="button" class="cyber-btn-sm" @click="refreshTrendingPosts" :disabled="loadingStates.trendingRefresh">
-                {{ loadingStates.trendingRefresh ? 'Refreshing...' : 'Refresh Trending Now' }}
-              </button>
-              <span class="setting-hint">Manually recalculate trending posts. Normally runs every 15 minutes.</span>
-            </div>
-          </div>
-
-          <div class="config-section">
+          <!-- Instance Branding -->
+          <div v-if="configTab === 'branding'" class="config-section">
             <h3>Instance Branding</h3>
             <div class="setting-group">
               <label>Instance Name</label>
@@ -1040,100 +1101,237 @@
                 This description appears as the subtitle on the login/register page.
               </span>
             </div>
-            <div class="setting-group">
-              <label>Terms of Service URL</label>
-              <input
-                v-model="instanceConfig.termsUrl"
-                type="url"
-                class="cyber-input"
-                placeholder="https://example.com/terms"
-                @input="instanceBrandingChanged = true"
-              />
-              <span class="setting-hint">
-                Link to your Terms of Service. Shown on the registration page. Leave empty to hide.
-              </span>
+
+            <div class="config-subsection">
+              <h4>Appearance</h4>
+              <div class="setting-group">
+                <label>Instance Icon</label>
+                <div class="instance-appearance-row">
+                  <div
+                    class="instance-icon-preview"
+                    @click="($refs.instanceIconInput as HTMLInputElement)?.click()"
+                  >
+                    <img
+                      v-if="instanceIconPreviewUrl"
+                      :src="instanceIconPreviewUrl"
+                      alt="Instance icon"
+                      class="instance-icon-img"
+                    />
+                    <Icon v-else name="image" :size="24" />
+                  </div>
+                  <div class="instance-appearance-controls">
+                    <button type="button" class="save-btn" @click="($refs.instanceIconInput as HTMLInputElement)?.click()">
+                      Upload Icon
+                    </button>
+                    <button
+                      v-if="instanceConfig.iconUrl || instanceIconFile"
+                      type="button"
+                      class="save-btn"
+                      style="background: #ed4245;"
+                      @click="instanceIconFile = null; instanceConfig.iconUrl = ''; instanceBrandingChanged = true"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                </div>
+                <input
+                  ref="instanceIconInput"
+                  type="file"
+                  accept="image/*"
+                  style="display: none;"
+                  @change="handleInstanceIconChange"
+                />
+                <span class="setting-hint">
+                  Your instance's logo. Shown to other federated instances and in the instances directory.
+                </span>
+              </div>
+
+              <div class="setting-group">
+                <label>Instance Banner</label>
+                <div
+                  class="instance-banner-preview"
+                  :style="instanceBannerPreviewUrl ? { backgroundImage: `url(${instanceBannerPreviewUrl})` } : {}"
+                  @click="($refs.instanceBannerInput as HTMLInputElement)?.click()"
+                >
+                  <div v-if="!instanceBannerPreviewUrl" class="instance-banner-placeholder">
+                    <Icon name="image" :size="20" />
+                    <span>Click to upload banner</span>
+                  </div>
+                  <div v-else class="instance-banner-overlay">
+                    <span>Change banner</span>
+                  </div>
+                </div>
+                <div v-if="instanceConfig.bannerUrl || instanceBannerFile" style="margin-top: 8px;">
+                  <button
+                    type="button"
+                    class="save-btn"
+                    style="background: #ed4245;"
+                    @click="instanceBannerFile = null; instanceConfig.bannerUrl = ''; instanceBrandingChanged = true"
+                  >
+                    Remove Banner
+                  </button>
+                </div>
+                <input
+                  ref="instanceBannerInput"
+                  type="file"
+                  accept="image/*"
+                  style="display: none;"
+                  @change="handleInstanceBannerChange"
+                />
+                <span class="setting-hint">
+                  A hero image for your instance. Shown in the instances directory and exposed via NodeInfo.
+                </span>
+              </div>
+
+              <div class="setting-group">
+                <label>Theme Color</label>
+                <div style="display: flex; align-items: center; gap: 12px;">
+                  <input
+                    v-model="instanceConfig.themeColor"
+                    type="color"
+                    class="cyber-input"
+                    style="width: 48px; height: 36px; padding: 2px; cursor: pointer;"
+                    @input="instanceBrandingChanged = true"
+                  />
+                  <input
+                    v-model="instanceConfig.themeColor"
+                    type="text"
+                    class="cyber-input"
+                    placeholder="#5865f2"
+                    style="flex: 1;"
+                    @input="instanceBrandingChanged = true"
+                  />
+                </div>
+                <span class="setting-hint">
+                  Your instance's accent color. Exposed via NodeInfo for other instances to use.
+                </span>
+              </div>
             </div>
-            <div class="setting-group">
-              <label>Privacy Policy URL</label>
-              <input
-                v-model="instanceConfig.privacyUrl"
-                type="url"
-                class="cyber-input"
-                placeholder="https://example.com/privacy"
-                @input="instanceBrandingChanged = true"
-              />
-              <span class="setting-hint">
-                Link to your Privacy Policy. Shown on the registration page. Leave empty to hide.
-              </span>
+
+            <div class="config-subsection">
+              <h4>Legal & Contact</h4>
+              <div class="setting-group">
+                <label>Terms of Service URL</label>
+                <input
+                  v-model="instanceConfig.termsUrl"
+                  type="url"
+                  class="cyber-input"
+                  placeholder="https://example.com/terms"
+                  @input="instanceBrandingChanged = true"
+                />
+                <span class="setting-hint">
+                  Link to your Terms of Service. Shown on the registration page. Leave empty to hide.
+                </span>
+              </div>
+              <div class="setting-group">
+                <label>Privacy Policy URL</label>
+                <input
+                  v-model="instanceConfig.privacyUrl"
+                  type="url"
+                  class="cyber-input"
+                  placeholder="https://example.com/privacy"
+                  @input="instanceBrandingChanged = true"
+                />
+                <span class="setting-hint">
+                  Link to your Privacy Policy. Shown on the registration page. Leave empty to hide.
+                </span>
+              </div>
+              <div class="setting-group">
+                <label>Maintainer Name</label>
+                <input
+                  v-model="instanceConfig.maintainerName"
+                  type="text"
+                  class="cyber-input"
+                  placeholder="Admin"
+                  @input="instanceBrandingChanged = true"
+                />
+                <span class="setting-hint">
+                  Public contact name for this instance's administrator.
+                </span>
+              </div>
+              <div class="setting-group">
+                <label>Maintainer Email</label>
+                <input
+                  v-model="instanceConfig.maintainerEmail"
+                  type="email"
+                  class="cyber-input"
+                  placeholder="admin@example.com"
+                  @input="instanceBrandingChanged = true"
+                />
+                <span class="setting-hint">
+                  Public contact email. Exposed via NodeInfo for federation transparency.
+                </span>
+              </div>
             </div>
+
             <button 
               @click="saveInstanceBranding" 
               class="save-btn" 
               :disabled="!instanceBrandingChanged || savingBranding"
-              style="margin-top: 12px;"
+              style="margin-top: 16px;"
             >
               <Icon name="save" :size="16" />
               {{ savingBranding ? 'Saving...' : 'Save Branding' }}
             </button>
           </div>
 
-          <div class="config-section">
+          <!-- OAuth Providers -->
+          <div v-if="configTab === 'oauth'" class="config-section">
             <h3>OAuth Providers</h3>
-            <div class="setting-group">
-              <p class="setting-hint" style="margin-bottom: 16px;">
-                Enable or disable OAuth login providers. When disabled, the provider will not appear on the login/register page.
-              </p>
-              <div class="setting-row" style="flex-direction: column; gap: 12px;">
-                <label class="toggle-label" style="justify-content: space-between; width: 100%;">
-                  <div style="display: flex; align-items: center; gap: 12px;">
-                    <span style="font-weight: 500;">Google</span>
-                    <span style="font-size: 12px; color: var(--text-secondary);">Allow users to sign in with Google</span>
-                  </div>
-                  <input 
-                    type="checkbox" 
-                    v-model="oauthProviders.google"
-                    @change="oauthProvidersChanged = true"
-                  />
-                  <span class="toggle-slider"></span>
-                </label>
-                <label class="toggle-label" style="justify-content: space-between; width: 100%;">
-                  <div style="display: flex; align-items: center; gap: 12px;">
-                    <span style="font-weight: 500;">Twitch</span>
-                    <span style="font-size: 12px; color: var(--text-secondary);">Allow users to sign in with Twitch</span>
-                  </div>
-                  <input 
-                    type="checkbox" 
-                    v-model="oauthProviders.twitch"
-                    @change="oauthProvidersChanged = true"
-                  />
-                  <span class="toggle-slider"></span>
-                </label>
-                <label class="toggle-label" style="justify-content: space-between; width: 100%;">
-                  <div style="display: flex; align-items: center; gap: 12px;">
-                    <span style="font-weight: 500;">GitHub</span>
-                    <span style="font-size: 12px; color: var(--text-secondary);">Allow users to sign in with GitHub</span>
-                  </div>
-                  <input 
-                    type="checkbox" 
-                    v-model="oauthProviders.github"
-                    @change="oauthProvidersChanged = true"
-                  />
-                  <span class="toggle-slider"></span>
-                </label>
-              </div>
+            <p class="setting-hint" style="margin-bottom: 16px;">
+              Enable or disable OAuth login providers. When disabled, the provider will not appear on the login/register page.
+            </p>
+            <div style="display: flex; flex-direction: column; gap: 12px;">
+              <label class="toggle-label" style="justify-content: space-between; width: 100%;">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                  <span style="font-weight: 500;">Google</span>
+                  <span style="font-size: 12px; color: var(--text-secondary);">Allow users to sign in with Google</span>
+                </div>
+                <input 
+                  type="checkbox" 
+                  v-model="oauthProviders.google"
+                  @change="oauthProvidersChanged = true"
+                />
+                <span class="toggle-slider"></span>
+              </label>
+              <label class="toggle-label" style="justify-content: space-between; width: 100%;">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                  <span style="font-weight: 500;">Twitch</span>
+                  <span style="font-size: 12px; color: var(--text-secondary);">Allow users to sign in with Twitch</span>
+                </div>
+                <input 
+                  type="checkbox" 
+                  v-model="oauthProviders.twitch"
+                  @change="oauthProvidersChanged = true"
+                />
+                <span class="toggle-slider"></span>
+              </label>
+              <label class="toggle-label" style="justify-content: space-between; width: 100%;">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                  <span style="font-weight: 500;">GitHub</span>
+                  <span style="font-size: 12px; color: var(--text-secondary);">Allow users to sign in with GitHub</span>
+                </div>
+                <input 
+                  type="checkbox" 
+                  v-model="oauthProviders.github"
+                  @change="oauthProvidersChanged = true"
+                />
+                <span class="toggle-slider"></span>
+              </label>
             </div>
             <button 
               @click="saveOAuthProviders" 
               class="save-btn" 
               :disabled="!oauthProvidersChanged || savingOAuthProviders"
-              style="margin-top: 12px;"
+              style="margin-top: 16px;"
             >
               <Icon name="save" :size="16" />
               {{ savingOAuthProviders ? 'Saving...' : 'Save OAuth Settings' }}
             </button>
           </div>
 
-          <div class="config-section">
+          <!-- WebRTC / Voice Settings -->
+          <div v-if="configTab === 'webrtc'" class="config-section">
             <h3>WebRTC / Voice Settings</h3>
             <div class="setting-group">
               <label>WebRTC Mode</label>
@@ -1179,6 +1377,11 @@
                 </span>
               </label>
             </div>
+
+            <button @click="saveConfig" class="save-btn" :disabled="!configChanged" style="margin-top: 16px;">
+              <Icon name="save" :size="16" />
+              Save Changes
+            </button>
           </div>
         </div>
       </div>
@@ -1669,7 +1872,7 @@ import DisplayName from '@/components/DisplayName.vue'
 import EmojiImporter from '@/components/admin/EmojiImporter.vue'
 import PerformanceMonitoring from '@/components/admin/PerformanceMonitoring.vue'
 import { supabase } from '@/supabase'
-import { adminService, type SystemStats, type SystemHealth, type AdminUser, type AdminActivity, type BlockedInstance, type FederatedInstance, type InstanceStats, type InstanceSearchResult, type FederationStats } from '@/services/AdminService'
+import { adminService, type SystemStats, type SystemHealth, type AdminUser, type AdminActivity, type BlockedInstance, type FederatedInstance, type InstanceStats, type InstanceSearchResult, type FederationStats, type DeadEndpoint } from '@/services/AdminService'
 import { reportService, type ReportWithDetails } from '@/services/ReportService'
 import { fundingService, type SupporterTier, type Supporter, type DonationRecord } from '@/services/FundingService'
 import { messageService } from '@/services/MessageService'
@@ -1715,6 +1918,7 @@ const newBlockReason = ref('')
 const configChanged = ref(false)
 const instanceBrandingChanged = ref(false)
 const savingBranding = ref(false)
+const configTab = ref<'general' | 'federation' | 'branding' | 'oauth' | 'webrtc'>('general')
 
 // Reports & Moderation data
 const reports = ref<ReportWithDetails[]>([])
@@ -1807,6 +2011,8 @@ const instanceStats = ref<InstanceStats>({
 })
 
 const federationStats = ref<FederationStats | null>(null)
+const deadEndpointsList = ref<DeadEndpoint[]>([])
+const purgingEndpointIds = ref<Set<string>>(new Set())
 const federatedInstances = ref<FederatedInstance[]>([])
 const discoveredInstances = ref<{ domain: string; user_count: number; interaction_count: number }[]>([])
 const discoveryResult = ref<InstanceSearchResult | null>(null)
@@ -1828,6 +2034,7 @@ const loadingStates = ref({
   trendingRefresh: false,
   announcements: false,
   featuredServers: false,
+  purgingDead: false,
 })
 
 // Key consistency state
@@ -1919,8 +2126,15 @@ const instanceConfig = ref({
   termsUrl: '',
   privacyUrl: '',
   openRegistration: true,
-  approvalRequired: false
+  approvalRequired: false,
+  iconUrl: '',
+  bannerUrl: '',
+  themeColor: '#5865f2',
+  maintainerName: '',
+  maintainerEmail: '',
 })
+const instanceIconFile = ref<File | null>(null)
+const instanceBannerFile = ref<File | null>(null)
 
 // OAuth provider configuration
 const oauthProviders = ref({
@@ -1936,6 +2150,7 @@ const config = ref({
   chat: {
     maxServerSize: 1000,
     maxMessageLength: 2000,
+    maxMediaAttachmentsPerPost: 20,
     allowFileUploads: true,
     enableVoiceChannels: true
   },
@@ -1957,6 +2172,7 @@ const config = ref({
 
 // Users data
 const users = ref<AdminUser[]>([])
+const userCounts = ref({ total: 0, local: 0, federated: 0, suspended: 0 })
 const blockedInstances = ref([
   { domain: 'bad-instance.com', reason: 'Spam and harassment' },
   { domain: 'another-bad.net', reason: 'Policy violations' }
@@ -2004,10 +2220,10 @@ const filteredRecentActivity = computed(() => {
 })
 
 const userFilters = computed(() => [
-  { key: 'all', label: 'All Users', count: users.value.length },
-  { key: 'local', label: 'Local', count: users.value.filter(u => u.is_local).length },
-  { key: 'federated', label: 'Federated', count: users.value.filter(u => !u.is_local).length },
-  { key: 'suspended', label: 'Suspended', count: users.value.filter(u => u.is_suspended).length }
+  { key: 'all', label: 'All Users', count: userCounts.value.total },
+  { key: 'local', label: 'Local', count: userCounts.value.local },
+  { key: 'federated', label: 'Federated', count: userCounts.value.federated },
+  { key: 'suspended', label: 'Suspended', count: userCounts.value.suspended }
 ])
 
 const filteredUsers = computed(() => {
@@ -2065,6 +2281,7 @@ const loadInitialData = async () => {
     await Promise.all([
       loadSystemStats(),
       loadUsers(),
+      loadUserCounts(),
       loadSystemHealth(),
       loadInstanceConfig(),
       loadRecentActivity(),
@@ -2265,6 +2482,15 @@ const loadSystemStats = async () => {
 
 const userPagination = ref({ offset: 0, limit: 25, total: 0 })
 
+const loadUserCounts = async () => {
+  try {
+    userCounts.value = await adminService.getUserCounts()
+  } catch (error) {
+    debug.error('Failed to load user counts:', error)
+    userCounts.value = { total: 0, local: 0, federated: 0, suspended: 0 }
+  }
+}
+
 const loadUsers = async () => {
   try {
     const result = await adminService.getUsers(
@@ -2330,7 +2556,12 @@ const loadInstanceConfig = async () => {
         termsUrl: cfg.instance.termsUrl || '',
         privacyUrl: cfg.instance.privacyUrl || '',
         openRegistration: cfg.instance.registrationOpen ?? true,
-        approvalRequired: cfg.instance.requiresApproval ?? false
+        approvalRequired: cfg.instance.requiresApproval ?? false,
+        iconUrl: cfg.instance.iconUrl || '',
+        bannerUrl: cfg.instance.bannerUrl || '',
+        themeColor: cfg.instance.themeColor || '#5865f2',
+        maintainerName: cfg.instance.maintainerName || '',
+        maintainerEmail: cfg.instance.maintainerEmail || '',
       }
       
       // Load OAuth providers
@@ -3062,19 +3293,18 @@ const saveConfig = async () => {
       return
     }
 
-    // Save chat settings
-    await adminService.setInstanceConfig('max_server_size', config.value.chat.maxServerSize, userId)
-    await adminService.setInstanceConfig('max_message_length', config.value.chat.maxMessageLength, userId)
-    await adminService.setInstanceConfig('allow_file_uploads', config.value.chat.allowFileUploads, userId)
-    await adminService.setInstanceConfig('enable_voice_channels', config.value.chat.enableVoiceChannels, userId)
-    
-    // Save federation-specific settings
-    await adminService.setInstanceConfig('max_post_length', config.value.federation.maxPostLength, userId)
-    await adminService.setInstanceConfig('federation_retry_attempts', config.value.federation.retryAttempts, userId)
-    await adminService.setInstanceConfig('max_custom_emojis_per_server', config.value.federation.maxCustomEmojisPerServer ?? 0, userId)
-    await adminService.setInstanceConfig('allow_custom_emojis_in_display_names', config.value.federation.allowCustomEmojisInDisplayNames, userId)
+    await adminService.setInstanceConfigs({
+      max_server_size: config.value.chat.maxServerSize,
+      max_message_length: config.value.chat.maxMessageLength,
+      max_media_attachments_per_post: config.value.chat.maxMediaAttachmentsPerPost ?? 20,
+      allow_file_uploads: config.value.chat.allowFileUploads,
+      enable_voice_channels: config.value.chat.enableVoiceChannels,
+      max_post_length: config.value.federation.maxPostLength,
+      federation_retry_attempts: config.value.federation.retryAttempts,
+      max_custom_emojis_per_server: config.value.federation.maxCustomEmojisPerServer ?? 0,
+      allow_custom_emojis_in_display_names: config.value.federation.allowCustomEmojisInDisplayNames,
+    }, userId)
 
-    // Save WebRTC settings
     await adminService.updateWebRTCSettings({
       mode: config.value.webrtc.mode,
       livekitUrl: config.value.webrtc.livekitUrl,
@@ -3095,6 +3325,54 @@ const saveConfig = async () => {
   }
 }
 
+const instanceIconPreviewUrl = computed(() => {
+  if (instanceIconFile.value) return URL.createObjectURL(instanceIconFile.value)
+  if (instanceConfig.value.iconUrl) {
+    if (instanceConfig.value.iconUrl.startsWith('http')) return instanceConfig.value.iconUrl
+    const { data } = supabase.storage.from('server_icons').getPublicUrl(instanceConfig.value.iconUrl)
+    return data.publicUrl
+  }
+  return null
+})
+
+const instanceBannerPreviewUrl = computed(() => {
+  if (instanceBannerFile.value) return URL.createObjectURL(instanceBannerFile.value)
+  if (instanceConfig.value.bannerUrl) {
+    if (instanceConfig.value.bannerUrl.startsWith('http')) return instanceConfig.value.bannerUrl
+    const { data } = supabase.storage.from('server_banners').getPublicUrl(instanceConfig.value.bannerUrl)
+    return data.publicUrl
+  }
+  return null
+})
+
+const handleInstanceIconChange = (event: Event) => {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (file && file.size > 5 * 1024 * 1024) {
+    toast.error('Icon file too large (max 5MB)')
+    return
+  }
+  if (file) {
+    instanceIconFile.value = file
+    instanceBrandingChanged.value = true
+  }
+  if (input) input.value = ''
+}
+
+const handleInstanceBannerChange = (event: Event) => {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (file && file.size > 10 * 1024 * 1024) {
+    toast.error('Banner file too large (max 10MB)')
+    return
+  }
+  if (file) {
+    instanceBannerFile.value = file
+    instanceBrandingChanged.value = true
+  }
+  if (input) input.value = ''
+}
+
 const saveInstanceBranding = async () => {
   if (!authStore.session?.user?.id) {
     toast.error('You must be logged in to save instance branding')
@@ -3103,37 +3381,52 @@ const saveInstanceBranding = async () => {
 
   savingBranding.value = true
   try {
-    // Save instance name
-    await adminService.setInstanceConfig(
-      'instance_name',
-      instanceConfig.value.name,
-      authStore.session.user.id,
-      'The name of this Harmony instance'
-    )
+    // Upload icon if a new file was selected
+    if (instanceIconFile.value) {
+      const ext = instanceIconFile.value.name.split('.').pop()
+      const filePath = `instance/instance_icon.${ext}`
+      const { error: uploadErr } = await supabase.storage
+        .from('server_icons')
+        .upload(filePath, instanceIconFile.value, { upsert: true })
+      if (uploadErr) {
+        toast.error(`Failed to upload icon: ${uploadErr.message}`)
+        savingBranding.value = false
+        return
+      }
+      const { data: urlData } = supabase.storage.from('server_icons').getPublicUrl(filePath)
+      instanceConfig.value.iconUrl = urlData.publicUrl
+      instanceIconFile.value = null
+    }
 
-    // Save instance description
-    await adminService.setInstanceConfig(
-      'instance_description',
-      instanceConfig.value.description,
-      authStore.session.user.id,
-      'Description of this instance'
-    )
+    // Upload banner if a new file was selected
+    if (instanceBannerFile.value) {
+      const ext = instanceBannerFile.value.name.split('.').pop()
+      const filePath = `instance/instance_banner.${ext}`
+      const { error: uploadErr } = await supabase.storage
+        .from('server_banners')
+        .upload(filePath, instanceBannerFile.value, { upsert: true })
+      if (uploadErr) {
+        toast.error(`Failed to upload banner: ${uploadErr.message}`)
+        savingBranding.value = false
+        return
+      }
+      const { data: urlData } = supabase.storage.from('server_banners').getPublicUrl(filePath)
+      instanceConfig.value.bannerUrl = urlData.publicUrl
+      instanceBannerFile.value = null
+    }
 
-    // Save terms URL
-    await adminService.setInstanceConfig(
-      'terms_url',
-      instanceConfig.value.termsUrl,
-      authStore.session.user.id,
-      'URL to the Terms of Service page'
-    )
-
-    // Save privacy URL
-    await adminService.setInstanceConfig(
-      'privacy_url',
-      instanceConfig.value.privacyUrl,
-      authStore.session.user.id,
-      'URL to the Privacy Policy page'
-    )
+    // Batch-save all branding config in a single RPC call
+    await adminService.setInstanceConfigs({
+      instance_name: instanceConfig.value.name,
+      instance_description: instanceConfig.value.description,
+      terms_url: instanceConfig.value.termsUrl,
+      privacy_url: instanceConfig.value.privacyUrl,
+      instance_icon: instanceConfig.value.iconUrl,
+      instance_banner: instanceConfig.value.bannerUrl,
+      theme_color: instanceConfig.value.themeColor,
+      maintainer_name: instanceConfig.value.maintainerName,
+      maintainer_email: instanceConfig.value.maintainerEmail,
+    }, authStore.session.user.id)
 
     instanceBrandingChanged.value = false
     toast.success('Instance branding saved successfully')
@@ -3312,8 +3605,12 @@ const refreshFederationData = async () => {
 
 const loadFederationStats = async () => {
   try {
-    const stats = await adminService.getFederationStats()
+    const [stats, deadEndpoints] = await Promise.all([
+      adminService.getFederationStats(),
+      adminService.getDeadEndpoints()
+    ])
     federationStats.value = stats
+    deadEndpointsList.value = deadEndpoints
   } catch (error) {
     debug.error('Failed to load federation stats:', error)
   }
@@ -3323,6 +3620,51 @@ const getEndpointHealthClass = (health: FederationStats['endpoint_health']) => {
   if (health.dead_endpoints > 0) return 'error'
   if (health.success_rate < 80) return 'warning'
   return 'healthy'
+}
+
+const purgeDeadEndpoints = async () => {
+  if (!confirm(`Permanently remove all ${federationStats.value?.endpoint_health.dead_endpoints} dead endpoint(s) and their failed deliveries? This cannot be undone.`)) return
+  loadingStates.value.purgingDead = true
+  try {
+    const result = await adminService.purgeDeadEndpoints()
+    debug.log(`Purged ${result.purgedEndpoints} dead endpoints and ${result.purgedDeliveries} failed deliveries`)
+    await loadFederationStats()
+  } catch (error) {
+    debug.error('Failed to purge dead endpoints:', error)
+  } finally {
+    loadingStates.value.purgingDead = false
+  }
+}
+
+const purgeSingleEndpoint = async (endpoint: DeadEndpoint) => {
+  purgingEndpointIds.value.add(endpoint.id)
+  try {
+    await adminService.purgeSingleEndpoint(endpoint.id, endpoint.endpoint_url)
+    deadEndpointsList.value = deadEndpointsList.value.filter(e => e.id !== endpoint.id)
+    if (federationStats.value) {
+      federationStats.value.endpoint_health.dead_endpoints--
+      federationStats.value.endpoint_health.total_endpoints--
+    }
+  } catch (error) {
+    debug.error('Failed to purge endpoint:', error)
+  } finally {
+    purgingEndpointIds.value.delete(endpoint.id)
+  }
+}
+
+const formatTimeAgo = (dateStr: string | null): string => {
+  if (!dateStr) return 'Never'
+  const date = new Date(dateStr)
+  const now = new Date()
+  const diffMs = now.getTime() - date.getTime()
+  const diffMin = Math.floor(diffMs / 60000)
+  if (diffMin < 1) return 'Just now'
+  if (diffMin < 60) return `${diffMin}m ago`
+  const diffHrs = Math.floor(diffMin / 60)
+  if (diffHrs < 24) return `${diffHrs}h ago`
+  const diffDays = Math.floor(diffHrs / 24)
+  if (diffDays < 30) return `${diffDays}d ago`
+  return date.toLocaleDateString()
 }
 
 // Federation maintenance methods
@@ -3997,6 +4339,151 @@ const handleAddInstance = () => {
   border-radius: 8px;
   color: #ffc107;
   font-size: 14px;
+  flex-wrap: wrap;
+}
+
+.purge-btn {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 6px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid rgba(255, 69, 58, 0.4);
+  background: rgba(255, 69, 58, 0.15);
+  color: #ff453a;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.purge-btn:hover:not(:disabled) {
+  background: rgba(255, 69, 58, 0.3);
+  border-color: rgba(255, 69, 58, 0.6);
+}
+
+.purge-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.spinner-small {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 69, 58, 0.3);
+  border-top-color: #ff453a;
+  border-radius: 50%;
+  display: inline-block;
+  animation: spin 0.8s linear infinite;
+}
+
+.dead-endpoints-list {
+  margin-top: 10px;
+  max-height: 280px;
+  overflow-y: auto;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--background-secondary);
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+}
+
+.dead-endpoint-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border-color);
+  transition: background 0.15s ease;
+}
+
+.dead-endpoint-row:last-child {
+  border-bottom: none;
+}
+
+.dead-endpoint-row:hover {
+  background: var(--background-modifier-hover);
+}
+
+.dead-endpoint-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.dead-endpoint-url {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.8rem;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dead-endpoint-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.meta-tag {
+  font-size: 0.7rem;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.meta-tag.domain {
+  color: var(--harmony-primary, #7c8aff);
+  background: rgba(124, 138, 255, 0.12);
+}
+
+.meta-tag.failures {
+  color: #ff453a;
+  background: rgba(255, 69, 58, 0.12);
+}
+
+.dead-endpoint-error {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.purge-single-btn {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-top: 2px;
+}
+
+.purge-single-btn:hover:not(:disabled) {
+  background: rgba(255, 69, 58, 0.15);
+  border-color: rgba(255, 69, 58, 0.3);
+  color: #ff453a;
+}
+
+.purge-single-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* Federation Maintenance Styles */
@@ -4500,7 +4987,11 @@ const handleAddInstance = () => {
 }
 
 .users-list {
-  space-y: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 600px;
+  overflow-y: auto;
 }
 
 .user-item {
@@ -4888,12 +5379,47 @@ const handleAddInstance = () => {
 }
 
 /* Configuration Module */
+.config-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 12px 24px 0;
+  border-bottom: 1px solid var(--border-color);
+  overflow-x: auto;
+}
+
+.config-tab-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 16px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.config-tab-btn:hover {
+  color: var(--text-primary);
+  background: var(--background-tertiary);
+  border-radius: 6px 6px 0 0;
+}
+
+.config-tab-btn.active {
+  color: var(--accent-color);
+  border-bottom-color: var(--accent-color);
+}
+
 .config-sections {
   padding: 24px;
 }
 
 .config-section {
-  margin-bottom: 32px;
+  margin-bottom: 0;
 }
 
 .config-section h3 {
@@ -4901,6 +5427,106 @@ const handleAddInstance = () => {
   font-weight: 600;
   margin-bottom: 16px;
   color: var(--text-primary);
+}
+
+.config-subsection {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border-color);
+}
+
+.config-subsection h4 {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 14px;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Instance appearance (icon/banner) */
+.instance-appearance-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 8px;
+}
+
+.instance-icon-preview {
+  width: 64px;
+  height: 64px;
+  border-radius: 12px;
+  background: var(--background-tertiary);
+  border: 2px dashed var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  overflow: hidden;
+  flex-shrink: 0;
+  transition: border-color 0.2s;
+  color: var(--text-secondary);
+}
+
+.instance-icon-preview:hover {
+  border-color: var(--harmony-primary);
+}
+
+.instance-icon-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.instance-appearance-controls {
+  display: flex;
+  gap: 8px;
+}
+
+.instance-banner-preview {
+  width: 100%;
+  height: 100px;
+  border-radius: 8px;
+  background: var(--background-tertiary);
+  background-size: cover;
+  background-position: center;
+  border: 2px dashed var(--border-color);
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  transition: border-color 0.2s;
+}
+
+.instance-banner-preview:hover {
+  border-color: var(--harmony-primary);
+}
+
+.instance-banner-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 100%;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.instance-banner-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 14px;
+  font-weight: 500;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.instance-banner-preview:hover .instance-banner-overlay {
+  opacity: 1;
 }
 
 .save-btn {
@@ -5203,7 +5829,7 @@ const handleAddInstance = () => {
   flex-shrink: 0;
 }
 
-.report-type-badge.user { background: rgba(88, 101, 242, 0.2); color: #7289da; }
+.report-type-badge.user { background: rgba(88, 101, 242, 0.2); color: #616ae5; }
 .report-type-badge.post { background: rgba(87, 242, 135, 0.2); color: #57f287; }
 .report-type-badge.message { background: rgba(254, 231, 92, 0.2); color: #fee75c; }
 .report-type-badge.server { background: rgba(235, 69, 158, 0.2); color: #eb459e; }
@@ -5265,7 +5891,7 @@ const handleAddInstance = () => {
 }
 
 .report-status-badge.pending { background: rgba(254, 231, 92, 0.2); color: #fee75c; }
-.report-status-badge.investigating { background: rgba(88, 101, 242, 0.2); color: #7289da; }
+.report-status-badge.investigating { background: rgba(88, 101, 242, 0.2); color: #616ae5; }
 .report-status-badge.resolved { background: rgba(87, 242, 135, 0.2); color: #57f287; }
 .report-status-badge.dismissed { background: rgba(255, 255, 255, 0.1); color: var(--text-secondary); }
 
@@ -5371,7 +5997,7 @@ const handleAddInstance = () => {
 
 .report-action-btn.investigating {
   background: rgba(88, 101, 242, 0.3);
-  color: #7289da;
+  color: #616ae5;
 }
 
 .report-action-btn.resolve {

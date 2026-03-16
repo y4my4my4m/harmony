@@ -194,6 +194,9 @@ CREATE INDEX IF NOT EXISTS idx_federation_delivery_queue_scheduled ON public.fed
 
 COMMENT ON TABLE public.federation_delivery_queue IS 'Queue for outgoing federation deliveries';
 
+GRANT SELECT, DELETE ON public.federation_delivery_queue TO authenticated;
+GRANT ALL ON public.federation_delivery_queue TO service_role;
+
 -- ---------------------------------------------------------------------------
 -- FEDERATION ENDPOINT HEALTH
 -- ---------------------------------------------------------------------------
@@ -219,6 +222,9 @@ CREATE INDEX IF NOT EXISTS idx_federation_endpoint_health_domain ON public.feder
 CREATE INDEX IF NOT EXISTS idx_federation_endpoint_health_dead ON public.federation_endpoint_health(is_dead) WHERE is_dead = true;
 
 COMMENT ON TABLE public.federation_endpoint_health IS 'Tracks health of federation endpoints. Dead after 24-48h of consistent failures.';
+
+GRANT SELECT, DELETE ON public.federation_endpoint_health TO authenticated;
+GRANT ALL ON public.federation_endpoint_health TO service_role;
 
 -- ---------------------------------------------------------------------------
 -- SERVER FEDERATION EVENTS

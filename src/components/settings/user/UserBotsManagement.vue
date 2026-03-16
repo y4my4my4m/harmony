@@ -15,7 +15,6 @@
     <!-- No Bots State -->
     <div v-else-if="myBots.length === 0" class="settings-section">
       <div class="empty-state">
-        <div class="empty-icon">🤖</div>
         <h3>No Bots Yet</h3>
         <p>Create your first bot to automate tasks, integrate services, or bridge with other platforms</p>
         <button @click="showCreateModal = true" class="btn btn-primary">

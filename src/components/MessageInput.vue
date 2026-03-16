@@ -100,6 +100,7 @@ import type { Message } from '@/types';
 import { backgroundUploadManager } from '@/services/fileService';
 import { useAuthStore } from '@/stores/auth';
 import { useServerChannelStore } from '@/stores/useServerChannel';
+import { useInstanceSettingsStore } from '@/stores/useInstanceSettings';
 import { v4 as uuidv4 } from 'uuid';
 
 interface Props {
@@ -502,9 +503,16 @@ const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText);
       }
     };
 
+    const instanceSettings = useInstanceSettingsStore();
+    const maxMediaAttachments = computed(() => instanceSettings.settings.maxMediaAttachmentsPerPost ?? 20);
+
     const handleFilesSelected = async (files: File[]) => {
-      const newFiles = await Promise.all(files.map(createFilePreview));
-      
+      const limit = maxMediaAttachments.value;
+      const capacity = Math.max(0, limit - attachedFiles.value.length);
+      if (capacity <= 0) return;
+      const filesToAdd = Array.from(files).slice(0, capacity);
+      const newFiles = await Promise.all(filesToAdd.map(createFilePreview));
+
       attachedFiles.value.push(...newFiles);
       emit('files-attached', attachedFiles.value);
       

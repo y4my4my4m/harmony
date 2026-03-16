@@ -24,7 +24,7 @@
       >
         Emoji
       </button>
-      <!-- Favorite toggle (only for GIFs tab) -->
+      <!-- Favorite toggle (GIFs tab only - Emoji favorites are always inline) -->
       <button 
         v-if="activeTab === 'gifs'"
         class="tab-icon-button"
@@ -113,9 +113,12 @@ const handleSendEmoji = (emoji: Emoji) => {
 };
 
 const handleClickOutside = (event: MouseEvent) => {
-  if (popupRef.value && !popupRef.value.contains(event.target as Node)) {
-    props.closePopup?.();
-  }
+  if (!popupRef.value) return;
+  const target = event.target as Node;
+  if (popupRef.value.contains(target)) return;
+  // Don't close when interacting with emoji context menu (teleported to body)
+  if ((target as Element).closest?.('[data-emoji-ctx-backdrop]')) return;
+  props.closePopup?.();
 };
 
 const handleKeyDown = (event: KeyboardEvent) => {
@@ -158,9 +161,10 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   padding: 8px 12px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border-secondary);
   gap: 4px;
   flex-shrink: 0;
+  background: var(--background-senary-alpha);
 }
 
 .tab-button {

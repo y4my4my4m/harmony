@@ -45,6 +45,11 @@
     "login": "Login",
     "register": "Register",
     "logout": "Logout",
+    "logoutConfirm": {
+      "title": "Log out from this device?",
+      "description": "You will need to sign in again to access your account.",
+      "cancel": "Cancel"
+    },
     "email": "Email",
     "password": "Password",
     "confirmPassword": "Confirm Password",
@@ -586,7 +591,10 @@
       "developerMode": "Developer Mode",
       "developerModeDescription": "Enable developer features and debugging tools.",
       "hardwareAcceleration": "Hardware Acceleration",
-      "copyRawData": "Copy raw data"
+      "copyRawData": "Copy raw data",
+      "reportBugSection": "Help",
+      "reportBug": "Report a bug",
+      "reportBugDescription": "Open GitHub to report a bug or request a feature."
     }
   },
   "navigation": {
@@ -664,6 +672,16 @@
     "noTrendingPosts": "No trending posts available",
     "suggestedUsers": "Suggested Users",
     "noSuggestedUsers": "No suggested users available",
+    "trendingGettingStarted": "Your instance is just getting started",
+    "trendingGettingStartedDesc": "Create posts with hashtags, follow people, and explore the fediverse to see trending content here.",
+    "trendingHeroTip1": "Post with #hashtags to help topics trend",
+    "trendingHeroTip2": "Follow people to discover and boost content",
+    "trendingHeroTip3": "Explore federated instances to connect",
+    "createFirstPost": "Create your first post",
+    "browseInstances": "Browse instances",
+    "noTrendingHashtagsHint": "Posts using #hashtags will appear here as your instance grows.",
+    "noTrendingPostsHint": "Engaging posts from your instance and the fediverse will show up here.",
+    "noSuggestedUsersHint": "Follow people to get personalized suggestions.",
     "federatedInstances": "Federated Instances",
     "noInstancesFound": "No instances found",
     "noDescriptionAvailable": "No description available",

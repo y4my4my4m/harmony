@@ -272,6 +272,11 @@ const handleContentClick = (event: Event) => {
   
   // Handle mention clicks in HTML mode
   if (target.classList.contains('mention')) {
+    // Remote mentions are <a href="https://domain/users/..."> - let default link behavior work
+    const href = target.getAttribute('href') || '';
+    if (target.tagName === 'A' && /^https?:\/\//i.test(href)) {
+      return; // Don't emit; let the link navigate to remote profile
+    }
     const userId = target.getAttribute('data-user-id');
     if (userId) {
       emit('user-mention-click', userId, event);
@@ -701,6 +706,63 @@ const formatFileSize = (bytes: number): string => {
   margin: 4px 0 8px 0;
   max-width: 100%;
 }
+
+/* Content-embedded media grid (Misskey/federated inline images) */
+.content-html :deep(.media-gallery) {
+  margin-top: 0.75rem;
+  border-radius: 12px;
+  overflow: hidden;
+  display: block;
+}
+
+.content-html :deep(.media-gallery.media-gallery-count-1) {
+  display: block;
+}
+
+.content-html :deep(.media-gallery.media-gallery-count-2) {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px;
+}
+
+.content-html :deep(.media-gallery.media-gallery-count-3) {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 2px;
+}
+
+.content-html :deep(.media-gallery.media-gallery-count-3 .media-gallery__item:first-child) {
+  grid-row: 1 / 3;
+}
+
+.content-html :deep(.media-gallery.media-gallery-count-4) {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 2px;
+}
+
+.content-html :deep(.media-gallery__item) {
+  overflow: hidden;
+  background: var(--h-chat, #313338);
+}
+
+.content-html :deep(.media-gallery__item img),
+.content-html :deep(.media-gallery__item video) {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.content-html :deep(.media-gallery.media-gallery-count-1 .media-gallery__item img),
+.content-html :deep(.media-gallery.media-gallery-count-1 .media-gallery__item video) {
+  max-height: 400px;
+  object-fit: contain;
+  background: black;
+}
+
 .content-html :deep(.content-image),
 .content-html :deep(.content-video) {
   max-width: 100%;

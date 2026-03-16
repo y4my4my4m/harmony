@@ -496,13 +496,13 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 12px;
+  color: var(--text-primary);
 }
 
 .dm-title h2 {
   font-size: 16px;
   font-weight: 700;
   margin: 0;
-  color: var(--text-primary);
 }
 
 .dm-content {

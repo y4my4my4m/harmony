@@ -506,7 +506,22 @@ CREATE POLICY "federation_endpoint_health_select" ON public.federation_endpoint_
     FOR SELECT USING (true);
 DROP POLICY IF EXISTS "federation_endpoint_health_manage" ON public.federation_endpoint_health;
 CREATE POLICY "federation_endpoint_health_manage" ON public.federation_endpoint_health
-    FOR ALL USING (auth.uid() IS NOT NULL);
+    FOR ALL TO service_role
+    USING (true);
+DROP POLICY IF EXISTS "federation_endpoint_health_insert_update" ON public.federation_endpoint_health;
+CREATE POLICY "federation_endpoint_health_insert_update" ON public.federation_endpoint_health
+    FOR INSERT TO authenticated
+    WITH CHECK (auth.uid() IS NOT NULL);
+DROP POLICY IF EXISTS "Admins can delete dead endpoints" ON public.federation_endpoint_health;
+CREATE POLICY "Admins can delete dead endpoints" ON public.federation_endpoint_health
+    FOR DELETE TO authenticated
+    USING (
+        EXISTS (
+            SELECT 1 FROM public.profiles
+            WHERE id = public.get_current_profile_id()
+            AND is_admin = true
+        )
+    );
 
 -- Federation health (instance-level)
 ALTER TABLE public.federation_health ENABLE ROW LEVEL SECURITY;

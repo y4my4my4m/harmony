@@ -45,7 +45,7 @@
 }
 
 .input-base:focus {
-  border: 1px solid #7289da;
+  border: 1px solid #616ae5;
   box-shadow: 0 0 0 3px rgba(114, 137, 218, 0.3);
 }
 

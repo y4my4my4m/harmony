@@ -2,10 +2,19 @@
   <div 
     v-if="spatialStore.isPanelVisible" 
     class="spatial-audio-panel"
-    :class="{ 'panel-under-overlay': isUnderOverlay, 'panel-under-dock': isUnderDock }"
+    :class="{ 
+      'panel-under-overlay': isUnderOverlay && !panelPosition, 
+      'panel-under-dock': isUnderDock && !panelPosition,
+      'panel-dragging': isPanelDragging
+    }"
+    :style="getPanelStyle()"
   >
-    <!-- Panel Header -->
-    <div class="panel-header">
+    <!-- Panel Header (drag handle) -->
+    <div 
+      class="panel-header"
+      @mousedown="handlePanelDragStart"
+      @touchstart.passive="handlePanelTouchStart"
+    >
       <div class="header-left">
         <div class="panel-icon">
           <Icon name="map" />
@@ -308,6 +317,110 @@ const showSettings = ref(false);
 const gridSize = ref({ width: 600, height: 400 });
 const isUpdatingSpatialAudio = ref(false);
 const showUpdatedMessage = ref(false);
+
+// --- Panel dragging state ---
+const panelPosition = ref<{ x: number; y: number } | null>(null);
+const isPanelDragging = ref(false);
+let panelDragStartPos = { x: 0, y: 0 };
+let panelDragInitialPos = { x: 0, y: 0 };
+const PANEL_CLICK_THRESHOLD = 5;
+
+function getPanelStyle() {
+  if (!panelPosition.value) return {};
+  return {
+    left: `${panelPosition.value.x}px`,
+    bottom: `${panelPosition.value.y}px`,
+    right: 'auto',
+    margin: '0',
+  };
+}
+
+function handlePanelDragStart(e: MouseEvent) {
+  if ((e.target as HTMLElement).closest('.control-btn')) return;
+  e.preventDefault();
+  
+  const panelEl = (e.target as HTMLElement).closest('.spatial-audio-panel') as HTMLElement;
+  if (!panelEl) return;
+  
+  const rect = panelEl.getBoundingClientRect();
+  const currentX = rect.left;
+  const currentY = window.innerHeight - rect.bottom;
+  
+  panelDragStartPos = { x: e.clientX, y: e.clientY };
+  panelDragInitialPos = { x: currentX, y: currentY };
+  isPanelDragging.value = false;
+  
+  const onMove = (ev: MouseEvent) => {
+    const dx = ev.clientX - panelDragStartPos.x;
+    const dy = ev.clientY - panelDragStartPos.y;
+    
+    if (!isPanelDragging.value && Math.abs(dx) + Math.abs(dy) > PANEL_CLICK_THRESHOLD) {
+      isPanelDragging.value = true;
+    }
+    
+    if (isPanelDragging.value) {
+      panelPosition.value = {
+        x: Math.max(0, panelDragInitialPos.x + dx),
+        y: Math.max(0, panelDragInitialPos.y - dy),
+      };
+    }
+  };
+  
+  const onUp = () => {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    isPanelDragging.value = false;
+  };
+  
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+
+function handlePanelTouchStart(e: TouchEvent) {
+  if ((e.target as HTMLElement).closest('.control-btn')) return;
+  
+  const touch = e.touches[0];
+  if (!touch) return;
+  
+  const panelEl = (e.target as HTMLElement).closest('.spatial-audio-panel') as HTMLElement;
+  if (!panelEl) return;
+  
+  const rect = panelEl.getBoundingClientRect();
+  const currentX = rect.left;
+  const currentY = window.innerHeight - rect.bottom;
+  
+  panelDragStartPos = { x: touch.clientX, y: touch.clientY };
+  panelDragInitialPos = { x: currentX, y: currentY };
+  isPanelDragging.value = false;
+  
+  const onTouchMove = (ev: TouchEvent) => {
+    const t = ev.touches[0];
+    if (!t) return;
+    const dx = t.clientX - panelDragStartPos.x;
+    const dy = t.clientY - panelDragStartPos.y;
+    
+    if (!isPanelDragging.value && Math.abs(dx) + Math.abs(dy) > PANEL_CLICK_THRESHOLD) {
+      isPanelDragging.value = true;
+    }
+    
+    if (isPanelDragging.value) {
+      ev.preventDefault();
+      panelPosition.value = {
+        x: Math.max(0, panelDragInitialPos.x + dx),
+        y: Math.max(0, panelDragInitialPos.y - dy),
+      };
+    }
+  };
+  
+  const onTouchEnd = () => {
+    document.removeEventListener('touchmove', onTouchMove);
+    document.removeEventListener('touchend', onTouchEnd);
+    isPanelDragging.value = false;
+  };
+  
+  document.addEventListener('touchmove', onTouchMove, { passive: false });
+  document.addEventListener('touchend', onTouchEnd);
+}
 
 // Local visual positions for smooth dragging (separate from store)
 const localVisualPositions = ref<Map<string, { x: number, y: number }>>(new Map());
@@ -737,8 +850,14 @@ onUnmounted(() => {
   right: -25px;
 }
 
+.spatial-audio-panel.panel-dragging {
+  transition: none;
+  user-select: none;
+}
+
 /* Panel Header */
 .panel-header {
+  cursor: grab;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -900,6 +1019,7 @@ onUnmounted(() => {
   appearance: none;
   width: 16px;
   height: 16px;
+  position: absolute;
 }
 
 .checkbox-custom {

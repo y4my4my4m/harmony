@@ -536,7 +536,7 @@ const typeIcon = computed(() => {
 .indicator--dm,
 .indicator--chat_message,
 .indicator--activitypub_dm {
-  background: linear-gradient(180deg, #7289da, #5865f2);
+  background: linear-gradient(180deg, #616ae5, #5865f2);
 }
 
 .indicator--reaction,
@@ -615,8 +615,8 @@ const typeIcon = computed(() => {
 .overlay--dm svg,
 .overlay--chat_message svg,
 .overlay--activitypub_dm svg{
-  /* background: linear-gradient(135deg, #7289da, #5865f2); */
-  fill: #7289da;
+  /* background: linear-gradient(135deg, #616ae5, #5865f2); */
+  fill: #616ae5;
   stroke: #d5d8e6;
 }
 
@@ -756,7 +756,7 @@ const typeIcon = computed(() => {
 
 .server-name {
   font-weight: 500;
-  color: #7289da;
+  color: #616ae5;
 }
 
 /* Actions */
@@ -861,7 +861,7 @@ const typeIcon = computed(() => {
 
 .channel-name {
   font-weight: 600;
-  color: #7289da;
+  color: #616ae5;
 }
 
 .in-server {
@@ -1006,7 +1006,7 @@ const typeIcon = computed(() => {
 
 .notification-item--dm.notification-item--unread,
 .notification-item--chat_message.notification-item--unread {
-  border-left-color: #7289da;
+  border-left-color: #616ae5;
 }
 
 .notification-item--reaction.notification-item--unread {

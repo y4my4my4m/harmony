@@ -62,6 +62,7 @@ CREATE TABLE IF NOT EXISTS public.remote_emojis_cache (
 
 CREATE INDEX IF NOT EXISTS idx_remote_emojis_cache_domain ON public.remote_emojis_cache(origin_domain);
 CREATE INDEX IF NOT EXISTS idx_remote_emojis_cache_usage ON public.remote_emojis_cache(usage_count DESC);
+CREATE INDEX IF NOT EXISTS idx_remote_emojis_imported ON public.remote_emojis_cache USING btree (imported_as) WHERE (imported_as IS NULL);
 
 COMMENT ON TABLE public.remote_emojis_cache IS 'Cache of custom emojis encountered from remote instances. Used for the emoji importer feature.';
 
@@ -173,6 +174,16 @@ CREATE TABLE IF NOT EXISTS public.notification_channels (
 
 CREATE INDEX IF NOT EXISTS idx_notification_channels_user ON public.notification_channels(user_id);
 CREATE INDEX IF NOT EXISTS idx_notification_channels_server ON public.notification_channels(server_id);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_notification_channels_user_channel
+  ON public.notification_channels (user_id, channel_id)
+  WHERE channel_id IS NOT NULL AND conversation_id IS NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_notification_channels_user_conversation
+  ON public.notification_channels (user_id, conversation_id)
+  WHERE conversation_id IS NOT NULL AND channel_id IS NULL;
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.notification_channels TO authenticated;
 
 COMMENT ON TABLE public.notification_channels IS 'Channel/server/conversation specific notification muting settings';
 
@@ -429,6 +440,27 @@ CREATE TABLE IF NOT EXISTS public.gif_favorites (
 CREATE INDEX IF NOT EXISTS idx_gif_favorites_user ON public.gif_favorites(user_id);
 
 COMMENT ON TABLE public.gif_favorites IS 'User favorite GIFs';
+
+-- ---------------------------------------------------------------------------
+-- EMOJI FAVORITES
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.emoji_favorites (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    user_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    emoji_id text NOT NULL,
+    emoji_name text NOT NULL,
+    emoji_url text,
+    emoji_server_id uuid,
+    created_at timestamp with time zone DEFAULT now(),
+
+    UNIQUE(user_id, emoji_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_emoji_favorites_user ON public.emoji_favorites(user_id);
+
+GRANT SELECT, INSERT, DELETE ON public.emoji_favorites TO authenticated;
+
+COMMENT ON TABLE public.emoji_favorites IS 'User favorite emojis (unicode and custom)';
 
 -- ---------------------------------------------------------------------------
 -- ADMIN AUDIT LOG

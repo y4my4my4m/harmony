@@ -701,7 +701,7 @@ const toggleRecoveryCode = () => {
 
 .particle {
   position: absolute;
-  background: linear-gradient(45deg, #5865f2, #7289da);
+  background: linear-gradient(45deg, #5865f2, #616ae5);
   border-radius: 50%;
   opacity: 0.6;
   animation: float var(--duration) ease-in-out infinite var(--delay);
@@ -768,7 +768,7 @@ const toggleRecoveryCode = () => {
   font-size: 3rem;
   font-weight: 700;
   margin-bottom: 16px;
-  background: linear-gradient(135deg, #5865f2 0%, #7289da 100%);
+  background: linear-gradient(135deg, #5865f2 0%, #616ae5 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -899,7 +899,7 @@ const toggleRecoveryCode = () => {
 .submit-btn {
   width: 100%;
   padding: 14px 24px;
-  background: linear-gradient(135deg, #5865f2 0%, #7289da 100%);
+  background: linear-gradient(135deg, #5865f2 0%, #616ae5 100%);
   border: none;
   border-radius: 8px;
   color: var(--text-primary);

@@ -271,6 +271,24 @@
         </div>
       </div>
 
+      <!-- Push error (e.g. 429) with Retry -->
+      <div v-else-if="pushNotifications.error.value" class="push-warning error push-error-with-retry">
+        <Icon name="alert-triangle" />
+        <div>
+          <strong>Push notification error</strong>
+          <p>{{ pushNotifications.error.value }}</p>
+          <button
+            class="retry-btn"
+            :disabled="pushNotifications.isLoading.value"
+            @click="pushNotifications.retryInitialize"
+          >
+            <Icon v-if="pushNotifications.isLoading.value" name="loader" class="spinning" />
+            <Icon v-else name="refresh-cw" />
+            Retry
+          </button>
+        </div>
+      </div>
+
       <!-- Subscribe/Unsubscribe Buttons -->
       <div v-if="pushNotifications.isSupported.value" class="push-actions">
         <button 
@@ -369,7 +387,7 @@
               </div>
             </div>
             <button 
-              @click="handleRemoveDevice(sub.id)"
+              @click="handleRemoveDevice(sub)"
               class="device-remove-btn"
               title="Remove this device"
             >
@@ -1053,8 +1071,8 @@ const handleTestPush = async () => {
   }
 }
 
-const handleRemoveDevice = async (subscriptionId: string) => {
-  const result = await pushNotifications.deleteSubscription(subscriptionId)
+const handleRemoveDevice = async (sub: { id: string; endpoint: string }) => {
+  const result = await pushNotifications.removeSubscription(sub)
   if (result.success) {
     toast.success('Device removed')
   } else {
@@ -1663,6 +1681,38 @@ font-size: 12px;
   font-size: 13px;
   margin: 0;
   line-height: 1.4;
+}
+
+.push-error-with-retry > div {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.push-error-with-retry .retry-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  margin-top: 4px;
+  background: var(--harmony-primary);
+  color: var(--text-light, #fff);
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s ease;
+  align-self: flex-start;
+}
+
+.push-error-with-retry .retry-btn:hover:not(:disabled) {
+  background: var(--harmony-primary-hover, #4752c4);
+}
+
+.push-error-with-retry .retry-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .push-actions {

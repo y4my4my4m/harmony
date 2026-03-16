@@ -73,7 +73,7 @@ function createRateLimiter(options: {
       });
     }
 
-    next();
+    return next();
   };
 }
 
@@ -97,13 +97,23 @@ export const authLimiter = createRateLimiter({
 });
 
 /**
- * Push notification rate limiter
- * Allow reasonable subscription management but prevent abuse
+ * Push notification rate limiter.
+ * Uses per-user key (Authorization header) so each authenticated user gets their own
+ * bucket. Prevents 429 when multiple users or tabs share the same IP (e.g. behind nginx).
+ * Unauthenticated routes (vapid-key, status) fall back to IP-based limiting.
  */
 export const pushLimiter = createRateLimiter({
   windowMs: 60 * 1000, // 1 minute
-  maxRequests: 20,
-  message: 'Too many push notification requests, please try again later.'
+  maxRequests: 200,   // Lenient: only POST/DELETE count (reads exempt). Abuse risk is low.
+  message: 'Too many push notification requests, please try again later.',
+  keyGenerator: (req: Request) => {
+    const auth = req.headers.authorization;
+    if (auth && auth.startsWith('Bearer ')) {
+      // Per-user: same token = same user/session
+      return `push:${auth.slice(0, 100)}`;
+    }
+    return `push:ip:${req.ip || 'unknown'}`;
+  }
 });
 
 /**

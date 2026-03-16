@@ -575,7 +575,10 @@
       "developerMode": "開発者モード",
       "developerModeDescription": "開発者向け機能とデバッグツールを有効にする。",
       "hardwareAcceleration": "ハードウェアアクセラレーション",
-      "copyRawData": "生データをコピー"
+      "copyRawData": "生データをコピー",
+      "reportBugSection": "ヘルプ",
+      "reportBug": "バグを報告",
+      "reportBugDescription": "GitHubでバグの報告や機能リクエストができます。"
     }
   },
   "navigation": {

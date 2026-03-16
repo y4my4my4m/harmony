@@ -3,6 +3,20 @@ import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { selectivePreload } from './vite-plugin-selective-preload'
 
+/** Strip HTML comments from index.html during production build. */
+function stripHtmlComments() {
+  return {
+    name: 'strip-html-comments',
+    apply: 'build' as const,
+    transformIndexHtml: {
+      order: 'post',
+      handler(html: string) {
+        return html.replace(/<!--[\s\S]*?-->/g, '')
+      }
+    }
+  }
+}
+
 export default defineConfig({
   clearScreen: false,
   server: {
@@ -19,6 +33,8 @@ export default defineConfig({
         }
       }
     }),
+    // Strip HTML comments from index.html in production (Vue's comments:false only affects .vue templates)
+    stripHtmlComments(),
     // Only preload critical chunks, not route chunks (saves ~500KB+ on initial load)
     selectivePreload({
       alwaysPreload: ['index', 'vendor', 'vue-vendor', 'supabase-vendor', 'crypto-vendor'],

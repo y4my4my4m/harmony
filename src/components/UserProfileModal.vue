@@ -548,49 +548,20 @@ async function loadInstanceInfo(domain: string) {
 
   isLoadingInstanceInfo.value = true
   try {
-    // Try to fetch nodeinfo
-    const nodeinfoProtocol = (domain === 'localhost' || domain.startsWith('localhost:')) ? 'http' : 'https'
-    const nodeinfoResponse = await fetch(`${nodeinfoProtocol}://${domain}/.well-known/nodeinfo`)
-    if (nodeinfoResponse.ok) {
-      const nodeinfo = await nodeinfoResponse.json()
-      const links = nodeinfo.links || []
-      
-      // Find nodeinfo 2.0 or 2.1 link
-      const nodeinfoLink = links.find((link: any) => 
-        link.rel === 'http://nodeinfo.diaspora.software/ns/schema/2.0' ||
-        link.rel === 'http://nodeinfo.diaspora.software/ns/schema/2.1'
-      )
-      
-      if (nodeinfoLink) {
-        // Allow http for localhost, otherwise ensure https to avoid mixed content issues
-        let nodeinfoHref = nodeinfoLink.href
-        if (!(domain === 'localhost' || domain.startsWith('localhost:'))) {
-          nodeinfoHref = nodeinfoHref.replace(/^http:/, 'https:')
-        }
-        const infoResponse = await fetch(nodeinfoHref)
-        if (infoResponse.ok) {
-          const info = await infoResponse.json()
-          instanceInfo.value = {
-            status: 'active',
-            software: info.software?.name || 'Unknown'
-          }
-          return
-        }
-      }
-    }
-    
-    // Fallback: Try Mastodon API
-    const mastodonResponse = await fetch(`https://${domain}/api/v1/instance`)
-    if (mastodonResponse.ok) {
-      const info = await mastodonResponse.json()
+    // Proxy through federation backend to avoid browser CORS blocking
+    const probeRes = await fetch(`/api/federation/instances/probe?domain=${encodeURIComponent(domain)}`, {
+      headers: { Accept: 'application/json' },
+      signal: AbortSignal.timeout(15000),
+    })
+    if (probeRes.ok) {
+      const info = await probeRes.json()
       instanceInfo.value = {
         status: 'active',
-        software: info.version?.includes('Mastodon') ? 'Mastodon' : 'Unknown'
+        software: info.software || 'Unknown'
       }
       return
     }
-    
-    // No info found
+
     instanceInfo.value = { status: 'unknown', software: undefined }
   } catch (error) {
     debug.error('Failed to load instance info:', JSON.stringify(error))
@@ -1264,7 +1235,7 @@ onMounted(() => {
 .profile-banner {
   position: relative;
   height: 120px;
-  background: linear-gradient(135deg, #5865f2, #7289da);
+  background: linear-gradient(135deg, #5865f2, #616ae5);
   overflow: hidden;
 }
 

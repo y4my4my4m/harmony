@@ -345,6 +345,9 @@
     <!-- Shield -->
     <path v-if="name === 'shield'" d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
 
+    <!-- Key -->
+    <path v-if="name === 'key'" d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"></path>
+
     <!-- Shield-off (shield with slash) -->
     <path v-if="name === 'shield-off'" d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
     <line v-if="name === 'shield-off'" x1="4" y1="4" x2="20" y2="20"></line>
@@ -750,6 +753,33 @@
     <path v-if="name === 'log-in'" d="M15 12H3"/>
     <path v-if="name === 'log-in'" d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/>
 
+    <!-- Shield Check -->
+    <path v-if="name === 'shield-check'" d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+    <polyline v-if="name === 'shield-check'" points="9 12 11 14 15 10"></polyline>
+
+    <!-- Wifi -->
+    <path v-if="name === 'wifi'" d="M5 12.55a11 11 0 0 1 14.08 0"></path>
+    <path v-if="name === 'wifi'" d="M1.42 9a16 16 0 0 1 21.16 0"></path>
+    <path v-if="name === 'wifi'" d="M8.53 16.11a6 6 0 0 1 6.95 0"></path>
+    <circle v-if="name === 'wifi'" cx="12" cy="20" r="1"></circle>
+
+    <!-- Wifi Off -->
+    <path v-if="name === 'wifi-off'" d="M1 1 23 23"></path>
+    <path v-if="name === 'wifi-off'" d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55"></path>
+    <path v-if="name === 'wifi-off'" d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39"></path>
+    <path v-if="name === 'wifi-off'" d="M10.71 5.05A16 16 0 0 1 22.56 9"></path>
+    <path v-if="name === 'wifi-off'" d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88"></path>
+    <path v-if="name === 'wifi-off'" d="M8.53 16.11a6 6 0 0 1 6.95 0"></path>
+    <circle v-if="name === 'wifi-off'" cx="12" cy="20" r="1"></circle>
+
+    <!-- Help Circle -->
+    <circle v-if="name === 'help-circle'" cx="12" cy="12" r="10"></circle>
+    <path v-if="name === 'help-circle'" d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+    <circle v-if="name === 'help-circle'" cx="12" cy="17" r="0.5"></circle>
+
+    <!-- Clock -->
+    <circle v-if="name === 'clock'" cx="12" cy="12" r="10"></circle>
+    <polyline v-if="name === 'clock'" points="12 6 12 12 16 14"></polyline>
 
 </svg>
 </template>

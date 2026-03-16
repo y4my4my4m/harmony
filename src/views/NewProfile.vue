@@ -956,7 +956,7 @@ const createProfile = async () => {
 }
 
 .spinner-ring:nth-child(2) {
-  border-right-color: #7289da;
+  border-right-color: #616ae5;
   animation-duration: 2s;
   animation-direction: reverse;
 }
@@ -1031,7 +1031,7 @@ const createProfile = async () => {
   width: 40px;
   height: 40px;
   color: var(--text-primary);
-  background: linear-gradient(135deg, #5865f2, #7289da);
+  background: linear-gradient(135deg, #5865f2, #616ae5);
   padding: 12px;
   border-radius: 50%;
   z-index: 1;
@@ -1074,7 +1074,7 @@ const createProfile = async () => {
 
 .progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, #5865f2, #7289da);
+  background: linear-gradient(90deg, #5865f2, #616ae5);
   border-radius: 2px;
   transition: width 0.3s ease;
 }
@@ -1243,7 +1243,7 @@ const createProfile = async () => {
 }
 
 .option-btn.primary {
-  background: linear-gradient(135deg, #5865f2, #7289da);
+  background: linear-gradient(135deg, #5865f2, #616ae5);
   border-color: transparent;
   color: var(--text-primary);
 }
@@ -1405,7 +1405,7 @@ const createProfile = async () => {
   bottom: 0;
   left: 0;
   height: 2px;
-  background: linear-gradient(90deg, #5865f2, #7289da);
+  background: linear-gradient(90deg, #5865f2, #616ae5);
   border-radius: 1px;
   width: 0;
   transition: width 0.3s ease;
@@ -1497,7 +1497,7 @@ const createProfile = async () => {
 
 .preview-banner {
   height: 80px;
-  background: linear-gradient(135deg, #5865f2, #7289da);
+  background: linear-gradient(135deg, #5865f2, #616ae5);
 }
 
 .preview-content {
@@ -1648,7 +1648,7 @@ const createProfile = async () => {
 }
 
 .action-btn.primary {
-  background: linear-gradient(135deg, #5865f2, #7289da);
+  background: linear-gradient(135deg, #5865f2, #616ae5);
   color: var(--text-primary);
   box-shadow: 0 4px 15px rgba(88, 101, 242, 0.3);
 }

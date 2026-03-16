@@ -2,6 +2,7 @@
 <template>
   <div 
     v-if="mediaAttachments && mediaAttachments.length > 0" 
+    ref="galleryRef"
     class="media-gallery"
     :class="galleryClass"
   >
@@ -9,7 +10,8 @@
       v-for="(media, index) in mediaAttachments"
       :key="media.id"
       class="media-item"
-      @click="openMedia(index)"
+      :class="{ 'media-item-clickable': shouldOpenLightbox(media) }"
+      @click.capture="handleMediaClick($event, index, media)"
     >
       <!-- Image -->
       <img
@@ -21,14 +23,17 @@
         @error="handleImageError"
       />
 
-      <!-- Video -->
+      <!-- Video / GIFV -->
       <video
-        v-else-if="media.type === 'video'"
+        v-else-if="media.type === 'video' || media.type === 'gifv' || (media.type === 'unknown' && isVideoUrl(media.url))"
         :src="media.url"
         :poster="media.preview_url"
         class="media-video"
-        controls
+        :controls="media.type !== 'gifv'"
         preload="metadata"
+        :loop="media.type === 'gifv'"
+        :autoplay="media.type === 'gifv'"
+        :muted="media.type === 'gifv'"
         @error="handleVideoError"
       >
         <source :src="media.url" :type="media.mime_type || 'video/mp4'">
@@ -58,11 +63,15 @@
         </a>
       </div>
 
-      <!-- Sensitive content overlay -->
-      <div v-if="isSensitive && !showSensitive" class="sensitive-overlay">
+      <!-- Sensitive content overlay - tap anywhere to reveal first, then tap again to open lightbox -->
+      <div
+        v-if="isSensitive && !showSensitive"
+        class="sensitive-overlay"
+        @click.stop="showSensitive = true"
+      >
         <Icon name="eye-off" />
         <span>Sensitive content</span>
-        <button @click.stop="showSensitive = true" class="show-btn">
+        <button class="show-btn">
           Show
         </button>
       </div>
@@ -90,18 +99,71 @@
     </div>
   </div>
 
-  <!-- vue-easy-lightbox for Media Modal -->
+  <!-- vue-easy-lightbox: handles images with zoom/pan/rotate/smooth scroll -->
   <vue-easy-lightbox
+    teleport="body"
     class="lightbox"
     :visible="showModal"
     :imgs="lightboxImages"
     :index="currentMediaIndex"
     @hide="closeModal"
-  />
+    @on-index-change="onLightboxIndexChange"
+  >
+    <!-- Custom toolbar for video: use same structure/icons as vue-easy-lightbox default toolbar -->
+    <template v-if="currentLightboxIsVideo" #toolbar>
+      <div class="vel-toolbar">
+        <div role="button" aria-label="zoom in button" class="toolbar-btn toolbar-btn__zoomin" @click="videoZoomIn">
+          <svg class="vel-icon" aria-hidden="true"><use href="#icon-zoomin" /></svg>
+        </div>
+        <div role="button" aria-label="zoom out button" class="toolbar-btn toolbar-btn__zoomout" @click="videoZoomOut">
+          <svg class="vel-icon" aria-hidden="true"><use href="#icon-zoomout" /></svg>
+        </div>
+        <div role="button" aria-label="resize image button" class="toolbar-btn toolbar-btn__resize" @click="resetVideoTransforms">
+          <svg class="vel-icon" aria-hidden="true"><use href="#icon-resize" /></svg>
+        </div>
+        <div role="button" aria-label="image rotate left button" class="toolbar-btn toolbar-btn__rotate" @click="videoRotateLeft">
+          <svg class="vel-icon" aria-hidden="true"><use href="#icon-rotate-left" /></svg>
+        </div>
+        <div role="button" aria-label="image rotate right button" class="toolbar-btn toolbar-btn__rotate" @click="videoRotateRight">
+          <svg class="vel-icon" aria-hidden="true"><use href="#icon-rotate-right" /></svg>
+        </div>
+      </div>
+    </template>
+  </vue-easy-lightbox>
+
+  <!-- Video overlay: centered on top of vue-easy-lightbox when current item is a video -->
+  <Teleport to="body">
+    <Transition name="vel-fade">
+      <div
+        v-if="showModal && currentLightboxIsVideo"
+        class="video-lightbox-overlay"
+      >
+        <video
+          ref="lightboxVideoRef"
+          :key="currentVideoSrc"
+          :src="currentVideoSrc"
+          :poster="currentVideoPoster"
+          class="video-lightbox-player"
+          :style="{ transform: videoTransformStyle }"
+          controls
+          autoplay
+          preload="auto"
+          playsinline
+          :muted="videoMuted"
+          @volumechange="onVideoVolumeChange"
+          @loadeddata="onVideoLoadedData"
+          @wheel.prevent="onVideoWheel"
+          @dblclick.prevent="onVideoDblClick"
+        >
+          Your browser does not support the video tag.
+        </video>
+      </div>
+    </Transition>
+  </Teleport>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { debug } from '@/utils/debug'
 import type { MediaAttachment } from '@/types';
 import Icon from '@/components/common/Icon.vue';
@@ -116,11 +178,98 @@ const props = withDefaults(defineProps<Props>(), {
   isSensitive: false
 });
 
+const MUTE_KEY = 'harmony-lightbox-video-muted';
+
 // State
+const galleryRef = ref<HTMLElement | null>(null);
+const lightboxVideoRef = ref<HTMLVideoElement | null>(null);
 const showSensitive = ref(!props.isSensitive);
 const showAltText = ref(false);
 const showModal = ref(false);
 const currentMediaIndex = ref(0);
+const videoMuted = ref(localStorage.getItem(MUTE_KEY) === 'true');
+const videoPositions = new Map<string, number>();
+
+// Pause all gallery videos when lightbox opens to avoid double audio
+watch(showModal, (visible) => {
+  if (visible && galleryRef.value) {
+    galleryRef.value.querySelectorAll<HTMLVideoElement>('video').forEach((v) => v.pause());
+  }
+});
+
+function onVideoVolumeChange() {
+  if (lightboxVideoRef.value) {
+    videoMuted.value = lightboxVideoRef.value.muted;
+    try { localStorage.setItem(MUTE_KEY, String(videoMuted.value)); } catch { /* ignore */ }
+  }
+}
+
+// -- Playback position persistence --
+
+function saveCurrentVideoPosition() {
+  const video = lightboxVideoRef.value;
+  const src = currentVideoSrc.value;
+  if (video && src && !isNaN(video.currentTime) && video.currentTime > 0) {
+    videoPositions.set(src, video.currentTime);
+  }
+}
+
+function onVideoLoadedData() {
+  const video = lightboxVideoRef.value;
+  const src = currentVideoSrc.value;
+  if (video && src) {
+    const saved = videoPositions.get(src);
+    if (saved !== undefined && saved > 0) {
+      video.currentTime = saved;
+    }
+  }
+}
+
+function onLightboxIndexChange(_oldIdx: number, newIdx: number) {
+  saveCurrentVideoPosition();
+  resetVideoTransforms();
+  currentMediaIndex.value = newIdx;
+}
+
+// -- Video transform controls (self-contained zoom/rotate applied directly to the video) --
+
+const videoZoom = ref(1);
+const videoRotation = ref(0);
+
+const videoTransformStyle = computed(() => {
+  if (videoZoom.value === 1 && videoRotation.value === 0) return '';
+  return `scale(${videoZoom.value}) rotate(${videoRotation.value}deg)`;
+});
+
+function videoZoomIn() {
+  videoZoom.value = Math.min(videoZoom.value * 1.25, 10);
+}
+function videoZoomOut() {
+  videoZoom.value = Math.max(videoZoom.value / 1.25, 0.1);
+}
+function videoRotateLeft() {
+  videoRotation.value -= 90;
+}
+function videoRotateRight() {
+  videoRotation.value += 90;
+}
+function resetVideoTransforms() {
+  videoZoom.value = 1;
+  videoRotation.value = 0;
+}
+
+function onVideoWheel(e: WheelEvent) {
+  const factor = e.deltaY < 0 ? 1.1 : 1 / 1.1;
+  videoZoom.value = Math.max(0.1, Math.min(10, videoZoom.value * factor));
+}
+
+function onVideoDblClick() {
+  if (videoZoom.value !== 1) {
+    resetVideoTransforms();
+  } else {
+    videoZoom.value = 2;
+  }
+}
 
 // Computed
 const galleryClass = computed(() => {
@@ -138,26 +287,48 @@ const hasAltText = computed(() => {
   return props.mediaAttachments.some(media => media.description);
 });
 
-const currentMedia = computed(() => {
-  return props.mediaAttachments[currentMediaIndex.value];
+function isVideoUrl(url: string): boolean {
+  return /\.(mp4|webm|ogv|mov|gif)(\?|$)/i.test(url);
+}
+
+const viewableCount = computed(() =>
+  props.mediaAttachments.filter(
+    (m) =>
+      m.type === 'image' ||
+      m.type === 'video' ||
+      m.type === 'gifv' ||
+      (m.type === 'unknown' && isVideoUrl(m.url))
+  ).length
+);
+
+const viewableMedia = computed(() =>
+  props.mediaAttachments.filter(
+    (m) => m.type === 'image' || m.type === 'video' || m.type === 'gifv' || (m.type === 'unknown' && isVideoUrl(m.url))
+  )
+);
+
+const lightboxImages = computed(() =>
+  viewableMedia.value.map((media) => {
+    if (isVideoMedia(media)) {
+      return { src: media.preview_url || media.url, title: media.description };
+    }
+    return { src: media.url, title: media.description };
+  })
+);
+
+const currentLightboxIsVideo = computed(() => {
+  const media = viewableMedia.value[currentMediaIndex.value];
+  return media ? isVideoMedia(media) : false;
 });
 
-// Prepare images for vue-easy-lightbox
-const lightboxImages = computed(() => {
-  return props.mediaAttachments
-    .filter(media => media.type === 'image' || media.type === 'video')
-    .map(media => {
-      if (media.type === 'image') {
-        return media.url;
-      } else if (media.type === 'video') {
-        // vue-easy-lightbox supports videos
-        return {
-          src: media.url,
-          type: 'video'
-        };
-      }
-      return media.url;
-    });
+const currentVideoSrc = computed(() => {
+  const media = viewableMedia.value[currentMediaIndex.value];
+  return media?.url ?? '';
+});
+
+const currentVideoPoster = computed(() => {
+  const media = viewableMedia.value[currentMediaIndex.value];
+  return media?.preview_url;
 });
 
 // Methods
@@ -187,22 +358,43 @@ const handleVideoError = (event: Event) => {
   debug.warn('Failed to load video:', video.src);
 };
 
+function isViewableMedia(media: MediaAttachment): boolean {
+  return media.type === 'image' || media.type === 'video' || media.type === 'gifv' || (media.type === 'unknown' && isVideoUrl(media.url));
+}
+
+function isVideoMedia(media: MediaAttachment): boolean {
+  return media.type === 'video' || media.type === 'gifv' || (media.type === 'unknown' && isVideoUrl(media.url));
+}
+
+function shouldOpenLightbox(media: MediaAttachment): boolean {
+  if (!isViewableMedia(media)) return false;
+  if (viewableCount.value === 1 && isVideoMedia(media)) return false;
+  return true;
+}
+
+function handleMediaClick(e: MouseEvent, index: number, media: MediaAttachment) {
+  if (!isViewableMedia(media)) return;
+  if (viewableCount.value === 1 && isVideoMedia(media)) return;
+  e.preventDefault();
+  e.stopPropagation();
+  openMedia(index);
+}
+
 const openMedia = (index: number) => {
   const media = props.mediaAttachments[index];
-  if (media.type === 'image' || media.type === 'video') {
-    // Find the corresponding index in the lightbox images array
-    let lightboxIndex = 0;
-    for (let i = 0; i < index; i++) {
-      if (props.mediaAttachments[i].type === 'image' || props.mediaAttachments[i].type === 'video') {
-        lightboxIndex++;
-      }
-    }
-    currentMediaIndex.value = lightboxIndex;
-    showModal.value = true;
+  if (!isViewableMedia(media)) return;
+  let lightboxIndex = 0;
+  for (let i = 0; i < index; i++) {
+    const m = props.mediaAttachments[i];
+    if (isViewableMedia(m)) lightboxIndex++;
   }
+  currentMediaIndex.value = lightboxIndex;
+  showModal.value = true;
 };
 
 const closeModal = () => {
+  saveCurrentVideoPosition();
+  resetVideoTransforms();
   showModal.value = false;
 };
 </script>
@@ -247,11 +439,14 @@ const closeModal = () => {
   position: relative;
   background: var(--h-chat, #313338);
   overflow: hidden;
-  cursor: pointer;
   transition: opacity 0.2s;
 }
 
-.media-item:hover {
+.media-item-clickable {
+  cursor: pointer;
+}
+
+.media-item-clickable:hover {
   opacity: 0.9;
 }
 
@@ -390,107 +585,25 @@ const closeModal = () => {
   color: var(--text-primary);
 }
 
-/* Modal Styles */
-.media-modal-overlay {
+/* Video overlay: centered on top of lightbox, lets chrome (close, arrows, toolbar) show through */
+.video-lightbox-overlay {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.95);
+  inset: 0;
+  z-index: 9999;
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 2000;
-  padding: 2rem;
+  pointer-events: none;
 }
 
-.media-modal {
-  position: relative;
-  max-width: 90vw;
-  max-height: 90vh;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-.modal-close-btn {
-  position: absolute;
-  top: -3rem;
-  right: 0;
-  background: rgba(255, 255, 255, 0.1);
-  border: none;
-  border-radius: 50%;
-  color: var(--text-primary);
-  width: 40px;
-  height: 40px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: background 0.2s;
-  z-index: 10;
-}
-
-.modal-close-btn:hover {
-  background: rgba(255, 255, 255, 0.2);
-}
-
-.nav-btn {
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  background: rgba(255, 255, 255, 0.1);
-  border: none;
-  border-radius: 50%;
-  color: var(--text-primary);
-  width: 48px;
-  height: 48px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: background 0.2s;
-  z-index: 10;
-}
-
-.nav-btn:hover {
-  background: rgba(255, 255, 255, 0.2);
-}
-
-.prev-btn {
-  left: -4rem;
-}
-
-.next-btn {
-  right: -4rem;
-}
-
-.modal-media {
-  max-width: 100%;
+.video-lightbox-player {
+  max-width: 80vw;
   max-height: 80vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.modal-image,
-.modal-video {
-  max-width: 100%;
-  max-height: 100%;
-  object-fit: contain;
-}
-
-.media-info {
-  margin-top: 1rem;
-  text-align: center;
-  color: var(--text-primary);
-}
-
-.media-meta {
-  margin-top: 0.5rem;
-  color: #80848e;
-  font-size: 0.875rem;
+  background: #000;
+  box-shadow: 0 5px 20px 2px rgba(0, 0, 0, 0.7);
+  pointer-events: auto;
+  transform-origin: center center;
+  transition: transform 0.3s ease;
 }
 
 /* Mobile responsiveness */
@@ -504,26 +617,10 @@ const closeModal = () => {
   .media-gallery.triple .media-item:first-child {
     grid-row: auto;
   }
-  
-  .media-modal-overlay {
-    padding: 1rem;
-  }
-  
-  .nav-btn {
-    width: 40px;
-    height: 40px;
-  }
-  
-  .prev-btn {
-    left: -2.5rem;
-  }
-  
-  .next-btn {
-    right: -2.5rem;
-  }
-  
-  .modal-close-btn {
-    top: -2.5rem;
+
+  .video-lightbox-player {
+    max-width: 95vw;
+    max-height: 85vh;
   }
 }
 </style>

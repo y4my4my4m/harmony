@@ -18,14 +18,14 @@
     <div class="no-messages" v-else-if="!isLoading && messages.length === 0">
       {{ $t('message.noMessagesHere') }}
     </div>
-    <!-- Loading older messages indicator -->
-    <div v-if="isLoadingOlderMessages && messages.length > 0" class="loading-older-messages">
+    <!-- Sentinel for auto-loading older messages when the top is visible -->
+    <div ref="topSentinelRef" class="top-sentinel"></div>
+
+    <!-- Loading older messages indicator (v-show to avoid layout shifts) -->
+    <div v-show="isLoadingOlderMessages && messages.length > 0" class="loading-older-messages">
       <div class="loading-spinner"></div>
       <span>{{ $t('message.loadingOlder') }}</span>
     </div>
-
-    <!-- Sentinel for auto-loading older messages when the top is visible -->
-    <div ref="topSentinelRef" class="top-sentinel"></div>
     
     <!-- Virtual scrolled message list -->
     <div v-if="displayItems.length > 0" :style="{ height: `${totalSize}px`, width: '100%', position: 'relative' }">
@@ -429,6 +429,7 @@
   </div>
   
   <vue-easy-lightbox
+    teleport="body"
     class="lightbox"
     :visible="isLightboxOpen"
     :imgs="activeLightboxImages"
@@ -588,6 +589,7 @@ import { messagePartsToMarkdown, messagePartsToPlainText, isSingleEmojiMessage a
 import { parseContentToMessageParts, resolveMentionsUserData, resolveEmojisData, resolveRoleMentionsData } from '@/utils/unifiedContentProcessing';
 import { getEmojiUrl } from '@/utils/emojiUtils';
 import { useReactionsStore } from '@/stores/useReactions';
+import { usePostReactionsStore } from '@/stores/postReactions';
 import { useVirtualizer } from '@tanstack/vue-virtual';
 
 // --- PROPS & EMITS ---
@@ -623,6 +625,7 @@ const authStore = useAuthStore();
 const profileStore = useProfileStore();
 const activityPubStore = useActivityPubStore();
 const reactionsStore = useReactionsStore();
+const postReactionsStore = usePostReactionsStore();
 
 // Track which blocked message groups the user has chosen to reveal (by first message ID in group)
 const revealedBlockedGroups = ref<Set<string>>(new Set());
@@ -1103,7 +1106,7 @@ const getAuthorColor = (message: Message): ComputedRef<string> => {
   return computed(() => {
     // Check for Discord user metadata first (puppeting)
     if (message.metadata?.discord_user) {
-      return '#7289DA'; // Discord blurple
+      return '#616ae5';
     }
     
     // Regular bot
@@ -1250,12 +1253,16 @@ const activeLightboxImages = ref<string[]>([]);
 const BUFFER_THRESHOLD = 15; // pixels needed to trigger buffer effect
 
 // --- VIRTUAL SCROLLING ---
+// Track the initial offset separately so it doesn't change on prepend
+const frozenInitialOffset = ref(0);
+let hasSetInitialOffset = false;
+
 const rowVirtualizer = useVirtualizer(computed(() => ({
   count: displayItems.value.length,
   getScrollElement: () => messageDisplayContainer.value,
   estimateSize: () => 60,
-  overscan: 10,
-  initialOffset: displayItems.value.length * 60,
+  overscan: 15,
+  initialOffset: frozenInitialOffset.value,
 })));
 
 const virtualRows = computed(() => rowVirtualizer.value.getVirtualItems());
@@ -1334,15 +1341,18 @@ const userWasAtBottom = ref(true);
 // arrays receive the same reference for old/new values (in-place .push() mutations).
 const lastKnownMessageCount = ref(0);
 const lastKnownFirstMessageId = ref<string | null>(null);
+const lastKnownDisplayItemCount = ref(0);
 
 // --- WATCHERS ---
 let hasInitiallyScrolled = false;
 
 watch([() => props.channelId, () => props.conversationId], () => {
   hasInitiallyScrolled = false;
+  hasSetInitialOffset = false;
   userWasAtBottom.value = true;
   lastKnownMessageCount.value = 0;
   lastKnownFirstMessageId.value = null;
+  lastKnownDisplayItemCount.value = 0;
 });
 
 watch(() => props.messages, (newMessages) => {
@@ -1352,6 +1362,7 @@ watch(() => props.messages, (newMessages) => {
 
   const prevCount = lastKnownMessageCount.value;
   const prevFirstId = lastKnownFirstMessageId.value;
+  const prevDisplayItemCount = lastKnownDisplayItemCount.value;
   lastKnownMessageCount.value = newMessages.length;
   lastKnownFirstMessageId.value = newMessages[0]?.id ?? null;
 
@@ -1413,6 +1424,21 @@ watch(() => props.messages, (newMessages) => {
         debug.error('Error batch fetching reactions:', error);
       });
     }
+
+    // Batch pre-fetch post reactions for harmony-post embeds (so MonyPost shows them immediately)
+    const embedPostIds = new Set<string>();
+    newMessages.forEach(msg => {
+      const embeds = msg.metadata?.embeds as Record<string, { provider?: string; harmony?: { postId?: string } }> | undefined;
+      if (!embeds) return;
+      Object.values(embeds).forEach(embed => {
+        if (embed?.provider === 'harmony-post' && embed.harmony?.postId) {
+          embedPostIds.add(embed.harmony.postId);
+        }
+      });
+    });
+    if (embedPostIds.size > 0) {
+      postReactionsStore.fetchMultiplePostReactions(Array.from(embedPostIds)).catch(() => {});
+    }
   }
 
   if (newMessages.length > 0) {
@@ -1421,6 +1447,11 @@ watch(() => props.messages, (newMessages) => {
         // If this is the initial load, scroll to bottom
         if (!hasInitiallyScrolled && newMessages.length > 0) {
           hasInitiallyScrolled = true;
+          // Freeze the initial offset for this channel
+          if (!hasSetInitialOffset) {
+            hasSetInitialOffset = true;
+            frozenInitialOffset.value = displayItems.value.length * 60;
+          }
           debug.log('📜 Initial load - scrolling to bottom');
           
           // Set flag so we re-scroll when images load
@@ -1552,19 +1583,29 @@ watch(() => props.messages, (newMessages) => {
           } else if (isAppend && !userWasAtBottom.value) {
             shouldBeAtBottom.value = false;
           }
-          // Load older messages (prepend) - maintain scroll position
+          // Load older messages (prepend) - maintain scroll position via virtualizer index
           else if (!isAppend) {
             shouldBeAtBottom.value = false;
-            const savedScrollTop = messageDisplayContainer.value.scrollTop;
+            const newDisplayItemCount = displayItems.value.length;
+            const numDisplayItemsPrepended = newDisplayItemCount - prevDisplayItemCount;
+            
+            // Find anchor: the item overlapping the viewport top
+            const scrollTopNow = messageDisplayContainer.value.scrollTop;
+            const visibleItems = rowVirtualizer.value.getVirtualItems();
+            let anchorItem = visibleItems.find(item => item.start + item.size > scrollTopNow);
+            if (!anchorItem && visibleItems.length) anchorItem = visibleItems[visibleItems.length - 1];
+            const previousVisibleIndex = anchorItem?.index ?? 0;
+            const offsetIntoAnchor = anchorItem ? scrollTopNow - anchorItem.start : 0;
+            const targetIndex = previousVisibleIndex + numDisplayItemsPrepended;
+            
+            // Scroll to the shifted index, then restore sub-item offset
             const adjustScroll = (attempt = 0) => {
               if (!messageDisplayContainer.value) return;
-              const newScrollHeight = messageDisplayContainer.value.scrollHeight;
-              const scrollOffset = newScrollHeight - oldScrollHeight;
-              if (scrollOffset > 0) {
-                messageDisplayContainer.value.scrollTop = savedScrollTop + scrollOffset;
+              rowVirtualizer.value.scrollToIndex(targetIndex, { align: 'start' });
+              if (offsetIntoAnchor > 0) {
+                messageDisplayContainer.value.scrollTop += offsetIntoAnchor;
               }
-              // Retry: virtualizer re-measures after first paint
-              if (attempt < 3) {
+              if (attempt < 5) {
                 requestAnimationFrame(() => adjustScroll(attempt + 1));
               }
             };
@@ -1578,6 +1619,7 @@ watch(() => props.messages, (newMessages) => {
         emit('update:isAtBottom', scrollTop + clientHeight >= scrollHeight - 5);
 
       }
+      lastKnownDisplayItemCount.value = displayItems.value.length;
     });
   }
 }, { immediate: true, deep: true });
@@ -1825,11 +1867,11 @@ const setupTopSentinelObserver = () => {
     (entries) => {
       const entry = entries[0];
       if (entry?.isIntersecting && hasInitiallyScrolled && !isAllMessagesLoaded.value && !isLoadingOlderMessages.value && props.loadMoreMessages) {
-        debug.log('📜 Top sentinel visible — auto-loading older messages');
+        debug.log('📜 Top sentinel visible (prefetch zone) — auto-loading older messages');
         props.loadMoreMessages();
       }
     },
-    { root: messageDisplayContainer.value, threshold: 0 }
+    { root: messageDisplayContainer.value, threshold: 0, rootMargin: '300px 0px 0px 0px' }
   );
   topSentinelObserver.observe(topSentinelRef.value);
 };
@@ -1942,13 +1984,10 @@ const handleScroll = throttle(() => {
   
   if (!isAtTop.value || !hasScrollbar.value) bufferDistance.value = 0;
   
-  if (isAtTop.value) {
-    debug.log('📜 At top! hasScrollbar:', hasScrollbar.value, 'loadMoreMessages:', !!props.loadMoreMessages);
-    
-    if (props.loadMoreMessages) {
+  // Prefetch when near top (within 400px)
+  if (scrollTop < 400 && hasScrollbar.value) {
+    if (!isAllMessagesLoaded.value && !isLoadingOlderMessages.value && props.loadMoreMessages) {
       props.loadMoreMessages();
-    } else {
-      debug.log('❌ No loadMoreMessages function provided!');
     }
   }
 
@@ -2319,10 +2358,18 @@ const handleContextMenuReaction = (emoji: { native?: string; name: string; id?: 
 };
 
 // Handle opening emoji picker from context menu
-const handleContextMenuEmojiPicker = () => {
+const handleContextMenuEmojiPicker = (position?: { x: number; y: number }) => {
   if (!contextMenuMessage.value) return;
-  // Emit with proper parameters for reaction mode
-  emit('toggleEmojiList', true, contextMenuMessage.value, undefined);
+
+  let anchor: HTMLElement | undefined;
+  if (position) {
+    anchor = document.createElement('div');
+    anchor.style.cssText = `position:fixed;left:${position.x}px;top:${position.y}px;width:1px;height:1px;pointer-events:none;`;
+    document.body.appendChild(anchor);
+    setTimeout(() => anchor?.remove(), 500);
+  }
+
+  emit('toggleEmojiList', true, contextMenuMessage.value, anchor);
 };
 
 // Handle reporting a message from context menu
@@ -2427,25 +2474,76 @@ const getReplyMessagePreview = (replyMessageId: string) => {
 };
 
 
-// Lightbox and Media
-const handleImageLoaded = (url: string) => {
-  imageLoaded.value[url] = true;
-
-  // Re-measure all visible virtual rows that may contain this image
-  nextTick(() => {
-    const container = messageDisplayContainer.value;
-    if (!container) return;
-    container.querySelectorAll('[data-index]').forEach(el => {
-      rowVirtualizer.value.measureElement(el as HTMLElement);
-    });
-  });
-
+// Correct scroll position when an item above the viewport resizes.
+// Uses an anchor-based approach: track the item at the viewport top before
+// the resize, then after re-measurement adjust scrollTop by only the change
+// in that anchor item's start offset (which reflects above-viewport growth).
+const correctScrollAfterResize = (callback: () => void) => {
+  const container = messageDisplayContainer.value;
+  if (!container) { callback(); return; }
+  
   if (shouldBeAtBottom.value) {
+    callback();
     requestAnimationFrame(() => {
       const count = displayItems.value.length;
       if (count > 0) rowVirtualizer.value.scrollToIndex(count - 1, { align: 'end' });
     });
+    return;
   }
+  
+  const scrollTopBefore = container.scrollTop;
+  const totalSizeBefore = rowVirtualizer.value.getTotalSize();
+
+  // Find anchor: the first item overlapping the viewport top
+  const items = rowVirtualizer.value.getVirtualItems();
+  let anchorItem = items.find(item => item.start + item.size > scrollTopBefore);
+  if (!anchorItem && items.length) anchorItem = items[items.length - 1];
+  const anchorIdx = anchorItem?.index;
+  const anchorStartBefore = anchorItem?.start;
+  
+  callback();
+  
+  nextTick(() => {
+    requestAnimationFrame(() => {
+      if (!container || shouldBeAtBottom.value) return;
+
+      let delta = 0;
+
+      if (anchorIdx != null && anchorStartBefore != null) {
+        // Precise: only count the shift in the anchor's start position,
+        // which reflects size changes of items *above* the viewport.
+        const updatedItems = rowVirtualizer.value.getVirtualItems();
+        const updatedAnchor = updatedItems.find(item => item.index === anchorIdx);
+        if (updatedAnchor) {
+          delta = updatedAnchor.start - anchorStartBefore;
+        } else {
+          // Anchor no longer in virtual items — fall back to total size delta
+          delta = rowVirtualizer.value.getTotalSize() - totalSizeBefore;
+        }
+      } else {
+        delta = rowVirtualizer.value.getTotalSize() - totalSizeBefore;
+      }
+
+      if (Math.abs(delta) > 1) {
+        container.scrollTop = scrollTopBefore + delta;
+      }
+    });
+  });
+};
+
+// Lightbox and Media
+const handleImageLoaded = (url: string) => {
+  imageLoaded.value[url] = true;
+
+  correctScrollAfterResize(() => {
+    nextTick(() => {
+      const container = messageDisplayContainer.value;
+      if (!container) return;
+      container.querySelectorAll('[data-index]').forEach(el => {
+        rowVirtualizer.value.measureElement(el as HTMLElement);
+      });
+    });
+  });
 };
 
 // Handle embed loaded events
@@ -2455,14 +2553,9 @@ const handleEmbedLoaded = (messageId: string) => {
   }
   embedLoaded.value[messageId] = (embedLoaded.value[messageId] || 0) + 1;
 
-  remeasureItem(messageId);
-
-  if (shouldBeAtBottom.value) {
-    requestAnimationFrame(() => {
-      const count = displayItems.value.length;
-      if (count > 0) rowVirtualizer.value.scrollToIndex(count - 1, { align: 'end' });
-    });
-  }
+  correctScrollAfterResize(() => {
+    remeasureItem(messageId);
+  });
 };
 
 // Handle click-to-decrypt for encrypted messages
@@ -2779,7 +2872,7 @@ defineExpose({ editLastOwnMessage });
 }
 
 .bot-badge.discord {
-  background: #7289DA;
+  background: #616ae5;
 }
 
 .instance-badge {
@@ -3443,9 +3536,11 @@ defineExpose({ editLastOwnMessage });
   align-items: center;
   justify-content: center;
   gap: 12px;
-  padding: 20px;
+  padding: 12px;
+  height: 44px;
+  box-sizing: border-box;
   color: var(--text-secondary);
-  font-size: 14px;
+  font-size: 13px;
 }
 
 .loading-spinner {

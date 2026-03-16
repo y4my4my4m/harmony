@@ -179,7 +179,7 @@ export class ActivityPubService {
         return {
           ...post,
           is_bookmarked: interactions.some(i => i.interaction_type === 'bookmark'),
-          is_favorited: interactions.some(i => i.interaction_type === 'favorite'),
+          is_favorited: interactions.some(i => i.interaction_type === 'favorite' || i.interaction_type === 'emoji_reaction'),
           is_reblogged: interactions.some(i => i.interaction_type === 'reblog'),
         };
       });
@@ -231,7 +231,7 @@ export class ActivityPubService {
           return {
             ...post,
             is_bookmarked: interactions.some(i => i.interaction_type === 'bookmark'),
-            is_favorited: interactions.some(i => i.interaction_type === 'favorite'),
+            is_favorited: interactions.some(i => i.interaction_type === 'favorite' || i.interaction_type === 'emoji_reaction'),
             is_reblogged: interactions.some(i => i.interaction_type === 'reblog'),
           };
         });
@@ -653,32 +653,19 @@ export class ActivityPubService {
   }
 
   /**
-   * Probe instance health via nodeinfo. Used to determine if remote instance is reachable.
+   * Probe instance health via the federation backend proxy.
    * Returns 'online' if nodeinfo fetch succeeds, 'offline' otherwise.
    */
   async probeInstanceHealth(domain: string): Promise<'online' | 'offline'> {
     try {
       const cleanDomain = domain.replace(/^https?:\/\//, '').replace(/\/$/, '').toLowerCase();
-      const protocol = cleanDomain.includes('localhost') ? 'http' : 'https';
-      const wellKnownRes = await fetch(`${protocol}://${cleanDomain}/.well-known/nodeinfo`, {
+      const res = await fetch(`/api/federation/instances/health?domain=${encodeURIComponent(cleanDomain)}`, {
         headers: { Accept: 'application/json' },
-        signal: AbortSignal.timeout(8000)
+        signal: AbortSignal.timeout(15000),
       });
-      if (!wellKnownRes.ok) return 'offline';
-
-      const wk = await wellKnownRes.json();
-      const nodeinfoUrl = wk.links?.find((l: any) =>
-        l.rel?.includes('nodeinfo') && (l.rel.includes('2.0') || l.rel.includes('2.1'))
-      )?.href;
-      if (!nodeinfoUrl) return 'offline';
-
-      const infoUrl = typeof nodeinfoUrl === 'string' ? nodeinfoUrl : '';
-      const url = infoUrl.startsWith('http') ? infoUrl : `${protocol}://${cleanDomain}${infoUrl.startsWith('/') ? '' : '/'}${infoUrl}`;
-      const res = await fetch(url, {
-        headers: { Accept: 'application/json' },
-        signal: AbortSignal.timeout(8000)
-      });
-      return res.ok ? 'online' : 'offline';
+      if (!res.ok) return 'offline';
+      const data = await res.json();
+      return data.status === 'online' ? 'online' : 'offline';
     } catch {
       return 'offline';
     }
@@ -754,21 +741,24 @@ export class ActivityPubService {
    */
   async getUserPosts(userId: string, options: TimelineOptions = {}): Promise<Post[]> {
     const limit = options.limit || 20;
-    
+    const currentUser = await this.getCurrentAuthUser().catch(() => null);
+
+    const selectClause = currentUser
+      ? `*, author:profiles!posts_author_id_fkey (id, username, display_name, domain, avatar_url, is_local), my_interactions:post_interactions!left(interaction_type)`
+      : `*, author:profiles!posts_author_id_fkey (id, username, display_name, domain, avatar_url, is_local)`;
+
     let query = supabase
       .from('posts')
-      .select(`
-        *,
-        author:profiles!posts_author_id_fkey (
-          id, username, display_name, domain, avatar_url, is_local
-        )
-      `)
+      .select(selectClause)
       .eq('author_id', userId)
       .eq('is_deleted', false)
       .in('visibility', ['public', 'unlisted'])
       .order('created_at', { ascending: false })
       .limit(limit);
 
+    if (currentUser) {
+      query = query.eq('my_interactions.user_id', currentUser.id);
+    }
     if (options.max_id) {
       query = query.lt('created_at', new Date(options.max_id).toISOString());
     }
@@ -776,7 +766,17 @@ export class ActivityPubService {
     const { data, error } = await query;
     if (error) throw error;
 
-    return data as Post[];
+    const posts = (data || []).map((post: any) => {
+      const interactions = post.my_interactions || [];
+      return {
+        ...post,
+        is_favorited: interactions.some((i: any) => i.interaction_type === 'favorite' || i.interaction_type === 'emoji_reaction'),
+        is_reblogged: interactions.some((i: any) => i.interaction_type === 'reblog'),
+        is_bookmarked: interactions.some((i: any) => i.interaction_type === 'bookmark'),
+      };
+    });
+
+    return posts as Post[];
   }
 
   /**
@@ -1958,7 +1958,7 @@ export class ActivityPubService {
         return {
           ...post,
           is_bookmarked: interactions.some(i => i.interaction_type === 'bookmark'),
-          is_favorited: interactions.some(i => i.interaction_type === 'favorite'),
+          is_favorited: interactions.some(i => i.interaction_type === 'favorite' || i.interaction_type === 'emoji_reaction'),
           is_reblogged: interactions.some(i => i.interaction_type === 'reblog'),
         };
       });
@@ -2198,7 +2198,7 @@ export class ActivityPubService {
     };
 
     interactions?.forEach(interaction => {
-      if (interaction.interaction_type === 'favorite') state.is_favorited = true;
+      if (interaction.interaction_type === 'favorite' || interaction.interaction_type === 'emoji_reaction') state.is_favorited = true;
       if (interaction.interaction_type === 'reblog') state.is_reblogged = true;
       if (interaction.interaction_type === 'bookmark') state.is_bookmarked = true;
     });

@@ -99,6 +99,7 @@
                 :placeholder="placeholder"
                 :max-height="200"
                 :min-height="60"
+                :bordered="mode === 'inline'"
                 @update:model-value="handleContentUpdate"
                 @keydown="handleKeydown"
                 @cursor-position-changed="handleCursorPositionChanged"
@@ -322,6 +323,7 @@ import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { debug } from '@/utils/debug'
 import { useI18n } from 'vue-i18n';
 import { useProfileStore } from '@/stores/useProfile';
+import { useInstanceSettingsStore } from '@/stores/useInstanceSettings';
 import type { TimelinePost, Post, FederatedUser } from '@/types';
 
 // Composables
@@ -370,6 +372,7 @@ const emit = defineEmits<{
 
 // Store
 const profileStore = useProfileStore();
+const instanceSettings = useInstanceSettingsStore();
 
 // Refs
 const richEditorRef = ref<InstanceType<typeof RichTextEditor>>();
@@ -398,7 +401,9 @@ const mediaAttachments = ref<any[]>([]);
 
 // Constants
 const characterLimit = 500;
-const maxMediaAttachments = 4;
+
+// Computed
+const maxMediaAttachments = computed(() => instanceSettings.settings.maxMediaAttachmentsPerPost ?? 20);
 
 // Computed
 const remainingCharacters = computed(() => characterLimit - content.value.length);
@@ -424,8 +429,45 @@ const visibilityOptions = [
 
 // AutoSuggest setup
 const getCurrentText = () => content.value || '';
-const updateText = (newText: string) => {
-  content.value = newText;
+const updateText = (newText: string, cursorPosition?: number) => {
+  if (cursorPosition !== undefined && richEditorRef.value) {
+    debug.log('🔧 Composer updateText:', { newText, cursorPosition });
+    richEditorRef.value.skipNextWatch = true;
+
+    content.value = newText;
+
+    nextTick(() => {
+      if (richEditorRef.value?.renderContent) {
+        richEditorRef.value.renderContent(newText, true);
+      }
+
+      nextTick(() => {
+        if (richEditorRef.value) {
+          // Mention display normalization (e.g. @user@localhost → @user for local)
+          // can shorten the rendered text vs. the raw text. Recalculate cursor
+          // position by anchoring from the end: the suffix after the cursor is
+          // unaffected by mention rendering, so we can subtract it from the
+          // rendered length to find the correct cursor position.
+          const renderedText = richEditorRef.value.getPlainText?.() || '';
+          const suffixLen = newText.length - cursorPosition;
+          const adjustedCursor = Math.max(0, renderedText.length - suffixLen);
+          debug.log('🔧 Composer cursor adjustment:', {
+            rawLen: newText.length, renderedLen: renderedText.length,
+            rawCursor: cursorPosition, adjustedCursor
+          });
+
+          richEditorRef.value.focus();
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              richEditorRef.value?.setCursorPosition(adjustedCursor);
+            });
+          });
+        }
+      });
+    });
+  } else {
+    content.value = newText;
+  }
 };
 const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText, {
   mode: 'activitypub',
@@ -519,7 +561,12 @@ const handleContentUpdate = (newContent: string) => {
 
 const handleCursorPositionChanged = (position: number) => {
   if (richEditorRef.value) {
-    autoSuggest.handleInput(content.value, position);
+    // Use getPlainText from editor when available - ensures we have DOM state including
+    // mention spans (content.value can lag when typing after inserted mentions)
+    const text = typeof richEditorRef.value.getPlainText === 'function'
+      ? richEditorRef.value.getPlainText()
+      : content.value;
+    autoSuggest.handleInput(text ?? '', position);
   }
 };
 
@@ -864,12 +911,10 @@ const vClickOutside = {
 }
 
 .composer-inline-content {
-  border: 1px solid var(--background-tertiary-alpha);
+  border: 1px solid var(--border-color);
   border-radius: 12px;
-  border-top-left-radius: 0;
-  border-top-right-radius: 0;
-  border-top: 0;
   background-color: var(--background-primary);
+  box-shadow: 0 2px 5px 5px #00000011;
   padding: 1rem;
   transition: all 0.2s ease;
 }
@@ -1025,6 +1070,7 @@ const vClickOutside = {
 
 .composer-user {
   flex-shrink: 0;
+  padding-right: 8px;
 }
 
 .composer-input-area {
@@ -1116,12 +1162,12 @@ const vClickOutside = {
   gap: 0.5rem;
   margin-top: 0.5rem;
 }
-
+/* 
 .composer-inline-content .compose-options {
   padding-top: 0.75rem;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
   margin-top: 0.75rem;
-}
+} */
 
 .option-group {
   display: flex;
@@ -1342,8 +1388,11 @@ const vClickOutside = {
   .visibility-button span {
     display: none;
   }
+  
   .composer-user {
     position: absolute;
+    left: 13px;
+    top: 24px;
   }
 
   .text-input-container {

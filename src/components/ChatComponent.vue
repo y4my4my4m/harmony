@@ -553,6 +553,7 @@
           }
         } else {
           // Regular emoji input - use unified media picker
+          isPopupForReaction.value = false;
           mediaPickerInitialTab.value = 'emoji';
           mediaPickerOpen.value = !mediaPickerOpen.value;
           if (mediaPickerOpen.value) {
@@ -571,6 +572,7 @@
 
       const closeReactionEmoji = () => {
         reactionEmojiOpen.value = false;
+        isPopupForReaction.value = false;
         reactionTriggerElement.value = null;
       };
 
@@ -774,13 +776,14 @@
       };
 
       const handleSendEmoji = async (emoji: Emoji) => {
-        if (isPopupForReaction.value) {
+        const wasReaction = isPopupForReaction.value;
+        if (wasReaction) {
           closeReactionEmoji();
         } else {
           closeMediaPicker();
         }
         
-        if (isPopupForReaction.value) {
+        if (wasReaction) {
           if (authStore.session?.user) {
             themeStore.playAudio('reaction');
             
@@ -799,19 +802,19 @@
             await chatStore.addReaction(selectedMessageId.value, emoji.id, authStore.session.user.id);
           }
         } else {
-          // Track emoji usage when used in message content
+          // Append emoji immediately so it appears in the editor without delay
+          messageContent.value += `:${emoji.name}:`;
+          debug.log("Emoji added in Parent:", messageContent.value);
+
+          // Track emoji usage in background (non-blocking)
           if (authStore.session?.user && !props.isDM && serverChannelStore.currentServerId) {
-            await recordEmojiUsage(
+            recordEmojiUsage(
               emoji.id,
               authStore.session.user.id,
               serverChannelStore.currentServerId,
               'message'
             );
           }
-          
-          // Append emoji name to the existing message content
-          messageContent.value += `:${emoji.name}:`;
-          debug.log("Emoji added in Parent:", messageContent.value);
         }
       };
 
@@ -901,7 +904,7 @@
   }
   .encryption-status-tag {
     position: absolute;
-    bottom: 6px;
+    bottom: -18px;
     right: 16px;
     display: inline-flex;
     align-items: center;

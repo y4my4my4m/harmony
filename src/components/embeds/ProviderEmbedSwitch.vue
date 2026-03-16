@@ -34,20 +34,20 @@
       <template v-else-if="isFediverse">
         <template v-if="payload.fediverse">
           <div v-if="fediversePost" class="provider-embed__post provider-embed__fediverse-wrap">
-            <MonyPost :post="fediversePost" :embedded="true" @open-lightbox="$emit('open-lightbox', $event)" />
-            <a v-if="fediverseSourceUrl" :href="fediverseSourceUrl" target="_blank" rel="noopener noreferrer" class="fedi-source-link">
+            <MonyPost :post="fediversePost" :embedded="true" @open-lightbox="$emit('open-lightbox', $event)" @refresh="handleEmbedLoad" />
+            <div v-if="fediverseSourceUrl" class="fedi-source-link">
               <span class="fedi-source-badge" :title="fediversePlatformLabel">
                 <span class="fedi-badge-icon">{{ fediversePlatformIcon }}</span>
                 <span class="fedi-badge-label">{{ fediversePlatformLabel }}</span>
               </span>
-              <span class="fedi-source-link__right">
+              <a :href="fediverseSourceUrl" target="_blank" rel="noopener noreferrer" class="fedi-source-link__right">
                 View on {{ fediverseSourceDomain }}
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
                   <polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
                 </svg>
-              </span>
-            </a>
+              </a>
+            </div>
           </div>
           <div v-else-if="fediverseError" class="provider-embed__skeleton">
             <span>{{ fediverseError }}</span>
@@ -84,19 +84,21 @@
   </div>
 </template>
 
+<script lang="ts">
+import type { TimelinePost } from '@/types';
+// Module-level cache so re-mounts (virtual scroller) don't re-fetch
+const fediversePostCache = new Map<string, TimelinePost>();
+</script>
+
 <script setup lang="ts">
 import { computed, onMounted, ref, nextTick, onUnmounted } from 'vue';
 import { debug } from '@/utils/debug'
-import type { EmbedPayload, TimelinePost, FediverseEmbedSummary } from '@/types';
-import { convertActivityPubHTMLToMessageParts } from '@/utils/unifiedContentProcessing';
+import type { EmbedPayload, TimelinePost } from '@/types';
 import { parseEmbedUrl, buildYouTubeEmbedUrl, buildSpotifyEmbedUrl } from '@/utils/embedDetection';
 import { useFloatingVideo } from '@/composables/useFloatingVideo';
 import MonyPost from '@/components/activitypub/MonyPost.vue';
 import LinkEmbedCard from './LinkEmbedCard.vue';
 import ServerInviteCard from './ServerInviteCard.vue';
-
-// Module-level cache so re-mounts (virtual scroller) don't re-fetch
-const fediversePostCache = new Map<string, TimelinePost>();
 
 const props = defineProps<{
   payload: EmbedPayload;
@@ -390,65 +392,6 @@ const fediverseSourceDomain = computed(() => {
   }
 });
 
-function buildSyntheticTimelinePost(fedi: FediverseEmbedSummary): TimelinePost {
-  const handleMatch = fedi.authorHandle.match(/@?([^@]+)@(.+)/);
-  const username = handleMatch?.[1] || 'unknown';
-  const domain = handleMatch?.[2] || 'unknown';
-
-  const mediaAttachments = (fedi.attachments || []).map((att, idx) => ({
-    id: `fedi-att-${idx}`,
-    type: (att.mediaType?.startsWith('image/') ? 'image'
-         : att.mediaType?.startsWith('video/') ? 'video' : 'unknown') as 'image' | 'video' | 'unknown',
-    url: att.url,
-    description: att.alt,
-    mime_type: att.mediaType,
-  }));
-
-  // Extract the note ID from the post URL for a readable synthetic ID
-  let noteId: string;
-  try {
-    const segments = new URL(fedi.postUrl).pathname.split('/').filter(Boolean);
-    noteId = segments[segments.length - 1] || 'unknown';
-  } catch {
-    noteId = 'unknown';
-  }
-  const syntheticId = `fedi-${domain}-${noteId}`;
-
-  return {
-    id: syntheticId,
-    created_at: fedi.published || new Date().toISOString(),
-    updated_at: fedi.published || new Date().toISOString(),
-    content: convertActivityPubHTMLToMessageParts(fedi.content || ''),
-    content_warning: fedi.contentWarning,
-    language: 'en',
-    author_id: syntheticId,
-    ap_id: fedi.postUrl,
-    ap_type: 'Note',
-    url: fedi.postUrl,
-    visibility: 'public',
-    is_local: false,
-    is_federated: true,
-    replies_count: fedi.stats?.replies || 0,
-    reblogs_count: fedi.stats?.reblogs || 0,
-    favorites_count: fedi.stats?.favourites || 0,
-    media_attachments: mediaAttachments,
-    metadata: { synthetic: true, platform: fedi.platform },
-    is_sensitive: fedi.sensitive || false,
-    is_deleted: false,
-    author: {
-      id: syntheticId,
-      username,
-      display_name: fedi.authorName || username,
-      avatar_url: fedi.authorAvatar,
-      domain,
-      is_local: false,
-    },
-    is_favorited: false,
-    is_reblogged: false,
-    is_bookmarked: false,
-  } as TimelinePost;
-}
-
 async function loadFediversePost() {
   const fedi = props.payload.fediverse;
   if (!fedi) {
@@ -495,46 +438,28 @@ async function loadFediversePost() {
       }
     }
 
-    // Try DB lookup by URL or AP ID
-    const { supabase } = await import('@/supabase');
-    const { data: localPost } = await supabase
-      .from('posts')
-      .select('id')
-      .or(`url.eq.${postUrl},ap_id.eq.${postUrl}`)
-      .eq('is_deleted', false)
-      .limit(1)
-      .maybeSingle();
-
-    if (localPost?.id) {
-      const post = await store.loadPostWithAuthor(localPost.id);
-      if (post) {
-        fediversePostCache.set(postUrl, post);
-        fediversePost.value = post;
-        handleEmbedLoad();
-        return;
-      }
+    // Unified resolve: DB lookup + federation import if missing
+    const { postResolverService } = await import('@/services/PostResolverService');
+    const resolved = await postResolverService.resolveByApUrl(postUrl);
+    if (resolved) {
+      fediversePostCache.set(postUrl, resolved);
+      fediversePost.value = resolved;
+      handleEmbedLoad();
+      return;
     }
 
-    // Not in local DB — build synthetic post from embed data
-    const synthetic = buildSyntheticTimelinePost(fedi);
-    fediversePostCache.set(postUrl, synthetic);
-    fediversePost.value = synthetic;
+    fediverseError.value = 'Could not load this post from the remote instance';
     handleEmbedLoad();
   } catch (error) {
     debug.warn('Failed to load fediverse post:', error);
-    const synthetic = buildSyntheticTimelinePost(fedi);
-    fediversePostCache.set(postUrl, synthetic);
-    fediversePost.value = synthetic;
+    fediverseError.value = 'Could not load this post';
     handleEmbedLoad();
   }
 }
 
 function handleEmbedLoad() {
-  if (!embedLoaded.value) {
-    embedLoaded.value = true;
-    emit('embed-loaded');
-  }
-  // Re-send listening event now that iframe content is loaded
+  embedLoaded.value = true;
+  emit('embed-loaded');
   if (props.payload.provider === 'youtube') {
     sendListeningEvent();
   }
@@ -549,44 +474,4 @@ function openLink() {
 }
 </script>
 
-<style scoped>
-.fedi-source-link {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 6px 14px 8px;
-  font-size: 12px;
-  color: var(--text-secondary, #8b949e);
-  text-decoration: none;
-  border-top: 1px solid var(--border-color, rgba(48, 54, 61, 0.5));
-}
-
-.fedi-source-link:hover {
-  color: var(--harmony-primary, #58a6ff);
-}
-
-.fedi-source-badge {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 11px;
-  color: var(--text-secondary, #8b949e);
-}
-
-.fedi-badge-icon {
-  font-size: 12px;
-  line-height: 1;
-}
-
-.fedi-badge-label {
-  white-space: nowrap;
-}
-
-.fedi-source-link__right {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-</style>
 

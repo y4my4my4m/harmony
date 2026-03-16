@@ -591,7 +591,10 @@
       "developerMode": "개발자 모드",
       "developerModeDescription": "개발자 기능 및 디버깅 도구를 활성화합니다.",
       "hardwareAcceleration": "하드웨어 가속",
-      "copyRawData": "원시 데이터 복사"
+      "copyRawData": "원시 데이터 복사",
+      "reportBugSection": "도움말",
+      "reportBug": "버그 신고",
+      "reportBugDescription": "GitHub에서 버그를 신고하거나 기능을 요청할 수 있습니다."
     }
   },
   "navigation": {

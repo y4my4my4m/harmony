@@ -223,6 +223,7 @@ CREATE TABLE IF NOT EXISTS public.post_hashtags (
     post_id uuid NOT NULL REFERENCES public.posts(id) ON DELETE CASCADE,
     hashtag_id uuid NOT NULL REFERENCES public.hashtags(id) ON DELETE CASCADE,
     created_at timestamp with time zone DEFAULT now(),
+    position_in_content integer DEFAULT 0,
     PRIMARY KEY (post_id, hashtag_id)
 );
 

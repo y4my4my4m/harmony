@@ -1,9 +1,12 @@
 import { supabase } from '@/supabase'
+import { debug } from '@/utils/debug'
 
 // Constants
 const DEFAULT_SERVER_ICON = '/default_server.webp'
 const SERVER_ICONS_BUCKET = 'server_icons'
+const SERVER_BANNERS_BUCKET = 'server_banners'
 const SUPABASE_STORAGE_PATTERN = /\/storage\/v1\/object\/public\/server_icons\/(.+)$/
+const SUPABASE_BANNER_STORAGE_PATTERN = /\/storage\/v1\/object\/public\/server_banners\/(.+)$/
 
 // Storage transformation options
 const TRANSFORM_OPTIONS = {
@@ -111,6 +114,115 @@ export function getServerIconUrl(serverUrl: string | null | undefined, size: num
 
   // Unknown format - return default
   return DEFAULT_SERVER_ICON
+}
+
+/**
+ * Get the public URL for a server banner stored in Supabase storage.
+ */
+export function getServerBannerUrl(
+  bannerPath: string | null | undefined,
+  options?: { width?: number; height?: number; quality?: number }
+): string | null {
+  if (!bannerPath || typeof bannerPath !== 'string') return null
+
+  const trimmed = bannerPath.trim()
+  if (!trimmed) return null
+
+  if (trimmed.startsWith('blob:')) return trimmed
+
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+    const storageMatch = trimmed.match(SUPABASE_BANNER_STORAGE_PATTERN)
+    if (storageMatch && isOurSupabaseUrl(trimmed)) {
+      return transformServerBannerPath(storageMatch[1], options)
+    }
+    return trimmed
+  }
+
+  if (trimmed.includes('/') && !trimmed.startsWith('/') && !trimmed.includes('://')) {
+    return transformServerBannerPath(trimmed, options)
+  }
+
+  if (trimmed.startsWith('/')) return trimmed
+
+  return null
+}
+
+function transformServerBannerPath(
+  path: string,
+  options?: { width?: number; height?: number; quality?: number }
+): string {
+  const { data } = supabase.storage
+    .from(SERVER_BANNERS_BUCKET)
+    .getPublicUrl(path, {
+      transform: {
+        width: options?.width || 1280,
+        height: options?.height || 400,
+        resize: 'cover' as const,
+        quality: options?.quality || 80,
+      },
+    })
+  return data.publicUrl
+}
+
+/**
+ * Upload a server banner to Supabase storage.
+ */
+export async function uploadServerBanner(
+  file: File,
+  serverId: string
+): Promise<{ success: boolean; url?: string; error?: string }> {
+  try {
+    const ext = file.name.split('.').pop()
+    if (!ext) return { success: false, error: 'File must have an extension' }
+
+    const filePath = `${serverId}/${serverId}_banner.${ext}`
+
+    const { error } = await supabase.storage
+      .from(SERVER_BANNERS_BUCKET)
+      .upload(filePath, file, { upsert: true })
+
+    if (error) {
+      debug.error('Failed to upload server banner:', error)
+      return { success: false, error: error.message }
+    }
+
+    return { success: true, url: filePath }
+  } catch (error) {
+    debug.error('Error uploading server banner:', error)
+    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
+  }
+}
+
+/**
+ * Delete a server banner from Supabase storage.
+ */
+export async function deleteServerBanner(storagePath: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { error } = await supabase.storage
+      .from(SERVER_BANNERS_BUCKET)
+      .remove([storagePath])
+
+    if (error) return { success: false, error: error.message }
+    return { success: true }
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
+  }
+}
+
+/**
+ * Normalize a server banner URL for storage (extract path from full URLs).
+ */
+export function normalizeServerBannerForStorage(bannerUrl: string | null | undefined): string | null {
+  if (!bannerUrl) return null
+  const trimmed = bannerUrl.trim()
+  if (!trimmed || trimmed.startsWith('blob:')) return null
+
+  if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://')) return trimmed
+
+  const storageMatch = trimmed.match(SUPABASE_BANNER_STORAGE_PATTERN)
+  if (storageMatch && isOurSupabaseUrl(trimmed)) return storageMatch[1]
+
+  return trimmed
 }
 
 /**

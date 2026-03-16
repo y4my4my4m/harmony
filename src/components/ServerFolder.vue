@@ -654,7 +654,7 @@ const onIconError = (event: Event) => {
 }
 
 .server-item.selected {
-  border: 2px solid var(--h-secondary);
+  border: 2px solid var(--harmony-secondary);
   border-radius: 50%;
 }
 

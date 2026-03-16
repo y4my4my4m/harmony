@@ -5,7 +5,8 @@
     :class="{ 
       'is-empty': !modelValue && !hasContent, 
       'is-focused': isFocused,
-      'single-line': isSingleLine 
+      'single-line': isSingleLine,
+      'bordered': bordered
     }"
     role="textbox"
     aria-multiline="true"
@@ -48,6 +49,8 @@ interface Props {
   placeholder?: string;
   maxHeight?: number;
   minHeight?: number;
+  /** When true, shows border with hover/focus states (harmony-primary-alpha on hover, harmony-primary on focus) */
+  bordered?: boolean;
 }
 
 interface Emits {
@@ -63,7 +66,8 @@ interface Emits {
 const props = withDefaults(defineProps<Props>(), {
   placeholder: 'Type a message...',
   maxHeight: 200,
-  minHeight: 44
+  minHeight: 44,
+  bordered: false
 });
 
 const emit = defineEmits<Emits>();
@@ -218,10 +222,10 @@ const getPlainText = (): string => {
     processNode(child);
   }
   
-  // Only return empty if there's truly no content (no text, no BRs, or only whitespace)
-  // But preserve newlines if they exist (user might have typed them)
+  // Treat as empty when there's no actual text (trimmed is empty).
+  // Lone <br> from browser when user deletes everything → text is '\n', trimmed is '' → return ''.
   const trimmed = text.trim();
-  if (trimmed.length === 0 && !text.includes('\n')) {
+  if (trimmed.length === 0) {
     return '';
   }
   
@@ -484,11 +488,18 @@ const processMentionsInText = (text: string): DocumentFragment => {
       }
       fragment.appendChild(span);
     } else if (match[3]) {
-      // User mention
-      const username = match[4];
-      const domain = match[5];
-      const mentionElement = createMentionElementFromDisplay(match[0], username, domain);
-      fragment.appendChild(mentionElement);
+      // User mention - but skip if match is at the end of text (likely in-progress autosuggest query)
+      // e.g. "@username test @use" - don't convert "@use" to a pill yet, let autosuggest trigger
+      if (matchEnd === text.length) {
+        const textNode = document.createTextNode(match[0].replace(/ /g, '\u00A0'));
+        fragment.appendChild(textNode);
+        lastIndex = matchStart; // Don't advance - we're leaving it as text, will be in remaining
+      } else {
+        const username = match[4];
+        const domain = match[5];
+        const mentionElement = createMentionElementFromDisplay(match[0], username, domain);
+        fragment.appendChild(mentionElement);
+      }
     }
     
     lastIndex = matchEnd;
@@ -858,14 +869,11 @@ const handleInput = (event?: Event) => {
   // Rendering will happen when modelValue changes externally
   
   // Ensure editor is empty when text is removed (for placeholder to show)
-  // But preserve intentional newlines (user might have typed them)
+  // Clear stray <br> that browsers leave when user deletes all content
   const hasNoContent = !text || text.trim().length === 0;
-  const hasNoNewlines = !text?.includes('\n');
-  
-  if (hasNoContent && hasNoNewlines) {
+  if (hasNoContent) {
     nextTick(() => {
       if (editorRef.value) {
-        // Only clear if there's no actual content (no text, no intentional newlines)
         const hasOnlyWhitespace = editorRef.value.textContent?.trim().length === 0;
         if (hasOnlyWhitespace && editorRef.value.innerHTML.trim() !== '') {
           editorRef.value.innerHTML = '';
@@ -913,6 +921,24 @@ const handleKeyDown = (event: KeyboardEvent) => {
       }
     }
     return;
+  }
+  
+  // Fallback: emit cursor-position-changed on keydown for @ or mention/emoji chars.
+  // In some browsers, input doesn't fire when typing after contenteditable=false pills.
+  // nextTick runs after the key is inserted, so autosuggest gets the correct state.
+  const isTriggerChar = !event.isComposing &&
+    (event.key === '@' || event.key === ':' ||
+    (event.key.length === 1 && /[a-zA-Z0-9_+-]/.test(event.key)));
+  if (isTriggerChar && !event.ctrlKey && !event.metaKey && !event.altKey) {
+    nextTick(() => {
+      if (!isRendering.value && editorRef.value) {
+        const sel = window.getSelection();
+        if (sel?.rangeCount && editorRef.value.contains(sel.getRangeAt(0).startContainer)) {
+          const pos = getCursorPosition();
+          emit('cursor-position-changed', pos);
+        }
+      }
+    });
   }
   
   emit('keydown', event);
@@ -1032,6 +1058,7 @@ defineExpose({
   insertTextAtCursor,
   getCursorPosition,
   setCursorPosition,
+  getPlainText,
   renderContent,
   skipNextWatch // Expose this so MessageInput can set it
 });
@@ -1119,6 +1146,22 @@ onMounted(async () => {
   position: absolute;
   top: 11px;
   left: 12px;
+}
+
+/* Bordered variant: border with hover/focus states for composer inline mode */
+.rich-text-editor.bordered {
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.rich-text-editor.bordered:hover {
+  border-color: var(--harmony-primary-alpha);
+}
+
+.rich-text-editor.bordered.is-focused {
+  border-color: var(--harmony-primary);
+  box-shadow: 0 0 0 2px var(--harmony-primary-light);
 }
 
 /* Markdown markers styling */

@@ -130,6 +130,51 @@
         </div>
       </div>
     </div>
+
+    <!-- Server Banner -->
+    <div class="settings-card">
+      <div class="form-group">
+        <label class="form-label">Server Banner</label>
+        <div class="banner-upload-container">
+          <div
+            class="banner-preview"
+            :class="{ 'has-banner': bannerPreviewUrl }"
+            :style="bannerPreviewUrl ? { backgroundImage: `url(${bannerPreviewUrl})` } : {}"
+            @click="permissions.canChangeServerIcon && triggerBannerInput()"
+          >
+            <div v-if="!bannerPreviewUrl" class="banner-placeholder">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/>
+              </svg>
+              <span>Click to upload banner</span>
+            </div>
+            <div v-else class="banner-overlay">
+              <span>Change banner</span>
+            </div>
+          </div>
+          <div v-if="permissions.canChangeServerIcon && (server.banner || selectedBannerFile)" class="banner-controls">
+            <button
+              type="button"
+              class="btn btn-danger-outline"
+              @click="removeBanner"
+              :disabled="loading"
+            >
+              Remove Banner
+            </button>
+          </div>
+        </div>
+        <input
+          ref="bannerFileInput"
+          type="file"
+          accept="image/*"
+          class="hidden-file-input"
+          @change="handleBannerFileChange"
+        />
+        <div class="form-hint">
+          Recommended: 1280x400px. Displayed at the top of your server.
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -138,6 +183,7 @@ import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { Server } from '@/types'
 import { useNotificationStore } from '@/stores/useNotification'
+import { getServerBannerUrl } from '@/utils/serverUtils'
 import ServerIcon from '@/components/common/ServerIcon.vue'
 
 const { t } = useI18n()
@@ -154,6 +200,7 @@ interface ServerPermissions {
 interface Props {
   server: Server
   selectedFile: File | null
+  selectedBannerFile?: File | null
   ownerName: string
   loading: boolean
   permissions: ServerPermissions
@@ -163,13 +210,16 @@ interface Emits {
   (e: 'update:server', value: Server): void
   (e: 'update:selectedFile', value: File | null): void
   (e: 'file-change', file: File | null): void
+  (e: 'banner-change', file: File | null): void
 }
 
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 
 const fileInput = ref<HTMLInputElement>()
+const bannerFileInput = ref<HTMLInputElement>()
 let currentBlobUrl: string | null = null
+let currentBannerBlobUrl: string | null = null
 
 // Computed property for icon preview - shows selected file preview or current server icon
 const iconPreviewUrl = computed(() => {
@@ -185,6 +235,50 @@ const iconPreviewUrl = computed(() => {
   }
   return props.server.icon || null
 })
+
+const bannerPreviewUrl = computed(() => {
+  if (currentBannerBlobUrl) {
+    URL.revokeObjectURL(currentBannerBlobUrl)
+    currentBannerBlobUrl = null
+  }
+  if (props.selectedBannerFile) {
+    currentBannerBlobUrl = URL.createObjectURL(props.selectedBannerFile)
+    return currentBannerBlobUrl
+  }
+  return props.server.banner ? getServerBannerUrl(props.server.banner, { width: 640, height: 200 }) : null
+})
+
+const triggerBannerInput = () => {
+  if (!props.permissions.canChangeServerIcon) return
+  bannerFileInput.value?.click()
+}
+
+const handleBannerFileChange = (event: Event) => {
+  if (!props.permissions.canChangeServerIcon) return
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0] || null
+
+  if (file) {
+    if (file.size > 10 * 1024 * 1024) {
+      notificationStore.showToast('error', t('common.error'), 'Banner file is too large (max 10MB)', 3000)
+      return
+    }
+    if (!file.type.startsWith('image/')) {
+      notificationStore.showToast('error', t('common.error'), t('server.selectValidImageFile'), 3000)
+      return
+    }
+  }
+
+  emit('banner-change', file)
+  if (input) input.value = ''
+}
+
+const removeBanner = () => {
+  if (!props.permissions.canChangeServerIcon) return
+  const updatedServer = { ...props.server, banner: '' }
+  emit('update:server', updatedServer)
+  emit('banner-change', null)
+}
 
 const triggerFileInput = () => {
   if (!props.permissions.canChangeServerIcon) return
@@ -476,6 +570,69 @@ const updateServerDescription = (event: Event) => {
 
 .hidden-file-input {
   display: none;
+}
+
+/* Banner upload */
+.banner-upload-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.banner-preview {
+  width: 100%;
+  height: 120px;
+  border-radius: 8px;
+  background-size: cover;
+  background-position: center;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  border: 2px dashed var(--h-chat-light);
+  transition: border-color 0.2s;
+}
+
+.banner-preview.has-banner {
+  border-style: solid;
+}
+
+.banner-preview:hover {
+  border-color: #5865f2;
+}
+
+.banner-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 8px;
+  color: #72767d;
+  font-size: 13px;
+}
+
+.banner-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.5);
+  color: white;
+  font-size: 14px;
+  font-weight: 500;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.banner-preview:hover .banner-overlay {
+  opacity: 1;
+}
+
+.banner-controls {
+  display: flex;
+  gap: 8px;
 }
 
 @media (max-width: 768px) {

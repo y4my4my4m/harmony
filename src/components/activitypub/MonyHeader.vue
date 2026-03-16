@@ -335,25 +335,21 @@ const getIconPath = (iconName: string): string => {
   height: 32px;
   background: none;
   border: none;
-  color: var(--text-secondary);
   cursor: pointer;
   border-radius: 4px;
   transition: all 0.2s;
+  color: var(--text-primary);
+  padding: 5px;
 }
 
 .action-btn:hover {
-  color: var(--text-primary);
-  background: var(--background-secondary);
-}
-
-.composer-btn {
-  background: var(--harmony-primary, #5865f2);
-  color: var(--text-primary);
-}
-
-.composer-btn:hover {
   background: var(--harmony-primary-hover, #4752c4);
-  color: var(--text-primary);
+  color: var(--text-light);
+}
+
+.action-btn:active {
+  background: var(--harmony-primary-hover, #4752c4);
+  color: var(--text-light);
 }
 
 .search-icon,
@@ -363,10 +359,12 @@ const getIconPath = (iconName: string): string => {
   width: 18px;
   height: 18px;
 }
-
 .sidebar-btn.active {
   color: var(--harmony-primary, #5865f2);
-  background: var(--harmony-primary-alpha, rgba(88, 101, 242, 0.1));
+  /* background: var(--harmony-primary-alpha, rgba(88, 101, 242, 0.1)); */
+}
+.sidebar-btn:hover {
+  color: var(--text-light);
 }
 
 /* Mobile styles */

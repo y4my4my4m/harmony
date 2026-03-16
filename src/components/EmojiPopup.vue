@@ -13,16 +13,67 @@
 
     <!-- Emoji Content Area -->
     <div class="emoji-content">
+      <!-- Favorite Emojis (always visible) -->
+      <div v-if="!searchQuery" class="emoji-section">
+        <h3
+          class="section-title section-title-collapsible"
+          @click="toggleSection('favorites')"
+        >
+          <span class="section-chevron" :class="{ collapsed: isSectionCollapsed('favorites') }">&#9662;</span>
+          &#11088; Favorites
+        </h3>
+        <template v-if="!isSectionCollapsed('favorites')">
+          <div v-if="favoriteEmojis.length" class="emoji-list frequent-list">
+            <div
+              v-for="fav in favoriteEmojis"
+              :key="fav.emoji_id"
+              class="emoji-item"
+              :class="{ 'native-emoji-item': isNativePack && !fav.emoji_url, 'svg-emoji-item': !isNativePack || fav.emoji_url }"
+              @click="selectFavoriteEmoji(fav)"
+              @contextmenu.prevent="openEmojiCtxFavorite(fav, $event)"
+              @touchstart="handleTouchHold($event, (e) => openEmojiCtxFavorite(fav, e))"
+              @pointerenter="hoveredEmojiName = fav.emoji_name"
+              @pointerleave="hoveredEmojiName = null"
+            >
+              <img
+                v-if="fav.emoji_url"
+                :src="getEmojiUrl(fav.emoji_url, 42)"
+                :alt="fav.emoji_name"
+                class="frequent-emoji-img"
+              />
+              <img
+                v-else-if="!isNativePack && getFavoriteSvgUrl(fav)"
+                :src="getFavoriteSvgUrl(fav)!"
+                :alt="fav.emoji_name"
+                class="frequent-emoji-img"
+              />
+              <span v-else class="native-emoji-char">{{ fav.emoji_id }}</span>
+            </div>
+          </div>
+          <div v-else class="no-favorites-hint">
+            <p>Right-click (or touch and hold) any emoji to add it here.</p>
+          </div>
+        </template>
+      </div>
+
       <!-- Frequently Used Emojis -->
       <div v-if="!searchQuery && hasFrequentEmojis" class="emoji-section">
-        <h3 class="section-title">⏱️ Frequently Used</h3>
-        <div class="emoji-list frequent-list">
+        <h3
+          class="section-title section-title-collapsible"
+          @click="toggleSection('frequent')"
+        >
+          <span class="section-chevron" :class="{ collapsed: isSectionCollapsed('frequent') }">&#9662;</span>
+          ⏱️ Frequently Used
+        </h3>
+        <div v-if="!isSectionCollapsed('frequent')" class="emoji-list frequent-list">
           <div
             v-for="emoji in topEmojisForPicker"
             :key="emoji.id"
             class="emoji-item"
             :class="{ 'native-emoji-item': isNativePack, 'svg-emoji-item': !isNativePack }"
             @click="selectFrequentEmoji(emoji)"
+            @contextmenu.prevent="openEmojiCtxFrequent(emoji, $event)"
+            @touchstart="handleTouchHold($event, (e) => openEmojiCtxFrequent(emoji, e))"
             @pointerenter="hoveredEmojiName = emoji.name"
             @pointerleave="hoveredEmojiName = null"
           >
@@ -46,14 +97,22 @@
 
       <!-- Server Emojis List -->
       <div v-if="filteredEmojiList.length">
-        <div v-for="group in filteredEmojiList" :key="group.serverId">
-          <h3 class="section-title">{{ group.server_name }}</h3>
-          <div class="emoji-list">
+        <div v-for="group in filteredEmojiList" :key="group.serverId" class="emoji-section">
+          <h3
+            class="section-title section-title-collapsible"
+            @click="toggleSection('server-' + group.serverId)"
+          >
+            <span class="section-chevron" :class="{ collapsed: isSectionCollapsed('server-' + group.serverId) }">&#9662;</span>
+            {{ group.server_name }}
+          </h3>
+          <div v-if="!isSectionCollapsed('server-' + group.serverId)" class="emoji-list">
             <div
               v-for="emoji in group.emojis"
               :key="emoji.id"
               class="emoji-item"
               @click="selectEmoji(emoji)"
+              @contextmenu.prevent="openEmojiCtxServer(emoji, $event)"
+              @touchstart="handleTouchHold($event, (e) => openEmojiCtxServer(emoji, e))"
               @pointerenter="hoveredEmojiName = emoji.display_name"
               @pointerleave="hoveredEmojiName = null"
             >
@@ -72,18 +131,26 @@
       <LazyEmojiSection
         v-for="category in displayedCategories"
         :key="category.id"
-        :emoji-count="category.emojis.length"
+        :emoji-count="isSectionCollapsed('cat-' + category.id) ? 0 : category.emojis.length"
       >
         <template #header>
-          <h3 class="section-title">{{ category.icon }} {{ category.name }}</h3>
+          <h3
+            class="section-title section-title-collapsible"
+            @click="toggleSection('cat-' + category.id)"
+          >
+            <span class="section-chevron" :class="{ collapsed: isSectionCollapsed('cat-' + category.id) }">&#9662;</span>
+            {{ category.icon }} {{ category.name }}
+          </h3>
         </template>
-        <div class="emoji-list unified-list">
+        <div v-if="!isSectionCollapsed('cat-' + category.id)" class="emoji-list unified-list">
           <div
             v-for="emoji in category.emojis"
             :key="emoji.shortcode"
             class="emoji-item"
             :class="{ 'svg-emoji-item': !isNativePack, 'native-emoji-item': isNativePack }"
             @click="selectUnifiedEmoji(emoji)"
+            @contextmenu.prevent="openEmojiCtxUnified(emoji, $event)"
+            @touchstart="handleTouchHold($event, (e) => openEmojiCtxUnified(emoji, e))"
             @pointerenter="hoveredEmojiName = emoji.shortcode"
             @pointerleave="hoveredEmojiName = null"
           >
@@ -113,6 +180,41 @@
     <div class="emoji-preview-bar">
       <span v-if="hoveredEmojiName" class="emoji-preview-name">:{{ hoveredEmojiName }}:</span>
     </div>
+
+    <!-- Favorite toast -->
+    <Transition name="fav-toast">
+      <div v-if="favToast" class="fav-toast">{{ favToast }}</div>
+    </Transition>
+
+    <!-- Emoji right-click context menu -->
+    <Teleport to="body">
+      <div
+        v-if="emojiCtx.visible"
+        ref="emojiCtxBackdropRef"
+        data-emoji-ctx-backdrop
+        class="emoji-ctx-backdrop"
+        @click="closeEmojiCtx"
+        @contextmenu.prevent="closeEmojiCtx"
+      >
+        <div
+          class="emoji-ctx-menu"
+          :style="{ top: emojiCtx.y + 'px', left: emojiCtx.x + 'px' }"
+          @click.stop
+        >
+          <div class="emoji-ctx-item" @click="ctxToggleFavorite">
+            <span>{{ emojiCtx.isFav ? 'Unfavorite Emoji' : 'Favorite Emoji' }}</span>
+          </div>
+          <div class="emoji-ctx-item" @click="ctxCopyId">
+            <span>Copy Emoji ID</span>
+            <span class="emoji-ctx-badge">ID</span>
+          </div>
+          <div v-if="emojiCtx.imageUrl" class="emoji-ctx-item" @click="ctxCopyImageLink">
+            <span>Copy Image Link</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -123,6 +225,7 @@ import { usePopupPositioning } from '@/composables/usePopupPositioning';
 import { useFrequentEmojis } from '@/composables/useFrequentEmojis';
 import { useHapticSettings } from '@/composables/useHapticSettings';
 import { useUnifiedEmoji, type EmojiEntry } from '@/services/unifiedEmojiService';
+import { emojiFavoriteService, type EmojiFavorite } from '@/services/EmojiFavoriteService';
 import type { Emoji, ResolvedEmoji } from '@/types';
 import { getEmojiUrl } from '@/utils/emojiUtils';
 import { EMOJI_CATEGORIES, CATEGORY_ORDER } from '@/utils/emojiConstants';
@@ -200,6 +303,17 @@ const emojiPopup = ref<HTMLElement | null>(null);
 const searchInput = ref<HTMLInputElement | null>(null);
 const searchQuery = ref('');
 const hoveredEmojiName = ref<string | null>(null);
+const favoriteEmojis = ref<EmojiFavorite[]>([]);
+const collapsedSections = ref(new Set<string>());
+
+const toggleSection = (id: string) => {
+  const s = new Set(collapsedSections.value);
+  if (s.has(id)) s.delete(id);
+  else s.add(id);
+  collapsedSections.value = s;
+};
+
+const isSectionCollapsed = (id: string) => collapsedSections.value.has(id);
 
 // --- Composables ---
 
@@ -496,9 +610,13 @@ const selectFrequentEmoji = (emoji: { id: string; native?: string; name: string;
 };
 
 const handleClickOutside = (event: MouseEvent): void => {
-  if (emojiPopup.value && !emojiPopup.value.contains(event.target as Node)) {
-    props.closeEmojiList?.();
-  }
+  if (!emojiPopup.value) return;
+  const target = event.target as Node;
+  // Don't close if click was inside the popup
+  if (emojiPopup.value.contains(target)) return;
+  // Don't close if click was on the context menu (teleported to body) - use data attr since ref can be null after menu closes
+  if ((target as Element).closest?.('[data-emoji-ctx-backdrop]')) return;
+  props.closeEmojiList?.();
 };
 
 const handleKeyDown = (event: KeyboardEvent): void => {
@@ -509,6 +627,236 @@ const handleKeyDown = (event: KeyboardEvent): void => {
 
 // --- Lifecycle Hooks ---
 
+// Favorites
+async function loadFavorites() {
+  favoriteEmojis.value = await emojiFavoriteService.getFavorites();
+}
+
+function getFavoriteSvgUrl(fav: EmojiFavorite): string | null {
+  if (isNativePack.value) return null;
+  if (fav.emoji_url) return null;
+  const resolved = resolveEmoji(fav.emoji_id);
+  return resolved.display.type === 'svg' ? resolved.display.content : null;
+}
+
+async function removeFavoriteEmoji(emojiId: string) {
+  await emojiFavoriteService.removeFavorite(emojiId);
+  favoriteEmojis.value = favoriteEmojis.value.filter(f => f.emoji_id !== emojiId);
+}
+
+function selectFavoriteEmoji(fav: EmojiFavorite) {
+  triggerReaction();
+  recordEmojiUsage({ id: fav.emoji_id, name: fav.emoji_name, url: fav.emoji_url || undefined });
+  emit('sendEmoji', {
+    id: fav.emoji_id,
+    name: fav.emoji_name,
+    url: fav.emoji_url || '',
+    created_at: new Date(),
+    uploader: '',
+    server_id: fav.emoji_server_id || ''
+  } as Emoji);
+  props.closeEmojiList?.();
+}
+
+const favToast = ref<string | null>(null);
+let favToastTimer: ReturnType<typeof setTimeout> | null = null;
+
+function showFavToast(msg: string) {
+  favToast.value = msg;
+  if (favToastTimer) clearTimeout(favToastTimer);
+  favToastTimer = setTimeout(() => { favToast.value = null; }, 1500);
+}
+
+async function toggleFavoriteUnified(emoji: EmojiEntry) {
+  try {
+    const result = await emojiFavoriteService.toggleFavorite(emoji.unicode, emoji.shortcode, null, null);
+    showFavToast(result.isFavorite ? `⭐ Added :${emoji.shortcode}:` : `Removed :${emoji.shortcode}:`);
+    await loadFavorites();
+  } catch (e) {
+    debug.error('Failed to toggle favorite:', e);
+  }
+}
+
+async function toggleFavoriteServer(emoji: ResolvedEmoji) {
+  try {
+    const url = emoji.url ? getEmojiUrl(emoji.url, 42) : null;
+    const result = await emojiFavoriteService.toggleFavorite(emoji.id, emoji.name, url, emoji.server_id || null);
+    showFavToast(result.isFavorite ? `⭐ Added :${emoji.name}:` : `Removed :${emoji.name}:`);
+    await loadFavorites();
+  } catch (e) {
+    debug.error('Failed to toggle favorite:', e);
+  }
+}
+
+async function toggleFavoriteFrequent(emoji: { id: string; native?: string; name: string; url?: string }) {
+  try {
+    const emojiId = emoji.native || emoji.id;
+    const url = getFrequentEmojiDisplayUrl(emoji);
+    const result = await emojiFavoriteService.toggleFavorite(emojiId, emoji.name, url, null);
+    showFavToast(result.isFavorite ? `⭐ Added :${emoji.name}:` : `Removed :${emoji.name}:`);
+    await loadFavorites();
+  } catch (e) {
+    debug.error('Failed to toggle favorite:', e);
+  }
+}
+
+// --- Emoji Context Menu ---
+interface EmojiCtxState {
+  visible: boolean;
+  x: number;
+  y: number;
+  emojiId: string;
+  emojiName: string;
+  imageUrl: string | null;
+  serverIdOrNull: string | null;
+  isFav: boolean;
+}
+
+const emojiCtx = ref<EmojiCtxState>({
+  visible: false, x: 0, y: 0,
+  emojiId: '', emojiName: '', imageUrl: null, serverIdOrNull: null, isFav: false,
+});
+
+function positionCtxMenu(event: MouseEvent | Touch): { x: number; y: number } {
+  const menuW = 200, menuH = 120;
+  let x = event.clientX;
+  let y = event.clientY;
+  // On touch: position menu well above finger so it's not hidden under the thumb
+  const isTouch = !('button' in event);
+  if (isTouch) {
+    y = Math.max(8, y - menuH - 120);
+  }
+  if (x + menuW > window.innerWidth - 8) x = window.innerWidth - menuW - 8;
+  if (x < 8) x = 8;
+  if (y + menuH > window.innerHeight - 8) y = window.innerHeight - menuH - 8;
+  if (y < 8) y = 8;
+  return { x, y };
+}
+
+let holdTimeoutId: ReturnType<typeof setTimeout> | null = null;
+let holdListenersAdded = false;
+
+function clearHold() {
+  if (holdTimeoutId) {
+    clearTimeout(holdTimeoutId);
+    holdTimeoutId = null;
+  }
+  if (holdListenersAdded) {
+    document.removeEventListener('touchend', onHoldTouchEnd);
+    document.removeEventListener('touchmove', onHoldTouchMove);
+    holdListenersAdded = false;
+  }
+}
+
+function onHoldTouchEnd() {
+  clearHold();
+}
+
+function onHoldTouchMove() {
+  clearHold();
+}
+
+function handleTouchHold(event: TouchEvent, ctxHandler: (e: MouseEvent | Touch) => void) {
+  const touch = event.touches[0];
+  if (!touch) return;
+  clearHold();
+  holdTimeoutId = setTimeout(() => {
+    holdTimeoutId = null;
+    clearHold();
+    event.preventDefault();
+    ctxHandler(touch);
+    // Prevent the upcoming touchend from firing a synthetic click (which would select the emoji)
+    const preventClick = (e: TouchEvent) => {
+      e.preventDefault();
+      document.removeEventListener('touchend', preventClick, { capture: true });
+    };
+    document.addEventListener('touchend', preventClick, { capture: true, once: true });
+  }, 500);
+  document.addEventListener('touchend', onHoldTouchEnd);
+  document.addEventListener('touchmove', onHoldTouchMove, { passive: true });
+  holdListenersAdded = true;
+}
+
+function openEmojiCtxUnified(emoji: EmojiEntry, event: MouseEvent | Touch) {
+  const pos = positionCtxMenu(event);
+  const imgUrl = isNativePack.value ? null : getEmojiSvgUrl(emoji);
+  emojiCtx.value = {
+    visible: true, ...pos,
+    emojiId: emoji.unicode, emojiName: emoji.shortcode,
+    imageUrl: imgUrl, serverIdOrNull: null,
+    isFav: emojiFavoriteService.isFavorite(emoji.unicode),
+  };
+}
+
+function openEmojiCtxServer(emoji: ResolvedEmoji, event: MouseEvent | Touch) {
+  const pos = positionCtxMenu(event);
+  const imgUrl = emoji.url ? getEmojiUrl(emoji.url, 42) : null;
+  emojiCtx.value = {
+    visible: true, ...pos,
+    emojiId: emoji.id, emojiName: emoji.name,
+    imageUrl: imgUrl, serverIdOrNull: emoji.server_id || null,
+    isFav: emojiFavoriteService.isFavorite(emoji.id),
+  };
+}
+
+function openEmojiCtxFrequent(emoji: { id: string; native?: string; name: string; url?: string }, event: MouseEvent | Touch) {
+  const pos = positionCtxMenu(event);
+  const emojiId = emoji.native || emoji.id;
+  const imgUrl = getFrequentEmojiDisplayUrl(emoji) || (isNativePack.value ? null : getFrequentEmojiSvgUrl(emoji));
+  emojiCtx.value = {
+    visible: true, ...pos,
+    emojiId, emojiName: emoji.name,
+    imageUrl: imgUrl, serverIdOrNull: null,
+    isFav: emojiFavoriteService.isFavorite(emojiId),
+  };
+}
+
+function openEmojiCtxFavorite(fav: EmojiFavorite, event: MouseEvent | Touch) {
+  const pos = positionCtxMenu(event);
+  const imgUrl = fav.emoji_url || (isNativePack.value ? null : getFavoriteSvgUrl(fav));
+  emojiCtx.value = {
+    visible: true, ...pos,
+    emojiId: fav.emoji_id, emojiName: fav.emoji_name,
+    imageUrl: imgUrl, serverIdOrNull: fav.emoji_server_id || null,
+    isFav: true,
+  };
+}
+
+function closeEmojiCtx() {
+  emojiCtx.value = { ...emojiCtx.value, visible: false };
+}
+
+async function ctxToggleFavorite() {
+  const ctx = emojiCtx.value;
+  closeEmojiCtx();
+  try {
+    const result = await emojiFavoriteService.toggleFavorite(ctx.emojiId, ctx.emojiName, ctx.imageUrl, ctx.serverIdOrNull);
+    showFavToast(result.isFavorite ? `⭐ Added :${ctx.emojiName}:` : `Removed :${ctx.emojiName}:`);
+    await loadFavorites();
+  } catch (e) {
+    debug.error('Failed to toggle favorite:', e);
+  }
+}
+
+async function ctxCopyId() {
+  const ctx = emojiCtx.value;
+  closeEmojiCtx();
+  try {
+    await navigator.clipboard.writeText(ctx.emojiId);
+    showFavToast(`Copied :${ctx.emojiName}:`);
+  } catch { /* no-op */ }
+}
+
+async function ctxCopyImageLink() {
+  const ctx = emojiCtx.value;
+  closeEmojiCtx();
+  if (!ctx.imageUrl) return;
+  try {
+    await navigator.clipboard.writeText(ctx.imageUrl);
+    showFavToast('Copied image link');
+  } catch { /* no-op */ }
+}
+
 // Lazy load emoji data when popup is mounted (user opened emoji picker)
 onMounted(async () => {
   // ✅ Show popup immediately, load emojis in background (non-blocking)
@@ -517,6 +865,9 @@ onMounted(async () => {
   // Trigger emoji data loading in background (non-blocking)
   const { triggerEmojiDataLoad } = await import('@/composables/useEmojiLoader')
   triggerEmojiDataLoad()
+  
+  await emojiFavoriteService.initializeCache()
+  loadFavorites()
   
   // Also try to load unified emoji data if not already loaded (for picker display)
   // Load in background, don't await - popup should show immediately
@@ -545,6 +896,19 @@ onUnmounted(() => {
 });
 
 // --- Watchers ---
+
+// Collapse all unified emoji categories by default once loaded
+let categoriesInitialized = false;
+watch(displayedCategories, (cats) => {
+  if (!categoriesInitialized && cats.length > 0) {
+    categoriesInitialized = true;
+    const s = new Set(collapsedSections.value);
+    for (const cat of cats) {
+      s.add('cat-' + cat.id);
+    }
+    collapsedSections.value = s;
+  }
+}, { immediate: true });
 
 watch(
   () => props.emojiIconClicked,
@@ -616,6 +980,43 @@ watch(
   margin-top: 4px;
 }
 
+.section-title-collapsible {
+  cursor: pointer;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition: background 0.12s ease;
+}
+
+.section-title-collapsible:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.section-chevron {
+  display: inline-block;
+  font-size: 10px;
+  line-height: 1;
+  transition: transform 0.15s ease;
+}
+
+.section-chevron.collapsed {
+  transform: rotate(-90deg);
+}
+
+.no-favorites-hint {
+  padding: 12px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.no-favorites-hint p {
+  margin: 0;
+}
+
 .emoji-list {
   display: grid;
   grid-template-columns: repeat(auto-fill, 36px);
@@ -632,6 +1033,9 @@ watch(
   display: flex;
   align-items: center;
   justify-content: center;
+  -webkit-touch-callout: none; /* Prevent iOS image selection/callout on long press */
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .emoji-item:hover {
@@ -645,6 +1049,11 @@ watch(
   height: 28px;
   border-radius: 2px;
   object-fit: contain;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-user-drag: none;
+  user-drag: none;
 }
 
 .emoji-section {
@@ -660,6 +1069,9 @@ watch(
 .native-emoji-char {
   font-size: 24px;
   line-height: 1;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .svg-emoji-item {
@@ -780,10 +1192,79 @@ watch(
   white-space: nowrap;
 }
 
+.fav-toast {
+  position: absolute;
+  bottom: 36px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--background-tertiary);
+  color: var(--text-primary);
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  border: 1px solid var(--border-color);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  pointer-events: none;
+  z-index: 10;
+  white-space: nowrap;
+}
+
+.fav-toast-enter-active { transition: all 0.15s ease; }
+.fav-toast-leave-active { transition: all 0.2s ease; }
+.fav-toast-enter-from { opacity: 0; transform: translateX(-50%) translateY(4px); }
+.fav-toast-leave-to { opacity: 0; }
+
 @media (max-width: 768px) {
   .emoji-popup {
     width: 280px;
     height: 350px;
   }
+}
+</style>
+
+<style>
+.emoji-ctx-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+}
+
+.emoji-ctx-menu {
+  position: fixed;
+  background: var(--background-secondary, #2b2d31);
+  border: 1px solid var(--border-color, #3f4147);
+  border-radius: 6px;
+  padding: 4px 0;
+  min-width: 180px;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.24);
+  z-index: 10000;
+}
+
+.emoji-ctx-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  color: var(--text-secondary, #b5bac1);
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.1s ease;
+}
+
+.emoji-ctx-item:hover {
+  background-color: var(--harmony-primary, #5865f2);
+  color: var(--text-primary, #fff);
+}
+
+.emoji-ctx-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 4px;
+  border-radius: 3px;
+  border: 1px solid currentColor;
+  opacity: 0.7;
+  line-height: 1.2;
 }
 </style>

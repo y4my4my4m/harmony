@@ -1,10 +1,26 @@
 <template>
-  <BaseModal :show="true" :show-header="false" @close="$emit('close')" class="instance-detail-modal">
+  <BaseModal :show="true" :show-header="false" overlay-class="instance-detail-modal" @close="$emit('close')">
     <div class="instance-detail-layout">
-      <header class="instance-modal-header">
+      <!-- Banner -->
+      <div
+        v-if="instanceBanner"
+        class="instance-modal-banner"
+        :style="{ backgroundImage: `url(${instanceBanner})` }"
+      >
+        <div class="instance-modal-banner-overlay"></div>
+      </div>
+
+      <header class="instance-modal-header" :class="{ 'has-banner': !!instanceBanner }">
         <div class="instance-header-main">
           <div class="instance-icon-wrap">
-            <Icon name="server" :size="28" />
+            <img
+              v-if="instanceIcon && !iconFailed"
+              :src="instanceIcon"
+              :alt="instance.domain"
+              class="instance-icon-img"
+              @error="iconFailed = true"
+            />
+            <span v-else class="instance-platform-emoji">{{ platformEmoji }}</span>
           </div>
           <div class="instance-title-block">
             <h2 class="instance-domain">{{ instance.domain }}</h2>
@@ -70,7 +86,7 @@
           <div class="info-rows">
             <div class="info-row">
               <span class="info-label">Description:</span>
-              <span class="info-value">{{ instance.description || 'No description available' }}</span>
+              <span class="info-value" v-html="sanitizedDescription"></span>
             </div>
             <div v-if="instance.admin_contact" class="info-row">
               <span class="info-label">Admin Contact:</span>
@@ -205,6 +221,88 @@ defineEmits<{
 const recentPosts = ref<TimelinePost[]>([]);
 const isLoadingPosts = ref(false);
 const urlCopied = ref(false);
+const iconFailed = ref(false);
+
+const PLATFORM_EMOJI: Record<string, string> = {
+  mastodon: '\uD83D\uDC18',
+  misskey: '\u2B50',
+  pleroma: '\uD83D\uDD35',
+  akkoma: '\uD83D\uDD35',
+  gotosocial: '\uD83D\uDC3F\uFE0F',
+  pixelfed: '\uD83D\uDCF7',
+  lemmy: '\uD83D\uDC2D',
+  harmony: '\uD83D\uDC3B\u200D\u2744\uFE0F',
+  peertube: '\uD83C\uDFAC',
+  funkwhale: '\uD83C\uDFB5',
+  writefreely: '\u270D\uFE0F',
+  bookwyrm: '\uD83D\uDCDA',
+};
+
+const instanceIcon = computed(() => props.instance.metadata?.icon_url || null);
+const instanceBanner = computed(() => props.instance.metadata?.banner_url || null);
+
+const ALLOWED_TAGS = new Set(['br', 'b', 'i', 'em', 'strong', 'a', 'p', 'span', 'ul', 'ol', 'li']);
+const ALLOWED_ATTRS: Record<string, Set<string>> = {
+  a: new Set(['href', 'rel', 'target']),
+  span: new Set(['style']),
+};
+const ALLOWED_STYLE_PROPS = new Set(['color', 'font-weight', 'font-style', 'text-decoration']);
+
+function sanitizeHtml(raw: string): string {
+  if (!raw) return 'No description available';
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(raw, 'text/html');
+  function sanitizeNode(node: Node): string {
+    if (node.nodeType === Node.TEXT_NODE) return node.textContent || '';
+    if (node.nodeType !== Node.ELEMENT_NODE) return '';
+    const el = node as Element;
+    const tag = el.tagName.toLowerCase();
+    if (!ALLOWED_TAGS.has(tag)) {
+      return Array.from(el.childNodes).map(sanitizeNode).join('');
+    }
+    const allowedAttrs = ALLOWED_ATTRS[tag];
+    let attrStr = '';
+    if (allowedAttrs) {
+      for (const attr of Array.from(el.attributes)) {
+        if (!allowedAttrs.has(attr.name)) continue;
+        if (attr.name === 'href') {
+          try {
+            const url = new URL(attr.value, 'https://placeholder.invalid');
+            if (!['http:', 'https:'].includes(url.protocol)) continue;
+          } catch { continue; }
+          attrStr += ` href="${attr.value}" rel="noopener noreferrer" target="_blank"`;
+          continue;
+        }
+        if (attr.name === 'style') {
+          const safeProps = attr.value.split(';')
+            .map(s => s.trim())
+            .filter(s => {
+              const prop = s.split(':')[0]?.trim().toLowerCase();
+              return prop && ALLOWED_STYLE_PROPS.has(prop);
+            });
+          if (safeProps.length) attrStr += ` style="${safeProps.join('; ')}"`;
+          continue;
+        }
+        attrStr += ` ${attr.name}="${attr.value}"`;
+      }
+    }
+    if (tag === 'a' && !attrStr.includes('rel=')) {
+      attrStr += ' rel="noopener noreferrer" target="_blank"';
+    }
+    const children = Array.from(el.childNodes).map(sanitizeNode).join('');
+    return `<${tag}${attrStr}>${children}</${tag}>`;
+  }
+  return Array.from(doc.body.childNodes).map(sanitizeNode).join('');
+}
+
+const sanitizedDescription = computed(() => sanitizeHtml(props.instance.description || ''));
+const platformEmoji = computed(() => {
+  const sw = props.instance.software?.toLowerCase()?.replace(/[^a-z]/g, '') || '';
+  for (const [platform, emoji] of Object.entries(PLATFORM_EMOJI)) {
+    if (sw.includes(platform)) return emoji;
+  }
+  return '\uD83C\uDF10';
+});
 
 const activityStatus = computed(() => {
   if (!props.instance.last_seen_at) {
@@ -315,30 +413,52 @@ onMounted(() => {
 });
 </script>
 
-<style scoped>
-.instance-detail-modal :deep(.modal-container) {
+<!-- Unscoped: overrides BaseModal's Teleported children (scoped+Teleport can't be crossed with :deep) -->
+<style>
+.instance-detail-modal .modal-container {
   max-width: 560px;
   width: 92vw;
+  border: none;
+  border-radius: 10px;
+  overflow: hidden;
 }
 
-.instance-detail-modal :deep(.modal-content) {
+.instance-detail-modal .modal-content {
   padding: 0;
   overflow: hidden;
   max-height: min(85vh, 720px);
   display: flex;
   flex-direction: column;
 }
+</style>
 
-.instance-detail-modal :deep(.modal-overlay) {
-  padding: 0;
-}
-
+<style scoped>
 .instance-detail-layout {
   display: flex;
   flex-direction: column;
   flex: 1;
   min-height: 0;
   overflow: hidden;
+}
+
+/* ── Banner ───────────────────────────── */
+.instance-modal-banner {
+  width: 100%;
+  height: 100px;
+  background-size: cover;
+  background-position: center;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.instance-modal-banner-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to bottom,
+    transparent 30%,
+    var(--background-quinary) 100%
+  );
 }
 
 /* ── Header ───────────────────────────── */
@@ -350,6 +470,14 @@ onMounted(() => {
   padding: 16px 20px;
   border-bottom: 1px solid var(--border-color);
   flex-shrink: 0;
+}
+
+.instance-modal-header.has-banner {
+  margin-top: -32px;
+  position: relative;
+  z-index: 1;
+  border-bottom: none;
+  padding-bottom: 12px;
 }
 
 .instance-header-main {
@@ -371,6 +499,19 @@ onMounted(() => {
   border-radius: 12px;
   color: var(--text-secondary);
   border: 1px solid var(--border-color);
+  overflow: hidden;
+}
+
+.instance-icon-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 11px;
+}
+
+.instance-platform-emoji {
+  font-size: 22px;
+  line-height: 1;
 }
 
 .instance-title-block {
@@ -641,7 +782,9 @@ onMounted(() => {
   color: var(--text-primary);
   display: flex;
   align-items: baseline;
-  gap: 6px;
+  /* gap: 6px; */
+  gap: 1px;
+  flex-direction: column;
   overflow: hidden;
 }
 

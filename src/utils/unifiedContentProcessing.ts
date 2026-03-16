@@ -643,9 +643,10 @@ export function convertMessagePartsToActivityPubHTML(parts: MessagePart[]): stri
       case 'mention': {
         // Build proper ActivityPub mention with h-card structure
         const currentDomain = import.meta.env.VITE_DOMAIN as string;
+        const username = (part.username || '').replace(/^@+/, ''); // prevent @@
         const domain = part.domain || currentDomain;
-        const href = `https://${domain}/users/${part.username}`;  // ✅ FIX: Use /users/ format
-        const displayName = part.isLocal ? `@${part.username}` : `@${part.username}@${part.domain}`;
+        const href = `https://${domain}/users/${username}`;
+        const displayName = part.isLocal ? `@${username}` : `@${username}@${part.domain}`;
         return `<span class="h-card"><a href="${href}" class="u-url mention">${displayName}</a></span>`;
       }
       
@@ -791,18 +792,30 @@ export function convertActivityPubHTMLToMessageParts(html: string): MessagePart[
         const mentionMatch = text.match(/^@([a-zA-Z0-9_-]+)(?:@([a-zA-Z0-9.-]+))?$/);
         if (mentionMatch) {
           const username = mentionMatch[1];
-          const domain = mentionMatch[2];
+          let domain = mentionMatch[2];
+          
+          // If domain not in text, extract from href (e.g. https://misskey.io/users/rec8bit)
+          if (!domain && href) {
+            try {
+              const hrefDomain = new URL(href).hostname;
+              const currentDomain = import.meta.env.VITE_DOMAIN as string;
+              if (hrefDomain && hrefDomain !== currentDomain) {
+                domain = hrefDomain;
+              }
+            } catch { /* ignore invalid URLs */ }
+          }
+          
           const currentDomain = import.meta.env.VITE_DOMAIN as string;
           
           parts.push({
             type: 'mention',
-            userId: href, // Use href as fallback ID
+            userId: href,
             username: username,
             domain: domain || currentDomain,
             isLocal: !domain || domain === currentDomain,
             displayName: username
           });
-          return; // Don't process children
+          return;
         }
       }
       

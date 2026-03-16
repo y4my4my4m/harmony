@@ -426,7 +426,10 @@
       "developerMode": "Modo desarrollador",
       "developerModeDescription": "Habilitar funciones de desarrollador y herramientas de depuración.",
       "hardwareAcceleration": "Aceleración de hardware",
-      "copyRawData": "Copiar datos crudos"
+      "copyRawData": "Copiar datos crudos",
+      "reportBugSection": "Ayuda",
+      "reportBug": "Reportar un error",
+      "reportBugDescription": "Abrir GitHub para reportar un error o solicitar una función."
     }
   },
   "navigation": {
