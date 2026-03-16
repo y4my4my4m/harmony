@@ -111,8 +111,6 @@
 
 <script lang="ts">
 import { defineComponent, computed, type Component } from 'vue';
-import Mic from '@/components/icons/Mic.vue'
-import MicMuted from '@/components/icons/MicMuted.vue'
 import {
   Calendar, Copy, Ban, Camera, CameraOff, Send, BellOff, ScreenShare,
   Headphones, Phone, PhoneOff, Smartphone, Tablet,
@@ -144,8 +142,6 @@ const ICON_MAP: Record<string, Component> = {
   'send': Send,
   'bell-off': BellOff,
   'screen-share': ScreenShare,
-  'mic': Mic,
-  'mic-off': MicMuted,
   'headphones': Headphones,
   'phone': Phone,
   'phone-off': PhoneOff,
@@ -265,7 +261,6 @@ const ICON_MAP: Record<string, Component> = {
   'follow': UserPlus,
   'followed': UserCheck,
   'unfollow': UserMinus,
-  'microphone': Mic,
   'dots-vertical': MoreVertical,
   'dots-horizontal': MoreHorizontal,
   'mention': AtSign,
@@ -284,12 +279,16 @@ const ICON_MAP: Record<string, Component> = {
 const FILLED_ICONS = new Set(['heart-filled', 'bookmark-filled'])
 
 // Icons with true filled SVG variants (solid shapes, Material Design style)
-const FILLED_SVG_ICONS = new Set(['music', 'activity', 'volume-2', 'headphones'])
+// mic/mic-off are always rendered as filled (no Lucide component)
+const FILLED_SVG_ICONS = new Set(['music', 'activity', 'volume-2', 'headphones', 'mic', 'mic-off'])
+const ALWAYS_FILLED_SVG = new Set(['mic', 'mic-off'])
 const FILLED_SVG_PATHS: Record<string, string> = {
   'music': 'M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z',
   'activity': 'M3.5 18.49l6-6.01 4 4L22 6.92l-1.41-1.41-7.09 7.97-4-4L2 16.99z',
   'volume-2': 'M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z',
-  'headphones': 'M12 1c-4.97 0-9 4.03-9 9v7c0 1.1.9 2 2 2h4v-8H5v-1c0-3.87 3.13-7 7-7s7 3.13 7 7v1h-4v8h4c1.1 0 2-.9 2-2v-7c0-4.97-4.03-9-9-9z'
+  'headphones': 'M12 1c-4.97 0-9 4.03-9 9v7c0 1.1.9 2 2 2h4v-8H5v-1c0-3.87 3.13-7 7-7s7 3.13 7 7v1h-4v8h4c1.1 0 2-.9 2-2v-7c0-4.97-4.03-9-9-9z',
+  'mic': 'M12 2a4 4 0 0 0-4 4v5a4 4 0 0 0 8 0V6a4 4 0 0 0-4-4m-7 8a1 1 0 0 1 1 1a6 6 0 0 0 12 0a1 1 0 1 1 2 0a8 8 0 0 1-7 7.938V21a1 1 0 1 1-2 0v-2.062A8 8 0 0 1 4 11a1 1 0 0 1 1-1',
+  'mic-off': 'M8.953 3.409A4 4 0 0 1 16 6v3.343a1 1 0 1 1-2 0V6a2 2 0 0 0-3.524-1.295a1 1 0 0 1-1.524-1.296m5.336 9.465l-.04-.04L9.72 8.306l-.026-.026l-4.987-4.987a1 1 0 0 0-1.414 1.414L8 9.414V11a4 4 0 0 0 5.351 3.766l1.51 1.51A6 6 0 0 1 6 11a1 1 0 1 0-2-.001a8 8 0 0 0 7 7.938V21a1 1 0 1 0 2 0v-2.062a7.96 7.96 0 0 0 3.32-1.204l2.973 2.973a1 1 0 0 0 1.414-1.414l-3.559-3.56l-.034-.033zM19 10a1 1 0 0 1 1 1c0 .81-.12 1.593-.346 2.332a1 1 0 1 1-1.913-.582c.168-.553.259-1.14.259-1.75a1 1 0 0 1 1-1'
 }
 
 export default defineComponent({
@@ -335,16 +334,17 @@ export default defineComponent({
     const baseName = computed(() => {
       if (props.name === 'heart-filled') return 'heart';
       if (props.name === 'bookmark-filled') return 'bookmark';
+      if (props.name === 'microphone') return 'mic';
       return props.name;
     });
 
     const lucideIcon = computed(() => {
-      if (props.filled && FILLED_SVG_ICONS?.has(baseName.value)) return null;
+      if (FILLED_SVG_ICONS?.has(baseName.value) && (props.filled || ALWAYS_FILLED_SVG?.has(baseName.value))) return null;
       return ICON_MAP[baseName.value] ?? null;
     });
 
     const useFilledSvg = computed(() =>
-      props.filled && (FILLED_SVG_ICONS?.has(baseName.value) ?? false)
+      (props.filled || ALWAYS_FILLED_SVG?.has(baseName.value)) && (FILLED_SVG_ICONS?.has(baseName.value) ?? false)
     );
 
     const filledSvgPath = computed(() =>

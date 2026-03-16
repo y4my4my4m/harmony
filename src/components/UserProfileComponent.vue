@@ -31,8 +31,7 @@
         }"
         :title="isMicActive ? 'Mute' : 'Unmute'"
       >
-        <MicIcon v-if="isMicActive" />
-        <MicMutedIcon v-else />
+        <Icon :name="isMicActive ? 'mic' : 'mic-off'" />
       </div>
       <div 
         class="icon-button" 
@@ -121,8 +120,7 @@ import { useRouter } from 'vue-router'
 import { UserStatus, type UserData } from '@/types'
 import { useUserData } from '@/composables/useUserData'
 import { useLayoutState } from '@/composables/useLayoutState'
-import MicIcon from '@/components/icons/Mic.vue'
-import MicMutedIcon from '@/components/icons/MicMuted.vue'
+import Icon from '@/components/common/Icon.vue'
 import HeadphonesIcon from '@/components/icons/Headphones.vue'
 import SettingsIcon from '@/components/icons/Settings.vue'
 import Avatar from '@/components/common/Avatar.vue'

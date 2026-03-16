@@ -237,8 +237,7 @@
             :class="{ muted: voiceStore.localState.isMuted || voiceStore.localState.isDeafened }"
             :title="voiceStore.localState.isMuted ? 'Unmute' : 'Mute'"
           >
-            <MicIcon v-if="!voiceStore.localState.isMuted && !voiceStore.localState.isDeafened" />
-            <MicMutedIcon v-else />
+            <Icon :name="voiceStore.localState.isMuted || voiceStore.localState.isDeafened ? 'mic-off' : 'mic'" />
           </button>
           
           <button 
@@ -339,8 +338,6 @@ import { userStorage } from '@/utils/userScopedStorage';
 import Icon from '@/components/common/Icon.vue';
 import Avatar from '@/components/common/Avatar.vue';
 import DisplayName from '@/components/DisplayName.vue';
-import MicIcon from '@/components/icons/Mic.vue';
-import MicMutedIcon from '@/components/icons/MicMuted.vue';
 import HeadphonesIcon from '@/components/icons/Headphones.vue';
 
 const UnifiedVoiceOverlay = defineAsyncComponent(() => import('./UnifiedVoiceOverlay.vue'));
