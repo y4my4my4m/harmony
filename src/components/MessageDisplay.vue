@@ -3357,10 +3357,8 @@ defineExpose({ editLastOwnMessage });
 }
 
 /* Dark theme adjustments */
-@media (prefers-color-scheme: dark) {
-  .message-item:hover {
-    background-color: rgba(79, 84, 92, 0.16);
-  }
+:root[data-theme-type="dark"] .message-item:hover {
+  background-color: rgba(79, 84, 92, 0.16);
 }
 
 /* System Messages (Join/Leave Announcements) */

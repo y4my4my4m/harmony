@@ -1180,9 +1180,7 @@ const closeInviteModal = () => {
 }
 
 /* Dark theme specific adjustments */
-@media (prefers-color-scheme: dark) {
-  .search-input-wrapper {
-    background-color: rgba(0, 0, 0, 0.2);
-  }
+:root[data-theme-type="dark"] .search-input-wrapper {
+  background-color: rgba(0, 0, 0, 0.2);
 }
 </style>
