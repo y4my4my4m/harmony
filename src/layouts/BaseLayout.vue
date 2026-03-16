@@ -810,15 +810,19 @@ const wrappedTouchMove = (event: TouchEvent) => {
 }
 
 const wrappedTouchEnd = (event: TouchEvent) => {
+  // In ActivityPub, timeline swipe handles all navigation/sidebar logic.
+  // Only open sidebars from BaseLayout when NOT on /social.
+  const isActivityPub = route.path.startsWith('/social')
+
   handleTouchEnd(event, isMobile.value, {
     onSwipeRight: () => {
-      if (!isDragging.value) {
+      if (!isDragging.value && !isActivityPub) {
         debug.log('🔄 Quick swipe right, opening left sidebar')
         toggleLeftSidebar()
       }
     },
     onSwipeLeft: () => {
-      if (!isDragging.value) {
+      if (!isDragging.value && !isActivityPub) {
         debug.log('🔄 Quick swipe left, opening right sidebar')
         toggleRightSidebar()
       }

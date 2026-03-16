@@ -111,9 +111,11 @@
 
 <script lang="ts">
 import { defineComponent, computed, type Component } from 'vue';
+import Mic from '@/components/icons/Mic.vue'
+import MicMuted from '@/components/icons/MicMuted.vue'
 import {
   Calendar, Copy, Ban, Camera, CameraOff, Send, BellOff, ScreenShare,
-  Mic, MicOff, Headphones, Phone, PhoneOff, Smartphone, Tablet,
+  Headphones, Phone, PhoneOff, Smartphone, Tablet,
   Monitor, Laptop, MonitorSmartphone, Settings, Volume2, VolumeOff,
   Maximize2, X, LayoutGrid, List, Keyboard, Maximize, Minimize,
   Minimize2, User, Map, RefreshCw, Shuffle, CheckCircle2, Circle,
@@ -143,7 +145,7 @@ const ICON_MAP: Record<string, Component> = {
   'bell-off': BellOff,
   'screen-share': ScreenShare,
   'mic': Mic,
-  'mic-off': MicOff,
+  'mic-off': MicMuted,
   'headphones': Headphones,
   'phone': Phone,
   'phone-off': PhoneOff,

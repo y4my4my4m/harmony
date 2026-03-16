@@ -1,6 +1,8 @@
 <template>
   <svg class="icon-component" width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-    <path d="M19 11c0 1.19-.34 2.3-.9 3.28l-1.23-1.23c.27-.62.43-1.31.43-2.05h1.7M15 11.16L9 5.18V5a3 3 0 0 1 6 0v6l.01.16M4.27 3L21 19.73 19.73 21l-4.46-4.46C14.77 17.27 13.91 17.58 13 17.72V21h-2v-3.28c-3.28-.49-6-2.31-6-5.72h1.7c0 3 2.54 5.1 5.3 5.1.81 0 1.6-.19 2.31-.58L12 14a3 3 0 0 1-3-3V9.73L3 4.27 4.27 3z"/>
+    <!-- Filled mic with diagonal slash (filled bar, no stroke) -->
+    <path d="M12 2a3 3 0 0 1 3 3v6a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3zm0 14c1.66 0 3-1.34 3-3v-1H9v1c0 1.66 1.34 3 3 3zm5-3h-2c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92z"/>
+    <rect x="11" y="-4" width="2" height="32" transform="rotate(-45 12 12)" fill="currentColor"/>
   </svg>
 </template>
 
@@ -9,6 +11,7 @@ import { defineComponent } from 'vue';
 
 export default defineComponent({
   name: 'MicMutedIcon',
+  props: { size: { type: [Number, String], default: 22 } }
 });
 </script>
 

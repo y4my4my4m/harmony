@@ -84,6 +84,8 @@ interface Props {
   emptyIcon?: string
   emptyAction?: string
   postProps?: Record<string, any>
+  /** Optional: register scroll element for parent (e.g. composer auto-hide) */
+  registerScroll?: (el: HTMLElement | null) => void
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -95,8 +97,11 @@ const props = withDefaults(defineProps<Props>(), {
   emptyMessage: 'Posts will appear here when available.',
   emptyIcon: 'users',
   emptyAction: undefined,
-  postProps: () => ({})
+  postProps: () => ({}),
+  registerScroll: undefined
 })
+
+const propsWithRegister = props as typeof props & { registerScroll?: (el: HTMLElement | null) => void }
 
 const emit = defineEmits<{
   'load-more': []
@@ -154,9 +159,11 @@ watch([() => props.hasMore, sentinelRef], () => {
 
 onMounted(() => {
   setupObserver()
+  props.registerScroll?.(scrollContainer.value)
 })
 
 onUnmounted(() => {
+  props.registerScroll?.(null)
   if (observer) {
     observer.disconnect()
     observer = null

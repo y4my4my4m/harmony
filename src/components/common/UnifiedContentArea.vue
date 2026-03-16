@@ -66,6 +66,7 @@
         <!-- Timeline Posts -->
         <PostsContainer
           :posts="posts"
+          :register-scroll="handleRegisterScroll"
           :is-loading="isLoadingFeed"
           :has-more="hasMorePosts"
           :loading-message="getTimelineLoadingMessage()"
@@ -105,24 +106,38 @@ import { usePostInteractions } from '@/composables/usePostInteractions'
 const router = useRouter()
 
 const composerHidden = ref(false)
+const timelineScrollEl = ref<HTMLElement | null>(null)
 let lastScrollY = 0
 let scrollTicking = false
 
 const isMobileDevice = () => window.innerWidth <= 768
+
+function handleRegisterScroll(el: HTMLElement | null) {
+  if (timelineScrollEl.value && timelineScrollEl.value !== el) {
+    timelineScrollEl.value.removeEventListener('scroll', handleTimelineScroll)
+  }
+  timelineScrollEl.value = el
+  if (el) {
+    lastScrollY = el.scrollTop
+    el.addEventListener('scroll', handleTimelineScroll, { passive: true })
+  }
+}
 
 function handleTimelineScroll() {
   if (!isMobileDevice()) {
     composerHidden.value = false
     return
   }
+  const el = timelineScrollEl.value
+  if (!el) return
   if (scrollTicking) return
   scrollTicking = true
   requestAnimationFrame(() => {
-    const currentY = window.scrollY
+    const currentY = el.scrollTop
     const delta = currentY - lastScrollY
-    if (delta > 8 && currentY > 60) {
+    if (delta > 12 && currentY > 80) {
       composerHidden.value = true
-    } else if (delta < -4) {
+    } else if (delta < -6) {
       composerHidden.value = false
     }
     lastScrollY = currentY
@@ -130,12 +145,11 @@ function handleTimelineScroll() {
   })
 }
 
-onMounted(() => {
-  window.addEventListener('scroll', handleTimelineScroll, { passive: true })
-})
-
 onUnmounted(() => {
-  window.removeEventListener('scroll', handleTimelineScroll)
+  if (timelineScrollEl.value) {
+    timelineScrollEl.value.removeEventListener('scroll', handleTimelineScroll)
+    timelineScrollEl.value = null
+  }
 })
 
 interface Props {
@@ -310,24 +324,23 @@ const getSpecialViewEmptyMessage = (viewType: any) => {
   display: flex;
   flex-direction: column;
   height: 100%;
+  overflow: visible;
 }
 
 .composer-section {
   padding: var(--space-4);
   position: relative;
+  flex-shrink: 0;
   transition: transform 0.25s cubic-bezier(0.25, 0.46, 0.45, 0.94),
               opacity 0.25s ease,
-              max-height 0.25s ease;
-  max-height: 300px;
-  overflow: hidden;
+              margin 0.25s ease;
+  overflow: visible;
 }
 
 .composer-section.composer-hidden {
   transform: translateY(-100%);
   opacity: 0;
-  max-height: 0;
-  padding-top: 0;
-  padding-bottom: 0;
+  margin-bottom: -200px; /* Collapse space without clipping */
   pointer-events: none;
 }
 
