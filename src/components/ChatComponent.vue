@@ -776,13 +776,14 @@
       };
 
       const handleSendEmoji = async (emoji: Emoji) => {
-        if (isPopupForReaction.value) {
+        const wasReaction = isPopupForReaction.value;
+        if (wasReaction) {
           closeReactionEmoji();
         } else {
           closeMediaPicker();
         }
         
-        if (isPopupForReaction.value) {
+        if (wasReaction) {
           if (authStore.session?.user) {
             themeStore.playAudio('reaction');
             
