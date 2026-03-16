@@ -791,9 +791,9 @@ const connectionStats = computed(() => voiceStore.connectionStats);
 }
 
 .connection-mode-indicator.p2p {
-  background: rgba(88, 101, 242, 0.15);
+  background: rgba(14, 165, 233, 0.15);
   color: #0EA5E9;
-  border: 1px solid rgba(88, 101, 242, 0.3);
+  border: 1px solid rgba(14, 165, 233, 0.3);
 }
 
 .connection-mode-indicator.unknown {
@@ -876,7 +876,7 @@ const connectionStats = computed(() => voiceStore.connectionStats);
 .layout-btn.active {
   background: linear-gradient(145deg, #0EA5E9, #0284C7);
   color: var(--text-primary);
-  border-color: rgba(88, 101, 242, 0.6);
+  border-color: rgba(14, 165, 233, 0.6);
 }
 
 /* Spatial audio button with indicator */

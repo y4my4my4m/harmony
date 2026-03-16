@@ -939,7 +939,7 @@ onMounted(async () => {
 
 .theme-option.active {
   border-color: var(--h-primary, #0EA5E9);
-  background-color: rgba(88, 101, 242, 0.1);
+  background-color: rgba(14, 165, 233, 0.1);
 }
 
 .theme-preview {
@@ -1154,7 +1154,7 @@ onMounted(async () => {
 
 .mode-btn.active {
   border-color: var(--h-primary, #0EA5E9);
-  background-color: rgba(88, 101, 242, 0.15);
+  background-color: rgba(14, 165, 233, 0.15);
   color: var(--text-primary, #ffffff);
 }
 
@@ -1188,7 +1188,7 @@ onMounted(async () => {
 
 .emoji-pack-btn.active {
   border-color: var(--h-primary, #0EA5E9);
-  background-color: rgba(88, 101, 242, 0.15);
+  background-color: rgba(14, 165, 233, 0.15);
   color: var(--text-primary, #ffffff);
 }
 

@@ -338,7 +338,7 @@ watch(() => props.forceRefresh, async (shouldForce) => {
   left: 0;
   right: 0;
   height: 1px;
-  background: linear-gradient(90deg, transparent, var(--harmony-primary, rgba(88, 101, 242, 0.5)), transparent);
+  background: linear-gradient(90deg, transparent, var(--harmony-primary, rgba(14, 165, 233, 0.5)), transparent);
 }
 
 @media (max-width: 768px) {

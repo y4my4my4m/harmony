@@ -702,7 +702,7 @@ onUnmounted(() => {
   flex-shrink: 0;
 }
 
-.metric-icon.requests { background: rgba(88, 101, 242, 0.15); color: var(--harmony-primary); }
+.metric-icon.requests { background: rgba(14, 165, 233, 0.15); color: var(--harmony-primary); }
 .metric-icon.latency { background: rgba(46, 204, 113, 0.15); color: #2ECC71; }
 .metric-icon.errors { background: rgba(231, 76, 60, 0.15); color: #E74C3C; }
 .metric-icon.federation { background: rgba(155, 89, 182, 0.15); color: #9B59B6; }
@@ -807,7 +807,7 @@ onUnmounted(() => {
 }
 
 .bar:hover {
-  background: var(--harmony-primary-hover, #4752C4);
+  background: var(--harmony-primary-hover, #0284C7);
 }
 
 .bar-value {

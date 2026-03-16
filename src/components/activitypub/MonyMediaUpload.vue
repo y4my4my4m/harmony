@@ -227,7 +227,7 @@ const formatFileSize = (bytes?: number): string => {
   border-radius: 4px;
   overflow: hidden;
   flex-shrink: 0;
-  background-color: rgba(88, 101, 242, 0.2);
+  background-color: rgba(14, 165, 233, 0.2);
   display: flex;
   align-items: center;
   justify-content: center;

@@ -554,8 +554,8 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   gap: 0.25rem;
-  background: rgba(114, 137, 218, 0.1);
-  color: #616ae5;
+  background: rgba(14, 165, 233, 0.1);
+  color: #38BDF8;
   padding: 0.25rem 0.5rem;
   border-radius: 4px;
   font-size: 0.75rem;

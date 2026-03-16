@@ -1304,7 +1304,7 @@ watch(() => props.currentServer?.id, () => {
   transform: scale(1.02) rotate(2deg);
   box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
   z-index: 1000;
-  background-color: rgba(88, 101, 242, 0.2);
+  background-color: rgba(14, 165, 233, 0.2);
   border: 1px solid #0EA5E9;
 }
 

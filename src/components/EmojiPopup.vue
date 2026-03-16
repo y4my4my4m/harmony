@@ -954,7 +954,7 @@ watch(
 
 .search-input:focus {
   border-color: var(--color-primary);
-  box-shadow: 0 0 0 2px rgba(88, 101, 242, 0.2);
+  box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.2);
 }
 
 .search-input::placeholder {

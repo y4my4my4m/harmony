@@ -559,7 +559,7 @@ export function useFloatingVideo() {
         position: absolute;
         width: 12px;
         height: 12px;
-        background: rgba(88, 101, 242, 0.8);
+        background: rgba(14, 165, 233, 0.8);
         border: 2px solid white;
         border-radius: 50%;
         cursor: ${cursor};

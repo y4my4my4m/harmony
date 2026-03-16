@@ -776,7 +776,7 @@ input:checked + .toggle-slider:before {
 .emoji-upload-area:hover,
 .emoji-upload-area.dragover {
   border-color: #0EA5E9;
-  background-color: rgba(88, 101, 242, 0.1);
+  background-color: rgba(14, 165, 233, 0.1);
 }
 
 .upload-icon {
@@ -974,12 +974,12 @@ input:checked + .toggle-slider:before {
 }
 
 .emoji-item.selection-mode:hover {
-  background-color: rgba(88, 101, 242, 0.1);
-  border-color: rgba(88, 101, 242, 0.3);
+  background-color: rgba(14, 165, 233, 0.1);
+  border-color: rgba(14, 165, 233, 0.3);
 }
 
 .emoji-item.selected {
-  background-color: rgba(88, 101, 242, 0.2);
+  background-color: rgba(14, 165, 233, 0.2);
   border-color: #0EA5E9;
 }
 

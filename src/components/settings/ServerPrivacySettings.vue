@@ -488,7 +488,7 @@ input:checked + .toggle-slider:before {
 .federated-member-count {
   margin-top: 12px;
   padding: 8px 12px;
-  background: rgba(88, 101, 242, 0.1);
+  background: rgba(14, 165, 233, 0.1);
   border-radius: 6px;
   font-size: 13px;
   color: #8b9dff;

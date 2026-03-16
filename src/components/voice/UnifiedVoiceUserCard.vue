@@ -848,8 +848,8 @@ watch(
 
 .control-btn.active {
   background: linear-gradient(145deg, #0EA5E9, #0284C7);
-  border-color: rgba(88, 101, 242, 0.6);
-  box-shadow: 0 2px 8px rgba(88, 101, 242, 0.4);
+  border-color: rgba(14, 165, 233, 0.6);
+  box-shadow: 0 2px 8px rgba(14, 165, 233, 0.4);
 }
 
 /* Avatar Container */

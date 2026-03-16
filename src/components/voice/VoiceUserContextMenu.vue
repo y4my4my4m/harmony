@@ -689,7 +689,7 @@ watch(
   background: var(--harmony-primary);
   border-radius: 50%;
   cursor: pointer;
-  box-shadow: 0 2px 6px rgba(88, 101, 242, 0.4);
+  box-shadow: 0 2px 6px rgba(14, 165, 233, 0.4);
   transition: transform 0.15s ease;
 }
 

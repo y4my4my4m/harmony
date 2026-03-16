@@ -1330,7 +1330,7 @@ onMounted(async () => {
 /* Mention styles */
 .rich-text-editor :deep(.editor-mention) {
   color: #0EA5E9;
-  background-color: rgba(88, 101, 242, 0.15);
+  background-color: rgba(14, 165, 233, 0.15);
   border-radius: 3px;
   padding: 0 2px;
   cursor: pointer;
@@ -1339,7 +1339,7 @@ onMounted(async () => {
 }
 
 .rich-text-editor :deep(.editor-mention:hover) {
-  background-color: rgba(88, 101, 242, 0.3);
+  background-color: rgba(14, 165, 233, 0.3);
   text-decoration: underline;
 }
 

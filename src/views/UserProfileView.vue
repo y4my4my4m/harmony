@@ -1408,7 +1408,7 @@ onUnmounted(() => {
 
 .action-item.active {
   color: var(--harmony-primary);
-  background: rgba(88, 101, 242, 0.1);
+  background: rgba(14, 165, 233, 0.1);
 }
 
 .action-item.danger {
@@ -1465,7 +1465,7 @@ onUnmounted(() => {
 }
 
 .tab-btn.active .tab-count {
-  background: rgba(88, 101, 242, 0.2);
+  background: rgba(14, 165, 233, 0.2);
   color: var(--harmony-primary);
 }
 

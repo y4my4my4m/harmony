@@ -2357,14 +2357,14 @@ const closeLightbox = () => {
   text-decoration: none;
   font-size: 0.875rem;
   padding: 0.5rem 0.75rem;
-  background: rgba(88, 101, 242, 0.1);
+  background: rgba(14, 165, 233, 0.1);
   border-radius: 0.5rem;
   width: fit-content;
   transition: all 0.2s;
 }
 
 .reblog-reference-link:hover {
-  background: rgba(88, 101, 242, 0.2);
+  background: rgba(14, 165, 233, 0.2);
   text-decoration: underline;
 }
 

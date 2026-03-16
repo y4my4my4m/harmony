@@ -779,7 +779,7 @@ onUnmounted(() => {
   background: var(--harmony-primary);
   border-radius: 50%;
   cursor: pointer;
-  box-shadow: 0 2px 8px rgba(88, 101, 242, 0.3);
+  box-shadow: 0 2px 8px rgba(14, 165, 233, 0.3);
 }
 
 .volume-indicator {
@@ -955,7 +955,7 @@ onUnmounted(() => {
 }
 
 .input-mode-option.active {
-  background: rgba(88, 101, 242, 0.1);
+  background: rgba(14, 165, 233, 0.1);
   border-color: #0EA5E9;
 }
 
@@ -1034,7 +1034,7 @@ onUnmounted(() => {
 }
 
 .keybind-button.recording {
-  background: rgba(88, 101, 242, 0.2);
+  background: rgba(14, 165, 233, 0.2);
   border-color: #0EA5E9;
   color: #0EA5E9;
   animation: pulse 1.5s ease-in-out infinite;

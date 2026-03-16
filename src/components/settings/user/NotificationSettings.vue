@@ -1633,7 +1633,7 @@ font-size: 12px;
 }
 
 .push-status-badge.available {
-  background: rgba(88, 101, 242, 0.1);
+  background: rgba(14, 165, 233, 0.1);
   color: #0EA5E9;
 }
 
@@ -1756,13 +1756,13 @@ font-size: 12px;
 }
 
 .push-test-btn {
-  background: rgba(88, 101, 242, 0.1);
+  background: rgba(14, 165, 233, 0.1);
   color: #0EA5E9;
-  border: 1px solid rgba(88, 101, 242, 0.3);
+  border: 1px solid rgba(14, 165, 233, 0.3);
 }
 
 .push-test-btn:hover:not(:disabled) {
-  background: rgba(88, 101, 242, 0.2);
+  background: rgba(14, 165, 233, 0.2);
 }
 
 .push-subscribe-btn:disabled,
@@ -1820,7 +1820,7 @@ font-size: 12px;
   width: 32px;
   height: 32px;
   padding: 6px;
-  background: rgba(88, 101, 242, 0.1);
+  background: rgba(14, 165, 233, 0.1);
   border-radius: 8px;
   color: #0EA5E9;
 }

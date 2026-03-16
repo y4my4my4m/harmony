@@ -838,11 +838,11 @@ a.dropdown-item {
 @keyframes highlight-pulse {
   0%, 100% { 
     border-color: var(--h-brand, #0EA5E9);
-    box-shadow: 0 0 20px rgba(88, 101, 242, 0.3);
+    box-shadow: 0 0 20px rgba(14, 165, 233, 0.3);
   }
   50% { 
     border-color: var(--h-brand, #0EA5E9);
-    box-shadow: 0 0 30px rgba(88, 101, 242, 0.5);
+    box-shadow: 0 0 30px rgba(14, 165, 233, 0.5);
   }
 }
 

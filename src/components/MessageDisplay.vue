@@ -1106,7 +1106,7 @@ const getAuthorColor = (message: Message): ComputedRef<string> => {
   return computed(() => {
     // Check for Discord user metadata first (puppeting)
     if (message.metadata?.discord_user) {
-      return '#616ae5';
+      return '#38BDF8';
     }
     
     // Regular bot
@@ -2872,7 +2872,7 @@ defineExpose({ editLastOwnMessage });
 }
 
 .bot-badge.discord {
-  background: #616ae5;
+  background: #38BDF8;
 }
 
 .instance-badge {
@@ -3076,15 +3076,15 @@ defineExpose({ editLastOwnMessage });
   text-align: center;
   max-width: 480px;
   padding: 24px;
-  background: linear-gradient(135deg, rgba(114, 137, 218, 0.1) 0%, rgba(114, 137, 218, 0.05) 100%);
+  background: linear-gradient(135deg, rgba(14, 165, 233, 0.1) 0%, rgba(14, 165, 233, 0.05) 100%);
   border-radius: 16px;
-  border: 1px solid rgba(114, 137, 218, 0.2);
+  border: 1px solid rgba(14, 165, 233, 0.2);
   transition: all 0.3s ease-in-out;
 }
 
 .beginning-content:hover {
-  background: linear-gradient(135deg, rgba(114, 137, 218, 0.15) 0%, rgba(114, 137, 218, 0.08) 100%);
-  border-color: rgba(114, 137, 218, 0.3);
+  background: linear-gradient(135deg, rgba(14, 165, 233, 0.15) 0%, rgba(14, 165, 233, 0.08) 100%);
+  border-color: rgba(14, 165, 233, 0.3);
 }
 
 .beginning-icon {
@@ -3110,7 +3110,7 @@ defineExpose({ editLastOwnMessage });
 
 /* Highlighted message */
 .highlighted {
-  background-color: rgba(88, 101, 242, 0.15) !important;
+  background-color: rgba(14, 165, 233, 0.15) !important;
   border-left: 3px solid #0EA5E9;
   animation: highlight-fade 3s ease-out;
 }

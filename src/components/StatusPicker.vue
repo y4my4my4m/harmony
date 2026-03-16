@@ -549,7 +549,7 @@ watch(() => props.isVisible, (visible) => {
 
 .activity-btn.active {
   border-color: var(--harmony-primary);
-  background: var(--harmony-primary-alpha, rgba(88, 101, 242, 0.15));
+  background: var(--harmony-primary-alpha, rgba(14, 165, 233, 0.15));
   color: var(--harmony-primary);
 }
 

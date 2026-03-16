@@ -37,7 +37,7 @@ defineEmits<Emits>()
   justify-content: space-between;
   padding: 24px 32px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  background: linear-gradient(135deg, rgba(88, 101, 242, 0.1) 0%, transparent 100%);
+  background: linear-gradient(135deg, rgba(14, 165, 233, 0.1) 0%, transparent 100%);
 }
 
 .header-content {
@@ -49,7 +49,7 @@ defineEmits<Emits>()
 .icon-container {
   width: 48px;
   height: 48px;
-  background: linear-gradient(135deg, #0EA5E9, #616ae5);
+  background: linear-gradient(135deg, #0EA5E9, #38BDF8);
   border-radius: 12px;
   display: flex;
   align-items: center;
@@ -61,7 +61,7 @@ defineEmits<Emits>()
   content: '';
   position: absolute;
   inset: -1px;
-  background: linear-gradient(135deg, #0EA5E9, #616ae5);
+  background: linear-gradient(135deg, #0EA5E9, #38BDF8);
   border-radius: 12px;
   opacity: 0.3;
   z-index: -1;

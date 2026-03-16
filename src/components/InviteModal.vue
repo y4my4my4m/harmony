@@ -589,7 +589,7 @@ watch(() => props.show, async (newValue) => {
 .default-server-icon {
   width: 100%;
   height: 100%;
-  background: linear-gradient(135deg, #0EA5E9, #616ae5);
+  background: linear-gradient(135deg, #0EA5E9, #38BDF8);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -948,7 +948,7 @@ watch(() => props.show, async (newValue) => {
 }
 
 .history-copy-btn:hover:not(:disabled) {
-  background: rgba(88, 101, 242, 0.2);
+  background: rgba(14, 165, 233, 0.2);
   border-color: #0EA5E9;
   color: #0EA5E9;
 }
@@ -1052,7 +1052,7 @@ watch(() => props.show, async (newValue) => {
 
 .footer-button.primary:hover:not(:disabled) {
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(88, 101, 242, 0.3);
+  box-shadow: 0 4px 12px rgba(14, 165, 233, 0.3);
 }
 
 .footer-button:disabled {

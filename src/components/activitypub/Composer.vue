@@ -1119,7 +1119,7 @@ const vClickOutside = {
 .text-input-container.is-dragging {
   border: 2px dashed var(--harmony-primary);
   border-radius: 0.5rem;
-  background-color: rgba(88, 101, 242, 0.05);
+  background-color: rgba(14, 165, 233, 0.05);
 }
 
 .drag-drop-overlay {

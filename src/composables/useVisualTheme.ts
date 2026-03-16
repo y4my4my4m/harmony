@@ -54,6 +54,96 @@ const SAVED_THEMES_KEY = 'custom-themes'
 
 export const COMMUNITY_PRESETS: ThemePreset[] = [
   {
+    name: 'Harmony Teal',
+    description: 'The signature Harmony look — fresh, modern, and inviting',
+    settings: {
+      theme: 'custom',
+      customThemeMode: 'dark',
+      customPrimaryColor: '#0EA5E9',
+      customAccentColor: '#0EA5E9',
+      customBackgroundColor: '#0EA5E9',
+      customBackgroundLightness: 20,
+      customBackgroundChroma: 2,
+      customCssOverrides: {
+        '--harmony-primary': '#0EA5E9',
+        '--harmony-primary-hover': '#0284C7',
+        '--harmony-accent': '#38BDF8',
+      }
+    }
+  },
+  {
+    name: 'Emerald',
+    description: 'Growth, balance, and natural harmony',
+    settings: {
+      theme: 'custom',
+      customThemeMode: 'dark',
+      customPrimaryColor: '#10B981',
+      customAccentColor: '#10B981',
+      customBackgroundColor: '#10B981',
+      customBackgroundLightness: 20,
+      customBackgroundChroma: 2,
+      customCssOverrides: {
+        '--harmony-primary': '#10B981',
+        '--harmony-primary-hover': '#059669',
+        '--harmony-accent': '#34D399',
+      }
+    }
+  },
+  {
+    name: 'Coral',
+    description: 'Warm, energetic, and community-driven',
+    settings: {
+      theme: 'custom',
+      customThemeMode: 'dark',
+      customPrimaryColor: '#F97316',
+      customAccentColor: '#F97316',
+      customBackgroundColor: '#F97316',
+      customBackgroundLightness: 20,
+      customBackgroundChroma: 1,
+      customCssOverrides: {
+        '--harmony-primary': '#F97316',
+        '--harmony-primary-hover': '#EA580C',
+        '--harmony-accent': '#FB923C',
+      }
+    }
+  },
+  {
+    name: 'Violet',
+    description: 'Creative and distinctive with deep purple tones',
+    settings: {
+      theme: 'custom',
+      customThemeMode: 'dark',
+      customPrimaryColor: '#8B5CF6',
+      customAccentColor: '#8B5CF6',
+      customBackgroundColor: '#8B5CF6',
+      customBackgroundLightness: 20,
+      customBackgroundChroma: 2,
+      customCssOverrides: {
+        '--harmony-primary': '#8B5CF6',
+        '--harmony-primary-hover': '#7C3AED',
+        '--harmony-accent': '#A78BFA',
+      }
+    }
+  },
+  {
+    name: 'Rose',
+    description: 'Bold, warm, and community-focused',
+    settings: {
+      theme: 'custom',
+      customThemeMode: 'dark',
+      customPrimaryColor: '#F43F5E',
+      customAccentColor: '#F43F5E',
+      customBackgroundColor: '#F43F5E',
+      customBackgroundLightness: 20,
+      customBackgroundChroma: 2,
+      customCssOverrides: {
+        '--harmony-primary': '#F43F5E',
+        '--harmony-primary-hover': '#E11D48',
+        '--harmony-accent': '#FB7185',
+      }
+    }
+  },
+  {
     name: 'Ocean Blue',
     description: 'A deep ocean blue theme with cool tones',
     settings: {
@@ -68,8 +158,6 @@ export const COMMUNITY_PRESETS: ThemePreset[] = [
         '--harmony-primary': '#1258fa',
         '--harmony-primary-hover': '#0e47d4',
         '--harmony-accent': '#4ecdc4',
-        '--status-online': '#2ecc71',
-        '--success': '#27ae60',
       }
     }
   },
@@ -313,6 +401,17 @@ function applyPresetTheme(themeName: 'dark' | 'light' | 'midnight') {
   root.style.setProperty('--border-focus', theme.primary)
   root.style.setProperty('--border-color', theme.isLightTheme ? 'rgba(0, 0, 0, 0.12)' : '#232529')
   
+  // Icon colors for light/dark
+  root.style.setProperty('--icon-primary', theme.isLightTheme ? '#5e6168' : '#9999a0')
+  root.style.setProperty('--icon-secondary', theme.isLightTheme ? '#80838a' : '#66666b')
+  root.style.setProperty('--icon-active', theme.isLightTheme ? '#2e3338' : '#fbfbfb')
+
+  // Shadow adjustments for light theme
+  root.style.setProperty('--shadow-small', theme.isLightTheme
+    ? '0 2px 4px rgba(0, 0, 0, 0.06)' : '0 2px 4px rgba(0, 0, 0, 0.1)')
+  root.style.setProperty('--shadow-medium', theme.isLightTheme
+    ? '0 4px 8px rgba(0, 0, 0, 0.08)' : '0 4px 8px rgba(0, 0, 0, 0.15)')
+
   root.setAttribute('data-theme', themeName)
   root.setAttribute('data-theme-type', theme.isLightTheme ? 'light' : 'dark')
   

@@ -5829,7 +5829,7 @@ const handleAddInstance = () => {
   flex-shrink: 0;
 }
 
-.report-type-badge.user { background: rgba(88, 101, 242, 0.2); color: #616ae5; }
+.report-type-badge.user { background: rgba(14, 165, 233, 0.2); color: #38BDF8; }
 .report-type-badge.post { background: rgba(87, 242, 135, 0.2); color: #57f287; }
 .report-type-badge.message { background: rgba(254, 231, 92, 0.2); color: #fee75c; }
 .report-type-badge.server { background: rgba(235, 69, 158, 0.2); color: #eb459e; }
@@ -5891,7 +5891,7 @@ const handleAddInstance = () => {
 }
 
 .report-status-badge.pending { background: rgba(254, 231, 92, 0.2); color: #fee75c; }
-.report-status-badge.investigating { background: rgba(88, 101, 242, 0.2); color: #616ae5; }
+.report-status-badge.investigating { background: rgba(14, 165, 233, 0.2); color: #38BDF8; }
 .report-status-badge.resolved { background: rgba(87, 242, 135, 0.2); color: #57f287; }
 .report-status-badge.dismissed { background: rgba(255, 255, 255, 0.1); color: var(--text-secondary); }
 
@@ -5996,8 +5996,8 @@ const handleAddInstance = () => {
 }
 
 .report-action-btn.investigating {
-  background: rgba(88, 101, 242, 0.3);
-  color: #616ae5;
+  background: rgba(14, 165, 233, 0.3);
+  color: #38BDF8;
 }
 
 .report-action-btn.resolve {

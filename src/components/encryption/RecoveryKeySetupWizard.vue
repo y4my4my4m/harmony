@@ -552,7 +552,7 @@ onMounted(() => {
 .intro-card {
   text-align: center;
   padding: 32px;
-  background: linear-gradient(135deg, rgba(88, 101, 242, 0.1) 0%, rgba(88, 101, 242, 0.05) 100%);
+  background: linear-gradient(135deg, rgba(14, 165, 233, 0.1) 0%, rgba(14, 165, 233, 0.05) 100%);
   border-radius: 12px;
   margin-bottom: 24px;
 }
@@ -829,8 +829,8 @@ onMounted(() => {
   display: flex;
   gap: 12px;
   padding: 16px;
-  background: rgba(88, 101, 242, 0.1);
-  border: 1px solid rgba(88, 101, 242, 0.3);
+  background: rgba(14, 165, 233, 0.1);
+  border: 1px solid rgba(14, 165, 233, 0.3);
   border-radius: 8px;
   text-align: left;
 }

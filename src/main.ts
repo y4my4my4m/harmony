@@ -1,6 +1,5 @@
-// Import unified design system first
+// Import unified design system (single source of truth for tokens + base styles)
 import './assets/design-system.css'
-import './assets/main.css'
 import './assets/shared.css'
 import './assets/embed-previews.css'
 import './assets/themes.css' // Theme system CSS

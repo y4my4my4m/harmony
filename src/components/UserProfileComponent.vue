@@ -498,13 +498,13 @@ onBeforeUnmount(() => {
 }
 
 .icon-button.voice-active {
-  border: 1px solid rgba(88, 101, 242, 0.3);
-  box-shadow: 0 0 4px rgba(88, 101, 242, 0.2);
+  border: 1px solid rgba(14, 165, 233, 0.3);
+  box-shadow: 0 0 4px rgba(14, 165, 233, 0.2);
 }
 
 .icon-button.voice-active:hover {
-  border-color: rgba(88, 101, 242, 0.5);
-  box-shadow: 0 0 6px rgba(88, 101, 242, 0.3);
+  border-color: rgba(14, 165, 233, 0.5);
+  box-shadow: 0 0 6px rgba(14, 165, 233, 0.3);
 }
 
 .icon-button.settings:hover {

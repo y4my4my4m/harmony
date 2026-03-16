@@ -326,7 +326,7 @@ function formatExpiry(expiresAt: string): string {
 .header-icon {
   width: 56px;
   height: 56px;
-  background: linear-gradient(135deg, #0EA5E9, #616ae5);
+  background: linear-gradient(135deg, #0EA5E9, #38BDF8);
   border-radius: 14px;
   display: flex;
   align-items: center;
@@ -467,7 +467,7 @@ function formatExpiry(expiresAt: string): string {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #0EA5E9, #616ae5);
+  background: linear-gradient(135deg, #0EA5E9, #38BDF8);
   color: var(--text-primary);
   font-size: 28px;
   font-weight: 700;

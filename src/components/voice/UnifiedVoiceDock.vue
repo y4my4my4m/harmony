@@ -1432,7 +1432,7 @@ onUnmounted(() => {
 }
 
 .dock-connection-badge.p2p {
-  background: rgba(88, 101, 242, 0.2);
+  background: rgba(14, 165, 233, 0.2);
   color: #0EA5E9;
 }
 
@@ -1570,14 +1570,14 @@ onUnmounted(() => {
   background: #000;
   cursor: pointer !important; /* Override parent grab cursor for video preview */
   transition: all 0.2s ease;
-  border: 2px solid rgba(88, 101, 242, 0.4);
+  border: 2px solid rgba(14, 165, 233, 0.4);
   flex-shrink: 0;
 }
 
 .dock-video-preview:hover {
   transform: scale(1.05);
-  border-color: rgba(88, 101, 242, 0.8);
-  box-shadow: 0 4px 12px rgba(88, 101, 242, 0.3);
+  border-color: rgba(14, 165, 233, 0.8);
+  box-shadow: 0 4px 12px rgba(14, 165, 233, 0.3);
 }
 
 .dock-video {
@@ -1614,7 +1614,7 @@ onUnmounted(() => {
 .expand-btn:hover {
   background: linear-gradient(145deg, #0EA5E9, #0284C7);
   color: var(--text-primary);
-  border-color: rgba(88, 101, 242, 0.6);
+  border-color: rgba(14, 165, 233, 0.6);
 }
 
 .minimize-btn:hover {
@@ -1758,7 +1758,7 @@ onUnmounted(() => {
 }
 
 .channel-icon {
-  background: rgba(88, 101, 242, 0.2);
+  background: rgba(14, 165, 233, 0.2);
   border-radius: 10px;
   color: #0EA5E9;
   width: 24px;
@@ -1780,7 +1780,7 @@ onUnmounted(() => {
 }
 
 .participant-count {
-  background: rgba(88, 101, 242, 0.2);
+  background: rgba(14, 165, 233, 0.2);
   color: #0EA5E9;
   padding: 2px 6px;
   border-radius: 10px;

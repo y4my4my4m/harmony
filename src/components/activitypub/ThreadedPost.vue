@@ -211,7 +211,7 @@ const expandThread = () => {
   background: linear-gradient(
     to bottom,
     #80848e 0%,
-    rgba(88, 101, 242, 0.5) 50%,
+    rgba(14, 165, 233, 0.5) 50%,
     transparent 100%
   );
 }

@@ -372,7 +372,7 @@ onUnmounted(() => {
 }
 
 .notification-bell:focus {
-  box-shadow: 0 0 0 3px rgba(88, 101, 242, 0.3);
+  box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.3);
 }
 
 .notification-bell.has-unread {
@@ -380,7 +380,7 @@ onUnmounted(() => {
 }
 
 .notification-bell.is-open {
-  background: rgba(88, 101, 242, 0.15);
+  background: rgba(14, 165, 233, 0.15);
   color: var(--h-brand);
 }
 
@@ -419,7 +419,7 @@ onUnmounted(() => {
   position: absolute;
   inset: -4px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(88, 101, 242, 0.4) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(14, 165, 233, 0.4) 0%, transparent 70%);
   animation: pulse 2s ease-in-out infinite;
 }
 
@@ -499,7 +499,7 @@ onUnmounted(() => {
 
 /* Panel header with gradient */
 .panel-header {
-  background: linear-gradient(135deg, var(--h-chat-darker) 0%, rgba(88, 101, 242, 0.1) 100%);
+  background: linear-gradient(135deg, var(--h-chat-darker) 0%, rgba(14, 165, 233, 0.1) 100%);
   padding: 20px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   position: relative;
@@ -752,7 +752,7 @@ onUnmounted(() => {
 .filter-tab.active {
   background: linear-gradient(135deg, var(--h-brand), #7c3aed);
   color: var(--text-primary);
-  box-shadow: 0 2px 8px rgba(88, 101, 242, 0.3);
+  box-shadow: 0 2px 8px rgba(14, 165, 233, 0.3);
 }
 
 .filter-count {

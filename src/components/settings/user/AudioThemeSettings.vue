@@ -429,7 +429,7 @@ onMounted(async () => {
 
 .theme-card.active {
   border-color: var(--h-brand);
-  background: rgba(88, 101, 242, 0.05);
+  background: rgba(14, 165, 233, 0.05);
 }
 
 .theme-card.loading {
@@ -566,7 +566,7 @@ onMounted(async () => {
 .sound-test-btn:hover:not(:disabled) {
   border-color: var(--h-brand);
   color: var(--text-primary);
-  background: rgba(88, 101, 242, 0.1);
+  background: rgba(14, 165, 233, 0.1);
 }
 
 .sound-test-btn:disabled {

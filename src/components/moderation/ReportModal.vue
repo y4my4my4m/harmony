@@ -334,7 +334,7 @@ const hideAndClose = () => {
 
 .reason-option.selected {
   border-color: var(--harmony-primary, #0EA5E9);
-  background: rgba(88, 101, 242, 0.1);
+  background: rgba(14, 165, 233, 0.1);
   color: var(--text-primary);
 }
 

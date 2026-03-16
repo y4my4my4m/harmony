@@ -482,7 +482,7 @@ async function confirm() {
   background: rgba(255, 255, 255, 0.05);
 }
 .member-option.selected {
-  background: rgba(88, 101, 242, 0.2);
+  background: rgba(14, 165, 233, 0.2);
 }
 
 

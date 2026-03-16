@@ -204,7 +204,7 @@ const getTypeIcon = (type: NotificationType) => {
 }
 
 .toast-dm {
-  --toast-color: #616ae5;
+  --toast-color: #38BDF8;
 }
 
 .toast-reaction {
@@ -224,7 +224,7 @@ const getTypeIcon = (type: NotificationType) => {
 }
 
 .toast-voice_channel_activity {
-  --toast-color: #616ae5;
+  --toast-color: #38BDF8;
 }
 
 .toast-server_update {

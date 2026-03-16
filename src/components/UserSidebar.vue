@@ -719,7 +719,7 @@ const closeInviteModal = () => {
 }
 
 .search-input-wrapper:focus-within {
-  border-color: rgba(88, 101, 242, 0.6);
+  border-color: rgba(14, 165, 233, 0.6);
 }
 
 .search-input {

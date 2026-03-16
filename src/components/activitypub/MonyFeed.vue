@@ -584,28 +584,28 @@ document.addEventListener('visibilitychange', () => {
 }
 
 /* Dark theme adjustments */
-.dark .mony-feed {
-  background-color: #030712;
+:root[data-theme-type="dark"] .mony-feed {
+  background-color: var(--background-tertiary);
 }
 
-.dark .feed-header {
-  background-color: #111827;
-  border-color: #1f2937;
+:root[data-theme-type="dark"] .feed-header {
+  background-color: var(--background-secondary);
+  border-color: var(--border-primary);
 }
 
-.dark .feed-tab {
-  background-color: #1f2937;
+:root[data-theme-type="dark"] .feed-tab {
+  background-color: var(--background-quaternary);
 }
 
-.dark .feed-tab:hover {
-  background-color: #374151;
+:root[data-theme-type="dark"] .feed-tab:hover {
+  background-color: var(--background-quinary);
 }
 
-.dark .load-more-button {
-  background-color: #1f2937;
+:root[data-theme-type="dark"] .load-more-button {
+  background-color: var(--background-quaternary);
 }
 
-.dark .load-more-button:hover {
-  background-color: #374151;
+:root[data-theme-type="dark"] .load-more-button:hover {
+  background-color: var(--background-quinary);
 }
 </style>

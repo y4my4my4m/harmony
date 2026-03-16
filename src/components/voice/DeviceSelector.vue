@@ -382,9 +382,9 @@ watch(isOpen, (newVal) => {
 }
 
 .selector-trigger.open {
-  background: rgba(88, 101, 242, 0.3);
+  background: rgba(14, 165, 233, 0.3);
   color: var(--text-primary);
-  border-color: rgba(88, 101, 242, 0.5);
+  border-color: rgba(14, 165, 233, 0.5);
 }
 
 .chevron {
@@ -474,12 +474,12 @@ watch(isOpen, (newVal) => {
 }
 
 .device-item.active {
-  background: rgba(88, 101, 242, 0.15);
+  background: rgba(14, 165, 233, 0.15);
   color: #0EA5E9;
 }
 
 .device-item.active:hover {
-  background: rgba(88, 101, 242, 0.25);
+  background: rgba(14, 165, 233, 0.25);
 }
 
 .device-label {

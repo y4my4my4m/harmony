@@ -1235,7 +1235,7 @@ onMounted(() => {
 .profile-banner {
   position: relative;
   height: 120px;
-  background: linear-gradient(135deg, #0EA5E9, #616ae5);
+  background: linear-gradient(135deg, #0EA5E9, #38BDF8);
   overflow: hidden;
 }
 
@@ -1278,7 +1278,7 @@ onMounted(() => {
 }
 
 .action-button.active {
-  background: rgba(88, 101, 242, 0.8);
+  background: rgba(14, 165, 233, 0.8);
   border-color: #0EA5E9;
 }
 
@@ -1464,8 +1464,8 @@ onMounted(() => {
   display: inline-flex;
   align-items: center;
   padding: 0 2px;
-  background: rgba(88, 101, 242, 0.2);
-  border: 1px solid rgba(88, 101, 242, 0.3);
+  background: rgba(14, 165, 233, 0.2);
+  border: 1px solid rgba(14, 165, 233, 0.3);
   border-radius: 6px;
   font-size: 11px;
   font-weight: 600;
@@ -1550,7 +1550,7 @@ onMounted(() => {
 }
 
 .stat-item.clickable:hover {
-  background: rgba(88, 101, 242, 0.15);
+  background: rgba(14, 165, 233, 0.15);
   transform: scale(1.05);
 }
 
@@ -1690,13 +1690,13 @@ onMounted(() => {
 }
 
 .activity-card.clickable:hover {
-  background: rgba(88, 101, 242, 0.1);
-  border-color: rgba(88, 101, 242, 0.3);
+  background: rgba(14, 165, 233, 0.1);
+  border-color: rgba(14, 165, 233, 0.3);
   transform: translateY(-1px);
 }
 
 .activity-card.clickable:hover .activity-icon {
-  background: rgba(88, 101, 242, 0.3);
+  background: rgba(14, 165, 233, 0.3);
 }
 
 .activity-icon {
@@ -1705,7 +1705,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(88, 101, 242, 0.2);
+  background: rgba(14, 165, 233, 0.2);
   border-radius: 8px;
   color: #0EA5E9;
   flex-shrink: 0;
@@ -1893,7 +1893,7 @@ onMounted(() => {
 .primary-action-btn {
   background: linear-gradient(135deg, #0EA5E9, #0284C7);
   color: var(--text-primary);
-  box-shadow: 0 2px 8px rgba(88, 101, 242, 0.3);
+  box-shadow: 0 2px 8px rgba(14, 165, 233, 0.3);
 }
 
 
@@ -1904,7 +1904,7 @@ onMounted(() => {
 
 .primary-action-btn:hover {
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(88, 101, 242, 0.4);
+  box-shadow: 0 4px 12px rgba(14, 165, 233, 0.4);
 }
 
 .primary-action-btn.following:hover {

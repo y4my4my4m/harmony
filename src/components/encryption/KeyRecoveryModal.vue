@@ -426,7 +426,7 @@ async function restoreEncryption() {
 }
 
 .tab-btn:hover {
-  border-color: var(--harmony-primary-alpha, rgba(88, 101, 242, 0.5));
+  border-color: var(--harmony-primary-alpha, rgba(14, 165, 233, 0.5));
   color: var(--text-primary);
 }
 
@@ -515,7 +515,7 @@ async function restoreEncryption() {
 .word-input input:focus {
   outline: none;
   border-color: var(--harmony-primary);
-  box-shadow: 0 0 0 2px var(--harmony-primary-light, rgba(88, 101, 242, 0.15));
+  box-shadow: 0 0 0 2px var(--harmony-primary-light, rgba(14, 165, 233, 0.15));
 }
 
 /* Quick Actions */

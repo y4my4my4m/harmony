@@ -197,7 +197,7 @@ onMounted(() => {
 }
 
 .thread-item.active {
-  background: var(--harmony-primary-alpha, rgba(88, 101, 242, 0.15));
+  background: var(--harmony-primary-alpha, rgba(14, 165, 233, 0.15));
 }
 
 .thread-content {

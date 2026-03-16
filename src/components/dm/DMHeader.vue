@@ -1202,7 +1202,7 @@ const getDefaultGroupName = (): string => {
   font-size: 12px;
   color: var(--text-secondary);
   font-family: 'Roboto Mono', monospace;
-  background: rgba(88, 101, 242, 0.1);
+  background: rgba(14, 165, 233, 0.1);
   padding: 2px 6px;
   border-radius: 4px;
   white-space: nowrap;

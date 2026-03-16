@@ -1368,7 +1368,7 @@ export default defineComponent({
 /* Mention styling */
 .mention {
   color: #0EA5E9;
-  background-color: rgba(88, 101, 242, 0.15);
+  background-color: rgba(14, 165, 233, 0.15);
   border-radius: 3px;
   padding: 0 2px;
   cursor: pointer;
@@ -1381,13 +1381,13 @@ export default defineComponent({
 }
 
 .mention:hover {
-  background-color: rgba(88, 101, 242, 0.3);
+  background-color: rgba(14, 165, 233, 0.3);
   text-decoration: underline;
 }
 
 /* Discord bridged mentions */
 .mention.discord-mention {
-  background-color: rgba(88, 101, 242, 0.2);
+  background-color: rgba(14, 165, 233, 0.2);
   padding: 0 4px;
 }
 

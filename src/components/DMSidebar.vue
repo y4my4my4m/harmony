@@ -870,7 +870,7 @@ onUnmounted(() => {
   /* Enhanced mobile touch targets */
   .dm-header {
     padding: 20px 16px;
-    border-bottom: 1px solid rgba(88, 101, 242, 0.1);
+    border-bottom: 1px solid rgba(14, 165, 233, 0.1);
   }
 
   .dm-title {
@@ -887,7 +887,7 @@ onUnmounted(() => {
 
   .new-dm-btn:active {
     transform: scale(0.95);
-    background: rgba(88, 101, 242, 0.2);
+    background: rgba(14, 165, 233, 0.2);
   }
 
   .user-search-section {

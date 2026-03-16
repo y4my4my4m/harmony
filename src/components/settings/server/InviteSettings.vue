@@ -667,7 +667,7 @@ watch(() => props.serverId, () => {
 
 .action-button.primary:hover:not(:disabled) {
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(88, 101, 242, 0.3);
+  box-shadow: 0 4px 12px rgba(14, 165, 233, 0.3);
 }
 
 .button-icon {
