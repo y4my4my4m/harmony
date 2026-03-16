@@ -1,6 +1,12 @@
+import JSZip from 'jszip'
 import type { AudioTheme, AudioAction, AudioThemeSettings } from '@/types'
 import { debug } from '@/utils/debug'
 import { userStorage } from '@/utils/userScopedStorage'
+import { savePackBlob, getAllPackBlobs, deletePackBlobs } from '@/utils/audioPackStorage'
+
+const PACK_MAX_BYTES = 10 * 1024 * 1024 // 10MB
+const PACK_FORMAT = 'harmony-audio-pack'
+const PACK_VERSION = 1
 
 /**
  * Professional Audio Theme Service
@@ -34,13 +40,90 @@ export class AudioThemeService {
   // Theme registry
   private themes = new Map<string, AudioTheme>()
   private loadedThemes = new Set<string>()
+  private pendingPackThemes: Array<{ id: string; name: string; description?: string; author?: string; version?: string; soundsMap: Record<string, string> }> = []
+  private packsLoadPromise: Promise<void> | null = null
   
   // Events
   private eventListeners = new Map<string, Array<(...args: any[]) => void>>()
 
+  private static readonly CUSTOM_THEMES_KEY = 'audio_custom_themes'
+
   private constructor() {
     this.initializeBuiltInThemes()
+    this.loadCustomThemes()
     this.loadSettings()
+  }
+
+  private loadCustomThemes(): void {
+    try {
+      const stored = userStorage.getItem(AudioThemeService.CUSTOM_THEMES_KEY)
+      if (!stored) return
+      const themes = JSON.parse(stored) as Array<AudioTheme & { fromPack?: boolean; soundsMap?: Record<string, string> }>
+      if (!Array.isArray(themes)) return
+      for (const theme of themes) {
+        if (!theme?.id || !theme?.name) continue
+        if (theme.fromPack && theme.soundsMap) {
+          this.pendingPackThemes.push({
+            id: theme.id,
+            name: theme.name,
+            description: theme.description,
+            author: theme.author,
+            version: theme.version,
+            soundsMap: theme.soundsMap
+          })
+        } else if (theme?.sounds && typeof theme.sounds === 'object') {
+          this.registerTheme({ ...theme, isBuiltIn: false })
+        }
+      }
+    } catch (error) {
+      debug.warn('Failed to load custom audio themes:', error)
+    }
+  }
+
+  /** Hydrate pack themes from IndexedDB and register them. Call before getThemes when loading custom themes. */
+  public async ensureCustomPacksLoaded(): Promise<void> {
+    if (this.pendingPackThemes.length === 0) return
+    const toLoad = [...this.pendingPackThemes]
+    this.pendingPackThemes = []
+    for (const meta of toLoad) {
+      try {
+        const blobs = await getAllPackBlobs(meta.id, Object.keys(meta.soundsMap))
+        const sounds: Partial<Record<AudioAction, string>> = {}
+        for (const [action, filename] of Object.entries(meta.soundsMap)) {
+          const blob = blobs[action]
+          if (blob) sounds[action as AudioAction] = URL.createObjectURL(blob)
+        }
+        const theme: AudioTheme & { soundsMap?: Record<string, string> } = {
+          id: meta.id,
+          name: meta.name,
+          description: meta.description ?? '',
+          author: meta.author ?? '',
+          version: meta.version ?? '1.0.0',
+          isBuiltIn: false,
+          sounds
+        }
+        theme.soundsMap = meta.soundsMap
+        this.registerTheme(theme)
+      } catch (e) {
+        debug.warn('Failed to hydrate pack theme:', meta.id, e)
+      }
+    }
+  }
+
+  private saveCustomThemes(): void {
+    const custom = Array.from(this.themes.values()).filter(t => !t.isBuiltIn)
+    const toStore = custom.map(t => {
+      const extended = t as AudioTheme & { soundsMap?: Record<string, string> }
+      if (extended.soundsMap) {
+        return { id: t.id, name: t.name, description: t.description, author: t.author, version: t.version, isBuiltIn: false, fromPack: true, soundsMap: extended.soundsMap }
+      }
+      return t
+    })
+    try {
+      userStorage.setItem(AudioThemeService.CUSTOM_THEMES_KEY, JSON.stringify(toStore))
+    } catch (error) {
+      debug.warn('Failed to save custom audio themes:', error)
+    }
   }
 
   public static getInstance(): AudioThemeService {
@@ -197,6 +280,129 @@ export class AudioThemeService {
   }
 
   /**
+   * Export a full audio theme pack as a ZIP archive.
+   * Contains manifest.json (theme metadata + action->filename map) and actual audio files.
+   * Max size 10MB.
+   */
+  public async exportThemePack(themeId: string): Promise<Blob> {
+    const theme = this.themes.get(themeId)
+    if (!theme) throw new Error(`Theme '${themeId}' not found`)
+
+    const zip = new JSZip()
+    const soundsMap: Record<string, string> = {}
+
+    for (const [action, path] of Object.entries(theme.sounds)) {
+      if (!path) continue
+      let blob: Blob | null = null
+      if (path.startsWith('blob:')) {
+        const res = await fetch(path)
+        blob = res.ok ? await res.blob() : null
+      } else if (path.startsWith('data:')) {
+        const res = await fetch(path)
+        blob = res.ok ? await res.blob() : null
+      } else {
+        const url = path.startsWith('/') ? `${window.location.origin}${path}` : path
+        const res = await fetch(url)
+        blob = res.ok ? await res.blob() : null
+      }
+      if (blob) {
+        const ext = blob.type.includes('ogg') ? 'ogg' : 'mp3'
+        const filename = `${action}.${ext}`
+        soundsMap[action] = filename
+        zip.file(filename, blob)
+      }
+    }
+
+    const manifest = {
+      format: PACK_FORMAT,
+      version: PACK_VERSION,
+      theme: {
+        id: theme.id,
+        name: theme.name,
+        description: theme.description,
+        author: theme.author,
+        version: theme.version,
+        isBuiltIn: false,
+        sounds: soundsMap
+      }
+    }
+    zip.file('manifest.json', JSON.stringify(manifest, null, 2))
+
+    const zipBlob = await zip.generateAsync({ type: 'blob' })
+    if (zipBlob.size > PACK_MAX_BYTES) {
+      throw new Error(`Pack exceeds 10MB limit (${(zipBlob.size / 1024 / 1024).toFixed(1)}MB)`)
+    }
+    return zipBlob
+  }
+
+  /**
+   * Import an audio theme pack from a ZIP archive and register as custom theme.
+   */
+  public async importThemePack(zipData: ArrayBuffer | Blob): Promise<AudioTheme> {
+    const arrayBuffer = zipData instanceof Blob ? await zipData.arrayBuffer() : zipData
+    if (arrayBuffer.byteLength > PACK_MAX_BYTES) {
+      throw new Error(`Pack exceeds 10MB limit (${(arrayBuffer.byteLength / 1024 / 1024).toFixed(1)}MB)`)
+    }
+
+    const zip = await JSZip.loadAsync(arrayBuffer)
+    const manifestFile = zip.file('manifest.json')
+    if (!manifestFile) throw new Error('Invalid pack: missing manifest.json')
+
+    const manifestText = await manifestFile.async('string')
+    const pack = JSON.parse(manifestText) as { format?: string; version?: number; theme?: AudioTheme & { sounds: Record<string, string> } }
+    if (pack.format !== PACK_FORMAT || !pack.theme) {
+      throw new Error('Invalid audio pack format. Use an exported Harmony audio theme pack.')
+    }
+    const meta = pack.theme
+    if (!meta.id || !meta.name || !meta.sounds || typeof meta.sounds !== 'object') {
+      throw new Error('Invalid theme definition in pack.')
+    }
+
+    const id = this.themes.has(meta.id) ? `${meta.id}-${Date.now()}` : meta.id
+    const sounds: Partial<Record<AudioAction, string>> = {}
+
+    for (const [action, filename] of Object.entries(meta.sounds)) {
+      const file = zip.file(filename)
+      if (!file) continue
+      const blob = await file.async('blob')
+      await savePackBlob(id, action, blob)
+      sounds[action as AudioAction] = URL.createObjectURL(blob)
+    }
+
+    const toRegister: AudioTheme = {
+      id,
+      name: meta.name,
+      description: meta.description ?? '',
+      author: meta.author ?? '',
+      version: meta.version ?? '1.0.0',
+      isBuiltIn: false,
+      sounds
+    }
+    ;(toRegister as AudioTheme & { soundsMap?: Record<string, string> }).soundsMap = meta.sounds
+
+    this.registerTheme(toRegister)
+    this.saveCustomThemes()
+    this.emit('themeRegistered', toRegister)
+    return toRegister
+  }
+
+  /**
+   * Remove a custom theme by ID
+   */
+  public async unregisterCustomTheme(themeId: string): Promise<boolean> {
+    const theme = this.themes.get(themeId)
+    if (!theme || theme.isBuiltIn) return false
+    const ext = theme as AudioTheme & { soundsMap?: Record<string, string> }
+    if (ext.soundsMap) {
+      await deletePackBlobs(themeId)
+    }
+    this.themes.delete(themeId)
+    this.clearCacheForTheme(themeId)
+    this.saveCustomThemes()
+    return true
+  }
+
+  /**
    * Get all available themes
    */
   public getThemes(): AudioTheme[] {
@@ -258,28 +464,6 @@ export class AudioThemeService {
   // =============================================================================
   // AUDIO PLAYBACK
   // =============================================================================
-
-  /**
-   * Play a feedback sound from a specific theme (e.g. on theme switch).
-   * Uses ui_success, then ui_click, then first available – never falls back to default.
-   */
-  public async playThemeFeedbackSound(themeId: string): Promise<void> {
-    const theme = this.themes.get(themeId)
-    if (!theme?.sounds) return
-
-    const sounds = theme.sounds as Record<string, string>
-    const soundPath = sounds.ui_success ?? sounds.ui_click ?? Object.values(sounds)[0]
-    if (!soundPath) return
-
-    try {
-      const audio = new Audio(soundPath)
-      audio.volume = this.settings.volume
-      await audio.play()
-      this.emit('audioPlayed', { action: 'ui_success' as AudioAction, soundPath, theme: themeId })
-    } catch (e) {
-      debug.warn('Failed to play theme feedback sound:', e)
-    }
-  }
 
   /**
    * Play audio for a specific action with intelligent fallback
@@ -350,28 +534,6 @@ export class AudioThemeService {
   }
 
   /**
-   * Play a feedback sound from a specific theme (e.g. on theme switch).
-   * Prefers ui_success, then ui_click, then first available sound from that theme only.
-   */
-  public async playThemeFeedbackSound(themeId: string): Promise<void> {
-    const theme = this.themes.get(themeId)
-    if (!theme?.sounds) return
-
-    const sounds = theme.sounds as Record<string, string>
-    const soundPath = sounds.ui_success ?? sounds.ui_click ?? Object.values(sounds)[0]
-    if (!soundPath) return
-
-    try {
-      const audio = new Audio(soundPath)
-      audio.volume = this.settings.volume
-      await audio.play()
-      this.emit('audioPlayed', { action: 'ui_success', soundPath, theme: themeId })
-    } catch (e) {
-      debug.warn('Failed to play theme feedback:', e)
-    }
-  }
-
-  /**
    * Resolve the sound file path for an action without loading it
    */
   private resolveSoundPath(action: AudioAction): string | null {
@@ -382,45 +544,6 @@ export class AudioThemeService {
     if (defaultTheme?.sounds[action]) return defaultTheme.sounds[action]
 
     return null
-  }
-
-  /**
-   * Play a feedback sound from a specific theme (for theme-switch confirmation).
-   * Prefers ui_success, then ui_click, then first available sound. Never falls back to default theme.
-   */
-  public async playThemeFeedbackSound(themeId: string): Promise<void> {
-    const theme = this.themes.get(themeId)
-    if (!theme?.sounds) return
-
-    const sounds = theme.sounds as Record<string, string>
-    const preferred: AudioAction[] = ['ui_success', 'ui_click', 'ui_hover', 'dm', 'mention']
-    let soundPath: string | null = null
-    for (const action of preferred) {
-      if (sounds[action]) {
-        soundPath = sounds[action]
-        break
-      }
-    }
-    if (!soundPath && Object.keys(sounds).length > 0) {
-      soundPath = Object.values(sounds)[0]
-    }
-    if (!soundPath) return
-
-    try {
-      const cached = this.audioCache.get(soundPath)
-      if (cached) {
-        const audioClone = cached.cloneNode() as HTMLAudioElement
-        audioClone.volume = this.settings.volume
-        await audioClone.play()
-        return
-      }
-      const audio = new Audio(soundPath)
-      audio.volume = this.settings.volume
-      await audio.play()
-      audio.addEventListener('canplaythrough', () => this.addToCache(soundPath!, audio), { once: true })
-    } catch (e) {
-      debug.warn('Theme feedback sound failed:', e)
-    }
   }
 
   /**

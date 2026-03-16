@@ -114,6 +114,9 @@ export const useThemeStore = defineStore('theme', {
       try {
         debug.log('🎨 Initializing professional theme system...')
         
+        // Hydrate pack themes from IndexedDB before loading themes
+        await audioThemeService.ensureCustomPacksLoaded()
+        
         // Load available themes
         this.audioThemes = audioThemeService.getThemes()
         
@@ -163,6 +166,10 @@ export const useThemeStore = defineStore('theme', {
 
       audioThemeService.on('settingsChanged', (settings) => {
         this.audioVolume = settings.volume
+      })
+
+      audioThemeService.on('themeRegistered', () => {
+        this.audioThemes = audioThemeService.getThemes()
       })
     },
 
@@ -341,6 +348,22 @@ export const useThemeStore = defineStore('theme', {
         debug.error('❌ Failed to import theme preferences:', error)
         this.lastError = 'Failed to import preferences'
       }
+    },
+
+    /**
+     * Export a full audio theme pack as a ZIP archive (10MB max).
+     */
+    async exportThemePack(themeId: string): Promise<Blob> {
+      return audioThemeService.exportThemePack(themeId)
+    },
+
+    /**
+     * Import an audio theme pack from a ZIP archive and register as custom theme.
+     */
+    async importThemePack(zipData: ArrayBuffer | Blob): Promise<AudioTheme> {
+      const theme = await audioThemeService.importThemePack(zipData)
+      this.refreshThemes()
+      return theme
     },
 
     /**

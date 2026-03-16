@@ -173,26 +173,6 @@ const ownerName = computed(() => {
   return displayName || 'Loading...'
 })
 
-const serverBannerUrl = computed(() =>
-  getServerBannerUrl(props.server.banner, { width: 640, height: 200, quality: 80 })
-)
-
-const bannerStyle = computed(() => {
-  const url = serverBannerUrl.value
-  if (!url) return {}
-  return { backgroundImage: `url(${url})` }
-})
-
-const serverBannerUrl = computed(() =>
-  getServerBannerUrl(props.server.banner, { width: 640, height: 200, quality: 80 })
-)
-
-const bannerStyle = computed(() => {
-  const url = serverBannerUrl.value
-  if (!url) return {}
-  return { backgroundImage: `url(${url})` }
-})
-
 const formatMemberCount = (count?: number): string => {
   if (!count) return `0 ${t('server.members')}`
   if (count === 1) return `1 ${t('server.member')}`

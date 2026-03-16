@@ -38,18 +38,18 @@
       </div>
     </div>
 
-    <!-- Import / Export (always visible) -->
+    <!-- Import / Export audio theme packs -->
     <div class="settings-section import-export-section">
-      <h3 class="section-title">Import & Export</h3>
-      <p class="section-description">Backup or restore your audio theme settings</p>
+      <h3 class="section-title">Import & Export Theme Packs</h3>
+      <p class="section-description">Export a full audio theme (sounds + metadata) to share or backup. Import a pack to add it as a custom theme.</p>
       <div class="import-export-actions">
-        <button @click="exportThemeSettings" class="import-export-btn" :disabled="!themeStore.isReady">
-          <Icon name="download" />
-          Export Settings
+        <button @click="exportThemePack" class="import-export-btn" :disabled="!themeStore.isReady || isExportingPack">
+          <Icon :name="isExportingPack ? 'loader' : 'download'" :class="{ spinning: isExportingPack }" />
+          {{ isExportingPack ? 'Exporting...' : 'Export Pack' }}
         </button>
-        <button @click="importThemeSettings" class="import-export-btn" :disabled="!themeStore.isReady">
+        <button @click="importThemePack" class="import-export-btn" :disabled="!themeStore.isReady">
           <Icon name="upload" />
-          Import Settings
+          Import Pack
         </button>
       </div>
     </div>
@@ -133,6 +133,7 @@ const notificationStore = useNotificationStore()
 // Local state
 const isLoading = ref(false)
 const showAdvanced = ref(false)
+const isExportingPack = ref(false)
 
 // Test actions for sound preview
 const testActions = [
@@ -233,43 +234,52 @@ const onThemeChanged = (themeId: string): void => {
   )
 }
 
-const exportThemeSettings = (): void => {
+const PACK_MAX_BYTES = 10 * 1024 * 1024 // 10MB
+
+const exportThemePack = async (): Promise<void> => {
+  if (!themeStore.isReady) return
   try {
-    const settings = themeStore.exportPreferences()
-    const blob = new Blob([JSON.stringify(settings, null, 2)], { type: 'application/json' })
+    isExportingPack.value = true
+    const blob = await themeStore.exportThemePack(themeStore.currentAudioTheme)
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `harmony-audio-theme-${new Date().toISOString().slice(0, 10)}.json`
+    const themeName = themeStore.getCurrentAudioTheme?.name ?? themeStore.currentAudioTheme
+    a.download = `harmony-audio-pack-${String(themeName).replace(/\s+/g, '-').toLowerCase()}-${new Date().toISOString().slice(0, 10)}.zip`
     a.click()
     URL.revokeObjectURL(url)
-    notificationStore.showToast('ui_success' as any, 'Exported', 'Audio theme settings downloaded', 2000)
+    notificationStore.showToast('ui_success' as any, 'Pack exported', 'Audio theme pack downloaded as ZIP', 2000)
   } catch (error) {
-    debug.error('Failed to export:', error)
-    notificationStore.showToast('ui_error' as any, 'Export Failed', 'Could not export settings', 3000)
+    debug.error('Failed to export pack:', error)
+    notificationStore.showToast('ui_error' as any, 'Export failed', error instanceof Error ? error.message : 'Could not export theme pack', 3000)
+  } finally {
+    isExportingPack.value = false
   }
 }
 
-const importThemeSettings = (): void => {
+const importThemePack = (): void => {
   const input = document.createElement('input')
   input.type = 'file'
-  input.accept = '.json'
+  input.accept = '.zip,application/zip'
   input.onchange = (e) => {
     const file = (e.target as HTMLInputElement).files?.[0]
-    if (file) {
-      const reader = new FileReader()
-      reader.onload = (ev) => {
-        try {
-          const settings = JSON.parse(ev.target?.result as string)
-          themeStore.importPreferences(settings)
-          notificationStore.showToast('ui_success' as any, 'Imported', 'Audio theme settings restored', 2000)
-        } catch (err) {
-          debug.error('Failed to import:', err)
-          notificationStore.showToast('ui_error' as any, 'Import Failed', 'Invalid file format. Use an exported JSON file.', 3000)
-        }
-      }
-      reader.readAsText(file)
+    if (!file) return
+    if (file.size > PACK_MAX_BYTES) {
+      notificationStore.showToast('ui_error' as any, 'File too large', 'Pack must be under 10MB', 3000)
+      return
     }
+    const reader = new FileReader()
+    reader.onload = async (ev) => {
+      try {
+        const arrayBuffer = ev.target?.result as ArrayBuffer
+        const theme = await themeStore.importThemePack(arrayBuffer)
+        notificationStore.showToast('ui_success' as any, 'Pack imported', `${theme.name} added as custom theme`, 2000)
+      } catch (err) {
+        debug.error('Failed to import pack:', err)
+        notificationStore.showToast('ui_error' as any, 'Import failed', err instanceof Error ? err.message : 'Invalid audio pack format', 3000)
+      }
+    }
+    reader.readAsArrayBuffer(file)
   }
   input.click()
 }

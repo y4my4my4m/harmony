@@ -67,6 +67,7 @@
     "date-fns": "^3.2.0",
     "discord.js": "^14.14.1",
     "dompurify": "^3.3.3",
+    "jszip": "^3.10.1",
     "livekit-client": "^2.6.2",
     "lucide-vue-next": "^0.577.0",
     "mediasoup-client": "^3.7.2",
