@@ -49,7 +49,7 @@ defineEmits<Emits>()
 .icon-container {
   width: 48px;
   height: 48px;
-  background: linear-gradient(135deg, #5865f2, #616ae5);
+  background: linear-gradient(135deg, #0EA5E9, #616ae5);
   border-radius: 12px;
   display: flex;
   align-items: center;
@@ -61,7 +61,7 @@ defineEmits<Emits>()
   content: '';
   position: absolute;
   inset: -1px;
-  background: linear-gradient(135deg, #5865f2, #616ae5);
+  background: linear-gradient(135deg, #0EA5E9, #616ae5);
   border-radius: 12px;
   opacity: 0.3;
   z-index: -1;

@@ -222,7 +222,7 @@ watch(() => props.show, (isVisible) => {
 
 .form-input:focus {
   outline: none;
-  border-color: #5865f2;
+  border-color: #0EA5E9;
 }
 
 .character-count {
@@ -274,7 +274,7 @@ watch(() => props.show, (isVisible) => {
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: #4752c4;
+  background: #0284C7;
 }
 
 .loading-spinner {

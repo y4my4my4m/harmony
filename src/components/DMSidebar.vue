@@ -564,7 +564,7 @@ onUnmounted(() => {
 }
 
 .search-input:focus {
-  border-color: var(--h-brand, #5865f2);
+  border-color: var(--h-brand, #0EA5E9);
 }
 
 .search-input::placeholder {
@@ -638,7 +638,7 @@ onUnmounted(() => {
   width: 24px;
   height: 24px;
   border: 2px solid var(--h-chat-light, #40444b);
-  border-top: 2px solid var(--h-brand, #5865f2);
+  border-top: 2px solid var(--h-brand, #0EA5E9);
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
@@ -704,7 +704,7 @@ onUnmounted(() => {
 }
 
 .conversation-item.active {
-  background: var(--h-brand, #5865f2);
+  background: var(--h-brand, #0EA5E9);
 }
 
 .conversation-item.unread {
@@ -736,7 +736,7 @@ onUnmounted(() => {
   width: 100%;
   height: 100%;
   border-radius: 50%;
-  background: var(--h-brand, #5865f2);
+  background: var(--h-brand, #0EA5E9);
   display: flex;
   align-items: center;
   justify-content: center;

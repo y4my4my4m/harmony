@@ -383,15 +383,15 @@ const formatStats = (filtered: number, total: number): string => {
 }
 
 .category-pill--active {
-  background: linear-gradient(135deg, #5865f2, #616ae5);
-  border-color: #5865f2;
+  background: linear-gradient(135deg, #0EA5E9, #616ae5);
+  border-color: #0EA5E9;
   color: var(--text-primary);
   box-shadow: 0 4px 15px rgba(88, 101, 242, 0.3);
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
 }
 
 .category-pill--active:hover {
-  background: linear-gradient(135deg, #4752c4, #5b6ecd);
+  background: linear-gradient(135deg, #0284C7, #5b6ecd);
   transform: translateY(-3px);
   box-shadow: 0 8px 25px rgba(88, 101, 242, 0.4);
 }

@@ -755,7 +755,7 @@ const bannerStyle = computed(() => {
     }
   }
   return {
-    background: userColor.value || '#5865f2'
+    background: userColor.value || '#0EA5E9'
   }
 })
 
@@ -1235,7 +1235,7 @@ onMounted(() => {
 .profile-banner {
   position: relative;
   height: 120px;
-  background: linear-gradient(135deg, #5865f2, #616ae5);
+  background: linear-gradient(135deg, #0EA5E9, #616ae5);
   overflow: hidden;
 }
 
@@ -1279,7 +1279,7 @@ onMounted(() => {
 
 .action-button.active {
   background: rgba(88, 101, 242, 0.8);
-  border-color: #5865f2;
+  border-color: #0EA5E9;
 }
 
 .action-icon,
@@ -1555,7 +1555,7 @@ onMounted(() => {
 }
 
 .stat-item.clickable:hover .stat-value {
-  color: #5865f2;
+  color: #0EA5E9;
 }
 
 .stat-value {
@@ -1588,7 +1588,7 @@ onMounted(() => {
 .section-icon {
   width: 16px;
   height: 16px;
-  color: #5865f2;
+  color: #0EA5E9;
 }
 
 .bio-section {
@@ -1707,7 +1707,7 @@ onMounted(() => {
   justify-content: center;
   background: rgba(88, 101, 242, 0.2);
   border-radius: 8px;
-  color: #5865f2;
+  color: #0EA5E9;
   flex-shrink: 0;
 }
 
@@ -1770,7 +1770,7 @@ onMounted(() => {
 }
 
 .federation-link {
-  color: #5865f2;
+  color: #0EA5E9;
   text-decoration: none;
   font-weight: 600;
 }
@@ -1841,7 +1841,7 @@ onMounted(() => {
 
 .note-input:focus {
   outline: none;
-  border-color: #5865f2;
+  border-color: #0EA5E9;
   background: rgba(255, 255, 255, 0.04);
 }
 
@@ -1891,7 +1891,7 @@ onMounted(() => {
 }
 
 .primary-action-btn {
-  background: linear-gradient(135deg, #5865f2, #4752c4);
+  background: linear-gradient(135deg, #0EA5E9, #0284C7);
   color: var(--text-primary);
   box-shadow: 0 2px 8px rgba(88, 101, 242, 0.3);
 }

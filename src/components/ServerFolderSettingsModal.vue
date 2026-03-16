@@ -139,7 +139,7 @@ const emit = defineEmits<Emits>();
 const serverChannelStore = useServerChannelStore();
 
 // Constants
-const DEFAULT_COLOR = '#5865f2';
+const DEFAULT_COLOR = '#0EA5E9';
 
 // State
 const folderName = ref('');
@@ -370,7 +370,7 @@ const save = async () => {
 }
 
 .form-input:focus {
-  border-color: var(--harmony-primary, #5865f2);
+  border-color: var(--harmony-primary, #0EA5E9);
 }
 
 .form-input::placeholder {
@@ -454,12 +454,12 @@ const save = async () => {
 }
 
 .btn-primary {
-  background: var(--harmony-primary, #5865f2);
+  background: var(--harmony-primary, #0EA5E9);
   color: var(--text-primary);
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: #4752c4;
+  background: #0284C7;
 }
 
 .btn-primary:disabled {

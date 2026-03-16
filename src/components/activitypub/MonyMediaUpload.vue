@@ -236,7 +236,7 @@ const formatFileSize = (bytes?: number): string => {
 .audio-icon {
   width: 24px;
   height: 24px;
-  color: #5865f2;
+  color: #0EA5E9;
 }
 
 /* File Preview */

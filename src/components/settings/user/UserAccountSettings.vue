@@ -121,7 +121,7 @@
           <div class="color-preview-row">
             <div 
               class="color-preview" 
-              :style="{ backgroundColor: localProfile.color || '#5865f2' }"
+              :style="{ backgroundColor: localProfile.color || '#0EA5E9' }"
               ref="colorPreviewRef"
               @click="toggleColorPicker"
             ></div>
@@ -129,7 +129,7 @@
               v-model="localProfile.color"
               type="text"
               class="color-input"
-              :placeholder="localProfile.color || '#5865f2'"
+              :placeholder="localProfile.color || '#0EA5E9'"
               @input="onColorChange"
             />
             <button class="color-reset-btn" @click="resetColor">{{ $t('common.reset') }}</button>
@@ -366,7 +366,7 @@ const bannerStyle = computed(() => {
     }
   }
   return {
-    backgroundColor: props.profile?.color || '#5865f2'
+    backgroundColor: props.profile?.color || '#0EA5E9'
   }
 })
 
@@ -377,7 +377,7 @@ const syncLocalProfile = () => {
       display_name: props.profile.display_name || '',
       username: props.profile.username || '',
       bio: props.profile.bio || '',
-      color: props.profile.color || '#5865f2'
+      color: props.profile.color || '#0EA5E9'
     }
   }
 }
@@ -432,7 +432,7 @@ const closeColorPicker = () => {
 }
 
 const resetColor = () => {
-  localProfile.value.color = '#5865f2'
+  localProfile.value.color = '#0EA5E9'
 }
 
 const handleAvatarUpload = (file: File) => {
@@ -665,7 +665,7 @@ onMounted(async () => {
 .form-input:focus,
 .form-textarea:focus {
   outline: none;
-  border-color: #5865f2;
+  border-color: #0EA5E9;
 }
 
 .form-input:disabled,
@@ -844,7 +844,7 @@ onMounted(async () => {
 }
 
 .btn-primary:hover:not(:disabled) {
-  background-color: #4752c4;
+  background-color: #0284C7;
 }
 
 .btn-secondary {
@@ -1002,7 +1002,7 @@ onMounted(async () => {
   display: inline-flex;
   align-items: center;
   padding: 8px 16px;
-  background: var(--harmony-primary, #5865f2);
+  background: var(--harmony-primary, #0EA5E9);
   color: var(--text-primary);
   border-radius: 6px;
   text-decoration: none;

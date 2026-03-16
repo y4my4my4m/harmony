@@ -664,7 +664,7 @@ watch(
 
 /* Self user */
 .harmony-voice-card.self {
-  border-color: #5865f2;
+  border-color: #0EA5E9;
   background: linear-gradient(145deg, #1e2140, #2a2d50);
 }
 
@@ -767,7 +767,7 @@ watch(
 
 .pip-toggle-btn.active {
   background: var(--harmony-primary);
-  border-color: #5865f2;
+  border-color: #0EA5E9;
   color: var(--text-primary);
 }
 
@@ -847,7 +847,7 @@ watch(
 }
 
 .control-btn.active {
-  background: linear-gradient(145deg, #5865f2, #4752c4);
+  background: linear-gradient(145deg, #0EA5E9, #0284C7);
   border-color: rgba(88, 101, 242, 0.6);
   box-shadow: 0 2px 8px rgba(88, 101, 242, 0.4);
 }

@@ -297,7 +297,7 @@ watch(() => props.inviteCode, () => {
   width: 56px;
   height: 56px;
   border-radius: 16px;
-  background: linear-gradient(135deg, #5865f2 0%, #616ae5 100%);
+  background: linear-gradient(135deg, #0EA5E9 0%, #616ae5 100%);
   display: flex;
   align-items: center;
   justify-content: center;

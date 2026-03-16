@@ -1433,7 +1433,7 @@ onUnmounted(() => {
 
 .dock-connection-badge.p2p {
   background: rgba(88, 101, 242, 0.2);
-  color: #5865f2;
+  color: #0EA5E9;
 }
 
 /* Voice Controls */
@@ -1612,7 +1612,7 @@ onUnmounted(() => {
 }
 
 .expand-btn:hover {
-  background: linear-gradient(145deg, #5865f2, #4752c4);
+  background: linear-gradient(145deg, #0EA5E9, #0284C7);
   color: var(--text-primary);
   border-color: rgba(88, 101, 242, 0.6);
 }
@@ -1760,7 +1760,7 @@ onUnmounted(() => {
 .channel-icon {
   background: rgba(88, 101, 242, 0.2);
   border-radius: 10px;
-  color: #5865f2;
+  color: #0EA5E9;
   width: 24px;
   height: 24px;
   padding: 4px;
@@ -1781,7 +1781,7 @@ onUnmounted(() => {
 
 .participant-count {
   background: rgba(88, 101, 242, 0.2);
-  color: #5865f2;
+  color: #0EA5E9;
   padding: 2px 6px;
   border-radius: 10px;
   font-size: 12px;

@@ -1361,13 +1361,13 @@ export default defineComponent({
 }
 
 .system-username:hover {
-  color: #5865f2;
+  color: #0EA5E9;
   text-decoration: underline;
 }
 
 /* Mention styling */
 .mention {
-  color: #5865f2;
+  color: #0EA5E9;
   background-color: rgba(88, 101, 242, 0.15);
   border-radius: 3px;
   padding: 0 2px;

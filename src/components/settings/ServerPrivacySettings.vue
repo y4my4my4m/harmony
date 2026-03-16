@@ -48,7 +48,7 @@
         <div class="info-card federation">
           <div class="info-header">
             <svg class="info-icon" width="20" height="20" viewBox="0 0 24 24">
-              <path fill="#5865f2" d="M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4M12,6A6,6 0 0,1 18,12A6,6 0 0,1 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6Z"/>
+              <path fill="#0EA5E9" d="M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4M12,6A6,6 0 0,1 18,12A6,6 0 0,1 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6Z"/>
             </svg>
             <h4 class="info-title">{{ $t('server.federationActive', 'Federation Active') }}</h4>
           </div>
@@ -152,7 +152,7 @@
         <div class="info-card private">
           <div class="info-header">
             <svg class="info-icon" width="20" height="20" viewBox="0 0 24 24">
-              <path fill="#5865f2" d="M18,8A2,2 0 0,1 20,10V20A2,2 0 0,1 18,22H6A2,2 0 0,1 4,20V10A2,2 0 0,1 6,8H7V6A5,5 0 0,1 12,1A5,5 0 0,1 17,6V8H18M12,3A3,3 0 0,0 9,6V8H15V6A3,3 0 0,0 12,3Z"/>
+              <path fill="#0EA5E9" d="M18,8A2,2 0 0,1 20,10V20A2,2 0 0,1 18,22H6A2,2 0 0,1 4,20V10A2,2 0 0,1 6,8H7V6A5,5 0 0,1 12,1A5,5 0 0,1 17,6V8H18M12,3A3,3 0 0,0 9,6V8H15V6A3,3 0 0,0 12,3Z"/>
             </svg>
             <h4 class="info-title">{{ $t('server.privateServer') }}</h4>
           </div>
@@ -478,7 +478,7 @@ input:checked + .toggle-slider:before {
 
 .info-card.private,
 .info-card.federation {
-  border-left-color: #5865f2;
+  border-left-color: #0EA5E9;
 }
 
 .federation-info {
@@ -708,7 +708,7 @@ input:checked + .toggle-slider:before {
 }
 
 input[type="radio"]:checked + .radio-label {
-  border-color: #5865f2;
+  border-color: #0EA5E9;
 }
 
 input[type="radio"]:checked + .radio-label:before {

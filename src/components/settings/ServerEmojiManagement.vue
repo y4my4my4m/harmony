@@ -775,7 +775,7 @@ input:checked + .toggle-slider:before {
 
 .emoji-upload-area:hover,
 .emoji-upload-area.dragover {
-  border-color: #5865f2;
+  border-color: #0EA5E9;
   background-color: rgba(88, 101, 242, 0.1);
 }
 
@@ -980,7 +980,7 @@ input:checked + .toggle-slider:before {
 
 .emoji-item.selected {
   background-color: rgba(88, 101, 242, 0.2);
-  border-color: #5865f2;
+  border-color: #0EA5E9;
 }
 
 .emoji-item.renaming {

@@ -45,7 +45,7 @@
               <div class="preview-header" :style="{ backgroundColor: getSavedThemePreview(saved).bgHeader }"></div>
               <div class="preview-sidebar" :style="{ backgroundColor: getSavedThemePreview(saved).bgSidebar }"></div>
               <div class="preview-chat" :style="{ backgroundColor: getSavedThemePreview(saved).bgMain }"></div>
-              <div class="preview-accent-dot" :style="{ backgroundColor: saved.settings.customPrimaryColor || '#5865f2' }"></div>
+              <div class="preview-accent-dot" :style="{ backgroundColor: saved.settings.customPrimaryColor || '#0EA5E9' }"></div>
             </div>
             <button
               class="saved-theme-delete-btn"
@@ -543,9 +543,9 @@ const instanceSettings = useInstanceSettingsStore()
 const settings = ref({
   theme: 'dark' as 'dark' | 'light' | 'midnight' | 'custom',
   customThemeMode: 'dark' as 'dark' | 'light',
-  customPrimaryColor: '#5865f2',
-  customAccentColor: '#5865f2',
-  customBackgroundColor: '#5865f2',
+  customPrimaryColor: '#0EA5E9',
+  customAccentColor: '#0EA5E9',
+  customBackgroundColor: '#0EA5E9',
   customBackgroundLightness: 0,
   customBackgroundChroma: 0,
   customCssOverrides: {} as Record<string, string>,
@@ -590,7 +590,7 @@ function refreshSavedThemes() {
 
 function getSavedThemePreview(saved: { settings: Partial<typeof settings.value> }) {
   return generatePreviewColors(
-    saved.settings.customBackgroundColor || '#5865f2',
+    saved.settings.customBackgroundColor || '#0EA5E9',
     saved.settings.customThemeMode || 'dark',
     saved.settings.customBackgroundLightness || 0,
     saved.settings.customBackgroundChroma || 0
@@ -735,10 +735,10 @@ const themes = [
     id: 'custom',
     name: 'Custom',
     description: 'Create your own theme with a custom color.',
-    preview: '#5865f2',
-    headerColor: '#4752c4',
-    sidebarColor: '#4752c4',
-    chatColor: '#5865f2'
+    preview: '#0EA5E9',
+    headerColor: '#0284C7',
+    sidebarColor: '#0284C7',
+    chatColor: '#0EA5E9'
   }
 ]
 
@@ -861,9 +861,9 @@ onMounted(async () => {
   settings.value = {
     theme: currentSettings.theme,
     customThemeMode: currentSettings.customThemeMode || 'dark',
-    customPrimaryColor: currentSettings.customPrimaryColor || '#5865f2',
-    customAccentColor: currentSettings.customAccentColor || '#5865f2',
-    customBackgroundColor: currentSettings.customBackgroundColor || '#5865f2',
+    customPrimaryColor: currentSettings.customPrimaryColor || '#0EA5E9',
+    customAccentColor: currentSettings.customAccentColor || '#0EA5E9',
+    customBackgroundColor: currentSettings.customBackgroundColor || '#0EA5E9',
     customBackgroundLightness: currentSettings.customBackgroundLightness || 0,
     customBackgroundChroma: currentSettings.customBackgroundChroma || 0,
     fontSize: currentSettings.fontSize,
@@ -934,11 +934,11 @@ onMounted(async () => {
 }
 
 .theme-option:hover {
-  border-color: var(--h-primary, #5865f2);
+  border-color: var(--h-primary, #0EA5E9);
 }
 
 .theme-option.active {
-  border-color: var(--h-primary, #5865f2);
+  border-color: var(--h-primary, #0EA5E9);
   background-color: rgba(88, 101, 242, 0.1);
 }
 
@@ -1148,12 +1148,12 @@ onMounted(async () => {
 }
 
 .mode-btn:hover {
-  border-color: var(--h-primary, #5865f2);
+  border-color: var(--h-primary, #0EA5E9);
   background-color: var(--h-chat-light);
 }
 
 .mode-btn.active {
-  border-color: var(--h-primary, #5865f2);
+  border-color: var(--h-primary, #0EA5E9);
   background-color: rgba(88, 101, 242, 0.15);
   color: var(--text-primary, #ffffff);
 }
@@ -1182,12 +1182,12 @@ onMounted(async () => {
 }
 
 .emoji-pack-btn:hover {
-  border-color: var(--h-primary, #5865f2);
+  border-color: var(--h-primary, #0EA5E9);
   background-color: var(--h-chat-light);
 }
 
 .emoji-pack-btn.active {
-  border-color: var(--h-primary, #5865f2);
+  border-color: var(--h-primary, #0EA5E9);
   background-color: rgba(88, 101, 242, 0.15);
   color: var(--text-primary, #ffffff);
 }
@@ -1265,7 +1265,7 @@ onMounted(async () => {
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  background: var(--h-primary, #5865f2);
+  background: var(--h-primary, #0EA5E9);
   cursor: pointer;
   border: 3px solid var(--text-primary, #ffffff);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
@@ -1280,7 +1280,7 @@ onMounted(async () => {
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  background: var(--h-primary, #5865f2);
+  background: var(--h-primary, #0EA5E9);
   cursor: pointer;
   border: 3px solid var(--text-primary, #ffffff);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
@@ -1338,7 +1338,7 @@ onMounted(async () => {
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  background: var(--h-primary, #5865f2);
+  background: var(--h-primary, #0EA5E9);
   cursor: pointer;
   border: 3px solid var(--text-primary, #ffffff);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
@@ -1353,7 +1353,7 @@ onMounted(async () => {
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  background: var(--h-primary, #5865f2);
+  background: var(--h-primary, #0EA5E9);
   cursor: pointer;
   border: 3px solid var(--text-primary, #ffffff);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
@@ -1425,7 +1425,7 @@ onMounted(async () => {
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  background: var(--h-primary, #5865f2);
+  background: var(--h-primary, #0EA5E9);
   cursor: pointer;
 }
 
@@ -1433,7 +1433,7 @@ onMounted(async () => {
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  background: var(--h-primary, #5865f2);
+  background: var(--h-primary, #0EA5E9);
   cursor: pointer;
   border: none;
 }
@@ -1494,7 +1494,7 @@ onMounted(async () => {
 
 .select-input:focus {
   outline: none;
-  border-color: var(--h-primary, #5865f2);
+  border-color: var(--h-primary, #0EA5E9);
 }
 
 .settings-actions {

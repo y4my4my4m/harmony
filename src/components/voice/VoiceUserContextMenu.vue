@@ -658,7 +658,7 @@ watch(
 
 .volume-value {
   margin-left: auto;
-  color: #5865f2;
+  color: #0EA5E9;
   font-weight: 700;
 }
 
@@ -745,7 +745,7 @@ watch(
 .preset-btn.active {
   background: var(--harmony-primary);
   color: var(--text-primary);
-  border-color: #5865f2;
+  border-color: #0EA5E9;
 }
 
 .boost-indicator {
@@ -811,7 +811,7 @@ watch(
 .quality-btn.active {
   background: var(--harmony-primary);
   color: var(--text-primary);
-  border-color: #5865f2;
+  border-color: #0EA5E9;
 }
 
 /* Actions */

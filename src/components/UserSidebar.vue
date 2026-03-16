@@ -1070,7 +1070,7 @@ const closeInviteModal = () => {
 .federation-icon {
   width: 12px;
   height: 12px;
-  color: var(--accent-primary, #5865f2);
+  color: var(--accent-primary, #0EA5E9);
   opacity: 0.8;
   transition: opacity 0.15s ease;
 }
@@ -1129,7 +1129,7 @@ const closeInviteModal = () => {
 .control-btn:focus-visible,
 .group-header:focus-visible,
 .user-item:focus-visible {
-  outline: 2px solid #5865f2;
+  outline: 2px solid #0EA5E9;
   outline-offset: 2px;
 }
 

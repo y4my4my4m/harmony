@@ -302,7 +302,7 @@ const avatarFile = ref<File | null>(null);
 const avatarPreview = ref<string | null>(null);
 const bannerFile = ref<File | null>(null);
 const bannerPreview = ref<string | null>(null);
-const selectedColor = ref('#5865f2');
+const selectedColor = ref('#0EA5E9');
 const usernameError = ref('');
 const displayNameError = ref('');
 const usernameAvailable = ref(false);
@@ -323,7 +323,7 @@ const colorInput = ref<HTMLInputElement>();
 let usernameCheckTimeout: NodeJS.Timeout | null = null;
 
 const colorPresets = [
-  '#5865f2', '#57f287', '#fee75c', '#eb459e', '#ed4245',
+  '#0EA5E9', '#57f287', '#fee75c', '#eb459e', '#ed4245',
   '#f23f42', '#ff6b35', '#4f46e5', '#06b6d4', '#10b981',
   '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6'
 ];
@@ -869,7 +869,7 @@ const createProfile = async () => {
   position: absolute;
   width: 4px;
   height: 4px;
-  background: linear-gradient(45deg, #5865f2, #00d4ff);
+  background: linear-gradient(45deg, #0EA5E9, #00d4ff);
   border-radius: 50%;
   animation: float infinite ease-in-out;
   box-shadow: 0 0 10px rgba(88, 101, 242, 0.5);
@@ -951,7 +951,7 @@ const createProfile = async () => {
 }
 
 .spinner-ring:nth-child(1) {
-  border-top-color: #5865f2;
+  border-top-color: #0EA5E9;
   animation-duration: 1.5s;
 }
 
@@ -1020,7 +1020,7 @@ const createProfile = async () => {
 .icon-glow {
   position: absolute;
   inset: -8px;
-  background: conic-gradient(from 180deg, #5865f2, #00d4ff, #5865f2);
+  background: conic-gradient(from 180deg, #0EA5E9, #00d4ff, #0EA5E9);
   border-radius: 50%;
   animation: spin 3s linear infinite;
   opacity: 0.7;
@@ -1031,7 +1031,7 @@ const createProfile = async () => {
   width: 40px;
   height: 40px;
   color: var(--text-primary);
-  background: linear-gradient(135deg, #5865f2, #616ae5);
+  background: linear-gradient(135deg, #0EA5E9, #616ae5);
   padding: 12px;
   border-radius: 50%;
   z-index: 1;
@@ -1074,7 +1074,7 @@ const createProfile = async () => {
 
 .progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, #5865f2, #616ae5);
+  background: linear-gradient(90deg, #0EA5E9, #616ae5);
   border-radius: 2px;
   transition: width 0.3s ease;
 }
@@ -1162,7 +1162,7 @@ const createProfile = async () => {
 }
 
 .avatar-preview:hover {
-  border-color: #5865f2;
+  border-color: #0EA5E9;
   transform: scale(1.05);
 }
 
@@ -1238,12 +1238,12 @@ const createProfile = async () => {
 
 .option-btn.active {
   background: rgba(88, 101, 242, 0.2);
-  border-color: #5865f2;
+  border-color: #0EA5E9;
   color: var(--text-primary);
 }
 
 .option-btn.primary {
-  background: linear-gradient(135deg, #5865f2, #616ae5);
+  background: linear-gradient(135deg, #0EA5E9, #616ae5);
   border-color: transparent;
   color: var(--text-primary);
 }
@@ -1280,7 +1280,7 @@ const createProfile = async () => {
 }
 
 .banner-preview:hover {
-  border-color: #5865f2;
+  border-color: #0EA5E9;
   background: rgba(88, 101, 242, 0.1);
 }
 
@@ -1390,7 +1390,7 @@ const createProfile = async () => {
 .modern-input:focus,
 .modern-textarea:focus {
   outline: none;
-  border-color: #5865f2;
+  border-color: #0EA5E9;
   background: rgba(255, 255, 255, 0.08);
   box-shadow: 0 0 0 3px rgba(88, 101, 242, 0.1);
 }
@@ -1405,7 +1405,7 @@ const createProfile = async () => {
   bottom: 0;
   left: 0;
   height: 2px;
-  background: linear-gradient(90deg, #5865f2, #616ae5);
+  background: linear-gradient(90deg, #0EA5E9, #616ae5);
   border-radius: 1px;
   width: 0;
   transition: width 0.3s ease;
@@ -1427,7 +1427,7 @@ const createProfile = async () => {
 }
 
 .username-container:focus-within {
-  border-color: #5865f2;
+  border-color: #0EA5E9;
   background: rgba(255, 255, 255, 0.08);
   box-shadow: 0 0 0 3px rgba(88, 101, 242, 0.1);
 }
@@ -1497,7 +1497,7 @@ const createProfile = async () => {
 
 .preview-banner {
   height: 80px;
-  background: linear-gradient(135deg, #5865f2, #616ae5);
+  background: linear-gradient(135deg, #0EA5E9, #616ae5);
 }
 
 .preview-content {
@@ -1547,7 +1547,7 @@ const createProfile = async () => {
   font-size: 20px;
   font-weight: 600;
   margin: 0 0 4px;
-  color: #5865f2;
+  color: #0EA5E9;
 }
 
 .preview-username {
@@ -1648,7 +1648,7 @@ const createProfile = async () => {
 }
 
 .action-btn.primary {
-  background: linear-gradient(135deg, #5865f2, #616ae5);
+  background: linear-gradient(135deg, #0EA5E9, #616ae5);
   color: var(--text-primary);
   box-shadow: 0 4px 15px rgba(88, 101, 242, 0.3);
 }

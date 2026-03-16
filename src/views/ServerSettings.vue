@@ -610,7 +610,7 @@ watch(hasChanges, (newValue) => {
 }
 
 .btn-primary:hover:not(:disabled) {
-  background-color: #4752c4;
+  background-color: #0284C7;
 }
 
 .btn-secondary {
@@ -684,7 +684,7 @@ watch(hasChanges, (newValue) => {
 .nav-item.active {
   background-color: var(--h-chat-light);
   color: var(--text-primary);
-  border-left-color: #5865f2;
+  border-left-color: #0EA5E9;
 }
 
 .server-settings-main {

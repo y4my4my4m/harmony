@@ -642,7 +642,7 @@ onMounted(() => {
 }
 
 .import-btn:hover:not(:disabled) {
-  background: #4752c4;
+  background: #0284C7;
 }
 
 .import-btn:disabled {

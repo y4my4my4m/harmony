@@ -102,7 +102,7 @@ const handleClick = (event: MouseEvent) => {
 }
 
 .modern-button:focus-visible {
-  outline: 2px solid #5865f2;
+  outline: 2px solid #0EA5E9;
   outline-offset: 2px;
 }
 
@@ -127,7 +127,7 @@ const handleClick = (event: MouseEvent) => {
 
 /* Variants */
 .button-primary {
-  background: linear-gradient(135deg, #5865f2, #4752c4);
+  background: linear-gradient(135deg, #0EA5E9, #0284C7);
   color: var(--text-primary);
   box-shadow: 0 2px 4px rgba(88, 101, 242, 0.2);
 }
@@ -135,7 +135,7 @@ const handleClick = (event: MouseEvent) => {
 .button-primary:hover:not(.button-disabled):not(.button-loading) {
   transform: translateY(-1px);
   box-shadow: 0 4px 8px rgba(88, 101, 242, 0.3);
-  background: linear-gradient(135deg, #4752c4, #3c4fb8);
+  background: linear-gradient(135deg, #0284C7, #3c4fb8);
 }
 
 .button-secondary {
@@ -188,13 +188,13 @@ const handleClick = (event: MouseEvent) => {
 
 .button-link {
   background: transparent;
-  color: #5865f2;
+  color: #0EA5E9;
   padding: 4px 8px;
   min-height: auto;
 }
 
 .button-link:hover:not(.button-disabled):not(.button-loading) {
-  color: #4752c4;
+  color: #0284C7;
   text-decoration: underline;
 }
 

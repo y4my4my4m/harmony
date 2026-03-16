@@ -379,7 +379,7 @@ const handleOwnerClick = (event: Event) => {
 }
 
 .btn--primary {
-  background: var(--harmony-primary, #5865f2);
+  background: var(--harmony-primary, #0EA5E9);
   color: #fff;
 }
 

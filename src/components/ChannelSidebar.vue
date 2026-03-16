@@ -1305,7 +1305,7 @@ watch(() => props.currentServer?.id, () => {
   box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
   z-index: 1000;
   background-color: rgba(88, 101, 242, 0.2);
-  border: 1px solid #5865f2;
+  border: 1px solid #0EA5E9;
 }
 
 .channel-item.channel-unread {

@@ -792,7 +792,7 @@ const connectionStats = computed(() => voiceStore.connectionStats);
 
 .connection-mode-indicator.p2p {
   background: rgba(88, 101, 242, 0.15);
-  color: #5865f2;
+  color: #0EA5E9;
   border: 1px solid rgba(88, 101, 242, 0.3);
 }
 
@@ -816,7 +816,7 @@ const connectionStats = computed(() => voiceStore.connectionStats);
 .channel-icon {
   width: 40px;
   height: 40px;
-  background: linear-gradient(145deg, #5865f2, #4752c4);
+  background: linear-gradient(145deg, #0EA5E9, #0284C7);
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -874,7 +874,7 @@ const connectionStats = computed(() => voiceStore.connectionStats);
 }
 
 .layout-btn.active {
-  background: linear-gradient(145deg, #5865f2, #4752c4);
+  background: linear-gradient(145deg, #0EA5E9, #0284C7);
   color: var(--text-primary);
   border-color: rgba(88, 101, 242, 0.6);
 }

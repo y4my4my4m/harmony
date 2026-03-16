@@ -475,7 +475,7 @@ watch(isOpen, (newVal) => {
 
 .device-item.active {
   background: rgba(88, 101, 242, 0.15);
-  color: #5865f2;
+  color: #0EA5E9;
 }
 
 .device-item.active:hover {

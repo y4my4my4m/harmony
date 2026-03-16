@@ -326,7 +326,7 @@ function formatExpiry(expiresAt: string): string {
 .header-icon {
   width: 56px;
   height: 56px;
-  background: linear-gradient(135deg, #5865f2, #616ae5);
+  background: linear-gradient(135deg, #0EA5E9, #616ae5);
   border-radius: 14px;
   display: flex;
   align-items: center;
@@ -384,7 +384,7 @@ function formatExpiry(expiresAt: string): string {
 }
 
 .input-wrapper input:focus {
-  border-color: #5865f2;
+  border-color: #0EA5E9;
 }
 
 .input-wrapper input::placeholder {
@@ -404,7 +404,7 @@ function formatExpiry(expiresAt: string): string {
 }
 
 .discover-btn:hover:not(:disabled) {
-  background: #4752c4;
+  background: #0284C7;
 }
 
 .discover-btn:disabled {
@@ -467,7 +467,7 @@ function formatExpiry(expiresAt: string): string {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #5865f2, #616ae5);
+  background: linear-gradient(135deg, #0EA5E9, #616ae5);
   color: var(--text-primary);
   font-size: 28px;
   font-weight: 700;

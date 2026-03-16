@@ -432,7 +432,7 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  background: var(--h-brand, #5865f2);
+  background: var(--h-brand, #0EA5E9);
   border: none;
   border-radius: 6px;
   color: var(--text-primary);
@@ -445,13 +445,13 @@ onBeforeUnmount(() => {
 }
 
 .follow-btn:hover:not(:disabled) {
-  background: #4752c4;
+  background: #0284C7;
 }
 
 .follow-btn.following {
   background: transparent;
-  border: 1px solid var(--h-brand, #5865f2);
-  color: var(--h-brand, #5865f2);
+  border: 1px solid var(--h-brand, #0EA5E9);
+  color: var(--h-brand, #0EA5E9);
 }
 
 .follow-btn.following:hover:not(:disabled) {
@@ -536,7 +536,7 @@ onBeforeUnmount(() => {
 }
 
 .action-item.active {
-  color: var(--h-brand, #5865f2);
+  color: var(--h-brand, #0EA5E9);
 }
 
 .action-item.danger {

@@ -273,7 +273,7 @@ const getIconPath = (iconName: string): string => {
 }
 
 .feed-tab.active {
-  /* background: linear-gradient(135deg, var(--harmony-primary), #4752c4); */
+  /* background: linear-gradient(135deg, var(--harmony-primary), #0284C7); */
   background: linear-gradient(135deg, var(--harmony-primary), var(--harmony-primary-hover));
   color: var(--text-primary);
   /* box-shadow:  */
@@ -343,12 +343,12 @@ const getIconPath = (iconName: string): string => {
 }
 
 .action-btn:hover {
-  background: var(--harmony-primary-hover, #4752c4);
+  background: var(--harmony-primary-hover, #0284C7);
   color: var(--text-light);
 }
 
 .action-btn:active {
-  background: var(--harmony-primary-hover, #4752c4);
+  background: var(--harmony-primary-hover, #0284C7);
   color: var(--text-light);
 }
 
@@ -360,7 +360,7 @@ const getIconPath = (iconName: string): string => {
   height: 18px;
 }
 .sidebar-btn.active {
-  color: var(--harmony-primary, #5865f2);
+  color: var(--harmony-primary, #0EA5E9);
   /* background: var(--harmony-primary-alpha, rgba(88, 101, 242, 0.1)); */
 }
 .sidebar-btn:hover {

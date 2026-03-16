@@ -492,13 +492,13 @@ onUnmounted(() => {
 
 .keybind-button:hover {
   background-color: rgba(88, 101, 242, 0.2);
-  border-color: #5865f2;
+  border-color: #0EA5E9;
 }
 
 .keybind-button.recording {
   background-color: rgba(88, 101, 242, 0.3);
-  border-color: #5865f2;
-  color: #5865f2;
+  border-color: #0EA5E9;
+  color: #0EA5E9;
   animation: pulse-keybind 1.5s ease-in-out infinite;
 }
 

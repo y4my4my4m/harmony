@@ -613,7 +613,7 @@ onMounted(() => {
 }
 
 .create-button {
-  background: linear-gradient(135deg, #5865f2, #4752c4);
+  background: linear-gradient(135deg, #0EA5E9, #0284C7);
   color: var(--text-primary);
 }
 
@@ -745,7 +745,7 @@ onMounted(() => {
   width: 32px;
   height: 32px;
   border: 3px solid rgba(255, 255, 255, 0.1);
-  border-top-color: #5865f2;
+  border-top-color: #0EA5E9;
   border-radius: 50%;
   animation: spin 1s linear infinite;
   margin-bottom: 16px;
@@ -982,8 +982,8 @@ onMounted(() => {
 }
 
 .action-btn.copy:hover:not(:disabled) {
-  border-color: #5865f2;
-  color: #5865f2;
+  border-color: #0EA5E9;
+  color: #0EA5E9;
 }
 
 .action-btn.revoke:hover:not(:disabled) {

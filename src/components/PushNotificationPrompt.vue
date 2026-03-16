@@ -195,7 +195,7 @@ onMounted(async () => {
   right: 20px;
   max-width: 500px;
   margin: 0 auto;
-  background: linear-gradient(135deg, #5865f2, #4752c4);
+  background: linear-gradient(135deg, #0EA5E9, #0284C7);
   border-radius: 16px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
   z-index: 10000;
@@ -262,7 +262,7 @@ onMounted(async () => {
 
 .banner-btn.primary {
   background: white;
-  color: #5865f2;
+  color: #0EA5E9;
 }
 
 .banner-btn.primary:hover:not(:disabled) {

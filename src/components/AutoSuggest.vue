@@ -304,7 +304,7 @@ watch(() => props.selectedIndex, (newIndex) => {
 }
 
 .bridge-badge.discord {
-  color: #5865F2;
+  color: #0EA5E9;
 }
 
 .bridge-badge.role-badge {
@@ -314,7 +314,7 @@ watch(() => props.selectedIndex, (newIndex) => {
   padding: 2px 4px;
   border-radius: 3px;
   background: rgba(88, 101, 242, 0.2);
-  color: #5865F2;
+  color: #0EA5E9;
 }
 
 .role-icon {
@@ -334,13 +334,13 @@ watch(() => props.selectedIndex, (newIndex) => {
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  background: var(--accent-color, #5865f2);
+  background: var(--accent-color, #0EA5E9);
   color: var(--text-primary);
 }
 
 .command-name {
   font-weight: 600;
-  color: var(--accent-color, #5865f2);
+  color: var(--accent-color, #0EA5E9);
 }
 
 .suggest-description {

@@ -2353,7 +2353,7 @@ const closeLightbox = () => {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
-  color: var(--h-brand, #5865f2);
+  color: var(--h-brand, #0EA5E9);
   text-decoration: none;
   font-size: 0.875rem;
   padding: 0.5rem 0.75rem;

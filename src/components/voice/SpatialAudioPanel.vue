@@ -875,7 +875,7 @@ onUnmounted(() => {
 .panel-icon {
   width: 40px;
   height: 40px;
-  background: linear-gradient(145deg, #5865f2, #4752c4);
+  background: linear-gradient(145deg, #0EA5E9, #0284C7);
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -925,7 +925,7 @@ onUnmounted(() => {
 }
 
 .control-btn.active {
-  background: linear-gradient(145deg, #5865f2, #4752c4);
+  background: linear-gradient(145deg, #0EA5E9, #0284C7);
   color: var(--text-primary);
   border-color: rgba(88, 101, 242, 0.6);
 }
@@ -1033,7 +1033,7 @@ onUnmounted(() => {
 
 .checkbox-input:checked + .checkbox-custom {
   background: var(--harmony-primary);
-  border-color: #5865f2;
+  border-color: #0EA5E9;
 }
 
 .checkbox-input:checked + .checkbox-custom::after {
@@ -1136,7 +1136,7 @@ onUnmounted(() => {
 }
 
 .spatial-avatar.is-self .avatar-image {
-  border-color: #5865f2;
+  border-color: #0EA5E9;
   box-shadow: 0 0 20px rgba(88, 101, 242, 0.4);
 }
 

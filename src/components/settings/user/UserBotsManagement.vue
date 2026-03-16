@@ -553,7 +553,7 @@ onMounted(() => {
   width: 48px;
   height: 48px;
   border: 4px solid var(--color-border, #40444b);
-  border-top-color: var(--color-primary, #5865f2);
+  border-top-color: var(--color-primary, #0EA5E9);
   border-radius: 50%;
   animation: spin 1s linear infinite;
   margin: 0 auto 16px;
@@ -603,7 +603,7 @@ onMounted(() => {
 }
 
 .bot-card:hover {
-  border-color: #5865f2;
+  border-color: #0EA5E9;
 }
 
 .bot-header {
@@ -662,7 +662,7 @@ onMounted(() => {
 
 .bot-badge {
   padding: 2px 6px;
-  background: var(--color-primary, #5865f2);
+  background: var(--color-primary, #0EA5E9);
   color: var(--text-primary);
   font-size: 10px;
   font-weight: 600;
@@ -744,7 +744,7 @@ onMounted(() => {
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: #4752c4;
+  background: #0284C7;
 }
 
 .btn-primary:disabled {
@@ -882,7 +882,7 @@ onMounted(() => {
 .form-group textarea:focus,
 .form-group select:focus {
   outline: none;
-  border-color: var(--color-primary, #5865f2);
+  border-color: var(--color-primary, #0EA5E9);
 }
 
 .form-group.checkbox {

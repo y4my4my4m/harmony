@@ -583,7 +583,7 @@ onMounted(() => {
   width: 48px;
   height: 48px;
   border: 4px solid var(--bg-secondary, #2a2a3e);
-  border-top-color: var(--primary, #5865f2);
+  border-top-color: var(--primary, #0EA5E9);
   border-radius: 50%;
   animation: spin 1s linear infinite;
   margin: 0 auto 16px;
@@ -946,12 +946,12 @@ onMounted(() => {
 }
 
 .btn-primary {
-  background: var(--primary, #5865f2);
+  background: var(--primary, #0EA5E9);
   color: var(--text-primary);
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: var(--primary-hover, #4752c4);
+  background: var(--primary-hover, #0284C7);
 }
 
 .btn-secondary {

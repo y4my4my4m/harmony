@@ -151,7 +151,7 @@ onMounted(loadBans)
 .btn-retry {
   margin-top: 8px;
   padding: 6px 16px;
-  background: var(--accent-color, #5865f2);
+  background: var(--accent-color, #0EA5E9);
   color: var(--text-primary);
   border: none;
   border-radius: 4px;

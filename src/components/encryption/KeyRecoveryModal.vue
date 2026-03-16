@@ -636,7 +636,7 @@ async function restoreEncryption() {
 
 .qr-input textarea:focus {
   outline: none;
-  border-color: var(--primary, #5865f2);
+  border-color: var(--primary, #0EA5E9);
 }
 
 /* Verification Section */
@@ -699,12 +699,12 @@ async function restoreEncryption() {
 }
 
 .btn-primary {
-  background: var(--primary, #5865f2);
+  background: var(--primary, #0EA5E9);
   color: var(--text-primary);
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: var(--primary-hover, #4752c4);
+  background: var(--primary-hover, #0284C7);
 }
 
 .btn-secondary {

@@ -327,7 +327,7 @@ const handleDecline = () => {
 }
 
 .video-accept:hover {
-  background: #4752c4;
+  background: #0284C7;
 }
 
 /* Mobile responsive */

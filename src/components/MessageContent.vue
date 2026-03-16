@@ -292,7 +292,7 @@ export default defineComponent({
 }
 
 .edit-textarea:focus {
-  border-color: #5865f2;
+  border-color: #0EA5E9;
   background-color: #383c42;
 }
 

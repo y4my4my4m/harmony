@@ -1197,7 +1197,7 @@
                     v-model="instanceConfig.themeColor"
                     type="text"
                     class="cyber-input"
-                    placeholder="#5865f2"
+                    placeholder="#0EA5E9"
                     style="flex: 1;"
                     @input="instanceBrandingChanged = true"
                   />
@@ -1957,14 +1957,14 @@ const donationStats = ref<{ totalDonated: number; donationCount: number; uniqueD
 const newTierName = ref('')
 const newTierMinAmount = ref<number>(0)
 const newTierIcon = ref('⭐')
-const newTierColor = ref('#5865f2')
+const newTierColor = ref('#0EA5E9')
 
 // Tier editing
 const editingTierId = ref<string | null>(null)
 const editTierName = ref('')
 const editTierMinAmount = ref<number>(0)
 const editTierIcon = ref('')
-const editTierColor = ref('#5865f2')
+const editTierColor = ref('#0EA5E9')
 
 const showNewTierEmojiPicker = ref(false)
 const showEditTierEmojiPicker = ref(false)
@@ -2129,7 +2129,7 @@ const instanceConfig = ref({
   approvalRequired: false,
   iconUrl: '',
   bannerUrl: '',
-  themeColor: '#5865f2',
+  themeColor: '#0EA5E9',
   maintainerName: '',
   maintainerEmail: '',
 })
@@ -2559,7 +2559,7 @@ const loadInstanceConfig = async () => {
         approvalRequired: cfg.instance.requiresApproval ?? false,
         iconUrl: cfg.instance.iconUrl || '',
         bannerUrl: cfg.instance.bannerUrl || '',
-        themeColor: cfg.instance.themeColor || '#5865f2',
+        themeColor: cfg.instance.themeColor || '#0EA5E9',
         maintainerName: cfg.instance.maintainerName || '',
         maintainerEmail: cfg.instance.maintainerEmail || '',
       }
@@ -2680,7 +2680,7 @@ const startEditTier = (tier: SupporterTier) => {
   editTierName.value = tier.name
   editTierMinAmount.value = tier.min_amount
   editTierIcon.value = tier.badge_icon || '⭐'
-  editTierColor.value = tier.badge_color || '#5865f2'
+  editTierColor.value = tier.badge_color || '#0EA5E9'
 }
 
 const saveEditTier = async (tierId: string) => {

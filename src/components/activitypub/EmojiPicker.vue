@@ -415,7 +415,7 @@ onMounted(() => {
 }
 
 .check-mark {
-  color: #5865f2;
+  color: #0EA5E9;
   font-size: 14px;
 }
 

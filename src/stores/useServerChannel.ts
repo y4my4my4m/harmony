@@ -2327,7 +2327,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
     /**
      * Create a new folder
      */
-    async createFolder(name: string = '', color: string = '#5865f2', position?: number): Promise<ServerFolder | null> {
+    async createFolder(name: string = '', color: string = '#0EA5E9', position?: number): Promise<ServerFolder | null> {
       if (!this.currentUserId) {
         debug.error('❌ Cannot create folder: no current user');
         return null;

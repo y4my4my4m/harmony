@@ -536,7 +536,7 @@ const typeIcon = computed(() => {
 .indicator--dm,
 .indicator--chat_message,
 .indicator--activitypub_dm {
-  background: linear-gradient(180deg, #616ae5, #5865f2);
+  background: linear-gradient(180deg, #616ae5, #0EA5E9);
 }
 
 .indicator--reaction,
@@ -615,7 +615,7 @@ const typeIcon = computed(() => {
 .overlay--dm svg,
 .overlay--chat_message svg,
 .overlay--activitypub_dm svg{
-  /* background: linear-gradient(135deg, #616ae5, #5865f2); */
+  /* background: linear-gradient(135deg, #616ae5, #0EA5E9); */
   fill: #616ae5;
   stroke: #d5d8e6;
 }

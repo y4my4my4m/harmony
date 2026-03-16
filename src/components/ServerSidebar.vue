@@ -668,7 +668,7 @@ const createFolderFromServers = async (draggedServerId: string, targetServerId: 
   }
   
   // Create the folder at the desired position
-  const folder = await serverChannelStore.createFolder('', '#5865f2', position);
+  const folder = await serverChannelStore.createFolder('', '#0EA5E9', position);
   if (folder) {
     await serverChannelStore.moveServerToFolder(draggedServerId, folder.id);
     await serverChannelStore.moveServerToFolder(targetServerId, folder.id);
@@ -963,7 +963,7 @@ const createFolderFromServer = async () => {
   
   // Create a new folder at the server's position (empty name by default)
   const folderPosition = selectedServer.value.position || 0;
-  const folder = await serverChannelStore.createFolder('', '#5865f2', folderPosition);
+  const folder = await serverChannelStore.createFolder('', '#0EA5E9', folderPosition);
   if (folder) {
     // Move the server to the new folder
     await serverChannelStore.moveServerToFolder(selectedServer.value.id, folder.id);
@@ -1027,7 +1027,7 @@ const removeServerFromFolder = async () => {
 }
 
 .funding-button:hover {
-  background: var(--harmony-primary, #5865f2);
+  background: var(--harmony-primary, #0EA5E9);
   border-radius: 16px;
 }
 
@@ -1358,7 +1358,7 @@ const removeServerFromFolder = async () => {
 }
 
 .server-item-wrapper.drop-target-into .server-item {
-  border: 2px dashed var(--harmony-primary, #5865f2);
+  border: 2px dashed var(--harmony-primary, #0EA5E9);
   border-radius: 16px;
 }
 
@@ -1407,7 +1407,7 @@ const removeServerFromFolder = async () => {
   right: -4px;
   width: 20px;
   height: 20px;
-  background: var(--harmony-primary, #5865f2);
+  background: var(--harmony-primary, #0EA5E9);
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -1446,7 +1446,7 @@ const removeServerFromFolder = async () => {
 }
 
 .context-menu-item:hover {
-  background-color: var(--harmony-primary, #5865f2);
+  background-color: var(--harmony-primary, #0EA5E9);
   color: var(--text-primary);
 }
 

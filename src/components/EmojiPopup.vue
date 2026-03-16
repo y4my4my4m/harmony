@@ -1116,7 +1116,7 @@ watch(
   width: 16px;
   height: 16px;
   border: 2px solid rgba(255, 255, 255, 0.2);
-  border-top-color: var(--color-primary, #5865f2);
+  border-top-color: var(--color-primary, #0EA5E9);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
@@ -1254,7 +1254,7 @@ watch(
 }
 
 .emoji-ctx-item:hover {
-  background-color: var(--harmony-primary, #5865f2);
+  background-color: var(--harmony-primary, #0EA5E9);
   color: var(--text-primary, #fff);
 }
 

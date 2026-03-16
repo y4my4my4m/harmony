@@ -735,7 +735,7 @@ onUnmounted(() => {
 }
 
 .setting-value {
-  color: #5865f2;
+  color: #0EA5E9;
   font-weight: 600;
 }
 
@@ -752,7 +752,7 @@ onUnmounted(() => {
 
 .setting-select:focus {
   outline: none;
-  border-color: #5865f2;
+  border-color: #0EA5E9;
   background: rgba(255, 255, 255, 0.08);
 }
 
@@ -787,7 +787,7 @@ onUnmounted(() => {
   top: 10px;
   left: 0;
   height: 6px;
-  background: linear-gradient(90deg, #00d4aa, #5865f2);
+  background: linear-gradient(90deg, #00d4aa, #0EA5E9);
   border-radius: 3px;
   pointer-events: none;
   transition: width 0.1s ease;
@@ -831,7 +831,7 @@ onUnmounted(() => {
 
 .setting-checkbox:checked + .checkbox-custom {
   background: var(--harmony-primary);
-  border-color: #5865f2;
+  border-color: #0EA5E9;
 }
 
 .setting-checkbox:checked + .checkbox-custom::after {
@@ -882,7 +882,7 @@ onUnmounted(() => {
 }
 
 .test-btn:hover {
-  background: #4752c4;
+  background: #0284C7;
 }
 
 .test-btn.active {
@@ -899,7 +899,7 @@ onUnmounted(() => {
 
 .test-level {
   height: 100%;
-  background: linear-gradient(90deg, #00d4aa, #5865f2);
+  background: linear-gradient(90deg, #00d4aa, #0EA5E9);
   transition: width 0.1s ease;
 }
 
@@ -956,7 +956,7 @@ onUnmounted(() => {
 
 .input-mode-option.active {
   background: rgba(88, 101, 242, 0.1);
-  border-color: #5865f2;
+  border-color: #0EA5E9;
 }
 
 .radio-custom {
@@ -973,7 +973,7 @@ onUnmounted(() => {
 }
 
 .radio-custom.checked {
-  border-color: #5865f2;
+  border-color: #0EA5E9;
 }
 
 .radio-inner {
@@ -985,7 +985,7 @@ onUnmounted(() => {
 }
 
 .radio-custom.checked .radio-inner {
-  background: #5865f2;
+  background: #0EA5E9;
 }
 
 .mode-content {
@@ -1035,8 +1035,8 @@ onUnmounted(() => {
 
 .keybind-button.recording {
   background: rgba(88, 101, 242, 0.2);
-  border-color: #5865f2;
-  color: #5865f2;
+  border-color: #0EA5E9;
+  color: #0EA5E9;
   animation: pulse 1.5s ease-in-out infinite;
 }
 
