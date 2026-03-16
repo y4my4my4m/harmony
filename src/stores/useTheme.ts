@@ -182,9 +182,9 @@ export const useThemeStore = defineStore('theme', {
         if (success) {
           this.currentAudioTheme = themeId
           
-          // Play success sound with new theme
+          // Play a sound from the newly selected theme (not default fallback)
           setTimeout(() => {
-            this.playAudio('ui_success')
+            audioThemeService.playThemeFeedbackSound(themeId)
           }, 100)
           
           debug.log(`✅ Successfully switched to theme: ${themeId}`)

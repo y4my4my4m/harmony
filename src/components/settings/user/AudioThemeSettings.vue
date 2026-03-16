@@ -38,6 +38,22 @@
       </div>
     </div>
 
+    <!-- Import / Export (always visible) -->
+    <div class="settings-section import-export-section">
+      <h3 class="section-title">Import & Export</h3>
+      <p class="section-description">Backup or restore your audio theme settings</p>
+      <div class="import-export-actions">
+        <button @click="exportThemeSettings" class="import-export-btn" :disabled="!themeStore.isReady">
+          <Icon name="download" />
+          Export Settings
+        </button>
+        <button @click="importThemeSettings" class="import-export-btn" :disabled="!themeStore.isReady">
+          <Icon name="upload" />
+          Import Settings
+        </button>
+      </div>
+    </div>
+
     <!-- Advanced Settings -->
     <div class="settings-section advanced-section" v-if="showAdvanced">
       <h3 class="section-title">{{ $t('settings.advanced.title') }}</h3>
@@ -217,6 +233,46 @@ const onThemeChanged = (themeId: string): void => {
   )
 }
 
+const exportThemeSettings = (): void => {
+  try {
+    const settings = themeStore.exportPreferences()
+    const blob = new Blob([JSON.stringify(settings, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `harmony-audio-theme-${new Date().toISOString().slice(0, 10)}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+    notificationStore.showToast('ui_success' as any, 'Exported', 'Audio theme settings downloaded', 2000)
+  } catch (error) {
+    debug.error('Failed to export:', error)
+    notificationStore.showToast('ui_error' as any, 'Export Failed', 'Could not export settings', 3000)
+  }
+}
+
+const importThemeSettings = (): void => {
+  const input = document.createElement('input')
+  input.type = 'file'
+  input.accept = '.json'
+  input.onchange = (e) => {
+    const file = (e.target as HTMLInputElement).files?.[0]
+    if (file) {
+      const reader = new FileReader()
+      reader.onload = (ev) => {
+        try {
+          const settings = JSON.parse(ev.target?.result as string)
+          themeStore.importPreferences(settings)
+          notificationStore.showToast('ui_success' as any, 'Imported', 'Audio theme settings restored', 2000)
+        } catch (err) {
+          debug.error('Failed to import:', err)
+          notificationStore.showToast('ui_error' as any, 'Import Failed', 'Invalid file format. Use an exported JSON file.', 3000)
+        }
+      }
+      reader.readAsText(file)
+    }
+  }
+  input.click()
+}
 
 // =============================================================================
 // LIFECYCLE
@@ -574,6 +630,43 @@ onMounted(async () => {
   cursor: not-allowed;
 }
 
+/* Import / Export */
+.import-export-section .section-description {
+  margin-bottom: 16px;
+}
+
+.import-export-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.import-export-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: transparent;
+  border: 1px solid var(--h-chat-light);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.import-export-btn:hover:not(:disabled) {
+  border-color: var(--h-brand);
+  color: var(--text-primary);
+  background: rgba(14, 165, 233, 0.1);
+}
+
+.import-export-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* Advanced Settings */
 .advanced-section {
   border: 1px dashed var(--h-chat-light);
@@ -654,6 +747,43 @@ onMounted(async () => {
 .toggle-btn:hover {
   border-color: var(--h-brand);
   color: var(--text-primary);
+}
+
+/* Import/Export section */
+.import-export-section .section-description {
+  margin-bottom: 16px;
+}
+
+.import-export-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.import-export-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  background: transparent;
+  border: 1px solid var(--h-chat-light);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.import-export-btn:hover:not(:disabled) {
+  border-color: var(--h-brand);
+  color: var(--text-primary);
+  background: rgba(14, 165, 233, 0.08);
+}
+
+.import-export-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* Responsive */

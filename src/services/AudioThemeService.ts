@@ -260,6 +260,28 @@ export class AudioThemeService {
   // =============================================================================
 
   /**
+   * Play a feedback sound from a specific theme (e.g. on theme switch).
+   * Uses ui_success, then ui_click, then first available – never falls back to default.
+   */
+  public async playThemeFeedbackSound(themeId: string): Promise<void> {
+    const theme = this.themes.get(themeId)
+    if (!theme?.sounds) return
+
+    const sounds = theme.sounds as Record<string, string>
+    const soundPath = sounds.ui_success ?? sounds.ui_click ?? Object.values(sounds)[0]
+    if (!soundPath) return
+
+    try {
+      const audio = new Audio(soundPath)
+      audio.volume = this.settings.volume
+      await audio.play()
+      this.emit('audioPlayed', { action: 'ui_success' as AudioAction, soundPath, theme: themeId })
+    } catch (e) {
+      debug.warn('Failed to play theme feedback sound:', e)
+    }
+  }
+
+  /**
    * Play audio for a specific action with intelligent fallback
    */
   public async playAudio(action: AudioAction): Promise<void> {
@@ -328,6 +350,28 @@ export class AudioThemeService {
   }
 
   /**
+   * Play a feedback sound from a specific theme (e.g. on theme switch).
+   * Prefers ui_success, then ui_click, then first available sound from that theme only.
+   */
+  public async playThemeFeedbackSound(themeId: string): Promise<void> {
+    const theme = this.themes.get(themeId)
+    if (!theme?.sounds) return
+
+    const sounds = theme.sounds as Record<string, string>
+    const soundPath = sounds.ui_success ?? sounds.ui_click ?? Object.values(sounds)[0]
+    if (!soundPath) return
+
+    try {
+      const audio = new Audio(soundPath)
+      audio.volume = this.settings.volume
+      await audio.play()
+      this.emit('audioPlayed', { action: 'ui_success', soundPath, theme: themeId })
+    } catch (e) {
+      debug.warn('Failed to play theme feedback:', e)
+    }
+  }
+
+  /**
    * Resolve the sound file path for an action without loading it
    */
   private resolveSoundPath(action: AudioAction): string | null {
@@ -338,6 +382,77 @@ export class AudioThemeService {
     if (defaultTheme?.sounds[action]) return defaultTheme.sounds[action]
 
     return null
+  }
+
+  /**
+   * Play a feedback sound from a specific theme (for theme-switch confirmation).
+   * Prefers ui_success, then ui_click, then first available sound. Never falls back to default theme.
+   */
+  public async playThemeFeedbackSound(themeId: string): Promise<void> {
+    const theme = this.themes.get(themeId)
+    if (!theme?.sounds) return
+
+    const sounds = theme.sounds as Record<string, string>
+    const preferred: AudioAction[] = ['ui_success', 'ui_click', 'ui_hover', 'dm', 'mention']
+    let soundPath: string | null = null
+    for (const action of preferred) {
+      if (sounds[action]) {
+        soundPath = sounds[action]
+        break
+      }
+    }
+    if (!soundPath && Object.keys(sounds).length > 0) {
+      soundPath = Object.values(sounds)[0]
+    }
+    if (!soundPath) return
+
+    try {
+      const cached = this.audioCache.get(soundPath)
+      if (cached) {
+        const audioClone = cached.cloneNode() as HTMLAudioElement
+        audioClone.volume = this.settings.volume
+        await audioClone.play()
+        return
+      }
+      const audio = new Audio(soundPath)
+      audio.volume = this.settings.volume
+      await audio.play()
+      audio.addEventListener('canplaythrough', () => this.addToCache(soundPath!, audio), { once: true })
+    } catch (e) {
+      debug.warn('Theme feedback sound failed:', e)
+    }
+  }
+
+  /**
+   * Get the best feedback sound path from a specific theme.
+   * Prefers ui_success, then ui_click, then first available sound.
+   */
+  private resolveThemeFeedbackSoundPath(themeId: string): string | null {
+    const theme = this.themes.get(themeId)
+    if (!theme?.sounds) return null
+    const sounds = theme.sounds
+    if (sounds.ui_success) return sounds.ui_success
+    if (sounds.ui_click) return sounds.ui_click
+    const first = Object.values(sounds)[0]
+    return first || null
+  }
+
+  /**
+   * Play a feedback sound from a specific theme (e.g. when user selects a new pack).
+   * Uses ui_success if available, else ui_click, else first sound from that theme.
+   */
+  public async playThemeFeedbackSound(themeId: string): Promise<void> {
+    const soundPath = this.resolveThemeFeedbackSoundPath(themeId)
+    if (!soundPath) return
+    try {
+      const cached = this.audioCache.get(soundPath)
+      const audio = cached ? (cached.cloneNode() as HTMLAudioElement) : new Audio(soundPath)
+      audio.volume = this.settings.volume
+      await audio.play()
+      this.emit('audioPlayed', { action: 'ui_success', soundPath, theme: themeId })
+    } catch (error) {
+      debug.warn(`Failed to play theme feedback for ${themeId}:`, error)
+    }
   }
 
   /**

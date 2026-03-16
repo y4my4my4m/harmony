@@ -144,6 +144,7 @@ export const usePublicServersStore = defineStore('publicServers', {
             name,
             description,
             icon,
+            banner,
             owner,
             public,
             allow_cross_server_emojis,
