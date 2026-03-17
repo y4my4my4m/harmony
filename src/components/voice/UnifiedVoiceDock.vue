@@ -306,10 +306,10 @@
       @close="showSettings = false"
     />
 
-    <!-- Spatial Audio Panel -->
+    <!-- Spatial Audio Panel (only when NOT in overlay mode; overlay renders its own) -->
     <SpatialAudioPanel 
+      v-if="currentMode !== 'overlay'"
       :is-under-dock="currentMode === 'dock'"
-      :is-under-overlay="currentMode === 'overlay'"
     />
 
     <!-- Full Overlay Mode -->
