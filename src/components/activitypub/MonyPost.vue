@@ -78,7 +78,7 @@
       <!-- Content Warning -->
       <div v-if="displayContentWarning" class="content-warning">
         <div class="cw-header">
-          <Icon name="warning" />
+          <Icon name="alert-triangle" />
           <span>{{ displayContentWarning }}</span>
         </div>
         <button 

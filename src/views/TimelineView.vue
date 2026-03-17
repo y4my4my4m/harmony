@@ -227,19 +227,20 @@ const handleLoadMorePosts = async () => {
   try {
     const currentPosts = posts.value
     const lastPost = currentPosts[currentPosts.length - 1]
+    const cursor = lastPost?.created_at
     
     switch (props.currentView) {
       case 'home':
-        await activityPubStore.loadHomeFeed(lastPost?.id)
+        await activityPubStore.loadHomeFeed(cursor)
         break
       case 'public':
-        await activityPubStore.loadPublicFeed(lastPost?.id)
+        await activityPubStore.loadPublicFeed(cursor)
         break
       case 'local':
-        await activityPubStore.loadLocalFeed(lastPost?.id)
+        await activityPubStore.loadLocalFeed(cursor)
         break
       default:
-        await activityPubStore.loadHomeFeed(lastPost?.id)
+        await activityPubStore.loadHomeFeed(cursor)
         break
     }
     emit('loadMorePosts')

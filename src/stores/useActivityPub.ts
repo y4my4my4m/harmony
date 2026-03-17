@@ -1428,13 +1428,12 @@ export const useActivityPubStore = defineStore('activitypub', {
     /**
      * Load the user's home timeline (with cache support)
      */
-    async loadHomeFeed(maxId?: string) {
-      // On first load (no maxId), try cache first for instant display
-      if (!maxId) {
+    async loadHomeFeed(before?: string) {
+      // On first load (no cursor), try cache first for instant display
+      if (!before) {
         const hasCachedPosts = this.loadTimelineFromCache();
         if (hasCachedPosts) {
           debug.log('📋 Showing cached timeline, fetching fresh in background...');
-          // Don't block UI - fetch fresh data in background
           this.refreshHomeFeedInBackground();
           return;
         }
@@ -1442,16 +1441,14 @@ export const useActivityPubStore = defineStore('activitypub', {
       
       this.isLoadingFeed = true;
       try {
-        // OPTIMIZED: Use cached auth context
         const authUser = await authContextService.getCurrentAuthUser();
 
-        // Use activityPubService for timeline loading
         const posts = await activityPubService.getUserTimeline(
           authUser.id,
           'home',
           { 
             limit: 20,
-            max_id: maxId 
+            before
           }
         );
         
@@ -1470,18 +1467,16 @@ export const useActivityPubStore = defineStore('activitypub', {
         // BATCH LOAD REBLOG ORIGINAL INTERACTIONS to prevent N+1 queries
         const processedPosts = await this.batchFetchReblogInteractions(posts);
         
-        if (maxId) {
+        if (before) {
           this.homeFeed.posts.push(...processedPosts);
         } else {
           this.homeFeed.posts = processedPosts;
-          // Clear unread count when refreshing home feed
           this.unreadCount = 0;
-          // Save to cache for next visit
           this.saveTimelineToCache();
         }
 
         this.homeFeed.has_more = posts.length === 20;
-        this.homeFeed.cursor = posts[posts.length - 1]?.id;
+        this.homeFeed.cursor = posts[posts.length - 1]?.created_at;
         this.hasEverLoadedTimeline = true;
 
       } catch (error) {
@@ -1535,13 +1530,12 @@ export const useActivityPubStore = defineStore('activitypub', {
     /**
      * Load the public timeline
      */
-    async loadPublicFeed(maxId?: string) {
+    async loadPublicFeed(before?: string) {
       this.isLoadingFeed = true;
       try {
-        // Use enhanced public timeline to ensure federated posts are included
         const posts = await activityPubService.getEnhancedPublicTimeline({
           limit: 20,
-          max_id: maxId
+          before
         });
         
         // BATCH LOAD REACTIONS for all posts to prevent N+1 queries
@@ -1559,36 +1553,14 @@ export const useActivityPubStore = defineStore('activitypub', {
         // BATCH LOAD REBLOG ORIGINAL INTERACTIONS to prevent N+1 queries
         const processedPosts = await this.batchFetchReblogInteractions(posts);
         
-        if (maxId) {
+        if (before) {
           this.publicFeed.posts.push(...processedPosts);
         } else {
           this.publicFeed.posts = processedPosts;
         }
 
-        // DEBUG: Log the problematic post's data when loaded
-        const debugPost = posts.find(p => p.id === '968f8b30-8de1-4e0f-b9bb-87d8085330a7');
-        if (debugPost) {
-          debug.log(`🔍 DEBUG - Timeline loaded post ${debugPost.id}:`, {
-            is_favorited: debugPost.is_favorited,
-            favorites_count: debugPost.favorites_count,
-            typeof_is_favorited: typeof debugPost.is_favorited,
-            full_post: debugPost
-          });
-        }
-
-        // DEBUG: Check the post data after store assignment
-        const storePost = this.publicFeed.posts.find(p => p.id === '968f8b30-8de1-4e0f-b9bb-87d8085330a7');
-        if (storePost) {
-          debug.log(`🔍 DEBUG - Post in store after assignment:`, {
-            is_favorited: storePost.is_favorited,
-            favorites_count: storePost.favorites_count,
-            typeof_is_favorited: typeof storePost.is_favorited,
-            keys: Object.keys(storePost)
-          });
-        }
-
         this.publicFeed.has_more = posts.length === 20;
-        this.publicFeed.cursor = posts[posts.length - 1]?.id;
+        this.publicFeed.cursor = posts[posts.length - 1]?.created_at;
 
         // Debug logging for federated content
         const localCount = posts.filter(p => p.is_local).length;
@@ -1605,14 +1577,15 @@ export const useActivityPubStore = defineStore('activitypub', {
     /**
      * Load the local timeline
      */
-    async loadLocalFeed(maxId?: string) {
+    async loadLocalFeed(before?: string) {
       this.isLoadingFeed = true;
       try {
-        // Use activityPubService for local timeline
-        const posts = await activityPubService.getLocalTimeline({
-          limit: 20,
-          max_id: maxId
-        });
+        const authUser = await authContextService.getCurrentAuthUser();
+        const posts = await activityPubService.getUserTimeline(
+          authUser.id,
+          'local',
+          { limit: 20, before }
+        );
         
         // BATCH LOAD REACTIONS for all posts to prevent N+1 queries
         if (posts.length > 0) {
@@ -1629,14 +1602,14 @@ export const useActivityPubStore = defineStore('activitypub', {
         // BATCH LOAD REBLOG ORIGINAL INTERACTIONS to prevent N+1 queries
         const processedPosts = await this.batchFetchReblogInteractions(posts);
         
-        if (maxId) {
+        if (before) {
           this.localFeed.posts.push(...processedPosts);
         } else {
           this.localFeed.posts = processedPosts;
         }
 
         this.localFeed.has_more = posts.length === 20;
-        this.localFeed.cursor = posts[posts.length - 1]?.id;
+        this.localFeed.cursor = posts[posts.length - 1]?.created_at;
 
         debug.log(`📍 Local feed loaded: ${posts.length} posts`);
 
@@ -2795,7 +2768,7 @@ export const useActivityPubStore = defineStore('activitypub', {
     /**
      * Get timeline for a specific list
      */
-    async getListTimeline(listId: string, options: { limit?: number; max_id?: string } = {}): Promise<TimelinePost[]> {
+    async getListTimeline(listId: string, options: { limit?: number; before?: string } = {}): Promise<TimelinePost[]> {
       try {
         const limit = options.limit || 20;
 
@@ -2824,8 +2797,8 @@ export const useActivityPubStore = defineStore('activitypub', {
           .order('created_at', { ascending: false })
           .limit(limit);
 
-        if (options.max_id) {
-          query = query.lt('id', options.max_id);
+        if (options.before) {
+          query = query.lt('created_at', options.before);
         }
 
         const { data, error } = await query;

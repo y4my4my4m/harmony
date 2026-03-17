@@ -1238,9 +1238,12 @@ export interface MonyFeed {
 
 export interface TimelineOptions {
   limit?: number;
+  /** @deprecated Use `before` for reliable time-based pagination */
   max_id?: string;
   since_id?: string;
   min_id?: string;
+  /** ISO timestamp cursor — fetch posts created before this time */
+  before?: string;
 }
 
 export type Follow = ActivityPubFollow;

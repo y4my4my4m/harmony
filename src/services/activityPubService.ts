@@ -127,8 +127,8 @@ export class ActivityPubService {
       .order('created_at', { ascending: false })
       .limit(limit);
 
-    if (options.max_id) {
-      query = query.lt('position', options.max_id);
+    if (options.before) {
+      query = query.lt('created_at', options.before);
     }
 
     const { data, error } = await query;
@@ -145,7 +145,6 @@ export class ActivityPubService {
     const userId = await this.getCurrentAuthUserId();
 
     const limit = options.limit || 20;
-    const max_id = options.max_id || null;
 
     // Direct query with user interactions
     let query = supabase
@@ -163,8 +162,8 @@ export class ActivityPubService {
       .order('created_at', { ascending: false })
       .limit(limit);
 
-    if (max_id) {
-      query = query.lt('id', max_id);
+    if (options.before) {
+      query = query.lt('created_at', options.before);
     }
 
     const { data, error } = await query;
@@ -215,8 +214,8 @@ export class ActivityPubService {
         .order('created_at', { ascending: false })
         .limit(limit);
 
-      if (options.max_id) {
-        query = query.lt('id', options.max_id);
+      if (options.before) {
+        query = query.lt('created_at', options.before);
       }
 
       const { data, error } = await query;
@@ -225,7 +224,7 @@ export class ActivityPubService {
 
       // Process user interactions into boolean flags and filter out suspended users
       const posts = (data || [])
-        .filter(post => !post.author?.is_suspended) // Exclude posts from suspended users
+        .filter(post => !post.author?.is_suspended)
         .map(post => {
           const interactions = post.my_interactions || [];
           return {
@@ -235,7 +234,6 @@ export class ActivityPubService {
             is_reblogged: interactions.some(i => i.interaction_type === 'reblog'),
           };
         });
-      
       
       // Log statistics
       const localCount = posts.filter((p: any) => p.is_local).length;
@@ -759,8 +757,8 @@ export class ActivityPubService {
     if (currentUser) {
       query = query.eq('my_interactions.user_id', currentUser.id);
     }
-    if (options.max_id) {
-      query = query.lt('created_at', new Date(options.max_id).toISOString());
+    if (options.before) {
+      query = query.lt('created_at', options.before);
     }
 
     const { data, error } = await query;
@@ -1942,8 +1940,8 @@ export class ActivityPubService {
       .order('created_at', { ascending: false })
       .limit(limit);
 
-    if (max_id) {
-      query = query.lt('id', max_id);
+    if (options.before) {
+      query = query.lt('created_at', options.before);
     }
 
     const { data, error } = await query;
@@ -1952,7 +1950,7 @@ export class ActivityPubService {
 
     // Process user interactions into boolean flags and filter out suspended users
     const posts = (data || [])
-      .filter(post => !post.author?.is_suspended) // Exclude posts from suspended users
+      .filter(post => !post.author?.is_suspended)
       .map(post => {
         const interactions = post.my_interactions || [];
         return {
