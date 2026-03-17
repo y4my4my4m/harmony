@@ -9,6 +9,7 @@ import { services } from '@/services'
 import { authContextService } from '@/services/AuthContextService'
 import { userDataService } from '@/services/userDataService'
 import { debug } from '@/utils/debug'
+import { updateFaviconBadge } from '@/utils/faviconBadge'
 import type { 
   Notification, 
   NotificationType,
@@ -930,6 +931,9 @@ export const useNotificationStore = defineStore('notification', {
           document.title = baseTitle
         }
       }
+
+      // Update favicon badge
+      updateFaviconBadge(this.unreadCount)
     },
 
     /**
