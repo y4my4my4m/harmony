@@ -1443,7 +1443,7 @@ export const useActivityPubStore = defineStore('activitypub', {
       try {
         const authUser = await authContextService.getCurrentAuthUser();
 
-        const posts = await activityPubService.getUserTimeline(
+        const { posts, fullPage } = await activityPubService.getUserTimeline(
           authUser.id,
           'home',
           { 
@@ -1475,7 +1475,7 @@ export const useActivityPubStore = defineStore('activitypub', {
           this.saveTimelineToCache();
         }
 
-        this.homeFeed.has_more = posts.length === 20;
+        this.homeFeed.has_more = fullPage;
         this.homeFeed.cursor = posts[posts.length - 1]?.created_at;
         this.hasEverLoadedTimeline = true;
 
@@ -1495,7 +1495,7 @@ export const useActivityPubStore = defineStore('activitypub', {
         const context = await authContextService.getCurrentContext();
         if (!context.isAuthenticated) return;
 
-        const posts = await activityPubService.getUserTimeline(
+        const { posts, fullPage } = await activityPubService.getUserTimeline(
           context.authUser.id,
           'home',
           { limit: 20 }
@@ -1515,8 +1515,8 @@ export const useActivityPubStore = defineStore('activitypub', {
         
         // Update with fresh data
         this.homeFeed.posts = processedPosts;
-        this.homeFeed.has_more = posts.length === 20;
-        this.homeFeed.cursor = posts[posts.length - 1]?.id;
+        this.homeFeed.has_more = fullPage;
+        this.homeFeed.cursor = posts[posts.length - 1]?.created_at;
         this.unreadCount = 0;
         
         // Update cache with fresh data
@@ -1533,7 +1533,7 @@ export const useActivityPubStore = defineStore('activitypub', {
     async loadPublicFeed(before?: string) {
       this.isLoadingFeed = true;
       try {
-        const posts = await activityPubService.getEnhancedPublicTimeline({
+        const { posts, fullPage } = await activityPubService.getEnhancedPublicTimeline({
           limit: 20,
           before
         });
@@ -1559,7 +1559,7 @@ export const useActivityPubStore = defineStore('activitypub', {
           this.publicFeed.posts = processedPosts;
         }
 
-        this.publicFeed.has_more = posts.length === 20;
+        this.publicFeed.has_more = fullPage;
         this.publicFeed.cursor = posts[posts.length - 1]?.created_at;
 
         // Debug logging for federated content
@@ -1581,7 +1581,7 @@ export const useActivityPubStore = defineStore('activitypub', {
       this.isLoadingFeed = true;
       try {
         const authUser = await authContextService.getCurrentAuthUser();
-        const posts = await activityPubService.getUserTimeline(
+        const { posts, fullPage } = await activityPubService.getUserTimeline(
           authUser.id,
           'local',
           { limit: 20, before }
@@ -1608,7 +1608,7 @@ export const useActivityPubStore = defineStore('activitypub', {
           this.localFeed.posts = processedPosts;
         }
 
-        this.localFeed.has_more = posts.length === 20;
+        this.localFeed.has_more = fullPage;
         this.localFeed.cursor = posts[posts.length - 1]?.created_at;
 
         debug.log(`📍 Local feed loaded: ${posts.length} posts`);

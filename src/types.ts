@@ -1246,6 +1246,13 @@ export interface TimelineOptions {
   before?: string;
 }
 
+/** Result from timeline fetches — used to set has_more from raw DB count before client-side filtering */
+export interface TimelineResult {
+  posts: TimelinePost[];
+  /** True if the DB returned a full page (raw count >= limit) — use for pagination, not filtered posts.length */
+  fullPage: boolean;
+}
+
 export type Follow = ActivityPubFollow;
 
 // =============================================

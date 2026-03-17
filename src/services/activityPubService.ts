@@ -9,6 +9,7 @@ import type {
   FederatedUser, 
   TimelineOptions,
   TimelinePost,
+  TimelineResult,
   ActivityPubActivityType,
   ActivityPubObjectType,
   ConversationContext,
@@ -191,7 +192,7 @@ export class ActivityPubService {
   /**
    * Get public timeline with enhanced federation support and user interaction states
    */
-  async getEnhancedPublicTimeline(options: TimelineOptions = {}): Promise<TimelinePost[]> {
+  async getEnhancedPublicTimeline(options: TimelineOptions = {}): Promise<TimelineResult> {
     // OPTIMIZED: Use cached auth user ID
     const userId = await this.getCurrentAuthUserId();
 
@@ -240,10 +241,11 @@ export class ActivityPubService {
       const federatedCount = posts.filter((p: any) => !p.is_local).length;
       debug.log(`🌐 Enhanced public timeline: ${localCount} local + ${federatedCount} federated = ${posts.length} total posts`);
       
-      return posts as TimelinePost[];
+      const rawCount = (data || []).length;
+      return { posts: posts as TimelinePost[], fullPage: rawCount >= limit };
     } catch (error) {
       debug.error('Failed to load enhanced public timeline:', error);
-      return [];
+      return { posts: [], fullPage: false };
     }
   }
 
@@ -1879,7 +1881,7 @@ export class ActivityPubService {
     userId: string,
     timelineType: 'home' | 'public' | 'local' = 'home',
     options: TimelineOptions = {}
-  ): Promise<TimelinePost[]> {
+  ): Promise<TimelineResult> {
     const limit = options.limit || 20;
     const max_id = options.max_id || null;
 
@@ -1949,7 +1951,8 @@ export class ActivityPubService {
     if (error) throw error;
 
     // Process user interactions into boolean flags and filter out suspended users
-    const posts = (data || [])
+    const rawData = data || [];
+    const posts = rawData
       .filter(post => !post.author?.is_suspended)
       .map(post => {
         const interactions = post.my_interactions || [];
@@ -1961,7 +1964,8 @@ export class ActivityPubService {
         };
       });
 
-    return posts;
+    // Use raw DB count for pagination — filtering suspended users reduces posts.length, which would incorrectly stop pagination
+    return { posts, fullPage: rawData.length >= limit };
   }
 
   /**
