@@ -5,7 +5,7 @@
     :style="menuStyle"
     @click.stop
   >
-    <div class="context-menu-item" @click="createChannel">
+    <div class="context-menu-item" @click="createChannel" v-if="canManageCategory">
       <svg width="16" height="16" viewBox="0 0 24 24">
         <path fill="currentColor" d="M20,14H14V20H10V14H4V10H10V4H14V10H20V14Z"/>
       </svg>

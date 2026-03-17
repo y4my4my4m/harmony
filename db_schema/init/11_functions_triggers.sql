@@ -137,7 +137,7 @@ BEGIN
         0,
         true,
         false,
-        104324161  -- Default Discord-like permissions
+        122646786  -- Default permissions: VIEW_CHANNEL, CREATE_INVITE, SEND_MESSAGES, SEND_MESSAGES_IN_THREADS, CREATE_PUBLIC_THREADS, EMBED_LINKS, ATTACH_FILES, ADD_REACTIONS, USE_EXTERNAL_EMOJIS, READ_MESSAGE_HISTORY, CONNECT, SPEAK, STREAM
     ) RETURNING id INTO everyone_role_id;
     
     -- Create Admin role for the owner (highest position, all permissions)

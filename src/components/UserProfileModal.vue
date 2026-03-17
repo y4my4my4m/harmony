@@ -30,7 +30,7 @@
           <Icon name="copy" class="action-item-icon" />
           Copy User ID
         </div>
-        <div v-if="isInServerContext" class="action-item" @click="openInviteModal">
+        <div v-if="isInServerContext && canInvite" class="action-item" @click="openInviteModal">
           <Icon name="share" class="action-item-icon" />
           Send Server Invite
         </div>
@@ -313,7 +313,7 @@
             <!-- Invite to Server -->
             <div class="invite-btn-wrapper">
               <button 
-                v-if="isInServerContext"
+                v-if="isInServerContext && canInvite"
                 @click="openInviteModal"
                 class="secondary-action-btn"
               >
@@ -454,6 +454,7 @@ const showKickBanModal = ref(false)
 const kickBanMode = ref<'kick' | 'ban'>('kick')
 const canKick = ref(false)
 const canBan = ref(false)
+const canInvite = ref(false)
 
 // Server invite picker state
 const showServerPicker = ref(false)
@@ -1035,9 +1036,10 @@ const handleKickBanDone = (result: { success: boolean; messagesDeleted?: number 
 }
 
 async function loadModerationPermissions() {
-  if (!isInServerContext.value || !props.user || isCurrentUser.value) {
+  if (!isInServerContext.value || !props.user) {
     canKick.value = false
     canBan.value = false
+    canInvite.value = false
     return
   }
   const serverId = serverChannelStore.currentServerId
@@ -1048,15 +1050,18 @@ async function loadModerationPermissions() {
     const profileId = await authContextService.getCurrentProfileId()
     if (!profileId) return
 
-    const [kick, ban] = await Promise.all([
-      roleService.hasPermission(profileId, serverId, Permission.KICK_MEMBERS),
-      roleService.hasPermission(profileId, serverId, Permission.BAN_MEMBERS),
+    const [kick, ban, invite] = await Promise.all([
+      isCurrentUser.value ? Promise.resolve(false) : roleService.hasPermission(profileId, serverId, Permission.KICK_MEMBERS),
+      isCurrentUser.value ? Promise.resolve(false) : roleService.hasPermission(profileId, serverId, Permission.BAN_MEMBERS),
+      roleService.hasPermission(profileId, serverId, Permission.CREATE_INVITE),
     ])
     canKick.value = kick
     canBan.value = ban
+    canInvite.value = invite
   } catch {
     canKick.value = false
     canBan.value = false
+    canInvite.value = false
   }
 }
 
