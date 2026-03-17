@@ -3,6 +3,8 @@ import { supabase } from '@/supabase';
 import { useToast } from 'vue-toastification';
 import type { Server, Category, Channel, ResolvedEmoji, ServerFolder } from '@/types';
 import { useEmojiCacheStore } from '@/stores/useEmojiCache';
+import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
+import { useChatStore } from '@/stores/useChat';
 import { statePersistence } from '@/services/StatePersistence';
 import { debug } from '@/utils/debug';
 import type { RealtimeChannel } from '@supabase/supabase-js';
@@ -2210,6 +2212,30 @@ export const useServerChannelStore = defineStore('serverChannel', {
       const serverId = payload.old.server_id;
       debug.log('📤 Real-time: User left server:', serverId);
       
+      this._cleanupServerState(serverId);
+    },
+
+    /**
+     * Clean up all client state associated with a server.
+     * Disconnects voice chat, unsubscribes from messages, and switches
+     * the active server if the left server was the current one.
+     */
+    _cleanupServerState(serverId: string): void {
+      // Disconnect from voice chat if connected to a channel on this server
+      const voiceStore = useUnifiedVoiceChannelStore();
+      const voiceServerId = voiceStore.effectiveServerId;
+      if (voiceServerId === serverId) {
+        debug.log('🔇 Disconnecting voice chat for left server:', serverId);
+        voiceStore.leaveVoiceChannel();
+      }
+      
+      // Unsubscribe from message channel if viewing a channel on this server
+      if (this.currentServerId === serverId) {
+        const chatStore = useChatStore();
+        chatStore.unsubscribeFromMessages();
+        chatStore.clearMessages();
+      }
+      
       // Remove server from list
       this.servers = this.servers.filter(s => s.id !== serverId);
       
@@ -2220,6 +2246,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
         } else {
           this.currentServerId = null;
           this.currentServer = {} as Server;
+          this.currentChannelId = null;
           this.channels = [];
           this.categories = [];
           this.categoryChannels = {};
