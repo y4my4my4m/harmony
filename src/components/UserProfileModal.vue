@@ -1053,7 +1053,7 @@ async function loadModerationPermissions() {
     const [kick, ban, invite] = await Promise.all([
       isCurrentUser.value ? Promise.resolve(false) : roleService.hasPermission(profileId, serverId, Permission.KICK_MEMBERS),
       isCurrentUser.value ? Promise.resolve(false) : roleService.hasPermission(profileId, serverId, Permission.BAN_MEMBERS),
-      roleService.hasPermission(profileId, serverId, Permission.CREATE_INVITE),
+      isCurrentUser.value ? Promise.resolve(false) : roleService.hasPermission(profileId, serverId, Permission.CREATE_INVITE),
     ])
     canKick.value = kick
     canBan.value = ban

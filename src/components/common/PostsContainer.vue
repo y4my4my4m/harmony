@@ -58,7 +58,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted, onUnmounted, watchEffect } from 'vue'
+import { computed, ref, watch, onMounted, onUnmounted, watchEffect } from 'vue'
 import { useVirtualizer } from '@tanstack/vue-virtual'
 import MonyPost from '@/components/activitypub/MonyPost.vue'
 import Icon from '@/components/common/Icon.vue'
@@ -121,9 +121,12 @@ const measureElement = (el: any) => {
   rowVirtualizer.value.measureElement(el)
 }
 
-// Trigger load-more when the last visible virtual item reaches the data boundary.
-// This is the pattern from TanStack Virtual's own infinite-scroll example —
-// no IntersectionObserver, no sentinel, no loadPending flag needed.
+const lastEmittedIndex = ref(-1)
+
+watch(() => props.posts.length, () => {
+  lastEmittedIndex.value = -1
+})
+
 watchEffect(() => {
   const items = virtualRows.value
   const lastItem = items[items.length - 1]
@@ -132,8 +135,10 @@ watchEffect(() => {
   if (
     lastItem.index >= props.posts.length - 1 &&
     props.hasMore &&
-    !props.isLoading
+    !props.isLoading &&
+    lastItem.index !== lastEmittedIndex.value
   ) {
+    lastEmittedIndex.value = lastItem.index
     emit('load-more')
   }
 })
