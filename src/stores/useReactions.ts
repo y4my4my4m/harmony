@@ -15,6 +15,7 @@ export const useReactionsStore = defineStore('reactions', () => {
   // Optimistic state - SEPARATE from computed properties
   const optimisticReactions = ref(new Map<string, ReactionGroup[]>()) // key: messageId
   const pendingToggleRequests = ref(new Set<string>())
+  const pendingReconcileTimeouts = new Map<string, ReturnType<typeof setTimeout>>()
 
   const isUuid = (str: string): boolean =>
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str)
@@ -194,11 +195,7 @@ export const useReactionsStore = defineStore('reactions', () => {
       
       // 3. SUCCESS: Schedule seamless transition from optimistic → real data
       // Fetch real data, THEN clear optimistic (no visual gap)
-      setTimeout(async () => {
-        lastFetched.value.delete(messageId)
-        await fetchMessageReactions(messageId, true)
-        optimisticReactions.value.delete(messageId)
-      }, 1500)
+      scheduleReconcile(messageId, 1500)
       
       return { success: true }
       
@@ -216,8 +213,26 @@ export const useReactionsStore = defineStore('reactions', () => {
     }
   }
 
-    /**
-   * SMART realtime handling - works with optimistic state
+  /**
+   * Schedule a single reconcile (fetch real data + clear optimistic).
+   * Deduplicates: if one is already pending for this message, skips.
+   */
+  function scheduleReconcile(messageId: string, delayMs: number): void {
+    if (pendingReconcileTimeouts.has(messageId)) return
+
+    const timeoutId = setTimeout(async () => {
+      pendingReconcileTimeouts.delete(messageId)
+      lastFetched.value.delete(messageId)
+      await fetchMessageReactions(messageId, true)
+      optimisticReactions.value.delete(messageId)
+    }, delayMs)
+
+    pendingReconcileTimeouts.set(messageId, timeoutId)
+  }
+
+  /**
+   * Realtime handling - works with optimistic state.
+   * If a reconcile is already scheduled (from toggleReaction), skip to avoid double-fetch.
    */
   async function handleRealtimeUpdate(payload: any): Promise<void> {
     const messageId = payload.new?.message_id || payload.old?.message_id
@@ -229,16 +244,14 @@ export const useReactionsStore = defineStore('reactions', () => {
 
     debug.log('🔄 Realtime reaction update for message:', messageId)
     
+    if (pendingReconcileTimeouts.has(messageId)) {
+      debug.log('🔄 Reconcile already scheduled, skipping realtime refetch')
+      return
+    }
+
     if (optimisticReactions.value.has(messageId)) {
-      debug.log('🔄 Delaying realtime - optimistic update present')
-      
-      setTimeout(async () => {
-        // Fetch real data FIRST (while optimistic state is still displayed)
-        lastFetched.value.delete(messageId)
-        await fetchMessageReactions(messageId, true)
-        // THEN clear optimistic state — computed falls through to fresh real data
-        optimisticReactions.value.delete(messageId)
-      }, 2000)
+      debug.log('🔄 Optimistic state present, scheduling reconcile')
+      scheduleReconcile(messageId, 1500)
       return
     }
     
@@ -383,6 +396,10 @@ export const useReactionsStore = defineStore('reactions', () => {
        clearInterval(cleanupTimerId)
        cleanupTimerId = null
      }
+     for (const timeoutId of pendingReconcileTimeouts.values()) {
+       clearTimeout(timeoutId)
+     }
+     pendingReconcileTimeouts.clear()
    }
 
    return {

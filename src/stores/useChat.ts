@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import { supabase } from '@/supabase';
 import { services } from '@/services';
-import type { Message, ChannelCache, CacheMetadata } from '@/types';
+import type { Message, ChannelCache, CacheMetadata, Emoji } from '@/types';
 import { useReactionsStore } from '@/stores/useReactions';
 import { useServerUsersStore } from '@/stores/useServerUsers';
 import { ensureMessageEmbeds } from '@/utils/messageEmbedUtils';
@@ -689,13 +689,11 @@ export const useChatStore = defineStore('chat', {
       }
     },
 
-    async addReaction(messageId: string, emojiId: string, userId: string) {
+    async addReaction(messageId: string, emojiId: string, userId: string, emojiData?: Emoji) {
       try {
-        // debug.log('🎯 Adding reaction:', { messageId, emojiId, userId });
-        
         // Use the reactions store for consistent handling
         const reactionsStore = useReactionsStore();
-        const result = await reactionsStore.toggleReaction(messageId, emojiId, userId);
+        const result = await reactionsStore.toggleReaction(messageId, emojiId, userId, emojiData);
         
         if (result.success) {
           // debug.log('🎯 Reaction successfully toggled');

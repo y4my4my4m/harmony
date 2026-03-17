@@ -1,13 +1,7 @@
 <template>
   <div v-if="showReactions && (reactions.length > 0 || isLoadingReactions)" class="message-reactions">
     <div class="reactions-gutter"></div>
-    <div class="reactions-container">
-      <!-- Loading state -->
-      <!-- <div v-if="isLoadingReactions && reactions.length === 0" class="reaction-loading">
-        <div class="loading-spinner"></div>
-      </div> -->
-      
-      <!-- Reaction groups -->
+    <TransitionGroup name="reaction-list" tag="div" class="reactions-container">
       <div
         v-for="reactionGroup in reactions"
         :key="getReactionKey(reactionGroup)"
@@ -46,6 +40,7 @@
       <!-- Add reaction button (only shown when reactions exist) -->
       <button 
         v-if="reactions.length > 0"
+        key="add-reaction-btn"
         class="add-reaction-btn"
         @click="handleAddReactionClick"
         title="Add Reaction"
@@ -56,12 +51,12 @@
           <line x1="8" y1="12" x2="16" y2="12"/>
         </svg>
       </button>
-    </div>
+    </TransitionGroup>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, watch } from 'vue';
+import { computed, onMounted, watch, TransitionGroup } from 'vue';
 import { debug } from '@/utils/debug'
 import { useReactionsStore } from '@/stores/useReactions';
 import { useAuthStore } from '@/stores/auth';
@@ -146,8 +141,7 @@ const handleReactionClick = async (emoji: Emoji, emojiId: string) => {
   
   emit('toggle-reaction', props.message.id, emoji);
   
-  // : Instant UI feedback with background API call
-  const result = await reactionsStore.toggleReaction(props.message.id, emojiId, currentUserId.value);
+  const result = await reactionsStore.toggleReaction(props.message.id, emojiId, currentUserId.value, emoji);
   
   // Log result but don't show error for duplicate requests (they're expected)
   if (!result.success && result.reason !== 'Request already in progress') {
@@ -376,5 +370,28 @@ watch(() => props.message.id, (newMessageId, oldMessageId) => {
   .reactions-gutter {
     width: 48px;
   }
+}
+
+/* TransitionGroup animations for smooth reaction chip add/remove */
+.reaction-list-enter-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.reaction-list-leave-active {
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.reaction-list-enter-from {
+  opacity: 0;
+  transform: scale(0.8);
+}
+
+.reaction-list-leave-to {
+  opacity: 0;
+  transform: scale(0.8);
+}
+
+.reaction-list-move {
+  transition: transform 0.2s ease;
 }
 </style>

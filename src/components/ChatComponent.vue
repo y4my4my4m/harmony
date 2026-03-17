@@ -799,7 +799,7 @@
             }
             
             // Add reaction - works for both DMs and server messages
-            await chatStore.addReaction(selectedMessageId.value, emoji.id, authStore.session.user.id);
+            await chatStore.addReaction(selectedMessageId.value, emoji.id, authStore.session.user.id, emoji);
           }
         } else {
           // Append emoji immediately so it appears in the editor without delay

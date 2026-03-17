@@ -278,7 +278,7 @@ BEGIN
     LEFT JOIN emojis e ON r.emoji_id = e.id
     WHERE r.message_id = ANY(get_batch_message_reactions.message_ids)
     GROUP BY r.message_id, r.emoji_id, e.name, e.url, r.custom_emoji_content
-    ORDER BY r.message_id, reaction_count DESC;
+    ORDER BY r.message_id, MIN(r.created_at) ASC;
 END;
 $$;
 
@@ -336,7 +336,7 @@ BEGIN
     LEFT JOIN emojis e ON r.emoji_id = e.id
     WHERE r.message_id = get_message_reactions.message_id
     GROUP BY r.message_id, r.emoji_id, e.id, e.name, e.url, r.custom_emoji_content
-    ORDER BY count DESC;
+    ORDER BY MIN(r.created_at) ASC;
 END;
 $$;
 
