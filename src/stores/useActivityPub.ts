@@ -1429,7 +1429,7 @@ export const useActivityPubStore = defineStore('activitypub', {
      * Load the user's home timeline (with cache support)
      */
     async loadHomeFeed(before?: string) {
-      // On first load (no cursor), try cache first for instant display
+      if (this.isLoadingFeed) return
       if (!before) {
         const hasCachedPosts = this.loadTimelineFromCache();
         if (hasCachedPosts) {
@@ -1531,6 +1531,7 @@ export const useActivityPubStore = defineStore('activitypub', {
      * Load the public timeline
      */
     async loadPublicFeed(before?: string) {
+      if (this.isLoadingFeed) return
       this.isLoadingFeed = true;
       try {
         const { posts, fullPage } = await activityPubService.getEnhancedPublicTimeline({
@@ -1578,6 +1579,7 @@ export const useActivityPubStore = defineStore('activitypub', {
      * Load the local timeline
      */
     async loadLocalFeed(before?: string) {
+      if (this.isLoadingFeed) return
       this.isLoadingFeed = true;
       try {
         const authUser = await authContextService.getCurrentAuthUser();
