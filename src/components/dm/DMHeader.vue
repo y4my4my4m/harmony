@@ -126,7 +126,7 @@
         @click="toggleVideoCall"
         :title="isInVideoCall ? 'Turn off camera' : 'Start video call'"
       >
-        <Icon :name="isInVideoCall ? 'camera-off' : 'camera'" :size="16" />
+        <Icon :name="isInVideoCall ? 'video-off' : 'video'" :size="16" />
       </button>
       
       <button 

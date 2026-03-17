@@ -12,7 +12,7 @@
               class="caller-avatar pulsing"
             />
             <div class="call-type-indicator">
-              <Icon :name="callType === 'video' ? 'camera' : 'phone'" :size="24" />
+              <Icon :name="callType === 'video' ? 'video' : 'phone'" :size="24" />
             </div>
           </div>
           
@@ -54,7 +54,7 @@
             class="call-btn accept-btn video-accept"
             title="Accept with video"
           >
-            <Icon name="camera" :size="24" />
+            <Icon name="video" :size="24" />
             <span>Video</span>
           </button>
         </div>

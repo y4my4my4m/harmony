@@ -209,7 +209,7 @@
     <!-- Video Settings -->
     <div class="settings-section">
       <h4 class="section-title">
-        <Icon name="camera" />
+        <Icon name="video" />
         Video
       </h4>
 
@@ -252,7 +252,7 @@
             class="preview-stream"
           ></video>
           <div v-if="!previewStream" class="preview-placeholder">
-            <Icon name="camera-off" size="xl" />
+            <Icon name="video-off" size="xl" />
             <span>Camera Preview</span>
           </div>
         </div>

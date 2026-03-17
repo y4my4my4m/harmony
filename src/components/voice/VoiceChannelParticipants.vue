@@ -16,7 +16,7 @@
         <div class="participant-status">
           <Icon v-if="participant.isMuted" name="mic-off" class="status-icon muted" size="xs" title="Muted" />
           <Icon v-if="participant.isDeafened" name="headphones-off" class="status-icon deafened" size="xs" title="Deafened" />
-          <Icon v-if="participant.isVideoEnabled" name="camera" class="status-icon video" size="xs" title="Video On" />
+          <Icon v-if="participant.isVideoEnabled" name="video" class="status-icon video" size="xs" title="Video On" />
           <Icon v-if="participant.isScreenSharing" name="screen-share" class="status-icon screen" size="xs" title="Screen Sharing" />
         </div>
       </div>
