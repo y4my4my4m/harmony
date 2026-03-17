@@ -35,6 +35,7 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
 import { computed, watch } from 'vue'
 import { useUserData } from '@/composables/useUserData'
 import { useUnifiedEmoji } from '@/services/unifiedEmojiService'
+import { userDataService } from '@/services/userDataService'
 import { getEmojiUrl } from '@/utils/emojiUtils'
 import type { DisplayNamePart } from '@/types'
 
@@ -43,6 +44,7 @@ type RenderPart =
   | { type: 'unicode-emoji'; unicode: string; svgUrl: string | null }
 
 const UNICODE_EMOJI_REGEX = /[\u{1F1E6}-\u{1F1FF}]{2}|(\p{Emoji_Presentation}|\p{Emoji}\uFE0F)(\u200D(\p{Emoji_Presentation}|\p{Emoji}\uFE0F))*/gu
+const SHORTCODE_REGEX = /:([a-zA-Z0-9_+-]+):/
 
 const props = defineProps<{
   userId?: string
@@ -79,9 +81,25 @@ const resolvedParts = computed<DisplayNamePart[] | undefined>(() => {
  * and resolve them through the current emoji pack (twemoji/mutant/native).
  */
 const finalParts = computed<RenderPart[] | undefined>(() => {
-  const parts = resolvedParts.value
+  let parts = resolvedParts.value
+
+  // When the cache doesn't have resolved parts, try resolving shortcodes
+  // directly from the plain name. This handles the case where the user
+  // isn't in the cache yet or their displayNameParts weren't resolved
+  // (e.g. emoji service loaded after profile was cached).
   if (!parts || parts.length === 0) {
-    // Even without shortcode parts, the plain name might contain unicode emojis
+    const text = plainName.value
+    if (!text) return undefined
+
+    if (SHORTCODE_REGEX.test(text) && emojiPackLoaded.value) {
+      const resolved = userDataService.resolveDisplayNameParts(text)
+      if (resolved && resolved.length > 0) {
+        parts = resolved
+      }
+    }
+  }
+
+  if (!parts || parts.length === 0) {
     const text = plainName.value
     if (!text) return undefined
     const processed = processTextForUnicodeEmojis(text)
