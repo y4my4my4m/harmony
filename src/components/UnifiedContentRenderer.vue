@@ -51,7 +51,7 @@
         >
           <template v-if="part.userId">
             <span class="mention-at">@</span>
-            <DisplayName :userId="part.userId" :fallback="part.username" :truncate="false" />
+            <DisplayName :userId="part.userId" :fallback="part.displayName || part.username" :truncate="false" />
           </template>
           <template v-else>{{ renderer.formatMentionDisplay(part) }}</template>
         </span>

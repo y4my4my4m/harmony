@@ -139,7 +139,7 @@
 
         <!-- Custom Status (global, for any user with one set) -->
         <div v-if="customStatusDisplay" class="custom-status-section">
-          <span class="custom-status-label">Custom Status</span>
+          <span class="custom-status-label">Status</span>
           <span class="custom-status-text">{{ customStatusDisplay }}</span>
         </div>
 
