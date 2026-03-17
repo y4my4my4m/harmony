@@ -58,7 +58,7 @@
       </div>
       <button
         v-else
-        @click="$emit('load-more')"
+        @click="tryLoadMore()"
         class="load-more-btn"
       >
         Load More
@@ -68,7 +68,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted, onUnmounted, watch } from 'vue'
+import { computed, ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useVirtualizer } from '@tanstack/vue-virtual'
 import MonyPost from '@/components/activitypub/MonyPost.vue'
 import Icon from '@/components/common/Icon.vue'
@@ -84,7 +84,6 @@ interface Props {
   emptyIcon?: string
   emptyAction?: string
   postProps?: Record<string, any>
-  /** Optional: register scroll element for parent (e.g. composer auto-hide) */
   registerScroll?: (el: HTMLElement | null) => void
 }
 
@@ -100,8 +99,6 @@ const props = withDefaults(defineProps<Props>(), {
   postProps: () => ({}),
   registerScroll: undefined
 })
-
-const propsWithRegister = props as typeof props & { registerScroll?: (el: HTMLElement | null) => void }
 
 const emit = defineEmits<{
   'load-more': []
@@ -119,12 +116,15 @@ const emit = defineEmits<{
 const scrollContainer = ref<HTMLDivElement | null>(null)
 const sentinelRef = ref<HTMLDivElement | null>(null)
 
+// Prevents duplicate load-more emits between the emit and the parent setting isLoading
+let loadPending = false
+
 // --- Virtual scrolling ---
 const rowVirtualizer = useVirtualizer(computed(() => ({
   count: props.posts.length,
   getScrollElement: () => scrollContainer.value,
   estimateSize: () => 300,
-  overscan: 3,
+  overscan: 5,
 })))
 
 const virtualRows = computed(() => rowVirtualizer.value.getVirtualItems())
@@ -135,8 +135,14 @@ const measureElement = (el: any) => {
   rowVirtualizer.value.measureElement(el)
 }
 
-// --- Infinite scroll via IntersectionObserver ---
+// --- Infinite scroll ---
 let observer: IntersectionObserver | null = null
+
+const tryLoadMore = () => {
+  if (!props.hasMore || props.isLoading || loadPending) return
+  loadPending = true
+  emit('load-more')
+}
 
 const setupObserver = () => {
   if (observer) observer.disconnect()
@@ -144,17 +150,24 @@ const setupObserver = () => {
 
   observer = new IntersectionObserver(
     (entries) => {
-      if (entries[0]?.isIntersecting && props.hasMore && !props.isLoading) {
-        emit('load-more')
-      }
+      if (entries[0]?.isIntersecting) tryLoadMore()
     },
-    { root: scrollContainer.value, rootMargin: '200px' }
+    { root: scrollContainer.value, rootMargin: '300px' }
   )
   observer.observe(sentinelRef.value)
 }
 
+// When loading finishes, reset guard and reconnect observer so it
+// re-evaluates intersection (fires again if sentinel is still visible).
+watch(() => props.isLoading, (loading, wasLoading) => {
+  if (wasLoading && !loading) {
+    loadPending = false
+    nextTick(setupObserver)
+  }
+})
+
 watch([() => props.hasMore, sentinelRef], () => {
-  setupObserver()
+  nextTick(setupObserver)
 })
 
 onMounted(() => {
@@ -179,7 +192,9 @@ onUnmounted(() => {
   width: 100%;
   overflow-y: auto;
   padding: 20px 0;
-  height: calc(100% - 4px);
+  flex: 1;
+  min-height: 0;
+  height: 100%; /* fallback for non-flex parents (e.g. ListDetailView) */
 }
 
 .posts-list {
