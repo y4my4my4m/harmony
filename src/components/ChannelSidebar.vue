@@ -43,17 +43,17 @@
               :class="['channel-item', { 
                 'selected': element.id === currentChannelId && !selectedThreadId,
                 'dragging': dragState.isDragging && dragState.draggedItem?.id === element.id,
-                'voice-channel': element.type === 1,
-                'voice-connected': element.type === 1 && isUserInVoiceChannel(element.id),
+                'voice-channel': isVoiceType(element.type),
+                'voice-connected': isVoiceType(element.type) && isUserInVoiceChannel(element.id),
                 'channel-unread': hasUnreadMessages(element.id) && element.id !== currentChannelId
               }]" 
-              @click="element.type === 1 ? handleVoiceChannelClick(element.id) : selectChannel(element.id)"
+              @click="isVoiceType(element.type) ? handleVoiceChannelClick(element.id) : selectChannel(element.id)"
               @contextmenu="openChannelContextMenu($event, element)"
               :style="{ cursor: getDragCursor('channel', dragState.isDragging && dragState.draggedItem?.id === element.id) }"
             >
               <div class="unread-dot" v-if="hasUnreadMessages(element.id) && element.id !== currentChannelId"></div>
               <div class="channel-content">
-                <HashTagIcon v-if="element.type === 0" />
+                <HashTagIcon v-if="!isVoiceType(element.type)" />
                 <SpeakerIcon v-else /> 
                 <span class="channel-name">{{ element.name }}</span>
               </div>
@@ -61,7 +61,7 @@
                 {{ getChannelUnreadMentions(element.id) > 99 ? '99+' : getChannelUnreadMentions(element.id) }}
               </div>
               <!-- Voice channel controls -->
-              <div v-if="element.type === 1" class="voice-controls">
+              <div v-if="isVoiceType(element.type)" class="voice-controls">
                 <span v-if="getUsersInVoiceChannel(element.id).length > 0" class="user-count">
                   {{ getUsersInVoiceChannel(element.id).length }}
                 </span>
@@ -76,13 +76,13 @@
             </div>
             <!-- Voice channel participants -->
             <VoiceChannelParticipants
-              v-if="element.type === 1 && isUserInVoiceChannel(element.id)"
+              v-if="isVoiceType(element.type) && isUserInVoiceChannel(element.id)"
               :participants="getVoiceChannelParticipants(element.id)"
               :session-start-time="getVoiceSessionStartTime(element.id)"
             />
             <!-- Voice channel users (for channels we're NOT in) -->
             <VoiceChannelUserList
-              v-else-if="element.type === 1 && getUsersInVoiceChannel(element.id).length > 0"
+              v-else-if="isVoiceType(element.type) && getUsersInVoiceChannel(element.id).length > 0"
               :user-ids="getUsersInVoiceChannel(element.id)"
               :call-start-time="getChannelCallStartTime(element.id)"
             />
@@ -168,17 +168,17 @@
                       'selected': currentChannelId === channel.id && !selectedThreadId,
                       'in-collapsed-category': collapsedCategories.has(category.id),
                       'dragging': dragState.isDragging && dragState.draggedItem?.id === channel.id,
-                      'voice-channel': channel.type === 1,
-                      'voice-connected': channel.type === 1 && isUserInVoiceChannel(channel.id),
+                      'voice-channel': isVoiceType(channel.type),
+                      'voice-connected': isVoiceType(channel.type) && isUserInVoiceChannel(channel.id),
                       'channel-unread': hasUnreadMessages(channel.id) && channel.id !== currentChannelId
                     }"
-                    @click="channel.type === 1 ? handleVoiceChannelClick(channel.id) : selectChannel(channel.id)"
+                    @click="isVoiceType(channel.type) ? handleVoiceChannelClick(channel.id) : selectChannel(channel.id)"
                     @contextmenu="openChannelContextMenu($event, channel)"
                     :style="{ cursor: getDragCursor('channel', dragState.isDragging && dragState.draggedItem?.id === channel.id) }"
                   >
                     <div class="unread-dot" v-if="hasUnreadMessages(channel.id) && channel.id !== currentChannelId"></div>
                     <div class="channel-content">
-                      <HashTagIcon v-if="channel.type === 0" />
+                      <HashTagIcon v-if="!isVoiceType(channel.type)" />
                       <SpeakerIcon v-else />
                       <span class="channel-name">{{ channel.name }}</span>
                     </div>
@@ -186,7 +186,7 @@
                       {{ getChannelUnreadMentions(channel.id) > 99 ? '99+' : getChannelUnreadMentions(channel.id) }}
                     </div>
                     <!-- Voice channel controls -->
-                    <div v-if="channel.type === 1" class="voice-controls">
+                    <div v-if="isVoiceType(channel.type)" class="voice-controls">
                       <span v-if="getUsersInVoiceChannel(channel.id).length > 0" class="user-count">
                         {{ getUsersInVoiceChannel(channel.id).length }}
                       </span>
@@ -201,13 +201,13 @@
                   </div>
                   <!-- Voice channel participants -->
                   <VoiceChannelParticipants
-                    v-if="channel.type === 1 && isUserInVoiceChannel(channel.id)"
+                    v-if="isVoiceType(channel.type) && isUserInVoiceChannel(channel.id)"
                     :participants="getVoiceChannelParticipants(channel.id)"
                     :session-start-time="getVoiceSessionStartTime(channel.id)"
                   />
                   <!-- Voice channel users (for channels we're NOT in) -->
                   <VoiceChannelUserList
-                    v-else-if="channel.type === 1 && getUsersInVoiceChannel(channel.id).length > 0"
+                    v-else-if="isVoiceType(channel.type) && getUsersInVoiceChannel(channel.id).length > 0"
                     :user-ids="getUsersInVoiceChannel(channel.id)"
                     :call-start-time="getChannelCallStartTime(channel.id)"
                   />
@@ -483,6 +483,8 @@ const { triggerVoice } = useHapticSettings();
 
 // Computed Properties
 // Only consider mobile if screen is actually small (touch-enabled desktops should still allow drag)
+const isVoiceType = (type: any): boolean => Number(type) === 1;
+
 const isMobile = computed(() => {
   const hasSmallScreen = window.innerWidth <= 768;
   const isTouchOnlyDevice = 'ontouchstart' in window && !window.matchMedia('(pointer: fine)').matches;
@@ -708,8 +710,9 @@ const selectChannel = (channelId: string) => {
 // Handler for voice channel clicks - Discord-like behavior
 // On mobile, show preview instead of auto-joining
 const handleVoiceChannelClick = async (channelId: string) => {
-  // If already in this voice channel, do nothing (clicking again doesn't disconnect)
+  // If already in this voice channel, just navigate to its text chat
   if (isUserInVoiceChannel(channelId)) {
+    selectChannel(channelId);
     return;
   }
   
@@ -723,7 +726,8 @@ const handleVoiceChannelClick = async (channelId: string) => {
     return;
   }
   
-  // Desktop: Join the voice channel directly
+  // Desktop: Navigate to channel text chat + join voice
+  selectChannel(channelId);
   await joinVoiceChannel(channelId);
 };
 
