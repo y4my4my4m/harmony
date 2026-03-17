@@ -1,8 +1,8 @@
 <template>
   <div v-if="reactions.length > 0" class="post-reactions">
-    <div class="reactions-container">
+    <TransitionGroup name="reaction-list" tag="div" class="reactions-container">
       <!-- Loading state -->
-      <div v-if="isLoadingReactions && reactions.length === 0" class="reaction-loading">
+      <div v-if="isLoadingReactions && reactions.length === 0" key="loading" class="reaction-loading">
         <div class="loading-spinner"></div>
       </div>
       
@@ -39,12 +39,12 @@
         
         <span class="reaction-count">{{ reaction.reaction_count }}</span>
       </div>
-    </div>
+    </TransitionGroup>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted } from 'vue';
+import { computed, onMounted, onUnmounted, TransitionGroup } from 'vue';
 import { debug } from '@/utils/debug'
 import { useAuthStore } from '@/stores/auth';
 import { useThemeStore } from '@/stores/useTheme';
@@ -431,5 +431,24 @@ defineExpose({
 @keyframes spin {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
+}
+
+.reaction-list-enter-active,
+.reaction-list-leave-active {
+  transition: all 0.2s ease;
+}
+
+.reaction-list-enter-from {
+  opacity: 0;
+  transform: scale(0.8);
+}
+
+.reaction-list-leave-to {
+  opacity: 0;
+  transform: scale(0.8);
+}
+
+.reaction-list-move {
+  transition: transform 0.2s ease;
 }
 </style>

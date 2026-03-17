@@ -39,6 +39,7 @@ export interface DMConversation {
   other_user?: DMUser // For direct conversations
   type?: string // 'direct' | 'group'
   participant_count?: number
+  is_muted?: boolean
   
   // Group conversation fields
   name?: string // Group name
@@ -920,6 +921,27 @@ export const useDMStore = defineStore('dm', () => {
         if (processedConv) {
           processedConversations.push(processedConv)
         }
+      }
+
+      // Batch-load mute states for all conversations
+      try {
+        const convIds = processedConversations.map(c => c.id)
+        const { data: mutedChannels } = await supabase
+          .from('notification_channels')
+          .select('conversation_id')
+          .eq('user_id', userId)
+          .in('conversation_id', convIds)
+          .is('channel_id', null)
+          .eq('muted', true)
+
+        if (mutedChannels) {
+          const mutedSet = new Set(mutedChannels.map(m => m.conversation_id))
+          for (const conv of processedConversations) {
+            conv.is_muted = mutedSet.has(conv.id)
+          }
+        }
+      } catch (e) {
+        debug.error('Failed to batch-load mute states:', e)
       }
       
       conversations.value = processedConversations

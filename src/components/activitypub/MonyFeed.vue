@@ -45,6 +45,7 @@
             @reblog="toggleReblog"
             @bookmark="toggleBookmark"
             @delete="deletePost"
+            @edit="handleEdit"
             @click="openPost"
             @show-conversation="showConversation"
             @hashtag-click="navigateToHashtag"
@@ -95,6 +96,17 @@
       @posted="handlePosted"
     />
 
+    <!-- Edit Composer Modal -->
+    <Composer
+      v-if="editingPost"
+      mode="modal"
+      type="edit"
+      :edit-post="editingPost"
+      :is-open="!!editingPost"
+      @close="editingPost = null"
+      @edited="handleEdited"
+    />
+
     <!-- Post Detail Modal -->
     <MonyPostDetail
       v-if="selectedPost"
@@ -141,6 +153,7 @@ const router = useRouter();
 // Refs
 const feedContainer = ref<HTMLElement>();
 const isManualLoading = ref(false);
+const editingPost = ref<TimelinePost | null>(null);
 
 // Computed properties
 const {
@@ -264,6 +277,22 @@ const deletePost = async (postId: string) => {
   if (confirm('Are you sure you want to delete this mony?')) {
     await activityPubStore.deletePost(postId);
   }
+};
+
+const handleEdit = (postId: string) => {
+  const feeds = [activityPubStore.homeFeed, activityPubStore.publicFeed, activityPubStore.localFeed];
+  for (const feed of feeds) {
+    const post = feed.posts.find(p => p.id === postId);
+    if (post) {
+      editingPost.value = post;
+      return;
+    }
+  }
+};
+
+const handleEdited = (post: any) => {
+  debug.log('✅ Post edited:', post.id);
+  editingPost.value = null;
 };
 
 const openPost = (post: TimelinePost) => {

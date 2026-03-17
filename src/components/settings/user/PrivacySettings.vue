@@ -546,6 +546,7 @@ import { ref, computed, onMounted } from 'vue'
 import { debug } from '@/utils/debug'
 import type { User } from '@/types'
 import { useAuthStore } from '@/stores/auth'
+import { useActivityPubStore } from '@/stores/useActivityPub'
 import { supabase } from '@/supabase'
 import { useToast } from 'vue-toastification'
 import QRCode from 'qrcode'
@@ -623,6 +624,9 @@ const settings = ref({
 const originalSettings = ref({ ...settings.value })
 const blockedUsers = ref<User[]>([])
 const mutedUsers = ref<User[]>([])
+const activityPubStore = useActivityPubStore()
+let blocksMutesLastFetchedAt = 0
+const CACHE_TTL_MS = 30000
 
 // Computed
 const hasChanges = computed(() => {
@@ -660,6 +664,7 @@ const unblockUser = async (userId: string) => {
     if (error) throw error
 
     blockedUsers.value = blockedUsers.value.filter(user => user.id !== userId)
+    activityPubStore.loadBlockingData()
     toast.success('User unblocked')
   } catch (error: any) {
     debug.error('Failed to unblock user:', error)
@@ -681,6 +686,7 @@ const unmuteUser = async (userId: string) => {
     if (error) throw error
 
     mutedUsers.value = mutedUsers.value.filter(user => user.id !== userId)
+    activityPubStore.loadBlockingData()
     toast.success('User unmuted')
   } catch (error: any) {
     debug.error('Failed to unmute user:', error)
@@ -1081,7 +1087,7 @@ onMounted(async () => {
   settings.value.stripUrlTrackers = isUrlTrackingStrippingEnabled()
 
   const profileId = props.profile?.id
-  if (profileId) {
+  if (profileId && Date.now() - blocksMutesLastFetchedAt > CACHE_TTL_MS) {
     // Load blocked users
     try {
       const { data: blocks, error: blocksError } = await supabase
@@ -1099,6 +1105,8 @@ onMounted(async () => {
         if (profiles) {
           blockedUsers.value = profiles as User[]
         }
+      } else {
+        blockedUsers.value = []
       }
     } catch (e) {
       debug.error('Failed to load blocked users:', e)
@@ -1121,11 +1129,17 @@ onMounted(async () => {
         if (profiles) {
           mutedUsers.value = profiles as User[]
         }
+      } else {
+        mutedUsers.value = []
       }
     } catch (e) {
       debug.error('Failed to load muted users:', e)
     }
 
+    blocksMutesLastFetchedAt = Date.now()
+  }
+
+  if (profileId) {
     // Load notification preferences for privacy settings
     try {
       const { data: prefs } = await supabase

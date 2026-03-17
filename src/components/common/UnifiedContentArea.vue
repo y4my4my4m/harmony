@@ -80,9 +80,21 @@
           @reblog="$emit('reblog-post', $event)"
           @bookmark="$emit('bookmark-post', $event)"
           @delete="$emit('delete-post', $event)"
+          @edit="handleEditPost"
           @user-click="$emit('show-user-profile', $event)"
           @hashtag-click="handleHashtagClick"
           @show-conversation="handleShowConversation"
+        />
+
+        <!-- Edit Composer Modal -->
+        <Composer
+          v-if="editingPost"
+          mode="modal"
+          type="edit"
+          :edit-post="editingPost"
+          :is-open="!!editingPost"
+          @close="editingPost = null"
+          @edited="editingPost = null"
         />
       </div>
     </div>
@@ -90,7 +102,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import ChatComponent from '@/components/ChatComponent.vue'
@@ -227,6 +239,15 @@ const handleHashtagClick = (tag: string) => {
 
 const handleShowConversation = (postId: string) => {
   router.push({ name: 'PostDetail', params: { postId } })
+}
+
+const editingPost = ref<TimelinePost | null>(null)
+
+const handleEditPost = (postId: string) => {
+  const post = props.posts.find(p => p.id === postId) || props.specialViewData?.find(p => p.id === postId)
+  if (post) {
+    editingPost.value = post
+  }
 }
 
 // Use the post interactions composable for all post-related actions

@@ -133,6 +133,7 @@
             @reblog="handleReblog"
             @bookmark="handleBookmark"
             @delete="handleDelete"
+            @edit="handleEdit"
             @user-click="handleUserClick"
           />
         </article>
@@ -147,6 +148,17 @@
             @close="showReplyComposer = false"
           />
         </div>
+
+        <!-- Edit composer modal -->
+        <Composer
+          v-if="editingPost"
+          mode="modal"
+          type="edit"
+          :edit-post="editingPost"
+          :is-open="!!editingPost"
+          @close="editingPost = null"
+          @edited="handleEdited"
+        />
       </div>
     </div>
   </div>
@@ -233,6 +245,7 @@ const postWithContext = ref<PostWithContext | null>(null);
 const showReplyComposer = ref(false);
 const replyToPost = ref<TimelinePost | null>(null);
 const replyingToPostId = ref<string | null>(null);
+const editingPost = ref<TimelinePost | null>(null);
 const postContainer = ref<HTMLElement>();
 const postRefs = ref<Record<string, HTMLElement>>({});
 const maxThreadDepth = ref(10);
@@ -469,6 +482,18 @@ const handleDelete = async (postId: string) => {
     debug.error('❌ Failed to delete post:', err);
     toast.error('Failed to delete post');
   }
+};
+
+const handleEdit = (postId: string) => {
+  const post = allPostsInOrder.value.find(p => p.id === postId);
+  if (post) {
+    editingPost.value = post;
+  }
+};
+
+const handleEdited = (post: any) => {
+  debug.log('✅ Post edited:', post.id);
+  editingPost.value = null;
 };
 
 const handleFavorite = async (postId: string) => {

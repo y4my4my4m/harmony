@@ -48,6 +48,7 @@
           @reblog="$emit('reblog', $event)"
           @bookmark="$emit('bookmark', $event)"
           @delete="$emit('delete', $event)"
+          @edit="$emit('edit', $event)"
           @user-click="$emit('user-click', $event)"
           @hashtag-click="$emit('hashtag-click', $event)"
           @show-conversation="$emit('show-conversation', $event)"
@@ -98,6 +99,7 @@ const emit = defineEmits<{
   'reblog': [postId: string]
   'bookmark': [postId: string]
   'delete': [postId: string]
+  'edit': [postId: string]
   'user-click': [user: any]
   'hashtag-click': [tag: string]
   'show-conversation': [postId: string]

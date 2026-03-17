@@ -286,7 +286,7 @@ import GroupIcon from '@/components/common/GroupIcon.vue'
 import GroupSettingsModal from '@/components/dm/GroupSettingsModal.vue'
 import MessageSearchModal from '@/components/search/MessageSearchModal.vue'
 import { useUserData } from '@/composables/useUserData'
-import type { DMConversation } from '@/stores/useDM'
+import { useDMStore, type DMConversation } from '@/stores/useDM'
 import { getAvatarUrl } from '@/utils/avatarUtils'
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel'
 import { useAuthStore } from '@/stores/auth'
@@ -787,6 +787,13 @@ const handleNotificationSettings = async () => {
         })
 
       if (error) throw error
+    }
+
+    // Sync mute state in DM store for sidebar display
+    const dmStore = useDMStore()
+    const conv = dmStore.conversations.find(c => c.id === props.conversation.id)
+    if (conv) {
+      conv.is_muted = newMuted
     }
 
     toast.success(newMuted ? 'Conversation muted' : 'Conversation unmuted')
