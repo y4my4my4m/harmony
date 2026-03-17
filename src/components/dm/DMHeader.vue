@@ -184,7 +184,7 @@
             :title="encryptionToggleTitle"
           >
             <Icon :name="encryptionEnabled ? 'lock' : 'unlock'" :size="16" />
-            <span>{{ encryptionEnabled ? 'Encryption On' : 'Encryption Off' }}</span>
+            <span>{{ encryptionEnabled ? 'Disable Encryption' : 'Enable Encryption' }}</span>
             <span v-if="encryptionLoading" class="loading-indicator">...</span>
           </button>
           
@@ -390,13 +390,14 @@ const encryptionToggleTitle = computed(() => {
 
 // Load encryption status
 async function loadEncryptionStatus() {
+  // Reset immediately so stale state from previous conversation isn't visible
+  encryptionEnabled.value = false
+  encryptionLoading.value = true
   try {
-    // Check if user has encryption set up
     const { megolmMessageEncryptionService } = await import('@/services/encryption/MegolmMessageEncryptionService')
     userHasEncryption.value = megolmMessageEncryptionService.isUnlocked()
     debug.log('🔐 User has encryption:', userHasEncryption.value)
     
-    // Check conversation encryption setting
     const { data } = await supabase
       .from('conversation_encryption_settings')
       .select('encryption_enabled')
@@ -407,6 +408,9 @@ async function loadEncryptionStatus() {
     debug.log('🔐 Conversation encryption enabled:', encryptionEnabled.value)
   } catch (error) {
     debug.warn('Failed to load encryption status:', error)
+    encryptionEnabled.value = false
+  } finally {
+    encryptionLoading.value = false
   }
 }
 
@@ -423,9 +427,23 @@ async function toggleEncryption() {
     return
   }
   
+  const newState = !encryptionEnabled.value
+
+  // Warn about federated users when enabling encryption
+  if (newState && isFederatedUser.value) {
+    const confirmed = confirm(
+      'The other user is on a federated server that may not support Harmony\'s end-to-end encryption. ' +
+      'Encrypted messages may not be readable by them.\n\n' +
+      'Do you still want to enable encryption?'
+    )
+    if (!confirmed) {
+      closeActionsMenu()
+      return
+    }
+  }
+
   encryptionLoading.value = true
   try {
-    const newState = !encryptionEnabled.value
     debug.log('🔐 Setting encryption to:', newState)
     
     // Upsert the setting
@@ -445,6 +463,12 @@ async function toggleEncryption() {
     }
     
     encryptionEnabled.value = newState
+
+    // Notify ChatComponent to refresh its encryption indicator
+    window.dispatchEvent(new CustomEvent('dm-encryption-toggled', {
+      detail: { conversationId: props.conversation.id, enabled: newState }
+    }))
+
     toast.success(newState ? 'Encryption enabled for this conversation' : 'Encryption disabled for this conversation')
     closeActionsMenu()
   } catch (error) {
