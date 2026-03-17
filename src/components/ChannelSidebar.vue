@@ -245,42 +245,44 @@
       @close="closeInviteModal"
     />
 
-    <!-- Context Menus -->
-    <ChannelContextMenu
-      :is-visible="showChannelContextMenu"
-      :position="contextMenuPosition"
-      :channel="selectedChannel"
-      @close="closeContextMenus"
-      @invite-users="handleInviteUsers"
-      @edit-channel="handleEditChannel"
-      @delete-channel="handleDeleteChannel"
-    />
+    <!-- Context Menus (teleported to body to avoid will-change:transform breaking position:fixed) -->
+    <Teleport to="body">
+      <ChannelContextMenu
+        :is-visible="showChannelContextMenu"
+        :position="contextMenuPosition"
+        :channel="selectedChannel"
+        @close="closeContextMenus"
+        @invite-users="handleInviteUsers"
+        @edit-channel="handleEditChannel"
+        @delete-channel="handleDeleteChannel"
+      />
 
-    <CategoryContextMenu
-      :is-visible="showCategoryContextMenu"
-      :position="contextMenuPosition"
-      :category="selectedCategory"
-      @close="closeContextMenus"
-      @create-channel="handleCreateChannelInCategory"
-      @edit-category="handleEditCategory"
-      @delete-category="handleDeleteCategory"
-    />
+      <CategoryContextMenu
+        :is-visible="showCategoryContextMenu"
+        :position="contextMenuPosition"
+        :category="selectedCategory"
+        @close="closeContextMenus"
+        @create-channel="handleCreateChannelInCategory"
+        @edit-category="handleEditCategory"
+        @delete-category="handleDeleteCategory"
+      />
 
-    <ThreadContextMenu
-      :is-visible="showThreadContextMenu"
-      :position="contextMenuPosition"
-      :thread="selectedThread"
-      :server-id="currentServer?.id"
-      @close="closeContextMenus"
-      @leave="handleLeaveThread"
-      @edit="handleEditThread"
-      @open-split-view="handleOpenSplitView"
-      @close-thread="handleCloseThread"
-      @reopen="handleReopenThread"
-      @lock="handleLockThread"
-      @unlock="handleUnlockThread"
-      @delete="handleDeleteThread"
-    />
+      <ThreadContextMenu
+        :is-visible="showThreadContextMenu"
+        :position="contextMenuPosition"
+        :thread="selectedThread"
+        :server-id="currentServer?.id"
+        @close="closeContextMenus"
+        @leave="handleLeaveThread"
+        @edit="handleEditThread"
+        @open-split-view="handleOpenSplitView"
+        @close-thread="handleCloseThread"
+        @reopen="handleReopenThread"
+        @lock="handleLockThread"
+        @unlock="handleUnlockThread"
+        @delete="handleDeleteThread"
+      />
+    </Teleport>
 
     <!-- Edit Modals -->
     <ChannelEditModal
