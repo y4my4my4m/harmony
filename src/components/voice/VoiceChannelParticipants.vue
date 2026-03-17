@@ -14,10 +14,10 @@
         />
         <span class="participant-name"><DisplayName :userId="participant.userId" /></span>
         <div class="participant-status">
-          <span v-if="participant.isMuted" class="status-icon muted" title="Muted">🔇</span>
-          <span v-if="participant.isDeafened" class="status-icon deafened" title="Deafened">🔇</span>
-          <span v-if="participant.isVideoEnabled" class="status-icon video" title="Video On">📹</span>
-          <span v-if="participant.isScreenSharing" class="status-icon screen" title="Screen Sharing">🖥️</span>
+          <Icon v-if="participant.isMuted" name="mic-off" class="status-icon muted" size="xs" title="Muted" />
+          <Icon v-if="participant.isDeafened" name="headphones-off" class="status-icon deafened" size="xs" title="Deafened" />
+          <Icon v-if="participant.isVideoEnabled" name="camera" class="status-icon video" size="xs" title="Video On" />
+          <Icon v-if="participant.isScreenSharing" name="screen-share" class="status-icon screen" size="xs" title="Screen Sharing" />
         </div>
       </div>
     </div>
@@ -29,6 +29,7 @@ import { computed, ref, onMounted, onUnmounted } from 'vue';
 import { debug } from '@/utils/debug'
 import Avatar from '@/components/common/Avatar.vue';
 import DisplayName from '@/components/DisplayName.vue';
+import Icon from '@/components/common/Icon.vue';
 import { useUserData } from '@/composables/useUserData';
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
 import type { UserMediaState } from '@/services/unifiedWebRTC';
@@ -162,13 +163,16 @@ onUnmounted(() => {
 }
 
 .status-icon {
-  font-size: 10px;
-  opacity: 0.7;
+  opacity: 0.9;
+  flex-shrink: 0;
 }
 
-.status-icon.muted,
-.status-icon.deafened {
+.status-icon.muted {
   color: #f04747;
+}
+
+.status-icon.deafened {
+  color: #faa61a;
 }
 
 .status-icon.video {

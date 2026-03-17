@@ -58,7 +58,6 @@
           :class="['control-btn', 'mic-btn', { 
             active: !voiceStore.localState.isMuted && !voiceStore.localState.isDeafened,
             muted: voiceStore.localState.isMuted,
-            deafened: voiceStore.localState.isDeafened,
             'ptt-mode': isPTTMode,
             'ptt-active': isPTTActive
           }]"
@@ -234,7 +233,7 @@
           <button 
             @click.stop="voiceStore.toggleMute"
             class="mini-control-btn"
-            :class="{ muted: voiceStore.localState.isMuted || voiceStore.localState.isDeafened }"
+            :class="{ muted: voiceStore.localState.isMuted }"
             :title="voiceStore.localState.isMuted ? 'Unmute' : 'Mute'"
           >
             <Icon :name="voiceStore.localState.isMuted || voiceStore.localState.isDeafened ? 'mic-off' : 'mic'" />
