@@ -49,6 +49,7 @@
           @channel-selected="handleChannelSelected"
           @create-channel="handleCreateChannel"
           @conversation-selected="handleDMConversationSelected"
+          @open-thread="handleSelectThread"
         />
       </div>
 

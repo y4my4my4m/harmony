@@ -39,7 +39,7 @@
     <!-- Posts (virtualized) -->
     <PostsContainer
       :posts="posts"
-      :is-loading="isLoading && posts.length === 0"
+      :is-loading="isLoading || isLoadingMore"
       :has-more="hasMore"
       loading-message="Loading posts..."
       empty-title="No posts yet"

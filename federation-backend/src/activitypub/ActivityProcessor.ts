@@ -2203,19 +2203,20 @@ export class ActivityProcessor {
     }
 
     // Parse content - prefer harmony:rawContent for structured content
-    let content = object['harmony:rawContent'] || object.content || '';
-    
-    // If content is HTML string, convert to basic structure
-    if (typeof content === 'string') {
-      // Strip HTML tags for plain text
-      const plainText = content
-        .replace(/<br\s*\/?>/gi, '\n')
-        .replace(/<\/(?:p|div|li|blockquote|h[1-6])>/gi, '\n')
-        .replace(/<[^>]*>/g, ' ')
-        .replace(/[ \t]+/g, ' ')
-        .replace(/\n /g, '\n')
-        .trim();
-      content = [{ type: 'text', content: plainText }];
+    let content: any;
+    if (object['harmony:rawContent'] && Array.isArray(object['harmony:rawContent'])) {
+      content = object['harmony:rawContent'].map((part: any) => {
+        if (part.type === 'mention' && part.domain) {
+          return { ...part, isLocal: part.domain === config.INSTANCE_DOMAIN };
+        }
+        return part;
+      });
+    } else if (typeof object.content === 'string') {
+      content = noteToContent(object);
+    } else if (Array.isArray(object.content)) {
+      content = object.content;
+    } else {
+      content = [{ type: 'text', text: String(object.content || '') }];
     }
     
     // Convert remote emojis to URL-based format (like Discord bridge)

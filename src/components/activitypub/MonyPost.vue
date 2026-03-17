@@ -78,7 +78,7 @@
       <!-- Content Warning -->
       <div v-if="displayContentWarning" class="content-warning">
         <div class="cw-header">
-          <Icon name="warning" />
+          <Icon name="alert-triangle" />
           <span>{{ displayContentWarning }}</span>
         </div>
         <button 
@@ -2531,16 +2531,71 @@ const closeLightbox = () => {
   .post-content {
     padding: 0.75rem;
   }
-  
+
   .author-avatar {
     width: 36px;
     height: 36px;
   }
-  
+
+  /* 1. Post header: keep timestamp top-right, prevent overflow */
+  .post-header {
+    align-items: flex-start;
+  }
+
+  .author-info {
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .author-details {
+    overflow: hidden;
+  }
+
+  .author-name {
+    font-size: 0.85rem;
+  }
+
+  .author-handle {
+    font-size: 0.75rem;
+  }
+
+  .post-meta {
+    font-size: 0.75rem;
+    align-items: flex-end;
+    justify-content: flex-start;
+  }
+
+  .post-time {
+    white-space: nowrap;
+  }
+
+  /* 2. Smaller visibility icon on mobile */
+  .visibility-indicator {
+    font-size: 0.7rem;
+  }
+  .visibility-indicator :deep(svg) {
+    width: 12px;
+    height: 12px;
+  }
+
+  /* 3. Reply indicator: stack label+author, separate View thread button */
+  .reply-indicator-bar {
+    flex-wrap: wrap;
+    gap: 0.25rem;
+  }
+
+  .show-thread-btn {
+    width: 100%;
+    justify-content: center;
+    padding: 0.4rem 0.75rem;
+    white-space: nowrap;
+    margin-left: 0;
+  }
+
   .post-actions {
     gap: 0.5rem;
   }
-  
+
   .action-button {
     padding: 0.375rem;
   }

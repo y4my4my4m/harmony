@@ -764,6 +764,8 @@ export interface NotificationToast {
   avatar?: string;
   emojiUrl?: string; // For reaction notifications - emoji image URL
   emojiName?: string; // For reaction notifications - emoji name fallback
+  actorUserId?: string; // Profile ID of the actor for DisplayName rendering with custom emojis
+  titleSuffix?: string; // Part of the title after the actor name (used with actorUserId)
   actions?: ToastAction[];
   duration: number;
   timestamp: Date;
@@ -1238,9 +1240,19 @@ export interface MonyFeed {
 
 export interface TimelineOptions {
   limit?: number;
+  /** @deprecated Use `before` for reliable time-based pagination */
   max_id?: string;
   since_id?: string;
   min_id?: string;
+  /** ISO timestamp cursor — fetch posts created before this time */
+  before?: string;
+}
+
+/** Result from timeline fetches — used to set has_more from raw DB count before client-side filtering */
+export interface TimelineResult {
+  posts: TimelinePost[];
+  /** True if the DB returned a full page (raw count >= limit) — use for pagination, not filtered posts.length */
+  fullPage: boolean;
 }
 
 export type Follow = ActivityPubFollow;

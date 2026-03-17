@@ -77,7 +77,7 @@
         <!-- Chat Notifications -->
         <div class="notification-category">
           <div class="category-header">
-            <Icon name="message-circle" class="category-icon chat" />
+            <Icon name="message-circle" class="category-icon chat" :size="20" />
             <div class="category-info">
               <h4 class="category-title">{{ $t('navigation.chat') }} & {{ $t('activitypub.messages') }}</h4>
               <p class="category-description">Notifications from servers and direct messages</p>
@@ -1426,6 +1426,7 @@ font-size: 12px;
 .category-icon {
   width: 40px;
   height: 40px;
+  min-width: 40px;
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -1433,6 +1434,8 @@ font-size: 12px;
   color: var(--text-primary);
   font-size: 18px;
   padding: 8px;
+  overflow: hidden;
+  flex-shrink: 0;
 }
 
 .category-icon.chat {

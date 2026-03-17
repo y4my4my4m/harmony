@@ -471,6 +471,7 @@ export class CoreMessageService {
           content: finalContent,
           encrypted,
           encryption_metadata: encryptionMetadata,
+          updated_at: new Date().toISOString(),
         })
         .eq('id', messageId)
         .select('*')
@@ -655,18 +656,25 @@ export class CoreMessageService {
         throw this.createError('FETCH_REACTIONS_FAILED', error.message, error)
       }
 
-      // SIMPLIFIED: Only support NEW format (migration fixed the database)
-      const transformedReactions = reactions?.map(reaction => ({
-        emoji_id: reaction.emoji.id,
-        emoji: {
-          id: reaction.emoji.id,
-          name: reaction.emoji.name,
-          url: reaction.emoji.url
-        },
-        count: reaction.count,
-        reactions: Array.isArray(reaction.reactions) ? reaction.reactions : [],
-        message_id_of_reactions: reaction.message_id_of_reactions
-      })) || []
+      const transformedReactions = reactions?.map(reaction => {
+        // Native emoji (is_native=true) have no entry in the emojis table,
+        // so emoji_id must be null — findReactionGroup relies on this to
+        // distinguish UUID-based custom emoji from string-based native emoji.
+        const isNative = reaction.emoji?.is_native === true
+        return {
+          emoji_id: isNative ? null : reaction.emoji.id,
+          emoji: {
+            id: reaction.emoji.id,
+            name: reaction.emoji.name,
+            url: reaction.emoji.url || '',
+            content: reaction.emoji.content,
+            is_native: isNative
+          },
+          count: reaction.count,
+          reactions: Array.isArray(reaction.reactions) ? reaction.reactions : [],
+          message_id_of_reactions: reaction.message_id_of_reactions
+        }
+      }) || []
       debug.log(`✅ Core: Fetched ${transformedReactions.length} reaction groups for message: ${messageId}`)
       return transformedReactions
     } catch (error) {
@@ -712,12 +720,15 @@ export class CoreMessageService {
           groupedReactions[messageId] = []
         }
         
+        const isNative = !reaction.emoji_id && !!reaction.custom_emoji_content
         groupedReactions[messageId].push({
-          emoji_id: reaction.emoji_id,
+          emoji_id: reaction.emoji_id || null,
           emoji: {
-            id: reaction.emoji_id,
-            name: reaction.emoji_name || 'unknown',
-            url: reaction.emoji_url || ''
+            id: reaction.emoji_id || reaction.custom_emoji_content,
+            name: reaction.emoji_name || reaction.custom_emoji_content || 'unknown',
+            url: reaction.emoji_url || '',
+            content: reaction.custom_emoji_content,
+            is_native: isNative
           },
           count: reaction.reaction_count || 0,
           reactions: Array.isArray(reaction.users) ? reaction.users : []

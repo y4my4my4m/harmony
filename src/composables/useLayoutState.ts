@@ -1,5 +1,8 @@
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { debug } from '@/utils/debug'
+
+const STORAGE_KEY_ACTIVITYPUB_RIGHT_SIDEBAR = 'harmony_activitypub_right_sidebar_open'
 
 // Global layout state
 const leftSidebarOpen = ref(false)
@@ -47,10 +50,33 @@ const handleResize = () => {
 }
 
 export function useLayoutState() {
+  const route = useRoute()
+
+  const isActivityPubRoute = (): boolean => {
+    const p = route.path
+    return p.startsWith('/social') || p.startsWith('/posts')
+  }
+
+  const restoreActivityPubRightSidebar = () => {
+    if (typeof window === 'undefined' || isMobile.value) return
+    const saved = localStorage.getItem(STORAGE_KEY_ACTIVITYPUB_RIGHT_SIDEBAR)
+    if (saved !== null) {
+      rightSidebarOpen.value = saved === 'true'
+    }
+  }
+
+  const persistActivityPubRightSidebar = () => {
+    if (typeof window === 'undefined' || !isActivityPubRoute()) return
+    localStorage.setItem(STORAGE_KEY_ACTIVITYPUB_RIGHT_SIDEBAR, String(rightSidebarOpen.value))
+  }
+
   // Initialize mobile detection on mount
   onMounted(() => {
     if (typeof window !== 'undefined') {
       checkMobileDevice()
+      if (!isMobile.value && isActivityPubRoute()) {
+        restoreActivityPubRightSidebar()
+      }
       window.addEventListener('resize', handleResize)
     }
   })
@@ -58,6 +84,28 @@ export function useLayoutState() {
   onBeforeUnmount(() => {
     if (typeof window !== 'undefined') {
       window.removeEventListener('resize', handleResize)
+    }
+  })
+
+  // Restore ActivityPub right sidebar when navigating to social/posts
+  watch(
+    () => route.path,
+    (path) => {
+      if ((path.startsWith('/social') || path.startsWith('/posts')) && !isMobile.value) {
+        restoreActivityPubRightSidebar()
+      }
+    }
+  )
+
+  // Persist ActivityPub right sidebar when toggled while on social/posts
+  watch(rightSidebarOpen, () => {
+    persistActivityPubRightSidebar()
+  })
+
+  // Restore ActivityPub right sidebar when resizing from mobile to desktop
+  watch(isMobile, (mobile, wasMobile) => {
+    if (wasMobile && !mobile && isActivityPubRoute()) {
+      restoreActivityPubRightSidebar()
     }
   })
 

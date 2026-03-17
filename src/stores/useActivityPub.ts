@@ -1426,15 +1426,64 @@ export const useActivityPubStore = defineStore('activitypub', {
     },
 
     /**
+     * Batch-fetch remote reactions for all remote posts in a single request,
+     * preventing the N+1 per-post fetch-reactions calls.
+     */
+    async batchFetchRemoteReactions(posts: TimelinePost[]) {
+      const { fetchedReactionsThisSession } = await import('@/composables/useRemotePostSync');
+      const remotePosts = posts.filter(p => !p.is_local && p.ap_id && !fetchedReactionsThisSession.has(p.id));
+      if (remotePosts.length === 0) return;
+
+      // Mark all as fetched upfront so individual MonyPost components skip their own fetch
+      for (const p of remotePosts) fetchedReactionsThisSession.add(p.id);
+
+      try {
+        const batchPayload = remotePosts.map(p => ({
+          post_ap_id: p.ap_id!,
+          post_id: p.id,
+        }));
+
+        const response = await fetch(`${this.federationApiUrl}/fetch-reactions-batch`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ posts: batchPayload }),
+        });
+
+        if (!response.ok) return;
+
+        const { results } = await response.json();
+        if (!results) return;
+
+        for (const post of remotePosts) {
+          const result = results[post.ap_id!];
+          if (!result?.success) continue;
+
+          if (result.remote_reactions) {
+            this.updatePostMetadataInAllFeeds(post.id, {
+              remote_reactions: result.remote_reactions,
+              remote_reactions_fetched_at: new Date().toISOString(),
+            });
+          }
+          if (result.favorites_count !== undefined) {
+            this.updatePostFieldInAllFeeds(post.id, 'favorites_count', result.favorites_count);
+          }
+        }
+
+        debug.log(`📬 Batch-fetched remote reactions for ${remotePosts.length} posts`);
+      } catch (error) {
+        debug.warn('Batch remote reactions fetch failed (non-blocking):', error);
+      }
+    },
+
+    /**
      * Load the user's home timeline (with cache support)
      */
-    async loadHomeFeed(maxId?: string) {
-      // On first load (no maxId), try cache first for instant display
-      if (!maxId) {
+    async loadHomeFeed(before?: string) {
+      if (this.isLoadingFeed) return
+      if (!before) {
         const hasCachedPosts = this.loadTimelineFromCache();
         if (hasCachedPosts) {
           debug.log('📋 Showing cached timeline, fetching fresh in background...');
-          // Don't block UI - fetch fresh data in background
           this.refreshHomeFeedInBackground();
           return;
         }
@@ -1442,16 +1491,14 @@ export const useActivityPubStore = defineStore('activitypub', {
       
       this.isLoadingFeed = true;
       try {
-        // OPTIMIZED: Use cached auth context
         const authUser = await authContextService.getCurrentAuthUser();
 
-        // Use activityPubService for timeline loading
-        const posts = await activityPubService.getUserTimeline(
+        const { posts, fullPage } = await activityPubService.getUserTimeline(
           authUser.id,
           'home',
           { 
             limit: 20,
-            max_id: maxId 
+            before
           }
         );
         
@@ -1460,7 +1507,6 @@ export const useActivityPubStore = defineStore('activitypub', {
           const postReactionsStore = usePostReactionsStore();
           const postIds = posts.map(p => p.id)
           debug.log(`🔄 Batch loading reactions for ${postIds.length} home timeline posts`)
-          // Force batch fetch to ensure reactions load before components render
           await postReactionsStore.fetchMultiplePostReactions(postIds, true)
         }
         
@@ -1470,19 +1516,20 @@ export const useActivityPubStore = defineStore('activitypub', {
         // BATCH LOAD REBLOG ORIGINAL INTERACTIONS to prevent N+1 queries
         const processedPosts = await this.batchFetchReblogInteractions(posts);
         
-        if (maxId) {
+        if (before) {
           this.homeFeed.posts.push(...processedPosts);
         } else {
           this.homeFeed.posts = processedPosts;
-          // Clear unread count when refreshing home feed
           this.unreadCount = 0;
-          // Save to cache for next visit
           this.saveTimelineToCache();
         }
 
-        this.homeFeed.has_more = posts.length === 20;
-        this.homeFeed.cursor = posts[posts.length - 1]?.id;
+        this.homeFeed.has_more = fullPage;
+        this.homeFeed.cursor = posts[posts.length - 1]?.created_at;
         this.hasEverLoadedTimeline = true;
+
+        // Batch-fetch remote reactions (non-blocking, prevents per-post N+1)
+        this.batchFetchRemoteReactions(processedPosts);
 
       } catch (error) {
         debug.error('Failed to load home feed:', error);
@@ -1500,7 +1547,7 @@ export const useActivityPubStore = defineStore('activitypub', {
         const context = await authContextService.getCurrentContext();
         if (!context.isAuthenticated) return;
 
-        const posts = await activityPubService.getUserTimeline(
+        const { posts, fullPage } = await activityPubService.getUserTimeline(
           context.authUser.id,
           'home',
           { limit: 20 }
@@ -1520,13 +1567,16 @@ export const useActivityPubStore = defineStore('activitypub', {
         
         // Update with fresh data
         this.homeFeed.posts = processedPosts;
-        this.homeFeed.has_more = posts.length === 20;
-        this.homeFeed.cursor = posts[posts.length - 1]?.id;
+        this.homeFeed.has_more = fullPage;
+        this.homeFeed.cursor = posts[posts.length - 1]?.created_at;
         this.unreadCount = 0;
         
         // Update cache with fresh data
         this.saveTimelineToCache();
         debug.log('✅ Background refresh complete');
+
+        // Batch-fetch remote reactions (non-blocking)
+        this.batchFetchRemoteReactions(processedPosts);
       } catch (error) {
         debug.warn('Background refresh failed (cached data still shown):', error);
       }
@@ -1535,13 +1585,13 @@ export const useActivityPubStore = defineStore('activitypub', {
     /**
      * Load the public timeline
      */
-    async loadPublicFeed(maxId?: string) {
+    async loadPublicFeed(before?: string) {
+      if (this.isLoadingFeed) return
       this.isLoadingFeed = true;
       try {
-        // Use enhanced public timeline to ensure federated posts are included
-        const posts = await activityPubService.getEnhancedPublicTimeline({
+        const { posts, fullPage } = await activityPubService.getEnhancedPublicTimeline({
           limit: 20,
-          max_id: maxId
+          before
         });
         
         // BATCH LOAD REACTIONS for all posts to prevent N+1 queries
@@ -1559,41 +1609,22 @@ export const useActivityPubStore = defineStore('activitypub', {
         // BATCH LOAD REBLOG ORIGINAL INTERACTIONS to prevent N+1 queries
         const processedPosts = await this.batchFetchReblogInteractions(posts);
         
-        if (maxId) {
+        if (before) {
           this.publicFeed.posts.push(...processedPosts);
         } else {
           this.publicFeed.posts = processedPosts;
         }
 
-        // DEBUG: Log the problematic post's data when loaded
-        const debugPost = posts.find(p => p.id === '968f8b30-8de1-4e0f-b9bb-87d8085330a7');
-        if (debugPost) {
-          debug.log(`🔍 DEBUG - Timeline loaded post ${debugPost.id}:`, {
-            is_favorited: debugPost.is_favorited,
-            favorites_count: debugPost.favorites_count,
-            typeof_is_favorited: typeof debugPost.is_favorited,
-            full_post: debugPost
-          });
-        }
-
-        // DEBUG: Check the post data after store assignment
-        const storePost = this.publicFeed.posts.find(p => p.id === '968f8b30-8de1-4e0f-b9bb-87d8085330a7');
-        if (storePost) {
-          debug.log(`🔍 DEBUG - Post in store after assignment:`, {
-            is_favorited: storePost.is_favorited,
-            favorites_count: storePost.favorites_count,
-            typeof_is_favorited: typeof storePost.is_favorited,
-            keys: Object.keys(storePost)
-          });
-        }
-
-        this.publicFeed.has_more = posts.length === 20;
-        this.publicFeed.cursor = posts[posts.length - 1]?.id;
+        this.publicFeed.has_more = fullPage;
+        this.publicFeed.cursor = posts[posts.length - 1]?.created_at;
 
         // Debug logging for federated content
         const localCount = posts.filter(p => p.is_local).length;
         const federatedCount = posts.filter(p => !p.is_local).length;
         debug.log(`🌐 Public feed updated: ${localCount} local + ${federatedCount} federated = ${posts.length} total posts`);
+
+        // Batch-fetch remote reactions (non-blocking)
+        this.batchFetchRemoteReactions(processedPosts);
 
       } catch (error) {
         debug.error('Failed to load public feed:', error);
@@ -1605,14 +1636,16 @@ export const useActivityPubStore = defineStore('activitypub', {
     /**
      * Load the local timeline
      */
-    async loadLocalFeed(maxId?: string) {
+    async loadLocalFeed(before?: string) {
+      if (this.isLoadingFeed) return
       this.isLoadingFeed = true;
       try {
-        // Use activityPubService for local timeline
-        const posts = await activityPubService.getLocalTimeline({
-          limit: 20,
-          max_id: maxId
-        });
+        const authUser = await authContextService.getCurrentAuthUser();
+        const { posts, fullPage } = await activityPubService.getUserTimeline(
+          authUser.id,
+          'local',
+          { limit: 20, before }
+        );
         
         // BATCH LOAD REACTIONS for all posts to prevent N+1 queries
         if (posts.length > 0) {
@@ -1629,16 +1662,19 @@ export const useActivityPubStore = defineStore('activitypub', {
         // BATCH LOAD REBLOG ORIGINAL INTERACTIONS to prevent N+1 queries
         const processedPosts = await this.batchFetchReblogInteractions(posts);
         
-        if (maxId) {
+        if (before) {
           this.localFeed.posts.push(...processedPosts);
         } else {
           this.localFeed.posts = processedPosts;
         }
 
-        this.localFeed.has_more = posts.length === 20;
-        this.localFeed.cursor = posts[posts.length - 1]?.id;
+        this.localFeed.has_more = fullPage;
+        this.localFeed.cursor = posts[posts.length - 1]?.created_at;
 
         debug.log(`📍 Local feed loaded: ${posts.length} posts`);
+
+        // Batch-fetch remote reactions (non-blocking)
+        this.batchFetchRemoteReactions(processedPosts);
 
       } catch (error) {
         debug.error('Failed to load local feed:', error);
@@ -2795,7 +2831,7 @@ export const useActivityPubStore = defineStore('activitypub', {
     /**
      * Get timeline for a specific list
      */
-    async getListTimeline(listId: string, options: { limit?: number; max_id?: string } = {}): Promise<TimelinePost[]> {
+    async getListTimeline(listId: string, options: { limit?: number; before?: string } = {}): Promise<TimelinePost[]> {
       try {
         const limit = options.limit || 20;
 
@@ -2824,8 +2860,8 @@ export const useActivityPubStore = defineStore('activitypub', {
           .order('created_at', { ascending: false })
           .limit(limit);
 
-        if (options.max_id) {
-          query = query.lt('id', options.max_id);
+        if (options.before) {
+          query = query.lt('created_at', options.before);
         }
 
         const { data, error } = await query;

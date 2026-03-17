@@ -413,7 +413,8 @@ export class CoreInteractionService {
           .insert({
             muter_id: profileId,
             muted_user_id: targetUserId,
-            mute_type: 'all', // Default to muting all notifications
+            hide_notifications: true,
+            hide_from_timeline: true,
             created_at: new Date().toISOString()
           })
 

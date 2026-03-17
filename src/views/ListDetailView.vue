@@ -88,7 +88,7 @@
     <div class="list-timeline" v-if="!showMembersPanel">
       <PostsContainer
         :posts="timelinePosts"
-        :is-loading="isLoading"
+        :is-loading="isLoading || isLoadingMore"
         :has-more="hasMore"
         loading-message="Loading timeline..."
         empty-title="No posts yet"
@@ -170,7 +170,7 @@ const loadMore = async () => {
     const lastPost = timelinePosts.value[timelinePosts.value.length - 1]
     const morePosts = await activityPubStore.getListTimeline(listId, {
       limit: 20,
-      max_id: lastPost?.id
+      before: lastPost?.created_at
     })
     timelinePosts.value.push(...morePosts)
     hasMore.value = morePosts.length >= 20

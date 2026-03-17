@@ -19,6 +19,8 @@ import { computed, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useServerPermissions } from '@/composables/useServerPermissions';
 import { useServerChannelStore } from '@/stores/useServerChannel';
+import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
+import { useChatStore } from '@/stores/useChat';
 import { useAuthStore } from '@/stores/auth';
 import { supabase } from '@/supabase';
 import { useToast } from 'vue-toastification';
@@ -108,17 +110,28 @@ const leaveServer = async () => {
   isLeaving.value = true;
   
   try {
+    // Proactively disconnect voice chat if connected to this server
+    const voiceStore = useUnifiedVoiceChannelStore();
+    if (voiceStore.effectiveServerId === props.serverId) {
+      await voiceStore.leaveVoiceChannel();
+    }
+    
+    // Unsubscribe from message channel before leaving
+    const chatStore = useChatStore();
+    if (serverChannelStore.currentServerId === props.serverId) {
+      chatStore.unsubscribeFromMessages();
+      chatStore.clearMessages();
+    }
+    
     const server = serverChannelStore.currentServer;
     
     // Check if it's a remote server (federated)
     if (server && !server.is_local_server) {
-      // Use federation service for remote servers
       const result = await federationServerService.leaveServer(props.serverId, userId);
       if (!result.success) {
         throw new Error(result.error || 'Failed to leave server');
       }
     } else {
-      // Local server - just remove from user_servers
       const { error } = await supabase
         .from('user_servers')
         .delete()
@@ -131,7 +144,6 @@ const leaveServer = async () => {
     toast.success('Left server successfully');
     emit('serverLeft');
     
-    // Navigate to home
     router.push('/');
   } catch (error: any) {
     console.error('Error leaving server:', error);

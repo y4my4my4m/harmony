@@ -10,7 +10,7 @@ import { ref, onMounted, type Ref } from 'vue'
 import { debug } from '@/utils/debug'
 import type { TimelinePost } from '@/types'
 
-const fetchedReactionsThisSession = new Set<string>()
+export const fetchedReactionsThisSession = new Set<string>()
 
 async function getFederationApiUrl(): Promise<string> {
   try {

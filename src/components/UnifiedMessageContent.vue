@@ -85,13 +85,12 @@
         <span 
           v-else-if="part && typeof part === 'object' && part.type === 'mention'" 
           class="mention" 
-          :class="{ 'bridged-mention': isBridgedMention(part), 'discord-mention': part.domain === 'discord.com' }"
+          :class="{ 'bridged-mention': isBridgedMention(part), 'discord-mention': part.domain === 'discord.com', 'federated-mention': !part.isLocal && part.domain && part.domain !== 'discord.com' }"
           @click="handleMentionClick(part, $event)"
           :title="getMentionTooltip(part)"
         >
           <span class="mention-at">@</span>
-          <DisplayName :userId="part.userId" :fallback="part.username" :truncate="false" />
-          <span v-if="!part.isLocal && part.domain" class="mention-domain">@{{ part.domain }}</span>
+          <DisplayName :userId="part.userId" :fallback="part.displayName || part.username" :truncate="false" />
         </span>
 
         <!-- Role mentions -->
@@ -324,6 +323,7 @@ import { useFloatingVideo } from '@/composables/useFloatingVideo';
 import { userDataService } from '@/services/userDataService';
 import { getEmojiUrl } from '@/utils/emojiUtils';
 import ProviderEmbedSwitch from '@/components/embeds/ProviderEmbedSwitch.vue';
+import { parseEmbedUrl, isHarmonyInviteUrl } from '@/utils/embedDetection';
 import { useUnifiedEmoji } from '@/services/unifiedEmojiService';
 import { gifService } from '@/services/GifService';
 import { debug } from '@/utils/debug';
@@ -566,16 +566,31 @@ export default defineComponent({
 
     const resolveEmbedPayload = (part: MessagePart): EmbedPayload | null => {
       const embeds = props.embedPayloads;
-      if (!embeds || !part || typeof part !== 'object') {
-        return null;
+
+      if (embeds && part && typeof part === 'object') {
+        if (part.type === 'embed' && part.previewId) {
+          const found = embeds[part.previewId];
+          if (found) return found;
+        }
+
+        if (part.type === 'url' && part.embedId) {
+          const found = embeds[part.embedId];
+          if (found) return found;
+        }
       }
 
-      if (part.type === 'embed' && part.previewId) {
-        return embeds[part.previewId] || null;
-      }
-
-      if (part.type === 'url' && part.embedId) {
-        return embeds[part.embedId] || null;
+      if (part && typeof part === 'object' && 'url' in part && part.url) {
+        const parsed = parseEmbedUrl(part.url);
+        if (parsed && isHarmonyInviteUrl(parsed)) {
+          return {
+            cacheKey: `invite-${part.url}`,
+            url: part.url,
+            normalizedUrl: part.url,
+            provider: 'harmony-invite',
+            fetchedAt: new Date().toISOString(),
+            expiresAt: new Date(Date.now() + 86400000).toISOString(),
+          };
+        }
       }
 
       return null;
@@ -771,10 +786,13 @@ export default defineComponent({
       });
     });
 
-    // Watch for edit mode changes — place cursor at end on initial open
+    // Watch for edit mode changes — place cursor at end on initial open.
+    // setTimeout(0) ensures this runs after all microtasks (Vue nextTicks,
+    // RichTextEditor's onMounted renderContent, and its internal nextTick
+    // cursor restore), so our setCursorPosition(end) is the final word.
     watch(() => props.editableMessageId, (newVal) => {
       if (newVal === props.messageId) {
-        nextTick(() => {
+        setTimeout(() => {
           const r = editRichEditorRef.value;
           if (r) {
             autoResizeEditArea();
@@ -782,7 +800,7 @@ export default defineComponent({
             const len = localEditableContent.value.length;
             if (r.setCursorPosition) r.setCursorPosition(len);
           }
-        });
+        }, 0);
       }
     });
 
@@ -876,6 +894,9 @@ export default defineComponent({
     const getMentionTooltip = (part: any): string => {
       if (part?.domain === 'discord.com') {
         return `Discord user: ${part.displayName || part.username}`;
+      }
+      if (!part?.isLocal && part?.domain) {
+        return `@${part.username}@${part.domain}`;
       }
       return part?.displayName || part?.username || '';
     };
@@ -1385,10 +1406,22 @@ export default defineComponent({
   text-decoration: underline;
 }
 
-/* Discord bridged mentions */
+/* Discord bridged mentions - Discord blurple #5865F2 */
 .mention.discord-mention {
-  background-color: rgba(14, 165, 233, 0.2);
+  background-color: rgba(88, 101, 242, 0.2);
   padding: 0 4px;
+}
+
+.mention.federated-mention::after {
+  content: '';
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  margin-left: 3px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%2310b981' d='M17.9%2C17.39C17.64%2C16.59 16.89%2C16 16%2C16H15V13A1%2C1 0 0%2C0 14%2C12H8V10H10A1%2C1 0 0%2C0 11%2C9V7H13A2%2C2 0 0%2C0 15%2C5V4.59C17.93%2C5.77 20%2C8.64 20%2C12C20%2C14.08 19.2%2C15.97 17.9%2C17.39M11%2C19.93C7.05%2C19.44 4%2C16.08 4%2C12C4%2C11.38 4.08%2C10.79 4.21%2C10.21L9%2C15V16A2%2C2 0 0%2C0 11%2C18M12%2C2A10%2C10 0 0%2C0 2%2C12A10%2C10 0 0%2C0 12%2C22A10%2C10 0 0%2C0 22%2C12A10%2C10 0 0%2C0 12%2C2Z'/%3E%3C/svg%3E");
+  background-size: contain;
+  background-repeat: no-repeat;
+  vertical-align: middle;
 }
 
 .mention.discord-mention::after {

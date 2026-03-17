@@ -27,7 +27,8 @@
               <template v-if="toast.type === 'activitypub_reaction' || toast.type === 'reaction'">
                 <!-- For reactions, show emoji inline in title -->
                 <template v-if="toast.type === 'activitypub_reaction'">
-                  <span>{{ toast.title.split('reacted')[0] }}</span>reacted
+                  <span v-if="toast.actorUserId"><DisplayName :user-id="toast.actorUserId" :truncate="true" /></span>
+                  <span v-else>{{ toast.title.split('reacted')[0] }}</span>reacted
                   <img 
                     v-if="toast.emojiUrl"
                     :src="toast.emojiUrl" 
@@ -41,10 +42,14 @@
                   >
                     :{{ toast.emojiName }}:
                   </span>
-                  <span>{{ toast.title.split('reacted')[1] }}</span>
+                  <span v-if="toast.actorUserId && toast.titleSuffix">{{ toast.titleSuffix.replace(/^.*?reacted/, '') }}</span>
+                  <span v-else>{{ toast.title.split('reacted')[1] }}</span>
                 </template>
                 <template v-else>
-                  {{ toast.title }}
+                  <template v-if="toast.actorUserId && toast.titleSuffix">
+                    <DisplayName :user-id="toast.actorUserId" :truncate="true" /><span>{{ toast.titleSuffix }}</span>
+                  </template>
+                  <template v-else>{{ toast.title }}</template>
                   <img 
                     v-if="toast.emojiUrl"
                     :src="toast.emojiUrl" 
@@ -59,6 +64,9 @@
                     :{{ toast.emojiName }}:
                   </span>
                 </template>
+              </template>
+              <template v-else-if="toast.actorUserId && toast.titleSuffix">
+                <DisplayName :user-id="toast.actorUserId" :truncate="true" /><span>{{ toast.titleSuffix }}</span>
               </template>
               <template v-else>
                 {{ toast.title }}
@@ -102,6 +110,7 @@ import { computed, h } from 'vue'
 import { useNotificationStore } from '@/stores/useNotification'
 import type { NotificationToast, NotificationType } from '@/types'
 import Avatar from './common/Avatar.vue'
+import DisplayName from './DisplayName.vue'
 
 const notificationStore = useNotificationStore()
 
@@ -165,7 +174,7 @@ const getTypeIcon = (type: NotificationType) => {
   right: 20px;
   z-index: 10000;
   display: flex;
-  flex-direction: column;
+  flex-direction: column-reverse;
   gap: 12px;
   pointer-events: none;
 }
@@ -268,6 +277,7 @@ const getTypeIcon = (type: NotificationType) => {
   font-weight: 600;
   color: var(--text-primary);
   line-height: 1.3;
+  flex-wrap: wrap;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -279,6 +289,12 @@ const getTypeIcon = (type: NotificationType) => {
   color: var(--text-secondary);
   line-height: 1.4;
   word-wrap: break-word;
+}
+
+.toast-title :deep(.display-name-emoji) {
+  width: 18px;
+  height: 18px;
+  vertical-align: -3px;
 }
 
 .toast-emoji {
@@ -414,7 +430,7 @@ const getTypeIcon = (type: NotificationType) => {
 /* Responsive design */
 @media (max-width: 768px) {
   .notification-toasts {
-    top: 10px;
+    bottom: 10px;
     right: 10px;
     left: 10px;
   }

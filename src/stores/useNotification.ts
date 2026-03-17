@@ -728,6 +728,7 @@ export const useNotificationStore = defineStore('notification', {
             }
           }
           
+          const actorInfo = NotificationFormatter.getActorInfo(notification)
           this.showToast(
             notification.type,
             formatted.title,
@@ -735,7 +736,9 @@ export const useNotificationStore = defineStore('notification', {
             4000,
             NotificationFormatter.getAvatarUrl(notification),
             emojiUrl,
-            emojiName
+            emojiName,
+            actorInfo?.actorUserId,
+            actorInfo?.titleSuffix
           )
         }
 
@@ -811,13 +814,13 @@ export const useNotificationStore = defineStore('notification', {
           const registration = await navigator.serviceWorker.ready
           await registration.showNotification(formatted.title, {
             ...notificationOptions,
-            requireInteraction: notification.type === 'mention' || notification.type === 'dm'
+            requireInteraction: false
           })
           debug.log(`✅ Desktop notification shown via SW for ${notification.type}`)
         } else {
-          const desktopNotification = new Notification(formatted.title, {
+          const desktopNotification = new window.Notification(formatted.title, {
             ...notificationOptions,
-            requireInteraction: notification.type === 'mention' || notification.type === 'dm'
+            requireInteraction: false
           })
 
           desktopNotification.onclick = () => {
@@ -826,9 +829,8 @@ export const useNotificationStore = defineStore('notification', {
             desktopNotification.close()
           }
 
-          if (notification.type !== 'mention' && notification.type !== 'dm') {
-            setTimeout(() => desktopNotification.close(), 8000)
-          }
+          const timeout = (notification.type === 'mention' || notification.type === 'dm') ? 12000 : 8000
+          setTimeout(() => desktopNotification.close(), timeout)
 
           debug.log(`✅ Desktop notification shown for ${notification.type}`)
         }
@@ -844,7 +846,9 @@ export const useNotificationStore = defineStore('notification', {
       duration = 4000,
       avatar?: string,
       emojiUrl?: string,
-      emojiName?: string
+      emojiName?: string,
+      actorUserId?: string,
+      titleSuffix?: string
     ) {
       if (this.isQuietHours && type !== 'server_update') return
       
@@ -856,6 +860,8 @@ export const useNotificationStore = defineStore('notification', {
         avatar,
         emojiUrl,
         emojiName,
+        actorUserId,
+        titleSuffix,
         duration,
         timestamp: new Date()
       }
@@ -1194,10 +1200,14 @@ export const useNotificationStore = defineStore('notification', {
         
         if (navData) {
           switch (navData.type) {
-            case 'conversation':
-              // Navigate to DM
-              router.push(`/dm/${navData.conversationId}`)
+            case 'conversation': {
+              let dmPath = `/dm/${navData.conversationId}`
+              if (navData.messageId) {
+                dmPath += `?messageId=${navData.messageId}`
+              }
+              router.push(dmPath)
               break
+            }
               
             case 'channel': {
               // Navigate to server channel

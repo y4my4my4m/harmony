@@ -837,17 +837,17 @@ const loadMorePosts = async () => {
     } else {
       // Local user: load from database directly
       const oldestPost = userPosts.value[userPosts.value.length - 1];
-      const maxId = oldestPost?.created_at;
-      
-      if (!maxId) {
-        debug.log('❌ No max_id found for pagination');
+      const cursor = oldestPost?.created_at;
+
+      if (!cursor) {
+        debug.log('❌ No cursor found for pagination');
         hasMorePostsRef.value = false;
         return;
       }
-      
-      const posts = await activityPubService.getUserPosts(user.value.id, { 
-        limit: 20, 
-        max_id: maxId 
+
+      const posts = await activityPubService.getUserPosts(user.value.id, {
+        limit: 20,
+        before: cursor
       });
       
       if (posts && posts.length > 0) {

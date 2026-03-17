@@ -248,7 +248,7 @@
             <!-- Message actions for system messages (if hovered); on mobile with tap use floating popup -->
             <div class="message-actions" v-if="hoveredMessageId === item.message.id && !(isMobile && mobileActionTapPosition)">
               <div class="action-btn" @click="openEmojiReactor(item.message, $event)"><ReactionIcon/></div>
-              <div class="action-btn" v-if="canDeleteMessage(item.message)" @click="deleteMessage(item.message.id, $event)"><DeleteIcon/></div>
+              <div class="action-btn" :class="{ 'delete-danger': isShiftHeld }" v-if="canDeleteMessage(item.message)" @click="deleteMessage(item.message.id, $event)"><DeleteIcon/></div>
               <div class="action-btn" @click="openContextMenu(item.message, $event)"><MoreIcon/></div>
             </div>
             
@@ -332,7 +332,7 @@
               </span>
             </div>
             <UnifiedMessageContent 
-              :content="item.message.content"
+              :content="getDisplayContent(item.message)"
               :message-id="item.message.id"
               :editable-message-id="editableMessageId"
               :editable-content="editableMessageContent"
@@ -365,7 +365,7 @@
           <div class="message-gutter" :data-timestamp="formatTimeOnly(item.message.created_at)" :title="formatFullTimestamp(item.message.created_at)"></div>
           <div class="message-main">
             <UnifiedMessageContent 
-              :content="item.message.content"
+              :content="getDisplayContent(item.message)"
               :message-id="item.message.id"
               :editable-message-id="editableMessageId"
               :editable-content="editableMessageContent"
@@ -399,7 +399,7 @@
           <div class="action-btn" @click="replyTo(item.message)"><ReplyIcon/></div>
           <div class="action-btn thread-btn" v-if="!props.hideThreadActions" @click="createThread(item.message)" title="Create Thread"><ThreadIcon/></div>
           <div class="action-btn" v-if="canEditMessage(item.message)" @click="startEdit(item.message)"><EditIcon/></div>
-          <div class="action-btn" v-if="canDeleteMessage(item.message)" @click="deleteMessage(item.message.id, $event)"><DeleteIcon/></div>
+          <div class="action-btn" :class="{ 'delete-danger': isShiftHeld }" v-if="canDeleteMessage(item.message)" @click="deleteMessage(item.message.id, $event)"><DeleteIcon/></div>
           <div class="action-btn" @click="openContextMenu(item.message, $event)"><MoreIcon/></div>
         </div>
         
@@ -477,7 +477,7 @@
       />
       <span :style="{ color: user.userColor }"><DisplayName :userId="user.id" :fallback="user.displayName" :color="user.userColor" /></span>
       <span v-if="user.isBridged" class="bridged-badge" :title="'From ' + user.bridgeSource">
-        <svg v-if="user.bridgeSource === 'discord'" width="12" height="12" viewBox="0 0 24 24" fill="#0EA5E9">
+        <svg v-if="user.bridgeSource === 'discord'" width="12" height="12" viewBox="0 0 24 24" fill="#5865F2">
           <path d="M19.27 5.33C17.94 4.71 16.5 4.26 15 4a.09.09 0 0 0-.07.03c-.18.33-.39.76-.53 1.09a16.09 16.09 0 0 0-4.8 0c-.14-.34-.35-.76-.54-1.09c-.01-.02-.04-.03-.07-.03c-1.5.26-2.93.71-4.27 1.33c-.01 0-.02.01-.03.02c-2.72 4.07-3.47 8.03-3.1 11.95c0 .02.01.04.03.05c1.8 1.32 3.53 2.12 5.24 2.65c.03.01.06 0 .07-.02c.4-.55.76-1.13 1.07-1.74c.02-.04 0-.08-.04-.09c-.57-.22-1.11-.48-1.64-.78c-.04-.02-.04-.08-.01-.11c.11-.08.22-.17.33-.25c.02-.02.05-.02.07-.01c3.44 1.57 7.15 1.57 10.55 0c.02-.01.05-.01.07.01c.11.09.22.17.33.26c.04.03.04.09-.01.11c-.52.31-1.07.56-1.64.78c-.04.01-.05.06-.04.09c.32.61.68 1.19 1.07 1.74c.03.01.06.02.09.01c1.72-.53 3.45-1.33 5.25-2.65c.02-.01.03-.03.03-.05c.44-4.53-.73-8.46-3.1-11.95c-.01-.01-.02-.02-.04-.02zM8.52 14.91c-1.03 0-1.89-.95-1.89-2.12s.84-2.12 1.89-2.12c1.06 0 1.9.96 1.89 2.12c0 1.17-.84 2.12-1.89 2.12zm6.97 0c-1.03 0-1.89-.95-1.89-2.12s.84-2.12 1.89-2.12c1.06 0 1.9.96 1.89 2.12c0 1.17-.83 2.12-1.89 2.12z"/>
         </svg>
       </span>
@@ -493,7 +493,7 @@
     >
       <template v-if="hoveredMessageItem.message.is_system">
         <div class="action-btn" @click="openEmojiReactor(hoveredMessageItem.message, $event)"><ReactionIcon/></div>
-        <div class="action-btn" v-if="canDeleteMessage(hoveredMessageItem.message)" @click="deleteMessage(hoveredMessageItem.message.id, $event)"><DeleteIcon/></div>
+        <div class="action-btn" :class="{ 'delete-danger': isShiftHeld }" v-if="canDeleteMessage(hoveredMessageItem.message)" @click="deleteMessage(hoveredMessageItem.message.id, $event)"><DeleteIcon/></div>
         <div class="action-btn" @click="openContextMenu(hoveredMessageItem.message, $event)"><MoreIcon/></div>
       </template>
       <template v-else>
@@ -501,7 +501,7 @@
         <div class="action-btn" @click="replyTo(hoveredMessageItem.message)"><ReplyIcon/></div>
         <div class="action-btn thread-btn" v-if="!props.hideThreadActions" @click="createThread(hoveredMessageItem.message)" title="Create Thread"><ThreadIcon/></div>
         <div class="action-btn" v-if="canEditMessage(hoveredMessageItem.message)" @click="startEdit(hoveredMessageItem.message)"><EditIcon/></div>
-        <div class="action-btn" v-if="canDeleteMessage(hoveredMessageItem.message)" @click="deleteMessage(hoveredMessageItem.message.id, $event)"><DeleteIcon/></div>
+        <div class="action-btn" :class="{ 'delete-danger': isShiftHeld }" v-if="canDeleteMessage(hoveredMessageItem.message)" @click="deleteMessage(hoveredMessageItem.message.id, $event)"><DeleteIcon/></div>
         <div class="action-btn" @click="openContextMenu(hoveredMessageItem.message, $event)"><MoreIcon/></div>
       </template>
     </div>
@@ -549,7 +549,7 @@
 import { computed, ref, watch, nextTick, onMounted, onUnmounted, reactive } from 'vue';
 import { debug } from '@/utils/debug'
 import type { PropType, Ref, ComputedRef } from 'vue';
-import type { Message, User, Emoji, Reaction } from '@/types';
+import type { Message, MessagePart, User, Emoji, Reaction } from '@/types';
 import { useServerUsersStore } from '@/stores/useServerUsers';
 import { useChatStore } from '@/stores/useChat';
 import { useDMStore } from '@/stores/useDM';
@@ -585,7 +585,7 @@ import ThreadIndicator from '@/components/threads/ThreadIndicator.vue';
 import ConfirmationModal from '@/components/ConfirmationModal.vue';
 import { threadService } from '@/services/ThreadService';
 import type { ThreadWithDetails } from '@/services/ThreadService';
-import { messagePartsToMarkdown, messagePartsToPlainText, isSingleEmojiMessage as checkSingleEmoji } from '@/utils/messageContentUtils';
+import { messagePartsToMarkdown, messagePartsToPlainText, isSingleEmojiMessage as checkSingleEmoji, stripLeadingSelfMention } from '@/utils/messageContentUtils';
 import { parseContentToMessageParts, resolveMentionsUserData, resolveEmojisData, resolveRoleMentionsData } from '@/utils/unifiedContentProcessing';
 import { getEmojiUrl } from '@/utils/emojiUtils';
 import { useReactionsStore } from '@/stores/useReactions';
@@ -627,6 +627,11 @@ const activityPubStore = useActivityPubStore();
 const reactionsStore = useReactionsStore();
 const postReactionsStore = usePostReactionsStore();
 
+// Track shift key state so delete buttons can show a danger style
+const isShiftHeld = ref(false);
+const onShiftDown = (e: KeyboardEvent) => { if (e.key === 'Shift') isShiftHeld.value = true; };
+const onShiftUp = (e: KeyboardEvent) => { if (e.key === 'Shift') isShiftHeld.value = false; };
+
 // Track which blocked message groups the user has chosen to reveal (by first message ID in group)
 const revealedBlockedGroups = ref<Set<string>>(new Set());
 
@@ -642,6 +647,13 @@ watch(blockedUsersCount, (newCount, oldCount) => {
   blockCheckVersion.value++;
   debug.log('🔄 Blocked users changed, forcing re-render. Count:', newCount);
 });
+
+const getDisplayContent = (message: Message): MessagePart[] => {
+  if (!message.metadata?.federated) return message.content;
+  const username = profileStore.profile?.username;
+  if (!username) return message.content;
+  return stripLeadingSelfMention(message.content, username);
+};
 
 // Check if a message is from a blocked user (reactive)
 const isMessageFromBlockedUser = (message: Message): boolean => {
@@ -1104,9 +1116,9 @@ const getAuthorAvatarUrl = (message: Message): ComputedRef<string> => {
 
 const getAuthorColor = (message: Message): ComputedRef<string> => {
   return computed(() => {
-    // Check for Discord user metadata first (puppeting)
+    // Check for Discord user metadata first (puppeting) - Discord blurple
     if (message.metadata?.discord_user) {
-      return '#38BDF8';
+      return '#5865F2';
     }
     
     // Regular bot
@@ -1884,6 +1896,8 @@ onMounted(() => {
     messageDisplayContainer.value.addEventListener('wheel', handleWheel, { passive: false });
   }
   setupTopSentinelObserver();
+  window.addEventListener('keydown', onShiftDown);
+  window.addEventListener('keyup', onShiftUp);
   chatStore.highlightMessage = (messageId: string) => {
     const idx = displayItems.value.findIndex(
       item => item.type === 'message' && item.message?.id === messageId
@@ -1903,7 +1917,29 @@ onMounted(() => {
   };
 });
 
+// Watch for DM highlight requests (reply jump in DMs)
+watch(() => dmStore.highlightedMessageId, (messageId) => {
+  if (!messageId) return;
+  const idx = displayItems.value.findIndex(
+    item => item.type === 'message' && item.message?.id === messageId
+  );
+  if (idx < 0) return;
+  rowVirtualizer.value.scrollToIndex(idx, { align: 'center', behavior: 'smooth' });
+  setTimeout(() => {
+    nextTick(() => {
+      const messageElement = document.getElementById(`message-${messageId}`);
+      if (messageElement) {
+        messageElement.classList.add('highlighted');
+        setTimeout(() => messageElement.classList.remove('highlighted'), 3000);
+      }
+    });
+  }, 100);
+  dmStore.highlightedMessageId = null;
+});
+
 onUnmounted(() => {
+  window.removeEventListener('keydown', onShiftDown);
+  window.removeEventListener('keyup', onShiftUp);
   if (messageDisplayContainer.value) {
     messageDisplayContainer.value.removeEventListener('wheel', handleWheel);
   }
@@ -2220,7 +2256,11 @@ const saveEdit = async (messageId: string, newContent?: string) => {
     const roleDataMap = await resolveRoleMentionsData(textContent, serverChannelStore.currentServerId || undefined);
     const parsedContent = await parseContentToMessageParts(textContent, userDataMap, emojiDataMap, {}, roleDataMap);
     
-    await chatStore.editMessage(messageId, parsedContent);
+    if (props.channelId) {
+      await chatStore.editMessage(messageId, parsedContent);
+    } else if (props.conversationId) {
+      await dmStore.editMessage(messageId, parsedContent);
+    }
     cancelEdit();
   } catch (error) {
     debug.error('Error saving message edit:', error);
@@ -2259,7 +2299,11 @@ const deleteMessage = (messageId: string, event?: MouseEvent) => {
     showDeleteConfirmModal.value = true;
   } else if (bypassConfirm) {
     triggerDestructive();
-    chatStore.deleteMessage(messageId);
+    if (props.channelId) {
+      chatStore.deleteMessage(messageId);
+    } else if (props.conversationId) {
+      dmStore.deleteMessage(messageId);
+    }
   } else {
     deleteConfirmConfig.value = {
       messageId,
@@ -2420,9 +2464,13 @@ const replyTo = (message: Message) => {
 };
 
 const handleReplyClick = async (replyMessageId: string) => {
-  if (!chatStore.currentChannelId) return;
-  const success = await chatStore.jumpToMessage(replyMessageId, chatStore.currentChannelId);
-  if (!success) debug.warn(`Could not jump to message: ${replyMessageId}`);
+  if (props.channelId && chatStore.currentChannelId) {
+    const success = await chatStore.jumpToMessage(replyMessageId, chatStore.currentChannelId);
+    if (!success) debug.warn(`Could not jump to message: ${replyMessageId}`);
+  } else if (props.conversationId) {
+    const success = await dmStore.jumpToMessage(replyMessageId);
+    if (!success) debug.warn(`Could not jump to DM message: ${replyMessageId}`);
+  }
 };
 
 // Thread Logic
@@ -2871,8 +2919,10 @@ defineExpose({ editLastOwnMessage });
   margin-left: 0.25rem;
 }
 
+/* Discord blurple - official brand color */
 .bot-badge.discord {
-  background: #38BDF8;
+  background: #5865F2;
+  color: #ffffff;
 }
 
 .instance-badge {
@@ -3006,6 +3056,16 @@ defineExpose({ editLastOwnMessage });
 .action-btn:active {
   background-color: var(--background-tertiary-alpha);
   transform: scale(0.95);
+}
+
+.action-btn.delete-danger {
+  color: var(--error)!important;
+  background-color: color-mix(in srgb, var(--error) 50%, transparent)!important;
+}
+
+.action-btn.delete-danger:hover {
+  background-color: color-mix(in srgb, var(--error-hover) 50%, transparent)!important;
+  color: var(--error-hover)!important;
 }
 
 /* Gap indicator */

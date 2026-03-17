@@ -58,7 +58,6 @@
           :class="['control-btn', 'mic-btn', { 
             active: !voiceStore.localState.isMuted && !voiceStore.localState.isDeafened,
             muted: voiceStore.localState.isMuted,
-            deafened: voiceStore.localState.isDeafened,
             'ptt-mode': isPTTMode,
             'ptt-active': isPTTActive
           }]"
@@ -234,11 +233,10 @@
           <button 
             @click.stop="voiceStore.toggleMute"
             class="mini-control-btn"
-            :class="{ muted: voiceStore.localState.isMuted || voiceStore.localState.isDeafened }"
+            :class="{ muted: voiceStore.localState.isMuted }"
             :title="voiceStore.localState.isMuted ? 'Unmute' : 'Mute'"
           >
-            <MicIcon v-if="!voiceStore.localState.isMuted && !voiceStore.localState.isDeafened" />
-            <MicMutedIcon v-else />
+            <Icon :name="voiceStore.localState.isMuted || voiceStore.localState.isDeafened ? 'mic-off' : 'mic'" />
           </button>
           
           <button 
@@ -308,10 +306,10 @@
       @close="showSettings = false"
     />
 
-    <!-- Spatial Audio Panel -->
+    <!-- Spatial Audio Panel (only when NOT in overlay mode; overlay renders its own) -->
     <SpatialAudioPanel 
+      v-if="currentMode !== 'overlay'"
       :is-under-dock="currentMode === 'dock'"
-      :is-under-overlay="currentMode === 'overlay'"
     />
 
     <!-- Full Overlay Mode -->
@@ -339,8 +337,6 @@ import { userStorage } from '@/utils/userScopedStorage';
 import Icon from '@/components/common/Icon.vue';
 import Avatar from '@/components/common/Avatar.vue';
 import DisplayName from '@/components/DisplayName.vue';
-import MicIcon from '@/components/icons/Mic.vue';
-import MicMutedIcon from '@/components/icons/MicMuted.vue';
 import HeadphonesIcon from '@/components/icons/Headphones.vue';
 
 const UnifiedVoiceOverlay = defineAsyncComponent(() => import('./UnifiedVoiceOverlay.vue'));

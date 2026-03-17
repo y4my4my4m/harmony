@@ -1,7 +1,12 @@
 <template>
   <div class="server-card" :class="{ 
     'server-card--featured': server.is_featured,
+    'server-card--has-banner': serverBannerUrl,
   }">
+    <!-- Server banner background (semi-transparent overlay) -->
+    <div v-if="serverBannerUrl" class="server-card__banner" :style="bannerStyle">
+      <div class="server-card__banner-overlay"></div>
+    </div>
     <div class="server-card__header">
       <div class="server-card__icon">
         <ServerIcon
@@ -92,6 +97,7 @@ import Avatar from '@/components/common/Avatar.vue'
 import DisplayName from '@/components/DisplayName.vue'
 import type { PublicServerWithStats } from '@/stores/usePublicServers'
 import ServerIcon from './ServerIcon.vue'
+import { getServerBannerUrl } from '@/utils/serverUtils'
 
 const { t } = useI18n()
 
@@ -114,6 +120,16 @@ const props = withDefaults(defineProps<Props>(), {
 const emit = defineEmits<Emits>()
 
 const { getUserAvatarUrl, getUserDisplayName, getUser, fetchUserProfile } = useUserData()
+
+const serverBannerUrl = computed(() =>
+  getServerBannerUrl(props.server.banner, { width: 640, height: 200, quality: 80 })
+)
+
+const bannerStyle = computed(() => {
+  const url = serverBannerUrl.value
+  if (!url) return {}
+  return { backgroundImage: `url(${url})` }
+})
 
 // Local state to track if we're loading owner data
 const loadingOwnerData = ref(false)
@@ -211,6 +227,7 @@ const handleOwnerClick = (event: Event) => {
   position: relative;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .server-card:hover {
@@ -230,6 +247,38 @@ const handleOwnerClick = (event: Event) => {
 .server-card--featured:hover {
   border-color: rgba(255, 215, 0, 0.35);
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+}
+
+/* Server banner with semi-transparent overlay */
+.server-card__banner {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 100px;
+  background-size: cover;
+  background-position: center;
+  border-radius: 12px 12px 0 0;
+  overflow: hidden;
+  z-index: 0;
+}
+
+.server-card__banner-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0.35) 0%,
+    transparent 50%,
+    var(--background-secondary, #1e1f22) 100%
+  );
+}
+
+.server-card--has-banner .server-card__header,
+.server-card--has-banner .server-card__content,
+.server-card--has-banner .server-card__actions {
+  position: relative;
+  z-index: 1;
 }
 
 .server-card__header {

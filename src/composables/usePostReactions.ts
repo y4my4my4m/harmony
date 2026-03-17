@@ -1,4 +1,4 @@
-import { computed, onMounted, watch } from 'vue'
+import { computed } from 'vue'
 import { usePostReactionsStore } from '@/stores/postReactions'
 import { useAuthStore } from '@/stores/auth'
 import type { TimelinePost } from '@/types'
@@ -10,40 +10,30 @@ interface Props {
 }
 
 /**
- * Post Reactions Composable - Professional Architecture
- * 
- * Follows the same pattern as useMessageReactions.ts
- * Key benefits:
- * 1. Centralized reaction logic
- * 2. Optimistic updates for instant feedback
- * 3. Automatic batch loading integration
- * 4. Consistent API with chat reactions
+ * Reads reaction state from the store (batch-populated by timeline loaders).
+ * Does NOT fetch per-post — that's handled by useActivityPub / PostView via
+ * fetchMultiplePostReactions(). This avoids N+1 request storms during scroll.
  */
 export function usePostReactions(props: Props) {
   const postReactionsStore = usePostReactionsStore()
   const authStore = useAuthStore()
 
-  // Always use reactions store (populated by batch loading)
   const reactions = computed(() => 
     postReactionsStore.getPostReactions(props.post.id)
   )
 
-  // Check if reactions are loading
   const isLoadingReactions = computed(() => 
     postReactionsStore.isLoadingReactions(props.post.id)
   )
 
-  // Get current user ID
   const currentUserId = computed(() => 
     authStore.session?.user?.id
   )
 
-  // Check if current user has reacted to a specific emoji
   const hasUserReacted = (emojiId: string | null, customContent: string | null) => {
     return postReactionsStore.hasUserReacted(props.post.id, emojiId, customContent)
   }
 
-  // Handle reaction toggle
   const handleReactionClick = async (reaction: any) => {
     if (!currentUserId.value) {
       debug.warn('User not authenticated')
@@ -65,7 +55,6 @@ export function usePostReactions(props: Props) {
     }
   }
 
-  // Handle adding new reaction from emoji picker
   const handleEmojiSelected = async (emoji: any) => {
     if (!currentUserId.value) {
       debug.warn('User not authenticated')
@@ -89,7 +78,6 @@ export function usePostReactions(props: Props) {
     return result.success
   }
 
-  // Format reaction count with "and X others" pattern
   const formatReactionTooltip = (reaction: any) => {
     const userReactions = reaction.user_reactions || []
     const count = reaction.reaction_count || 0
@@ -107,21 +95,6 @@ export function usePostReactions(props: Props) {
     
     return `${names} and ${others} others reacted with ${reaction.emoji_name || reaction.custom_emoji_content}`
   }
-
-  // Store is pre-populated by batch loading from timeline
-  // Safe to request reactions - will use cached data, no N+1 queries
-  onMounted(() => {
-    if (!postReactionsStore.isLoadingReactions(props.post.id)) {
-      postReactionsStore.fetchPostReactions(props.post.id)
-    }
-  })
-
-  // Watch for post changes and reload reactions if needed
-  watch(() => props.post.id, (newPostId) => {
-    if (!postReactionsStore.isLoadingReactions(newPostId)) {
-      postReactionsStore.fetchPostReactions(newPostId)
-    }
-  })
 
   return {
     reactions,

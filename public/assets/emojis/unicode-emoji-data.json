@@ -2766,6 +2766,8 @@
       "codepoint": "1f44d",
       "keywords": [
         "thumbs_up",
+        "thumbsup",
+        "+1",
         "thumbs",
         "up"
       ],
@@ -2779,6 +2781,8 @@
       "codepoint": "1f44e",
       "keywords": [
         "thumbs_down",
+        "thumbsdown",
+        "-1",
         "thumbs",
         "down"
       ],

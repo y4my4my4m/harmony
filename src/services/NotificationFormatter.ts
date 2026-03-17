@@ -248,9 +248,16 @@ const MESSAGE_TEMPLATES = {
   },
 
   activitypub_reply: {
-    title: (data: any) => `${data.author.display_name || data.author.username} replied to your post`,
+    title: (data: any) => {
+      const actor = data.actor || data.author || data.sender
+      const name = actor?.display_name || actor?.username || 'Someone'
+      const domain = actor?.domain && !actor?.is_local ? `@${actor.domain}` : ''
+      return `${name}${domain} replied to your post`
+    },
     message: (data: any) => {
-      const text = extractContentText(data.post_content) || extractContentText(data.post?.content_preview)
+      const text = extractContentText(data.post_content)
+        || extractContentText(data.post?.content_preview)
+        || extractContentText(data.post?.content)
       if (text) {
         const truncated = text.substring(0, 120)
         return `"${truncated}${text.length > 120 ? '...' : ''}"`
@@ -331,24 +338,68 @@ export class NotificationFormatter {
       }
     }
     
+    const data = notification.data || {}
+
+    let title: string
     try {
-      return {
-        title: template.title(notification.data),
-        message: template.message(notification.data),
-        shortTitle: template.shortTitle?.(notification.data) || template.title(notification.data)
-      }
-    } catch (error) {
-      debug.warn('Error formatting notification:', error, notification)
-      
-      // Fallback for malformed data
-      return {
-        title: `New ${notification.type} notification`,
-        message: 'Click to view details',
-        shortTitle: notification.type
-      }
+      title = template.title(data)
+    } catch (e) {
+      debug.warn('Error formatting notification title:', e, notification)
+      title = `New ${notification.type} notification`
     }
+
+    let message: string
+    try {
+      message = template.message(data)
+    } catch (e) {
+      debug.warn('Error formatting notification message:', e, notification)
+      message = 'Click to view details'
+    }
+
+    let shortTitle: string
+    try {
+      shortTitle = template.shortTitle?.(data) || title
+    } catch (e) {
+      shortTitle = title
+    }
+
+    return { title, message, shortTitle }
   }
   
+  /**
+   * Get the actor's profile user ID and the title suffix (part after the actor name).
+   * Used by toast notifications to render DisplayName with custom emojis.
+   */
+  static getActorInfo(notification: Notification): { actorUserId: string; titleSuffix: string } | null {
+    const data = notification.data || {}
+
+    let actorUserId: string | null = null
+    let actorDisplayName: string | null = null
+
+    // Extract actor from structured notification data
+    const actor = data.sender || data.reactor || data.actor || data.inviter || data.follower || data.user || data.author
+    if (actor) {
+      actorUserId = actor.user_id || actor.id || null
+      actorDisplayName = actor.display_name || actor.username || null
+    }
+
+    // Legacy fallbacks
+    if (!actorUserId && data.from_user_id) {
+      actorUserId = data.from_user_id
+    }
+
+    if (!actorUserId || !actorDisplayName) return null
+
+    // Extract the suffix by finding the actor name in the formatted title
+    const formatted = this.formatNotification(notification)
+    const title = formatted.title
+    const nameIndex = title.indexOf(actorDisplayName)
+    if (nameIndex === -1) return null
+
+    const suffix = title.substring(nameIndex + actorDisplayName.length)
+    return { actorUserId, titleSuffix: suffix }
+  }
+
   /**
    * Get a short preview text for the notification
    */

@@ -73,6 +73,8 @@ import { useServerStore } from '@/stores/server'
 import { useAuthStore } from '@/stores/auth'
 import { usePublicServersStore } from '@/stores/usePublicServers'
 import { useServerUsersStore } from '@/stores/useServerUsers'
+import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel'
+import { useChatStore } from '@/stores/useChat'
 import { useDebouncedSearch } from '@/composables/useDebounce'
 import { useKeyboardEvents } from '@/composables/useCommonUI'
 import { useHapticSettings } from '@/composables/useHapticSettings'
@@ -188,15 +190,25 @@ const handleLeaveServer = async (serverId: string) => {
   loadingServerIds.value.add(serverId)
 
   try {
+    // Proactively disconnect voice chat if connected to this server
+    const voiceStore = useUnifiedVoiceChannelStore()
+    if (voiceStore.effectiveServerId === serverId) {
+      await voiceStore.leaveVoiceChannel()
+    }
+    
+    // Unsubscribe from message channel if viewing a channel on this server
+    if (serverChannelStore.currentServer?.id === serverId) {
+      const chatStore = useChatStore()
+      chatStore.unsubscribeFromMessages()
+      chatStore.clearMessages()
+    }
+    
     const success = await serverStore.leaveServer(serverId, userId)
     if (success) {
-      // Haptic feedback for leaving server
       triggerDestructive()
-      // Refresh the user's server list
       await serverChannelStore.fetchServersForUser(userId)
       toast.success('Successfully left the server')
       
-      // If user is currently viewing this server or has no servers left, navigate appropriately
       if (serverChannelStore.currentServer?.id === serverId || serverChannelStore.servers.length === 0) {
         router.push('/chat')
       }

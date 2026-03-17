@@ -24,7 +24,7 @@
     <div v-else class="posts-list" :style="{ height: `${totalSize}px`, position: 'relative' }">
       <div
         v-for="virtualRow in virtualRows"
-        :key="posts[virtualRow.index].id"
+        :key="virtualRow.index < posts.length ? posts[virtualRow.index].id : '__loader__'"
         :data-index="virtualRow.index"
         :ref="measureElement"
         class="virtual-post-row"
@@ -35,7 +35,12 @@
           width: '100%',
         }"
       >
+        <div v-if="virtualRow.index >= posts.length" class="loading-more">
+          <Icon name="loader" class="spinning" />
+          <span>Loading more...</span>
+        </div>
         <MonyPost
+          v-else
           :post="posts[virtualRow.index]"
           v-bind="postProps"
           @reply="$emit('reply', $event)"
@@ -49,26 +54,11 @@
         />
       </div>
     </div>
-
-    <!-- Infinite scroll sentinel + fallback button -->
-    <div v-if="hasMore && posts.length > 0" ref="sentinelRef" class="load-more-container">
-      <div v-if="isLoading" class="loading-more">
-        <Icon name="loader" class="spinning" />
-        <span>Loading...</span>
-      </div>
-      <button
-        v-else
-        @click="$emit('load-more')"
-        class="load-more-btn"
-      >
-        Load More
-      </button>
-    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted, onUnmounted, watch } from 'vue'
+import { computed, ref, watch, onMounted, onUnmounted, watchEffect } from 'vue'
 import { useVirtualizer } from '@tanstack/vue-virtual'
 import MonyPost from '@/components/activitypub/MonyPost.vue'
 import Icon from '@/components/common/Icon.vue'
@@ -84,6 +74,7 @@ interface Props {
   emptyIcon?: string
   emptyAction?: string
   postProps?: Record<string, any>
+  registerScroll?: (el: HTMLElement | null) => void
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -95,7 +86,8 @@ const props = withDefaults(defineProps<Props>(), {
   emptyMessage: 'Posts will appear here when available.',
   emptyIcon: 'users',
   emptyAction: undefined,
-  postProps: () => ({})
+  postProps: () => ({}),
+  registerScroll: undefined
 })
 
 const emit = defineEmits<{
@@ -112,14 +104,13 @@ const emit = defineEmits<{
 }>()
 
 const scrollContainer = ref<HTMLDivElement | null>(null)
-const sentinelRef = ref<HTMLDivElement | null>(null)
 
-// --- Virtual scrolling ---
+// +1 phantom row when there's more to load — acts as in-flow loading indicator
 const rowVirtualizer = useVirtualizer(computed(() => ({
-  count: props.posts.length,
+  count: props.hasMore ? props.posts.length + 1 : props.posts.length,
   getScrollElement: () => scrollContainer.value,
   estimateSize: () => 300,
-  overscan: 3,
+  overscan: 5,
 })))
 
 const virtualRows = computed(() => rowVirtualizer.value.getVirtualItems())
@@ -130,37 +121,34 @@ const measureElement = (el: any) => {
   rowVirtualizer.value.measureElement(el)
 }
 
-// --- Infinite scroll via IntersectionObserver ---
-let observer: IntersectionObserver | null = null
+const lastEmittedIndex = ref(-1)
 
-const setupObserver = () => {
-  if (observer) observer.disconnect()
-  if (!sentinelRef.value) return
+watch(() => props.posts.length, () => {
+  lastEmittedIndex.value = -1
+})
 
-  observer = new IntersectionObserver(
-    (entries) => {
-      if (entries[0]?.isIntersecting && props.hasMore && !props.isLoading) {
-        emit('load-more')
-      }
-    },
-    { root: scrollContainer.value, rootMargin: '200px' }
-  )
-  observer.observe(sentinelRef.value)
-}
+watchEffect(() => {
+  const items = virtualRows.value
+  const lastItem = items[items.length - 1]
+  if (!lastItem) return
 
-watch([() => props.hasMore, sentinelRef], () => {
-  setupObserver()
+  if (
+    lastItem.index >= props.posts.length - 1 &&
+    props.hasMore &&
+    !props.isLoading &&
+    lastItem.index !== lastEmittedIndex.value
+  ) {
+    lastEmittedIndex.value = lastItem.index
+    emit('load-more')
+  }
 })
 
 onMounted(() => {
-  setupObserver()
+  props.registerScroll?.(scrollContainer.value)
 })
 
 onUnmounted(() => {
-  if (observer) {
-    observer.disconnect()
-    observer = null
-  }
+  props.registerScroll?.(null)
 })
 </script>
 
@@ -172,7 +160,9 @@ onUnmounted(() => {
   width: 100%;
   overflow-y: auto;
   padding: 20px 0;
-  height: calc(100% - 4px);
+  flex: 1;
+  min-height: 0;
+  height: 100%;
 }
 
 .posts-list {
@@ -210,8 +200,7 @@ onUnmounted(() => {
   line-height: var(--line-height-relaxed);
 }
 
-.explore-btn,
-.load-more-btn {
+.explore-btn {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
@@ -223,9 +212,6 @@ onUnmounted(() => {
   cursor: pointer;
   transition: all var(--transition-base);
   text-decoration: none;
-}
-
-.explore-btn {
   background: var(--harmony-primary);
   color: var(--text-primary);
 }
@@ -236,37 +222,14 @@ onUnmounted(() => {
   box-shadow: var(--shadow-md);
 }
 
-.load-more-btn {
-  background: var(--background-secondary);
-  border-color: var(--border-color);
-  color: var(--text-primary);
-}
-
-.load-more-btn:hover {
-  background: var(--background-hover);
-  border-color: var(--border-hover);
-}
-
-.load-more-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  transform: none;
-}
-
-.load-more-container {
-  display: flex;
-  justify-content: center;
-  padding: var(--space-5);
-  width: 100%;
-  max-width: 600px;
-}
-
 .loading-more {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: var(--space-2);
   color: var(--text-secondary);
   font-size: var(--font-size-sm);
+  padding: var(--space-5);
 }
 
 .spinning {

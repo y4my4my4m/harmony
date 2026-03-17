@@ -9,6 +9,7 @@ import type {
   FederatedUser, 
   TimelineOptions,
   TimelinePost,
+  TimelineResult,
   ActivityPubActivityType,
   ActivityPubObjectType,
   ConversationContext,
@@ -127,8 +128,8 @@ export class ActivityPubService {
       .order('created_at', { ascending: false })
       .limit(limit);
 
-    if (options.max_id) {
-      query = query.lt('position', options.max_id);
+    if (options.before) {
+      query = query.lt('created_at', options.before);
     }
 
     const { data, error } = await query;
@@ -145,7 +146,6 @@ export class ActivityPubService {
     const userId = await this.getCurrentAuthUserId();
 
     const limit = options.limit || 20;
-    const max_id = options.max_id || null;
 
     // Direct query with user interactions
     let query = supabase
@@ -163,8 +163,8 @@ export class ActivityPubService {
       .order('created_at', { ascending: false })
       .limit(limit);
 
-    if (max_id) {
-      query = query.lt('id', max_id);
+    if (options.before) {
+      query = query.lt('created_at', options.before);
     }
 
     const { data, error } = await query;
@@ -192,7 +192,7 @@ export class ActivityPubService {
   /**
    * Get public timeline with enhanced federation support and user interaction states
    */
-  async getEnhancedPublicTimeline(options: TimelineOptions = {}): Promise<TimelinePost[]> {
+  async getEnhancedPublicTimeline(options: TimelineOptions = {}): Promise<TimelineResult> {
     // OPTIMIZED: Use cached auth user ID
     const userId = await this.getCurrentAuthUserId();
 
@@ -215,8 +215,8 @@ export class ActivityPubService {
         .order('created_at', { ascending: false })
         .limit(limit);
 
-      if (options.max_id) {
-        query = query.lt('id', options.max_id);
+      if (options.before) {
+        query = query.lt('created_at', options.before);
       }
 
       const { data, error } = await query;
@@ -225,7 +225,7 @@ export class ActivityPubService {
 
       // Process user interactions into boolean flags and filter out suspended users
       const posts = (data || [])
-        .filter(post => !post.author?.is_suspended) // Exclude posts from suspended users
+        .filter(post => !post.author?.is_suspended)
         .map(post => {
           const interactions = post.my_interactions || [];
           return {
@@ -236,16 +236,16 @@ export class ActivityPubService {
           };
         });
       
-      
       // Log statistics
       const localCount = posts.filter((p: any) => p.is_local).length;
       const federatedCount = posts.filter((p: any) => !p.is_local).length;
       debug.log(`🌐 Enhanced public timeline: ${localCount} local + ${federatedCount} federated = ${posts.length} total posts`);
       
-      return posts as TimelinePost[];
+      const rawCount = (data || []).length;
+      return { posts: posts as TimelinePost[], fullPage: rawCount >= limit };
     } catch (error) {
       debug.error('Failed to load enhanced public timeline:', error);
-      return [];
+      return { posts: [], fullPage: false };
     }
   }
 
@@ -759,8 +759,8 @@ export class ActivityPubService {
     if (currentUser) {
       query = query.eq('my_interactions.user_id', currentUser.id);
     }
-    if (options.max_id) {
-      query = query.lt('created_at', new Date(options.max_id).toISOString());
+    if (options.before) {
+      query = query.lt('created_at', options.before);
     }
 
     const { data, error } = await query;
@@ -1881,7 +1881,7 @@ export class ActivityPubService {
     userId: string,
     timelineType: 'home' | 'public' | 'local' = 'home',
     options: TimelineOptions = {}
-  ): Promise<TimelinePost[]> {
+  ): Promise<TimelineResult> {
     const limit = options.limit || 20;
     const max_id = options.max_id || null;
 
@@ -1942,8 +1942,8 @@ export class ActivityPubService {
       .order('created_at', { ascending: false })
       .limit(limit);
 
-    if (max_id) {
-      query = query.lt('id', max_id);
+    if (options.before) {
+      query = query.lt('created_at', options.before);
     }
 
     const { data, error } = await query;
@@ -1951,8 +1951,9 @@ export class ActivityPubService {
     if (error) throw error;
 
     // Process user interactions into boolean flags and filter out suspended users
-    const posts = (data || [])
-      .filter(post => !post.author?.is_suspended) // Exclude posts from suspended users
+    const rawData = data || [];
+    const posts = rawData
+      .filter(post => !post.author?.is_suspended)
       .map(post => {
         const interactions = post.my_interactions || [];
         return {
@@ -1963,7 +1964,8 @@ export class ActivityPubService {
         };
       });
 
-    return posts;
+    // Use raw DB count for pagination — filtering suspended users reduces posts.length, which would incorrectly stop pagination
+    return { posts, fullPage: rawData.length >= limit };
   }
 
   /**

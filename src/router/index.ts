@@ -373,6 +373,11 @@ const router = createRouter({
       component: () => import('@/views/NewProfile.vue'),
       meta: { requiresAuth: true }
     },
+    // Redirect legacy /notifications to /social/notifications
+    {
+      path: '/notifications',
+      redirect: '/social/notifications'
+    },
     // 404 Routes - Authenticated users (with app layout)
     {
       path: '/404',

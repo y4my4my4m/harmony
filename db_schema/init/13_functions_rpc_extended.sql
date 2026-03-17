@@ -271,31 +271,24 @@ BEGIN
                 -- Check ActivityPub master toggle first
                 IF COALESCE(user_prefs.activitypub_notifications, true) = false THEN
                     should_send := false;
-                ELSIF COALESCE(user_prefs.activitypub_desktop_notifications, true) = false THEN
-                    should_send := false;
                 ELSE
+                    -- Only check the content toggle for notification creation.
+                    -- Desktop/push toggles are enforced by PushNotificationService.
                     CASE p_notification_type
                         WHEN 'activitypub_follow' THEN
-                            should_send := COALESCE(user_prefs.activitypub_follows, true) 
-                                       AND COALESCE(user_prefs.activitypub_desktop_follows, true);
+                            should_send := COALESCE(user_prefs.activitypub_follows, true);
                         WHEN 'activitypub_follow_request' THEN
-                            should_send := COALESCE(user_prefs.activitypub_follow_requests, true) 
-                                       AND COALESCE(user_prefs.activitypub_desktop_follows, true);
+                            should_send := COALESCE(user_prefs.activitypub_follow_requests, true);
                         WHEN 'activitypub_favorite' THEN
-                            should_send := COALESCE(user_prefs.activitypub_favorites, true) 
-                                       AND COALESCE(user_prefs.activitypub_desktop_favorites, false);
+                            should_send := COALESCE(user_prefs.activitypub_favorites, true);
                         WHEN 'activitypub_reblog' THEN
-                            should_send := COALESCE(user_prefs.activitypub_reblogs, true) 
-                                       AND COALESCE(user_prefs.activitypub_desktop_reblogs, false);
+                            should_send := COALESCE(user_prefs.activitypub_reblogs, true);
                         WHEN 'activitypub_mention' THEN
-                            should_send := COALESCE(user_prefs.activitypub_mentions, true) 
-                                       AND COALESCE(user_prefs.activitypub_desktop_mentions, true);
+                            should_send := COALESCE(user_prefs.activitypub_mentions, true);
                         WHEN 'activitypub_reply' THEN
-                            should_send := COALESCE(user_prefs.activitypub_replies, true) 
-                                       AND COALESCE(user_prefs.activitypub_desktop_replies, true);
+                            should_send := COALESCE(user_prefs.activitypub_replies, true);
                         WHEN 'activitypub_reaction' THEN
-                            should_send := COALESCE(user_prefs.activitypub_favorites, true) 
-                                       AND COALESCE(user_prefs.activitypub_desktop_favorites, false);
+                            should_send := COALESCE(user_prefs.activitypub_favorites, true);
                         ELSE
                             should_send := true;
                     END CASE;
@@ -3249,6 +3242,7 @@ DECLARE
     notification_data jsonb;
     msg_channel_id uuid;
     msg_server_id uuid;
+    msg_conversation_id uuid;
     post_author_id uuid;
     post_record RECORD;
     emoji_record RECORD;
@@ -3292,8 +3286,8 @@ BEGIN
         SELECT user_id INTO single_target_id FROM messages WHERE id = NEW.message_id;
         
         IF single_target_id IS NOT NULL AND single_target_id != NEW.user_id THEN
-            SELECT m.channel_id, c.server_id 
-            INTO msg_channel_id, msg_server_id
+            SELECT m.channel_id, c.server_id, m.conversation_id
+            INTO msg_channel_id, msg_server_id, msg_conversation_id
             FROM messages m 
             LEFT JOIN channels c ON m.channel_id = c.id 
             WHERE m.id = NEW.message_id;
@@ -3331,12 +3325,18 @@ BEGIN
                     )
                 ELSE NULL END
             );
+
+            IF msg_conversation_id IS NOT NULL THEN
+                notification_data := notification_data || jsonb_build_object(
+                    'conversation_id', msg_conversation_id
+                );
+            END IF;
             
             PERFORM send_notification_to_user(
                 'reaction',
                 single_target_id,
                 notification_data,
-                msg_server_id, msg_channel_id, NULL,
+                msg_server_id, msg_channel_id, msg_conversation_id,
                 NEW.user_id,
                 'normal'
             );

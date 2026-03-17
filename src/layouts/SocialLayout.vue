@@ -47,7 +47,9 @@
       <!-- Main + Right Sidebar Container -->
       <div class="main-and-right-container">
         <!-- Social Content (RouterView for nested social views) -->
-        <div class="social-content-area">
+        <div 
+          class="social-content-area"
+        >
           <RouterView 
             :current-view="currentView"
             :posts="posts"
@@ -570,8 +572,8 @@ const handleDeletePost = async (post: TimelinePost) => {
 }
 
 const handleShowUserProfile = (user: FederatedUser) => {
-  selectedUser.value = user
-  router.push({ name: 'UserProfile', params: { handle: user.handle.replace('@', '') } })
+  const handle = (user.handle || user.username || '').replace(/^@/, '')
+  router.push({ name: 'UserProfile', params: { handle: encodeURIComponent(handle) } })
 }
 
 const handleLoadMorePosts = async () => {

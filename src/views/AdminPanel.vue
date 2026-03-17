@@ -1210,6 +1210,36 @@
                   Your instance's accent color. Exposed via NodeInfo for other instances to use.
                 </span>
               </div>
+
+              <div class="setting-group">
+                <label>Default Theme for New Users</label>
+                <span class="setting-hint" style="margin-bottom: 8px;">
+                  Import a theme JSON file (exported from Appearance settings) to set as the default for new and non-signed-in users.
+                </span>
+                <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                  <button type="button" class="save-btn" @click="($refs.defaultThemeInput as HTMLInputElement)?.click()">
+                    Import Theme JSON
+                  </button>
+                  <button 
+                    v-if="instanceConfig.defaultThemeJson"
+                    type="button" 
+                    class="delete-btn"
+                    @click="clearDefaultTheme"
+                  >
+                    Clear Default Theme
+                  </button>
+                  <span v-if="instanceConfig.defaultThemeJson" class="setting-hint" style="margin: 0;">
+                    Default theme is set
+                  </span>
+                </div>
+                <input
+                  ref="defaultThemeInput"
+                  type="file"
+                  accept=".json"
+                  style="display: none;"
+                  @change="handleDefaultThemeImport"
+                />
+              </div>
             </div>
 
             <div class="config-subsection">
@@ -2136,6 +2166,7 @@ const instanceConfig = ref({
   themeColor: '#0EA5E9',
   maintainerName: '',
   maintainerEmail: '',
+  defaultThemeJson: '' as string,
 })
 const instanceIconFile = ref<File | null>(null)
 const instanceBannerFile = ref<File | null>(null)
@@ -2566,6 +2597,7 @@ const loadInstanceConfig = async () => {
         themeColor: cfg.instance.themeColor || '#0EA5E9',
         maintainerName: cfg.instance.maintainerName || '',
         maintainerEmail: cfg.instance.maintainerEmail || '',
+        defaultThemeJson: cfg.instance.defaultThemeJson || '',
       }
       
       // Load OAuth providers
@@ -3440,6 +3472,47 @@ const saveInstanceBranding = async () => {
     toast.error(error.message || 'Failed to save instance branding')
   } finally {
     savingBranding.value = false
+  }
+}
+
+const handleDefaultThemeImport = async (event: Event) => {
+  const file = (event.target as HTMLInputElement).files?.[0]
+  if (!file) return
+  try {
+    const text = await file.text()
+    const parsed = JSON.parse(text)
+    if (!parsed || typeof parsed !== 'object') {
+      toast.error('Invalid theme JSON file')
+      return
+    }
+    instanceConfig.value.defaultThemeJson = text
+    instanceBrandingChanged.value = true
+
+    if (authStore.session?.user?.id) {
+      await adminService.setInstanceConfigs({
+        default_theme_json: text,
+      }, authStore.session.user.id)
+      toast.success('Default theme imported and saved')
+    }
+  } catch {
+    toast.error('Failed to parse theme JSON file')
+  }
+  const input = event.target as HTMLInputElement
+  if (input) input.value = ''
+}
+
+const clearDefaultTheme = async () => {
+  instanceConfig.value.defaultThemeJson = ''
+  instanceBrandingChanged.value = true
+  if (authStore.session?.user?.id) {
+    try {
+      await adminService.setInstanceConfigs({
+        default_theme_json: '',
+      }, authStore.session.user.id)
+      toast.success('Default theme cleared')
+    } catch {
+      toast.error('Failed to clear default theme')
+    }
   }
 }
 

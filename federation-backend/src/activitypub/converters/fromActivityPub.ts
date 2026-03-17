@@ -15,7 +15,9 @@ export function noteToContent(note: any): any[] {
   let cleanText = note.content;
   cleanText = cleanText.replace(/<br\s*\/?>/gi, '\n');
   cleanText = cleanText.replace(/<\/(?:p|div|li|blockquote|h[1-6])>/gi, '\n');
-  cleanText = cleanText.replace(/<[^>]*>/g, ' '); // Replace tags with space to preserve word boundaries
+  // Remove inline tags WITHOUT adding spaces so @<span>user</span> → @user (not "@ user")
+  cleanText = cleanText.replace(/<\/?(?:span|a|strong|b|em|i|u|s|del|code|sub|sup|mark|small|big|abbr)[^>]*>/gi, '');
+  cleanText = cleanText.replace(/<[^>]*>/g, ' ');
   cleanText = cleanText.replace(/[ \t]+/g, ' ');
   cleanText = cleanText.replace(/&nbsp;/g, ' ');
   cleanText = cleanText.replace(/&amp;/g, '&');

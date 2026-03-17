@@ -246,8 +246,9 @@ onUnmounted(() => {
 <style scoped>
 .context-menu {
   position: fixed;
-  background: var(--background-floating, #18191c);
-  border: 1px solid var(--border-color, var(--h-black-lighter));
+  background: var(--background-primary-alpha);
+  border: 1px solid var(--border-color);
+  backdrop-filter: blur(8px);
   border-radius: 6px;
   padding: 6px 0;
   min-width: 188px;

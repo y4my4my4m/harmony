@@ -264,6 +264,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch, computed } from 'vue';
 import { debug } from '@/utils/debug'
+import { webrtcManager } from '@/services/webrtcManager';
 import { unifiedWebRTC } from '@/services/unifiedWebRTC';
 import { VoiceSettingsService } from '@/services/VoiceSettingsService';
 import { useKeybinds, type KeybindModifiers } from '@/composables/useKeybinds';
@@ -577,12 +578,11 @@ const updateInputDevice = async () => {
   if (!selectedInputDevice.value) return;
   
   try {
-    // Use the WebRTC service method to properly switch devices
-    await unifiedWebRTC.updateInputDevice(selectedInputDevice.value);
+    await webrtcManager.updateInputDevice(selectedInputDevice.value);
     debug.log('✅ Successfully switched to new input device');
+    window.dispatchEvent(new CustomEvent('harmony-device-changed', { detail: { type: 'input', deviceId: selectedInputDevice.value } }));
   } catch (error) {
     debug.error('❌ Failed to switch input device:', error);
-    // Could show user notification here
   }
   
   saveSettings();
@@ -593,12 +593,11 @@ const updateOutputDevice = async () => {
   if (!selectedOutputDevice.value) return;
   
   try {
-    // Use the WebRTC service method to properly switch output devices
-    await unifiedWebRTC.updateOutputDevice(selectedOutputDevice.value);
+    await webrtcManager.updateOutputDevice(selectedOutputDevice.value);
     debug.log('🔊 Successfully switched to new output device');
+    window.dispatchEvent(new CustomEvent('harmony-device-changed', { detail: { type: 'output', deviceId: selectedOutputDevice.value } }));
   } catch (error) {
     debug.error('❌ Failed to switch output device:', error);
-    // Could show user notification here
   }
   
   saveSettings();
@@ -633,7 +632,15 @@ const updateAudioSettings = () => {
   });
 };
 
-const updateVideoSettings = () => {
+const updateVideoSettings = async () => {
+  if (selectedVideoDevice.value) {
+    try {
+      await webrtcManager.updateVideoDevice(selectedVideoDevice.value);
+      debug.log('📹 Successfully switched to new video device');
+    } catch (error) {
+      debug.error('❌ Failed to switch video device:', error);
+    }
+  }
   saveSettings();
   emit('update-voice-settings', {
     type: 'videoConstraints',
@@ -670,20 +677,32 @@ const saveSettings = () => {
 watch(selectedVideoDevice, updateVideoPreview);
 
 // Lifecycle
+const handleExternalDeviceChange = (e: Event) => {
+  const { type, deviceId } = (e as CustomEvent).detail || {}
+  if (!deviceId) return
+  if (type === 'input' && deviceId !== selectedInputDevice.value) {
+    selectedInputDevice.value = deviceId
+  } else if (type === 'output' && deviceId !== selectedOutputDevice.value) {
+    selectedOutputDevice.value = deviceId
+  } else if (type === 'video' && deviceId !== selectedVideoDevice.value) {
+    selectedVideoDevice.value = deviceId
+  }
+}
+
 onMounted(() => {
   debug.log('🎛️ [VoiceSettingsInline] Component mounted, loading settings...');
-  // getDevices() now also loads stored settings after enumerating devices
   getDevices();
   navigator.mediaDevices.addEventListener('devicechange', getDevices);
-  // Add keybind recording listeners (keyboard + mouse)
   window.addEventListener('keydown', handleKeybindKeydown);
   window.addEventListener('mousedown', handleKeybindMousedown, { capture: true });
+  window.addEventListener('harmony-device-changed', handleExternalDeviceChange);
 });
 
 onUnmounted(() => {
   navigator.mediaDevices.removeEventListener('devicechange', getDevices);
   window.removeEventListener('keydown', handleKeybindKeydown);
   window.removeEventListener('mousedown', handleKeybindMousedown, { capture: true });
+  window.removeEventListener('harmony-device-changed', handleExternalDeviceChange);
   if (previewStream.value) {
     previewStream.value.getTracks().forEach(track => track.stop());
   }

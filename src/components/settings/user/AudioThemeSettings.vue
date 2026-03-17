@@ -38,6 +38,22 @@
       </div>
     </div>
 
+    <!-- Import / Export audio theme packs -->
+    <div class="settings-section import-export-section">
+      <h3 class="section-title">Import & Export Theme Packs</h3>
+      <p class="section-description">Export a full audio theme (sounds + metadata) to share or backup. Import a pack to add it as a custom theme.</p>
+      <div class="import-export-actions">
+        <button @click="exportThemePack" class="import-export-btn" :disabled="!themeStore.isReady || isExportingPack">
+          <Icon :name="isExportingPack ? 'loader' : 'download'" :class="{ spinning: isExportingPack }" />
+          {{ isExportingPack ? 'Exporting...' : 'Export Pack' }}
+        </button>
+        <button @click="importThemePack" class="import-export-btn" :disabled="!themeStore.isReady">
+          <Icon name="upload" />
+          Import Pack
+        </button>
+      </div>
+    </div>
+
     <!-- Advanced Settings -->
     <div class="settings-section advanced-section" v-if="showAdvanced">
       <h3 class="section-title">{{ $t('settings.advanced.title') }}</h3>
@@ -117,6 +133,7 @@ const notificationStore = useNotificationStore()
 // Local state
 const isLoading = ref(false)
 const showAdvanced = ref(false)
+const isExportingPack = ref(false)
 
 // Test actions for sound preview
 const testActions = [
@@ -188,7 +205,7 @@ const clearCache = async (): Promise<void> => {
 const resetSystem = async (): Promise<void> => {
   try {
     isLoading.value = true
-    await themeStore.resetAudioSystem()
+    await themeStore.resetToDefaults()
     notificationStore.showToast(
       'ui_success' as any,
       'System Reset',
@@ -217,6 +234,55 @@ const onThemeChanged = (themeId: string): void => {
   )
 }
 
+const PACK_MAX_BYTES = 10 * 1024 * 1024 // 10MB
+
+const exportThemePack = async (): Promise<void> => {
+  if (!themeStore.isReady) return
+  try {
+    isExportingPack.value = true
+    const blob = await themeStore.exportThemePack(themeStore.currentAudioTheme)
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    const themeName = themeStore.getCurrentAudioTheme?.name ?? themeStore.currentAudioTheme
+    a.download = `harmony-audio-pack-${String(themeName).replace(/\s+/g, '-').toLowerCase()}-${new Date().toISOString().slice(0, 10)}.zip`
+    a.click()
+    URL.revokeObjectURL(url)
+    notificationStore.showToast('ui_success' as any, 'Pack exported', 'Audio theme pack downloaded as ZIP', 2000)
+  } catch (error) {
+    debug.error('Failed to export pack:', error)
+    notificationStore.showToast('ui_error' as any, 'Export failed', error instanceof Error ? error.message : 'Could not export theme pack', 3000)
+  } finally {
+    isExportingPack.value = false
+  }
+}
+
+const importThemePack = (): void => {
+  const input = document.createElement('input')
+  input.type = 'file'
+  input.accept = '.zip,application/zip'
+  input.onchange = (e) => {
+    const file = (e.target as HTMLInputElement).files?.[0]
+    if (!file) return
+    if (file.size > PACK_MAX_BYTES) {
+      notificationStore.showToast('ui_error' as any, 'File too large', 'Pack must be under 10MB', 3000)
+      return
+    }
+    const reader = new FileReader()
+    reader.onload = async (ev) => {
+      try {
+        const arrayBuffer = ev.target?.result as ArrayBuffer
+        const theme = await themeStore.importThemePack(arrayBuffer)
+        notificationStore.showToast('ui_success' as any, 'Pack imported', `${theme.name} added as custom theme`, 2000)
+      } catch (err) {
+        debug.error('Failed to import pack:', err)
+        notificationStore.showToast('ui_error' as any, 'Import failed', err instanceof Error ? err.message : 'Invalid audio pack format', 3000)
+      }
+    }
+    reader.readAsArrayBuffer(file)
+  }
+  input.click()
+}
 
 // =============================================================================
 // LIFECYCLE
@@ -574,6 +640,43 @@ onMounted(async () => {
   cursor: not-allowed;
 }
 
+/* Import / Export */
+.import-export-section .section-description {
+  margin-bottom: 16px;
+}
+
+.import-export-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.import-export-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: transparent;
+  border: 1px solid var(--h-chat-light);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.import-export-btn:hover:not(:disabled) {
+  border-color: var(--h-brand);
+  color: var(--text-primary);
+  background: rgba(14, 165, 233, 0.1);
+}
+
+.import-export-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* Advanced Settings */
 .advanced-section {
   border: 1px dashed var(--h-chat-light);
@@ -654,6 +757,43 @@ onMounted(async () => {
 .toggle-btn:hover {
   border-color: var(--h-brand);
   color: var(--text-primary);
+}
+
+/* Import/Export section */
+.import-export-section .section-description {
+  margin-bottom: 16px;
+}
+
+.import-export-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.import-export-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  background: transparent;
+  border: 1px solid var(--h-chat-light);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.import-export-btn:hover:not(:disabled) {
+  border-color: var(--h-brand);
+  color: var(--text-primary);
+  background: rgba(14, 165, 233, 0.08);
+}
+
+.import-export-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* Responsive */

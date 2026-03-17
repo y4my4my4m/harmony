@@ -626,6 +626,20 @@ watch(
   { immediate: true } // Initialize immediately when component is created
 )
 
+// Stop caller ringing when voice connection drops (e.g. user hangs up from dock/overlay)
+watch(() => voiceStore.isConnected, (connected, wasConnected) => {
+  if (wasConnected && !connected) {
+    stopCallerRinging()
+  }
+})
+
+// Also stop ringing when the connecting state clears (cancelled before connection established)
+watch(() => voiceStore.isConnecting, (connecting, wasConnecting) => {
+  if (wasConnecting && !connecting && !voiceStore.isConnected) {
+    stopCallerRinging()
+  }
+})
+
 // Cleanup when component unmounts
 onUnmounted(() => {
   cleanupPresenceTracking()

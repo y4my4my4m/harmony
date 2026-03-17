@@ -13,6 +13,7 @@
           :categoryChannels="categoryChannels"
           @channelSelected="$emit('channel-selected', $event)"
           @createChannel="$emit('create-channel', $event)"
+          @openThread="$emit('open-thread', $event)"
         />
       </div>
     </div>
@@ -173,6 +174,7 @@ const emit = defineEmits<{
   'channel-selected': [channelId: string];
   'create-channel': [categoryId: string];
   'conversation-selected': [conversationId: string];
+  'open-thread': [thread: any];
   
   // Mode switching
   'switch-mode': [mode: 'chat' | 'activitypub'];

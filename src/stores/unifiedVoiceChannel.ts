@@ -22,6 +22,9 @@ let voiceSessionHeartbeat: ReturnType<typeof setInterval> | null = null;
 // Module-level keybind state management
 let keybindListenersSetup = false;
 
+// Prevent duplicate WebRTC event listener registration
+let webrtcListenersRegistered = false;
+
 // =============================================================================
 // TYPES
 // =============================================================================
@@ -322,12 +325,24 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
           return true;
         }
         
+        // If already in a different voice channel, leave it first.
+        // Must happen BEFORE setting isConnecting/abort controller, otherwise
+        // leaveVoiceChannel enters the "cancel ongoing connection" path.
+        if (this.isConnected && this.currentChannelId) {
+          debug.log('⚠️ Already in a voice channel, leaving first...');
+          const leaveOk = await this.leaveVoiceChannel();
+          if (!leaveOk) {
+            debug.warn('⚠️ leaveVoiceChannel returned false — forcing cleanup');
+            await webrtcManager.leaveChannel();
+            this.resetState();
+          }
+        }
+        
         // Create abort controller for this connection attempt
         this.connectionAbortController = new AbortController();
         const abortSignal = this.connectionAbortController.signal;
         
-        // Set optimistic state IMMEDIATELY for instant UI feedback
-        // This happens before any async operations
+        // Set optimistic state for instant UI feedback
         const channel = serverChannelStore.channels.find((c: any) => c.id === channelId);
         this.optimisticChannelId = channelId;
         this.optimisticServerId = serverId;
@@ -335,12 +350,6 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         this.isConnecting = true;
         
         debug.log('🎯 [Optimistic] Voice dock should be visible now for:', channelId);
-        
-        // If already in a different voice channel, leave it first
-        if (this.isConnected && this.currentChannelId) {
-          debug.log('⚠️ Already in a voice channel, leaving first...');
-          await this.leaveVoiceChannel();
-        }
         
         // Check cross-tab: prevent joining if another tab is already in a voice channel
         const activeVoiceSession = userStorage.getItem('active-voice-session');
@@ -787,6 +796,20 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
           // Leave WebRTC if it was partially connected
           await webrtcManager.leaveChannel();
           
+          // If this was a DM call, notify the callee so their incoming modal dismisses
+          if (optimisticChannelId?.startsWith('dm-')) {
+            try {
+              const { authContextService } = await import('@/services/AuthContextService');
+              const profileId = await authContextService.getCurrentProfileId();
+              const conversationId = optimisticChannelId.replace('dm-', '');
+              if (profileId && conversationId) {
+                await dmCallSignaling.leaveCall(conversationId, profileId);
+              }
+            } catch (e) {
+              debug.warn('Failed to signal DM call leave during cancel:', e);
+            }
+          }
+          
           debug.log('✅ Connection attempt cancelled');
           return true;
         }
@@ -976,9 +999,14 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       // Voice Activity mode - normal toggle behavior
       if (this.isConnected) {
         const muted = webrtcManager.toggleMute();
-        this.localState = webrtcManager.getLocalState();
-        themeStore.playAudio(muted ? 'mic_off' : 'mic_on');
-        return muted;
+        const newState = webrtcManager.getLocalState();
+        if (newState.userId) {
+          this.localState = newState;
+        } else {
+          this.localState.isMuted = !this.localState.isMuted;
+        }
+        themeStore.playAudio(this.localState.isMuted ? 'mic_off' : 'mic_on');
+        return this.localState.isMuted;
       } else {
         // Toggle local state when not connected
         this.localState.isMuted = !this.localState.isMuted;
@@ -1319,9 +1347,12 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     },
 
     /**
-     * Setup WebRTC event listeners
+     * Setup WebRTC event listeners (idempotent — only registers once)
      */
     setupWebRTCListeners(): void {
+      if (webrtcListenersRegistered) return;
+      webrtcListenersRegistered = true;
+
       const themeStore = useThemeStore();
       const serverUsersStore = useServerUsersStore();
       const authStore = useAuthStore();

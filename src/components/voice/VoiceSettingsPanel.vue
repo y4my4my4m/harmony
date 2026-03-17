@@ -275,6 +275,7 @@
 
 <script lang="ts">
 import { defineComponent, ref, onMounted, onUnmounted, watch } from 'vue';
+import { webrtcManager } from '@/services/webrtcManager';
 import { unifiedWebRTC } from '@/services/unifiedWebRTC';
 import { VoiceSettingsService } from '@/services/VoiceSettingsService';
 import { debug } from '@/utils/debug';
@@ -491,14 +492,13 @@ export default defineComponent({
       if (!selectedInputDevice.value) return;
       
       try {
-        // Use the WebRTC service method to properly switch devices
-        await unifiedWebRTC.updateInputDevice(selectedInputDevice.value);
+        await webrtcManager.updateInputDevice(selectedInputDevice.value);
         debug.log('✅ [VoiceSettingsPanel] Successfully switched to new input device');
+        window.dispatchEvent(new CustomEvent('harmony-device-changed', { detail: { type: 'input', deviceId: selectedInputDevice.value } }));
       } catch (error) {
         debug.error('❌ [VoiceSettingsPanel] Failed to switch input device:', error);
       }
       
-      // Save via VoiceSettingsService
       VoiceSettingsService.setInputDevice(selectedInputDevice.value);
       
       emit('update-settings', { type: 'inputDevice', value: selectedInputDevice.value });
@@ -508,9 +508,9 @@ export default defineComponent({
       if (!selectedOutputDevice.value) return;
       
       try {
-        // Use the WebRTC service method to properly switch output devices
-        await unifiedWebRTC.updateOutputDevice(selectedOutputDevice.value);
+        await webrtcManager.updateOutputDevice(selectedOutputDevice.value);
         debug.log('✅ [VoiceSettingsPanel] Successfully switched to new output device');
+        window.dispatchEvent(new CustomEvent('harmony-device-changed', { detail: { type: 'output', deviceId: selectedOutputDevice.value } }));
       } catch (error) {
         debug.error('❌ [VoiceSettingsPanel] Failed to switch output device:', error);
       }
@@ -609,16 +609,29 @@ export default defineComponent({
     // Watch for device changes
     watch(selectedVideoDevice, updateVideoPreview);
 
+    const handleExternalDeviceChange = (e: Event) => {
+      const { type, deviceId } = (e as CustomEvent).detail || {};
+      if (!deviceId) return;
+      if (type === 'input' && deviceId !== selectedInputDevice.value) {
+        selectedInputDevice.value = deviceId;
+      } else if (type === 'output' && deviceId !== selectedOutputDevice.value) {
+        selectedOutputDevice.value = deviceId;
+      } else if (type === 'video' && deviceId !== selectedVideoDevice.value) {
+        selectedVideoDevice.value = deviceId;
+      }
+    };
+
     // Lifecycle
     onMounted(() => {
-      // getDevices() now also loads stored settings after enumerating devices
       getDevices();
       detectTouchDevice();
       navigator.mediaDevices.addEventListener('devicechange', getDevices);
+      window.addEventListener('harmony-device-changed', handleExternalDeviceChange);
     });
 
     onUnmounted(() => {
       navigator.mediaDevices.removeEventListener('devicechange', getDevices);
+      window.removeEventListener('harmony-device-changed', handleExternalDeviceChange);
       if (previewStream.value) {
         previewStream.value.getTracks().forEach(track => track.stop());
       }

@@ -298,8 +298,9 @@ function formatExpiry(expiresAt: string): string {
 .federated-server-modal {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.7);
-  backdrop-filter: blur(4px);
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -308,14 +309,22 @@ function formatExpiry(expiresAt: string): string {
 }
 
 .modal-content {
-  background: var(--bg-secondary, #2b2d31);
-  border-radius: 12px;
-  padding: 32px;
+  background: linear-gradient(
+    165deg,
+    color-mix(in srgb, var(--bg-secondary, #2b2d31) 95%, transparent) 0%,
+    color-mix(in srgb, var(--bg-secondary, #1e1f22) 98%, #0ea5e9 5%) 100%
+  );
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+  padding: 36px;
   width: 100%;
-  max-width: 520px;
+  max-width: 540px;
   max-height: 90vh;
   overflow-y: auto;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  box-shadow:
+    0 0 0 1px rgba(14, 165, 233, 0.15),
+    0 24px 48px -12px rgba(0, 0, 0, 0.5),
+    0 0 80px -20px rgba(14, 165, 233, 0.2);
 }
 
 .modal-header {

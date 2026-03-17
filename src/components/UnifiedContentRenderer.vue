@@ -44,9 +44,17 @@
         <!-- User mentions -->
         <span 
           v-else-if="part && part.type === 'mention'" 
-          class="mention" 
+          class="mention"
+          :class="{ 'federated-mention': isFederatedMention(part) }"
+          :title="getMentionTooltip(part)"
           @click="handleMentionClick(part)"
-        >{{ renderer.formatMentionDisplay(part) }}</span>
+        >
+          <template v-if="part.userId">
+            <span class="mention-at">@</span>
+            <DisplayName :userId="part.userId" :fallback="part.displayName || part.username" :truncate="false" />
+          </template>
+          <template v-else>{{ renderer.formatMentionDisplay(part) }}</template>
+        </span>
 
         <!-- Role mentions -->
         <span
@@ -198,6 +206,7 @@ import { useContentRenderer, type ContentRenderOptions } from '@/composables/use
 import { getEmojiUrl } from '@/utils/emojiUtils';
 import { useUnifiedEmoji } from '@/services/unifiedEmojiService';
 import { debug } from '@/utils/debug';
+import DisplayName from '@/components/DisplayName.vue';
 
 interface Props {
   content: MessagePart[] | string | any;
@@ -307,6 +316,22 @@ const handleMentionClick = (mention: MessagePart) => {
   if (mention.type === 'mention' && mention.userId) {
     emit('user-mention-click', mention.userId, new Event('click'));
   }
+};
+
+const currentDomain = import.meta.env.VITE_DOMAIN as string;
+
+const isFederatedMention = (part: MessagePart): boolean => {
+  return !part.isLocal && !!part.domain && part.domain !== currentDomain && part.domain !== 'discord.com';
+};
+
+const getMentionTooltip = (part: MessagePart): string => {
+  if (part.domain === 'discord.com') {
+    return `Discord user: ${(part as any).displayName || part.username}`;
+  }
+  if (!part.isLocal && part.domain) {
+    return `@${part.username}@${part.domain}`;
+  }
+  return (part as any).displayName || part.username || '';
 };
 
 const handleImageLoad = (url: string) => {
@@ -544,9 +569,25 @@ const formatFileSize = (bytes: number): string => {
   -ms-user-select: text;
 }
 
+.mention .mention-at {
+  opacity: 0.7;
+}
+
 .mention:hover {
   background-color: var(--harmony-primary);
   color: rgba(255,255,255,0.9);
+}
+
+.mention.federated-mention::after {
+  content: '';
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  margin-left: 3px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%2310b981' d='M17.9%2C17.39C17.64%2C16.59 16.89%2C16 16%2C16H15V13A1%2C1 0 0%2C0 14%2C12H8V10H10A1%2C1 0 0%2C0 11%2C9V7H13A2%2C2 0 0%2C0 15%2C5V4.59C17.93%2C5.77 20%2C8.64 20%2C12C20%2C14.08 19.2%2C15.97 17.9%2C17.39M11%2C19.93C7.05%2C19.44 4%2C16.08 4%2C12C4%2C11.38 4.08%2C10.79 4.21%2C10.21L9%2C15V16A2%2C2 0 0%2C0 11%2C18M12%2C2A10%2C10 0 0%2C0 2%2C12A10%2C10 0 0%2C0 12%2C22A10%2C10 0 0%2C0 22%2C12A10%2C10 0 0%2C0 12%2C2Z'/%3E%3C/svg%3E");
+  background-size: contain;
+  background-repeat: no-repeat;
+  vertical-align: middle;
 }
 
 .role-mention {

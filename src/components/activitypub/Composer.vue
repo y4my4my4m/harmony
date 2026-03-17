@@ -418,7 +418,7 @@ const canSubmit = computed(() => {
   const withinLimit = content.value.length <= characterLimit;
   return hasContent && withinLimit;
 });
-const canAddMedia = computed(() => mediaAttachments.value.length < maxMediaAttachments);
+const canAddMedia = computed(() => mediaAttachments.value.length < maxMediaAttachments.value);
 
 const visibilityOptions = [
   { value: 'public' as const, label: t('activitypub.public'), description: t('activitypub.visibleToEveryone'), icon: 'globe' },
@@ -1232,8 +1232,8 @@ const vClickOutside = {
   position: absolute;
   top: 100%;
   right: 0;
-  background-color: #1f2937;
-  border: 1px solid #374151;
+  background-color: var(--background-primary);
+  border: 1px solid var(--border-primary);
   border-radius: 0.5rem;
   padding: 0.5rem;
   min-width: 250px;
@@ -1258,11 +1258,11 @@ const vClickOutside = {
 }
 
 .visibility-option:hover {
-  background-color: #374151;
+  background-color: var(--background-tertiary);
 }
 
 .visibility-option.active {
-  background-color: rgba(37, 99, 235, 0.1);
+  background-color: var(--background-quinary);
   color: #3b82f6;
 }
 

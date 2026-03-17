@@ -46,6 +46,9 @@ interface InstanceSettings {
 
   // Display names
   allowCustomEmojisInDisplayNames: boolean
+
+  // Default theme for new/unauthenticated users
+  defaultThemeJson: string | null
 }
 
 interface InstanceSettingsState {
@@ -74,6 +77,7 @@ const DEFAULT_SETTINGS: InstanceSettings = {
   maxCustomEmojisPerServer: 50,
   maxMediaAttachmentsPerPost: 20,
   allowCustomEmojisInDisplayNames: true,
+  defaultThemeJson: null,
 }
 
 // Cache duration: 5 minutes
@@ -248,6 +252,13 @@ export const useInstanceSettingsStore = defineStore('instanceSettings', {
           }
           case 'allow_custom_emojis_in_display_names':
             this.settings.allowCustomEmojisInDisplayNames = value === true || value === 'true'
+            break
+          case 'default_theme_json':
+            if (value && typeof value === 'string') {
+              this.settings.defaultThemeJson = value
+            } else if (value && typeof value === 'object') {
+              this.settings.defaultThemeJson = JSON.stringify(value)
+            }
             break
           case 'federation_settings':
             // Handle nested federation_settings object

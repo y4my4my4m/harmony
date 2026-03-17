@@ -541,7 +541,7 @@ function resolveEmoji(input: string): ResolvedEmoji {
   }
   
   // Check if input is a shortcode (no emoji characters)
-  const isShortcode = /^[a-z0-9_]+$/i.test(input)
+  const isShortcode = /^[a-z0-9_+-]+$/i.test(input)
   
   if (isShortcode) {
     const unicode = shortcodeToUnicode(input)
@@ -647,7 +647,7 @@ function normalizeToUnicode(input: string): string {
   }
   
   // Check if it's a shortcode
-  const isShortcode = /^[a-z0-9_]+$/i.test(input)
+  const isShortcode = /^[a-z0-9_+-]+$/i.test(input)
   if (isShortcode) {
     return shortcodeToUnicode(input) || input
   }

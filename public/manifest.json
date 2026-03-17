@@ -49,7 +49,7 @@
       "name": "Notifications",
       "short_name": "Notifications",
       "description": "View notifications",
-      "url": "/notifications",
+      "url": "/social/notifications",
       "icons": [
         {
           "src": "/favicon/android-icon-96x96.png",

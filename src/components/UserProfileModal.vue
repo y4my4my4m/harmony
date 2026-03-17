@@ -30,7 +30,7 @@
           <Icon name="copy" class="action-item-icon" />
           Copy User ID
         </div>
-        <div v-if="isInServerContext" class="action-item" @click="openInviteModal">
+        <div v-if="isInServerContext && canInvite" class="action-item" @click="openInviteModal">
           <Icon name="share" class="action-item-icon" />
           Send Server Invite
         </div>
@@ -139,7 +139,7 @@
 
         <!-- Custom Status (global, for any user with one set) -->
         <div v-if="customStatusDisplay" class="custom-status-section">
-          <span class="custom-status-label">Custom Status</span>
+          <span class="custom-status-label">Status</span>
           <span class="custom-status-text">{{ customStatusDisplay }}</span>
         </div>
 
@@ -313,7 +313,7 @@
             <!-- Invite to Server -->
             <div class="invite-btn-wrapper">
               <button 
-                v-if="isInServerContext"
+                v-if="isInServerContext && canInvite"
                 @click="openInviteModal"
                 class="secondary-action-btn"
               >
@@ -454,6 +454,7 @@ const showKickBanModal = ref(false)
 const kickBanMode = ref<'kick' | 'ban'>('kick')
 const canKick = ref(false)
 const canBan = ref(false)
+const canInvite = ref(false)
 
 // Server invite picker state
 const showServerPicker = ref(false)
@@ -873,11 +874,10 @@ const openSettings = () => {
 }
 
 const handleFollowToggle = async () => {
-  if (!props.user || !isFederatedUser(props.user)) return
+  if (!props.user) return
   
   try {
-    // Use store's isFollowing method for current state (more reliable than user object)
-    const isCurrentlyFollowing = activityPubStore.isFollowing(props.user.id) || props.user.is_following
+    const isCurrentlyFollowing = activityPubStore.isFollowing(props.user.id) || (props.user as any).is_following
     
     if (isCurrentlyFollowing) {
       await activityPubStore.unfollowUser(props.user.id)
@@ -1036,9 +1036,10 @@ const handleKickBanDone = (result: { success: boolean; messagesDeleted?: number 
 }
 
 async function loadModerationPermissions() {
-  if (!isInServerContext.value || !props.user || isCurrentUser.value) {
+  if (!isInServerContext.value || !props.user) {
     canKick.value = false
     canBan.value = false
+    canInvite.value = false
     return
   }
   const serverId = serverChannelStore.currentServerId
@@ -1049,15 +1050,18 @@ async function loadModerationPermissions() {
     const profileId = await authContextService.getCurrentProfileId()
     if (!profileId) return
 
-    const [kick, ban] = await Promise.all([
-      roleService.hasPermission(profileId, serverId, Permission.KICK_MEMBERS),
-      roleService.hasPermission(profileId, serverId, Permission.BAN_MEMBERS),
+    const [kick, ban, invite] = await Promise.all([
+      isCurrentUser.value ? Promise.resolve(false) : roleService.hasPermission(profileId, serverId, Permission.KICK_MEMBERS),
+      isCurrentUser.value ? Promise.resolve(false) : roleService.hasPermission(profileId, serverId, Permission.BAN_MEMBERS),
+      isCurrentUser.value ? Promise.resolve(false) : roleService.hasPermission(profileId, serverId, Permission.CREATE_INVITE),
     ])
     canKick.value = kick
     canBan.value = ban
+    canInvite.value = invite
   } catch {
     canKick.value = false
     canBan.value = false
+    canInvite.value = false
   }
 }
 
@@ -1204,6 +1208,11 @@ watch(() => ({ show: props.show, userId: props.user?.id }), async (newVal, oldVa
       // Ensure followed users are loaded in the store for accurate follow button state
       if (!activityPubStore.followsLoaded) {
         activityPubStore.loadFollowedUsers()
+      }
+
+      // Ensure blocked/muted users are loaded for accurate mute/block button state
+      if (activityPubStore.blockedUsers.size === 0 && activityPubStore.mutedUsers.size === 0) {
+        activityPubStore.loadBlockingData()
       }
     }
     
