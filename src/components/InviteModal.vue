@@ -427,19 +427,19 @@ const shareToClipboard = () => {
 
 const shareToEmail = () => {
   const subject = encodeURIComponent(`Join ${props.serverData?.name || 'our server'}!`)
-  const body = encodeURIComponent(`Hey! You're invited to join "${props.serverData?.name || 'our server'}" on our chat platform. Click this link to join: ${inviteUrl.value}`)
+  const body = encodeURIComponent(`Hey! You're invited to join "${props.serverData?.name || 'our server'}" on Harmony. Click this link to join: ${inviteUrl.value}`)
   window.open(`mailto:?subject=${subject}&body=${body}`)
 }
 
 const shareToSocial = (platform: string) => {
-  const text = encodeURIComponent(`Join "${props.serverData?.name || 'our server'}" on our chat platform!`)
+  const text = encodeURIComponent(`Join "${props.serverData?.name || 'our server'}" on Harmony!`)
   const url = encodeURIComponent(inviteUrl.value)
   
   let shareUrl = ''
   
   switch (platform) {
-    case 'twitter':
-      shareUrl = `https://twitter.com/intent/tweet?text=${text}&url=${url}`
+    case '𝕏':
+      shareUrl = `https://x.com/intent/tweet?text=${text}&url=${url}`
       break
     case 'facebook':
       shareUrl = `https://www.facebook.com/sharer/sharer.php?u=${url}`
