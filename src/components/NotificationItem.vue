@@ -592,18 +592,21 @@ const typeIcon = computed(() => {
 
 .type-icon-overlay {
   position: absolute;
-  bottom: -4px;
-  right: -4px;
-  width: 24px;
-  height: 24px;
-  /* border-radius: 50%; */
+  bottom: -2px;
+  right: -2px;
+  width: 16px;
+  height: 16px;
   display: flex;
   align-items: center;
   justify-content: center;
-  /* border: 2px solid var(--h-chat); */
   font-size: 8px;
   color: var(--text-primary);
   z-index: 4;
+}
+
+.type-icon-overlay svg {
+  width: 14px;
+  height: 14px;
 }
 
 .overlay--mention svg,

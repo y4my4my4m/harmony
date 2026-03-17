@@ -11,7 +11,7 @@
       
       <div class="user-details">
         <div class="user-name-row">
-          <span class="user-name" v-html="displayNameHtml"></span>
+          <DisplayName class="user-name" :userId="user.id" :fallback="user.display_name || user.username" />
           <span v-if="user.is_admin" class="instance-badge admin" title="Instance Admin">
             <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
             ADMIN
@@ -134,6 +134,7 @@ import Icon from '@/components/common/Icon.vue';
 import Avatar from '@/components/common/Avatar.vue';
 import ReportModal from '@/components/moderation/ReportModal.vue';
 import SupporterBadge from '@/components/common/SupporterBadge.vue';
+import DisplayName from '@/components/DisplayName.vue';
 import { useRouter } from 'vue-router';
 import { parseDisplayNameOrBioForDisplay } from '@/utils/mentionUtils';
 
@@ -206,10 +207,6 @@ const isBlocked = computed(() => {
 const followButtonText = computed(() => {
   if (getLoadingState().follow) return t('common.loading');
   return isFollowing.value ? t('activitypub.following') : t('activitypub.follow');
-});
-
-const displayNameHtml = computed(() => {
-  return parseDisplayNameOrBioForDisplay(props.user.display_name, props.user.username);
 });
 
 const bioHtml = computed(() => parseDisplayNameOrBioForDisplay(props.user.bio, ''));

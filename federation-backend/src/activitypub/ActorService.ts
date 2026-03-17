@@ -535,6 +535,104 @@ router.post(
 );
 
 /**
+ * Batch fetch reactions for multiple remote posts in one request.
+ * POST /fetch-reactions-batch
+ * Body: { posts: [{ post_ap_id: string, post_id?: string }, ...] }
+ */
+router.post(
+  '/fetch-reactions-batch',
+  asyncHandler(async (req: Request, res: Response) => {
+    const { posts } = req.body;
+
+    if (!Array.isArray(posts) || posts.length === 0) {
+      return res.status(400).json({ error: 'posts array is required' });
+    }
+
+    const MAX_BATCH = 30;
+    const batch = posts.slice(0, MAX_BATCH);
+    const supabase = getSupabaseClient();
+    const results: Record<string, any> = {};
+
+    await Promise.allSettled(
+      batch.map(async (entry: { post_ap_id: string; post_id?: string }) => {
+        if (!entry.post_ap_id) return;
+
+        try {
+          const apDomain = new URL(entry.post_ap_id).hostname;
+          if (apDomain === config.INSTANCE_DOMAIN) {
+            results[entry.post_ap_id] = { success: true, reactions: [], count: 0 };
+            return;
+          }
+        } catch { /* invalid URL, proceed */ }
+
+        try {
+          const reactions = await fetchRemotePostReactions(entry.post_ap_id, entry.post_id, supabase);
+
+          let remote_reactions: Record<string, any> | null = null;
+          let updatedPost: any = null;
+
+          if (entry.post_id) {
+            const { data } = await supabase
+              .from('posts')
+              .select('metadata, favorites_count, replies_count, reblogs_count')
+              .eq('id', entry.post_id)
+              .single();
+            updatedPost = data ?? null;
+            remote_reactions = updatedPost?.metadata?.remote_reactions || null;
+          }
+
+          if (!remote_reactions && reactions.length > 0) {
+            const byEmoji = new Map<string, { count: number; url?: string; reactors: any[] }>();
+            for (const r of reactions as Array<{ emoji: string; emoji_url?: string; actor?: any }>) {
+              const key = r.emoji;
+              if (!byEmoji.has(key)) byEmoji.set(key, { count: 0, url: r.emoji_url, reactors: [] });
+              const e = byEmoji.get(key)!;
+              e.count++;
+              if (e.reactors.length < 10 && r.actor) {
+                e.reactors.push({
+                  username: r.actor.username,
+                  display_name: r.actor.display_name || r.actor.username,
+                  avatar_url: r.actor.avatar_url,
+                  domain: r.actor.domain,
+                });
+              }
+            }
+            remote_reactions = Object.fromEntries(byEmoji);
+            if (entry.post_id) {
+              await supabase
+                .from('posts')
+                .update({
+                  metadata: {
+                    ...(updatedPost?.metadata || {}),
+                    remote_reactions,
+                    remote_reactions_fetched_at: new Date().toISOString(),
+                  },
+                })
+                .eq('id', entry.post_id);
+            }
+          }
+
+          results[entry.post_ap_id] = {
+            success: true,
+            reactions,
+            count: reactions.length,
+            remote_reactions,
+            favorites_count: updatedPost?.favorites_count || 0,
+            replies_count: updatedPost?.replies_count || 0,
+            reblogs_count: updatedPost?.reblogs_count || 0,
+          };
+        } catch (error: any) {
+          logger.error(`Batch fetch-reactions failed for ${entry.post_ap_id}:`, error.message);
+          results[entry.post_ap_id] = { success: false, error: error.message };
+        }
+      })
+    );
+
+    return res.json({ results });
+  })
+);
+
+/**
  * Fetch reactions/likes for a remote post
  * POST /fetch-reactions (proxied via /api/federation/fetch-reactions)
  * Body: { post_ap_id: string, post_id?: string }

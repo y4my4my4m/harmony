@@ -1837,8 +1837,16 @@ DECLARE
     mentioned_user_id UUID;
     author_profile RECORD;
     post_content_preview TEXT;
+    reply_parent_author_id UUID;
 BEGIN
     IF TG_OP = 'INSERT' THEN
+        -- If this post is a reply, find the parent author so we can skip
+        -- sending a duplicate mention notification (they already get a reply notification).
+        IF NEW.in_reply_to IS NOT NULL THEN
+            SELECT author_id INTO reply_parent_author_id
+            FROM posts WHERE id = NEW.in_reply_to;
+        END IF;
+
         SELECT id, username, display_name, avatar_url, domain, is_local
         INTO author_profile
         FROM profiles 
@@ -1866,7 +1874,10 @@ BEGIN
                               AND is_local = true
                               AND id != NEW.author_id;
                             
-                            IF mentioned_user_id IS NOT NULL THEN
+                            -- Skip if the mentioned user is the parent post's author;
+                            -- they already receive an activitypub_reply notification.
+                            IF mentioned_user_id IS NOT NULL
+                               AND mentioned_user_id IS DISTINCT FROM reply_parent_author_id THEN
                                 PERFORM send_notification_to_user(
                                     'activitypub_mention',
                                     mentioned_user_id,

@@ -1426,6 +1426,56 @@ export const useActivityPubStore = defineStore('activitypub', {
     },
 
     /**
+     * Batch-fetch remote reactions for all remote posts in a single request,
+     * preventing the N+1 per-post fetch-reactions calls.
+     */
+    async batchFetchRemoteReactions(posts: TimelinePost[]) {
+      const { fetchedReactionsThisSession } = await import('@/composables/useRemotePostSync');
+      const remotePosts = posts.filter(p => !p.is_local && p.ap_id && !fetchedReactionsThisSession.has(p.id));
+      if (remotePosts.length === 0) return;
+
+      // Mark all as fetched upfront so individual MonyPost components skip their own fetch
+      for (const p of remotePosts) fetchedReactionsThisSession.add(p.id);
+
+      try {
+        const batchPayload = remotePosts.map(p => ({
+          post_ap_id: p.ap_id!,
+          post_id: p.id,
+        }));
+
+        const response = await fetch(`${this.federationApiUrl}/fetch-reactions-batch`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ posts: batchPayload }),
+        });
+
+        if (!response.ok) return;
+
+        const { results } = await response.json();
+        if (!results) return;
+
+        for (const post of remotePosts) {
+          const result = results[post.ap_id!];
+          if (!result?.success) continue;
+
+          if (result.remote_reactions) {
+            this.updatePostMetadataInAllFeeds(post.id, {
+              remote_reactions: result.remote_reactions,
+              remote_reactions_fetched_at: new Date().toISOString(),
+            });
+          }
+          if (result.favorites_count !== undefined) {
+            this.updatePostFieldInAllFeeds(post.id, 'favorites_count', result.favorites_count);
+          }
+        }
+
+        debug.log(`📬 Batch-fetched remote reactions for ${remotePosts.length} posts`);
+      } catch (error) {
+        debug.warn('Batch remote reactions fetch failed (non-blocking):', error);
+      }
+    },
+
+    /**
      * Load the user's home timeline (with cache support)
      */
     async loadHomeFeed(before?: string) {
@@ -1457,7 +1507,6 @@ export const useActivityPubStore = defineStore('activitypub', {
           const postReactionsStore = usePostReactionsStore();
           const postIds = posts.map(p => p.id)
           debug.log(`🔄 Batch loading reactions for ${postIds.length} home timeline posts`)
-          // Force batch fetch to ensure reactions load before components render
           await postReactionsStore.fetchMultiplePostReactions(postIds, true)
         }
         
@@ -1478,6 +1527,9 @@ export const useActivityPubStore = defineStore('activitypub', {
         this.homeFeed.has_more = fullPage;
         this.homeFeed.cursor = posts[posts.length - 1]?.created_at;
         this.hasEverLoadedTimeline = true;
+
+        // Batch-fetch remote reactions (non-blocking, prevents per-post N+1)
+        this.batchFetchRemoteReactions(processedPosts);
 
       } catch (error) {
         debug.error('Failed to load home feed:', error);
@@ -1522,6 +1574,9 @@ export const useActivityPubStore = defineStore('activitypub', {
         // Update cache with fresh data
         this.saveTimelineToCache();
         debug.log('✅ Background refresh complete');
+
+        // Batch-fetch remote reactions (non-blocking)
+        this.batchFetchRemoteReactions(processedPosts);
       } catch (error) {
         debug.warn('Background refresh failed (cached data still shown):', error);
       }
@@ -1567,6 +1622,9 @@ export const useActivityPubStore = defineStore('activitypub', {
         const localCount = posts.filter(p => p.is_local).length;
         const federatedCount = posts.filter(p => !p.is_local).length;
         debug.log(`🌐 Public feed updated: ${localCount} local + ${federatedCount} federated = ${posts.length} total posts`);
+
+        // Batch-fetch remote reactions (non-blocking)
+        this.batchFetchRemoteReactions(processedPosts);
 
       } catch (error) {
         debug.error('Failed to load public feed:', error);
@@ -1614,6 +1672,9 @@ export const useActivityPubStore = defineStore('activitypub', {
         this.localFeed.cursor = posts[posts.length - 1]?.created_at;
 
         debug.log(`📍 Local feed loaded: ${posts.length} posts`);
+
+        // Batch-fetch remote reactions (non-blocking)
+        this.batchFetchRemoteReactions(processedPosts);
 
       } catch (error) {
         debug.error('Failed to load local feed:', error);

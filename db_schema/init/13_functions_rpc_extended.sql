@@ -271,31 +271,24 @@ BEGIN
                 -- Check ActivityPub master toggle first
                 IF COALESCE(user_prefs.activitypub_notifications, true) = false THEN
                     should_send := false;
-                ELSIF COALESCE(user_prefs.activitypub_desktop_notifications, true) = false THEN
-                    should_send := false;
                 ELSE
+                    -- Only check the content toggle for notification creation.
+                    -- Desktop/push toggles are enforced by PushNotificationService.
                     CASE p_notification_type
                         WHEN 'activitypub_follow' THEN
-                            should_send := COALESCE(user_prefs.activitypub_follows, true) 
-                                       AND COALESCE(user_prefs.activitypub_desktop_follows, true);
+                            should_send := COALESCE(user_prefs.activitypub_follows, true);
                         WHEN 'activitypub_follow_request' THEN
-                            should_send := COALESCE(user_prefs.activitypub_follow_requests, true) 
-                                       AND COALESCE(user_prefs.activitypub_desktop_follows, true);
+                            should_send := COALESCE(user_prefs.activitypub_follow_requests, true);
                         WHEN 'activitypub_favorite' THEN
-                            should_send := COALESCE(user_prefs.activitypub_favorites, true) 
-                                       AND COALESCE(user_prefs.activitypub_desktop_favorites, false);
+                            should_send := COALESCE(user_prefs.activitypub_favorites, true);
                         WHEN 'activitypub_reblog' THEN
-                            should_send := COALESCE(user_prefs.activitypub_reblogs, true) 
-                                       AND COALESCE(user_prefs.activitypub_desktop_reblogs, false);
+                            should_send := COALESCE(user_prefs.activitypub_reblogs, true);
                         WHEN 'activitypub_mention' THEN
-                            should_send := COALESCE(user_prefs.activitypub_mentions, true) 
-                                       AND COALESCE(user_prefs.activitypub_desktop_mentions, true);
+                            should_send := COALESCE(user_prefs.activitypub_mentions, true);
                         WHEN 'activitypub_reply' THEN
-                            should_send := COALESCE(user_prefs.activitypub_replies, true) 
-                                       AND COALESCE(user_prefs.activitypub_desktop_replies, true);
+                            should_send := COALESCE(user_prefs.activitypub_replies, true);
                         WHEN 'activitypub_reaction' THEN
-                            should_send := COALESCE(user_prefs.activitypub_favorites, true) 
-                                       AND COALESCE(user_prefs.activitypub_desktop_favorites, false);
+                            should_send := COALESCE(user_prefs.activitypub_favorites, true);
                         ELSE
                             should_send := true;
                     END CASE;

@@ -248,7 +248,12 @@ const MESSAGE_TEMPLATES = {
   },
 
   activitypub_reply: {
-    title: (data: any) => `${data.author.display_name || data.author.username} replied to your post`,
+    title: (data: any) => {
+      const actor = data.actor || data.author || data.sender
+      const name = actor?.display_name || actor?.username || 'Someone'
+      const domain = actor?.domain && !actor?.is_local ? `@${actor.domain}` : ''
+      return `${name}${domain} replied to your post`
+    },
     message: (data: any) => {
       const text = extractContentText(data.post_content) || extractContentText(data.post?.content_preview)
       if (text) {
