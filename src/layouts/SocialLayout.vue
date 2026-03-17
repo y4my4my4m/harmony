@@ -49,9 +49,6 @@
         <!-- Social Content (RouterView for nested social views) -->
         <div 
           class="social-content-area"
-          @touchstart.passive="timelineSwipeTouchStart"
-          @touchmove="timelineSwipeTouchMove"
-          @touchend.passive="timelineSwipeTouchEnd"
         >
           <RouterView 
             :current-view="currentView"
@@ -193,7 +190,6 @@ import { useActivityPubStore } from '@/stores/useActivityPub'
 import { trendingService } from '@/services/TrendingService'
 import { useViewContextTracking } from '@/composables/useViewContext'
 import { useLayoutState } from '@/composables/useLayoutState'
-import { useTimelineSwipe } from '@/composables/useTimelineSwipe'
 import { supabase } from '@/supabase'
 import type { FederatedUser, TimelinePost } from '@/types'
 
@@ -260,19 +256,6 @@ const route = useRoute()
 
 // Layout state
 const { SIDEBAR_WIDTH } = useLayoutState()
-
-// Timeline swipe navigation (mobile)
-const {
-  onTouchStart: timelineSwipeTouchStart,
-  onTouchMove: timelineSwipeTouchMove,
-  onTouchEnd: timelineSwipeTouchEnd,
-} = useTimelineSwipe({
-  isMobile: () => props.isMobile,
-  leftSidebarOpen: () => props.leftSidebarOpen,
-  rightSidebarOpen: () => props.rightSidebarOpen,
-  toggleLeftSidebar: () => emit('toggleLeftSidebar'),
-  toggleRightSidebar: () => emit('toggleRightSidebar'),
-})
 
 // Computed drag styles for native-feeling gestures
 const leftSidebarStyle = computed(() => {

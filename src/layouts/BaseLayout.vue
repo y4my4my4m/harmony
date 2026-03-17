@@ -110,6 +110,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useProfileStore } from '@/stores/useProfile'
 import { useMobileGestures } from '@/composables/useMobileGestures'
 import { useLayoutState } from '@/composables/useLayoutState'
+import { useTimelineSwipe } from '@/composables/useTimelineSwipe'
 import { routeAwareInitialization } from '@/services/RouteAwareInitialization'
 import { supabase } from '@/supabase'
 import { globalDMCallListener } from '@/services/GlobalDMCallListener'
@@ -152,6 +153,18 @@ const {
   endDragWithVelocity,
   cancelDrag
 } = useLayoutState()
+
+// Timeline swipe navigation for ActivityPub (used by global gesture handlers)
+const {
+  currentIndex: timelineIndex,
+  navigateTo: timelineNavigateTo,
+} = useTimelineSwipe({
+  isMobile: () => isMobile.value,
+  leftSidebarOpen: () => leftSidebarOpen.value,
+  rightSidebarOpen: () => rightSidebarOpen.value,
+  toggleLeftSidebar,
+  toggleRightSidebar,
+})
 
 // Global call state (reactive references from the global listener)
 const showGlobalIncomingCall = globalDMCallListener.showIncomingCallModal
@@ -794,42 +807,56 @@ const wrappedTouchStart = (event: TouchEvent) => {
 
 const wrappedTouchMove = (event: TouchEvent) => {
   const hasOpenSidebars = leftSidebarOpen.value || rightSidebarOpen.value
-  
+  const isActivityPubTimeline = route.path.startsWith('/social') && timelineIndex.value >= 0
+
   handleTouchMove(event, isMobile.value, hasOpenSidebars, {
     onSwipeRight: () => {},
     onSwipeLeft: () => {},
     onDragStart: (direction) => {
+      if (isActivityPubTimeline && !hasOpenSidebars) return
       debug.log('📱 Drag started:', direction)
       startDrag(direction)
     },
     onDragMove: (deltaX, direction) => {
-      // Pass raw deltaX to updateDragOffset - it handles opening/closing logic
+      if (isActivityPubTimeline && !hasOpenSidebars) return
       updateDragOffset(deltaX, direction)
     }
   })
 }
 
 const wrappedTouchEnd = (event: TouchEvent) => {
-  // In ActivityPub, timeline swipe handles all navigation/sidebar logic.
-  // Only open sidebars from BaseLayout when NOT on /social.
   const isActivityPub = route.path.startsWith('/social')
+  const isOnTimeline = isActivityPub && timelineIndex.value >= 0
 
   handleTouchEnd(event, isMobile.value, {
     onSwipeRight: () => {
-      if (!isDragging.value && !isActivityPub) {
+      if (isDragging.value) return
+      if (isOnTimeline) {
+        timelineNavigateTo('right')
+      } else if (!isActivityPub) {
         debug.log('🔄 Quick swipe right, opening left sidebar')
+        toggleLeftSidebar()
+      } else {
         toggleLeftSidebar()
       }
     },
     onSwipeLeft: () => {
-      if (!isDragging.value && !isActivityPub) {
+      if (isDragging.value) return
+      if (isOnTimeline) {
+        timelineNavigateTo('left')
+      } else if (!isActivityPub) {
         debug.log('🔄 Quick swipe left, opening right sidebar')
+        toggleRightSidebar()
+      } else {
         toggleRightSidebar()
       }
     },
     onDragEnd: (velocity, direction) => {
+      if (isOnTimeline && !leftSidebarOpen.value && !rightSidebarOpen.value) {
+        cancelDrag()
+        return
+      }
       debug.log('📱 Drag ended:', { velocity, direction })
-      // Use velocity-aware end drag for smooth native feel
       endDragWithVelocity(velocity, direction)
     }
   })

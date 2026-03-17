@@ -134,11 +134,10 @@ export class InteractionService {
     try {
       debug.log(`🚀 Simplified: Toggling block for user: ${targetUserId}`)
 
-      // Just toggle the block - database triggers handle federation automatically
       const result = await coreInteractionService.toggleBlock(targetUserId)
 
-      debug.log(`✅ Simplified: Block toggled - database handling federation: ${result.blocking ? 'blocked' : 'unblocked'}`)
-      return result
+      debug.log(`✅ Simplified: Block toggled - database handling federation: ${result.blocked ? 'blocked' : 'unblocked'}`)
+      return { blocking: result.blocked }
 
     } catch (error) {
       debug.error('❌ Simplified: Failed to toggle block:', error)
@@ -154,11 +153,10 @@ export class InteractionService {
     try {
       debug.log(`🚀 Simplified: Toggling mute for user: ${targetUserId}`)
 
-      // Muting is always local-only (by design)
       const result = await coreInteractionService.toggleMute(targetUserId)
 
-      debug.log(`✅ Simplified: Mute toggled (local-only): ${result.muting ? 'muted' : 'unmuted'}`)
-      return result
+      debug.log(`✅ Simplified: Mute toggled (local-only): ${result.muted ? 'muted' : 'unmuted'}`)
+      return { muting: result.muted }
 
     } catch (error) {
       debug.error('❌ Simplified: Failed to toggle mute:', error)

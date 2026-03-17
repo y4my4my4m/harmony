@@ -2,7 +2,7 @@
   <div 
     v-if="isVisible" 
     class="context-menu"
-    :style="{ top: position.y + 'px', left: position.x + 'px' }"
+    :style="menuStyle"
     @click.stop
   >
     <div class="context-menu-item" @click="inviteUsers" v-if="channel?.type === 0">
@@ -55,6 +55,26 @@ const { canManageChannels } = useServerPermissions()
 
 const canManageChannel = computed(() => {
   return canManageChannels.value && props.channel
+})
+
+const menuStyle = computed(() => {
+  const menuWidth = 200
+  const menuHeight = canManageChannel.value ? 150 : 40
+  const padding = 10
+
+  let x = props.position.x
+  let y = props.position.y
+
+  if (typeof window !== 'undefined') {
+    if (x + menuWidth > window.innerWidth - padding) {
+      x = window.innerWidth - menuWidth - padding
+    }
+    if (y + menuHeight > window.innerHeight - padding) {
+      y = window.innerHeight - menuHeight - padding
+    }
+  }
+
+  return { top: y + 'px', left: x + 'px' }
 })
 
 const inviteUsers = () => {

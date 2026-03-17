@@ -174,6 +174,7 @@ export function useTimelineSwipe(options: {
     currentTimeline,
     currentIndex,
     timelineOrder: TIMELINE_ORDER,
+    navigateTo,
     onTouchStart,
     onTouchMove,
     onTouchEnd,
