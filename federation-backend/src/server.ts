@@ -85,9 +85,12 @@ export function createApp(): Application {
 
   app.use('/', webFingerRouter);
   app.use('/', nodeInfoRouter);
+  // outboxRouter handles /posts/:postId, /posts/:postId/likes, /posts/:postId/replies,
+  // /users/:username/outbox — public content that federation partners fetch frequently.
+  // Mount before rate-limited routers so these don't count against discovery/inbox limits.
+  app.use('/', outboxRouter);
   app.use('/', discoveryLimiter, actorRouter);
   app.use('/', inboxLimiter, inboxRouter);
-  app.use('/', outboxRouter);
   app.use('/', inboxLimiter, groupRouter);
   app.use('/', discoveryLimiter, serverDiscoveryRouter);
   app.use('/', discoveryLimiter, instanceProbeRouter);
