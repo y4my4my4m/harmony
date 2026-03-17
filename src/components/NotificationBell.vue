@@ -19,7 +19,7 @@
         </svg>
         
         <!-- Animated Glow Ring for Unread -->
-        <div v-if="hasUnread" class="notification-glow"></div>
+        <!-- <div v-if="hasUnread" class="notification-glow"></div> -->
         
         <!-- Pulsing Dot Animation -->
         <div v-if="hasUnread" class="notification-pulse"></div>
