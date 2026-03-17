@@ -157,8 +157,17 @@ const setupObserver = () => {
   observer.observe(sentinelRef.value)
 }
 
-// When loading finishes, reset guard and reconnect observer so it
-// re-evaluates intersection (fires again if sentinel is still visible).
+// Reset loadPending when posts are appended or hasMore changes —
+// these are the reliable signals that a load completed, regardless
+// of whether the parent correctly passes isLoading transitions.
+watch([() => props.posts.length, () => props.hasMore], () => {
+  if (loadPending) {
+    loadPending = false
+    nextTick(setupObserver)
+  }
+})
+
+// Also reset on isLoading transition if the parent does wire it up.
 watch(() => props.isLoading, (loading, wasLoading) => {
   if (wasLoading && !loading) {
     loadPending = false
@@ -166,7 +175,7 @@ watch(() => props.isLoading, (loading, wasLoading) => {
   }
 })
 
-watch([() => props.hasMore, sentinelRef], () => {
+watch(sentinelRef, () => {
   nextTick(setupObserver)
 })
 

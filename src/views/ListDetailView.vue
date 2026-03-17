@@ -88,7 +88,7 @@
     <div class="list-timeline" v-if="!showMembersPanel">
       <PostsContainer
         :posts="timelinePosts"
-        :is-loading="isLoading"
+        :is-loading="isLoading || isLoadingMore"
         :has-more="hasMore"
         loading-message="Loading timeline..."
         empty-title="No posts yet"
