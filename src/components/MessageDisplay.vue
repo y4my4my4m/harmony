@@ -248,7 +248,7 @@
             <!-- Message actions for system messages (if hovered); on mobile with tap use floating popup -->
             <div class="message-actions" v-if="hoveredMessageId === item.message.id && !(isMobile && mobileActionTapPosition)">
               <div class="action-btn" @click="openEmojiReactor(item.message, $event)"><ReactionIcon/></div>
-              <div class="action-btn" v-if="canDeleteMessage(item.message)" @click="deleteMessage(item.message.id, $event)"><DeleteIcon/></div>
+              <div class="action-btn" :class="{ 'delete-danger': isShiftHeld }" v-if="canDeleteMessage(item.message)" @click="deleteMessage(item.message.id, $event)"><DeleteIcon/></div>
               <div class="action-btn" @click="openContextMenu(item.message, $event)"><MoreIcon/></div>
             </div>
             
@@ -399,7 +399,7 @@
           <div class="action-btn" @click="replyTo(item.message)"><ReplyIcon/></div>
           <div class="action-btn thread-btn" v-if="!props.hideThreadActions" @click="createThread(item.message)" title="Create Thread"><ThreadIcon/></div>
           <div class="action-btn" v-if="canEditMessage(item.message)" @click="startEdit(item.message)"><EditIcon/></div>
-          <div class="action-btn" v-if="canDeleteMessage(item.message)" @click="deleteMessage(item.message.id, $event)"><DeleteIcon/></div>
+          <div class="action-btn" :class="{ 'delete-danger': isShiftHeld }" v-if="canDeleteMessage(item.message)" @click="deleteMessage(item.message.id, $event)"><DeleteIcon/></div>
           <div class="action-btn" @click="openContextMenu(item.message, $event)"><MoreIcon/></div>
         </div>
         
@@ -493,7 +493,7 @@
     >
       <template v-if="hoveredMessageItem.message.is_system">
         <div class="action-btn" @click="openEmojiReactor(hoveredMessageItem.message, $event)"><ReactionIcon/></div>
-        <div class="action-btn" v-if="canDeleteMessage(hoveredMessageItem.message)" @click="deleteMessage(hoveredMessageItem.message.id, $event)"><DeleteIcon/></div>
+        <div class="action-btn" :class="{ 'delete-danger': isShiftHeld }" v-if="canDeleteMessage(hoveredMessageItem.message)" @click="deleteMessage(hoveredMessageItem.message.id, $event)"><DeleteIcon/></div>
         <div class="action-btn" @click="openContextMenu(hoveredMessageItem.message, $event)"><MoreIcon/></div>
       </template>
       <template v-else>
@@ -501,7 +501,7 @@
         <div class="action-btn" @click="replyTo(hoveredMessageItem.message)"><ReplyIcon/></div>
         <div class="action-btn thread-btn" v-if="!props.hideThreadActions" @click="createThread(hoveredMessageItem.message)" title="Create Thread"><ThreadIcon/></div>
         <div class="action-btn" v-if="canEditMessage(hoveredMessageItem.message)" @click="startEdit(hoveredMessageItem.message)"><EditIcon/></div>
-        <div class="action-btn" v-if="canDeleteMessage(hoveredMessageItem.message)" @click="deleteMessage(hoveredMessageItem.message.id, $event)"><DeleteIcon/></div>
+        <div class="action-btn" :class="{ 'delete-danger': isShiftHeld }" v-if="canDeleteMessage(hoveredMessageItem.message)" @click="deleteMessage(hoveredMessageItem.message.id, $event)"><DeleteIcon/></div>
         <div class="action-btn" @click="openContextMenu(hoveredMessageItem.message, $event)"><MoreIcon/></div>
       </template>
     </div>
@@ -626,6 +626,11 @@ const profileStore = useProfileStore();
 const activityPubStore = useActivityPubStore();
 const reactionsStore = useReactionsStore();
 const postReactionsStore = usePostReactionsStore();
+
+// Track shift key state so delete buttons can show a danger style
+const isShiftHeld = ref(false);
+const onShiftDown = (e: KeyboardEvent) => { if (e.key === 'Shift') isShiftHeld.value = true; };
+const onShiftUp = (e: KeyboardEvent) => { if (e.key === 'Shift') isShiftHeld.value = false; };
 
 // Track which blocked message groups the user has chosen to reveal (by first message ID in group)
 const revealedBlockedGroups = ref<Set<string>>(new Set());
@@ -1891,6 +1896,8 @@ onMounted(() => {
     messageDisplayContainer.value.addEventListener('wheel', handleWheel, { passive: false });
   }
   setupTopSentinelObserver();
+  window.addEventListener('keydown', onShiftDown);
+  window.addEventListener('keyup', onShiftUp);
   chatStore.highlightMessage = (messageId: string) => {
     const idx = displayItems.value.findIndex(
       item => item.type === 'message' && item.message?.id === messageId
@@ -1931,6 +1938,8 @@ watch(() => dmStore.highlightedMessageId, (messageId) => {
 });
 
 onUnmounted(() => {
+  window.removeEventListener('keydown', onShiftDown);
+  window.removeEventListener('keyup', onShiftUp);
   if (messageDisplayContainer.value) {
     messageDisplayContainer.value.removeEventListener('wheel', handleWheel);
   }
@@ -3047,6 +3056,16 @@ defineExpose({ editLastOwnMessage });
 .action-btn:active {
   background-color: var(--background-tertiary-alpha);
   transform: scale(0.95);
+}
+
+.action-btn.delete-danger {
+  color: var(--error)!important;
+  background-color: color-mix(in srgb, var(--error) 50%, transparent)!important;
+}
+
+.action-btn.delete-danger:hover {
+  background-color: color-mix(in srgb, var(--error-hover) 50%, transparent)!important;
+  color: var(--error-hover)!important;
 }
 
 /* Gap indicator */
