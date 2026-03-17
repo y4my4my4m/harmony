@@ -675,7 +675,7 @@ BEGIN
     WHERE pi.post_id = ANY(p_post_ids)
       AND pi.interaction_type = 'emoji_reaction'
     GROUP BY pi.post_id, pi.emoji_id, e.name, e.url, pi.custom_emoji_content
-    ORDER BY pi.post_id, reaction_count DESC, MIN(pi.created_at) ASC;
+    ORDER BY pi.post_id, MIN(pi.created_at) ASC;
 END;
 $$;
 
@@ -1049,7 +1049,7 @@ BEGIN
     WHERE pi.post_id = p_post_id 
       AND pi.interaction_type = 'emoji_reaction'
     GROUP BY pi.emoji_id, e.name, e.url, pi.custom_emoji_content
-    ORDER BY reaction_count DESC, MIN(pi.created_at) ASC;
+    ORDER BY MIN(pi.created_at) ASC;
 END;
 $$;
 

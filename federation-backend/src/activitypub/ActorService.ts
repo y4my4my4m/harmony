@@ -8,6 +8,7 @@ import { ActivityProcessor } from './ActivityProcessor.js';
 import { logger } from '../utils/logger.js';
 import config from '../config/index.js';
 import { validateExternalHostname } from '../utils/ssrfProtection.js';
+import { discoveryLimiter } from '../middleware/rateLimit.js';
 
 const router = Router();
 
@@ -20,6 +21,7 @@ const router = Router();
  */
 router.post(
   '/lookup-user',
+  discoveryLimiter,
   asyncHandler(async (req: Request, res: Response) => {
     const { handle, forceRefresh } = req.body;
 
@@ -431,6 +433,7 @@ router.post(
  */
 router.post(
   '/resolve-post',
+  discoveryLimiter,
   asyncHandler(async (req: Request, res: Response) => {
     const { url } = req.body;
 
@@ -501,6 +504,7 @@ router.post(
  */
 router.post(
   '/fetch-posts',
+  discoveryLimiter,
   asyncHandler(async (req: Request, res: Response) => {
     const { user_id, outbox_url, max_id, limit = 10 } = req.body;
 
@@ -541,6 +545,7 @@ router.post(
  */
 router.post(
   '/fetch-reactions-batch',
+  discoveryLimiter,
   asyncHandler(async (req: Request, res: Response) => {
     const { posts } = req.body;
 
@@ -639,6 +644,7 @@ router.post(
  */
 router.post(
   '/fetch-reactions',
+  discoveryLimiter,
   asyncHandler(async (req: Request, res: Response) => {
     // Debug: log raw request body
     logger.debug(`📬 fetch-reactions raw body: ${JSON.stringify(req.body)}`);
@@ -1349,6 +1355,7 @@ async function fetchRemotePostReactions(
  */
 router.post(
   '/fetch-replies',
+  discoveryLimiter,
   asyncHandler(async (req: Request, res: Response) => {
     const { post_ap_id, post_id, limit = 10 } = req.body;
 
@@ -1856,6 +1863,7 @@ async function fetchRemotePostReplies(
  */
 router.post(
   '/generate-keys',
+  discoveryLimiter,
   asyncHandler(async (req: Request, res: Response) => {
     const { user_id } = req.body;
 

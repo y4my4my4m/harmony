@@ -17,7 +17,7 @@ import compression from 'compression';
 import config from './config/index.js';
 import { logger } from './utils/logger.js';
 import { errorHandler, notFound } from './middleware/errorHandler.js';
-import { inboxLimiter, linkPreviewLimiter, discoveryLimiter, pushLimiter } from './middleware/rateLimit.js';
+import { linkPreviewLimiter, pushLimiter } from './middleware/rateLimit.js';
 
 import healthRouter from './routes/health.js';
 import linkPreviewRouter from './routes/linkPreview.js';
@@ -83,17 +83,19 @@ export function createApp(): Application {
   app.use('/voice', voiceRouter);
   app.use('/api/federation/voice', voiceRouter);
 
+  // Rate limiting is applied per-route inside each router (not at the mount level)
+  // to prevent cascade bleeding — mounting `app.use('/', limiter, routerA)` causes
+  // the limiter to count requests that don't match routerA but fall through to routerB.
   app.use('/', webFingerRouter);
   app.use('/', nodeInfoRouter);
-  // outboxRouter handles /posts/:postId, /posts/:postId/likes, /posts/:postId/replies,
-  // /users/:username/outbox — public content that federation partners fetch frequently.
-  // Mount before rate-limited routers so these don't count against discovery/inbox limits.
   app.use('/', outboxRouter);
-  app.use('/', discoveryLimiter, actorRouter);
-  app.use('/', inboxLimiter, inboxRouter);
-  app.use('/', inboxLimiter, groupRouter);
-  app.use('/', discoveryLimiter, serverDiscoveryRouter);
-  app.use('/', discoveryLimiter, instanceProbeRouter);
+  // serverDiscoveryRouter before groupRouter: /servers/discover must not collide
+  // with groupRouter's /servers/:serverId (which would match serverId='discover')
+  app.use('/', serverDiscoveryRouter);
+  app.use('/', groupRouter);
+  app.use('/', instanceProbeRouter);
+  app.use('/', actorRouter);
+  app.use('/', inboxRouter);
 
   app.use(notFound);
   app.use(errorHandler);

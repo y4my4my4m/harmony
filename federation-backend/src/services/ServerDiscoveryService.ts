@@ -11,6 +11,7 @@ import { SignatureService } from '../activitypub/SignatureService.js';
 import { logger } from '../utils/logger.js';
 import config from '../config/index.js';
 import { validateExternalHostname, validateExternalUrl } from '../utils/ssrfProtection.js';
+import { discoveryLimiter } from '../middleware/rateLimit.js';
 
 const router = Router();
 
@@ -24,6 +25,7 @@ const router = Router();
  */
 router.get(
   '/servers/discover',
+  discoveryLimiter,
   asyncHandler(async (req: Request, res: Response) => {
     const { url, handle } = req.query;
 
@@ -85,6 +87,7 @@ router.get(
  */
 router.post(
   '/invites/resolve',
+  discoveryLimiter,
   asyncHandler(async (req: Request, res: Response) => {
     const { instance, code } = req.body;
 
@@ -164,6 +167,7 @@ router.post(
  */
 router.get(
   '/invites/:code',
+  discoveryLimiter,
   asyncHandler(async (req: Request, res: Response) => {
     const { code } = req.params;
     const supabase = getSupabaseClient();
@@ -299,6 +303,7 @@ router.get(
  */
 router.post(
   '/servers/join',
+  discoveryLimiter,
   asyncHandler(async (req: Request, res: Response) => {
     const { serverUrl, userId, inviteCode } = req.body;
 
@@ -429,6 +434,7 @@ router.post(
  */
 router.post(
   '/servers/leave',
+  discoveryLimiter,
   asyncHandler(async (req: Request, res: Response) => {
     const { serverId, userId } = req.body;
 
@@ -499,6 +505,7 @@ router.post(
  */
 router.get(
   '/servers/:serverId/sync',
+  discoveryLimiter,
   asyncHandler(async (req: Request, res: Response) => {
     const { serverId } = req.params;
 
@@ -514,6 +521,7 @@ router.get(
  */
 router.get(
   '/channels/:channelId/messages',
+  discoveryLimiter,
   asyncHandler(async (req: Request, res: Response) => {
     const { channelId } = req.params;
     const { before, limit = 50 } = req.query;

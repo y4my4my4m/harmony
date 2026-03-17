@@ -17,6 +17,7 @@ import { asyncHandler } from '../middleware/errorHandler.js';
 import { logger } from '../utils/logger.js';
 import config from '../config/index.js';
 import { SignatureService } from './SignatureService.js';
+import { inboxLimiter } from '../middleware/rateLimit.js';
 
 const router = Router();
 
@@ -587,6 +588,7 @@ router.get(
  */
 router.post(
   '/servers/:serverId/inbox',
+  inboxLimiter,
   asyncHandler(async (req: Request, res: Response) => {
     const { serverId } = req.params;
     const activity = req.body;
