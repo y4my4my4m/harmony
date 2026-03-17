@@ -22,6 +22,9 @@ let voiceSessionHeartbeat: ReturnType<typeof setInterval> | null = null;
 // Module-level keybind state management
 let keybindListenersSetup = false;
 
+// Prevent duplicate WebRTC event listener registration
+let webrtcListenersRegistered = false;
+
 // =============================================================================
 // TYPES
 // =============================================================================
@@ -322,12 +325,17 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
           return true;
         }
         
-        // If already in a different voice channel, leave it first
+        // If already in a different voice channel, leave it first.
         // Must happen BEFORE setting isConnecting/abort controller, otherwise
         // leaveVoiceChannel enters the "cancel ongoing connection" path.
         if (this.isConnected && this.currentChannelId) {
           debug.log('⚠️ Already in a voice channel, leaving first...');
-          await this.leaveVoiceChannel();
+          const leaveOk = await this.leaveVoiceChannel();
+          if (!leaveOk) {
+            debug.warn('⚠️ leaveVoiceChannel returned false — forcing cleanup');
+            await webrtcManager.leaveChannel();
+            this.resetState();
+          }
         }
         
         // Create abort controller for this connection attempt
@@ -1339,9 +1347,12 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     },
 
     /**
-     * Setup WebRTC event listeners
+     * Setup WebRTC event listeners (idempotent — only registers once)
      */
     setupWebRTCListeners(): void {
+      if (webrtcListenersRegistered) return;
+      webrtcListenersRegistered = true;
+
       const themeStore = useThemeStore();
       const serverUsersStore = useServerUsersStore();
       const authStore = useAuthStore();

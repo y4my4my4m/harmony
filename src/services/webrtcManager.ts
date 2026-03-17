@@ -349,10 +349,14 @@ class WebRTCManagerService implements WebRTCManager {
   async leaveChannel(): Promise<void> {
     debug.log('👋 [WebRTCManager] Leaving channel');
     
-    if (this.activeService === 'livekit') {
-      await livekitWebRTC.leaveChannel();
-    } else if (this.activeService === 'p2p') {
-      await unifiedWebRTC.leaveChannel();
+    try {
+      if (this.activeService === 'livekit') {
+        await livekitWebRTC.leaveChannel();
+      } else if (this.activeService === 'p2p') {
+        await unifiedWebRTC.leaveChannel();
+      }
+    } catch (e) {
+      debug.warn('⚠️ [WebRTCManager] Error during leaveChannel (forcing cleanup):', e);
     }
     
     this.activeService = null;

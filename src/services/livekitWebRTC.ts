@@ -662,8 +662,11 @@ export class LiveKitWebRTCService {
     debug.log('👋 [LiveKit] Leaving voice channel');
     
     if (this.room) {
-      // Disconnect from room
-      await this.room.disconnect(true);
+      try {
+        await this.room.disconnect(true);
+      } catch (e) {
+        debug.warn('⚠️ [LiveKit] Room disconnect error (forcing cleanup):', e);
+      }
       this.room = null;
     }
     
