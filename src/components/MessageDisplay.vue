@@ -1910,6 +1910,26 @@ onMounted(() => {
   };
 });
 
+// Watch for DM highlight requests (reply jump in DMs)
+watch(() => dmStore.highlightedMessageId, (messageId) => {
+  if (!messageId) return;
+  const idx = displayItems.value.findIndex(
+    item => item.type === 'message' && item.message?.id === messageId
+  );
+  if (idx < 0) return;
+  rowVirtualizer.value.scrollToIndex(idx, { align: 'center', behavior: 'smooth' });
+  setTimeout(() => {
+    nextTick(() => {
+      const messageElement = document.getElementById(`message-${messageId}`);
+      if (messageElement) {
+        messageElement.classList.add('highlighted');
+        setTimeout(() => messageElement.classList.remove('highlighted'), 3000);
+      }
+    });
+  }, 100);
+  dmStore.highlightedMessageId = null;
+});
+
 onUnmounted(() => {
   if (messageDisplayContainer.value) {
     messageDisplayContainer.value.removeEventListener('wheel', handleWheel);
@@ -2227,7 +2247,11 @@ const saveEdit = async (messageId: string, newContent?: string) => {
     const roleDataMap = await resolveRoleMentionsData(textContent, serverChannelStore.currentServerId || undefined);
     const parsedContent = await parseContentToMessageParts(textContent, userDataMap, emojiDataMap, {}, roleDataMap);
     
-    await chatStore.editMessage(messageId, parsedContent);
+    if (props.channelId) {
+      await chatStore.editMessage(messageId, parsedContent);
+    } else if (props.conversationId) {
+      await dmStore.editMessage(messageId, parsedContent);
+    }
     cancelEdit();
   } catch (error) {
     debug.error('Error saving message edit:', error);
@@ -2266,7 +2290,11 @@ const deleteMessage = (messageId: string, event?: MouseEvent) => {
     showDeleteConfirmModal.value = true;
   } else if (bypassConfirm) {
     triggerDestructive();
-    chatStore.deleteMessage(messageId);
+    if (props.channelId) {
+      chatStore.deleteMessage(messageId);
+    } else if (props.conversationId) {
+      dmStore.deleteMessage(messageId);
+    }
   } else {
     deleteConfirmConfig.value = {
       messageId,
@@ -2427,9 +2455,13 @@ const replyTo = (message: Message) => {
 };
 
 const handleReplyClick = async (replyMessageId: string) => {
-  if (!chatStore.currentChannelId) return;
-  const success = await chatStore.jumpToMessage(replyMessageId, chatStore.currentChannelId);
-  if (!success) debug.warn(`Could not jump to message: ${replyMessageId}`);
+  if (props.channelId && chatStore.currentChannelId) {
+    const success = await chatStore.jumpToMessage(replyMessageId, chatStore.currentChannelId);
+    if (!success) debug.warn(`Could not jump to message: ${replyMessageId}`);
+  } else if (props.conversationId) {
+    const success = await dmStore.jumpToMessage(replyMessageId);
+    if (!success) debug.warn(`Could not jump to DM message: ${replyMessageId}`);
+  }
 };
 
 // Thread Logic

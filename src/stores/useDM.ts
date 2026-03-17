@@ -284,6 +284,31 @@ export const useDMStore = defineStore('dm', () => {
     })
   }
 
+  const editMessage = async (messageId: string, content: MessagePart[]) => {
+    try {
+      debug.log('🔄 Editing DM message via MessageService:', messageId)
+
+      const currentMessage = currentDMMessages.value.find(msg => msg.id === messageId)
+      if (!currentMessage) {
+        debug.error('❌ DM message not found in current messages:', messageId)
+        return
+      }
+
+      const updatedMessage = await services.messages.editMessage(messageId, content)
+
+      const messageWithReactions = {
+        ...updatedMessage,
+        reactions: currentMessage.reactions || [],
+      }
+
+      updateMessageInCache(messageId, messageWithReactions)
+      debug.log('✅ DM message edited via service layer')
+    } catch (error: any) {
+      debug.error('❌ Error editing DM message:', error)
+      throw new Error(error.message || 'Failed to edit message')
+    }
+  }
+
   const deleteMessage = async (messageId: string) => {
     try {
       debug.log('🔄 Deleting DM message via MessageService:', messageId)
@@ -293,6 +318,51 @@ export const useDMStore = defineStore('dm', () => {
     } catch (error: any) {
       debug.error('❌ Error deleting DM message:', error)
       throw new Error(error.message || 'Failed to delete message')
+    }
+  }
+
+  const highlightedMessageId = ref<string | null>(null)
+
+  const jumpToMessage = async (messageId: string): Promise<boolean> => {
+    const existingMessage = currentDMMessages.value.find(msg => msg.id === messageId)
+    if (existingMessage) {
+      highlightedMessageId.value = messageId
+      return true
+    }
+
+    try {
+      const { data: message, error } = await supabase
+        .from('messages')
+        .select('*')
+        .eq('id', messageId)
+        .eq('conversation_id', currentConversationId.value)
+        .single()
+
+      if (error || !message) {
+        debug.error('DM message not found for jump:', error)
+        return false
+      }
+
+      const messageDate = new Date(message.created_at)
+      const msgs = [...currentDMMessages.value]
+      let insertIndex = 0
+      for (let i = 0; i < msgs.length; i++) {
+        if (new Date(msgs[i].created_at) > messageDate) {
+          insertIndex = i
+          break
+        }
+        insertIndex = i + 1
+      }
+      currentDMMessages.value.splice(insertIndex, 0, message)
+
+      setTimeout(() => {
+        highlightedMessageId.value = messageId
+      }, 100)
+
+      return true
+    } catch (error) {
+      debug.error('Error jumping to DM message:', error)
+      return false
     }
   }
 
@@ -2597,7 +2667,10 @@ export const useDMStore = defineStore('dm', () => {
     fetchReplyMessage,
     
     // Actions
+    editMessage,
     deleteMessage,
+    jumpToMessage,
+    highlightedMessageId,
     initializeDMEnvironment,
     initializeDMEnvironmentForDirectAccess,
     fetchConversationDetails,
