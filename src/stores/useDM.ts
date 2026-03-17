@@ -654,23 +654,21 @@ export const useDMStore = defineStore('dm', () => {
       conversations.value = mergedConversations
       
       // OPTIMIZATION: Different loading strategies for user profiles
+      const needsProfileLoad = (conv: DMConversation) =>
+        conv.type === 'direct' && (!conv.other_user || conv.other_user._isPlaceholder)
+
       if (loadStrategy === 'immediate') {
-        // Load ALL user profiles immediately (await to ensure they're loaded)
-        const allDirectConversations = mergedConversations
-          .filter(conv => conv.type === 'direct' && conv.other_user?._isPlaceholder)
+        const allDirectConversations = mergedConversations.filter(needsProfileLoad)
           
         if (allDirectConversations.length > 0) {
           debug.log('🔄 Immediate: Loading all', allDirectConversations.length, 'user profiles')
-          // Await to ensure profiles are loaded before we finish
           await loadMultipleConversationUserProfiles(allDirectConversations.map(c => c.id))
         }
       } else if (loadStrategy === 'partial') {
-        // Load user profiles for most recent conversations immediately for better UX
-        // Keep the rest as lazy-loaded for performance
          const immediateLoadConversations = mergedConversations
-           .filter(conv => conv.type === 'direct' && conv.other_user?._isPlaceholder)
-           .sort((a, b) => new Date(b.last_activity || b.created_at).getTime() - new Date(a.last_activity || a.created_at).getTime()) // Most recent first
-           .slice(0, 20) // Load first 20 most recent direct conversations immediately
+           .filter(needsProfileLoad)
+           .sort((a, b) => new Date(b.last_activity || b.created_at).getTime() - new Date(a.last_activity || a.created_at).getTime())
+           .slice(0, 20)
            
         if (immediateLoadConversations.length > 0) {
           debug.log('🔄 Partial: Loading first', immediateLoadConversations.length, 'user profiles')
@@ -921,7 +919,7 @@ export const useDMStore = defineStore('dm', () => {
       const processedConversations: DMConversation[] = []
       
       for (const conv of rawConversations) {
-        const lastMsg = batchLastMessages.get(conv.conversation_id) || null
+        const lastMsg = batchLastMessages.get(conv.conversation_id)
         const processedConv = await _processConversationData(conv, userId, lastMsg)
         if (processedConv) {
           processedConversations.push(processedConv)
@@ -1254,27 +1252,30 @@ export const useDMStore = defineStore('dm', () => {
     return lastMessageData
   }
 
-  // Batch-fetch last messages for multiple conversations in a single query
+  // Batch-fetch last messages for multiple conversations in a single query.
+  // Supabase JS doesn't support DISTINCT ON, so we fetch a bounded set of
+  // recent messages and deduplicate client-side. Conversations that fall
+  // outside the limit will be absent from the map; callers should treat
+  // missing keys as "unknown" (not "no messages") and fall back to
+  // individual fetches via _fetchLastMessage.
   const _fetchBatchLastMessages = async (conversationIds: string[]): Promise<Map<string, any>> => {
     const result = new Map<string, any>()
     if (!conversationIds.length) return result
 
     try {
-      // Use DISTINCT ON via RPC or a windowed query; Supabase JS doesn't support DISTINCT ON
-      // so we fetch the last N messages per conversation and deduplicate client-side.
-      // A more efficient approach would use an RPC, but this avoids N+1 while keeping it simple.
+      const limit = Math.min(conversationIds.length * 5, 1000)
       const { data, error } = await supabase
         .from('messages')
         .select('id, user_id, content, created_at, metadata, conversation_id')
         .in('conversation_id', conversationIds)
         .order('created_at', { ascending: false })
+        .limit(limit)
 
       if (error) {
         debug.warn('⚠️ Batch last messages fetch error:', error)
         return result
       }
 
-      // Keep only the first (most recent) message per conversation
       if (data) {
         for (const msg of data) {
           if (!result.has(msg.conversation_id)) {
@@ -1539,14 +1540,18 @@ export const useDMStore = defineStore('dm', () => {
         // If conversation already in store, return immediately
         const existing = conversations.value.find(c => c.id === conversationId)
         if (!existing) {
-          // Add a minimal placeholder so the UI can navigate right away
           conversations.value.push({
             id: conversationId,
             created_at: new Date().toISOString(),
             type: 'direct',
-            other_user: undefined,
-            _isPlaceholder: true,
-          } as DMConversation & { _isPlaceholder?: boolean })
+            other_user: {
+              id: user2Id,
+              username: '',
+              display_name: '',
+              is_online: false,
+              _isPlaceholder: true,
+            },
+          } as DMConversation)
         }
 
         // Fetch full conversation details in the background (don't block navigation)
@@ -2667,7 +2672,7 @@ export const useDMStore = defineStore('dm', () => {
   const loadMultipleConversationUserProfiles = async (conversationIds: string[]): Promise<void> => {
     try {
       const conversationsToLoad = conversations.value.filter(c => 
-        conversationIds.includes(c.id) && c.other_user?._isPlaceholder
+        conversationIds.includes(c.id) && (!c.other_user || c.other_user._isPlaceholder)
       )
       
       if (conversationsToLoad.length === 0) return
