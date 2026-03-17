@@ -50,10 +50,12 @@ const NOTIFICATION_SOUND_MAPPING: Record<NotificationType, AudioAction> = {
   activitypub_follow: 'friend_request',
   activitypub_favorite: 'reaction',
   activitypub_reblog: 'reaction',
+  activitypub_reaction: 'reaction',
   activitypub_mention: 'mention',
   activitypub_reply: 'reply',
   activitypub_follow_request: 'friend_request',
-  error: 'server_update' // Map error notifications to server_update sound
+  report_update: 'server_update',
+  error: 'server_update',
 }
 
 // Default notification preferences
@@ -247,6 +249,7 @@ export const useNotificationStore = defineStore('notification', {
           case 'activitypub_follow':
             return state.preferences.activitypub_desktop_notifications && state.preferences.activitypub_desktop_follows
           case 'activitypub_favorite':
+          case 'activitypub_reaction':
             return state.preferences.activitypub_desktop_notifications && state.preferences.activitypub_desktop_favorites
           case 'activitypub_reblog':
             return state.preferences.activitypub_desktop_notifications && state.preferences.activitypub_desktop_reblogs
@@ -282,6 +285,7 @@ export const useNotificationStore = defineStore('notification', {
           case 'activitypub_follow':
             return state.preferences.activitypub_sound_notifications && state.preferences.activitypub_sound_follows
           case 'activitypub_favorite':
+          case 'activitypub_reaction':
             return state.preferences.activitypub_sound_notifications && state.preferences.activitypub_sound_favorites
           case 'activitypub_reblog':
             return state.preferences.activitypub_sound_notifications && state.preferences.activitypub_sound_reblogs

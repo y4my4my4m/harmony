@@ -736,7 +736,7 @@ class LinkPreviewService {
    */
   private buildMinimalGenericPayload(url: string, reason?: string): EmbedPayload {
     let hostname = url;
-    try { hostname = new URL(url).hostname; } catch {}
+    try { hostname = new URL(url).hostname; } catch { logger.debug(`Invalid URL for hostname extraction: ${url}`); }
     return {
       cacheKey: '',
       url,

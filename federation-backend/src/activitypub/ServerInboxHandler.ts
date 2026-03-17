@@ -14,6 +14,7 @@ import { logger } from '../utils/logger.js';
 import { ActivityProcessor } from './ActivityProcessor.js';
 import { DeliveryQueue } from './DeliveryQueue.js';
 import { noteToContent } from './converters/fromActivityPub.js';
+import { decodeHtmlEntities } from '../utils/contentUtils.js';
 import config from '../config/index.js';
 
 /**
@@ -1516,15 +1517,10 @@ async function sendRejectActivity(
  * Strip HTML tags from content
  */
 function stripHtml(html: string): string {
-  return html
+  let text = html
     .replace(/<br\s*\/?>/gi, '\n')
     .replace(/<\/(?:p|div|li|blockquote|h[1-6])>/gi, '\n')
     .replace(/<[^>]*>/g, ' ')
-    .replace(/[ \t]+/g, ' ')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&amp;/g, '&')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .trim();
+    .replace(/[ \t]+/g, ' ');
+  return decodeHtmlEntities(text).trim();
 }

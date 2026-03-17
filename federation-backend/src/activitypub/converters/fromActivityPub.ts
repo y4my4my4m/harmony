@@ -1,4 +1,5 @@
 import { config } from '../../config/index.js';
+import { decodeHtmlEntities } from '../../utils/contentUtils.js';
 
 /**
  * Convert ActivityPub Note to internal MessagePart[] format
@@ -301,18 +302,12 @@ export function actorToProfile(actor: any): {
   }
 
   if (actor.summary) {
-    // Convert <br> tags to newlines before stripping other HTML
     let bio = actor.summary;
-    bio = bio.replace(/<br\s*\/?>/gi, '\n');  // <br>, <br/>, <br />
-    bio = bio.replace(/<\/p>\s*<p>/gi, '\n\n'); // Paragraph breaks
-    bio = bio.replace(/<[^>]*>/g, ' '); // Replace tags with space to preserve word boundaries
+    bio = bio.replace(/<br\s*\/?>/gi, '\n');
+    bio = bio.replace(/<\/p>\s*<p>/gi, '\n\n');
+    bio = bio.replace(/<[^>]*>/g, ' ');
     bio = bio.replace(/[ \t]+/g, ' ');
-    bio = bio.replace(/&nbsp;/g, ' ');
-    bio = bio.replace(/&amp;/g, '&');
-    bio = bio.replace(/&lt;/g, '<');
-    bio = bio.replace(/&gt;/g, '>');
-    bio = bio.replace(/&quot;/g, '"');
-    bio = bio.replace(/&#039;/g, "'");
+    bio = decodeHtmlEntities(bio);
     profile.bio = bio.trim();
   }
 

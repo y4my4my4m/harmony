@@ -1089,9 +1089,8 @@ export class ServerDiscoveryService {
       
       const regularChannels = channels.filter((c: any) => !isCategory(c));
 
-      for (const channelData of regularChannels) {
+      const channelRows = regularChannels.map((channelData: any) => {
         const channelUuid = channelData.localId || extractUuid(channelData.id);
-        // Detect voice channels from multiple format variations
         const isVoice = 
           channelData.type === 'voice' || 
           channelData.type === 1 || 
@@ -1099,7 +1098,6 @@ export class ServerDiscoveryService {
           channelData.channelType === 'voice';
         const channelType = isVoice ? 1 : 0;
 
-        // Resolve category reference - look up in our categoryMap
         let categoryId = null;
         if (channelData.category) {
           categoryId = categoryMap.get(channelData.category);
@@ -1107,7 +1105,7 @@ export class ServerDiscoveryService {
           categoryId = categoryMap.get(channelData.categoryId) || channelData.categoryId;
         }
 
-        const insertData: any = {
+        const row: any = {
           server_id: serverRef.id,
           name: channelData.name,
           type: channelType,
@@ -1118,16 +1116,19 @@ export class ServerDiscoveryService {
           description: channelData.description,
         };
 
-        // Use remote UUID for consistency - this ensures messages can be linked
         if (channelUuid) {
-          insertData.id = channelUuid;
+          row.id = channelUuid;
         }
 
-        const { error: channelError } = await supabase.from('channels').insert(insertData);
+        return row;
+      });
+
+      if (channelRows.length > 0) {
+        const { error: channelError } = await supabase.from('channels').insert(channelRows);
         if (channelError) {
-          logger.error(`Failed to create channel ${channelData.name}:`, channelError);
+          logger.error(`Failed to bulk-create channels:`, channelError);
         } else {
-          logger.info(`📝 Created channel: ${channelData.name} (type: ${channelType}, category: ${categoryId})`);
+          logger.info(`📝 Created ${channelRows.length} channels`);
         }
       }
 
@@ -1271,23 +1272,18 @@ export class ServerDiscoveryService {
         return 0; // text
       };
 
-      for (const channelData of remoteChannels) {
-        const channelType = getChannelType(channelData);
+      const upsertRows = remoteChannels.map((channelData: any) => ({
+        server_id: serverId,
+        name: channelData.name,
+        type: getChannelType(channelData),
+        order: channelData.position || channelData.order || 0,
+        ap_id: channelData.id,
+        is_remote: true,
+        category: channelData.categoryId || null,
+      }));
 
-        // Upsert channel
-        await supabase
-          .from('channels')
-          .upsert({
-            server_id: serverId,
-            name: channelData.name,
-            type: channelType,
-            order: channelData.position || channelData.order || 0,
-            ap_id: channelData.id,
-            is_remote: true,
-            category: channelData.categoryId || null,
-          }, {
-            onConflict: 'ap_id',
-          });
+      if (upsertRows.length > 0) {
+        await supabase.from('channels').upsert(upsertRows, { onConflict: 'ap_id' });
       }
 
       logger.info(`✅ Synced remote server: ${remoteServer.name}`);

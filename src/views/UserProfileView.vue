@@ -281,6 +281,7 @@ import { throttle } from '@/utils/throttle'
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 import { useActivityPubStore } from '@/stores/useActivityPub';
+import { usePostReactionsStore } from '@/stores/postReactions';
 import { useAuthStore } from '@/stores/auth';
 import { useProfileStore } from '@/stores/useProfile';
 import { useLayoutState } from '@/composables/useLayoutState'
@@ -697,6 +698,14 @@ const loadUserPosts = async (retryCount = 0) => {
       hasMorePostsRef.value = posts && posts.length >= 20;
     }
     debug.log(`📊 Loaded ${userPosts.value.length} posts for ${user.value.username}`);
+
+    // Batch-load reactions to prevent N+1 per-post queries
+    if (userPosts.value.length > 0) {
+      const postReactionsStore = usePostReactionsStore();
+      const postIds = userPosts.value.map(p => p.id);
+      postReactionsStore.fetchMultiplePostReactions(postIds, true);
+      activityPubStore.batchFetchRemoteReactions(userPosts.value);
+    }
     
     // For remote users with no posts initially, poll a few times as background fetch may still be running
     if (!user.value.is_local && userPosts.value.length === 0 && retryCount < 3) {
@@ -823,6 +832,10 @@ const loadMorePosts = async () => {
           if (posts && posts.length > 0) {
             userPosts.value = posts as TimelinePost[];
             debug.log(`📊 Refreshed ${posts.length} total posts after remote fetch`);
+            
+            const postReactionsStore = usePostReactionsStore();
+            postReactionsStore.fetchMultiplePostReactions(posts.map(p => p.id), true);
+            activityPubStore.batchFetchRemoteReactions(posts as TimelinePost[]);
           }
         } else {
           debug.warn('Failed to fetch remote posts:', response.status);
@@ -854,6 +867,10 @@ const loadMorePosts = async () => {
         userPosts.value.push(...(posts as TimelinePost[]));
         hasMorePostsRef.value = posts.length >= 20;
         debug.log(`📊 Loaded ${posts.length} more posts. Total: ${userPosts.value.length}`);
+        
+        const postReactionsStore = usePostReactionsStore();
+        postReactionsStore.fetchMultiplePostReactions(posts.map(p => p.id), true);
+        activityPubStore.batchFetchRemoteReactions(posts as TimelinePost[]);
       } else {
         hasMorePostsRef.value = false;
         debug.log('📭 No more posts available');

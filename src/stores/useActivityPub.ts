@@ -354,9 +354,8 @@ export const useActivityPubStore = defineStore('activitypub', {
         // Note: loadBlockingData handles getting userId from auth store internally
         await Promise.all([
           this.loadFollowedUsers(),
-          this.loadBlockingData(), // Replaces direct loadBlockedUsers/loadMutedUsers calls
+          this.loadBlockingData(),
           this.loadFollowCounts(),
-          this.loadUserPreferences()
         ]);
         
         // Setup comprehensive realtime subscriptions
@@ -604,30 +603,6 @@ export const useActivityPubStore = defineStore('activitypub', {
       }
     },
 
-    /**
-     * Load user preferences for ActivityPub
-     */
-    async loadUserPreferences() {
-      try {
-        // const user = await supabase.auth.getUser();
-        // if (!user.data.user) return;
-
-        // const { data, error } = await supabase
-        //   .from('profiles')
-        //   .select('activitypub_preferences')
-        //   .eq('id', user.data.user.id)
-        //   .single();
-
-        // if (error) throw error;
-
-        // Store preferences in state if needed
-        // debug.log('⚙️ User preferences loaded');
-
-        // TODO: were currently storing everything in notificaiton_preferences i believe? all preferences are separates columns in the database.
-      } catch (error) {
-        debug.error('❌ Failed to load user preferences:', error);
-      }
-    },
 
     /**
      * Setup enhanced realtime subscriptions for ActivityPub
@@ -2001,75 +1976,6 @@ export const useActivityPubStore = defineStore('activitypub', {
      */
     updateComposerVisibility(visibility: PostComposerState['visibility']) {
       this.composerState.visibility = visibility;
-    },
-
-    /**
-     * Subscribe to real-time updates
-     */
-    subscribeToRealtimeUpdates() {
-      // Subscribe to new posts
-      supabase
-        .channel('activitypub_posts')
-        .on(
-          'postgres_changes',
-          { event: 'INSERT', schema: 'public', table: 'posts' },
-          (payload) => {
-            debug.log('New post received:', payload.new);
-            // TODO: Add to appropriate timelines based on visibility and following
-          }
-        )
-        .subscribe();
-
-      // Subscribe to post interactions
-      supabase
-        .channel('activitypub_interactions')
-        .on(
-          'postgres_changes',
-          { event: '*', schema: 'public', table: 'post_interactions' },
-          (payload) => {
-            debug.log('Post interaction update:', payload);
-            // TODO: Update post interaction counts
-          }
-        )
-        .subscribe();
-
-      // Subscribe to follow relationships
-      supabase
-        .channel('activitypub_follows')
-        .on(
-          'postgres_changes',
-          { event: '*', schema: 'public', table: 'follows' },
-          async (payload) => {
-            debug.log('👥 Follow relationship update:', payload);
-            
-            // Get current user PROFILE ID (not auth.uid!)
-            const { userDataService } = await import('@/services/userDataService');
-            const currentUser = userDataService.getCurrentUser();
-            if (!currentUser?.id) return;
-            
-            const follow = payload.new as any;
-            const oldFollow = payload.old as any;
-            
-            // Only update if this affects the current user's PROFILE
-            if (payload.eventType === 'INSERT' && follow.follower_id === currentUser.id) {
-              debug.log('👥 New follow relationship:', follow);
-              this.followedUsers.add(follow.following_id);
-            } else if (payload.eventType === 'DELETE' && oldFollow.follower_id === currentUser.id) {
-              debug.log('👥 Follow relationship deleted:', oldFollow);
-              this.followedUsers.delete(oldFollow.following_id);
-            } else if (payload.eventType === 'UPDATE') {
-              const isCurrentUserFollower = follow.follower_id === currentUser.id;
-              if (isCurrentUserFollower) {
-                if (follow.status === 'accepted') {
-                  this.followedUsers.add(follow.following_id);
-                } else {
-                  this.followedUsers.delete(follow.following_id);
-                }
-              }
-            }
-          }
-        )
-        .subscribe();
     },
 
     /**

@@ -1121,13 +1121,18 @@ export const useDMStore = defineStore('dm', () => {
 
       // Handle different conversation types
       if (conversationType === 'group') {
-        // For group conversations, fetch all participants
-        const participantProfiles = []
+        const participantProfiles: any[] = []
         if (conv.other_participants && Array.isArray(conv.other_participants)) {
-          for (const participant of conv.other_participants) {
-            const profileData = await _fetchUserProfile(participant.user_id)
-            if (profileData) {
-              participantProfiles.push(_normalizeUserObject(profileData))
+          const serverUsersStoreLocal = useServerUsersStore()
+          const results = await Promise.allSettled(
+            conv.other_participants.map(async (participant: any) => {
+              const cached = serverUsersStoreLocal.getUserProfile(participant.user_id)
+              return cached || await _fetchUserProfile(participant.user_id)
+            })
+          )
+          for (const r of results) {
+            if (r.status === 'fulfilled' && r.value) {
+              participantProfiles.push(_normalizeUserObject(r.value))
             }
           }
         }
