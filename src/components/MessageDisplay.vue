@@ -332,7 +332,7 @@
               </span>
             </div>
             <UnifiedMessageContent 
-              :content="item.message.content"
+              :content="getDisplayContent(item.message)"
               :message-id="item.message.id"
               :editable-message-id="editableMessageId"
               :editable-content="editableMessageContent"
@@ -365,7 +365,7 @@
           <div class="message-gutter" :data-timestamp="formatTimeOnly(item.message.created_at)" :title="formatFullTimestamp(item.message.created_at)"></div>
           <div class="message-main">
             <UnifiedMessageContent 
-              :content="item.message.content"
+              :content="getDisplayContent(item.message)"
               :message-id="item.message.id"
               :editable-message-id="editableMessageId"
               :editable-content="editableMessageContent"
@@ -549,7 +549,7 @@
 import { computed, ref, watch, nextTick, onMounted, onUnmounted, reactive } from 'vue';
 import { debug } from '@/utils/debug'
 import type { PropType, Ref, ComputedRef } from 'vue';
-import type { Message, User, Emoji, Reaction } from '@/types';
+import type { Message, MessagePart, User, Emoji, Reaction } from '@/types';
 import { useServerUsersStore } from '@/stores/useServerUsers';
 import { useChatStore } from '@/stores/useChat';
 import { useDMStore } from '@/stores/useDM';
@@ -585,7 +585,7 @@ import ThreadIndicator from '@/components/threads/ThreadIndicator.vue';
 import ConfirmationModal from '@/components/ConfirmationModal.vue';
 import { threadService } from '@/services/ThreadService';
 import type { ThreadWithDetails } from '@/services/ThreadService';
-import { messagePartsToMarkdown, messagePartsToPlainText, isSingleEmojiMessage as checkSingleEmoji } from '@/utils/messageContentUtils';
+import { messagePartsToMarkdown, messagePartsToPlainText, isSingleEmojiMessage as checkSingleEmoji, stripLeadingSelfMention } from '@/utils/messageContentUtils';
 import { parseContentToMessageParts, resolveMentionsUserData, resolveEmojisData, resolveRoleMentionsData } from '@/utils/unifiedContentProcessing';
 import { getEmojiUrl } from '@/utils/emojiUtils';
 import { useReactionsStore } from '@/stores/useReactions';
@@ -642,6 +642,13 @@ watch(blockedUsersCount, (newCount, oldCount) => {
   blockCheckVersion.value++;
   debug.log('🔄 Blocked users changed, forcing re-render. Count:', newCount);
 });
+
+const getDisplayContent = (message: Message): MessagePart[] => {
+  if (!message.metadata?.federated) return message.content;
+  const username = profileStore.profile?.username;
+  if (!username) return message.content;
+  return stripLeadingSelfMention(message.content, username);
+};
 
 // Check if a message is from a blocked user (reactive)
 const isMessageFromBlockedUser = (message: Message): boolean => {

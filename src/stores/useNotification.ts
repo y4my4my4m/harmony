@@ -1193,10 +1193,14 @@ export const useNotificationStore = defineStore('notification', {
         
         if (navData) {
           switch (navData.type) {
-            case 'conversation':
-              // Navigate to DM
-              router.push(`/dm/${navData.conversationId}`)
+            case 'conversation': {
+              let dmPath = `/dm/${navData.conversationId}`
+              if (navData.messageId) {
+                dmPath += `?messageId=${navData.messageId}`
+              }
+              router.push(dmPath)
               break
+            }
               
             case 'channel': {
               // Navigate to server channel

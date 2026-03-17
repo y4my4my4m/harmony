@@ -1,4 +1,4 @@
-import type { MessagePart } from '@/types';
+import type { MessagePart, MentionContent } from '@/types';
 
 /**
  * Convert MessagePart[] to markdown text for rendering with MarkdownContent
@@ -77,6 +77,47 @@ export function messagePartsToPlainText(parts: MessagePart[]): string {
         return '';
     }
   }).join('').trim();
+}
+
+/**
+ * Strip a leading @mention of the current user from federated messages.
+ * ActivityPub clients prepend @recipient on replies/DMs by convention — this
+ * makes federated messages look awkward in a chat-style UI.  If the very first
+ * content part is a mention of `currentUsername` (local), we remove it and trim
+ * any whitespace that directly followed it.  When the mention is the *only*
+ * meaningful content we leave the message untouched so it still renders.
+ */
+export function stripLeadingSelfMention(
+  content: MessagePart[],
+  currentUsername: string,
+): MessagePart[] {
+  if (!content?.length || !currentUsername) return content;
+
+  const first = content[0];
+  if (!first || typeof first !== 'object' || first.type !== 'mention') return content;
+
+  const mention = first as MentionContent;
+  if (!mention.isLocal) return content;
+  if (mention.username.toLowerCase() !== currentUsername.toLowerCase()) return content;
+
+  const rest = content.slice(1);
+
+  const hasSubstantiveContent = rest.some(
+    p => p.type !== 'text' || (p as { text: string }).text.trim().length > 0,
+  );
+  if (!hasSubstantiveContent) return content;
+
+  const result = [...rest];
+  if (result[0]?.type === 'text') {
+    const trimmed = (result[0] as { type: 'text'; text: string }).text.replace(/^\s+/, '');
+    if (!trimmed) {
+      result.splice(0, 1);
+    } else {
+      result[0] = { type: 'text', text: trimmed };
+    }
+  }
+
+  return result;
 }
 
 /**
