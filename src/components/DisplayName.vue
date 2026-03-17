@@ -26,8 +26,13 @@
   </span>
 </template>
 
+<script lang="ts">
+const pendingUserFetches = new Set<string>()
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+</script>
+
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, watch } from 'vue'
 import { useUserData } from '@/composables/useUserData'
 import { useUnifiedEmoji } from '@/services/unifiedEmojiService'
 import { getEmojiUrl } from '@/utils/emojiUtils'
@@ -47,8 +52,21 @@ const props = defineProps<{
   truncate?: boolean
 }>()
 
-const { getUserDisplayName, getUserDisplayNameParts, getUser } = useUserData()
+const { getUserDisplayName, getUserDisplayNameParts, getUser, fetchUserProfile } = useUserData()
 const { resolveEmoji, isNativePack, isLoaded: emojiPackLoaded } = useUnifiedEmoji()
+
+// Lazy-fetch unknown users so display names resolve with proper emoji parts.
+// pendingUserFetches is module-level to deduplicate across all DisplayName instances.
+watch(
+  () => props.userId,
+  (uid) => {
+    if (!uid || !UUID_REGEX.test(uid) || pendingUserFetches.has(uid)) return
+    if (getUser(uid).value) return
+    pendingUserFetches.add(uid)
+    fetchUserProfile(uid).finally(() => pendingUserFetches.delete(uid))
+  },
+  { immediate: true }
+)
 
 const resolvedParts = computed<DisplayNamePart[] | undefined>(() => {
   if (props.parts) return props.parts
