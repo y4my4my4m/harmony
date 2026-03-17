@@ -910,14 +910,19 @@ export const useDMStore = defineStore('dm', () => {
         return
       }
 
-      // Pre-load all user profiles
-      await _preloadUserProfiles(rawConversations)
+      // Pre-load all user profiles and batch-fetch last messages in parallel
+      const convIds = rawConversations.map((c: any) => c.conversation_id)
+      const [, batchLastMessages] = await Promise.all([
+        _preloadUserProfiles(rawConversations),
+        _fetchBatchLastMessages(convIds)
+      ])
 
-      // Process each conversation with service-like helpers
+      // Process each conversation with pre-fetched data
       const processedConversations: DMConversation[] = []
       
       for (const conv of rawConversations) {
-        const processedConv = await _processConversationData(conv, userId)
+        const lastMsg = batchLastMessages.get(conv.conversation_id) || null
+        const processedConv = await _processConversationData(conv, userId, lastMsg)
         if (processedConv) {
           processedConversations.push(processedConv)
         }
@@ -1084,13 +1089,14 @@ export const useDMStore = defineStore('dm', () => {
   }
 
   // Helper: Service-like method to process individual conversation using participant system
-  const _processConversationData = async (conv: any, userId: string): Promise<DMConversation | null> => {
+  // Accepts optional pre-fetched last message to avoid N+1 queries
+  const _processConversationData = async (conv: any, userId: string, prefetchedLastMessage?: any): Promise<DMConversation | null> => {
     try {
       const conversationType = conv.conversation_type || 'direct'
       const participantCount = conv.participant_count || 0
       
-      // Get last message for conversation
-      const lastMessageData = await _fetchLastMessage(conv.conversation_id)
+      // Use pre-fetched last message if available, otherwise fetch individually (fallback)
+      const lastMessageData = prefetchedLastMessage !== undefined ? prefetchedLastMessage : await _fetchLastMessage(conv.conversation_id)
 
       // Base conversation data
       const baseConversation = {
@@ -1147,8 +1153,10 @@ export const useDMStore = defineStore('dm', () => {
           return null
         }
         
-        // Get other user's profile
-        const profileData = await _fetchUserProfile(otherUserId)
+        // Try preloaded profile cache first, fall back to fetch
+        const serverUsersStoreLocal = useServerUsersStore()
+        const cachedProfile = serverUsersStoreLocal.getUserProfile(otherUserId)
+        const profileData = cachedProfile || await _fetchUserProfile(otherUserId)
         if (!profileData) {
           debug.error('Failed to fetch profile for user:', otherUserId)
           return null
@@ -1244,6 +1252,41 @@ export const useDMStore = defineStore('dm', () => {
     }
 
     return lastMessageData
+  }
+
+  // Batch-fetch last messages for multiple conversations in a single query
+  const _fetchBatchLastMessages = async (conversationIds: string[]): Promise<Map<string, any>> => {
+    const result = new Map<string, any>()
+    if (!conversationIds.length) return result
+
+    try {
+      // Use DISTINCT ON via RPC or a windowed query; Supabase JS doesn't support DISTINCT ON
+      // so we fetch the last N messages per conversation and deduplicate client-side.
+      // A more efficient approach would use an RPC, but this avoids N+1 while keeping it simple.
+      const { data, error } = await supabase
+        .from('messages')
+        .select('id, user_id, content, created_at, metadata, conversation_id')
+        .in('conversation_id', conversationIds)
+        .order('created_at', { ascending: false })
+
+      if (error) {
+        debug.warn('⚠️ Batch last messages fetch error:', error)
+        return result
+      }
+
+      // Keep only the first (most recent) message per conversation
+      if (data) {
+        for (const msg of data) {
+          if (!result.has(msg.conversation_id)) {
+            result.set(msg.conversation_id, msg)
+          }
+        }
+      }
+    } catch (e) {
+      debug.error('Failed to batch-fetch last messages:', e)
+    }
+
+    return result
   }
 
   const fetchConversationMessages = async (conversationId: string, beforeMessageId?: string, signal?: AbortSignal) => {
@@ -1488,13 +1531,28 @@ export const useDMStore = defineStore('dm', () => {
     try {
       debug.log('🔄 Creating/getting conversation via service-like method:', { user1Id, user2Id })
       
-      // Use service-like helper for conversation management
       const conversationId = await _createOrFindConversation(user1Id, user2Id)
       
       if (conversationId) {
-        // Refresh conversations to include the new one
-        await fetchUserConversations(user1Id)
         debug.log('✅ Conversation created/found:', conversationId)
+
+        // If conversation already in store, return immediately
+        const existing = conversations.value.find(c => c.id === conversationId)
+        if (!existing) {
+          // Add a minimal placeholder so the UI can navigate right away
+          conversations.value.push({
+            id: conversationId,
+            created_at: new Date().toISOString(),
+            type: 'direct',
+            other_user: undefined,
+            _isPlaceholder: true,
+          } as DMConversation & { _isPlaceholder?: boolean })
+        }
+
+        // Fetch full conversation details in the background (don't block navigation)
+        fetchConversationDetails(conversationId, user1Id).catch(err => {
+          debug.error('Background conversation detail fetch failed:', err)
+        })
       }
 
       return conversationId

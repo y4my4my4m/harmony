@@ -844,19 +844,14 @@ const sendDirectMessage = async () => {
     const { useDMStore } = await import('@/stores/useDM')
     const dmStore = useDMStore()
 
-    // Ensure conversations are loaded before checking
-    if (dmStore.conversations.length === 0) {
-      await dmStore.fetchUserConversations(currentProfileId)
-    }
-
-    // Check if a conversation already exists in the loaded list
+    // Quick check: if conversations are already loaded, look for an existing one
     const existing = dmStore.conversations.find(c => c.other_user?.id === props.user!.id)
     if (existing) {
       router.push(`/dm/${existing.id}`)
       return
     }
 
-    // Find or create the conversation via the DB RPC (needs profile IDs)
+    // RPC handles find-or-create; store now navigates first, refreshes in background
     const conversationId = await dmStore.createOrGetConversation(currentProfileId, props.user.id)
     if (conversationId) {
       router.push(`/dm/${conversationId}`)
