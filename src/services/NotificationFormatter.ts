@@ -367,6 +367,40 @@ export class NotificationFormatter {
   }
   
   /**
+   * Get the actor's profile user ID and the title suffix (part after the actor name).
+   * Used by toast notifications to render DisplayName with custom emojis.
+   */
+  static getActorInfo(notification: Notification): { actorUserId: string; titleSuffix: string } | null {
+    const data = notification.data || {}
+
+    let actorUserId: string | null = null
+    let actorDisplayName: string | null = null
+
+    // Extract actor from structured notification data
+    const actor = data.sender || data.reactor || data.actor || data.inviter || data.follower || data.user || data.author
+    if (actor) {
+      actorUserId = actor.user_id || actor.id || null
+      actorDisplayName = actor.display_name || actor.username || null
+    }
+
+    // Legacy fallbacks
+    if (!actorUserId && data.from_user_id) {
+      actorUserId = data.from_user_id
+    }
+
+    if (!actorUserId || !actorDisplayName) return null
+
+    // Extract the suffix by finding the actor name in the formatted title
+    const formatted = this.formatNotification(notification)
+    const title = formatted.title
+    const nameIndex = title.indexOf(actorDisplayName)
+    if (nameIndex === -1) return null
+
+    const suffix = title.substring(nameIndex + actorDisplayName.length)
+    return { actorUserId, titleSuffix: suffix }
+  }
+
+  /**
    * Get a short preview text for the notification
    */
   static getPreviewText(notification: Notification): string {
