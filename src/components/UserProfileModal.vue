@@ -43,7 +43,7 @@
           <Icon :name="isBlocked ? 'user-check' : 'ban'" class="action-item-icon" />
           {{ isBlocked ? 'Unblock User' : 'Block User' }}
         </div>
-        <template v-if="isInServerContext && !isCurrentUser">
+        <template v-if="isInServerContext && !isCurrentUser && (canKick || canBan)">
           <div class="action-divider"></div>
           <div v-if="canKick" class="action-item danger" @click="openKickModal">
             <Icon name="door-open" class="action-item-icon" :size="16" />
