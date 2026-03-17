@@ -96,9 +96,7 @@
       
       <div v-else-if="sortedConversations.length === 0" class="empty-state">
         <div class="empty-icon">
-          <svg viewBox="0 0 24 24">
-            <path d="M12,2A2,2 0 0,1 14,4C14,4.74 13.6,5.39 13,5.73V7H14A7,7 0 0,1 21,14H22A1,1 0 0,1 23,15V18A1,1 0 0,1 22,19H21V20A2,2 0 0,1 19,22H5A2,2 0 0,1 3,20V19H2A1,1 0 0,1 1,18V15A1,1 0 0,1 2,14H3A7,7 0 0,1 10,7H11V5.73C10.4,5.39 10,4.74 10,4A2,2 0 0,1 12,2M5,9V19H19V9A5,5 0 0,0 14,4H10A5,5 0 0,0 5,9Z" fill="currentColor"/>
-          </svg>
+          <Icon name="bot-message-square" :size="48" />
         </div>
         <h3>{{ $t('dm.noConversations') }}</h3>
         <p>{{ $t('dm.startBySearching') }}</p>
@@ -194,6 +192,7 @@
 // TODO: Consider virtualizing conversation list for users with many DMs
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { storeToRefs } from 'pinia'
+import Icon from '@/components/common/Icon.vue'
 import { useDMStore, type DMUser, type DMConversation } from '@/stores/useDM'
 import { useActivityPubStore } from '@/stores/useActivityPub'
 import { useUserData } from '@/composables/useUserData'

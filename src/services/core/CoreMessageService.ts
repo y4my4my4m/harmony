@@ -471,6 +471,7 @@ export class CoreMessageService {
           content: finalContent,
           encrypted,
           encryption_metadata: encryptionMetadata,
+          updated_at: new Date().toISOString(),
         })
         .eq('id', messageId)
         .select('*')

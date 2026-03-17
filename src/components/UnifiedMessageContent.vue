@@ -786,23 +786,21 @@ export default defineComponent({
       });
     });
 
-    // Watch for edit mode changes — place cursor at end on initial open
-    // Double nextTick: the first tick lets RichTextEditor's modelValue watch
-    // trigger renderContent (which has its own internal nextTick for cursor restore).
-    // The second tick runs after that, so our setCursorPosition(end) wins.
+    // Watch for edit mode changes — place cursor at end on initial open.
+    // setTimeout(0) ensures this runs after all microtasks (Vue nextTicks,
+    // RichTextEditor's onMounted renderContent, and its internal nextTick
+    // cursor restore), so our setCursorPosition(end) is the final word.
     watch(() => props.editableMessageId, (newVal) => {
       if (newVal === props.messageId) {
-        nextTick(() => {
-          nextTick(() => {
-            const r = editRichEditorRef.value;
-            if (r) {
-              autoResizeEditArea();
-              if (r.focus) r.focus();
-              const len = localEditableContent.value.length;
-              if (r.setCursorPosition) r.setCursorPosition(len);
-            }
-          });
-        });
+        setTimeout(() => {
+          const r = editRichEditorRef.value;
+          if (r) {
+            autoResizeEditArea();
+            if (r.focus) r.focus();
+            const len = localEditableContent.value.length;
+            if (r.setCursorPosition) r.setCursorPosition(len);
+          }
+        }, 0);
       }
     });
 
