@@ -322,12 +322,19 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
           return true;
         }
         
+        // If already in a different voice channel, leave it first
+        // Must happen BEFORE setting isConnecting/abort controller, otherwise
+        // leaveVoiceChannel enters the "cancel ongoing connection" path.
+        if (this.isConnected && this.currentChannelId) {
+          debug.log('⚠️ Already in a voice channel, leaving first...');
+          await this.leaveVoiceChannel();
+        }
+        
         // Create abort controller for this connection attempt
         this.connectionAbortController = new AbortController();
         const abortSignal = this.connectionAbortController.signal;
         
-        // Set optimistic state IMMEDIATELY for instant UI feedback
-        // This happens before any async operations
+        // Set optimistic state for instant UI feedback
         const channel = serverChannelStore.channels.find((c: any) => c.id === channelId);
         this.optimisticChannelId = channelId;
         this.optimisticServerId = serverId;
@@ -335,12 +342,6 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         this.isConnecting = true;
         
         debug.log('🎯 [Optimistic] Voice dock should be visible now for:', channelId);
-        
-        // If already in a different voice channel, leave it first
-        if (this.isConnected && this.currentChannelId) {
-          debug.log('⚠️ Already in a voice channel, leaving first...');
-          await this.leaveVoiceChannel();
-        }
         
         // Check cross-tab: prevent joining if another tab is already in a voice channel
         const activeVoiceSession = userStorage.getItem('active-voice-session');
@@ -786,6 +787,20 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
           
           // Leave WebRTC if it was partially connected
           await webrtcManager.leaveChannel();
+          
+          // If this was a DM call, notify the callee so their incoming modal dismisses
+          if (optimisticChannelId?.startsWith('dm-')) {
+            try {
+              const { authContextService } = await import('@/services/AuthContextService');
+              const profileId = await authContextService.getCurrentProfileId();
+              const conversationId = optimisticChannelId.replace('dm-', '');
+              if (profileId && conversationId) {
+                await dmCallSignaling.leaveCall(conversationId, profileId);
+              }
+            } catch (e) {
+              debug.warn('Failed to signal DM call leave during cancel:', e);
+            }
+          }
           
           debug.log('✅ Connection attempt cancelled');
           return true;
