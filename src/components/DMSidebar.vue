@@ -727,6 +727,8 @@ onUnmounted(() => {
 .muted-icon {
   color: var(--text-tertiary);
   flex-shrink: 0;
+  width: 12px;
+  height: 12px;
 }
 
 .user-avatar,
