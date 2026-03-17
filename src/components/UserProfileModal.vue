@@ -873,11 +873,10 @@ const openSettings = () => {
 }
 
 const handleFollowToggle = async () => {
-  if (!props.user || !isFederatedUser(props.user)) return
+  if (!props.user) return
   
   try {
-    // Use store's isFollowing method for current state (more reliable than user object)
-    const isCurrentlyFollowing = activityPubStore.isFollowing(props.user.id) || props.user.is_following
+    const isCurrentlyFollowing = activityPubStore.isFollowing(props.user.id) || (props.user as any).is_following
     
     if (isCurrentlyFollowing) {
       await activityPubStore.unfollowUser(props.user.id)
@@ -1204,6 +1203,11 @@ watch(() => ({ show: props.show, userId: props.user?.id }), async (newVal, oldVa
       // Ensure followed users are loaded in the store for accurate follow button state
       if (!activityPubStore.followsLoaded) {
         activityPubStore.loadFollowedUsers()
+      }
+
+      // Ensure blocked/muted users are loaded for accurate mute/block button state
+      if (activityPubStore.blockedUsers.size === 0 && activityPubStore.mutedUsers.size === 0) {
+        activityPubStore.loadBlockingData()
       }
     }
     
