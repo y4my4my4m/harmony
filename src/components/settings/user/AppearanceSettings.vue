@@ -991,7 +991,7 @@ onMounted(async () => {
 
 .theme-option.active {
   border-color: var(--h-primary, #0EA5E9);
-  background-color: rgba(14, 165, 233, 0.1);
+  background-color: color-mix(in srgb, var(--h-brand) 10%, transparent);
 }
 
 .theme-preview {
@@ -1206,7 +1206,7 @@ onMounted(async () => {
 
 .mode-btn.active {
   border-color: var(--h-primary, #0EA5E9);
-  background-color: rgba(14, 165, 233, 0.15);
+  background-color: color-mix(in srgb, var(--h-brand) 15%, transparent);
   color: var(--text-primary, #ffffff);
 }
 
