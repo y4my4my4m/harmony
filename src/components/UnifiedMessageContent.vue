@@ -324,6 +324,7 @@ import { useFloatingVideo } from '@/composables/useFloatingVideo';
 import { userDataService } from '@/services/userDataService';
 import { getEmojiUrl } from '@/utils/emojiUtils';
 import ProviderEmbedSwitch from '@/components/embeds/ProviderEmbedSwitch.vue';
+import { parseEmbedUrl, isHarmonyInviteUrl } from '@/utils/embedDetection';
 import { useUnifiedEmoji } from '@/services/unifiedEmojiService';
 import { gifService } from '@/services/GifService';
 import { debug } from '@/utils/debug';
@@ -566,16 +567,31 @@ export default defineComponent({
 
     const resolveEmbedPayload = (part: MessagePart): EmbedPayload | null => {
       const embeds = props.embedPayloads;
-      if (!embeds || !part || typeof part !== 'object') {
-        return null;
+
+      if (embeds && part && typeof part === 'object') {
+        if (part.type === 'embed' && part.previewId) {
+          const found = embeds[part.previewId];
+          if (found) return found;
+        }
+
+        if (part.type === 'url' && part.embedId) {
+          const found = embeds[part.embedId];
+          if (found) return found;
+        }
       }
 
-      if (part.type === 'embed' && part.previewId) {
-        return embeds[part.previewId] || null;
-      }
-
-      if (part.type === 'url' && part.embedId) {
-        return embeds[part.embedId] || null;
+      if (part && typeof part === 'object' && 'url' in part && part.url) {
+        const parsed = parseEmbedUrl(part.url);
+        if (parsed && isHarmonyInviteUrl(parsed)) {
+          return {
+            cacheKey: `invite-${part.url}`,
+            url: part.url,
+            normalizedUrl: part.url,
+            provider: 'harmony-invite',
+            fetchedAt: new Date().toISOString(),
+            expiresAt: new Date(Date.now() + 86400000).toISOString(),
+          };
+        }
       }
 
       return null;
