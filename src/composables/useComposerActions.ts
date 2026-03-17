@@ -232,12 +232,55 @@ export function useComposerActions(options: ComposerActionsOptions) {
     }
   };
 
+  const updatePost = async (
+    postId: string,
+    contentWarning: string,
+    isSensitive: boolean
+  ) => {
+    try {
+      const {
+        parseContentToMessageParts,
+        resolveMentionsUserData,
+        resolveEmojisData,
+        resolveHashtagsData
+      } = await import('@/utils/unifiedContentProcessing');
+
+      const rawContent = options.content.value.trim();
+      const [usernameToUserDataMap, emojiDataMap, hashtagDataMap] = await Promise.all([
+        resolveMentionsUserData(rawContent),
+        resolveEmojisData(rawContent),
+        resolveHashtagsData(rawContent)
+      ]);
+
+      const parsedContent = await parseContentToMessageParts(
+        rawContent,
+        usernameToUserDataMap,
+        emojiDataMap,
+        hashtagDataMap
+      );
+
+      const post = await activityPubStore.updatePost(postId, {
+        content: parsedContent,
+        content_warning: contentWarning || undefined,
+        is_sensitive: isSensitive,
+        media_attachments: options.mediaAttachments.value,
+      });
+
+      debug.log('✅ Post updated successfully:', post.id);
+      return post;
+    } catch (error) {
+      debug.error('❌ Failed to update post:', error);
+      throw error;
+    }
+  };
+
   return {
     insertEmoji,
     insertGif,
     handleFileUpload,
     handlePaste,
-    submitPost
+    submitPost,
+    updatePost
   };
 }
 

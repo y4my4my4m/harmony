@@ -72,6 +72,7 @@
           >
             {{ formatRelativeTime(originalCreatedAt) }}
           </time>
+          <span v-if="isEdited" class="edited-indicator" title="This post has been edited">(edited)</span>
         </div>
       </div>
 
@@ -532,6 +533,7 @@ import ReportModal from '@/components/moderation/ReportModal.vue';
 import SupporterBadge from '@/components/common/SupporterBadge.vue';
 import EmojiPopup from '@/components/EmojiPopup.vue';
 import VueEasyLightbox from 'vue-easy-lightbox';
+import { useToast } from 'vue-toastification';
 import router from '@/router';
 
 // Props
@@ -567,6 +569,7 @@ const { getCurrentUser, getUserProfile } = useUserData();
 const activityPubStore = useActivityPubStore();
 const notificationStore = useNotificationStore();
 const themeStore = useThemeStore();
+const toast = useToast();
 
 // Composables for clean interaction handling
 const { toggleFavorite, toggleReblog, toggleBookmark } = usePostInteractions();
@@ -796,6 +799,14 @@ const originalInstanceDomain = computed(() => {
 
 const originalCreatedAt = computed(() => {
   return (isReblog.value && props.post.reblog) ? props.post.reblog.created_at : props.post.created_at;
+});
+
+const isEdited = computed(() => {
+  const post = (isReblog.value && props.post.reblog) ? props.post.reblog : props.post;
+  if (!post.updated_at || !post.created_at) return false;
+  const created = new Date(post.created_at).getTime();
+  const updated = new Date(post.updated_at).getTime();
+  return updated - created > 2000;
 });
 
 // For quote posts, we show both the user's content AND the quoted content
@@ -1547,9 +1558,10 @@ const copyLink = async () => {
   try {
     const url = props.post.url || `${window.location.origin}/posts/${props.post.id}`;
     await navigator.clipboard.writeText(url);
-    // You could show a toast here
+    toast.success('Link copied to clipboard');
   } catch (error) {
     debug.error('Failed to copy link:', error);
+    toast.error('Failed to copy link');
   }
   closeMenu();
 };
@@ -1868,6 +1880,13 @@ const closeLightbox = () => {
 .post-time:hover {
   text-decoration: underline;
   cursor: pointer;
+}
+
+.edited-indicator {
+  color: var(--text-tertiary, #6b7280);
+  font-size: 0.75rem;
+  margin-left: 4px;
+  cursor: default;
 }
 
 .visibility-indicator {

@@ -155,12 +155,12 @@ const {
 
 .theme-option:hover {
   border-color: var(--h-brand);
-  background: rgba(14, 165, 233, 0.05);
+  background: color-mix(in srgb, var(--h-brand) 5%, transparent);
 }
 
 .theme-option.active {
   border-color: var(--h-brand);
-  background: rgba(14, 165, 233, 0.1);
+  background: color-mix(in srgb, var(--h-brand) 10%, transparent);
 }
 
 .theme-option.loading {

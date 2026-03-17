@@ -61,7 +61,7 @@
             :class="{ active: props.userState.isVideoEnabled && !props.userState.isScreenSharing }"
             :title="props.userState.isVideoEnabled && !props.userState.isScreenSharing ? 'Turn off camera' : 'Turn on camera'"
           >
-            <Icon name="camera" />
+            <Icon :name="props.userState.isVideoEnabled && !props.userState.isScreenSharing ? 'video-off' : 'video'" />
           </button>
           <button
             @click.stop="emit('toggle-screen-share')"

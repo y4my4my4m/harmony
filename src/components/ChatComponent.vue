@@ -323,7 +323,7 @@
 
       async function checkEncryptionStatus() {
         if (props.isDM) {
-          encryptionStatusData.value = null
+          await checkDMEncryptionStatus()
           return
         }
         const serverId = serverChannelStore.currentServerId
@@ -393,14 +393,79 @@
         }
       }
 
+      async function checkDMEncryptionStatus() {
+        const conversationId = props.conversationId
+        if (!conversationId) {
+          encryptionStatusData.value = null
+          return
+        }
+        try {
+          const { data } = await supabase
+            .from('conversation_encryption_settings')
+            .select('encryption_enabled')
+            .eq('conversation_id', conversationId)
+            .maybeSingle()
+
+          const enabled = data?.encryption_enabled === true
+          if (!enabled) {
+            encryptionStatusData.value = null
+            return
+          }
+
+          const module = await import('@/services/encryption/MegolmMessageEncryptionService')
+          const svc = module.megolmMessageEncryptionService
+          if (!svc.isInitialized()) {
+            const { data: { session } } = await supabase.auth.getSession()
+            if (session?.user?.id) await svc.initialize(session.user.id)
+          }
+
+          if (svc.isInitialized() && svc.isUnlocked()) {
+            const hasKey = await svc.hasRecoveryKey()
+            if (hasKey) {
+              encryptionStatusData.value = { level: 'active', icon: '🔐', text: 'End-to-end encrypted' }
+            } else {
+              encryptionStatusData.value = {
+                level: 'locked',
+                icon: '🔓',
+                text: 'Encryption enabled but keys not set up',
+                showSetup: true
+              }
+            }
+          } else {
+            encryptionStatusData.value = {
+              level: 'locked',
+              icon: '🔓',
+              text: 'Encryption enabled — unlock in Settings > Encryption',
+              showSetup: true
+            }
+          }
+        } catch {
+          encryptionStatusData.value = null
+        }
+      }
+
       function handleEncryptionSetupComplete() {
         showEncryptionSetupWizard.value = false
         checkEncryptionStatus()
       }
 
+      // Listen for DM encryption toggle events from DMHeader
+      function handleDMEncryptionToggled(event: Event) {
+        const detail = (event as CustomEvent).detail
+        if (detail?.conversationId === props.conversationId) {
+          checkEncryptionStatus()
+        }
+      }
+
       watch(
         () => serverChannelStore.currentServerId,
-        () => checkEncryptionStatus(),
+        () => { if (!props.isDM) checkEncryptionStatus() },
+        { immediate: true }
+      )
+
+      watch(
+        () => props.conversationId,
+        () => { if (props.isDM) checkEncryptionStatus() },
         { immediate: true }
       )
 
@@ -426,12 +491,14 @@
         window.addEventListener('beforeunload', handleBeforeUnload);
         window.addEventListener('harmony-command', handleSlashCommand);
         window.addEventListener('encryption-fallback', handleEncryptionFallback);
+        window.addEventListener('dm-encryption-toggled', handleDMEncryptionToggled);
       });
 
       onUnmounted(() => {
         window.removeEventListener('beforeunload', handleBeforeUnload);
         window.removeEventListener('harmony-command', handleSlashCommand);
         window.removeEventListener('encryption-fallback', handleEncryptionFallback);
+        window.removeEventListener('dm-encryption-toggled', handleDMEncryptionToggled);
       });
 
       const replyingTo = (messageId: string, displayName: string, userId?: string) => {
@@ -799,7 +866,7 @@
             }
             
             // Add reaction - works for both DMs and server messages
-            await chatStore.addReaction(selectedMessageId.value, emoji.id, authStore.session.user.id);
+            await chatStore.addReaction(selectedMessageId.value, emoji.id, authStore.session.user.id, emoji);
           }
         } else {
           // Append emoji immediately so it appears in the editor without delay

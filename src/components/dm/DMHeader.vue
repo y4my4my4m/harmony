@@ -126,7 +126,7 @@
         @click="toggleVideoCall"
         :title="isInVideoCall ? 'Turn off camera' : 'Start video call'"
       >
-        <Icon :name="isInVideoCall ? 'camera-off' : 'camera'" :size="16" />
+        <Icon :name="isInVideoCall ? 'video-off' : 'video'" :size="16" />
       </button>
       
       <button 
@@ -169,21 +169,22 @@
             <span>Search Messages</span>
           </button>
           
-          <!-- Notification Settings -->
+          <!-- Mute/Unmute Conversation -->
           <button class="action-item" @click="handleNotificationSettings">
-            <Icon name="bell" :size="16" />
-            <span>Notification Settings</span>
+            <Icon :name="isConversationMuted ? 'bell-off' : 'bell'" :size="16" />
+            <span>{{ isConversationMuted ? 'Unmute Conversation' : 'Mute Conversation' }}</span>
           </button>
           
           <!-- Encryption Toggle -->
           <button 
             class="action-item"
+            :class="{ 'action-item-disabled': !canToggleEncryption }"
             @click="toggleEncryption"
-            :disabled="!canToggleEncryption"
+            :disabled="encryptionLoading"
             :title="encryptionToggleTitle"
           >
             <Icon :name="encryptionEnabled ? 'lock' : 'unlock'" :size="16" />
-            <span>{{ encryptionEnabled ? 'Encryption On' : 'Encryption Off' }}</span>
+            <span>{{ encryptionEnabled ? 'Disable Encryption' : 'Enable Encryption' }}</span>
             <span v-if="encryptionLoading" class="loading-indicator">...</span>
           </button>
           
@@ -285,7 +286,7 @@ import GroupIcon from '@/components/common/GroupIcon.vue'
 import GroupSettingsModal from '@/components/dm/GroupSettingsModal.vue'
 import MessageSearchModal from '@/components/search/MessageSearchModal.vue'
 import { useUserData } from '@/composables/useUserData'
-import type { DMConversation } from '@/stores/useDM'
+import { useDMStore, type DMConversation } from '@/stores/useDM'
 import { getAvatarUrl } from '@/utils/avatarUtils'
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel'
 import { useAuthStore } from '@/stores/auth'
@@ -377,6 +378,9 @@ const encryptionEnabled = ref(false)
 const encryptionLoading = ref(false)
 const userHasEncryption = ref(false)
 
+// Conversation mute state
+const isConversationMuted = ref(false)
+
 // Check if user can toggle encryption (needs to have encryption set up)
 const canToggleEncryption = computed(() => userHasEncryption.value && !encryptionLoading.value)
 const encryptionToggleTitle = computed(() => {
@@ -386,13 +390,14 @@ const encryptionToggleTitle = computed(() => {
 
 // Load encryption status
 async function loadEncryptionStatus() {
+  // Reset immediately so stale state from previous conversation isn't visible
+  encryptionEnabled.value = false
+  encryptionLoading.value = true
   try {
-    // Check if user has encryption set up
     const { megolmMessageEncryptionService } = await import('@/services/encryption/MegolmMessageEncryptionService')
     userHasEncryption.value = megolmMessageEncryptionService.isUnlocked()
     debug.log('🔐 User has encryption:', userHasEncryption.value)
     
-    // Check conversation encryption setting
     const { data } = await supabase
       .from('conversation_encryption_settings')
       .select('encryption_enabled')
@@ -403,6 +408,9 @@ async function loadEncryptionStatus() {
     debug.log('🔐 Conversation encryption enabled:', encryptionEnabled.value)
   } catch (error) {
     debug.warn('Failed to load encryption status:', error)
+    encryptionEnabled.value = false
+  } finally {
+    encryptionLoading.value = false
   }
 }
 
@@ -419,9 +427,23 @@ async function toggleEncryption() {
     return
   }
   
+  const newState = !encryptionEnabled.value
+
+  // Warn about federated users when enabling encryption
+  if (newState && isFederatedUser.value) {
+    const confirmed = confirm(
+      'The other user is on a federated server that may not support Harmony\'s end-to-end encryption. ' +
+      'Encrypted messages may not be readable by them.\n\n' +
+      'Do you still want to enable encryption?'
+    )
+    if (!confirmed) {
+      closeActionsMenu()
+      return
+    }
+  }
+
   encryptionLoading.value = true
   try {
-    const newState = !encryptionEnabled.value
     debug.log('🔐 Setting encryption to:', newState)
     
     // Upsert the setting
@@ -441,6 +463,12 @@ async function toggleEncryption() {
     }
     
     encryptionEnabled.value = newState
+
+    // Notify ChatComponent to refresh its encryption indicator
+    window.dispatchEvent(new CustomEvent('dm-encryption-toggled', {
+      detail: { conversationId: props.conversation.id, enabled: newState }
+    }))
+
     toast.success(newState ? 'Encryption enabled for this conversation' : 'Encryption disabled for this conversation')
     closeActionsMenu()
   } catch (error) {
@@ -598,6 +626,7 @@ onMounted(() => {
   initializePresenceTracking()
   subscribeToCallSignals()
   loadEncryptionStatus()
+  loadConversationMuteState()
 })
 
 // Watch for conversation changes to update presence tracking and encryption
@@ -606,6 +635,7 @@ watch(
   async (newId, oldId) => {
     if (newId !== oldId) {
       loadEncryptionStatus()
+      loadConversationMuteState()
     }
   }
 )
@@ -727,9 +757,76 @@ const openGroupSettings = () => {
   showOptionsMenu.value = false
 }
 
-const handleNotificationSettings = () => {
-  debug.log('Notification settings clicked')
+async function loadConversationMuteState() {
+  try {
+    const ctx = await authContextService.getCurrentContext()
+    if (!ctx.isAuthenticated) return
+
+    const { data } = await supabase
+      .from('notification_channels')
+      .select('muted')
+      .eq('user_id', ctx.profileId)
+      .eq('conversation_id', props.conversation.id)
+      .is('channel_id', null)
+      .maybeSingle()
+
+    isConversationMuted.value = data?.muted ?? false
+  } catch (error) {
+    debug.error('Failed to load conversation mute state:', error)
+  }
+}
+
+const handleNotificationSettings = async () => {
   showOptionsMenu.value = false
+
+  try {
+    const ctx = await authContextService.getCurrentContext()
+    if (!ctx.isAuthenticated) return
+
+    const newMuted = !isConversationMuted.value
+    isConversationMuted.value = newMuted
+
+    const { data: existing } = await supabase
+      .from('notification_channels')
+      .select('id')
+      .eq('user_id', ctx.profileId)
+      .eq('conversation_id', props.conversation.id)
+      .is('channel_id', null)
+      .maybeSingle()
+
+    if (existing?.id) {
+      const { error } = await supabase
+        .from('notification_channels')
+        .update({ muted: newMuted, updated_at: new Date().toISOString() })
+        .eq('id', existing.id)
+
+      if (error) throw error
+    } else {
+      const { error } = await supabase
+        .from('notification_channels')
+        .insert({
+          user_id: ctx.profileId,
+          conversation_id: props.conversation.id,
+          muted: newMuted,
+        })
+
+      if (error) throw error
+    }
+
+    // Sync mute state in DM store for sidebar display
+    const dmStore = useDMStore()
+    const conv = dmStore.conversations.find(c => c.id === props.conversation.id)
+    if (conv) {
+      conv.is_muted = newMuted
+    }
+
+    toast.success(newMuted ? 'Conversation muted' : 'Conversation unmuted')
+    debug.log(`Conversation ${newMuted ? 'muted' : 'unmuted'}:`, props.conversation.id)
+  } catch (error) {
+    isConversationMuted.value = !isConversationMuted.value
+    debug.error('Failed to toggle conversation mute:', error)
+    toast.error('Failed to update notification setting')
+  }
 }
 
 const goToEncryptionSettings = () => {
@@ -1268,6 +1365,10 @@ const getDefaultGroupName = (): string => {
 
 .action-item.danger:hover {
   background: rgba(248, 113, 113, 0.1);
+}
+
+.action-item.action-item-disabled {
+  opacity: 0.5;
 }
 
 .menu-separator {

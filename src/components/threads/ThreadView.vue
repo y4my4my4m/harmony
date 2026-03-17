@@ -617,12 +617,12 @@ const close = () => {
 
 // MessageDisplay event handlers
 const handleSendReaction = async (messageId: string, emoji: Emoji) => {
-  // Use the reactions store to toggle reaction
+  if (!currentUserId.value) return
   try {
     themeStore.playAudio('reaction')
     const { useReactionsStore } = await import('@/stores/useReactions')
     const reactionsStore = useReactionsStore()
-    await reactionsStore.toggleReaction(messageId, emoji)
+    await reactionsStore.toggleReaction(messageId, emoji.id, currentUserId.value, emoji)
   } catch (error) {
     console.error('Failed to toggle reaction:', error)
   }
@@ -644,7 +644,7 @@ const handleToggleEmojiList = (isReaction: boolean, message?: Message, triggerEl
 const handleSendEmoji = async (emoji: Emoji) => {
   if (isPopupForReaction.value && authStore.session?.user) {
     themeStore.playAudio('reaction')
-    await chatStore.addReaction(selectedMessageId.value, emoji.id, authStore.session.user.id)
+    await chatStore.addReaction(selectedMessageId.value, emoji.id, authStore.session.user.id, emoji)
   }
   closeReactionEmoji()
 }

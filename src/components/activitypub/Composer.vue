@@ -349,10 +349,11 @@ const { t } = useI18n();
 // Props
 interface Props {
   mode: 'modal' | 'inline';
-  type: 'post' | 'reply' | 'quote';
+  type: 'post' | 'reply' | 'quote' | 'edit';
   replyToPost?: TimelinePost;
   quotePost?: TimelinePost;
   quoteAuthor?: FederatedUser;
+  editPost?: TimelinePost;
   isOpen?: boolean;
   defaultVisibility?: Post['visibility'];
   initialContent?: string;
@@ -368,6 +369,7 @@ const props = withDefaults(defineProps<Props>(), {
 const emit = defineEmits<{
   close: [];
   posted: [post: any];
+  edited: [post: any];
 }>();
 
 // Store
@@ -499,6 +501,9 @@ const placeholder = computed(() => {
   if (props.type === 'quote') {
     return 'Add a comment...';
   }
+  if (props.type === 'edit') {
+    return 'Edit your post...';
+  }
   return t('activitypub.whatsHappeningInMonyverse');
 });
 
@@ -509,6 +514,9 @@ const headerTitle = computed(() => {
   if (props.type === 'quote') {
     return 'Quote Post';
   }
+  if (props.type === 'edit') {
+    return 'Edit Post';
+  }
   return t('activitypub.createAPost');
 });
 
@@ -516,10 +524,12 @@ const submitButtonText = computed(() => {
   if (isPosting.value) {
     if (props.type === 'reply') return t('activitypub.replying');
     if (props.type === 'quote') return 'Quoting...';
+    if (props.type === 'edit') return 'Saving...';
     return t('activitypub.posting');
   }
   if (props.type === 'reply') return t('activitypub.reply');
   if (props.type === 'quote') return 'Quote';
+  if (props.type === 'edit') return 'Save';
   return t('activitypub.post');
 });
 
@@ -751,18 +761,28 @@ const handleSubmit = async () => {
   try {
     let post;
     
+    if (props.type === 'edit' && props.editPost) {
+      post = await actions.updatePost(
+        props.editPost.id,
+        contentWarning.value,
+        isSensitive.value
+      );
+      resetComposer();
+      emit('edited', post);
+      emit('close');
+      return;
+    }
+
     if (props.type === 'quote' && props.quotePost) {
-      // Create a quote reblog using the activityPubService
       const { activityPubService } = await import('@/services/activityPubService');
       post = await activityPubService.createQuoteReblog(
         props.quotePost.id,
-        content.value, // User's comment
+        content.value,
         visibility.value,
         contentWarning.value,
         isSensitive.value
       );
     } else {
-      // Regular post or reply
       post = await actions.submitPost(
         visibility.value,
         contentWarning.value,
@@ -771,24 +791,55 @@ const handleSubmit = async () => {
       );
     }
 
-    // Reset state
     resetComposer();
-    
-    // Emit success
     emit('posted', post);
     emit('close');
   } catch (error) {
     debug.error('Failed to create post:', error);
-    // TODO: Show error toast
   } finally {
     isPosting.value = false;
   }
 };
 
+/**
+ * Convert MessagePart[] from a post's content back to raw text for editing.
+ */
+function messagePartsToRawText(parts: any[]): string {
+  if (!Array.isArray(parts)) return typeof parts === 'string' ? parts : '';
+  return parts.map((part: any) => {
+    switch (part.type) {
+      case 'text': return part.text || '';
+      case 'url': return part.url || '';
+      case 'mention': {
+        if (!part.isLocal && part.domain) return `@${part.username}@${part.domain}`;
+        return `@${part.username}`;
+      }
+      case 'emoji': return `:${part.emoji?.name || 'emoji'}:`;
+      case 'hashtag': return `#${part.name}`;
+      default: return '';
+    }
+  }).join('');
+}
+
 // Lifecycle
 onMounted(() => {
-  // Pre-populate mention for replies
-  if (props.type === 'reply' && props.replyToPost?.author) {
+  if (props.type === 'edit' && props.editPost) {
+    content.value = messagePartsToRawText(props.editPost.content);
+    contentWarning.value = props.editPost.content_warning || '';
+    isSensitive.value = props.editPost.is_sensitive || false;
+    visibility.value = props.editPost.visibility || props.defaultVisibility || 'public';
+    showContentWarning.value = !!contentWarning.value;
+    if (props.editPost.media_attachments?.length) {
+      mediaAttachments.value = props.editPost.media_attachments.map((m: any) => ({
+        id: m.id || m.url,
+        type: m.type || 'image',
+        url: m.url,
+        preview_url: m.preview_url || m.url,
+        filename: m.filename,
+        description: m.description,
+      }));
+    }
+  } else if (props.type === 'reply' && props.replyToPost?.author) {
     const author = props.replyToPost.author;
     const username = author.username || '';
     const domain = author.domain || '';
@@ -799,15 +850,12 @@ onMounted(() => {
       : `@${username} `;
     content.value = mention;
   } else if (props.type === 'post' && props.initialContent?.trim()) {
-    // Pre-fill content for new posts (e.g. when mentioning from profile)
     content.value = props.initialContent;
   }
 
-  // Focus editor after mount and move cursor to end
   nextTick(() => {
-    if (props.mode === 'modal' || props.type === 'reply') {
+    if (props.mode === 'modal' || props.type === 'reply' || props.type === 'edit') {
       richEditorRef.value?.focus();
-      // Move cursor to end of content (after the @mention and space)
       if (content.value.length > 0) {
         nextTick(() => {
           richEditorRef.value?.setCursorPosition(content.value.length);

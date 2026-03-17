@@ -87,7 +87,7 @@
           }]"
           :title="voiceStore.localState.isVideoEnabled && !voiceStore.localState.isScreenSharing ? 'Turn off camera' : 'Turn on camera'"
         >
-          <Icon name="camera" />
+          <Icon :name="voiceStore.localState.isVideoEnabled && !voiceStore.localState.isScreenSharing ? 'video-off' : 'video'" />
         </button>
 
         <button
@@ -138,7 +138,7 @@
           class="dock-video"
         />
         <div class="dock-video-badge">
-          <Icon :name="activeVideoUser.isScreenSharing ? 'screen-share' : 'camera'" />
+          <Icon :name="activeVideoUser.isScreenSharing ? 'screen-share' : 'video'" />
         </div>
       </div>
 
@@ -200,7 +200,7 @@
         />
         <div class="mini-video-overlay">
           <span class="mini-video-label">
-            <Icon :name="activeVideoUser.isScreenSharing ? 'screen-share' : 'camera'" />
+            <Icon :name="activeVideoUser.isScreenSharing ? 'screen-share' : 'video'" />
             <DisplayName v-if="activeVideoUser" :userId="activeVideoUser.userId" :fallback="activeVideoUserName" />
           </span>
           <button

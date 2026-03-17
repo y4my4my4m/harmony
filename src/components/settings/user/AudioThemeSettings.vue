@@ -632,7 +632,8 @@ onMounted(async () => {
 .sound-test-btn:hover:not(:disabled) {
   border-color: var(--h-brand);
   color: var(--text-primary);
-  background: rgba(14, 165, 233, 0.1);
+  /* background: rgba(14, 165, 233, 0.1); */
+  background: color-mix(in srgb, var(--h-brand) 10%, transparent);
 }
 
 .sound-test-btn:disabled {
@@ -669,7 +670,7 @@ onMounted(async () => {
 .import-export-btn:hover:not(:disabled) {
   border-color: var(--h-brand);
   color: var(--text-primary);
-  background: rgba(14, 165, 233, 0.1);
+  background: color-mix(in srgb, var(--h-brand) 10%, transparent);
 }
 
 .import-export-btn:disabled {
@@ -680,7 +681,7 @@ onMounted(async () => {
 /* Advanced Settings */
 .advanced-section {
   border: 1px dashed var(--h-chat-light);
-  background: rgba(79, 84, 92, 0.3);
+  background: color-mix(in srgb, var(--h-chat-light) 30%, transparent);
 }
 
 .setting-item {

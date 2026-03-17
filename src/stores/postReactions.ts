@@ -44,6 +44,7 @@ export const usePostReactionsStore = defineStore('postReactions', () => {
   // Optimistic state - separate from computed properties
   const optimisticReactions = ref(new Map<string, PostReactionGroup[]>())
   const pendingToggleRequests = ref(new Set<string>())
+  const pendingReconcileTimeouts = new Map<string, ReturnType<typeof setTimeout>>()
 
   // Simple getters - no merging, no loops
   const getPostReactions = computed(() => (postId: string): PostReactionGroup[] => {
@@ -217,9 +218,6 @@ export const usePostReactionsStore = defineStore('postReactions', () => {
       const newReactions = createOptimisticReactions(currentReactions, emoji, userId, operation)
       optimisticReactions.value.set(postId, newReactions)
 
-      // Schedule seamless transition from optimistic → real data after DB update
-      const optimisticRef = newReactions
-
       // Actual database update
       // Check if emoji.id is a valid UUID (server custom emoji) or native unicode
       const isUuid = emoji.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(emoji.id);
@@ -260,14 +258,7 @@ export const usePostReactionsStore = defineStore('postReactions', () => {
         // Don't fail the entire operation if federation fails - user experience first!
       }
 
-      // Fetch real data, THEN clear optimistic (no visual gap)
-      setTimeout(async () => {
-        lastFetched.value.delete(postId)
-        await fetchPostReactions(postId, true)
-        if (optimisticReactions.value.get(postId) === optimisticRef) {
-          optimisticReactions.value.delete(postId)
-        }
-      }, 1500)
+      scheduleReconcile(postId, 1500)
 
       return { success: true }
     } catch (error: any) {
@@ -339,7 +330,25 @@ export const usePostReactionsStore = defineStore('postReactions', () => {
   }
 
   /**
-   * Real-time update handler - seamless transition from optimistic to real data
+   * Schedule a reconcile fetch, deduplicating per post.
+   * If one is already pending for this post, skips.
+   */
+  function scheduleReconcile(postId: string, delayMs: number): void {
+    if (pendingReconcileTimeouts.has(postId)) return
+
+    const timeoutId = setTimeout(async () => {
+      pendingReconcileTimeouts.delete(postId)
+      lastFetched.value.delete(postId)
+      await fetchPostReactions(postId, true)
+      optimisticReactions.value.delete(postId)
+    }, delayMs)
+
+    pendingReconcileTimeouts.set(postId, timeoutId)
+  }
+
+  /**
+   * Real-time update handler - works with optimistic state.
+   * If a reconcile is already scheduled (from toggleReaction), skip to avoid double-fetch.
    */
   async function handleRealtimeUpdate(payload: any): Promise<void> {
     const postId = payload.new?.post_id || payload.old?.post_id
@@ -348,22 +357,27 @@ export const usePostReactionsStore = defineStore('postReactions', () => {
 
     debug.log('🔄 Realtime reaction update for post:', postId)
     
+    if (pendingReconcileTimeouts.has(postId)) {
+      debug.log('🔄 Reconcile already scheduled, skipping realtime refetch')
+      return
+    }
+
     if (optimisticReactions.value.has(postId)) {
-      debug.log('🔄 Delaying realtime - optimistic update present')
-      
-      setTimeout(async () => {
-        // Fetch real data FIRST (optimistic state still displayed)
-        lastFetched.value.delete(postId)
-        await fetchPostReactions(postId, true)
-        // THEN clear optimistic — computed falls through to fresh real data
-        optimisticReactions.value.delete(postId)
-      }, 2000)
+      debug.log('🔄 Optimistic state present, scheduling reconcile')
+      scheduleReconcile(postId, 1500)
       return
     }
     
     // No optimistic state - update immediately
     lastFetched.value.delete(postId)
     await fetchPostReactions(postId, true)
+  }
+
+  function $dispose() {
+    for (const timeoutId of pendingReconcileTimeouts.values()) {
+      clearTimeout(timeoutId)
+    }
+    pendingReconcileTimeouts.clear()
   }
 
   return {
@@ -375,6 +389,7 @@ export const usePostReactionsStore = defineStore('postReactions', () => {
     fetchMultiplePostReactions,
     toggleReaction,
     handleRealtimeUpdate,
+    $dispose,
     clearOptimisticState: (postId: string) => optimisticReactions.value.delete(postId),
     bulkSetReactions: (reactionsData: Record<string, PostReactionGroup[]>) => {
       Object.entries(reactionsData).forEach(([postId, reactions]) => {

@@ -378,9 +378,10 @@ CREATE POLICY "conversation_encryption_settings_select" ON public.conversation_e
 CREATE POLICY "conversation_encryption_settings_modify" ON public.conversation_encryption_settings
     FOR ALL USING (
         EXISTS (
-            SELECT 1 FROM public.conversations c
-            WHERE c.id = conversation_encryption_settings.conversation_id
-            AND c.created_by = public.get_current_profile_id()
+            SELECT 1 FROM public.conversation_participants cp
+            WHERE cp.conversation_id = conversation_encryption_settings.conversation_id
+            AND cp.user_id = public.get_current_profile_id()
+            AND cp.left_at IS NULL
         )
     );
 

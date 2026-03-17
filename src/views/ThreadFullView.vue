@@ -473,10 +473,11 @@ const scrollToBottom = () => {
 
 // MessageDisplay event handlers
 const handleSendReaction = async (messageId: string, emoji: Emoji) => {
+  if (!currentUserId.value) return
   try {
     const { useReactionsStore } = await import('@/stores/useReactions')
     const reactionsStore = useReactionsStore()
-    await reactionsStore.toggleReaction(messageId, emoji)
+    await reactionsStore.toggleReaction(messageId, emoji.id, currentUserId.value, emoji)
   } catch (error) {
     console.error('Failed to toggle reaction:', error)
   }
@@ -498,7 +499,7 @@ const handleToggleEmojiList = (isReaction: boolean, message?: Message, triggerEl
 const handleSendEmoji = async (emoji: Emoji) => {
   if (isPopupForReaction.value && authStore.session?.user) {
     // Add reaction using chat store
-    await chatStore.addReaction(selectedMessageId.value, emoji.id, authStore.session.user.id)
+    await chatStore.addReaction(selectedMessageId.value, emoji.id, authStore.session.user.id, emoji)
   }
   closeReactionEmoji()
 }

@@ -110,7 +110,8 @@
           :class="{ 
             'active': conversation.id === dmStore.currentConversationId,
             'unread': conversation.unread_count && conversation.unread_count > 0,
-            'group-chat': conversation.type === 'group'
+            'group-chat': conversation.type === 'group',
+            'muted': conversation.is_muted
           }"
           @click="selectConversation(conversation.id)"
           @mouseenter="handleConversationHover(conversation.id)"
@@ -159,6 +160,7 @@
                 </div>
               </div>
               <div class="conversation-time">
+                <Icon v-if="conversation.is_muted" name="bell-off" :size="12" class="muted-icon" />
                 {{ formatMessageTime(conversation.last_activity || conversation.created_at) }}
               </div>
             </div>
@@ -712,6 +714,21 @@ onUnmounted(() => {
 
 .conversation-item.unread:hover {
   background: var(--h-chat-light, var(--h-black-lighter));
+}
+
+.conversation-item.muted {
+  opacity: 0.5;
+}
+
+.conversation-item.muted:hover {
+  opacity: 0.75;
+}
+
+.muted-icon {
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+  width: 12px;
+  height: 12px;
 }
 
 .user-avatar,

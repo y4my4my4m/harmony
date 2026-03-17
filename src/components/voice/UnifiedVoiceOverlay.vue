@@ -217,7 +217,7 @@
                 }"
                 :title="voiceStore.localState.isVideoEnabled && !voiceStore.localState.isScreenSharing ? 'Turn off camera' : 'Turn on camera'"
               >
-                <Icon name="camera" />
+                <Icon :name="voiceStore.localState.isVideoEnabled && !voiceStore.localState.isScreenSharing ? 'video-off' : 'video'" />
               </button>
               <DeviceSelector type="video" @open-settings="showSettings = true" />
             </div>

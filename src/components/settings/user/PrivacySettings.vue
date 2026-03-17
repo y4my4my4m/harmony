@@ -452,6 +452,36 @@
       </div>
     </div>
 
+    <div class="settings-section">
+      <h3 class="section-title">Muted Users</h3>
+      
+      <div v-if="mutedUsers.length === 0" class="empty-state">
+        <p>You haven't muted anyone yet.</p>
+      </div>
+      
+      <div v-else class="blocked-users-list">
+        <div 
+          v-for="user in mutedUsers" 
+          :key="user.id"
+          class="blocked-user-item"
+        >
+          <div class="user-info">
+            <Avatar :src="user.avatar_url" size="sm" class="user-avatar" />
+            <div class="user-details">
+              <span class="user-name">{{ user.display_name }}</span>
+              <span class="user-username">{{ user.username }}</span>
+            </div>
+          </div>
+          <button 
+            class="unblock-btn"
+            @click="unmuteUser(user.id)"
+          >
+            Unmute
+          </button>
+        </div>
+      </div>
+    </div>
+
     <div class="settings-actions">
       <button 
         class="btn btn-primary" 
@@ -516,6 +546,7 @@ import { ref, computed, onMounted } from 'vue'
 import { debug } from '@/utils/debug'
 import type { User } from '@/types'
 import { useAuthStore } from '@/stores/auth'
+import { useActivityPubStore } from '@/stores/useActivityPub'
 import { supabase } from '@/supabase'
 import { useToast } from 'vue-toastification'
 import QRCode from 'qrcode'
@@ -592,6 +623,10 @@ const settings = ref({
 
 const originalSettings = ref({ ...settings.value })
 const blockedUsers = ref<User[]>([])
+const mutedUsers = ref<User[]>([])
+const activityPubStore = useActivityPubStore()
+let blocksMutesLastFetchedAt = 0
+const CACHE_TTL_MS = 30000
 
 // Computed
 const hasChanges = computed(() => {
@@ -629,10 +664,33 @@ const unblockUser = async (userId: string) => {
     if (error) throw error
 
     blockedUsers.value = blockedUsers.value.filter(user => user.id !== userId)
+    activityPubStore.loadBlockingData()
     toast.success('User unblocked')
   } catch (error: any) {
     debug.error('Failed to unblock user:', error)
     toast.error('Failed to unblock user')
+  }
+}
+
+const unmuteUser = async (userId: string) => {
+  try {
+    const profileId = props.profile?.id
+    if (!profileId) return
+
+    const { error } = await supabase
+      .from('user_mutes')
+      .delete()
+      .eq('muter_id', profileId)
+      .eq('muted_user_id', userId)
+
+    if (error) throw error
+
+    mutedUsers.value = mutedUsers.value.filter(user => user.id !== userId)
+    activityPubStore.loadBlockingData()
+    toast.success('User unmuted')
+  } catch (error: any) {
+    debug.error('Failed to unmute user:', error)
+    toast.error('Failed to unmute user')
   }
 }
 
@@ -1029,7 +1087,7 @@ onMounted(async () => {
   settings.value.stripUrlTrackers = isUrlTrackingStrippingEnabled()
 
   const profileId = props.profile?.id
-  if (profileId) {
+  if (profileId && Date.now() - blocksMutesLastFetchedAt > CACHE_TTL_MS) {
     // Load blocked users
     try {
       const { data: blocks, error: blocksError } = await supabase
@@ -1047,11 +1105,41 @@ onMounted(async () => {
         if (profiles) {
           blockedUsers.value = profiles as User[]
         }
+      } else {
+        blockedUsers.value = []
       }
     } catch (e) {
       debug.error('Failed to load blocked users:', e)
     }
 
+    // Load muted users
+    try {
+      const { data: mutes, error: mutesError } = await supabase
+        .from('user_mutes')
+        .select('muted_user_id')
+        .eq('muter_id', profileId)
+
+      if (!mutesError && mutes && mutes.length > 0) {
+        const mutedIds = mutes.map(m => m.muted_user_id)
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('id, username, display_name, avatar_url')
+          .in('id', mutedIds)
+
+        if (profiles) {
+          mutedUsers.value = profiles as User[]
+        }
+      } else {
+        mutedUsers.value = []
+      }
+    } catch (e) {
+      debug.error('Failed to load muted users:', e)
+    }
+
+    blocksMutesLastFetchedAt = Date.now()
+  }
+
+  if (profileId) {
     // Load notification preferences for privacy settings
     try {
       const { data: prefs } = await supabase

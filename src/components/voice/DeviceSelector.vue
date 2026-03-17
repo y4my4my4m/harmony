@@ -74,7 +74,7 @@
           <!-- Video Devices (Cameras) -->
           <div v-if="type === 'video' || type === 'all'" class="device-section">
             <div class="section-header">
-              <Icon name="camera" />
+              <Icon name="video" />
               <span>Camera</span>
             </div>
             <div class="device-list">
@@ -85,7 +85,7 @@
                 :class="{ active: device.deviceId === selectedVideoDevice }"
                 @click="selectVideoDevice(device.deviceId)"
               >
-                <Icon :name="device.deviceId === selectedVideoDevice ? 'check' : 'camera'" />
+                <Icon :name="device.deviceId === selectedVideoDevice ? 'check' : 'video'" />
                 <span class="device-label">{{ device.label || 'Camera' }}</span>
               </button>
               <div v-if="videoDevices.length === 0" class="no-devices">
@@ -146,7 +146,7 @@ const triggerIcon = computed(() => {
   switch (props.type) {
     case 'input': return 'mic';
     case 'output': return 'volume-2';
-    case 'video': return 'camera';
+    case 'video': return 'video';
     default: return 'settings';
   }
 });

@@ -1755,6 +1755,48 @@ export const useActivityPubStore = defineStore('activitypub', {
     },
 
     /**
+     * Update an existing post (edit). Uses the ActivityPub Update activity type.
+     */
+    async updatePost(postId: string, postData: {
+      content: string | MessagePart[];
+      content_warning?: string;
+      is_sensitive?: boolean;
+      media_attachments?: any[];
+    }): Promise<TimelinePost> {
+      this.isPosting = true;
+      try {
+        let finalContent: MessagePart[];
+        if (Array.isArray(postData.content)) {
+          finalContent = postData.content;
+        } else if (typeof postData.content === 'string') {
+          finalContent = await this.formatPostContent(postData.content);
+        } else {
+          throw new Error('Invalid content format - must be MessagePart[] or string');
+        }
+
+        const mediaUrls = postData.media_attachments?.length
+          ? await this.uploadMediaAttachments(postData.media_attachments)
+          : undefined;
+
+        const updatedPost = await services.posts.updatePost(postId, {
+          content: finalContent,
+          content_warning: postData.content_warning,
+          is_sensitive: postData.is_sensitive,
+          media_attachments: mediaUrls,
+        });
+
+        this.updatePostInAllFeeds(updatedPost);
+
+        return updatedPost;
+      } catch (error) {
+        debug.error('Failed to update post:', error);
+        throw error;
+      } finally {
+        this.isPosting = false;
+      }
+    },
+
+    /**
      * Convert MediaAttachment with blob URL to File
      */
     async convertMediaAttachmentToFile(attachment: any): Promise<File> {
