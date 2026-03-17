@@ -696,7 +696,7 @@ const connectionStats = computed(() => voiceStore.connectionStats);
   right: 0;
   bottom: 0;
   z-index: 1000;
-  background: rgba(0, 0, 0, 0.5);
+  /* background: rgba(0, 0, 0, 0.5); */
   backdrop-filter: blur(10px);
   transition: all 0.3s ease;
   opacity: 1;

@@ -640,6 +640,8 @@ watch(
   align-content: center;
   justify-content: center;
   align-items: center;
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
 }
 
 /* Clickable cursor for video cards */
@@ -657,7 +659,7 @@ watch(
 /* Speaking state */
 .harmony-voice-card.speaking {
   border-color: #00d4aa;
-  background: linear-gradient(145deg, #1a2f2a, #2a4a3f);
+  background: linear-gradient(145deg, #1a2f2a80, #2a4a3f80);
   box-shadow: 0 4px 16px rgba(0, 212, 170, 0.3), 0 0 32px rgba(0, 212, 170, 0.1),
     inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
@@ -665,13 +667,13 @@ watch(
 /* Self user */
 .harmony-voice-card.self {
   border-color: #0EA5E9;
-  background: linear-gradient(145deg, #1e2140, #2a2d50);
+  background: linear-gradient(145deg, #1e214080, #2a2d5080);
 }
 
 /* Connection states */
 .harmony-voice-card.connection-poor {
   border-color: #ed4245;
-  background: linear-gradient(145deg, #3a2528, #4a2f32);
+  background: linear-gradient(145deg, #3a252880, #4a2f3280);
 }
 
 /* Video Container */
