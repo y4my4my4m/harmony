@@ -13,7 +13,22 @@ import { getSupabaseClient } from '../config/supabase.js';
 import { logger } from '../utils/logger.js';
 import { ActivityProcessor } from './ActivityProcessor.js';
 import { DeliveryQueue } from './DeliveryQueue.js';
+import { noteToContent } from './converters/fromActivityPub.js';
 import config from '../config/index.js';
+
+/**
+ * Normalize mention `isLocal` flags relative to this instance.
+ * Incoming `harmony:rawContent` has `isLocal` set by the sender, which is
+ * relative to *their* instance. We re-evaluate against our own domain.
+ */
+function normalizeMentionDomains(content: any[]): any[] {
+  return content.map((part: any) => {
+    if (part.type === 'mention' && part.domain) {
+      return { ...part, isLocal: part.domain === config.INSTANCE_DOMAIN };
+    }
+    return part;
+  });
+}
 
 // =============================================================================
 // MAIN HANDLER
@@ -608,13 +623,11 @@ async function processCreateActivity(
   // Parse content - handle both HTML string and harmony:rawContent
   let messageContent: any[];
   if (object['harmony:rawContent'] && Array.isArray(object['harmony:rawContent'])) {
-    // Use raw content if available (preserves structure)
-    messageContent = object['harmony:rawContent'];
+    messageContent = normalizeMentionDomains(object['harmony:rawContent']);
   } else if (typeof object.content === 'string') {
-    // Convert HTML to content array
-    messageContent = [{ type: 'text', text: stripHtml(object.content) }];
+    messageContent = noteToContent(object);
   } else if (Array.isArray(object.content)) {
-    messageContent = object.content;
+    messageContent = normalizeMentionDomains(object.content);
   } else {
     messageContent = [{ type: 'text', text: String(object.content || '') }];
   }
@@ -897,11 +910,11 @@ async function processUpdateActivity(
   // Parse updated content
   let messageContent: any[];
   if (object['harmony:rawContent'] && Array.isArray(object['harmony:rawContent'])) {
-    messageContent = object['harmony:rawContent'];
+    messageContent = normalizeMentionDomains(object['harmony:rawContent']);
   } else if (typeof object.content === 'string') {
-    messageContent = [{ type: 'text', text: stripHtml(object.content) }];
+    messageContent = noteToContent(object);
   } else {
-    messageContent = object.content || [];
+    messageContent = normalizeMentionDomains(object.content || []);
   }
 
   // Update message
