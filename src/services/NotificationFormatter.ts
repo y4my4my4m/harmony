@@ -255,7 +255,9 @@ const MESSAGE_TEMPLATES = {
       return `${name}${domain} replied to your post`
     },
     message: (data: any) => {
-      const text = extractContentText(data.post_content) || extractContentText(data.post?.content_preview)
+      const text = extractContentText(data.post_content)
+        || extractContentText(data.post?.content_preview)
+        || extractContentText(data.post?.content)
       if (text) {
         const truncated = text.substring(0, 120)
         return `"${truncated}${text.length > 120 ? '...' : ''}"`
@@ -336,22 +338,32 @@ export class NotificationFormatter {
       }
     }
     
+    const data = notification.data || {}
+
+    let title: string
     try {
-      return {
-        title: template.title(notification.data),
-        message: template.message(notification.data),
-        shortTitle: template.shortTitle?.(notification.data) || template.title(notification.data)
-      }
-    } catch (error) {
-      debug.warn('Error formatting notification:', error, notification)
-      
-      // Fallback for malformed data
-      return {
-        title: `New ${notification.type} notification`,
-        message: 'Click to view details',
-        shortTitle: notification.type
-      }
+      title = template.title(data)
+    } catch (e) {
+      debug.warn('Error formatting notification title:', e, notification)
+      title = `New ${notification.type} notification`
     }
+
+    let message: string
+    try {
+      message = template.message(data)
+    } catch (e) {
+      debug.warn('Error formatting notification message:', e, notification)
+      message = 'Click to view details'
+    }
+
+    let shortTitle: string
+    try {
+      shortTitle = template.shortTitle?.(data) || title
+    } catch (e) {
+      shortTitle = title
+    }
+
+    return { title, message, shortTitle }
   }
   
   /**
