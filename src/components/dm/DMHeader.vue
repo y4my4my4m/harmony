@@ -169,17 +169,18 @@
             <span>Search Messages</span>
           </button>
           
-          <!-- Notification Settings -->
+          <!-- Mute/Unmute Conversation -->
           <button class="action-item" @click="handleNotificationSettings">
-            <Icon name="bell" :size="16" />
-            <span>Notification Settings</span>
+            <Icon :name="isConversationMuted ? 'bell-off' : 'bell'" :size="16" />
+            <span>{{ isConversationMuted ? 'Unmute Conversation' : 'Mute Conversation' }}</span>
           </button>
           
           <!-- Encryption Toggle -->
           <button 
             class="action-item"
+            :class="{ 'action-item-disabled': !canToggleEncryption }"
             @click="toggleEncryption"
-            :disabled="!canToggleEncryption"
+            :disabled="encryptionLoading"
             :title="encryptionToggleTitle"
           >
             <Icon :name="encryptionEnabled ? 'lock' : 'unlock'" :size="16" />
@@ -376,6 +377,9 @@ const showGroupSettings = ref(false)
 const encryptionEnabled = ref(false)
 const encryptionLoading = ref(false)
 const userHasEncryption = ref(false)
+
+// Conversation mute state
+const isConversationMuted = ref(false)
 
 // Check if user can toggle encryption (needs to have encryption set up)
 const canToggleEncryption = computed(() => userHasEncryption.value && !encryptionLoading.value)
@@ -598,6 +602,7 @@ onMounted(() => {
   initializePresenceTracking()
   subscribeToCallSignals()
   loadEncryptionStatus()
+  loadConversationMuteState()
 })
 
 // Watch for conversation changes to update presence tracking and encryption
@@ -606,6 +611,7 @@ watch(
   async (newId, oldId) => {
     if (newId !== oldId) {
       loadEncryptionStatus()
+      loadConversationMuteState()
     }
   }
 )
@@ -727,9 +733,69 @@ const openGroupSettings = () => {
   showOptionsMenu.value = false
 }
 
-const handleNotificationSettings = () => {
-  debug.log('Notification settings clicked')
+async function loadConversationMuteState() {
+  try {
+    const ctx = await authContextService.getCurrentContext()
+    if (!ctx.isAuthenticated) return
+
+    const { data } = await supabase
+      .from('notification_channels')
+      .select('muted')
+      .eq('user_id', ctx.profileId)
+      .eq('conversation_id', props.conversation.id)
+      .is('channel_id', null)
+      .maybeSingle()
+
+    isConversationMuted.value = data?.muted ?? false
+  } catch (error) {
+    debug.error('Failed to load conversation mute state:', error)
+  }
+}
+
+const handleNotificationSettings = async () => {
   showOptionsMenu.value = false
+
+  try {
+    const ctx = await authContextService.getCurrentContext()
+    if (!ctx.isAuthenticated) return
+
+    const newMuted = !isConversationMuted.value
+    isConversationMuted.value = newMuted
+
+    const { data: existing } = await supabase
+      .from('notification_channels')
+      .select('id')
+      .eq('user_id', ctx.profileId)
+      .eq('conversation_id', props.conversation.id)
+      .is('channel_id', null)
+      .maybeSingle()
+
+    if (existing?.id) {
+      const { error } = await supabase
+        .from('notification_channels')
+        .update({ muted: newMuted, updated_at: new Date().toISOString() })
+        .eq('id', existing.id)
+
+      if (error) throw error
+    } else {
+      const { error } = await supabase
+        .from('notification_channels')
+        .insert({
+          user_id: ctx.profileId,
+          conversation_id: props.conversation.id,
+          muted: newMuted,
+        })
+
+      if (error) throw error
+    }
+
+    toast.success(newMuted ? 'Conversation muted' : 'Conversation unmuted')
+    debug.log(`Conversation ${newMuted ? 'muted' : 'unmuted'}:`, props.conversation.id)
+  } catch (error) {
+    isConversationMuted.value = !isConversationMuted.value
+    debug.error('Failed to toggle conversation mute:', error)
+    toast.error('Failed to update notification setting')
+  }
 }
 
 const goToEncryptionSettings = () => {
@@ -1268,6 +1334,10 @@ const getDefaultGroupName = (): string => {
 
 .action-item.danger:hover {
   background: rgba(248, 113, 113, 0.1);
+}
+
+.action-item.action-item-disabled {
+  opacity: 0.5;
 }
 
 .menu-separator {
