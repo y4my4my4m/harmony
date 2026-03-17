@@ -119,9 +119,44 @@ export function useContentRenderer(
     return [{ type: 'text', text: String(rawContent) }];
   };
 
+  // Remove stray "@" text parts that precede mention parts (ActivityPub HTML parsing artifact)
+  const cleanStrayMentionPrefixes = (parts: MessagePart[]): MessagePart[] => {
+    const result: MessagePart[] = [];
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i];
+      const next = parts[i + 1];
+      if (
+        part.type === 'text' &&
+        next?.type === 'mention' &&
+        /^@\s*$/.test(part.text || '')
+      ) {
+        continue;
+      }
+      if (
+        part.type === 'text' &&
+        next?.type === 'mention' &&
+        part.text?.endsWith('@ ')
+      ) {
+        result.push({ ...part, text: part.text.slice(0, -2) });
+        continue;
+      }
+      if (
+        part.type === 'text' &&
+        next?.type === 'mention' &&
+        part.text?.endsWith('@')
+      ) {
+        result.push({ ...part, text: part.text.slice(0, -1) });
+        continue;
+      }
+      result.push(part);
+    }
+    return result;
+  };
+
   // Normalized content as MessagePart[]
   const renderableContent = computed(() => {
-    const normalized = normalizeContent(content.value);
+    let normalized = normalizeContent(content.value);
+    normalized = cleanStrayMentionPrefixes(normalized);
     
     // Apply preview truncation if needed
     if (renderOptions.mode === 'preview' && renderOptions.maxPreviewLength) {
