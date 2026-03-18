@@ -441,7 +441,9 @@ export async function startDatabaseListener(): Promise<void> {
             payload.new.federation_enabled &&
             (payload.old.name !== payload.new.name || 
              payload.old.description !== payload.new.description ||
-             payload.old.icon !== payload.new.icon)) {
+             payload.old.icon !== payload.new.icon ||
+             payload.old.banner !== payload.new.banner ||
+             payload.old.public !== payload.new.public)) {
           logger.info('🏠 Server updated:', {
             id: payload.new.id,
             name: payload.new.name,
@@ -449,6 +451,8 @@ export async function startDatabaseListener(): Promise<void> {
               name: payload.old.name !== payload.new.name,
               description: payload.old.description !== payload.new.description,
               icon: payload.old.icon !== payload.new.icon,
+              banner: payload.old.banner !== payload.new.banner,
+              public: payload.old.public !== payload.new.public,
             }
           });
           await handleServerUpdated(payload.new, payload.old);
@@ -1509,7 +1513,17 @@ export async function handleServerUpdated(server: any, oldServer: any): Promise<
     
     const serverUrl = `https://${hostDomain}/servers/${server.id}`;
     
-    // Build Update activity with changed properties
+    // Build Update activity with all profile properties
+    const iconUrl = server.icon && !server.icon.includes('default')
+      ? (server.icon.startsWith('http') ? server.icon : 
+         `${config.PUBLIC_SUPABASE_URL || config.SUPABASE_URL}/storage/v1/render/image/public/server_icons/${server.icon}?width=96&height=96&resize=contain&quality=80`)
+      : undefined;
+    
+    const bannerUrl = server.banner
+      ? (server.banner.startsWith('http') ? server.banner :
+         `${config.PUBLIC_SUPABASE_URL || config.SUPABASE_URL}/storage/v1/object/public/server_banners/${server.banner}`)
+      : undefined;
+
     const activity = {
       '@context': [
         'https://www.w3.org/ns/activitystreams',
@@ -1523,11 +1537,9 @@ export async function handleServerUpdated(server: any, oldServer: any): Promise<
         type: 'Group',
         name: server.name,
         summary: server.description,
-        icon: server.icon ? {
-          type: 'Image',
-          url: server.icon.startsWith('http') ? server.icon : 
-               `${config.PUBLIC_SUPABASE_URL || config.SUPABASE_URL}/storage/v1/object/public/server_icons/${server.icon}`,
-        } : undefined,
+        icon: iconUrl ? { type: 'Image', url: iconUrl } : null,
+        image: bannerUrl ? { type: 'Image', url: bannerUrl } : null,
+        discoverable: server.public === true,
         'harmony:ChatServer': true,
         updated: new Date().toISOString(),
       },

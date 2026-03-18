@@ -82,6 +82,14 @@ function serverToGroup(
       mediaType: 'image/webp',
     } : undefined,
     
+    // Banner (ActivityPub uses 'image' for header/banner)
+    image: server.banner ? {
+      type: 'Image',
+      url: server.banner.startsWith('http')
+        ? server.banner
+        : `${config.PUBLIC_SUPABASE_URL || config.SUPABASE_URL}/storage/v1/object/public/server_banners/${server.banner}`,
+    } : undefined,
+    
     // Harmony extension: Channel structure
     'harmony:channels': channels.map(c => {
       let channelType: string;

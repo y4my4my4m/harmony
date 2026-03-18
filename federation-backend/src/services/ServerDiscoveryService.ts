@@ -54,6 +54,7 @@ router.get(
         name: serverData.name,
         description: serverData.summary || '',
         icon: serverData.icon?.url,
+        banner: serverData.image?.url || null,
         memberCount: serverData.memberCount || 0,
         channels: (serverData['harmony:channels'] || []).map((c: any) => {
           // Map type to simple 'text', 'voice', or 'category'
@@ -178,7 +179,7 @@ router.get(
       .select(`
         *,
         server:servers!invites_server_id_fkey(
-          id, name, description, icon, public,
+          id, name, description, icon, banner, public,
           owner:profiles!servers_owner_fkey(username, display_name, avatar_url)
         ),
         creator:profiles!invites_created_by_fkey(username, display_name, avatar_url)
@@ -289,6 +290,7 @@ router.get(
         name: server.name,
         description: server.description || '',
         icon: makeAbsolute(server.icon, 'server_icons'),
+        banner: makeAbsolute(server.banner, 'server_banners'),
         memberCount: memberCount || 0,
         channels: allChannels,
         inbox: `${serverApId}/inbox`,
@@ -1001,6 +1003,7 @@ export class ServerDiscoveryService {
         name: remoteServer.name,
         description: remoteServer.summary || '',
         icon: remoteServer.icon?.url,
+        banner: remoteServer.image?.url || null,
         owner: ownerUserId,
         federation_enabled: true,
         federation_domain: hostDomain,
@@ -1255,6 +1258,7 @@ export class ServerDiscoveryService {
           name: remoteServer.name,
           description: remoteServer.summary,
           icon: remoteServer.icon?.url,
+          banner: remoteServer.image?.url || null,
           public: remoteServer.discoverable !== false,
           federation_metadata: {
             ...server.federation_metadata,

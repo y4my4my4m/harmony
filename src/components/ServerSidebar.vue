@@ -1306,7 +1306,7 @@ const removeServerFromFolder = async () => {
 /*  white pill indicator */
 .server-pill {
   position: absolute;
-  left: -14px;
+  left: -12px;
   top: 50%;
   transform: translateY(-50%);
   width: 4px;

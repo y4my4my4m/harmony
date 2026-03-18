@@ -874,8 +874,21 @@ async function processUpdateActivity(
     if (object.summary !== undefined) {
       updateData.description = object.summary;
     }
+    // Icon — explicit null means the server removed its icon
     if (object.icon?.url) {
       updateData.icon = object.icon.url;
+    } else if (object.icon === null) {
+      updateData.icon = null;
+    }
+    // Banner (ActivityPub 'image' property)
+    if (object.image?.url) {
+      updateData.banner = object.image.url;
+    } else if (object.image === null) {
+      updateData.banner = null;
+    }
+    // Discoverability / public flag
+    if (object.discoverable !== undefined) {
+      updateData.public = object.discoverable;
     }
     
     const { error: updateError } = await supabase
@@ -886,7 +899,8 @@ async function processUpdateActivity(
     if (updateError) {
       logger.error(`Failed to update server ${existingServer.id}:`, updateError);
     } else {
-      logger.info(`🏠 Updated remote server: ${object.name || existingServer.id}`);
+      const changedFields = Object.keys(updateData).filter(k => k !== 'updated_at');
+      logger.info(`🏠 Updated remote server ${existingServer.id}: ${changedFields.join(', ')}`);
     }
     return;
   }
