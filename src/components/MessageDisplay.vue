@@ -2739,9 +2739,58 @@ const closeContextMenu = () => {
 
 
 // Modals (User Profile, Invite)
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+const resolveNonUuidProfile = async (userId: string): Promise<any | null> => {
+  // Handle "unresolved-username@domain" format
+  const unresolvedMatch = userId.match(/^unresolved-([^@]+)@(.+)$/);
+  if (unresolvedMatch) {
+    const [, username, domain] = unresolvedMatch;
+    const { data } = await supabase
+      .from('profiles')
+      .select('id, username, display_name, avatar_url, banner_url, bio, color, status, domain, created_at, is_local')
+      .eq('username', username)
+      .eq('domain', domain)
+      .maybeSingle();
+    if (data) {
+      await fetchUserProfile(data.id).catch(() => null);
+      return getUserProfile(data.id).value || data;
+    }
+  }
+  // Handle ActivityPub URL format (https://domain/users/username)
+  if (userId.startsWith('http')) {
+    try {
+      const url = new URL(userId);
+      const domain = url.hostname;
+      const pathParts = url.pathname.split('/').filter(Boolean);
+      const username = pathParts[pathParts.length - 1];
+      if (username) {
+        const { data } = await supabase
+          .from('profiles')
+          .select('id, username, display_name, avatar_url, banner_url, bio, color, status, domain, created_at, is_local')
+          .eq('username', username)
+          .eq('domain', domain)
+          .maybeSingle();
+        if (data) {
+          await fetchUserProfile(data.id).catch(() => null);
+          return getUserProfile(data.id).value || data;
+        }
+      }
+    } catch { /* invalid URL, ignore */ }
+  }
+  return null;
+};
+
 const showUserProfile = async (userId: string, event?: MouseEvent) => {
   event?.stopPropagation();
-  let user = getUserProfile(userId).value || await fetchUserProfile(userId).catch(e => debug.error(e));
+  
+  let user: any = null;
+  if (UUID_PATTERN.test(userId)) {
+    user = getUserProfile(userId).value || await fetchUserProfile(userId).catch(e => debug.error(e));
+  } else {
+    user = await resolveNonUuidProfile(userId);
+  }
+  
   if (user) {
     selectedUser.value = user;
     showProfileModal.value = true;

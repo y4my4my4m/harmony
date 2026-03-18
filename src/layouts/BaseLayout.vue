@@ -1003,6 +1003,7 @@ onBeforeUnmount(() => {
     height: 100vh;
     z-index: 200;
     transform: translateX(-100%);
+    padding-top: 10px;
     /* Native-feeling spring animation on release */
     transition: transform 0.35s cubic-bezier(0.32, 0.72, 0, 1);
   }

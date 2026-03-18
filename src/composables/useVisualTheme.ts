@@ -886,6 +886,7 @@ export function useVisualTheme() {
       customBackgroundColor: '#0EA5E9',
       customBackgroundLightness: 0,
       customBackgroundChroma: 0,
+      customCssOverrides: {},
       fontSize: 14,
       zoomLevel: 100,
       showTimestamps: true,
@@ -894,6 +895,7 @@ export function useVisualTheme() {
       highContrast: false,
       reduceMotion: false,
       screenReaderSupport: false,
+      showCustomEmojisInDisplayNames: true,
     }
     // Apply default dark theme
     applyPresetTheme('dark')
@@ -912,6 +914,7 @@ export function useVisualTheme() {
       customBackgroundColor: '#0EA5E9',
       customBackgroundLightness: 0,
       customBackgroundChroma: 0,
+      customCssOverrides: {},
       fontSize: 14,
       zoomLevel: 100,
       showTimestamps: true,
@@ -920,6 +923,7 @@ export function useVisualTheme() {
       highContrast: false,
       reduceMotion: false,
       screenReaderSupport: false,
+      showCustomEmojisInDisplayNames: true,
     }
   }
   
@@ -1044,7 +1048,7 @@ export function useVisualTheme() {
    */
   function loadInstanceDefaultTheme(themeJson: string | null): boolean {
     if (!themeJson) return false
-    if (settings.value.theme !== 'dark' && settings.value.theme !== 'default') return false
+    if (settings.value.theme !== 'dark') return false
     return importThemeFromJson(themeJson)
   }
 

@@ -748,10 +748,14 @@ const setCssOverrideFromInput = (varName: string, value: string) => {
 
 const removeCssOverrideVar = (varName: string) => {
   visualTheme.removeCssOverride(varName)
+  if (settings.value.customCssOverrides) {
+    delete settings.value.customCssOverrides[varName]
+  }
 }
 
 const resetAllOverrides = () => {
   visualTheme.clearCssOverrides()
+  settings.value.customCssOverrides = {}
 }
 
 // Theme options
@@ -880,6 +884,7 @@ const saveSettings = () => {
     customBackgroundColor: settings.value.customBackgroundColor,
     customBackgroundLightness: settings.value.customBackgroundLightness,
     customBackgroundChroma: settings.value.customBackgroundChroma,
+    customCssOverrides: settings.value.customCssOverrides ? { ...settings.value.customCssOverrides } : undefined,
     fontSize: settings.value.fontSize,
     zoomLevel: settings.value.zoomLevel,
     showTimestamps: settings.value.showTimestamps,
@@ -918,6 +923,7 @@ onMounted(async () => {
     customBackgroundColor: currentSettings.customBackgroundColor || '#0EA5E9',
     customBackgroundLightness: currentSettings.customBackgroundLightness || 0,
     customBackgroundChroma: currentSettings.customBackgroundChroma || 0,
+    customCssOverrides: currentSettings.customCssOverrides ? { ...currentSettings.customCssOverrides } : {},
     fontSize: currentSettings.fontSize,
     zoomLevel: currentSettings.zoomLevel,
     showTimestamps: currentSettings.showTimestamps,

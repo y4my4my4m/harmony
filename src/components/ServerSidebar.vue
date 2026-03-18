@@ -1118,7 +1118,7 @@ const removeServerFromFolder = async () => {
 }
 
 .dm-button:hover {
-  background: var(--harmony-primary, --harmony-primary-hover);
+  background: var(--harmony-primary, #0284C7);
 }
 
 .dm-button:hover .dm-icon {
@@ -1126,7 +1126,7 @@ const removeServerFromFolder = async () => {
 }
 
 .dm-button.selected {
-  background: var(--harmony-primary, --harmony-primary-hover);
+  background: var(--harmony-primary, #0284C7);
   border-radius: 50%;
 }
 
@@ -1164,13 +1164,13 @@ const removeServerFromFolder = async () => {
 }
 
 .monyverse-button:hover {
-  background: var(--harmony-primary, --harmony-primary-hover);
+  background: var(--harmony-primary, #0284C7);
   left: 5px;
   transform: scale(1.05);
 }
 
 .monyverse-button.selected {
-  background: var(--harmony-primary, --harmony-primary-hover);
+  background: var(--harmony-primary, #0284C7);
   border-radius: 50%;
 }
 .monyverse-button.selected .monyverse-icon {
