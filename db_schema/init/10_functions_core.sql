@@ -601,6 +601,21 @@ BEGIN
 END;
 $$;
 
+-- Handle posts updated_at (only on content edits, not status/count changes)
+CREATE OR REPLACE FUNCTION public.handle_posts_updated_at()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    IF OLD.content IS DISTINCT FROM NEW.content
+       OR OLD.content_warning IS DISTINCT FROM NEW.content_warning
+       OR OLD.is_sensitive IS DISTINCT FROM NEW.is_sensitive THEN
+        NEW.updated_at := NOW();
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
 -- Extract message text from content parts
 CREATE OR REPLACE FUNCTION public.extract_message_text(content_parts jsonb)
 RETURNS text

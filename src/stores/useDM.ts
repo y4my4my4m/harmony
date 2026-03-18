@@ -1678,10 +1678,9 @@ export const useDMStore = defineStore('dm', () => {
 
       return true
     } catch (error: any) {
-      // Remove optimistic message on error
       removeMessageFromCache(tempId);
       debug.error('❌ Failed to send DM message via service:', error)
-      throw new Error(error.message || 'Failed to send DM message')
+      return false
     }
   }
 

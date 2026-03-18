@@ -168,6 +168,7 @@ export class CorePostService {
 
       const updateData = {
         ...updates,
+        updated_at: new Date().toISOString(),
       }
 
       const { data: post, error } = await supabase
