@@ -640,6 +640,36 @@ export const useNotificationStore = defineStore('notification', {
             }
           }
         )
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'notifications',
+            filter: `user_id=eq.${profileId}`
+          },
+          async (payload) => {
+            try {
+              const updated = payload.new as Notification
+              const existing = this.notifications.find(n => n.id === updated.id)
+              
+              if (!existing) return
+              if (existing.is_read === updated.is_read) return
+              
+              debug.log('🔄 Notification read state synced from another device:', updated.id, 'is_read:', updated.is_read)
+              
+              existing.is_read = updated.is_read
+              this.updateUnreadCount()
+              
+              // If marked as read on another device, dismiss matching system notifications
+              if (updated.is_read) {
+                this.dismissSystemNotification(existing)
+              }
+            } catch (error) {
+              debug.error('❌ Error handling notification UPDATE sync:', error)
+            }
+          }
+        )
         .subscribe((status) => {
           debug.log('🔔 Notification subscription status:', status)
           
@@ -841,6 +871,44 @@ export const useNotificationStore = defineStore('notification', {
         }
       } catch (error) {
         debug.error('❌ Error showing desktop notification:', error)
+      }
+    },
+
+    /**
+     * Dismiss system (OS-level) notifications matching a notification that was read on another device.
+     * Closes matching notifications shown via the service worker's showNotification API.
+     */
+    async dismissSystemNotification(notification: Notification) {
+      try {
+        if (!('serviceWorker' in navigator)) return
+        
+        const registration = await navigator.serviceWorker.ready
+        const shown = await registration.getNotifications()
+        
+        for (const sysNotif of shown) {
+          const matchesId = sysNotif.data?.notificationId === notification.id
+          const matchesConversation = notification.data?.conversation_id &&
+            sysNotif.tag?.includes(`conv-${notification.data.conversation_id}`)
+          const matchesChannel = notification.data?.channel_id &&
+            sysNotif.tag?.includes(`ch-${notification.data.channel_id}`)
+          
+          if (matchesId || matchesConversation || matchesChannel) {
+            sysNotif.close()
+            debug.log('🔕 Dismissed system notification synced from another device:', sysNotif.tag)
+          }
+        }
+        
+        // Update badge after dismissals
+        if (typeof navigator !== 'undefined' && 'setAppBadge' in navigator) {
+          const remaining = await registration.getNotifications()
+          if (remaining.length > 0) {
+            ;(navigator as any).setAppBadge(remaining.length)
+          } else {
+            ;(navigator as any).clearAppBadge()
+          }
+        }
+      } catch (error) {
+        debug.error('❌ Error dismissing system notification:', error)
       }
     },
 

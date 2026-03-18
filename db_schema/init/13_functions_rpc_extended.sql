@@ -1856,7 +1856,7 @@ CREATE OR REPLACE FUNCTION public.mark_all_notifications_read(p_user_id uuid) RE
     AS $$
 BEGIN
     UPDATE notifications 
-    SET is_read = true, updated_at = NOW()
+    SET is_read = true, read_at = NOW(), updated_at = NOW()
     WHERE user_id = p_user_id AND is_read = false;
 END;
 $$;
