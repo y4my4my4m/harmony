@@ -206,6 +206,7 @@ import { useContentRenderer, type ContentRenderOptions } from '@/composables/use
 import { getEmojiUrl } from '@/utils/emojiUtils';
 import { useUnifiedEmoji } from '@/services/unifiedEmojiService';
 import { debug } from '@/utils/debug';
+import { escapeHtml } from '@/utils/sanitize';
 import DisplayName from '@/components/DisplayName.vue';
 
 interface Props {
@@ -495,15 +496,24 @@ const renderTextWithMarkdown = (text: string | undefined): string => {
     });
   }
   
+  // Escape HTML entities before markdown to prevent XSS.
+  // Preserve safe HTML already inserted by emoji replacements above.
+  const htmlTagPlaceholders: string[] = [];
+  rendered = rendered.replace(/<[^>]+>/g, (tag) => {
+    const idx = htmlTagPlaceholders.length;
+    htmlTagPlaceholders.push(tag);
+    return `\uE010${idx}\uE011`;
+  });
+  rendered = escapeHtml(rendered);
+  rendered = rendered.replace(/\uE010(\d+)\uE011/g, (_, idx) => htmlTagPlaceholders[Number(idx)]);
+
   if (!props.enableMarkdown) return rendered;
   
-  // Basic markdown support
   rendered = rendered.replace(/\n/g, '<br>');
   rendered = rendered.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
   rendered = rendered.replace(/\*(.*?)\*/g, '<em>$1</em>');
   rendered = rendered.replace(/`(.*?)`/g, '<code>$1</code>');
   
-  // Hashtags
   rendered = rendered.replace(/(?<![&\w])#(\w+)/g, '<span class="hashtag" data-tag="$1">#$1</span>');
   
   return rendered;

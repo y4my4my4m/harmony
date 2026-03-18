@@ -21,6 +21,23 @@ export function useUndoRedo(opts?: UseUndoRedoOptions) {
   const canUndo = computed(() => pointer.value > 0);
   const canRedo = computed(() => pointer.value < history.value.length - 1);
 
+  const isWordBoundary = (ch: string) => /[\s.,;:!?()[\]{}"'\/\\-]/.test(ch);
+
+  function findChangedChar(oldText: string, newText: string): string | null {
+    if (newText.length > oldText.length) {
+      // Character(s) inserted — find the first differing position
+      for (let i = 0; i < newText.length; i++) {
+        if (i >= oldText.length || newText[i] !== oldText[i]) {
+          return newText[i];
+        }
+      }
+    } else if (newText.length < oldText.length) {
+      // Deletion — treat as a boundary break (new group)
+      return ' ';
+    }
+    return null;
+  }
+
   function pushState(text: string, cursorPosition: number) {
     const now = Date.now();
     const current = history.value[pointer.value];
@@ -32,7 +49,16 @@ export function useUndoRedo(opts?: UseUndoRedoOptions) {
     const withinGroupWindow = now - lastPushTime < groupingDelayMs;
     lastPushTime = now;
 
-    if (withinGroupWindow && pointer.value > 0) {
+    // Detect word-boundary transitions: typing a space/punctuation always starts a new group
+    let hitBoundary = false;
+    if (current) {
+      const ch = findChangedChar(current.text, text);
+      if (ch !== null && isWordBoundary(ch)) {
+        hitBoundary = true;
+      }
+    }
+
+    if (withinGroupWindow && !hitBoundary && pointer.value > 0) {
       history.value[pointer.value] = { text, cursorPosition };
       return;
     }

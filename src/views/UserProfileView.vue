@@ -904,9 +904,10 @@ const toggleFollow = async () => {
 const mentionUser = () => {
   if (!user.value) return;
   
-  // Open the composer with a mention
+  const handle = user.value.handle || '';
+  const mentionText = handle.startsWith('@') ? handle : `@${handle}`;
   activityPubStore.openComposer({
-    content: `@${user.value.handle} `
+    content: `${mentionText} `
   });
 
   // Navigate to Social Home
@@ -986,10 +987,11 @@ const navigateToProfile = (clickedUser: FederatedUser) => {
 };
 
 const replyToPost = (post: TimelinePost) => {
-  // Open the composer with a reply
+  const handle = post.author.handle || '';
+  const mentionText = handle.startsWith('@') ? handle : `@${handle}`;
   activityPubStore.openComposer({
     replyTo: post.id,
-    content: `${post.author.handle} `
+    content: `${mentionText} `
   });
   router.push('/social/home');
 };

@@ -9,6 +9,8 @@
         placeholder="Edit message"
         :min-height="44"
         :max-height="200"
+        :auto-suggest-active="autoSuggest.state.value.isActive"
+        :auto-suggest-selected-id="autoSuggest.state.value.isActive ? 'suggest-' + autoSuggest.state.value.selectedIndex : undefined"
         @update:model-value="handleRichEditorUpdate"
         @keydown="handleKeyDown"
       />
@@ -327,6 +329,7 @@ import { parseEmbedUrl, isHarmonyInviteUrl } from '@/utils/embedDetection';
 import { useUnifiedEmoji } from '@/services/unifiedEmojiService';
 import { gifService } from '@/services/GifService';
 import { debug } from '@/utils/debug';
+import { escapeHtml } from '@/utils/sanitize';
 
 export default defineComponent({
   name: 'UnifiedMessageContent',
@@ -704,7 +707,20 @@ export default defineComponent({
         });
       }
       
-      // Process other markdown after extracting code blocks
+      // Escape HTML entities before applying markdown to prevent XSS.
+      // Emoji replacements above produce safe HTML (controlled <img>/<span> tags),
+      // and code block placeholders use private-use unicode chars, so both survive escaping.
+      // We need to preserve the emoji/codeblock HTML that was already inserted.
+      // Strategy: protect existing HTML tags from emoji replacements, escape the rest.
+      const htmlTagPlaceholders: string[] = [];
+      rendered = rendered.replace(/<[^>]+>/g, (tag) => {
+        const idx = htmlTagPlaceholders.length;
+        htmlTagPlaceholders.push(tag);
+        return `\uE010${idx}\uE011`;
+      });
+      rendered = escapeHtml(rendered);
+      rendered = rendered.replace(/\uE010(\d+)\uE011/g, (_, idx) => htmlTagPlaceholders[Number(idx)]);
+
       // Inline code: `text`
       rendered = rendered.replace(/`([^`]+)`/g, '<code class="md-code">$1</code>');
       

@@ -14,6 +14,9 @@
     aria-haspopup="listbox"
     aria-invalid="false"
     aria-autocomplete="list"
+    :aria-expanded="props.autoSuggestActive || false"
+    :aria-activedescendant="props.autoSuggestSelectedId || undefined"
+    aria-controls="auto-suggest-listbox"
     autocorrect="off"
     data-can-focus="true"
     :aria-label="placeholder"
@@ -52,6 +55,8 @@ interface Props {
   minHeight?: number;
   /** When true, shows border with hover/focus states (harmony-primary-alpha on hover, harmony-primary on focus) */
   bordered?: boolean;
+  autoSuggestActive?: boolean;
+  autoSuggestSelectedId?: string;
 }
 
 interface Emits {
@@ -674,7 +679,13 @@ const createElementFromToken = (token: MarkdownToken): Node => {
       
       const content = document.createElement('span');
       content.className = 'editor-bold-content';
-      content.textContent = token.content;
+      if (token.children) {
+        for (const child of token.children) {
+          content.appendChild(createElementFromToken(child));
+        }
+      } else {
+        content.textContent = token.content;
+      }
       
       const endMarker = document.createElement('span');
       endMarker.className = 'editor-marker';
@@ -696,7 +707,13 @@ const createElementFromToken = (token: MarkdownToken): Node => {
       
       const content = document.createElement('span');
       content.className = 'editor-italic-content';
-      content.textContent = token.content;
+      if (token.children) {
+        for (const child of token.children) {
+          content.appendChild(createElementFromToken(child));
+        }
+      } else {
+        content.textContent = token.content;
+      }
       
       const endMarker = document.createElement('span');
       endMarker.className = 'editor-marker';
@@ -718,7 +735,13 @@ const createElementFromToken = (token: MarkdownToken): Node => {
       
       const content = document.createElement('span');
       content.className = 'editor-underline-content';
-      content.textContent = token.content;
+      if (token.children) {
+        for (const child of token.children) {
+          content.appendChild(createElementFromToken(child));
+        }
+      } else {
+        content.textContent = token.content;
+      }
       
       const endMarker = document.createElement('span');
       endMarker.className = 'editor-marker';
@@ -740,7 +763,13 @@ const createElementFromToken = (token: MarkdownToken): Node => {
       
       const content = document.createElement('span');
       content.className = 'editor-strikethrough-content';
-      content.textContent = token.content;
+      if (token.children) {
+        for (const child of token.children) {
+          content.appendChild(createElementFromToken(child));
+        }
+      } else {
+        content.textContent = token.content;
+      }
       
       const endMarker = document.createElement('span');
       endMarker.className = 'editor-marker';
@@ -1116,6 +1145,21 @@ defineExpose({
   skipNextWatch,
   undo: undoRedo.undo,
   redo: undoRedo.redo,
+});
+
+// Re-render when the emoji pack finishes lazy-loading so :shortcode: text resolves
+watch(unifiedLoaded, (loaded) => {
+  if (loaded && editorRef.value && props.modelValue) {
+    const text = getPlainText();
+    if (text && text.includes(':')) {
+      renderContent(text);
+    }
+  }
+});
+
+// Clear role cache when switching servers to prevent unbounded growth
+watch(() => serverChannelStore.currentServerId, () => {
+  roleDisplayCache.clear();
 });
 
 // Watch for external model value changes

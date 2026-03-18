@@ -37,7 +37,11 @@ export function useComposerActions(options: ComposerActionsOptions) {
       return;
     }
 
-    const newContent = options.content.value + emojiText;
+    const cursorPos = richEditor.getCursorPosition?.() ?? options.content.value.length;
+    const before = options.content.value.substring(0, cursorPos);
+    const after = options.content.value.substring(cursorPos);
+    const newContent = before + emojiText + after;
+    const newCursorPos = cursorPos + emojiText.length;
 
     richEditor.skipNextWatch = true;
     options.content.value = newContent;
@@ -52,8 +56,7 @@ export function useComposerActions(options: ComposerActionsOptions) {
         richEditor.focus?.();
         requestAnimationFrame(() => {
           requestAnimationFrame(() => {
-            const plainText = richEditor.getPlainText?.() || '';
-            richEditor.setCursorPosition?.(plainText.length);
+            richEditor.setCursorPosition?.(newCursorPos);
           });
         });
       });

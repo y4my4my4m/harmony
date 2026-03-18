@@ -2,6 +2,8 @@
   <div
     v-if="props.isVisible && props.suggestions.length > 0"
     ref="suggestContainer"
+    id="auto-suggest-listbox"
+    role="listbox"
     class="auto-suggest"
     :style="positionStyle"
   >
@@ -11,6 +13,9 @@
     <div
       v-for="(suggestion, index) in props.suggestions"
       :key="getSuggestionKey(suggestion)"
+      :id="'suggest-' + index"
+      role="option"
+      :aria-selected="index === props.selectedIndex"
       class="suggest-item"
       :class="{ 'selected': index === props.selectedIndex }"
       @click="selectSuggestion(suggestion)"

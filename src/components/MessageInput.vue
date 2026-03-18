@@ -37,6 +37,8 @@
           ref="richEditorRef"
           :model-value="modelValue"
           :placeholder="attachedFiles.length > 0 ? $t('message.addComment') : $t('message.typeMessage', { to: placeholderTarget })"
+          :auto-suggest-active="autoSuggest.state.value.isActive"
+          :auto-suggest-selected-id="autoSuggest.state.value.isActive ? 'suggest-' + autoSuggest.state.value.selectedIndex : undefined"
           @update:model-value="handleModelValueUpdate"
           @input="handleEditorInput"
           @keydown="handleKeyDown"
