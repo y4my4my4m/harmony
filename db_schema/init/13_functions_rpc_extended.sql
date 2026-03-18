@@ -675,7 +675,7 @@ BEGIN
     WHERE pi.post_id = ANY(p_post_ids)
       AND pi.interaction_type = 'emoji_reaction'
     GROUP BY pi.post_id, pi.emoji_id, e.name, e.url, pi.custom_emoji_content
-    ORDER BY pi.post_id, reaction_count DESC, MIN(pi.created_at) ASC;
+    ORDER BY pi.post_id, MIN(pi.created_at) ASC;
 END;
 $$;
 
@@ -1049,7 +1049,7 @@ BEGIN
     WHERE pi.post_id = p_post_id 
       AND pi.interaction_type = 'emoji_reaction'
     GROUP BY pi.emoji_id, e.name, e.url, pi.custom_emoji_content
-    ORDER BY reaction_count DESC, MIN(pi.created_at) ASC;
+    ORDER BY MIN(pi.created_at) ASC;
 END;
 $$;
 
@@ -1856,7 +1856,7 @@ CREATE OR REPLACE FUNCTION public.mark_all_notifications_read(p_user_id uuid) RE
     AS $$
 BEGIN
     UPDATE notifications 
-    SET is_read = true, updated_at = NOW()
+    SET is_read = true, read_at = NOW(), updated_at = NOW()
     WHERE user_id = p_user_id AND is_read = false;
 END;
 $$;

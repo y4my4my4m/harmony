@@ -295,9 +295,15 @@ const handleSendMessage = async (content: MessagePart[], replyTo?: string) => {
   const currentUser = getCurrentUser.value
   
   if (conversationId && currentUser?.id) {
-    const success = await dmStore.sendDMMessage(conversationId, currentUser.id, content, replyTo)
-    if (success) {
-      emit('sendMessage', { content, replyTo })
+    try {
+      const success = await dmStore.sendDMMessage(conversationId, currentUser.id, content, replyTo)
+      if (success) {
+        emit('sendMessage', { content, replyTo })
+      } else {
+        toast.error('Failed to send message')
+      }
+    } catch (error) {
+      toast.error('Failed to send message')
     }
   }
 }

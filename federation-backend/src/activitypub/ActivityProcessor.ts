@@ -2304,16 +2304,14 @@ export class ActivityProcessor {
     const cc = Array.isArray(object.cc) ? object.cc : [object.cc].filter(Boolean);
     const allRecipients = [...to, ...cc];
     
-    // Get local user IDs from the recipient URLs
-    const recipientIds: string[] = [];
-    for (const recipientUrl of allRecipients) {
-      if (typeof recipientUrl !== 'string') continue;
-      
-      const resolved = await resolveProfileByActorUrl(recipientUrl);
-      if (resolved) {
-        recipientIds.push(resolved.id);
-      }
-    }
+    const resolveResults = await Promise.allSettled(
+      allRecipients
+        .filter((url): url is string => typeof url === 'string')
+        .map(url => resolveProfileByActorUrl(url))
+    );
+    const recipientIds = resolveResults
+      .filter((r): r is PromiseFulfilledResult<any> => r.status === 'fulfilled' && r.value != null)
+      .map(r => r.value.id);
     
     if (recipientIds.length === 0) {
       logger.warn(`Direct message ${object.id} has no local recipients`);
@@ -2406,12 +2404,13 @@ export class ActivityProcessor {
     const supabase = getSupabaseClient();
 
     const to = Array.isArray(object.to) ? object.to : [object.to].filter(Boolean);
-    const recipientIds: string[] = [];
-    for (const url of to) {
-      if (typeof url !== 'string') continue;
-      const resolved = await resolveProfileByActorUrl(url);
-      if (resolved) recipientIds.push(resolved.id);
-    }
+    const resolveResults = await Promise.allSettled(
+      to.filter((url): url is string => typeof url === 'string')
+        .map(url => resolveProfileByActorUrl(url))
+    );
+    const recipientIds = resolveResults
+      .filter((r): r is PromiseFulfilledResult<any> => r.status === 'fulfilled' && r.value != null)
+      .map(r => r.value.id);
 
     if (recipientIds.length === 0) {
       logger.warn(`Group invite ${object.id} has no local recipients`);

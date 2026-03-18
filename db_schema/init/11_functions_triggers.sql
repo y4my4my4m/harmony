@@ -719,7 +719,8 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
 BEGIN
-    IF NEW.is_local = false OR NEW.visibility NOT IN ('public', 'unlisted') THEN
+    -- Skip remote posts (they came from federation, don't re-federate)
+    IF NEW.is_local = false THEN
         NEW.federation_status := 'skipped';
         RETURN NEW;
     END IF;

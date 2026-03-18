@@ -1,9 +1,7 @@
--- Fix: DM reaction notifications were created without conversation_id,
--- which prevented both view-context suppression (user already in the DM)
--- and proper click-to-navigate behaviour on the frontend.
---
--- Also adds conversation_id to the notification data payload so the frontend
--- can navigate directly to the DM and highlight the reacted message.
+-- Fix: handle_unified_notification_processing referenced a non-existent
+-- column "plain_text_content" on the posts table, breaking all post
+-- emoji reactions with error 42703.
+-- posts.content is jsonb (MessagePart array); use extract_message_text().
 
 BEGIN;
 

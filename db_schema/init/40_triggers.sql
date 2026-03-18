@@ -246,6 +246,12 @@ CREATE TRIGGER trigger_handle_post_reply_notifications
 -- FEDERATION TRIGGERS
 -- ---------------------------------------------------------------------------
 
+-- Set updated_at on content edits (not on federation_status or count changes)
+CREATE TRIGGER handle_posts_updated_at
+    BEFORE UPDATE ON public.posts
+    FOR EACH ROW
+    EXECUTE FUNCTION public.handle_posts_updated_at();
+
 -- Queue post for federation
 CREATE TRIGGER trigger_federate_post
     BEFORE INSERT OR UPDATE ON public.posts

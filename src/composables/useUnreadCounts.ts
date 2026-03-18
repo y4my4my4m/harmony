@@ -4,17 +4,24 @@ import { authContextService } from '@/services/AuthContextService'
 import type { UnreadCount } from '@/types'
 import { debug } from '@/utils/debug'
 
+// Module-level shared state so multiple components share one fetch/subscription
+const sharedUnreadCounts = ref<Map<string, UnreadCount>>(new Map())
+const sharedIsLoading = ref(false)
+let sharedRealtimeSubscription: any = null
+let sharedProfileId: string | null = null
+let initPromise: Promise<void> | null = null
+let subscriberCount = 0
+
 /**
  * Composable for managing unread message and mention counts
  * Tracks unread counts per channel, server, and conversation
  * 
- * OPTIMIZED: Uses AuthContextService for cached profile ID lookup
+ * Uses module-level shared state: multiple component instances share one
+ * fetch + realtime subscription to prevent duplicate queries.
  */
 export function useUnreadCounts() {
-  const unreadCounts = ref<Map<string, UnreadCount>>(new Map())
-  const isLoading = ref(false)
-  let realtimeSubscription: any = null
-  let cachedProfileId: string | null = null
+  const unreadCounts = sharedUnreadCounts
+  const isLoading = sharedIsLoading
 
   /**
    * Get unread count for a specific context
@@ -102,13 +109,13 @@ export function useUnreadCounts() {
    * Get profile ID (uses cached AuthContextService)
    */
   const getProfileId = async (): Promise<string | null> => {
-    if (cachedProfileId) return cachedProfileId
+    if (sharedProfileId) return sharedProfileId
     
     try {
       const context = await authContextService.getCurrentContext()
       if (context.isAuthenticated) {
-        cachedProfileId = context.profileId
-        return cachedProfileId
+        sharedProfileId = context.profileId
+        return sharedProfileId
       }
     } catch (error) {
       debug.error('Failed to get profile ID:', error)
@@ -118,33 +125,29 @@ export function useUnreadCounts() {
 
   /**
    * Fetch unread counts from database
-   * OPTIMIZED: Uses AuthContextService for cached profile ID lookup
    */
   const fetchUnreadCounts = async (_userId?: string): Promise<void> => {
-    isLoading.value = true
+    sharedIsLoading.value = true
     try {
-      // Use cached profile ID from AuthContextService
       const profileId = await getProfileId()
       if (!profileId) {
         debug.warn('Profile ID not available')
         return
       }
 
-      // Fetch all unread counts for this user
       const { data, error } = await supabase
         .from('unread_counts')
         .select('*')
         .eq('user_id', profileId)
-        .or('unread_mentions.gt.0,unread_messages.gt.0') // Fetch where there are unread mentions or messages
+        .or('unread_mentions.gt.0,unread_messages.gt.0')
 
       if (error) {
         debug.error('Failed to fetch unread counts:', error)
         return
       }
 
-      // Update the map
       if (data) {
-        unreadCounts.value.clear()
+        sharedUnreadCounts.value.clear()
         data.forEach((count) => {
           const context = {
             serverId: count.server_id,
@@ -152,30 +155,28 @@ export function useUnreadCounts() {
             conversationId: count.conversation_id,
           }
           const key = getContextKey(context)
-          unreadCounts.value.set(key, count as UnreadCount)
+          sharedUnreadCounts.value.set(key, count as UnreadCount)
         })
       }
 
-      debug.log('✅ Fetched unread counts:', unreadCounts.value.size)
+      debug.log('✅ Fetched unread counts:', sharedUnreadCounts.value.size)
     } catch (error) {
       debug.error('❌ Error fetching unread counts:', error)
     } finally {
-      isLoading.value = false
+      sharedIsLoading.value = false
     }
   }
 
   /**
-   * Setup real-time subscription for unread counts
-   * OPTIMIZED: Uses cached profile ID from AuthContextService
+   * Setup real-time subscription for unread counts (shared, created once)
    */
   const setupRealtimeSubscription = async (): Promise<void> => {
-    if (realtimeSubscription) return
+    if (sharedRealtimeSubscription) return
 
-    // Use cached profile ID from AuthContextService
     const profileId = await getProfileId()
     if (!profileId) return
 
-    realtimeSubscription = supabase
+    sharedRealtimeSubscription = supabase
       .channel(`unread-counts-${profileId}`)
       .on(
         'postgres_changes',
@@ -196,7 +197,7 @@ export function useUnreadCounts() {
               conversationId: count.conversation_id,
             }
             const key = getContextKey(context)
-            unreadCounts.value.set(key, count)
+            sharedUnreadCounts.value.set(key, count)
           } else if (payload.eventType === 'DELETE') {
             const count = payload.old as UnreadCount
             const context = {
@@ -205,7 +206,7 @@ export function useUnreadCounts() {
               conversationId: count.conversation_id,
             }
             const key = getContextKey(context)
-            unreadCounts.value.delete(key)
+            sharedUnreadCounts.value.delete(key)
           }
         }
       )
@@ -215,33 +216,43 @@ export function useUnreadCounts() {
   }
 
   /**
-   * Cleanup real-time subscription
+   * Cleanup: decrement subscriber count, tear down when last subscriber unmounts
    */
   const cleanup = (): void => {
-    if (realtimeSubscription) {
-      supabase.removeChannel(realtimeSubscription)
-      realtimeSubscription = null
-      debug.log('🧹 Cleaned up unread counts real-time subscription')
+    subscriberCount--
+    if (subscriberCount <= 0) {
+      subscriberCount = 0
+      if (sharedRealtimeSubscription) {
+        supabase.removeChannel(sharedRealtimeSubscription)
+        sharedRealtimeSubscription = null
+        debug.log('🧹 Cleaned up unread counts real-time subscription')
+      }
+      sharedProfileId = null
+      initPromise = null
     }
-    cachedProfileId = null
   }
 
   /**
-   * Initialize - fetch counts and setup real-time
-   * OPTIMIZED: Uses AuthContextService for cached auth lookup
+   * Initialize (deduplicated: multiple components share one fetch + subscription)
    */
   const initialize = async (): Promise<void> => {
-    const context = await authContextService.getCurrentContext()
-    if (!context.isAuthenticated) return
+    subscriberCount++
+    if (initPromise) return initPromise
 
-    cachedProfileId = context.profileId
-    await fetchUnreadCounts()
-    await setupRealtimeSubscription()
+    initPromise = (async () => {
+      const context = await authContextService.getCurrentContext()
+      if (!context.isAuthenticated) return
+
+      sharedProfileId = context.profileId
+      await fetchUnreadCounts()
+      await setupRealtimeSubscription()
+    })()
+
+    return initPromise
   }
 
-  // Auto-initialize when composable is used
-  onMounted(() => {
-    initialize()
+  onMounted(async () => {
+    await initialize()
   })
 
   onUnmounted(() => {

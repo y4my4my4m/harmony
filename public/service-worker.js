@@ -236,6 +236,10 @@ self.addEventListener('message', (event) => {
       // Handle notification clearing
       console.log('🗑️ Service Worker: Clearing notifications')
       break
+    case 'DISMISS_NOTIFICATIONS':
+      // Dismiss specific notifications by tag or notificationId (cross-device sync)
+      event.waitUntil(handleDismissNotifications(event.data))
+      break
     default:
       console.log('⚠️ Service Worker: Unknown message type:', event.data.type)
   }
@@ -398,6 +402,32 @@ async function processPendingNotifications() {
     }
   } catch (error) {
     console.error('❌ Service Worker: Error processing pending notifications:', error)
+  }
+}
+
+async function handleDismissNotifications(data) {
+  try {
+    const notifications = await self.registration.getNotifications()
+    let dismissed = 0
+    
+    for (const notification of notifications) {
+      const matchesId = data.notificationId && notification.data?.notificationId === data.notificationId
+      const matchesTag = data.tag && notification.tag === data.tag
+      const matchesConversation = data.conversationId && notification.tag?.includes(`conv-${data.conversationId}`)
+      const matchesChannel = data.channelId && notification.tag?.includes(`ch-${data.channelId}`)
+      
+      if (matchesId || matchesTag || matchesConversation || matchesChannel) {
+        notification.close()
+        dismissed++
+      }
+    }
+    
+    if (dismissed > 0) {
+      console.log(`🔕 Service Worker: Dismissed ${dismissed} notification(s) via cross-device sync`)
+      await updateBadgeCount()
+    }
+  } catch (error) {
+    console.error('❌ Service Worker: Error dismissing notifications:', error)
   }
 }
 

@@ -67,6 +67,7 @@
             @toggle-search="handleToggleSearch"
             @show-pinned="showPinnedMessages = true"
             @show-threads="showAllThreads = true"
+            @edit-channel="handleEditChannel"
           />
           <div v-else class="chat-placeholder-header">
             <div class="header-content">
@@ -166,6 +167,13 @@
   </div>
 
   <FundingModal v-if="showFundingModal" @close="showFundingModal = false" />
+
+  <ChannelEditModal
+    :show="showChannelEditModal"
+    :channel="editingChannel"
+    @close="showChannelEditModal = false"
+    @updated="showChannelEditModal = false"
+  />
 </template>
 
 <script setup lang="ts">
@@ -183,6 +191,7 @@ import MessageSearchModal from '@/components/search/MessageSearchModal.vue'
 import PinnedMessagesPopup from '@/components/PinnedMessagesPopup.vue'
 import AllThreadsModal from '@/components/threads/AllThreadsModal.vue'
 import ThreadView from '@/components/threads/ThreadView.vue'
+import ChannelEditModal from '@/components/ChannelEditModal.vue'
 import { useServerChannelStore } from '@/stores/useServerChannel'
 import { useChatStore } from '@/stores/useChat'
 import { useDMStore } from '@/stores/useDM'
@@ -249,6 +258,8 @@ const showAllThreads = ref(false)
 const showThreadView = ref(false)
 const selectedThreadId = ref<string | undefined>()
 const selectedThread = ref<any>(null)
+const showChannelEditModal = ref(false)
+const editingChannel = ref<any>(null)
 
 // Computed
 const servers = computed(() => serverChannelStore.servers)
@@ -372,6 +383,11 @@ const closeThreadView = () => {
 
 const handleThreadUpdated = (thread: any) => {
   selectedThread.value = thread
+}
+
+const handleEditChannel = (channel: any) => {
+  editingChannel.value = channel
+  showChannelEditModal.value = true
 }
 
 // Keyboard shortcut handler (Ctrl+K / Cmd+K)

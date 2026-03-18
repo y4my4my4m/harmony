@@ -35,7 +35,9 @@ export interface PushSubscriptionData {
   push_offline_only: boolean;
 }
 
-// Notification type to preference field mapping
+// Maps notification types to the notification_preferences column that controls
+// whether push is sent. Types not listed here fall through to the global
+// push_notifications toggle only.
 const NOTIFICATION_TYPE_PREFERENCES: Record<string, { enabled: string; desktop?: string }> = {
   mention: { enabled: 'push_mentions' },
   dm: { enabled: 'push_dms' },
@@ -47,6 +49,7 @@ const NOTIFICATION_TYPE_PREFERENCES: Record<string, { enabled: string; desktop?:
   server_update: { enabled: 'push_notifications' },
   activitypub_follow: { enabled: 'activitypub_follows' },
   activitypub_favorite: { enabled: 'activitypub_favorites' },
+  activitypub_reaction: { enabled: 'activitypub_favorites' },
   activitypub_reblog: { enabled: 'activitypub_reblogs' },
   activitypub_mention: { enabled: 'activitypub_mentions' },
   activitypub_reply: { enabled: 'activitypub_replies' },
@@ -270,23 +273,23 @@ class PushNotificationServiceClass {
 
       logger.debug(`Push sent successfully to ${subscriptionData.endpoint.substring(0, 50)}...`);
       return { success: true };
-    } catch (error: any) {
-      // Handle specific error codes
-      if (error.statusCode === 410 || error.statusCode === 404) {
-        // Subscription is no longer valid - remove it
+    } catch (error: unknown) {
+      const statusCode = (error as any)?.statusCode;
+      const message = error instanceof Error ? error.message : 'Unknown error';
+
+      if (statusCode === 410 || statusCode === 404) {
         logger.info('📱 Push subscription expired, removing...');
         await this.removeSubscriptionByEndpoint(subscriptionData.endpoint);
         return { success: false, error: 'Subscription expired' };
       }
 
-      // Record failure for other errors
       await supabaseAdmin.rpc('record_push_failure', {
         p_subscription_id: subscriptionData.subscription_id,
-        p_reason: error.message || 'Unknown error'
+        p_reason: message
       });
 
       logger.error('Push notification failed:', error);
-      return { success: false, error: error.message };
+      return { success: false, error: message };
     }
   }
 
@@ -313,27 +316,25 @@ class PushNotificationServiceClass {
       return { sent: 0, failed: 0 };
     }
 
+    const eligible = subscriptions.filter(sub => {
+      if (!sub.push_enabled) return false;
+      if (options?.respectOfflineOnly && sub.push_offline_only && options?.isUserOnline) return false;
+      return true;
+    });
+
+    if (eligible.length === 0) {
+      return { sent: 0, failed: 0 };
+    }
+
+    const results = await Promise.allSettled(
+      eligible.map(sub => this.sendToSubscription(sub, payload))
+    );
+
     let sent = 0;
     let failed = 0;
-
-    for (const sub of subscriptions) {
-      // Check if push is enabled
-      if (!sub.push_enabled) {
-        continue;
-      }
-
-      // Check offline-only preference
-      if (options?.respectOfflineOnly && sub.push_offline_only && options?.isUserOnline) {
-        logger.debug('Skipping push - user is online and offline-only is enabled');
-        continue;
-      }
-
-      const result = await this.sendToSubscription(sub, payload);
-      if (result.success) {
-        sent++;
-      } else {
-        failed++;
-      }
+    for (const r of results) {
+      if (r.status === 'fulfilled' && r.value.success) sent++;
+      else failed++;
     }
 
     logger.info(`📬 Push notifications: ${sent} sent, ${failed} failed for user ${userId}`);

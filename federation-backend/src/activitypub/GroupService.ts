@@ -17,6 +17,7 @@ import { asyncHandler } from '../middleware/errorHandler.js';
 import { logger } from '../utils/logger.js';
 import config from '../config/index.js';
 import { SignatureService } from './SignatureService.js';
+import { inboxLimiter } from '../middleware/rateLimit.js';
 
 const router = Router();
 
@@ -79,6 +80,14 @@ function serverToGroup(
         ? server.icon 
         : `${config.PUBLIC_SUPABASE_URL || config.SUPABASE_URL}/storage/v1/render/image/public/server_icons/${server.icon}?width=96&height=96&resize=contain&quality=80`,
       mediaType: 'image/webp',
+    } : undefined,
+    
+    // Banner (ActivityPub uses 'image' for header/banner)
+    image: server.banner ? {
+      type: 'Image',
+      url: server.banner.startsWith('http')
+        ? server.banner
+        : `${config.PUBLIC_SUPABASE_URL || config.SUPABASE_URL}/storage/v1/object/public/server_banners/${server.banner}`,
     } : undefined,
     
     // Harmony extension: Channel structure
@@ -587,6 +596,7 @@ router.get(
  */
 router.post(
   '/servers/:serverId/inbox',
+  inboxLimiter,
   asyncHandler(async (req: Request, res: Response) => {
     const { serverId } = req.params;
     const activity = req.body;

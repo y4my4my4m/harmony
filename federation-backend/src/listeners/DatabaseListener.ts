@@ -76,12 +76,12 @@ export async function startDatabaseListener(): Promise<void> {
           author_id: payload.new.author_id
         });
         
-        // Only process local public/unlisted posts
-        if (payload.new.is_local && ['public', 'unlisted'].includes(payload.new.visibility)) {
+        // Process local posts for federation (all visibility levels)
+        if (payload.new.is_local) {
           logger.info('📝 Processing post for federation:', payload.new.id);
           await handleNewPost(payload.new);
         } else {
-          logger.debug(`Skipping post: is_local=${payload.new.is_local}, visibility=${payload.new.visibility}`);
+          logger.debug(`Skipping remote post: is_local=${payload.new.is_local}`);
         }
       }
     )
@@ -441,7 +441,9 @@ export async function startDatabaseListener(): Promise<void> {
             payload.new.federation_enabled &&
             (payload.old.name !== payload.new.name || 
              payload.old.description !== payload.new.description ||
-             payload.old.icon !== payload.new.icon)) {
+             payload.old.icon !== payload.new.icon ||
+             payload.old.banner !== payload.new.banner ||
+             payload.old.public !== payload.new.public)) {
           logger.info('🏠 Server updated:', {
             id: payload.new.id,
             name: payload.new.name,
@@ -449,6 +451,8 @@ export async function startDatabaseListener(): Promise<void> {
               name: payload.old.name !== payload.new.name,
               description: payload.old.description !== payload.new.description,
               icon: payload.old.icon !== payload.new.icon,
+              banner: payload.old.banner !== payload.new.banner,
+              public: payload.old.public !== payload.new.public,
             }
           });
           await handleServerUpdated(payload.new, payload.old);
@@ -1045,10 +1049,9 @@ async function handlePinChange(post: any, oldPost: any): Promise<void> {
       }
     }
 
-    // Send to all follower inboxes
-    for (const inbox of inboxes) {
-      await DeliveryQueue.sendToInbox(inbox, activity, author.id);
-    }
+    await Promise.allSettled(
+      [...inboxes].map(inbox => DeliveryQueue.sendToInbox(inbox, activity, author.id))
+    );
 
     logger.info(`📌 Pin change federated to ${inboxes.size} inboxes`);
   } catch (error) {
@@ -1206,10 +1209,9 @@ async function handlePostEdit(editedPost: any, _oldPost: any): Promise<void> {
       }
     }
 
-    // Send to all follower inboxes
-    for (const inbox of inboxes) {
-      await DeliveryQueue.sendToInbox(inbox, activity, author.id);
-    }
+    await Promise.allSettled(
+      [...inboxes].map(inbox => DeliveryQueue.sendToInbox(inbox, activity, author.id))
+    );
 
     logger.info(`✏️ Post edit federated to ${inboxes.size} inboxes`);
   } catch (error) {
@@ -1511,7 +1513,17 @@ export async function handleServerUpdated(server: any, oldServer: any): Promise<
     
     const serverUrl = `https://${hostDomain}/servers/${server.id}`;
     
-    // Build Update activity with changed properties
+    // Build Update activity with all profile properties
+    const iconUrl = server.icon && !server.icon.includes('default')
+      ? (server.icon.startsWith('http') ? server.icon : 
+         `${config.PUBLIC_SUPABASE_URL || config.SUPABASE_URL}/storage/v1/render/image/public/server_icons/${server.icon}?width=96&height=96&resize=contain&quality=80`)
+      : undefined;
+    
+    const bannerUrl = server.banner
+      ? (server.banner.startsWith('http') ? server.banner :
+         `${config.PUBLIC_SUPABASE_URL || config.SUPABASE_URL}/storage/v1/object/public/server_banners/${server.banner}`)
+      : undefined;
+
     const activity = {
       '@context': [
         'https://www.w3.org/ns/activitystreams',
@@ -1525,11 +1537,9 @@ export async function handleServerUpdated(server: any, oldServer: any): Promise<
         type: 'Group',
         name: server.name,
         summary: server.description,
-        icon: server.icon ? {
-          type: 'Image',
-          url: server.icon.startsWith('http') ? server.icon : 
-               `${config.PUBLIC_SUPABASE_URL || config.SUPABASE_URL}/storage/v1/object/public/server_icons/${server.icon}`,
-        } : undefined,
+        icon: iconUrl ? { type: 'Image', url: iconUrl } : null,
+        image: bannerUrl ? { type: 'Image', url: bannerUrl } : null,
+        discoverable: server.public === true,
         'harmony:ChatServer': true,
         updated: new Date().toISOString(),
       },
@@ -2004,12 +2014,13 @@ export async function handleNewMessageReaction(reaction: any): Promise<void> {
       user, objectUrl, emojiContent, emojiData ?? undefined, recipientUrls,
     );
 
-    for (const participant of remoteParticipants) {
-      logger.info(`🌐 Federating message reaction: ${emojiContent} (emoji_id: ${reaction.emoji_id}) to ${participant.username}@${participant.domain}`);
-      const inboxUrl = participant.inbox_url || `https://${participant.domain}/inbox`;
-      await DeliveryQueue.sendToInbox(inboxUrl, activity, user.id);
-      logger.info(`✅ Message reaction queued for delivery to ${inboxUrl}`);
-    }
+    await Promise.allSettled(
+      remoteParticipants.map((participant: any) => {
+        const inboxUrl = participant.inbox_url || `https://${participant.domain}/inbox`;
+        logger.info(`🌐 Federating message reaction: ${emojiContent} (emoji_id: ${reaction.emoji_id}) to ${participant.username}@${participant.domain}`);
+        return DeliveryQueue.sendToInbox(inboxUrl, activity, user.id);
+      })
+    );
   } catch (error) {
     logger.error('Failed to handle message reaction:', error);
   }
@@ -2083,14 +2094,13 @@ export async function handleMessageReactionRemoval(deletedReaction: any): Promis
     const { createUndoLikeActivity } = await import('./FederationHandlers.js');
     const activity = createUndoLikeActivity(user, objectUrl);
 
-    // Send to all remote participants
-    for (const participant of remoteParticipants) {
-      logger.info(`🌐 Federating message reaction removal to ${participant.username}@${participant.domain}`);
-
-      const inboxUrl = participant.inbox_url || `https://${participant.domain}/inbox`;
-      await DeliveryQueue.sendToInbox(inboxUrl, activity, user.id);
-      logger.info(`✅ Message Undo Like queued for delivery to ${inboxUrl}`);
-    }
+    await Promise.allSettled(
+      remoteParticipants.map((participant: any) => {
+        const inboxUrl = participant.inbox_url || `https://${participant.domain}/inbox`;
+        logger.info(`🌐 Federating message reaction removal to ${participant.username}@${participant.domain}`);
+        return DeliveryQueue.sendToInbox(inboxUrl, activity, user.id);
+      })
+    );
   } catch (error) {
     logger.error('Failed to handle message reaction removal:', error);
   }
@@ -2125,38 +2135,42 @@ export async function enrichMessageLinkPreviews(message: any): Promise<void> {
 
   if (urlParts.length === 0) return;
 
-  const newEmbeds: Record<string, any> = {};
-
-  for (const part of urlParts) {
-    const url: string = part.url;
+  const eligibleUrls = urlParts.filter((part: any) => {
     try {
-      const urlObj = new URL(url);
-      const host = urlObj.hostname.toLowerCase();
+      const host = new URL(part.url).hostname.toLowerCase();
+      return host !== instanceDomain && !existingEmbeds[part.url];
+    } catch {
+      return false;
+    }
+  });
 
-      // Skip local Harmony URLs (already handled by DB trigger)
-      if (host === instanceDomain) continue;
+  if (eligibleUrls.length === 0) return;
 
-      // Skip if already embedded
-      if (existingEmbeds[url]) continue;
-
+  const previewResults = await Promise.allSettled(
+    eligibleUrls.map(async (part: any) => {
+      const url: string = part.url;
       const preview = await linkPreviewService.getPreview(url);
-      if (preview) {
-        // Auto-import fediverse posts so reactions/interactions work immediately
-        if (preview.provider === 'fediverse-post' && preview.fediverse?.postUrl) {
-          try {
-            const imported = await ActivityProcessor.fetchAndCreateRemotePost(preview.fediverse.postUrl);
-            if (imported) {
-              preview.localPostId = imported.id;
-              logger.info(`📥 Auto-imported fediverse post ${preview.fediverse.postUrl} → ${imported.id}`);
-            }
-          } catch (importErr) {
-            logger.debug(`Could not auto-import fediverse post ${url}:`, importErr);
+      if (!preview) return null;
+
+      if (preview.provider === 'fediverse-post' && preview.fediverse?.postUrl) {
+        try {
+          const imported = await ActivityProcessor.fetchAndCreateRemotePost(preview.fediverse.postUrl);
+          if (imported) {
+            preview.localPostId = imported.id;
+            logger.info(`📥 Auto-imported fediverse post ${preview.fediverse.postUrl} → ${imported.id}`);
           }
+        } catch (importErr) {
+          logger.debug(`Could not auto-import fediverse post ${url}:`, importErr);
         }
-        newEmbeds[url] = preview;
       }
-    } catch (err) {
-      logger.debug(`Skipping invalid URL for preview: ${url}`);
+      return { url, preview };
+    })
+  );
+
+  const newEmbeds: Record<string, any> = {};
+  for (const result of previewResults) {
+    if (result.status === 'fulfilled' && result.value) {
+      newEmbeds[result.value.url] = result.value.preview;
     }
   }
 

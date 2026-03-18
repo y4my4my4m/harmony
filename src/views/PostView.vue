@@ -352,27 +352,15 @@ const loadPostWithContext = async () => {
 
 const fetchRemoteRepliesInBackground = async (targetPost: TimelinePost) => {
   try {
-    const response = await fetch(`${activityPub.federationApiUrl}/fetch-replies`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        post_ap_id: targetPost.ap_id,
-        post_id: targetPost.id,
-        limit: 10,
-      }),
-    });
-
-    if (response.ok) {
-      const result = await response.json();
-      if (result.count > 0) {
-        const updatedResult = await activityPub.getPostWithContext(targetPost.id, {
-          context: props.contextType,
-          highlightReply: props.highlightReply,
-          maxDepth: maxThreadDepth.value,
-          includeInteractions: true,
-        });
-        postWithContext.value = updatedResult;
-      }
+    const result = await activityPubService.fetchRemoteReplies(targetPost.ap_id!, targetPost.id);
+    if (result && result.count > 0) {
+      const updatedResult = await activityPub.getPostWithContext(targetPost.id, {
+        context: props.contextType,
+        highlightReply: props.highlightReply,
+        maxDepth: maxThreadDepth.value,
+        includeInteractions: true,
+      });
+      postWithContext.value = updatedResult;
     }
   } catch (err) {
     debug.warn('[PostView] Failed to fetch remote replies:', err);
@@ -384,16 +372,8 @@ const handleFetchReactions = async () => {
   if (!mainPost.value?.ap_id || isFetchingReactions.value) return;
   isFetchingReactions.value = true;
   try {
-    const response = await fetch(`${activityPub.federationApiUrl}/fetch-reactions`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        post_ap_id: mainPost.value.ap_id,
-        post_id: mainPost.value.id,
-      }),
-    });
-    if (response.ok) {
-      const result = await response.json();
+    const result = await activityPubService.fetchRemoteReactions(mainPost.value.ap_id, mainPost.value.id);
+    if (result) {
       toast.success(`Fetched ${result.count || 0} reactions`);
       await loadPostWithContext();
     } else {
@@ -411,16 +391,8 @@ const handleFetchReplies = async () => {
   if (!mainPost.value?.ap_id || isFetchingReplies.value) return;
   isFetchingReplies.value = true;
   try {
-    const response = await fetch(`${activityPub.federationApiUrl}/fetch-replies`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        post_ap_id: mainPost.value.ap_id,
-        post_id: mainPost.value.id,
-      }),
-    });
-    if (response.ok) {
-      const result = await response.json();
+    const result = await activityPubService.fetchRemoteReplies(mainPost.value.ap_id, mainPost.value.id);
+    if (result) {
       toast.success(`Fetched ${result.count || 0} replies`);
       await loadPostWithContext();
     } else {

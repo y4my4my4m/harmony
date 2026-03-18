@@ -101,15 +101,16 @@
               <span>{{ isChannelMuted ? 'Unmute Channel' : 'Mute Channel' }}</span>
             </div>
 
-            <div class="context-menu-divider"></div>
+            <template v-if="canManageChannels">
+              <div class="context-menu-divider"></div>
 
-            <div class="context-menu-item disabled">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M20.71,7.04C21.1,6.65 21.1,6 20.71,5.63L18.37,3.29C18,2.9 17.35,2.9 16.96,3.29L15.12,5.12L18.87,8.87M3,17.25V21H6.75L17.81,9.93L14.06,6.18L3,17.25Z"/>
-              </svg>
-              <span>Edit Channel</span>
-              <span class="coming-soon">Soon</span>
-            </div>
+              <div class="context-menu-item" @click="handleEditChannel">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M20.71,7.04C21.1,6.65 21.1,6 20.71,5.63L18.37,3.29C18,2.9 17.35,2.9 16.96,3.29L15.12,5.12L18.87,8.87M3,17.25V21H6.75L17.81,9.93L14.06,6.18L3,17.25Z"/>
+                </svg>
+                <span>Edit Channel</span>
+              </div>
+            </template>
           </div>
         </Teleport>
       </div>
@@ -126,6 +127,7 @@ import { supabase } from '@/supabase'
 import { useAuthStore } from '@/stores/auth'
 import { useNotificationStore } from '@/stores/useNotification'
 import { authContextService } from '@/services/AuthContextService'
+import { useServerPermissions } from '@/composables/useServerPermissions'
 import { debug } from '@/utils/debug'
 
 // Props
@@ -145,7 +147,10 @@ const emit = defineEmits<{
   'toggle-search': []
   'show-pinned': []
   'show-threads': []
+  'edit-channel': [channel: Channel]
 }>()
+
+const { canManageChannels } = useServerPermissions()
 
 // State
 const showMembersList = ref(false)
@@ -251,6 +256,13 @@ const handleMarkAsRead = async () => {
     debug.log('✅ Marked channel as read:', props.channel.name)
   } catch (error) {
     debug.error('Failed to mark channel as read:', error)
+  }
+}
+
+const handleEditChannel = () => {
+  showOptionsMenu.value = false
+  if (props.channel) {
+    emit('edit-channel', props.channel)
   }
 }
 
@@ -564,17 +576,6 @@ onUnmounted(() => {
   color: var(--text-primary);
 }
 
-.more-menu .context-menu-item.disabled {
-  opacity: 0.4;
-  cursor: default;
-}
-
-.more-menu .context-menu-item .coming-soon {
-  margin-left: auto;
-  font-size: 11px;
-  opacity: 0.5;
-  font-style: italic;
-}
 
 .more-menu .context-menu-divider {
   height: 1px;

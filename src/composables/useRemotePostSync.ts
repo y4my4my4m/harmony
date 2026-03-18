@@ -8,18 +8,10 @@
 
 import { ref, onMounted, type Ref } from 'vue'
 import { debug } from '@/utils/debug'
+import { activityPubService } from '@/services/activityPubService'
 import type { TimelinePost } from '@/types'
 
 export const fetchedReactionsThisSession = new Set<string>()
-
-async function getFederationApiUrl(): Promise<string> {
-  try {
-    const { useActivityPubStore } = await import('@/stores/useActivityPub')
-    return useActivityPubStore().federationApiUrl
-  } catch {
-    return '/api/federation'
-  }
-}
 
 export function useRemotePostSync(
   post: Ref<TimelinePost> | (() => TimelinePost),
@@ -43,29 +35,15 @@ export function useRemotePostSync(
     if (!getIsRemote() || isFetchingReactions.value) return
 
     const p = getPost()
-    const postApId = p.ap_id
-    if (!postApId) return
+    if (!p.ap_id) return
 
     isFetchingReactions.value = true
-
     try {
-      const apiUrl = await getFederationApiUrl()
-      const response = await fetch(`${apiUrl}/fetch-reactions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          post_ap_id: postApId,
-          post_id: p.id,
-        }),
-      })
-
-      if (response.ok) {
-        const result = await response.json()
+      const result = await activityPubService.fetchRemoteReactions(p.ap_id, p.id)
+      if (result) {
         debug.log(`📬 Fetched ${result.count} reactions for remote post`)
         options.onReactionsUpdate?.(result)
         options.onRefresh?.(p.id)
-      } else {
-        debug.error('Failed to fetch remote reactions:', await response.text())
       }
     } catch (error) {
       debug.error('Error fetching remote reactions:', error)
@@ -78,28 +56,14 @@ export function useRemotePostSync(
     if (!getIsRemote() || isFetchingReplies.value) return
 
     const p = getPost()
-    const postApId = p.ap_id
-    if (!postApId) return
+    if (!p.ap_id) return
 
     isFetchingReplies.value = true
-
     try {
-      const apiUrl = await getFederationApiUrl()
-      const response = await fetch(`${apiUrl}/fetch-replies`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          post_ap_id: postApId,
-          post_id: p.id,
-        }),
-      })
-
-      if (response.ok) {
-        const result = await response.json()
+      const result = await activityPubService.fetchRemoteReplies(p.ap_id, p.id)
+      if (result) {
         debug.log(`📬 Fetched ${result.count} replies for remote post`)
         options.onRefresh?.(p.id)
-      } else {
-        debug.error('Failed to fetch remote replies:', await response.text())
       }
     } catch (error) {
       debug.error('Error fetching remote replies:', error)

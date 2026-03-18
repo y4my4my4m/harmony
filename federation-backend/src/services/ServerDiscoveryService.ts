@@ -11,6 +11,7 @@ import { SignatureService } from '../activitypub/SignatureService.js';
 import { logger } from '../utils/logger.js';
 import config from '../config/index.js';
 import { validateExternalHostname, validateExternalUrl } from '../utils/ssrfProtection.js';
+import { discoveryLimiter } from '../middleware/rateLimit.js';
 
 const router = Router();
 
@@ -24,6 +25,7 @@ const router = Router();
  */
 router.get(
   '/servers/discover',
+  discoveryLimiter,
   asyncHandler(async (req: Request, res: Response) => {
     const { url, handle } = req.query;
 
@@ -52,6 +54,7 @@ router.get(
         name: serverData.name,
         description: serverData.summary || '',
         icon: serverData.icon?.url,
+        banner: serverData.image?.url || null,
         memberCount: serverData.memberCount || 0,
         channels: (serverData['harmony:channels'] || []).map((c: any) => {
           // Map type to simple 'text', 'voice', or 'category'
@@ -85,6 +88,7 @@ router.get(
  */
 router.post(
   '/invites/resolve',
+  discoveryLimiter,
   asyncHandler(async (req: Request, res: Response) => {
     const { instance, code } = req.body;
 
@@ -164,6 +168,7 @@ router.post(
  */
 router.get(
   '/invites/:code',
+  discoveryLimiter,
   asyncHandler(async (req: Request, res: Response) => {
     const { code } = req.params;
     const supabase = getSupabaseClient();
@@ -174,7 +179,7 @@ router.get(
       .select(`
         *,
         server:servers!invites_server_id_fkey(
-          id, name, description, icon, public,
+          id, name, description, icon, banner, public,
           owner:profiles!servers_owner_fkey(username, display_name, avatar_url)
         ),
         creator:profiles!invites_created_by_fkey(username, display_name, avatar_url)
@@ -285,6 +290,7 @@ router.get(
         name: server.name,
         description: server.description || '',
         icon: makeAbsolute(server.icon, 'server_icons'),
+        banner: makeAbsolute(server.banner, 'server_banners'),
         memberCount: memberCount || 0,
         channels: allChannels,
         inbox: `${serverApId}/inbox`,
@@ -299,6 +305,7 @@ router.get(
  */
 router.post(
   '/servers/join',
+  discoveryLimiter,
   asyncHandler(async (req: Request, res: Response) => {
     const { serverUrl, userId, inviteCode } = req.body;
 
@@ -429,6 +436,7 @@ router.post(
  */
 router.post(
   '/servers/leave',
+  discoveryLimiter,
   asyncHandler(async (req: Request, res: Response) => {
     const { serverId, userId } = req.body;
 
@@ -499,6 +507,7 @@ router.post(
  */
 router.get(
   '/servers/:serverId/sync',
+  discoveryLimiter,
   asyncHandler(async (req: Request, res: Response) => {
     const { serverId } = req.params;
 
@@ -514,6 +523,7 @@ router.get(
  */
 router.get(
   '/channels/:channelId/messages',
+  discoveryLimiter,
   asyncHandler(async (req: Request, res: Response) => {
     const { channelId } = req.params;
     const { before, limit = 50 } = req.query;
@@ -993,6 +1003,7 @@ export class ServerDiscoveryService {
         name: remoteServer.name,
         description: remoteServer.summary || '',
         icon: remoteServer.icon?.url,
+        banner: remoteServer.image?.url || null,
         owner: ownerUserId,
         federation_enabled: true,
         federation_domain: hostDomain,
@@ -1089,9 +1100,8 @@ export class ServerDiscoveryService {
       
       const regularChannels = channels.filter((c: any) => !isCategory(c));
 
-      for (const channelData of regularChannels) {
+      const channelRows = regularChannels.map((channelData: any) => {
         const channelUuid = channelData.localId || extractUuid(channelData.id);
-        // Detect voice channels from multiple format variations
         const isVoice = 
           channelData.type === 'voice' || 
           channelData.type === 1 || 
@@ -1099,7 +1109,6 @@ export class ServerDiscoveryService {
           channelData.channelType === 'voice';
         const channelType = isVoice ? 1 : 0;
 
-        // Resolve category reference - look up in our categoryMap
         let categoryId = null;
         if (channelData.category) {
           categoryId = categoryMap.get(channelData.category);
@@ -1107,7 +1116,7 @@ export class ServerDiscoveryService {
           categoryId = categoryMap.get(channelData.categoryId) || channelData.categoryId;
         }
 
-        const insertData: any = {
+        const row: any = {
           server_id: serverRef.id,
           name: channelData.name,
           type: channelType,
@@ -1118,16 +1127,19 @@ export class ServerDiscoveryService {
           description: channelData.description,
         };
 
-        // Use remote UUID for consistency - this ensures messages can be linked
         if (channelUuid) {
-          insertData.id = channelUuid;
+          row.id = channelUuid;
         }
 
-        const { error: channelError } = await supabase.from('channels').insert(insertData);
+        return row;
+      });
+
+      if (channelRows.length > 0) {
+        const { error: channelError } = await supabase.from('channels').insert(channelRows);
         if (channelError) {
-          logger.error(`Failed to create channel ${channelData.name}:`, channelError);
+          logger.error(`Failed to bulk-create channels:`, channelError);
         } else {
-          logger.info(`📝 Created channel: ${channelData.name} (type: ${channelType}, category: ${categoryId})`);
+          logger.info(`📝 Created ${channelRows.length} channels`);
         }
       }
 
@@ -1246,6 +1258,7 @@ export class ServerDiscoveryService {
           name: remoteServer.name,
           description: remoteServer.summary,
           icon: remoteServer.icon?.url,
+          banner: remoteServer.image?.url || null,
           public: remoteServer.discoverable !== false,
           federation_metadata: {
             ...server.federation_metadata,
@@ -1271,23 +1284,18 @@ export class ServerDiscoveryService {
         return 0; // text
       };
 
-      for (const channelData of remoteChannels) {
-        const channelType = getChannelType(channelData);
+      const upsertRows = remoteChannels.map((channelData: any) => ({
+        server_id: serverId,
+        name: channelData.name,
+        type: getChannelType(channelData),
+        order: channelData.position || channelData.order || 0,
+        ap_id: channelData.id,
+        is_remote: true,
+        category: channelData.categoryId || null,
+      }));
 
-        // Upsert channel
-        await supabase
-          .from('channels')
-          .upsert({
-            server_id: serverId,
-            name: channelData.name,
-            type: channelType,
-            order: channelData.position || channelData.order || 0,
-            ap_id: channelData.id,
-            is_remote: true,
-            category: channelData.categoryId || null,
-          }, {
-            onConflict: 'ap_id',
-          });
+      if (upsertRows.length > 0) {
+        await supabase.from('channels').upsert(upsertRows, { onConflict: 'ap_id' });
       }
 
       logger.info(`✅ Synced remote server: ${remoteServer.name}`);

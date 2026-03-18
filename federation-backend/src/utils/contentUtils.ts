@@ -23,6 +23,25 @@ export function escapeHtml(text: string): string {
 }
 
 /**
+ * Decode HTML entities back to their characters.
+ * Handles named entities (&amp; &lt; &gt; &quot; &nbsp;),
+ * decimal numeric references (&#39; &#039; &#8217;), and
+ * hex numeric references (&#x27; &#x2019;).
+ */
+export function decodeHtmlEntities(text: string): string {
+  if (!text) return '';
+  return text
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCodePoint(parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_, dec) => String.fromCodePoint(parseInt(dec, 10)));
+}
+
+/**
  * Convert Harmony's JSONB content format to HTML for ActivityPub
  * 
  * Handles:

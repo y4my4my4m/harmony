@@ -186,16 +186,36 @@ export class DeliveryQueue {
         .eq('endpoint_url', endpointUrl)
         .maybeSingle();
       
-      // If no record exists, endpoint is not dead (just not tracked yet)
       if (error || !data) {
         return false;
       }
       
       return data.is_dead === true;
     } catch (error) {
-      // On any error, assume endpoint is not dead to avoid blocking deliveries
       logger.warn(`Error checking endpoint health for ${endpointUrl}:`, error);
       return false;
+    }
+  }
+
+  /**
+   * Batch-check which endpoints are marked as dead.
+   * Returns a Set of dead endpoint URLs.
+   */
+  private static async getDeadEndpoints(endpointUrls: string[]): Promise<Set<string>> {
+    if (endpointUrls.length === 0) return new Set();
+    try {
+      const supabase = getSupabaseClient();
+      const { data, error } = await supabase
+        .from('federation_endpoint_health')
+        .select('endpoint_url')
+        .in('endpoint_url', endpointUrls)
+        .eq('is_dead', true);
+
+      if (error || !data) return new Set();
+      return new Set(data.map((d: any) => d.endpoint_url));
+    } catch (error) {
+      logger.warn('Error batch-checking endpoint health:', error);
+      return new Set();
     }
   }
 
@@ -535,13 +555,14 @@ export class DeliveryQueue {
       }
     }
 
-    // Filter out dead endpoints, then deliver concurrently by domain
+    const allInboxUrls = [...inboxMap.keys()];
+    const deadEndpoints = await this.getDeadEndpoints(allInboxUrls);
+
     const liveInboxes: { inbox: string; type: 'shared' | 'individual' }[] = [];
     let skipped = 0;
 
     for (const [inbox, entry] of inboxMap) {
-      const isDead = await this.isEndpointDead(inbox);
-      if (isDead) {
+      if (deadEndpoints.has(inbox)) {
         skipped++;
         continue;
       }

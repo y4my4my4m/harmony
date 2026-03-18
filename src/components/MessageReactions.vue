@@ -248,15 +248,18 @@ watch(() => props.message.id, (newMessageId, oldMessageId) => {
   align-items: center;
   gap: 4px;
   padding: 3px 6px;
-  /* background-color: #2d2f35; */
   background-color: var(--background-quinary);
   border: 1px solid transparent;
   border-radius: 8px;
   cursor: pointer;
   font-size: 0.875rem;
-  transition: all 0.15s ease-out;
+  transition: background-color 0.15s ease-out, border-color 0.15s ease-out, opacity 0.15s ease-out, transform 0.15s ease-out;
   user-select: none;
   min-height: 22px;
+}
+
+.reaction:active {
+  transform: scale(0.92);
 }
 
 .reaction:hover {
@@ -374,7 +377,7 @@ watch(() => props.message.id, (newMessageId, oldMessageId) => {
 
 /* TransitionGroup animations for smooth reaction chip add/remove */
 .reaction-list-enter-active {
-  transition: opacity 0.2s ease, transform 0.2s ease;
+  animation: reaction-pop-in 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .reaction-list-leave-active {
@@ -383,15 +386,21 @@ watch(() => props.message.id, (newMessageId, oldMessageId) => {
 
 .reaction-list-enter-from {
   opacity: 0;
-  transform: scale(0.8);
+  transform: scale(0.5);
 }
 
 .reaction-list-leave-to {
   opacity: 0;
-  transform: scale(0.8);
+  transform: scale(0.7);
 }
 
 .reaction-list-move {
   transition: transform 0.2s ease;
+}
+
+@keyframes reaction-pop-in {
+  0% { opacity: 0; transform: scale(0.5); }
+  70% { opacity: 1; transform: scale(1.08); }
+  100% { opacity: 1; transform: scale(1); }
 }
 </style>

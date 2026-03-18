@@ -667,19 +667,25 @@ export function useAutoSuggest(
     }
   };
 
+  // Debounced ActivityPub user search
+  let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+  
+  const searchActivityPubUsersDebounced = (query: string) => {
+    if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+    searchDebounceTimer = setTimeout(() => searchActivityPubUsers(query), 150);
+  };
+
   // ActivityPub user search function with timeout
   const searchActivityPubUsers = async (query: string) => {
     debug.log('[DEBUG] searchActivityPubUsers called:', { query, mode: finalConfig.mode });
     
     if (finalConfig.mode !== 'activitypub' || query.length < 1) {
-      debug.log('[DEBUG] searchActivityPubUsers: Skipping (mode or query too short)', { mode: finalConfig.mode, queryLength: query.length });
       activityPubUsers.value = [];
       return;
     }
 
     // Cancel any in-flight search
     if (currentSearchAbortController) {
-      debug.log('[DEBUG] searchActivityPubUsers: Aborting previous search');
       currentSearchAbortController.abort();
     }
     
@@ -878,10 +884,9 @@ export function useAutoSuggest(
         
         debug.log('[DEBUG] State set to active:', state.value);
 
-        // Trigger ActivityPub user search if needed
+        // Trigger ActivityPub user search if needed (debounced to prevent duplicate calls)
         if (trigger.type === 'mention' && finalConfig.mode === 'activitypub') {
-          debug.log('[DEBUG] Searching ActivityPub users for:', query);
-          searchActivityPubUsers(query);
+          searchActivityPubUsersDebounced(query);
         }
         
         break;

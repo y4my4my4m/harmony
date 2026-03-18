@@ -10,6 +10,7 @@ import { Router, Request, Response } from 'express';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { validateExternalHostname } from '../utils/ssrfProtection.js';
 import { logger } from '../utils/logger.js';
+import { discoveryLimiter } from '../middleware/rateLimit.js';
 
 const router = Router();
 
@@ -208,6 +209,7 @@ async function probeMisskeyAPI(domain: string): Promise<InstanceProbeResult | nu
  */
 router.get(
   '/instances/probe',
+  discoveryLimiter,
   asyncHandler(async (req: Request, res: Response) => {
     const { domain } = req.query;
 
@@ -263,6 +265,7 @@ router.get(
  */
 router.get(
   '/instances/health',
+  discoveryLimiter,
   asyncHandler(async (req: Request, res: Response) => {
     const { domain } = req.query;
 

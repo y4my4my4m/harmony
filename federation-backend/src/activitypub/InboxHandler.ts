@@ -5,6 +5,7 @@ import { SignatureService } from './SignatureService.js';
 import { ActivityProcessor } from './ActivityProcessor.js';
 import { logger } from '../utils/logger.js';
 import config from '../config/index.js';
+import { inboxLimiter } from '../middleware/rateLimit.js';
 
 const router = Router();
 
@@ -14,6 +15,7 @@ const router = Router();
  */
 router.post(
   '/inbox',
+  inboxLimiter,
   asyncHandler(async (req: Request, res: Response) => {
     logger.info(`📮 POST to /inbox (shared inbox) from ${req.ip}`);
     logger.info(`Headers:`, {
@@ -32,6 +34,7 @@ router.post(
  */
 router.post(
   '/users/:username/inbox',
+  inboxLimiter,
   asyncHandler(async (req: Request, res: Response) => {
     logger.info(`📮 POST to /users/${req.params.username}/inbox from ${req.ip}`);
     logger.info(`Headers:`, {

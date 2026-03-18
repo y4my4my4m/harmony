@@ -327,6 +327,22 @@ export class ServiceWorkerManager {
   }
 
   /**
+   * Dismiss specific system notifications (cross-device read state sync).
+   * Tells the service worker to close matching notifications and update the badge.
+   */
+  async dismissNotifications(criteria: {
+    notificationId?: string
+    tag?: string
+    conversationId?: string
+    channelId?: string
+  }): Promise<void> {
+    await this.sendMessage({
+      type: 'DISMISS_NOTIFICATIONS',
+      ...criteria
+    })
+  }
+
+  /**
    * Unsubscribe from push notifications
    */
   async unsubscribeFromPush(userId: string): Promise<boolean> {

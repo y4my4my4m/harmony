@@ -436,41 +436,6 @@ export class ActivityPubService {
     };
   }
 
-  // =============================================
-  // LEGACY METHODS (DEPRECATED - Use getPostWithContext instead)
-  // =============================================
-
-  /**
-   * @deprecated Use getPostWithContext with context: 'thread' instead
-   * Get full conversation thread for a post
-   */
-  async getConversationThreadLegacy(conversationId: string): Promise<ConversationThread> {
-    // OPTIMIZED: Use cached auth context
-    const user = await this.getCurrentAuthUser();
-    if (!user) throw new Error('User not authenticated');
-
-    try {
-      const { data, error } = await supabase.rpc('get_conversation_thread', {
-        in_conversation_id: conversationId,
-        in_user_id: user.id
-      });
-
-      if (error) throw error;
-
-      return {
-        id: conversationId,
-        posts: data?.posts || [],
-        root_post: data?.root_post,
-        reply_count: data?.reply_count || 0,
-        participant_count: data?.participant_count || 0,
-        last_updated: data?.last_updated || new Date().toISOString()
-      };
-    } catch (error) {
-      debug.error('Failed to get conversation thread:', error);
-      throw error;
-    }
-  }
-
   /**
    * Get replies to a specific post
    */
@@ -607,7 +572,7 @@ export class ActivityPubService {
       case 'posts':
         return await this.searchPosts(query, limit);
       case 'users':
-        return await this.searchFederatedUsers(query, limit);
+        return await this.searchUsers(query, limit);
       case 'hashtags':
         return await trendingService.searchHashtags(query, limit);
       default:
@@ -1459,31 +1424,23 @@ export class ActivityPubService {
    * Search for federated users
    */
   async searchUsers(query: string, limit: number = 10): Promise<FederatedUser[]> {
-    debug.log('[DEBUG] activityPubService.searchUsers: Starting RPC call', { query, limit });
-    
-    try {
-      const { data, error } = await supabase
-        .rpc('search_federated_users', {
-          p_query: query,
-          p_limit: limit
-        });
-
-      debug.log('[DEBUG] activityPubService.searchUsers: RPC returned', { 
-        hasData: !!data, 
-        dataLength: data?.length, 
-        hasError: !!error 
+    const { data, error } = await supabase
+      .rpc('search_federated_users', {
+        p_query: query,
+        p_limit: limit
       });
 
-      if (error) {
-        debug.error('[DEBUG] activityPubService.searchUsers: RPC error', error);
-        throw error;
-      }
+    if (error) throw error;
 
-      return data as FederatedUser[];
-    } catch (err) {
-      debug.error('[DEBUG] activityPubService.searchUsers: Exception', err);
-      throw err;
-    }
+    return (data ?? []).map((user: any) => ({
+      id: user.user_id,
+      username: user.username,
+      display_name: user.display_name,
+      domain: user.domain,
+      avatar_url: user.avatar_url,
+      handle: user.handle,
+      is_local: user.is_local,
+    })) as FederatedUser[];
   }
 
   /**
@@ -1616,78 +1573,9 @@ export class ActivityPubService {
   /**
    * Resolve a user handle to a user object
    */
+  /** @deprecated Use getUserByHandle instead - it has caching and deduplication */
   async resolveUserByHandle(handle: string): Promise<FederatedUser | null> {
-    try {
-      // Remove @ prefix if present
-      const cleanHandle = handle.startsWith('@') ? handle.substring(1) : handle;
-      
-      // Parse handle - can be "username" or "username@domain"
-      const parts = cleanHandle.split('@');
-      const username = parts[0];
-      const domain = parts[1] || this.currentDomain;
-      
-      // First, try to find the user locally (use maybeSingle to avoid 406 error)
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('username', username)
-        .eq('domain', domain)
-        .maybeSingle();
-      
-      if (error) {
-        debug.error('Error looking up user:', error);
-        return null;
-      }
-      
-      if (data) {
-        // User found locally
-        return {
-          id: data.id,
-          username: data.username,
-          display_name: data.display_name,
-          domain: data.domain,
-          avatar_url: data.avatar_url,
-          banner_url: data.banner_url, // Include banner
-          handle: this.formatUserHandle(data.username, data.domain),
-          is_local: data.is_local,
-          bio: data.bio,
-          verified: false,
-          followers_count: 0,
-          following_count: 0,
-          posts_count: 0,
-          created_at: data.created_at,
-          updated_at: data.updated_at,
-          federated_id: data.federated_id,
-          public_key: data.public_key,
-          inbox_url: data.inbox_url,
-          outbox_url: data.outbox_url,
-          followers_url: data.followers_url,
-          following_url: data.following_url,
-          featured_url: data.featured_url,
-          last_synced_at: data.last_synced_at
-        } as FederatedUser;
-      }
-      
-      // If not found locally and it's a remote user, try to fetch
-      if (!data && domain !== this.currentDomain) {
-        debug.log(`User ${handle} not found locally, attempting to fetch from remote...`);
-        
-        // Try to resolve using the existing mentionUtils function
-        const { resolveRemoteMention } = await import('@/utils/mentionUtils');
-        const remoteUser = await resolveRemoteMention(username, domain);
-        
-        if (remoteUser) {
-          debug.log(`Successfully fetched and created remote user: ${handle}`);
-          return remoteUser;
-        }
-      }
-      
-      // Not found locally or remotely
-      return null;
-    } catch (error) {
-      debug.error('Failed to resolve user by handle:', error);
-      return null;
-    }
+    return this.getUserByHandle(handle);
   }
 
   /**
@@ -1984,29 +1872,9 @@ export class ActivityPubService {
   /**
    * Search federated users using SQL helper function
    */
+  /** @deprecated Use searchUsers instead */
   async searchFederatedUsers(query: string, limit: number = 10): Promise<FederatedUser[]> {
-    const { data, error } = await supabase
-      .rpc('search_federated_users', {
-        p_query: query,
-        p_limit: limit
-      });
-
-    if (error) throw error;
-
-    return data?.map((user: any) => ({
-      id: user.user_id,
-      username: user.username,
-      display_name: user.display_name,
-      domain: user.domain,
-      avatar_url: user.avatar_url,
-      handle: user.handle,
-      is_local: user.is_local,
-      bio: '',
-      verified: false,
-      followers_count: 0,
-      following_count: 0,
-      posts_count: 0,
-    })) || [];
+    return this.searchUsers(query, limit);
   }
 
   // =============================================
@@ -2870,6 +2738,49 @@ export class ActivityPubService {
       };
     } catch (error) {
       debug.error('Failed to load post with author:', error);
+      return null;
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Federation proxy helpers
+  // ---------------------------------------------------------------------------
+
+  private getFederationApiUrl(): string {
+    try {
+      const { useActivityPubStore } = require('@/stores/useActivityPub');
+      return useActivityPubStore().federationApiUrl;
+    } catch {
+      return '/api/federation';
+    }
+  }
+
+  async fetchRemoteReactions(postApId: string, postId: string): Promise<{ count: number; remote_reactions?: any } | null> {
+    try {
+      const response = await fetch(`${this.getFederationApiUrl()}/fetch-reactions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ post_ap_id: postApId, post_id: postId }),
+      });
+      if (!response.ok) return null;
+      return await response.json();
+    } catch (error) {
+      debug.error('Error fetching remote reactions:', error);
+      return null;
+    }
+  }
+
+  async fetchRemoteReplies(postApId: string, postId: string, limit = 10): Promise<{ count: number } | null> {
+    try {
+      const response = await fetch(`${this.getFederationApiUrl()}/fetch-replies`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ post_ap_id: postApId, post_id: postId, limit }),
+      });
+      if (!response.ok) return null;
+      return await response.json();
+    } catch (error) {
+      debug.error('Error fetching remote replies:', error);
       return null;
     }
   }

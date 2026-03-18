@@ -9,6 +9,7 @@ import { services } from '@/services'
 import { authContextService } from '@/services/AuthContextService'
 import { userDataService } from '@/services/userDataService'
 import { debug } from '@/utils/debug'
+import { updateFaviconBadge } from '@/utils/faviconBadge'
 import type { 
   Notification, 
   NotificationType,
@@ -50,10 +51,12 @@ const NOTIFICATION_SOUND_MAPPING: Record<NotificationType, AudioAction> = {
   activitypub_follow: 'friend_request',
   activitypub_favorite: 'reaction',
   activitypub_reblog: 'reaction',
+  activitypub_reaction: 'reaction',
   activitypub_mention: 'mention',
   activitypub_reply: 'reply',
   activitypub_follow_request: 'friend_request',
-  error: 'server_update' // Map error notifications to server_update sound
+  report_update: 'server_update',
+  error: 'server_update',
 }
 
 // Default notification preferences
@@ -247,6 +250,7 @@ export const useNotificationStore = defineStore('notification', {
           case 'activitypub_follow':
             return state.preferences.activitypub_desktop_notifications && state.preferences.activitypub_desktop_follows
           case 'activitypub_favorite':
+          case 'activitypub_reaction':
             return state.preferences.activitypub_desktop_notifications && state.preferences.activitypub_desktop_favorites
           case 'activitypub_reblog':
             return state.preferences.activitypub_desktop_notifications && state.preferences.activitypub_desktop_reblogs
@@ -282,6 +286,7 @@ export const useNotificationStore = defineStore('notification', {
           case 'activitypub_follow':
             return state.preferences.activitypub_sound_notifications && state.preferences.activitypub_sound_follows
           case 'activitypub_favorite':
+          case 'activitypub_reaction':
             return state.preferences.activitypub_sound_notifications && state.preferences.activitypub_sound_favorites
           case 'activitypub_reblog':
             return state.preferences.activitypub_sound_notifications && state.preferences.activitypub_sound_reblogs
@@ -635,6 +640,36 @@ export const useNotificationStore = defineStore('notification', {
             }
           }
         )
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'notifications',
+            filter: `user_id=eq.${profileId}`
+          },
+          async (payload) => {
+            try {
+              const updated = payload.new as Notification
+              const existing = this.notifications.find(n => n.id === updated.id)
+              
+              if (!existing) return
+              if (existing.is_read === updated.is_read) return
+              
+              debug.log('🔄 Notification read state synced from another device:', updated.id, 'is_read:', updated.is_read)
+              
+              existing.is_read = updated.is_read
+              this.updateUnreadCount()
+              
+              // If marked as read on another device, dismiss matching system notifications
+              if (updated.is_read) {
+                this.dismissSystemNotification(existing)
+              }
+            } catch (error) {
+              debug.error('❌ Error handling notification UPDATE sync:', error)
+            }
+          }
+        )
         .subscribe((status) => {
           debug.log('🔔 Notification subscription status:', status)
           
@@ -839,6 +874,44 @@ export const useNotificationStore = defineStore('notification', {
       }
     },
 
+    /**
+     * Dismiss system (OS-level) notifications matching a notification that was read on another device.
+     * Closes matching notifications shown via the service worker's showNotification API.
+     */
+    async dismissSystemNotification(notification: Notification) {
+      try {
+        if (!('serviceWorker' in navigator)) return
+        
+        const registration = await navigator.serviceWorker.ready
+        const shown = await registration.getNotifications()
+        
+        for (const sysNotif of shown) {
+          const matchesId = sysNotif.data?.notificationId === notification.id
+          const matchesConversation = notification.data?.conversation_id &&
+            sysNotif.tag?.includes(`conv-${notification.data.conversation_id}`)
+          const matchesChannel = notification.data?.channel_id &&
+            sysNotif.tag?.includes(`ch-${notification.data.channel_id}`)
+          
+          if (matchesId || matchesConversation || matchesChannel) {
+            sysNotif.close()
+            debug.log('🔕 Dismissed system notification synced from another device:', sysNotif.tag)
+          }
+        }
+        
+        // Update badge after dismissals
+        if (typeof navigator !== 'undefined' && 'setAppBadge' in navigator) {
+          const remaining = await registration.getNotifications()
+          if (remaining.length > 0) {
+            ;(navigator as any).setAppBadge(remaining.length)
+          } else {
+            ;(navigator as any).clearAppBadge()
+          }
+        }
+      } catch (error) {
+        debug.error('❌ Error dismissing system notification:', error)
+      }
+    },
+
     showToast(
       type: NotificationType,
       title: string,
@@ -926,6 +999,9 @@ export const useNotificationStore = defineStore('notification', {
           document.title = baseTitle
         }
       }
+
+      // Update favicon badge
+      updateFaviconBadge(this.unreadCount)
     },
 
     /**

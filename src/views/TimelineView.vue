@@ -165,7 +165,7 @@ const handleRefreshTimeline = () => {
 
 const handlePostCreated = () => {
   emit('postCreated')
-  loadTimeline()
+  // Realtime subscription handles adding the new post to feeds — no manual reload needed
 }
 
 const handleSwitchFeed = (feed: string) => {

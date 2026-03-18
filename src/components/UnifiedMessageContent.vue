@@ -901,18 +901,16 @@ export default defineComponent({
       return part?.displayName || part?.username || '';
     };
     
-    // Handle mention click - only open profile for local Harmony users
     const handleMentionClick = (part: any, event: MouseEvent) => {
       event.stopPropagation();
       
       // Don't try to open profile for bridged/Discord users
       if (isBridgedMention(part)) {
         debug.log('Bridged mention clicked (Discord user):', part.username);
-        // Could show a tooltip or mini-popup with Discord user info in the future
         return;
       }
       
-      // For Harmony users, emit event to show profile
+      // For Harmony users (local or federated), emit event to show profile
       emit('show-user-profile', part.userId, event);
     };
 

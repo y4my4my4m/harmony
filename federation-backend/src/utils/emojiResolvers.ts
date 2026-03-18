@@ -1,10 +1,9 @@
 /**
- * Shared emoji resolution utilities for federation reaction handlers.
+ * Unified emoji resolution utilities for federation.
  *
- * Both post reactions (DatabaseListener, reactionHandler) and channel reactions
- * (ChannelReactionHandler) need to resolve an emoji_id + custom_emoji_content
- * into an ActivityPub-compatible representation. This module centralises that
- * logic so every outbound reaction is formatted identically.
+ * Handles:
+ * - Outbound reaction emojis (post reactions, channel reactions)
+ * - Profile emoji shortcodes (display_name, bio)
  */
 
 import { getSupabaseClient } from '../config/supabase.js';
@@ -95,4 +94,83 @@ export async function resolveOutboundEmoji(
   }
 
   return formatEmojiForFederation(emoji, customEmojiContent, targetDomain);
+}
+
+/**
+ * Resolve emoji shortcodes in a local user's display_name and bio
+ * so that profileToActor() can include proper AP Emoji tags.
+ */
+export async function resolveLocalProfileEmojis(profile: any, supabase?: any): Promise<void> {
+  const db = supabase || getSupabaseClient();
+  const fieldsToScan = [profile.display_name, profile.bio].filter(Boolean).join(' ');
+  const shortcodeRegex = /:([a-zA-Z0-9_+-]+):/g;
+  const matches = [...fieldsToScan.matchAll(shortcodeRegex)];
+
+  if (matches.length === 0) return;
+
+  const shortcodes = [...new Set(matches.map(m => m[1]))];
+
+  const { data: dbEmojis } = await db
+    .from('emojis')
+    .select('id, name, url')
+    .in('name', shortcodes)
+    .not('url', 'is', null);
+
+  const customEmojiMap = new Map<string, { id: string; name: string; url: string }>();
+  if (dbEmojis) {
+    for (const e of dbEmojis) {
+      customEmojiMap.set(e.name, e);
+    }
+  }
+
+  const uncachedCodes = shortcodes.filter(s => !customEmojiMap.has(s));
+  if (uncachedCodes.length > 0) {
+    const { data: remoteCached } = await db
+      .from('remote_emojis_cache')
+      .select('shortcode, url')
+      .in('shortcode', uncachedCodes);
+
+    if (remoteCached) {
+      for (const e of remoteCached) {
+        if (e.url && !customEmojiMap.has(e.shortcode)) {
+          customEmojiMap.set(e.shortcode, {
+            id: `remote-${e.shortcode}`,
+            name: e.shortcode,
+            url: e.url,
+          });
+        }
+      }
+    }
+  }
+
+  const displayNameEmojis: Array<{ name: string; url: string; id?: string }> = [];
+  const bioEmojis: Array<{ name: string; url: string; id?: string }> = [];
+
+  if (profile.display_name) {
+    for (const m of [...profile.display_name.matchAll(shortcodeRegex)]) {
+      const emoji = customEmojiMap.get(m[1]);
+      if (emoji) displayNameEmojis.push({ name: m[1], url: emoji.url, id: emoji.id });
+    }
+  }
+
+  if (profile.bio) {
+    for (const m of [...profile.bio.matchAll(shortcodeRegex)]) {
+      const emoji = customEmojiMap.get(m[1]);
+      if (emoji) bioEmojis.push({ name: m[1], url: emoji.url, id: emoji.id });
+    }
+  }
+
+  if (displayNameEmojis.length > 0 || bioEmojis.length > 0) {
+    const existingMeta = profile.federation_metadata
+      ? (typeof profile.federation_metadata === 'string'
+        ? JSON.parse(profile.federation_metadata)
+        : profile.federation_metadata)
+      : {};
+
+    existingMeta.display_name_emojis = displayNameEmojis;
+    existingMeta.bio_emojis = bioEmojis;
+    profile.federation_metadata = existingMeta;
+
+    logger.debug(`Resolved ${displayNameEmojis.length} display name + ${bioEmojis.length} bio emojis for ${profile.username}`);
+  }
 }

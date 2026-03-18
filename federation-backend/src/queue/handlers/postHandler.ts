@@ -68,12 +68,27 @@ export async function handlePostJob(data: FederationJobData): Promise<void> {
           logger.info(`📌 Set ap_id for post ${post.id}: ${apId}`);
         }
 
-        // Broadcast to followers
-        await DeliveryQueue.broadcastToFollowers(author.id, activity);
-        
-        // Also deliver to mentioned users
-        if (Array.isArray(post.content)) {
+        if (post.visibility === 'direct') {
+          const mentions = Array.isArray(post.content)
+            ? post.content.filter((part: any) => part.type === 'mention' && !part.isLocal && part.domain)
+            : [];
+
+          if (mentions.length === 0) {
+            logger.warn(`📧 Direct post ${post.id} has no remote recipients — cannot federate`);
+            await updateFederationStatus(post_id, 'posts', 'failed');
+            throw new Error(`Direct post ${post_id} has no remote mention recipients — nothing to deliver`);
+          }
+
           await deliverToMentionedUsers(post, activity, author, supabase);
+          logger.info(`📧 Direct post ${post.id} delivered to ${mentions.length} mentioned user(s)`);
+        } else {
+          // Public/unlisted/followers: broadcast to followers
+          await DeliveryQueue.broadcastToFollowers(author.id, activity);
+          
+          // Also deliver to mentioned users who might not be followers
+          if (Array.isArray(post.content)) {
+            await deliverToMentionedUsers(post, activity, author, supabase);
+          }
         }
         break;
 
