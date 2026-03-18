@@ -327,9 +327,17 @@ function formatExpiry(expiresAt: string): string {
     0 0 80px -20px rgba(14, 165, 233, 0.2);
 }
 
+/* Stack vertically — global .modal-header is a row (title + close); we use icon + title + subtitle */
 .modal-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
   text-align: center;
   margin-bottom: 24px;
+  padding: 0;
+  border-bottom: none;
+  gap: 0;
 }
 
 .header-icon {
