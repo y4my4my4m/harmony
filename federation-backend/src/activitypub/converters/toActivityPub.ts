@@ -22,6 +22,20 @@ export function postToNote(post: any, author: any, quoteUrl?: string): any {
   const authorUrl = `https://${domain}/users/${author.username}`;
   const postUrl = post.ap_id || `https://${domain}/posts/${post.id}`;
 
+  let toAddresses = getToAddresses(post.visibility, authorUrl);
+  const ccAddresses = getCcAddresses(post.visibility, authorUrl);
+
+  // For direct messages, populate 'to' with mentioned users' AP URLs
+  if (post.visibility === 'direct' && Array.isArray(post.content)) {
+    const mentionUrls = post.content
+      .filter((part: any) => part.type === 'mention')
+      .map((m: any) => {
+        const mentionDomain = m.domain || config.INSTANCE_DOMAIN;
+        return `https://${mentionDomain}/users/${m.username || 'unknown'}`;
+      });
+    toAddresses = [...toAddresses, ...mentionUrls];
+  }
+
   const note: any = {
     '@context': [
       'https://www.w3.org/ns/activitystreams',
@@ -36,8 +50,8 @@ export function postToNote(post: any, author: any, quoteUrl?: string): any {
     attributedTo: authorUrl,
     published: post.created_at,
     content: extractContentAsHtml(post.content),
-    to: getToAddresses(post.visibility, authorUrl),
-    cc: getCcAddresses(post.visibility, authorUrl),
+    to: toAddresses,
+    cc: ccAddresses,
     likes: `${postUrl}/likes`,
     replies: `${postUrl}/replies`,
   };
@@ -643,8 +657,9 @@ function getToAddresses(visibility: string, authorUrl: string): string[] {
       return [`${authorUrl}/followers`];
     case 'followers':
       return [`${authorUrl}/followers`];
+    case 'direct':
     case 'private':
-      return []; // Direct messages, will be filled separately
+      return [];
     default:
       return ['https://www.w3.org/ns/activitystreams#Public'];
   }
@@ -658,9 +673,8 @@ function getCcAddresses(visibility: string, authorUrl: string): string[] {
     case 'public':
       return [`${authorUrl}/followers`];
     case 'unlisted':
-      return [];
     case 'followers':
-      return [];
+    case 'direct':
     case 'private':
       return [];
     default:

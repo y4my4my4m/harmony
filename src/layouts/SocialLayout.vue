@@ -520,18 +520,8 @@ const handleOpenComposer = () => {
 }
 
 const handlePostCreated = async () => {
-  // Refresh the current feed after creating a post
-  switch (currentView.value) {
-    case 'home':
-      await activityPubStore.loadHomeFeed()
-      break
-    case 'public':
-      await activityPubStore.loadPublicFeed()
-      break
-    case 'local':
-      await activityPubStore.loadLocalFeed()
-      break
-  }
+  // Realtime subscription handles adding the new post to feeds.
+  // No manual refresh needed — avoids duplicate timeline/follows/reactions queries.
 }
 
 const handleReplyToPost = (post: TimelinePost) => {

@@ -68,12 +68,20 @@ export async function handlePostJob(data: FederationJobData): Promise<void> {
           logger.info(`📌 Set ap_id for post ${post.id}: ${apId}`);
         }
 
-        // Broadcast to followers
-        await DeliveryQueue.broadcastToFollowers(author.id, activity);
-        
-        // Also deliver to mentioned users
-        if (Array.isArray(post.content)) {
-          await deliverToMentionedUsers(post, activity, author, supabase);
+        if (post.visibility === 'direct') {
+          // Direct messages: only deliver to mentioned users, never broadcast to all followers
+          if (Array.isArray(post.content)) {
+            await deliverToMentionedUsers(post, activity, author, supabase);
+          }
+          logger.info(`📧 Direct post ${post.id} delivered to mentioned users only`);
+        } else {
+          // Public/unlisted/followers: broadcast to followers
+          await DeliveryQueue.broadcastToFollowers(author.id, activity);
+          
+          // Also deliver to mentioned users who might not be followers
+          if (Array.isArray(post.content)) {
+            await deliverToMentionedUsers(post, activity, author, supabase);
+          }
         }
         break;
 

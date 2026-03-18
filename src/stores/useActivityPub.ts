@@ -1459,6 +1459,14 @@ export const useActivityPubStore = defineStore('activitypub', {
         const hasCachedPosts = this.loadTimelineFromCache();
         if (hasCachedPosts) {
           debug.log('📋 Showing cached timeline, fetching fresh in background...');
+          // Pre-mark remote posts so individual MonyPost components don't fire N+1
+          // per-post fetch-reactions calls — the batch fetch in refreshHomeFeedInBackground
+          // will clear and re-fetch them properly.
+          import('@/composables/useRemotePostSync').then(({ fetchedReactionsThisSession }) => {
+            for (const p of this.homeFeed.posts) {
+              if (!p.is_local && p.ap_id) fetchedReactionsThisSession.add(p.id);
+            }
+          });
           this.refreshHomeFeedInBackground();
           return;
         }
@@ -1550,6 +1558,11 @@ export const useActivityPubStore = defineStore('activitypub', {
         this.saveTimelineToCache();
         debug.log('✅ Background refresh complete');
 
+        // Clear pre-marked cache entries so batch can re-fetch with fresh post list
+        const { fetchedReactionsThisSession } = await import('@/composables/useRemotePostSync');
+        for (const p of processedPosts) {
+          if (!p.is_local && p.ap_id) fetchedReactionsThisSession.delete(p.id);
+        }
         // Batch-fetch remote reactions (non-blocking)
         this.batchFetchRemoteReactions(processedPosts);
       } catch (error) {

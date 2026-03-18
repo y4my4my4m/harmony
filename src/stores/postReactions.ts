@@ -113,8 +113,16 @@ export const usePostReactionsStore = defineStore('postReactions', () => {
    * CRITICAL: Batch fetch reactions for multiple posts to avoid N+1 queries
    * This is essential for performance when loading timelines
    */
+  let batchFetchInFlight: Promise<void> | null = null
+
   async function fetchMultiplePostReactions(postIds: string[], force = false): Promise<void> {
     if (!postIds.length) return
+
+    // Deduplicate concurrent batch calls — return existing promise if in-flight
+    if (batchFetchInFlight) {
+      debug.log('📊 Batch fetch already in-flight, awaiting existing request')
+      return batchFetchInFlight
+    }
 
     const now = Date.now()
     
@@ -134,58 +142,64 @@ export const usePostReactionsStore = defineStore('postReactions', () => {
     // Mark all as loading
     idsToFetch.forEach(id => isLoading.value.add(id))
 
-    try {
-      debug.log(`🔄 Batch fetching reactions for ${idsToFetch.length} posts`)
-      
-      const { data, error } = await supabase.rpc('get_batch_post_emoji_reactions', {
-        p_post_ids: idsToFetch,
-        p_user_limit: 5
-      })
-
-      if (error) {
-        debug.error('❌ Failed to batch fetch post reactions:', error)
-        return
-      }
-
-      // Group reactions by post_id
-      const groupedReactions: Record<string, PostReactionGroup[]> = {}
-      
-      data?.forEach((reaction: any) => {
-        const postId = reaction.post_id
-        if (!groupedReactions[postId]) {
-          groupedReactions[postId] = []
-        }
-        groupedReactions[postId].push({
-          emoji_id: reaction.emoji_id,
-          emoji_name: reaction.emoji_name,
-          emoji_url: reaction.emoji_url,
-          custom_emoji_content: reaction.custom_emoji_content,
-          reaction_count: reaction.reaction_count,
-          user_reactions: reaction.user_reactions || [],
-          current_user_reacted: reaction.current_user_reacted
+    const fetchPromise = (async () => {
+      try {
+        debug.log(`🔄 Batch fetching reactions for ${idsToFetch.length} posts`)
+        
+        const { data, error } = await supabase.rpc('get_batch_post_emoji_reactions', {
+          p_post_ids: idsToFetch,
+          p_user_limit: 5
         })
-      })
 
-      // Update store with batched data
-      Object.entries(groupedReactions).forEach(([postId, reactions]) => {
-        reactionsByPost.value.set(postId, reactions)
-        lastFetched.value.set(postId, now)
-      })
-
-      // Set empty arrays for posts with no reactions
-      idsToFetch.forEach(postId => {
-        if (!groupedReactions[postId]) {
-          reactionsByPost.value.set(postId, [])
-          lastFetched.value.set(postId, now)
+        if (error) {
+          debug.error('❌ Failed to batch fetch post reactions:', error)
+          return
         }
-      })
 
-      debug.log(`✅ Batch fetched reactions for ${idsToFetch.length} posts`)
-    } catch (error) {
-      debug.error('❌ Error in batch fetch:', error)
-    } finally {
-      idsToFetch.forEach(id => isLoading.value.delete(id))
-    }
+        // Group reactions by post_id
+        const groupedReactions: Record<string, PostReactionGroup[]> = {}
+        
+        data?.forEach((reaction: any) => {
+          const postId = reaction.post_id
+          if (!groupedReactions[postId]) {
+            groupedReactions[postId] = []
+          }
+          groupedReactions[postId].push({
+            emoji_id: reaction.emoji_id,
+            emoji_name: reaction.emoji_name,
+            emoji_url: reaction.emoji_url,
+            custom_emoji_content: reaction.custom_emoji_content,
+            reaction_count: reaction.reaction_count,
+            user_reactions: reaction.user_reactions || [],
+            current_user_reacted: reaction.current_user_reacted
+          })
+        })
+
+        // Update store with batched data
+        Object.entries(groupedReactions).forEach(([postId, reactions]) => {
+          reactionsByPost.value.set(postId, reactions)
+          lastFetched.value.set(postId, now)
+        })
+
+        // Set empty arrays for posts with no reactions
+        idsToFetch.forEach(postId => {
+          if (!groupedReactions[postId]) {
+            reactionsByPost.value.set(postId, [])
+            lastFetched.value.set(postId, now)
+          }
+        })
+
+        debug.log(`✅ Batch fetched reactions for ${idsToFetch.length} posts`)
+      } catch (error) {
+        debug.error('❌ Error in batch fetch:', error)
+      } finally {
+        idsToFetch.forEach(id => isLoading.value.delete(id))
+        batchFetchInFlight = null
+      }
+    })()
+
+    batchFetchInFlight = fetchPromise
+    return fetchPromise
   }
 
   /**

@@ -76,12 +76,12 @@ export async function startDatabaseListener(): Promise<void> {
           author_id: payload.new.author_id
         });
         
-        // Only process local public/unlisted posts
-        if (payload.new.is_local && ['public', 'unlisted'].includes(payload.new.visibility)) {
+        // Process local posts for federation (all visibility levels)
+        if (payload.new.is_local) {
           logger.info('📝 Processing post for federation:', payload.new.id);
           await handleNewPost(payload.new);
         } else {
-          logger.debug(`Skipping post: is_local=${payload.new.is_local}, visibility=${payload.new.visibility}`);
+          logger.debug(`Skipping remote post: is_local=${payload.new.is_local}`);
         }
       }
     )
