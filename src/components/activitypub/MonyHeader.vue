@@ -319,6 +319,21 @@ const getIconPath = (iconName: string): string => {
   margin-left: 4px;
 }
 
+/* Small mode at 1550px and under: only the selected view's name is displayed */
+@media (max-width: 1550px) {
+  .feed-switcher .feed-tab:not(.active) .tab-label {
+    max-width: 0;
+    opacity: 0;
+    margin-left: 0;
+  }
+
+  .feed-switcher .feed-tab.active .tab-label {
+    max-width: 120px;
+    opacity: 1;
+    margin-left: 4px;
+  }
+}
+
 .header-actions {
   display: flex;
   align-items: center;

@@ -14,6 +14,9 @@
     aria-haspopup="listbox"
     aria-invalid="false"
     aria-autocomplete="list"
+    :aria-expanded="props.autoSuggestActive || false"
+    :aria-activedescendant="props.autoSuggestSelectedId || undefined"
+    aria-controls="auto-suggest-listbox"
     autocorrect="off"
     data-can-focus="true"
     :aria-label="placeholder"
@@ -43,6 +46,7 @@ import { userDataService } from '@/services/userDataService';
 import { useUnifiedEmoji } from '@/services/unifiedEmojiService';
 import { roleService } from '@/services/RoleService';
 import { useServerChannelStore } from '@/stores/useServerChannel';
+import { useUndoRedo, type UndoState } from '@/composables/useUndoRedo';
 
 interface Props {
   modelValue: string;
@@ -51,6 +55,8 @@ interface Props {
   minHeight?: number;
   /** When true, shows border with hover/focus states (harmony-primary-alpha on hover, harmony-primary on focus) */
   bordered?: boolean;
+  autoSuggestActive?: boolean;
+  autoSuggestSelectedId?: string;
 }
 
 interface Emits {
@@ -79,6 +85,7 @@ const serverChannelStore = useServerChannelStore();
 const { resolveEmoji, isNativePack, getSvgUrl, isLoaded: unifiedLoaded } = useUnifiedEmoji();
 const isRendering = ref(false);
 const skipNextWatch = ref(false); // Flag to skip watch when manually rendering
+const undoRedo = useUndoRedo({ maxHistory: 100, groupingDelayMs: 300 });
 
 // Cache of role ID → { name, color } for displaying role mentions in the editor
 const roleDisplayCache = new Map<string, { name: string; color: string | null }>();
@@ -111,9 +118,7 @@ function getCachedRoleDisplay(roleId: string): { name: string; color: string | n
 }
 
 const hasContent = computed(() => {
-  if (!editorRef.value) return false;
-  const text = getPlainText();
-  return text.length > 0;
+  return !!props.modelValue?.trim();
 });
 
 const isSingleLine = computed(() => {
@@ -222,6 +227,10 @@ const getPlainText = (): string => {
     processNode(child);
   }
   
+  // Normalize non-breaking spaces back to regular spaces so they don't
+  // leak into stored content (processMentionsInText uses \u00A0 in the DOM)
+  text = text.replace(/\u00A0/g, ' ');
+  
   // Treat as empty when there's no actual text (trimmed is empty).
   // Lone <br> from browser when user deletes everything → text is '\n', trimmed is '' → return ''.
   const trimmed = text.trim();
@@ -247,6 +256,16 @@ const getCursorPosition = (): number => {
     NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT,
     {
       acceptNode: (node) => {
+        // Skip nodes inside contenteditable="false" elements (emoji/mention spans)
+        // to match setCursorPosition behavior and avoid double-counting
+        let parent = node.parentElement;
+        while (parent && parent !== editorRef.value) {
+          if (parent.getAttribute('contenteditable') === 'false') {
+            return NodeFilter.FILTER_SKIP;
+          }
+          parent = parent.parentElement;
+        }
+        
         if (node.nodeType === Node.TEXT_NODE) {
           return NodeFilter.FILTER_ACCEPT;
         } else if (node.nodeType === Node.ELEMENT_NODE) {
@@ -272,7 +291,7 @@ const getCursorPosition = (): number => {
     } else if (range.startContainer.nodeType === Node.ELEMENT_NODE && 
                range.startContainer.contains(node)) {
       const nodesBeforeCursor = Array.from(range.startContainer.childNodes).slice(0, range.startOffset);
-      if (!nodesBeforeCursor.includes(node as ChildNode)) {
+      if (!nodesBeforeCursor.some(n => n === node || n.contains(node as Node))) {
         break;
       }
     }
@@ -290,10 +309,10 @@ const getCursorPosition = (): number => {
       } else if (el.classList.contains('editor-mention')) {
         const displayText = el.getAttribute('data-display-text');
         if (displayText) {
-          position += displayText.length; // Count the display text length (@username or @username@domain)
+          position += displayText.length;
         }
       } else if (el.tagName === 'BR') {
-        position += 1; // newline
+        position += 1;
       }
     }
     
@@ -660,7 +679,13 @@ const createElementFromToken = (token: MarkdownToken): Node => {
       
       const content = document.createElement('span');
       content.className = 'editor-bold-content';
-      content.textContent = token.content;
+      if (token.children) {
+        for (const child of token.children) {
+          content.appendChild(createElementFromToken(child));
+        }
+      } else {
+        content.textContent = token.content;
+      }
       
       const endMarker = document.createElement('span');
       endMarker.className = 'editor-marker';
@@ -682,7 +707,13 @@ const createElementFromToken = (token: MarkdownToken): Node => {
       
       const content = document.createElement('span');
       content.className = 'editor-italic-content';
-      content.textContent = token.content;
+      if (token.children) {
+        for (const child of token.children) {
+          content.appendChild(createElementFromToken(child));
+        }
+      } else {
+        content.textContent = token.content;
+      }
       
       const endMarker = document.createElement('span');
       endMarker.className = 'editor-marker';
@@ -704,7 +735,13 @@ const createElementFromToken = (token: MarkdownToken): Node => {
       
       const content = document.createElement('span');
       content.className = 'editor-underline-content';
-      content.textContent = token.content;
+      if (token.children) {
+        for (const child of token.children) {
+          content.appendChild(createElementFromToken(child));
+        }
+      } else {
+        content.textContent = token.content;
+      }
       
       const endMarker = document.createElement('span');
       endMarker.className = 'editor-marker';
@@ -726,7 +763,13 @@ const createElementFromToken = (token: MarkdownToken): Node => {
       
       const content = document.createElement('span');
       content.className = 'editor-strikethrough-content';
-      content.textContent = token.content;
+      if (token.children) {
+        for (const child of token.children) {
+          content.appendChild(createElementFromToken(child));
+        }
+      } else {
+        content.textContent = token.content;
+      }
       
       const endMarker = document.createElement('span');
       endMarker.className = 'editor-marker';
@@ -853,6 +896,17 @@ const createElementFromToken = (token: MarkdownToken): Node => {
   }
 };
 
+// Apply an undo/redo state snapshot
+const applyUndoState = (state: UndoState) => {
+  skipNextWatch.value = true;
+  emit('update:modelValue', state.text);
+  renderContent(state.text, true);
+  nextTick(() => {
+    setCursorPosition(state.cursorPosition);
+    autoExpand();
+  });
+};
+
 // Handle input events
 const handleInput = (event?: Event) => {
   if (isRendering.value) return; // Prevent recursion
@@ -864,6 +918,9 @@ const handleInput = (event?: Event) => {
   // Emit cursor position for auto-suggest
   const cursorPos = getCursorPosition();
   emit('cursor-position-changed', cursorPos);
+  
+  // Track state for undo/redo
+  undoRedo.pushState(text, cursorPos);
   
   // DO NOT re-render on input to avoid infinite loops
   // Rendering will happen when modelValue changes externally
@@ -888,6 +945,22 @@ const handleInput = (event?: Event) => {
 
 // Handle keyboard events
 const handleKeyDown = (event: KeyboardEvent) => {
+  // Undo / Redo interception (Ctrl+Z, Ctrl+Y, Ctrl+Shift+Z, Cmd variants)
+  if ((event.ctrlKey || event.metaKey) && !event.altKey) {
+    if (event.key === 'z' && !event.shiftKey) {
+      event.preventDefault();
+      const state = undoRedo.undo();
+      if (state) applyUndoState(state);
+      return;
+    }
+    if (event.key === 'y' || (event.key === 'z' && event.shiftKey)) {
+      event.preventDefault();
+      const state = undoRedo.redo();
+      if (state) applyUndoState(state);
+      return;
+    }
+  }
+
   // Detect true mobile devices (small screen OR touch-only without mouse)
   const hasSmallScreen = window.innerWidth <= 768;
   const isTouchOnlyDevice = 'ontouchstart' in window && !window.matchMedia('(pointer: fine)').matches;
@@ -895,7 +968,7 @@ const handleKeyDown = (event: KeyboardEvent) => {
   
   // On mobile, Enter inserts line break (user taps send button)
   // On desktop, emit to parent and let it handle (Enter sends, Shift+Enter for new line)
-  if (event.key === 'Enter' && isMobile && !event.shiftKey) {
+  if (event.key === 'Enter' && !event.isComposing && isMobile && !event.shiftKey) {
     // Check if parent will handle this (e.g., auto-suggest active)
     emit('keydown', event);
     
@@ -987,7 +1060,9 @@ const insertTextAtCursor = (text: string) => {
   
   const selection = window.getSelection();
   if (!selection || selection.rangeCount === 0) {
-    editorRef.value.textContent = (editorRef.value.textContent || '') + text;
+    // Append as a text node instead of setting textContent (which would
+    // flatten all structured DOM like emojis, mentions, and formatting spans)
+    editorRef.value.appendChild(document.createTextNode(text));
   } else {
     const range = selection.getRangeAt(0);
     range.deleteContents();
@@ -1001,6 +1076,12 @@ const insertTextAtCursor = (text: string) => {
   emit('update:modelValue', newText);
   
   renderContent(newText);
+  
+  // Track insertion for undo/redo
+  nextTick(() => {
+    const cursorPos = getCursorPosition();
+    undoRedo.pushState(newText, cursorPos);
+  });
 };
 
 // Auto-expand editor based on content
@@ -1048,6 +1129,7 @@ const clear = () => {
   if (editorRef.value) {
     editorRef.value.innerHTML = '';
     emit('update:modelValue', '');
+    undoRedo.clear();
     autoExpand();
   }
 };
@@ -1060,7 +1142,24 @@ defineExpose({
   setCursorPosition,
   getPlainText,
   renderContent,
-  skipNextWatch // Expose this so MessageInput can set it
+  skipNextWatch,
+  undo: undoRedo.undo,
+  redo: undoRedo.redo,
+});
+
+// Re-render when the emoji pack finishes lazy-loading so :shortcode: text resolves
+watch(unifiedLoaded, (loaded) => {
+  if (loaded && editorRef.value && props.modelValue) {
+    const text = getPlainText();
+    if (text && text.includes(':')) {
+      renderContent(text);
+    }
+  }
+});
+
+// Clear role cache when switching servers to prevent unbounded growth
+watch(() => serverChannelStore.currentServerId, () => {
+  roleDisplayCache.clear();
 });
 
 // Watch for external model value changes
@@ -1115,6 +1214,7 @@ onMounted(async () => {
 
   if (props.modelValue) {
     renderContent(props.modelValue);
+    undoRedo.reset(props.modelValue, props.modelValue.length);
   }
   autoExpand();
 });

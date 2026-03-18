@@ -52,29 +52,45 @@ function renderTokenToHTML(token: MarkdownToken, options: RenderOptions): string
       // Handle newlines in text
       return escapeHtml(token.content).replace(/\n/g, '<br>');
 
-    case 'bold':
+    case 'bold': {
+      const inner = token.children
+        ? token.children.map(c => renderTokenToHTML(c, options)).join('')
+        : escapeHtml(token.content);
       if (showMarkers) {
-        return `<span class="md-marker">**</span><strong class="md-bold">${escapeHtml(token.content)}</strong><span class="md-marker">**</span>`;
+        return `<span class="md-marker">**</span><strong class="md-bold">${inner}</strong><span class="md-marker">**</span>`;
       }
-      return `<strong class="md-bold">${escapeHtml(token.content)}</strong>`;
+      return `<strong class="md-bold">${inner}</strong>`;
+    }
 
-    case 'italic':
+    case 'italic': {
+      const inner = token.children
+        ? token.children.map(c => renderTokenToHTML(c, options)).join('')
+        : escapeHtml(token.content);
       if (showMarkers) {
-        return `<span class="md-marker">*</span><em class="md-italic">${escapeHtml(token.content)}</em><span class="md-marker">*</span>`;
+        return `<span class="md-marker">*</span><em class="md-italic">${inner}</em><span class="md-marker">*</span>`;
       }
-      return `<em class="md-italic">${escapeHtml(token.content)}</em>`;
+      return `<em class="md-italic">${inner}</em>`;
+    }
 
-    case 'underline':
+    case 'underline': {
+      const inner = token.children
+        ? token.children.map(c => renderTokenToHTML(c, options)).join('')
+        : escapeHtml(token.content);
       if (showMarkers) {
-        return `<span class="md-marker">__</span><span class="md-underline">${escapeHtml(token.content)}</span><span class="md-marker">__</span>`;
+        return `<span class="md-marker">__</span><span class="md-underline">${inner}</span><span class="md-marker">__</span>`;
       }
-      return `<span class="md-underline">${escapeHtml(token.content)}</span>`;
+      return `<span class="md-underline">${inner}</span>`;
+    }
 
-    case 'strikethrough':
+    case 'strikethrough': {
+      const inner = token.children
+        ? token.children.map(c => renderTokenToHTML(c, options)).join('')
+        : escapeHtml(token.content);
       if (showMarkers) {
-        return `<span class="md-marker">~~</span><span class="md-strikethrough">${escapeHtml(token.content)}</span><span class="md-marker">~~</span>`;
+        return `<span class="md-marker">~~</span><span class="md-strikethrough">${inner}</span><span class="md-marker">~~</span>`;
       }
-      return `<span class="md-strikethrough">${escapeHtml(token.content)}</span>`;
+      return `<span class="md-strikethrough">${inner}</span>`;
+    }
 
     case 'code':
       if (showMarkers) {

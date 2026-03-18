@@ -1411,9 +1411,9 @@ const vClickOutside = {
 .suggest-username,
 .suggest-domain,
 .suggest-server {
-  color: #9ca3af;
+  /* color: #9ca3af;
   font-size: 0.875rem;
-  margin-left: 0.25rem;
+  margin-left: 0.25rem; */
 }
 
 /* Mobile responsive */

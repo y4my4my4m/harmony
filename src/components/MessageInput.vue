@@ -37,6 +37,8 @@
           ref="richEditorRef"
           :model-value="modelValue"
           :placeholder="attachedFiles.length > 0 ? $t('message.addComment') : $t('message.typeMessage', { to: placeholderTarget })"
+          :auto-suggest-active="autoSuggest.state.value.isActive"
+          :auto-suggest-selected-id="autoSuggest.state.value.isActive ? 'suggest-' + autoSuggest.state.value.selectedIndex : undefined"
           @update:model-value="handleModelValueUpdate"
           @input="handleEditorInput"
           @keydown="handleKeyDown"
@@ -330,7 +332,7 @@ const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText);
       // Handle Enter key for sending messages (only if auto-suggest is not active)
       // On mobile, Enter creates a new line - user must tap the send button
       // On desktop, Enter sends (Shift+Enter for new line)
-      if (event.key === 'Enter' && !event.shiftKey && !isMobile.value) {
+      if (event.key === 'Enter' && !event.isComposing && !event.shiftKey && !isMobile.value) {
         event.preventDefault();
         send();
       }

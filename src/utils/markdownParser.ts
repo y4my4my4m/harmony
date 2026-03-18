@@ -14,27 +14,19 @@ export interface ParsedContent {
 export interface MarkdownToken {
   type: 'text' | 'bold' | 'italic' | 'underline' | 'strikethrough' | 'code' | 'codeblock' | 'emoji';
   content: string;
-  language?: string; // For code blocks
-  raw?: string; // The original text including markers
+  language?: string;
+  raw?: string;
+  children?: MarkdownToken[];
 }
 
-// Regex patterns for markdown syntax
 const PATTERNS = {
-  // Code blocks (must be checked first)
   codeblock: /```(\w+)?\n?([\s\S]*?)```/g,
-  // Inline code
   code: /`([^`]+)`/g,
-  // Bold text
-  bold: /\*\*([^*]+)\*\*/g,
-  // Italic text
+  bold: /\*\*(.+?)\*\*/g,
   italic: /\*([^*]+)\*/g,
-  // Underline text
-  underline: /__([^_]+)__/g,
-  // Strikethrough text
-  strikethrough: /~~([^~]+)~~/g,
-  // Custom emoji
+  underline: /__((?:(?!__).)+?)__/g,
+  strikethrough: /~~((?:(?!~~).)+?)~~/g,
   emoji: /:([a-zA-Z0-9_+-]+):/g,
-  // Line breaks
   newline: /\n/g
 };
 
@@ -220,6 +212,85 @@ export function getPlainText(nodes: MarkdownNode[]): string {
   }).join('');
 }
 
+const FORMATTING_TYPES = new Set(['bold', 'italic', 'underline', 'strikethrough']);
+
+function parseInlineChildren(content: string, parentType: string): MarkdownToken[] | undefined {
+  const innerPatterns: Record<string, RegExp> = {};
+  if (parentType !== 'bold') innerPatterns.bold = /\*\*(.+?)\*\*/g;
+  if (parentType !== 'italic') innerPatterns.italic = /(?<!\*)\*([^*\n]+)\*(?!\*)/g;
+  if (parentType !== 'underline') innerPatterns.underline = /__((?:(?!__).)+?)__/g;
+  if (parentType !== 'strikethrough') innerPatterns.strikethrough = /~~((?:(?!~~).)+?)~~/g;
+  innerPatterns.code = /`([^`\n]+)`/g;
+  innerPatterns.emoji = /:([a-zA-Z0-9_+-]+):/g;
+
+  interface InnerMatch {
+    type: string;
+    start: number;
+    end: number;
+    content: string;
+    raw: string;
+  }
+
+  const matches: InnerMatch[] = [];
+  for (const [type, pattern] of Object.entries(innerPatterns)) {
+    let match;
+    while ((match = pattern.exec(content)) !== null) {
+      matches.push({
+        type,
+        start: match.index!,
+        end: match.index! + match[0].length,
+        content: match[1] || '',
+        raw: match[0]
+      });
+    }
+    pattern.lastIndex = 0;
+  }
+
+  if (matches.length === 0) return undefined;
+
+  matches.sort((a, b) => a.start !== b.start ? a.start - b.start : (b.end - b.start) - (a.end - a.start));
+  const filtered: InnerMatch[] = [];
+  let lastEnd = 0;
+  for (const m of matches) {
+    if (m.start >= lastEnd) {
+      filtered.push(m);
+      lastEnd = m.end;
+    }
+  }
+
+  if (filtered.length === 0) return undefined;
+
+  const tokens: MarkdownToken[] = [];
+  let idx = 0;
+
+  for (const m of filtered) {
+    if (m.start > idx) {
+      tokens.push({ type: 'text', content: content.slice(idx, m.start) });
+    }
+
+    const token: MarkdownToken = {
+      type: m.type as MarkdownToken['type'],
+      content: m.content,
+      raw: m.raw
+    };
+
+    if (FORMATTING_TYPES.has(m.type)) {
+      const children = parseInlineChildren(m.content, m.type);
+      if (children) token.children = children;
+    }
+
+    tokens.push(token);
+    idx = m.end;
+  }
+
+  if (idx < content.length) {
+    tokens.push({ type: 'text', content: content.slice(idx) });
+  }
+
+  const hasFormatting = tokens.some(t => t.type !== 'text');
+  return hasFormatting ? tokens : undefined;
+}
+
 export function parseMarkdownWithMarkers(text: string): MarkdownToken[] {
   const tokens: MarkdownToken[] = [];
   
@@ -279,13 +350,12 @@ export function parseMarkdownWithMarkers(text: string): MarkdownToken[] {
     }
     incompleteCodeblockPattern.lastIndex = 0;
 
-    // Other patterns (skip areas inside code blocks)
     const otherPatterns = {
-      code: /`([^`\n]+)`/g, // Don't allow newlines in inline code
-      bold: /\*\*([^*\n]+)\*\*/g, // Don't allow newlines in formatting
+      code: /`([^`\n]+)`/g,
+      bold: /\*\*(.+?)\*\*/g,
       italic: /(?<!\*)\*([^*\n]+)\*(?!\*)/g,
-      underline: /__([^_\n]+)__/g,
-      strikethrough: /~~([^~\n]+)~~/g,
+      underline: /__((?:(?!__).)+?)__/g,
+      strikethrough: /~~((?:(?!~~).)+?)~~/g,
       emoji: /:([a-zA-Z0-9_+-]+):/g
     };
 
@@ -376,6 +446,14 @@ export function parseMarkdownWithMarkers(text: string): MarkdownToken[] {
         type: 'text',
         content: textContent
       });
+    }
+  }
+
+  // Post-process: recursively parse children for formatting tokens
+  for (const token of tokens) {
+    if (FORMATTING_TYPES.has(token.type)) {
+      const children = parseInlineChildren(token.content, token.type);
+      if (children) token.children = children;
     }
   }
 
