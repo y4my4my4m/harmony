@@ -710,7 +710,7 @@ export default defineComponent({
       
       // Bold: **text** or __text__
       rendered = rendered.replace(/\*\*(.*?)\*\*/g, '<strong class="md-bold">$1</strong>');
-      rendered = rendered.replace(/__(.*?)__/g, '<strong class="md-bold">$1</strong>');
+      rendered = rendered.replace(/__(.*?)__/g, '<u class="md-underline">$1</u>');
       
       // Italic: *text* or _text_ (but not in URLs or other contexts)
       rendered = rendered.replace(/(?<![\w/:])_([^_]+)_(?![\w])/g, '<em class="md-italic">$1</em>');

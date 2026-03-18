@@ -330,7 +330,7 @@ const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText);
       // Handle Enter key for sending messages (only if auto-suggest is not active)
       // On mobile, Enter creates a new line - user must tap the send button
       // On desktop, Enter sends (Shift+Enter for new line)
-      if (event.key === 'Enter' && !event.shiftKey && !isMobile.value) {
+      if (event.key === 'Enter' && !event.isComposing && !event.shiftKey && !isMobile.value) {
         event.preventDefault();
         send();
       }
