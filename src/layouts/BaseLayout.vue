@@ -853,6 +853,8 @@ const wrappedTouchEnd = (event: TouchEvent) => {
     },
     onDragEnd: (velocity, direction) => {
       if (isOnTimeline && !leftSidebarOpen.value && !rightSidebarOpen.value) {
+        // Treat drag-as-swipe for timeline: use direction to navigate (was incorrectly only cancelling)
+        timelineNavigateTo(direction)
         cancelDrag()
         return
       }
