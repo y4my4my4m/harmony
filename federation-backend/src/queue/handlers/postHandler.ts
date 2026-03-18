@@ -69,11 +69,18 @@ export async function handlePostJob(data: FederationJobData): Promise<void> {
         }
 
         if (post.visibility === 'direct') {
-          // Direct messages: only deliver to mentioned users, never broadcast to all followers
-          if (Array.isArray(post.content)) {
-            await deliverToMentionedUsers(post, activity, author, supabase);
+          const mentions = Array.isArray(post.content)
+            ? post.content.filter((part: any) => part.type === 'mention' && !part.isLocal && part.domain)
+            : [];
+
+          if (mentions.length === 0) {
+            logger.info(`📧 Direct post ${post.id} has no remote recipients — skipping federation`);
+            await updateFederationStatus(post_id, 'posts', 'skipped');
+            return;
           }
-          logger.info(`📧 Direct post ${post.id} delivered to mentioned users only`);
+
+          await deliverToMentionedUsers(post, activity, author, supabase);
+          logger.info(`📧 Direct post ${post.id} delivered to ${mentions.length} mentioned user(s)`);
         } else {
           // Public/unlisted/followers: broadcast to followers
           await DeliveryQueue.broadcastToFollowers(author.id, activity);

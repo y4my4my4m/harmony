@@ -251,8 +251,8 @@ export function useUnreadCounts() {
     return initPromise
   }
 
-  onMounted(() => {
-    initialize()
+  onMounted(async () => {
+    await initialize()
   })
 
   onUnmounted(() => {
