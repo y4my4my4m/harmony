@@ -853,8 +853,9 @@ const wrappedTouchEnd = (event: TouchEvent) => {
     },
     onDragEnd: (velocity, direction) => {
       if (isOnTimeline && !leftSidebarOpen.value && !rightSidebarOpen.value) {
-        // Treat drag-as-swipe for timeline: use direction to navigate (was incorrectly only cancelling)
-        timelineNavigateTo(direction)
+        // velocity is positive when finger moved right, negative when left
+        const swipeDirection = velocity > 0 ? 'right' : 'left'
+        timelineNavigateTo(swipeDirection)
         cancelDrag()
         return
       }
@@ -1003,7 +1004,7 @@ onBeforeUnmount(() => {
     height: 100vh;
     z-index: 200;
     transform: translateX(-100%);
-    padding-top: 10px;
+    padding-top: 0;
     /* Native-feeling spring animation on release */
     transition: transform 0.35s cubic-bezier(0.32, 0.72, 0, 1);
   }

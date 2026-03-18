@@ -20,33 +20,41 @@
       </div> -->
       <!-- DM Button at the top -->
       <div
-        class="dm-button"
-        :class="{ 'selected': isDMSelected }"
-        @click="goToDMs"
+        class="header-item-wrapper"
         @mouseenter="showSidebarTooltip($event, 'Direct Messages')"
         @mouseleave="hideSidebarTooltip"
       >
         <div class="server-pill" :class="{ 'visible': isDMSelected, 'has-unread': dmUnreadMentions > 0 && !isDMSelected }"></div>
-        <svg viewBox="0 0 24 24" class="dm-icon">
-          <path d="M20,2H4A2,2 0 0,0 2,4V22L6,18H20A2,2 0 0,0 22,16V4A2,2 0 0,0 20,2M4,4H20V16H5.17L4,17.17V4Z" fill="currentColor"/>
-        </svg>
-        <div v-if="dmUnreadMentions > 0" class="unread-badge">
-          {{ dmUnreadMentions > 99 ? '99+' : dmUnreadMentions }}
+        <div
+          class="dm-button"
+          :class="{ 'selected': isDMSelected }"
+          @click="goToDMs"
+        >
+          <svg viewBox="0 0 24 24" class="dm-icon">
+            <path d="M20,2H4A2,2 0 0,0 2,4V22L6,18H20A2,2 0 0,0 22,16V4A2,2 0 0,0 20,2M4,4H20V16H5.17L4,17.17V4Z" fill="currentColor"/>
+          </svg>
+          <div v-if="dmUnreadMentions > 0" class="unread-badge">
+            {{ dmUnreadMentions > 99 ? '99+' : dmUnreadMentions }}
+          </div>
         </div>
       </div>
 
       <!-- Monyverse Button -->
       <div
-        class="monyverse-button"
-        :class="{ 'selected': isMonyverseSelected }"
-        @click="goToMonyverse"
+        class="header-item-wrapper"
         @mouseenter="showSidebarTooltip($event, 'Monyverse')"
         @mouseleave="hideSidebarTooltip"
       >
         <div class="server-pill" :class="{ 'visible': isMonyverseSelected, 'has-unread': unreadCount > 0 && !isMonyverseSelected }"></div>
-        <div class="monyverse-icon">#</div>
-        <div v-if="unreadCount > 0" class="unread-badge">
-          {{ unreadCount > 99 ? '99+' : unreadCount }}
+        <div
+          class="monyverse-button"
+          :class="{ 'selected': isMonyverseSelected }"
+          @click="goToMonyverse"
+        >
+          <div class="monyverse-icon">#</div>
+          <div v-if="unreadCount > 0" class="unread-badge">
+            {{ unreadCount > 99 ? '99+' : unreadCount }}
+          </div>
         </div>
       </div>
 
@@ -1088,27 +1096,28 @@ const removeServerFromFolder = async () => {
   width: 100%;
 }
 
+/* Header item wrapper — same pattern as .server-item-wrapper */
+.header-item-wrapper {
+  position: relative;
+  margin: 10px;
+}
+
 /* DM Button */
 .dm-button {
   width: 48px;
   height: 48px;
   background-color: var(--h-black-darker);
   color: var(--text-light);
-  margin: 10px;
   padding: 4px;
-  border-radius: 50%;
-  text-align: center;
-  vertical-align: middle;
+  border-radius: 12px;
   cursor: pointer;
   position: relative;
-  left: 0;
-  transition: border 0.6s ease-in-out, all 0.2s ease-in-out;
+  transition: background 0.2s ease-in-out, border-radius 0.2s ease-in-out, transform 0.2s ease-in-out;
   border: 3px solid transparent;
   background-origin: border-box;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 12px;
 }
 
 .dm-icon {
@@ -1119,6 +1128,7 @@ const removeServerFromFolder = async () => {
 
 .dm-button:hover {
   background: var(--harmony-primary, #0284C7);
+  transform: translateX(5px);
 }
 
 .dm-button:hover .dm-icon {
@@ -1139,15 +1149,11 @@ const removeServerFromFolder = async () => {
   width: 48px;
   height: 48px;
   background-color: var(--h-black-darker);
-  margin: 10px;
   padding: 4px;
   border-radius: 12px;
-  text-align: center;
-  vertical-align: middle;
   cursor: pointer;
   position: relative;
-  left: 0;
-  transition: border 0.6s ease-in-out, all 0.2s ease-in-out;
+  transition: background 0.2s ease-in-out, border-radius 0.2s ease-in-out, transform 0.2s ease-in-out;
   border: 3px solid transparent;
   background-origin: border-box;
   display: flex;
@@ -1160,13 +1166,11 @@ const removeServerFromFolder = async () => {
   font-weight: bold;
   color: var(--text-light);
   font-family: 'Figtree', sans-serif;
-  transition: transform 0.2s ease;
 }
 
 .monyverse-button:hover {
   background: var(--harmony-primary, #0284C7);
-  left: 5px;
-  transform: scale(1.05);
+  transform: translateX(5px);
 }
 
 .monyverse-button.selected {
@@ -1238,10 +1242,19 @@ const removeServerFromFolder = async () => {
 
 .server-item-wrapper {
   position: relative;
+  left: 0;
   margin: 10px;
   /* Optimize for smooth drag animations */
   will-change: transform, opacity;
-  transition: transform 0.15s ease-out, opacity 0.15s ease-out;
+  transition: transform 0.15s ease-out, left 0.2s ease-out, opacity 0.15s ease-out;
+}
+
+.server-item-wrapper:hover {
+  left: 5px;
+}
+
+.server-item-wrapper.drop-target-into:hover {
+  left: 0;
 }
 
 .portal,
@@ -1286,6 +1299,7 @@ const removeServerFromFolder = async () => {
 .portal:hover {
   /* background: var(--h-black-light); */
   background: var(--harmony-primary);
+  transform: translateX(5px);
 }
 
 .separator {
@@ -1294,13 +1308,6 @@ const removeServerFromFolder = async () => {
   border-top: 1px solid var(--border-secondary);
   border-bottom: 1px solid var(--border-color);
   margin-bottom: 5px;
-}
-
-.dm-button:hover,
-.monyverse-button:hover,
-.portal:hover,
-.server-item:hover {
-  left: 5px;
 }
 
 /*  white pill indicator */
@@ -1327,11 +1334,25 @@ const removeServerFromFolder = async () => {
   height: 8px;
 }
 
-.server-item-wrapper:hover .server-pill,
-.dm-button:hover .server-pill,
-.monyverse-button:hover .server-pill {
+/* Server wrappers move via left, so pill counter-shifts to stay in gutter */
+.server-item-wrapper:hover .server-pill {
   opacity: 1;
   height: 20px;
+  transform: translate(-5px, -50%);
+}
+
+.server-item-wrapper:hover .server-pill.visible {
+  height: 36px;
+}
+
+/* Header wrappers stay still — pill just grows, no counter-shift */
+.header-item-wrapper:hover .server-pill {
+  opacity: 1;
+  height: 20px;
+}
+
+.header-item-wrapper:hover .server-pill.visible {
+  height: 36px;
 }
 
 /* .dm-button.selected,
