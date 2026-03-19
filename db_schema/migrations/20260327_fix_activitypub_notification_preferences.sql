@@ -191,7 +191,7 @@ BEGIN
                         WHEN 'dm' THEN
                             should_send := COALESCE(user_prefs.desktop_dms, true);
                         WHEN 'reaction' THEN
-                            should_send := COALESCE(user_prefs.desktop_reactions, false);
+                            should_send := COALESCE(user_prefs.desktop_reactions, true);
                         WHEN 'voice_channel_activity' THEN
                             should_send := COALESCE(user_prefs.sound_voice_activity, true);
                         WHEN 'server_invite' THEN

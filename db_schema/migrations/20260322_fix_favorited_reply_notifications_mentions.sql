@@ -934,6 +934,7 @@ DECLARE
     notification_data jsonb;
     msg_channel_id uuid;
     msg_server_id uuid;
+    msg_conversation_id uuid;
     post_author_id uuid;
     post_record RECORD;
     emoji_record RECORD;
@@ -977,8 +978,8 @@ BEGIN
         SELECT user_id INTO single_target_id FROM messages WHERE id = NEW.message_id;
         
         IF single_target_id IS NOT NULL AND single_target_id != NEW.user_id THEN
-            SELECT m.channel_id, c.server_id 
-            INTO msg_channel_id, msg_server_id
+            SELECT m.channel_id, c.server_id, m.conversation_id
+            INTO msg_channel_id, msg_server_id, msg_conversation_id
             FROM messages m 
             LEFT JOIN channels c ON m.channel_id = c.id 
             WHERE m.id = NEW.message_id;
@@ -1016,12 +1017,18 @@ BEGIN
                     )
                 ELSE NULL END
             );
+
+            IF msg_conversation_id IS NOT NULL THEN
+                notification_data := notification_data || jsonb_build_object(
+                    'conversation_id', msg_conversation_id
+                );
+            END IF;
             
             PERFORM send_notification_to_user(
                 'reaction',
                 single_target_id,
                 notification_data,
-                msg_server_id, msg_channel_id, NULL,
+                msg_server_id, msg_channel_id, msg_conversation_id,
                 NEW.user_id,
                 'normal'
             );
