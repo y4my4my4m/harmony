@@ -470,7 +470,7 @@ configure_supabase() {
             SUPABASE_URL=$(prompt_input "Supabase URL" "http://localhost:54321")
             SUPABASE_ANON_KEY=$(prompt_input "Anon key" "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyAgCiAgICAicm9sZSI6ICJhbm9uIiwKICAgICJpc3MiOiAic3VwYWJhc2UtZGVtbyIsCiAgICAiaWF0IjogMTY0MTc2OTIwMCwKICAgICJleHAiOiAxNzk5NTM1NjAwCn0.dc_X5iR_VP_qT0zsiyj_I_OZ2T9FtRU2BBNWN8Bu4GE")
             SUPABASE_SERVICE_KEY=$(prompt_input "Service role key" "")
-            DATABASE_URL=$(prompt_input "Database URL (for pg-boss)" "postgresql://postgres:postgres@localhost:54322/postgres")
+            DATABASE_URL=$(prompt_input "Database URL (for BullMQ LISTEN/NOTIFY)" "postgresql://postgres:postgres@localhost:54322/postgres")
         else
             SUPABASE_MODE="selfhosted"
             echo ""
@@ -868,6 +868,8 @@ SUPABASE_SERVICE_ROLE_KEY=$SUPABASE_SERVICE_KEY
 # Must be set when SUPABASE_URL is a Docker-internal address (e.g. http://supabase-kong:8000)
 PUBLIC_SUPABASE_URL=$SUPABASE_URL
 DATABASE_URL=$DATABASE_URL
+# Optional: Supavisor transaction-mode pooler (port 6543) for better connection efficiency
+# DATABASE_POOL_URL=
 
 INSTANCE_DOMAIN=$DOMAIN
 INSTANCE_NAME=$INSTANCE_NAME
@@ -1196,7 +1198,9 @@ generate_docker_compose() {
             fed_env+="
       - SUPABASE_URL=http://supabase-kong:8000
       - USE_PGBOSS_QUEUE=true
-      - DATABASE_URL=postgresql://postgres:${SUPABASE_PG_PASSWORD}@supabase-db:5432/postgres"
+      - DATABASE_URL=postgresql://postgres:${SUPABASE_PG_PASSWORD}@supabase-db:5432/postgres
+      - DATABASE_POOL_URL=\${DATABASE_POOL_URL:-}
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379"
         fi
 
         compose+="

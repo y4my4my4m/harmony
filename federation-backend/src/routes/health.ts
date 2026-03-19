@@ -3,6 +3,7 @@ import { getSupabaseClient } from '../config/supabase.js';
 import config from '../config/index.js';
 import { logger } from '../utils/logger.js';
 import { redis } from '../services/RedisService.js';
+import { bullmqManager } from '../queue/BullMQManager.js';
 
 const router = Router();
 
@@ -25,6 +26,13 @@ router.get('/', async (req: Request, res: Response) => {
 
     const redisHealth = await redis.healthCheck();
 
+    let queueStats: Record<string, any> | undefined;
+    try {
+      queueStats = await bullmqManager.getStats();
+    } catch {
+      queueStats = { status: 'unavailable' };
+    }
+
     res.json({
       status: 'healthy',
       version: '1.0.0',
@@ -36,6 +44,7 @@ router.get('/', async (req: Request, res: Response) => {
       database: 'connected',
       redis: redisHealth.ok ? 'connected' : 'unavailable',
       redis_latency_ms: redisHealth.latencyMs,
+      queues: queueStats,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
@@ -63,16 +72,13 @@ router.post('/maintenance', async (req: Request, res: Response) => {
   }
 
   try {
-    // Import dynamically to avoid circular deps
-    const { queueManager } = await import('../queue/QueueManager.js');
-    
-    const jobId = await queueManager.sendJob('maintenance', {
+    const jobId = await bullmqManager.addJob('maintenance', {
       type: 'create',
       task,
       triggered_by: 'api',
     });
 
-    logger.info(`🔧 Maintenance task ${task} triggered via API, job: ${jobId}`);
+    logger.info(`Maintenance task ${task} triggered via API, job: ${jobId}`);
 
     res.json({
       status: 'queued',

@@ -251,6 +251,8 @@ supabase
 ### Backend
 - **Supabase**: PostgreSQL database with real-time features
 - **Federation Backend**: Node.js backend for ActivityPub federation
+- **BullMQ**: Redis-backed job queue for federation processing (replaced pg-boss)
+- **Redis**: Caching, presence, typing indicators, rate limiting, and BullMQ persistence
 - **Row Level Security**: Database-level security policies
 - **Storage Buckets**: File and media storage
 
@@ -271,16 +273,27 @@ supabase
 - Dynamic imports for large features
 
 ### 2. **Efficient Caching**
-- User data caching with TTL
+- Two-tier caching: L1 in-memory (NodeCache) + L2 Redis
+- User profile caching with TTL (5 min) via `ProfileCacheService`
 - Message pagination and caching
 - Asset caching via service worker
 
 ### 3. **Real-time Optimization**
-- Context-aware presence subscriptions
+- Consolidated `user:{profileId}` broadcast channels for notifications and unread counts
+- Redis-backed presence with heartbeat TTL and invisible user filtering
+- Redis-backed typing indicators with Pub/Sub
+- Context-aware Supabase Realtime subscriptions (only for active views)
 - Message debouncing and batching
 - Efficient WebRTC connection management
 
-### 4. **Bundle Optimization**
+### 4. **Job Processing**
+- BullMQ (Redis) for federation job processing with automatic retries, backoff, and persistence
+- LISTEN/NOTIFY bridge: DB triggers fire `pg_notify` which is bridged into BullMQ queues instantly
+- Bull Board dashboard at `/admin/queues` for monitoring and management
+- Repeatable scheduled maintenance jobs (keygen sweep, orphan cleanup)
+- Periodic sweep safety net for missed DB trigger events
+
+### 5. **Bundle Optimization**
 - Tree shaking for unused code
 - Dynamic imports for conditional features
 - Optimized asset loading
@@ -306,7 +319,8 @@ supabase
 
 ### 1. **Horizontal Scaling**
 - Stateless service design
-- Database connection pooling
+- Database connection pooling via Supavisor (optional `DATABASE_POOL_URL`)
+- Redis-backed distributed rate limiting
 - CDN for asset delivery
 
 ### 2. **Modular Architecture**

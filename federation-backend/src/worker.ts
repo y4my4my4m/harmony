@@ -1,8 +1,8 @@
 /**
  * Federation Queue Worker
  *
- * Runs pg-boss queue workers, LISTEN/NOTIFY instant job pickup,
- * and the DeliveryQueue retry processor. No HTTP server.
+ * Runs BullMQ queue workers, LISTEN/NOTIFY instant job bridging,
+ * and the DeliveryQueue retry processor.  No HTTP server.
  *
  * Usage:
  *   FEDERATION_MODE=worker npm start
@@ -11,7 +11,8 @@
 
 import config from './config/index.js';
 import { logger } from './utils/logger.js';
-import { queueManager } from './queue/QueueManager.js';
+import { bullmqManager } from './queue/BullMQManager.js';
+import { NotificationListener } from './queue/NotificationListener.js';
 import { startDatabaseListener } from './listeners/DatabaseListener.js';
 import { startPushNotificationListener } from './listeners/PushNotificationHandler.js';
 import { DeliveryQueue } from './activitypub/DeliveryQueue.js';
@@ -19,6 +20,7 @@ import { BlockedInstancesCache } from './services/BlockedInstancesCache.js';
 import { redis } from './services/RedisService.js';
 
 let deliveryRetryIntervalId: ReturnType<typeof setInterval> | null = null;
+let notificationListener: NotificationListener | null = null;
 
 export async function startWorker(): Promise<void> {
   logger.info('Harmony Federation Worker starting...');
@@ -33,14 +35,27 @@ export async function startWorker(): Promise<void> {
   });
 
   if (config.USE_PGBOSS_QUEUE) {
-    logger.info('Starting pg-boss QueueManager with LISTEN/NOTIFY...');
-    await queueManager.start();
+    logger.info('Starting BullMQ workers with LISTEN/NOTIFY bridge...');
+    await bullmqManager.start();
 
-    // Push notification service initialization
+    const connectionString = process.env.DATABASE_URL;
+    if (!connectionString) {
+      throw new Error('DATABASE_URL is required for LISTEN/NOTIFY bridge');
+    }
+
+    notificationListener = new NotificationListener(
+      connectionString,
+      (jobName) => bullmqManager.getQueue(jobName),
+    );
+    await notificationListener.start();
+    logger.info('NotificationListener bridging pg_notify -> BullMQ');
+
+    bullmqManager.startPeriodicSweep();
+
     try {
       const { PushNotificationService } = await import('./services/PushNotificationService.js');
       if (PushNotificationService.initialize()) {
-        logger.info('Push notification service initialized (using pg-boss queue)');
+        logger.info('Push notification service initialized');
       } else {
         logger.warn('Push notifications not available (VAPID not configured)');
       }
@@ -73,8 +88,13 @@ export async function stopWorker(): Promise<void> {
     deliveryRetryIntervalId = null;
   }
 
+  if (notificationListener) {
+    await notificationListener.stop();
+    notificationListener = null;
+  }
+
   if (config.USE_PGBOSS_QUEUE) {
-    await queueManager.stop();
+    await bullmqManager.stop();
   }
 
   await redis.disconnect();

@@ -846,28 +846,20 @@ DECLARE
     v_job_id uuid;
     v_target_domain text;
 BEGIN
-    INSERT INTO pgboss.job (
-        id, name, data, priority, retry_limit,
-        expire_in, created_on, state
-    ) VALUES (
-        gen_random_uuid(), p_job_name, p_job_data, p_priority, p_retry_limit,
-        make_interval(secs => p_expire_in_seconds), now(), 'created'
-    )
-    RETURNING id INTO v_job_id;
+    v_job_id := gen_random_uuid();
 
-    -- Notify the worker process so it can fetch the job instantly
-    -- instead of waiting for the next pg-boss poll cycle
     PERFORM pg_notify('federation_jobs', json_build_object(
         'name', p_job_name,
-        'id', v_job_id::text
+        'id', v_job_id::text,
+        'data', p_job_data
     )::text);
 
     RETURN v_job_id;
 EXCEPTION
-    WHEN undefined_table OR insufficient_privilege THEN
+    WHEN OTHERS THEN
         v_target_domain := p_job_data->>'target_domain';
         IF v_target_domain IS NOT NULL AND v_target_domain != '' THEN
-            RAISE LOG 'pg-boss not available, using fallback for job % to %', p_job_name, v_target_domain;
+            RAISE LOG 'pg_notify failed, using delivery queue fallback for job % to %', p_job_name, v_target_domain;
             INSERT INTO public.federation_delivery_queue (
                 activity_json, inbox_url,
                 sender_id, status, scheduled_at
@@ -887,7 +879,7 @@ EXCEPTION
 
             RETURN v_job_id;
         ELSE
-            RAISE LOG 'pg-boss not available, skipping job %', p_job_name;
+            RAISE LOG 'pg_notify failed, skipping job %', p_job_name;
             RETURN NULL;
         END IF;
 END;

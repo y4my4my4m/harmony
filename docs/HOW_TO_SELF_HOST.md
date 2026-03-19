@@ -52,7 +52,8 @@ This method gives you full control and enables:
 - ✅ Link previews
 - ✅ Bot gateway
 - ✅ Self-hosted LiveKit
-- ✅ Full pg-boss queue for reliable delivery
+- ✅ BullMQ (Redis-backed) job queue for reliable delivery
+- ✅ Bull Board dashboard for queue monitoring
 
 ## Recommended VPS Providers
 
@@ -108,7 +109,7 @@ You can use **Supabase Cloud** (easier) or **self-host** (full control).
    - Project URL
    - Anon key
    - Service role key
-   - Database URL (for pg-boss): `postgresql://postgres.[ref]:[pwd]@[region].pooler.supabase.com:5432/postgres`
+   - Database URL (for LISTEN/NOTIFY bridge): `postgresql://postgres.[ref]:[pwd]@[region].pooler.supabase.com:5432/postgres`
 
 ### Self-Hosting Supabase
 
@@ -159,7 +160,10 @@ DATABASE_URL=postgresql://postgres.[ref]:[pwd]@[region].pooler.supabase.com:5432
 INSTANCE_DOMAIN=harmony.yourdomain.com
 CORS_ORIGIN=https://harmony.yourdomain.com
 
-# Enable reliable federation queue
+# Redis (shared by BullMQ, caching, presence, rate limiting, and LiveKit)
+REDIS_URL=redis://:your-redis-password@redis:6379
+
+# Enable BullMQ federation queue (recommended)
 USE_PGBOSS_QUEUE=true
 
 # LiveKit
@@ -302,8 +306,8 @@ server {
         try_files $uri $uri/ /index.html;
     }
 
-    # Federation Backend
-    location ~ ^/(\.well-known|users|nodeinfo|inbox|outbox|api|link-preview|health) {
+    # Federation Backend (includes admin/queues dashboard)
+    location ~ ^/(\.well-known|users|nodeinfo|inbox|outbox|api|link-preview|health|push|realtime|admin/queues) {
         proxy_pass http://127.0.0.1:3001;
         proxy_http_version 1.1;
         proxy_set_header Host $host;

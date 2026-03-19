@@ -8,7 +8,7 @@
 import { getSupabaseClient } from '../../config/supabase.js';
 import { handleChannelReactionFederation, handleChannelReactionRemoval } from '../../listeners/ChannelReactionHandler.js';
 import { logger } from '../../utils/logger.js';
-import type { FederationJobData } from '../QueueManager.js';
+import type { FederationJobData } from '../BullMQManager.js';
 
 export async function handleChannelReactionJob(data: FederationJobData): Promise<void> {
   const supabase = getSupabaseClient();

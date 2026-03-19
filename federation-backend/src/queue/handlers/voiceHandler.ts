@@ -10,7 +10,7 @@ import { VoiceActivityHandler } from '../../activitypub/VoiceActivityHandler.js'
 import { DeliveryQueue } from '../../activitypub/DeliveryQueue.js';
 import { logger } from '../../utils/logger.js';
 import config from '../../config/index.js';
-import type { FederationJobData } from '../QueueManager.js';
+import type { FederationJobData } from '../BullMQManager.js';
 
 // =============================================================================
 // VOICE CHANNEL JOIN HANDLER

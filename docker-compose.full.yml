@@ -48,6 +48,7 @@ services:
       - SUPABASE_URL=http://supabase-kong:8000
       - USE_PGBOSS_QUEUE=true
       - DATABASE_URL=postgresql://supabase_admin:${POSTGRES_PASSWORD:-your-super-secret-and-long-postgres-password}@supabase-db:5432/postgres
+      - DATABASE_POOL_URL=${DATABASE_POOL_URL:-}
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://localhost:3001/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
@@ -76,6 +77,7 @@ services:
       - SUPABASE_URL=http://supabase-kong:8000
       - USE_PGBOSS_QUEUE=true
       - DATABASE_URL=postgresql://supabase_admin:${POSTGRES_PASSWORD:-your-super-secret-and-long-postgres-password}@supabase-db:5432/postgres
+      - DATABASE_POOL_URL=${DATABASE_POOL_URL:-}
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
     depends_on:
       redis:
@@ -103,6 +105,7 @@ services:
       - SUPABASE_URL=http://supabase-kong:8000
       - USE_PGBOSS_QUEUE=true
       - DATABASE_URL=postgresql://supabase_admin:${POSTGRES_PASSWORD:-your-super-secret-and-long-postgres-password}@supabase-db:5432/postgres
+      - DATABASE_POOL_URL=${DATABASE_POOL_URL:-}
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://localhost:3001/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]

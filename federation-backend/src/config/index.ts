@@ -26,6 +26,10 @@ const envSchema = z.object({
   // Redis
   REDIS_URL: z.string().default('redis://localhost:6379'),
   
+  // Database pool URL (Supavisor transaction mode, port 6543)
+  // If set, used for regular queries; DATABASE_URL stays for LISTEN/NOTIFY
+  DATABASE_POOL_URL: z.string().optional(),
+  
   // Security
   JWT_SECRET: z.string().optional(),
   CORS_ORIGIN: z.string().default('http://localhost:5173'),
@@ -56,13 +60,13 @@ const envSchema = z.object({
   // Allow federated voice/video calls
   ALLOW_FEDERATED_VOICE: z.string().transform(v => v === 'true').default('true'),
   
-  // Use pg-boss for job queue processing (more reliable but slightly higher latency)
-  // When true, pg-boss handles DMs and message reactions; DatabaseListener handles channels only
+  // Enable BullMQ job queue processing (recommended for production)
+  // When true, BullMQ handles federation jobs via LISTEN/NOTIFY bridge; when false, legacy DatabaseListener is used
   USE_PGBOSS_QUEUE: z.string().transform(v => v === 'true').default('true'),
 
   // Process mode: run HTTP server, queue workers, or both in one process
   //   'server'  - Express HTTP server only (ActivityPub inbox, WebFinger, health, etc.)
-  //   'worker'  - Queue workers only (pg-boss, LISTEN/NOTIFY, delivery retries)
+  //   'worker'  - Queue workers only (BullMQ, LISTEN/NOTIFY, delivery retries)
   //   'unified' - Both in one process (default, backward compatible)
   FEDERATION_MODE: z.enum(['server', 'worker', 'unified']).default('unified'),
   

@@ -10,7 +10,7 @@ import { DeliveryQueue } from '../../activitypub/DeliveryQueue.js';
 import { createPostActivity, createDeleteActivity, createPostUpdateActivity } from '../../listeners/FederationHandlers.js';
 import config from '../../config/index.js';
 import { logger } from '../../utils/logger.js';
-import type { FederationJobData } from '../QueueManager.js';
+import type { FederationJobData } from '../BullMQManager.js';
 
 /**
  * Handle a post federation job
@@ -128,7 +128,7 @@ export async function handlePostJob(data: FederationJobData): Promise<void> {
   } catch (error) {
     logger.error(`Failed to federate post ${post_id}:`, error);
     await updateFederationStatus(post_id, 'posts', 'failed');
-    throw error; // Re-throw for pg-boss retry
+    throw error; // Re-throw for BullMQ retry
   }
 }
 

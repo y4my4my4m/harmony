@@ -3,7 +3,7 @@
  *
  * Supports three modes via FEDERATION_MODE env var:
  *   'server'  - HTTP server only (ActivityPub inbox, WebFinger, health, etc.)
- *   'worker'  - Queue workers only (pg-boss, LISTEN/NOTIFY, delivery retries)
+ *   'worker'  - Queue workers only (BullMQ, LISTEN/NOTIFY, delivery retries)
  *   'unified' - Both in one process (default, backward compatible)
  *
  * In production, run server and worker as separate processes for isolation:
@@ -16,6 +16,7 @@ import { logger } from './utils/logger.js';
 import { startServer } from './server.js';
 import { startWorker, stopWorker } from './worker.js';
 import { redis } from './services/RedisService.js';
+import { bullmqManager } from './queue/BullMQManager.js';
 
 const mode = config.FEDERATION_MODE;
 
@@ -42,6 +43,7 @@ const shutdown = async (signal: string) => {
     }
   }
 
+  await bullmqManager.stop();
   await redis.disconnect();
   process.exit(0);
 };

@@ -11,7 +11,7 @@ import { createUndoLikeActivity } from '../../listeners/FederationHandlers.js';
 import { resolveOutboundEmoji } from '../../utils/emojiResolvers.js';
 import config from '../../config/index.js';
 import { logger } from '../../utils/logger.js';
-import type { FederationJobData } from '../QueueManager.js';
+import type { FederationJobData } from '../BullMQManager.js';
 
 export async function handleReactionJob(data: FederationJobData): Promise<void> {
   const supabase = getSupabaseClient();

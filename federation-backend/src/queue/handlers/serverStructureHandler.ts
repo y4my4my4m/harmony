@@ -9,7 +9,7 @@
 
 import { getSupabaseClient } from '../../config/supabase.js';
 import { logger } from '../../utils/logger.js';
-import type { FederationJobData } from '../QueueManager.js';
+import type { FederationJobData } from '../BullMQManager.js';
 
 /**
  * Handle channel create/update/delete federation
