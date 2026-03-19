@@ -1076,7 +1076,7 @@ AS $$
 DECLARE
     v_log_id uuid;
 BEGIN
-    INSERT INTO admin_audit_log (admin_id, action_type, target_type, target_id, details)
+    INSERT INTO admin_audit_log (admin_id, action_type, target_type, target_id, action_details)
     VALUES (p_admin_id, p_action_type, p_target_type, p_target_id, p_details)
     RETURNING id INTO v_log_id;
     

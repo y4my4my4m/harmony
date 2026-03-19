@@ -48,12 +48,16 @@ services:
       - SUPABASE_URL=http://supabase-kong:8000
       - USE_PGBOSS_QUEUE=true
       - DATABASE_URL=postgresql://supabase_admin:${POSTGRES_PASSWORD:-your-super-secret-and-long-postgres-password}@supabase-db:5432/postgres
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://localhost:3001/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 10s
+    depends_on:
+      redis:
+        condition: service_healthy
     networks:
       - harmony
       - supabase_default
@@ -72,6 +76,10 @@ services:
       - SUPABASE_URL=http://supabase-kong:8000
       - USE_PGBOSS_QUEUE=true
       - DATABASE_URL=postgresql://supabase_admin:${POSTGRES_PASSWORD:-your-super-secret-and-long-postgres-password}@supabase-db:5432/postgres
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
+    depends_on:
+      redis:
+        condition: service_healthy
     networks:
       - harmony
       - supabase_default
@@ -95,12 +103,16 @@ services:
       - SUPABASE_URL=http://supabase-kong:8000
       - USE_PGBOSS_QUEUE=true
       - DATABASE_URL=postgresql://supabase_admin:${POSTGRES_PASSWORD:-your-super-secret-and-long-postgres-password}@supabase-db:5432/postgres
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://localhost:3001/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 10s
+    depends_on:
+      redis:
+        condition: service_healthy
     networks:
       - harmony
       - supabase_default
@@ -131,7 +143,7 @@ services:
       - bots
 
   # ---------------------------------------------------------------------------
-  # Redis
+  # Redis (shared by LiveKit, federation-backend, and app caching)
   # ---------------------------------------------------------------------------
   redis:
     image: redis:7-alpine
@@ -139,9 +151,9 @@ services:
     restart: unless-stopped
     volumes:
       - redis-data:/data
-    command: redis-server --appendonly yes
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -162,6 +174,9 @@ services:
     volumes:
       - ./webrtc/livekit.yaml:/livekit.yaml:ro
     command: --config /livekit.yaml
+    depends_on:
+      redis:
+        condition: service_healthy
     networks:
       - harmony
     profiles:

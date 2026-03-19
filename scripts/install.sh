@@ -745,12 +745,10 @@ generate_livekit_keys() {
         LIVEKIT_API_SECRET="$(openssl rand -hex 32)"
         print_success "Generated LiveKit API key and secret"
     fi
-    # Redis is used by LiveKit and/or federation; generate password when either is enabled
-    if $ENABLE_VOICE || $ENABLE_FEDERATION; then
-        REDIS_PASSWORD=$(openssl rand -base64 24 | tr -d '\n' | head -c 48)
-        [[ -z "$REDIS_PASSWORD" ]] && REDIS_PASSWORD=$(openssl rand -hex 24)
-        print_success "Generated Redis password (for LiveKit/federation)"
-    fi
+    # Redis is a core service (caching, presence, rate limiting, LiveKit, federation)
+    REDIS_PASSWORD=$(openssl rand -base64 24 | tr -d '\n' | head -c 48)
+    [[ -z "$REDIS_PASSWORD" ]] && REDIS_PASSWORD=$(openssl rand -hex 24)
+    print_success "Generated Redis password"
 }
 
 # ---------------------------------------------------------------------------
@@ -886,6 +884,7 @@ WEBRTC_MODE=hybrid
 ALLOW_FEDERATED_VOICE=true
 
 USE_PGBOSS_QUEUE=$pgboss_enabled
+REDIS_URL=redis://:${REDIS_PASSWORD:-}@redis:6379
 
 RATE_LIMIT_WINDOW_MS=900000
 RATE_LIMIT_MAX_REQUESTS=100
@@ -1182,11 +1181,8 @@ generate_docker_compose() {
 
     local compose="services:"
 
-    # --- Redis (needed by federation and/or LiveKit) ---
-    local needs_redis=false
-    if $ENABLE_FEDERATION || $ENABLE_VOICE; then
-        needs_redis=true
-    fi
+    # --- Redis (core service: caching, presence, rate limiting, LiveKit, federation) ---
+    local needs_redis=true
 
     # --- Federation ---
     if $ENABLE_FEDERATION; then

@@ -7,6 +7,7 @@ import { useActivityPubStore } from '@/stores/useActivityPub';
 import { UserStatus } from '@/types';
 import { debug } from '@/utils/debug';
 import { userStorage } from '@/utils/userScopedStorage';
+import { realtimeApiService } from '@/services/RealtimeApiService';
 
 export const useAuthStore = defineStore('auth', {
   state: () => ({
@@ -374,6 +375,10 @@ export const useAuthStore = defineStore('auth', {
       
       // Handle browser/tab close - cleanup presence
       const handleBeforeUnload = (_event: BeforeUnloadEvent) => {
+        // Best-effort Redis offline (keepalive lets it finish after page unload).
+        // If this fails, the Redis TTL key auto-expires after 90s.
+        realtimeApiService.goOffline().catch(() => {})
+
         if ((window as any).__harmonyPresenceCleanup) {
           (window as any).__harmonyPresenceCleanup();
         }

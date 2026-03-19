@@ -126,7 +126,7 @@ services:
       - bots
 
   # ---------------------------------------------------------------------------
-  # Redis (for caching and rate limiting)
+  # Redis (shared by LiveKit, federation-backend, and app caching)
   # ---------------------------------------------------------------------------
   redis:
     image: redis:7-alpine
@@ -134,9 +134,9 @@ services:
     restart: unless-stopped
     volumes:
       - redis-data:/data
-    command: redis-server --appendonly yes
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
       interval: 10s
       timeout: 5s
       retries: 3

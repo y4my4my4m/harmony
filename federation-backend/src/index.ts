@@ -15,6 +15,7 @@ import config from './config/index.js';
 import { logger } from './utils/logger.js';
 import { startServer } from './server.js';
 import { startWorker, stopWorker } from './worker.js';
+import { redis } from './services/RedisService.js';
 
 const mode = config.FEDERATION_MODE;
 
@@ -41,6 +42,7 @@ const shutdown = async (signal: string) => {
     }
   }
 
+  await redis.disconnect();
   process.exit(0);
 };
 

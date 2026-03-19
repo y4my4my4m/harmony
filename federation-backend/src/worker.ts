@@ -16,6 +16,7 @@ import { startDatabaseListener } from './listeners/DatabaseListener.js';
 import { startPushNotificationListener } from './listeners/PushNotificationHandler.js';
 import { DeliveryQueue } from './activitypub/DeliveryQueue.js';
 import { BlockedInstancesCache } from './services/BlockedInstancesCache.js';
+import { redis } from './services/RedisService.js';
 
 let deliveryRetryIntervalId: ReturnType<typeof setInterval> | null = null;
 
@@ -23,6 +24,9 @@ export async function startWorker(): Promise<void> {
   logger.info('Harmony Federation Worker starting...');
   logger.info(`Environment: ${config.NODE_ENV}`);
   logger.info(`Instance: ${config.INSTANCE_NAME} (${config.INSTANCE_DOMAIN})`);
+
+  await redis.connect();
+  logger.info(`Redis: ${redis.ready ? 'connected' : 'unavailable (fallback mode)'}`);
 
   await BlockedInstancesCache.initialize().catch((error) => {
     logger.error('Failed to initialize blocked instances cache:', error);
@@ -73,5 +77,6 @@ export async function stopWorker(): Promise<void> {
     await queueManager.stop();
   }
 
+  await redis.disconnect();
   logger.info('Federation Worker stopped');
 }
