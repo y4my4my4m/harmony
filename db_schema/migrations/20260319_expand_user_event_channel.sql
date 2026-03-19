@@ -38,7 +38,7 @@ BEGIN
   END IF;
 
   RETURN NEW;
-EXCEPTION WHEN undefined_function THEN
+EXCEPTION WHEN OTHERS THEN
   RETURN NEW;
 END;
 $$;
@@ -78,7 +78,7 @@ BEGIN
 
   IF TG_OP = 'DELETE' THEN RETURN OLD; END IF;
   RETURN NEW;
-EXCEPTION WHEN undefined_function THEN
+EXCEPTION WHEN OTHERS THEN
   IF TG_OP = 'DELETE' THEN RETURN OLD; END IF;
   RETURN NEW;
 END;
@@ -121,7 +121,7 @@ BEGIN
   END IF;
 
   RETURN NEW;
-EXCEPTION WHEN undefined_function THEN
+EXCEPTION WHEN OTHERS THEN
   RETURN NEW;
 END;
 $$;
@@ -163,6 +163,9 @@ CREATE PUBLICATION supabase_realtime FOR TABLE
   server_roles,
   conversations,
   conversation_participants,
+  -- Kept in publication as fallback when realtime.send() is unavailable
+  notifications,
+  unread_counts,
   profiles,
   user_view_contexts,
   voice_channel_participants,

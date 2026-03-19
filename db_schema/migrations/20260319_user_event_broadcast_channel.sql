@@ -20,8 +20,9 @@ BEGIN;
 --   CREATE POLICY "users_own_channel" ON realtime.messages FOR SELECT
 --     USING (realtime.topic() = 'user:' || auth.uid()::text);
 --
--- Both trigger functions use EXCEPTION WHEN undefined_function to gracefully
--- degrade if realtime.send() is not available.
+-- All trigger functions use EXCEPTION WHEN OTHERS to gracefully degrade
+-- if realtime.send() is unavailable or fails for any reason.
+-- The notification/unread INSERT is NEVER blocked by a broadcast failure.
 -- =============================================================================
 
 -- ---------------------------------------------------------------------------
@@ -69,7 +70,7 @@ BEGIN
   END IF;
 
   RETURN NEW;
-EXCEPTION WHEN undefined_function THEN
+EXCEPTION WHEN OTHERS THEN
   RETURN NEW;
 END;
 $$;
@@ -118,7 +119,7 @@ BEGIN
     RETURN OLD;
   END IF;
   RETURN NEW;
-EXCEPTION WHEN undefined_function THEN
+EXCEPTION WHEN OTHERS THEN
   IF TG_OP = 'DELETE' THEN
     RETURN OLD;
   END IF;

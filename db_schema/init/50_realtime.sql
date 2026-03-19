@@ -21,6 +21,10 @@ CREATE PUBLICATION supabase_realtime FOR TABLE
   -- DM conversations (per-conversation subscriptions)
   conversations,
   conversation_participants,
+  -- Notifications and unread state (kept as fallback for postgres_changes
+  -- when realtime.send() broadcast is unavailable)
+  notifications,
+  unread_counts,
   -- User data
   profiles,
   user_view_contexts,

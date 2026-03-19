@@ -9,6 +9,7 @@ import { debug } from '@/utils/debug'
 const sharedUnreadCounts = ref<Map<string, UnreadCount>>(new Map())
 const sharedIsLoading = ref(false)
 let sharedUnsubscribe: (() => void) | null = null
+let sharedFallbackChannel: ReturnType<typeof supabase.channel> | null = null
 let sharedProfileId: string | null = null
 let initPromise: Promise<void> | null = null
 let subscriberCount = 0
@@ -169,49 +170,97 @@ export function useUnreadCounts() {
   }
 
   /**
-   * Subscribe to unread count changes via the shared UserEventChannel broadcast.
-   * DB triggers call realtime.send() to push compact events to user:{profileId},
-   * eliminating a dedicated postgres_changes channel for unread_counts.
+   * Apply an unread count change to shared state (used by both broadcast and CDC paths).
+   */
+  const applyUnreadChange = (action: string, countData: Record<string, any>) => {
+    const count: UnreadCount = {
+      id: countData.id,
+      user_id: countData.user_id,
+      server_id: countData.server_id,
+      channel_id: countData.channel_id,
+      conversation_id: countData.conversation_id,
+      unread_messages: countData.unread_messages ?? 0,
+      unread_mentions: countData.unread_mentions ?? 0,
+      last_read_at: countData.last_read_at,
+    } as UnreadCount
+
+    const context = {
+      serverId: count.server_id,
+      channelId: count.channel_id,
+      conversationId: count.conversation_id,
+    }
+
+    if (action === 'delete') {
+      sharedUnreadCounts.value.delete(getContextKey(context))
+    } else {
+      sharedUnreadCounts.value.set(getContextKey(context), count)
+    }
+  }
+
+  /**
+   * Dual-mode subscription for unread count changes:
+   *
+   * 1. Broadcast — via UserEventChannel (realtime.send() from DB triggers).
+   * 2. postgres_changes fallback — classic CDC, always works.
+   *
+   * Both paths call applyUnreadChange which is naturally idempotent
+   * (same key → same value overwrite), so dedup is implicit.
    */
   const setupRealtimeSubscription = async (): Promise<void> => {
-    if (sharedUnsubscribe) return
+    if (sharedUnsubscribe && sharedFallbackChannel) return
 
     const profileId = await getProfileId()
     if (!profileId) return
 
-    // Ensure the shared broadcast channel is connected
-    userEventChannel.connect(profileId)
+    // ---- 1. Broadcast handler (best-effort, low latency) ----
+    if (!sharedUnsubscribe) {
+      userEventChannel.connect(profileId)
 
-    sharedUnsubscribe = userEventChannel.on('unread:change', (data) => {
-      const action = data.action as string
-      const countData = data.count as Record<string, any> | undefined
-      if (!countData) return
+      sharedUnsubscribe = userEventChannel.on('unread:change', (data) => {
+        const action = data.action as string
+        const countData = data.count as Record<string, any> | undefined
+        if (!countData) return
+        debug.log('📡 Broadcast unread:change →', action)
+        applyUnreadChange(action, countData)
+      })
+      debug.log('✅ Unread counts broadcast handler registered')
+    }
 
-      const count: UnreadCount = {
-        id: countData.id,
-        user_id: countData.user_id,
-        server_id: countData.server_id,
-        channel_id: countData.channel_id,
-        conversation_id: countData.conversation_id,
-        unread_messages: countData.unread_messages ?? 0,
-        unread_mentions: countData.unread_mentions ?? 0,
-        last_read_at: countData.last_read_at,
-      } as UnreadCount
-
-      const context = {
-        serverId: count.server_id,
-        channelId: count.channel_id,
-        conversationId: count.conversation_id,
-      }
-
-      if (action === 'delete') {
-        sharedUnreadCounts.value.delete(getContextKey(context))
-      } else {
-        sharedUnreadCounts.value.set(getContextKey(context), count)
-      }
-    })
-
-    debug.log('✅ Unread counts listening on UserEventChannel broadcast')
+    // ---- 2. postgres_changes fallback (reliable CDC) ----
+    if (!sharedFallbackChannel) {
+      sharedFallbackChannel = supabase
+        .channel(`unread-fallback-${profileId}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'unread_counts',
+            filter: `user_id=eq.${profileId}`,
+          },
+          (payload) => {
+            try {
+              if (payload.eventType === 'DELETE') {
+                const old = payload.old as Record<string, any>
+                if (old?.id) applyUnreadChange('delete', old)
+              } else {
+                const row = payload.new as Record<string, any>
+                if (row?.id) applyUnreadChange('upsert', row)
+              }
+              debug.log('📡 CDC unread_counts', payload.eventType)
+            } catch (error) {
+              debug.error('❌ CDC unread_counts error:', error)
+            }
+          }
+        )
+        .subscribe((status) => {
+          if (status === 'SUBSCRIBED') {
+            debug.log('✅ Unread counts CDC fallback subscribed')
+          } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+            debug.warn('⚠️ Unread counts CDC fallback status:', status)
+          }
+        })
+    }
   }
 
   /**
@@ -224,10 +273,14 @@ export function useUnreadCounts() {
       if (sharedUnsubscribe) {
         sharedUnsubscribe()
         sharedUnsubscribe = null
-        debug.log('🧹 Cleaned up unread counts real-time subscription')
+      }
+      if (sharedFallbackChannel) {
+        supabase.removeChannel(sharedFallbackChannel)
+        sharedFallbackChannel = null
       }
       sharedProfileId = null
       initPromise = null
+      debug.log('🧹 Cleaned up unread counts subscriptions')
     }
   }
 

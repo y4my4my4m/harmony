@@ -112,6 +112,11 @@ const DEFAULT_PREFERENCES: Omit<NotificationPreferences, 'id' | 'user_id' | 'cre
 let _unsubNewNotification: (() => void) | null = null
 let _unsubUpdateNotification: (() => void) | null = null
 let _dndInterval: ReturnType<typeof setInterval> | null = null
+// Fallback postgres_changes channel for when broadcast is unavailable
+let _fallbackChannel: ReturnType<typeof supabase.channel> | null = null
+// Track notification IDs recently processed to deduplicate across broadcast + postgres_changes
+const _recentlyProcessedIds = new Set<string>()
+const DEDUP_TTL_MS = 10_000
 
 export const useNotificationStore = defineStore('notification', {
   state: (): NotificationState => ({
@@ -539,122 +544,190 @@ export const useNotificationStore = defineStore('notification', {
     },
 
     /**
-     * BROADCAST-BASED NOTIFICATION SUBSCRIPTION
+     * DUAL-MODE NOTIFICATION SUBSCRIPTION
      *
-     * Instead of opening a dedicated postgres_changes channel on the
-     * notifications table, we register handlers on the shared
-     * UserEventChannel (broadcast channel "user:{profileId}").
-     * DB triggers call realtime.send() to push events there.
+     * Sets up two parallel listeners for maximum reliability:
      *
-     * Reconnection is handled by UserEventChannel itself.
+     * 1. Broadcast handler — via UserEventChannel (realtime.send() from DB triggers).
+     *    Lower latency, fewer channels, but depends on realtime.send() working.
+     *
+     * 2. postgres_changes fallback — classic CDC subscription on the notifications
+     *    table.  Always works if the table is in the supabase_realtime publication.
+     *
+     * Both paths funnel through _processIncomingNotification / _processNotificationUpdate
+     * which deduplicate by notification ID so double-delivery is harmless.
      */
     async setupBroadcastNotificationHandlers(userId: string) {
-      // Prevent duplicate handler registration
-      if (_unsubNewNotification) {
-        debug.log('✅ Notification broadcast handlers already registered, skipping')
+      if (_unsubNewNotification && _fallbackChannel) {
+        debug.log('✅ Notification handlers already registered, skipping')
         return
       }
 
-      debug.log('🔔 Registering notification broadcast handlers on UserEventChannel')
-
       const profileId = await this.getProfileId(userId)
+      debug.log('🔔 Setting up dual-mode notification handlers for profile:', profileId)
 
-      // Ensure the shared broadcast channel is connected
-      userEventChannel.connect(profileId)
+      // ---- 1. Broadcast handlers (best-effort, low latency) ----
+      if (!_unsubNewNotification) {
+        userEventChannel.connect(profileId)
 
-      // --- notification:new handler (replaces postgres_changes INSERT) ---
-      _unsubNewNotification = userEventChannel.on('notification:new', async (data) => {
-        try {
-          const newNotification = data.notification as Notification
-          if (!newNotification?.id) return
-
-          debug.log('🚨 Broadcast notification:new received:', newNotification.id)
-
-          if (this.notifications.find(n => n.id === newNotification.id)) {
-            debug.log('⚠️ Duplicate notification ignored:', newNotification.id)
-            return
+        _unsubNewNotification = userEventChannel.on('notification:new', async (data) => {
+          try {
+            const n = data.notification as Notification
+            if (!n?.id) return
+            debug.log('📡 Broadcast notification:new →', n.id)
+            await this._processIncomingNotification(n)
+          } catch (error) {
+            debug.error('❌ Broadcast notification:new error:', error)
           }
+        })
 
-          const notifData = newNotification.data || {}
-          const notificationContext = {
-            server_id: notifData.location?.server_id || notifData.server_id,
-            channel_id: notifData.location?.channel_id || notifData.channel_id,
-            conversation_id: notifData.conversation?.id || notifData.conversation_id || notifData.location?.conversation_id,
-            type: newNotification.type
+        _unsubUpdateNotification = userEventChannel.on('notification:update', async (data) => {
+          try {
+            this._processNotificationUpdate(data.id as string, data.is_read as boolean)
+          } catch (error) {
+            debug.error('❌ Broadcast notification:update error:', error)
           }
+        })
+        debug.log('✅ Broadcast notification handlers registered')
+      }
 
-          let activeConversationId: string | undefined
-          if (!notificationContext.conversation_id && newNotification.type === 'dm') {
-            try {
-              const { useDMStore } = await import('./useDM')
-              const dmStore = useDMStore()
-              activeConversationId = dmStore.currentConversationId || undefined
-            } catch { /* DM store may not be loaded */ }
-          }
-
-          const uiDecision = viewContextTracker.shouldShowNotificationUI(notificationContext, activeConversationId)
-          debug.log('🎯 Notification UI decision:', uiDecision)
-
-          if (!uiDecision.showToast && !uiDecision.showDesktop && !uiDecision.playSound) {
-            debug.log('🔕 Notification suppressed: User is viewing source context')
-            newNotification.is_read = true
-            this.notifications.unshift(newNotification)
-            services.notifications.markAsRead(newNotification.id).catch(() => {})
-            return
-          }
-
-          const isDndActive = this.isQuietHours
-          if (isDndActive && newNotification.type !== 'server_update') {
-            debug.log('🌙 DND active - notification added silently')
-            this.notifications.unshift(newNotification)
-            this.updateUnreadCount()
-            return
-          }
-
-          this.notifications.unshift(newNotification)
-          this.updateUnreadCount()
-
-          const formatted = NotificationFormatter.formatNotification(newNotification)
-          this.handleRealtimeNotification(newNotification, formatted, uiDecision)
-        } catch (error) {
-          debug.error('❌ Error handling broadcast notification:new:', error)
-        }
-      })
-
-      // --- notification:update handler (replaces postgres_changes UPDATE) ---
-      _unsubUpdateNotification = userEventChannel.on('notification:update', async (data) => {
-        try {
-          const id = data.id as string
-          const isRead = data.is_read as boolean
-          if (!id) return
-
-          const existing = this.notifications.find(n => n.id === id)
-          if (!existing) return
-          if (existing.is_read === isRead) return
-
-          debug.log('🔄 Notification read state synced from another device:', id, 'is_read:', isRead)
-
-          existing.is_read = isRead
-          this.updateUnreadCount()
-
-          if (isRead) {
-            this.dismissSystemNotification(existing)
-          }
-        } catch (error) {
-          debug.error('❌ Error handling broadcast notification:update:', error)
-        }
-      })
-
-      debug.log('✅ Notification broadcast handlers registered')
+      // ---- 2. postgres_changes fallback (reliable CDC) ----
+      if (!_fallbackChannel) {
+        _fallbackChannel = supabase
+          .channel(`notif-fallback-${profileId}`)
+          .on(
+            'postgres_changes',
+            {
+              event: 'INSERT',
+              schema: 'public',
+              table: 'notifications',
+              filter: `user_id=eq.${profileId}`,
+            },
+            async (payload) => {
+              try {
+                const n = payload.new as Notification
+                if (!n?.id) return
+                debug.log('📡 CDC notification INSERT →', n.id)
+                await this._processIncomingNotification(n)
+              } catch (error) {
+                debug.error('❌ CDC notification INSERT error:', error)
+              }
+            }
+          )
+          .on(
+            'postgres_changes',
+            {
+              event: 'UPDATE',
+              schema: 'public',
+              table: 'notifications',
+              filter: `user_id=eq.${profileId}`,
+            },
+            (payload) => {
+              try {
+                const n = payload.new as Notification
+                if (!n?.id) return
+                debug.log('📡 CDC notification UPDATE →', n.id)
+                this._processNotificationUpdate(n.id, n.is_read)
+              } catch (error) {
+                debug.error('❌ CDC notification UPDATE error:', error)
+              }
+            }
+          )
+          .subscribe((status) => {
+            if (status === 'SUBSCRIBED') {
+              debug.log('✅ Notification CDC fallback subscribed')
+            } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+              debug.warn('⚠️ Notification CDC fallback status:', status)
+            }
+          })
+      }
     },
 
     /**
-     * Unregister notification handlers from the shared broadcast channel.
-     * Does NOT disconnect the channel (other consumers may still use it).
+     * Shared processing for a new notification arriving from either broadcast or CDC.
+     * Deduplicates by ID so double-delivery from both paths is harmless.
+     */
+    async _processIncomingNotification(newNotification: Notification) {
+      if (!newNotification?.id) return
+
+      // Dedup: skip if already processed recently or already in store
+      if (_recentlyProcessedIds.has(newNotification.id)) return
+      if (this.notifications.find(n => n.id === newNotification.id)) return
+
+      // Mark as processed and schedule TTL cleanup
+      _recentlyProcessedIds.add(newNotification.id)
+      setTimeout(() => _recentlyProcessedIds.delete(newNotification.id), DEDUP_TTL_MS)
+
+      const notifData = newNotification.data || {}
+      const notificationContext = {
+        server_id: notifData.location?.server_id || notifData.server_id,
+        channel_id: notifData.location?.channel_id || notifData.channel_id,
+        conversation_id: notifData.conversation?.id || notifData.conversation_id || notifData.location?.conversation_id,
+        type: newNotification.type
+      }
+
+      let activeConversationId: string | undefined
+      if (!notificationContext.conversation_id && newNotification.type === 'dm') {
+        try {
+          const { useDMStore } = await import('./useDM')
+          const dmStore = useDMStore()
+          activeConversationId = dmStore.currentConversationId || undefined
+        } catch { /* DM store may not be loaded */ }
+      }
+
+      const uiDecision = viewContextTracker.shouldShowNotificationUI(notificationContext, activeConversationId)
+
+      if (!uiDecision.showToast && !uiDecision.showDesktop && !uiDecision.playSound) {
+        newNotification.is_read = true
+        this.notifications.unshift(newNotification)
+        services.notifications.markAsRead(newNotification.id).catch(() => {})
+        return
+      }
+
+      if (this.isQuietHours && newNotification.type !== 'server_update') {
+        this.notifications.unshift(newNotification)
+        this.updateUnreadCount()
+        return
+      }
+
+      this.notifications.unshift(newNotification)
+      this.updateUnreadCount()
+
+      const formatted = NotificationFormatter.formatNotification(newNotification)
+      this.handleRealtimeNotification(newNotification, formatted, uiDecision)
+    },
+
+    /**
+     * Shared processing for a notification update (read state change).
+     * Deduplicates so double-delivery from both paths is harmless.
+     */
+    _processNotificationUpdate(id: string, isRead: boolean) {
+      if (!id) return
+      const existing = this.notifications.find(n => n.id === id)
+      if (!existing) return
+      if (existing.is_read === isRead) return
+
+      debug.log('🔄 Notification read state synced:', id, 'is_read:', isRead)
+      existing.is_read = isRead
+      this.updateUnreadCount()
+
+      if (isRead) {
+        this.dismissSystemNotification(existing)
+      }
+    },
+
+    /**
+     * Unregister notification handlers and tear down fallback channel.
+     * Does NOT disconnect the UserEventChannel (other consumers may still use it).
      */
     cleanupBroadcastHandlers() {
       if (_unsubNewNotification) { _unsubNewNotification(); _unsubNewNotification = null }
       if (_unsubUpdateNotification) { _unsubUpdateNotification(); _unsubUpdateNotification = null }
+      if (_fallbackChannel) {
+        supabase.removeChannel(_fallbackChannel)
+        _fallbackChannel = null
+      }
+      _recentlyProcessedIds.clear()
     },
 
 
