@@ -108,8 +108,8 @@ BEGIN
             'id', NEW.id,
             'name', NEW.name,
             'description', NEW.description,
-            'icon_url', NEW.icon_url,
-            'banner_url', NEW.banner_url,
+            'icon', NEW.icon,
+            'banner', NEW.banner,
             'updated_at', NEW.updated_at
           )
         ),

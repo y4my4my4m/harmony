@@ -42,9 +42,10 @@ BEGIN
           'type', NEW.type,
           'data', NEW.data,
           'is_read', NEW.is_read,
+          'is_clicked', NEW.is_clicked,
           'created_at', NEW.created_at,
+          'updated_at', NEW.updated_at,
           'user_id', NEW.user_id,
-          'title', COALESCE(NEW.title, ''),
           'expires_at', NEW.expires_at
         )
       ),

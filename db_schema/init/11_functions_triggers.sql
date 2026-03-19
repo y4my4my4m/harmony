@@ -2241,9 +2241,10 @@ BEGIN
           'type', NEW.type,
           'data', NEW.data,
           'is_read', NEW.is_read,
+          'is_clicked', NEW.is_clicked,
           'created_at', NEW.created_at,
+          'updated_at', NEW.updated_at,
           'user_id', NEW.user_id,
-          'title', COALESCE(NEW.title, ''),
           'expires_at', NEW.expires_at
         )
       ),
@@ -2405,8 +2406,8 @@ BEGIN
             'id', NEW.id,
             'name', NEW.name,
             'description', NEW.description,
-            'icon_url', NEW.icon_url,
-            'banner_url', NEW.banner_url,
+            'icon', NEW.icon,
+            'banner', NEW.banner,
             'updated_at', NEW.updated_at
           )
         ),
