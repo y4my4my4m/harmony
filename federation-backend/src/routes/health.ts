@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { getSupabaseClient } from '../config/supabase.js';
 import config from '../config/index.js';
 import { logger } from '../utils/logger.js';
+import { redis } from '../services/RedisService.js';
 
 const router = Router();
 
@@ -22,6 +23,8 @@ router.get('/', async (req: Request, res: Response) => {
       });
     }
 
+    const redisHealth = await redis.healthCheck();
+
     res.json({
       status: 'healthy',
       version: '1.0.0',
@@ -31,6 +34,8 @@ router.get('/', async (req: Request, res: Response) => {
         domain: config.INSTANCE_DOMAIN,
       },
       database: 'connected',
+      redis: redisHealth.ok ? 'connected' : 'unavailable',
+      redis_latency_ms: redisHealth.latencyMs,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
