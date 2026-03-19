@@ -1,7 +1,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { supabase } from '@/supabase'
 import { authContextService } from '@/services/AuthContextService'
-import { realtimeConnectionManager } from '@/services/RealtimeConnectionManager'
+import { userEventChannel } from '@/services/UserEventChannel'
 import type { UnreadCount } from '@/types'
 import { debug } from '@/utils/debug'
 
@@ -169,8 +169,9 @@ export function useUnreadCounts() {
   }
 
   /**
-   * Setup real-time subscription for unread counts via RealtimeConnectionManager
-   * (auto-reconnect + health monitoring)
+   * Subscribe to unread count changes via the shared UserEventChannel broadcast.
+   * DB triggers call realtime.send() to push compact events to user:{profileId},
+   * eliminating a dedicated postgres_changes channel for unread_counts.
    */
   const setupRealtimeSubscription = async (): Promise<void> => {
     if (sharedUnsubscribe) return
@@ -178,45 +179,39 @@ export function useUnreadCounts() {
     const profileId = await getProfileId()
     if (!profileId) return
 
-    const channelName = `unread-counts-${profileId}`
+    // Ensure the shared broadcast channel is connected
+    userEventChannel.connect(profileId)
 
-    sharedUnsubscribe = realtimeConnectionManager.subscribeToTable({
-      channelName,
-      table: 'unread_counts',
-      filter: `user_id=eq.${profileId}`,
-      onInsert: (payload) => {
-        const count = payload.new as UnreadCount
-        const context = {
-          serverId: count.server_id,
-          channelId: count.channel_id,
-          conversationId: count.conversation_id,
-        }
-        sharedUnreadCounts.value.set(getContextKey(context), count)
-      },
-      onUpdate: (payload) => {
-        const count = payload.new as UnreadCount
-        const context = {
-          serverId: count.server_id,
-          channelId: count.channel_id,
-          conversationId: count.conversation_id,
-        }
-        sharedUnreadCounts.value.set(getContextKey(context), count)
-      },
-      onDelete: (payload) => {
-        const count = payload.old as UnreadCount
-        const context = {
-          serverId: count.server_id,
-          channelId: count.channel_id,
-          conversationId: count.conversation_id,
-        }
+    sharedUnsubscribe = userEventChannel.on('unread:change', (data) => {
+      const action = data.action as string
+      const countData = data.count as Record<string, any> | undefined
+      if (!countData) return
+
+      const count: UnreadCount = {
+        id: countData.id,
+        user_id: countData.user_id,
+        server_id: countData.server_id,
+        channel_id: countData.channel_id,
+        conversation_id: countData.conversation_id,
+        unread_messages: countData.unread_messages ?? 0,
+        unread_mentions: countData.unread_mentions ?? 0,
+        last_read_at: countData.last_read_at,
+      } as UnreadCount
+
+      const context = {
+        serverId: count.server_id,
+        channelId: count.channel_id,
+        conversationId: count.conversation_id,
+      }
+
+      if (action === 'delete') {
         sharedUnreadCounts.value.delete(getContextKey(context))
-      },
-      onStatusChange: (status, name) => {
-        debug.log(`📡 ${name} status: ${status}`)
-      },
+      } else {
+        sharedUnreadCounts.value.set(getContextKey(context), count)
+      }
     })
 
-    debug.log('✅ Real-time subscription for unread counts established via RealtimeConnectionManager')
+    debug.log('✅ Unread counts listening on UserEventChannel broadcast')
   }
 
   /**

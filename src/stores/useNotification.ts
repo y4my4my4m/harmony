@@ -8,6 +8,7 @@ import { getEmojiUrl } from '@/utils/emojiUtils'
 import { services } from '@/services'
 import { authContextService } from '@/services/AuthContextService'
 import { userDataService } from '@/services/userDataService'
+import { userEventChannel } from '@/services/UserEventChannel'
 import { debug } from '@/utils/debug'
 import { updateFaviconBadge } from '@/utils/faviconBadge'
 import type { 
@@ -26,13 +27,11 @@ interface NotificationState {
   preferences: NotificationPreferences | null
   isDndActive: boolean
   toasts: NotificationToast[]
-  realtimeSubscription: any
   lastNotificationTime: Map<string, number>
   isInitialized: boolean
   fullListLoaded: boolean
   hasPermission: boolean
   currentFilter: string
-  // Cache for profileId to avoid repeated lookups
   cachedProfileId: string | null
   cachedAuthUserId: string | null
 }
@@ -108,13 +107,11 @@ const DEFAULT_PREFERENCES: Omit<NotificationPreferences, 'id' | 'user_id' | 'cre
   activitypub_sound_replies: true
 }
 
-// Retry configuration for realtime reconnection
-const NOTIFICATION_RETRY_CONFIG = {
-  maxRetries: 10,
-  baseDelay: 1000,
-  maxDelay: 30000,
-  jitterFactor: 0.2
-}
+// Unsubscribe functions for UserEventChannel handlers (module-level to avoid
+// polluting Pinia serializable state).
+let _unsubNewNotification: (() => void) | null = null
+let _unsubUpdateNotification: (() => void) | null = null
+let _dndInterval: ReturnType<typeof setInterval> | null = null
 
 export const useNotificationStore = defineStore('notification', {
   state: (): NotificationState => ({
@@ -125,7 +122,6 @@ export const useNotificationStore = defineStore('notification', {
     preferences: null,
     isDndActive: false,
     toasts: [],
-    realtimeSubscription: null,
     lastNotificationTime: new Map(),
     isInitialized: false,
     fullListLoaded: false,
@@ -133,10 +129,6 @@ export const useNotificationStore = defineStore('notification', {
     currentFilter: 'all',
     cachedProfileId: null,
     cachedAuthUserId: null,
-    // Reconnection state
-    notificationRetryCount: 0,
-    notificationRetryTimeout: null as ReturnType<typeof setTimeout> | null,
-    _dndCheckInterval: null as number | null
   }),
 
   getters: {
@@ -366,8 +358,8 @@ export const useNotificationStore = defineStore('notification', {
         // Load existing notifications
         await this.fetchNotifications(userId)
         
-        // Setup context-aware realtime subscription (database sends us notifications)
-        this.setupContextAwareRealtimeSubscription(userId)
+        // Register handlers on the shared broadcast channel
+        this.setupBroadcastNotificationHandlers(userId)
         
         // Setup DND status check
         this.setupDndCheck()
@@ -424,8 +416,8 @@ export const useNotificationStore = defineStore('notification', {
         
         this.updateUnreadCount()
         
-        // Setup realtime subscription for new notifications
-        this.setupContextAwareRealtimeSubscription(userId)
+        // Register handlers on the shared broadcast channel
+        this.setupBroadcastNotificationHandlers(userId)
         
         // Setup DND status check
         this.setupDndCheck()
@@ -547,199 +539,122 @@ export const useNotificationStore = defineStore('notification', {
     },
 
     /**
-     * REAL-TIME NOTIFICATION SUBSCRIPTION
-     * Database triggers send us structured data, we format messages client-side
+     * BROADCAST-BASED NOTIFICATION SUBSCRIPTION
+     *
+     * Instead of opening a dedicated postgres_changes channel on the
+     * notifications table, we register handlers on the shared
+     * UserEventChannel (broadcast channel "user:{profileId}").
+     * DB triggers call realtime.send() to push events there.
+     *
+     * Reconnection is handled by UserEventChannel itself.
      */
-    async setupContextAwareRealtimeSubscription(userId: string) {
-      // ✅ PERFORMANCE FIX: Prevent duplicate subscription setup
-      if (this.realtimeSubscription) {
-        // Check if the existing subscription is for the same user and still active
-        const profileId = await this.getProfileId(userId);
-        const existingChannelName = `harmony-notifications-${profileId}`;
-        if (this.realtimeSubscription.topic === existingChannelName) {
-          debug.log('✅ Notification subscription already exists, reusing')
-          return; // Reuse existing subscription
-        }
-        
-        // Only clean up if we're changing users (shouldn't happen in normal flow)
-        debug.log('🧹 Cleaning up existing notification subscription for different user')
-        supabase.removeChannel(this.realtimeSubscription)
-        this.realtimeSubscription = null
-      }
-
-      debug.log('🔔 Setting up real-time notification subscription')
-
-      // Get the profile ID for realtime subscription
-      const profileId = await this.getProfileId(userId)
-
-      this.realtimeSubscription = supabase
-        .channel(`harmony-notifications-${profileId}`)
-        .on(
-          'postgres_changes',
-          {
-            event: 'INSERT',
-            schema: 'public',
-            table: 'notifications',
-            filter: `user_id=eq.${profileId}`
-          },
-          async (payload) => {
-            try {
-              debug.log('🚨 Notification payload received:', payload)
-              const newNotification = payload.new as Notification
-              
-              // Prevent duplicates
-              if (this.notifications.find(n => n.id === newNotification.id)) {
-                debug.log('⚠️ Duplicate notification ignored:', newNotification.id)
-                return
-              }
-
-              // Check if user is currently viewing the source context BEFORE adding to list
-              // This prevents unread count from incrementing for conversations the user is actively in
-              const notifData = newNotification.data || {}
-              const notificationContext = {
-                server_id: notifData.location?.server_id || notifData.server_id,
-                channel_id: notifData.location?.channel_id || notifData.channel_id,
-                conversation_id: notifData.conversation?.id || notifData.conversation_id || notifData.location?.conversation_id,
-                type: newNotification.type
-              }
-              
-              // For DM-type notifications, supply the DM store's active conversation
-              // as a fallback in case the notification payload is missing conversation_id.
-              let activeConversationId: string | undefined
-              if (!notificationContext.conversation_id && newNotification.type === 'dm') {
-                try {
-                  const { useDMStore } = await import('./useDM')
-                  const dmStore = useDMStore()
-                  activeConversationId = dmStore.currentConversationId || undefined
-                } catch { /* ignore — DM store may not be loaded */ }
-              }
-              
-              const uiDecision = viewContextTracker.shouldShowNotificationUI(notificationContext, activeConversationId)
-              debug.log('🎯 Notification UI decision:', uiDecision)
-              
-              // If user is viewing the source context, auto-mark as read and skip all UI
-              if (!uiDecision.showToast && !uiDecision.showDesktop && !uiDecision.playSound) {
-                debug.log('🔕 Notification suppressed: User is viewing source context')
-                newNotification.is_read = true
-                this.notifications.unshift(newNotification)
-                // Don't update unread count since we marked it read
-                // Also mark as read in the database
-                services.notifications.markAsRead(newNotification.id).catch(() => {})
-                return
-              }
-              
-              // Check DND - if active, don't show UI but still add to list
-              const isDndActive = this.isQuietHours
-              if (isDndActive && newNotification.type !== 'server_update') {
-                debug.log('🌙 DND active - notification added silently')
-                this.notifications.unshift(newNotification)
-                this.updateUnreadCount()
-                return
-              }
-
-              // Add to notifications list
-              this.notifications.unshift(newNotification)
-              this.updateUnreadCount()
-
-              // Format message using client-side formatter
-              const formatted = NotificationFormatter.formatNotification(newNotification)
-
-              // Process notification through unified notification system
-              this.handleRealtimeNotification(newNotification, formatted, uiDecision)
-
-            } catch (error) {
-              debug.error('❌ Error handling real-time notification:', error)
-            }
-          }
-        )
-        .on(
-          'postgres_changes',
-          {
-            event: 'UPDATE',
-            schema: 'public',
-            table: 'notifications',
-            filter: `user_id=eq.${profileId}`
-          },
-          async (payload) => {
-            try {
-              const updated = payload.new as Notification
-              const existing = this.notifications.find(n => n.id === updated.id)
-              
-              if (!existing) return
-              if (existing.is_read === updated.is_read) return
-              
-              debug.log('🔄 Notification read state synced from another device:', updated.id, 'is_read:', updated.is_read)
-              
-              existing.is_read = updated.is_read
-              this.updateUnreadCount()
-              
-              // If marked as read on another device, dismiss matching system notifications
-              if (updated.is_read) {
-                this.dismissSystemNotification(existing)
-              }
-            } catch (error) {
-              debug.error('❌ Error handling notification UPDATE sync:', error)
-            }
-          }
-        )
-        .subscribe((status) => {
-          debug.log('🔔 Notification subscription status:', status)
-          
-          if (status === 'SUBSCRIBED') {
-            debug.log('✅ Notification subscription connected')
-            // Reset retry count on successful connection
-            this.notificationRetryCount = 0
-          } else if (status === 'CHANNEL_ERROR') {
-            debug.error('❌ Subscription error')
-            this.scheduleNotificationReconnect(userId)
-          } else if (status === 'TIMED_OUT') {
-            debug.error('⏰ Subscription timed out')
-            this.scheduleNotificationReconnect(userId)
-          } else if (status === 'CLOSED') {
-            debug.warn('🔒 Subscription closed')
-            this.scheduleNotificationReconnect(userId)
-          }
-        })
-    },
-    
-    /**
-     * Schedule notification subscription reconnection with exponential backoff
-     */
-    scheduleNotificationReconnect(userId: string) {
-      // Check if max retries exceeded
-      if (this.notificationRetryCount >= NOTIFICATION_RETRY_CONFIG.maxRetries) {
-        debug.error(`❌ Notification subscription: Max retries (${NOTIFICATION_RETRY_CONFIG.maxRetries}) exceeded`)
+    async setupBroadcastNotificationHandlers(userId: string) {
+      // Prevent duplicate handler registration
+      if (_unsubNewNotification) {
+        debug.log('✅ Notification broadcast handlers already registered, skipping')
         return
       }
-      
-      // Calculate delay with exponential backoff
-      const delay = Math.min(
-        NOTIFICATION_RETRY_CONFIG.baseDelay * Math.pow(2, this.notificationRetryCount),
-        NOTIFICATION_RETRY_CONFIG.maxDelay
-      )
-      const jitter = delay * NOTIFICATION_RETRY_CONFIG.jitterFactor * Math.random()
-      const finalDelay = Math.floor(delay + jitter)
-      
-      debug.log(`🔄 Notification subscription: Scheduling reconnect in ${finalDelay}ms (attempt ${this.notificationRetryCount + 1}/${NOTIFICATION_RETRY_CONFIG.maxRetries})`)
-      
-      // Clear any existing retry timeout
-      if (this.notificationRetryTimeout) {
-        clearTimeout(this.notificationRetryTimeout)
-      }
-      
-      // Schedule reconnect
-      this.notificationRetryTimeout = setTimeout(() => {
-        this.notificationRetryCount++
-        this.notificationRetryTimeout = null
-        
-        debug.log(`🔄 Notification subscription: Attempting reconnect...`)
-        // Clean up old subscription first
-        if (this.realtimeSubscription) {
-          supabase.removeChannel(this.realtimeSubscription)
-          this.realtimeSubscription = null
+
+      debug.log('🔔 Registering notification broadcast handlers on UserEventChannel')
+
+      const profileId = await this.getProfileId(userId)
+
+      // Ensure the shared broadcast channel is connected
+      userEventChannel.connect(profileId)
+
+      // --- notification:new handler (replaces postgres_changes INSERT) ---
+      _unsubNewNotification = userEventChannel.on('notification:new', async (data) => {
+        try {
+          const newNotification = data.notification as Notification
+          if (!newNotification?.id) return
+
+          debug.log('🚨 Broadcast notification:new received:', newNotification.id)
+
+          if (this.notifications.find(n => n.id === newNotification.id)) {
+            debug.log('⚠️ Duplicate notification ignored:', newNotification.id)
+            return
+          }
+
+          const notifData = newNotification.data || {}
+          const notificationContext = {
+            server_id: notifData.location?.server_id || notifData.server_id,
+            channel_id: notifData.location?.channel_id || notifData.channel_id,
+            conversation_id: notifData.conversation?.id || notifData.conversation_id || notifData.location?.conversation_id,
+            type: newNotification.type
+          }
+
+          let activeConversationId: string | undefined
+          if (!notificationContext.conversation_id && newNotification.type === 'dm') {
+            try {
+              const { useDMStore } = await import('./useDM')
+              const dmStore = useDMStore()
+              activeConversationId = dmStore.currentConversationId || undefined
+            } catch { /* DM store may not be loaded */ }
+          }
+
+          const uiDecision = viewContextTracker.shouldShowNotificationUI(notificationContext, activeConversationId)
+          debug.log('🎯 Notification UI decision:', uiDecision)
+
+          if (!uiDecision.showToast && !uiDecision.showDesktop && !uiDecision.playSound) {
+            debug.log('🔕 Notification suppressed: User is viewing source context')
+            newNotification.is_read = true
+            this.notifications.unshift(newNotification)
+            services.notifications.markAsRead(newNotification.id).catch(() => {})
+            return
+          }
+
+          const isDndActive = this.isQuietHours
+          if (isDndActive && newNotification.type !== 'server_update') {
+            debug.log('🌙 DND active - notification added silently')
+            this.notifications.unshift(newNotification)
+            this.updateUnreadCount()
+            return
+          }
+
+          this.notifications.unshift(newNotification)
+          this.updateUnreadCount()
+
+          const formatted = NotificationFormatter.formatNotification(newNotification)
+          this.handleRealtimeNotification(newNotification, formatted, uiDecision)
+        } catch (error) {
+          debug.error('❌ Error handling broadcast notification:new:', error)
         }
-        this.setupContextAwareRealtimeSubscription(userId)
-      }, finalDelay)
+      })
+
+      // --- notification:update handler (replaces postgres_changes UPDATE) ---
+      _unsubUpdateNotification = userEventChannel.on('notification:update', async (data) => {
+        try {
+          const id = data.id as string
+          const isRead = data.is_read as boolean
+          if (!id) return
+
+          const existing = this.notifications.find(n => n.id === id)
+          if (!existing) return
+          if (existing.is_read === isRead) return
+
+          debug.log('🔄 Notification read state synced from another device:', id, 'is_read:', isRead)
+
+          existing.is_read = isRead
+          this.updateUnreadCount()
+
+          if (isRead) {
+            this.dismissSystemNotification(existing)
+          }
+        } catch (error) {
+          debug.error('❌ Error handling broadcast notification:update:', error)
+        }
+      })
+
+      debug.log('✅ Notification broadcast handlers registered')
+    },
+
+    /**
+     * Unregister notification handlers from the shared broadcast channel.
+     * Does NOT disconnect the channel (other consumers may still use it).
+     */
+    cleanupBroadcastHandlers() {
+      if (_unsubNewNotification) { _unsubNewNotification(); _unsubNewNotification = null }
+      if (_unsubUpdateNotification) { _unsubUpdateNotification(); _unsubUpdateNotification = null }
     },
 
 
@@ -1100,11 +1015,10 @@ export const useNotificationStore = defineStore('notification', {
     },
 
     setupDndCheck() {
-      // Check DND status every minute
-      if (this._dndCheckInterval) clearInterval(this._dndCheckInterval)
-      this._dndCheckInterval = setInterval(() => {
+      if (_dndInterval) clearInterval(_dndInterval)
+      _dndInterval = setInterval(() => {
         this.isDndActive = this.isQuietHours
-      }, 60000) as unknown as number
+      }, 60000)
     },
 
     /**

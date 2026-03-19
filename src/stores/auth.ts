@@ -653,20 +653,18 @@ export const useAuthStore = defineStore('auth', {
       try {
         debug.log('🔔 Cleaning up notification system');
         
-        // Dynamic import to avoid issues during cleanup
-        import('@/stores/useNotification').then(({ useNotificationStore }) => {
-          const notificationStore = useNotificationStore();
-          
-          // Clean up real-time subscriptions
-          if (notificationStore.realtimeSubscription) {
-            supabase.removeChannel(notificationStore.realtimeSubscription);
-            notificationStore.realtimeSubscription = null;
-          }
-          
-          // Reset state
-          notificationStore.$reset();
-          notificationStore.isInitialized = false;
-          
+        // Clean up notification broadcast handlers + disconnect user event channel
+        Promise.all([
+          import('@/stores/useNotification').then(({ useNotificationStore }) => {
+            const notificationStore = useNotificationStore();
+            notificationStore.cleanupBroadcastHandlers();
+            notificationStore.$reset();
+            notificationStore.isInitialized = false;
+          }),
+          import('@/services/UserEventChannel').then(({ userEventChannel }) => {
+            userEventChannel.disconnect();
+          })
+        ]).then(() => {
           debug.log('✅ Notification system cleaned up');
         }).catch(error => {
           debug.error('❌ Error during notification cleanup:', error);
