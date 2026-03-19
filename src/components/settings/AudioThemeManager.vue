@@ -359,7 +359,7 @@ const getStatusIcon = (): string => {
   const icons = {
     ready: 'check-circle',
     loading: 'loader',
-    preloading: 'download',
+    preloading: 'loader',
     error: 'alert-circle',
     uninitialized: 'circle'
   }

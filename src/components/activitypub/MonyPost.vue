@@ -1588,6 +1588,9 @@ watch(showMenu, (isOpen) => {
 
 onBeforeUnmount(() => {
   document.removeEventListener('mousedown', handleDropdownOutsideClick);
+  if (tooltipTimer.value) clearTimeout(tooltipTimer.value);
+  tooltipTimer.value = null;
+  tooltip.value.visible = false;
 });
 
 const dropdownStyle = ref<Record<string, string>>({});

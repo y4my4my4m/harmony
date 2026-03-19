@@ -92,7 +92,9 @@
           class="message-item" 
           :class="{ 
             'shake-reject': isMessageShaking(item.message.id),
-            'revealed-blocked': item.isRevealed
+            'revealed-blocked': item.isRevealed,
+            'is-sending': !item.message.failed && (item.message.sending || (item.message.id?.startsWith('temp-') && !item.message.failed)),
+            'is-failed': item.message.failed
           }"
           @mouseover="handleMessageMouseover(item.message.id)" 
           @mouseleave="handleMessageMouseleave"
@@ -393,8 +395,16 @@
           </div>
         </div>
         
+        <!-- Failed message indicator with retry/discard -->
+        <div v-if="item.message.failed" class="failed-message-bar">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+          <span>Failed to send</span>
+          <button class="retry-btn" @click="$emit('retry-message', item.message)">Retry</button>
+          <button class="discard-btn" @click="$emit('discard-message', item.message)">Delete</button>
+        </div>
+
         <!-- Message actions; on mobile with tap use floating popup -->
-        <div class="message-actions" v-if="hoveredMessageId === item.message.id && !(isMobile && mobileActionTapPosition)">
+        <div class="message-actions" v-if="!item.message.failed && hoveredMessageId === item.message.id && !(isMobile && mobileActionTapPosition)">
           <div ref="reactionBtn" class="action-btn" @click="openEmojiReactor(item.message, $event)"><ReactionIcon/></div>
           <div class="action-btn" @click="replyTo(item.message)"><ReplyIcon/></div>
           <div class="action-btn thread-btn" v-if="!props.hideThreadActions" @click="createThread(item.message)" title="Create Thread"><ThreadIcon/></div>
@@ -614,7 +624,7 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(['loadMoreMessages', 'toggleEmojiList', 'sendReaction', 'replyingTo', 'update:isAtBottom', 'createThread', 'showAllThreads', 'mentionUser']);
+const emit = defineEmits(['loadMoreMessages', 'toggleEmojiList', 'sendReaction', 'replyingTo', 'update:isAtBottom', 'createThread', 'showAllThreads', 'mentionUser', 'retry-message', 'discard-message']);
 
 // --- STORES & COMPOSABLES ---
 const serverUsersStore = useServerUsersStore();
@@ -1860,9 +1870,18 @@ onUnmounted(() => {
     topSentinelObserver.disconnect();
     topSentinelObserver = null;
   }
+  if (resizeObserver) {
+    resizeObserver.disconnect();
+    resizeObserver = null;
+  }
+  if (resizeScrollRafId) {
+    cancelAnimationFrame(resizeScrollRafId);
+    resizeScrollRafId = null;
+  }
   observedMessages.clear();
-  // Note: Don't reset pendingUnreadUpdate here - flushUnreadUpdate already handles it
-  // and resetting here could interfere with the async operation
+  if (tooltipTimer.value) clearTimeout(tooltipTimer.value);
+  tooltipTimer.value = null;
+  tooltip.value.visible = false;
 });
 
 
@@ -1888,6 +1907,26 @@ const setupTopSentinelObserver = () => {
   topSentinelObserver.observe(topSentinelRef.value);
 };
 
+// --- RESIZE OBSERVER for scroll-to-bottom ---
+let resizeObserver: ResizeObserver | null = null;
+let resizeScrollRafId: number | null = null;
+
+const setupResizeObserver = () => {
+  if (resizeObserver || !messageDisplayContainer.value) return;
+  const firstChild = messageDisplayContainer.value.firstElementChild as HTMLElement | null;
+  if (!firstChild) return;
+
+  resizeObserver = new ResizeObserver(() => {
+    if (!shouldBeAtBottom.value || !messageDisplayContainer.value) return;
+    if (resizeScrollRafId) cancelAnimationFrame(resizeScrollRafId);
+    resizeScrollRafId = requestAnimationFrame(() => {
+      if (!messageDisplayContainer.value || !shouldBeAtBottom.value) return;
+      messageDisplayContainer.value.scrollTop = messageDisplayContainer.value.scrollHeight;
+    });
+  });
+  resizeObserver.observe(firstChild);
+};
+
 // --- LIFECYCLE HOOKS ---
 onMounted(() => {
   if (messageDisplayContainer.value) {
@@ -1896,6 +1935,7 @@ onMounted(() => {
     messageDisplayContainer.value.addEventListener('wheel', handleWheel, { passive: false });
   }
   setupTopSentinelObserver();
+  setupResizeObserver();
   window.addEventListener('keydown', onShiftDown);
   window.addEventListener('keyup', onShiftUp);
   chatStore.highlightMessage = (messageId: string) => {
@@ -2841,6 +2881,62 @@ defineExpose({ editLastOwnMessage });
 }
 .message-item:has(> .message-group.has-header) {
   margin-top: 0.5rem;
+}
+
+.message-item.is-sending {
+  opacity: 0.6;
+  transition: opacity 0.2s ease;
+}
+
+.message-item.is-failed {
+  opacity: 0.8;
+  border-left: 3px solid var(--error, #f04747);
+}
+
+.failed-message-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--error, #f04747);
+  border-radius: 4px;
+  background: rgba(240, 71, 71, 0.08);
+}
+
+.failed-message-bar svg {
+  flex-shrink: 0;
+}
+
+.failed-message-bar .retry-btn,
+.failed-message-bar .discard-btn {
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 3px;
+  transition: background 0.15s ease;
+}
+
+.failed-message-bar .retry-btn {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.failed-message-bar .retry-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.failed-message-bar .discard-btn {
+  color: var(--text-secondary);
+}
+
+.failed-message-bar .discard-btn:hover {
+  color: var(--error, #f04747);
+  background: rgba(240, 71, 71, 0.15);
 }
 
 .message-item:hover {

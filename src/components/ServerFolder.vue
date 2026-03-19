@@ -151,7 +151,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, onBeforeUnmount } from 'vue';
 import ServerIcon from '@/components/common/ServerIcon.vue';
 import { getServerIconUrl } from '@/utils/serverUtils';
 import { useServerChannelStore } from '@/stores/useServerChannel';
@@ -387,6 +387,11 @@ const hideServerTooltip = () => {
 
 watch(() => props.folder.is_expanded, (expanded) => {
   if (!expanded) hideServerTooltip();
+});
+
+onBeforeUnmount(() => {
+  hideServerTooltip();
+  hideFolderTooltip();
 });
 
 // Folder tooltip handlers (emit to parent)

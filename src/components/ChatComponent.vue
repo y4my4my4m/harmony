@@ -26,6 +26,8 @@
       @createThread="handleCreateThread"
       @showAllThreads="handleShowAllThreads"
       @mentionUser="(username: string) => { messageContent += `@${username} `; }"
+      @retry-message="handleRetryMessage"
+      @discard-message="handleDiscardMessage"
     />
     
     <!-- Encryption setup wizard (launched from status bar prompt) -->
@@ -599,6 +601,22 @@
 
       const handleShowAllThreads = () => {
         emit('showAllThreads');
+      };
+
+      const handleRetryMessage = async (message: any) => {
+        if (props.isDM && props.conversationId) {
+          await dmStore.retryDMMessage(message.id, props.conversationId, message.user_id, message.content, message.reply_to);
+        } else if (props.channelId && serverChannelStore.currentServerId) {
+          await chatStore.retryMessage(message.id, serverChannelStore.currentServerId, props.channelId, message.user_id, message.content, message.reply_to || '');
+        }
+      };
+
+      const handleDiscardMessage = (message: any) => {
+        if (props.isDM) {
+          dmStore.discardFailedDMMessage(message.id);
+        } else {
+          chatStore.discardFailedMessage(message.id);
+        }
       };
 
       const toggleReaction = (messageId: string, emoji: Emoji) => {

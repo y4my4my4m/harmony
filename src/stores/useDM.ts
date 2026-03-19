@@ -1346,9 +1346,13 @@ export const useDMStore = defineStore('dm', () => {
         }
       )
 
-      // Check if request was cancelled
+      // Check if request was cancelled or conversation changed while fetching
       if (signal?.aborted) {
         throw new Error('Request aborted')
+      }
+      if (beforeMessageId === undefined && currentConversationId.value !== conversationId) {
+        debug.log(`⏭️ Discarding stale DM response for ${conversationId} (current: ${currentConversationId.value})`)
+        return
       }
 
       if (!messagesData) return
@@ -1678,11 +1682,53 @@ export const useDMStore = defineStore('dm', () => {
 
       return true
     } catch (error: any) {
-      removeMessageFromCache(tempId);
       debug.error('❌ Failed to send DM message via service:', error)
+      const retryState = (sendDMMessage as any).__retryCount || {};
+      const retryCount = retryState[tempId] || 0;
+      if (retryCount < 3) {
+        (sendDMMessage as any).__retryCount = { ...retryState, [tempId]: retryCount + 1 };
+        const delay = Math.pow(2, retryCount) * 1000;
+        debug.log(`🔁 Auto-retrying DM send in ${delay}ms (attempt ${retryCount + 1}/3)`);
+
+        const retryIdx = currentDMMessages.value.findIndex(m => m.id === tempId);
+        if (retryIdx !== -1) {
+          currentDMMessages.value[retryIdx] = { ...currentDMMessages.value[retryIdx], sending: true, failed: false } as any;
+        }
+
+        await new Promise(r => setTimeout(r, delay));
+        try {
+          return await sendDMMessage(conversationId, userId, content, replyTo);
+        } catch {
+          // Fall through to mark as failed
+        }
+      }
+
+      delete (sendDMMessage as any).__retryCount?.[tempId];
+      const failedIdx = currentDMMessages.value.findIndex(m => m.id === tempId);
+      if (failedIdx !== -1) {
+        currentDMMessages.value[failedIdx] = {
+          ...currentDMMessages.value[failedIdx],
+          sending: false,
+          failed: true
+        } as any;
+      }
       return false
     }
   }
+
+  const retryDMMessage = async (tempId: string, conversationId: string, userId: string, content: MessagePart[], replyTo?: string) => {
+    const idx = currentDMMessages.value.findIndex(m => m.id === tempId);
+    if (idx === -1) return;
+
+    currentDMMessages.value[idx] = { ...currentDMMessages.value[idx], sending: true, failed: false } as any;
+    removeMessageFromCache(tempId);
+
+    await sendDMMessage(conversationId, userId, content, replyTo);
+  };
+
+  const discardFailedDMMessage = (tempId: string) => {
+    removeMessageFromCache(tempId);
+  };
 
   const setCurrentConversation = (conversationId: string | null) => {
     const previousConversationId = currentConversationId.value
@@ -2769,6 +2815,8 @@ export const useDMStore = defineStore('dm', () => {
     searchUsers,
     createOrGetConversation,
     sendDMMessage,
+    retryDMMessage,
+    discardFailedDMMessage,
     setCurrentConversation,
     switchToConversation,
     clearDMMessages,

@@ -218,6 +218,7 @@ const activeFilter = computed({
 const togglePanel = async () => {
   isOpen.value = !isOpen.value
   if (isOpen.value) {
+    closeMobileSidebars()
     document.body.style.overflow = 'hidden'
     
     // ⚡ OPTIMIZED: Load full notification list only when panel is opened
@@ -827,6 +828,12 @@ onUnmounted(() => {
   z-index: 999;
 }
 
+@media (max-width: 768px) {
+  .notification-backdrop {
+    z-index: 10000;
+  }
+}
+
 /* Animations */
 @keyframes rotate {
   from { transform: rotate(0deg); }
@@ -948,6 +955,7 @@ onUnmounted(() => {
     right: 12px;
     left: 12px;
     max-height: calc(100vh - 80px);
+    z-index: 10001;
   }
   
   .header-content {

@@ -701,6 +701,9 @@ onMounted(() => {
     transform: translateX(100%);
     width: 280px;
     right: 0;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    /* background: var(--background-primary-alpha); */
   }
   .right-sidebar-container.sidebar-open {
     transform: translateX(0);

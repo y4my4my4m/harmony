@@ -131,7 +131,10 @@ class RealtimeConnectionManagerService {
   private healthCheckInterval: ReturnType<typeof setInterval> | null = null
   private authListener: { data: { subscription: { unsubscribe: () => void } } } | null = null
   private initialized = false
-  private isReconnecting = false  // Prevent multiple simultaneous reconnects
+  private isReconnecting = false
+  private onlineHandler: (() => void) | null = null
+  private offlineHandler: (() => void) | null = null
+  private visibilityHandler: (() => void) | null = null
 
   // ============================================================================
   // Lifecycle Methods
@@ -155,6 +158,27 @@ class RealtimeConnectionManagerService {
       }
     })
     this.authListener = { data: { subscription: authListener.subscription } }
+
+    // Reconnect when network comes back online
+    this.onlineHandler = () => {
+      debug.log('🌐 RealtimeManager: Network online, reconnecting subscriptions')
+      this.forceReconnectAll()
+    }
+    this.offlineHandler = () => {
+      debug.log('📴 RealtimeManager: Network offline')
+      this.globalStatus = 'disconnected'
+      this.notifyStatusListeners()
+    }
+    this.visibilityHandler = () => {
+      if (document.visibilityState === 'visible' && navigator.onLine) {
+        debug.log('👁️ RealtimeManager: Tab visible again, checking connections')
+        this.performHealthCheck()
+      }
+    }
+
+    window.addEventListener('online', this.onlineHandler)
+    window.addEventListener('offline', this.offlineHandler)
+    document.addEventListener('visibilitychange', this.visibilityHandler)
   }
 
   /**
@@ -168,6 +192,13 @@ class RealtimeConnectionManagerService {
       this.authListener.data.subscription.unsubscribe()
       this.authListener = null
     }
+
+    if (this.onlineHandler) window.removeEventListener('online', this.onlineHandler)
+    if (this.offlineHandler) window.removeEventListener('offline', this.offlineHandler)
+    if (this.visibilityHandler) document.removeEventListener('visibilitychange', this.visibilityHandler)
+    this.onlineHandler = null
+    this.offlineHandler = null
+    this.visibilityHandler = null
     
     this.unsubscribeAll()
     this.initialized = false
@@ -641,6 +672,12 @@ class RealtimeConnectionManagerService {
   private scheduleReconnect(channelName: string): void {
     const managedSub = this.subscriptions.get(channelName)
     if (!managedSub) return
+
+    if (!navigator.onLine) {
+      debug.log(`📴 RealtimeManager: Offline, deferring reconnect for ${channelName}`)
+      this.updateSubscriptionStatus(channelName, 'disconnected')
+      return
+    }
     
     if (managedSub.retryTimeoutId) {
       clearTimeout(managedSub.retryTimeoutId)

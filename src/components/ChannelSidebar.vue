@@ -1420,9 +1420,9 @@ watch(() => props.currentServer?.id, () => {
   opacity: 0.8;
 }
 
-.category-header.has-visible-channels.collapsed .category-name {
+/* .category-header.has-visible-channels.collapsed .category-name {
   font-size: 12px;
-}
+} */
 
 /* Notification badge for channels with notifications */
 .notification-badge {

@@ -294,9 +294,13 @@ export const useChatStore = defineStore('chat', {
           debug.warn('Failed to prepare message embeds:', error);
         }
 
-        // Check if request was cancelled
+        // Check if request was cancelled or channel changed while fetching
         if (signal?.aborted) {
           throw new Error('Request aborted');
+        }
+        if (oldestMessageId === '' && this.currentChannelId !== channelId) {
+          debug.log(`⏭️ Discarding stale response for channel ${channelId} (current: ${this.currentChannelId})`);
+          return;
         }
 
         if (!messages || messages.length === 0) {
@@ -682,11 +686,59 @@ export const useChatStore = defineStore('chat', {
         
         return message;
       } catch (error: any) {
-        // Remove optimistic message on error
-        this.removeMessageFromCache(tempId);
         debug.error('❌ Error sending message via service:', error);
+        const retryCount = (this as any).__retryCount?.[tempId] || 0;
+        if (retryCount < 3) {
+          // Auto-retry with exponential backoff
+          if (!(this as any).__retryCount) (this as any).__retryCount = {};
+          (this as any).__retryCount[tempId] = retryCount + 1;
+          const delay = Math.pow(2, retryCount) * 1000;
+          debug.log(`🔁 Auto-retrying message send in ${delay}ms (attempt ${retryCount + 1}/3)`);
+
+          // Mark as retrying
+          const retryIdx = this.messages.findIndex((m: any) => m.id === tempId);
+          if (retryIdx !== -1) {
+            this.messages[retryIdx] = { ...this.messages[retryIdx], sending: true, failed: false } as any;
+          }
+
+          await new Promise(r => setTimeout(r, delay));
+          try {
+            return await this.sendMessage(serverId, channelId, userId, content, replyTo);
+          } catch {
+            // Fall through to mark as failed
+          }
+        }
+
+        // Mark as failed instead of removing
+        delete (this as any).__retryCount?.[tempId];
+        const failedIdx = this.messages.findIndex((m: any) => m.id === tempId);
+        if (failedIdx !== -1) {
+          this.messages[failedIdx] = {
+            ...this.messages[failedIdx],
+            sending: false,
+            failed: true
+          } as any;
+        }
         throw new Error(error.message || 'Failed to send message');
       }
+    },
+
+    async retryMessage(tempId: string, serverId: string, channelId: string, userId: string, content: Array<Object>, replyTo: string) {
+      const idx = this.messages.findIndex((m: any) => m.id === tempId);
+      if (idx === -1) return;
+
+      this.messages[idx] = { ...this.messages[idx], sending: true, failed: false } as any;
+      this.removeMessageFromCache(tempId);
+
+      try {
+        await this.sendMessage(serverId, channelId, userId, content, replyTo);
+      } catch {
+        // sendMessage handles marking as failed
+      }
+    },
+
+    discardFailedMessage(tempId: string) {
+      this.removeMessageFromCache(tempId);
     },
 
     async addReaction(messageId: string, emojiId: string, userId: string, emojiData?: Emoji) {

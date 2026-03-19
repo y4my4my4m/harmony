@@ -18,7 +18,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch, nextTick } from 'vue'
+import { computed, ref, watch, nextTick, onUnmounted } from 'vue'
 import { debug } from '@/utils/debug'
 import { useRoute } from 'vue-router'
 import UnifiedContentArea from '@/components/common/UnifiedContentArea.vue'
@@ -59,6 +59,7 @@ const route = useRoute()
 // State
 const isAtBottom = ref(true)
 const isLoading = ref(false)
+let fetchAbortController: AbortController | null = null
 
 // Computed
 const chatMessages = computed(() => {
@@ -73,35 +74,47 @@ const currentChannelName = computed(() => {
 
 // Load messages when route changes
 const loadMessages = async () => {
+  // Abort any in-flight fetch from a previous channel/conversation
+  if (fetchAbortController) {
+    fetchAbortController.abort()
+  }
+  const controller = new AbortController()
+  fetchAbortController = controller
+  const { signal } = controller
+
   if (props.isDM) {
     const conversationId = route.params.conversationId as string
     if (conversationId) {
-      // Check if we have a valid cache for instant loading (no skeleton needed)
+      // Update current conversation immediately for responsive UI
+      if (dmStore.currentConversationId !== conversationId) {
+        dmStore.setCurrentConversation(conversationId)
+      }
+
       if (dmStore.isCacheValid(conversationId)) {
-        // Load from cache instantly - no loading state needed
         dmStore.loadCachedMessages(conversationId)
         const userId = authStore.session?.user?.id
         if (userId) {
-          // Still fetch fresh data in background
-          dmStore.fetchConversationMessages(conversationId)
+          dmStore.fetchConversationMessages(conversationId, undefined, signal)
         }
         return
       }
       
-      // No cache - show skeleton loader
       isLoading.value = true
       dmStore.clearDMMessages()
-      // Force browser to paint the skeleton before fetching
-      // nextTick alone isn't enough - we need to yield to the browser's render loop
       await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+      if (signal.aborted) return
       try {
         const userId = authStore.session?.user?.id
         if (userId) {
           await dmStore.initializeDMEnvironmentForDirectAccess(userId, conversationId)
-          await dmStore.fetchConversationMessages(conversationId)
+          if (signal.aborted) return
+          await dmStore.fetchConversationMessages(conversationId, undefined, signal)
         }
+      } catch (e: any) {
+        if (e?.message === 'Request aborted' || signal.aborted) return
+        throw e
       } finally {
-        isLoading.value = false
+        if (!signal.aborted) isLoading.value = false
       }
     }
   } else {
@@ -109,38 +122,42 @@ const loadMessages = async () => {
     const serverId = route.params.serverId as string
     
     if (serverId && channelId) {
-      // Check if we have a valid cache for instant loading (no skeleton needed)
+      // Update current channel immediately for responsive sidebar highlighting
+      if (serverChannelStore.currentChannelId !== channelId) {
+        serverChannelStore.setCurrentChannel(channelId)
+      }
+
       if (chatStore.isMessageCached(channelId)) {
-        // Load from cache instantly - no loading state needed
         chatStore.loadCachedMessages(channelId)
-        // Set current channel
-        if (serverChannelStore.currentChannelId !== channelId) {
-          serverChannelStore.setCurrentChannel(channelId)
-        }
-        // Subscribe and fetch fresh data in background
         chatStore.subscribeToMessages(channelId)
-        chatStore.fetchMessages(channelId) // Background refresh
+        chatStore.fetchMessages(channelId, '', signal)
         return
       }
       
-      // No cache - show skeleton loader
       isLoading.value = true
       chatStore.clearMessages()
-      // Force browser to paint the skeleton before fetching
-      // nextTick alone isn't enough - we need to yield to the browser's render loop
       await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+      if (signal.aborted) return
       try {
-        if (serverChannelStore.currentChannelId !== channelId) {
-          serverChannelStore.setCurrentChannel(channelId)
-        }
-        await chatStore.fetchMessages(channelId)
+        await chatStore.fetchMessages(channelId, '', signal)
+        if (signal.aborted) return
         chatStore.subscribeToMessages(channelId)
+      } catch (e: any) {
+        if (e?.message === 'Request aborted' || signal.aborted) return
+        throw e
       } finally {
-        isLoading.value = false
+        if (!signal.aborted) isLoading.value = false
       }
     }
   }
 }
+
+onUnmounted(() => {
+  if (fetchAbortController) {
+    fetchAbortController.abort()
+    fetchAbortController = null
+  }
+})
 
 const fetchMoreMessages = async () => {
   debug.log('📜 fetchMoreMessages called, isDM:', props.isDM)

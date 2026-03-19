@@ -384,6 +384,7 @@ export interface Message {
     embeds?: Record<string, EmbedPayload>;
   }; // for federated messages and other metadata
   sending?: boolean; // local state: true while message is being sent to server
+  failed?: boolean; // local state: true when message failed to send after retries
   // Pinning
   is_pinned?: boolean;
   pinned_at?: string;
