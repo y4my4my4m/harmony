@@ -445,8 +445,37 @@ setup_selfhosted_supabase_docker() {
     (cd "$SUPABASE_PROJECT_DIR" && run_with_spinner "Pulling images..." docker compose pull)
 
     echo ""
-    print_success "Supabase project ready at: ${BOLD}$SUPABASE_PROJECT_DIR${RESET}"
-    print_info "To start Supabase: cd $SUPABASE_PROJECT_DIR && docker compose up -d"
+    print_step "6" "Starting Supabase"
+    print_info "Starting Supabase containers..."
+    (cd "$SUPABASE_PROJECT_DIR" && docker compose up -d)
+
+    local db_container="${SUPABASE_DB_CONTAINER:-supabase-db}"
+    print_info "Waiting for PostgreSQL to be ready (this can take 1–2 minutes on first boot)..."
+
+    local max_wait=120
+    local waited=0
+    local db_ready=false
+
+    while [[ $waited -lt $max_wait ]]; do
+        if docker logs "$db_container" 2>&1 | grep -q "PostgreSQL init process complete; ready for start up\.\|database system is ready to accept connections"; then
+            db_ready=true
+            break
+        fi
+        sleep 5
+        waited=$((waited + 5))
+        printf "    ${DIM}Waiting... (%ds / %ds)${RESET}\r" "$waited" "$max_wait"
+    done
+    echo ""
+
+    if $db_ready; then
+        print_success "Supabase PostgreSQL is ready"
+    else
+        print_warn "Timed out waiting for PostgreSQL. It may still be initializing."
+        print_info "The schema setup step will retry connecting automatically."
+    fi
+
+    echo ""
+    print_success "Supabase started at: ${BOLD}$SUPABASE_PROJECT_DIR${RESET}"
     echo ""
 }
 
@@ -1730,10 +1759,31 @@ start_services() {
     fi
 
     echo ""
-    printf "  ${BOLD}Start Docker services?${RESET}\n"
+    printf "  ${BOLD}Start Harmony Services${RESET}\n"
+    echo ""
+
+    # Ensure Supabase is running first (self-hosted) — the Harmony compose
+    # connects to the supabase_default network and needs it to exist.
+    if [[ "$SUPABASE_MODE" == "selfhosted" ]] && [[ -n "$SUPABASE_PROJECT_DIR" ]]; then
+        if ! docker network inspect supabase_default &>/dev/null 2>&1; then
+            print_info "Starting Supabase (required before Harmony services)..."
+            (cd "$SUPABASE_PROJECT_DIR" && docker compose up -d)
+            local db_container="${SUPABASE_DB_CONTAINER:-supabase-db}"
+            print_info "Waiting for PostgreSQL to be ready..."
+            local waited=0
+            while [[ $waited -lt 120 ]]; do
+                if docker logs "$db_container" 2>&1 | grep -q "database system is ready to accept connections"; then
+                    break
+                fi
+                sleep 5
+                waited=$((waited + 5))
+            done
+            print_success "Supabase is running"
+        fi
+    fi
 
     if [[ "$MODE" == "production" ]]; then
-        print_info "Runs: docker compose up -d --build"
+        print_info "Building and starting: federation-server, federation-worker, redis, nginx..."
     else
         print_info "Runs: docker compose -f dev/docker-compose.yml up -d"
     fi
@@ -1745,6 +1795,38 @@ start_services() {
             if [[ "$MODE" == "production" ]]; then
                 if docker compose up -d --build --remove-orphans 2>&1; then
                     print_success "Docker services started"
+
+                    # Verify federation containers are running
+                    echo ""
+                    sleep 3
+                    local fed_ok=true
+                    if $ENABLE_FEDERATION; then
+                        if docker ps --format '{{.Names}}' | grep -q 'harmony-federation-server'; then
+                            print_success "federation-server is running"
+                        else
+                            print_error "federation-server failed to start"
+                            print_info "Check logs: ${CYAN}docker compose logs federation-server${RESET}"
+                            fed_ok=false
+                        fi
+                        if docker ps --format '{{.Names}}' | grep -q 'harmony-federation-worker'; then
+                            print_success "federation-worker is running"
+                        else
+                            print_error "federation-worker failed to start"
+                            print_info "Check logs: ${CYAN}docker compose logs federation-worker${RESET}"
+                            fed_ok=false
+                        fi
+                    fi
+                    if docker ps --format '{{.Names}}' | grep -q 'harmony-redis'; then
+                        print_success "redis is running"
+                    else
+                        print_error "redis failed to start"
+                        fed_ok=false
+                    fi
+                    if ! $fed_ok; then
+                        echo ""
+                        print_info "Some services failed. Check logs with:"
+                        printf "    ${CYAN}cd %s && docker compose logs -f${RESET}\n" "$PROJECT_DIR"
+                    fi
                 else
                     print_error "Docker compose failed. Check the output above."
                     print_info "You can try running manually:"
@@ -1909,9 +1991,9 @@ show_summary() {
             if ! $DB_SCHEMA_LOADED; then
                 printf "    ${DIM}%d.${RESET} Start Supabase: ${CYAN}cd %s && docker compose up -d${RESET}\n" "$step" "$SUPABASE_PROJECT_DIR"
                 ((++step))
-                printf "    ${DIM}%d.${RESET} Load schema: ${CYAN}cd db_schema/init && PGPASSWORD=xxx psql -h localhost -p 5432 -U supabase_admin -d postgres -f init.sql${RESET}\n" "$step"
+                printf "    ${DIM}%d.${RESET} Load schema: ${CYAN}./scripts/install.sh --schema-setup-only${RESET}\n" "$step"
                 ((++step))
-                printf "    ${DIM}%d.${RESET} Run migrations: ${CYAN}cd - && for f in db_schema/migrations/*.sql; do psql -h localhost -p 5432 -U supabase_admin -d postgres -f \"\$f\"; done${RESET}\n" "$step"
+                printf "    ${DIM}%d.${RESET} Start Harmony: ${CYAN}cd %s && docker compose up -d --build${RESET}\n" "$step" "$PROJECT_DIR"
                 ((++step))
             fi
         fi
