@@ -1631,100 +1631,100 @@ export const useDMStore = defineStore('dm', () => {
 
       debug.log('✅ DM message saved to database:', message.id)
       debug.log('📦 DM message data from server:', message)
-      
-      // 🔧 FIX: Don't rely on realtime to replace temp message - do it immediately!
-      // This fixes the silent timeout issue where realtime connection drops
-      // and temp messages never get replaced with real ones
-      const tempIndex = currentDMMessages.value.findIndex(m => m.id === tempId)
-      if (tempIndex !== -1) {
-        const isOwnEncrypted = message.encrypted && message.user_id === userId;
-        const realMessage: Message = {
-          id: message.id,
-          user_id: message.user_id,
-          content: isOwnEncrypted ? content : message.content,
-          created_at: new Date(message.created_at),
-          channel_id: '',
-          conversation_id: message.conversation_id,
-          reply_to: message.reply_to,
-          reactions: message.reactions || [],
-          is_system: message.is_system,
-          metadata: message.metadata || undefined,
-          encrypted: message.encrypted || false,
-          decrypted: isOwnEncrypted ? true : (message.decrypted || false),
-          encryption_metadata: message.encryption_metadata
-        }
-        
-        try {
-          ensureMessageEmbeds(realMessage)
-        } catch (embedError) {
-          debug.warn('Failed to prepare embeds for sent DM message:', embedError)
-        }
-        
-        // Replace temp message with real message
-        currentDMMessages.value.splice(tempIndex, 1, realMessage)
-        debug.log('✅ Replaced temp message with real message:', { tempId, realId: message.id })
-        
-        // Also update in cache if present
-        const cached = messageCache.value.get(conversationId)
-        if (cached) {
-          const cacheIndex = cached.messages.findIndex(m => m.id === tempId)
-          if (cacheIndex !== -1) {
-            cached.messages.splice(cacheIndex, 1, realMessage)
-            cached.lastModified = new Date()
-          }
-        }
-      }
-      
-      // 🎯 DATABASE TRIGGERS NOW HANDLE:
-      // 1. DM notifications (handle_message_notifications trigger)
-      // 2. Federation delivery (federate_dm_message trigger)
-      // No manual frontend calls needed!
+
+      _replaceDMTempWithReal(tempId, message, userId, conversationId, content)
 
       return true
     } catch (error: any) {
       debug.error('❌ Failed to send DM message via service:', error)
-      const retryState = (sendDMMessage as any).__retryCount || {};
-      const retryCount = retryState[tempId] || 0;
-      if (retryCount < 3) {
-        (sendDMMessage as any).__retryCount = { ...retryState, [tempId]: retryCount + 1 };
-        const delay = Math.pow(2, retryCount) * 1000;
-        debug.log(`🔁 Auto-retrying DM send in ${delay}ms (attempt ${retryCount + 1}/3)`);
 
-        const retryIdx = currentDMMessages.value.findIndex(m => m.id === tempId);
-        if (retryIdx !== -1) {
-          currentDMMessages.value[retryIdx] = { ...currentDMMessages.value[retryIdx], sending: true, failed: false } as any;
+      if (!navigator.onLine) {
+        debug.log('📴 Offline — marking DM as failed, will retry when user clicks Retry')
+        _markDMMessageFailed(tempId)
+        return false
+      }
+
+      for (let attempt = 1; attempt <= 2; attempt++) {
+        const delay = Math.pow(2, attempt) * 1000
+        debug.log(`🔁 Auto-retrying DM send in ${delay}ms (attempt ${attempt}/2)`)
+        await new Promise(r => setTimeout(r, delay))
+
+        if (!navigator.onLine) {
+          debug.log('📴 Went offline during retry — marking as failed')
+          break
         }
 
-        await new Promise(r => setTimeout(r, delay));
         try {
-          return await sendDMMessage(conversationId, userId, content, replyTo);
-        } catch {
-          // Fall through to mark as failed
+          const retryResult = await services.messages.sendDMMessage(conversationId, content, replyTo)
+          _replaceDMTempWithReal(tempId, retryResult, userId, conversationId, content)
+          return true
+        } catch (retryError) {
+          debug.warn(`🔁 DM retry attempt ${attempt} failed:`, retryError)
         }
       }
 
-      delete (sendDMMessage as any).__retryCount?.[tempId];
-      const failedIdx = currentDMMessages.value.findIndex(m => m.id === tempId);
-      if (failedIdx !== -1) {
-        currentDMMessages.value[failedIdx] = {
-          ...currentDMMessages.value[failedIdx],
-          sending: false,
-          failed: true
-        } as any;
-      }
+      _markDMMessageFailed(tempId)
       return false
     }
   }
 
+  const _markDMMessageFailed = (tempId: string) => {
+    const idx = currentDMMessages.value.findIndex(m => m.id === tempId)
+    if (idx !== -1) {
+      currentDMMessages.value[idx] = { ...currentDMMessages.value[idx], sending: false, failed: true } as any
+    }
+  }
+
+  const _replaceDMTempWithReal = (tempId: string, message: any, userId: string, conversationId: string, content: MessagePart[]) => {
+    const tempIndex = currentDMMessages.value.findIndex(m => m.id === tempId)
+    if (tempIndex === -1) return
+
+    const isOwnEncrypted = message.encrypted && message.user_id === userId
+    const realMessage: Message = {
+      id: message.id,
+      user_id: message.user_id,
+      content: isOwnEncrypted ? content : message.content,
+      created_at: new Date(message.created_at),
+      channel_id: '',
+      conversation_id: message.conversation_id,
+      reply_to: message.reply_to,
+      reactions: message.reactions || [],
+      is_system: message.is_system,
+      metadata: message.metadata || undefined,
+      encrypted: message.encrypted || false,
+      decrypted: isOwnEncrypted ? true : (message.decrypted || false),
+      encryption_metadata: message.encryption_metadata
+    }
+
+    try { ensureMessageEmbeds(realMessage) } catch {}
+
+    currentDMMessages.value.splice(tempIndex, 1, realMessage)
+    debug.log('✅ Replaced temp DM message with real message:', { tempId, realId: message.id })
+
+    const cached = messageCache.value.get(conversationId)
+    if (cached) {
+      const cacheIndex = cached.messages.findIndex(m => m.id === tempId)
+      if (cacheIndex !== -1) {
+        cached.messages.splice(cacheIndex, 1, realMessage)
+        cached.lastModified = new Date()
+      }
+    }
+  }
+
   const retryDMMessage = async (tempId: string, conversationId: string, userId: string, content: MessagePart[], replyTo?: string) => {
-    const idx = currentDMMessages.value.findIndex(m => m.id === tempId);
-    if (idx === -1) return;
+    const idx = currentDMMessages.value.findIndex(m => m.id === tempId)
+    if (idx === -1) return
 
-    currentDMMessages.value[idx] = { ...currentDMMessages.value[idx], sending: true, failed: false } as any;
-    removeMessageFromCache(tempId);
+    currentDMMessages.value[idx] = { ...currentDMMessages.value[idx], sending: true, failed: false } as any
 
-    await sendDMMessage(conversationId, userId, content, replyTo);
-  };
+    try {
+      const message = await services.messages.sendDMMessage(conversationId, content, replyTo)
+      _replaceDMTempWithReal(tempId, message, userId, conversationId, content)
+    } catch (error) {
+      debug.error('❌ DM retry failed:', error)
+      _markDMMessageFailed(tempId)
+    }
+  }
 
   const discardFailedDMMessage = (tempId: string) => {
     removeMessageFromCache(tempId);

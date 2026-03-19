@@ -645,86 +645,84 @@ export const useChatStore = defineStore('chat', {
         debug.log('✅ Message saved to database:', message.id);
         debug.log('📦 Message data from server:', message);
         
-        // 🔧 FIX: Don't rely on realtime to replace temp message - do it immediately!
-        // This fixes the silent timeout issue where realtime connection drops
-        // and temp messages never get replaced with real ones
-        const tempIndex = this.messages.findIndex((m: any) => m.id === tempId);
-        if (tempIndex !== -1) {
-          // For own encrypted messages, keep the original plaintext content
-          // so the UI never flashes encrypted glyphs for our own sends
-          const isOwnEncrypted = message.encrypted && message.user_id === userId;
-          const realMessage = {
-            id: message.id,
-            user_id: message.user_id,
-            content: isOwnEncrypted ? content : message.content,
-            created_at: new Date(message.created_at),
-            channel_id: message.channel_id,
-            reply_to: message.reply_to,
-            reactions: message.reactions || [],
-            is_system: message.is_system,
-            metadata: message.metadata || undefined,
-            encrypted: message.encrypted || false,
-            decrypted: isOwnEncrypted ? true : (message.decrypted || false),
-            encryption_metadata: message.encryption_metadata
-          };
-          
-          try {
-            ensureMessageEmbeds(realMessage);
-          } catch (embedError) {
-            debug.warn('Failed to prepare embeds for sent message:', embedError);
-          }
-          
-          // Replace temp message with real message
-          this.messages.splice(tempIndex, 1, realMessage as any);
-          debug.log('✅ Replaced temp message with real message:', { tempId, realId: message.id });
-          
-          // Also update in cache if present
-          const cached = this.messageCache.get(channelId);
-          if (cached) {
-            const cacheIndex = cached.messages.findIndex((m: any) => m.id === tempId);
-            if (cacheIndex !== -1) {
-              cached.messages.splice(cacheIndex, 1, realMessage as any);
-              cached.lastModified = new Date();
-            }
-          }
-        }
+        this._replaceTempWithReal(tempId, message, userId, channelId, content);
         
         return message;
       } catch (error: any) {
         debug.error('❌ Error sending message via service:', error);
-        const retryCount = (this as any).__retryCount?.[tempId] || 0;
-        if (retryCount < 3) {
-          // Auto-retry with exponential backoff
-          if (!(this as any).__retryCount) (this as any).__retryCount = {};
-          (this as any).__retryCount[tempId] = retryCount + 1;
-          const delay = Math.pow(2, retryCount) * 1000;
-          debug.log(`🔁 Auto-retrying message send in ${delay}ms (attempt ${retryCount + 1}/3)`);
 
-          // Mark as retrying
-          const retryIdx = this.messages.findIndex((m: any) => m.id === tempId);
-          if (retryIdx !== -1) {
-            this.messages[retryIdx] = { ...this.messages[retryIdx], sending: true, failed: false } as any;
-          }
+        // If offline, mark failed immediately — no point retrying
+        if (!navigator.onLine) {
+          debug.log('📴 Offline — marking message as failed, will retry when user clicks Retry');
+          this._markMessageFailed(tempId);
+          return;
+        }
 
+        // Auto-retry up to 2 times with exponential backoff (service call only, no new optimistic msg)
+        for (let attempt = 1; attempt <= 2; attempt++) {
+          const delay = Math.pow(2, attempt) * 1000;
+          debug.log(`🔁 Auto-retrying message send in ${delay}ms (attempt ${attempt}/2)`);
           await new Promise(r => setTimeout(r, delay));
+
+          if (!navigator.onLine) {
+            debug.log('📴 Went offline during retry — marking as failed');
+            break;
+          }
+
           try {
-            return await this.sendMessage(serverId, channelId, userId, content, replyTo);
-          } catch {
-            // Fall through to mark as failed
+            const retryResult = await services.messages.sendChannelMessage(
+              serverId, channelId, content as any, replyTo || undefined
+            );
+            this._replaceTempWithReal(tempId, retryResult, userId, channelId, content);
+            return retryResult;
+          } catch (retryError) {
+            debug.warn(`🔁 Retry attempt ${attempt} failed:`, retryError);
           }
         }
 
-        // Mark as failed instead of removing
-        delete (this as any).__retryCount?.[tempId];
-        const failedIdx = this.messages.findIndex((m: any) => m.id === tempId);
-        if (failedIdx !== -1) {
-          this.messages[failedIdx] = {
-            ...this.messages[failedIdx],
-            sending: false,
-            failed: true
-          } as any;
+        this._markMessageFailed(tempId);
+      }
+    },
+
+    _markMessageFailed(tempId: string) {
+      const idx = this.messages.findIndex((m: any) => m.id === tempId);
+      if (idx !== -1) {
+        this.messages[idx] = { ...this.messages[idx], sending: false, failed: true } as any;
+      }
+    },
+
+    _replaceTempWithReal(tempId: string, message: any, userId: string, channelId: string, content: any) {
+      const tempIndex = this.messages.findIndex((m: any) => m.id === tempId);
+      if (tempIndex === -1) return;
+
+      const isOwnEncrypted = message.encrypted && message.user_id === userId;
+      const realMessage = {
+        id: message.id,
+        user_id: message.user_id,
+        content: isOwnEncrypted ? content : message.content,
+        created_at: new Date(message.created_at),
+        channel_id: message.channel_id,
+        reply_to: message.reply_to,
+        reactions: message.reactions || [],
+        is_system: message.is_system,
+        metadata: message.metadata || undefined,
+        encrypted: message.encrypted || false,
+        decrypted: isOwnEncrypted ? true : (message.decrypted || false),
+        encryption_metadata: message.encryption_metadata
+      };
+
+      try { ensureMessageEmbeds(realMessage); } catch {}
+
+      this.messages.splice(tempIndex, 1, realMessage as any);
+      debug.log('✅ Replaced temp message with real message:', { tempId, realId: message.id });
+
+      const cached = this.messageCache.get(channelId);
+      if (cached) {
+        const cacheIndex = cached.messages.findIndex((m: any) => m.id === tempId);
+        if (cacheIndex !== -1) {
+          cached.messages.splice(cacheIndex, 1, realMessage as any);
+          cached.lastModified = new Date();
         }
-        throw new Error(error.message || 'Failed to send message');
       }
     },
 
@@ -733,12 +731,15 @@ export const useChatStore = defineStore('chat', {
       if (idx === -1) return;
 
       this.messages[idx] = { ...this.messages[idx], sending: true, failed: false } as any;
-      this.removeMessageFromCache(tempId);
 
       try {
-        await this.sendMessage(serverId, channelId, userId, content, replyTo);
-      } catch {
-        // sendMessage handles marking as failed
+        const message = await services.messages.sendChannelMessage(
+          serverId, channelId, content as any, replyTo || undefined
+        );
+        this._replaceTempWithReal(tempId, message, userId, channelId, content);
+      } catch (error) {
+        debug.error('❌ Retry failed:', error);
+        this._markMessageFailed(tempId);
       }
     },
 
