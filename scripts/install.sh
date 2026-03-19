@@ -764,13 +764,11 @@ generate_livekit_keys() {
         print_success "Generated LiveKit API key and secret"
     fi
     # Redis is a core service (caching, presence, rate limiting, LiveKit, federation)
-    REDIS_PASSWORD=$(openssl rand -base64 24 | tr -d '\n' | head -c 48)
-    [[ -z "$REDIS_PASSWORD" ]] && REDIS_PASSWORD=$(openssl rand -hex 24)
+    REDIS_PASSWORD=$(openssl rand -hex 24)
     print_success "Generated Redis password"
 
     if $ENABLE_MONITORING; then
-        BULL_BOARD_PASSWORD=$(openssl rand -base64 18 | tr -d '\n' | head -c 24)
-        [[ -z "$BULL_BOARD_PASSWORD" ]] && BULL_BOARD_PASSWORD=$(openssl rand -hex 12)
+        BULL_BOARD_PASSWORD=$(openssl rand -hex 12)
         print_success "Generated Bull Board dashboard password"
     fi
 }
@@ -1126,6 +1124,12 @@ generate_nginx_config() {
         -e "s|/path/to/harmony|$PROJECT_DIR|g" \
         "$template" | sed '/^# ====.*LIVEKIT/,$ d' > "$output"
 
+    # If monitoring is enabled, uncomment the Bull Board nginx proxy block
+    if $ENABLE_MONITORING; then
+        sed -i.bak '/# location \/admin\/queues\//,/# }/{s/^    # /    /}' "$output"
+        rm -f "$output.bak"
+    fi
+
     print_success "Generated ${BOLD}dev/nginx-harmony.conf${RESET} from template"
 
     # Generate separate LiveKit nginx config if voice is enabled
@@ -1218,16 +1222,15 @@ generate_docker_compose() {
     # --- Redis (core service: caching, presence, rate limiting, LiveKit, federation) ---
     local needs_redis=true
 
-    # --- Federation ---
+    # --- Federation (split: server + worker) ---
     if $ENABLE_FEDERATION; then
         local fed_networks="      - harmony"
-        local fed_env="      - NODE_ENV=production
-      - PORT=3001"
+        local fed_env_base="      - NODE_ENV=production"
 
         if $selfhosted_supabase; then
             fed_networks+="
       - supabase_default"
-            fed_env+="
+            fed_env_base+="
       - SUPABASE_URL=http://supabase-kong:8000
       - USE_PGBOSS_QUEUE=true
       - DATABASE_URL=postgresql://postgres:${SUPABASE_PG_PASSWORD}@supabase-db:5432/postgres
@@ -1236,18 +1239,20 @@ generate_docker_compose() {
         fi
 
         compose+="
-  federation-backend:
+  federation-server:
     build:
       context: ./federation-backend
       dockerfile: Dockerfile
-    container_name: harmony-federation
+    container_name: harmony-federation-server
     restart: unless-stopped
     ports:
       - \"3001:3001\"
     env_file:
       - ./federation-backend/.env
     environment:
-$fed_env
+$fed_env_base
+      - PORT=3001
+      - FEDERATION_MODE=server
     healthcheck:
       test: [\"CMD\", \"node\", \"-e\", \"require('http').get('http://localhost:3001/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})\"]
       interval: 30s
@@ -1257,7 +1262,25 @@ $fed_env
     networks:
 $fed_networks
     depends_on:
-      - redis"
+      redis:
+        condition: service_healthy
+
+  federation-worker:
+    build:
+      context: ./federation-backend
+      dockerfile: Dockerfile
+    container_name: harmony-federation-worker
+    restart: unless-stopped
+    env_file:
+      - ./federation-backend/.env
+    environment:
+$fed_env_base
+      - FEDERATION_MODE=worker
+    networks:
+$fed_networks
+    depends_on:
+      redis:
+        condition: service_healthy"
     fi
 
     # --- Redis container ---
@@ -2501,8 +2524,7 @@ run_regenerate_keys() {
     # Update Redis password in livekit.yaml and docker-compose.yml
     if [[ "$include_passwords" == "true" ]]; then
         local new_redis_pw
-        new_redis_pw=$(openssl rand -base64 24 | tr -d '\n' | head -c 48)
-        [[ -z "$new_redis_pw" ]] && new_redis_pw=$(openssl rand -hex 24)
+        new_redis_pw=$(openssl rand -hex 24)
 
         local livekit_cfg="$PROJECT_DIR/webrtc/livekit.yaml"
         if [[ -f "$livekit_cfg" ]]; then
