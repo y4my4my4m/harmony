@@ -25,10 +25,10 @@ CREATE PUBLICATION supabase_realtime FOR TABLE
   profiles,
   user_view_contexts,
   -- Voice
-  voice_channel_members,
+  voice_channel_participants,
   -- Encryption key sharing
   megolm_session_shares,
-  megolm_key_backup,
+  megolm_key_backups,
   -- ActivityPub (social feed subscriptions)
   posts,
   post_interactions,

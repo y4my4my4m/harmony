@@ -19,6 +19,7 @@ CREATE PUBLICATION supabase_realtime FOR TABLE
   reactions,
   -- Server structure (for sidebar updates)
   channels,
+  channel_categories,
   servers,
   user_servers,
   server_roles,
@@ -32,14 +33,20 @@ CREATE PUBLICATION supabase_realtime FOR TABLE
   profiles,
   user_view_contexts,
   -- Voice
-  voice_channel_members,
+  voice_channel_participants,
   -- Encryption key sharing
   megolm_session_shares,
-  megolm_key_backup,
+  megolm_key_backups,
   -- Posts (ActivityPub realtime updates)
   posts,
   post_interactions,
-  follows;
+  follows,
+  -- Threads
+  threads,
+  -- Server emojis
+  emojis,
+  -- Federation membership events
+  server_membership_events;
 
 COMMIT;
 
