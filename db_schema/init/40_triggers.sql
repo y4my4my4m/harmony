@@ -457,6 +457,25 @@ CREATE TRIGGER trg_broadcast_unread_count
     FOR EACH ROW
     EXECUTE FUNCTION public.broadcast_unread_count_event();
 
+-- Phase 2: DM conversations, user servers, server metadata
+DROP TRIGGER IF EXISTS trg_broadcast_conversation_participant ON public.conversation_participants;
+CREATE TRIGGER trg_broadcast_conversation_participant
+    AFTER INSERT ON public.conversation_participants
+    FOR EACH ROW
+    EXECUTE FUNCTION public.broadcast_conversation_participant_event();
+
+DROP TRIGGER IF EXISTS trg_broadcast_user_server ON public.user_servers;
+CREATE TRIGGER trg_broadcast_user_server
+    AFTER INSERT OR DELETE ON public.user_servers
+    FOR EACH ROW
+    EXECUTE FUNCTION public.broadcast_user_server_event();
+
+DROP TRIGGER IF EXISTS trg_broadcast_server_change ON public.servers;
+CREATE TRIGGER trg_broadcast_server_change
+    AFTER UPDATE ON public.servers
+    FOR EACH ROW
+    EXECUTE FUNCTION public.broadcast_server_change_event();
+
 DO $$
 BEGIN
     RAISE NOTICE 'Triggers created successfully';

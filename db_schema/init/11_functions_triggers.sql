@@ -2249,7 +2249,7 @@ BEGIN
       ),
       'user_event',
       'user:' || NEW.user_id::text,
-      false
+      true
     );
   ELSIF TG_OP = 'UPDATE' THEN
     IF OLD.is_read IS DISTINCT FROM NEW.is_read THEN
@@ -2261,7 +2261,7 @@ BEGIN
         ),
         'user_event',
         'user:' || NEW.user_id::text,
-        false
+        true
       );
     END IF;
   END IF;
@@ -2306,7 +2306,7 @@ BEGIN
     ),
     'user_event',
     'user:' || v_record.user_id::text,
-    false
+    true
   );
 
   IF TG_OP = 'DELETE' THEN
@@ -2317,6 +2317,107 @@ EXCEPTION WHEN undefined_function THEN
   IF TG_OP = 'DELETE' THEN
     RETURN OLD;
   END IF;
+  RETURN NEW;
+END;
+$$;
+
+-- =========================================================================
+-- Phase 2: Expanded user event broadcast functions
+-- =========================================================================
+
+CREATE OR REPLACE FUNCTION public.broadcast_conversation_participant_event()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  IF TG_OP = 'INSERT' THEN
+    PERFORM realtime.send(
+      jsonb_build_object(
+        'type', 'conversation:new',
+        'conversation_id', NEW.conversation_id,
+        'user_id', NEW.user_id
+      ),
+      'user_event',
+      'user:' || NEW.user_id::text,
+      true
+    );
+  END IF;
+  RETURN NEW;
+EXCEPTION WHEN undefined_function THEN
+  RETURN NEW;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.broadcast_user_server_event()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  IF TG_OP = 'INSERT' THEN
+    PERFORM realtime.send(
+      jsonb_build_object(
+        'type', 'server:joined',
+        'server_id', NEW.server_id,
+        'user_id', NEW.user_id
+      ),
+      'user_event',
+      'user:' || NEW.user_id::text,
+      true
+    );
+  ELSIF TG_OP = 'DELETE' THEN
+    PERFORM realtime.send(
+      jsonb_build_object(
+        'type', 'server:left',
+        'server_id', OLD.server_id,
+        'user_id', OLD.user_id
+      ),
+      'user_event',
+      'user:' || OLD.user_id::text,
+      true
+    );
+  END IF;
+  IF TG_OP = 'DELETE' THEN RETURN OLD; END IF;
+  RETURN NEW;
+EXCEPTION WHEN undefined_function THEN
+  IF TG_OP = 'DELETE' THEN RETURN OLD; END IF;
+  RETURN NEW;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.broadcast_server_change_event()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_member_id uuid;
+BEGIN
+  IF TG_OP = 'UPDATE' THEN
+    FOR v_member_id IN
+      SELECT user_id FROM user_servers WHERE server_id = NEW.id
+    LOOP
+      PERFORM realtime.send(
+        jsonb_build_object(
+          'type', 'server:updated',
+          'server', jsonb_build_object(
+            'id', NEW.id,
+            'name', NEW.name,
+            'description', NEW.description,
+            'icon_url', NEW.icon_url,
+            'banner_url', NEW.banner_url,
+            'updated_at', NEW.updated_at
+          )
+        ),
+        'user_event',
+        'user:' || v_member_id::text,
+        true
+      );
+    END LOOP;
+  END IF;
+  RETURN NEW;
+EXCEPTION WHEN undefined_function THEN
   RETURN NEW;
 END;
 $$;

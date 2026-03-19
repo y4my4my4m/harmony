@@ -10,6 +10,16 @@ BEGIN;
 -- The realtime.send() function must exist in the realtime schema.
 -- To verify: SELECT proname FROM pg_proc WHERE proname = 'send' AND pronamespace = (SELECT oid FROM pg_namespace WHERE nspname = 'realtime');
 --
+-- SECURITY: All broadcasts use private := true, which means only clients with
+-- a valid Supabase JWT can subscribe.  The channel topic includes the user's
+-- UUID (128-bit, unguessable), so other authenticated users cannot discover it
+-- through the API.  For additional hardening, enable RLS on realtime.messages
+-- and add a policy restricting topics to the authenticated user's own UUID:
+--
+--   ALTER TABLE realtime.messages ENABLE ROW LEVEL SECURITY;
+--   CREATE POLICY "users_own_channel" ON realtime.messages FOR SELECT
+--     USING (realtime.topic() = 'user:' || auth.uid()::text);
+--
 -- Both trigger functions use EXCEPTION WHEN undefined_function to gracefully
 -- degrade if realtime.send() is not available.
 -- =============================================================================
@@ -40,7 +50,7 @@ BEGIN
       ),
       'user_event',
       'user:' || NEW.user_id::text,
-      false
+      true
     );
   ELSIF TG_OP = 'UPDATE' THEN
     IF OLD.is_read IS DISTINCT FROM NEW.is_read THEN
@@ -52,7 +62,7 @@ BEGIN
         ),
         'user_event',
         'user:' || NEW.user_id::text,
-        false
+        true
       );
     END IF;
   END IF;
@@ -100,7 +110,7 @@ BEGIN
     ),
     'user_event',
     'user:' || v_record.user_id::text,
-    false
+    true
   );
 
   IF TG_OP = 'DELETE' THEN

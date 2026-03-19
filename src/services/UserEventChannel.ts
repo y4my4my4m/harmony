@@ -16,7 +16,11 @@
 import { supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
 
-type UserEventType = 'notification:new' | 'notification:update' | 'unread:change'
+type UserEventType =
+  | 'notification:new' | 'notification:update'
+  | 'unread:change'
+  | 'conversation:new'
+  | 'server:joined' | 'server:left' | 'server:updated'
 type EventHandler = (payload: Record<string, any>) => void | Promise<void>
 
 const RECONNECT_BASE_DELAY = 2_000

@@ -28,13 +28,13 @@ CREATE INDEX IF NOT EXISTS idx_messages_thread_created
 
 -- These composite indexes cover the most common access patterns in RLS policies
 -- that call is_blocked_by() and has_blocked() per row.
+-- Note: can't use NOW() in partial index predicates (not IMMUTABLE),
+-- so we index all rows and let the query filter expired blocks at runtime.
 CREATE INDEX IF NOT EXISTS idx_user_blocks_blocker_blocked
-  ON user_blocks (blocker_id, blocked_user_id)
-  WHERE expires_at IS NULL OR expires_at > NOW();
+  ON user_blocks (blocker_id, blocked_user_id);
 
 CREATE INDEX IF NOT EXISTS idx_user_blocks_blocked_blocker
-  ON user_blocks (blocked_user_id, blocker_id)
-  WHERE expires_at IS NULL OR expires_at > NOW();
+  ON user_blocks (blocked_user_id, blocker_id);
 
 -- =============================================================================
 -- Indexes for RLS membership checks (messages_select_channel_member)

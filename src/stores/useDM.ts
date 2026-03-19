@@ -11,6 +11,7 @@ import { ensureMessageEmbeds } from '@/utils/messageEmbedUtils'
 import { processMessageDecryption } from '@/utils/messageDecryption'
 import { debug } from '@/utils/debug'
 import { realtimeConnectionManager, type ConnectionStatus } from '@/services/RealtimeConnectionManager'
+import { userEventChannel } from '@/services/UserEventChannel'
 
 // Types for DM functionality
 export interface DMUser {
@@ -1890,25 +1891,18 @@ export const useDMStore = defineStore('dm', () => {
       // Get reactions store for handling real-time updates
       const reactionsStore = useReactionsStore()
 
-      // Subscribe to conversation_participants for this user to detect new conversations
-      // This is more efficient than subscribing to entire conversations table
-      const conversationsChannelName = `dm-conversations-${userId}`
-      const conversationsUnsubscribe = realtimeConnectionManager.subscribeToTable({
-        channelName: conversationsChannelName,
-        table: 'conversation_participants',
-        filter: `user_id=eq.${userId}`,
-        onInsert: (payload) => {
-          debug.log('🔔 User added to new DM conversation:', payload.new)
+      // Listen for new conversations via the shared UserEventChannel broadcast
+      // (replaces dedicated dm-conversations postgres_changes channel)
+      const { authContextService } = await import('@/services/AuthContextService')
+      const ctx = await authContextService.getCurrentContext()
+      if (ctx.isAuthenticated) {
+        userEventChannel.connect(ctx.profileId)
+        const unsubConversation = userEventChannel.on('conversation:new', (data) => {
+          debug.log('🔔 Broadcast: User added to new DM conversation:', data.conversation_id)
           fetchUserConversations(userId)
-        },
-        onStatusChange: (status, name) => {
-          debug.log(`📡 ${name} status: ${status}`)
-        }
-      })
-
-      // DM reactions are subscribed per-conversation in setupConversationSubscription
-
-      dmSubscriptions.value.set(conversationsChannelName, conversationsUnsubscribe)
+        })
+        dmSubscriptions.value.set('broadcast:conversation:new', unsubConversation)
+      }
 
     } catch (error) {
       debug.error('❌ Error setting up DM realtime subscriptions:', error)
