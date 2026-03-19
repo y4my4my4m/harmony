@@ -63,7 +63,7 @@ BEGIN
 END;
 $$;
 
--- Also optimize the follower backfill trigger
+-- Also optimize the follower backfill trigger (capped at 50 most recent posts)
 CREATE OR REPLACE FUNCTION public.add_existing_posts_to_new_follower_timeline()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -72,21 +72,62 @@ AS $$
 BEGIN
     IF NEW.status = 'pending' THEN
         INSERT INTO timeline_entries (user_id, post_id, timeline_type, position)
-        SELECT NEW.follower_id, p.id, 'home', EXTRACT(epoch FROM p.created_at) * 1000000
-        FROM posts p
-        WHERE p.author_id = NEW.following_id
-          AND p.visibility = 'public'
-          AND NOT COALESCE(p.is_deleted, false)
-          AND p.created_at > NOW() - INTERVAL '7 days'
+        SELECT NEW.follower_id, sub.id, 'home', EXTRACT(epoch FROM sub.created_at) * 1000000
+        FROM (
+            SELECT p.id, p.created_at
+            FROM posts p
+            WHERE p.author_id = NEW.following_id
+              AND p.visibility = 'public'
+              AND NOT COALESCE(p.is_deleted, false)
+              AND p.created_at > NOW() - INTERVAL '7 days'
+            ORDER BY p.created_at DESC
+            LIMIT 50
+        ) sub
         ON CONFLICT (user_id, post_id, timeline_type) DO NOTHING;
     ELSIF NEW.status = 'accepted' THEN
         INSERT INTO timeline_entries (user_id, post_id, timeline_type, position)
-        SELECT NEW.follower_id, p.id, 'home', EXTRACT(epoch FROM p.created_at) * 1000000
-        FROM posts p
-        WHERE p.author_id = NEW.following_id
-          AND p.visibility IN ('public', 'unlisted')
-          AND NOT COALESCE(p.is_deleted, false)
-          AND p.created_at > NOW() - INTERVAL '7 days'
+        SELECT NEW.follower_id, sub.id, 'home', EXTRACT(epoch FROM sub.created_at) * 1000000
+        FROM (
+            SELECT p.id, p.created_at
+            FROM posts p
+            WHERE p.author_id = NEW.following_id
+              AND p.visibility IN ('public', 'unlisted')
+              AND NOT COALESCE(p.is_deleted, false)
+              AND p.created_at > NOW() - INTERVAL '7 days'
+            ORDER BY p.created_at DESC
+            LIMIT 50
+        ) sub
+        ON CONFLICT (user_id, post_id, timeline_type) DO NOTHING;
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
+-- Also cap backfill_timeline_on_follow (same unbounded issue)
+CREATE OR REPLACE FUNCTION public.backfill_timeline_on_follow()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM profiles WHERE id = NEW.follower_id AND is_local = true) THEN
+        RETURN NEW;
+    END IF;
+
+    IF TG_OP = 'UPDATE' AND OLD.status = 'pending' AND NEW.status = 'accepted' THEN
+        INSERT INTO timeline_entries (user_id, post_id, timeline_type, position)
+        SELECT NEW.follower_id, sub.id, 'home', EXTRACT(epoch FROM sub.created_at) * 1000000
+        FROM (
+            SELECT p.id, p.created_at
+            FROM posts p
+            WHERE p.author_id = NEW.following_id
+              AND p.visibility = 'unlisted'
+              AND NOT COALESCE(p.is_deleted, false)
+              AND p.created_at > NOW() - INTERVAL '7 days'
+            ORDER BY p.created_at DESC
+            LIMIT 50
+        ) sub
         ON CONFLICT (user_id, post_id, timeline_type) DO NOTHING;
     END IF;
 

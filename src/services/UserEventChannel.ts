@@ -41,7 +41,14 @@ class UserEventChannel {
    */
   connect(profileId: string): void {
     if (this.connected && this.profileId === profileId) return
-    this.disconnect()
+
+    // If switching users, full teardown (clears handlers).
+    // If same user (reconnect), only tear down the channel.
+    if (this.profileId && this.profileId !== profileId) {
+      this.disconnect()
+    } else {
+      this.teardownChannel()
+    }
 
     this.profileId = profileId
     const topic = `user:${profileId}`
@@ -75,8 +82,11 @@ class UserEventChannel {
     return () => { this.handlers.get(type)?.delete(handler) }
   }
 
-  /** Tear down the channel and clear all handlers. */
-  disconnect(): void {
+  /**
+   * Remove the channel and cancel pending reconnects, but keep handlers intact.
+   * Used internally during reconnect so registered handlers survive.
+   */
+  private teardownChannel(): void {
     if (this.retryTimer) {
       clearTimeout(this.retryTimer)
       this.retryTimer = null
@@ -86,6 +96,11 @@ class UserEventChannel {
       this.channel = null
     }
     this.connected = false
+  }
+
+  /** Full teardown: remove the channel, clear all handlers, reset state. */
+  disconnect(): void {
+    this.teardownChannel()
     this.profileId = null
     this.retryCount = 0
     this.handlers.clear()
@@ -133,12 +148,7 @@ class UserEventChannel {
       this.retryCount++
       const pid = this.profileId
       if (!pid) return
-      // Clean up old channel before reconnecting
-      if (this.channel) {
-        supabase.removeChannel(this.channel)
-        this.channel = null
-      }
-      this.connected = false
+      this.teardownChannel()
       this.connect(pid)
     }, delay + jitter)
   }

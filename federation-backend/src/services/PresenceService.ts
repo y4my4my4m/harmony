@@ -126,11 +126,46 @@ class PresenceServiceSingleton {
 
   /**
    * Get all online profile IDs (heartbeat within HEARTBEAT_TTL).
+   * Excludes users whose status is 'invisible'.
    */
   async getOnlineIds(): Promise<string[]> {
     if (!redis.ready) return [];
     const cutoff = Date.now() - HEARTBEAT_TTL * 1000;
-    return redis.zrangebyscore(PRESENCE_KEY, cutoff, '+inf');
+    const candidates = await redis.zrangebyscore(PRESENCE_KEY, cutoff, '+inf');
+    if (candidates.length === 0) return [];
+
+    const client = redis.getClient();
+    if (!client) return candidates;
+
+    try {
+      const pipeline = client.pipeline();
+      for (const id of candidates) {
+        pipeline.hget(PRESENCE_DETAIL_KEY, id);
+      }
+      const results = await pipeline.exec();
+      if (!results) return candidates;
+
+      const visible: string[] = [];
+      for (let i = 0; i < candidates.length; i++) {
+        const raw = results[i]?.[1] as string | null;
+        if (!raw) {
+          visible.push(candidates[i]);
+          continue;
+        }
+        try {
+          const detail = JSON.parse(raw);
+          if (detail.status !== 'invisible') {
+            visible.push(candidates[i]);
+          }
+        } catch {
+          visible.push(candidates[i]);
+        }
+      }
+      return visible;
+    } catch (err) {
+      logger.warn('Presence getOnlineIds filter failed:', err);
+      return candidates;
+    }
   }
 
   private async cleanupStale(profileId: string): Promise<void> {
