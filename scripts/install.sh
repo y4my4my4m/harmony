@@ -445,7 +445,15 @@ setup_selfhosted_supabase_docker() {
     (cd "$SUPABASE_PROJECT_DIR" && run_with_spinner "Pulling images..." docker compose pull)
 
     echo ""
-    print_step "6" "Starting Supabase"
+    print_success "Supabase project ready at: ${BOLD}$SUPABASE_PROJECT_DIR${RESET}"
+    echo ""
+}
+
+start_supabase() {
+    if [[ -z "$SUPABASE_PROJECT_DIR" ]] || [[ ! -d "$SUPABASE_PROJECT_DIR" ]]; then
+        return
+    fi
+
     print_info "Starting Supabase containers..."
     (cd "$SUPABASE_PROJECT_DIR" && docker compose up -d)
 
@@ -473,9 +481,6 @@ setup_selfhosted_supabase_docker() {
         print_warn "Timed out waiting for PostgreSQL. It may still be initializing."
         print_info "The schema setup step will retry connecting automatically."
     fi
-
-    echo ""
-    print_success "Supabase started at: ${BOLD}$SUPABASE_PROJECT_DIR${RESET}"
     echo ""
 }
 
@@ -562,7 +567,11 @@ configure_supabase() {
             setup_selfhosted_supabase_docker
 
             # Auto-generate all keys and write them into the Supabase .env
+            # MUST happen before starting Supabase so Postgres initializes with the correct passwords
             generate_supabase_keys
+
+            # Now start Supabase with the correct credentials baked in
+            start_supabase
 
             SUPABASE_URL="https://$SUPABASE_SITE_DOMAIN"
             SUPABASE_INTERNAL_URL="http://supabase-kong:8000"
@@ -1767,18 +1776,7 @@ start_services() {
     if [[ "$SUPABASE_MODE" == "selfhosted" ]] && [[ -n "$SUPABASE_PROJECT_DIR" ]]; then
         if ! docker network inspect supabase_default &>/dev/null 2>&1; then
             print_info "Starting Supabase (required before Harmony services)..."
-            (cd "$SUPABASE_PROJECT_DIR" && docker compose up -d)
-            local db_container="${SUPABASE_DB_CONTAINER:-supabase-db}"
-            print_info "Waiting for PostgreSQL to be ready..."
-            local waited=0
-            while [[ $waited -lt 120 ]]; do
-                if docker logs "$db_container" 2>&1 | grep -q "database system is ready to accept connections"; then
-                    break
-                fi
-                sleep 5
-                waited=$((waited + 5))
-            done
-            print_success "Supabase is running"
+            start_supabase
         fi
     fi
 
