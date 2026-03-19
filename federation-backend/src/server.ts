@@ -131,47 +131,36 @@ function mountBullBoard(app: Application): void {
     serverAdapter,
   });
 
-  const adminAuth = async (
+  const instanceAdminCheck = async (
     req: express.Request,
     res: express.Response,
     next: express.NextFunction,
   ) => {
-    await requireAuth(req, res, async () => {
-      const profileId = (req as AuthenticatedRequest).profileId;
-      if (!profileId) {
-        return res.status(403).json({ error: 'Admin access required' });
+    const profileId = (req as AuthenticatedRequest).profileId;
+    if (!profileId) {
+      return res.status(403).json({ error: 'Instance admin access required' });
+    }
+
+    try {
+      const { getSupabaseClient } = await import('./config/supabase.js');
+      const supabase = getSupabaseClient();
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('is_admin')
+        .eq('id', profileId)
+        .single();
+
+      if (!profile?.is_admin) {
+        return res.status(403).json({ error: 'Instance admin access required' });
       }
-
-      try {
-        const { getSupabaseClient } = await import('./config/supabase.js');
-        const supabase = getSupabaseClient();
-        const { data: membership } = await supabase
-          .from('server_members')
-          .select('role_id, roles!inner(permissions)')
-          .eq('profile_id', profileId)
-          .limit(1)
-          .single();
-
-        const perms = (membership as any)?.roles?.permissions;
-        const isAdmin =
-          typeof perms === 'string'
-            ? BigInt(perms) & BigInt(0x8)
-            : typeof perms === 'number'
-              ? perms & 0x8
-              : false;
-
-        if (!isAdmin) {
-          return res.status(403).json({ error: 'Admin access required' });
-        }
-        return next();
-      } catch {
-        return res.status(403).json({ error: 'Admin access required' });
-      }
-    });
+      return next();
+    } catch {
+      return res.status(403).json({ error: 'Instance admin access required' });
+    }
   };
 
-  app.use('/admin/queues', adminAuth, serverAdapter.getRouter());
-  app.use('/api/federation/admin/queues', adminAuth, serverAdapter.getRouter());
+  app.use('/admin/queues', requireAuth, instanceAdminCheck, serverAdapter.getRouter());
+  app.use('/api/federation/admin/queues', requireAuth, instanceAdminCheck, serverAdapter.getRouter());
   logger.info('Bull Board mounted at /admin/queues');
 }
 
