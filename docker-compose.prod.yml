@@ -144,6 +144,31 @@ services:
       - harmony
 
   # ---------------------------------------------------------------------------
+  # Bull Board - Queue Monitoring Dashboard (Optional)
+  # ---------------------------------------------------------------------------
+  # Activate with: docker compose --profile monitoring up -d
+  # Access at http://your-server:3003 with HTTP basic auth credentials
+  # ---------------------------------------------------------------------------
+  bull-board:
+    build: ./bull-board
+    container_name: harmony-bull-board
+    restart: unless-stopped
+    ports:
+      - "3003:3003"
+    environment:
+      - REDIS_URL=${REDIS_URL:-redis://localhost:6379}
+      - BULL_BOARD_USER=${BULL_BOARD_USER:-admin}
+      - BULL_BOARD_PASSWORD=${BULL_BOARD_PASSWORD:?Set BULL_BOARD_PASSWORD in .env}
+      - PORT=3003
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - harmony
+    profiles:
+      - monitoring
+
+  # ---------------------------------------------------------------------------
   # Nginx Reverse Proxy
   # ---------------------------------------------------------------------------
   # Serves static frontend and proxies to backend services

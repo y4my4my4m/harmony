@@ -14,15 +14,10 @@ import express, { Application } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
-import { createBullBoard } from '@bull-board/api';
-import { BullMQAdapter } from '@bull-board/api/bullMQAdapter';
-import { ExpressAdapter } from '@bull-board/express';
 import config from './config/index.js';
 import { logger } from './utils/logger.js';
 import { errorHandler, notFound } from './middleware/errorHandler.js';
 import { linkPreviewLimiter, pushLimiter } from './middleware/rateLimit.js';
-import { requireAuth, type AuthenticatedRequest } from './middleware/auth.js';
-import { bullmqManager } from './queue/BullMQManager.js';
 
 import healthRouter from './routes/health.js';
 import linkPreviewRouter from './routes/linkPreview.js';
@@ -92,9 +87,6 @@ export function createApp(): Application {
   app.use('/realtime', realtimeRouter);
   app.use('/api/federation/realtime', realtimeRouter);
 
-  // Bull Board admin dashboard
-  mountBullBoard(app);
-
   // Rate limiting is applied per-route inside each router (not at the mount level)
   // to prevent cascade bleeding — mounting `app.use('/', limiter, routerA)` causes
   // the limiter to count requests that don't match routerA but fall through to routerB.
@@ -113,55 +105,6 @@ export function createApp(): Application {
   app.use(errorHandler);
 
   return app;
-}
-
-function mountBullBoard(app: Application): void {
-  const queues = bullmqManager.getAllQueues();
-
-  if (queues.length === 0) {
-    logger.info('Bull Board: no queues yet (will be available after worker starts)');
-    return;
-  }
-
-  const serverAdapter = new ExpressAdapter();
-  serverAdapter.setBasePath('/admin/queues');
-
-  createBullBoard({
-    queues: queues.map((q) => new BullMQAdapter(q)),
-    serverAdapter,
-  });
-
-  const instanceAdminCheck = async (
-    req: express.Request,
-    res: express.Response,
-    next: express.NextFunction,
-  ) => {
-    const profileId = (req as AuthenticatedRequest).profileId;
-    if (!profileId) {
-      return res.status(403).json({ error: 'Instance admin access required' });
-    }
-
-    try {
-      const { getSupabaseClient } = await import('./config/supabase.js');
-      const supabase = getSupabaseClient();
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('is_admin')
-        .eq('id', profileId)
-        .single();
-
-      if (!profile?.is_admin) {
-        return res.status(403).json({ error: 'Instance admin access required' });
-      }
-      return next();
-    } catch {
-      return res.status(403).json({ error: 'Instance admin access required' });
-    }
-  };
-
-  app.use('/admin/queues', requireAuth, instanceAdminCheck, serverAdapter.getRouter());
-  app.use('/api/federation/admin/queues', requireAuth, instanceAdminCheck, serverAdapter.getRouter());
-  logger.info('Bull Board mounted at /admin/queues');
 }
 
 export async function startServer(): Promise<void> {

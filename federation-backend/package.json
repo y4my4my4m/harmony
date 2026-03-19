@@ -35,8 +35,6 @@
   "author": "",
   "license": "AGPL-3.0",
   "dependencies": {
-    "@bull-board/api": "^6.20.5",
-    "@bull-board/express": "^6.20.5",
     "@supabase/supabase-js": "^2.39.2",
     "bullmq": "^5.71.0",
     "compression": "^1.7.4",

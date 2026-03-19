@@ -289,7 +289,7 @@ supabase
 ### 4. **Job Processing**
 - BullMQ (Redis) for federation job processing with automatic retries, backoff, and persistence
 - LISTEN/NOTIFY bridge: DB triggers fire `pg_notify` which is bridged into BullMQ queues instantly
-- Bull Board dashboard at `/admin/queues` for monitoring and management
+- Bull Board dashboard (standalone Docker container, `--profile monitoring`) for queue monitoring
 - Repeatable scheduled maintenance jobs (keygen sweep, orphan cleanup)
 - Periodic sweep safety net for missed DB trigger events
 

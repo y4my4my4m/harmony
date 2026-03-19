@@ -70,6 +70,7 @@ ENABLE_FEDERATION=true
 ENABLE_VOICE=true
 ENABLE_BOTS=false
 ENABLE_DOCS=false
+ENABLE_MONITORING=false
 USE_DOCKER=true          # run backend services in Docker (vs native Node)
 WEB_ROOT=""              # where nginx serves dist/ from (set during config gen)
 
@@ -611,6 +612,18 @@ configure_features() {
         ENABLE_DOCS=false
     fi
 
+    # Queue monitoring dashboard
+    echo ""
+    printf "  ${BOLD}Queue Monitoring (Bull Board)${RESET}\n"
+    print_info "Web dashboard for monitoring federation job queues."
+    print_info "Useful for debugging federation issues. Runs on port 3003."
+    echo ""
+    if prompt_yn "Enable queue monitoring dashboard?" "n"; then
+        ENABLE_MONITORING=true
+    else
+        ENABLE_MONITORING=false
+    fi
+
     # Deployment method (production only)
     if [[ "$MODE" == "production" ]]; then
         echo ""
@@ -656,6 +669,11 @@ configure_features() {
         printf "    ${BGREEN}[x]${RESET} Documentation Site (docs.$DOMAIN)\n"
     else
         printf "    ${DIM}[ ]${RESET} Documentation Site\n"
+    fi
+    if $ENABLE_MONITORING; then
+        printf "    ${BGREEN}[x]${RESET} Queue Monitoring (Bull Board)\n"
+    else
+        printf "    ${DIM}[ ]${RESET} Queue Monitoring\n"
     fi
     if [[ "$MODE" == "production" ]]; then
         if $USE_DOCKER; then
@@ -749,6 +767,12 @@ generate_livekit_keys() {
     REDIS_PASSWORD=$(openssl rand -base64 24 | tr -d '\n' | head -c 48)
     [[ -z "$REDIS_PASSWORD" ]] && REDIS_PASSWORD=$(openssl rand -hex 24)
     print_success "Generated Redis password"
+
+    if $ENABLE_MONITORING; then
+        BULL_BOARD_PASSWORD=$(openssl rand -base64 18 | tr -d '\n' | head -c 24)
+        [[ -z "$BULL_BOARD_PASSWORD" ]] && BULL_BOARD_PASSWORD=$(openssl rand -hex 12)
+        print_success "Generated Bull Board dashboard password"
+    fi
 }
 
 # ---------------------------------------------------------------------------
@@ -791,6 +815,14 @@ generate_frontend_env() {
         env_extra="
 # Redis (used by LiveKit and/or federation-backend)
 REDIS_PASSWORD=$REDIS_PASSWORD"
+    fi
+
+    if $ENABLE_MONITORING && [[ -n "${BULL_BOARD_PASSWORD:-}" ]]; then
+        env_extra+="
+
+# Bull Board queue monitoring dashboard (port 3003)
+BULL_BOARD_USER=admin
+BULL_BOARD_PASSWORD=$BULL_BOARD_PASSWORD"
     fi
 
     cat > "$env_file" << EOF
@@ -1303,6 +1335,27 @@ $bot_env
 $bot_networks"
     fi
 
+    # --- Bull Board (queue monitoring) ---
+    if $ENABLE_MONITORING; then
+        compose+="
+
+  bull-board:
+    build: ./bull-board
+    container_name: harmony-bull-board
+    restart: unless-stopped
+    ports:
+      - \"3003:3003\"
+    environment:
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
+      - BULL_BOARD_USER=\${BULL_BOARD_USER:-admin}
+      - BULL_BOARD_PASSWORD=\${BULL_BOARD_PASSWORD:?Set BULL_BOARD_PASSWORD in .env}
+      - PORT=3003
+    depends_on:
+      - redis
+    networks:
+      - harmony"
+    fi
+
     # --- Networks ---
     compose+="
 
@@ -1773,6 +1826,11 @@ show_summary() {
         printf "    ${CHECK} Bot Gateway\n"
     else
         printf "    ${CROSS} Bot Gateway ${DIM}(disabled)${RESET}\n"
+    fi
+    if $ENABLE_MONITORING; then
+        printf "    ${CHECK} Queue Monitoring ${DIM}(Bull Board on port 3003)${RESET}\n"
+    else
+        printf "    ${CROSS} Queue Monitoring ${DIM}(disabled)${RESET}\n"
     fi
     echo ""
 
