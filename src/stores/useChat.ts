@@ -227,6 +227,11 @@ export const useChatStore = defineStore('chat', {
     async fetchMessages(channelId: string, oldestMessageId: string = '', signal?: AbortSignal) {
       if (this.loadingOlderMessages && oldestMessageId !== '') return;
 
+      // Set currentChannelId immediately so stale-response guards work correctly
+      if (oldestMessageId === '' && this.currentChannelId !== channelId) {
+        this.currentChannelId = channelId;
+      }
+
       // For initial load, check cache first - make this synchronous for instant loading
       if (oldestMessageId === '') {
         // Simple time-based cache validation (no async database calls)
