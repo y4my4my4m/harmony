@@ -17,7 +17,7 @@ CREATE OR REPLACE FUNCTION public.is_user_viewing_context(
     p_channel_id uuid DEFAULT NULL,
     p_conversation_id uuid DEFAULT NULL
 ) RETURNS boolean
-LANGUAGE plpgsql STABLE
+LANGUAGE plpgsql STABLE SECURITY DEFINER
 AS $$
 DECLARE
     v_view_context RECORD;

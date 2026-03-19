@@ -140,7 +140,7 @@ describe('DM message flow', () => {
       .single()
 
     expect(data).not.toBeNull()
-    expect(data!.content[0].content).toBe('Hello Bob!')
+    expect(data!.content[0].text).toBe('Hello Bob!')
   })
 
   it('multiple messages can be sent in a conversation', async () => {

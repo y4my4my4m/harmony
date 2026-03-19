@@ -1,13 +1,14 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { supabase } from '@/supabase'
 import { authContextService } from '@/services/AuthContextService'
+import { realtimeConnectionManager } from '@/services/RealtimeConnectionManager'
 import type { UnreadCount } from '@/types'
 import { debug } from '@/utils/debug'
 
 // Module-level shared state so multiple components share one fetch/subscription
 const sharedUnreadCounts = ref<Map<string, UnreadCount>>(new Map())
 const sharedIsLoading = ref(false)
-let sharedRealtimeSubscription: any = null
+let sharedUnsubscribe: (() => void) | null = null
 let sharedProfileId: string | null = null
 let initPromise: Promise<void> | null = null
 let subscriberCount = 0
@@ -168,51 +169,54 @@ export function useUnreadCounts() {
   }
 
   /**
-   * Setup real-time subscription for unread counts (shared, created once)
+   * Setup real-time subscription for unread counts via RealtimeConnectionManager
+   * (auto-reconnect + health monitoring)
    */
   const setupRealtimeSubscription = async (): Promise<void> => {
-    if (sharedRealtimeSubscription) return
+    if (sharedUnsubscribe) return
 
     const profileId = await getProfileId()
     if (!profileId) return
 
-    sharedRealtimeSubscription = supabase
-      .channel(`unread-counts-${profileId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'unread_counts',
-          filter: `user_id=eq.${profileId}`,
-        },
-        (payload: any) => {
-          debug.log('🔄 Unread count update:', payload)
+    const channelName = `unread-counts-${profileId}`
 
-          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
-            const count = payload.new as UnreadCount
-            const context = {
-              serverId: count.server_id,
-              channelId: count.channel_id,
-              conversationId: count.conversation_id,
-            }
-            const key = getContextKey(context)
-            sharedUnreadCounts.value.set(key, count)
-          } else if (payload.eventType === 'DELETE') {
-            const count = payload.old as UnreadCount
-            const context = {
-              serverId: count.server_id,
-              channelId: count.channel_id,
-              conversationId: count.conversation_id,
-            }
-            const key = getContextKey(context)
-            sharedUnreadCounts.value.delete(key)
-          }
+    sharedUnsubscribe = realtimeConnectionManager.subscribeToTable({
+      channelName,
+      table: 'unread_counts',
+      filter: `user_id=eq.${profileId}`,
+      onInsert: (payload) => {
+        const count = payload.new as UnreadCount
+        const context = {
+          serverId: count.server_id,
+          channelId: count.channel_id,
+          conversationId: count.conversation_id,
         }
-      )
-      .subscribe()
+        sharedUnreadCounts.value.set(getContextKey(context), count)
+      },
+      onUpdate: (payload) => {
+        const count = payload.new as UnreadCount
+        const context = {
+          serverId: count.server_id,
+          channelId: count.channel_id,
+          conversationId: count.conversation_id,
+        }
+        sharedUnreadCounts.value.set(getContextKey(context), count)
+      },
+      onDelete: (payload) => {
+        const count = payload.old as UnreadCount
+        const context = {
+          serverId: count.server_id,
+          channelId: count.channel_id,
+          conversationId: count.conversation_id,
+        }
+        sharedUnreadCounts.value.delete(getContextKey(context))
+      },
+      onStatusChange: (status, name) => {
+        debug.log(`📡 ${name} status: ${status}`)
+      },
+    })
 
-    debug.log('✅ Real-time subscription for unread counts established')
+    debug.log('✅ Real-time subscription for unread counts established via RealtimeConnectionManager')
   }
 
   /**
@@ -222,9 +226,9 @@ export function useUnreadCounts() {
     subscriberCount--
     if (subscriberCount <= 0) {
       subscriberCount = 0
-      if (sharedRealtimeSubscription) {
-        supabase.removeChannel(sharedRealtimeSubscription)
-        sharedRealtimeSubscription = null
+      if (sharedUnsubscribe) {
+        sharedUnsubscribe()
+        sharedUnsubscribe = null
         debug.log('🧹 Cleaned up unread counts real-time subscription')
       }
       sharedProfileId = null

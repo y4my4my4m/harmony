@@ -83,6 +83,9 @@ const loadMessages = async () => {
   const { signal } = controller
 
   if (props.isDM) {
+    // Clean up channel subscriptions when entering DM view to prevent leaks
+    chatStore.unsubscribeFromMessages()
+
     const conversationId = route.params.conversationId as string
     if (conversationId) {
       // Update current conversation immediately for responsive UI
@@ -118,6 +121,11 @@ const loadMessages = async () => {
       }
     }
   } else {
+    // Clean up DM conversation subscription when entering channel view to prevent leaks
+    if (dmStore.currentConversationId) {
+      dmStore.cleanupConversationSubscription(dmStore.currentConversationId)
+    }
+
     const channelId = route.params.channelId as string
     const serverId = route.params.serverId as string
     

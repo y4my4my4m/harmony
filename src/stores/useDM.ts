@@ -79,6 +79,9 @@ export const useDMStore = defineStore('dm', () => {
   const dmSubscriptions = ref<Map<string, any>>(new Map())
   const currentSubscription = ref<any | null>(null)
   
+  // Connection status (mirrors useChat pattern)
+  const dmConnectionStatus = ref<import('@/services/RealtimeConnectionManager').ConnectionStatus>('disconnected')
+  
   // Cache for individual reply messages
   const replyMessageCache = ref<Map<string, Message>>(new Map())
   const fetchingReplyMessages = ref<Set<string>>(new Set())
@@ -165,6 +168,28 @@ export const useDMStore = defineStore('dm', () => {
     }
   }
 
+  /**
+   * Insert a message into a sorted array by created_at.
+   * Fast path for newest messages (append), binary insert for older ones.
+   */
+  const insertMessageSorted = (arr: Message[], msg: Message) => {
+    const msgTime = new Date(msg.created_at).getTime()
+    if (arr.length === 0 || new Date(arr[arr.length - 1].created_at).getTime() <= msgTime) {
+      arr.push(msg)
+      return
+    }
+    let lo = 0, hi = arr.length
+    while (lo < hi) {
+      const mid = (lo + hi) >>> 1
+      if (new Date(arr[mid].created_at).getTime() <= msgTime) {
+        lo = mid + 1
+      } else {
+        hi = mid
+      }
+    }
+    arr.splice(lo, 0, msg)
+  }
+
   const addMessageToCache = (message: Message) => {
     try {
       ensureMessageEmbeds(message)
@@ -174,7 +199,7 @@ export const useDMStore = defineStore('dm', () => {
     // Add to current messages if it's the current conversation
     if (currentConversationId.value === message.conversation_id) {
       if (!currentDMMessages.value.some(msg => msg.id === message.id)) {
-        currentDMMessages.value.push(message)
+        insertMessageSorted(currentDMMessages.value, message)
       }
     }
 
@@ -182,7 +207,7 @@ export const useDMStore = defineStore('dm', () => {
     const cached = messageCache.value.get(message.conversation_id!)
     if (cached) {
       if (!cached.messages.some(msg => msg.id === message.id)) {
-        cached.messages.push(message)
+        insertMessageSorted(cached.messages, message)
         cached.lastModified = new Date()
       }
     } else {
@@ -1931,8 +1956,10 @@ export const useDMStore = defineStore('dm', () => {
             return
           }
           
+          const payloadContent = JSON.stringify(message.content)
           const tempMessageIndex = currentDMMessages.value.findIndex(m => 
-            m.id.startsWith('temp-') && m.user_id === message.user_id
+            m.id.startsWith('temp-') && m.user_id === message.user_id &&
+            JSON.stringify(m.content) === payloadContent
           )
           
           if (tempMessageIndex !== -1) {
@@ -2052,6 +2079,54 @@ export const useDMStore = defineStore('dm', () => {
         
         onStatusChange: (status, name) => {
           debug.log(`📡 ${name} status: ${status}`)
+          dmConnectionStatus.value = status
+        },
+        
+        onReconnected: async () => {
+          debug.log('🔀 DM conversation reconnected, gap-filling for:', conversationId)
+          try {
+            if (currentDMMessages.value.length > 0) {
+              const newestMsg = currentDMMessages.value[currentDMMessages.value.length - 1]
+              const newestTime = newestMsg.created_at instanceof Date
+                ? newestMsg.created_at.toISOString()
+                : String(newestMsg.created_at)
+              const { data: recent, error } = await supabase
+                .from('messages')
+                .select('*')
+                .eq('conversation_id', conversationId)
+                .gt('created_at', newestTime)
+                .order('created_at', { ascending: true })
+                .limit(50)
+              if (!error && recent) {
+                let added = 0
+                for (const msg of recent) {
+                  if (!currentDMMessages.value.some(m => m.id === msg.id)) {
+                    const formatted: Message = {
+                      id: msg.id,
+                      user_id: msg.user_id,
+                      content: msg.content,
+                      created_at: new Date(msg.created_at),
+                      channel_id: '',
+                      conversation_id: msg.conversation_id,
+                      reply_to: msg.reply_to,
+                      reactions: msg.reactions || [],
+                      is_system: msg.is_system,
+                      metadata: msg.metadata || null,
+                      encrypted: msg.encrypted || false,
+                      encryption_metadata: msg.encryption_metadata
+                    }
+                    insertMessageSorted(currentDMMessages.value, formatted)
+                    added++
+                  }
+                }
+                if (added > 0) {
+                  debug.log(`✅ DM gap-fill: added ${added} missed messages`)
+                }
+              }
+            }
+          } catch (err) {
+            debug.error('❌ DM gap-fill failed:', err)
+          }
         }
       })
 
@@ -2790,6 +2865,7 @@ export const useDMStore = defineStore('dm', () => {
     isSearching,
     allMessagesLoaded,
     isInitializing,
+    dmConnectionStatus,
     
     // Computed
     getCurrentConversation,
@@ -2821,6 +2897,7 @@ export const useDMStore = defineStore('dm', () => {
     switchToConversation,
     clearDMMessages,
     setupConversationSubscription,
+    cleanupConversationSubscription,
     cleanupRealtimeSubscriptions,
     cleanup,
     

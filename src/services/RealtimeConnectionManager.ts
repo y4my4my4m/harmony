@@ -66,6 +66,11 @@ export interface TableSubscriptionConfig {
   onDelete?: PayloadHandler
   /** Handler for status changes */
   onStatusChange?: StatusHandler
+  /**
+   * Called after a successful reconnect (status goes from non-connected to SUBSCRIBED
+   * with retryCount > 0). Use this to fetch messages missed during the disconnect.
+   */
+  onReconnected?: () => void | Promise<void>
 }
 
 /**
@@ -86,6 +91,8 @@ export interface MultiTableSubscriptionConfig {
   }>
   /** Handler for status changes */
   onStatusChange?: StatusHandler
+  /** Called after a successful reconnect */
+  onReconnected?: () => void | Promise<void>
 }
 
 /** Internal managed subscription state */
@@ -536,13 +543,30 @@ class RealtimeConnectionManagerService {
     debug.log(`📡 RealtimeManager: ${channelName} status: ${status}`)
     
     switch (status) {
-      case 'SUBSCRIBED':
+      case 'SUBSCRIBED': {
+        const wasReconnect = managedSub.retryCount > 0
         managedSub.retryCount = 0
         managedSub.lastConnectedAt = new Date()
         managedSub.lastError = null
         this.updateSubscriptionStatus(channelName, 'connected')
         debug.log(`✅ RealtimeManager: ${channelName} connected`)
+        
+        // Fire onReconnected callback so consumers can gap-fill missed events
+        if (wasReconnect) {
+          const config = managedSub.config
+          if ('onReconnected' in config && typeof config.onReconnected === 'function') {
+            try {
+              debug.log(`🔀 RealtimeManager: Firing onReconnected for ${channelName}`)
+              Promise.resolve(config.onReconnected()).catch(err => {
+                debug.error(`❌ RealtimeManager: onReconnected error for ${channelName}:`, err)
+              })
+            } catch (err) {
+              debug.error(`❌ RealtimeManager: onReconnected sync error for ${channelName}:`, err)
+            }
+          }
+        }
         break
+      }
         
       case 'CHANNEL_ERROR':
         managedSub.lastErrorAt = new Date()
@@ -749,10 +773,12 @@ class RealtimeConnectionManagerService {
       this.forceReconnect(channelName)
     }
     
-    // Reset flag after a delay to allow future reconnects
+    // Reset flag after enough time for all reconnects to start.
+    // Scale with subscription count to avoid premature reset.
+    const resetDelay = Math.max(5000, this.subscriptions.size * 500)
     setTimeout(() => {
       this.isReconnecting = false
-    }, 1000)
+    }, resetDelay)
   }
 
   /**
@@ -868,21 +894,26 @@ class RealtimeConnectionManagerService {
   }
 
   private performHealthCheck(): void {
-    // Minimal health check - Supabase handles most reconnection automatically
-    // We only intervene for subscriptions stuck in error state for too long
-    
     const now = new Date()
     
     for (const [channelName, sub] of this.subscriptions) {
-      // Only fix stuck error states - let Supabase handle normal reconnection
+      // Fix stuck error states
       if (sub.status === 'error' && sub.lastErrorAt) {
         const timeSinceError = now.getTime() - sub.lastErrorAt.getTime()
-        
-        // If stuck in error for 3+ minutes and exhausted retries, reset and try again
         if (timeSinceError > 3 * 60 * 1000 && sub.retryCount >= RETRY_CONFIG.maxRetries) {
           debug.log(`🔄 RealtimeManager: Resetting ${channelName} after prolonged error`)
           sub.retryCount = 0
           this.scheduleReconnect(channelName)
+        }
+      }
+      
+      // Fix subscriptions stuck in connecting/reconnecting for too long
+      if ((sub.status === 'connecting' || sub.status === 'reconnecting') && sub.lastErrorAt) {
+        const stuckDuration = now.getTime() - sub.lastErrorAt.getTime()
+        if (stuckDuration > STALE_CONNECTION_THRESHOLD) {
+          debug.warn(`⚠️ RealtimeManager: ${channelName} stuck in ${sub.status} for ${Math.round(stuckDuration / 1000)}s, forcing reconnect`)
+          sub.retryCount = 0
+          this.reconnect(channelName)
         }
       }
     }

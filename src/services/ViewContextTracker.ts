@@ -24,6 +24,15 @@ export interface NotificationUIDecision {
   reason: string
 }
 
+const SUPPRESSED: NotificationUIDecision = {
+  showToast: false,
+  showDesktop: false,
+  playSound: false,
+  reason: ''
+}
+
+const DM_NOTIFICATION_TYPES = new Set(['dm', 'chat_message'])
+
 export class ViewContextTracker {
   private currentContext: ViewContext = {
     view_type: 'home'
@@ -57,6 +66,22 @@ export class ViewContextTracker {
   }
 
   /**
+   * Check if user is currently in any DM view
+   */
+  isInDMView(): boolean {
+    return this.currentContext.view_type === 'dm'
+  }
+
+  /**
+   * Get the conversation ID the user is currently viewing (if any)
+   */
+  getCurrentConversationId(): string | undefined {
+    return this.currentContext.view_type === 'dm'
+      ? this.currentContext.conversation_id
+      : undefined
+  }
+
+  /**
    * Check if user is currently viewing a specific DM conversation
    */
   isViewingConversation(conversationId: string): boolean {
@@ -67,36 +92,45 @@ export class ViewContextTracker {
   }
 
   /**
-   * Determines if a notification should show UI elements based on current view context
-   * Note: Database also filters at send_notification_to_user level, this is a client-side fallback
+   * Determines if a notification should show UI elements based on current view context.
+   * 
+   * For DM notifications, this also accepts an optional `activeConversationId` so
+   * callers can supply a fallback conversation ID (e.g. from useDMStore) when the
+   * notification payload itself lacks one.
    */
   shouldShowNotificationUI(notificationContext: {
     server_id?: string
     channel_id?: string
     conversation_id?: string
     type: string
-  }): NotificationUIDecision {
+  }, activeConversationId?: string): NotificationUIDecision {
     // If user is viewing the exact context where notification originated, suppress
     if (notificationContext.server_id && notificationContext.channel_id) {
       if (this.isViewingChannel(notificationContext.server_id, notificationContext.channel_id)) {
-        return {
-          showToast: false,
-          showDesktop: false,
-          playSound: false,
-          reason: 'User is viewing the source channel'
-        }
+        return { ...SUPPRESSED, reason: 'User is viewing the source channel' }
       }
     }
 
     // If user is viewing the exact DM conversation, suppress
     if (notificationContext.conversation_id) {
       if (this.isViewingConversation(notificationContext.conversation_id)) {
-        return {
-          showToast: false,
-          showDesktop: false,
-          playSound: false,
-          reason: 'User is viewing the source conversation'
-        }
+        return { ...SUPPRESSED, reason: 'User is viewing the source conversation' }
+      }
+    }
+
+    // Fallback for DM-type notifications with missing conversation_id:
+    // Use the caller-supplied activeConversationId (from DM store) to compare
+    // against our current view.  This handles malformed notification payloads
+    // and federation edge cases where conversation_id is absent.
+    if (
+      !notificationContext.conversation_id &&
+      DM_NOTIFICATION_TYPES.has(notificationContext.type) &&
+      this.isInDMView()
+    ) {
+      const currentConvId = this.currentContext.conversation_id
+      if (currentConvId && activeConversationId && currentConvId === activeConversationId) {
+        debug.warn('🎯 ViewContext: DM notification missing conversation_id, suppressed via activeConversationId fallback')
+        return { ...SUPPRESSED, reason: 'User is viewing the source conversation (fallback match)' }
       }
     }
 

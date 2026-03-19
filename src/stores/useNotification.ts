@@ -595,14 +595,26 @@ export const useNotificationStore = defineStore('notification', {
 
               // Check if user is currently viewing the source context BEFORE adding to list
               // This prevents unread count from incrementing for conversations the user is actively in
+              const notifData = newNotification.data || {}
               const notificationContext = {
-                server_id: newNotification.data?.location?.server_id || newNotification.data?.server_id,
-                channel_id: newNotification.data?.location?.channel_id || newNotification.data?.channel_id,
-                conversation_id: newNotification.data?.conversation?.id || newNotification.data?.conversation_id,
+                server_id: notifData.location?.server_id || notifData.server_id,
+                channel_id: notifData.location?.channel_id || notifData.channel_id,
+                conversation_id: notifData.conversation?.id || notifData.conversation_id || notifData.location?.conversation_id,
                 type: newNotification.type
               }
               
-              const uiDecision = viewContextTracker.shouldShowNotificationUI(notificationContext)
+              // For DM-type notifications, supply the DM store's active conversation
+              // as a fallback in case the notification payload is missing conversation_id.
+              let activeConversationId: string | undefined
+              if (!notificationContext.conversation_id && newNotification.type === 'dm') {
+                try {
+                  const { useDMStore } = await import('./useDM')
+                  const dmStore = useDMStore()
+                  activeConversationId = dmStore.currentConversationId || undefined
+                } catch { /* ignore — DM store may not be loaded */ }
+              }
+              
+              const uiDecision = viewContextTracker.shouldShowNotificationUI(notificationContext, activeConversationId)
               debug.log('🎯 Notification UI decision:', uiDecision)
               
               // If user is viewing the source context, auto-mark as read and skip all UI
