@@ -52,8 +52,10 @@ const queues = QUEUE_NAMES.map(
   (name) => new Queue(name, { connection: redisOpts, prefix: QUEUE_PREFIX })
 );
 
+const BASE_PATH = process.env.BULL_BOARD_BASE_PATH || '';
+
 const serverAdapter = new ExpressAdapter();
-serverAdapter.setBasePath('/admin/queues');
+serverAdapter.setBasePath(BASE_PATH);
 
 createBullBoard({
   queues: queues.map((q) => new BullMQAdapter(q)),
@@ -80,7 +82,7 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use('/admin/queues', serverAdapter.getRouter());
+app.use(BASE_PATH || '/', serverAdapter.getRouter());
 
 app.listen(PORT, () => {
   console.log(`Bull Board listening on port ${PORT}`);

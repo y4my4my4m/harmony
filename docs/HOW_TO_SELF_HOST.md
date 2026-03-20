@@ -389,25 +389,31 @@ docker compose logs -f federation-backend # Specific service
 
 ## Queue Monitoring (Optional)
 
-Bull Board provides a web dashboard for monitoring federation job queues (BullMQ). It runs as a standalone Docker container on port 3003 with HTTP basic auth.
+Bull Board provides a web dashboard for monitoring federation job queues (BullMQ). It runs as a standalone Docker container with HTTP basic auth, accessible via a dedicated subdomain.
 
 **Enable it:**
 ```bash
 docker compose --profile monitoring up -d
 ```
 
-**Access:** `http://your-server:3003` — log in with the `BULL_BOARD_USER` and `BULL_BOARD_PASSWORD` from your `.env`.
+**Set up the subdomain** (e.g. `bq.yourdomain.com`):
 
-**Optional: proxy behind your domain** by adding an nginx location block:
-```nginx
-location /admin/queues/ {
-    proxy_pass http://127.0.0.1:3003;
-    proxy_http_version 1.1;
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-}
+1. Point a DNS A record for `bq.yourdomain.com` to your server
+2. Copy the generated nginx config (or use `dev/nginx-bullboard.template.conf` as a starting point):
+```bash
+sudo cp dev/nginx-bullboard.conf /etc/nginx/sites-available/bullboard
+sudo ln -s /etc/nginx/sites-available/bullboard /etc/nginx/sites-enabled/
+sudo certbot certonly --nginx -d bq.yourdomain.com
+sudo nginx -t && sudo systemctl reload nginx
+```
+3. Access at `https://bq.yourdomain.com` — log in with the `BULL_BOARD_USER` and `BULL_BOARD_PASSWORD` from your `.env`.
+
+The port is bound to `127.0.0.1:3003` so it's only accessible through nginx, not directly from the internet.
+
+**Alternative — SSH tunnel** (no DNS/SSL needed, for occasional debugging):
+```bash
+ssh -L 3003:localhost:3003 your-server
+# Then open http://localhost:3003 in your browser
 ```
 
 ## Database Migrations
