@@ -61,9 +61,11 @@ test.describe('Notifications — Triggered by actions', () => {
     const aliceChat = new ChatPage(alicePage)
     await aliceChat.navigateToChannel(seedData.serverId, seedData.channelId)
 
-    const msg = `Hey @${seedData.bob.username} check this ${Date.now()}`
+    const tag = Date.now().toString()
+    const msg = `Hey @${seedData.bob.username} check this ${tag}`
     await aliceChat.sendMessage(msg)
-    await aliceChat.waitForMessage(msg)
+    // @username gets rendered as @displayName, so match on the unique tag instead
+    await aliceChat.waitForMessage(tag)
 
     // Bob checks notifications — bell should be visible
     await bobPage.goto('/chat')

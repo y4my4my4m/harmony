@@ -55,14 +55,15 @@ export class ServerPage {
 
   async createServerViaUI(serverName: string) {
     await this.openPortal()
-    await this.page.waitForLoadState('networkidle', { timeout: 10000 })
+    await this.page.waitForTimeout(1000)
 
-    // Click "Create Your Server" card on the portal page
-    const createCard = this.page.locator('text=Create Your Server').first()
-    await createCard.waitFor({ state: 'visible', timeout: 5000 })
-    await createCard.click()
+    // The PublicServers panel has a "Create Your Own Server" button at the bottom
+    const createBtn = this.page.locator('.create-server-btn').first()
+    await createBtn.scrollIntoViewIfNeeded()
+    await createBtn.waitFor({ state: 'visible', timeout: 5000 })
+    await createBtn.click()
 
-    // Fill the server name
+    // Fill the server name in the CreateServer modal
     const nameInput = this.page.locator('[data-testid="create-server-name-input"]')
     await nameInput.waitFor({ state: 'visible', timeout: 5000 })
     await nameInput.fill(serverName)
