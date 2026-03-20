@@ -81,42 +81,41 @@ livekit-cli join-room \
   --video
 ```
 
-### Method 3: Automated Load Testing
+### Method 3: Load Testing with LiveKit CLI (Recommended)
 
-Run the included load test:
+The official LiveKit CLI runs load tests server-side (no browser APIs needed).
+Use the included benchmark wrapper:
 
 ```bash
-cd webrtc/test
-npm install
-npm test
+# Interactive — prompts for URL/keys and preset selection
+./scripts/benchmark-voice.sh
+
+# Or use a preset directly
+./scripts/benchmark-voice.sh --preset audio-small
+./scripts/benchmark-voice.sh --preset video-medium
+./scripts/benchmark-voice.sh --preset livestream
+
+# Full custom
+./scripts/benchmark-voice.sh \
+  --url wss://live.yourdomain.com \
+  --api-key YOUR_KEY \
+  --api-secret YOUR_SECRET \
+  --preset audio-large \
+  --duration 120s
 ```
 
-Different test sizes:
+Available presets: `audio-small`, `audio-medium`, `audio-large`, `video-small`, `video-medium`, `livestream`.
+
+Run `./scripts/benchmark-voice.sh --help` for full usage.
+
+> **Important:** Run the load tester from a **different machine** than the LiveKit
+> server for accurate results. The tester itself uses significant CPU/bandwidth.
+> For 1000+ participants, set `ulimit -n 65535`.
+
+Install the CLI if you don't have it:
 
 ```bash
-# Small test (2 publishers, 5 subscribers, 30s)
-npm run test:small
-
-# Medium test (10 publishers, 50 subscribers, 60s)
-npm run test:medium
-
-# Large test (25 publishers, 200 subscribers, 120s)
-npm run test:large
-
-# Stage event simulation (3 speakers, 1000 listeners, 3min)
-npm run test:stage
-```
-
-Custom configuration:
-
-```bash
-LIVEKIT_URL=wss://your-server.com \
-LIVEKIT_API_KEY=your-key \
-LIVEKIT_API_SECRET=your-secret \
-NUM_PUBLISHERS=10 \
-NUM_SUBSCRIBERS=100 \
-TEST_DURATION_MS=60000 \
-npm test
+curl -sSL https://get.livekit.io/cli | bash
 ```
 
 ### Method 4: LiveKit Meet (Web Demo)
@@ -217,27 +216,31 @@ sudo tc qdisc del dev eth0 root
 
 ### Recommended Hardware
 
-For production:
+For production (with UDP mux on a single port):
 - **Small (1-50 users)**: 2 vCPU, 4GB RAM
-- **Medium (50-200 users)**: 4 vCPU, 8GB RAM  
-- **Large (200-1000 users)**: 8 vCPU, 16GB RAM
-- **Stage (1000+ listeners)**: 16+ vCPU, 32GB+ RAM
+- **Medium (50-200 users)**: 4 vCPU, 8GB RAM
+- **Large (200-500 users video / 1000+ audio)**: 8 vCPU, 16GB RAM
+- **Stage/Livestream (3000+ listeners)**: 16+ vCPU, 32GB+ RAM
 
-### Expected Metrics
+### Official LiveKit Benchmarks (16-core c2-standard-16)
 
-| Scenario | Participants | Expected Latency | CPU Usage |
-|----------|--------------|------------------|-----------|
-| Voice only | 10 | <50ms | ~10% |
-| Voice + Video | 10 | <100ms | ~30% |
-| Voice + Video | 50 | <150ms | ~60% |
-| Stage (3+100) | 103 | <200ms | ~40% |
-| Stage (3+1000) | 1003 | <300ms | ~80% |
+| Scenario | Publishers | Subscribers | CPU | Bandwidth out |
+|----------|-----------|-------------|-----|---------------|
+| Audio rooms | 10 (audio) | 3,000 | 80% | 23 MB/s |
+| Large meeting | 150 (720p) | 150 | 85% | 93 MB/s |
+| Livestream | 1 (720p) | 3,000 | 92% | 531 MB/s |
+
+### Rough Per-Core Guidelines
+
+- **Audio-only subscriber**: ~200 per core
+- **720p video subscriber**: ~50-100 per core (depends on simulcast)
+- **Bandwidth** often becomes the bottleneck before CPU
 
 ## Troubleshooting
 
 ### Connection Fails
 
-1. Check firewall rules (UDP 50000-50100)
+1. Check firewall rules (UDP 7882 if using UDP mux)
 2. Verify TURN server is accessible
 3. Check browser console for ICE errors
 4. Try TCP fallback: port 7881
