@@ -15,9 +15,9 @@
 #   ./scripts/benchmark-api.sh --help
 #
 # Environment overrides (or auto-read from .env):
-#   SUPABASE_URL          http://localhost:8000
-#   SUPABASE_ANON_KEY     your anon key
-#   FEDERATION_API_URL    https://yourdomain.com
+#   SUPABASE_URL / VITE_SUPABASE_URL        http://localhost:8000
+#   SUPABASE_ANON_KEY / VITE_SUPABASE_ANON_KEY  your anon key
+#   FEDERATION_API_URL / VITE_FEDERATION_API_URL https://yourdomain.com
 # =============================================================================
 
 set -euo pipefail
@@ -30,9 +30,10 @@ BOLD='\033[1m'
 DIM='\033[2m'
 RESET='\033[0m'
 
-: "${SUPABASE_URL:=}"
-: "${SUPABASE_ANON_KEY:=}"
-: "${FEDERATION_API_URL:=}"
+# Accept both VITE_* and plain names from env
+: "${SUPABASE_URL:=${VITE_SUPABASE_URL:-}}"
+: "${SUPABASE_ANON_KEY:=${VITE_SUPABASE_ANON_KEY:-}}"
+: "${FEDERATION_API_URL:=${VITE_FEDERATION_API_URL:-}}"
 : "${TEST_MODE:=}"
 
 # k6 parameters (full mode)
