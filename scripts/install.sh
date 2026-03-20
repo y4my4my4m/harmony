@@ -58,6 +58,7 @@ SUPABASE_JWT_SECRET=""
 SUPABASE_ANON_KEY=""
 SUPABASE_SERVICE_KEY=""
 DATABASE_URL=""
+DATABASE_POOL_URL=""       # Supavisor pooled connection (transaction mode, port 6543)
 SUPABASE_PROJECT_NAME=""   # folder name for self-hosted supabase (e.g. supabase-project)
 SUPABASE_PROJECT_DIR=""   # full path after setup
 SUPABASE_SITE_DOMAIN=""   # domain for Supabase (site URL, etc.)
@@ -77,6 +78,8 @@ WEB_ROOT=""              # where nginx serves dist/ from (set during config gen)
 
 LIVEKIT_API_KEY=""
 LIVEKIT_API_SECRET=""
+LIVEKIT_PORT_START=50000
+LIVEKIT_PORT_END=50100
 
 # ---------------------------------------------------------------------------
 # Utility functions
@@ -599,7 +602,13 @@ configure_supabase() {
             SUPABASE_URL="https://$SUPABASE_SITE_DOMAIN"
             SUPABASE_INTERNAL_URL="http://supabase-kong:8000"
             DATABASE_URL="postgresql://postgres:${SUPABASE_PG_PASSWORD}@supabase-db:5432/postgres"
+            DATABASE_POOL_URL="postgresql://postgres:${SUPABASE_PG_PASSWORD}@supabase-pooler:6543/postgres"
         fi
+    fi
+
+    # For cloud Supabase, DATABASE_POOL_URL is set by the user (or left empty)
+    if [[ "$SUPABASE_MODE" == "cloud" ]] && [[ -z "${DATABASE_POOL_URL:-}" ]]; then
+        DATABASE_POOL_URL=""
     fi
 
     echo ""
@@ -645,8 +654,58 @@ configure_features() {
         else
             LIVEKIT_SUBDOMAIN="live.mony.local"
         fi
+
+        # Voice capacity sizing
+        echo ""
+        printf "    ${BOLD}Voice Capacity${RESET}\n"
+        print_info "LiveKit needs a range of UDP ports for media streams."
+        print_info "Each voice/video participant uses 1-2 ports."
+        echo ""
+        printf "    How many simultaneous voice/video users do you expect?\n"
+        printf "      ${CYAN}1${RESET}) Small  — up to 50  simultaneous users  (101 ports, default)\n"
+        printf "      ${CYAN}2${RESET}) Medium — up to 200 simultaneous users  (501 ports)\n"
+        printf "      ${CYAN}3${RESET}) Large  — up to 500 simultaneous users  (1001 ports)\n"
+        printf "      ${CYAN}4${RESET}) Custom — specify your own port range\n"
+        echo ""
+        printf "    Choice [1]: "
+        read -r voice_choice
+        voice_choice="${voice_choice:-1}"
+
+        case "$voice_choice" in
+            2)
+                LIVEKIT_PORT_START=50000
+                LIVEKIT_PORT_END=50500
+                ;;
+            3)
+                LIVEKIT_PORT_START=50000
+                LIVEKIT_PORT_END=51000
+                ;;
+            4)
+                LIVEKIT_PORT_START=$(prompt_input "UDP port range start" "50000")
+                LIVEKIT_PORT_END=$(prompt_input "UDP port range end" "51000")
+                ;;
+            *)
+                LIVEKIT_PORT_START=50000
+                LIVEKIT_PORT_END=50100
+                ;;
+        esac
+
+        local port_count=$((LIVEKIT_PORT_END - LIVEKIT_PORT_START + 1))
+        print_info "Using UDP port range ${LIVEKIT_PORT_START}-${LIVEKIT_PORT_END} (${port_count} ports)"
+
+        if [[ "$MODE" == "production" ]] && [[ "$voice_choice" == "3" || "$voice_choice" == "4" ]]; then
+            echo ""
+            printf "    ${BYELLOW}Scaling tip:${RESET} For 200+ simultaneous voice users, consider running\n"
+            printf "    LiveKit on a dedicated VPS with more CPU cores. LiveKit supports\n"
+            printf "    multi-node clustering via Redis — just point additional nodes at\n"
+            printf "    the same Redis instance and they coordinate automatically.\n"
+            printf "    See: ${CYAN}https://docs.livekit.io/realtime/self-hosting/deployment/${RESET}\n"
+            echo ""
+        fi
     else
         ENABLE_VOICE=false
+        LIVEKIT_PORT_START=50000
+        LIVEKIT_PORT_END=50100
     fi
 
     # Bot Gateway
@@ -880,6 +939,14 @@ generate_frontend_env() {
 REDIS_PASSWORD=$REDIS_PASSWORD"
     fi
 
+    if $ENABLE_VOICE; then
+        env_extra+="
+
+# LiveKit UDP port range — must match webrtc/livekit.yaml
+LIVEKIT_PORT_START=$LIVEKIT_PORT_START
+LIVEKIT_PORT_END=$LIVEKIT_PORT_END"
+    fi
+
     if $ENABLE_MONITORING && [[ -n "${BULL_BOARD_PASSWORD:-}" ]]; then
         env_extra+="
 
@@ -963,8 +1030,10 @@ SUPABASE_SERVICE_ROLE_KEY=$SUPABASE_SERVICE_KEY
 # Must be set when SUPABASE_URL is a Docker-internal address (e.g. http://supabase-kong:8000)
 PUBLIC_SUPABASE_URL=$SUPABASE_URL
 DATABASE_URL=$DATABASE_URL
-# Optional: Supavisor transaction-mode pooler (port 6543) for better connection efficiency
-# DATABASE_POOL_URL=
+# Supavisor transaction-mode pooler (port 6543) for better connection efficiency.
+# Pools hundreds of logical connections into a small number of real PG connections.
+# DATABASE_URL (session mode, port 5432) is kept for LISTEN/NOTIFY which needs a persistent connection.
+DATABASE_POOL_URL=$DATABASE_POOL_URL
 
 INSTANCE_DOMAIN=$DOMAIN
 INSTANCE_NAME=$INSTANCE_NAME
@@ -1118,8 +1187,18 @@ generate_livekit_config() {
   address: redis:6379"
     fi
 
+    local port_count=$((LIVEKIT_PORT_END - LIVEKIT_PORT_START + 1))
+
     cat > "$config_file" << EOF
 # Generated by Harmony installer — $(date '+%Y-%m-%d %H:%M:%S')
+#
+# UDP port range: ${LIVEKIT_PORT_START}-${LIVEKIT_PORT_END} (${port_count} ports)
+# Each voice/video participant uses ~1-2 ports.
+#
+# Scaling: LiveKit supports multi-node clustering via Redis.
+# Deploy additional LiveKit instances pointing at the same Redis
+# and they will automatically coordinate room routing.
+# See: https://docs.livekit.io/realtime/self-hosting/deployment/
 
 port: 7880
 
@@ -1129,8 +1208,8 @@ keys:
   $LIVEKIT_API_KEY: $LIVEKIT_API_SECRET
 
 rtc:
-  port_range_start: 50000
-  port_range_end: 50100
+  port_range_start: $LIVEKIT_PORT_START
+  port_range_end: $LIVEKIT_PORT_END
   tcp_port: 7881
   use_ice_lite: true
   use_external_ip: true
@@ -1149,7 +1228,7 @@ room:
 $redis_section
 EOF
 
-    print_success "Generated ${BOLD}webrtc/livekit.yaml${RESET}"
+    print_success "Generated ${BOLD}webrtc/livekit.yaml${RESET} (UDP ports: ${LIVEKIT_PORT_START}-${LIVEKIT_PORT_END})"
 }
 
 generate_nginx_config() {
@@ -1334,7 +1413,7 @@ generate_docker_compose() {
       - SUPABASE_URL=http://supabase-kong:8000
       - USE_PGBOSS_QUEUE=true
       - DATABASE_URL=postgresql://postgres:${SUPABASE_PG_PASSWORD}@supabase-db:5432/postgres
-      - DATABASE_POOL_URL=\${DATABASE_POOL_URL:-}
+      - DATABASE_POOL_URL=postgresql://postgres:${SUPABASE_PG_PASSWORD}@supabase-pooler:6543/postgres
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379"
         fi
 
@@ -1417,7 +1496,7 @@ $fed_networks
       - \"7881:7881/udp\"
       - \"3478:3478/udp\"
       - \"3478:3478/tcp\"
-      - \"50000-50100:50000-50100/udp\"
+      - \"${LIVEKIT_PORT_START}-${LIVEKIT_PORT_END}:${LIVEKIT_PORT_START}-${LIVEKIT_PORT_END}/udp\"
     volumes:
       - ./webrtc/livekit.yaml:/livekit.yaml:ro
     command: --config /livekit.yaml
@@ -1744,7 +1823,7 @@ setup_firewall() {
     printf "  ${BOLD}Configure firewall (UFW)?${RESET}\n"
     print_info "Opens ports: SSH (22), HTTP (80), HTTPS (443)"
     if $ENABLE_VOICE; then
-        print_info "Also: LiveKit (7880-7881), TURN (3478/udp, 5349), Media (50000-50100/udp)"
+        print_info "Also: LiveKit (7880-7881), TURN (3478/udp, 5349), Media (${LIVEKIT_PORT_START}-${LIVEKIT_PORT_END}/udp)"
     fi
     echo ""
 
@@ -1758,7 +1837,7 @@ setup_firewall() {
                 sudo ufw allow 7881/tcp
                 sudo ufw allow 3478/udp
                 sudo ufw allow 5349/tcp
-                sudo ufw allow 50000:50100/udp
+                sudo ufw allow ${LIVEKIT_PORT_START}:${LIVEKIT_PORT_END}/udp
             fi
             sudo ufw --force enable
             print_success "Firewall configured"
@@ -2058,12 +2137,29 @@ show_summary() {
     fi
 
     if $ENABLE_VOICE; then
-        printf "  ${BOLD}LiveKit Credentials${RESET} ${DIM}(save these!)${RESET}\n"
+        local port_count=$((LIVEKIT_PORT_END - LIVEKIT_PORT_START + 1))
+        printf "  ${BOLD}LiveKit (Voice/Video)${RESET} ${DIM}(save these!)${RESET}\n"
         echo ""
         printf "    API Key:    ${CYAN}%s${RESET}\n" "$LIVEKIT_API_KEY"
         printf "    API Secret: ${CYAN}%s${RESET}\n" "$LIVEKIT_API_SECRET"
+        printf "    UDP Ports:  ${CYAN}%s-%s${RESET} (%s ports, ~%s concurrent voice users)\n" \
+            "$LIVEKIT_PORT_START" "$LIVEKIT_PORT_END" "$port_count" "$((port_count / 2))"
         echo ""
-        print_info "These are also saved in federation-backend/.env and webrtc/livekit.yaml"
+        print_info "These are saved in federation-backend/.env and webrtc/livekit.yaml"
+        if [[ $port_count -gt 500 ]]; then
+            echo ""
+            printf "  ${BYELLOW}Scaling note:${RESET} For large voice deployments, consider running LiveKit\n"
+            printf "  on a dedicated VPS. LiveKit supports multi-node clustering via Redis.\n"
+            printf "  See: ${CYAN}https://docs.livekit.io/realtime/self-hosting/deployment/${RESET}\n"
+        fi
+    fi
+
+    if [[ -n "${DATABASE_POOL_URL:-}" ]]; then
+        echo ""
+        printf "  ${BOLD}Connection Pooling (Supavisor)${RESET}\n"
+        echo ""
+        printf "    ${CHECK} DATABASE_POOL_URL is configured (port 6543, transaction mode)\n"
+        print_info "Supavisor pools hundreds of connections into a small PG connection pool."
     fi
 
     print_line 50

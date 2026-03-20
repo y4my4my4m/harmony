@@ -48,7 +48,7 @@ services:
       - SUPABASE_URL=http://supabase-kong:8000
       - USE_PGBOSS_QUEUE=true
       - DATABASE_URL=postgresql://supabase_admin:${POSTGRES_PASSWORD:-your-super-secret-and-long-postgres-password}@supabase-db:5432/postgres
-      - DATABASE_POOL_URL=${DATABASE_POOL_URL:-}
+      - DATABASE_POOL_URL=postgresql://supabase_admin:${POSTGRES_PASSWORD:-your-super-secret-and-long-postgres-password}@supabase-pooler:6543/postgres
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://localhost:3001/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
@@ -77,7 +77,7 @@ services:
       - SUPABASE_URL=http://supabase-kong:8000
       - USE_PGBOSS_QUEUE=true
       - DATABASE_URL=postgresql://supabase_admin:${POSTGRES_PASSWORD:-your-super-secret-and-long-postgres-password}@supabase-db:5432/postgres
-      - DATABASE_POOL_URL=${DATABASE_POOL_URL:-}
+      - DATABASE_POOL_URL=postgresql://supabase_admin:${POSTGRES_PASSWORD:-your-super-secret-and-long-postgres-password}@supabase-pooler:6543/postgres
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
     depends_on:
       redis:
@@ -105,7 +105,7 @@ services:
       - SUPABASE_URL=http://supabase-kong:8000
       - USE_PGBOSS_QUEUE=true
       - DATABASE_URL=postgresql://supabase_admin:${POSTGRES_PASSWORD:-your-super-secret-and-long-postgres-password}@supabase-db:5432/postgres
-      - DATABASE_POOL_URL=${DATABASE_POOL_URL:-}
+      - DATABASE_POOL_URL=postgresql://supabase_admin:${POSTGRES_PASSWORD:-your-super-secret-and-long-postgres-password}@supabase-pooler:6543/postgres
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://localhost:3001/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
@@ -166,6 +166,11 @@ services:
   # ---------------------------------------------------------------------------
   # LiveKit (Voice/Video)
   # ---------------------------------------------------------------------------
+  # Default: 501 UDP ports (50000-50500) supports ~200 simultaneous voice users.
+  # Expand the range in webrtc/livekit.yaml + here for more capacity.
+  # For 500+ voice users, consider running LiveKit on a dedicated VPS.
+  # LiveKit supports multi-node clustering via Redis automatically.
+  # ---------------------------------------------------------------------------
   livekit:
     image: livekit/livekit-server:latest
     container_name: harmony-livekit
@@ -173,7 +178,10 @@ services:
     ports:
       - "7880:7880"
       - "7881:7881"
-      - "50000-50100:50000-50100/udp"
+      - "7881:7881/udp"
+      - "3478:3478/udp"
+      - "3478:3478/tcp"
+      - "${LIVEKIT_PORT_START:-50000}-${LIVEKIT_PORT_END:-50500}:${LIVEKIT_PORT_START:-50000}-${LIVEKIT_PORT_END:-50500}/udp"
     volumes:
       - ./webrtc/livekit.yaml:/livekit.yaml:ro
     command: --config /livekit.yaml

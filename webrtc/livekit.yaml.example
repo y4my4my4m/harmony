@@ -25,10 +25,14 @@ log_level: info
 # =============================================================================
 # RTC (WebRTC) Settings
 # =============================================================================
+# Each voice/video participant uses ~1-2 UDP ports.
+# 501 ports ≈ 200 concurrent users. Expand for more capacity.
+# For 500+ concurrent voice users, run LiveKit on a dedicated VPS.
+# Multi-node: point additional LiveKit instances at the same Redis.
+# =============================================================================
 rtc:
-  # UDP port range for media streams
   port_range_start: 50000
-  port_range_end: 50100
+  port_range_end: 50500
   
   # TCP fallback port (when UDP is blocked)
   tcp_port: 7881

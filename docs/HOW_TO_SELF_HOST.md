@@ -157,6 +157,12 @@ SUPABASE_ANON_KEY=eyJ...
 SUPABASE_SERVICE_ROLE_KEY=eyJ...
 DATABASE_URL=postgresql://postgres.[ref]:[pwd]@[region].pooler.supabase.com:5432/postgres
 
+# Supavisor connection pooler (transaction mode, port 6543) — recommended for production
+# Pools many logical connections into a small number of real PG connections.
+# Self-hosted: postgresql://postgres:PASSWORD@supabase-pooler:6543/postgres
+# Cloud:       postgresql://postgres.[ref]:[pwd]@[region].pooler.supabase.com:6543/postgres
+DATABASE_POOL_URL=postgresql://postgres.[ref]:[pwd]@[region].pooler.supabase.com:6543/postgres
+
 INSTANCE_DOMAIN=harmony.yourdomain.com
 CORS_ORIGIN=https://harmony.yourdomain.com
 
@@ -206,8 +212,10 @@ nano webrtc/livekit.yaml
 ```yaml
 port: 7880
 rtc:
+  # Each voice/video participant uses ~1-2 UDP ports.
+  # 501 ports ≈ 200 concurrent users. Expand for more capacity.
   port_range_start: 50000
-  port_range_end: 50100
+  port_range_end: 50500
   use_external_ip: true
 keys:
   your-api-key: your-api-secret  # Generate with: openssl rand -hex 16
@@ -216,7 +224,13 @@ turn:
   domain: harmony.yourdomain.com
   tls_port: 5349
   udp_port: 3478
+# Required for multi-node scaling — all LiveKit nodes share state via Redis
+redis:
+  address: redis:6379
+  password: your-redis-password
 ```
+
+> **Scaling tip**: For 500+ simultaneous voice/video users, run LiveKit on a dedicated VPS with more CPU cores and a wider port range (e.g. 50000-60000). LiveKit supports multi-node clustering — additional instances pointed at the same Redis automatically coordinate room routing. See [LiveKit deployment docs](https://docs.livekit.io/realtime/self-hosting/deployment/).
 
 Generate keys:
 ```bash
@@ -347,9 +361,11 @@ ufw allow 7880/tcp     # LiveKit WebSocket
 ufw allow 7881/tcp     # LiveKit RTC
 ufw allow 3478/udp     # TURN
 ufw allow 5349/tcp     # TURN TLS
-ufw allow 50000:50100/udp  # Media
+ufw allow 50000:50500/udp  # Media (increase to match your livekit.yaml port_range_end)
 ufw enable
 ```
+
+> Match `50000:50500` to the `port_range_end` in your `webrtc/livekit.yaml`. If you expanded the range during install, update the firewall rule to match.
 
 ## 9. Verify Installation
 
@@ -432,7 +448,7 @@ Run new migration files in Supabase SQL Editor (cloud) or via psql (self-hosted)
 
 ## Voice not working
 1. Check LiveKit is running: `docker compose logs livekit`
-2. Verify firewall allows UDP 50000-50100
+2. Verify firewall allows UDP ports matching your `livekit.yaml` range (default: `50000-50500`)
 3. Ensure `LIVEKIT_API_KEY` matches in both federation-backend and livekit.yaml
 4. For cloud deployment: verify `instance_webrtc_settings` has correct credentials
 
@@ -445,6 +461,56 @@ Run new migration files in Supabase SQL Editor (cloud) or via psql (self-hosted)
 # Mixing Cloud and Self-Hosting
 
 You can mix cloud and self-hosting, or self-host everything, the choice is yours. For example, you can use cloud for the frontend and self-host for the backend, etc.
+
+---
+
+# Scaling
+
+## Estimated Capacity (single server)
+
+| Server Spec | Concurrent Text Users | Concurrent Voice Users |
+|---|---|---|
+| 1 vCPU / 4 GB RAM | 300–800 | ~50 |
+| 2 vCPU / 8 GB RAM | 1,000–3,000 | ~100–200 |
+| 4 vCPU / 16 GB RAM | 3,000–8,000 | ~200–400 |
+
+The main bottleneck for text is Supabase Realtime (WebSocket connections). For voice, it's CPU (LiveKit SFU media routing).
+
+## Connection Pooling (Supavisor)
+
+Set `DATABASE_POOL_URL` in `federation-backend/.env` to use Supavisor's transaction-mode pooler on port 6543. This pools hundreds of logical connections into a small number of real PostgreSQL connections, removing the PG connection limit as a bottleneck.
+
+- **Self-hosted**: `postgresql://postgres:PASSWORD@supabase-pooler:6543/postgres` — Supavisor ships with self-hosted Supabase Docker, no extra setup needed
+- **Cloud**: `postgresql://postgres.[ref]:[pwd]@[region].pooler.supabase.com:6543/postgres`
+
+`DATABASE_URL` (session mode, port 5432) is kept for `LISTEN/NOTIFY` which requires a persistent connection.
+
+## Scaling Voice (LiveKit)
+
+LiveKit supports **multi-node clustering via Redis**. All LiveKit instances sharing the same Redis automatically coordinate room routing.
+
+**To add a second LiveKit node:**
+
+1. Deploy another VPS with LiveKit installed
+2. Copy `webrtc/livekit.yaml` to the new server (same API keys)
+3. Point the `redis` section at your existing Redis (or a shared Redis)
+4. Open the same UDP port range on the new server's firewall
+5. LiveKit handles routing automatically — no load balancer needed for media traffic
+
+**Port range sizing**: each participant uses ~1–2 UDP ports. Default is 501 ports (50000–50500, supports ~200 concurrent voice users). Expand `port_range_end` in `webrtc/livekit.yaml` and the matching docker-compose/firewall rules for more capacity.
+
+## Scaling Services to Multiple Servers
+
+When you outgrow a single server (~1,000+ users), split services:
+
+| Service | Dedicated VPS | Why |
+|---|---|---|
+| **LiveKit** | 4+ vCPU, low-latency network | CPU-bound media routing |
+| **PostgreSQL + Supabase** | High RAM, fast SSD | Database workloads |
+| **Federation workers** | 2+ vCPU | Burst processing for ActivityPub |
+| **Redis** | 2 GB+ RAM | Shared state (low resource usage) |
+
+The `webrtc/docker-compose.yml` already runs LiveKit independently. Federation workers scale horizontally — add more `federation-worker` containers pointing at the same Redis and they share the BullMQ workload.
 
 ---
 

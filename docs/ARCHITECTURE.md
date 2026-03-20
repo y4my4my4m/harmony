@@ -318,17 +318,24 @@ supabase
 ## 📈 Scalability Design
 
 ### 1. **Horizontal Scaling**
-- Stateless service design
-- Database connection pooling via Supavisor (optional `DATABASE_POOL_URL`)
-- Redis-backed distributed rate limiting
+- Stateless service design — federation workers scale by adding containers
+- Database connection pooling via Supavisor (`DATABASE_POOL_URL`, port 6543)
+- Redis-backed distributed rate limiting, caching, and job queues (BullMQ)
 - CDN for asset delivery
 
-### 2. **Modular Architecture**
+### 2. **Voice/Video Scaling (LiveKit)**
+- LiveKit supports multi-node clustering via Redis
+- Additional LiveKit instances pointed at the same Redis auto-coordinate room routing
+- UDP port range configurable per instance (default: 501 ports ≈ 200 concurrent users)
+- `webrtc/docker-compose.yml` runs LiveKit independently for dedicated-VPS deployments
+
+### 3. **Modular Architecture**
 - Feature-based code organization
 - Plugin-like federation system
 - Extensible service layer
+- Federation server/worker split for independent scaling
 
-### 3. **Performance Monitoring**
+### 4. **Performance Monitoring**
+- Bull Board dashboard for BullMQ job queue monitoring
+- Health endpoint with queue stats
 - Error tracking and reporting
-- Performance metrics collection
-- Real-time system health monitoring
