@@ -37,6 +37,9 @@ ALTER TABLE public.federated_instances REPLICA IDENTITY FULL;
 
 CREATE INDEX IF NOT EXISTS idx_federated_instances_domain ON public.federated_instances(domain);
 
+GRANT SELECT ON public.federated_instances TO authenticated;
+GRANT ALL ON public.federated_instances TO service_role;
+
 COMMENT ON TABLE public.federated_instances IS 'Known federated instances';
 
 -- ---------------------------------------------------------------------------
@@ -54,6 +57,9 @@ CREATE TABLE IF NOT EXISTS public.blocked_instances (
 );
 
 CREATE INDEX IF NOT EXISTS idx_blocked_instances_domain ON public.blocked_instances(domain);
+
+GRANT SELECT ON public.blocked_instances TO authenticated;
+GRANT ALL ON public.blocked_instances TO service_role;
 
 COMMENT ON TABLE public.blocked_instances IS 'Blocked/defederated instances';
 
@@ -114,6 +120,9 @@ CREATE INDEX IF NOT EXISTS idx_ap_activities_actor ON public.ap_activities(actor
 CREATE INDEX IF NOT EXISTS idx_ap_activities_status ON public.ap_activities(status);
 CREATE INDEX IF NOT EXISTS idx_ap_activities_created ON public.ap_activities(created_at DESC);
 
+GRANT SELECT ON public.ap_activities TO authenticated;
+GRANT ALL ON public.ap_activities TO service_role;
+
 COMMENT ON TABLE public.ap_activities IS 'ActivityPub activity log for federation';
 
 -- ---------------------------------------------------------------------------
@@ -137,6 +146,9 @@ CREATE TABLE IF NOT EXISTS public.ap_actor_cache (
 CREATE INDEX IF NOT EXISTS idx_ap_actor_cache_ap_id ON public.ap_actor_cache(ap_id);
 CREATE INDEX IF NOT EXISTS idx_ap_actor_cache_domain ON public.ap_actor_cache(domain);
 
+GRANT SELECT ON public.ap_actor_cache TO authenticated;
+GRANT ALL ON public.ap_actor_cache TO service_role;
+
 COMMENT ON TABLE public.ap_actor_cache IS 'Cached remote ActivityPub actors';
 
 -- ---------------------------------------------------------------------------
@@ -154,6 +166,9 @@ CREATE TABLE IF NOT EXISTS public.ap_object_cache (
 );
 
 CREATE INDEX IF NOT EXISTS idx_ap_object_cache_url ON public.ap_object_cache(object_url);
+
+GRANT SELECT ON public.ap_object_cache TO authenticated;
+GRANT ALL ON public.ap_object_cache TO service_role;
 
 COMMENT ON TABLE public.ap_object_cache IS 'Cached remote ActivityPub objects';
 
@@ -241,6 +256,9 @@ ALTER TABLE public.server_federation_events REPLICA IDENTITY FULL;
 
 CREATE INDEX IF NOT EXISTS idx_server_federation_events_server ON public.server_federation_events(server_id);
 
+GRANT SELECT ON public.server_federation_events TO authenticated;
+GRANT ALL ON public.server_federation_events TO service_role;
+
 COMMENT ON TABLE public.server_federation_events IS 'Federation events for servers';
 
 -- ---------------------------------------------------------------------------
@@ -259,6 +277,9 @@ ALTER TABLE public.server_membership_events REPLICA IDENTITY FULL;
 
 CREATE INDEX IF NOT EXISTS idx_server_membership_events_server ON public.server_membership_events(server_id);
 
+GRANT SELECT ON public.server_membership_events TO authenticated;
+GRANT ALL ON public.server_membership_events TO service_role;
+
 COMMENT ON TABLE public.server_membership_events IS 'Server membership change events';
 
 -- ---------------------------------------------------------------------------
@@ -276,6 +297,9 @@ CREATE TABLE IF NOT EXISTS public.voice_federation_events (
 ALTER TABLE public.voice_federation_events REPLICA IDENTITY FULL;
 
 CREATE INDEX IF NOT EXISTS idx_voice_federation_events_channel ON public.voice_federation_events(channel_id);
+
+GRANT SELECT ON public.voice_federation_events TO authenticated;
+GRANT ALL ON public.voice_federation_events TO service_role;
 
 COMMENT ON TABLE public.voice_federation_events IS 'Voice channel federation events';
 
@@ -300,6 +324,9 @@ CREATE TABLE IF NOT EXISTS public.federated_voice_calls (
 
 CREATE INDEX IF NOT EXISTS idx_federated_voice_calls_channel ON public.federated_voice_calls(channel_id);
 
+GRANT SELECT ON public.federated_voice_calls TO authenticated;
+GRANT ALL ON public.federated_voice_calls TO service_role;
+
 COMMENT ON TABLE public.federated_voice_calls IS 'Federated voice call sessions';
 
 -- ---------------------------------------------------------------------------
@@ -321,6 +348,9 @@ CREATE TABLE IF NOT EXISTS public.activity_processing_logs (
 CREATE INDEX IF NOT EXISTS idx_activity_processing_logs_activity ON public.activity_processing_logs(activity_id);
 CREATE INDEX IF NOT EXISTS idx_activity_processing_logs_status ON public.activity_processing_logs(status);
 
+GRANT SELECT ON public.activity_processing_logs TO authenticated;
+GRANT ALL ON public.activity_processing_logs TO service_role;
+
 COMMENT ON TABLE public.activity_processing_logs IS 'Tracks processing of ActivityPub activities';
 
 -- ---------------------------------------------------------------------------
@@ -336,6 +366,9 @@ CREATE TABLE IF NOT EXISTS public.activitypub_processing_stats (
     avg_processing_time_ms numeric DEFAULT 0,
     created_at timestamp with time zone DEFAULT now()
 );
+
+GRANT SELECT ON public.activitypub_processing_stats TO authenticated;
+GRANT ALL ON public.activitypub_processing_stats TO service_role;
 
 COMMENT ON TABLE public.activitypub_processing_stats IS 'Daily ActivityPub processing statistics';
 
@@ -354,6 +387,9 @@ CREATE TABLE IF NOT EXISTS public.federation_delivery_stats (
 );
 
 CREATE INDEX IF NOT EXISTS idx_federation_delivery_stats_period ON public.federation_delivery_stats(period_start, period_end);
+
+GRANT SELECT ON public.federation_delivery_stats TO authenticated;
+GRANT ALL ON public.federation_delivery_stats TO service_role;
 
 COMMENT ON TABLE public.federation_delivery_stats IS 'Statistics on federation delivery success rates';
 

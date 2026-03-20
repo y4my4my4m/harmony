@@ -2278,6 +2278,10 @@ setup_database() {
         docker exec "$db_container" rm -rf /tmp/db_schema 2>/dev/null || true
     fi
 
+    # Tell PostgREST to reload its schema cache so it picks up the new tables
+    echo "NOTIFY pgrst, 'reload schema';" | run_psql &>/dev/null && \
+        print_success "PostgREST schema cache reloaded" || true
+
     # Set instance domain, name, and link preview backend URL
     echo ""
     print_info "Configuring instance_config..."

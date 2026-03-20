@@ -104,8 +104,9 @@ class BullMQManagerService {
     if (!client) {
       throw new Error('Redis must be connected before starting BullMQ');
     }
-    const opts = { ...client.options } as ConnectionOptions & { keyPrefix?: string };
+    const opts = { ...client.options } as ConnectionOptions & { keyPrefix?: string; maxRetriesPerRequest?: number | null };
     delete opts.keyPrefix;
+    opts.maxRetriesPerRequest = null;
     return opts;
   }
 
