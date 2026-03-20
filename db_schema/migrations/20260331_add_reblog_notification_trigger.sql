@@ -91,9 +91,9 @@ BEGIN
                 'message_preview', extract_message_text((SELECT content FROM messages WHERE id = NEW.message_id)),
                 'reaction', jsonb_build_object(
                     'emoji_id', NEW.emoji_id,
-                    'emoji_name', COALESCE(emoji_name, NEW.custom_emoji),
+                    'emoji_name', COALESCE(emoji_name, NEW.custom_emoji_content),
                     'emoji_url', emoji_url,
-                    'custom_emoji', NEW.custom_emoji
+                    'custom_emoji_content', NEW.custom_emoji_content
                 ),
                 'sender', CASE WHEN reactor_profile.id IS NOT NULL THEN
                     jsonb_build_object(

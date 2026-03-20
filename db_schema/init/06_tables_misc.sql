@@ -20,7 +20,8 @@ CREATE TABLE IF NOT EXISTS public.emoji_usage (
     context_id uuid,
     used_at timestamp with time zone DEFAULT now(),
     
-    CONSTRAINT emoji_usage_context_type_check CHECK (context_type IN ('message', 'reaction'))
+    CONSTRAINT emoji_usage_context_type_check CHECK (context_type IN ('message', 'reaction')),
+    CONSTRAINT emoji_usage_unique_per_context UNIQUE (emoji_id, user_id, context_type, context_id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_emoji_usage_emoji ON public.emoji_usage(emoji_id);
