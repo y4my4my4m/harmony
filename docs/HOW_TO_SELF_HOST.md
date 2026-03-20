@@ -401,7 +401,7 @@ docker compose --profile monitoring up -d
 **Optional: proxy behind your domain** by adding an nginx location block:
 ```nginx
 location /admin/queues/ {
-    proxy_pass http://127.0.0.1:3003/;
+    proxy_pass http://127.0.0.1:3003;
     proxy_http_version 1.1;
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;

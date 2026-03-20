@@ -53,7 +53,7 @@ const queues = QUEUE_NAMES.map(
 );
 
 const serverAdapter = new ExpressAdapter();
-serverAdapter.setBasePath('/');
+serverAdapter.setBasePath('/admin/queues');
 
 createBullBoard({
   queues: queues.map((q) => new BullMQAdapter(q)),
