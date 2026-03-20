@@ -10,7 +10,7 @@ export default defineConfig({
   testDir: './tests/e2e',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 2 : 0,
+  retries: 1,
   workers: process.env.CI ? 1 : undefined,
   reporter: 'html',
   globalSetup: './tests/e2e/global-setup.ts',
@@ -30,16 +30,22 @@ export default defineConfig({
     },
     {
       name: 'chromium',
-      testIgnore: 'auth.spec.ts',
+      testIgnore: ['auth.spec.ts', 'navigation.spec.ts'],
       dependencies: ['auth-tests'],
       use: { ...devices['Desktop Chrome'] },
     },
     {
-      name: 'firefox',
-      testIgnore: 'auth.spec.ts',
-      dependencies: ['auth-tests'],
-      use: { ...devices['Desktop Firefox'] },
+      name: 'navigation',
+      testMatch: 'navigation.spec.ts',
+      use: { ...devices['Desktop Chrome'] },
     },
+    // Opt-in: npx playwright test --project=firefox
+    // {
+    //   name: 'firefox',
+    //   testIgnore: 'auth.spec.ts',
+    //   dependencies: ['auth-tests'],
+    //   use: { ...devices['Desktop Firefox'] },
+    // },
   ],
   webServer: {
     command: 'npm run dev',

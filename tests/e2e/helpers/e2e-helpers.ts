@@ -78,6 +78,7 @@ export async function createE2EUser(
 
   const { error: profileError } = await admin.from('profiles').upsert(
     {
+      id: authId,
       auth_user_id: authId,
       username: opts.username,
       display_name: opts.displayName || opts.username,

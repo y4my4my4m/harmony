@@ -47,26 +47,35 @@ export class ChatPage {
   }
 
   async editMessage(messageLocator: Locator, newContent: string) {
-    await this.openContextMenu(messageLocator)
-    await this.page.locator('text=Edit').click()
-    await this.page.keyboard.selectAll()
-    await this.page.keyboard.type(newContent)
+    await messageLocator.hover()
+    const editBtn = messageLocator.locator('[data-testid="msg-action-edit"]')
+    await editBtn.waitFor({ state: 'visible', timeout: 3000 })
+    await editBtn.click()
+
+    const editInput = this.page.getByRole('textbox', { name: 'Edit message' })
+    await editInput.waitFor({ state: 'visible', timeout: 3000 })
+    await editInput.fill(newContent)
     await this.page.keyboard.press('Enter')
   }
 
   async deleteMessage(messageLocator: Locator) {
-    await this.openContextMenu(messageLocator)
-    await this.page.locator('text=Delete').click()
-    // Confirm deletion if there's a confirmation dialog
+    await messageLocator.hover()
+    const deleteBtn = messageLocator.locator('[data-testid="msg-action-delete"]')
+    await deleteBtn.waitFor({ state: 'visible', timeout: 3000 })
+    await deleteBtn.click()
+
     const confirmBtn = this.page.locator('button:has-text("Delete"), button:has-text("Confirm")')
-    if (await confirmBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
-      await confirmBtn.click()
+    if (await confirmBtn.first().isVisible({ timeout: 2000 }).catch(() => false)) {
+      await confirmBtn.first().click()
     }
   }
 
   async replyToMessage(messageLocator: Locator, replyContent: string) {
-    await this.openContextMenu(messageLocator)
-    await this.page.locator('text=Reply').click()
+    await messageLocator.hover()
+    const replyBtn = messageLocator.locator('[data-testid="msg-action-reply"]')
+    await replyBtn.waitFor({ state: 'visible', timeout: 3000 })
+    await replyBtn.click()
+
     await this.messageInput.click()
     await this.messageInput.fill(replyContent)
     await this.page.keyboard.press('Enter')

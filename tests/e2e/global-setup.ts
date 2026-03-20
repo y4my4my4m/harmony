@@ -100,7 +100,16 @@ async function globalSetup(_config: FullConfig): Promise<void> {
     name: 'E2E Test Server',
     isPublic: true,
   })
-  const channelId = await seedChannel(admin, serverId, { name: 'general' })
+
+  // The server INSERT trigger auto-creates a default "general" channel — use it
+  const { data: defaultChannel } = await admin
+    .from('channels')
+    .select('id')
+    .eq('server_id', serverId)
+    .eq('name', 'general')
+    .single()
+
+  const channelId = defaultChannel?.id ?? await seedChannel(admin, serverId, { name: 'e2e-general' })
   await addUserToServer(admin, bob.profileId, serverId)
 
   console.log('[E2E Setup] Logging in users via browser...')

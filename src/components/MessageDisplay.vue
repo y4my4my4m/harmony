@@ -405,12 +405,12 @@
 
         <!-- Message actions; on mobile with tap use floating popup -->
         <div class="message-actions" v-if="!item.message.failed && hoveredMessageId === item.message.id && !(isMobile && mobileActionTapPosition)">
-          <div ref="reactionBtn" class="action-btn" @click="openEmojiReactor(item.message, $event)"><ReactionIcon/></div>
-          <div class="action-btn" @click="replyTo(item.message)"><ReplyIcon/></div>
-          <div class="action-btn thread-btn" v-if="!props.hideThreadActions" @click="createThread(item.message)" title="Create Thread"><ThreadIcon/></div>
-          <div class="action-btn" v-if="canEditMessage(item.message)" @click="startEdit(item.message)"><EditIcon/></div>
-          <div class="action-btn" :class="{ 'delete-danger': isShiftHeld }" v-if="canDeleteMessage(item.message)" @click="deleteMessage(item.message.id, $event)"><DeleteIcon/></div>
-          <div class="action-btn" @click="openContextMenu(item.message, $event)"><MoreIcon/></div>
+          <div ref="reactionBtn" class="action-btn" data-testid="msg-action-react" @click="openEmojiReactor(item.message, $event)"><ReactionIcon/></div>
+          <div class="action-btn" data-testid="msg-action-reply" @click="replyTo(item.message)"><ReplyIcon/></div>
+          <div class="action-btn thread-btn" data-testid="msg-action-thread" v-if="!props.hideThreadActions" @click="createThread(item.message)" title="Create Thread"><ThreadIcon/></div>
+          <div class="action-btn" data-testid="msg-action-edit" v-if="canEditMessage(item.message)" @click="startEdit(item.message)"><EditIcon/></div>
+          <div class="action-btn" data-testid="msg-action-delete" :class="{ 'delete-danger': isShiftHeld }" v-if="canDeleteMessage(item.message)" @click="deleteMessage(item.message.id, $event)"><DeleteIcon/></div>
+          <div class="action-btn" data-testid="msg-action-more" @click="openContextMenu(item.message, $event)"><MoreIcon/></div>
         </div>
         
         <!-- Reactions -->
