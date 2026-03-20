@@ -20,13 +20,21 @@
         @mouseleave="hideTooltip"
       >
         <!-- Custom emoji image -->
-        <img 
-          v-if="reaction.emoji_url"
-          :src="getEmojiUrl(reaction.emoji_url, 32)" 
-          :alt="reaction.emoji_name || 'emoji'"
-          class="reaction-emoji"
-          @error="handleEmojiError(reaction)"
-        />
+        <template v-if="reaction.emoji_url">
+          <Icon 
+            v-if="brokenEmojiUrls.has(reaction.emoji_url)" 
+            name="image-off" 
+            class="reaction-emoji-broken"
+            :title="reaction.emoji_name || 'Broken emoji'"
+          />
+          <img 
+            v-else
+            :src="getEmojiUrl(reaction.emoji_url, 32)" 
+            :alt="reaction.emoji_name || 'emoji'"
+            class="reaction-emoji"
+            @error="handleEmojiError(reaction)"
+          />
+        </template>
         <!-- Unicode emoji -->
         <span 
           v-else-if="reaction.custom_emoji_content"
@@ -44,7 +52,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, TransitionGroup } from 'vue';
+import { computed, onMounted, onUnmounted, ref, TransitionGroup } from 'vue';
 import { debug } from '@/utils/debug'
 import { useAuthStore } from '@/stores/auth';
 import { useThemeStore } from '@/stores/useTheme';
@@ -53,6 +61,7 @@ import { useHapticSettings } from '@/composables/useHapticSettings';
 import { getEmojiUrl } from '@/utils/emojiUtils';
 import { useFrequentEmojis } from '@/composables/useFrequentEmojis';
 import { postReactionsRealtime } from '@/services/PostReactionsRealtime';
+import Icon from '@/components/common/Icon.vue';
 import type { TimelinePost } from '@/types';
 
 interface Reactor {
@@ -256,9 +265,11 @@ const hideTooltip = () => {
   emit('hide-reaction-tooltip');
 };
 
-// Handle emoji loading errors
+const brokenEmojiUrls = ref(new Set<string>());
+
 const handleEmojiError = (reaction: PostEmojiReaction) => {
   debug.warn('Failed to load emoji:', reaction);
+  if (reaction?.emoji_url) brokenEmojiUrls.value.add(reaction.emoji_url);
 };
 
 // Handle emoji selection from parent components (like MonyPost)
@@ -382,6 +393,14 @@ defineExpose({
 .reaction.reacted .reaction-count {
   color: var(--text-primary);
   font-weight: 600;
+}
+
+.reaction-emoji-broken {
+  width: 16px;
+  height: 16px;
+  color: var(--text-muted);
+  opacity: 0.5;
+  flex-shrink: 0;
 }
 
 .missing-emoji {

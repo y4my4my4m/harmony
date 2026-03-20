@@ -139,7 +139,7 @@ function renderTokenToHTML(token: MarkdownToken, options: RenderOptions): string
       if (emojiResolver) {
         const emoji = emojiResolver(token.content);
         if (emoji) {
-          return `<img class="md-emoji" src="${getEmojiUrl(emoji.url, 48)}" alt=":${token.content}:" title=":${token.content}:" draggable="false">`;
+          return `<img class="md-emoji" src="${getEmojiUrl(emoji.url, 48)}" alt=":${token.content}:" title=":${token.content}:" draggable="false" onerror="this.style.display='none';var s=document.createElement('span');s.className='md-emoji emoji-fallback';s.title=':${token.content}:';s.innerHTML='<svg viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;currentColor&quot; stroke-width=&quot;2&quot;><line x1=&quot;2&quot; y1=&quot;2&quot; x2=&quot;22&quot; y2=&quot;22&quot;/><path d=&quot;M10.41 10.41a2 2 0 1 1-2.83-2.83&quot;/><path d=&quot;M21 15V5a2 2 0 0 0-2-2H9&quot;/><path d=&quot;M3.59 3.59A1.99 1.99 0 0 0 3 5v14a2 2 0 0 0 2 2h14c.55 0 1.052-.22 1.41-.59&quot;/></svg>';this.parentNode.insertBefore(s,this)">`;
         }
       }
       return `:${escapeHtml(token.content)}:`;

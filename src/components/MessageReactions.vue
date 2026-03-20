@@ -15,13 +15,21 @@
         @mouseleave="hideTooltip"
       >
         <!-- Custom server emoji with URL (priority) -->
-        <img 
-          v-if="reactionGroup.emoji?.url && !reactionGroup.emoji?.is_native"
-          :src="getEmojiUrl(reactionGroup.emoji.url, 32)" 
-          :alt="reactionGroup.emoji.name || 'emoji'"
-          class="reaction-emoji"
-          @error="handleEmojiError(reactionGroup.emoji)"
-        />
+        <template v-if="reactionGroup.emoji?.url && !reactionGroup.emoji?.is_native">
+          <Icon 
+            v-if="brokenEmojiUrls.has(reactionGroup.emoji.url)" 
+            name="image-off" 
+            class="reaction-emoji-broken"
+            :title="reactionGroup.emoji.name || 'Broken emoji'"
+          />
+          <img 
+            v-else
+            :src="getEmojiUrl(reactionGroup.emoji.url, 32)" 
+            :alt="reactionGroup.emoji.name || 'emoji'"
+            class="reaction-emoji"
+            @error="handleEmojiError(reactionGroup.emoji)"
+          />
+        </template>
         <!-- Resolved emoji (native unicode or pack SVG) -->
         <template v-else-if="getResolvedEmoji(reactionGroup)">
           <img 
@@ -56,7 +64,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, watch, TransitionGroup } from 'vue';
+import { computed, onMounted, ref, watch, TransitionGroup } from 'vue';
 import { debug } from '@/utils/debug'
 import { useReactionsStore } from '@/stores/useReactions';
 import { useAuthStore } from '@/stores/auth';
@@ -65,6 +73,7 @@ import { useHapticSettings } from '@/composables/useHapticSettings';
 import { useFrequentEmojis } from '@/composables/useFrequentEmojis';
 import { useUnifiedEmoji } from '@/services/unifiedEmojiService';
 import { getEmojiUrl } from '@/utils/emojiUtils';
+import Icon from '@/components/common/Icon.vue';
 import type { Message, Emoji } from '@/types';
 
 interface Props {
@@ -159,9 +168,11 @@ const hideTooltip = () => {
   emit('hide-reaction-tooltip');
 };
 
-// Handle emoji loading errors
+const brokenEmojiUrls = ref(new Set<string>());
+
 const handleEmojiError = (emoji: Emoji) => {
   debug.warn('Failed to load emoji:', emoji);
+  if (emoji?.url) brokenEmojiUrls.value.add(emoji.url);
 };
 
 /**
@@ -302,6 +313,14 @@ watch(() => props.message.id, (newMessageId, oldMessageId) => {
 
 .reaction.reacted .reaction-count {
   color: hsl(0, 0%, 100%);
+}
+
+.reaction-emoji-broken {
+  width: 16px;
+  height: 16px;
+  color: var(--text-muted);
+  opacity: 0.5;
+  flex-shrink: 0;
 }
 
 .missing-emoji {
