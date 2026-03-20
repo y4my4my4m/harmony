@@ -57,6 +57,7 @@ tmp/*
 # Playwright test output
 playwright-report/
 test-results/
+tests/e2e/.auth/
 
 # HAR debug files
 *.har

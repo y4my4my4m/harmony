@@ -1,5 +1,5 @@
 <template>
-  <div class="server-sidebar">
+  <div class="server-sidebar" data-testid="server-sidebar">
     <!-- Fixed header section - never scrolls -->
     <div class="fixed-header">
       <div

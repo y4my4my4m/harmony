@@ -3,6 +3,7 @@
     <!-- Notification Bell Button -->
     <button
       class="notification-bell"
+      data-testid="notification-bell"
       :class="{ 
         'has-unread': hasUnread,
         'is-open': isOpen,
@@ -46,7 +47,7 @@
     <!-- Modern Notification Panel - Teleported to body -->
     <Teleport to="body">
       <Transition name="panel-slide" appear>
-        <div v-if="isOpen" class="notification-panel" @click.stop>
+        <div v-if="isOpen" class="notification-panel" data-testid="notification-panel" @click.stop>
         <!-- Panel Header with Gradient -->
         <div class="panel-header">
           <div class="header-content">
@@ -64,6 +65,7 @@
                   v-if="unreadCount > 0" 
                   @click="markAllAsRead"
                   class="action-button mark-all-read"
+                  data-testid="notification-mark-read"
                   :disabled="isMarkingAllAsRead"
                   :aria-label="'Mark all notifications as read'"
                 >
@@ -141,7 +143,7 @@
             <p class="state-description">No new notifications. When you get mentions, messages, or other updates, they'll show up here.</p>
           </div>
             <!-- Notification Items -->
-            <TransitionGroup name="notification-list" tag="div" class="notifications-container">
+            <TransitionGroup name="notification-list" tag="div" class="notifications-container" data-testid="notification-list">
               <NotificationItem
                 v-for="notification in notifications"
                 :key="notification.id"

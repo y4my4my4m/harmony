@@ -1,5 +1,5 @@
 <template>
-  <div class="message-display" ref="messageDisplayContainer" @scroll="handleScroll" @click="dismissMobileActions">
+  <div class="message-display" ref="messageDisplayContainer" @scroll="handleScroll" @click="dismissMobileActions" data-testid="message-list">
     <!-- Loading skeletons when initially loading messages -->
     <div v-if="isLoading && messages.length === 0" class="loading-skeleton">
       <div v-for="n in 5" :key="`skeleton-${n}`" class="skeleton-message">

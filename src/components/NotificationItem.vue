@@ -1,6 +1,7 @@
 <template>
   <div 
     class="notification-item"
+    data-testid="notification-item"
     :class="[
       `notification-item--${notification.type}`,
       {

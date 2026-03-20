@@ -1,11 +1,12 @@
 <template>
-  <div class="dm-sidebar">
+  <div class="dm-sidebar" data-testid="dm-sidebar">
     <!-- Header -->
     <div class="dm-header">
       <h2 class="dm-title">{{ $t('dm.directMessages') }}</h2>
       <div class="header-actions">
         <button 
           class="new-dm-btn"
+          data-testid="dm-new-conversation"
           @click="showUserSearch = !showUserSearch"
           title="Start a new DM"
         >
@@ -107,6 +108,7 @@
           v-for="conversation in sortedConversations"
           :key="conversation.id"
           class="conversation-item"
+          data-testid="dm-conversation-item"
           :class="{ 
             'active': conversation.id === dmStore.currentConversationId,
             'unread': conversation.unread_count && conversation.unread_count > 0,

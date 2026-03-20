@@ -107,12 +107,13 @@
           </div>
 
           <!-- Email/Password Form -->
-          <form @submit.prevent="handleSubmit" class="auth-form">
+          <form @submit.prevent="handleSubmit" class="auth-form" data-testid="auth-form">
             <div class="input-group" :class="{ 'focused': emailFocused, 'has-value': email, 'error': emailError }">
               <input 
                 v-model="email" 
                 type="email" 
                 id="email"
+                data-testid="auth-email"
                 placeholder=" "
                 @focus="emailFocused = true"
                 @blur="emailFocused = false; validateEmail()"
@@ -122,7 +123,7 @@
               />
               <label for="email">{{ $t('auth.email') }}</label>
               <div class="input-line"></div>
-              <span v-if="emailError" class="error-text">{{ emailError }}</span>
+              <span v-if="emailError" class="error-text" data-testid="auth-email-error">{{ emailError }}</span>
             </div>
 
             <div class="input-group" :class="{ 'focused': passwordFocused, 'has-value': password, 'error': passwordError }">
@@ -130,6 +131,7 @@
                 v-model="password" 
                 :type="showPassword ? 'text' : 'password'"
                 id="password"
+                data-testid="auth-password"
                 placeholder=" "
                 @focus="passwordFocused = true"
                 @blur="passwordFocused = false; validatePassword()"
@@ -173,6 +175,7 @@
             <button 
               type="submit" 
               class="submit-btn"
+              data-testid="auth-submit"
               :disabled="isLoading"
             >
               <span v-if="!isLoading" class="btn-text">
@@ -189,7 +192,7 @@
           <!-- Switch Mode -->
           <div class="switch-mode">
             <span>{{ isLogin ? $t('auth.dontHaveAccount') : $t('auth.alreadyHaveAccount') }}</span>
-            <button type="button" @click="toggleMode">
+            <button type="button" @click="toggleMode" data-testid="auth-switch-mode">
               {{ isLogin ? $t('auth.register') : $t('auth.logIn') }}
             </button>
           </div>

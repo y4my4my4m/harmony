@@ -2,7 +2,7 @@
 <template>
   <!-- FIXED: Use v-show instead of v-if to prevent post disappearing on re-render -->
   <!-- Also added fallback for missing author to prevent complete disappearance -->
-  <article class="mony-post" 
+  <article class="mony-post" data-testid="post-item"
   v-show="post && (author || authorFallback)" :class="{ 'is-reply': post.reply_context, 'is-reblog': isReblog }">
     
     <!-- Reblog Header (if this is a reblog) -->
@@ -247,6 +247,7 @@
       <div class="post-actions">
         <button 
           class="action-button reply-button"
+          data-testid="post-reply-btn"
           @click="onReply"
           :title="'Reply to ' + author.display_name"
         >
@@ -257,6 +258,7 @@
         <div class="reblog-menu-container" v-click-outside="() => showReblogMenu = false">
           <button 
             class="action-button reblog-button"
+            data-testid="post-reblog-btn"
             :class="{ 
               active: displayInteractionCounts.is_reblogged,
               disabled: !canReblog && !displayInteractionCounts.is_reblogged
@@ -291,6 +293,7 @@
 
         <button 
           class="action-button favorite-button"
+          data-testid="post-favorite-btn"
           :class="{ active: displayInteractionCounts.is_favorited }"
           @click="handleToggleFavorite"
           :title="displayInteractionCounts.is_favorited ? 'Unfavorite' : 'Favorite'"
@@ -310,6 +313,7 @@
 
         <button 
           class="action-button bookmark-button"
+          data-testid="post-bookmark-btn"
           :class="{ active: displayInteractionCounts.is_bookmarked }"
           @click="handleToggleBookmark"
           :title="displayInteractionCounts.is_bookmarked ? 'Remove bookmark' : 'Bookmark'"

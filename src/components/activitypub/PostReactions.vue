@@ -1,5 +1,5 @@
 <template>
-  <div v-if="reactions.length > 0" class="post-reactions">
+  <div v-if="reactions.length > 0" class="post-reactions" data-testid="post-reactions">
     <TransitionGroup name="reaction-list" tag="div" class="reactions-container">
       <!-- Loading state -->
       <div v-if="isLoadingReactions && reactions.length === 0" key="loading" class="reaction-loading">

@@ -1,6 +1,6 @@
 <!-- ActivityPub Feed Component - The heart of the Monyverse -->
 <template>
-  <div class="mony-feed">
+  <div class="mony-feed" data-testid="timeline-feed">
     <!-- Feed Header -->
     <div class="feed-header">
       <div class="feed-tabs">
@@ -19,6 +19,7 @@
       <!-- Compose Button -->
       <button 
         class="compose-button"
+        data-testid="compose-btn"
         @click="openComposer"
         :disabled="isPosting"
       >

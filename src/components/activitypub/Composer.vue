@@ -62,7 +62,7 @@
         </div>
 
         <!-- Main Composer Body -->
-        <div class="composer-body">
+        <div class="composer-body" data-testid="compose-post">
           <div class="composer-user">
             <Avatar 
               :src="currentUser?.avatar_url"
@@ -295,6 +295,7 @@
                 <!-- Submit Button -->
                 <button
                   class="post-button"
+                  data-testid="compose-submit"
                   :disabled="!canSubmit || isPosting"
                   @click="handleSubmit"
                 >

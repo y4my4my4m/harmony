@@ -159,6 +159,7 @@
         <button 
           @click="createServer" 
           class="action-btn primary"
+          data-testid="create-server-btn"
           :disabled="!canCreate || isCreating"
         >
           <span v-if="!isCreating">{{ $t('server.createButton') }}</span>

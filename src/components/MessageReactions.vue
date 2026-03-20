@@ -1,5 +1,5 @@
 <template>
-  <div v-if="showReactions && (reactions.length > 0 || isLoadingReactions)" class="message-reactions">
+  <div v-if="showReactions && (reactions.length > 0 || isLoadingReactions)" class="message-reactions" data-testid="message-reactions">
     <div class="reactions-gutter"></div>
     <TransitionGroup name="reaction-list" tag="div" class="reactions-container">
       <div
@@ -42,7 +42,7 @@
         </template>
         <!-- Fallback for missing emoji -->
         <span v-else class="missing-emoji" :title="`Emoji: ${reactionGroup.emoji?.name || reactionGroup.emoji_id}`">?</span>
-        <span class="reaction-count">{{ reactionGroup.count }}</span>
+        <span class="reaction-count" data-testid="reaction-count">{{ reactionGroup.count }}</span>
       </div>
       
       <!-- Add reaction button (only shown when reactions exist) -->
@@ -50,6 +50,7 @@
         v-if="reactions.length > 0"
         key="add-reaction-btn"
         class="add-reaction-btn"
+        data-testid="add-reaction-btn"
         @click="handleAddReactionClick"
         title="Add Reaction"
       >
