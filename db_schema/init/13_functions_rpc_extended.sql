@@ -150,6 +150,7 @@ DECLARE
     is_blocked boolean;
     is_muted boolean;
     is_channel_muted boolean;
+    v_muted_until timestamp with time zone;
     is_rate_limited boolean;
     p_channel_id uuid;
     p_conversation_id uuid;
@@ -200,7 +201,7 @@ BEGIN
         -- Check channel/conversation mute + notification level
         IF p_channel_id IS NOT NULL OR p_conversation_id IS NOT NULL THEN
             SELECT nc.muted, nc.notification_level, nc.muted_until
-            INTO is_channel_muted, v_notification_level
+            INTO is_channel_muted, v_notification_level, v_muted_until
             FROM notification_channels nc
             WHERE nc.user_id = recipient_id
             AND (
@@ -209,6 +210,13 @@ BEGIN
                 (p_conversation_id IS NOT NULL AND nc.conversation_id = p_conversation_id)
             )
             LIMIT 1;
+
+            -- Check if temporary mute has expired
+            IF COALESCE(is_channel_muted, false) = true
+               AND v_muted_until IS NOT NULL
+               AND v_muted_until <= NOW() THEN
+                is_channel_muted := false;
+            END IF;
 
             -- Muted channel: skip everything EXCEPT mentions (Discord behavior)
             IF COALESCE(is_channel_muted, false) = true THEN
@@ -1857,7 +1865,13 @@ LANGUAGE plpgsql SECURITY DEFINER
 AS $$
 DECLARE
     v_count integer;
+    v_profile_id uuid;
 BEGIN
+    v_profile_id := get_current_profile_id();
+    IF v_profile_id IS NULL OR v_profile_id != p_user_id THEN
+        RAISE EXCEPTION 'Not authorized';
+    END IF;
+
     ALTER TABLE notifications DISABLE TRIGGER trigger_broadcast_notification;
 
     UPDATE notifications

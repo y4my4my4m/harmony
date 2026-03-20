@@ -693,7 +693,7 @@ export const useDMStore = defineStore('dm', () => {
           for (const row of unreadData) {
             const conv = mergedConversations.find(c => c.id === row.conversation_id)
             if (conv) {
-              conv.unread_count = (row.unread_messages || 0) + (row.unread_mentions || 0)
+              conv.unread_count = row.unread_messages || 0
             }
           }
         }
