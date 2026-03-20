@@ -80,7 +80,7 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use('/admin/queues', serverAdapter.getRouter());
+app.use('/', serverAdapter.getRouter());
 
 app.listen(PORT, () => {
   console.log(`Bull Board listening on port ${PORT}`);
