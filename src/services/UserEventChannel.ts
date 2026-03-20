@@ -17,10 +17,11 @@ import { supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
 
 type UserEventType =
-  | 'notification:new' | 'notification:update'
+  | 'notification:new' | 'notification:update' | 'notification:bulk_read'
   | 'unread:change'
   | 'conversation:new'
   | 'server:joined' | 'server:left' | 'server:updated'
+  | 'preferences:updated'
 type EventHandler = (payload: Record<string, any>) => void | Promise<void>
 
 const RECONNECT_BASE_DELAY = 2_000
@@ -104,6 +105,22 @@ class UserEventChannel {
     this.profileId = null
     this.retryCount = 0
     this.handlers.clear()
+  }
+
+  /**
+   * Send a broadcast event to the user's channel (e.g. cross-tab sync).
+   * Silently no-ops if the channel isn't connected.
+   */
+  send(type: UserEventType, data: Record<string, any> = {}): void {
+    if (!this.channel || !this.connected) return
+
+    this.channel.send({
+      type: 'broadcast',
+      event: 'user_event',
+      payload: { type, ...data },
+    }).catch((err: any) => {
+      debug.warn('UserEventChannel send failed:', err)
+    })
   }
 
   /** Whether the broadcast channel is currently connected. */

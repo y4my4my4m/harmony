@@ -309,4 +309,47 @@ CREATE OR REPLACE FUNCTION public.send_notification_to_user(
     ))[1];
 $$;
 
+-- Fix: mark_all_notifications_read references trigger "trigger_broadcast_notification"
+-- but the actual trigger is named "trg_broadcast_notification" (defined in 40_triggers.sql).
+-- This causes error 42704 when marking all notifications as read.
+CREATE OR REPLACE FUNCTION public.mark_all_notifications_read(p_user_id uuid) RETURNS void
+LANGUAGE plpgsql SECURITY DEFINER
+AS $$
+DECLARE
+    v_count integer;
+    v_profile_id uuid;
+BEGIN
+    v_profile_id := get_current_profile_id();
+    IF v_profile_id IS NULL OR v_profile_id != p_user_id THEN
+        RAISE EXCEPTION 'Not authorized';
+    END IF;
+
+    ALTER TABLE notifications DISABLE TRIGGER trg_broadcast_notification;
+
+    UPDATE notifications
+    SET is_read = true, read_at = NOW(), updated_at = NOW()
+    WHERE user_id = p_user_id AND is_read = false;
+
+    GET DIAGNOSTICS v_count = ROW_COUNT;
+
+    ALTER TABLE notifications ENABLE TRIGGER trg_broadcast_notification;
+
+    IF v_count > 0 THEN
+        BEGIN
+            PERFORM realtime.send(
+                jsonb_build_object(
+                    'type', 'notification:bulk_read',
+                    'count', v_count
+                ),
+                'user_event',
+                'user:' || p_user_id::text,
+                true
+            );
+        EXCEPTION WHEN OTHERS THEN
+            NULL;
+        END;
+    END IF;
+END;
+$$;
+
 COMMIT;

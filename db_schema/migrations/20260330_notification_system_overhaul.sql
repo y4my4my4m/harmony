@@ -438,7 +438,7 @@ BEGIN
     END IF;
 
     -- Temporarily disable the broadcast trigger to prevent per-row storms
-    ALTER TABLE notifications DISABLE TRIGGER trigger_broadcast_notification;
+    ALTER TABLE notifications DISABLE TRIGGER trg_broadcast_notification;
 
     UPDATE notifications
     SET is_read = true, read_at = NOW(), updated_at = NOW()
@@ -447,7 +447,7 @@ BEGIN
     GET DIAGNOSTICS v_count = ROW_COUNT;
 
     -- Re-enable the trigger
-    ALTER TABLE notifications ENABLE TRIGGER trigger_broadcast_notification;
+    ALTER TABLE notifications ENABLE TRIGGER trg_broadcast_notification;
 
     -- Send a single bulk broadcast event
     IF v_count > 0 THEN
