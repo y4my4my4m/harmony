@@ -8,7 +8,7 @@
     </div>
 
     <!-- Main content -->
-    <div class="profile-creation-card">
+    <div class="profile-creation-card" data-testid="new-profile-card">
       <!-- Loading overlay -->
       <div v-if="isCreatingProfile" class="creation-loading-overlay">
         <div class="loading-content">
@@ -47,7 +47,7 @@
       <!-- Step content -->
       <div class="card-content">
         <!-- Step 1: Avatar -->
-        <div v-if="currentStep === 1" class="step-content" key="step1">
+        <div v-if="currentStep === 1" class="step-content" key="step1" data-testid="profile-step-1">
           <div class="step-header">
             <h2>Choose Your Avatar</h2>
             <p>Upload a photo or use a default avatar</p>
@@ -78,10 +78,10 @@
               />
             </div>
             <div class="avatar-options">
-              <button class="option-btn" :class="{ active: !avatarFile }" @click="useDefaultAvatar">
+              <button class="option-btn" :class="{ active: !avatarFile }" @click="useDefaultAvatar" data-testid="avatar-use-default">
                 Use Default
               </button>
-              <button class="option-btn primary" @click="triggerAvatarUpload">
+              <button class="option-btn primary" @click="triggerAvatarUpload" data-testid="avatar-upload">
                 Upload Image
               </button>
             </div>
@@ -89,7 +89,7 @@
         </div>
 
         <!-- Step 2: Basic Info -->
-        <div v-if="currentStep === 2" class="step-content" key="step2">
+        <div v-if="currentStep === 2" class="step-content" key="step2" data-testid="profile-step-2">
           <div class="step-header">
             <h2>Basic Information</h2>
             <p>Tell us about yourself</p>
@@ -105,6 +105,7 @@
                   class="modern-input"
                   placeholder="How others will see you"
                   maxlength="50"
+                  data-testid="profile-display-name"
                   @input="validateDisplayName"
                 />
                 <div class="input-accent"></div>
@@ -125,6 +126,7 @@
                   class="modern-input username-input"
                   placeholder="uniqueusername"
                   maxlength="24"
+                  data-testid="profile-username"
                   @input="formatUsername"
                 />
                 <span class="username-suffix">@{{ domain }}</span>
@@ -134,7 +136,7 @@
                 <span class="char-count">{{ username.length }}/24</span>
                 <span v-if="usernameError" class="error-text">{{ usernameError }}</span>
                 <span v-else-if="checkingUsername" class="checking-text">Checking...</span>
-                <span v-else-if="usernameAvailable" class="success-text">✓ Available</span>
+                <span v-else-if="usernameAvailable" class="success-text" data-testid="username-available">✓ Available</span>
               </div>
             </div>
 
@@ -147,6 +149,7 @@
                   placeholder="Tell others about yourself..."
                   maxlength="190"
                   rows="3"
+                  data-testid="profile-bio"
                 ></textarea>
                 <div class="input-accent"></div>
               </div>
@@ -158,7 +161,7 @@
         </div>
 
         <!-- Step 3: Customization -->
-        <div v-if="currentStep === 3" class="step-content" key="step3">
+        <div v-if="currentStep === 3" class="step-content" key="step3" data-testid="profile-step-3">
           <div class="step-header">
             <h2>Personalize Your Profile</h2>
             <p>Choose your signature color</p>
@@ -194,6 +197,7 @@
                   class="color-option"
                   :class="{ active: selectedColor === color }"
                   :style="{ backgroundColor: color }"
+                  data-testid="color-preset"
                   @click="selectedColor = color"
                 ></div>
                 <div 
@@ -259,6 +263,7 @@
           v-if="currentStep > 1" 
           @click="previousStep" 
           class="action-btn secondary"
+          data-testid="profile-back-btn"
         >
           <svg viewBox="0 0 24 24" class="btn-icon">
             <path d="M20,11V13H8L13.5,18.5L12.08,19.92L4.16,12L12.08,4.08L13.5,5.5L8,11H20Z" fill="currentColor"/>
@@ -269,6 +274,7 @@
           @click="nextStep" 
           class="action-btn primary"
           :disabled="!canProceed || isCreatingProfile"
+          data-testid="profile-next-btn"
         >
           {{ currentStep === 3 ? 'Create Profile' : 'Continue' }}
           <svg v-if="currentStep < 3" viewBox="0 0 24 24" class="btn-icon">

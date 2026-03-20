@@ -24,11 +24,20 @@ export default defineConfig({
   },
   projects: [
     {
+      name: 'auth-tests',
+      testMatch: 'auth.spec.ts',
+      use: { ...devices['Desktop Chrome'] },
+    },
+    {
       name: 'chromium',
+      testIgnore: 'auth.spec.ts',
+      dependencies: ['auth-tests'],
       use: { ...devices['Desktop Chrome'] },
     },
     {
       name: 'firefox',
+      testIgnore: 'auth.spec.ts',
+      dependencies: ['auth-tests'],
       use: { ...devices['Desktop Firefox'] },
     },
   ],

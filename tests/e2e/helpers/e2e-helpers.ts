@@ -149,6 +149,14 @@ export async function cleanupE2EUsers(admin: SupabaseClient, users: E2ETestUser[
   }
 }
 
+export async function cleanupUserByEmail(admin: SupabaseClient, email: string): Promise<void> {
+  const { data } = await admin.auth.admin.listUsers()
+  const authUser = data?.users?.find((u) => u.email === email)
+  if (authUser) {
+    await cleanupSingleUser(admin, authUser.id)
+  }
+}
+
 export async function seedServer(
   admin: SupabaseClient,
   ownerProfileId: string,

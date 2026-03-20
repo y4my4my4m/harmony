@@ -6,6 +6,7 @@
  */
 
 import { chromium, type FullConfig } from '@playwright/test'
+import { createClient } from '@supabase/supabase-js'
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
@@ -31,46 +32,44 @@ export interface SeedData {
   channelId: string
 }
 
-async function loginViaAPI(
+async function loginAndSaveState(
   user: E2ETestUser,
   storageStatePath: string,
   baseURL: string,
 ): Promise<void> {
+  const supabaseUrl = getSupabaseUrl()
+  const supabaseAnonKey = getSupabaseAnonKey()
+
+  const client = createClient(supabaseUrl, supabaseAnonKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  })
+
+  const { data, error } = await client.auth.signInWithPassword({
+    email: user.email,
+    password: user.password,
+  })
+
+  if (error || !data.session) {
+    throw new Error(`Failed to login ${user.username}: ${error?.message ?? 'no session'}`)
+  }
+
+  // Supabase stores auth under sb-<hostname>-auth-token
+  const hostname = new URL(supabaseUrl).hostname
+  const storageKey = `sb-${hostname}-auth-token`
+  const storageValue = JSON.stringify(data.session)
+
   const browser = await chromium.launch()
   const context = await browser.newContext()
   const page = await context.newPage()
 
-  // Navigate to app so localStorage is on the correct origin
   await page.goto(baseURL, { waitUntil: 'domcontentloaded' })
 
-  // Sign in via Supabase JS client injected into the page
-  const supabaseUrl = getSupabaseUrl()
-  const supabaseAnonKey = getSupabaseAnonKey()
-
-  const loginResult = await page.evaluate(
-    async ({ url, anonKey, email, password }) => {
-      const { createClient } = await import('@supabase/supabase-js')
-      const client = createClient(url, anonKey, {
-        auth: { persistSession: true },
-      })
-      const { data, error } = await client.auth.signInWithPassword({ email, password })
-      if (error) return { error: error.message }
-      return { accessToken: data.session?.access_token }
+  await page.evaluate(
+    ({ key, value }) => {
+      localStorage.setItem(key, value)
     },
-    {
-      url: supabaseUrl,
-      anonKey: supabaseAnonKey,
-      email: user.email,
-      password: user.password,
-    },
+    { key: storageKey, value: storageValue },
   )
-
-  if (loginResult.error) {
-    throw new Error(`Failed to login ${user.username}: ${loginResult.error}`)
-  }
-
-  // Wait briefly for localStorage to persist
-  await page.waitForTimeout(500)
 
   await context.storageState({ path: storageStatePath })
   await browser.close()
@@ -106,8 +105,8 @@ async function globalSetup(_config: FullConfig): Promise<void> {
 
   console.log('[E2E Setup] Logging in users via browser...')
 
-  await loginViaAPI(alice, path.resolve(AUTH_DIR, 'alice.json'), baseURL)
-  await loginViaAPI(bob, path.resolve(AUTH_DIR, 'bob.json'), baseURL)
+  await loginAndSaveState(alice, path.resolve(AUTH_DIR, 'alice.json'), baseURL)
+  await loginAndSaveState(bob, path.resolve(AUTH_DIR, 'bob.json'), baseURL)
 
   // Persist seed data for tests to reference
   const seedData: SeedData = { alice, bob, serverId, channelId }
