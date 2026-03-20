@@ -229,10 +229,14 @@ echo -e "  Total:        ${CYAN}${TOTAL}${RESET} simulated participants"
 echo -e "  Duration:     ${CYAN}${DURATION}${RESET}"
 echo ""
 
-if [[ $TOTAL -gt 200 ]]; then
-    echo -e "${YELLOW}Tip: For large tests, ensure this machine has enough CPU/bandwidth.${RESET}"
-    echo -e "${YELLOW}     Set ulimit -n 65535 for 1000+ participants.${RESET}"
-    echo ""
+if [[ $TOTAL -gt 500 ]]; then
+    CURRENT_ULIMIT=$(ulimit -n 2>/dev/null || echo "unknown")
+    if [[ "$CURRENT_ULIMIT" != "unknown" && "$CURRENT_ULIMIT" -lt 65535 ]]; then
+        echo -e "${YELLOW}Note: Your open-file limit is ${CURRENT_ULIMIT}. For ${TOTAL} participants"
+        echo -e "      each needing a socket, you may hit 'too many open files'.${RESET}"
+        echo -e "${YELLOW}      Run ${BOLD}ulimit -n 65535${RESET}${YELLOW} in this shell first (temporary, resets on close).${RESET}"
+        echo ""
+    fi
 fi
 
 echo -e "${DIM}Running: ${CMD[*]}${RESET}"

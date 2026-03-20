@@ -294,6 +294,29 @@ Key metrics to watch:
 - `livekit_track_publish_latency` - Publishing latency
 - `livekit_packet_loss` - Packet loss rate
 
+## Non-Voice Benchmarks (REST / Realtime / Federation)
+
+For testing message throughput, REST API latency, and federation endpoints,
+use the separate API benchmark script:
+
+```bash
+# Quick curl-based latency probe (no dependencies)
+./scripts/benchmark-api.sh --mode quick
+
+# Full concurrent load test (requires k6)
+./scripts/benchmark-api.sh --mode full --vus 100 --duration 60s
+```
+
+See `./scripts/benchmark-api.sh --help` for full options.
+
+Install k6 for full load tests:
+```bash
+# Arch / Manjaro
+yay -S k6
+# macOS
+brew install k6
+```
+
 ## Next Steps
 
 1. Test with real users in staging
