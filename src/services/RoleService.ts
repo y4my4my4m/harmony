@@ -527,6 +527,7 @@ class RoleService {
    * OPTIMIZED: Checks cache first, deduplicates concurrent requests
    */
   async getUserRoles(userId: string, serverId: string): Promise<ServerRole[]> {
+    if (!userId || !serverId) return []
     const cacheKey = `${userId}-${serverId}`
     
     // Check cache first

@@ -81,6 +81,7 @@
             >
               <Icon :name="navItem.icon" />
               <span>{{ navItem.label }}</span>
+              <span v-if="navItem.badge" class="nav-badge">{{ navItem.badge > 99 ? '99+' : navItem.badge }}</span>
             </button>
           </div>
         </nav>
@@ -129,6 +130,7 @@ import { useI18n } from 'vue-i18n';
 import { useActivityPubStore } from '@/stores/useActivityPub';
 import { useProfileStore } from '@/stores/useProfile';
 import { useAuthStore } from '@/stores/auth';
+import { useNotificationStore } from '@/stores/useNotification';
 import type { Server, Channel, Category, User } from '@/types';
 
 // I18n
@@ -189,6 +191,7 @@ const router = useRouter();
 const activityPubStore = useActivityPubStore();
 const profileStore = useProfileStore();
 const authStore = useAuthStore();
+const notificationStore = useNotificationStore();
 
 // State
 const followingChange = ref(0);
@@ -262,7 +265,7 @@ const navigationItems = computed(() => [
   { id: 'explore', label: t('activitypub.explore'), path: '/explore', icon: 'compass' },
   { id: 'feed', label: t('activitypub.feed'), path: '/social/home', icon: 'mony-mascot' },
   { id: 'profile', label: t('activitypub.profile'), path: getUserProfilePath(), icon: 'user' },
-  { id: 'mentions', label: t('activitypub.mentions'), path: '/social/mentions', icon: 'at-sign' },
+  { id: 'mentions', label: t('activitypub.mentions'), path: '/social/mentions', icon: 'at-sign', badge: notificationStore.unreadMentions },
   { id: 'bookmarks', label: t('activitypub.bookmarks'), path: '/social/bookmarks', icon: 'bookmark' },
   { id: 'lists', label: t('activitypub.lists'), path: '/social/lists', icon: 'list' },
   { id: 'settings', label: t('navigation.settings'), path: '/settings', icon: 'settings' }
@@ -642,6 +645,20 @@ onUnmounted(() => {
 .nav-item.active {
   background: var(--background-modifier-selected);
   color: var(--harmony-primary);
+}
+
+.nav-badge {
+  margin-left: auto;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--status-danger, #ed4245);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
 }
 
 .quick-stats {

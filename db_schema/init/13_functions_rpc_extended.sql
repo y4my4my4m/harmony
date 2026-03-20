@@ -3456,6 +3456,8 @@ DECLARE
     msg_channel_id uuid;
     msg_server_id uuid;
     msg_conversation_id uuid;
+    msg_channel_name text;
+    msg_server_name text;
     post_author_id uuid;
     post_record RECORD;
     emoji_record RECORD;
@@ -3499,10 +3501,11 @@ BEGIN
         SELECT user_id INTO single_target_id FROM messages WHERE id = NEW.message_id;
         
         IF single_target_id IS NOT NULL AND single_target_id != NEW.user_id THEN
-            SELECT m.channel_id, c.server_id, m.conversation_id
-            INTO msg_channel_id, msg_server_id, msg_conversation_id
+            SELECT m.channel_id, c.server_id, m.conversation_id, c.name, s.name
+            INTO msg_channel_id, msg_server_id, msg_conversation_id, msg_channel_name, msg_server_name
             FROM messages m 
-            LEFT JOIN channels c ON m.channel_id = c.id 
+            LEFT JOIN channels c ON m.channel_id = c.id
+            LEFT JOIN servers s ON c.server_id = s.id
             WHERE m.id = NEW.message_id;
             
             SELECT id, username, display_name, avatar_url, domain, is_local
@@ -3523,11 +3526,18 @@ BEGIN
             notification_data := jsonb_build_object(
                 'type', 'reaction',
                 'message_id', NEW.message_id,
-                'emoji_id', NEW.emoji_id,
-                'user_id', NEW.user_id,
-                'emoji_name', emoji_name,
-                'emoji_url', emoji_url,
-                'reactor', CASE WHEN reactor_profile.id IS NOT NULL THEN
+                'channel_id', msg_channel_id,
+                'server_id', msg_server_id,
+                'channel_name', msg_channel_name,
+                'server_name', msg_server_name,
+                'message_preview', extract_message_text((SELECT content FROM messages WHERE id = NEW.message_id)),
+                'reaction', jsonb_build_object(
+                    'emoji_id', NEW.emoji_id,
+                    'emoji_name', COALESCE(emoji_name, NEW.custom_emoji),
+                    'emoji_url', emoji_url,
+                    'custom_emoji', NEW.custom_emoji
+                ),
+                'sender', CASE WHEN reactor_profile.id IS NOT NULL THEN
                     jsonb_build_object(
                         'id', reactor_profile.id,
                         'username', reactor_profile.username,
@@ -3556,7 +3566,7 @@ BEGIN
         END IF;
 
     ELSIF TG_TABLE_NAME = 'post_interactions' AND TG_OP = 'INSERT' THEN
-        IF NEW.interaction_type IN ('emoji_reaction', 'favorite') THEN
+        IF NEW.interaction_type IN ('emoji_reaction', 'favorite', 'reblog') THEN
             SELECT author_id INTO post_author_id 
             FROM posts 
             WHERE id = NEW.post_id;
@@ -3580,7 +3590,11 @@ BEGIN
                 END IF;
                 
                 notification_data := jsonb_build_object(
-                    'type', CASE WHEN NEW.interaction_type = 'favorite' THEN 'activitypub_favorite' ELSE 'activitypub_reaction' END,
+                    'type', CASE
+                        WHEN NEW.interaction_type = 'favorite' THEN 'activitypub_favorite'
+                        WHEN NEW.interaction_type = 'reblog' THEN 'activitypub_reblog'
+                        ELSE 'activitypub_reaction'
+                    END,
                     'post_id', NEW.post_id,
                     'post', jsonb_build_object(
                         'id', post_record.id,
@@ -3605,7 +3619,11 @@ BEGIN
                 );
                 
                 PERFORM send_notification_to_user(
-                    CASE WHEN NEW.interaction_type = 'favorite' THEN 'activitypub_favorite' ELSE 'activitypub_reaction' END,
+                    CASE
+                        WHEN NEW.interaction_type = 'favorite' THEN 'activitypub_favorite'
+                        WHEN NEW.interaction_type = 'reblog' THEN 'activitypub_reblog'
+                        ELSE 'activitypub_reaction'
+                    END,
                     post_author_id,
                     notification_data,
                     NULL, NULL, NULL,
