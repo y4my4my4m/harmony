@@ -32,20 +32,20 @@
       <div v-if="preferences.dnd_enabled" class="setting-item">
         <div class="setting-info">
           <h4 class="setting-label">Quiet Hours</h4>
-          <p class="setting-description">Set your do not disturb schedule</p>
+          <p class="setting-description">Set your do not disturb schedule (shown in your local time)</p>
         </div>
         <div class="setting-control time-range">
           <input 
             type="time" 
-            v-model="preferences.dnd_start_time"
-            @change="updatePreferences"
+            :value="dndStartTimeLocal"
+            @change="onDndStartChange"
             class="time-input"
           />
           <span class="time-separator">to</span>
           <input 
             type="time" 
-            v-model="preferences.dnd_end_time"
-            @change="updatePreferences"
+            :value="dndEndTimeLocal"
+            @change="onDndEndChange"
             class="time-input"
           />
         </div>
@@ -794,6 +794,38 @@ const loadPreferences = () => {
     Object.assign(preferences, currentPreferences)
     originalPreferences.value = { ...currentPreferences }
   }
+}
+
+// DND timezone helpers: stored as UTC, displayed as local
+const utcToLocal = (utcTime: string): string => {
+  if (!utcTime) return ''
+  const [h, m] = utcTime.split(':').map(Number)
+  const now = new Date()
+  const utcDate = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), h, m))
+  return `${String(utcDate.getHours()).padStart(2, '0')}:${String(utcDate.getMinutes()).padStart(2, '0')}`
+}
+
+const localToUtc = (localTime: string): string => {
+  if (!localTime) return ''
+  const [h, m] = localTime.split(':').map(Number)
+  const now = new Date()
+  now.setHours(h, m, 0, 0)
+  return `${String(now.getUTCHours()).padStart(2, '0')}:${String(now.getUTCMinutes()).padStart(2, '0')}:00`
+}
+
+const dndStartTimeLocal = computed(() => utcToLocal(preferences.dnd_start_time))
+const dndEndTimeLocal = computed(() => utcToLocal(preferences.dnd_end_time))
+
+const onDndStartChange = (e: Event) => {
+  const target = e.target as HTMLInputElement
+  preferences.dnd_start_time = localToUtc(target.value)
+  updatePreferences()
+}
+
+const onDndEndChange = (e: Event) => {
+  const target = e.target as HTMLInputElement
+  preferences.dnd_end_time = localToUtc(target.value)
+  updatePreferences()
 }
 
 const updatePreferences = async () => {

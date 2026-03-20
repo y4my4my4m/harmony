@@ -440,9 +440,23 @@ const leaveThread = async () => {
 
 const toggleMute = async () => {
   if (!thread.value) return
-  
+
   try {
-    // TODO: Implement mute toggle
+    const { authContextService } = await import('@/services/AuthContextService')
+    const profileId = await authContextService.getCurrentProfileId()
+    const newMuted = !thread.value.muted
+
+    const { error } = await supabase
+      .from('thread_members')
+      .update({ muted: newMuted })
+      .eq('thread_id', thread.value.id)
+      .eq('user_id', profileId)
+
+    if (error) {
+      console.error('Failed to toggle thread mute:', error)
+    } else if (thread.value) {
+      thread.value.muted = newMuted
+    }
     showOptions.value = false
   } catch (error) {
     console.error('Failed to toggle mute:', error)

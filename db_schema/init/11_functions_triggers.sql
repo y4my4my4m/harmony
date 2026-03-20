@@ -1991,6 +1991,368 @@ BEGIN
 END;
 $$;
 
+-- ---------------------------------------------------------------------------
+-- Increment unread messages for server channel messages (skip muted channels)
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.handle_new_message_unread()
+RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER
+AS $$
+DECLARE
+    v_server_id uuid;
+BEGIN
+    IF NEW.channel_id IS NULL THEN
+        RETURN NEW;
+    END IF;
+
+    SELECT server_id INTO v_server_id
+    FROM public.channels WHERE id = NEW.channel_id;
+
+    IF v_server_id IS NULL THEN
+        RETURN NEW;
+    END IF;
+
+    INSERT INTO public.unread_counts (user_id, server_id, channel_id, unread_messages)
+    SELECT us.user_id, v_server_id, NEW.channel_id, 1
+    FROM public.user_servers us
+    WHERE us.server_id = v_server_id
+      AND us.status = 'accepted'
+      AND us.user_id != NEW.user_id
+      AND NOT EXISTS (
+          SELECT 1 FROM public.notification_channels nc
+          WHERE nc.user_id = us.user_id
+            AND nc.channel_id = NEW.channel_id
+            AND nc.muted = true
+            AND (nc.muted_until IS NULL OR nc.muted_until > NOW())
+      )
+    ON CONFLICT (user_id, channel_id) WHERE channel_id IS NOT NULL
+    DO UPDATE SET
+        unread_messages = unread_counts.unread_messages + 1,
+        updated_at = now();
+
+    RETURN NEW;
+END;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- Increment unread messages for DM/conversation messages
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.handle_new_dm_unread()
+RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER
+AS $$
+BEGIN
+    IF NEW.conversation_id IS NULL THEN
+        RETURN NEW;
+    END IF;
+
+    INSERT INTO public.unread_counts (user_id, server_id, channel_id, conversation_id, unread_messages)
+    SELECT cp.user_id, NULL, NULL, NEW.conversation_id, 1
+    FROM public.conversation_participants cp
+    WHERE cp.conversation_id = NEW.conversation_id
+      AND cp.user_id != NEW.user_id
+      AND cp.left_at IS NULL
+      AND NOT EXISTS (
+          SELECT 1 FROM public.notification_channels nc
+          WHERE nc.user_id = cp.user_id
+            AND nc.conversation_id = NEW.conversation_id
+            AND nc.muted = true
+            AND (nc.muted_until IS NULL OR nc.muted_until > NOW())
+      )
+    ON CONFLICT (user_id, conversation_id) WHERE conversation_id IS NOT NULL
+    DO UPDATE SET
+        unread_messages = unread_counts.unread_messages + 1,
+        updated_at = now();
+
+    RETURN NEW;
+END;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- Thread reply notification trigger function
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.handle_thread_reply_notification()
+RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER
+AS $$
+DECLARE
+    v_thread record;
+    v_sender record;
+    v_channel_id uuid;
+    v_server_id uuid;
+    v_channel_name text;
+    v_server_name text;
+    content_preview text;
+    v_member record;
+BEGIN
+    IF NEW.thread_id IS NULL THEN
+        RETURN NEW;
+    END IF;
+
+    SELECT t.id, t.parent_message_id, t.channel_id, t.created_by
+    INTO v_thread
+    FROM threads t WHERE t.id = NEW.thread_id;
+
+    IF NOT FOUND THEN RETURN NEW; END IF;
+
+    v_channel_id := v_thread.channel_id;
+
+    SELECT c.server_id, c.name INTO v_server_id, v_channel_name
+    FROM channels c WHERE c.id = v_channel_id;
+
+    IF v_server_id IS NOT NULL THEN
+        SELECT s.name INTO v_server_name FROM servers s WHERE s.id = v_server_id;
+    END IF;
+
+    SELECT p.id, p.username, p.display_name, p.avatar_url
+    INTO v_sender FROM profiles p WHERE p.id = NEW.user_id;
+
+    content_preview := extract_message_text(NEW.content);
+    content_preview := TRIM(content_preview);
+    IF LENGTH(content_preview) > 100 THEN
+        content_preview := LEFT(content_preview, 100) || '...';
+    END IF;
+    IF content_preview = '' OR content_preview IS NULL THEN
+        content_preview := 'New thread reply';
+    END IF;
+
+    FOR v_member IN
+        SELECT tm.user_id
+        FROM thread_members tm
+        WHERE tm.thread_id = NEW.thread_id
+          AND tm.user_id != NEW.user_id
+          AND COALESCE(tm.muted, false) = false
+    LOOP
+        PERFORM send_notification_to_user(
+            'thread_reply',
+            v_member.user_id,
+            jsonb_build_object(
+                'sender', jsonb_build_object(
+                    'user_id', v_sender.id,
+                    'username', v_sender.username,
+                    'display_name', v_sender.display_name,
+                    'avatar_url', v_sender.avatar_url
+                ),
+                'message', jsonb_build_object(
+                    'id', NEW.id,
+                    'content_preview', content_preview
+                ),
+                'thread', jsonb_build_object(
+                    'id', NEW.thread_id,
+                    'parent_message_id', v_thread.parent_message_id
+                ),
+                'location', jsonb_build_object(
+                    'server_id', v_server_id::text,
+                    'server_name', v_server_name,
+                    'channel_id', v_channel_id::text,
+                    'channel_name', v_channel_name
+                ),
+                'message_id', NEW.id,
+                'thread_id', NEW.thread_id,
+                'server_id', v_server_id::text,
+                'channel_id', v_channel_id::text,
+                'preview', content_preview
+            ),
+            v_server_id,
+            v_channel_id,
+            NULL,
+            NEW.user_id,
+            'normal'
+        );
+    END LOOP;
+
+    IF v_thread.created_by IS NOT NULL
+       AND v_thread.created_by != NEW.user_id
+       AND NOT EXISTS (
+           SELECT 1 FROM thread_members
+           WHERE thread_id = NEW.thread_id AND user_id = v_thread.created_by
+       )
+    THEN
+        PERFORM send_notification_to_user(
+            'thread_reply',
+            v_thread.created_by,
+            jsonb_build_object(
+                'sender', jsonb_build_object(
+                    'user_id', v_sender.id,
+                    'username', v_sender.username,
+                    'display_name', v_sender.display_name,
+                    'avatar_url', v_sender.avatar_url
+                ),
+                'message', jsonb_build_object(
+                    'id', NEW.id,
+                    'content_preview', content_preview
+                ),
+                'thread', jsonb_build_object(
+                    'id', NEW.thread_id,
+                    'parent_message_id', v_thread.parent_message_id
+                ),
+                'location', jsonb_build_object(
+                    'server_id', v_server_id::text,
+                    'server_name', v_server_name,
+                    'channel_id', v_channel_id::text,
+                    'channel_name', v_channel_name
+                ),
+                'message_id', NEW.id,
+                'thread_id', NEW.thread_id,
+                'server_id', v_server_id::text,
+                'channel_id', v_channel_id::text,
+                'preview', content_preview
+            ),
+            v_server_id,
+            v_channel_id,
+            NULL,
+            NEW.user_id,
+            'normal'
+        );
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- Role mention notifications (@everyone, @role)
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.handle_role_mention_notifications()
+RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER
+AS $$
+DECLARE
+    v_server_id uuid;
+    v_channel_id uuid;
+    v_channel_name text;
+    v_server_name text;
+    v_sender_profile record;
+    v_role_id uuid;
+    v_role_is_default boolean;
+    v_member_id uuid;
+    content_part jsonb;
+    content_preview text;
+BEGIN
+    IF NEW.channel_id IS NULL OR NEW.is_system THEN
+        RETURN NEW;
+    END IF;
+
+    SELECT c.server_id, c.name INTO v_server_id, v_channel_name
+    FROM channels c WHERE c.id = NEW.channel_id;
+    IF v_server_id IS NULL THEN RETURN NEW; END IF;
+
+    SELECT s.name INTO v_server_name FROM servers s WHERE s.id = v_server_id;
+
+    IF jsonb_typeof(NEW.content) != 'array' THEN RETURN NEW; END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM jsonb_array_elements(NEW.content) elem
+        WHERE elem->>'type' = 'role_mention'
+    ) THEN
+        RETURN NEW;
+    END IF;
+
+    SELECT p.id, p.username, p.display_name, p.avatar_url
+    INTO v_sender_profile
+    FROM profiles p WHERE p.id = NEW.user_id;
+
+    content_preview := LEFT(
+        (SELECT string_agg(elem->>'text', ' ')
+         FROM jsonb_array_elements(NEW.content) elem
+         WHERE elem->>'type' = 'text'), 100);
+
+    v_channel_id := NEW.channel_id;
+
+    FOR content_part IN SELECT jsonb_array_elements(NEW.content)
+    LOOP
+        IF content_part->>'type' = 'role_mention' THEN
+            v_role_id := (content_part->>'roleId')::uuid;
+            IF v_role_id IS NULL THEN CONTINUE; END IF;
+
+            SELECT is_default INTO v_role_is_default
+            FROM server_roles WHERE id = v_role_id AND server_id = v_server_id;
+
+            IF NOT FOUND THEN CONTINUE; END IF;
+
+            IF v_role_is_default THEN
+                FOR v_member_id IN
+                    SELECT us.user_id FROM user_servers us
+                    WHERE us.server_id = v_server_id
+                      AND us.status = 'accepted'
+                      AND us.user_id != NEW.user_id
+                LOOP
+                    PERFORM send_notification_to_user(
+                        'mention', v_member_id,
+                        jsonb_build_object(
+                            'sender', jsonb_build_object(
+                                'user_id', v_sender_profile.id,
+                                'username', v_sender_profile.username,
+                                'display_name', v_sender_profile.display_name,
+                                'avatar_url', v_sender_profile.avatar_url
+                            ),
+                            'message', jsonb_build_object('id', NEW.id, 'content_preview', content_preview),
+                            'location', jsonb_build_object(
+                                'server_id', v_server_id::text,
+                                'server_name', v_server_name,
+                                'channel_id', v_channel_id::text,
+                                'channel_name', v_channel_name
+                            ),
+                            'message_id', NEW.id,
+                            'mentioned_by', NEW.user_id,
+                            'sender_username', v_sender_profile.username,
+                            'sender_display_name', v_sender_profile.display_name,
+                            'server_id', v_server_id::text,
+                            'server_name', v_server_name,
+                            'channel_id', v_channel_id::text,
+                            'channel_name', v_channel_name,
+                            'preview', content_preview,
+                            'is_role_mention', true,
+                            'is_everyone', true
+                        ),
+                        v_server_id, v_channel_id, NULL, NEW.user_id, 'normal'
+                    );
+                END LOOP;
+            ELSE
+                FOR v_member_id IN
+                    SELECT ur.user_id FROM user_roles ur
+                    WHERE ur.role_id = v_role_id
+                      AND ur.server_id = v_server_id
+                      AND ur.user_id != NEW.user_id
+                LOOP
+                    PERFORM send_notification_to_user(
+                        'mention', v_member_id,
+                        jsonb_build_object(
+                            'sender', jsonb_build_object(
+                                'user_id', v_sender_profile.id,
+                                'username', v_sender_profile.username,
+                                'display_name', v_sender_profile.display_name,
+                                'avatar_url', v_sender_profile.avatar_url
+                            ),
+                            'message', jsonb_build_object('id', NEW.id, 'content_preview', content_preview),
+                            'location', jsonb_build_object(
+                                'server_id', v_server_id::text,
+                                'server_name', v_server_name,
+                                'channel_id', v_channel_id::text,
+                                'channel_name', v_channel_name
+                            ),
+                            'message_id', NEW.id,
+                            'mentioned_by', NEW.user_id,
+                            'sender_username', v_sender_profile.username,
+                            'sender_display_name', v_sender_profile.display_name,
+                            'server_id', v_server_id::text,
+                            'server_name', v_server_name,
+                            'channel_id', v_channel_id::text,
+                            'channel_name', v_channel_name,
+                            'preview', content_preview,
+                            'is_role_mention', true
+                        ),
+                        v_server_id, v_channel_id, NULL, NEW.user_id, 'normal'
+                    );
+                END LOOP;
+            END IF;
+        END IF;
+    END LOOP;
+
+    RETURN NEW;
+END;
+$$;
+
 -- Increment unread mentions
 CREATE OR REPLACE FUNCTION public.increment_unread_mentions()
 RETURNS trigger

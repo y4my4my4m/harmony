@@ -678,7 +678,27 @@ export const useDMStore = defineStore('dm', () => {
       })
       
       conversations.value = mergedConversations
-      
+
+      // Fetch DB-backed unread counts for all conversations
+      const convIds = mergedConversations.map(c => c.id)
+      if (convIds.length > 0) {
+        const { data: unreadData } = await supabase
+          .from('unread_counts')
+          .select('conversation_id, unread_messages, unread_mentions')
+          .eq('user_id', userId)
+          .in('conversation_id', convIds)
+          .or('unread_messages.gt.0,unread_mentions.gt.0')
+
+        if (unreadData) {
+          for (const row of unreadData) {
+            const conv = mergedConversations.find(c => c.id === row.conversation_id)
+            if (conv) {
+              conv.unread_count = (row.unread_messages || 0) + (row.unread_mentions || 0)
+            }
+          }
+        }
+      }
+
       // OPTIMIZATION: Different loading strategies for user profiles
       const needsProfileLoad = (conv: DMConversation) =>
         conv.type === 'direct' && (!conv.other_user || conv.other_user._isPlaceholder)
@@ -1142,7 +1162,7 @@ export const useDMStore = defineStore('dm', () => {
           reactions: [],
           metadata: lastMessageData.metadata || {}
         } : undefined,
-        unread_count: 0, // TODO: Implement proper unread counting
+        unread_count: 0,
       }
 
       // Handle different conversation types
@@ -1776,11 +1796,28 @@ export const useDMStore = defineStore('dm', () => {
       debug.log('🔔 Setting up new conversation subscription:', conversationId);
       setupConversationSubscription(conversationId)
       
-      // Mark conversation as read
+      // Mark conversation as read (both locally and in DB)
       const conversation = conversations.value.find(c => c.id === conversationId)
       if (conversation) {
         conversation.unread_count = 0
         debug.log('📖 Marked conversation as read:', conversationId);
+        // Reset DB unread count
+        import('@/services/AuthContextService').then(({ authContextService: acs }) => acs.getCurrentContext()).then(ctx => {
+          if (!ctx.isAuthenticated) return
+          supabase
+            .from('unread_counts')
+            .update({
+              unread_messages: 0,
+              unread_mentions: 0,
+              last_read_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            })
+            .eq('user_id', ctx.profileId)
+            .eq('conversation_id', conversationId)
+            .then(({ error }) => {
+              if (error) debug.warn('Failed to reset DM unread count:', error)
+            })
+        })
       } else {
         debug.warn('⚠️ Could not find conversation to mark as read:', conversationId);
       }
@@ -2171,10 +2208,11 @@ export const useDMStore = defineStore('dm', () => {
         reactions: []
       }
       
-      // Only increment unread count if message is not from current user and we're not viewing this conversation
+      // Unread count is managed by DB trigger (handle_new_dm_unread).
+      // Only update locally for instant UI feedback when not viewing this conversation.
       const currentUser = userDataService.getCurrentUser()
       const currentUserId = currentUser?.id
-      
+
       if (message.user_id !== currentUserId && currentConversationId.value !== message.conversation_id) {
         conversation.unread_count = (conversation.unread_count || 0) + 1
       }

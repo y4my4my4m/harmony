@@ -602,8 +602,10 @@ export interface Notification {
 export type NotificationType = 
   | 'mention'
   | 'dm' 
+  | 'chat_message'
   | 'reaction'
   | 'reply'
+  | 'thread_reply'
   | 'server_invite'
   | 'friend_request'
   | 'voice_channel_activity'

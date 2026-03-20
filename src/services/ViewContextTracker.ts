@@ -1,4 +1,5 @@
 import { debug } from '@/utils/debug'
+import { supabase } from '@/supabase'
 
 /**
  * ViewContextTracker - Local cache for current view context
@@ -140,6 +141,55 @@ export class ViewContextTracker {
       showDesktop: true,
       playSound: true,
       reason: 'User is in different context'
+    }
+  }
+
+  /**
+   * Clear existing unread notifications for the current view context.
+   * Called when the user navigates to a channel/DM/post to auto-clear
+   * notifications they're now viewing.
+   */
+  async clearExistingNotificationsForContext(context?: {
+    channelId?: string
+    conversationId?: string
+    postId?: string
+    serverId?: string
+  }) {
+    const ctx = context || {
+      channelId: this.currentContext.channel_id,
+      conversationId: this.currentContext.conversation_id,
+      serverId: this.currentContext.server_id,
+    }
+
+    let contextType: string | null = null
+    let contextId: string | null = null
+
+    if (ctx.postId) {
+      contextType = 'post'
+      contextId = ctx.postId
+    } else if (ctx.conversationId) {
+      contextType = 'conversation'
+      contextId = ctx.conversationId
+    } else if (ctx.channelId) {
+      contextType = 'channel'
+      contextId = ctx.channelId
+    }
+
+    if (!contextType || !contextId) return
+
+    try {
+      const { data, error } = await supabase.rpc('mark_notifications_read_by_context', {
+        p_context_type: contextType,
+        p_context_id: contextId,
+      })
+
+      if (error) {
+        debug.warn('Failed to auto-clear notifications for context:', error)
+      } else if (data && data > 0) {
+        debug.log(`🎯 Auto-cleared ${data} notifications for ${contextType}:${contextId}`)
+      }
+    } catch (error) {
+      debug.error('Error clearing notifications for context:', error)
     }
   }
 

@@ -369,6 +369,7 @@ import ThreadEditModal from './ThreadEditModal.vue';
 import { threadService, type ThreadWithDetails } from '@/services/ThreadService';
 import { useUnreadCounts } from '@/composables/useUnreadCounts';
 import { supabase } from '@/supabase';
+import { authContextService } from '@/services/AuthContextService';
 
 import draggable from "vuedraggable";
 
@@ -659,6 +660,26 @@ const onChannelRemovedFromCategory = (evt: any) => {
 const notificationStore = useNotificationStore();
 const { getUnreadMessages } = useUnreadCounts();
 
+const mutedChannelIds = ref<Set<string>>(new Set());
+
+const loadMutedChannels = async () => {
+  try {
+    const ctx = await authContextService.getCurrentContext()
+    if (!ctx.isAuthenticated || !props.currentServer?.id) return
+
+    const { data } = await supabase
+      .from('notification_channels')
+      .select('channel_id')
+      .eq('user_id', ctx.profileId)
+      .eq('server_id', props.currentServer.id)
+      .eq('muted', true)
+
+    mutedChannelIds.value = new Set((data || []).map((r: any) => r.channel_id).filter(Boolean))
+  } catch (error) {
+    debug.error('Failed to load muted channels:', error)
+  }
+}
+
 const getChannelUnreadMentions = (channelId: string): number => {
   return notificationStore.unreadChannelMentions(channelId);
 };
@@ -668,6 +689,7 @@ const hasNotifications = (channel: Channel): boolean => {
 };
 
 const hasUnreadMessages = (channelId: string): boolean => {
+  if (mutedChannelIds.value.has(channelId)) return false
   return getUnreadMessages({ channelId }) > 0;
 };
 
@@ -1156,10 +1178,11 @@ watch(() => props.currentServer?.id, async (newServerId, oldServerId) => {
 watch(() => serverChannelStore.categories, () => categoryChannelsCache.value.clear(), { deep: true });
 watch(() => serverChannelStore.categoryChannels, () => categoryChannelsCache.value.clear(), { deep: true });
 
-// Load threads when server changes
+// Load threads and muted state when server changes
 watch(() => props.currentServer?.id, (newServerId) => {
   if (newServerId) {
     loadActiveThreads();
+    loadMutedChannels();
   }
 }, { immediate: true });
 

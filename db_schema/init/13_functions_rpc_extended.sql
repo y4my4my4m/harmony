@@ -127,9 +127,18 @@ $$;
 -- Function: send_notification (BASE function - must be created first)
 -- Other functions like send_notification_to_user depend on this
 -- ---------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION public.send_notification(p_notification_type character varying, to_user_ids uuid[], notification_data jsonb DEFAULT '{}'::jsonb, server_id uuid DEFAULT NULL::uuid, channel_id uuid DEFAULT NULL::uuid, conversation_id uuid DEFAULT NULL::uuid, from_user_id uuid DEFAULT NULL::uuid, priority character varying DEFAULT 'normal'::character varying) RETURNS uuid[]
-    LANGUAGE plpgsql SECURITY DEFINER
-    AS $$
+CREATE OR REPLACE FUNCTION public.send_notification(
+    p_notification_type character varying,
+    to_user_ids uuid[],
+    notification_data jsonb DEFAULT '{}'::jsonb,
+    server_id uuid DEFAULT NULL::uuid,
+    channel_id uuid DEFAULT NULL::uuid,
+    conversation_id uuid DEFAULT NULL::uuid,
+    from_user_id uuid DEFAULT NULL::uuid,
+    priority character varying DEFAULT 'normal'::character varying
+) RETURNS uuid[]
+LANGUAGE plpgsql SECURITY DEFINER
+AS $$
 DECLARE
     created_notification_ids uuid[] := '{}';
     recipient_id uuid;
@@ -146,18 +155,18 @@ DECLARE
     p_conversation_id uuid;
     is_activitypub_type boolean;
     v_time_threshold timestamp with time zone := NOW() - INTERVAL '2 minutes';
+    v_notification_level varchar(20);
+    v_server_default varchar(20);
+    v_is_mention_type boolean;
 BEGIN
-    -- Validate inputs
     IF p_notification_type IS NULL OR array_length(to_user_ids, 1) IS NULL THEN
         RETURN '{}';
     END IF;
 
-    -- Determine if this is an ActivityPub notification type
     is_activitypub_type := p_notification_type LIKE 'activitypub_%';
+    v_is_mention_type := p_notification_type IN ('mention', 'activitypub_mention');
 
-    -- Process each recipient
     FOREACH recipient_id IN ARRAY to_user_ids LOOP
-        -- Skip if sending to self
         IF from_user_id IS NOT NULL AND recipient_id = from_user_id THEN
             CONTINUE;
         END IF;
@@ -165,65 +174,74 @@ BEGIN
         -- Check if sender is blocked by recipient
         IF from_user_id IS NOT NULL THEN
             SELECT EXISTS (
-                SELECT 1 
-                FROM user_blocks ub
+                SELECT 1 FROM user_blocks ub
                 WHERE ub.blocker_id = recipient_id
                 AND ub.blocked_user_id = from_user_id
                 AND (ub.expires_at IS NULL OR ub.expires_at > NOW())
             ) INTO is_blocked;
-            
-            IF is_blocked THEN
-                CONTINUE;
-            END IF;
+            IF is_blocked THEN CONTINUE; END IF;
         END IF;
 
-        -- Check if sender is muted by recipient (for notifications)
+        -- Check if sender is muted by recipient
         IF from_user_id IS NOT NULL THEN
             SELECT EXISTS (
-                SELECT 1 
-                FROM user_mutes um
+                SELECT 1 FROM user_mutes um
                 WHERE um.muter_id = recipient_id
                 AND um.muted_user_id = from_user_id
                 AND um.hide_notifications = true
                 AND (um.expires_at IS NULL OR um.expires_at > NOW())
             ) INTO is_muted;
-            
-            IF is_muted THEN
-                CONTINUE;
-            END IF;
+            IF is_muted THEN CONTINUE; END IF;
         END IF;
 
-        -- Check if channel/conversation is muted
         p_channel_id := channel_id;
         p_conversation_id := conversation_id;
-        
+
+        -- Check channel/conversation mute + notification level
         IF p_channel_id IS NOT NULL OR p_conversation_id IS NOT NULL THEN
-            SELECT EXISTS (
-                SELECT 1 
-                FROM notification_channels nc
-                WHERE nc.user_id = recipient_id
-                AND nc.muted = true
-                AND (
-                    (p_channel_id IS NOT NULL AND nc.channel_id = p_channel_id)
-                    OR
-                    (p_conversation_id IS NOT NULL AND nc.conversation_id = p_conversation_id)
-                )
-                AND (nc.muted_until IS NULL OR nc.muted_until > NOW())
-            ) INTO is_channel_muted;
-            
-            IF is_channel_muted THEN
+            SELECT nc.muted, nc.notification_level, nc.muted_until
+            INTO is_channel_muted, v_notification_level
+            FROM notification_channels nc
+            WHERE nc.user_id = recipient_id
+            AND (
+                (p_channel_id IS NOT NULL AND nc.channel_id = p_channel_id)
+                OR
+                (p_conversation_id IS NOT NULL AND nc.conversation_id = p_conversation_id)
+            )
+            LIMIT 1;
+
+            -- Muted channel: skip everything EXCEPT mentions (Discord behavior)
+            IF COALESCE(is_channel_muted, false) = true THEN
+                IF NOT v_is_mention_type THEN
+                    CONTINUE;
+                END IF;
+            END IF;
+
+            -- Notification level enforcement (only for channels, not conversations)
+            IF p_channel_id IS NOT NULL AND v_notification_level IS NULL THEN
+                SELECT ss.default_message_notifications INTO v_server_default
+                FROM server_settings ss
+                WHERE ss.server_id = server_id;
+                v_notification_level := COALESCE(v_server_default, 'all');
+            END IF;
+
+            IF v_notification_level = 'none' THEN
                 CONTINUE;
+            ELSIF v_notification_level = 'mentions' THEN
+                IF NOT v_is_mention_type THEN
+                    CONTINUE;
+                END IF;
             END IF;
         END IF;
 
-        -- Check if user is currently viewing this channel/DM (Discord-like behavior)
+        -- View-context suppression
         IF (server_id IS NOT NULL AND p_channel_id IS NOT NULL) OR p_conversation_id IS NOT NULL THEN
             IF public.is_user_viewing_context(recipient_id, server_id, p_channel_id, p_conversation_id) THEN
                 CONTINUE;
             END IF;
         END IF;
 
-        -- Rate limit reaction-type notifications to prevent spam
+        -- Rate limit reaction notifications
         IF from_user_id IS NOT NULL AND p_notification_type IN ('reaction', 'activitypub_reaction') THEN
             INSERT INTO notification_rate_limits (user_id, notification_type, source_user_id)
             VALUES (recipient_id, p_notification_type, from_user_id)
@@ -261,19 +279,13 @@ BEGIN
                 user_prefs := NULL;
         END;
 
-        -- Default to sending notifications if no preferences found
         should_send := true;
 
-        -- Apply preferences if they exist
         IF user_prefs IS NOT NULL THEN
-            -- First check master toggles
             IF is_activitypub_type THEN
-                -- Check ActivityPub master toggle first
                 IF COALESCE(user_prefs.activitypub_notifications, true) = false THEN
                     should_send := false;
                 ELSE
-                    -- Only check the content toggle for notification creation.
-                    -- Desktop/push toggles are enforced by PushNotificationService.
                     CASE p_notification_type
                         WHEN 'activitypub_follow' THEN
                             should_send := COALESCE(user_prefs.activitypub_follows, true);
@@ -294,7 +306,6 @@ BEGIN
                     END CASE;
                 END IF;
             ELSE
-                -- Check desktop_notifications master toggle first for non-ActivityPub
                 IF COALESCE(user_prefs.desktop_notifications, true) = false THEN
                     IF p_notification_type NOT IN ('mention', 'dm') THEN
                         should_send := false;
@@ -309,6 +320,8 @@ BEGIN
                             should_send := COALESCE(user_prefs.desktop_replies, true);
                         WHEN 'dm' THEN
                             should_send := COALESCE(user_prefs.desktop_dms, true);
+                        WHEN 'chat_message' THEN
+                            should_send := COALESCE(user_prefs.desktop_dms, true);
                         WHEN 'reaction' THEN
                             should_send := COALESCE(user_prefs.desktop_reactions, true);
                         WHEN 'voice_channel_activity' THEN
@@ -321,13 +334,15 @@ BEGIN
                             should_send := COALESCE(user_prefs.desktop_notifications, true);
                         WHEN 'emoji_added' THEN
                             should_send := COALESCE(user_prefs.desktop_notifications, true);
+                        WHEN 'thread_reply' THEN
+                            should_send := COALESCE(user_prefs.desktop_replies, true);
                         ELSE
                             should_send := true;
                     END CASE;
                 END IF;
             END IF;
 
-            -- Apply DND restrictions if configured
+            -- DND enforcement
             IF user_prefs.dnd_enabled IS TRUE AND should_send THEN
                 DECLARE
                     current_time_of_day time := current_timestamp::time;
@@ -347,42 +362,28 @@ BEGIN
             END IF;
         END IF;
 
-        -- Create enhanced notification data with context
+        -- Build enhanced data
         enhanced_data := notification_data;
-        
         IF server_id IS NOT NULL THEN
             enhanced_data := enhanced_data || jsonb_build_object('server_id', server_id);
         END IF;
-        
         IF channel_id IS NOT NULL THEN
             enhanced_data := enhanced_data || jsonb_build_object('channel_id', channel_id);
         END IF;
-        
         IF conversation_id IS NOT NULL THEN
             enhanced_data := enhanced_data || jsonb_build_object('conversation_id', conversation_id);
         END IF;
-        
         IF from_user_id IS NOT NULL THEN
             enhanced_data := enhanced_data || jsonb_build_object('from_user_id', from_user_id);
         END IF;
-        
         IF priority IS NOT NULL THEN
             enhanced_data := enhanced_data || jsonb_build_object('priority', priority);
         END IF;
 
-        -- Create notification if should send
         IF should_send THEN
-            INSERT INTO notifications (
-                type,
-                user_id,
-                data,
-                created_at
-            ) VALUES (
-                p_notification_type,
-                recipient_id,
-                enhanced_data,
-                current_timestamp
-            ) RETURNING id INTO notification_id;
+            INSERT INTO notifications (type, user_id, data, created_at)
+            VALUES (p_notification_type, recipient_id, enhanced_data, current_timestamp)
+            RETURNING id INTO notification_id;
 
             created_notification_ids := array_append(created_notification_ids, notification_id);
         END IF;
@@ -1852,12 +1853,114 @@ GRANT EXECUTE ON FUNCTION public.import_remote_emoji(uuid, text, uuid) TO authen
 -- Function: mark_all_notifications_read
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.mark_all_notifications_read(p_user_id uuid) RETURNS void
-    LANGUAGE plpgsql
-    AS $$
+LANGUAGE plpgsql SECURITY DEFINER
+AS $$
+DECLARE
+    v_count integer;
 BEGIN
-    UPDATE notifications 
+    ALTER TABLE notifications DISABLE TRIGGER trigger_broadcast_notification;
+
+    UPDATE notifications
     SET is_read = true, read_at = NOW(), updated_at = NOW()
     WHERE user_id = p_user_id AND is_read = false;
+
+    GET DIAGNOSTICS v_count = ROW_COUNT;
+
+    ALTER TABLE notifications ENABLE TRIGGER trigger_broadcast_notification;
+
+    IF v_count > 0 THEN
+        BEGIN
+            PERFORM realtime.send(
+                jsonb_build_object(
+                    'type', 'notification:bulk_read',
+                    'count', v_count
+                ),
+                'user_event',
+                'user:' || p_user_id::text,
+                true
+            );
+        EXCEPTION WHEN OTHERS THEN
+            NULL;
+        END;
+    END IF;
+END;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- Function: mark_notifications_read_by_context
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.mark_notifications_read_by_context(
+    p_context_type text,
+    p_context_id text
+) RETURNS integer
+LANGUAGE plpgsql SECURITY DEFINER
+AS $$
+DECLARE
+    v_user_id uuid;
+    v_count integer;
+BEGIN
+    v_user_id := public.get_current_profile_id();
+    IF v_user_id IS NULL THEN
+        RAISE EXCEPTION 'Not authenticated';
+    END IF;
+
+    WITH updated AS (
+        UPDATE notifications
+        SET is_read = true, read_at = NOW(), updated_at = NOW()
+        WHERE user_id = v_user_id
+          AND is_read = false
+          AND (
+              CASE p_context_type
+                  WHEN 'channel' THEN
+                      data->>'channel_id' = p_context_id
+                      OR data->'location'->>'channel_id' = p_context_id
+                  WHEN 'conversation' THEN
+                      data->>'conversation_id' = p_context_id
+                      OR data->'conversation'->>'id' = p_context_id
+                  WHEN 'post' THEN
+                      data->>'post_id' = p_context_id
+                      OR data->'post'->>'id' = p_context_id
+                  WHEN 'server' THEN
+                      data->>'server_id' = p_context_id
+                      OR data->'location'->>'server_id' = p_context_id
+                  ELSE false
+              END
+          )
+        RETURNING id
+    )
+    SELECT count(*) INTO v_count FROM updated;
+
+    RETURN v_count;
+END;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- Function: mark_server_as_read
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.mark_server_as_read(p_server_id uuid) RETURNS void
+LANGUAGE plpgsql SECURITY DEFINER
+AS $$
+DECLARE
+    v_user_id uuid;
+BEGIN
+    v_user_id := public.get_current_profile_id();
+    IF v_user_id IS NULL THEN
+        RAISE EXCEPTION 'Not authenticated';
+    END IF;
+
+    UPDATE public.unread_counts
+    SET unread_messages = 0, unread_mentions = 0,
+        last_read_at = NOW(), updated_at = NOW()
+    WHERE user_id = v_user_id AND server_id = p_server_id;
+
+    UPDATE notifications
+    SET is_read = true, read_at = NOW(), updated_at = NOW()
+    WHERE user_id = v_user_id
+      AND is_read = false
+      AND (
+          data->>'server_id' = p_server_id::text
+          OR data->'location'->>'server_id' = p_server_id::text
+      );
 END;
 $$;
 

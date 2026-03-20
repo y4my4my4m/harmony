@@ -42,6 +42,7 @@ const NOTIFICATION_SOUND_MAPPING: Record<NotificationType, AudioAction> = {
   dm: 'dm', 
   reaction: 'reaction',
   reply: 'reply',
+  thread_reply: 'reply',
   voice_channel_activity: 'voice_channel_activity',
   server_invite: 'server_invite',
   friend_request: 'friend_request',
@@ -215,16 +216,18 @@ export const useNotificationStore = defineStore('notification', {
 
     isQuietHours: (state) => {
       if (!state.preferences?.dnd_enabled) return false
-      
+
       const now = new Date()
       const currentTime = now.getHours() * 60 + now.getMinutes()
-      const startTime = timeStringToMinutes(state.preferences.dnd_start_time)
-      const endTime = timeStringToMinutes(state.preferences.dnd_end_time)
-      
+
+      // DND times are stored as UTC; convert to local minutes for comparison
+      const startTime = utcTimeStringToLocalMinutes(state.preferences.dnd_start_time)
+      const endTime = utcTimeStringToLocalMinutes(state.preferences.dnd_end_time)
+
       if (startTime > endTime) {
         return currentTime >= startTime || currentTime <= endTime
       }
-      
+
       return currentTime >= startTime && currentTime <= endTime
     },
 
@@ -588,6 +591,20 @@ export const useNotificationStore = defineStore('notification', {
             debug.error('❌ Broadcast notification:update error:', error)
           }
         })
+
+        userEventChannel.on('notification:bulk_read', (data) => {
+          debug.log('📡 Bulk read event received, marking all notifications as read locally')
+          this.notifications.forEach(n => { n.is_read = true })
+          this.updateUnreadCount()
+        })
+
+        userEventChannel.on('preferences:updated', () => {
+          debug.log('📡 Preferences updated on another tab/device, reloading...')
+          if (this.cachedAuthUserId) {
+            this.loadPreferences(this.cachedProfileId || this.cachedAuthUserId)
+          }
+        })
+
         debug.log('✅ Broadcast notification handlers registered')
       }
 
@@ -1047,7 +1064,6 @@ export const useNotificationStore = defineStore('notification', {
       try {
         if (!this.preferences) return
 
-        // Optimistic update
         const previousPreferences = { ...this.preferences }
         Object.assign(this.preferences, newPreferences)
 
@@ -1058,9 +1074,13 @@ export const useNotificationStore = defineStore('notification', {
           })
 
         if (error) {
-          // Revert on error
           this.preferences = previousPreferences
           throw error
+        }
+
+        // Broadcast preferences change to other tabs/devices
+        if (this.cachedProfileId) {
+          userEventChannel.send('preferences:updated', {})
         }
 
         debug.log('✅ Updated notification preferences')
@@ -1267,8 +1287,15 @@ export const useNotificationStore = defineStore('notification', {
 
     handleNotificationClick(notification: Notification) {
       try {
-        // Mark as read and clicked
+        // Mark as read and explicitly clicked
         this.markAsRead(notification.id)
+        supabase
+          .from('notifications')
+          .update({ is_clicked: true })
+          .eq('id', notification.id)
+          .then(({ error }) => {
+            if (error) debug.warn('Failed to set is_clicked:', error)
+          })
         
         // Get navigation data from formatter
         const navData = NotificationFormatter.getNavigationData(notification)
@@ -1455,4 +1482,11 @@ export const useNotificationStore = defineStore('notification', {
 function timeStringToMinutes(timeString: string): number {
   const [hours, minutes] = timeString.split(':').map(Number)
   return hours * 60 + minutes
+}
+
+function utcTimeStringToLocalMinutes(utcTimeString: string): number {
+  const [h, m] = utcTimeString.split(':').map(Number)
+  const now = new Date()
+  const utcDate = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), h, m))
+  return utcDate.getHours() * 60 + utcDate.getMinutes()
 }

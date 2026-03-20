@@ -225,6 +225,7 @@ CREATE TABLE IF NOT EXISTS public.thread_members (
     user_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
     joined_at timestamp with time zone DEFAULT now() NOT NULL,
     last_read_at timestamp with time zone,
+    muted boolean DEFAULT false,
     
     UNIQUE(thread_id, user_id)
 );

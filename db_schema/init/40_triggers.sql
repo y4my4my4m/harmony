@@ -476,6 +476,49 @@ CREATE TRIGGER trg_broadcast_server_change
     FOR EACH ROW
     EXECUTE FUNCTION public.broadcast_server_change_event();
 
+-- ---------------------------------------------------------------------------
+-- Unread count triggers
+-- ---------------------------------------------------------------------------
+CREATE UNIQUE INDEX IF NOT EXISTS idx_unread_counts_user_channel
+    ON public.unread_counts(user_id, channel_id) WHERE channel_id IS NOT NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_unread_counts_user_conversation
+    ON public.unread_counts(user_id, conversation_id) WHERE conversation_id IS NOT NULL;
+
+DROP TRIGGER IF EXISTS trigger_new_message_unread ON public.messages;
+CREATE TRIGGER trigger_new_message_unread
+    AFTER INSERT ON public.messages
+    FOR EACH ROW
+    WHEN (NEW.channel_id IS NOT NULL AND NEW.is_deleted = false AND NEW.is_system = false)
+    EXECUTE FUNCTION public.handle_new_message_unread();
+
+DROP TRIGGER IF EXISTS trigger_new_dm_unread ON public.messages;
+CREATE TRIGGER trigger_new_dm_unread
+    AFTER INSERT ON public.messages
+    FOR EACH ROW
+    WHEN (NEW.conversation_id IS NOT NULL AND NEW.is_deleted = false AND NEW.is_system = false)
+    EXECUTE FUNCTION public.handle_new_dm_unread();
+
+-- ---------------------------------------------------------------------------
+-- Thread reply notification trigger
+-- ---------------------------------------------------------------------------
+DROP TRIGGER IF EXISTS trigger_thread_reply_notification ON public.messages;
+CREATE TRIGGER trigger_thread_reply_notification
+    AFTER INSERT ON public.messages
+    FOR EACH ROW
+    WHEN (NEW.thread_id IS NOT NULL AND NEW.is_deleted = false AND NEW.is_system = false)
+    EXECUTE FUNCTION public.handle_thread_reply_notification();
+
+-- ---------------------------------------------------------------------------
+-- Role mention notification trigger
+-- ---------------------------------------------------------------------------
+DROP TRIGGER IF EXISTS trigger_role_mention_notifications ON public.messages;
+CREATE TRIGGER trigger_role_mention_notifications
+    AFTER INSERT ON public.messages
+    FOR EACH ROW
+    WHEN (NEW.channel_id IS NOT NULL AND NEW.is_system = false)
+    EXECUTE FUNCTION public.handle_role_mention_notifications();
+
 DO $$
 BEGIN
     RAISE NOTICE 'Triggers created successfully';

@@ -154,11 +154,25 @@ export function useViewContextTracking() {
       // Check for server channel
       if (routeNameStr === 'ChatChannel' && serverId && channelId) {
         updateViewContext('server_channel', serverId as string, channelId as string)
+        viewContextTracker.clearExistingNotificationsForContext({
+          channelId: channelId as string,
+          serverId: serverId as string,
+        })
       } 
       // Check for DM conversation
       else if (routeNameStr === 'DMConversation' && conversationId) {
         updateViewContext('dm', undefined, undefined, conversationId as string)
-      } 
+        viewContextTracker.clearExistingNotificationsForContext({
+          conversationId: conversationId as string,
+        })
+      }
+      // Check for post detail view
+      else if ((routeNameStr === 'PostView' || routeNameStr === 'PostDetail') && route.params.postId) {
+        updateViewContext('activitypub_home')
+        viewContextTracker.clearExistingNotificationsForContext({
+          postId: route.params.postId as string,
+        })
+      }
       // Check for ActivityPub routes (by name or path)
       else if (activityPubRoutes.includes(routeNameStr) || routePathStr.startsWith('/social')) {
         updateViewContext('activitypub_home')

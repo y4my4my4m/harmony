@@ -300,6 +300,27 @@ const MESSAGE_TEMPLATES = {
     shortTitle: (data: any) => `Follow request`
   },
 
+  thread_reply: {
+    title: (data: any) => {
+      const sender = data.sender
+      const senderName = sender?.display_name || sender?.username || 'Someone'
+      const channelName = data.location?.channel_name || data.channel_name || 'a thread'
+      return `${senderName} replied in a thread in #${channelName}`
+    },
+    message: (data: any) => {
+      const text = extractContentText(data.message?.content_preview)
+        || extractContentText(data.preview)
+      if (text) {
+        return text.length > 100 ? text.substring(0, 100) + '...' : text
+      }
+      return 'Click to view thread'
+    },
+    shortTitle: (data: any) => {
+      const channelName = data.location?.channel_name || data.channel_name || 'thread'
+      return `Thread reply in #${channelName}`
+    }
+  },
+
   report_update: {
     title: (data: any) => {
       const status = data.status || 'updated'
