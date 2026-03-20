@@ -1,4 +1,5 @@
 import type { Page, Locator } from '@playwright/test'
+import { dismissAnnouncements } from '../fixtures/auth.fixture'
 
 export class DMPage {
   readonly page: Page
@@ -19,11 +20,13 @@ export class DMPage {
 
   async navigate() {
     await this.page.goto('/dm')
+    await dismissAnnouncements(this.page)
     await this.sidebar.waitFor({ state: 'visible', timeout: 15000 })
   }
 
   async navigateToConversation(conversationId: string) {
     await this.page.goto(`/dm/${conversationId}`)
+    await dismissAnnouncements(this.page)
     await this.messageList.waitFor({ state: 'visible', timeout: 15000 })
   }
 

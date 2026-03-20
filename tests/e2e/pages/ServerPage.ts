@@ -1,4 +1,5 @@
 import type { Page, Locator } from '@playwright/test'
+import { dismissAnnouncements } from '../fixtures/auth.fixture'
 
 export class ServerPage {
   readonly page: Page
@@ -13,6 +14,7 @@ export class ServerPage {
 
   async navigateToChat() {
     await this.page.goto('/chat')
+    await dismissAnnouncements(this.page)
     await this.serverSidebar.waitFor({ state: 'visible', timeout: 15000 })
   }
 

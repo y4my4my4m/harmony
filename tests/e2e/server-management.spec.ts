@@ -1,4 +1,4 @@
-import { test, expect } from './fixtures/auth.fixture'
+import { test, expect, dismissAnnouncements } from './fixtures/auth.fixture'
 import { ServerPage } from './pages/ServerPage'
 
 test.describe('Server Management', () => {
@@ -9,11 +9,10 @@ test.describe('Server Management', () => {
   })
 
   test('can navigate to a seeded channel', async ({ alicePage, seedData }) => {
-    const server = new ServerPage(alicePage)
     await alicePage.goto(`/chat/${seedData.serverId}/${seedData.channelId}`)
+    await dismissAnnouncements(alicePage)
     await alicePage.waitForLoadState('networkidle', { timeout: 15000 })
 
-    // Should be on the channel page
     expect(alicePage.url()).toContain(seedData.channelId)
   })
 
@@ -52,6 +51,7 @@ test.describe('Server Management', () => {
 
   test('channel list shows channels for selected server', async ({ alicePage, seedData }) => {
     await alicePage.goto(`/chat/${seedData.serverId}/${seedData.channelId}`)
+    await dismissAnnouncements(alicePage)
     await alicePage.waitForLoadState('networkidle', { timeout: 15000 })
 
     const channelItem = alicePage.locator(`[data-channel-id="${seedData.channelId}"]`)
@@ -61,8 +61,8 @@ test.describe('Server Management', () => {
 
 test.describe('Server Management — Invites', () => {
   test('invite page loads for valid server', async ({ alicePage, seedData }) => {
-    // Open server settings and look for invite section
     await alicePage.goto(`/server/${seedData.serverId}`)
+    await dismissAnnouncements(alicePage)
     await alicePage.waitForLoadState('networkidle', { timeout: 15000 })
 
     // Look for invite-related UI
@@ -76,8 +76,8 @@ test.describe('Server Management — Invites', () => {
 
 test.describe('Server Management — Leave', () => {
   test('bob can leave the seeded server', async ({ bobPage, seedData }) => {
-    // Bob is a member of the seeded server
     await bobPage.goto(`/chat/${seedData.serverId}/${seedData.channelId}`)
+    await dismissAnnouncements(bobPage)
     await bobPage.waitForLoadState('networkidle', { timeout: 15000 })
 
     // Open server dropdown or settings to find "Leave Server"

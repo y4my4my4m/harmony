@@ -1,4 +1,4 @@
-import { test, expect } from './fixtures/auth.fixture'
+import { test, expect, dismissAnnouncements } from './fixtures/auth.fixture'
 import { SocialPage } from './pages/SocialPage'
 
 const federationEnabled = process.env.VITE_ENABLE_FEDERATION !== 'false'
@@ -14,12 +14,14 @@ test.describe('Federation', () => {
 
   test('trending/explore page loads', async ({ alicePage }) => {
     await alicePage.goto('/social/trending')
+    await dismissAnnouncements(alicePage)
     await alicePage.waitForLoadState('networkidle', { timeout: 15000 })
     expect(alicePage.url()).toContain('/social/trending')
   })
 
   test('instances page loads', async ({ alicePage }) => {
     await alicePage.goto('/social/instances')
+    await dismissAnnouncements(alicePage)
     await alicePage.waitForLoadState('networkidle', { timeout: 15000 })
     expect(alicePage.url()).toContain('/social/instances')
   })
@@ -44,12 +46,14 @@ test.describe('Federation', () => {
 
   test('followers page loads', async ({ alicePage }) => {
     await alicePage.goto('/social/followers')
+    await dismissAnnouncements(alicePage)
     await alicePage.waitForLoadState('networkidle', { timeout: 15000 })
     expect(alicePage.url()).toContain('/social/followers')
   })
 
   test('following page loads', async ({ alicePage }) => {
     await alicePage.goto('/social/following')
+    await dismissAnnouncements(alicePage)
     await alicePage.waitForLoadState('networkidle', { timeout: 15000 })
     expect(alicePage.url()).toContain('/social/following')
   })

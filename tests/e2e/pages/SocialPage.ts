@@ -1,4 +1,5 @@
 import type { Page, Locator } from '@playwright/test'
+import { dismissAnnouncements } from '../fixtures/auth.fixture'
 
 export class SocialPage {
   readonly page: Page
@@ -15,16 +16,19 @@ export class SocialPage {
 
   async navigateToHome() {
     await this.page.goto('/social/home')
+    await dismissAnnouncements(this.page)
     await this.page.waitForLoadState('networkidle', { timeout: 15000 })
   }
 
   async navigateToLocal() {
     await this.page.goto('/social/local')
+    await dismissAnnouncements(this.page)
     await this.page.waitForLoadState('networkidle', { timeout: 15000 })
   }
 
   async navigateToPublic() {
     await this.page.goto('/social/public')
+    await dismissAnnouncements(this.page)
     await this.page.waitForLoadState('networkidle', { timeout: 15000 })
   }
 

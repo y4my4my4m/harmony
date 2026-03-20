@@ -1,4 +1,5 @@
 import type { Page, Locator } from '@playwright/test'
+import { dismissAnnouncements } from '../fixtures/auth.fixture'
 
 export class ChatPage {
   readonly page: Page
@@ -15,6 +16,7 @@ export class ChatPage {
 
   async navigateToChannel(serverId: string, channelId: string) {
     await this.page.goto(`/chat/${serverId}/${channelId}`)
+    await dismissAnnouncements(this.page)
     await this.messageList.waitFor({ state: 'visible', timeout: 15000 })
   }
 

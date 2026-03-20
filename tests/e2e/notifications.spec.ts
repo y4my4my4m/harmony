@@ -1,10 +1,11 @@
-import { test, expect } from './fixtures/auth.fixture'
+import { test, expect, dismissAnnouncements } from './fixtures/auth.fixture'
 import { NotificationsPage } from './pages/NotificationsPage'
 import { ChatPage } from './pages/ChatPage'
 
 test.describe('Notifications — Bell & Panel', () => {
   test('notification bell is visible when logged in', async ({ alicePage }) => {
     await alicePage.goto('/chat')
+    await dismissAnnouncements(alicePage)
     await alicePage.waitForLoadState('networkidle', { timeout: 15000 })
 
     const notifications = new NotificationsPage(alicePage)
@@ -13,6 +14,7 @@ test.describe('Notifications — Bell & Panel', () => {
 
   test('clicking bell opens notification panel', async ({ alicePage }) => {
     await alicePage.goto('/chat')
+    await dismissAnnouncements(alicePage)
     await alicePage.waitForLoadState('networkidle', { timeout: 15000 })
 
     const notifications = new NotificationsPage(alicePage)
@@ -22,6 +24,7 @@ test.describe('Notifications — Bell & Panel', () => {
 
   test('notification panel can be closed', async ({ alicePage }) => {
     await alicePage.goto('/chat')
+    await dismissAnnouncements(alicePage)
     await alicePage.waitForLoadState('networkidle', { timeout: 15000 })
 
     const notifications = new NotificationsPage(alicePage)
@@ -33,6 +36,7 @@ test.describe('Notifications — Bell & Panel', () => {
 
   test('mark all as read button works when there are unreads', async ({ alicePage }) => {
     await alicePage.goto('/chat')
+    await dismissAnnouncements(alicePage)
     await alicePage.waitForLoadState('networkidle', { timeout: 15000 })
 
     const notifications = new NotificationsPage(alicePage)
@@ -63,21 +67,19 @@ test.describe('Notifications — Triggered by actions', () => {
 
     // Bob checks notifications
     await bobPage.goto('/chat')
+    await dismissAnnouncements(bobPage)
     await bobPage.waitForLoadState('networkidle', { timeout: 15000 })
 
     const bobNotifs = new NotificationsPage(bobPage)
-    // Give realtime a moment to deliver
     await bobPage.waitForTimeout(3000)
 
-    // Bell should indicate unread (badge visible)
     const count = await bobNotifs.getUnreadCount()
-    // At minimum, the bell should be visible
     await expect(bobNotifs.bell).toBeVisible()
   })
 
   test('DM triggers notification', async ({ alicePage, bobPage, seedData }) => {
-    // Alice sends Bob a DM
     await alicePage.goto('/dm')
+    await dismissAnnouncements(alicePage)
     await alicePage.waitForLoadState('networkidle', { timeout: 15000 })
 
     // Start conversation with Bob
@@ -99,6 +101,7 @@ test.describe('Notifications — Triggered by actions', () => {
 
     // Bob checks notifications
     await bobPage.goto('/chat')
+    await dismissAnnouncements(bobPage)
     await bobPage.waitForLoadState('networkidle', { timeout: 15000 })
     await bobPage.waitForTimeout(3000)
 

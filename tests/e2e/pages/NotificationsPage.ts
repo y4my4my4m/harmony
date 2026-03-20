@@ -1,4 +1,5 @@
 import type { Page, Locator } from '@playwright/test'
+import { dismissAnnouncements } from '../fixtures/auth.fixture'
 
 export class NotificationsPage {
   readonly page: Page
@@ -56,6 +57,7 @@ export class NotificationsPage {
 
   async navigateToSettings() {
     await this.page.goto('/settings/notifications')
+    await dismissAnnouncements(this.page)
     await this.page.waitForLoadState('networkidle', { timeout: 10000 })
   }
 }
