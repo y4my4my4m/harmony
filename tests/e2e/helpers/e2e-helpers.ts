@@ -120,7 +120,11 @@ async function cleanupSingleUser(admin: SupabaseClient, authId: string): Promise
   if (profile?.id) {
     await admin.from('user_servers').delete().eq('user_id', profile.id)
     await admin.from('user_roles').delete().eq('user_id', profile.id)
-    await admin.rpc('_test_delete_owned_servers', { p_owner_id: profile.id }).catch(() => {})
+    try {
+      await admin.rpc('_test_delete_owned_servers', { p_owner_id: profile.id })
+    } catch {
+      // RPC may not exist in all environments
+    }
     await admin.from('messages').delete().eq('user_id', profile.id)
     await admin.from('conversation_participants').delete().eq('user_id', profile.id)
     await admin.from('user_blocks').delete().eq('blocker_id', profile.id)
@@ -132,7 +136,11 @@ async function cleanupSingleUser(admin: SupabaseClient, authId: string): Promise
     await admin.from('profiles').delete().eq('id', profile.id)
   }
 
-  await admin.auth.admin.deleteUser(authId).catch(() => {})
+  try {
+    await admin.auth.admin.deleteUser(authId)
+  } catch {
+    // User may already be deleted
+  }
 }
 
 export async function cleanupE2EUsers(admin: SupabaseClient, users: E2ETestUser[]): Promise<void> {
