@@ -16,7 +16,7 @@ const VALID_CONTEXT_TYPES = ['channel', 'conversation', 'thread'] as const;
  * POST /heartbeat
  * Body: { status?: PresenceStatus, customStatus?: string }
  *
- * Client calls every 30s to maintain online presence.
+ * Client calls every 60s to maintain online presence.
  */
 router.post('/heartbeat', requireAuth, async (req: Request, res: Response) => {
   const { profileId } = req as AuthenticatedRequest;

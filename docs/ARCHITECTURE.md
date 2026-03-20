@@ -326,7 +326,7 @@ supabase
 ### 2. **Voice/Video Scaling (LiveKit)**
 - LiveKit supports multi-node clustering via Redis
 - Additional LiveKit instances pointed at the same Redis auto-coordinate room routing
-- UDP port range configurable per instance (default: 501 ports ≈ 200 concurrent users)
+- UDP mux (single port 7882) handles all WebRTC media; scaling limits are CPU/bandwidth, not port count
 - `webrtc/docker-compose.yml` runs LiveKit independently for dedicated-VPS deployments
 
 ### 3. **Modular Architecture**

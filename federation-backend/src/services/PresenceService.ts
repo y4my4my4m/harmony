@@ -9,7 +9,7 @@ export interface PresenceData {
   lastSeen: number;
 }
 
-const HEARTBEAT_TTL = 90; // seconds — client heartbeats every 30s, 3x grace
+const HEARTBEAT_TTL = 120; // seconds — client heartbeats every 60s, 2x grace
 const PRESENCE_KEY = 'presence';
 const PRESENCE_DETAIL_KEY = 'presence:detail';
 

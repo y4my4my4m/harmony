@@ -15,7 +15,7 @@ interface PresenceData {
  * Client for the Redis-backed realtime API on the federation backend.
  *
  * Handles:
- *  - Presence heartbeats (every 30s)
+ *  - Presence heartbeats (every 60s)
  *  - Bulk presence queries (sidebar, profiles)
  *  - Typing indicator relay (when Redis is available)
  *
@@ -27,6 +27,7 @@ class RealtimeApiServiceSingleton {
   private currentStatus: PresenceStatus = 'online'
   private customStatus: string | undefined
   private _available: boolean | null = null // null = not yet tested
+  private _goingOffline = false
 
   private async getAuthHeaders(): Promise<HeadersInit> {
     const { data: { session } } = await supabase.auth.getSession()
@@ -83,16 +84,18 @@ class RealtimeApiServiceSingleton {
   // ─── Presence ────────────────────────────────────────────────────────
 
   /**
-   * Start sending heartbeats every 30 seconds.
+   * Start sending heartbeats every 60 seconds.
    * Also sends an immediate heartbeat.
+   * Redis TTL is 90s so 60s gives 1.5x grace.
    */
   startHeartbeat(status: PresenceStatus = 'online', customStatus?: string): void {
+    this._goingOffline = false
     this.currentStatus = status
     this.customStatus = customStatus
     this.sendHeartbeat()
 
     if (this.heartbeatInterval) clearInterval(this.heartbeatInterval)
-    this.heartbeatInterval = setInterval(() => this.sendHeartbeat(), 30_000)
+    this.heartbeatInterval = setInterval(() => this.sendHeartbeat(), 60_000)
   }
 
   stopHeartbeat(): void {
@@ -116,8 +119,14 @@ class RealtimeApiServiceSingleton {
   }
 
   async goOffline(): Promise<void> {
+    if (this._goingOffline) return
+    this._goingOffline = true
     this.stopHeartbeat()
-    await this.post('/offline')
+    try {
+      await this.post('/offline')
+    } finally {
+      this._goingOffline = false
+    }
   }
 
   /**

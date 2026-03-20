@@ -52,10 +52,10 @@ services:
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://localhost:3001/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
-      interval: 30s
+      interval: 60s
       timeout: 10s
       retries: 3
-      start_period: 10s
+      start_period: 15s
     depends_on:
       redis:
         condition: service_healthy
@@ -109,10 +109,10 @@ services:
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://localhost:3001/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
-      interval: 30s
+      interval: 60s
       timeout: 10s
       retries: 3
-      start_period: 10s
+      start_period: 15s
     depends_on:
       redis:
         condition: service_healthy
@@ -166,10 +166,10 @@ services:
   # ---------------------------------------------------------------------------
   # LiveKit (Voice/Video)
   # ---------------------------------------------------------------------------
-  # Default: 501 UDP ports (50000-50500) supports ~200 simultaneous voice users.
-  # Expand the range in webrtc/livekit.yaml + here for more capacity.
-  # For 500+ voice users, consider running LiveKit on a dedicated VPS.
-  # LiveKit supports multi-node clustering via Redis automatically.
+  # Uses UDP mux (port 7882) — all WebRTC media on a single port.
+  # Scaling limits are CPU/bandwidth, not port count.
+  # For large deployments, run LiveKit on a dedicated VPS.
+  # Multi-node clustering is automatic via shared Redis.
   # ---------------------------------------------------------------------------
   livekit:
     image: livekit/livekit-server:latest
@@ -179,9 +179,9 @@ services:
       - "7880:7880"
       - "7881:7881"
       - "7881:7881/udp"
+      - "7882:7882/udp"
       - "3478:3478/udp"
       - "3478:3478/tcp"
-      - "${LIVEKIT_PORT_START:-50000}-${LIVEKIT_PORT_END:-50500}:${LIVEKIT_PORT_START:-50000}-${LIVEKIT_PORT_END:-50500}/udp"
     volumes:
       - ./webrtc/livekit.yaml:/livekit.yaml:ro
     command: --config /livekit.yaml

@@ -59,7 +59,7 @@ class UserDataService extends EventTarget {
   
   // Cache settings
   private readonly CACHE_TTL = 5 * 60 * 1000 // 5 minutes
-  private readonly HEARTBEAT_INTERVAL = 30 * 1000 // 30 seconds
+  private readonly HEARTBEAT_INTERVAL = 60 * 1000 // 60 seconds
   
   // Presence sync debouncing
   private presenceSyncTimeouts = new Map<string, NodeJS.Timeout>()

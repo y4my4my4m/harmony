@@ -61,8 +61,11 @@ export function createApp(): Application {
 
   app.use(compression());
 
+  const QUIET_PATHS = new Set(['/health', '/realtime/heartbeat', '/realtime/offline']);
   app.use((req, _res, next) => {
-    logger.info(`${req.method} ${req.path}`);
+    if (!QUIET_PATHS.has(req.path)) {
+      logger.info(`${req.method} ${req.path}`);
+    }
     next();
   });
 

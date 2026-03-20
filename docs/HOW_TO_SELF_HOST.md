@@ -212,10 +212,10 @@ nano webrtc/livekit.yaml
 ```yaml
 port: 7880
 rtc:
-  # Each voice/video participant uses ~1-2 UDP ports.
-  # 501 ports ≈ 200 concurrent users. Expand for more capacity.
-  port_range_start: 50000
-  port_range_end: 50500
+  # UDP mux — all WebRTC media on a single port.
+  # Scaling limits are CPU/bandwidth, not port count.
+  udp_port: 7882
+  tcp_port: 7881
   use_external_ip: true
 keys:
   your-api-key: your-api-secret  # Generate with: openssl rand -hex 16
@@ -361,11 +361,11 @@ ufw allow 7880/tcp     # LiveKit WebSocket
 ufw allow 7881/tcp     # LiveKit RTC
 ufw allow 3478/udp     # TURN
 ufw allow 5349/tcp     # TURN TLS
-ufw allow 50000:50500/udp  # Media (increase to match your livekit.yaml port_range_end)
+ufw allow 7882/udp         # WebRTC media (UDP mux)
 ufw enable
 ```
 
-> Match `50000:50500` to the `port_range_end` in your `webrtc/livekit.yaml`. If you expanded the range during install, update the firewall rule to match.
+> Port 7882/udp is the LiveKit UDP mux port. If you changed `rtc.udp_port` in `webrtc/livekit.yaml`, update the firewall rule to match.
 
 ## 9. Verify Installation
 
@@ -448,7 +448,7 @@ Run new migration files in Supabase SQL Editor (cloud) or via psql (self-hosted)
 
 ## Voice not working
 1. Check LiveKit is running: `docker compose logs livekit`
-2. Verify firewall allows UDP ports matching your `livekit.yaml` range (default: `50000-50500`)
+2. Verify firewall allows UDP port 7882 (LiveKit media mux) and 3478 (TURN)
 3. Ensure `LIVEKIT_API_KEY` matches in both federation-backend and livekit.yaml
 4. For cloud deployment: verify `instance_webrtc_settings` has correct credentials
 
@@ -494,10 +494,10 @@ LiveKit supports **multi-node clustering via Redis**. All LiveKit instances shar
 1. Deploy another VPS with LiveKit installed
 2. Copy `webrtc/livekit.yaml` to the new server (same API keys)
 3. Point the `redis` section at your existing Redis (or a shared Redis)
-4. Open the same UDP port range on the new server's firewall
+4. Open UDP port 7882 (or your `rtc.udp_port` value) on the new server's firewall
 5. LiveKit handles routing automatically — no load balancer needed for media traffic
 
-**Port range sizing**: each participant uses ~1–2 UDP ports. Default is 501 ports (50000–50500, supports ~200 concurrent voice users). Expand `port_range_end` in `webrtc/livekit.yaml` and the matching docker-compose/firewall rules for more capacity.
+**Capacity**: LiveKit uses UDP mux — all media goes through a single port. One port can serve thousands of participants; the real limits are CPU, bandwidth, and kernel buffers. For multi-vCPU machines, you can widen the mux range (e.g. `udp_port: 7882-7890`) to spread kernel processing across cores.
 
 ## Scaling Services to Multiple Servers
 
