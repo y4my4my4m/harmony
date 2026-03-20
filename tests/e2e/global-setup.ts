@@ -6,8 +6,9 @@
  */
 
 import { chromium, type FullConfig } from '@playwright/test'
-import * as fs from 'fs'
-import * as path from 'path'
+import fs from 'fs'
+import path from 'path'
+import { fileURLToPath } from 'url'
 import {
   createAdminClient,
   createE2EUser,
@@ -19,6 +20,7 @@ import {
   type E2ETestUser,
 } from './helpers/e2e-helpers'
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const AUTH_DIR = path.resolve(__dirname, '.auth')
 const SEED_DATA_PATH = path.resolve(AUTH_DIR, 'seed-data.json')
 

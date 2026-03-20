@@ -8,10 +8,12 @@
  */
 
 import { test as base, type Page } from '@playwright/test'
-import * as fs from 'fs'
-import * as path from 'path'
+import fs from 'fs'
+import path from 'path'
+import { fileURLToPath } from 'url'
 import type { SeedData } from '../global-setup'
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const AUTH_DIR = path.resolve(__dirname, '../.auth')
 
 type AuthFixtures = {

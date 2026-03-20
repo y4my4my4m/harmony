@@ -4,11 +4,13 @@
  * Cleans up all test users and seeded data created by global-setup.
  */
 
-import * as fs from 'fs'
-import * as path from 'path'
+import fs from 'fs'
+import path from 'path'
+import { fileURLToPath } from 'url'
 import { createAdminClient, cleanupE2EUsers } from './helpers/e2e-helpers'
 import type { SeedData } from './global-setup'
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const AUTH_DIR = path.resolve(__dirname, '.auth')
 const SEED_DATA_PATH = path.resolve(AUTH_DIR, 'seed-data.json')
 

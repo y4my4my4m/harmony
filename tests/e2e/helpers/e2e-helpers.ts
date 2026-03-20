@@ -9,8 +9,10 @@
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { config } from 'dotenv'
-import * as path from 'path'
+import { fileURLToPath } from 'url'
+import path from 'path'
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
 config({ path: path.resolve(__dirname, '../../../.env.test') })
 
 export interface E2ETestUser {
