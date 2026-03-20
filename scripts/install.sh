@@ -451,11 +451,16 @@ setup_selfhosted_supabase_docker() {
 
 start_supabase() {
     if [[ -z "$SUPABASE_PROJECT_DIR" ]] || [[ ! -d "$SUPABASE_PROJECT_DIR" ]]; then
-        return
+        print_warn "Supabase project directory not set or missing — cannot start Supabase."
+        return 1
     fi
 
-    print_info "Starting Supabase containers..."
-    (cd "$SUPABASE_PROJECT_DIR" && docker compose up -d)
+    print_info "Starting Supabase containers from ${BOLD}$SUPABASE_PROJECT_DIR${RESET}..."
+    if ! (cd "$SUPABASE_PROJECT_DIR" && docker compose up -d); then
+        print_error "Failed to start Supabase containers."
+        print_info "Try manually: ${CYAN}cd $SUPABASE_PROJECT_DIR && docker compose up -d${RESET}"
+        return 1
+    fi
 
     local db_container="${SUPABASE_DB_CONTAINER:-supabase-db}"
     print_info "Waiting for PostgreSQL to be ready (this can take 1–2 minutes on first boot)..."
@@ -482,6 +487,23 @@ start_supabase() {
         print_info "The schema setup step will retry connecting automatically."
     fi
     echo ""
+    return 0
+}
+
+ensure_supabase_running() {
+    if [[ "$SUPABASE_MODE" != "selfhosted" ]] || [[ -z "$SUPABASE_PROJECT_DIR" ]]; then
+        return 0
+    fi
+
+    local db_container="${SUPABASE_DB_CONTAINER:-supabase-db}"
+
+    if docker inspect "$db_container" &>/dev/null 2>&1 && \
+       docker inspect -f '{{.State.Running}}' "$db_container" 2>/dev/null | grep -q true; then
+        return 0
+    fi
+
+    print_info "Supabase is not running — starting it now..."
+    start_supabase
 }
 
 # ---------------------------------------------------------------------------
@@ -1773,12 +1795,7 @@ start_services() {
 
     # Ensure Supabase is running first (self-hosted) — the Harmony compose
     # connects to the supabase_default network and needs it to exist.
-    if [[ "$SUPABASE_MODE" == "selfhosted" ]] && [[ -n "$SUPABASE_PROJECT_DIR" ]]; then
-        if ! docker network inspect supabase_default &>/dev/null 2>&1; then
-            print_info "Starting Supabase (required before Harmony services)..."
-            start_supabase
-        fi
-    fi
+    ensure_supabase_running
 
     if [[ "$MODE" == "production" ]]; then
         print_info "Building and starting: federation-server, federation-worker, redis, nginx..."
@@ -1826,9 +1843,24 @@ start_services() {
                         printf "    ${CYAN}cd %s && docker compose logs -f${RESET}\n" "$PROJECT_DIR"
                     fi
                 else
-                    print_error "Docker compose failed. Check the output above."
-                    print_info "You can try running manually:"
-                    printf "    ${CYAN}cd %s && docker compose up -d --build --remove-orphans${RESET}\n" "$PROJECT_DIR"
+                    # Check if failure was due to missing supabase_default network
+                    if [[ "$SUPABASE_MODE" == "selfhosted" ]] && \
+                       ! docker network inspect supabase_default &>/dev/null 2>&1; then
+                        print_warn "Docker compose failed because Supabase is not running."
+                        print_info "Starting Supabase and retrying..."
+                        echo ""
+                        if start_supabase && docker compose up -d --build --remove-orphans 2>&1; then
+                            print_success "Docker services started (after Supabase recovery)"
+                        else
+                            print_error "Docker compose still failing. Check the output above."
+                            print_info "You can try running manually:"
+                            printf "    ${CYAN}cd %s && docker compose up -d --build --remove-orphans${RESET}\n" "$PROJECT_DIR"
+                        fi
+                    else
+                        print_error "Docker compose failed. Check the output above."
+                        print_info "You can try running manually:"
+                        printf "    ${CYAN}cd %s && docker compose up -d --build --remove-orphans${RESET}\n" "$PROJECT_DIR"
+                    fi
                 fi
             else
                 cd dev
@@ -2067,6 +2099,9 @@ setup_database() {
     local use_docker_exec=false
     local db_container="${SUPABASE_DB_CONTAINER:-supabase-db}"
 
+    # Ensure Supabase is running (self-hosted) before trying to connect
+    ensure_supabase_running
+
     # Discover DB container if default doesn't exist (e.g. project in "spacious" → spacious-db)
     if require_cmd docker && ! docker inspect "$db_container" &>/dev/null 2>/dev/null; then
         local try_name
@@ -2087,8 +2122,22 @@ setup_database() {
     else
         print_warn "Neither supabase-db container nor psql found."
         if require_cmd docker; then
-            print_info "Start Supabase first, then re-run:"
-            printf "    ${CYAN}./scripts/install.sh --schema-setup-only${RESET}\n"
+            if [[ "$SUPABASE_MODE" == "selfhosted" ]] && [[ -n "$SUPABASE_PROJECT_DIR" ]]; then
+                print_info "Attempting to start Supabase..."
+                if start_supabase; then
+                    db_container="${SUPABASE_DB_CONTAINER:-supabase-db}"
+                    if docker inspect "$db_container" &>/dev/null; then
+                        print_info "Found running ${BOLD}$db_container${RESET} container — will use docker exec."
+                        use_docker_exec=true
+                    fi
+                fi
+            fi
+            if ! $use_docker_exec; then
+                print_info "Start Supabase first, then re-run:"
+                printf "    ${CYAN}./scripts/install.sh --schema-setup-only${RESET}\n"
+                echo ""
+                return
+            fi
         else
             print_warn "Install the PostgreSQL client:"
             local pkg_mgr
@@ -2100,9 +2149,9 @@ setup_database() {
                 brew) printf "    ${CYAN}brew install libpq${RESET}\n" ;;
                 *) printf "    ${CYAN}Install postgresql-client for your platform${RESET}\n" ;;
             esac
+            echo ""
+            return
         fi
-        echo ""
-        return
     fi
 
     # Helper: run psql command via docker exec or local psql (PGPASSWORD used by both)
@@ -2234,7 +2283,7 @@ setup_database() {
     print_info "Configuring instance_config..."
     local link_preview_url=""
     if $ENABLE_FEDERATION; then
-        if [[ "$MODE" == "production" ]]; then
+        if [[ "$DOMAIN" != "localhost" ]] && [[ "$DOMAIN" != "127.0.0.1" ]]; then
             link_preview_url="https://$DOMAIN"
         else
             link_preview_url="https://har.mony.local"
@@ -2435,6 +2484,7 @@ run_schema_setup_only() {
     DOMAIN="${DOMAIN:-localhost}"
     INSTANCE_NAME="${INSTANCE_NAME:-Harmony}"
     SUPABASE_MODE="selfhosted"
+    MODE="production"
     SCHEMA_SETUP_ONLY=true
 
     # 4. If still no password, prompt
