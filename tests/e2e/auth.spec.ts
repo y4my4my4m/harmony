@@ -6,6 +6,9 @@
  *   4. Login with the just-registered user
  *   5. Protected route access verification
  *
+ * The main flow runs as a single test with test.step() sub-steps so the
+ * browser session (and auth state) persists across the entire sequence.
+ *
  * Uses a unique randomized email/username per run to avoid collisions.
  * Cleans up the UI-registered user in global-teardown via a persisted file.
  */
@@ -25,18 +28,13 @@ const TEST_PASSWORD = 'e2e-test-password-12345'
 const TEST_USERNAME = `e2eauth${TEST_RUN_ID}`
 const TEST_DISPLAY_NAME = `Auth Test ${TEST_RUN_ID}`
 
-// Sequential — each test depends on the previous one
-test.describe.configure({ mode: 'serial' })
-
-test.describe('Auth flow — register, profile, logout, login', () => {
+test.describe('Auth flow — full lifecycle', () => {
   test.beforeAll(async () => {
-    // Clean up any leftover user from a previous failed run
     const admin = createAdminClient()
     await cleanupUserByEmail(admin, TEST_EMAIL)
   })
 
   test.afterAll(async () => {
-    // Persist the test user info so global-teardown can clean it up
     if (!fs.existsSync(AUTH_DIR)) {
       fs.mkdirSync(AUTH_DIR, { recursive: true })
     }
@@ -46,134 +44,75 @@ test.describe('Auth flow — register, profile, logout, login', () => {
     )
   })
 
-  test('register a new account via the UI', async ({ page }) => {
-    await page.goto('/register')
+  test('register → profile setup → logout → login → access protected routes', async ({ page }) => {
+    await test.step('register a new account', async () => {
+      await page.goto('/register')
+      await expect(page.locator('[data-testid="auth-email"]')).toBeVisible({ timeout: 15000 })
 
-    await expect(page.locator('[data-testid="auth-email"]')).toBeVisible({ timeout: 15000 })
+      await page.locator('[data-testid="auth-email"]').fill(TEST_EMAIL)
+      await page.locator('[data-testid="auth-password"]').fill(TEST_PASSWORD)
+      await page.locator('[data-testid="auth-submit"]').click()
 
-    await page.locator('[data-testid="auth-email"]').fill(TEST_EMAIL)
-    await page.locator('[data-testid="auth-password"]').fill(TEST_PASSWORD)
-    await page.locator('[data-testid="auth-submit"]').click()
+      await expect(page).toHaveURL(/new-profile/, { timeout: 15000 })
+      await expect(page.locator('[data-testid="new-profile-card"]')).toBeVisible({ timeout: 10000 })
+    })
 
-    // After registration, should redirect to /new-profile
-    await expect(page).toHaveURL(/new-profile/, { timeout: 15000 })
-    await expect(page.locator('[data-testid="new-profile-card"]')).toBeVisible({ timeout: 10000 })
-  })
-
-  test('complete profile wizard — step 1: avatar', async ({ page }) => {
-    await page.goto('/new-profile')
-    await expect(page.locator('[data-testid="profile-step-1"]')).toBeVisible({ timeout: 15000 })
-
-    // Use default avatar
-    await page.locator('[data-testid="avatar-use-default"]').click()
-
-    // Proceed to step 2
-    await page.locator('[data-testid="profile-next-btn"]').click()
-    await expect(page.locator('[data-testid="profile-step-2"]')).toBeVisible({ timeout: 10000 })
-  })
-
-  test('complete profile wizard — step 2: basic info', async ({ page }) => {
-    await page.goto('/new-profile')
-    // May need to get back to step 2 — the wizard might remember state or restart
-    // If it restarts at step 1, click through
-    const step2 = page.locator('[data-testid="profile-step-2"]')
-    const step1 = page.locator('[data-testid="profile-step-1"]')
-
-    if (await step1.isVisible({ timeout: 5000 }).catch(() => false)) {
+    await test.step('profile wizard — step 1: avatar', async () => {
+      await expect(page.locator('[data-testid="profile-step-1"]')).toBeVisible({ timeout: 10000 })
+      await page.locator('[data-testid="avatar-use-default"]').click()
       await page.locator('[data-testid="profile-next-btn"]').click()
-      await expect(step2).toBeVisible({ timeout: 10000 })
-    } else {
-      await expect(step2).toBeVisible({ timeout: 15000 })
-    }
+      await expect(page.locator('[data-testid="profile-step-2"]')).toBeVisible({ timeout: 10000 })
+    })
 
-    await page.locator('[data-testid="profile-display-name"]').fill(TEST_DISPLAY_NAME)
-    await page.locator('[data-testid="profile-username"]').fill(TEST_USERNAME)
-
-    // Wait for username availability check to complete
-    await expect(page.locator('[data-testid="username-available"]')).toBeVisible({ timeout: 10000 })
-
-    // Proceed to step 3
-    await page.locator('[data-testid="profile-next-btn"]').click()
-    await expect(page.locator('[data-testid="profile-step-3"]')).toBeVisible({ timeout: 10000 })
-  })
-
-  test('complete profile wizard — step 3: customization & create profile', async ({ page }) => {
-    await page.goto('/new-profile')
-
-    // Navigate through to step 3 (wizard may restart)
-    const step3 = page.locator('[data-testid="profile-step-3"]')
-    const step1 = page.locator('[data-testid="profile-step-1"]')
-    const step2 = page.locator('[data-testid="profile-step-2"]')
-
-    if (await step1.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await page.locator('[data-testid="profile-next-btn"]').click()
-      await expect(step2).toBeVisible({ timeout: 10000 })
-      // Re-fill step 2 fields since the wizard restarted
+    await test.step('profile wizard — step 2: basic info', async () => {
       await page.locator('[data-testid="profile-display-name"]').fill(TEST_DISPLAY_NAME)
       await page.locator('[data-testid="profile-username"]').fill(TEST_USERNAME)
+
       await expect(page.locator('[data-testid="username-available"]')).toBeVisible({ timeout: 10000 })
+
       await page.locator('[data-testid="profile-next-btn"]').click()
-      await expect(step3).toBeVisible({ timeout: 10000 })
-    } else if (await step2.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await page.locator('[data-testid="profile-display-name"]').fill(TEST_DISPLAY_NAME)
-      await page.locator('[data-testid="profile-username"]').fill(TEST_USERNAME)
-      await expect(page.locator('[data-testid="username-available"]')).toBeVisible({ timeout: 10000 })
+      await expect(page.locator('[data-testid="profile-step-3"]')).toBeVisible({ timeout: 10000 })
+    })
+
+    await test.step('profile wizard — step 3: customization & create profile', async () => {
+      await page.locator('[data-testid="color-preset"]').first().click()
       await page.locator('[data-testid="profile-next-btn"]').click()
-      await expect(step3).toBeVisible({ timeout: 10000 })
-    } else {
-      await expect(step3).toBeVisible({ timeout: 15000 })
-    }
 
-    // Pick a color preset
-    await page.locator('[data-testid="color-preset"]').first().click()
+      await expect(page).toHaveURL(/chat/, { timeout: 30000 })
+    })
 
-    // Click "Create Profile"
-    await page.locator('[data-testid="profile-next-btn"]').click()
+    await test.step('verify landing on chat after profile creation', async () => {
+      await page.waitForLoadState('networkidle', { timeout: 15000 })
+      expect(page.url()).toContain('/chat')
+    })
 
-    // Should redirect to /chat after profile creation
-    await expect(page).toHaveURL(/chat/, { timeout: 30000 })
-  })
+    await test.step('logout', async () => {
+      await page.goto('/logout')
+      await expect(page).toHaveURL(/login|\/$/, { timeout: 15000 })
+    })
 
-  test('logout redirects to login', async ({ page }) => {
-    // First go to chat to confirm we're logged in
-    await page.goto('/chat')
-    await page.waitForLoadState('networkidle', { timeout: 15000 })
-    expect(page.url()).not.toContain('/login')
+    await test.step('login with the just-registered account', async () => {
+      await page.goto('/login')
+      await expect(page.locator('[data-testid="auth-email"]')).toBeVisible({ timeout: 15000 })
 
-    // Now logout
-    await page.goto('/logout')
-    await expect(page).toHaveURL(/login|\/$/, { timeout: 15000 })
-  })
+      await page.locator('[data-testid="auth-email"]').fill(TEST_EMAIL)
+      await page.locator('[data-testid="auth-password"]').fill(TEST_PASSWORD)
+      await page.locator('[data-testid="auth-submit"]').click()
 
-  test('login with the registered account', async ({ page }) => {
-    await page.goto('/login')
-    await expect(page.locator('[data-testid="auth-email"]')).toBeVisible({ timeout: 15000 })
+      await expect(page).toHaveURL(/chat/, { timeout: 15000 })
+    })
 
-    await page.locator('[data-testid="auth-email"]').fill(TEST_EMAIL)
-    await page.locator('[data-testid="auth-password"]').fill(TEST_PASSWORD)
-    await page.locator('[data-testid="auth-submit"]').click()
+    await test.step('access /dm while authenticated', async () => {
+      await page.goto('/dm')
+      await page.waitForLoadState('networkidle', { timeout: 15000 })
+      expect(page.url()).not.toContain('/login')
+    })
 
-    // Should land on /chat (profile already completed)
-    await expect(page).toHaveURL(/chat/, { timeout: 15000 })
-  })
-
-  test('authenticated user can access protected routes', async ({ page }) => {
-    // Login first
-    await page.goto('/login')
-    await page.locator('[data-testid="auth-email"]').fill(TEST_EMAIL)
-    await page.locator('[data-testid="auth-password"]').fill(TEST_PASSWORD)
-    await page.locator('[data-testid="auth-submit"]').click()
-    await expect(page).toHaveURL(/chat/, { timeout: 15000 })
-
-    // Check /dm
-    await page.goto('/dm')
-    await page.waitForLoadState('networkidle', { timeout: 15000 })
-    expect(page.url()).not.toContain('/login')
-
-    // Check /social/home
-    await page.goto('/social/home')
-    await page.waitForLoadState('networkidle', { timeout: 15000 })
-    expect(page.url()).not.toContain('/login')
+    await test.step('access /social/home while authenticated', async () => {
+      await page.goto('/social/home')
+      await page.waitForLoadState('networkidle', { timeout: 15000 })
+      expect(page.url()).not.toContain('/login')
+    })
   })
 })
 
