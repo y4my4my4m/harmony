@@ -19,21 +19,38 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const AUTH_DIR = path.resolve(__dirname, '../.auth')
 
 async function dismissAnnouncements(page: Page): Promise<void> {
+  // Wait for the page to stabilize so the async announcement RPC completes
+  await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {})
+
   const overlay = page.locator('[data-testid="announcement-overlay"]')
-  if (await overlay.isVisible({ timeout: 2000 }).catch(() => false)) {
+
+  // The popup loads via an async RPC — give it time to appear
+  const isVisible = await overlay.isVisible({ timeout: 5000 }).catch(() => false)
+  if (!isVisible) return
+
+  // Click every "Mark as read" button until the overlay disappears
+  // (handles both single and multiple announcements)
+  for (let attempt = 0; attempt < 10; attempt++) {
+    if (!(await overlay.isVisible().catch(() => false))) break
+
     const markAllBtn = page.locator('[data-testid="announcement-mark-all-read"]')
-    if (await markAllBtn.isVisible({ timeout: 1000 }).catch(() => false)) {
+    if (await markAllBtn.isVisible({ timeout: 500 }).catch(() => false)) {
       await markAllBtn.click()
-    } else {
-      const markReadBtns = page.locator('[data-testid="announcement-mark-read"]')
-      const count = await markReadBtns.count()
-      for (let i = 0; i < count; i++) {
-        await markReadBtns.first().click()
-        await page.waitForTimeout(300)
-      }
+      break
     }
-    await overlay.waitFor({ state: 'hidden', timeout: 5000 }).catch(() => {})
+
+    const markReadBtn = page.locator('[data-testid="announcement-mark-read"]').first()
+    if (await markReadBtn.isVisible({ timeout: 500 }).catch(() => false)) {
+      await markReadBtn.click()
+      await page.waitForTimeout(500)
+    } else {
+      // No buttons found — click overlay background to dismiss
+      await overlay.click({ position: { x: 5, y: 5 } }).catch(() => {})
+      break
+    }
   }
+
+  await overlay.waitFor({ state: 'hidden', timeout: 5000 }).catch(() => {})
 }
 
 type AuthFixtures = {
