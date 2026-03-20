@@ -2252,6 +2252,33 @@ export class ActivityProcessor {
       return;
     }
 
+    // Resolve reply_to: the inReplyTo URL contains the remote AP ID or UUID,
+    // which may not exist locally. Look up by ap_id in metadata first, then by UUID.
+    let resolvedReplyTo: string | null = null;
+    if (object.inReplyTo) {
+      const { data: parentByApId } = await supabase
+        .from('messages')
+        .select('id')
+        .eq('metadata->>ap_id', object.inReplyTo)
+        .maybeSingle();
+
+      if (parentByApId) {
+        resolvedReplyTo = parentByApId.id;
+      } else {
+        const extractedId = extractMessageId(object.inReplyTo);
+        if (extractedId) {
+          const { data: parentById } = await supabase
+            .from('messages')
+            .select('id')
+            .eq('id', extractedId)
+            .maybeSingle();
+          if (parentById) {
+            resolvedReplyTo = parentById.id;
+          }
+        }
+      }
+    }
+
     const { data: insertedMsg, error: insertError } = await supabase
       .from('messages')
       .insert({
@@ -2261,7 +2288,7 @@ export class ActivityProcessor {
         content: content,
         created_at: object.published || new Date().toISOString(),
         updated_at: object.updated || null,
-        reply_to: object.inReplyTo ? extractMessageId(object.inReplyTo) : null,
+        reply_to: resolvedReplyTo,
         is_deleted: false,
         federation_status: 'completed',
         encrypted: object['harmony:encrypted'] === true,
