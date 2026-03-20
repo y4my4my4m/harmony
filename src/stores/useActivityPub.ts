@@ -1416,7 +1416,14 @@ export const useActivityPubStore = defineStore('activitypub', {
      */
     async batchFetchRemoteReactions(posts: TimelinePost[]) {
       const { fetchedReactionsThisSession } = await import('@/composables/useRemotePostSync');
-      const remotePosts = posts.filter(p => !p.is_local && p.ap_id && !fetchedReactionsThisSession.has(p.id));
+      const localDomain = this.instanceDomain;
+      const remotePosts = posts.filter(p => {
+        if (p.is_local || !p.ap_id || fetchedReactionsThisSession.has(p.id)) return false;
+        try {
+          if (new URL(p.ap_id).hostname === localDomain) return false;
+        } catch { /* invalid URL, include it */ }
+        return true;
+      });
       if (remotePosts.length === 0) return;
 
       // Mark all as fetched upfront so individual MonyPost components skip their own fetch
