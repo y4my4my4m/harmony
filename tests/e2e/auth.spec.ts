@@ -81,13 +81,31 @@ test.describe('Auth flow — full lifecycle', () => {
       await expect(page).toHaveURL(/chat/, { timeout: 30000 })
     })
 
-    await test.step('verify landing on chat after profile creation', async () => {
+    await test.step('dismiss announcement popup if present', async () => {
       await page.waitForLoadState('networkidle', { timeout: 15000 })
       expect(page.url()).toContain('/chat')
+
+      const overlay = page.locator('[data-testid="announcement-overlay"]')
+      if (await overlay.isVisible({ timeout: 3000 }).catch(() => false)) {
+        const markAllBtn = page.locator('[data-testid="announcement-mark-all-read"]')
+        if (await markAllBtn.isVisible({ timeout: 1000 }).catch(() => false)) {
+          await markAllBtn.click()
+        } else {
+          const markReadBtns = page.locator('[data-testid="announcement-mark-read"]')
+          const count = await markReadBtns.count()
+          for (let i = 0; i < count; i++) {
+            await markReadBtns.first().click()
+            await page.waitForTimeout(300)
+          }
+        }
+        await expect(overlay).not.toBeVisible({ timeout: 5000 })
+      }
     })
 
-    await test.step('logout', async () => {
+    await test.step('logout via the logout page button', async () => {
       await page.goto('/logout')
+      await expect(page.locator('[data-testid="logout-confirm-btn"]')).toBeVisible({ timeout: 10000 })
+      await page.locator('[data-testid="logout-confirm-btn"]').click()
       await expect(page).toHaveURL(/login|\/$/, { timeout: 15000 })
     })
 
@@ -100,6 +118,23 @@ test.describe('Auth flow — full lifecycle', () => {
       await page.locator('[data-testid="auth-submit"]').click()
 
       await expect(page).toHaveURL(/chat/, { timeout: 15000 })
+
+      // Dismiss announcements if they reappear (already marked read, but just in case)
+      const overlay = page.locator('[data-testid="announcement-overlay"]')
+      if (await overlay.isVisible({ timeout: 2000 }).catch(() => false)) {
+        const markAllBtn = page.locator('[data-testid="announcement-mark-all-read"]')
+        if (await markAllBtn.isVisible({ timeout: 1000 }).catch(() => false)) {
+          await markAllBtn.click()
+        } else {
+          const markReadBtns = page.locator('[data-testid="announcement-mark-read"]')
+          const count = await markReadBtns.count()
+          for (let i = 0; i < count; i++) {
+            await markReadBtns.first().click()
+            await page.waitForTimeout(300)
+          }
+        }
+        await expect(overlay).not.toBeVisible({ timeout: 5000 })
+      }
     })
 
     await test.step('access /dm while authenticated', async () => {

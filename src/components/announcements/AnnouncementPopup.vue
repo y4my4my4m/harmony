@@ -1,6 +1,6 @@
 <template>
   <Teleport to="body">
-    <div v-if="announcements.length > 0" class="announcement-overlay" @click.self="dismiss">
+    <div v-if="announcements.length > 0" class="announcement-overlay" data-testid="announcement-overlay" @click.self="dismiss">
       <div class="announcement-popup">
         <div class="popup-header">
           <div class="header-title">
@@ -44,7 +44,7 @@
                 />
                 <template v-else>{{ announcement.author_display_name }}</template>
               </span>
-              <button @click="markRead(announcement.id)" class="mark-read-btn">
+              <button @click="markRead(announcement.id)" class="mark-read-btn" data-testid="announcement-mark-read">
                 {{ $t('announcements.markRead', 'Mark as read') }}
               </button>
             </div>
@@ -52,7 +52,7 @@
         </div>
 
         <div class="popup-footer" v-if="announcements.length > 1">
-          <button @click="markAllRead" class="mark-all-btn">
+          <button @click="markAllRead" class="mark-all-btn" data-testid="announcement-mark-all-read">
             {{ $t('announcements.markAllRead', 'Mark all as read') }}
           </button>
         </div>

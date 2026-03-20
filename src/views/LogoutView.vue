@@ -12,7 +12,7 @@
         <h2>{{ $t('auth.logoutConfirm.title') || 'Log out from this device?' }}</h2>
         <p>{{ $t('auth.logoutConfirm.description') || 'You will need to sign in again to access your account.' }}</p>
         <div class="logout-actions">
-          <button class="btn-logout" @click="handleLogout">
+          <button class="btn-logout" @click="handleLogout" data-testid="logout-confirm-btn">
             {{ $t('auth.logout') }}
           </button>
           <button class="btn-cancel" @click="goBack">
