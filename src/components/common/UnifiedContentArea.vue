@@ -49,7 +49,7 @@
       </div>
       
       <!-- Timeline View -->
-      <div v-else class="content-timeline">
+      <div v-else class="content-timeline" data-testid="timeline-feed">
         <!-- Composer (if home timeline) -->
         <div 
           v-if="currentView === 'home'" 

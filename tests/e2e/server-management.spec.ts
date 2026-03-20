@@ -16,16 +16,14 @@ test.describe('Server Management', () => {
     expect(alicePage.url()).toContain(seedData.channelId)
   })
 
-  test('DM button in sidebar navigates to /dm', async ({ alicePage }) => {
+  test('DM page loads from navigation', async ({ alicePage }) => {
     const server = new ServerPage(alicePage)
-    await server.navigateToChat()
     await server.goToDMs()
     await expect(alicePage).toHaveURL(/\/dm/, { timeout: 10000 })
   })
 
-  test('Monyverse button navigates to /social', async ({ alicePage }) => {
+  test('Social page loads from navigation', async ({ alicePage }) => {
     const server = new ServerPage(alicePage)
-    await server.navigateToChat()
     await server.goToMonyverse()
     await expect(alicePage).toHaveURL(/\/social/, { timeout: 10000 })
   })

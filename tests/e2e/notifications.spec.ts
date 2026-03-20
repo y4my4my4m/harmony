@@ -65,16 +65,13 @@ test.describe('Notifications — Triggered by actions', () => {
     await aliceChat.sendMessage(msg)
     await aliceChat.waitForMessage(msg)
 
-    // Bob checks notifications
+    // Bob checks notifications — bell should be visible
     await bobPage.goto('/chat')
     await dismissAnnouncements(bobPage)
     await bobPage.waitForLoadState('networkidle', { timeout: 15000 })
 
     const bobNotifs = new NotificationsPage(bobPage)
-    await bobPage.waitForTimeout(3000)
-
-    const count = await bobNotifs.getUnreadCount()
-    await expect(bobNotifs.bell).toBeVisible()
+    await expect(bobNotifs.bell).toBeVisible({ timeout: 10000 })
   })
 
   test('DM triggers notification', async ({ alicePage, bobPage, seedData }) => {

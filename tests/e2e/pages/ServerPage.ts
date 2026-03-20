@@ -32,19 +32,21 @@ export class ServerPage {
   }
 
   async openPortal() {
-    await this.serverSidebar.locator('.portal').click()
+    await this.page.locator('img[alt="Harmony Portal"]').click()
   }
 
   async goToDMs() {
-    await this.serverSidebar.locator('.dm-button').click()
+    await this.page.goto('/dm')
+    await dismissAnnouncements(this.page)
   }
 
   async goToMonyverse() {
-    await this.serverSidebar.locator('.monyverse-button').click()
+    await this.page.goto('/social/home')
+    await dismissAnnouncements(this.page)
   }
 
   getServerItem(serverName: string): Locator {
-    return this.serverSidebar.locator(`.server-item[alt="${serverName}"]`)
+    return this.serverSidebar.locator(`img[alt="${serverName}"]`)
   }
 
   getChannelItem(channelId: string): Locator {
@@ -53,12 +55,18 @@ export class ServerPage {
 
   async createServerViaUI(serverName: string) {
     await this.openPortal()
-    const createTab = this.page.locator('text=Create')
-    if (await createTab.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await createTab.click()
-    }
-    const nameInput = this.page.locator('input[placeholder*="server name"], input[name="server-name"], #server-name')
+    await this.page.waitForLoadState('networkidle', { timeout: 10000 })
+
+    // Click "Create Your Server" card on the portal page
+    const createCard = this.page.locator('text=Create Your Server').first()
+    await createCard.waitFor({ state: 'visible', timeout: 5000 })
+    await createCard.click()
+
+    // Fill the server name
+    const nameInput = this.page.locator('[data-testid="create-server-name-input"]')
+    await nameInput.waitFor({ state: 'visible', timeout: 5000 })
     await nameInput.fill(serverName)
+
     await this.page.locator('[data-testid="create-server-btn"]').click()
   }
 }

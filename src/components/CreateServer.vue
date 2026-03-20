@@ -67,6 +67,7 @@
               v-model="serverName"
               type="text"
               class="modern-input"
+              data-testid="create-server-name-input"
               :placeholder="$t('server.placeholders.serverName')"
               maxlength="50"
               @input="validateServerName"
