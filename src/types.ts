@@ -673,12 +673,15 @@ export interface NotificationPreferences {
   desktop_dms: boolean;
   desktop_reactions: boolean;
   desktop_replies: boolean;
+  desktop_chat_messages: boolean;
   
   // Sound notifications
   sound_notifications: boolean;
   sound_mentions: boolean;
   sound_dms: boolean;
   sound_reactions: boolean;
+  sound_replies: boolean;
+  sound_chat_messages: boolean;
   sound_voice_activity: boolean;
   
   // Push notifications

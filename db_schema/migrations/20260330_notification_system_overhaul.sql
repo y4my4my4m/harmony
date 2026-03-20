@@ -211,7 +211,7 @@ BEGIN
                         WHEN 'dm' THEN
                             should_send := COALESCE(user_prefs.desktop_dms, true);
                         WHEN 'chat_message' THEN
-                            should_send := COALESCE(user_prefs.desktop_dms, true);
+                            should_send := COALESCE(user_prefs.desktop_chat_messages, true);
                         WHEN 'reaction' THEN
                             should_send := COALESCE(user_prefs.desktop_reactions, true);
                         WHEN 'voice_channel_activity' THEN
@@ -638,6 +638,15 @@ BEGIN
       );
 END;
 $$;
+
+-- ---------------------------------------------------------------------------
+-- Phase 8b: Add chat_message preference columns
+-- ---------------------------------------------------------------------------
+ALTER TABLE public.notification_preferences
+    ADD COLUMN IF NOT EXISTS desktop_chat_messages boolean DEFAULT true,
+    ADD COLUMN IF NOT EXISTS sound_chat_messages boolean DEFAULT true,
+    ADD COLUMN IF NOT EXISTS sound_reactions boolean DEFAULT false,
+    ADD COLUMN IF NOT EXISTS sound_replies boolean DEFAULT true;
 
 COMMIT;
 

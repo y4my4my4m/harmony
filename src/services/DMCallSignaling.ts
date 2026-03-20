@@ -160,6 +160,12 @@ class DMCallSignalingService {
       const channelName = `dm-call:${conversationId}`
       debug.log(`📤 No existing subscription — using temp channel: ${channelName}`)
       const tempChannel = supabase.channel(channelName)
+      await new Promise<void>((resolve, reject) => {
+        tempChannel.subscribe((status) => {
+          if (status === 'SUBSCRIBED') resolve()
+          else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') reject(new Error(`Channel ${status}`))
+        })
+      })
       await tempChannel.send({
         type: 'broadcast',
         event: 'call-signal',
@@ -246,6 +252,13 @@ class DMCallSignalingService {
     
     const tempChannel = supabase.channel(channelName)
     
+    await new Promise<void>((resolve, reject) => {
+      tempChannel.subscribe((status) => {
+        if (status === 'SUBSCRIBED') resolve()
+        else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') reject(new Error(`Channel ${status}`))
+      })
+    })
+    
     await tempChannel.send({
       type: 'broadcast',
       event: 'incoming-call',
@@ -254,7 +267,6 @@ class DMCallSignalingService {
     
     debug.log('✅ Signal sent to user:', userId)
     
-    // Unsubscribe temp channel
     await tempChannel.unsubscribe()
   }
   

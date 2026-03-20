@@ -40,6 +40,7 @@ interface NotificationState {
 const NOTIFICATION_SOUND_MAPPING: Record<NotificationType, AudioAction> = {
   mention: 'mention',
   dm: 'dm', 
+  chat_message: 'dm',
   reaction: 'reaction',
   reply: 'reply',
   thread_reply: 'reply',

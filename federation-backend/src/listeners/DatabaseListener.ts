@@ -29,12 +29,11 @@ export async function startDatabaseListener(): Promise<void> {
   const supabase = getSupabaseClient();
 
   // Subscribe to real-time changes for federation events  
-  const channel = supabase
-    .channel('federation-events')
-    
-    // DEBUG: Listen to ALL events on ALL tables to see if realtime works at all
-    // Filter out high-frequency tables that create noise (timeline_entries, notifications, ap_activities)
-    .on(
+  let channel = supabase
+    .channel('federation-events');
+
+  if (config.environment !== 'production') {
+    channel = channel.on(
       'postgres_changes',
       {
         event: '*',
@@ -42,10 +41,8 @@ export async function startDatabaseListener(): Promise<void> {
         table: '*',
       },
       async (payload) => {
-        // Skip logging for high-frequency tables that aren't relevant to federation debugging
         const noisyTables = ['timeline_entries', 'notifications', 'ap_activities'];
         if (noisyTables.includes(payload.table)) {
-          // Use debug level for noisy tables
           logger.debug(`🔔 REALTIME EVENT: ${payload.eventType} on ${payload.table}`, {
             id: payload.new?.id || payload.old?.id,
             table: payload.table
@@ -58,8 +55,10 @@ export async function startDatabaseListener(): Promise<void> {
           table: payload.table
         });
       }
-    )
-    
+    );
+  }
+
+  channel = channel
     // Listen to posts
     .on(
       'postgres_changes',

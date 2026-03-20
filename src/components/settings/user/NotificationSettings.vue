@@ -621,10 +621,13 @@ const preferences = reactive<NotificationPreferences>({
   desktop_dms: true,
   desktop_reactions: false,
   desktop_replies: true,
+  desktop_chat_messages: true,
   sound_notifications: true,
   sound_mentions: true,
   sound_dms: true,
   sound_reactions: false,
+  sound_replies: true,
+  sound_chat_messages: true,
   sound_voice_activity: true,
   push_notifications: true,
   push_mentions: true,
@@ -670,6 +673,15 @@ const isTestingPush = ref(false)
 
 // Notification type configurations
 const chatNotificationTypes = [
+  {
+    key: 'desktop_chat_messages',
+    label: 'Chat Messages',
+    description: 'When a message is sent in a channel you follow',
+    icon: 'message-square',
+    desktopKey: 'desktop_chat_messages',
+    soundKey: 'sound_chat_messages',
+    testType: 'chat_message'
+  },
   {
     key: 'desktop_mentions',
     label: 'Mentions',

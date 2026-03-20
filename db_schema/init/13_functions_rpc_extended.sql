@@ -321,7 +321,7 @@ BEGIN
                         WHEN 'dm' THEN
                             should_send := COALESCE(user_prefs.desktop_dms, true);
                         WHEN 'chat_message' THEN
-                            should_send := COALESCE(user_prefs.desktop_dms, true);
+                            should_send := COALESCE(user_prefs.desktop_chat_messages, true);
                         WHEN 'reaction' THEN
                             should_send := COALESCE(user_prefs.desktop_reactions, true);
                         WHEN 'voice_channel_activity' THEN

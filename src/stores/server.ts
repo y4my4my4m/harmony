@@ -3,6 +3,7 @@ import { supabase } from '@/supabase';
 import { useToast } from 'vue-toastification';
 import type { Server, Emoji } from '@/types';
 import { debug } from '@/utils/debug'
+import { invalidateServerMemberCache } from '@/services/usersService'
 
 export const useServerStore = defineStore('server', {
   actions: {
@@ -104,8 +105,7 @@ export const useServerStore = defineStore('server', {
           throw error;
         }
 
-        // debug.log("Server joined successfully", data);
-        // toast.success("Successfully joined the server!");
+        invalidateServerMemberCache(serverId);
         return true;
       } catch (error) {
         debug.error('Error joining server:', error);
@@ -123,6 +123,7 @@ export const useServerStore = defineStore('server', {
 
         if (error) throw error;
 
+        invalidateServerMemberCache(serverId);
         debug.log("Server left successfully", data);
         return true;
       } catch (error) {

@@ -107,8 +107,12 @@ CREATE TABLE IF NOT EXISTS public.notification_preferences (
     desktop_replies boolean DEFAULT true,
     desktop_dms boolean DEFAULT true,
     desktop_reactions boolean DEFAULT false,
+    desktop_chat_messages boolean DEFAULT true,
     sound_mentions boolean DEFAULT true,
     sound_dms boolean DEFAULT true,
+    sound_reactions boolean DEFAULT false,
+    sound_replies boolean DEFAULT true,
+    sound_chat_messages boolean DEFAULT true,
     sound_voice_activity boolean DEFAULT true,
 
     -- Do Not Disturb

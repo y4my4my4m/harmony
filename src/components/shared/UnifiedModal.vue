@@ -98,6 +98,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, nextTick, watch } from 'vue'
+import { useToast } from 'vue-toastification'
 import { debug } from '@/utils/debug'
 
 export interface ModalAction {
@@ -190,12 +191,15 @@ const handleEscape = () => {
 }
 
 // Handle action button clicks
+const toast = useToast()
 const handleAction = async (action: ModalAction) => {
   try {
     await action.handler()
     emit('action', action)
-  } catch (error) {
+  } catch (error: any) {
     debug.error('Modal action error:', error)
+    const msg = error?.message || 'Something went wrong. Please try again.'
+    toast.error(msg)
   }
 }
 
