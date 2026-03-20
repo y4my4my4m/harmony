@@ -454,7 +454,14 @@ const handleBulkEmojiUpload = async (files: File[]) => {
     }
 
     debug.log('🎭 Starting bulk emoji upload...')
-    const results = await bulkUploadEmojis(props.serverId, props.ownerId, validFiles)
+    const results = await bulkUploadEmojis(props.serverId, props.ownerId, validFiles, (progress) => {
+      uploadProgress.value = {
+        total: progress.total,
+        current: progress.current,
+        completed: progress.completed,
+        currentFile: progress.currentFile
+      }
+    })
     
     const successCount = results.filter(r => r !== null).length
     const failedCount = results.length - successCount

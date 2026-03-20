@@ -418,31 +418,49 @@ async function doesEmojiNameExist(serverId: string, name: string): Promise<boole
     }
 }
 
-// Bulk emoji operations for efficiency
-async function bulkUploadEmojis(serverId: string, userId: string, files: File[]): Promise<(Emoji | null)[]> {
+export interface BulkUploadProgress {
+    current: number;
+    completed: number;
+    failed: number;
+    total: number;
+    currentFile: string;
+}
+
+async function bulkUploadEmojis(
+    serverId: string,
+    userId: string,
+    files: File[],
+    onProgress?: (progress: BulkUploadProgress) => void
+): Promise<(Emoji | null)[]> {
     const results: (Emoji | null)[] = [];
     const emojiCache = useEmojiCacheStore();
+    let completed = 0;
+    let failed = 0;
     
     debug.log(`Starting bulk upload of ${files.length} emojis for server ${serverId}`);
     
-    for (const file of files) {
+    for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        onProgress?.({ current: i + 1, completed, failed, total: files.length, currentFile: file.name });
+        
         try {
             const result = await uploadEmoji(serverId, userId, file);
             results.push(result);
+            if (result) completed++; else failed++;
             
-            // Small delay to prevent overwhelming the server
             await new Promise(resolve => setTimeout(resolve, 100));
         } catch (error) {
             debug.error(`Failed to upload ${file.name}:`, error);
             results.push(null);
+            failed++;
         }
+        
+        onProgress?.({ current: i + 1, completed, failed, total: files.length, currentFile: file.name });
     }
     
-    // Single cache invalidation after all uploads
     await emojiCache.invalidate({ serverId });
     
-    const successCount = results.filter(r => r !== null).length;
-    debug.log(`Bulk upload completed: ${successCount}/${files.length} successful`);
+    debug.log(`Bulk upload completed: ${completed}/${files.length} successful`);
     
     return results;
 }

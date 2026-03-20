@@ -55,9 +55,9 @@
               <Icon name="mail" />
               Direct Messages
             </router-link>
-            <router-link to="/social/notifications" class="quick-link">
-              <Icon name="bell" />
-              Notifications
+            <router-link to="/social/mentions" class="quick-link">
+              <Icon name="at-sign" />
+              Mentions
             </router-link>
           </div>
         </div>

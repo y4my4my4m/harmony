@@ -262,7 +262,7 @@ const navigationItems = computed(() => [
   { id: 'explore', label: t('activitypub.explore'), path: '/explore', icon: 'compass' },
   { id: 'feed', label: t('activitypub.feed'), path: '/social/home', icon: 'mony-mascot' },
   { id: 'profile', label: t('activitypub.profile'), path: getUserProfilePath(), icon: 'user' },
-  { id: 'notifications', label: t('activitypub.notifications'), path: '/social/notifications', icon: 'bell' },
+  { id: 'mentions', label: t('activitypub.mentions'), path: '/social/mentions', icon: 'at-sign' },
   { id: 'bookmarks', label: t('activitypub.bookmarks'), path: '/social/bookmarks', icon: 'bookmark' },
   { id: 'lists', label: t('activitypub.lists'), path: '/social/lists', icon: 'list' },
   { id: 'settings', label: t('navigation.settings'), path: '/settings', icon: 'settings' }

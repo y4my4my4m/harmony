@@ -80,7 +80,7 @@ export function getQuickNavigationLinks(context: NotFoundContext) {
     { to: '/chat', label: 'Chat', icon: 'message-circle' },
     { to: '/social/home', label: 'Social', icon: 'users' },
     { to: '/dm', label: 'Messages', icon: 'mail' },
-    { to: '/social/notifications', label: 'Notifications', icon: 'bell' }
+    { to: '/social/mentions', label: 'Mentions', icon: 'at-sign' }
   ]
 
   // Filter out the current suggested route to avoid redundancy

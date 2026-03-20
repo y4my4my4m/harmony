@@ -289,7 +289,7 @@ const getViewIcon = (viewType: any) => {
     case 'explore': return 'compass'
     case 'bookmarks': return 'bookmark'
     case 'lists': return 'list'
-    case 'notifications': return 'bell'
+    case 'mentions': return 'at-sign'
     case 'profile': return 'user'
     default: return 'home'
   }
@@ -301,7 +301,7 @@ const getEmptyStateTitle = (viewType: any) => {
     case 'explore': return 'Nothing to explore yet'
     case 'bookmarks': return 'No bookmarks yet'
     case 'lists': return 'No lists yet'
-    case 'notifications': return 'No notifications yet'
+    case 'mentions': return 'No mentions yet'
     default: return 'Nothing here yet'
   }
 }
@@ -312,7 +312,7 @@ const getSpecialViewEmptyMessage = (viewType: any) => {
     case 'explore': return 'Check back later for trending content and discover new instances.'
     case 'bookmarks': return 'Posts you bookmark will appear here for easy access later.'
     case 'lists': return 'Create lists to organize users and topics you follow.'
-    case 'notifications': return 'When someone interacts with your posts, you\'ll see it here.'
+    case 'mentions': return 'Posts where someone @mentions you will appear here — even from people you don\'t follow.'
     default: return 'Content will appear here when available.'
   }
 }

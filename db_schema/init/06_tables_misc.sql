@@ -489,27 +489,33 @@ CREATE INDEX IF NOT EXISTS idx_admin_audit_log_created ON public.admin_audit_log
 COMMENT ON TABLE public.admin_audit_log IS 'Admin action audit log';
 
 -- ---------------------------------------------------------------------------
--- ENCRYPTION - User Key Pairs (E2E encryption)
+-- ENCRYPTION - User Key Pairs (Megolm-style E2E encryption)
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.user_key_pairs (
     id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
     user_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
-    device_id text NOT NULL,
+    device_id text DEFAULT 'default'::text,
     
     -- Keys
-    identity_key text NOT NULL,
-    signed_prekey text NOT NULL,
-    signed_prekey_signature text NOT NULL,
+    identity_public_key text NOT NULL,
+    identity_private_key_encrypted text NOT NULL,
     
-    created_at timestamp with time zone DEFAULT now(),
-    updated_at timestamp with time zone DEFAULT now(),
+    -- Versioning & status
+    key_version integer DEFAULT 1 NOT NULL,
+    is_active boolean DEFAULT true,
     
-    UNIQUE(user_id, device_id)
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    last_used_at timestamp with time zone DEFAULT now(),
+    expires_at timestamp with time zone,
+    metadata jsonb DEFAULT '{}'::jsonb,
+    
+    CONSTRAINT valid_device_id CHECK (char_length(device_id) <= 255)
 );
 
 CREATE INDEX IF NOT EXISTS idx_user_key_pairs_user ON public.user_key_pairs(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_key_pairs_active ON public.user_key_pairs(user_id, is_active) WHERE is_active = true;
 
-COMMENT ON TABLE public.user_key_pairs IS 'User encryption key pairs for E2E encryption';
+COMMENT ON TABLE public.user_key_pairs IS 'Signal Protocol identity key pairs per user. Supports future per-device migration.';
 
 -- ---------------------------------------------------------------------------
 -- PREKEYS (One-time prekeys for Signal protocol)

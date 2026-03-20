@@ -3175,25 +3175,46 @@ COMMENT ON FUNCTION public.reset_daily_hashtag_counters IS 'Reset daily hashtag 
 -- 8. update_hashtag_trending_scores - Update trending scores for hashtags
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.update_hashtag_trending_scores()
-RETURNS void
+RETURNS integer
 LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
+DECLARE
+    updated_count INTEGER := 0;
 BEGIN
-    -- Update trending scores based on recent usage
-    -- Using the actual column names: daily_uses, weekly_uses, total_uses
-    -- Note: hashtags table doesn't have a trending_score column, 
-    -- so we just update the weekly counter based on daily
+    -- Accumulate daily into weekly
     UPDATE public.hashtags
     SET 
         weekly_uses = COALESCE(weekly_uses, 0) + COALESCE(daily_uses, 0),
         updated_at = NOW()
     WHERE daily_uses > 0;
-    
-    RAISE NOTICE 'Hashtag trending scores updated';
+
+    -- Compute trending_score: weighted combination of daily recency and weekly volume
+    UPDATE public.hashtags
+    SET 
+        trending_score = (COALESCE(daily_uses, 0) * 3.0 + COALESCE(weekly_uses, 0) * 0.5 + COALESCE(total_uses, 0) * 0.05),
+        last_trending_update = NOW(),
+        updated_at = NOW()
+    WHERE COALESCE(daily_uses, 0) > 0 OR COALESCE(weekly_uses, 0) > 0;
+
+    GET DIAGNOSTICS updated_count = ROW_COUNT;
+
+    -- Assign ranks based on score
+    WITH ranked AS (
+        SELECT id, ROW_NUMBER() OVER (ORDER BY trending_score DESC) AS rn
+        FROM public.hashtags
+        WHERE trending_score > 0
+    )
+    UPDATE public.hashtags h
+    SET trending_rank = ranked.rn
+    FROM ranked
+    WHERE h.id = ranked.id;
+
+    RAISE NOTICE 'Hashtag trending scores updated: % hashtags', updated_count;
+    RETURN updated_count;
 EXCEPTION WHEN undefined_column THEN
-    -- Columns don't exist, skip
     RAISE NOTICE 'trending columns do not exist, skipping update';
+    RETURN 0;
 END;
 $$;
 
@@ -3212,14 +3233,9 @@ DECLARE
     v_period_start timestamptz := date_trunc('day', NOW());
     v_period_end timestamptz := v_period_start + INTERVAL '1 day';
 BEGIN
-    -- Delete old trending entries for today's period
     DELETE FROM public.trending_posts 
     WHERE period_start = v_period_start AND period_type = 'daily';
     
-    -- Insert new trending posts based on engagement
-    -- Using actual columns: trending_score, engagement_score, velocity_score, 
-    -- period_type, period_start, period_end, likes_count, reblogs_count, replies_count
-    -- Posts table uses favorites_count (not likes_count)
     INSERT INTO public.trending_posts (
         post_id, 
         trending_score, 
@@ -3234,12 +3250,9 @@ BEGIN
     )
     SELECT 
         p.id,
-        -- Trending score with time decay
         (COALESCE(p.favorites_count, 0) + COALESCE(p.reblogs_count, 0) * 2 + COALESCE(p.replies_count, 0) * 1.5) 
         * (1.0 / (EXTRACT(EPOCH FROM (v_now - p.created_at)) / 3600 + 1)) as trending_score,
-        -- Total engagement
         (COALESCE(p.favorites_count, 0) + COALESCE(p.reblogs_count, 0) + COALESCE(p.replies_count, 0))::numeric as engagement_score,
-        -- Velocity based on recency
         CASE 
             WHEN p.created_at > v_now - INTERVAL '1 hour' THEN 10.0
             WHEN p.created_at > v_now - INTERVAL '6 hours' THEN 5.0
@@ -3254,6 +3267,7 @@ BEGIN
     FROM posts p
     WHERE p.created_at > v_now - INTERVAL '48 hours'
         AND p.visibility IN ('public', 'unlisted')
+        AND (p.is_deleted IS NULL OR p.is_deleted = false)
     ORDER BY trending_score DESC
     LIMIT 100;
     
@@ -3268,12 +3282,99 @@ $$;
 COMMENT ON FUNCTION public.update_trending_posts IS 'Update trending posts rankings based on engagement metrics';
 
 -- ---------------------------------------------------------------------------
+-- 10. archive_popular_hashtags - Archive popular hashtags before cleanup
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.archive_popular_hashtags()
+RETURNS integer
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    archived_count INTEGER := 0;
+BEGIN
+    -- Mark hashtags with significant usage as archived (bump peak stats)
+    UPDATE public.hashtags
+    SET 
+        peak_daily_uses = GREATEST(COALESCE(peak_daily_uses, 0), COALESCE(daily_uses, 0)),
+        peak_daily_date = CASE 
+            WHEN COALESCE(daily_uses, 0) > COALESCE(peak_daily_uses, 0) THEN CURRENT_DATE
+            ELSE peak_daily_date
+        END,
+        updated_at = NOW()
+    WHERE daily_uses > 0;
+
+    GET DIAGNOSTICS archived_count = ROW_COUNT;
+    RETURN archived_count;
+END;
+$$;
+
+COMMENT ON FUNCTION public.archive_popular_hashtags IS 'Archive popular hashtag peak stats before daily reset';
+
+-- ---------------------------------------------------------------------------
+-- 11. cleanup_inactive_hashtags - Remove hashtags with no recent activity
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.cleanup_inactive_hashtags()
+RETURNS integer
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    cleaned_count INTEGER := 0;
+BEGIN
+    -- Delete hashtags that have had zero activity for 90+ days and low total usage
+    DELETE FROM public.hashtags
+    WHERE last_used_at < NOW() - INTERVAL '90 days'
+      AND COALESCE(total_uses, 0) < 3;
+
+    GET DIAGNOSTICS cleaned_count = ROW_COUNT;
+    RETURN cleaned_count;
+END;
+$$;
+
+COMMENT ON FUNCTION public.cleanup_inactive_hashtags IS 'Remove rarely-used hashtags with no recent activity';
+
+-- ---------------------------------------------------------------------------
+-- 12. run_trending_maintenance - Comprehensive maintenance wrapper
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.run_trending_maintenance()
+RETURNS json
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    result JSON;
+    hashtags_cleaned INTEGER;
+    trending_cleaned INTEGER;
+    hashtags_archived INTEGER;
+    scores_updated INTEGER;
+BEGIN
+    hashtags_archived := archive_popular_hashtags();
+    hashtags_cleaned := cleanup_inactive_hashtags();
+    trending_cleaned := cleanup_old_trending_data();
+    scores_updated := update_hashtag_trending_scores();
+    PERFORM update_trending_posts();
+    
+    result := json_build_object(
+        'maintenance_completed_at', NOW(),
+        'hashtags_archived', hashtags_archived,
+        'hashtags_cleaned', hashtags_cleaned,
+        'trending_data_cleaned', trending_cleaned,
+        'trending_scores_updated', scores_updated,
+        'status', 'success'
+    );
+    
+    RAISE NOTICE 'Trending system maintenance completed: %', result;
+    RETURN result;
+END;
+$$;
+
+COMMENT ON FUNCTION public.run_trending_maintenance IS 'Comprehensive maintenance function that runs all cleanup and update operations';
+
+-- ---------------------------------------------------------------------------
 -- VERIFICATION
 -- ---------------------------------------------------------------------------
 DO $$
 BEGIN
-    RAISE NOTICE '✅ Stub functions created successfully!';
-    RAISE NOTICE 'These are temporary implementations - see TODO_cleanRPC.md for details';
+    RAISE NOTICE '✅ Extended RPC functions created successfully!';
 END $$;
 
 

@@ -43,8 +43,8 @@ const getViewIcon = (viewType: string) => {
       return 'bookmark'
     case 'lists':
       return 'list'
-    case 'notifications':
-      return 'bell'
+    case 'mentions':
+      return 'at-sign'
     case 'profile':
       return 'user'
     default:
@@ -60,8 +60,8 @@ const getViewTitle = (viewType: string) => {
       return 'Bookmarks'
     case 'lists':
       return 'Lists'
-    case 'notifications':
-      return 'Notifications'
+    case 'mentions':
+      return 'Mentions'
     case 'profile':
       return 'Profile'
     default:
@@ -77,8 +77,8 @@ const getViewSubtitle = (viewType: string) => {
       return 'Posts you\'ve saved for later'
     case 'lists':
       return 'Curated lists of users and topics'
-    case 'notifications':
-      return 'Stay updated with your activity'
+    case 'mentions':
+      return 'Posts where you\'ve been @mentioned'
     case 'profile':
       return 'Your profile and posts'
     default:

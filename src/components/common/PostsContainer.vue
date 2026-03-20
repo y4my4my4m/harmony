@@ -106,6 +106,16 @@ const emit = defineEmits<{
 }>()
 
 const scrollContainer = ref<HTMLDivElement | null>(null)
+const observedElements = new Set<HTMLElement>()
+
+const resizeObserver = new ResizeObserver((entries) => {
+  for (const entry of entries) {
+    const el = entry.target as HTMLElement
+    if (el.dataset.index !== undefined) {
+      rowVirtualizer.value.measureElement(el)
+    }
+  }
+})
 
 const estimatePostSize = (index: number): number => {
   if (index >= props.posts.length) return 60
@@ -145,6 +155,10 @@ const totalSize = computed(() => rowVirtualizer.value.getTotalSize())
 const measureElement = (el: any) => {
   if (!el || !(el instanceof HTMLElement)) return
   rowVirtualizer.value.measureElement(el)
+  if (!observedElements.has(el)) {
+    resizeObserver.observe(el)
+    observedElements.add(el)
+  }
 }
 
 const lastEmittedIndex = ref(-1)
@@ -175,6 +189,8 @@ onMounted(() => {
 
 onUnmounted(() => {
   props.registerScroll?.(null)
+  resizeObserver.disconnect()
+  observedElements.clear()
 })
 </script>
 

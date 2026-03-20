@@ -502,16 +502,11 @@ $$;
 -- ENCRYPTION RPC FUNCTIONS
 -- ---------------------------------------------------------------------------
 
--- Initialize user encryption
--- Note: Parameters named for clarity, but map to table columns:
---   p_identity_key -> identity_key
---   p_signed_prekey -> signed_prekey  
---   p_signed_prekey_signature -> signed_prekey_signature
+-- Initialize user encryption (Megolm-style key pairs)
 CREATE OR REPLACE FUNCTION public.initialize_user_encryption(
     p_user_id uuid,
-    p_identity_key text,
-    p_signed_prekey text,
-    p_signed_prekey_signature text,
+    p_identity_public_key text,
+    p_identity_private_key_encrypted text,
     p_device_id text DEFAULT 'default'
 )
 RETURNS jsonb
@@ -533,9 +528,9 @@ BEGIN
     END IF;
     
     INSERT INTO user_key_pairs (
-        user_id, device_id, identity_key, signed_prekey, signed_prekey_signature
+        user_id, device_id, identity_public_key, identity_private_key_encrypted, key_version, is_active
     ) VALUES (
-        p_user_id, p_device_id, p_identity_key, p_signed_prekey, p_signed_prekey_signature
+        p_user_id, p_device_id, p_identity_public_key, p_identity_private_key_encrypted, 1, true
     ) RETURNING id INTO v_key_pair_id;
     
     RETURN jsonb_build_object('success', true, 'key_pair_id', v_key_pair_id, 'device_id', p_device_id);
@@ -1100,7 +1095,7 @@ GRANT EXECUTE ON FUNCTION public.get_batch_message_reactions(uuid[]) TO authenti
 GRANT EXECUTE ON FUNCTION public.add_bot_to_server(uuid, uuid, uuid, jsonb) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.create_thread(uuid, text, integer) TO authenticated;
 -- Encryption functions
-GRANT EXECUTE ON FUNCTION public.initialize_user_encryption(uuid, text, text, text, text) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.initialize_user_encryption(uuid, text, text, text) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.add_user_prekeys(uuid, text, jsonb) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.get_unused_prekey(uuid, text) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.enable_conversation_encryption(uuid) TO authenticated;
