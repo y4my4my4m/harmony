@@ -14,15 +14,19 @@ ALTER TABLE public.thread_members ADD COLUMN IF NOT EXISTS muted boolean DEFAULT
 -- ---------------------------------------------------------------------------
 -- Phase 1 + 2: Updated send_notification with notification_level enforcement
 -- ---------------------------------------------------------------------------
+-- Drop first: PostgreSQL requires DROP when renaming parameters
+DROP FUNCTION IF EXISTS public.send_notification_to_user(character varying, uuid, jsonb, uuid, uuid, uuid, uuid, character varying);
+DROP FUNCTION IF EXISTS public.send_notification(character varying, uuid[], jsonb, uuid, uuid, uuid, uuid, character varying);
+
 CREATE OR REPLACE FUNCTION public.send_notification(
     p_notification_type character varying,
     to_user_ids uuid[],
     notification_data jsonb DEFAULT '{}'::jsonb,
-    server_id uuid DEFAULT NULL::uuid,
-    channel_id uuid DEFAULT NULL::uuid,
-    conversation_id uuid DEFAULT NULL::uuid,
-    from_user_id uuid DEFAULT NULL::uuid,
-    priority character varying DEFAULT 'normal'::character varying
+    p_server_id uuid DEFAULT NULL::uuid,
+    p_channel_id uuid DEFAULT NULL::uuid,
+    p_conversation_id uuid DEFAULT NULL::uuid,
+    p_from_user_id uuid DEFAULT NULL::uuid,
+    p_priority character varying DEFAULT 'normal'::character varying
 ) RETURNS uuid[]
 LANGUAGE plpgsql SECURITY DEFINER
 AS $$
@@ -39,8 +43,6 @@ DECLARE
     is_channel_muted boolean;
     v_muted_until timestamp with time zone;
     is_rate_limited boolean;
-    p_channel_id uuid;
-    p_conversation_id uuid;
     is_activitypub_type boolean;
     v_time_threshold timestamp with time zone := NOW() - INTERVAL '2 minutes';
     v_notification_level varchar(20);
@@ -55,39 +57,35 @@ BEGIN
     v_is_mention_type := p_notification_type IN ('mention', 'activitypub_mention');
 
     FOREACH recipient_id IN ARRAY to_user_ids LOOP
-        IF from_user_id IS NOT NULL AND recipient_id = from_user_id THEN
+        IF p_from_user_id IS NOT NULL AND recipient_id = p_from_user_id THEN
             CONTINUE;
         END IF;
 
         -- Check if sender is blocked by recipient
-        IF from_user_id IS NOT NULL THEN
+        IF p_from_user_id IS NOT NULL THEN
             SELECT EXISTS (
                 SELECT 1 FROM user_blocks ub
                 WHERE ub.blocker_id = recipient_id
-                AND ub.blocked_user_id = from_user_id
+                AND ub.blocked_user_id = p_from_user_id
                 AND (ub.expires_at IS NULL OR ub.expires_at > NOW())
             ) INTO is_blocked;
             IF is_blocked THEN CONTINUE; END IF;
         END IF;
 
         -- Check if sender is muted by recipient
-        IF from_user_id IS NOT NULL THEN
+        IF p_from_user_id IS NOT NULL THEN
             SELECT EXISTS (
                 SELECT 1 FROM user_mutes um
                 WHERE um.muter_id = recipient_id
-                AND um.muted_user_id = from_user_id
+                AND um.muted_user_id = p_from_user_id
                 AND um.hide_notifications = true
                 AND (um.expires_at IS NULL OR um.expires_at > NOW())
             ) INTO is_muted;
             IF is_muted THEN CONTINUE; END IF;
         END IF;
 
-        p_channel_id := channel_id;
-        p_conversation_id := conversation_id;
-
         -- Check channel/conversation mute + notification level
         IF p_channel_id IS NOT NULL OR p_conversation_id IS NOT NULL THEN
-            -- Fetch mute state and notification level in one query
             SELECT nc.muted, nc.notification_level, nc.muted_until
             INTO is_channel_muted, v_notification_level, v_muted_until
             FROM notification_channels nc
@@ -115,10 +113,9 @@ BEGIN
 
             -- Notification level enforcement (only for channel-based, not conversations)
             IF p_channel_id IS NOT NULL AND v_notification_level IS NULL THEN
-                -- Fall back to server default
                 SELECT ss.default_message_notifications INTO v_server_default
                 FROM server_settings ss
-                WHERE ss.server_id = server_id;
+                WHERE ss.server_id = p_server_id;
                 v_notification_level := COALESCE(v_server_default, 'all');
             END IF;
 
@@ -129,20 +126,19 @@ BEGIN
                     CONTINUE;
                 END IF;
             END IF;
-            -- 'all' = let everything through (default)
         END IF;
 
         -- View-context suppression
-        IF (server_id IS NOT NULL AND p_channel_id IS NOT NULL) OR p_conversation_id IS NOT NULL THEN
-            IF public.is_user_viewing_context(recipient_id, server_id, p_channel_id, p_conversation_id) THEN
+        IF (p_server_id IS NOT NULL AND p_channel_id IS NOT NULL) OR p_conversation_id IS NOT NULL THEN
+            IF public.is_user_viewing_context(recipient_id, p_server_id, p_channel_id, p_conversation_id) THEN
                 CONTINUE;
             END IF;
         END IF;
 
         -- Rate limit reaction notifications
-        IF from_user_id IS NOT NULL AND p_notification_type IN ('reaction', 'activitypub_reaction') THEN
+        IF p_from_user_id IS NOT NULL AND p_notification_type IN ('reaction', 'activitypub_reaction') THEN
             INSERT INTO notification_rate_limits (user_id, notification_type, source_user_id)
-            VALUES (recipient_id, p_notification_type, from_user_id)
+            VALUES (recipient_id, p_notification_type, p_from_user_id)
             ON CONFLICT (user_id, notification_type, source_user_id)
             DO UPDATE SET
                 notification_count = notification_rate_limits.notification_count + 1,
@@ -156,14 +152,14 @@ BEGIN
             FROM notification_rate_limits nrl
             WHERE nrl.user_id = recipient_id
               AND nrl.notification_type = p_notification_type
-              AND nrl.source_user_id = from_user_id;
+              AND nrl.source_user_id = p_from_user_id;
 
             IF is_rate_limited THEN
                 UPDATE notification_rate_limits nrl
                 SET suppressed_until = NOW() + INTERVAL '2 minutes'
                 WHERE nrl.user_id = recipient_id
                   AND nrl.notification_type = p_notification_type
-                  AND nrl.source_user_id = from_user_id;
+                  AND nrl.source_user_id = p_from_user_id;
                 CONTINUE;
             END IF;
         END IF;
@@ -262,20 +258,20 @@ BEGIN
 
         -- Build enhanced data
         enhanced_data := notification_data;
-        IF server_id IS NOT NULL THEN
-            enhanced_data := enhanced_data || jsonb_build_object('server_id', server_id);
+        IF p_server_id IS NOT NULL THEN
+            enhanced_data := enhanced_data || jsonb_build_object('server_id', p_server_id);
         END IF;
-        IF channel_id IS NOT NULL THEN
-            enhanced_data := enhanced_data || jsonb_build_object('channel_id', channel_id);
+        IF p_channel_id IS NOT NULL THEN
+            enhanced_data := enhanced_data || jsonb_build_object('channel_id', p_channel_id);
         END IF;
-        IF conversation_id IS NOT NULL THEN
-            enhanced_data := enhanced_data || jsonb_build_object('conversation_id', conversation_id);
+        IF p_conversation_id IS NOT NULL THEN
+            enhanced_data := enhanced_data || jsonb_build_object('conversation_id', p_conversation_id);
         END IF;
-        IF from_user_id IS NOT NULL THEN
-            enhanced_data := enhanced_data || jsonb_build_object('from_user_id', from_user_id);
+        IF p_from_user_id IS NOT NULL THEN
+            enhanced_data := enhanced_data || jsonb_build_object('from_user_id', p_from_user_id);
         END IF;
-        IF priority IS NOT NULL THEN
-            enhanced_data := enhanced_data || jsonb_build_object('priority', priority);
+        IF p_priority IS NOT NULL THEN
+            enhanced_data := enhanced_data || jsonb_build_object('priority', p_priority);
         END IF;
 
         IF should_send THEN
