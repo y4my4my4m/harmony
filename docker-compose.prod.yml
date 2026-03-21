@@ -74,6 +74,9 @@ services:
     environment:
       - NODE_ENV=production
       - FEDERATION_MODE=worker
+    depends_on:
+      redis:
+        condition: service_healthy
     networks:
       - harmony
 

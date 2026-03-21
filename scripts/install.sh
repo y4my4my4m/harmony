@@ -1011,7 +1011,7 @@ WEBRTC_MODE=hybrid
 ALLOW_FEDERATED_VOICE=true
 
 USE_PGBOSS_QUEUE=$pgboss_enabled
-REDIS_URL=redis://:${REDIS_PASSWORD:-}@redis:6379
+REDIS_URL=redis://:${REDIS_PASSWORD:-}@harmony-redis:6379
 
 RATE_LIMIT_WINDOW_MS=900000
 RATE_LIMIT_MAX_REQUESTS=100
@@ -1137,15 +1137,17 @@ generate_livekit_config() {
         log_level="debug"
     fi
 
-    # Build redis config section (password may be empty for local dev)
+    # Build redis config section
+    # Use container name (harmony-redis) so the config works both when LiveKit
+    # is in the same compose stack and when run via webrtc/docker-compose.yml
     local redis_section=""
     if [[ -n "$REDIS_PASSWORD" ]]; then
         redis_section="redis:
-  address: redis:6379
+  address: harmony-redis:6379
   password: $REDIS_PASSWORD"
     else
         redis_section="redis:
-  address: redis:6379"
+  address: harmony-redis:6379"
     fi
 
     cat > "$config_file" << EOF

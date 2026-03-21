@@ -82,8 +82,8 @@ room:
 # Redis (Required for multi-node deployment)
 # =============================================================================
 redis:
-  address: redis:6379
-  # SECURITY: Set this to match your docker-compose.yml redis password
+  address: harmony-redis:6379
+  # SECURITY: Set this to match REDIS_PASSWORD from docker-compose.prod.yml
   password: YOUR_REDIS_PASSWORD_HERE
 
 # =============================================================================
