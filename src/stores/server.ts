@@ -62,10 +62,18 @@ export const useServerStore = defineStore('server', {
           delete dataToUpdate.banner;
         }
 
+        const { id: serverId, ...patch } = dataToUpdate;
+        if (!serverId) {
+          throw new Error('Server ID is required to update');
+        }
+
+        // Use PATCH update — not upsert. Chaining .eq() after .upsert() does not
+        // reliably apply row filters on POST/merge in PostgREST, so privacy flags
+        // (e.g. public) and other fields could fail to persist.
         const { error } = await supabase
           .from('servers')
-          .upsert(dataToUpdate)
-          .eq('id', dataToUpdate.id);
+          .update(patch)
+          .eq('id', serverId);
 
         if (error) throw error;
 
