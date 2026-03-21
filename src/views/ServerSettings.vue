@@ -394,6 +394,11 @@ const handleSave = async () => {
     if (generalHasChanges.value) {
       const success = await serverStore.updateServer(server.value, selectedFile.value || undefined, selectedBannerFile.value || undefined)
       if (success) {
+        // Re-fetch so uploaded file paths (banner, icon) are reflected in UI
+        const freshData = await serverStore.getServer(props.serverId)
+        if (freshData) {
+          server.value = { ...freshData }
+        }
         originalServer.value = { ...server.value }
         selectedFile.value = null
         selectedBannerFile.value = null
