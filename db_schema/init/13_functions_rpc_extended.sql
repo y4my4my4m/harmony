@@ -157,6 +157,7 @@ DECLARE
     v_notification_level varchar(20);
     v_server_default varchar(20);
     v_is_mention_type boolean;
+    v_is_content_feedback_type boolean;
 BEGIN
     IF p_notification_type IS NULL OR array_length(to_user_ids, 1) IS NULL THEN
         RETURN '{}';
@@ -164,6 +165,11 @@ BEGIN
 
     is_activitypub_type := p_notification_type LIKE 'activitypub_%';
     v_is_mention_type := p_notification_type IN ('mention', 'activitypub_mention');
+    -- Reactions / favorites / reblogs are about the recipient's own message or post;
+    -- allow them when a channel is set to "mentions only" (general chat noise stays off).
+    v_is_content_feedback_type := p_notification_type IN (
+        'reaction', 'activitypub_reaction', 'activitypub_favorite', 'activitypub_reblog'
+    );
 
     FOREACH recipient_id IN ARRAY to_user_ids LOOP
         IF p_from_user_id IS NOT NULL AND recipient_id = p_from_user_id THEN
@@ -231,7 +237,7 @@ BEGIN
             IF v_notification_level = 'none' THEN
                 CONTINUE;
             ELSIF v_notification_level = 'mentions' THEN
-                IF NOT v_is_mention_type THEN
+                IF NOT v_is_mention_type AND NOT v_is_content_feedback_type THEN
                     CONTINUE;
                 END IF;
             END IF;
@@ -1494,6 +1500,7 @@ BEGIN
         WHERE ub.blocker_id = p_user_id
         AND ub.blocked_user_id = COALESCE(
             NULLIF((n.data->>'from_user_id'), '')::uuid,
+            NULLIF((n.data->'sender'->>'id'), '')::uuid,
             NULLIF((n.data->'sender'->>'user_id'), '')::uuid,
             NULLIF((n.data->>'follower_id'), '')::uuid,
             NULLIF((n.data->'follower'->>'id'), '')::uuid,
@@ -1511,6 +1518,7 @@ BEGIN
         WHERE um.muter_id = p_user_id
         AND um.muted_user_id = COALESCE(
             NULLIF((n.data->>'from_user_id'), '')::uuid,
+            NULLIF((n.data->'sender'->>'id'), '')::uuid,
             NULLIF((n.data->'sender'->>'user_id'), '')::uuid,
             NULLIF((n.data->>'follower_id'), '')::uuid,
             NULLIF((n.data->'follower'->>'id'), '')::uuid,
