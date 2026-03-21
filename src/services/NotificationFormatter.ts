@@ -121,23 +121,21 @@ const MESSAGE_TEMPLATES = {
   
   reaction: {
     title: (data: any) => {
+      const sender = data.sender
       const reactor = data.reactor
-      const reactorName = reactor?.display_name || reactor?.username || 'Someone'
-      const channelName = data.location?.channel_name || data.channel_name
-      if (channelName) {
-        return `${reactorName} reacted to your message in #${channelName}`
-      } else {
-        return `${reactorName} reacted to your message`
-      }
+      const name = sender?.display_name || sender?.username || reactor?.display_name || reactor?.username || 'Someone'
+      return `${name} reacted to your message`
     },
     message: (data: any) => {
-      const emojiName = data.reaction?.emoji_name || data.emoji_name || '👍'
-      return `:${emojiName}: reaction`
+      const preview = extractContentText(data.message_preview)
+        || extractContentText(data.message?.content_preview)
+      if (preview) {
+        const truncated = preview.substring(0, 100)
+        return truncated + (preview.length > 100 ? '...' : '')
+      }
+      return 'Click to view message'
     },
-    shortTitle: (data: any) => {
-      const emojiName = data.reaction?.emoji_name || data.emoji_name || '👍'
-      return `:${emojiName}: reaction`
-    }
+    shortTitle: () => 'Reaction'
   },
   
   reply: {
@@ -270,14 +268,8 @@ const MESSAGE_TEMPLATES = {
   activitypub_reaction: {
     title: (data: any) => {
       const sender = data.sender
-      const username = sender?.username || 'someone'
-      const domain = sender?.domain && !sender?.is_local ? sender.domain : null
-      // Format: @username@domain reacted [EMOJI] to your post:
-      // Emoji will be shown inline in the title
-      if (domain) {
-        return `@${username}@${domain} reacted to your post:`
-      }
-      return `@${username} reacted to your post:`
+      const name = sender?.display_name || sender?.username || 'Someone'
+      return `${name} reacted to your post`
     },
     message: (data: any) => {
       const text = extractContentText(data.post?.content_preview)
@@ -288,10 +280,7 @@ const MESSAGE_TEMPLATES = {
       }
       return 'Click to view post'
     },
-    shortTitle: (data: any) => {
-      const emojiName = data.reaction?.emoji_name || data.reaction?.custom_emoji_content || '👍'
-      return `:${emojiName}: reaction`
-    }
+    shortTitle: () => 'Reaction'
   },
 
   activitypub_follow_request: {

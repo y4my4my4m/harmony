@@ -47,58 +47,57 @@
         <div class="notification-title-section">
           <h4 class="notification-title">
             <template v-if="props.notification.type === 'activitypub_reaction' || props.notification.type === 'reaction'">
-              <!-- For reactions, show emoji inline in title -->
-              <template v-if="props.notification.type === 'activitypub_reaction'">
-                <span>{{ formattedMessage.title.split('reacted')[0] }}</span>reacted
-                <img 
-                  v-if="reactionEmoji?.url"
-                  :src="reactionEmoji.url" 
-                  :alt="reactionEmoji.name"
-                  :title="reactionEmoji.name ? `:${reactionEmoji.name}:` : ''"
-                  class="notification-title-emoji"
-                />
-                <span 
-                  v-else-if="reactionEmoji?.name"
-                  class="notification-title-emoji-fallback"
-                >
-                  :{{ reactionEmoji.name }}:
-                </span>
-                <span>{{ formattedMessage.title.split('reacted')[1] }}</span>
-              </template>
-              <template v-else>
-                {{ formattedMessage.title }}
-                <img 
-                  v-if="reactionEmoji?.url"
-                  :src="reactionEmoji.url" 
-                  :alt="reactionEmoji.name"
-                  :title="reactionEmoji.name ? `:${reactionEmoji.name}:` : ''"
-                  class="notification-title-emoji"
-                />
-                <span 
-                  v-else-if="reactionEmoji?.name"
-                  class="notification-title-emoji-fallback"
-                >
-                  :{{ reactionEmoji.name }}:
-                </span>
-              </template>
+              <DisplayName
+                v-if="actorUserId"
+                :user-id="actorUserId"
+                :fallback="getReactorName()"
+                class="notification-actor-name"
+              />
+              <template v-else>{{ getReactorName() }}</template>
+              <span> reacted </span>
+              <img 
+                v-if="reactionEmoji?.url"
+                :src="reactionEmoji.url" 
+                :alt="reactionEmoji.name"
+                :title="reactionEmoji.name ? `:${reactionEmoji.name}:` : ''"
+                class="notification-title-emoji"
+              />
+              <span 
+                v-else-if="reactionEmoji?.name"
+                class="notification-title-emoji-fallback"
+              >{{ reactionEmoji.name }}</span>
+              <span> to your {{ props.notification.type === 'activitypub_reaction' ? 'post' : 'message' }}</span>
             </template>
             <template v-else>
               {{ formattedMessage.title }}
             </template>
           </h4>
           <div class="notification-metadata">
-            <span class="username">
-              <DisplayName
-                v-if="actorUserId"
-                :user-id="actorUserId"
-                :fallback="username"
-              />
-              <template v-else>{{ username }}</template>
-            </span>
-            <span class="separator">•</span>
-            <span class="timestamp" :title="fullTimestamp">{{ relativeTime }}</span>
-            <span v-if="serverName" class="separator">•</span>
-            <span v-if="serverName" class="server-name">{{ serverName }}</span>
+            <template v-if="props.notification.type === 'reaction' || props.notification.type === 'activitypub_reaction'">
+              <span class="timestamp" :title="fullTimestamp">{{ relativeTime }}</span>
+              <template v-if="channelName">
+                <span class="separator">•</span>
+                <span class="channel-name">#{{ channelName }}</span>
+              </template>
+              <template v-if="serverName">
+                <span class="separator">•</span>
+                <span class="server-name">{{ serverName }}</span>
+              </template>
+            </template>
+            <template v-else>
+              <span class="username">
+                <DisplayName
+                  v-if="actorUserId"
+                  :user-id="actorUserId"
+                  :fallback="username"
+                />
+                <template v-else>{{ username }}</template>
+              </span>
+              <span class="separator">•</span>
+              <span class="timestamp" :title="fullTimestamp">{{ relativeTime }}</span>
+              <span v-if="serverName" class="separator">•</span>
+              <span v-if="serverName" class="server-name">{{ serverName }}</span>
+            </template>
           </div>
         </div>
         
@@ -244,7 +243,7 @@ const username = computed(() =>
 const actorUserId = computed(() => {
   const data = props.notification.data
   if (!data) return null
-  const id = data.from_user_id ?? data.sender?.user_id ?? data.reactor?.user_id ?? data.reactor?.id ?? data.inviter?.user_id
+  const id = data.from_user_id ?? data.sender?.id ?? data.sender?.user_id ?? data.reactor?.id ?? data.reactor?.user_id ?? data.inviter?.user_id
   return id && typeof id === 'string' ? id : null
 })
 
@@ -309,6 +308,13 @@ const messagePreview = computed(() => {
     return msg ? truncatePreview(msg, 200) : null
   }
   
+  // For chat reactions, show the message preview (what they reacted to)
+  if (props.notification.type === 'reaction') {
+    const preview = extractMessagePartText(data.message_preview)
+      || extractMessagePartText(data.message?.content_preview)
+    return truncatePreview(preview)
+  }
+
   // For ActivityPub reactions, show the post preview (your post that was reacted to)
   if (props.notification.type === 'activitypub_reaction') {
     const preview = extractMessagePartText(data.post?.content_preview)
@@ -719,6 +725,11 @@ const typeIcon = computed(() => {
   flex-wrap: wrap;
 }
 
+.notification-actor-name {
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
 .notification-title-emoji {
   width: 20px;
   height: 20px;
@@ -728,8 +739,7 @@ const typeIcon = computed(() => {
 }
 
 .notification-title-emoji-fallback {
-  font-size: 14px;
-  color: var(--text-secondary);
+  font-size: 18px;
 }
 
 .notification-item--unread .notification-title {
