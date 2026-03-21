@@ -67,6 +67,7 @@
               v-model="serverName"
               type="text"
               class="modern-input"
+              data-testid="create-server-name-input"
               :placeholder="$t('server.placeholders.serverName')"
               maxlength="50"
               @input="validateServerName"
@@ -159,6 +160,7 @@
         <button 
           @click="createServer" 
           class="action-btn primary"
+          data-testid="create-server-btn"
           :disabled="!canCreate || isCreating"
         >
           <span v-if="!isCreating">{{ $t('server.createButton') }}</span>

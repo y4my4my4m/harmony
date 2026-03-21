@@ -645,20 +645,28 @@ async function processCreateActivity(
     return;
   }
 
-  // Handle reply threading
+  // Handle reply threading - look up parent by ap_id first, then by UUID
   let replyToId: string | null = null;
   if (object.inReplyTo) {
-    // Try to find the parent message
-    const replyToMatch = object.inReplyTo.match(/\/messages\/([a-f0-9-]+)/);
-    if (replyToMatch) {
-      const { data: parentMessage } = await supabase
-        .from('messages')
-        .select('id')
-        .eq('id', replyToMatch[1])
-        .maybeSingle();
-      
-      if (parentMessage) {
-        replyToId = parentMessage.id;
+    const { data: parentByApId } = await supabase
+      .from('messages')
+      .select('id')
+      .eq('metadata->>ap_id', object.inReplyTo)
+      .maybeSingle();
+
+    if (parentByApId) {
+      replyToId = parentByApId.id;
+    } else {
+      const replyToMatch = object.inReplyTo.match(/\/messages\/([a-f0-9-]+)/);
+      if (replyToMatch) {
+        const { data: parentById } = await supabase
+          .from('messages')
+          .select('id')
+          .eq('id', replyToMatch[1])
+          .maybeSingle();
+        if (parentById) {
+          replyToId = parentById.id;
+        }
       }
     }
   }

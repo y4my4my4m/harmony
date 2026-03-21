@@ -7,7 +7,7 @@
 import { getSupabaseClient } from '../../config/supabase.js';
 import { handleNewMessageReaction, handleMessageReactionRemoval } from '../../listeners/DatabaseListener.js';
 import { logger } from '../../utils/logger.js';
-import type { FederationJobData } from '../QueueManager.js';
+import type { FederationJobData } from '../BullMQManager.js';
 
 export async function handleMessageReactionJob(data: FederationJobData): Promise<void> {
   const supabase = getSupabaseClient();

@@ -116,17 +116,19 @@
               <button
                 class="btn btn-danger"
                 @click="bulkDeleteSelected"
-                :disabled="selectedEmojis.length === 0 || deletingEmoji"
+                :disabled="selectedEmojis.length === 0 || deletingEmoji === 'bulk'"
                 v-if="permissions.canDelete"
               >
-                <svg width="16" height="16" viewBox="0 0 24 24">
+                <span v-if="deletingEmoji === 'bulk'" class="btn-spinner"></span>
+                <svg v-else width="16" height="16" viewBox="0 0 24 24">
                   <path fill="currentColor" d="M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z"/>
                 </svg>
-                {{ $t('common.delete') }} ({{ selectedEmojis.length }})
+                {{ deletingEmoji === 'bulk' ? $t('common.deleting') : $t('common.delete') }} ({{ selectedEmojis.length }})
               </button>
               <button
                 class="btn btn-secondary"
                 @click="exitSelectionMode"
+                :disabled="deletingEmoji === 'bulk'"
               >
                 {{ $t('common.cancel') }}
               </button>
@@ -159,6 +161,11 @@
             'renaming': renamingEmoji === emoji.id
           }"
           @click="selectionMode ? toggleEmojiSelection(emoji.id) : null"
+          @keydown.space.prevent="selectionMode ? toggleEmojiSelection(emoji.id) : null"
+          :tabindex="selectionMode ? 0 : undefined"
+          :role="selectionMode ? 'checkbox' : undefined"
+          :aria-checked="selectionMode ? selectedEmojis.includes(emoji.id) : undefined"
+          :aria-label="selectionMode ? emoji.name : undefined"
         >
           <!-- Selection Checkbox -->
           <div v-if="selectionMode" class="selection-checkbox">
@@ -166,6 +173,9 @@
               type="checkbox"
               :checked="selectedEmojis.includes(emoji.id)"
               @change="toggleEmojiSelection(emoji.id)"
+              @click.stop
+              tabindex="-1"
+              :aria-hidden="true"
             />
           </div>
           
@@ -274,6 +284,7 @@ interface Emits {
   (e: 'update:allowCrossServer', value: boolean): void
   (e: 'emoji-uploaded', emoji: Emoji): void
   (e: 'emoji-deleted', emojiId: string): void
+  (e: 'emojis-bulk-deleted', emojiIds: string[]): void
 }
 
 const props = defineProps<Props>()
@@ -422,17 +433,26 @@ const handleBulkEmojiUpload = async (files: File[]) => {
   }
 
   // Validate files
+  const skippedNotImage: string[] = []
+  const skippedTooLarge: string[] = []
   const validFiles = files.filter(file => {
     if (!file.type.startsWith('image/')) {
-      toast.warning(t('server.fileNotImageSkipped', { filename: file.name }))
+      skippedNotImage.push(file.name)
       return false
     }
     if (file.size > 1024 * 1024) {
-      toast.warning(t('server.fileTooLargeSkipped', { filename: file.name }))
+      skippedTooLarge.push(file.name)
       return false
     }
     return true
   })
+
+  if (skippedNotImage.length > 0) {
+    toast.warning(t('server.filesNotImageSkipped', { count: skippedNotImage.length }))
+  }
+  if (skippedTooLarge.length > 0) {
+    toast.warning(t('server.filesTooLargeSkipped', { count: skippedTooLarge.length }))
+  }
 
   if (validFiles.length === 0) {
     toast.error(t('server.noValidImageFiles'))
@@ -454,7 +474,14 @@ const handleBulkEmojiUpload = async (files: File[]) => {
     }
 
     debug.log('🎭 Starting bulk emoji upload...')
-    const results = await bulkUploadEmojis(props.serverId, props.ownerId, validFiles)
+    const results = await bulkUploadEmojis(props.serverId, props.ownerId, validFiles, (progress) => {
+      uploadProgress.value = {
+        total: progress.total,
+        current: progress.current,
+        completed: progress.completed,
+        currentFile: progress.currentFile
+      }
+    })
     
     const successCount = results.filter(r => r !== null).length
     const failedCount = results.length - successCount
@@ -516,12 +543,8 @@ const bulkDeleteSelected = async () => {
     
     const results = await bulkDeleteEmojis(selectedEmojis.value)
     
-    // Emit deletions for successful ones
-    results.success.forEach(emojiId => {
-      emit('emoji-deleted', emojiId)
-    })
-
     if (results.success.length > 0) {
+      emit('emojis-bulk-deleted', results.success)
       toast.success(t('server.emojisDeletedSuccess', { 
         count: results.success.length, 
         plural: results.success.length > 1 ? 's' : '' 
@@ -997,6 +1020,21 @@ input:checked + .toggle-slider:before {
   width: 16px;
   height: 16px;
   cursor: pointer;
+  pointer-events: none;
+}
+
+.btn-spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: btn-spin 0.6s linear infinite;
+}
+
+@keyframes btn-spin {
+  to { transform: rotate(360deg); }
 }
 
 .emoji-preview {

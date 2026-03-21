@@ -42,6 +42,7 @@
       
       <button 
         class="action-btn composer-btn"
+        data-testid="compose-btn"
         @click="$emit('open-composer')"
         :title="$t('activitypub.composeAction')"
       >

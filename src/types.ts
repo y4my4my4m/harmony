@@ -384,6 +384,7 @@ export interface Message {
     embeds?: Record<string, EmbedPayload>;
   }; // for federated messages and other metadata
   sending?: boolean; // local state: true while message is being sent to server
+  failed?: boolean; // local state: true when message failed to send after retries
   // Pinning
   is_pinned?: boolean;
   pinned_at?: string;
@@ -601,8 +602,10 @@ export interface Notification {
 export type NotificationType = 
   | 'mention'
   | 'dm' 
+  | 'chat_message'
   | 'reaction'
   | 'reply'
+  | 'thread_reply'
   | 'server_invite'
   | 'friend_request'
   | 'voice_channel_activity'
@@ -670,12 +673,15 @@ export interface NotificationPreferences {
   desktop_dms: boolean;
   desktop_reactions: boolean;
   desktop_replies: boolean;
+  desktop_chat_messages: boolean;
   
   // Sound notifications
   sound_notifications: boolean;
   sound_mentions: boolean;
   sound_dms: boolean;
   sound_reactions: boolean;
+  sound_replies: boolean;
+  sound_chat_messages: boolean;
   sound_voice_activity: boolean;
   
   // Push notifications
@@ -889,6 +895,8 @@ export interface ActivityPubPost {
   is_sensitive: boolean;
   is_deleted: boolean;
   deleted_at?: string;
+  // Pin state
+  is_pinned?: boolean;
   // Interaction state properties (for enhanced posts)
   is_favorited?: boolean;
   is_reblogged?: boolean;

@@ -48,12 +48,17 @@ services:
       - SUPABASE_URL=http://supabase-kong:8000
       - USE_PGBOSS_QUEUE=true
       - DATABASE_URL=postgresql://supabase_admin:${POSTGRES_PASSWORD:-your-super-secret-and-long-postgres-password}@supabase-db:5432/postgres
+      - DATABASE_POOL_URL=postgresql://supabase_admin:${POSTGRES_PASSWORD:-your-super-secret-and-long-postgres-password}@supabase-pooler:6543/postgres
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://localhost:3001/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
-      interval: 30s
+      interval: 60s
       timeout: 10s
       retries: 3
-      start_period: 10s
+      start_period: 15s
+    depends_on:
+      redis:
+        condition: service_healthy
     networks:
       - harmony
       - supabase_default
@@ -72,6 +77,11 @@ services:
       - SUPABASE_URL=http://supabase-kong:8000
       - USE_PGBOSS_QUEUE=true
       - DATABASE_URL=postgresql://supabase_admin:${POSTGRES_PASSWORD:-your-super-secret-and-long-postgres-password}@supabase-db:5432/postgres
+      - DATABASE_POOL_URL=postgresql://supabase_admin:${POSTGRES_PASSWORD:-your-super-secret-and-long-postgres-password}@supabase-pooler:6543/postgres
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
+    depends_on:
+      redis:
+        condition: service_healthy
     networks:
       - harmony
       - supabase_default
@@ -95,12 +105,17 @@ services:
       - SUPABASE_URL=http://supabase-kong:8000
       - USE_PGBOSS_QUEUE=true
       - DATABASE_URL=postgresql://supabase_admin:${POSTGRES_PASSWORD:-your-super-secret-and-long-postgres-password}@supabase-db:5432/postgres
+      - DATABASE_POOL_URL=postgresql://supabase_admin:${POSTGRES_PASSWORD:-your-super-secret-and-long-postgres-password}@supabase-pooler:6543/postgres
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://localhost:3001/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
-      interval: 30s
+      interval: 60s
       timeout: 10s
       retries: 3
-      start_period: 10s
+      start_period: 15s
+    depends_on:
+      redis:
+        condition: service_healthy
     networks:
       - harmony
       - supabase_default
@@ -131,7 +146,7 @@ services:
       - bots
 
   # ---------------------------------------------------------------------------
-  # Redis
+  # Redis (shared by LiveKit, federation-backend, and app caching)
   # ---------------------------------------------------------------------------
   redis:
     image: redis:7-alpine
@@ -139,9 +154,9 @@ services:
     restart: unless-stopped
     volumes:
       - redis-data:/data
-    command: redis-server --appendonly yes
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -151,6 +166,11 @@ services:
   # ---------------------------------------------------------------------------
   # LiveKit (Voice/Video)
   # ---------------------------------------------------------------------------
+  # Uses UDP mux (port 7882) — all WebRTC media on a single port.
+  # Scaling limits are CPU/bandwidth, not port count.
+  # For large deployments, run LiveKit on a dedicated VPS.
+  # Multi-node clustering is automatic via shared Redis.
+  # ---------------------------------------------------------------------------
   livekit:
     image: livekit/livekit-server:latest
     container_name: harmony-livekit
@@ -158,14 +178,46 @@ services:
     ports:
       - "7880:7880"
       - "7881:7881"
-      - "50000-50100:50000-50100/udp"
+      - "7881:7881/udp"
+      - "7882:7882/udp"
+      - "3478:3478/udp"
+      - "3478:3478/tcp"
     volumes:
       - ./webrtc/livekit.yaml:/livekit.yaml:ro
     command: --config /livekit.yaml
+    depends_on:
+      redis:
+        condition: service_healthy
     networks:
       - harmony
     profiles:
       - voice
+
+  # ---------------------------------------------------------------------------
+  # Bull Board - Queue Monitoring Dashboard (Optional)
+  # ---------------------------------------------------------------------------
+  # Activate with: docker compose --profile monitoring up -d
+  # Access at http://your-server:3003 with HTTP basic auth credentials
+  # ---------------------------------------------------------------------------
+  bull-board:
+    build: ./bull-board
+    container_name: harmony-bull-board
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3003:3003"
+    environment:
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
+      - BULL_BOARD_USER=${BULL_BOARD_USER:-admin}
+      - BULL_BOARD_PASSWORD=${BULL_BOARD_PASSWORD:?Set BULL_BOARD_PASSWORD in .env}
+      - BULL_BOARD_BASE_PATH=${BULL_BOARD_BASE_PATH:-}
+      - PORT=3003
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - harmony
+    profiles:
+      - monitoring
 
   # ---------------------------------------------------------------------------
   # Nginx Reverse Proxy

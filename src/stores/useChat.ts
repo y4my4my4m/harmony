@@ -227,6 +227,11 @@ export const useChatStore = defineStore('chat', {
     async fetchMessages(channelId: string, oldestMessageId: string = '', signal?: AbortSignal) {
       if (this.loadingOlderMessages && oldestMessageId !== '') return;
 
+      // Set currentChannelId immediately so stale-response guards work correctly
+      if (oldestMessageId === '' && this.currentChannelId !== channelId) {
+        this.currentChannelId = channelId;
+      }
+
       // For initial load, check cache first - make this synchronous for instant loading
       if (oldestMessageId === '') {
         // Simple time-based cache validation (no async database calls)
@@ -294,9 +299,13 @@ export const useChatStore = defineStore('chat', {
           debug.warn('Failed to prepare message embeds:', error);
         }
 
-        // Check if request was cancelled
+        // Check if request was cancelled or channel changed while fetching
         if (signal?.aborted) {
           throw new Error('Request aborted');
+        }
+        if (oldestMessageId === '' && this.currentChannelId !== channelId) {
+          debug.log(`⏭️ Discarding stale response for channel ${channelId} (current: ${this.currentChannelId})`);
+          return;
         }
 
         if (!messages || messages.length === 0) {
@@ -351,8 +360,19 @@ export const useChatStore = defineStore('chat', {
         debug.log('📦 Processing messages:', { count: olderMessages.length, allLoaded, isInitialLoad: oldestMessageId === '' });
 
         if (oldestMessageId === '') {
-          // Initial load - update cache and current messages
-          this.messages = olderMessages;
+          // Initial load - merge with any messages received via realtime
+          // during the fetch to prevent losing them.
+          const realtimeOnly = this.messages.filter(
+            (m: Message) => m.channel_id === channelId && !olderMessages.some((om: Message) => om.id === m.id)
+          );
+          if (realtimeOnly.length > 0) {
+            debug.log(`🔀 Merging ${realtimeOnly.length} realtime messages received during history fetch`);
+          }
+          const merged = [...olderMessages, ...realtimeOnly];
+          merged.sort((a: Message, b: Message) =>
+            new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+          );
+          this.messages = merged;
           this.allMessagesLoaded = allLoaded;
           
           // Only update currentChannelId if it's actually different to prevent recursive loops
@@ -363,14 +383,14 @@ export const useChatStore = defineStore('chat', {
           // Update cache
           this.evictOldestCache();
           this.messageCache.set(channelId, {
-            messages: [...olderMessages],
+            messages: [...merged],
             lastFetchedAt: new Date(),
-            oldestMessageId: olderMessages[0]?.id || null,
+            oldestMessageId: merged[0]?.id || null,
             allMessagesLoaded: allLoaded,
             lastModified: new Date(),
           });
 
-          debug.log(`✅ Initial load: Cached ${olderMessages.length} messages for channel`);
+          debug.log(`✅ Initial load: Cached ${merged.length} messages for channel`);
         } else {
           // Loading older messages - PREPEND to current (older messages go BEFORE)
           debug.log(`📤 Prepending ${olderMessages.length} older messages to ${this.messages.length} current messages`);
@@ -421,7 +441,7 @@ export const useChatStore = defineStore('chat', {
       // Add to current messages if it's the current channel
       if (this.currentChannelId === message.channel_id) {
         if (!this.messages.some(msg => msg.id === message.id)) {
-          this.messages.push(message);
+          this._insertMessageSorted(this.messages, message);
           debug.log('✅ Real-time message added to current messages:', message.id);
         } else {
           debug.log('⚠️ Message already exists in current messages:', message.id);
@@ -437,13 +457,38 @@ export const useChatStore = defineStore('chat', {
       const cached = this.messageCache.get(message.channel_id);
       if (cached) {
         if (!cached.messages.some(msg => msg.id === message.id)) {
-          cached.messages.push(message);
+          this._insertMessageSorted(cached.messages, message);
           cached.lastModified = new Date();
           debug.log('✅ Real-time message added to cache:', message.id);
         }
       } else {
         debug.log('⚠️ No cache found for channel:', message.channel_id);
       }
+    },
+
+    /**
+     * Insert a message into a sorted array by created_at.
+     * Most realtime messages are newest and will be appended (O(1) fast path).
+     * Older messages (e.g. arriving after reconnect) are binary-inserted.
+     */
+    _insertMessageSorted(arr: Message[], msg: Message) {
+      const msgTime = new Date(msg.created_at).getTime();
+      // Fast path: message is newer than the last element (most common)
+      if (arr.length === 0 || new Date(arr[arr.length - 1].created_at).getTime() <= msgTime) {
+        arr.push(msg);
+        return;
+      }
+      // Binary search for insertion point
+      let lo = 0, hi = arr.length;
+      while (lo < hi) {
+        const mid = (lo + hi) >>> 1;
+        if (new Date(arr[mid].created_at).getTime() <= msgTime) {
+          lo = mid + 1;
+        } else {
+          hi = mid;
+        }
+      }
+      arr.splice(lo, 0, msg);
     },
 
     async reprocessEncryptedMessages(roomId?: string) {
@@ -636,57 +681,106 @@ export const useChatStore = defineStore('chat', {
         debug.log('✅ Message saved to database:', message.id);
         debug.log('📦 Message data from server:', message);
         
-        // 🔧 FIX: Don't rely on realtime to replace temp message - do it immediately!
-        // This fixes the silent timeout issue where realtime connection drops
-        // and temp messages never get replaced with real ones
-        const tempIndex = this.messages.findIndex((m: any) => m.id === tempId);
-        if (tempIndex !== -1) {
-          // For own encrypted messages, keep the original plaintext content
-          // so the UI never flashes encrypted glyphs for our own sends
-          const isOwnEncrypted = message.encrypted && message.user_id === userId;
-          const realMessage = {
-            id: message.id,
-            user_id: message.user_id,
-            content: isOwnEncrypted ? content : message.content,
-            created_at: new Date(message.created_at),
-            channel_id: message.channel_id,
-            reply_to: message.reply_to,
-            reactions: message.reactions || [],
-            is_system: message.is_system,
-            metadata: message.metadata || undefined,
-            encrypted: message.encrypted || false,
-            decrypted: isOwnEncrypted ? true : (message.decrypted || false),
-            encryption_metadata: message.encryption_metadata
-          };
-          
-          try {
-            ensureMessageEmbeds(realMessage);
-          } catch (embedError) {
-            debug.warn('Failed to prepare embeds for sent message:', embedError);
-          }
-          
-          // Replace temp message with real message
-          this.messages.splice(tempIndex, 1, realMessage as any);
-          debug.log('✅ Replaced temp message with real message:', { tempId, realId: message.id });
-          
-          // Also update in cache if present
-          const cached = this.messageCache.get(channelId);
-          if (cached) {
-            const cacheIndex = cached.messages.findIndex((m: any) => m.id === tempId);
-            if (cacheIndex !== -1) {
-              cached.messages.splice(cacheIndex, 1, realMessage as any);
-              cached.lastModified = new Date();
-            }
-          }
-        }
+        this._replaceTempWithReal(tempId, message, userId, channelId, content);
         
         return message;
       } catch (error: any) {
-        // Remove optimistic message on error
-        this.removeMessageFromCache(tempId);
         debug.error('❌ Error sending message via service:', error);
-        throw new Error(error.message || 'Failed to send message');
+
+        // If offline, mark failed immediately — no point retrying
+        if (!navigator.onLine) {
+          debug.log('📴 Offline — marking message as failed, will retry when user clicks Retry');
+          this._markMessageFailed(tempId);
+          return;
+        }
+
+        // Auto-retry up to 2 times with exponential backoff (service call only, no new optimistic msg)
+        for (let attempt = 1; attempt <= 2; attempt++) {
+          const delay = Math.pow(2, attempt) * 1000;
+          debug.log(`🔁 Auto-retrying message send in ${delay}ms (attempt ${attempt}/2)`);
+          await new Promise(r => setTimeout(r, delay));
+
+          if (!navigator.onLine) {
+            debug.log('📴 Went offline during retry — marking as failed');
+            break;
+          }
+
+          try {
+            const retryResult = await services.messages.sendChannelMessage(
+              serverId, channelId, content as any, replyTo || undefined
+            );
+            this._replaceTempWithReal(tempId, retryResult, userId, channelId, content);
+            return retryResult;
+          } catch (retryError) {
+            debug.warn(`🔁 Retry attempt ${attempt} failed:`, retryError);
+          }
+        }
+
+        this._markMessageFailed(tempId);
       }
+    },
+
+    _markMessageFailed(tempId: string) {
+      const idx = this.messages.findIndex((m: any) => m.id === tempId);
+      if (idx !== -1) {
+        this.messages[idx] = { ...this.messages[idx], sending: false, failed: true } as any;
+      }
+    },
+
+    _replaceTempWithReal(tempId: string, message: any, userId: string, channelId: string, content: any) {
+      const tempIndex = this.messages.findIndex((m: any) => m.id === tempId);
+      if (tempIndex === -1) return;
+
+      const isOwnEncrypted = message.encrypted && message.user_id === userId;
+      const realMessage = {
+        id: message.id,
+        user_id: message.user_id,
+        content: isOwnEncrypted ? content : message.content,
+        created_at: new Date(message.created_at),
+        channel_id: message.channel_id,
+        reply_to: message.reply_to,
+        reactions: message.reactions || [],
+        is_system: message.is_system,
+        metadata: message.metadata || undefined,
+        encrypted: message.encrypted || false,
+        decrypted: isOwnEncrypted ? true : (message.decrypted || false),
+        encryption_metadata: message.encryption_metadata
+      };
+
+      try { ensureMessageEmbeds(realMessage); } catch {}
+
+      this.messages.splice(tempIndex, 1, realMessage as any);
+      debug.log('✅ Replaced temp message with real message:', { tempId, realId: message.id });
+
+      const cached = this.messageCache.get(channelId);
+      if (cached) {
+        const cacheIndex = cached.messages.findIndex((m: any) => m.id === tempId);
+        if (cacheIndex !== -1) {
+          cached.messages.splice(cacheIndex, 1, realMessage as any);
+          cached.lastModified = new Date();
+        }
+      }
+    },
+
+    async retryMessage(tempId: string, serverId: string, channelId: string, userId: string, content: Array<Object>, replyTo: string) {
+      const idx = this.messages.findIndex((m: any) => m.id === tempId);
+      if (idx === -1) return;
+
+      this.messages[idx] = { ...this.messages[idx], sending: true, failed: false } as any;
+
+      try {
+        const message = await services.messages.sendChannelMessage(
+          serverId, channelId, content as any, replyTo || undefined
+        );
+        this._replaceTempWithReal(tempId, message, userId, channelId, content);
+      } catch (error) {
+        debug.error('❌ Retry failed:', error);
+        this._markMessageFailed(tempId);
+      }
+    },
+
+    discardFailedMessage(tempId: string) {
+      this.removeMessageFromCache(tempId);
     },
 
     async addReaction(messageId: string, emojiId: string, userId: string, emojiData?: Emoji) {
@@ -770,9 +864,13 @@ export const useChatStore = defineStore('chat', {
             return;
           }
           
-          // Check if temp message exists (race condition fallback)
+          // Check if temp message exists (race condition fallback).
+          // Match by user_id AND content similarity to avoid collisions with
+          // multiple rapid sends from the same user.
+          const payloadContent = JSON.stringify(payloadNew.content);
           const tempMessageIndex = store.messages.findIndex(m => 
-            m.id.startsWith('temp-') && m.user_id === payloadNew.user_id
+            m.id.startsWith('temp-') && m.user_id === payloadNew.user_id &&
+            JSON.stringify(m.content) === payloadContent
           );
           
           if (tempMessageIndex !== -1) {
@@ -914,6 +1012,34 @@ export const useChatStore = defineStore('chat', {
         onStatusChange: (status, name) => {
           debug.log(`📡 ${name} status: ${status}`);
           store.connectionStatus = status;
+        },
+        
+        // Gap-fill: fetch recent messages after reconnect to cover the disconnect window
+        onReconnected: async () => {
+          debug.log('🔀 Channel reconnected, gap-filling missed messages for:', channelId);
+          try {
+            if (store.messages.length > 0) {
+              const newestMsg = store.messages[store.messages.length - 1];
+              const { messages: recent } = await services.messages.loadChannelMessages(channelId, {
+                after: newestMsg.created_at instanceof Date
+                  ? newestMsg.created_at.toISOString()
+                  : String(newestMsg.created_at),
+                limit: 50
+              });
+              let added = 0;
+              for (const msg of recent) {
+                if (!store.messages.some((m: any) => m.id === msg.id)) {
+                  store._insertMessageSorted(store.messages, msg);
+                  added++;
+                }
+              }
+              if (added > 0) {
+                debug.log(`✅ Gap-fill: added ${added} missed messages`);
+              }
+            }
+          } catch (err) {
+            debug.error('❌ Gap-fill failed:', err);
+          }
         }
       });
 

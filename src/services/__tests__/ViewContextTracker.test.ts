@@ -227,7 +227,7 @@ describe('ViewContextTracker', () => {
       expect(decision.showToast).toBe(true)
     })
 
-    it('handles notification context with undefined conversation_id', () => {
+    it('shows toast for DM with undefined conversation_id when no fallback provided', () => {
       tracker.updateContext({
         view_type: 'dm',
         conversation_id: 'conv-1',
@@ -237,6 +237,35 @@ describe('ViewContextTracker', () => {
         conversation_id: undefined,
         type: 'dm',
       })
+
+      expect(decision.showToast).toBe(true)
+    })
+
+    it('suppresses DM with undefined conversation_id when activeConversationId matches', () => {
+      tracker.updateContext({
+        view_type: 'dm',
+        conversation_id: 'conv-1',
+      })
+
+      const decision = tracker.shouldShowNotificationUI(
+        { conversation_id: undefined, type: 'dm' },
+        'conv-1' // fallback from DM store
+      )
+
+      expect(decision.showToast).toBe(false)
+      expect(decision.reason).toContain('fallback')
+    })
+
+    it('shows toast for DM with undefined conversation_id when activeConversationId differs', () => {
+      tracker.updateContext({
+        view_type: 'dm',
+        conversation_id: 'conv-1',
+      })
+
+      const decision = tracker.shouldShowNotificationUI(
+        { conversation_id: undefined, type: 'dm' },
+        'conv-other'
+      )
 
       expect(decision.showToast).toBe(true)
     })

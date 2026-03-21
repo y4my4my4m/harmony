@@ -6,6 +6,8 @@ import { useEmojiCacheStore } from '@/stores/useEmojiCache';
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
 import { useChatStore } from '@/stores/useChat';
 import { statePersistence } from '@/services/StatePersistence';
+import { userEventChannel } from '@/services/UserEventChannel';
+import { authContextService } from '@/services/AuthContextService';
 import { debug } from '@/utils/debug';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import router from '@/router';
@@ -25,7 +27,8 @@ export const useServerChannelStore = defineStore('serverChannel', {
     hasInitialized: false as boolean,
     // Real-time subscriptions
     serverStructureSubscription: null as RealtimeChannel | null,
-    userServersSubscription: null as RealtimeChannel | null,
+    userServersSubscription: null as RealtimeChannel | null, // legacy, kept for type compat
+    _userServerBroadcastUnsubs: [] as (() => void)[],
     currentUserId: null as string | null,
     // Request deduplication - prevents concurrent duplicate fetches
     _pendingFetches: {} as Record<string, Promise<void>>,
@@ -2119,52 +2122,45 @@ export const useServerChannelStore = defineStore('serverChannel', {
     },
 
     /**
-     * Subscribe to user's server list changes (join/leave servers)
-     * Also subscribes to server updates (name, icon, description) and deletions
+     * Subscribe to user's server list changes via the shared UserEventChannel.
+     * DB triggers broadcast server:joined, server:left, server:updated events
+     * to user:{profileId}, eliminating a dedicated postgres_changes channel.
      */
     async subscribeToUserServers(userId: string): Promise<void> {
-      // Unsubscribe from previous subscription if any
       await this.unsubscribeFromUserServers();
-      
+
       this.currentUserId = userId;
-      debug.log('🔔 Subscribing to user server list updates for:', userId);
-      
-      this.userServersSubscription = supabase
-        .channel(`user-servers:${userId}`)
-        // Listen for user joining/leaving servers
-        .on(
-          'postgres_changes',
-          { event: 'INSERT', schema: 'public', table: 'user_servers', filter: `user_id=eq.${userId}` },
-          (payload) => this._handleUserServerJoin(payload)
-        )
-        .on(
-          'postgres_changes',
-          { event: 'DELETE', schema: 'public', table: 'user_servers', filter: `user_id=eq.${userId}` },
-          (payload) => this._handleUserServerLeave(payload)
-        )
-        // Listen for server updates (name, icon, description changes)
-        .on(
-          'postgres_changes',
-          { event: 'UPDATE', schema: 'public', table: 'servers' },
-          (payload) => this._handleServerUpdate(payload)
-        )
-        // Listen for server deletions
-        .on(
-          'postgres_changes',
-          { event: 'DELETE', schema: 'public', table: 'servers' },
-          (payload) => this._handleServerDelete(payload)
-        )
-        .subscribe((status) => {
-          debug.log(`📡 User servers subscription status for ${userId}:`, status);
-        });
+      debug.log('🔔 Subscribing to user server list updates via broadcast');
+
+      const ctx = await authContextService.getCurrentContext();
+      if (!ctx.isAuthenticated) return;
+
+      userEventChannel.connect(ctx.profileId);
+
+      this._userServerBroadcastUnsubs = [
+        userEventChannel.on('server:joined', (data) => {
+          this._handleUserServerJoin({ new: { server_id: data.server_id, user_id: data.user_id } });
+        }),
+        userEventChannel.on('server:left', (data) => {
+          this._handleUserServerLeave({ old: { server_id: data.server_id, user_id: data.user_id } });
+        }),
+        userEventChannel.on('server:updated', (data) => {
+          this._handleServerUpdate({ new: data.server });
+        }),
+      ];
     },
 
     /**
-     * Unsubscribe from user server list updates
+     * Unsubscribe from user server list broadcast handlers
      */
     async unsubscribeFromUserServers(): Promise<void> {
+      if (this._userServerBroadcastUnsubs.length > 0) {
+        debug.log('🔕 Unsubscribing from user server broadcast handlers');
+        this._userServerBroadcastUnsubs.forEach(fn => fn());
+        this._userServerBroadcastUnsubs = [];
+      }
+      // Legacy cleanup
       if (this.userServersSubscription) {
-        debug.log('🔕 Unsubscribing from user server list updates');
         await this.userServersSubscription.unsubscribe();
         this.userServersSubscription = null;
       }

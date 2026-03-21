@@ -17,7 +17,7 @@ export enum ViewType {
   POST = 'post',             // Single post detail view
   HASHTAG = 'hashtag',       // Hashtag posts view
   BOOKMARKS = 'bookmarks',   // User bookmarks
-  NOTIFICATIONS = 'notifications', // User notifications
+  MENTIONS = 'mentions',           // Posts mentioning the user
   LISTS = 'lists',           // User lists
   DM = 'dm',                 // Direct messages
   CHAT = 'chat'              // Server chat channels
@@ -39,7 +39,7 @@ export enum CurrentView {
   POST = 'post',
   HASHTAG = 'hashtag',
   BOOKMARKS = 'bookmarks',
-  NOTIFICATIONS = 'notifications',
+  MENTIONS = 'mentions',
   LISTS = 'lists',
   DM = 'dm',
   CHAT = 'chat'
@@ -171,8 +171,8 @@ export const getViewPath = (state: ViewState): string => {
       return `/social/post/${state.postId}`;
     case ViewType.BOOKMARKS:
       return '/social/bookmarks';
-    case ViewType.NOTIFICATIONS:
-      return '/social/notifications';
+    case ViewType.MENTIONS:
+      return '/social/mentions';
     case ViewType.LISTS:
       return '/social/lists';
     case ViewType.CHAT:
@@ -201,7 +201,7 @@ export const getViewModeFromRoute = (routeName: string | null | undefined): View
     'Social', 'Monyverse', 'Explore', // Legacy routes
     'SocialHome', 'SocialLocal', 'SocialPublic', // Timeline routes
     'UserProfile', 'Followers', 'Following', // Profile routes
-    'Lists', 'Notifications', 'Bookmarks', // Social feature routes
+    'Lists', 'Mentions', 'Bookmarks', // Social feature routes
     'SocialTrending', 'SocialInstances', // Explore routes
     'PostView', 'PostDetail', 'RemotePostDetail', 'DirectPost', 'ConversationThread' // Post routes
   ];

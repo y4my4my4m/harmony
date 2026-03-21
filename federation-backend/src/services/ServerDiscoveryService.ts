@@ -333,12 +333,27 @@ router.post(
       return res.status(404).json({ error: 'Remote server not found' });
     }
 
-    // Check if we already have a local reference
+    // Check if we already have a local reference (by ap_id or by UUID extracted from URL)
     let { data: localServer } = await supabase
       .from('servers')
       .select('*')
       .eq('ap_id', remoteServer.id)
       .single();
+
+    if (!localServer) {
+      // Also check by UUID for same-instance servers that don't have ap_id set
+      const uuidMatch = remoteServer.id.match(/\/servers\/([a-f0-9-]{36})$/i);
+      if (uuidMatch) {
+        const { data: serverById } = await supabase
+          .from('servers')
+          .select('*')
+          .eq('id', uuidMatch[1])
+          .single();
+        if (serverById) {
+          localServer = serverById;
+        }
+      }
+    }
 
     if (!localServer) {
       // Create local reference (joining user becomes the reference owner)
@@ -996,6 +1011,18 @@ export class ServerDiscoveryService {
       const serverIdMatch = remoteServer.id.match(/\/servers\/([a-f0-9-]{36})$/i);
       if (serverIdMatch) {
         serverUuid = serverIdMatch[1];
+
+        // Check if a server with this UUID already exists locally (e.g. same-instance join)
+        const { data: existingById } = await supabase
+          .from('servers')
+          .select('*')
+          .eq('id', serverUuid)
+          .single();
+
+        if (existingById) {
+          logger.info(`Server already exists locally by UUID: ${serverUuid} (${existingById.name})`);
+          return existingById;
+        }
       }
 
       // Create server reference (use remote UUID if available to maintain consistency)

@@ -186,12 +186,12 @@ const router = createRouter({
           }
         },
         {
-          path: 'notifications',
-          name: 'Notifications',
-          component: () => import('@/views/NotificationsView.vue'),
+          path: 'mentions',
+          name: 'Mentions',
+          component: () => import('@/views/MentionsView.vue'),
           props: {
-            currentView: CurrentView.NOTIFICATIONS,
-            viewType: ViewType.NOTIFICATIONS
+            currentView: CurrentView.MENTIONS,
+            viewType: ViewType.MENTIONS
           }
         },
         {
@@ -373,10 +373,14 @@ const router = createRouter({
       component: () => import('@/views/NewProfile.vue'),
       meta: { requiresAuth: true }
     },
-    // Redirect legacy /notifications to /social/notifications
+    // Redirect legacy paths
     {
       path: '/notifications',
-      redirect: '/social/notifications'
+      redirect: '/social/mentions'
+    },
+    {
+      path: '/social/notifications',
+      redirect: '/social/mentions'
     },
     // 404 Routes - Authenticated users (with app layout)
     {

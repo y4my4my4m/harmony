@@ -11,6 +11,7 @@ import { ensureMessageEmbeds } from '@/utils/messageEmbedUtils'
 import { processMessageDecryption } from '@/utils/messageDecryption'
 import { debug } from '@/utils/debug'
 import { realtimeConnectionManager, type ConnectionStatus } from '@/services/RealtimeConnectionManager'
+import { userEventChannel } from '@/services/UserEventChannel'
 
 // Types for DM functionality
 export interface DMUser {
@@ -78,6 +79,9 @@ export const useDMStore = defineStore('dm', () => {
   // Realtime subscription management
   const dmSubscriptions = ref<Map<string, any>>(new Map())
   const currentSubscription = ref<any | null>(null)
+  
+  // Connection status (mirrors useChat pattern)
+  const dmConnectionStatus = ref<import('@/services/RealtimeConnectionManager').ConnectionStatus>('disconnected')
   
   // Cache for individual reply messages
   const replyMessageCache = ref<Map<string, Message>>(new Map())
@@ -165,6 +169,28 @@ export const useDMStore = defineStore('dm', () => {
     }
   }
 
+  /**
+   * Insert a message into a sorted array by created_at.
+   * Fast path for newest messages (append), binary insert for older ones.
+   */
+  const insertMessageSorted = (arr: Message[], msg: Message) => {
+    const msgTime = new Date(msg.created_at).getTime()
+    if (arr.length === 0 || new Date(arr[arr.length - 1].created_at).getTime() <= msgTime) {
+      arr.push(msg)
+      return
+    }
+    let lo = 0, hi = arr.length
+    while (lo < hi) {
+      const mid = (lo + hi) >>> 1
+      if (new Date(arr[mid].created_at).getTime() <= msgTime) {
+        lo = mid + 1
+      } else {
+        hi = mid
+      }
+    }
+    arr.splice(lo, 0, msg)
+  }
+
   const addMessageToCache = (message: Message) => {
     try {
       ensureMessageEmbeds(message)
@@ -174,7 +200,7 @@ export const useDMStore = defineStore('dm', () => {
     // Add to current messages if it's the current conversation
     if (currentConversationId.value === message.conversation_id) {
       if (!currentDMMessages.value.some(msg => msg.id === message.id)) {
-        currentDMMessages.value.push(message)
+        insertMessageSorted(currentDMMessages.value, message)
       }
     }
 
@@ -182,7 +208,7 @@ export const useDMStore = defineStore('dm', () => {
     const cached = messageCache.value.get(message.conversation_id!)
     if (cached) {
       if (!cached.messages.some(msg => msg.id === message.id)) {
-        cached.messages.push(message)
+        insertMessageSorted(cached.messages, message)
         cached.lastModified = new Date()
       }
     } else {
@@ -652,7 +678,27 @@ export const useDMStore = defineStore('dm', () => {
       })
       
       conversations.value = mergedConversations
-      
+
+      // Fetch DB-backed unread counts for all conversations
+      const convIds = mergedConversations.map(c => c.id)
+      if (convIds.length > 0) {
+        const { data: unreadData } = await supabase
+          .from('unread_counts')
+          .select('conversation_id, unread_messages, unread_mentions')
+          .eq('user_id', userId)
+          .in('conversation_id', convIds)
+          .or('unread_messages.gt.0,unread_mentions.gt.0')
+
+        if (unreadData) {
+          for (const row of unreadData) {
+            const conv = mergedConversations.find(c => c.id === row.conversation_id)
+            if (conv) {
+              conv.unread_count = row.unread_messages || 0
+            }
+          }
+        }
+      }
+
       // OPTIMIZATION: Different loading strategies for user profiles
       const needsProfileLoad = (conv: DMConversation) =>
         conv.type === 'direct' && (!conv.other_user || conv.other_user._isPlaceholder)
@@ -1116,7 +1162,7 @@ export const useDMStore = defineStore('dm', () => {
           reactions: [],
           metadata: lastMessageData.metadata || {}
         } : undefined,
-        unread_count: 0, // TODO: Implement proper unread counting
+        unread_count: 0,
       }
 
       // Handle different conversation types
@@ -1346,9 +1392,13 @@ export const useDMStore = defineStore('dm', () => {
         }
       )
 
-      // Check if request was cancelled
+      // Check if request was cancelled or conversation changed while fetching
       if (signal?.aborted) {
         throw new Error('Request aborted')
+      }
+      if (beforeMessageId === undefined && currentConversationId.value !== conversationId) {
+        debug.log(`⏭️ Discarding stale DM response for ${conversationId} (current: ${currentConversationId.value})`)
+        return
       }
 
       if (!messagesData) return
@@ -1627,62 +1677,104 @@ export const useDMStore = defineStore('dm', () => {
 
       debug.log('✅ DM message saved to database:', message.id)
       debug.log('📦 DM message data from server:', message)
-      
-      // 🔧 FIX: Don't rely on realtime to replace temp message - do it immediately!
-      // This fixes the silent timeout issue where realtime connection drops
-      // and temp messages never get replaced with real ones
-      const tempIndex = currentDMMessages.value.findIndex(m => m.id === tempId)
-      if (tempIndex !== -1) {
-        const isOwnEncrypted = message.encrypted && message.user_id === userId;
-        const realMessage: Message = {
-          id: message.id,
-          user_id: message.user_id,
-          content: isOwnEncrypted ? content : message.content,
-          created_at: new Date(message.created_at),
-          channel_id: '',
-          conversation_id: message.conversation_id,
-          reply_to: message.reply_to,
-          reactions: message.reactions || [],
-          is_system: message.is_system,
-          metadata: message.metadata || undefined,
-          encrypted: message.encrypted || false,
-          decrypted: isOwnEncrypted ? true : (message.decrypted || false),
-          encryption_metadata: message.encryption_metadata
-        }
-        
-        try {
-          ensureMessageEmbeds(realMessage)
-        } catch (embedError) {
-          debug.warn('Failed to prepare embeds for sent DM message:', embedError)
-        }
-        
-        // Replace temp message with real message
-        currentDMMessages.value.splice(tempIndex, 1, realMessage)
-        debug.log('✅ Replaced temp message with real message:', { tempId, realId: message.id })
-        
-        // Also update in cache if present
-        const cached = messageCache.value.get(conversationId)
-        if (cached) {
-          const cacheIndex = cached.messages.findIndex(m => m.id === tempId)
-          if (cacheIndex !== -1) {
-            cached.messages.splice(cacheIndex, 1, realMessage)
-            cached.lastModified = new Date()
-          }
-        }
-      }
-      
-      // 🎯 DATABASE TRIGGERS NOW HANDLE:
-      // 1. DM notifications (handle_message_notifications trigger)
-      // 2. Federation delivery (federate_dm_message trigger)
-      // No manual frontend calls needed!
+
+      _replaceDMTempWithReal(tempId, message, userId, conversationId, content)
 
       return true
     } catch (error: any) {
-      removeMessageFromCache(tempId);
       debug.error('❌ Failed to send DM message via service:', error)
+
+      if (!navigator.onLine) {
+        debug.log('📴 Offline — marking DM as failed, will retry when user clicks Retry')
+        _markDMMessageFailed(tempId)
+        return false
+      }
+
+      for (let attempt = 1; attempt <= 2; attempt++) {
+        const delay = Math.pow(2, attempt) * 1000
+        debug.log(`🔁 Auto-retrying DM send in ${delay}ms (attempt ${attempt}/2)`)
+        await new Promise(r => setTimeout(r, delay))
+
+        if (!navigator.onLine) {
+          debug.log('📴 Went offline during retry — marking as failed')
+          break
+        }
+
+        try {
+          const retryResult = await services.messages.sendDMMessage(conversationId, content, replyTo)
+          _replaceDMTempWithReal(tempId, retryResult, userId, conversationId, content)
+          return true
+        } catch (retryError) {
+          debug.warn(`🔁 DM retry attempt ${attempt} failed:`, retryError)
+        }
+      }
+
+      _markDMMessageFailed(tempId)
       return false
     }
   }
+
+  const _markDMMessageFailed = (tempId: string) => {
+    const idx = currentDMMessages.value.findIndex(m => m.id === tempId)
+    if (idx !== -1) {
+      currentDMMessages.value[idx] = { ...currentDMMessages.value[idx], sending: false, failed: true } as any
+    }
+  }
+
+  const _replaceDMTempWithReal = (tempId: string, message: any, userId: string, conversationId: string, content: MessagePart[]) => {
+    const tempIndex = currentDMMessages.value.findIndex(m => m.id === tempId)
+    if (tempIndex === -1) return
+
+    const isOwnEncrypted = message.encrypted && message.user_id === userId
+    const realMessage: Message = {
+      id: message.id,
+      user_id: message.user_id,
+      content: isOwnEncrypted ? content : message.content,
+      created_at: new Date(message.created_at),
+      channel_id: '',
+      conversation_id: message.conversation_id,
+      reply_to: message.reply_to,
+      reactions: message.reactions || [],
+      is_system: message.is_system,
+      metadata: message.metadata || undefined,
+      encrypted: message.encrypted || false,
+      decrypted: isOwnEncrypted ? true : (message.decrypted || false),
+      encryption_metadata: message.encryption_metadata
+    }
+
+    try { ensureMessageEmbeds(realMessage) } catch {}
+
+    currentDMMessages.value.splice(tempIndex, 1, realMessage)
+    debug.log('✅ Replaced temp DM message with real message:', { tempId, realId: message.id })
+
+    const cached = messageCache.value.get(conversationId)
+    if (cached) {
+      const cacheIndex = cached.messages.findIndex(m => m.id === tempId)
+      if (cacheIndex !== -1) {
+        cached.messages.splice(cacheIndex, 1, realMessage)
+        cached.lastModified = new Date()
+      }
+    }
+  }
+
+  const retryDMMessage = async (tempId: string, conversationId: string, userId: string, content: MessagePart[], replyTo?: string) => {
+    const idx = currentDMMessages.value.findIndex(m => m.id === tempId)
+    if (idx === -1) return
+
+    currentDMMessages.value[idx] = { ...currentDMMessages.value[idx], sending: true, failed: false } as any
+
+    try {
+      const message = await services.messages.sendDMMessage(conversationId, content, replyTo)
+      _replaceDMTempWithReal(tempId, message, userId, conversationId, content)
+    } catch (error) {
+      debug.error('❌ DM retry failed:', error)
+      _markDMMessageFailed(tempId)
+    }
+  }
+
+  const discardFailedDMMessage = (tempId: string) => {
+    removeMessageFromCache(tempId);
+  };
 
   const setCurrentConversation = (conversationId: string | null) => {
     const previousConversationId = currentConversationId.value
@@ -1704,11 +1796,28 @@ export const useDMStore = defineStore('dm', () => {
       debug.log('🔔 Setting up new conversation subscription:', conversationId);
       setupConversationSubscription(conversationId)
       
-      // Mark conversation as read
+      // Mark conversation as read (both locally and in DB)
       const conversation = conversations.value.find(c => c.id === conversationId)
       if (conversation) {
         conversation.unread_count = 0
         debug.log('📖 Marked conversation as read:', conversationId);
+        // Reset DB unread count
+        import('@/services/AuthContextService').then(({ authContextService: acs }) => acs.getCurrentContext()).then(ctx => {
+          if (!ctx.isAuthenticated) return
+          supabase
+            .from('unread_counts')
+            .update({
+              unread_messages: 0,
+              unread_mentions: 0,
+              last_read_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            })
+            .eq('user_id', ctx.profileId)
+            .eq('conversation_id', conversationId)
+            .then(({ error }) => {
+              if (error) debug.warn('Failed to reset DM unread count:', error)
+            })
+        })
       } else {
         debug.warn('⚠️ Could not find conversation to mark as read:', conversationId);
       }
@@ -1819,25 +1928,18 @@ export const useDMStore = defineStore('dm', () => {
       // Get reactions store for handling real-time updates
       const reactionsStore = useReactionsStore()
 
-      // Subscribe to conversation_participants for this user to detect new conversations
-      // This is more efficient than subscribing to entire conversations table
-      const conversationsChannelName = `dm-conversations-${userId}`
-      const conversationsUnsubscribe = realtimeConnectionManager.subscribeToTable({
-        channelName: conversationsChannelName,
-        table: 'conversation_participants',
-        filter: `user_id=eq.${userId}`,
-        onInsert: (payload) => {
-          debug.log('🔔 User added to new DM conversation:', payload.new)
+      // Listen for new conversations via the shared UserEventChannel broadcast
+      // (replaces dedicated dm-conversations postgres_changes channel)
+      const { authContextService } = await import('@/services/AuthContextService')
+      const ctx = await authContextService.getCurrentContext()
+      if (ctx.isAuthenticated) {
+        userEventChannel.connect(ctx.profileId)
+        const unsubConversation = userEventChannel.on('conversation:new', (data) => {
+          debug.log('🔔 Broadcast: User added to new DM conversation:', data.conversation_id)
           fetchUserConversations(userId)
-        },
-        onStatusChange: (status, name) => {
-          debug.log(`📡 ${name} status: ${status}`)
-        }
-      })
-
-      // DM reactions are subscribed per-conversation in setupConversationSubscription
-
-      dmSubscriptions.value.set(conversationsChannelName, conversationsUnsubscribe)
+        })
+        dmSubscriptions.value.set('broadcast:conversation:new', unsubConversation)
+      }
 
     } catch (error) {
       debug.error('❌ Error setting up DM realtime subscriptions:', error)
@@ -1885,8 +1987,10 @@ export const useDMStore = defineStore('dm', () => {
             return
           }
           
+          const payloadContent = JSON.stringify(message.content)
           const tempMessageIndex = currentDMMessages.value.findIndex(m => 
-            m.id.startsWith('temp-') && m.user_id === message.user_id
+            m.id.startsWith('temp-') && m.user_id === message.user_id &&
+            JSON.stringify(m.content) === payloadContent
           )
           
           if (tempMessageIndex !== -1) {
@@ -2006,6 +2110,54 @@ export const useDMStore = defineStore('dm', () => {
         
         onStatusChange: (status, name) => {
           debug.log(`📡 ${name} status: ${status}`)
+          dmConnectionStatus.value = status
+        },
+        
+        onReconnected: async () => {
+          debug.log('🔀 DM conversation reconnected, gap-filling for:', conversationId)
+          try {
+            if (currentDMMessages.value.length > 0) {
+              const newestMsg = currentDMMessages.value[currentDMMessages.value.length - 1]
+              const newestTime = newestMsg.created_at instanceof Date
+                ? newestMsg.created_at.toISOString()
+                : String(newestMsg.created_at)
+              const { data: recent, error } = await supabase
+                .from('messages')
+                .select('*')
+                .eq('conversation_id', conversationId)
+                .gt('created_at', newestTime)
+                .order('created_at', { ascending: true })
+                .limit(50)
+              if (!error && recent) {
+                let added = 0
+                for (const msg of recent) {
+                  if (!currentDMMessages.value.some(m => m.id === msg.id)) {
+                    const formatted: Message = {
+                      id: msg.id,
+                      user_id: msg.user_id,
+                      content: msg.content,
+                      created_at: new Date(msg.created_at),
+                      channel_id: '',
+                      conversation_id: msg.conversation_id,
+                      reply_to: msg.reply_to,
+                      reactions: msg.reactions || [],
+                      is_system: msg.is_system,
+                      metadata: msg.metadata || null,
+                      encrypted: msg.encrypted || false,
+                      encryption_metadata: msg.encryption_metadata
+                    }
+                    insertMessageSorted(currentDMMessages.value, formatted)
+                    added++
+                  }
+                }
+                if (added > 0) {
+                  debug.log(`✅ DM gap-fill: added ${added} missed messages`)
+                }
+              }
+            }
+          } catch (err) {
+            debug.error('❌ DM gap-fill failed:', err)
+          }
         }
       })
 
@@ -2056,10 +2208,11 @@ export const useDMStore = defineStore('dm', () => {
         reactions: []
       }
       
-      // Only increment unread count if message is not from current user and we're not viewing this conversation
+      // Unread count is managed by DB trigger (handle_new_dm_unread).
+      // Only update locally for instant UI feedback when not viewing this conversation.
       const currentUser = userDataService.getCurrentUser()
       const currentUserId = currentUser?.id
-      
+
       if (message.user_id !== currentUserId && currentConversationId.value !== message.conversation_id) {
         conversation.unread_count = (conversation.unread_count || 0) + 1
       }
@@ -2744,6 +2897,7 @@ export const useDMStore = defineStore('dm', () => {
     isSearching,
     allMessagesLoaded,
     isInitializing,
+    dmConnectionStatus,
     
     // Computed
     getCurrentConversation,
@@ -2769,10 +2923,13 @@ export const useDMStore = defineStore('dm', () => {
     searchUsers,
     createOrGetConversation,
     sendDMMessage,
+    retryDMMessage,
+    discardFailedDMMessage,
     setCurrentConversation,
     switchToConversation,
     clearDMMessages,
     setupConversationSubscription,
+    cleanupConversationSubscription,
     cleanupRealtimeSubscriptions,
     cleanup,
     

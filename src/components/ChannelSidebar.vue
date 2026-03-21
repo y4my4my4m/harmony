@@ -45,7 +45,8 @@
                 'dragging': dragState.isDragging && dragState.draggedItem?.id === element.id,
                 'voice-channel': isVoiceType(element.type),
                 'voice-connected': isVoiceType(element.type) && isUserInVoiceChannel(element.id),
-                'channel-unread': hasUnreadMessages(element.id) && element.id !== currentChannelId
+                'channel-unread': hasUnreadMessages(element.id) && element.id !== currentChannelId,
+                'muted': mutedChannelIds.has(element.id)
               }]" 
               @click="isVoiceType(element.type) ? handleVoiceChannelClick(element.id) : selectChannel(element.id)"
               @contextmenu="openChannelContextMenu($event, element)"
@@ -57,6 +58,7 @@
                 <SpeakerIcon v-else /> 
                 <span class="channel-name">{{ element.name }}</span>
               </div>
+              <Icon v-if="mutedChannelIds.has(element.id)" name="bell-off" :size="12" class="muted-icon" />
               <div v-if="getChannelUnreadMentions(element.id) > 0" class="notification-badge">
                 {{ getChannelUnreadMentions(element.id) > 99 ? '99+' : getChannelUnreadMentions(element.id) }}
               </div>
@@ -170,7 +172,8 @@
                       'dragging': dragState.isDragging && dragState.draggedItem?.id === channel.id,
                       'voice-channel': isVoiceType(channel.type),
                       'voice-connected': isVoiceType(channel.type) && isUserInVoiceChannel(channel.id),
-                      'channel-unread': hasUnreadMessages(channel.id) && channel.id !== currentChannelId
+                      'channel-unread': hasUnreadMessages(channel.id) && channel.id !== currentChannelId,
+                      'muted': mutedChannelIds.has(channel.id)
                     }"
                     @click="isVoiceType(channel.type) ? handleVoiceChannelClick(channel.id) : selectChannel(channel.id)"
                     @contextmenu="openChannelContextMenu($event, channel)"
@@ -182,6 +185,7 @@
                       <SpeakerIcon v-else />
                       <span class="channel-name">{{ channel.name }}</span>
                     </div>
+                    <Icon v-if="mutedChannelIds.has(channel.id)" name="bell-off" :size="12" class="muted-icon" />
                     <div v-if="getChannelUnreadMentions(channel.id) > 0" class="notification-badge">
                       {{ getChannelUnreadMentions(channel.id) > 99 ? '99+' : getChannelUnreadMentions(channel.id) }}
                     </div>
@@ -369,6 +373,7 @@ import ThreadEditModal from './ThreadEditModal.vue';
 import { threadService, type ThreadWithDetails } from '@/services/ThreadService';
 import { useUnreadCounts } from '@/composables/useUnreadCounts';
 import { supabase } from '@/supabase';
+import { authContextService } from '@/services/AuthContextService';
 
 import draggable from "vuedraggable";
 
@@ -659,6 +664,26 @@ const onChannelRemovedFromCategory = (evt: any) => {
 const notificationStore = useNotificationStore();
 const { getUnreadMessages } = useUnreadCounts();
 
+const mutedChannelIds = ref<Set<string>>(new Set());
+
+const loadMutedChannels = async () => {
+  try {
+    const ctx = await authContextService.getCurrentContext()
+    if (!ctx.isAuthenticated || !props.currentServer?.id) return
+
+    const { data } = await supabase
+      .from('notification_channels')
+      .select('channel_id')
+      .eq('user_id', ctx.profileId)
+      .eq('server_id', props.currentServer.id)
+      .eq('muted', true)
+
+    mutedChannelIds.value = new Set((data || []).map((r: any) => r.channel_id).filter(Boolean))
+  } catch (error) {
+    debug.error('Failed to load muted channels:', error)
+  }
+}
+
 const getChannelUnreadMentions = (channelId: string): number => {
   return notificationStore.unreadChannelMentions(channelId);
 };
@@ -668,6 +693,7 @@ const hasNotifications = (channel: Channel): boolean => {
 };
 
 const hasUnreadMessages = (channelId: string): boolean => {
+  if (mutedChannelIds.value.has(channelId)) return false
   return getUnreadMessages({ channelId }) > 0;
 };
 
@@ -1156,10 +1182,11 @@ watch(() => props.currentServer?.id, async (newServerId, oldServerId) => {
 watch(() => serverChannelStore.categories, () => categoryChannelsCache.value.clear(), { deep: true });
 watch(() => serverChannelStore.categoryChannels, () => categoryChannelsCache.value.clear(), { deep: true });
 
-// Load threads when server changes
+// Load threads and muted state when server changes
 watch(() => props.currentServer?.id, (newServerId) => {
   if (newServerId) {
     loadActiveThreads();
+    loadMutedChannels();
   }
 }, { immediate: true });
 
@@ -1307,6 +1334,22 @@ watch(() => props.currentServer?.id, () => {
   background-color: rgba(87, 242, 135, 0.15);
 }
 
+.channel-item.muted {
+  opacity: 0.5;
+}
+
+.channel-item.muted:hover {
+  opacity: 0.75;
+}
+
+.muted-icon {
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+  width: 12px;
+  height: 12px;
+  margin-left: auto;
+}
+
 .channel-item.dragging {
   opacity: 0.6;
   transform: scale(1.02) rotate(2deg);
@@ -1420,9 +1463,9 @@ watch(() => props.currentServer?.id, () => {
   opacity: 0.8;
 }
 
-.category-header.has-visible-channels.collapsed .category-name {
+/* .category-header.has-visible-channels.collapsed .category-name {
   font-size: 12px;
-}
+} */
 
 /* Notification badge for channels with notifications */
 .notification-badge {

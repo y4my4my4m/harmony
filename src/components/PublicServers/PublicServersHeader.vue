@@ -2,7 +2,13 @@
   <div class="public-servers-header">
     <div class="header-content">
       <div class="icon-container">
-
+        <img
+          src="/img/app_icon_badge.png"
+          alt=""
+          class="discover-portal-bear"
+          width="30"
+          height="30"
+        />
       </div>
       <div class="header-text">
         <h1 class="modal-title">{{ $t('server.discoverCommunities') }}</h1>
@@ -62,6 +68,16 @@ defineEmits<Emits>()
   opacity: 0.3;
   z-index: -1;
   filter: blur(4px);
+}
+
+/* Same white bear as Harmony Portal (ServerSidebar) */
+.discover-portal-bear {
+  width: 30px;
+  height: 30px;
+  object-fit: contain;
+  display: block;
+  position: relative;
+  z-index: 1;
 }
 
 .discover-icon {

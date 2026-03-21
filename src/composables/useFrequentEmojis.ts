@@ -106,6 +106,27 @@ function recordEmojiUsage(emoji: { id?: string; native?: string; name: string; u
 }
 
 /**
+ * Remove an emoji from the frequently used list
+ */
+function removeFrequentEmoji(emojiId: string): void {
+  loadFrequentEmojis()
+  const idx = frequentEmojis.value.findIndex(e => e.id === emojiId || e.native === emojiId)
+  if (idx >= 0) {
+    frequentEmojis.value.splice(idx, 1)
+    saveFrequentEmojis()
+    debug.log('📊 Removed frequent emoji:', emojiId)
+  }
+}
+
+/**
+ * Check if an emoji is in the frequently used list
+ */
+function isFrequentEmoji(emojiId: string): boolean {
+  loadFrequentEmojis()
+  return frequentEmojis.value.some(e => e.id === emojiId || e.native === emojiId)
+}
+
+/**
  * Get top N frequently used emojis
  */
 function getTopEmojis(limit: number = 10): EmojiUsage[] {
@@ -146,6 +167,8 @@ export function useFrequentEmojis() {
     
     // Methods
     recordEmojiUsage,
+    removeFrequentEmoji,
+    isFrequentEmoji,
     getTopEmojis,
     
     // Reload from storage (if needed)

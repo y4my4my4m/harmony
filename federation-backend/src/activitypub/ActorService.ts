@@ -1121,6 +1121,14 @@ async function fetchRemotePostReactions(
   supabase: any
 ): Promise<any[]> {
   try {
+    // Skip local posts — reactions are already in our DB
+    try {
+      const apDomain = new URL(postApId).hostname;
+      if (apDomain === config.INSTANCE_DOMAIN) {
+        return [];
+      }
+    } catch { /* invalid URL, proceed */ }
+
     // Check if this is a Misskey instance and try their API first
     if (isMisskeyInstance(postApId)) {
       const noteId = extractMisskeyNoteId(postApId);
@@ -1188,6 +1196,15 @@ async function fetchRemotePostReactions(
 
     // Fetch the likes collection
     const likesCollectionUrl = typeof likesUrl === 'string' ? likesUrl : likesUrl.id;
+
+    // Skip if the likes URL points back to our own instance
+    try {
+      if (new URL(likesCollectionUrl).hostname === config.INSTANCE_DOMAIN) {
+        logger.info(`📬 Skipping self-fetch for likes: ${likesCollectionUrl}`);
+        return [];
+      }
+    } catch { /* invalid URL, proceed */ }
+
     logger.info(`📬 Fetching likes from: ${likesCollectionUrl}`);
 
     const likesResponse = await fetch(likesCollectionUrl, {

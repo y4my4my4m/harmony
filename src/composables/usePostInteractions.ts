@@ -17,6 +17,7 @@ export function usePostInteractions() {
   const isFavoriteLoading = ref(false)
   const isReblogLoading = ref(false)
   const isBookmarkLoading = ref(false)
+  const isPinLoading = ref(false)
 
   // =============================================
   // USER INTERACTIONS
@@ -208,6 +209,39 @@ export function usePostInteractions() {
     }
   }
 
+  /**
+   * Toggle pin status for a post (pin/unpin to profile)
+   */
+  const togglePinPost = async (post: TimelinePost | string): Promise<{ success: boolean; pinned?: boolean; error?: string }> => {
+    const postId = typeof post === 'string' ? post : post.id
+    
+    if (!postId) {
+      debug.error('❌ togglePinPost: Invalid post ID:', post)
+      return { success: false, error: 'Invalid post ID' }
+    }
+
+    isPinLoading.value = true
+    try {
+      const result = await services.posts.togglePinPost(postId)
+      debug.log(`📌 Pin toggled for post ${postId}:`, result.pinned ? 'Pinned' : 'Unpinned')
+
+      activityPubStore.updatePostInteractionInAllFeeds(postId, 'pin', result.pinned)
+
+      return { 
+        success: true, 
+        pinned: result.pinned
+      }
+    } catch (error: any) {
+      debug.error('❌ Failed to toggle pin:', error)
+      return { 
+        success: false, 
+        error: error?.message || (error instanceof Error ? error.message : 'Unknown error')
+      }
+    } finally {
+      isPinLoading.value = false
+    }
+  }
+
   // =============================================
   // UTILITY FUNCTIONS
   // =============================================
@@ -241,6 +275,7 @@ export function usePostInteractions() {
     toggleFavorite,
     toggleReblog,
     toggleBookmark,
+    togglePinPost,
     
     // Loading states
     ...getLoadingState(),

@@ -24,6 +24,13 @@ export default defineConfig({
     port: 5173,
     // Allow custom local domains for development
     allowedHosts: ['har.mony.local', 'localhost'],
+    proxy: {
+      '/api/federation': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/federation/, ''),
+      },
+    },
   },
   plugins: [
     vue({

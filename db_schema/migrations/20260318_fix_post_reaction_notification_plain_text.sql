@@ -131,28 +131,27 @@ BEGIN
                 
                 emoji_name := NULL;
                 emoji_url := NULL;
-
-                IF NEW.interaction_type = 'emoji_reaction' THEN
-                    IF NEW.emoji_id IS NOT NULL THEN
-                        SELECT name, url INTO emoji_record FROM emojis WHERE id = NEW.emoji_id;
-                        IF FOUND THEN
-                            emoji_name := emoji_record.name;
-                            emoji_url := emoji_record.url;
-                        END IF;
-                    ELSE
-                        emoji_name := NEW.emoji_code;
+                IF NEW.emoji_id IS NOT NULL THEN
+                    SELECT name, url INTO emoji_record FROM emojis WHERE id = NEW.emoji_id;
+                    IF FOUND THEN
+                        emoji_name := emoji_record.name;
+                        emoji_url := emoji_record.url;
                     END IF;
                 END IF;
-
+                
                 notification_data := jsonb_build_object(
-                    'type', CASE 
-                        WHEN NEW.interaction_type = 'favorite' THEN 'activitypub_favorite'
-                        ELSE 'activitypub_reaction'
-                    END,
+                    'type', CASE WHEN NEW.interaction_type = 'favorite' THEN 'activitypub_favorite' ELSE 'activitypub_reaction' END,
                     'post_id', NEW.post_id,
-                    'user_id', NEW.user_id,
-                    'emoji_name', emoji_name,
-                    'emoji_url', emoji_url,
+                    'post', jsonb_build_object(
+                        'id', post_record.id,
+                        'content_preview', extract_message_text(post_record.content)
+                    ),
+                    'reaction', jsonb_build_object(
+                        'emoji_id', NEW.emoji_id,
+                        'emoji_name', COALESCE(emoji_name, NEW.custom_emoji_content),
+                        'emoji_url', emoji_url,
+                        'custom_emoji_content', NEW.custom_emoji_content
+                    ),
                     'sender', CASE WHEN reactor_profile.id IS NOT NULL THEN
                         jsonb_build_object(
                             'id', reactor_profile.id,
@@ -162,15 +161,11 @@ BEGIN
                             'domain', reactor_profile.domain,
                             'is_local', reactor_profile.is_local
                         )
-                    ELSE NULL END,
-                    'post_preview', left(extract_message_text(post_record.content), 100)
+                    ELSE NULL END
                 );
-
+                
                 PERFORM send_notification_to_user(
-                    CASE 
-                        WHEN NEW.interaction_type = 'favorite' THEN 'activitypub_favorite'
-                        ELSE 'activitypub_reaction'
-                    END,
+                    CASE WHEN NEW.interaction_type = 'favorite' THEN 'activitypub_favorite' ELSE 'activitypub_reaction' END,
                     post_author_id,
                     notification_data,
                     NULL, NULL, NULL,

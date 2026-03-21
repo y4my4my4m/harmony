@@ -36,7 +36,7 @@ export async function handlePushNotificationJob(data: PushNotificationJobData): 
     logger.info(`✅ Push notification sent: ${type} to user ${user_id}`);
   } catch (error) {
     logger.error(`❌ Failed to send push notification: ${notification_id}`, error);
-    throw error; // pg-boss will retry
+    throw error; // BullMQ will retry
   }
 }
 

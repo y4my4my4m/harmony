@@ -120,6 +120,9 @@ interface ActivityPubState {
   lastNotificationCheck: Date | null;
   unreadCount: number;
   
+  // Mentions feed state
+  mentionsFeed: MonyFeed;
+  
   // Bookmarks state
   bookmarks: TimelinePost[];
   hasMoreBookmarks: boolean;
@@ -214,6 +217,13 @@ export const useActivityPubStore = defineStore('activitypub', {
     // Notification integration
     lastNotificationCheck: null,
     unreadCount: 0,
+    
+    // Mentions feed state
+    mentionsFeed: {
+      posts: [],
+      has_more: true,
+      cursor: undefined
+    },
     
     // Bookmarks state
     bookmarks: [],
@@ -998,7 +1008,7 @@ export const useActivityPubStore = defineStore('activitypub', {
         return;
       }
 
-      const feeds = [this.homeFeed, this.publicFeed, this.localFeed];
+      const feeds = [this.homeFeed, this.publicFeed, this.localFeed, this.mentionsFeed];
       
       feeds.forEach(feed => {
         const post = feed.posts.find(p => p.id === postId);
@@ -1066,7 +1076,7 @@ export const useActivityPubStore = defineStore('activitypub', {
         is_current_user: isCurrentUser
       });
 
-      const feeds = [this.homeFeed, this.publicFeed, this.localFeed];
+      const feeds = [this.homeFeed, this.publicFeed, this.localFeed, this.mentionsFeed];
       
       feeds.forEach(feed => {
         const post = feed.posts.find(p => p.id === postId);
@@ -1201,7 +1211,7 @@ export const useActivityPubStore = defineStore('activitypub', {
      * Update post in all feeds
      */
     updatePostInAllFeeds(post: TimelinePost) {
-      const feeds = [this.homeFeed, this.publicFeed, this.localFeed];
+      const feeds = [this.homeFeed, this.publicFeed, this.localFeed, this.mentionsFeed];
       
       feeds.forEach(feed => {
         const index = feed.posts.findIndex(p => p.id === post.id);
@@ -1238,7 +1248,7 @@ export const useActivityPubStore = defineStore('activitypub', {
      * Update post interaction state across all feeds (UI state only, counts handled by realtime)
      */
     updatePostInteractionState(postId: string, interactionType: 'favorite' | 'reblog' | 'bookmark', state: boolean) {
-      const feeds = [this.homeFeed, this.publicFeed, this.localFeed];
+      const feeds = [this.homeFeed, this.publicFeed, this.localFeed, this.mentionsFeed];
       
       feeds.forEach(feed => {
         const post = feed.posts.find(p => p.id === postId);
@@ -1290,7 +1300,7 @@ export const useActivityPubStore = defineStore('activitypub', {
     removePostFromAllFeeds(postId: string) {
       debug.log('🗑️ Removing post from all feeds:', postId);
       
-      const feeds = [this.homeFeed, this.publicFeed, this.localFeed];
+      const feeds = [this.homeFeed, this.publicFeed, this.localFeed, this.mentionsFeed];
       
       feeds.forEach(feed => {
         feed.posts = feed.posts.filter(p => p.id !== postId);
@@ -1406,7 +1416,14 @@ export const useActivityPubStore = defineStore('activitypub', {
      */
     async batchFetchRemoteReactions(posts: TimelinePost[]) {
       const { fetchedReactionsThisSession } = await import('@/composables/useRemotePostSync');
-      const remotePosts = posts.filter(p => !p.is_local && p.ap_id && !fetchedReactionsThisSession.has(p.id));
+      const localDomain = this.instanceDomain;
+      const remotePosts = posts.filter(p => {
+        if (p.is_local || !p.ap_id || fetchedReactionsThisSession.has(p.id)) return false;
+        try {
+          if (new URL(p.ap_id).hostname === localDomain) return false;
+        } catch { /* invalid URL, include it */ }
+        return true;
+      });
       if (remotePosts.length === 0) return;
 
       // Mark all as fetched upfront so individual MonyPost components skip their own fetch
@@ -1925,7 +1942,7 @@ export const useActivityPubStore = defineStore('activitypub', {
      * Update post interaction in local state
      */
     updatePostInteraction(postId: string, type: 'favorite' | 'reblog' | 'bookmark', isActive: boolean) {
-      const feeds = [this.homeFeed, this.publicFeed, this.localFeed];
+      const feeds = [this.homeFeed, this.publicFeed, this.localFeed, this.mentionsFeed];
       
       feeds.forEach(feed => {
         const post = feed.posts.find(p => p.id === postId);
@@ -2199,8 +2216,8 @@ export const useActivityPubStore = defineStore('activitypub', {
     /**
      * Update post interaction state in all feeds immediately (state only, counts handled by server refresh)
      */
-    updatePostInteractionInAllFeeds(postId: string, interactionType: 'favorite' | 'reblog' | 'bookmark', isActive: boolean) {
-      const feeds = [this.homeFeed, this.publicFeed, this.localFeed];
+    updatePostInteractionInAllFeeds(postId: string, interactionType: 'favorite' | 'reblog' | 'bookmark' | 'pin', isActive: boolean) {
+      const feeds = [this.homeFeed, this.publicFeed, this.localFeed, this.mentionsFeed];
       
       feeds.forEach(feed => {
         const post = feed.posts.find(p => p.id === postId);
@@ -2208,14 +2225,15 @@ export const useActivityPubStore = defineStore('activitypub', {
           switch (interactionType) {
             case 'favorite':
               post.is_favorited = isActive;
-              // Don't update count - server will provide accurate count
               break;
             case 'reblog':
               post.is_reblogged = isActive;
-              // Don't update count - server will provide accurate count
               break;
             case 'bookmark':
               post.is_bookmarked = isActive;
+              break;
+            case 'pin':
+              post.is_pinned = isActive;
               break;
           }
           debug.log(`🔄 Updated ${interactionType} state for post ${postId} in feed: ${isActive} (counts will be synced from server)`);
@@ -2227,7 +2245,7 @@ export const useActivityPubStore = defineStore('activitypub', {
      * Update post with fresh server state (accurate counts and states)
      */
     updatePostWithServerState(postId: string, serverPost: any) {
-      const feeds = [this.homeFeed, this.publicFeed, this.localFeed];
+      const feeds = [this.homeFeed, this.publicFeed, this.localFeed, this.mentionsFeed];
       
       feeds.forEach(feed => {
         const post = feed.posts.find(p => p.id === postId);
@@ -2254,7 +2272,7 @@ export const useActivityPubStore = defineStore('activitypub', {
      * Update post counts from server while preserving user interaction state
      */
     updatePostCountsFromServer(postId: string, serverCounts: any, userFavoriteState: boolean) {
-      const feeds = [this.homeFeed, this.publicFeed, this.localFeed];
+      const feeds = [this.homeFeed, this.publicFeed, this.localFeed, this.mentionsFeed];
       
       feeds.forEach(feed => {
         const post = feed.posts.find(p => p.id === postId);
@@ -2289,7 +2307,7 @@ export const useActivityPubStore = defineStore('activitypub', {
      * Update post metadata in all feeds (for remote reactions, etc.)
      */
     updatePostMetadataInAllFeeds(postId: string, metadataUpdate: Record<string, any>) {
-      const feeds = [this.homeFeed, this.publicFeed, this.localFeed];
+      const feeds = [this.homeFeed, this.publicFeed, this.localFeed, this.mentionsFeed];
       
       feeds.forEach(feed => {
         const post = feed.posts.find(p => p.id === postId);
@@ -3260,6 +3278,98 @@ export const useActivityPubStore = defineStore('activitypub', {
         throw error;
       }
      },
+
+     /**
+      * Load posts where the current user is mentioned.
+      * Uses activitypub_mention notifications to find post IDs, then fetches full posts.
+      */
+     async loadMentionedPosts(before?: string) {
+       if (this.isLoadingFeed) return;
+       this.isLoadingFeed = true;
+
+       try {
+         const profileId = await authContextService.getCurrentProfileId();
+         const limit = 20;
+
+         let notifQuery = supabase
+           .from('notifications')
+           .select('data, created_at')
+           .eq('user_id', profileId)
+           .in('type', ['activitypub_mention', 'mention'])
+           .order('created_at', { ascending: false })
+           .limit(limit);
+
+         if (before) {
+           notifQuery = notifQuery.lt('created_at', before);
+         }
+
+         const { data: notifs, error: notifError } = await notifQuery;
+         if (notifError) throw notifError;
+
+         const postIds = (notifs || [])
+           .map(n => n.data?.post_id || n.data?.post?.id)
+           .filter((id): id is string => !!id);
+
+         const uniquePostIds = [...new Set(postIds)];
+
+         if (uniquePostIds.length === 0) {
+           if (!before) {
+             this.mentionsFeed.posts = [];
+           }
+           this.mentionsFeed.has_more = false;
+           return;
+         }
+
+         const { data: posts, error: postsError } = await supabase
+           .from('posts')
+           .select(`
+             *,
+             author:profiles!posts_author_id_fkey(
+               id, username, display_name, avatar_url, color, domain, is_local, is_suspended
+             ),
+             my_interactions:post_interactions!left(interaction_type, emoji_id)
+           `)
+           .in('id', uniquePostIds)
+           .eq('my_interactions.user_id', profileId)
+           .or('is_deleted.is.null,is_deleted.eq.false')
+           .order('created_at', { ascending: false });
+
+         if (postsError) throw postsError;
+
+         const processedPosts = (posts || [])
+           .filter(post => !post.author?.is_suspended)
+           .map(post => {
+             const interactions = post.my_interactions || [];
+             return {
+               ...post,
+               is_bookmarked: interactions.some((i: any) => i.interaction_type === 'bookmark'),
+               is_favorited: interactions.some((i: any) => i.interaction_type === 'favorite' || i.interaction_type === 'emoji_reaction'),
+               is_reblogged: interactions.some((i: any) => i.interaction_type === 'reblog'),
+             };
+           });
+
+         if (posts && posts.length > 0) {
+           const postReactionsStore = usePostReactionsStore();
+           await postReactionsStore.fetchMultiplePostReactions(processedPosts.map(p => p.id), true);
+         }
+
+         this.ensureAuthorProfilesCached(processedPosts);
+
+         if (before) {
+           this.mentionsFeed.posts.push(...processedPosts);
+         } else {
+           this.mentionsFeed.posts = processedPosts;
+         }
+
+         this.mentionsFeed.has_more = (notifs || []).length >= limit;
+         this.mentionsFeed.cursor = notifs?.[notifs.length - 1]?.created_at;
+       } catch (error) {
+         debug.error('Failed to load mentioned posts:', error);
+       } finally {
+         this.isLoadingFeed = false;
+       }
+     },
+
      /**
       * Cleanup store - clean and simple
       */

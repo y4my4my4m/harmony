@@ -438,6 +438,87 @@ CREATE TRIGGER trigger_unpin_on_delete
     WHEN (NEW.is_deleted = true AND OLD.is_deleted = false AND OLD.is_pinned = true)
     EXECUTE FUNCTION public.handle_pinned_message_delete();
 
+-- =========================================================================
+-- User Event Broadcast triggers (Phase 1 scalability)
+-- These call realtime.send() to push compact events to the user's
+-- broadcast channel, eliminating per-table postgres_changes subscriptions
+-- for notifications and unread_counts.
+-- =========================================================================
+
+DROP TRIGGER IF EXISTS trg_broadcast_notification ON public.notifications;
+CREATE TRIGGER trg_broadcast_notification
+    AFTER INSERT OR UPDATE ON public.notifications
+    FOR EACH ROW
+    EXECUTE FUNCTION public.broadcast_notification_event();
+
+DROP TRIGGER IF EXISTS trg_broadcast_unread_count ON public.unread_counts;
+CREATE TRIGGER trg_broadcast_unread_count
+    AFTER INSERT OR UPDATE OR DELETE ON public.unread_counts
+    FOR EACH ROW
+    EXECUTE FUNCTION public.broadcast_unread_count_event();
+
+-- Phase 2: DM conversations, user servers, server metadata
+DROP TRIGGER IF EXISTS trg_broadcast_conversation_participant ON public.conversation_participants;
+CREATE TRIGGER trg_broadcast_conversation_participant
+    AFTER INSERT ON public.conversation_participants
+    FOR EACH ROW
+    EXECUTE FUNCTION public.broadcast_conversation_participant_event();
+
+DROP TRIGGER IF EXISTS trg_broadcast_user_server ON public.user_servers;
+CREATE TRIGGER trg_broadcast_user_server
+    AFTER INSERT OR DELETE ON public.user_servers
+    FOR EACH ROW
+    EXECUTE FUNCTION public.broadcast_user_server_event();
+
+DROP TRIGGER IF EXISTS trg_broadcast_server_change ON public.servers;
+CREATE TRIGGER trg_broadcast_server_change
+    AFTER UPDATE ON public.servers
+    FOR EACH ROW
+    EXECUTE FUNCTION public.broadcast_server_change_event();
+
+-- ---------------------------------------------------------------------------
+-- Unread count triggers
+-- ---------------------------------------------------------------------------
+CREATE UNIQUE INDEX IF NOT EXISTS idx_unread_counts_user_channel
+    ON public.unread_counts(user_id, channel_id) WHERE channel_id IS NOT NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_unread_counts_user_conversation
+    ON public.unread_counts(user_id, conversation_id) WHERE conversation_id IS NOT NULL;
+
+DROP TRIGGER IF EXISTS trigger_new_message_unread ON public.messages;
+CREATE TRIGGER trigger_new_message_unread
+    AFTER INSERT ON public.messages
+    FOR EACH ROW
+    WHEN (NEW.channel_id IS NOT NULL AND NEW.is_deleted = false AND NEW.is_system = false)
+    EXECUTE FUNCTION public.handle_new_message_unread();
+
+DROP TRIGGER IF EXISTS trigger_new_dm_unread ON public.messages;
+CREATE TRIGGER trigger_new_dm_unread
+    AFTER INSERT ON public.messages
+    FOR EACH ROW
+    WHEN (NEW.conversation_id IS NOT NULL AND NEW.is_deleted = false AND NEW.is_system = false)
+    EXECUTE FUNCTION public.handle_new_dm_unread();
+
+-- ---------------------------------------------------------------------------
+-- Thread reply notification trigger
+-- ---------------------------------------------------------------------------
+DROP TRIGGER IF EXISTS trigger_thread_reply_notification ON public.messages;
+CREATE TRIGGER trigger_thread_reply_notification
+    AFTER INSERT ON public.messages
+    FOR EACH ROW
+    WHEN (NEW.thread_id IS NOT NULL AND NEW.is_deleted = false AND NEW.is_system = false)
+    EXECUTE FUNCTION public.handle_thread_reply_notification();
+
+-- ---------------------------------------------------------------------------
+-- Role mention notification trigger
+-- ---------------------------------------------------------------------------
+DROP TRIGGER IF EXISTS trigger_role_mention_notifications ON public.messages;
+CREATE TRIGGER trigger_role_mention_notifications
+    AFTER INSERT ON public.messages
+    FOR EACH ROW
+    WHEN (NEW.channel_id IS NOT NULL AND NEW.is_system = false)
+    EXECUTE FUNCTION public.handle_role_mention_notifications();
+
 DO $$
 BEGIN
     RAISE NOTICE 'Triggers created successfully';

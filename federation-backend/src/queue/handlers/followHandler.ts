@@ -8,7 +8,7 @@ import { getSupabaseClient } from '../../config/supabase.js';
 import { DeliveryQueue } from '../../activitypub/DeliveryQueue.js';
 import { logger } from '../../utils/logger.js';
 import config from '../../config/index.js';
-import type { FederationJobData } from '../QueueManager.js';
+import type { FederationJobData } from '../BullMQManager.js';
 
 export async function handleFollowJob(data: FederationJobData): Promise<void> {
   const supabase = getSupabaseClient();

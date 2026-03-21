@@ -101,6 +101,48 @@
               <span>{{ isChannelMuted ? 'Unmute Channel' : 'Mute Channel' }}</span>
             </div>
 
+            <div class="context-menu-divider"></div>
+            <div class="context-menu-label">Notification Level</div>
+            <div 
+              class="context-menu-item" 
+              :class="{ 'item-active': channelNotificationLevel === 'all' }"
+              @click="setNotificationLevel('all')"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M21,19V20H3V19L5,17V11C5,7.9 7.03,5.17 10,4.29C10,4.19 10,4.1 10,4A2,2 0 0,1 12,2A2,2 0 0,1 14,4C14,4.1 14,4.19 14,4.29C16.97,5.17 19,7.9 19,11V17L21,19M14,21A2,2 0 0,1 12,23A2,2 0 0,1 10,21"/>
+              </svg>
+              <span>All Messages</span>
+              <svg v-if="channelNotificationLevel === 'all'" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" class="check-icon">
+                <path d="M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z"/>
+              </svg>
+            </div>
+            <div 
+              class="context-menu-item"
+              :class="{ 'item-active': channelNotificationLevel === 'mentions' }"
+              @click="setNotificationLevel('mentions')"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12,15C12.81,15 13.5,14.7 14.11,14.11C14.7,13.5 15,12.81 15,12C15,11.19 14.7,10.5 14.11,9.89C13.5,9.3 12.81,9 12,9C11.19,9 10.5,9.3 9.89,9.89C9.3,10.5 9,11.19 9,12C9,12.81 9.3,13.5 9.89,14.11C10.5,14.7 11.19,15 12,15M12,2C14.75,2 17.1,3 19.05,4.95C21,6.9 22,9.25 22,12V13.45C22,14.45 21.65,15.3 21,16C20.3,16.67 19.5,17 18.5,17C17.3,17 16.31,16.5 15.56,15.5C14.56,16.5 13.38,17 12,17C10.63,17 9.45,16.5 8.46,15.54C7.5,14.55 7,13.38 7,12C7,10.63 7.5,9.45 8.46,8.46C9.45,7.5 10.63,7 12,7C13.38,7 14.55,7.5 15.54,8.46C16.5,9.45 17,10.63 17,12V13.45C17,13.86 17.16,14.22 17.46,14.53C17.76,14.84 18.11,15 18.5,15C18.92,15 19.27,14.84 19.57,14.53C19.87,14.22 20,13.86 20,13.45V12C20,9.81 19.23,7.93 17.65,6.35C16.07,4.77 14.19,4 12,4C9.81,4 7.93,4.77 6.35,6.35C4.77,7.93 4,9.81 4,12C4,14.19 4.77,16.07 6.35,17.65C7.93,19.23 9.81,20 12,20H17V22H12C9.25,22 6.9,21 4.95,19.05C3,17.1 2,14.75 2,12C2,9.25 3,6.9 4.95,4.95C6.9,3 9.25,2 12,2Z"/>
+              </svg>
+              <span>Mentions Only</span>
+              <svg v-if="channelNotificationLevel === 'mentions'" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" class="check-icon">
+                <path d="M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z"/>
+              </svg>
+            </div>
+            <div 
+              class="context-menu-item"
+              :class="{ 'item-active': channelNotificationLevel === 'none' }"
+              @click="setNotificationLevel('none')"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M20,18.69L7.84,6.14L5.27,3.49L4,4.76L6.8,7.56V7.57C5.66,9.2 5,11.13 5,13V17L3,19V20H17.73L19.73,22L21,20.73L20,18.69M12,23A2,2 0 0,0 14,21H10A2,2 0 0,0 12,23M19,13C19,9.82 16.64,7.2 13.55,6.22C13.35,5.5 12.74,5 12,5C11.26,5 10.65,5.5 10.45,6.22C10.05,6.33 9.66,6.5 9.29,6.69L20,17.4V13Z"/>
+              </svg>
+              <span>Nothing</span>
+              <svg v-if="channelNotificationLevel === 'none'" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" class="check-icon">
+                <path d="M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z"/>
+              </svg>
+            </div>
+
             <template v-if="canManageChannels">
               <div class="context-menu-divider"></div>
 
@@ -157,8 +199,49 @@ const showMembersList = ref(false)
 const showOptionsMenu = ref(false)
 const pinnedCount = ref(0)
 const isChannelMuted = ref(false)
+const channelNotificationLevel = ref<'all' | 'mentions' | 'none'>('all')
 const moreMenuRef = ref<HTMLElement | null>(null)
 const menuPosition = ref<Record<string, string>>({})
+
+/**
+ * Insert or update notification_channels for a server channel.
+ * DB uses a partial unique index on (user_id, channel_id), so PostgREST
+ * upsert with onConflict(user_id, channel_id) fails with 42P10.
+ */
+async function mergeServerChannelNotificationRow(
+  profileId: string,
+  channelId: string,
+  serverId: string | null,
+  updates: { muted?: boolean; notification_level?: 'all' | 'mentions' | 'none' }
+) {
+  const { data: existing } = await supabase
+    .from('notification_channels')
+    .select('id')
+    .eq('user_id', profileId)
+    .eq('channel_id', channelId)
+    .maybeSingle()
+
+  const updated_at = new Date().toISOString()
+
+  if (existing?.id) {
+    return supabase
+      .from('notification_channels')
+      .update({
+        ...updates,
+        server_id: serverId,
+        updated_at,
+      })
+      .eq('id', existing.id)
+  }
+
+  return supabase.from('notification_channels').insert({
+    user_id: profileId,
+    channel_id: channelId,
+    server_id: serverId,
+    ...updates,
+    updated_at,
+  })
+}
 
 // Methods
 const loadPinnedCount = async () => {
@@ -178,14 +261,44 @@ const loadMuteState = async () => {
 
     const { data } = await supabase
       .from('notification_channels')
-      .select('muted')
+      .select('muted, notification_level')
       .eq('user_id', ctx.profileId)
       .eq('channel_id', props.channel.id)
       .maybeSingle()
 
     isChannelMuted.value = data?.muted ?? false
+    channelNotificationLevel.value = (data?.notification_level as 'all' | 'mentions' | 'none') ?? 'all'
   } catch (error) {
     debug.error('Failed to load mute state:', error)
+  }
+}
+
+const setNotificationLevel = async (level: 'all' | 'mentions' | 'none') => {
+  showOptionsMenu.value = false
+  if (!props.channel?.id) return
+
+  try {
+    const ctx = await authContextService.getCurrentContext()
+    if (!ctx.isAuthenticated) return
+
+    const prevLevel = channelNotificationLevel.value
+    channelNotificationLevel.value = level
+
+    const { error } = await mergeServerChannelNotificationRow(
+      ctx.profileId,
+      props.channel.id,
+      props.server?.id ?? null,
+      { notification_level: level }
+    )
+
+    if (error) {
+      channelNotificationLevel.value = prevLevel
+      debug.error('Failed to set notification level:', error)
+    } else {
+      debug.log(`✅ Channel notification level set to: ${level}`)
+    }
+  } catch (error) {
+    debug.error('Failed to set notification level:', error)
   }
 }
 
@@ -277,46 +390,17 @@ const handleToggleMute = async () => {
     const newMuted = !isChannelMuted.value
     isChannelMuted.value = newMuted
 
-    // Upsert the notification_channels row
-    const { error } = await supabase
-      .from('notification_channels')
-      .upsert({
-        user_id: ctx.profileId,
-        channel_id: props.channel.id,
-        server_id: props.server?.id ?? null,
-        muted: newMuted,
-        updated_at: new Date().toISOString()
-      }, { onConflict: 'user_id,channel_id' })
+    const { error } = await mergeServerChannelNotificationRow(
+      ctx.profileId,
+      props.channel.id,
+      props.server?.id ?? null,
+      { muted: newMuted }
+    )
 
     if (error) {
-      // Revert optimistic update
       isChannelMuted.value = !newMuted
       debug.error('Failed to toggle mute:', error)
-
-      // Fallback: try select-then-update/insert
-      const { data: existing } = await supabase
-        .from('notification_channels')
-        .select('id')
-        .eq('user_id', ctx.profileId)
-        .eq('channel_id', props.channel.id)
-        .maybeSingle()
-
-      if (existing?.id) {
-        await supabase
-          .from('notification_channels')
-          .update({ muted: newMuted, updated_at: new Date().toISOString() })
-          .eq('id', existing.id)
-      } else {
-        await supabase
-          .from('notification_channels')
-          .insert({
-            user_id: ctx.profileId,
-            channel_id: props.channel.id,
-            server_id: props.server?.id ?? null,
-            muted: newMuted,
-          })
-      }
-      isChannelMuted.value = newMuted
+      return
     }
 
     debug.log(`✅ Channel ${newMuted ? 'muted' : 'unmuted'}:`, props.channel.name)
@@ -581,5 +665,22 @@ onUnmounted(() => {
   height: 1px;
   background: var(--border-color, var(--h-black-lighter));
   margin: 4px 8px;
+}
+
+.more-menu .context-menu-label {
+  padding: 4px 12px 2px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  letter-spacing: 0.02em;
+}
+
+.more-menu .context-menu-item.item-active {
+  color: var(--harmony-primary);
+}
+
+.more-menu .context-menu-item .check-icon {
+  margin-left: auto;
 }
 </style>

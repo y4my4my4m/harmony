@@ -312,7 +312,7 @@ const routeBasedProps = computed(() => {
     'SocialPublic': { currentView: 'public', viewType: 'timeline' },
     
     // Special view routes
-    'Notifications': { currentView: 'notifications', viewType: 'notifications' },
+    'Mentions': { currentView: 'mentions', viewType: 'mentions' },
     'Bookmarks': { currentView: 'bookmarks', viewType: 'bookmarks' },
     'Lists': { currentView: 'lists', viewType: 'lists' },
     
@@ -344,7 +344,7 @@ const routeBasedProps = computed(() => {
   if (routePath.includes('/social/home')) return { currentView: 'home', viewType: 'timeline' }
   if (routePath.includes('/social/local')) return { currentView: 'local', viewType: 'timeline' }
   if (routePath.includes('/social/public')) return { currentView: 'public', viewType: 'timeline' }
-  if (routePath.includes('/social/notifications')) return { currentView: 'notifications', viewType: 'notifications' }
+  if (routePath.includes('/social/mentions')) return { currentView: 'mentions', viewType: 'mentions' }
   if (routePath.includes('/social/bookmarks')) return { currentView: 'bookmarks', viewType: 'bookmarks' }
   if (routePath.includes('/social/trending')) return { currentView: 'trending', viewType: 'explore' }
   if (routePath.includes('/social/profile/')) return { currentView: 'profile', viewType: 'profile' }

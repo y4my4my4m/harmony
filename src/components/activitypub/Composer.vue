@@ -62,7 +62,7 @@
         </div>
 
         <!-- Main Composer Body -->
-        <div class="composer-body">
+        <div class="composer-body" data-testid="compose-post">
           <div class="composer-user">
             <Avatar 
               :src="currentUser?.avatar_url"
@@ -277,6 +277,11 @@
                   Draft saved
                 </span>
                 
+                <!-- Post error feedback -->
+                <span v-if="postError" class="post-error-indicator" @click="postError = null">
+                  {{ postError }}
+                </span>
+
                 <!-- Cancel Button (modal and inline reply) -->
                 <button
                   v-if="mode === 'modal' || (mode === 'inline' && type === 'reply')"
@@ -290,6 +295,7 @@
                 <!-- Submit Button -->
                 <button
                   class="post-button"
+                  data-testid="compose-submit"
                   :disabled="!canSubmit || isPosting"
                   @click="handleSubmit"
                 >
@@ -383,6 +389,7 @@ const emojiTriggerRef = ref<HTMLElement | null>(null);
 const gifTriggerRef = ref<HTMLElement | null>(null);
 const mediaPickerTriggerRef = computed(() => gifTriggerRef.value || emojiTriggerRef.value);
 const isPosting = ref(false);
+const postError = ref<string | null>(null);
 const isDragging = ref(false);
 
 // Direct state management (no composable to avoid ref confusion)
@@ -757,6 +764,7 @@ const handleSubmit = async () => {
   if (!canSubmit.value || isPosting.value) return;
 
   isPosting.value = true;
+  postError.value = null;
   
   try {
     let post;
@@ -794,8 +802,9 @@ const handleSubmit = async () => {
     resetComposer();
     emit('posted', post);
     emit('close');
-  } catch (error) {
+  } catch (error: any) {
     debug.error('Failed to create post:', error);
+    postError.value = error?.message || 'Failed to send post. Your content has been preserved — try again.';
   } finally {
     isPosting.value = false;
   }
@@ -1235,6 +1244,16 @@ const vClickOutside = {
   gap: 0.35rem;
   color: #10b981;
   font-size: 0.75rem;
+}
+
+.post-error-indicator {
+  color: var(--error, #f04747);
+  font-size: 0.75rem;
+  cursor: pointer;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .option-button {

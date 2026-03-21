@@ -1,17 +1,16 @@
 /**
- * NotificationListener - PostgreSQL LISTEN/NOTIFY for instant federation job pickup
+ * NotificationListener - PostgreSQL LISTEN/NOTIFY bridge into BullMQ
  *
- * Maintains a dedicated pg connection that LISTENs on the 'federation_jobs' channel.
- * When queue_federation_job() inserts a job and calls pg_notify(), this listener
- * receives the notification and fetches the job via pg-boss immediately, bypassing
- * the polling interval entirely.
+ * Maintains a dedicated pg connection that LISTENs on the 'federation_jobs'
+ * channel.  When queue_federation_job() fires pg_notify(), this listener
+ * adds the job to the appropriate BullMQ queue, giving near-zero latency
+ * pickup without any polling.
  *
- * The pg-boss polling workers (at 10s intervals) serve as a safety net for any
- * notifications missed during reconnects or restarts.
+ * BullMQ handles retries, backoff, and persistence automatically.
  */
 
 import pg from 'pg';
-import PgBoss from 'pg-boss';
+import { type Queue } from 'bullmq';
 import { logger } from '../utils/logger.js';
 
 const CHANNEL = 'federation_jobs';
@@ -21,26 +20,25 @@ const BASE_RECONNECT_DELAY_MS = 1_000;
 
 interface JobNotification {
   name: string;
-  id: string;
+  id?: string;
+  data?: Record<string, any>;
 }
 
-type JobHandler = (jobType: string, job: PgBoss.Job<any>) => Promise<void>;
+type QueueResolver = (jobName: string) => Queue | undefined;
 
 export class NotificationListener {
   private client: pg.Client | null = null;
   private connectionString: string;
-  private boss: PgBoss;
-  private onJob: JobHandler;
+  private getQueue: QueueResolver;
   private isRunning = false;
   private reconnectAttempt = 0;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private pendingNotifications: JobNotification[] = [];
   private batchTimer: ReturnType<typeof setTimeout> | null = null;
 
-  constructor(connectionString: string, boss: PgBoss, onJob: JobHandler) {
+  constructor(connectionString: string, getQueue: QueueResolver) {
     this.connectionString = connectionString;
-    this.boss = boss;
-    this.onJob = onJob;
+    this.getQueue = getQueue;
   }
 
   async start(): Promise<void> {
@@ -112,7 +110,6 @@ export class NotificationListener {
   private scheduleReconnect(): void {
     if (!this.isRunning || this.reconnectTimer) return;
 
-    // Clean up old client
     if (this.client) {
       this.client.removeAllListeners();
       this.client.end().catch(() => {});
@@ -121,7 +118,7 @@ export class NotificationListener {
 
     const delay = Math.min(
       BASE_RECONNECT_DELAY_MS * Math.pow(2, this.reconnectAttempt),
-      MAX_RECONNECT_DELAY_MS
+      MAX_RECONNECT_DELAY_MS,
     );
     this.reconnectAttempt++;
 
@@ -135,12 +132,10 @@ export class NotificationListener {
   private handleNotification(payload: string): void {
     try {
       const notification = JSON.parse(payload) as JobNotification;
-      if (!notification.name || !notification.id) return;
+      if (!notification.name) return;
 
       this.pendingNotifications.push(notification);
 
-      // Batch notifications within a short window to avoid
-      // hammering pg-boss with individual fetches under high throughput
       if (!this.batchTimer) {
         this.batchTimer = setTimeout(() => {
           this.batchTimer = null;
@@ -156,51 +151,31 @@ export class NotificationListener {
     const batch = this.pendingNotifications.splice(0);
     if (batch.length === 0) return;
 
-    // Group by queue name to fetch one batch per queue
-    const byQueue = new Map<string, JobNotification[]>();
-    for (const n of batch) {
-      const list = byQueue.get(n.name) || [];
-      list.push(n);
-      byQueue.set(n.name, list);
+    const addPromises: Promise<void>[] = [];
+    for (const notification of batch) {
+      if (notification.name === 'delivery-queue-fallback') continue;
+      addPromises.push(this.enqueue(notification));
     }
 
-    const fetchPromises: Promise<void>[] = [];
-    for (const [queueName, notifications] of byQueue) {
-      // Delivery-queue-fallback notifications don't go through pg-boss
-      if (queueName === 'delivery-queue-fallback') continue;
-
-      fetchPromises.push(this.fetchAndProcess(queueName, notifications.length));
-    }
-
-    await Promise.allSettled(fetchPromises);
+    await Promise.allSettled(addPromises);
   }
 
-  private async fetchAndProcess(queueName: string, count: number): Promise<void> {
+  private async enqueue(notification: JobNotification): Promise<void> {
+    const queue = this.getQueue(notification.name);
+    if (!queue) {
+      logger.warn(`NotificationListener: no queue for "${notification.name}"`);
+      return;
+    }
+
     try {
-      // Fetch up to `count` jobs from this queue. If boss.work() already
-      // claimed them, fetch returns an empty array -- no double processing.
-      const jobs = await this.boss.fetch(queueName, { batchSize: Math.min(count, 20) });
-
-      if (!jobs || (Array.isArray(jobs) && jobs.length === 0)) return;
-
-      const jobArray = Array.isArray(jobs) ? jobs : [jobs];
-      logger.debug(`NotificationListener fetched ${jobArray.length} ${queueName} job(s) instantly`);
-
-      for (const job of jobArray) {
-        try {
-          await this.onJob(queueName, job);
-          await this.boss.complete(queueName, job.id);
-        } catch (err) {
-          logger.error(`NotificationListener job ${queueName}:${job.id} failed:`, err);
-          try {
-            await this.boss.fail(queueName, job.id);
-          } catch {
-            // pg-boss will handle the failed state via expiry
-          }
-        }
-      }
+      const jobData = notification.data ?? { type: 'create', _bridged_id: notification.id };
+      await queue.add(notification.name, jobData, {
+        attempts: 5,
+        backoff: { type: 'exponential', delay: 5000 },
+      });
+      logger.debug(`NotificationListener: enqueued ${notification.name} job`);
     } catch (err) {
-      logger.error(`NotificationListener fetch error for ${queueName}:`, err);
+      logger.error(`NotificationListener: failed to enqueue ${notification.name}:`, err);
     }
   }
 }

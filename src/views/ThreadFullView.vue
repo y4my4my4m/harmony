@@ -166,6 +166,7 @@
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { threadService } from '@/services/ThreadService'
+import { supabase } from '@/supabase'
 import { useUserData } from '@/composables/useUserData'
 import { format } from 'date-fns'
 import Avatar from '@/components/common/Avatar.vue'
@@ -361,10 +362,30 @@ const leaveThread = async () => {
   }
 }
 
-const toggleNotifications = () => {
-  isMuted.value = !isMuted.value
+const toggleNotifications = async () => {
+  if (!thread.value) return
+  const newMuted = !isMuted.value
+  isMuted.value = newMuted
   showOptions.value = false
-  // TODO: Implement actual mute functionality
+
+  try {
+    const { authContextService } = await import('@/services/AuthContextService')
+    const profileId = await authContextService.getCurrentProfileId()
+
+    const { error } = await supabase
+      .from('thread_members')
+      .update({ muted: newMuted })
+      .eq('thread_id', thread.value.id)
+      .eq('user_id', profileId)
+
+    if (error) {
+      isMuted.value = !newMuted
+      console.error('Failed to toggle thread mute:', error)
+    }
+  } catch (error) {
+    isMuted.value = !newMuted
+    console.error('Failed to toggle thread mute:', error)
+  }
 }
 
 // Use unified content parsing system (DRY - same as ChatComponent)

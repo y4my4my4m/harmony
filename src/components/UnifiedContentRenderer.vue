@@ -351,8 +351,8 @@ const handleEmojiError = (e: Event) => {
   img.style.display = 'none';
   const fallback = document.createElement('span');
   fallback.className = 'emoji-icon emoji-fallback';
-  fallback.textContent = '?';
-  fallback.title = img.alt || '?';
+  fallback.title = img.alt || 'Broken emoji';
+  fallback.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="2" y1="2" x2="22" y2="22"/><path d="M10.41 10.41a2 2 0 1 1-2.83-2.83"/><path d="M21 15V5a2 2 0 0 0-2-2H9"/><path d="M3.59 3.59A1.99 1.99 0 0 0 3 5v14a2 2 0 0 0 2 2h14c.55 0 1.052-.22 1.41-.59"/></svg>';
   img.parentNode?.insertBefore(fallback, img);
 };
 
@@ -721,10 +721,19 @@ const formatFileSize = (bytes: number): string => {
 }
 
 .emoji-fallback {
-  display: inline;
-  font-size: 1em;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
   vertical-align: middle;
-  color: var(--text-secondary, #888);
+  color: var(--text-muted, #72767d);
+  opacity: 0.5;
+}
+
+.emoji-fallback svg {
+  width: 100%;
+  height: 100%;
 }
 
 .content-html :deep(.emoji-icon.single) {

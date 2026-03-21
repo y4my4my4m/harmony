@@ -164,6 +164,44 @@ function transformServerBannerPath(
   return data.publicUrl
 }
 
+function rawServerBannerPath(path: string): string {
+  const { data } = supabase.storage
+    .from(SERVER_BANNERS_BUCKET)
+    .getPublicUrl(path)
+  return data.publicUrl
+}
+
+/**
+ * Get the raw (non-transformed) public URL for a server banner.
+ * Use as a fallback when imgproxy/image transforms are unavailable.
+ */
+export function getRawServerBannerUrl(
+  bannerPath: string | null | undefined
+): string | null {
+  if (!bannerPath || typeof bannerPath !== 'string') return null
+
+  const trimmed = bannerPath.trim()
+  if (!trimmed) return null
+
+  if (trimmed.startsWith('blob:')) return trimmed
+
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+    const storageMatch = trimmed.match(SUPABASE_BANNER_STORAGE_PATTERN)
+    if (storageMatch && isOurSupabaseUrl(trimmed)) {
+      return rawServerBannerPath(storageMatch[1])
+    }
+    return trimmed
+  }
+
+  if (trimmed.includes('/') && !trimmed.startsWith('/') && !trimmed.includes('://')) {
+    return rawServerBannerPath(trimmed)
+  }
+
+  if (trimmed.startsWith('/')) return trimmed
+
+  return null
+}
+
 /**
  * Upload a server banner to Supabase storage.
  */

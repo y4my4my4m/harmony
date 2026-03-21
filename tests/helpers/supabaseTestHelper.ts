@@ -189,7 +189,7 @@ export async function sendMessage(
     .from('messages')
     .insert({
       user_id: opts.userId,
-      content: [{ type: 'text', content: opts.content }],
+      content: [{ type: 'text', text: opts.content }],
       channel_id: opts.channelId || null,
       conversation_id: opts.conversationId || null,
     })

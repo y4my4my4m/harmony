@@ -311,11 +311,15 @@ export function actorToProfile(actor: any): {
     profile.bio = bio.trim();
   }
 
-  if (actor.icon?.url) {
+  if (typeof actor.icon === 'string') {
+    profile.avatar = actor.icon;
+  } else if (actor.icon?.url) {
     profile.avatar = actor.icon.url;
   }
 
-  if (actor.image?.url) {
+  if (typeof actor.image === 'string') {
+    profile.banner = actor.image;
+  } else if (actor.image?.url) {
     profile.banner = actor.image.url;
   }
 

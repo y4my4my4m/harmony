@@ -251,6 +251,8 @@ supabase
 ### Backend
 - **Supabase**: PostgreSQL database with real-time features
 - **Federation Backend**: Node.js backend for ActivityPub federation
+- **BullMQ**: Redis-backed job queue for federation processing (replaced pg-boss)
+- **Redis**: Caching, presence, typing indicators, rate limiting, and BullMQ persistence
 - **Row Level Security**: Database-level security policies
 - **Storage Buckets**: File and media storage
 
@@ -271,16 +273,27 @@ supabase
 - Dynamic imports for large features
 
 ### 2. **Efficient Caching**
-- User data caching with TTL
+- Two-tier caching: L1 in-memory (NodeCache) + L2 Redis
+- User profile caching with TTL (5 min) via `ProfileCacheService`
 - Message pagination and caching
 - Asset caching via service worker
 
 ### 3. **Real-time Optimization**
-- Context-aware presence subscriptions
+- Consolidated `user:{profileId}` broadcast channels for notifications and unread counts
+- Redis-backed presence with heartbeat TTL and invisible user filtering
+- Redis-backed typing indicators with Pub/Sub
+- Context-aware Supabase Realtime subscriptions (only for active views)
 - Message debouncing and batching
 - Efficient WebRTC connection management
 
-### 4. **Bundle Optimization**
+### 4. **Job Processing**
+- BullMQ (Redis) for federation job processing with automatic retries, backoff, and persistence
+- LISTEN/NOTIFY bridge: DB triggers fire `pg_notify` which is bridged into BullMQ queues instantly
+- Bull Board dashboard (standalone Docker container, `--profile monitoring`) for queue monitoring
+- Repeatable scheduled maintenance jobs (keygen sweep, orphan cleanup)
+- Periodic sweep safety net for missed DB trigger events
+
+### 5. **Bundle Optimization**
 - Tree shaking for unused code
 - Dynamic imports for conditional features
 - Optimized asset loading
@@ -305,16 +318,24 @@ supabase
 ## 📈 Scalability Design
 
 ### 1. **Horizontal Scaling**
-- Stateless service design
-- Database connection pooling
+- Stateless service design — federation workers scale by adding containers
+- Database connection pooling via Supavisor (`DATABASE_POOL_URL`, port 6543)
+- Redis-backed distributed rate limiting, caching, and job queues (BullMQ)
 - CDN for asset delivery
 
-### 2. **Modular Architecture**
+### 2. **Voice/Video Scaling (LiveKit)**
+- LiveKit supports multi-node clustering via Redis
+- Additional LiveKit instances pointed at the same Redis auto-coordinate room routing
+- UDP mux (single port 7882) handles all WebRTC media; scaling limits are CPU/bandwidth, not port count
+- `webrtc/docker-compose.yml` runs LiveKit independently for dedicated-VPS deployments
+
+### 3. **Modular Architecture**
 - Feature-based code organization
 - Plugin-like federation system
 - Extensible service layer
+- Federation server/worker split for independent scaling
 
-### 3. **Performance Monitoring**
+### 4. **Performance Monitoring**
+- Bull Board dashboard for BullMQ job queue monitoring
+- Health endpoint with queue stats
 - Error tracking and reporting
-- Performance metrics collection
-- Real-time system health monitoring

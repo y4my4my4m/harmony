@@ -174,11 +174,47 @@ async function getEmoji(emojiId: string, trackUsage?: {
     }
 }
 
+const PIXEL_ART_THRESHOLD = 20;
+const PIXEL_ART_UPSCALE_SIZE = 128;
+
+/**
+ * Upscale tiny images (likely pixel art) using nearest-neighbor interpolation
+ * so imgproxy won't blur them with smooth scaling later.
+ */
+async function upscalePixelArt(file: File): Promise<File> {
+    if (!file.type.startsWith('image/') || file.type === 'image/svg+xml') return file;
+
+    const img = await createImageBitmap(file);
+    const { width, height } = img;
+
+    if (width >= PIXEL_ART_THRESHOLD && height >= PIXEL_ART_THRESHOLD) {
+        img.close();
+        return file;
+    }
+
+    const scale = Math.floor(PIXEL_ART_UPSCALE_SIZE / Math.max(width, height));
+    if (scale <= 1) { img.close(); return file; }
+
+    const canvas = new OffscreenCanvas(width * scale, height * scale);
+    const ctx = canvas.getContext('2d')!;
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(img, 0, 0, width * scale, height * scale);
+    img.close();
+
+    const blob = await canvas.convertToBlob({ type: 'image/png' });
+    const ext = file.name.lastIndexOf('.');
+    const newName = ext > 0 ? file.name.substring(0, ext) + '.png' : file.name + '.png';
+    return new File([blob], newName, { type: 'image/png' });
+}
+
 // Enhanced emoji upload with cache invalidation
 async function uploadEmoji(serverId: string, userId: string, file: File): Promise<Emoji | null> {
     const emojiCache = useEmojiCacheStore();
     
     try {
+        // Upscale tiny pixel art before upload so imgproxy only downscales
+        file = await upscalePixelArt(file);
+
         const { name: cleanedName, extension } = cleanFileName(file.name);
         
         // Check if the emoji name already exists and find a unique name
@@ -329,53 +365,62 @@ async function renameEmoji(emojiId: string, newName: string, serverId: string): 
 async function bulkDeleteEmojis(emojiIds: string[]): Promise<{ success: string[], failed: string[] }> {
     const emojiCache = useEmojiCacheStore();
     const results = { success: [] as string[], failed: [] as string[] };
-    const serverIds = new Set<string>();
     
     debug.log(`Starting bulk deletion of ${emojiIds.length} emojis`);
-    
-    for (const emojiId of emojiIds) {
-        try {
-            // Get emoji details before deletion
-            const emoji = await getEmoji(emojiId);
-            if (emoji) {
-                serverIds.add(emoji.server_id);
-                
-                // Delete from storage
-                const urlParts = emoji.url.split('/');
-                const fileName = urlParts[urlParts.length - 1];
-                const filePath = `${emoji.server_id}/${emoji.uploader}/${fileName}`;
-                
-                const { error: storageError } = await supabase.storage
-                    .from('emojis')
-                    .remove([filePath]);
 
-                if (storageError) {
-                    debug.warn('Storage deletion failed for emoji:', emoji.name, storageError);
-                    // Continue with database deletion
-                }
-                
-                // Delete from database
-                const { error: dbError } = await supabase
-                    .from('emojis')
-                    .delete()
-                    .eq('id', emojiId);
+    // Fetch all emojis in one query
+    const { data: emojis, error: fetchError } = await supabase
+        .from('emojis')
+        .select('*')
+        .in('id', emojiIds);
 
-                if (dbError) throw dbError;
-                
-                results.success.push(emojiId);
-                debug.log('Emoji deleted successfully:', emoji.name);
-            } else {
-                results.failed.push(emojiId);
-            }
-            
-            // Small delay to prevent overwhelming the server
-            await new Promise(resolve => setTimeout(resolve, 50));
-        } catch (error) {
-            debug.error(`Failed to delete emoji ${emojiId}:`, error);
-            results.failed.push(emojiId);
+    if (fetchError) {
+        debug.error('Failed to fetch emojis for bulk delete:', fetchError);
+        return { success: [], failed: emojiIds };
+    }
+
+    const emojiMap = new Map((emojis || []).map(e => [e.id, e]));
+    const serverIds = new Set<string>();
+
+    // Build storage paths for batch removal
+    const storagePaths: string[] = [];
+    for (const emoji of emojis || []) {
+        serverIds.add(emoji.server_id);
+        const urlParts = emoji.url.split('/');
+        const fileName = urlParts[urlParts.length - 1];
+        storagePaths.push(`${emoji.server_id}/${emoji.uploader}/${fileName}`);
+    }
+
+    // Batch delete from storage (Supabase .remove() accepts an array)
+    if (storagePaths.length > 0) {
+        const { error: storageError } = await supabase.storage
+            .from('emojis')
+            .remove(storagePaths);
+
+        if (storageError) {
+            debug.warn('Batch storage deletion had errors:', storageError);
         }
     }
-    
+
+    // Batch delete from database
+    const foundIds = (emojis || []).map(e => e.id);
+    if (foundIds.length > 0) {
+        const { error: dbError } = await supabase
+            .from('emojis')
+            .delete()
+            .in('id', foundIds);
+
+        if (dbError) {
+            debug.error('Batch DB deletion failed:', dbError);
+            results.failed = emojiIds;
+        } else {
+            results.success = foundIds;
+            results.failed = emojiIds.filter(id => !emojiMap.has(id));
+        }
+    } else {
+        results.failed = emojiIds;
+    }
+
     // Invalidate cache for all affected servers
     for (const serverId of serverIds) {
         await emojiCache.invalidate({ serverId });
@@ -418,31 +463,49 @@ async function doesEmojiNameExist(serverId: string, name: string): Promise<boole
     }
 }
 
-// Bulk emoji operations for efficiency
-async function bulkUploadEmojis(serverId: string, userId: string, files: File[]): Promise<(Emoji | null)[]> {
+export interface BulkUploadProgress {
+    current: number;
+    completed: number;
+    failed: number;
+    total: number;
+    currentFile: string;
+}
+
+async function bulkUploadEmojis(
+    serverId: string,
+    userId: string,
+    files: File[],
+    onProgress?: (progress: BulkUploadProgress) => void
+): Promise<(Emoji | null)[]> {
     const results: (Emoji | null)[] = [];
     const emojiCache = useEmojiCacheStore();
+    let completed = 0;
+    let failed = 0;
     
     debug.log(`Starting bulk upload of ${files.length} emojis for server ${serverId}`);
     
-    for (const file of files) {
+    for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        onProgress?.({ current: i + 1, completed, failed, total: files.length, currentFile: file.name });
+        
         try {
             const result = await uploadEmoji(serverId, userId, file);
             results.push(result);
+            if (result) completed++; else failed++;
             
-            // Small delay to prevent overwhelming the server
             await new Promise(resolve => setTimeout(resolve, 100));
         } catch (error) {
             debug.error(`Failed to upload ${file.name}:`, error);
             results.push(null);
+            failed++;
         }
+        
+        onProgress?.({ current: i + 1, completed, failed, total: files.length, currentFile: file.name });
     }
     
-    // Single cache invalidation after all uploads
     await emojiCache.invalidate({ serverId });
     
-    const successCount = results.filter(r => r !== null).length;
-    debug.log(`Bulk upload completed: ${successCount}/${files.length} successful`);
+    debug.log(`Bulk upload completed: ${completed}/${files.length} successful`);
     
     return results;
 }

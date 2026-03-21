@@ -74,6 +74,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, nextTick } from 'vue'
+import { useToast } from 'vue-toastification'
 import { debug } from '@/utils/debug'
 import { useServerChannelStore } from '@/stores/useServerChannel'
 import HashTagIcon from '@/components/icons/HashTag.vue'
@@ -137,9 +138,10 @@ const saveChanges = async () => {
     }
     emit('updated', updatedChannel)
     closeModal()
-  } catch (error) {
+  } catch (error: any) {
     debug.error('Failed to update channel:', error)
-    // TODO: Show error notification
+    const toast = useToast()
+    toast.error(error?.message || 'Failed to update channel. Please try again.')
   } finally {
     isLoading.value = false
   }

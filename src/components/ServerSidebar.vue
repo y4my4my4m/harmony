@@ -1,5 +1,5 @@
 <template>
-  <div class="server-sidebar">
+  <div class="server-sidebar" data-testid="server-sidebar">
     <!-- Fixed header section - never scrolls -->
     <div class="fixed-header">
       <div
@@ -184,6 +184,13 @@
       @click.stop
       v-click-outside="closeServerContextMenu"
     >
+      <div class="context-menu-item" @click="handleMarkServerAsRead">
+        <svg width="16" height="16" viewBox="0 0 24 24">
+          <path fill="currentColor" d="M0.41,13.41L6,19L7.41,17.58L1.83,12M22.24,5.58L11.66,16.17L7.5,12L6.07,13.41L11.66,19L23.66,7L22.24,5.58M18,7L16.59,5.58L10.24,11.93L11.66,13.34L18,7Z"/>
+        </svg>
+        <span>Mark as Read</span>
+      </div>
+      <div class="context-menu-divider"></div>
       <div class="context-menu-item" @click="createFolderFromServer">
         <svg width="16" height="16" viewBox="0 0 24 24">
           <path fill="currentColor" d="M10,4H4C2.89,4 2,4.89 2,6V18A2,2 0 0,0 4,20H20A2,2 0 0,0 22,18V8C22,6.89 21.1,6 20,6H12L10,4Z"/>
@@ -902,6 +909,19 @@ const openServerContextMenu = (event: MouseEvent, server: Server) => {
 const closeServerContextMenu = () => {
   showServerContextMenu.value = false;
   selectedServer.value = null;
+};
+
+const handleMarkServerAsRead = async () => {
+  const serverId = selectedServer.value?.id;
+  closeServerContextMenu();
+  if (!serverId) return;
+
+  try {
+    const { supabase } = await import('@/supabase');
+    await supabase.rpc('mark_server_as_read', { p_server_id: serverId });
+  } catch (err) {
+    console.error('Failed to mark server as read:', err);
+  }
 };
 
 // Folder actions

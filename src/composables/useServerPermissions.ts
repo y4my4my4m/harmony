@@ -278,7 +278,7 @@ export function useServerPermissions() {
   const hasCurrentUserPermission = (permission: Permission): boolean => {
     // Access cacheVersion to create reactive dependency - forces re-evaluation when permissions load
     void cacheVersion.value
-    if (!currentProfileId.value || !currentServer.value) return false
+    if (!currentProfileId.value || !currentServer.value?.id) return false
     return hasPermission(currentServer.value.id, currentProfileId.value, permission)
   }
 
@@ -368,7 +368,7 @@ export function useServerPermissions() {
 
   // Get user's display role for UI
   const getCurrentUserRole = computed(() => {
-    if (!currentProfileId.value || !currentServer.value) return null
+    if (!currentProfileId.value || !currentServer.value?.id) return null
     return getUserRole(currentServer.value.id, currentProfileId.value)
   })
 
@@ -385,7 +385,7 @@ export function useServerPermissions() {
 
   // Initialize permissions for current user when server changes
   watch([currentProfileId, currentServer], async ([profileId, server]) => {
-    if (!profileId || !server) return
+    if (!profileId || !server?.id) return
     
     // Preload permissions and roles
     await Promise.all([
@@ -411,7 +411,7 @@ export function useServerPermissions() {
 
   // Refresh permissions for current user
   const refreshPermissions = async () => {
-    if (!currentProfileId.value || !currentServer.value) return
+    if (!currentProfileId.value || !currentServer.value?.id) return
     
     const cacheKey = getCacheKey(currentProfileId.value, currentServer.value.id)
     permissionsCache.delete(cacheKey)

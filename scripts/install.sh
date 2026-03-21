@@ -58,6 +58,7 @@ SUPABASE_JWT_SECRET=""
 SUPABASE_ANON_KEY=""
 SUPABASE_SERVICE_KEY=""
 DATABASE_URL=""
+DATABASE_POOL_URL=""       # Supavisor pooled connection (transaction mode, port 6543)
 SUPABASE_PROJECT_NAME=""   # folder name for self-hosted supabase (e.g. supabase-project)
 SUPABASE_PROJECT_DIR=""   # full path after setup
 SUPABASE_SITE_DOMAIN=""   # domain for Supabase (site URL, etc.)
@@ -70,11 +71,14 @@ ENABLE_FEDERATION=true
 ENABLE_VOICE=true
 ENABLE_BOTS=false
 ENABLE_DOCS=false
+ENABLE_MONITORING=false
+BULL_BOARD_SUBDOMAIN=""  # subdomain for Bull Board (e.g. bq.example.com)
 USE_DOCKER=true          # run backend services in Docker (vs native Node)
 WEB_ROOT=""              # where nginx serves dist/ from (set during config gen)
 
 LIVEKIT_API_KEY=""
 LIVEKIT_API_SECRET=""
+LIVEKIT_UDP_PORT=7882
 
 # ---------------------------------------------------------------------------
 # Utility functions
@@ -445,8 +449,64 @@ setup_selfhosted_supabase_docker() {
 
     echo ""
     print_success "Supabase project ready at: ${BOLD}$SUPABASE_PROJECT_DIR${RESET}"
-    print_info "To start Supabase: cd $SUPABASE_PROJECT_DIR && docker compose up -d"
     echo ""
+}
+
+start_supabase() {
+    if [[ -z "$SUPABASE_PROJECT_DIR" ]] || [[ ! -d "$SUPABASE_PROJECT_DIR" ]]; then
+        print_warn "Supabase project directory not set or missing — cannot start Supabase."
+        return 1
+    fi
+
+    print_info "Starting Supabase containers from ${BOLD}$SUPABASE_PROJECT_DIR${RESET}..."
+    if ! (cd "$SUPABASE_PROJECT_DIR" && docker compose up -d); then
+        print_error "Failed to start Supabase containers."
+        print_info "Try manually: ${CYAN}cd $SUPABASE_PROJECT_DIR && docker compose up -d${RESET}"
+        return 1
+    fi
+
+    local db_container="${SUPABASE_DB_CONTAINER:-supabase-db}"
+    print_info "Waiting for PostgreSQL to be ready (this can take 1–2 minutes on first boot)..."
+
+    local max_wait=120
+    local waited=0
+    local db_ready=false
+
+    while [[ $waited -lt $max_wait ]]; do
+        if docker logs "$db_container" 2>&1 | grep -q "PostgreSQL init process complete; ready for start up\.\|database system is ready to accept connections"; then
+            db_ready=true
+            break
+        fi
+        sleep 5
+        waited=$((waited + 5))
+        printf "    ${DIM}Waiting... (%ds / %ds)${RESET}\r" "$waited" "$max_wait"
+    done
+    echo ""
+
+    if $db_ready; then
+        print_success "Supabase PostgreSQL is ready"
+    else
+        print_warn "Timed out waiting for PostgreSQL. It may still be initializing."
+        print_info "The schema setup step will retry connecting automatically."
+    fi
+    echo ""
+    return 0
+}
+
+ensure_supabase_running() {
+    if [[ "$SUPABASE_MODE" != "selfhosted" ]] || [[ -z "$SUPABASE_PROJECT_DIR" ]]; then
+        return 0
+    fi
+
+    local db_container="${SUPABASE_DB_CONTAINER:-supabase-db}"
+
+    if docker inspect "$db_container" &>/dev/null 2>&1 && \
+       docker inspect -f '{{.State.Running}}' "$db_container" 2>/dev/null | grep -q true; then
+        return 0
+    fi
+
+    print_info "Supabase is not running — starting it now..."
+    start_supabase
 }
 
 # ---------------------------------------------------------------------------
@@ -470,7 +530,7 @@ configure_supabase() {
             SUPABASE_URL=$(prompt_input "Supabase URL" "http://localhost:54321")
             SUPABASE_ANON_KEY=$(prompt_input "Anon key" "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyAgCiAgICAicm9sZSI6ICJhbm9uIiwKICAgICJpc3MiOiAic3VwYWJhc2UtZGVtbyIsCiAgICAiaWF0IjogMTY0MTc2OTIwMCwKICAgICJleHAiOiAxNzk5NTM1NjAwCn0.dc_X5iR_VP_qT0zsiyj_I_OZ2T9FtRU2BBNWN8Bu4GE")
             SUPABASE_SERVICE_KEY=$(prompt_input "Service role key" "")
-            DATABASE_URL=$(prompt_input "Database URL (for pg-boss)" "postgresql://postgres:postgres@localhost:54322/postgres")
+            DATABASE_URL=$(prompt_input "Database URL (for BullMQ LISTEN/NOTIFY)" "postgresql://postgres:postgres@localhost:54322/postgres")
         else
             SUPABASE_MODE="selfhosted"
             echo ""
@@ -532,12 +592,22 @@ configure_supabase() {
             setup_selfhosted_supabase_docker
 
             # Auto-generate all keys and write them into the Supabase .env
+            # MUST happen before starting Supabase so Postgres initializes with the correct passwords
             generate_supabase_keys
+
+            # Now start Supabase with the correct credentials baked in
+            start_supabase
 
             SUPABASE_URL="https://$SUPABASE_SITE_DOMAIN"
             SUPABASE_INTERNAL_URL="http://supabase-kong:8000"
             DATABASE_URL="postgresql://postgres:${SUPABASE_PG_PASSWORD}@supabase-db:5432/postgres"
+            DATABASE_POOL_URL="postgresql://postgres:${SUPABASE_PG_PASSWORD}@supabase-pooler:6543/postgres"
         fi
+    fi
+
+    # For cloud Supabase, DATABASE_POOL_URL is set by the user (or left empty)
+    if [[ "$SUPABASE_MODE" == "cloud" ]] && [[ -z "${DATABASE_POOL_URL:-}" ]]; then
+        DATABASE_POOL_URL=""
     fi
 
     echo ""
@@ -583,6 +653,19 @@ configure_features() {
         else
             LIVEKIT_SUBDOMAIN="live.mony.local"
         fi
+
+        echo ""
+        print_info "LiveKit uses UDP mux — all media on a single port (${LIVEKIT_UDP_PORT}/udp)."
+        print_info "Scaling is limited by CPU/bandwidth, not port count."
+        if [[ "$MODE" == "production" ]]; then
+            echo ""
+            printf "    ${BYELLOW}Scaling tip:${RESET} For 200+ simultaneous voice users, consider running\n"
+            printf "    LiveKit on a dedicated VPS with more CPU cores. LiveKit supports\n"
+            printf "    multi-node clustering via Redis — just point additional nodes at\n"
+            printf "    the same Redis instance and they coordinate automatically.\n"
+            printf "    See: ${CYAN}https://docs.livekit.io/realtime/self-hosting/deployment/${RESET}\n"
+            echo ""
+        fi
     else
         ENABLE_VOICE=false
     fi
@@ -609,6 +692,22 @@ configure_features() {
         ENABLE_DOCS=true
     else
         ENABLE_DOCS=false
+    fi
+
+    # Queue monitoring dashboard
+    echo ""
+    printf "  ${BOLD}Queue Monitoring (Bull Board)${RESET}\n"
+    print_info "Web dashboard for monitoring federation job queues."
+    print_info "Useful for debugging federation issues."
+    echo ""
+    if prompt_yn "Enable queue monitoring dashboard?" "n"; then
+        ENABLE_MONITORING=true
+        local default_bb_sub="bq.${DOMAIN}"
+        printf "    Subdomain for Bull Board [${BOLD}${default_bb_sub}${RESET}]: "
+        read -r bb_sub
+        BULL_BOARD_SUBDOMAIN="${bb_sub:-$default_bb_sub}"
+    else
+        ENABLE_MONITORING=false
     fi
 
     # Deployment method (production only)
@@ -656,6 +755,11 @@ configure_features() {
         printf "    ${BGREEN}[x]${RESET} Documentation Site (docs.$DOMAIN)\n"
     else
         printf "    ${DIM}[ ]${RESET} Documentation Site\n"
+    fi
+    if $ENABLE_MONITORING; then
+        printf "    ${BGREEN}[x]${RESET} Queue Monitoring (Bull Board — ${BULL_BOARD_SUBDOMAIN})\n"
+    else
+        printf "    ${DIM}[ ]${RESET} Queue Monitoring\n"
     fi
     if [[ "$MODE" == "production" ]]; then
         if $USE_DOCKER; then
@@ -745,11 +849,13 @@ generate_livekit_keys() {
         LIVEKIT_API_SECRET="$(openssl rand -hex 32)"
         print_success "Generated LiveKit API key and secret"
     fi
-    # Redis is used by LiveKit and/or federation; generate password when either is enabled
-    if $ENABLE_VOICE || $ENABLE_FEDERATION; then
-        REDIS_PASSWORD=$(openssl rand -base64 24 | tr -d '\n' | head -c 48)
-        [[ -z "$REDIS_PASSWORD" ]] && REDIS_PASSWORD=$(openssl rand -hex 24)
-        print_success "Generated Redis password (for LiveKit/federation)"
+    # Redis is a core service (caching, presence, rate limiting, LiveKit, federation)
+    REDIS_PASSWORD=$(openssl rand -hex 24)
+    print_success "Generated Redis password"
+
+    if $ENABLE_MONITORING; then
+        BULL_BOARD_PASSWORD=$(openssl rand -hex 12)
+        print_success "Generated Bull Board dashboard password"
     fi
 }
 
@@ -793,6 +899,21 @@ generate_frontend_env() {
         env_extra="
 # Redis (used by LiveKit and/or federation-backend)
 REDIS_PASSWORD=$REDIS_PASSWORD"
+    fi
+
+    if $ENABLE_VOICE; then
+        env_extra+="
+
+# LiveKit uses UDP mux on port $LIVEKIT_UDP_PORT — see webrtc/livekit.yaml
+LIVEKIT_UDP_PORT=$LIVEKIT_UDP_PORT"
+    fi
+
+    if $ENABLE_MONITORING && [[ -n "${BULL_BOARD_PASSWORD:-}" ]]; then
+        env_extra+="
+
+# Bull Board queue monitoring dashboard (port 3003)
+BULL_BOARD_USER=admin
+BULL_BOARD_PASSWORD=$BULL_BOARD_PASSWORD"
     fi
 
     cat > "$env_file" << EOF
@@ -870,6 +991,10 @@ SUPABASE_SERVICE_ROLE_KEY=$SUPABASE_SERVICE_KEY
 # Must be set when SUPABASE_URL is a Docker-internal address (e.g. http://supabase-kong:8000)
 PUBLIC_SUPABASE_URL=$SUPABASE_URL
 DATABASE_URL=$DATABASE_URL
+# Supavisor transaction-mode pooler (port 6543) for better connection efficiency.
+# Pools hundreds of logical connections into a small number of real PG connections.
+# DATABASE_URL (session mode, port 5432) is kept for LISTEN/NOTIFY which needs a persistent connection.
+DATABASE_POOL_URL=$DATABASE_POOL_URL
 
 INSTANCE_DOMAIN=$DOMAIN
 INSTANCE_NAME=$INSTANCE_NAME
@@ -886,6 +1011,7 @@ WEBRTC_MODE=hybrid
 ALLOW_FEDERATED_VOICE=true
 
 USE_PGBOSS_QUEUE=$pgboss_enabled
+REDIS_URL=redis://:${REDIS_PASSWORD:-}@redis:6379
 
 RATE_LIMIT_WINDOW_MS=900000
 RATE_LIMIT_MAX_REQUESTS=100
@@ -1024,6 +1150,13 @@ generate_livekit_config() {
 
     cat > "$config_file" << EOF
 # Generated by Harmony installer — $(date '+%Y-%m-%d %H:%M:%S')
+#
+# UDP mux: all WebRTC media on port ${LIVEKIT_UDP_PORT} (single port).
+# LiveKit demuxes by ICE session — one port serves thousands of participants.
+# Scaling limits are CPU/bandwidth, not port count.
+#
+# Multi-node: deploy additional LiveKit instances pointing at the same Redis.
+# See: https://docs.livekit.io/realtime/self-hosting/deployment/
 
 port: 7880
 
@@ -1033,8 +1166,7 @@ keys:
   $LIVEKIT_API_KEY: $LIVEKIT_API_SECRET
 
 rtc:
-  port_range_start: 50000
-  port_range_end: 50100
+  udp_port: $LIVEKIT_UDP_PORT
   tcp_port: 7881
   use_ice_lite: true
   use_external_ip: true
@@ -1053,7 +1185,7 @@ room:
 $redis_section
 EOF
 
-    print_success "Generated ${BOLD}webrtc/livekit.yaml${RESET}"
+    print_success "Generated ${BOLD}webrtc/livekit.yaml${RESET} (UDP mux port: ${LIVEKIT_UDP_PORT})"
 }
 
 generate_nginx_config() {
@@ -1094,6 +1226,47 @@ generate_nginx_config() {
         "$template" | sed '/^# ====.*LIVEKIT/,$ d' > "$output"
 
     print_success "Generated ${BOLD}dev/nginx-harmony.conf${RESET} from template"
+
+    # Generate separate Bull Board nginx config if monitoring is enabled
+    if $ENABLE_MONITORING && [[ -n "$BULL_BOARD_SUBDOMAIN" ]]; then
+        local bb_output="$PROJECT_DIR/dev/nginx-bullboard.conf"
+        local skip_bb=false
+
+        if [[ -f "$bb_output" ]]; then
+            if ! prompt_yn "dev/nginx-bullboard.conf already exists. Overwrite?" "n"; then
+                skip_bb=true
+            fi
+        fi
+
+        if ! $skip_bb; then
+            cat > "$bb_output" << BBEOF
+# Bull Board queue monitoring — generated by Harmony installer
+server {
+    listen 80;
+    server_name $BULL_BOARD_SUBDOMAIN;
+    return 301 https://\$host\$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name $BULL_BOARD_SUBDOMAIN;
+
+    ssl_certificate /etc/letsencrypt/live/$BULL_BOARD_SUBDOMAIN/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/$BULL_BOARD_SUBDOMAIN/privkey.pem;
+
+    location / {
+        proxy_pass http://127.0.0.1:3003;
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+}
+BBEOF
+            print_success "Generated ${BOLD}dev/nginx-bullboard.conf${RESET}"
+        fi
+    fi
 
     # Generate separate LiveKit nginx config if voice is enabled
     if $ENABLE_VOICE && [[ -n "$LIVEKIT_SUBDOMAIN" ]]; then
@@ -1182,50 +1355,68 @@ generate_docker_compose() {
 
     local compose="services:"
 
-    # --- Redis (needed by federation and/or LiveKit) ---
-    local needs_redis=false
-    if $ENABLE_FEDERATION || $ENABLE_VOICE; then
-        needs_redis=true
-    fi
+    # --- Redis (core service: caching, presence, rate limiting, LiveKit, federation) ---
+    local needs_redis=true
 
-    # --- Federation ---
+    # --- Federation (split: server + worker) ---
     if $ENABLE_FEDERATION; then
         local fed_networks="      - harmony"
-        local fed_env="      - NODE_ENV=production
-      - PORT=3001"
+        local fed_env_base="      - NODE_ENV=production"
 
         if $selfhosted_supabase; then
             fed_networks+="
       - supabase_default"
-            fed_env+="
+            fed_env_base+="
       - SUPABASE_URL=http://supabase-kong:8000
       - USE_PGBOSS_QUEUE=true
-      - DATABASE_URL=postgresql://postgres:${SUPABASE_PG_PASSWORD}@supabase-db:5432/postgres"
+      - DATABASE_URL=postgresql://postgres:${SUPABASE_PG_PASSWORD}@supabase-db:5432/postgres
+      - DATABASE_POOL_URL=postgresql://postgres:${SUPABASE_PG_PASSWORD}@supabase-pooler:6543/postgres
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379"
         fi
 
         compose+="
-  federation-backend:
+  federation-server:
     build:
       context: ./federation-backend
       dockerfile: Dockerfile
-    container_name: harmony-federation
+    container_name: harmony-federation-server
     restart: unless-stopped
     ports:
       - \"3001:3001\"
     env_file:
       - ./federation-backend/.env
     environment:
-$fed_env
+$fed_env_base
+      - PORT=3001
+      - FEDERATION_MODE=server
     healthcheck:
       test: [\"CMD\", \"node\", \"-e\", \"require('http').get('http://localhost:3001/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})\"]
-      interval: 30s
+      interval: 60s
       timeout: 10s
       retries: 3
-      start_period: 10s
+      start_period: 15s
     networks:
 $fed_networks
     depends_on:
-      - redis"
+      redis:
+        condition: service_healthy
+
+  federation-worker:
+    build:
+      context: ./federation-backend
+      dockerfile: Dockerfile
+    container_name: harmony-federation-worker
+    restart: unless-stopped
+    env_file:
+      - ./federation-backend/.env
+    environment:
+$fed_env_base
+      - FEDERATION_MODE=worker
+    networks:
+$fed_networks
+    depends_on:
+      redis:
+        condition: service_healthy"
     fi
 
     # --- Redis container ---
@@ -1260,9 +1451,9 @@ $fed_networks
       - \"7880:7880\"
       - \"7881:7881\"
       - \"7881:7881/udp\"
+      - \"${LIVEKIT_UDP_PORT}:${LIVEKIT_UDP_PORT}/udp\"
       - \"3478:3478/udp\"
       - \"3478:3478/tcp\"
-      - \"50000-50100:50000-50100/udp\"
     volumes:
       - ./webrtc/livekit.yaml:/livekit.yaml:ro
     command: --config /livekit.yaml
@@ -1301,6 +1492,28 @@ $fed_networks
 $bot_env
     networks:
 $bot_networks"
+    fi
+
+    # --- Bull Board (queue monitoring) ---
+    if $ENABLE_MONITORING; then
+        compose+="
+
+  bull-board:
+    build: ./bull-board
+    container_name: harmony-bull-board
+    restart: unless-stopped
+    ports:
+      - \"127.0.0.1:3003:3003\"
+    environment:
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
+      - BULL_BOARD_USER=\${BULL_BOARD_USER:-admin}
+      - BULL_BOARD_PASSWORD=\${BULL_BOARD_PASSWORD:?Set BULL_BOARD_PASSWORD in .env}
+      - BULL_BOARD_BASE_PATH=\${BULL_BOARD_BASE_PATH:-}
+      - PORT=3003
+    depends_on:
+      - redis
+    networks:
+      - harmony"
     fi
 
     # --- Networks ---
@@ -1349,6 +1562,7 @@ install_nginx_config() {
         local skip_app=false
         local skip_docs=false
         local skip_livekit=false
+        local skip_bullboard=false
 
         if [[ -f /etc/nginx/sites-available/harmony ]]; then
             if ! prompt_yn "/etc/nginx/sites-available/harmony already exists. Overwrite?" "n"; then
@@ -1368,6 +1582,12 @@ install_nginx_config() {
             fi
         fi
 
+        if $ENABLE_MONITORING && [[ -f /etc/nginx/sites-available/bullboard ]]; then
+            if ! prompt_yn "/etc/nginx/sites-available/bullboard already exists. Overwrite?" "n"; then
+                skip_bullboard=true
+            fi
+        fi
+
         if ! $skip_app; then
             sudo cp "$PROJECT_DIR/dev/nginx-harmony.conf" /etc/nginx/sites-available/harmony
             sudo ln -sf /etc/nginx/sites-available/harmony /etc/nginx/sites-enabled/harmony
@@ -1384,6 +1604,14 @@ install_nginx_config() {
             sudo cp "$PROJECT_DIR/dev/nginx-livekit.conf" /etc/nginx/sites-available/livekit
             sudo ln -sf /etc/nginx/sites-available/livekit /etc/nginx/sites-enabled/livekit
             print_success "Installed sites-available/livekit"
+        fi
+
+        if $ENABLE_MONITORING && ! $skip_bullboard && [[ -f "$PROJECT_DIR/dev/nginx-bullboard.conf" ]]; then
+            sudo cp "$PROJECT_DIR/dev/nginx-bullboard.conf" /etc/nginx/sites-available/bullboard
+            sudo ln -sf /etc/nginx/sites-available/bullboard /etc/nginx/sites-enabled/bullboard
+            print_success "Installed sites-available/bullboard"
+            print_info "Remember to set up DNS and SSL for ${BOLD}${BULL_BOARD_SUBDOMAIN}${RESET}:"
+            print_info "  sudo certbot certonly --nginx -d ${BULL_BOARD_SUBDOMAIN}"
         fi
 
         if sudo nginx -t 2>/dev/null; then
@@ -1552,7 +1780,7 @@ setup_firewall() {
     printf "  ${BOLD}Configure firewall (UFW)?${RESET}\n"
     print_info "Opens ports: SSH (22), HTTP (80), HTTPS (443)"
     if $ENABLE_VOICE; then
-        print_info "Also: LiveKit (7880-7881), TURN (3478/udp, 5349), Media (50000-50100/udp)"
+        print_info "Also: LiveKit (7880-7881), TURN (3478/udp, 5349), Media (${LIVEKIT_UDP_PORT}/udp)"
     fi
     echo ""
 
@@ -1566,7 +1794,7 @@ setup_firewall() {
                 sudo ufw allow 7881/tcp
                 sudo ufw allow 3478/udp
                 sudo ufw allow 5349/tcp
-                sudo ufw allow 50000:50100/udp
+                sudo ufw allow ${LIVEKIT_UDP_PORT}/udp
             fi
             sudo ufw --force enable
             print_success "Firewall configured"
@@ -1654,10 +1882,15 @@ start_services() {
     fi
 
     echo ""
-    printf "  ${BOLD}Start Docker services?${RESET}\n"
+    printf "  ${BOLD}Start Harmony Services${RESET}\n"
+    echo ""
+
+    # Ensure Supabase is running first (self-hosted) — the Harmony compose
+    # connects to the supabase_default network and needs it to exist.
+    ensure_supabase_running
 
     if [[ "$MODE" == "production" ]]; then
-        print_info "Runs: docker compose up -d --build"
+        print_info "Building and starting: federation-server, federation-worker, redis, nginx..."
     else
         print_info "Runs: docker compose -f dev/docker-compose.yml up -d"
     fi
@@ -1669,10 +1902,57 @@ start_services() {
             if [[ "$MODE" == "production" ]]; then
                 if docker compose up -d --build --remove-orphans 2>&1; then
                     print_success "Docker services started"
+
+                    # Verify federation containers are running
+                    echo ""
+                    sleep 3
+                    local fed_ok=true
+                    if $ENABLE_FEDERATION; then
+                        if docker ps --format '{{.Names}}' | grep -q 'harmony-federation-server'; then
+                            print_success "federation-server is running"
+                        else
+                            print_error "federation-server failed to start"
+                            print_info "Check logs: ${CYAN}docker compose logs federation-server${RESET}"
+                            fed_ok=false
+                        fi
+                        if docker ps --format '{{.Names}}' | grep -q 'harmony-federation-worker'; then
+                            print_success "federation-worker is running"
+                        else
+                            print_error "federation-worker failed to start"
+                            print_info "Check logs: ${CYAN}docker compose logs federation-worker${RESET}"
+                            fed_ok=false
+                        fi
+                    fi
+                    if docker ps --format '{{.Names}}' | grep -q 'harmony-redis'; then
+                        print_success "redis is running"
+                    else
+                        print_error "redis failed to start"
+                        fed_ok=false
+                    fi
+                    if ! $fed_ok; then
+                        echo ""
+                        print_info "Some services failed. Check logs with:"
+                        printf "    ${CYAN}cd %s && docker compose logs -f${RESET}\n" "$PROJECT_DIR"
+                    fi
                 else
-                    print_error "Docker compose failed. Check the output above."
-                    print_info "You can try running manually:"
-                    printf "    ${CYAN}cd %s && docker compose up -d --build --remove-orphans${RESET}\n" "$PROJECT_DIR"
+                    # Check if failure was due to missing supabase_default network
+                    if [[ "$SUPABASE_MODE" == "selfhosted" ]] && \
+                       ! docker network inspect supabase_default &>/dev/null 2>&1; then
+                        print_warn "Docker compose failed because Supabase is not running."
+                        print_info "Starting Supabase and retrying..."
+                        echo ""
+                        if start_supabase && docker compose up -d --build --remove-orphans 2>&1; then
+                            print_success "Docker services started (after Supabase recovery)"
+                        else
+                            print_error "Docker compose still failing. Check the output above."
+                            print_info "You can try running manually:"
+                            printf "    ${CYAN}cd %s && docker compose up -d --build --remove-orphans${RESET}\n" "$PROJECT_DIR"
+                        fi
+                    else
+                        print_error "Docker compose failed. Check the output above."
+                        print_info "You can try running manually:"
+                        printf "    ${CYAN}cd %s && docker compose up -d --build --remove-orphans${RESET}\n" "$PROJECT_DIR"
+                    fi
                 fi
             else
                 cd dev
@@ -1774,6 +2054,11 @@ show_summary() {
     else
         printf "    ${CROSS} Bot Gateway ${DIM}(disabled)${RESET}\n"
     fi
+    if $ENABLE_MONITORING; then
+        printf "    ${CHECK} Queue Monitoring ${DIM}(Bull Board — ${BULL_BOARD_SUBDOMAIN})${RESET}\n"
+    else
+        printf "    ${CROSS} Queue Monitoring ${DIM}(disabled)${RESET}\n"
+    fi
     echo ""
 
     printf "  ${BOLD}Generated Files${RESET}\n"
@@ -1809,12 +2094,23 @@ show_summary() {
     fi
 
     if $ENABLE_VOICE; then
-        printf "  ${BOLD}LiveKit Credentials${RESET} ${DIM}(save these!)${RESET}\n"
+        printf "  ${BOLD}LiveKit (Voice/Video)${RESET} ${DIM}(save these!)${RESET}\n"
         echo ""
         printf "    API Key:    ${CYAN}%s${RESET}\n" "$LIVEKIT_API_KEY"
         printf "    API Secret: ${CYAN}%s${RESET}\n" "$LIVEKIT_API_SECRET"
+        printf "    UDP Mux:    ${CYAN}port %s${RESET} (single port, all media)\n" "$LIVEKIT_UDP_PORT"
         echo ""
-        print_info "These are also saved in federation-backend/.env and webrtc/livekit.yaml"
+        print_info "These are saved in federation-backend/.env and webrtc/livekit.yaml"
+        print_info "Scaling is limited by CPU/bandwidth, not port count."
+        print_info "For large deployments, run LiveKit on a dedicated VPS."
+    fi
+
+    if [[ -n "${DATABASE_POOL_URL:-}" ]]; then
+        echo ""
+        printf "  ${BOLD}Connection Pooling (Supavisor)${RESET}\n"
+        echo ""
+        printf "    ${CHECK} DATABASE_POOL_URL is configured (port 6543, transaction mode)\n"
+        print_info "Supavisor pools hundreds of connections into a small PG connection pool."
     fi
 
     print_line 50
@@ -1828,9 +2124,9 @@ show_summary() {
             if ! $DB_SCHEMA_LOADED; then
                 printf "    ${DIM}%d.${RESET} Start Supabase: ${CYAN}cd %s && docker compose up -d${RESET}\n" "$step" "$SUPABASE_PROJECT_DIR"
                 ((++step))
-                printf "    ${DIM}%d.${RESET} Load schema: ${CYAN}cd db_schema/init && PGPASSWORD=xxx psql -h localhost -p 5432 -U supabase_admin -d postgres -f init.sql${RESET}\n" "$step"
+                printf "    ${DIM}%d.${RESET} Load schema: ${CYAN}./scripts/install.sh --schema-setup-only${RESET}\n" "$step"
                 ((++step))
-                printf "    ${DIM}%d.${RESET} Run migrations: ${CYAN}cd - && for f in db_schema/migrations/*.sql; do psql -h localhost -p 5432 -U supabase_admin -d postgres -f \"\$f\"; done${RESET}\n" "$step"
+                printf "    ${DIM}%d.${RESET} Start Harmony: ${CYAN}cd %s && docker compose up -d --build${RESET}\n" "$step" "$PROJECT_DIR"
                 ((++step))
             fi
         fi
@@ -1906,6 +2202,9 @@ setup_database() {
     local use_docker_exec=false
     local db_container="${SUPABASE_DB_CONTAINER:-supabase-db}"
 
+    # Ensure Supabase is running (self-hosted) before trying to connect
+    ensure_supabase_running
+
     # Discover DB container if default doesn't exist (e.g. project in "spacious" → spacious-db)
     if require_cmd docker && ! docker inspect "$db_container" &>/dev/null 2>/dev/null; then
         local try_name
@@ -1926,8 +2225,22 @@ setup_database() {
     else
         print_warn "Neither supabase-db container nor psql found."
         if require_cmd docker; then
-            print_info "Start Supabase first, then re-run:"
-            printf "    ${CYAN}./scripts/install.sh --schema-setup-only${RESET}\n"
+            if [[ "$SUPABASE_MODE" == "selfhosted" ]] && [[ -n "$SUPABASE_PROJECT_DIR" ]]; then
+                print_info "Attempting to start Supabase..."
+                if start_supabase; then
+                    db_container="${SUPABASE_DB_CONTAINER:-supabase-db}"
+                    if docker inspect "$db_container" &>/dev/null; then
+                        print_info "Found running ${BOLD}$db_container${RESET} container — will use docker exec."
+                        use_docker_exec=true
+                    fi
+                fi
+            fi
+            if ! $use_docker_exec; then
+                print_info "Start Supabase first, then re-run:"
+                printf "    ${CYAN}./scripts/install.sh --schema-setup-only${RESET}\n"
+                echo ""
+                return
+            fi
         else
             print_warn "Install the PostgreSQL client:"
             local pkg_mgr
@@ -1939,9 +2252,9 @@ setup_database() {
                 brew) printf "    ${CYAN}brew install libpq${RESET}\n" ;;
                 *) printf "    ${CYAN}Install postgresql-client for your platform${RESET}\n" ;;
             esac
+            echo ""
+            return
         fi
-        echo ""
-        return
     fi
 
     # Helper: run psql command via docker exec or local psql (PGPASSWORD used by both)
@@ -2068,12 +2381,16 @@ setup_database() {
         docker exec "$db_container" rm -rf /tmp/db_schema 2>/dev/null || true
     fi
 
+    # Tell PostgREST to reload its schema cache so it picks up the new tables
+    echo "NOTIFY pgrst, 'reload schema';" | run_psql &>/dev/null && \
+        print_success "PostgREST schema cache reloaded" || true
+
     # Set instance domain, name, and link preview backend URL
     echo ""
     print_info "Configuring instance_config..."
     local link_preview_url=""
     if $ENABLE_FEDERATION; then
-        if [[ "$MODE" == "production" ]]; then
+        if [[ "$DOMAIN" != "localhost" ]] && [[ "$DOMAIN" != "127.0.0.1" ]]; then
             link_preview_url="https://$DOMAIN"
         else
             link_preview_url="https://har.mony.local"
@@ -2274,6 +2591,7 @@ run_schema_setup_only() {
     DOMAIN="${DOMAIN:-localhost}"
     INSTANCE_NAME="${INSTANCE_NAME:-Harmony}"
     SUPABASE_MODE="selfhosted"
+    MODE="production"
     SCHEMA_SETUP_ONLY=true
 
     # 4. If still no password, prompt
@@ -2443,8 +2761,7 @@ run_regenerate_keys() {
     # Update Redis password in livekit.yaml and docker-compose.yml
     if [[ "$include_passwords" == "true" ]]; then
         local new_redis_pw
-        new_redis_pw=$(openssl rand -base64 24 | tr -d '\n' | head -c 48)
-        [[ -z "$new_redis_pw" ]] && new_redis_pw=$(openssl rand -hex 24)
+        new_redis_pw=$(openssl rand -hex 24)
 
         local livekit_cfg="$PROJECT_DIR/webrtc/livekit.yaml"
         if [[ -f "$livekit_cfg" ]]; then

@@ -1,12 +1,14 @@
 <template>
   <Teleport to="body">
-    <div class="notification-toasts">
+    <div class="notification-toasts" data-testid="notification-toasts">
       <TransitionGroup name="toast" tag="div">
         <div
           v-for="toast in toasts"
           :key="toast.id"
           class="notification-toast"
           :class="`toast-${toast.type}`"
+          :data-testid="`notification-toast-${toast.type}`"
+          :data-toast-id="toast.id"
           @click="handleToastClick(toast)"
         >
           <div class="toast-icon">
@@ -430,11 +432,13 @@ const getTypeIcon = (type: NotificationType) => {
 /* Responsive design */
 @media (max-width: 768px) {
   .notification-toasts {
-    bottom: 10px;
+    top: env(safe-area-inset-top, 10px);
     right: 10px;
     left: 10px;
+    bottom: auto;
+    flex-direction: column;
   }
-  
+
   .notification-toast {
     min-width: 0;
     max-width: none;

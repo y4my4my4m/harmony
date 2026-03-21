@@ -3,6 +3,7 @@ import { supabase } from '@/supabase';
 import { useToast } from 'vue-toastification';
 import type { Server, Emoji } from '@/types';
 import { debug } from '@/utils/debug'
+import { invalidateServerMemberCache } from '@/services/usersService'
 
 export const useServerStore = defineStore('server', {
   actions: {
@@ -61,10 +62,18 @@ export const useServerStore = defineStore('server', {
           delete dataToUpdate.banner;
         }
 
+        const { id: serverId, ...patch } = dataToUpdate;
+        if (!serverId) {
+          throw new Error('Server ID is required to update');
+        }
+
+        // Use PATCH update — not upsert. Chaining .eq() after .upsert() does not
+        // reliably apply row filters on POST/merge in PostgREST, so privacy flags
+        // (e.g. public) and other fields could fail to persist.
         const { error } = await supabase
           .from('servers')
-          .upsert(dataToUpdate)
-          .eq('id', dataToUpdate.id);
+          .update(patch)
+          .eq('id', serverId);
 
         if (error) throw error;
 
@@ -104,8 +113,7 @@ export const useServerStore = defineStore('server', {
           throw error;
         }
 
-        // debug.log("Server joined successfully", data);
-        // toast.success("Successfully joined the server!");
+        invalidateServerMemberCache(serverId);
         return true;
       } catch (error) {
         debug.error('Error joining server:', error);
@@ -123,6 +131,7 @@ export const useServerStore = defineStore('server', {
 
         if (error) throw error;
 
+        invalidateServerMemberCache(serverId);
         debug.log("Server left successfully", data);
         return true;
       } catch (error) {

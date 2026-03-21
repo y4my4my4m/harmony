@@ -89,7 +89,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { debug } from '@/utils/debug'
 import { useI18n } from 'vue-i18n'
 import { useUserData } from '@/composables/useUserData'
@@ -97,7 +97,7 @@ import Avatar from '@/components/common/Avatar.vue'
 import DisplayName from '@/components/DisplayName.vue'
 import type { PublicServerWithStats } from '@/stores/usePublicServers'
 import ServerIcon from './ServerIcon.vue'
-import { getServerBannerUrl } from '@/utils/serverUtils'
+import { getServerBannerUrl, getRawServerBannerUrl } from '@/utils/serverUtils'
 
 const { t } = useI18n()
 
@@ -121,15 +121,31 @@ const emit = defineEmits<Emits>()
 
 const { getUserAvatarUrl, getUserDisplayName, getUser, fetchUserProfile } = useUserData()
 
-const serverBannerUrl = computed(() =>
-  getServerBannerUrl(props.server.banner, { width: 640, height: 200, quality: 80 })
-)
+const bannerFailed = ref(false)
+
+const serverBannerUrl = computed(() => {
+  const transformed = getServerBannerUrl(props.server.banner, { width: 640, height: 200, quality: 80 })
+  if (!transformed) return null
+  if (bannerFailed.value) {
+    return getRawServerBannerUrl(props.server.banner)
+  }
+  return transformed
+})
 
 const bannerStyle = computed(() => {
   const url = serverBannerUrl.value
   if (!url) return {}
   return { backgroundImage: `url(${url})` }
 })
+
+watch(() => props.server.banner, (bannerPath) => {
+  bannerFailed.value = false
+  const transformed = getServerBannerUrl(bannerPath, { width: 640, height: 200, quality: 80 })
+  if (!transformed) return
+  const img = new Image()
+  img.onerror = () => { bannerFailed.value = true }
+  img.src = transformed
+}, { immediate: true })
 
 // Local state to track if we're loading owner data
 const loadingOwnerData = ref(false)

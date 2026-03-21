@@ -16,6 +16,7 @@ import { userStorage } from '@/utils/userScopedStorage'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import { getSvgUrl, resolveEmoji, getTwemojiUrl, loadEmojiData, isLoaded as unifiedEmojiLoaded } from '@/services/unifiedEmojiService'
 import { useEmojiCacheStore } from '@/stores/useEmojiCache'
+import { realtimeApiService } from '@/services/RealtimeApiService'
 
 const EMOJI_SHORTCODE_REGEX = /:([a-zA-Z0-9_+-]+):/g
 
@@ -58,7 +59,7 @@ class UserDataService extends EventTarget {
   
   // Cache settings
   private readonly CACHE_TTL = 5 * 60 * 1000 // 5 minutes
-  private readonly HEARTBEAT_INTERVAL = 30 * 1000 // 30 seconds
+  private readonly HEARTBEAT_INTERVAL = 60 * 1000 // 60 seconds
   
   // Presence sync debouncing
   private presenceSyncTimeouts = new Map<string, NodeJS.Timeout>()
@@ -756,19 +757,36 @@ class UserDataService extends EventTarget {
   }
   
   /**
-   * Start heartbeat for internal health tracking only
-   * NOTE: Heartbeat should NOT call presence track - that causes churn
-   * Presence is tracked once on connection, not repeatedly
+   * Start heartbeat for both internal tracking and Redis presence.
+   * Redis heartbeats keep the server-side presence sorted set alive.
+   * Supabase Realtime Presence remains active separately for backward compat.
    */
   private startHeartbeat(): void {
     if (this.heartbeatTimer) clearInterval(this.heartbeatTimer)
+
+    const mapStatusToRedis = (s: UserStatus): string => {
+      switch (s) {
+        case UserStatus.Online: return 'online'
+        case UserStatus.Idle: return 'idle'
+        case UserStatus.DoNotDisturb: return 'dnd'
+        case UserStatus.Invisible: return 'invisible'
+        default: return 'online'
+      }
+    }
+
+    const currentUser = this.currentUserId ? this.users.get(this.currentUserId) : null
+    const redisStatus = currentUser ? mapStatusToRedis(currentUser.status) : 'online'
+    const customSt = currentUser?.customStatus?.text
+
+    realtimeApiService.startHeartbeat(
+      redisStatus as any,
+      customSt || undefined
+    )
     
     this.heartbeatTimer = setInterval(async () => {
       if (this.currentUserId) {
         const userData = this.users.get(this.currentUserId)
         if (userData) {
-          // Just update internal timestamp, don't call trackCurrentUserGlobally()
-          // Presence tracking on heartbeat causes join/leave churn
           userData.lastHeartbeat = new Date().toISOString()
         }
       }
@@ -784,8 +802,8 @@ class UserDataService extends EventTarget {
     debug.log('📡 Connection lost - setting user offline')
     
     try {
-      // Set offline status (this will be automatic, not manual)
       await this.updateCurrentUserStatus(UserStatus.Offline, false)
+      realtimeApiService.goOffline().catch(() => {})
     } catch (error) {
       debug.error('Failed to set offline status on connection loss:', error)
     }
@@ -1418,8 +1436,16 @@ class UserDataService extends EventTarget {
       
       debug.log('✅ Status verified in database:', UserStatus[status])
       
-      // Update all presence channels
+      // Update all presence channels (Supabase Realtime Presence)
       await this.updatePresenceStatus(status)
+
+      // Sync to Redis presence
+      const redisStatus = status === UserStatus.Online ? 'online'
+        : status === UserStatus.Idle || status === UserStatus.Away ? 'idle'
+        : status === UserStatus.DoNotDisturb || status === UserStatus.Busy ? 'dnd'
+        : status === UserStatus.Invisible ? 'invisible'
+        : 'offline'
+      realtimeApiService.updateStatus(redisStatus as any, userData.customStatus?.text)
       
       // Save to localStorage as professional backup (like Discord/Slack)
       try {
@@ -1907,11 +1933,13 @@ class UserDataService extends EventTarget {
   async cleanup(): Promise<void> {
     debug.log('🧹 Cleaning up User Data Service')
     
-    // Stop heartbeat
+    // Stop heartbeats (local + Redis)
     if (this.heartbeatTimer) {
       clearInterval(this.heartbeatTimer)
       this.heartbeatTimer = null
     }
+    realtimeApiService.goOffline().catch(() => {})
+    realtimeApiService.cleanup()
     
     // Clear any pending presence sync timeouts
     for (const timeout of this.presenceSyncTimeouts.values()) {

@@ -2,9 +2,15 @@
 <template>
   <!-- FIXED: Use v-show instead of v-if to prevent post disappearing on re-render -->
   <!-- Also added fallback for missing author to prevent complete disappearance -->
-  <article class="mony-post" 
-  v-show="post && (author || authorFallback)" :class="{ 'is-reply': post.reply_context, 'is-reblog': isReblog }">
+  <article class="mony-post" data-testid="post-item"
+  v-show="post && (author || authorFallback)" :class="{ 'is-reply': post.reply_context, 'is-reblog': isReblog, 'is-pinned': showPinnedHeader && post.is_pinned }">
     
+    <!-- Pinned indicator (profile timeline pinned section only) -->
+    <div v-if="showPinnedHeader && post.is_pinned" class="pinned-header">
+      <Icon name="pin" :size="14" class="pinned-icon" />
+      <span>Pinned</span>
+    </div>
+
     <!-- Reblog Header (if this is a reblog) -->
     <div v-if="isReblog" class="reblog-header">
       <Icon name="reblog" class="reblog-icon" />
@@ -247,6 +253,7 @@
       <div class="post-actions">
         <button 
           class="action-button reply-button"
+          data-testid="post-reply-btn"
           @click="onReply"
           :title="'Reply to ' + author.display_name"
         >
@@ -257,6 +264,7 @@
         <div class="reblog-menu-container" v-click-outside="() => showReblogMenu = false">
           <button 
             class="action-button reblog-button"
+            data-testid="post-reblog-btn"
             :class="{ 
               active: displayInteractionCounts.is_reblogged,
               disabled: !canReblog && !displayInteractionCounts.is_reblogged
@@ -291,6 +299,7 @@
 
         <button 
           class="action-button favorite-button"
+          data-testid="post-favorite-btn"
           :class="{ active: displayInteractionCounts.is_favorited }"
           @click="handleToggleFavorite"
           :title="displayInteractionCounts.is_favorited ? 'Unfavorite' : 'Favorite'"
@@ -310,6 +319,7 @@
 
         <button 
           class="action-button bookmark-button"
+          data-testid="post-bookmark-btn"
           :class="{ active: displayInteractionCounts.is_bookmarked }"
           @click="handleToggleBookmark"
           :title="displayInteractionCounts.is_bookmarked ? 'Remove bookmark' : 'Bookmark'"
@@ -347,6 +357,15 @@
                 <span>Edit</span>
               </button>
               
+              <button
+                v-if="canEdit && !isReblog"
+                class="dropdown-item"
+                @click="onTogglePin"
+              >
+                <Icon :name="props.post.is_pinned ? 'pin-off' : 'pin'" />
+                <span>{{ props.post.is_pinned ? 'Unpin from Profile' : 'Pin to Profile' }}</span>
+              </button>
+
               <button 
                 v-if="isReblog && canDelete"
                 class="dropdown-item"
@@ -542,12 +561,15 @@ interface Props {
   hideReplyContext?: boolean;
   isInThread?: boolean;
   embedded?: boolean; // When true, delegates lightbox to parent via open-lightbox emit
+  /** Show "Pinned" row (profile pinned section only; not home/local/public feeds) */
+  showPinnedHeader?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   hideReplyContext: false,
   isInThread: false,
   embedded: false,
+  showPinnedHeader: false,
 });
 
 // Emits
@@ -572,7 +594,7 @@ const themeStore = useThemeStore();
 const toast = useToast();
 
 // Composables for clean interaction handling
-const { toggleFavorite, toggleReblog, toggleBookmark } = usePostInteractions();
+const { toggleFavorite, toggleReblog, toggleBookmark, togglePinPost } = usePostInteractions();
 
 // Local state (removed isToggling since composable handles loading)
 const showSensitiveContent = ref(false);
@@ -1443,6 +1465,16 @@ const onEdit = () => {
   closeMenu();
 };
 
+const onTogglePin = async () => {
+  closeMenu();
+  const result = await togglePinPost(props.post);
+  if (!result.success) {
+    toast.error(result.error || 'Failed to toggle pin');
+  } else {
+    toast.success(result.pinned ? 'Pinned to profile' : 'Unpinned from profile');
+  }
+};
+
 const onDelete = () => {
   showDeleteConfirmation.value = true;
   closeMenu();
@@ -1588,6 +1620,9 @@ watch(showMenu, (isOpen) => {
 
 onBeforeUnmount(() => {
   document.removeEventListener('mousedown', handleDropdownOutsideClick);
+  if (tooltipTimer.value) clearTimeout(tooltipTimer.value);
+  tooltipTimer.value = null;
+  tooltip.value.visible = false;
 });
 
 const dropdownStyle = ref<Record<string, string>>({});
@@ -1747,6 +1782,20 @@ const closeLightbox = () => {
 
 .mony-post.is-reply {
   border-left: 3px solid var(--harmony-primary);
+}
+
+.pinned-header {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.5rem 1rem 0;
+  color: var(--text-muted, #9ca3af);
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.pinned-icon {
+  opacity: 0.7;
 }
 
 .reblog-header {

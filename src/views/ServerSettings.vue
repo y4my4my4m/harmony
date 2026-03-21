@@ -132,6 +132,7 @@
             :permissions="emojiPermissions"
             @emoji-uploaded="handleEmojiUploaded"
             @emoji-deleted="handleEmojiDeleted"
+            @emojis-bulk-deleted="handleEmojisBulkDeleted"
           />
 
           <!-- Privacy Settings Section -->
@@ -365,7 +366,6 @@ const handleBannerChange = (file: File | null) => {
 const handleEmojiUploaded = (newEmoji: Emoji) => {
   emojis.value.push(newEmoji)
   emojiCacheStore.invalidate({ serverId: props.serverId })
-  toast.success(t('server.emojiUploadedSuccessToast'))
 }
 
 const handleEmojiDeleted = (emojiId: string) => {
@@ -373,6 +373,12 @@ const handleEmojiDeleted = (emojiId: string) => {
   if (index > -1) {
     emojis.value.splice(index, 1)
   }
+  emojiCacheStore.invalidate({ serverId: props.serverId })
+}
+
+const handleEmojisBulkDeleted = (emojiIds: string[]) => {
+  const deletedSet = new Set(emojiIds)
+  emojis.value = emojis.value.filter(emoji => !deletedSet.has(emoji.id))
   emojiCacheStore.invalidate({ serverId: props.serverId })
 }
 
@@ -388,6 +394,11 @@ const handleSave = async () => {
     if (generalHasChanges.value) {
       const success = await serverStore.updateServer(server.value, selectedFile.value || undefined, selectedBannerFile.value || undefined)
       if (success) {
+        // Re-fetch so uploaded file paths (banner, icon) are reflected in UI
+        const freshData = await serverStore.getServer(props.serverId)
+        if (freshData) {
+          server.value = { ...freshData }
+        }
         originalServer.value = { ...server.value }
         selectedFile.value = null
         selectedBannerFile.value = null

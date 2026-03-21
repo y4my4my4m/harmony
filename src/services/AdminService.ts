@@ -767,6 +767,7 @@ class AdminService {
       let maxPostLength = 500
       let retryAttempts = 3
       let maxCustomEmojisPerServer = 0
+      let customEmojiTransformQuality = 80
       let allowCustomEmojisInDisplayNames = true
       let enableOutbound = true
       let enableInbound = true
@@ -775,7 +776,7 @@ class AdminService {
         const { data: configData } = await supabase
           .from('instance_config')
           .select('config_key, config_value')
-          .in('config_key', ['instance_name', 'instance_description', 'domain', 'open_registration', 'approval_required', 'oauth_providers', 'terms_url', 'privacy_url', 'max_server_size', 'max_message_length', 'max_media_attachments_per_post', 'allow_file_uploads', 'enable_voice_channels', 'max_post_length', 'federation_retry_attempts', 'max_custom_emojis_per_server', 'allow_custom_emojis_in_display_names', 'instance_icon', 'instance_banner', 'theme_color', 'maintainer_name', 'maintainer_email'])
+          .in('config_key', ['instance_name', 'instance_description', 'domain', 'open_registration', 'approval_required', 'oauth_providers', 'terms_url', 'privacy_url', 'max_server_size', 'max_message_length', 'max_media_attachments_per_post', 'allow_file_uploads', 'enable_voice_channels', 'max_post_length', 'federation_retry_attempts', 'max_custom_emojis_per_server', 'custom_emoji_transform_quality', 'allow_custom_emojis_in_display_names', 'instance_icon', 'instance_banner', 'theme_color', 'maintainer_name', 'maintainer_email'])
 
         if (configData) {
           configData.forEach((config) => {
@@ -852,6 +853,13 @@ class AdminService {
                 case 'max_custom_emojis_per_server':
                   maxCustomEmojisPerServer = typeof value === 'number' ? value : parseInt(String(value), 10) || 0
                   break
+                case 'custom_emoji_transform_quality': {
+                  const q = typeof value === 'number' ? value : parseInt(String(value), 10)
+                  if (!Number.isNaN(q)) {
+                    customEmojiTransformQuality = Math.min(100, Math.max(1, q))
+                  }
+                  break
+                }
                 case 'allow_custom_emojis_in_display_names':
                   allowCustomEmojisInDisplayNames = value === true || value === 'true'
                   break
@@ -892,6 +900,7 @@ class AdminService {
           maxPostLength,
           retryAttempts,
           maxCustomEmojisPerServer,
+          customEmojiTransformQuality,
           allowCustomEmojisInDisplayNames,
           enableOutbound,
           enableInbound

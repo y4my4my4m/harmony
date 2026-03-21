@@ -36,15 +36,16 @@
   "license": "AGPL-3.0",
   "dependencies": {
     "@supabase/supabase-js": "^2.39.2",
+    "bullmq": "^5.71.0",
     "compression": "^1.7.4",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
     "helmet": "^7.1.0",
+    "ioredis": "^5.10.0",
     "livekit-server-sdk": "^2.9.1",
     "node-cache": "^5.1.2",
     "pg": "^8.20.0",
-    "pg-boss": "^10.1.5",
     "web-push": "^3.6.7",
     "winston": "^3.11.0",
     "zod": "^3.22.4"

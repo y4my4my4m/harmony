@@ -208,6 +208,29 @@ export class PostService {
   }
 
   /**
+   * Toggle pin on a post (pin/unpin to profile).
+   * DB trigger handles federation of the pin change.
+   */
+  async togglePinPost(postId: string): Promise<{ pinned: boolean }> {
+    try {
+      debug.log(`📌 PostService: Toggling pin for post: ${postId}`)
+      const result = await corePostService.togglePinPost(postId)
+      debug.log(`✅ PostService: Post ${result.pinned ? 'pinned' : 'unpinned'}`)
+      return result
+    } catch (error) {
+      debug.error('❌ PostService: Failed to toggle pin:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Get pinned posts for a user profile
+   */
+  async getPinnedPosts(authorId: string): Promise<any[]> {
+    return corePostService.getPinnedPosts(authorId)
+  }
+
+  /**
    * Toggle reaction on a post (simplified: database triggers handle federation)
    * PRESERVES: Exact same API and return type
    */

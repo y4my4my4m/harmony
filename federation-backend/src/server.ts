@@ -24,6 +24,7 @@ import linkPreviewRouter from './routes/linkPreview.js';
 import pushRouter from './routes/push.js';
 import livekitRouter from './routes/livekit.js';
 import voiceRouter from './routes/voice.js';
+import realtimeRouter from './routes/realtime.js';
 
 import webFingerRouter from './activitypub/WebFingerService.js';
 import actorRouter from './activitypub/ActorService.js';
@@ -36,6 +37,7 @@ import serverDiscoveryRouter from './services/ServerDiscoveryService.js';
 import instanceProbeRouter from './routes/instanceProbe.js';
 import { BlockedInstancesCache } from './services/BlockedInstancesCache.js';
 import { PushNotificationService } from './services/PushNotificationService.js';
+import { redis } from './services/RedisService.js';
 
 export function createApp(): Application {
   const app: Application = express();
@@ -59,14 +61,17 @@ export function createApp(): Application {
 
   app.use(compression());
 
+  const QUIET_PATHS = new Set(['/health', '/realtime/heartbeat', '/realtime/offline']);
   app.use((req, _res, next) => {
-    logger.info(`${req.method} ${req.path}`);
+    if (!QUIET_PATHS.has(req.path)) {
+      logger.info(`${req.method} ${req.path}`);
+    }
     next();
   });
 
   app.use('/health', healthRouter);
 
-  // Push, link-preview, livekit, voice: mount BEFORE catch-all '/' routes.
+  // Push, link-preview, livekit, voice, realtime: mount BEFORE catch-all '/' routes.
   // Otherwise these requests hit discoveryLimiter (30/min) and wrongly get "Too many discovery requests".
   const pushWithLimiter = (req: express.Request, res: express.Response, next: express.NextFunction) => {
     const p = (req.originalUrl || req.path || '').split('?')[0];
@@ -82,6 +87,8 @@ export function createApp(): Application {
   app.use('/api/livekit', livekitRouter);
   app.use('/voice', voiceRouter);
   app.use('/api/federation/voice', voiceRouter);
+  app.use('/realtime', realtimeRouter);
+  app.use('/api/federation/realtime', realtimeRouter);
 
   // Rate limiting is applied per-route inside each router (not at the mount level)
   // to prevent cascade bleeding — mounting `app.use('/', limiter, routerA)` causes
@@ -104,6 +111,10 @@ export function createApp(): Application {
 }
 
 export async function startServer(): Promise<void> {
+  // Connect Redis before starting the server so cache/rate-limit/presence
+  // are available from the first request.
+  await redis.connect();
+
   const app = createApp();
   const PORT = config.PORT;
 
@@ -111,6 +122,7 @@ export async function startServer(): Promise<void> {
     logger.info(`Harmony Federation Server running on port ${PORT}`);
     logger.info(`Environment: ${config.NODE_ENV}`);
     logger.info(`Instance: ${config.INSTANCE_NAME} (${config.INSTANCE_DOMAIN})`);
+    logger.info(`Redis: ${redis.ready ? 'connected' : 'unavailable (fallback mode)'}`);
 
     BlockedInstancesCache.initialize().catch((error) => {
       logger.error('Failed to initialize blocked instances cache:', error);

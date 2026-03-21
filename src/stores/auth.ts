@@ -7,6 +7,7 @@ import { useActivityPubStore } from '@/stores/useActivityPub';
 import { UserStatus } from '@/types';
 import { debug } from '@/utils/debug';
 import { userStorage } from '@/utils/userScopedStorage';
+import { realtimeApiService } from '@/services/RealtimeApiService';
 
 export const useAuthStore = defineStore('auth', {
   state: () => ({
@@ -374,6 +375,10 @@ export const useAuthStore = defineStore('auth', {
       
       // Handle browser/tab close - cleanup presence
       const handleBeforeUnload = (_event: BeforeUnloadEvent) => {
+        // Best-effort Redis offline (keepalive lets it finish after page unload).
+        // If this fails, the Redis TTL key auto-expires after 90s.
+        realtimeApiService.goOffline().catch(() => {})
+
         if ((window as any).__harmonyPresenceCleanup) {
           (window as any).__harmonyPresenceCleanup();
         }
@@ -653,20 +658,18 @@ export const useAuthStore = defineStore('auth', {
       try {
         debug.log('🔔 Cleaning up notification system');
         
-        // Dynamic import to avoid issues during cleanup
-        import('@/stores/useNotification').then(({ useNotificationStore }) => {
-          const notificationStore = useNotificationStore();
-          
-          // Clean up real-time subscriptions
-          if (notificationStore.realtimeSubscription) {
-            supabase.removeChannel(notificationStore.realtimeSubscription);
-            notificationStore.realtimeSubscription = null;
-          }
-          
-          // Reset state
-          notificationStore.$reset();
-          notificationStore.isInitialized = false;
-          
+        // Clean up notification broadcast handlers + disconnect user event channel
+        Promise.all([
+          import('@/stores/useNotification').then(({ useNotificationStore }) => {
+            const notificationStore = useNotificationStore();
+            notificationStore.cleanupBroadcastHandlers();
+            notificationStore.$reset();
+            notificationStore.isInitialized = false;
+          }),
+          import('@/services/UserEventChannel').then(({ userEventChannel }) => {
+            userEventChannel.disconnect();
+          })
+        ]).then(() => {
           debug.log('✅ Notification system cleaned up');
         }).catch(error => {
           debug.error('❌ Error during notification cleanup:', error);

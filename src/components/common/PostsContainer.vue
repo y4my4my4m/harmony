@@ -106,13 +106,47 @@ const emit = defineEmits<{
 }>()
 
 const scrollContainer = ref<HTMLDivElement | null>(null)
+const observedElements = new Set<HTMLElement>()
+
+const resizeObserver = new ResizeObserver((entries) => {
+  for (const entry of entries) {
+    const el = entry.target as HTMLElement
+    if (el.dataset.index !== undefined) {
+      rowVirtualizer.value.measureElement(el)
+    }
+  }
+})
+
+const estimatePostSize = (index: number): number => {
+  if (index >= props.posts.length) return 60
+  const post = props.posts[index]
+  if (!post) return 200
+
+  let estimate = 80 // header + actions baseline
+
+  const content = post.content
+  if (Array.isArray(content)) {
+    const textLength = content.reduce((sum, part) => sum + (part?.text?.length || 0), 0)
+    estimate += Math.min(textLength * 0.4, 400)
+  }
+
+  if (post.media_attachments?.length) {
+    estimate += post.media_attachments.length > 1 ? 320 : 280
+  }
+
+  if (post.reblog) estimate += 120
+
+  if (post.content_warning || post.is_sensitive) estimate += 40
+
+  return Math.max(estimate, 120)
+}
 
 // +1 phantom row when there's more to load — acts as in-flow loading indicator
 const rowVirtualizer = useVirtualizer(computed(() => ({
   count: props.hasMore ? props.posts.length + 1 : props.posts.length,
   getScrollElement: () => scrollContainer.value,
-  estimateSize: () => 300,
-  overscan: 5,
+  estimateSize: estimatePostSize,
+  overscan: 8,
 })))
 
 const virtualRows = computed(() => rowVirtualizer.value.getVirtualItems())
@@ -121,6 +155,10 @@ const totalSize = computed(() => rowVirtualizer.value.getTotalSize())
 const measureElement = (el: any) => {
   if (!el || !(el instanceof HTMLElement)) return
   rowVirtualizer.value.measureElement(el)
+  if (!observedElements.has(el)) {
+    resizeObserver.observe(el)
+    observedElements.add(el)
+  }
 }
 
 const lastEmittedIndex = ref(-1)
@@ -151,6 +189,8 @@ onMounted(() => {
 
 onUnmounted(() => {
   props.registerScroll?.(null)
+  resizeObserver.disconnect()
+  observedElements.clear()
 })
 </script>
 

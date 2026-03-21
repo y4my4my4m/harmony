@@ -11,13 +11,19 @@ import { createUndoLikeActivity } from '../../listeners/FederationHandlers.js';
 import { resolveOutboundEmoji } from '../../utils/emojiResolvers.js';
 import config from '../../config/index.js';
 import { logger } from '../../utils/logger.js';
-import type { FederationJobData } from '../QueueManager.js';
+import type { FederationJobData } from '../BullMQManager.js';
 
 export async function handleReactionJob(data: FederationJobData): Promise<void> {
   const supabase = getSupabaseClient();
   const { type, interaction_id, interaction_type, post_id, user_id, emoji_id, custom_emoji_content } = data;
 
   logger.info(`❤️ Processing reaction job: ${type} for interaction ${interaction_id}`);
+
+  if (interaction_type === 'bookmark') {
+    logger.info(`⏭️ Bookmarks are private, skipping federation for ${interaction_id}`);
+    await updateFederationStatus(interaction_id, 'post_interactions', 'skipped');
+    return;
+  }
 
   try {
     const { data: post } = await supabase

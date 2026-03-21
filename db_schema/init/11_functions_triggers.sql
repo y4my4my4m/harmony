@@ -274,15 +274,12 @@ $$;
 -- TIMELINE TRIGGERS
 -- ---------------------------------------------------------------------------
 
--- Add posts to timeline when created
+-- Add posts to timeline when created (optimized: bulk INSERT ... SELECT instead of loops)
 CREATE OR REPLACE FUNCTION public.create_comprehensive_timeline_entries()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
-DECLARE
-    follower_record RECORD;
-    local_user_record RECORD;
 BEGIN
     IF COALESCE(NEW.is_deleted, false) THEN
         RETURN NEW;
@@ -295,105 +292,89 @@ BEGIN
         ON CONFLICT (user_id, post_id, timeline_type) DO NOTHING;
     END IF;
     
-    -- Add to followers' home timelines based on visibility
+    -- Add to followers' home timelines based on visibility (bulk)
     IF NEW.visibility = 'public' THEN
-        FOR follower_record IN 
-            SELECT f.follower_id 
-            FROM follows f 
-            JOIN profiles p ON f.follower_id = p.id
-            WHERE f.following_id = NEW.author_id 
-              AND f.status IN ('accepted', 'pending')
-              AND p.is_local = true
-              AND f.follower_id != NEW.author_id
-        LOOP
-            INSERT INTO timeline_entries (user_id, post_id, timeline_type, position)
-            VALUES (follower_record.follower_id, NEW.id, 'home', EXTRACT(epoch FROM NEW.created_at) * 1000000)
-            ON CONFLICT (user_id, post_id, timeline_type) DO NOTHING;
-        END LOOP;
+        INSERT INTO timeline_entries (user_id, post_id, timeline_type, position)
+        SELECT f.follower_id, NEW.id, 'home', EXTRACT(epoch FROM NEW.created_at) * 1000000
+        FROM follows f
+        JOIN profiles p ON f.follower_id = p.id
+        WHERE f.following_id = NEW.author_id
+          AND f.status IN ('accepted', 'pending')
+          AND p.is_local = true
+          AND f.follower_id != NEW.author_id
+        ON CONFLICT (user_id, post_id, timeline_type) DO NOTHING;
     ELSIF NEW.visibility IN ('unlisted', 'followers') THEN
-        FOR follower_record IN 
-            SELECT f.follower_id 
-            FROM follows f 
-            JOIN profiles p ON f.follower_id = p.id
-            WHERE f.following_id = NEW.author_id 
-              AND f.status = 'accepted'
-              AND p.is_local = true
-              AND f.follower_id != NEW.author_id
-        LOOP
-            INSERT INTO timeline_entries (user_id, post_id, timeline_type, position)
-            VALUES (follower_record.follower_id, NEW.id, 'home', EXTRACT(epoch FROM NEW.created_at) * 1000000)
-            ON CONFLICT (user_id, post_id, timeline_type) DO NOTHING;
-        END LOOP;
+        INSERT INTO timeline_entries (user_id, post_id, timeline_type, position)
+        SELECT f.follower_id, NEW.id, 'home', EXTRACT(epoch FROM NEW.created_at) * 1000000
+        FROM follows f
+        JOIN profiles p ON f.follower_id = p.id
+        WHERE f.following_id = NEW.author_id
+          AND f.status = 'accepted'
+          AND p.is_local = true
+          AND f.follower_id != NEW.author_id
+        ON CONFLICT (user_id, post_id, timeline_type) DO NOTHING;
     END IF;
     
-    -- Add public posts to public timeline for all local users
+    -- Add public posts to public timeline for all local users (bulk)
     IF NEW.visibility = 'public' THEN
-        FOR local_user_record IN
-            SELECT id FROM profiles WHERE is_local = true
-        LOOP
-            INSERT INTO timeline_entries (user_id, post_id, timeline_type, position)
-            VALUES (local_user_record.id, NEW.id, 'public', EXTRACT(epoch FROM NEW.created_at) * 1000000)
-            ON CONFLICT (user_id, post_id, timeline_type) DO NOTHING;
-        END LOOP;
+        INSERT INTO timeline_entries (user_id, post_id, timeline_type, position)
+        SELECT p.id, NEW.id, 'public', EXTRACT(epoch FROM NEW.created_at) * 1000000
+        FROM profiles p
+        WHERE p.is_local = true
+        ON CONFLICT (user_id, post_id, timeline_type) DO NOTHING;
     END IF;
     
     RETURN NEW;
 END;
 $$;
 
--- Add existing posts to new follower's timeline
+-- Add existing posts to new follower's timeline (optimized: bulk INSERT ... SELECT)
 CREATE OR REPLACE FUNCTION public.add_existing_posts_to_new_follower_timeline()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
-DECLARE
-    post_record RECORD;
 BEGIN
     IF NEW.status = 'pending' THEN
-        FOR post_record IN 
-            SELECT id, created_at
-            FROM posts 
-            WHERE author_id = NEW.following_id
-              AND visibility = 'public'
-              AND NOT COALESCE(is_deleted, false)
-              AND created_at > NOW() - INTERVAL '7 days'
-            ORDER BY created_at DESC
+        INSERT INTO timeline_entries (user_id, post_id, timeline_type, position)
+        SELECT NEW.follower_id, sub.id, 'home', EXTRACT(epoch FROM sub.created_at) * 1000000
+        FROM (
+            SELECT p.id, p.created_at
+            FROM posts p
+            WHERE p.author_id = NEW.following_id
+              AND p.visibility = 'public'
+              AND NOT COALESCE(p.is_deleted, false)
+              AND p.created_at > NOW() - INTERVAL '7 days'
+            ORDER BY p.created_at DESC
             LIMIT 50
-        LOOP
-            INSERT INTO timeline_entries (user_id, post_id, timeline_type, position)
-            VALUES (NEW.follower_id, post_record.id, 'home', EXTRACT(epoch FROM post_record.created_at) * 1000000)
-            ON CONFLICT (user_id, post_id, timeline_type) DO NOTHING;
-        END LOOP;
+        ) sub
+        ON CONFLICT (user_id, post_id, timeline_type) DO NOTHING;
     ELSIF NEW.status = 'accepted' THEN
-        FOR post_record IN 
-            SELECT id, created_at
-            FROM posts 
-            WHERE author_id = NEW.following_id
-              AND visibility IN ('public', 'unlisted')
-              AND NOT COALESCE(is_deleted, false)
-              AND created_at > NOW() - INTERVAL '7 days'
-            ORDER BY created_at DESC
+        INSERT INTO timeline_entries (user_id, post_id, timeline_type, position)
+        SELECT NEW.follower_id, sub.id, 'home', EXTRACT(epoch FROM sub.created_at) * 1000000
+        FROM (
+            SELECT p.id, p.created_at
+            FROM posts p
+            WHERE p.author_id = NEW.following_id
+              AND p.visibility IN ('public', 'unlisted')
+              AND NOT COALESCE(p.is_deleted, false)
+              AND p.created_at > NOW() - INTERVAL '7 days'
+            ORDER BY p.created_at DESC
             LIMIT 50
-        LOOP
-            INSERT INTO timeline_entries (user_id, post_id, timeline_type, position)
-            VALUES (NEW.follower_id, post_record.id, 'home', EXTRACT(epoch FROM post_record.created_at) * 1000000)
-            ON CONFLICT (user_id, post_id, timeline_type) DO NOTHING;
-        END LOOP;
+        ) sub
+        ON CONFLICT (user_id, post_id, timeline_type) DO NOTHING;
     END IF;
     
     RETURN NEW;
 END;
 $$;
 
--- Backfill timeline on follow acceptance
+-- Backfill timeline on follow acceptance (optimized: bulk INSERT ... SELECT)
 CREATE OR REPLACE FUNCTION public.backfill_timeline_on_follow()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
-DECLARE
-    post_record RECORD;
 BEGIN
     -- Only for local followers
     IF NOT EXISTS (SELECT 1 FROM profiles WHERE id = NEW.follower_id AND is_local = true) THEN
@@ -402,20 +383,19 @@ BEGIN
     
     -- When follow becomes accepted, add unlisted posts
     IF TG_OP = 'UPDATE' AND OLD.status = 'pending' AND NEW.status = 'accepted' THEN
-        FOR post_record IN
-            SELECT id, created_at
-            FROM posts
-            WHERE author_id = NEW.following_id
-              AND visibility = 'unlisted'
-              AND NOT COALESCE(is_deleted, false)
-              AND created_at > NOW() - INTERVAL '7 days'
-            ORDER BY created_at DESC
+        INSERT INTO timeline_entries (user_id, post_id, timeline_type, position)
+        SELECT NEW.follower_id, sub.id, 'home', EXTRACT(epoch FROM sub.created_at) * 1000000
+        FROM (
+            SELECT p.id, p.created_at
+            FROM posts p
+            WHERE p.author_id = NEW.following_id
+              AND p.visibility = 'unlisted'
+              AND NOT COALESCE(p.is_deleted, false)
+              AND p.created_at > NOW() - INTERVAL '7 days'
+            ORDER BY p.created_at DESC
             LIMIT 50
-        LOOP
-            INSERT INTO timeline_entries (user_id, post_id, timeline_type, position)
-            VALUES (NEW.follower_id, post_record.id, 'home', EXTRACT(epoch FROM post_record.created_at) * 1000000)
-            ON CONFLICT (user_id, post_id, timeline_type) DO NOTHING;
-        END LOOP;
+        ) sub
+        ON CONFLICT (user_id, post_id, timeline_type) DO NOTHING;
     END IF;
     
     RETURN NEW;
@@ -827,6 +807,15 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
 BEGIN
+    -- Bookmarks are private/local-only; never federate them
+    IF TG_OP = 'INSERT' AND NEW.interaction_type = 'bookmark' THEN
+        NEW.federation_status := 'skipped';
+        RETURN NEW;
+    END IF;
+    IF TG_OP = 'DELETE' AND OLD.interaction_type = 'bookmark' THEN
+        RETURN OLD;
+    END IF;
+
     IF TG_OP = 'INSERT' THEN
         NEW.federation_status := 'queued';
         PERFORM public.queue_federation_job(
@@ -2011,6 +2000,368 @@ BEGIN
 END;
 $$;
 
+-- ---------------------------------------------------------------------------
+-- Increment unread messages for server channel messages (skip muted channels)
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.handle_new_message_unread()
+RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER
+AS $$
+DECLARE
+    v_server_id uuid;
+BEGIN
+    IF NEW.channel_id IS NULL THEN
+        RETURN NEW;
+    END IF;
+
+    SELECT server_id INTO v_server_id
+    FROM public.channels WHERE id = NEW.channel_id;
+
+    IF v_server_id IS NULL THEN
+        RETURN NEW;
+    END IF;
+
+    INSERT INTO public.unread_counts (user_id, server_id, channel_id, unread_messages)
+    SELECT us.user_id, v_server_id, NEW.channel_id, 1
+    FROM public.user_servers us
+    WHERE us.server_id = v_server_id
+      AND us.status = 'accepted'
+      AND us.user_id != NEW.user_id
+      AND NOT EXISTS (
+          SELECT 1 FROM public.notification_channels nc
+          WHERE nc.user_id = us.user_id
+            AND nc.channel_id = NEW.channel_id
+            AND nc.muted = true
+            AND (nc.muted_until IS NULL OR nc.muted_until > NOW())
+      )
+    ON CONFLICT (user_id, channel_id) WHERE channel_id IS NOT NULL
+    DO UPDATE SET
+        unread_messages = unread_counts.unread_messages + 1,
+        updated_at = now();
+
+    RETURN NEW;
+END;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- Increment unread messages for DM/conversation messages
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.handle_new_dm_unread()
+RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER
+AS $$
+BEGIN
+    IF NEW.conversation_id IS NULL THEN
+        RETURN NEW;
+    END IF;
+
+    INSERT INTO public.unread_counts (user_id, server_id, channel_id, conversation_id, unread_messages)
+    SELECT cp.user_id, NULL, NULL, NEW.conversation_id, 1
+    FROM public.conversation_participants cp
+    WHERE cp.conversation_id = NEW.conversation_id
+      AND cp.user_id != NEW.user_id
+      AND cp.left_at IS NULL
+      AND NOT EXISTS (
+          SELECT 1 FROM public.notification_channels nc
+          WHERE nc.user_id = cp.user_id
+            AND nc.conversation_id = NEW.conversation_id
+            AND nc.muted = true
+            AND (nc.muted_until IS NULL OR nc.muted_until > NOW())
+      )
+    ON CONFLICT (user_id, conversation_id) WHERE conversation_id IS NOT NULL
+    DO UPDATE SET
+        unread_messages = unread_counts.unread_messages + 1,
+        updated_at = now();
+
+    RETURN NEW;
+END;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- Thread reply notification trigger function
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.handle_thread_reply_notification()
+RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER
+AS $$
+DECLARE
+    v_thread record;
+    v_sender record;
+    v_channel_id uuid;
+    v_server_id uuid;
+    v_channel_name text;
+    v_server_name text;
+    content_preview text;
+    v_member record;
+BEGIN
+    IF NEW.thread_id IS NULL THEN
+        RETURN NEW;
+    END IF;
+
+    SELECT t.id, t.parent_message_id, t.channel_id, t.created_by
+    INTO v_thread
+    FROM threads t WHERE t.id = NEW.thread_id;
+
+    IF NOT FOUND THEN RETURN NEW; END IF;
+
+    v_channel_id := v_thread.channel_id;
+
+    SELECT c.server_id, c.name INTO v_server_id, v_channel_name
+    FROM channels c WHERE c.id = v_channel_id;
+
+    IF v_server_id IS NOT NULL THEN
+        SELECT s.name INTO v_server_name FROM servers s WHERE s.id = v_server_id;
+    END IF;
+
+    SELECT p.id, p.username, p.display_name, p.avatar_url
+    INTO v_sender FROM profiles p WHERE p.id = NEW.user_id;
+
+    content_preview := extract_message_text(NEW.content);
+    content_preview := TRIM(content_preview);
+    IF LENGTH(content_preview) > 100 THEN
+        content_preview := LEFT(content_preview, 100) || '...';
+    END IF;
+    IF content_preview = '' OR content_preview IS NULL THEN
+        content_preview := 'New thread reply';
+    END IF;
+
+    FOR v_member IN
+        SELECT tm.user_id
+        FROM thread_members tm
+        WHERE tm.thread_id = NEW.thread_id
+          AND tm.user_id != NEW.user_id
+          AND COALESCE(tm.muted, false) = false
+    LOOP
+        PERFORM send_notification_to_user(
+            'thread_reply',
+            v_member.user_id,
+            jsonb_build_object(
+                'sender', jsonb_build_object(
+                    'user_id', v_sender.id,
+                    'username', v_sender.username,
+                    'display_name', v_sender.display_name,
+                    'avatar_url', v_sender.avatar_url
+                ),
+                'message', jsonb_build_object(
+                    'id', NEW.id,
+                    'content_preview', content_preview
+                ),
+                'thread', jsonb_build_object(
+                    'id', NEW.thread_id,
+                    'parent_message_id', v_thread.parent_message_id
+                ),
+                'location', jsonb_build_object(
+                    'server_id', v_server_id::text,
+                    'server_name', v_server_name,
+                    'channel_id', v_channel_id::text,
+                    'channel_name', v_channel_name
+                ),
+                'message_id', NEW.id,
+                'thread_id', NEW.thread_id,
+                'server_id', v_server_id::text,
+                'channel_id', v_channel_id::text,
+                'preview', content_preview
+            ),
+            v_server_id,
+            v_channel_id,
+            NULL,
+            NEW.user_id,
+            'normal'
+        );
+    END LOOP;
+
+    IF v_thread.created_by IS NOT NULL
+       AND v_thread.created_by != NEW.user_id
+       AND NOT EXISTS (
+           SELECT 1 FROM thread_members
+           WHERE thread_id = NEW.thread_id AND user_id = v_thread.created_by
+       )
+    THEN
+        PERFORM send_notification_to_user(
+            'thread_reply',
+            v_thread.created_by,
+            jsonb_build_object(
+                'sender', jsonb_build_object(
+                    'user_id', v_sender.id,
+                    'username', v_sender.username,
+                    'display_name', v_sender.display_name,
+                    'avatar_url', v_sender.avatar_url
+                ),
+                'message', jsonb_build_object(
+                    'id', NEW.id,
+                    'content_preview', content_preview
+                ),
+                'thread', jsonb_build_object(
+                    'id', NEW.thread_id,
+                    'parent_message_id', v_thread.parent_message_id
+                ),
+                'location', jsonb_build_object(
+                    'server_id', v_server_id::text,
+                    'server_name', v_server_name,
+                    'channel_id', v_channel_id::text,
+                    'channel_name', v_channel_name
+                ),
+                'message_id', NEW.id,
+                'thread_id', NEW.thread_id,
+                'server_id', v_server_id::text,
+                'channel_id', v_channel_id::text,
+                'preview', content_preview
+            ),
+            v_server_id,
+            v_channel_id,
+            NULL,
+            NEW.user_id,
+            'normal'
+        );
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- Role mention notifications (@everyone, @role)
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.handle_role_mention_notifications()
+RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER
+AS $$
+DECLARE
+    v_server_id uuid;
+    v_channel_id uuid;
+    v_channel_name text;
+    v_server_name text;
+    v_sender_profile record;
+    v_role_id uuid;
+    v_role_is_default boolean;
+    v_member_id uuid;
+    content_part jsonb;
+    content_preview text;
+BEGIN
+    IF NEW.channel_id IS NULL OR NEW.is_system THEN
+        RETURN NEW;
+    END IF;
+
+    SELECT c.server_id, c.name INTO v_server_id, v_channel_name
+    FROM channels c WHERE c.id = NEW.channel_id;
+    IF v_server_id IS NULL THEN RETURN NEW; END IF;
+
+    SELECT s.name INTO v_server_name FROM servers s WHERE s.id = v_server_id;
+
+    IF jsonb_typeof(NEW.content) != 'array' THEN RETURN NEW; END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM jsonb_array_elements(NEW.content) elem
+        WHERE elem->>'type' = 'role_mention'
+    ) THEN
+        RETURN NEW;
+    END IF;
+
+    SELECT p.id, p.username, p.display_name, p.avatar_url
+    INTO v_sender_profile
+    FROM profiles p WHERE p.id = NEW.user_id;
+
+    content_preview := LEFT(
+        (SELECT string_agg(elem->>'text', ' ')
+         FROM jsonb_array_elements(NEW.content) elem
+         WHERE elem->>'type' = 'text'), 100);
+
+    v_channel_id := NEW.channel_id;
+
+    FOR content_part IN SELECT jsonb_array_elements(NEW.content)
+    LOOP
+        IF content_part->>'type' = 'role_mention' THEN
+            v_role_id := (content_part->>'roleId')::uuid;
+            IF v_role_id IS NULL THEN CONTINUE; END IF;
+
+            SELECT is_default INTO v_role_is_default
+            FROM server_roles WHERE id = v_role_id AND server_id = v_server_id;
+
+            IF NOT FOUND THEN CONTINUE; END IF;
+
+            IF v_role_is_default THEN
+                FOR v_member_id IN
+                    SELECT us.user_id FROM user_servers us
+                    WHERE us.server_id = v_server_id
+                      AND us.status = 'accepted'
+                      AND us.user_id != NEW.user_id
+                LOOP
+                    PERFORM send_notification_to_user(
+                        'mention', v_member_id,
+                        jsonb_build_object(
+                            'sender', jsonb_build_object(
+                                'user_id', v_sender_profile.id,
+                                'username', v_sender_profile.username,
+                                'display_name', v_sender_profile.display_name,
+                                'avatar_url', v_sender_profile.avatar_url
+                            ),
+                            'message', jsonb_build_object('id', NEW.id, 'content_preview', content_preview),
+                            'location', jsonb_build_object(
+                                'server_id', v_server_id::text,
+                                'server_name', v_server_name,
+                                'channel_id', v_channel_id::text,
+                                'channel_name', v_channel_name
+                            ),
+                            'message_id', NEW.id,
+                            'mentioned_by', NEW.user_id,
+                            'sender_username', v_sender_profile.username,
+                            'sender_display_name', v_sender_profile.display_name,
+                            'server_id', v_server_id::text,
+                            'server_name', v_server_name,
+                            'channel_id', v_channel_id::text,
+                            'channel_name', v_channel_name,
+                            'preview', content_preview,
+                            'is_role_mention', true,
+                            'is_everyone', true
+                        ),
+                        v_server_id, v_channel_id, NULL, NEW.user_id, 'normal'
+                    );
+                END LOOP;
+            ELSE
+                FOR v_member_id IN
+                    SELECT ur.user_id FROM user_roles ur
+                    WHERE ur.role_id = v_role_id
+                      AND ur.server_id = v_server_id
+                      AND ur.user_id != NEW.user_id
+                LOOP
+                    PERFORM send_notification_to_user(
+                        'mention', v_member_id,
+                        jsonb_build_object(
+                            'sender', jsonb_build_object(
+                                'user_id', v_sender_profile.id,
+                                'username', v_sender_profile.username,
+                                'display_name', v_sender_profile.display_name,
+                                'avatar_url', v_sender_profile.avatar_url
+                            ),
+                            'message', jsonb_build_object('id', NEW.id, 'content_preview', content_preview),
+                            'location', jsonb_build_object(
+                                'server_id', v_server_id::text,
+                                'server_name', v_server_name,
+                                'channel_id', v_channel_id::text,
+                                'channel_name', v_channel_name
+                            ),
+                            'message_id', NEW.id,
+                            'mentioned_by', NEW.user_id,
+                            'sender_username', v_sender_profile.username,
+                            'sender_display_name', v_sender_profile.display_name,
+                            'server_id', v_server_id::text,
+                            'server_name', v_server_name,
+                            'channel_id', v_channel_id::text,
+                            'channel_name', v_channel_name,
+                            'preview', content_preview,
+                            'is_role_mention', true
+                        ),
+                        v_server_id, v_channel_id, NULL, NEW.user_id, 'normal'
+                    );
+                END LOOP;
+            END IF;
+        END IF;
+    END LOOP;
+
+    RETURN NEW;
+END;
+$$;
+
 -- Increment unread mentions
 CREATE OR REPLACE FUNCTION public.increment_unread_mentions()
 RETURNS trigger
@@ -2252,6 +2603,209 @@ BEGIN
     );
 
     RETURN NEW;
+END;
+$$;
+
+-- =========================================================================
+-- User Event Broadcast functions (Phase 1 scalability)
+-- Push compact events to the user's broadcast channel via realtime.send(),
+-- replacing per-table postgres_changes subscriptions.
+-- =========================================================================
+
+CREATE OR REPLACE FUNCTION public.broadcast_notification_event()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  IF TG_OP = 'INSERT' THEN
+    PERFORM realtime.send(
+      jsonb_build_object(
+        'type', 'notification:new',
+        'notification', jsonb_build_object(
+          'id', NEW.id,
+          'type', NEW.type,
+          'data', NEW.data,
+          'is_read', NEW.is_read,
+          'is_clicked', NEW.is_clicked,
+          'created_at', NEW.created_at,
+          'updated_at', NEW.updated_at,
+          'user_id', NEW.user_id,
+          'expires_at', NEW.expires_at
+        )
+      ),
+      'user_event',
+      'user:' || NEW.user_id::text,
+      true
+    );
+  ELSIF TG_OP = 'UPDATE' THEN
+    IF OLD.is_read IS DISTINCT FROM NEW.is_read THEN
+      PERFORM realtime.send(
+        jsonb_build_object(
+          'type', 'notification:update',
+          'id', NEW.id,
+          'is_read', NEW.is_read
+        ),
+        'user_event',
+        'user:' || NEW.user_id::text,
+        true
+      );
+    END IF;
+  END IF;
+
+  RETURN NEW;
+EXCEPTION WHEN OTHERS THEN
+  RETURN NEW;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.broadcast_unread_count_event()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_record record;
+  v_action text;
+BEGIN
+  IF TG_OP = 'DELETE' THEN
+    v_record := OLD;
+    v_action := 'delete';
+  ELSE
+    v_record := NEW;
+    v_action := 'upsert';
+  END IF;
+
+  PERFORM realtime.send(
+    jsonb_build_object(
+      'type', 'unread:change',
+      'action', v_action,
+      'count', jsonb_build_object(
+        'id', v_record.id,
+        'user_id', v_record.user_id,
+        'server_id', v_record.server_id,
+        'channel_id', v_record.channel_id,
+        'conversation_id', v_record.conversation_id,
+        'unread_messages', v_record.unread_messages,
+        'unread_mentions', v_record.unread_mentions,
+        'last_read_at', v_record.last_read_at
+      )
+    ),
+    'user_event',
+    'user:' || v_record.user_id::text,
+    true
+  );
+
+  IF TG_OP = 'DELETE' THEN
+    RETURN OLD;
+  END IF;
+  RETURN NEW;
+EXCEPTION WHEN OTHERS THEN
+  IF TG_OP = 'DELETE' THEN
+    RETURN OLD;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+-- =========================================================================
+-- Phase 2: Expanded user event broadcast functions
+-- =========================================================================
+
+CREATE OR REPLACE FUNCTION public.broadcast_conversation_participant_event()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  IF TG_OP = 'INSERT' THEN
+    PERFORM realtime.send(
+      jsonb_build_object(
+        'type', 'conversation:new',
+        'conversation_id', NEW.conversation_id,
+        'user_id', NEW.user_id
+      ),
+      'user_event',
+      'user:' || NEW.user_id::text,
+      true
+    );
+  END IF;
+  RETURN NEW;
+EXCEPTION WHEN OTHERS THEN
+  RETURN NEW;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.broadcast_user_server_event()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  IF TG_OP = 'INSERT' THEN
+    PERFORM realtime.send(
+      jsonb_build_object(
+        'type', 'server:joined',
+        'server_id', NEW.server_id,
+        'user_id', NEW.user_id
+      ),
+      'user_event',
+      'user:' || NEW.user_id::text,
+      true
+    );
+  ELSIF TG_OP = 'DELETE' THEN
+    PERFORM realtime.send(
+      jsonb_build_object(
+        'type', 'server:left',
+        'server_id', OLD.server_id,
+        'user_id', OLD.user_id
+      ),
+      'user_event',
+      'user:' || OLD.user_id::text,
+      true
+    );
+  END IF;
+  IF TG_OP = 'DELETE' THEN RETURN OLD; END IF;
+  RETURN NEW;
+EXCEPTION WHEN OTHERS THEN
+  IF TG_OP = 'DELETE' THEN RETURN OLD; END IF;
+  RETURN NEW;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.broadcast_server_change_event()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_member_id uuid;
+BEGIN
+  IF TG_OP = 'UPDATE' THEN
+    FOR v_member_id IN
+      SELECT user_id FROM user_servers WHERE server_id = NEW.id
+    LOOP
+      PERFORM realtime.send(
+        jsonb_build_object(
+          'type', 'server:updated',
+          'server', jsonb_build_object(
+            'id', NEW.id,
+            'name', NEW.name,
+            'description', NEW.description,
+            'icon', NEW.icon,
+            'banner', NEW.banner,
+            'updated_at', NEW.updated_at
+          )
+        ),
+        'user_event',
+        'user:' || v_member_id::text,
+        true
+      );
+    END LOOP;
+  END IF;
+  RETURN NEW;
+EXCEPTION WHEN OTHERS THEN
+  RETURN NEW;
 END;
 $$;
 

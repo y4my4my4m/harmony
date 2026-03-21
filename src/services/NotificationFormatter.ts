@@ -121,23 +121,21 @@ const MESSAGE_TEMPLATES = {
   
   reaction: {
     title: (data: any) => {
+      const sender = data.sender
       const reactor = data.reactor
-      const reactorName = reactor?.display_name || reactor?.username || 'Someone'
-      const channelName = data.location?.channel_name || data.channel_name
-      if (channelName) {
-        return `${reactorName} reacted to your message in #${channelName}`
-      } else {
-        return `${reactorName} reacted to your message`
-      }
+      const name = sender?.display_name || sender?.username || reactor?.display_name || reactor?.username || 'Someone'
+      return `${name} reacted to your message`
     },
     message: (data: any) => {
-      const emojiName = data.reaction?.emoji_name || data.emoji_name || '👍'
-      return `:${emojiName}: reaction`
+      const preview = extractContentText(data.message_preview)
+        || extractContentText(data.message?.content_preview)
+      if (preview) {
+        const truncated = preview.substring(0, 100)
+        return truncated + (preview.length > 100 ? '...' : '')
+      }
+      return 'Click to view message'
     },
-    shortTitle: (data: any) => {
-      const emojiName = data.reaction?.emoji_name || data.emoji_name || '👍'
-      return `:${emojiName}: reaction`
-    }
+    shortTitle: () => 'Reaction'
   },
   
   reply: {
@@ -270,14 +268,8 @@ const MESSAGE_TEMPLATES = {
   activitypub_reaction: {
     title: (data: any) => {
       const sender = data.sender
-      const username = sender?.username || 'someone'
-      const domain = sender?.domain && !sender?.is_local ? sender.domain : null
-      // Format: @username@domain reacted [EMOJI] to your post:
-      // Emoji will be shown inline in the title
-      if (domain) {
-        return `@${username}@${domain} reacted to your post:`
-      }
-      return `@${username} reacted to your post:`
+      const name = sender?.display_name || sender?.username || 'Someone'
+      return `${name} reacted to your post`
     },
     message: (data: any) => {
       const text = extractContentText(data.post?.content_preview)
@@ -288,16 +280,34 @@ const MESSAGE_TEMPLATES = {
       }
       return 'Click to view post'
     },
-    shortTitle: (data: any) => {
-      const emojiName = data.reaction?.emoji_name || data.reaction?.custom_emoji_content || '👍'
-      return `:${emojiName}: reaction`
-    }
+    shortTitle: () => 'Reaction'
   },
 
   activitypub_follow_request: {
     title: (data: any) => `${data.follower.display_name || data.follower.username} wants to follow you`,
     message: (data: any) => `${data.follower.handle || '@' + data.follower.username} sent you a follow request`,
     shortTitle: (data: any) => `Follow request`
+  },
+
+  thread_reply: {
+    title: (data: any) => {
+      const sender = data.sender
+      const senderName = sender?.display_name || sender?.username || 'Someone'
+      const channelName = data.location?.channel_name || data.channel_name || 'a thread'
+      return `${senderName} replied in a thread in #${channelName}`
+    },
+    message: (data: any) => {
+      const text = extractContentText(data.message?.content_preview)
+        || extractContentText(data.preview)
+      if (text) {
+        return text.length > 100 ? text.substring(0, 100) + '...' : text
+      }
+      return 'Click to view thread'
+    },
+    shortTitle: (data: any) => {
+      const channelName = data.location?.channel_name || data.channel_name || 'thread'
+      return `Thread reply in #${channelName}`
+    }
   },
 
   report_update: {

@@ -35,12 +35,10 @@
               @pointerenter="hoveredEmojiName = fav.emoji_name"
               @pointerleave="hoveredEmojiName = null"
             >
-              <img
-                v-if="fav.emoji_url"
-                :src="getEmojiUrl(fav.emoji_url, 42)"
-                :alt="fav.emoji_name"
-                class="frequent-emoji-img"
-              />
+              <template v-if="fav.emoji_url">
+                <svg v-if="brokenEmojiUrls.has(fav.emoji_url)" class="emoji-broken-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="2" y1="2" x2="22" y2="22"/><path d="M10.41 10.41a2 2 0 1 1-2.83-2.83"/><line x1="13.5" y1="13.5" x2="6" y2="21"/><line x1="18" y1="12" x2="21" y2="15"/><path d="M3.59 3.59A1.99 1.99 0 0 0 3 5v14a2 2 0 0 0 2 2h14c.55 0 1.052-.22 1.41-.59"/><path d="M21 15V5a2 2 0 0 0-2-2H9"/></svg>
+                <img v-else :src="getEmojiUrl(fav.emoji_url, 42)" :alt="fav.emoji_name" class="frequent-emoji-img" @error="brokenEmojiUrls.add(fav.emoji_url!)" />
+              </template>
               <img
                 v-else-if="!isNativePack && getFavoriteSvgUrl(fav)"
                 :src="getFavoriteSvgUrl(fav)!"
@@ -77,12 +75,10 @@
             @pointerenter="hoveredEmojiName = emoji.name"
             @pointerleave="hoveredEmojiName = null"
           >
-            <img 
-              v-if="getFrequentEmojiDisplayUrl(emoji)"
-              :src="getFrequentEmojiDisplayUrl(emoji)"
-              :alt="emoji.name"
-              class="frequent-emoji-img"
-            />
+            <template v-if="getFrequentEmojiDisplayUrl(emoji)">
+              <svg v-if="brokenEmojiUrls.has(getFrequentEmojiDisplayUrl(emoji)!)" class="emoji-broken-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="2" y1="2" x2="22" y2="22"/><path d="M10.41 10.41a2 2 0 1 1-2.83-2.83"/><line x1="13.5" y1="13.5" x2="6" y2="21"/><line x1="18" y1="12" x2="21" y2="15"/><path d="M3.59 3.59A1.99 1.99 0 0 0 3 5v14a2 2 0 0 0 2 2h14c.55 0 1.052-.22 1.41-.59"/><path d="M21 15V5a2 2 0 0 0-2-2H9"/></svg>
+              <img v-else :src="getFrequentEmojiDisplayUrl(emoji)" :alt="emoji.name" class="frequent-emoji-img" @error="brokenEmojiUrls.add(getFrequentEmojiDisplayUrl(emoji)!)" />
+            </template>
             <img 
               v-else-if="!isNativePack && getFrequentEmojiSvgUrl(emoji)"
               :src="getFrequentEmojiSvgUrl(emoji)"
@@ -116,7 +112,8 @@
               @pointerenter="hoveredEmojiName = emoji.display_name"
               @pointerleave="hoveredEmojiName = null"
             >
-              <img :src="getEmojiUrl(emoji.url, 42)" :alt="emoji.name" />
+              <svg v-if="brokenEmojiUrls.has(emoji.url)" class="emoji-broken-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="2" y1="2" x2="22" y2="22"/><path d="M10.41 10.41a2 2 0 1 1-2.83-2.83"/><line x1="13.5" y1="13.5" x2="6" y2="21"/><line x1="18" y1="12" x2="21" y2="15"/><path d="M3.59 3.59A1.99 1.99 0 0 0 3 5v14a2 2 0 0 0 2 2h14c.55 0 1.052-.22 1.41-.59"/><path d="M21 15V5a2 2 0 0 0-2-2H9"/></svg>
+              <img v-else :src="getEmojiUrl(emoji.url, 42)" :alt="emoji.name" @error="brokenEmojiUrls.add(emoji.url)" />
             </div>
           </div>
         </div>
@@ -212,6 +209,10 @@
             <span>Copy Image Link</span>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
           </div>
+          <div v-if="emojiCtx.isFrequent" class="emoji-ctx-item emoji-ctx-item-danger" @click="ctxRemoveFrequent">
+            <span>Remove from frequently used</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </div>
         </div>
       </div>
     </Teleport>
@@ -281,9 +282,10 @@ const emit = defineEmits<{
 }>();
 
 // --- State ---
+const brokenEmojiUrls = ref(new Set<string>());
 
 const emojiCacheStore = useEmojiCacheStore();
-const { topEmojisForPicker, hasFrequentEmojis, recordEmojiUsage } = useFrequentEmojis();
+const { topEmojisForPicker, hasFrequentEmojis, recordEmojiUsage, removeFrequentEmoji, isFrequentEmoji } = useFrequentEmojis();
 const { triggerReaction } = useHapticSettings();
 const { 
   isNativePack, 
@@ -710,11 +712,12 @@ interface EmojiCtxState {
   imageUrl: string | null;
   serverIdOrNull: string | null;
   isFav: boolean;
+  isFrequent: boolean;
 }
 
 const emojiCtx = ref<EmojiCtxState>({
   visible: false, x: 0, y: 0,
-  emojiId: '', emojiName: '', imageUrl: null, serverIdOrNull: null, isFav: false,
+  emojiId: '', emojiName: '', imageUrl: null, serverIdOrNull: null, isFav: false, isFrequent: false,
 });
 
 function positionCtxMenu(event: MouseEvent | Touch): { x: number; y: number } {
@@ -780,11 +783,13 @@ function handleTouchHold(event: TouchEvent, ctxHandler: (e: MouseEvent | Touch) 
 function openEmojiCtxUnified(emoji: EmojiEntry, event: MouseEvent | Touch) {
   const pos = positionCtxMenu(event);
   const imgUrl = isNativePack.value ? null : getEmojiSvgUrl(emoji);
+  const emojiId = emoji.unicode;
   emojiCtx.value = {
     visible: true, ...pos,
-    emojiId: emoji.unicode, emojiName: emoji.shortcode,
+    emojiId, emojiName: emoji.shortcode,
     imageUrl: imgUrl, serverIdOrNull: null,
-    isFav: emojiFavoriteService.isFavorite(emoji.unicode),
+    isFav: emojiFavoriteService.isFavorite(emojiId),
+    isFrequent: isFrequentEmoji(emojiId),
   };
 }
 
@@ -796,6 +801,7 @@ function openEmojiCtxServer(emoji: ResolvedEmoji, event: MouseEvent | Touch) {
     emojiId: emoji.id, emojiName: emoji.name,
     imageUrl: imgUrl, serverIdOrNull: emoji.server_id || null,
     isFav: emojiFavoriteService.isFavorite(emoji.id),
+    isFrequent: isFrequentEmoji(emoji.id),
   };
 }
 
@@ -808,17 +814,20 @@ function openEmojiCtxFrequent(emoji: { id: string; native?: string; name: string
     emojiId, emojiName: emoji.name,
     imageUrl: imgUrl, serverIdOrNull: null,
     isFav: emojiFavoriteService.isFavorite(emojiId),
+    isFrequent: true,
   };
 }
 
 function openEmojiCtxFavorite(fav: EmojiFavorite, event: MouseEvent | Touch) {
   const pos = positionCtxMenu(event);
   const imgUrl = fav.emoji_url || (isNativePack.value ? null : getFavoriteSvgUrl(fav));
+  const emojiId = fav.emoji_id;
   emojiCtx.value = {
     visible: true, ...pos,
-    emojiId: fav.emoji_id, emojiName: fav.emoji_name,
+    emojiId, emojiName: fav.emoji_name,
     imageUrl: imgUrl, serverIdOrNull: fav.emoji_server_id || null,
     isFav: true,
+    isFrequent: isFrequentEmoji(emojiId),
   };
 }
 
@@ -855,6 +864,13 @@ async function ctxCopyImageLink() {
     await navigator.clipboard.writeText(ctx.imageUrl);
     showFavToast('Copied image link');
   } catch { /* no-op */ }
+}
+
+function ctxRemoveFrequent() {
+  const ctx = emojiCtx.value;
+  closeEmojiCtx();
+  removeFrequentEmoji(ctx.emojiId);
+  showFavToast(`Removed :${ctx.emojiName}: from frequently used`);
 }
 
 // Lazy load emoji data when popup is mounted (user opened emoji picker)
@@ -1095,6 +1111,13 @@ watch(
   object-fit: contain;
 }
 
+.emoji-broken-icon {
+  width: 22px;
+  height: 22px;
+  color: var(--text-muted, #72767d);
+  opacity: 0.5;
+}
+
 .emoji-shortcode {
   font-size: 10px;
   color: var(--color-text-secondary, var(--text-secondary));
@@ -1256,6 +1279,10 @@ watch(
 .emoji-ctx-item:hover {
   background-color: var(--harmony-primary, #0EA5E9);
   color: var(--text-primary, #fff);
+}
+
+.emoji-ctx-item-danger:hover {
+  background-color: var(--status-danger, #ed4245);
 }
 
 .emoji-ctx-badge {

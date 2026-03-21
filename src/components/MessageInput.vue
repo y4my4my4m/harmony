@@ -1,5 +1,5 @@
 <template>
-  <div class="message-input" :class="{'replying': replyMessageId, 'has-files': attachedFiles.length > 0}">
+  <div class="message-input" :class="{'replying': replyMessageId, 'has-files': attachedFiles.length > 0}" data-testid="message-input">
     <!-- Typing Indicator - positioned absolutely above input -->
     <TypingIndicator
       :typing-users="typingUsers"
@@ -60,6 +60,7 @@
           v-if="isMobile && hasContent" 
           @click.stop="send" 
           class="icon-button send-button"
+          data-testid="message-send-btn"
           :disabled="!hasContent"
         >
           <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
