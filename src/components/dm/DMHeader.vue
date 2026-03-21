@@ -342,7 +342,7 @@ const emit = defineEmits<{
 }>()
 
 // Voice/Video Call State - synced with voice store
-const isInVoiceCall = computed(() => voiceStore.isConnected && voiceStore.currentChannelId?.startsWith('dm-'))
+const isInVoiceCall = computed(() => voiceStore.isConnected && (voiceStore.currentChannelId?.startsWith('dm-') || voiceStore.currentChannelId?.startsWith('federated-dm-')))
 const isInVideoCall = computed(() => voiceStore.localState.isVideoEnabled)
 
 // Active call state for any DM (1:1 or group)
@@ -849,7 +849,11 @@ const toggleVoiceCall = async () => {
   try {
     if (isInVoiceCall.value) {
       stopCallerRinging()
-      // leaveVoiceChannel() handles DM call signaling cleanup automatically
+      // Check if this is a federated call and end it properly
+      if (dmCallSignaling.isFederatedCall(props.conversation.id)) {
+        const profileId = await authContextService.getCurrentProfileId()
+        if (profileId) await dmCallSignaling.endFederatedCall(props.conversation.id, profileId)
+      }
       await voiceStore.leaveVoiceChannel()
       toast.info('Left call')
     } else {
@@ -868,8 +872,8 @@ const toggleVoiceCall = async () => {
         return
       }
       
-      // For 1-on-1 DMs, check permissions
-      if (props.conversation.type !== 'group' && props.conversation.other_user?.id) {
+      // For 1-on-1 DMs, check permissions (skip for federated - permissions are local only)
+      if (props.conversation.type !== 'group' && props.conversation.other_user?.id && !isFederatedUser.value) {
         const permissionCheck = await dmCallPermissions.canReceiveCall(
           profileId,
           props.conversation.other_user.id,
@@ -882,35 +886,96 @@ const toggleVoiceCall = async () => {
         }
       }
       
-      // Create a virtual channel ID for this DM conversation
-      const dmChannelId = `dm-${props.conversation.id}`
-      
-      // Get receiver IDs (already profile IDs from conversation participants)
-      const receiverIds = getReceiverIds()
-      if (receiverIds.length === 0) {
-        toast.error('No participants to call')
-        return
-      }
-      
-      // Send call initiation signal to other participant(s)
-      await dmCallSignaling.initiateCall(props.conversation.id, profileId, 'voice', receiverIds)
-      
-      // Use the voice store to join (this will show the voice overlay UI)
-      // Use 'dm' as serverId to indicate it's a DM call
-      const success = await voiceStore.joinVoiceChannel(dmChannelId, 'dm')
-      
-      if (success) {
-        toast.success('Calling...')
-        startCallerRinging()
-        voiceStore.isOverlayVisible = true
-        await new Promise(resolve => setTimeout(resolve, 100))
-        debug.log('✅ Voice overlay opened for caller (maximized)')
+      // Route to federated or local call flow
+      if (isFederatedUser.value) {
+        await startFederatedCall(profileId, 'voice')
       } else {
-        toast.error('Failed to start call')
+        await startLocalCall(profileId, 'voice')
       }
     }
   } catch (error) {
     debug.error('Error toggling voice call:', error)
+    toast.error('Failed to start call')
+  }
+}
+
+// Start a local (same-instance) call
+const startLocalCall = async (profileId: string, callType: 'voice' | 'video') => {
+  const dmChannelId = `dm-${props.conversation.id}`
+  
+  const receiverIds = getReceiverIds()
+  if (receiverIds.length === 0) {
+    toast.error('No participants to call')
+    return
+  }
+  
+  await dmCallSignaling.initiateCall(props.conversation.id, profileId, callType, receiverIds)
+  
+  const success = await voiceStore.joinVoiceChannel(dmChannelId, 'dm')
+  
+  if (success) {
+    if (callType === 'video') {
+      await voiceStore.toggleVideo()
+    }
+    toast.success('Calling...')
+    startCallerRinging()
+    voiceStore.isOverlayVisible = true
+    await new Promise(resolve => setTimeout(resolve, 100))
+    debug.log(`✅ ${callType} call overlay opened for caller`)
+  } else {
+    toast.error('Failed to start call')
+  }
+}
+
+// Start a federated (cross-instance) call via ActivityPub
+const startFederatedCall = async (profileId: string, callType: 'voice' | 'video') => {
+  const otherUser = props.conversation.other_user
+  if (!otherUser?.federated_id) {
+    toast.error('Cannot determine federated identity for this user')
+    return
+  }
+
+  // Get our own federated ID
+  const { data: myProfile } = await supabase
+    .from('profiles')
+    .select('federated_id, username')
+    .eq('id', profileId)
+    .single()
+
+  if (!myProfile) {
+    toast.error('Failed to get profile info')
+    return
+  }
+
+  const callerFederatedId = myProfile.federated_id || `https://${window.location.hostname}/users/${myProfile.username}`
+
+  const callInfo = await dmCallSignaling.initiateFederatedCall(
+    props.conversation.id,
+    profileId,
+    callerFederatedId,
+    otherUser.federated_id,
+    callType
+  )
+
+  if (!callInfo) {
+    toast.error('Failed to initiate federated call')
+    return
+  }
+
+  // Join the LiveKit room
+  const dmChannelId = callInfo.roomName
+  const success = await voiceStore.joinVoiceChannel(dmChannelId, 'dm')
+
+  if (success) {
+    if (callType === 'video') {
+      await voiceStore.toggleVideo()
+    }
+    toast.success('Calling...')
+    startCallerRinging()
+    voiceStore.isOverlayVisible = true
+    await new Promise(resolve => setTimeout(resolve, 100))
+    debug.log(`✅ Federated ${callType} call initiated`)
+  } else {
     toast.error('Failed to start call')
   }
 }
@@ -975,8 +1040,8 @@ const toggleVideoCall = async () => {
         return
       }
       
-      // For 1-on-1 DMs, check permissions
-      if (props.conversation.type !== 'group' && props.conversation.other_user?.id) {
+      // For 1-on-1 DMs, check permissions (skip for federated)
+      if (props.conversation.type !== 'group' && props.conversation.other_user?.id && !isFederatedUser.value) {
         const permissionCheck = await dmCallPermissions.canReceiveCall(
           profileId,
           props.conversation.other_user.id,
@@ -989,33 +1054,11 @@ const toggleVideoCall = async () => {
         }
       }
       
-      // Start video call (voice + video)
-      const dmChannelId = `dm-${props.conversation.id}`
-      
-      // Get receiver IDs (already profile IDs from conversation participants)
-      const receiverIds = getReceiverIds()
-      if (receiverIds.length === 0) {
-        toast.error('No participants to call')
-        return
-      }
-      
-      // Send video call initiation signal
-      await dmCallSignaling.initiateCall(props.conversation.id, profileId, 'video', receiverIds)
-      
-      // Join voice channel
-      const success = await voiceStore.joinVoiceChannel(dmChannelId, 'dm')
-      
-      if (success) {
-        // Enable video immediately
-        await voiceStore.toggleVideo()
-        toast.success('Starting video call...')
-        startCallerRinging()
-        // Show voice overlay in maximized mode (for caller)
-        voiceStore.isOverlayVisible = true
-        await new Promise(resolve => setTimeout(resolve, 100))
-        debug.log('✅ Video call overlay opened for caller (maximized)')
+      // Route to federated or local call flow
+      if (isFederatedUser.value) {
+        await startFederatedCall(profileId, 'video')
       } else {
-        toast.error('Failed to start call')
+        await startLocalCall(profileId, 'video')
       }
     } else {
       // Toggle video in ongoing call

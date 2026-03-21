@@ -164,6 +164,7 @@ export class VoiceActivityHandler {
               callerAvatar: caller.avatar_url,
               callerFederatedId: activity.actor,
               callType: activity.object.callType,
+              conversationId: activity.object.conversationId,
               livekitUrl: activity.object.livekitUrl,
               roomName: activity.object.roomName,
             },

@@ -469,9 +469,9 @@ export const useServerUsersStore = defineStore('serverUsers', {
         }
 
         // Only write to voice_channel_participants for LOCAL servers with valid UUIDs
-        // DM calls use non-UUID IDs (server_id='dm', channel_id='dm-<uuid>')
+        // DM calls use non-UUID IDs (server_id='dm', channel_id='dm-<uuid>' or 'federated-dm-<uuid>-<ts>')
         // For federated servers, the hosting instance handles this via VoiceChannelJoin activity
-        const isDMCall = serverId === 'dm' || channelId.startsWith('dm-');
+        const isDMCall = serverId === 'dm' || channelId.startsWith('dm-') || channelId.startsWith('federated-dm-');
         if (isLocalServer && !isDMCall) {
           supabase
             .from('voice_channel_participants')
@@ -520,9 +520,9 @@ export const useServerUsersStore = defineStore('serverUsers', {
         }
 
         // Only write to voice_channel_participants for LOCAL servers with valid UUIDs
-        // DM calls use non-UUID IDs (server_id='dm', channel_id='dm-<uuid>')
+        // DM calls use non-UUID IDs (server_id='dm', channel_id='dm-<uuid>' or 'federated-dm-<uuid>-<ts>')
         // For federated servers, the hosting instance handles this via VoiceChannelLeave activity
-        const isDMCall = serverId === 'dm' || channelId.startsWith('dm-');
+        const isDMCall = serverId === 'dm' || channelId.startsWith('dm-') || channelId.startsWith('federated-dm-');
         if (isLocalServer && !isDMCall) {
           supabase
             .from('voice_channel_participants')
@@ -589,7 +589,7 @@ export const useServerUsersStore = defineStore('serverUsers', {
 
       // Clean up database entry (fire-and-forget, don't block on this)
       // DM calls use non-UUID IDs, skip DB cleanup for those
-      const isDMCall = channelId.startsWith('dm-');
+      const isDMCall = channelId.startsWith('dm-') || channelId.startsWith('federated-dm-');
       if (!isDMCall) {
         supabase
           .from('voice_channel_participants')

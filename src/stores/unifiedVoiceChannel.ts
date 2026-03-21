@@ -451,8 +451,15 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       this.currentChannelId = channelId;
       this.currentServerId = serverId;
       // For DM calls, derive name from the conversation; for server channels, use serverChannelStore
-      if (serverId === 'dm' && channelId.startsWith('dm-')) {
-        const conversationId = channelId.replace('dm-', '');
+      const isDMChannel = serverId === 'dm' && (channelId.startsWith('dm-') || channelId.startsWith('federated-dm-'));
+      if (isDMChannel) {
+        let conversationId: string;
+        const federatedMatch = channelId.match(/^federated-dm-([a-f0-9-]{36})/i);
+        if (federatedMatch) {
+          conversationId = federatedMatch[1];
+        } else {
+          conversationId = channelId.replace('dm-', '');
+        }
         const { useDMStore } = await import('@/stores/useDM');
         const dmStore = useDMStore();
         const conv = dmStore.conversations.find((c: any) => c.id === conversationId);
@@ -797,13 +804,22 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
           await webrtcManager.leaveChannel();
           
           // If this was a DM call, notify the callee so their incoming modal dismisses
-          if (optimisticChannelId?.startsWith('dm-')) {
+          const isCancelledDMCall = optimisticChannelId?.startsWith('dm-') || optimisticChannelId?.startsWith('federated-dm-');
+          if (isCancelledDMCall) {
             try {
               const { authContextService } = await import('@/services/AuthContextService');
               const profileId = await authContextService.getCurrentProfileId();
-              const conversationId = optimisticChannelId.replace('dm-', '');
-              if (profileId && conversationId) {
-                await dmCallSignaling.leaveCall(conversationId, profileId);
+              if (optimisticChannelId?.startsWith('federated-dm-')) {
+                const parts = optimisticChannelId.replace('federated-dm-', '').split('-');
+                const conversationId = parts.slice(0, -1).join('-');
+                if (profileId && conversationId) {
+                  await dmCallSignaling.endFederatedCall(conversationId, profileId);
+                }
+              } else {
+                const conversationId = optimisticChannelId?.replace('dm-', '');
+                if (profileId && conversationId) {
+                  await dmCallSignaling.leaveCall(conversationId, profileId);
+                }
               }
             } catch (e) {
               debug.warn('Failed to signal DM call leave during cancel:', e);
@@ -841,13 +857,26 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         this.clearVoiceChannelState();
         
         // If this is a DM call, notify the signaling layer
-        if (channelId?.startsWith('dm-')) {
+        const isDMCall = serverId === 'dm' || channelId?.startsWith('dm-') || channelId?.startsWith('federated-dm-');
+        if (isDMCall) {
           try {
             const { authContextService } = await import('@/services/AuthContextService');
             const profileId = await authContextService.getCurrentProfileId();
-            const conversationId = channelId.replace('dm-', '');
-            if (profileId && conversationId) {
-              await dmCallSignaling.leaveCall(conversationId, profileId);
+
+            // For federated DM calls (room name like "federated-dm-{conversationId}-{timestamp}"),
+            // extract the conversationId and end via ActivityPub
+            if (channelId?.startsWith('federated-dm-')) {
+              const parts = channelId.replace('federated-dm-', '').split('-');
+              // conversationId is a UUID (5 parts joined by hyphens), timestamp is the last segment
+              const conversationId = parts.slice(0, -1).join('-');
+              if (profileId && conversationId) {
+                await dmCallSignaling.endFederatedCall(conversationId, profileId);
+              }
+            } else {
+              const conversationId = channelId?.replace('dm-', '');
+              if (profileId && conversationId) {
+                await dmCallSignaling.leaveCall(conversationId, profileId);
+              }
             }
           } catch (e) {
             debug.warn('Failed to send DM call leave signal:', e);

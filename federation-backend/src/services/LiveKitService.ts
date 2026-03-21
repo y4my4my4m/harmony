@@ -313,8 +313,16 @@ class LiveKitService {
     }
     
     if (roomType === 'dm_call') {
-      // Room name format: dm-{conversationId}
-      const conversationId = roomName.replace(/^dm-/, '');
+      // Room name formats:
+      //   Local: dm-{conversationId}
+      //   Federated: federated-dm-{conversationId}-{timestamp}
+      let conversationId: string;
+      const federatedMatch = roomName.match(/^federated-dm-([a-f0-9-]{36})/i);
+      if (federatedMatch) {
+        conversationId = federatedMatch[1];
+      } else {
+        conversationId = roomName.replace(/^dm-/, '');
+      }
       logger.debug(`Extracted conversationId: ${conversationId}`);
       
       // Check if user is a participant in this conversation (direct or group)

@@ -20,10 +20,17 @@ export interface IncomingCallData {
   callType: 'voice' | 'video'
   conversationId: string
   timestamp: number
+  // Federated call fields
+  isFederated?: boolean
+  callerFederatedId?: string
+  livekitUrl?: string
+  roomName?: string
+  callId?: string
 }
 
 class GlobalDMCallListenerService {
   private userChannel: RealtimeChannel | null = null
+  private federatedChannel: RealtimeChannel | null = null
   private currentUserId: string | null = null
   
   // Reactive state for incoming calls
@@ -100,6 +107,45 @@ class GlobalDMCallListenerService {
           debug.log('✅ GLOBAL CALL LISTENER READY!')
           debug.log('✅ You can now receive calls from ANYWHERE')
           debug.log('✅ ==========================================')
+        }
+      })
+
+    // Also subscribe to federated calls channel
+    // The federation backend broadcasts incoming federated calls here
+    const federatedChannelName = `federated-calls:${profileId}`
+    debug.log(`📞 Subscribing to federated call channel: ${federatedChannelName}`)
+    
+    this.federatedChannel = supabase.channel(federatedChannelName)
+    
+    this.federatedChannel
+      .on('broadcast', { event: 'incoming-call' }, (payload) => {
+        debug.log('📞 ======== FEDERATED CALL RECEIVED ========')
+        debug.log('📞 Payload:', JSON.stringify(payload.payload))
+        debug.log('📞 =========================================')
+        this.handleFederatedCallSignal(payload.payload)
+      })
+      .on('broadcast', { event: 'call-accepted' }, (payload) => {
+        debug.log('📞 [Federated] Call accepted:', payload.payload)
+        const { callId } = payload.payload
+        const call = dmCallSignaling.getActiveCall(callId)
+        if (call?.timeoutTimer) {
+          clearTimeout(call.timeoutTimer)
+          call.timeoutTimer = undefined
+        }
+      })
+      .on('broadcast', { event: 'call-rejected' }, (payload) => {
+        debug.log('📞 [Federated] Call rejected:', payload.payload)
+        const toast = useToast()
+        toast.info('Call declined')
+      })
+      .on('broadcast', { event: 'call-ended' }, (payload) => {
+        debug.log('📞 [Federated] Call ended:', payload.payload)
+        this.dismissIncomingCall()
+      })
+      .subscribe((status) => {
+        debug.log(`📡 Federated call channel status: ${status}`)
+        if (status === 'SUBSCRIBED') {
+          debug.log('✅ Federated call listener ready')
         }
       })
   }
@@ -252,6 +298,68 @@ class GlobalDMCallListenerService {
   }
 
   /**
+   * Handle incoming federated call signal (from federation backend broadcast)
+   */
+  private async handleFederatedCallSignal(payload: {
+    callId: string
+    callerId: string
+    callerName: string
+    callerAvatar: string
+    callerFederatedId: string
+    callType: 'voice' | 'video'
+    conversationId: string
+    livekitUrl: string
+    roomName: string
+  }): Promise<void> {
+    if (!this.currentUserId) return
+    
+    // Don't show if already in a call
+    const { useUnifiedVoiceChannelStore } = await import('@/stores/unifiedVoiceChannel')
+    const voiceStore = useUnifiedVoiceChannelStore()
+    if (voiceStore.isConnected) {
+      debug.log('📞 [Federated] Already in a call, ignoring incoming')
+      return
+    }
+
+    // Register this as a federated active call so hasActiveCall() works
+    dmCallSignaling.registerRemoteCall(
+      payload.conversationId,
+      payload.callerId,
+      payload.callType
+    )
+    
+    // Store federated call info on the active call
+    const call = dmCallSignaling.getActiveCall(payload.conversationId)
+    if (call) {
+      call.isFederated = true
+      call.callerFederatedId = payload.callerFederatedId
+      call.livekitUrl = payload.livekitUrl
+      call.roomName = payload.roomName
+    }
+
+    const { getAvatarUrl } = await import('@/utils/avatarUtils')
+
+    const incomingCallData: IncomingCallData = {
+      callerId: payload.callerId,
+      callerName: payload.callerName || 'Unknown',
+      callerAvatar: getAvatarUrl(payload.callerAvatar) || '/default_avatar.webp',
+      callType: payload.callType,
+      conversationId: payload.conversationId,
+      timestamp: Date.now(),
+      isFederated: true,
+      callerFederatedId: payload.callerFederatedId,
+      livekitUrl: payload.livekitUrl,
+      roomName: payload.roomName,
+      callId: payload.callId,
+    }
+
+    this.incomingCall.value = incomingCallData
+    this.showIncomingCallModal.value = true
+    
+    debug.log('📞 [Federated] Showing incoming call modal')
+  }
+
+  /**
    * Dismiss incoming call
    */
   dismissIncomingCall(): void {
@@ -274,6 +382,10 @@ class GlobalDMCallListenerService {
     if (this.userChannel) {
       this.userChannel.unsubscribe()
       this.userChannel = null
+    }
+    if (this.federatedChannel) {
+      this.federatedChannel.unsubscribe()
+      this.federatedChannel = null
     }
     this.currentUserId = null
     this.incomingCall.value = null

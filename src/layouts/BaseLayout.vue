@@ -223,28 +223,52 @@ const handleGlobalCallAccept = async (acceptWithVideo: boolean) => {
   if (!currentUserId) return
 
   try {
-    // Send accept signal
-    await dmCallSignaling.acceptCall(incomingCall.conversationId, currentUserId)
-    
-    // Navigate to the DM conversation
-    debug.log('📞 Navigating to DM conversation:', incomingCall.conversationId)
-    await router.push(`/dm/${incomingCall.conversationId}`)
-    
-    // Join the voice channel
-    const dmChannelId = `dm-${incomingCall.conversationId}`
-    const success = await voiceStore.joinVoiceChannel(dmChannelId, 'dm')
-    
-    if (success) {
-      // Enable video if accepting with video
-      if (acceptWithVideo) {
-        await voiceStore.toggleVideo()
-      }
+    if (incomingCall.isFederated && incomingCall.callerFederatedId) {
+      // Federated call: accept via ActivityPub and join remote LiveKit room
+      debug.log('📞 [Federated] Accepting federated call from:', incomingCall.callerFederatedId)
       
-      // Open voice overlay in MAXIMIZED mode (not dock)
-      voiceStore.isOverlayVisible = true
-      // Give it a moment to initialize, then ensure it's maximized
-      await new Promise(resolve => setTimeout(resolve, 100))
-      debug.log('✅ Joined call with maximized voice overlay')
+      await dmCallSignaling.acceptFederatedCall(
+        incomingCall.conversationId,
+        currentUserId,
+        incomingCall.callerFederatedId
+      )
+
+      // Navigate to the DM conversation
+      await router.push(`/dm/${incomingCall.conversationId}`)
+
+      // Join the caller's LiveKit room using the room name from the invite
+      const roomName = incomingCall.roomName
+      if (roomName) {
+        const success = await voiceStore.joinVoiceChannel(roomName, 'dm')
+        
+        if (success) {
+          if (acceptWithVideo) {
+            await voiceStore.toggleVideo()
+          }
+          voiceStore.isOverlayVisible = true
+          await new Promise(resolve => setTimeout(resolve, 100))
+          debug.log('✅ [Federated] Joined federated call')
+        }
+      } else {
+        debug.error('❌ [Federated] No room name available for federated call')
+      }
+    } else {
+      // Local call: use Supabase Realtime signaling
+      await dmCallSignaling.acceptCall(incomingCall.conversationId, currentUserId)
+      
+      await router.push(`/dm/${incomingCall.conversationId}`)
+      
+      const dmChannelId = `dm-${incomingCall.conversationId}`
+      const success = await voiceStore.joinVoiceChannel(dmChannelId, 'dm')
+      
+      if (success) {
+        if (acceptWithVideo) {
+          await voiceStore.toggleVideo()
+        }
+        voiceStore.isOverlayVisible = true
+        await new Promise(resolve => setTimeout(resolve, 100))
+        debug.log('✅ Joined call with maximized voice overlay')
+      }
     }
   } catch (error) {
     debug.error('Error accepting call:', error)
@@ -261,8 +285,17 @@ const handleGlobalCallDecline = async () => {
   if (!currentUserId) return
 
   try {
-    // Send decline signal
-    await dmCallSignaling.declineCall(incomingCall.conversationId, currentUserId)
+    if (incomingCall.isFederated && incomingCall.callerFederatedId) {
+      // Federated call: decline via ActivityPub
+      await dmCallSignaling.declineFederatedCall(
+        incomingCall.conversationId,
+        currentUserId,
+        incomingCall.callerFederatedId
+      )
+    } else {
+      // Local call: decline via Supabase Realtime
+      await dmCallSignaling.declineCall(incomingCall.conversationId, currentUserId)
+    }
   } catch (error) {
     debug.error('Error declining call:', error)
   } finally {
