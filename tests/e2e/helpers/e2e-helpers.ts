@@ -20,6 +20,7 @@ export interface E2ETestUser {
   profileId: string
   email: string
   username: string
+  displayName: string
   password: string
 }
 
@@ -102,11 +103,18 @@ export async function createE2EUser(
     throw new Error(`Failed to fetch E2E profile: ${fetchError?.message}`)
   }
 
+  // Ensure notification_preferences exist (trigger may not fire on upsert-as-update)
+  await admin.from('notification_preferences').upsert(
+    { user_id: profile.id },
+    { onConflict: 'user_id' },
+  )
+
   return {
     authId,
     profileId: profile.id,
     email,
     username: opts.username,
+    displayName: opts.displayName || opts.username,
     password: TEST_PASSWORD,
   }
 }

@@ -1,12 +1,14 @@
 <template>
   <Teleport to="body">
-    <div class="notification-toasts">
+    <div class="notification-toasts" data-testid="notification-toasts">
       <TransitionGroup name="toast" tag="div">
         <div
           v-for="toast in toasts"
           :key="toast.id"
           class="notification-toast"
           :class="`toast-${toast.type}`"
+          :data-testid="`notification-toast-${toast.type}`"
+          :data-toast-id="toast.id"
           @click="handleToastClick(toast)"
         >
           <div class="toast-icon">
