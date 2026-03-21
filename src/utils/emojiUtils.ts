@@ -1,4 +1,20 @@
 import { supabase } from '@/supabase'
+import { useInstanceSettingsStore } from '@/stores/useInstanceSettings'
+
+const DEFAULT_EMOJI_TRANSFORM_QUALITY = 80
+
+function getEmojiTransformQuality(): number {
+  try {
+    const store = useInstanceSettingsStore()
+    const q = store.settings.customEmojiTransformQuality
+    if (typeof q === 'number' && !Number.isNaN(q)) {
+      return Math.min(100, Math.max(1, Math.round(q)))
+    }
+  } catch {
+    /* Pinia not active yet */
+  }
+  return DEFAULT_EMOJI_TRANSFORM_QUALITY
+}
 
 /** Hostnames that serve our local Supabase storage (for transforms). Set via VITE_STORAGE_DOMAIN (comma-separated). */
 function getLocalStorageHostnames(): Set<string> {
@@ -12,7 +28,9 @@ function getLocalStorageHostnames(): Set<string> {
         if (storageDomain) {
             storageDomain.split(',').map((h: string) => h.trim()).filter(Boolean).forEach((h: string) => out.add(h));
         }
-    } catch (_) {}
+    } catch {
+      /* ignore invalid env URLs */
+    }
     return out;
 }
 
@@ -20,7 +38,7 @@ const LOCAL_STORAGE_HOSTNAMES = getLocalStorageHostnames();
 
 /**
  * Get the public URL for an emoji, handling both local and remote emojis.
- * Local emojis are processed through Supabase storage with imgproxy transform (resize, quality).
+ * Local emojis are processed through Supabase storage with imgproxy transform (resize, quality from instance config, default 100).
  * Remote emojis (from federated instances) are returned as-is.
  */
 export function getEmojiUrl(emojiUrl: string | null | undefined, size: number = 48): string {
@@ -33,8 +51,7 @@ export function getEmojiUrl(emojiUrl: string | null | undefined, size: number = 
         return emojiUrl;
     }
 
-    // Small emojis get lossless quality to avoid compression artifacts
-    const quality = size <= 24 ? 100 : 80;
+    const quality = getEmojiTransformQuality()
 
     if (emojiUrl.startsWith('http://') || emojiUrl.startsWith('https://')) {
         try {

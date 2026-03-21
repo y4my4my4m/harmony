@@ -43,6 +43,8 @@ interface InstanceSettings {
   maxServerSize: number
   maxCustomEmojisPerServer: number
   maxMediaAttachmentsPerPost: number
+  /** imgproxy JPEG/WebP quality (1–100) for custom emoji storage transforms */
+  customEmojiTransformQuality: number
 
   // Display names
   allowCustomEmojisInDisplayNames: boolean
@@ -248,6 +250,13 @@ export const useInstanceSettingsStore = defineStore('instanceSettings', {
           case 'max_media_attachments_per_post': {
             const num = typeof value === 'number' ? value : parseInt(String(value), 10)
             if (!isNaN(num) && num >= 1) this.settings.maxMediaAttachmentsPerPost = num
+            break
+          }
+          case 'custom_emoji_transform_quality': {
+            const num = typeof value === 'number' ? value : parseInt(String(value), 10)
+            if (!isNaN(num)) {
+              this.settings.customEmojiTransformQuality = Math.min(100, Math.max(1, num))
+            }
             break
           }
           case 'allow_custom_emojis_in_display_names':

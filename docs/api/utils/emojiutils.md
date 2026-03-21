@@ -24,7 +24,7 @@ graph TB
 
 ### `getEmojiUrl(emojiUrl: string | null | undefined, size: number = 48)`
 
-No description available.
+Builds a Supabase storage transform URL for local custom emojis. **Image quality** (1–100) comes from instance config key `custom_emoji_transform_quality` via `useInstanceSettingsStore` (default **100** if unset). Admins set it under **Admin → Federation → Custom Emoji Image Quality**.
 
 **Parameters:**
 - `emojiUrl: string | null | undefined`

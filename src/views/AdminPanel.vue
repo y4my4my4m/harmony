@@ -1048,6 +1048,19 @@
               <span class="setting-hint">Maximum custom emojis allowed per server. 0 = unlimited.</span>
             </div>
             <div class="setting-group">
+              <label>Custom Emoji Image Quality</label>
+              <input
+                v-model.number="config.federation.customEmojiTransformQuality"
+                type="number"
+                class="cyber-input"
+                min="1"
+                max="100"
+              />
+              <span class="setting-hint">
+                JPEG/WebP quality (20–100) for resized custom emoji images from storage. Default 80. Lower values reduce bandwidth at the cost of artifacts.
+              </span>
+            </div>
+            <div class="setting-group">
               <label class="toggle-label">
                 <input type="checkbox" v-model="config.federation.allowCustomEmojisInDisplayNames" />
                 <span class="toggle-slider"></span>
@@ -2193,6 +2206,7 @@ const config = ref({
     maxPostLength: 500,
     retryAttempts: 3,
     maxCustomEmojisPerServer: 0,
+    customEmojiTransformQuality: 80,
     allowCustomEmojisInDisplayNames: true,
     enableOutbound: true,
     enableInbound: true
@@ -3338,6 +3352,10 @@ const saveConfig = async () => {
       max_post_length: config.value.federation.maxPostLength,
       federation_retry_attempts: config.value.federation.retryAttempts,
       max_custom_emojis_per_server: config.value.federation.maxCustomEmojisPerServer ?? 0,
+      custom_emoji_transform_quality: Math.min(
+        100,
+        Math.max(1, Math.round(Number(config.value.federation.customEmojiTransformQuality) || 100))
+      ),
       allow_custom_emojis_in_display_names: config.value.federation.allowCustomEmojisInDisplayNames,
     }, userId)
 
@@ -3590,6 +3608,7 @@ const CONFIG_KEY_LABELS: Record<string, string> = {
   max_server_size: 'Max server size',
   max_message_length: 'Max message length',
   max_custom_emojis_per_server: 'Max custom emojis per server',
+  custom_emoji_transform_quality: 'Custom emoji image quality',
   allow_file_uploads: 'Allow file uploads',
   enable_voice_channels: 'Enable voice channels',
   federation_retry_attempts: 'Federation retry attempts',
