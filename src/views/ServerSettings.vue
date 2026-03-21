@@ -132,6 +132,7 @@
             :permissions="emojiPermissions"
             @emoji-uploaded="handleEmojiUploaded"
             @emoji-deleted="handleEmojiDeleted"
+            @emojis-bulk-deleted="handleEmojisBulkDeleted"
           />
 
           <!-- Privacy Settings Section -->
@@ -372,6 +373,12 @@ const handleEmojiDeleted = (emojiId: string) => {
   if (index > -1) {
     emojis.value.splice(index, 1)
   }
+  emojiCacheStore.invalidate({ serverId: props.serverId })
+}
+
+const handleEmojisBulkDeleted = (emojiIds: string[]) => {
+  const deletedSet = new Set(emojiIds)
+  emojis.value = emojis.value.filter(emoji => !deletedSet.has(emoji.id))
   emojiCacheStore.invalidate({ serverId: props.serverId })
 }
 
