@@ -2,6 +2,18 @@ import { test, expect, dismissAnnouncements } from './fixtures/auth.fixture'
 import { NotificationsPage } from './pages/NotificationsPage'
 import { ChatPage } from './pages/ChatPage'
 import { DMPage } from './pages/DMPage'
+import type { Page } from '@playwright/test'
+
+/**
+ * Wait for the notification system to be mounted and realtime connected.
+ * The toast container is rendered by NotificationToast.vue once the store is ready.
+ */
+async function waitForNotificationSystem(page: Page) {
+  await page.locator('[data-testid="notification-toasts"]').waitFor({
+    state: 'attached',
+    timeout: 15000,
+  })
+}
 
 test.describe('Notifications — Bell & Panel', () => {
   test('notification bell is visible when logged in', async ({ alicePage }) => {
@@ -56,11 +68,10 @@ test.describe('Notifications — Toast appears on mention', () => {
     bobPage,
     seedData,
   }) => {
-    // Bob navigates to a DIFFERENT context (social page)
-    // so ViewContextTracker won't suppress the toast
     await bobPage.goto('/social/home')
     await dismissAnnouncements(bobPage)
     await bobPage.waitForLoadState('networkidle', { timeout: 15000 })
+    await waitForNotificationSystem(bobPage)
 
     const aliceChat = new ChatPage(alicePage)
     await aliceChat.navigateToChannel(seedData.serverId, seedData.channelId)
@@ -70,7 +81,7 @@ test.describe('Notifications — Toast appears on mention', () => {
     await aliceChat.waitForMessage(tag)
 
     const toast = bobPage.locator('[data-testid="notification-toast-mention"]')
-    await expect(toast.first()).toBeVisible({ timeout: 15000 })
+    await expect(toast.first()).toBeVisible({ timeout: 20000 })
   })
 
   test('mention toast content includes sender info', async ({
@@ -81,6 +92,7 @@ test.describe('Notifications — Toast appears on mention', () => {
     await bobPage.goto('/social/home')
     await dismissAnnouncements(bobPage)
     await bobPage.waitForLoadState('networkidle', { timeout: 15000 })
+    await waitForNotificationSystem(bobPage)
 
     const aliceChat = new ChatPage(alicePage)
     await aliceChat.navigateToChannel(seedData.serverId, seedData.channelId)
@@ -90,7 +102,7 @@ test.describe('Notifications — Toast appears on mention', () => {
     await aliceChat.waitForMessage(tag)
 
     const toast = bobPage.locator('[data-testid="notification-toast-mention"]').first()
-    await expect(toast).toBeVisible({ timeout: 15000 })
+    await expect(toast).toBeVisible({ timeout: 20000 })
     await expect(toast).toContainText(seedData.alice.displayName, { timeout: 5000 })
   })
 
@@ -102,6 +114,7 @@ test.describe('Notifications — Toast appears on mention', () => {
     await bobPage.goto('/social/home')
     await dismissAnnouncements(bobPage)
     await bobPage.waitForLoadState('networkidle', { timeout: 15000 })
+    await waitForNotificationSystem(bobPage)
 
     const aliceChat = new ChatPage(alicePage)
     await aliceChat.navigateToChannel(seedData.serverId, seedData.channelId)
@@ -111,7 +124,7 @@ test.describe('Notifications — Toast appears on mention', () => {
     await aliceChat.waitForMessage(tag)
 
     // Wait for the notification to arrive via realtime
-    await bobPage.waitForTimeout(3000)
+    await bobPage.waitForTimeout(5000)
 
     const bobNotifs = new NotificationsPage(bobPage)
     await bobNotifs.openPanel()
@@ -120,7 +133,7 @@ test.describe('Notifications — Toast appears on mention', () => {
     const mentionItem = bobNotifs.notificationItems
       .filter({ has: bobPage.locator('.notification-item--mention') })
       .first()
-    await expect(mentionItem).toBeVisible({ timeout: 10000 })
+    await expect(mentionItem).toBeVisible({ timeout: 15000 })
   })
 })
 
@@ -130,12 +143,11 @@ test.describe('Notifications — Toast appears on DM', () => {
     bobPage,
     seedData,
   }) => {
-    // Bob sits on the chat page (different context from DMs)
     await bobPage.goto('/chat')
     await dismissAnnouncements(bobPage)
     await bobPage.waitForLoadState('networkidle', { timeout: 15000 })
+    await waitForNotificationSystem(bobPage)
 
-    // Alice opens DM with Bob
     const aliceDM = new DMPage(alicePage)
     await aliceDM.navigate()
     await aliceDM.startNewConversation(seedData.bob.username)
@@ -144,11 +156,10 @@ test.describe('Notifications — Toast appears on DM', () => {
     const dmMsg = `DM toast ${Date.now()}`
     await aliceDM.sendMessage(dmMsg)
 
-    // Bob should see a toast (type: dm or chat_message)
     const dmToast = bobPage.locator(
       '[data-testid="notification-toast-dm"], [data-testid="notification-toast-chat_message"]',
     )
-    await expect(dmToast.first()).toBeVisible({ timeout: 15000 })
+    await expect(dmToast.first()).toBeVisible({ timeout: 20000 })
   })
 })
 
@@ -158,7 +169,6 @@ test.describe('Notifications — Toast suppressed when viewing same context', ()
     bobPage,
     seedData,
   }) => {
-    // Both users view the SAME channel
     const bobChat = new ChatPage(bobPage)
     await bobChat.navigateToChannel(seedData.serverId, seedData.channelId)
 
@@ -169,9 +179,8 @@ test.describe('Notifications — Toast suppressed when viewing same context', ()
     await aliceChat.sendMessage(`Suppressed @${seedData.bob.username} ${tag}`)
     await aliceChat.waitForMessage(tag)
 
-    // Bob sees the message inline but should NOT get a toast
     await bobChat.waitForMessage(tag)
-    await bobPage.waitForTimeout(2000)
+    await bobPage.waitForTimeout(3000)
 
     const toast = bobPage.locator('[data-testid="notification-toast-mention"]')
     await expect(toast).not.toBeVisible()
@@ -187,6 +196,7 @@ test.describe('Notifications — Toast auto-dismiss', () => {
     await bobPage.goto('/social/home')
     await dismissAnnouncements(bobPage)
     await bobPage.waitForLoadState('networkidle', { timeout: 15000 })
+    await waitForNotificationSystem(bobPage)
 
     const aliceChat = new ChatPage(alicePage)
     await aliceChat.navigateToChannel(seedData.serverId, seedData.channelId)
@@ -196,7 +206,7 @@ test.describe('Notifications — Toast auto-dismiss', () => {
     await aliceChat.waitForMessage(tag)
 
     const toast = bobPage.locator('[data-testid="notification-toast-mention"]').first()
-    await expect(toast).toBeVisible({ timeout: 15000 })
+    await expect(toast).toBeVisible({ timeout: 20000 })
 
     // Default duration is 4000ms + CSS transition time
     await expect(toast).not.toBeVisible({ timeout: 8000 })

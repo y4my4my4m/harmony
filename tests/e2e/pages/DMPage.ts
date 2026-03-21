@@ -39,7 +39,7 @@ export class DMPage {
 
   async sendMessage(content: string) {
     await this.messageInput.click()
-    await this.messageInput.fill(content)
+    await this.messageInput.pressSequentially(content, { delay: 20 })
     await this.page.keyboard.press('Enter')
   }
 

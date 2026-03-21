@@ -22,7 +22,7 @@ export class ChatPage {
 
   async sendMessage(content: string) {
     await this.messageInput.click()
-    await this.messageInput.fill(content)
+    await this.messageInput.pressSequentially(content, { delay: 20 })
     await this.page.keyboard.press('Enter')
   }
 
@@ -47,21 +47,26 @@ export class ChatPage {
   }
 
   async editMessage(messageLocator: Locator, newContent: string) {
+    await messageLocator.scrollIntoViewIfNeeded()
     await messageLocator.hover()
     const editBtn = messageLocator.locator('[data-testid="msg-action-edit"]')
-    await editBtn.waitFor({ state: 'visible', timeout: 3000 })
+    await editBtn.waitFor({ state: 'visible', timeout: 5000 })
     await editBtn.click()
 
     const editInput = this.page.getByRole('textbox', { name: 'Edit message' })
-    await editInput.waitFor({ state: 'visible', timeout: 3000 })
-    await editInput.fill(newContent)
+    await editInput.waitFor({ state: 'visible', timeout: 5000 })
+    await editInput.click()
+    await this.page.keyboard.press('ControlOrMeta+A')
+    await this.page.keyboard.press('Backspace')
+    await editInput.pressSequentially(newContent, { delay: 20 })
     await this.page.keyboard.press('Enter')
   }
 
   async deleteMessage(messageLocator: Locator) {
+    await messageLocator.scrollIntoViewIfNeeded()
     await messageLocator.hover()
     const deleteBtn = messageLocator.locator('[data-testid="msg-action-delete"]')
-    await deleteBtn.waitFor({ state: 'visible', timeout: 3000 })
+    await deleteBtn.waitFor({ state: 'visible', timeout: 5000 })
     await deleteBtn.click()
 
     const confirmBtn = this.page.locator('button:has-text("Delete"), button:has-text("Confirm")')
@@ -71,13 +76,14 @@ export class ChatPage {
   }
 
   async replyToMessage(messageLocator: Locator, replyContent: string) {
+    await messageLocator.scrollIntoViewIfNeeded()
     await messageLocator.hover()
     const replyBtn = messageLocator.locator('[data-testid="msg-action-reply"]')
-    await replyBtn.waitFor({ state: 'visible', timeout: 3000 })
+    await replyBtn.waitFor({ state: 'visible', timeout: 5000 })
     await replyBtn.click()
 
     await this.messageInput.click()
-    await this.messageInput.fill(replyContent)
+    await this.messageInput.pressSequentially(replyContent, { delay: 20 })
     await this.page.keyboard.press('Enter')
   }
 

@@ -33,6 +33,9 @@ export function getEmojiUrl(emojiUrl: string | null | undefined, size: number = 
         return emojiUrl;
     }
 
+    // Small emojis get lossless quality to avoid compression artifacts
+    const quality = size <= 24 ? 100 : 80;
+
     if (emojiUrl.startsWith('http://') || emojiUrl.startsWith('https://')) {
         try {
             const urlObj = new URL(emojiUrl);
@@ -45,7 +48,7 @@ export function getEmojiUrl(emojiUrl: string | null | undefined, size: number = 
                 const { data } = supabase.storage
                     .from('emojis')
                     .getPublicUrl(emojiPath, {
-                        transform: { width: optimizedSize, height: optimizedSize, resize: 'contain', quality: 80 }
+                        transform: { width: optimizedSize, height: optimizedSize, resize: 'contain', quality }
                     });
                 return data.publicUrl;
             }
@@ -59,7 +62,7 @@ export function getEmojiUrl(emojiUrl: string | null | undefined, size: number = 
     const { data } = supabase.storage
         .from('emojis')
         .getPublicUrl(emojiUrl, {
-            transform: { width: size, height: size, resize: 'contain', quality: 80 }
+            transform: { width: size, height: size, resize: 'contain', quality }
         });
     return data.publicUrl;
 }

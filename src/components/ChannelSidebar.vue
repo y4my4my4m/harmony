@@ -45,7 +45,8 @@
                 'dragging': dragState.isDragging && dragState.draggedItem?.id === element.id,
                 'voice-channel': isVoiceType(element.type),
                 'voice-connected': isVoiceType(element.type) && isUserInVoiceChannel(element.id),
-                'channel-unread': hasUnreadMessages(element.id) && element.id !== currentChannelId
+                'channel-unread': hasUnreadMessages(element.id) && element.id !== currentChannelId,
+                'muted': mutedChannelIds.has(element.id)
               }]" 
               @click="isVoiceType(element.type) ? handleVoiceChannelClick(element.id) : selectChannel(element.id)"
               @contextmenu="openChannelContextMenu($event, element)"
@@ -57,6 +58,7 @@
                 <SpeakerIcon v-else /> 
                 <span class="channel-name">{{ element.name }}</span>
               </div>
+              <Icon v-if="mutedChannelIds.has(element.id)" name="bell-off" :size="12" class="muted-icon" />
               <div v-if="getChannelUnreadMentions(element.id) > 0" class="notification-badge">
                 {{ getChannelUnreadMentions(element.id) > 99 ? '99+' : getChannelUnreadMentions(element.id) }}
               </div>
@@ -170,7 +172,8 @@
                       'dragging': dragState.isDragging && dragState.draggedItem?.id === channel.id,
                       'voice-channel': isVoiceType(channel.type),
                       'voice-connected': isVoiceType(channel.type) && isUserInVoiceChannel(channel.id),
-                      'channel-unread': hasUnreadMessages(channel.id) && channel.id !== currentChannelId
+                      'channel-unread': hasUnreadMessages(channel.id) && channel.id !== currentChannelId,
+                      'muted': mutedChannelIds.has(channel.id)
                     }"
                     @click="isVoiceType(channel.type) ? handleVoiceChannelClick(channel.id) : selectChannel(channel.id)"
                     @contextmenu="openChannelContextMenu($event, channel)"
@@ -182,6 +185,7 @@
                       <SpeakerIcon v-else />
                       <span class="channel-name">{{ channel.name }}</span>
                     </div>
+                    <Icon v-if="mutedChannelIds.has(channel.id)" name="bell-off" :size="12" class="muted-icon" />
                     <div v-if="getChannelUnreadMentions(channel.id) > 0" class="notification-badge">
                       {{ getChannelUnreadMentions(channel.id) > 99 ? '99+' : getChannelUnreadMentions(channel.id) }}
                     </div>
@@ -1328,6 +1332,22 @@ watch(() => props.currentServer?.id, () => {
 
 .channel-item.voice-connected:hover {
   background-color: rgba(87, 242, 135, 0.15);
+}
+
+.channel-item.muted {
+  opacity: 0.5;
+}
+
+.channel-item.muted:hover {
+  opacity: 0.75;
+}
+
+.muted-icon {
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+  width: 12px;
+  height: 12px;
+  margin-left: auto;
 }
 
 .channel-item.dragging {
