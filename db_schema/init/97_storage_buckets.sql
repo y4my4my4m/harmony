@@ -150,7 +150,13 @@ CREATE POLICY "Users can upload their own avatar"
     WITH CHECK (
         bucket_id = 'avatars'
         AND auth.role() = 'authenticated'
-        AND (storage.foldername(name))[1] = auth.uid()::text
+        AND (
+            (storage.foldername(name))[1] = auth.uid()::text
+            OR (
+                public.get_current_profile_id() IS NOT NULL
+                AND (storage.foldername(name))[1] = public.get_current_profile_id()::text
+            )
+        )
     );
 
 DROP POLICY IF EXISTS "Users can update their own avatar" ON storage.objects;
@@ -159,7 +165,13 @@ CREATE POLICY "Users can update their own avatar"
     USING (
         bucket_id = 'avatars'
         AND auth.role() = 'authenticated'
-        AND (storage.foldername(name))[1] = auth.uid()::text
+        AND (
+            (storage.foldername(name))[1] = auth.uid()::text
+            OR (
+                public.get_current_profile_id() IS NOT NULL
+                AND (storage.foldername(name))[1] = public.get_current_profile_id()::text
+            )
+        )
     );
 
 DROP POLICY IF EXISTS "Users can delete their own avatar" ON storage.objects;
@@ -168,7 +180,13 @@ CREATE POLICY "Users can delete their own avatar"
     USING (
         bucket_id = 'avatars'
         AND auth.role() = 'authenticated'
-        AND (storage.foldername(name))[1] = auth.uid()::text
+        AND (
+            (storage.foldername(name))[1] = auth.uid()::text
+            OR (
+                public.get_current_profile_id() IS NOT NULL
+                AND (storage.foldername(name))[1] = public.get_current_profile_id()::text
+            )
+        )
     );
 
 -- Authenticated users can upload to banners (their own folder)
@@ -178,7 +196,13 @@ CREATE POLICY "Users can upload their own banner"
     WITH CHECK (
         bucket_id = 'banners'
         AND auth.role() = 'authenticated'
-        AND (storage.foldername(name))[1] = auth.uid()::text
+        AND (
+            (storage.foldername(name))[1] = auth.uid()::text
+            OR (
+                public.get_current_profile_id() IS NOT NULL
+                AND (storage.foldername(name))[1] = public.get_current_profile_id()::text
+            )
+        )
     );
 
 DROP POLICY IF EXISTS "Users can update their own banner" ON storage.objects;
@@ -187,7 +211,13 @@ CREATE POLICY "Users can update their own banner"
     USING (
         bucket_id = 'banners'
         AND auth.role() = 'authenticated'
-        AND (storage.foldername(name))[1] = auth.uid()::text
+        AND (
+            (storage.foldername(name))[1] = auth.uid()::text
+            OR (
+                public.get_current_profile_id() IS NOT NULL
+                AND (storage.foldername(name))[1] = public.get_current_profile_id()::text
+            )
+        )
     );
 
 DROP POLICY IF EXISTS "Users can delete their own banner" ON storage.objects;
@@ -196,7 +226,13 @@ CREATE POLICY "Users can delete their own banner"
     USING (
         bucket_id = 'banners'
         AND auth.role() = 'authenticated'
-        AND (storage.foldername(name))[1] = auth.uid()::text
+        AND (
+            (storage.foldername(name))[1] = auth.uid()::text
+            OR (
+                public.get_current_profile_id() IS NOT NULL
+                AND (storage.foldername(name))[1] = public.get_current_profile_id()::text
+            )
+        )
     );
 
 -- Authenticated users can upload to user_media

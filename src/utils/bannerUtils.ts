@@ -74,6 +74,12 @@ export function normalizeBannerForStorage(bannerUrl?: string | null): string | n
  */
 export async function uploadBanner(file: File, userId: string): Promise<{ success: boolean; url?: string; error?: string }> {
   try {
+    if (!file || file.size === 0) {
+      return { success: false, error: 'Choose a non-empty image file' }
+    }
+    if (!file.type.startsWith('image/')) {
+      return { success: false, error: 'File must be an image' }
+    }
     const ext = file.name.split('.').pop()
     if (!ext) {
       return { success: false, error: 'File must have an extension' }
