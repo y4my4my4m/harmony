@@ -686,17 +686,26 @@ BEGIN
     END IF;
 
     IF p_type = 'reaction' AND p_source_user_id IS NOT NULL THEN
-        INSERT INTO notification_rate_limits (user_id, notification_type, source_user_id)
-        VALUES (p_user_id, p_type, p_source_user_id)
+        INSERT INTO notification_rate_limits (user_id, notification_type, source_user_id,
+                                              notification_count, last_notification_at, suppressed_until)
+        VALUES (p_user_id, p_type, p_source_user_id, 1, NOW(), NULL)
         ON CONFLICT (user_id, notification_type, source_user_id)
         DO UPDATE SET
-            notification_count = notification_rate_limits.notification_count + 1,
-            last_notification_at = NOW()
+            notification_count = CASE
+                WHEN notification_rate_limits.last_notification_at < v_time_threshold
+                THEN 1
+                ELSE notification_rate_limits.notification_count + 1
+            END,
+            last_notification_at = NOW(),
+            suppressed_until = CASE
+                WHEN notification_rate_limits.last_notification_at < v_time_threshold
+                THEN NULL
+                ELSE notification_rate_limits.suppressed_until
+            END
         RETURNING * INTO v_rate_limit;
 
         SELECT
-            (notification_count > 3) OR
-            (notification_count > 1 AND last_notification_at > v_time_threshold) OR
+            notification_count > 3 OR
             (suppressed_until IS NOT NULL AND suppressed_until > NOW())
         INTO v_should_suppress
         FROM notification_rate_limits

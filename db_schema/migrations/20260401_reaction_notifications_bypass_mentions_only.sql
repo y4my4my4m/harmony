@@ -1,9 +1,24 @@
 BEGIN;
 
--- Reactions / post emoji feedback were dropped when per-channel notification_level
--- was "mentions": only mention-type notifications passed. That prevented any
--- notification row from being created, so nothing appeared in-app or via realtime.
+-- =============================================================================
+-- Fix: Reaction notifications permanently blocked after first one
+--
+-- Two bugs:
+-- 1. Rate limiter: ON CONFLICT sets last_notification_at = NOW() BEFORE the
+--    check, so the "within 2 minutes" condition is always true. Combined with
+--    notification_count only ever incrementing, every reaction after the first
+--    from a given user is permanently rate-limited.
+--    Fix: reset counter + suppression when the sliding window has expired.
+--
+-- 2. Notification level: channels set to "mentions" dropped reactions because
+--    they aren't mention-type. Reactions target the recipient's own content,
+--    so they should pass through the mentions-only filter.
+-- =============================================================================
 
+-- Purge all poisoned rate-limit rows so existing users aren't permanently blocked
+TRUNCATE notification_rate_limits;
+
+-- Recreate send_notification with both fixes
 CREATE OR REPLACE FUNCTION public.send_notification(
     p_notification_type character varying,
     to_user_ids uuid[],
@@ -118,17 +133,27 @@ BEGIN
             END IF;
         END IF;
 
+        -- Rate limit reaction notifications (sliding window: resets after 2 min of quiet)
         IF p_from_user_id IS NOT NULL AND p_notification_type IN ('reaction', 'activitypub_reaction') THEN
-            INSERT INTO notification_rate_limits (user_id, notification_type, source_user_id)
-            VALUES (recipient_id, p_notification_type, p_from_user_id)
+            INSERT INTO notification_rate_limits (user_id, notification_type, source_user_id,
+                                                  notification_count, last_notification_at, suppressed_until)
+            VALUES (recipient_id, p_notification_type, p_from_user_id, 1, NOW(), NULL)
             ON CONFLICT (user_id, notification_type, source_user_id)
             DO UPDATE SET
-                notification_count = notification_rate_limits.notification_count + 1,
-                last_notification_at = NOW();
+                notification_count = CASE
+                    WHEN notification_rate_limits.last_notification_at < v_time_threshold
+                    THEN 1
+                    ELSE notification_rate_limits.notification_count + 1
+                END,
+                last_notification_at = NOW(),
+                suppressed_until = CASE
+                    WHEN notification_rate_limits.last_notification_at < v_time_threshold
+                    THEN NULL
+                    ELSE notification_rate_limits.suppressed_until
+                END;
 
             SELECT
-                (nrl.notification_count > 3) OR
-                (nrl.notification_count > 1 AND nrl.last_notification_at > v_time_threshold) OR
+                nrl.notification_count > 3 OR
                 (nrl.suppressed_until IS NOT NULL AND nrl.suppressed_until > NOW())
             INTO is_rate_limited
             FROM notification_rate_limits nrl
@@ -267,81 +292,85 @@ BEGIN
 END;
 $$;
 
--- Include data.sender.id in block/mute resolution (reaction payloads use sender.id, not sender.user_id).
-CREATE OR REPLACE FUNCTION public.get_user_notifications(p_user_id uuid, p_limit integer DEFAULT 20, p_offset integer DEFAULT 0, p_unread_only boolean DEFAULT false, p_notification_types character varying[] DEFAULT NULL::character varying[]) RETURNS TABLE(id uuid, user_id uuid, type character varying, data jsonb, is_read boolean, is_clicked boolean, created_at timestamp with time zone, updated_at timestamp with time zone, expires_at timestamp with time zone, read_at timestamp with time zone)
-    LANGUAGE plpgsql STABLE
-    AS $$
+-- Also fix create_notification_with_spam_prevention (same rate limiter bug)
+CREATE OR REPLACE FUNCTION public.create_notification_with_spam_prevention(
+    p_user_id uuid,
+    p_type text,
+    p_source_user_id uuid,
+    p_title text DEFAULT NULL,
+    p_message text DEFAULT NULL,
+    p_data jsonb DEFAULT '{}'::jsonb,
+    p_server_id uuid DEFAULT NULL,
+    p_channel_id uuid DEFAULT NULL,
+    p_conversation_id uuid DEFAULT NULL
+)
+RETURNS uuid
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    v_notification_id uuid;
+    v_caller_profile_id uuid;
+    v_rate_limit RECORD;
+    v_should_suppress boolean := false;
+    v_time_threshold timestamp with time zone := NOW() - INTERVAL '2 minutes';
 BEGIN
-    RETURN QUERY
-    SELECT 
-        n.id,
-        n.user_id,
-        n.type,
-        n.data,
-        n.is_read,
-        n.is_clicked,
-        n.created_at,
-        n.updated_at,
-        n.expires_at,
-        n.read_at
-    FROM notifications n
-    WHERE n.user_id = p_user_id
-    AND (NOT p_unread_only OR n.is_read = FALSE)
-    AND (p_notification_types IS NULL OR n.type = ANY(p_notification_types))
-    AND NOT EXISTS (
-        SELECT 1 
-        FROM user_blocks ub
-        WHERE ub.blocker_id = p_user_id
-        AND ub.blocked_user_id = COALESCE(
-            NULLIF((n.data->>'from_user_id'), '')::uuid,
-            NULLIF((n.data->'sender'->>'id'), '')::uuid,
-            NULLIF((n.data->'sender'->>'user_id'), '')::uuid,
-            NULLIF((n.data->>'follower_id'), '')::uuid,
-            NULLIF((n.data->'follower'->>'id'), '')::uuid,
-            NULLIF((n.data->'actor'->>'id'), '')::uuid,
-            NULLIF((n.data->'user'->>'id'), '')::uuid,
-            NULLIF((n.data->'author'->>'id'), '')::uuid
-        )
-        AND (ub.expires_at IS NULL OR ub.expires_at > NOW())
-    )
-    AND NOT EXISTS (
-        SELECT 1 
-        FROM user_mutes um
-        WHERE um.muter_id = p_user_id
-        AND um.muted_user_id = COALESCE(
-            NULLIF((n.data->>'from_user_id'), '')::uuid,
-            NULLIF((n.data->'sender'->>'id'), '')::uuid,
-            NULLIF((n.data->'sender'->>'user_id'), '')::uuid,
-            NULLIF((n.data->>'follower_id'), '')::uuid,
-            NULLIF((n.data->'follower'->>'id'), '')::uuid,
-            NULLIF((n.data->'actor'->>'id'), '')::uuid,
-            NULLIF((n.data->'user'->>'id'), '')::uuid,
-            NULLIF((n.data->'author'->>'id'), '')::uuid
-        )
-        AND um.hide_notifications = true
-        AND (um.expires_at IS NULL OR um.expires_at > NOW())
-    )
-    AND NOT EXISTS (
-        SELECT 1 
-        FROM notification_channels nc
-        WHERE nc.user_id = p_user_id
-        AND nc.muted = true
-        AND (
-            (nc.channel_id IS NOT NULL AND nc.channel_id = COALESCE(
-                NULLIF((n.data->>'channel_id'), '')::uuid,
-                NULLIF((n.data->'location'->>'channel_id'), '')::uuid
-            ))
-            OR
-            (nc.conversation_id IS NOT NULL AND nc.conversation_id = COALESCE(
-                NULLIF((n.data->>'conversation_id'), '')::uuid,
-                NULLIF((n.data->'conversation'->>'id'), '')::uuid
-            ))
-        )
-        AND (nc.muted_until IS NULL OR nc.muted_until > NOW())
-    )
-    ORDER BY n.created_at DESC
-    LIMIT p_limit
-    OFFSET p_offset;
+    SELECT id INTO v_caller_profile_id FROM profiles WHERE auth_user_id = auth.uid();
+
+    IF v_caller_profile_id IS NULL THEN
+        RAISE EXCEPTION 'Unauthorized: Authentication required';
+    END IF;
+
+    IF p_source_user_id != v_caller_profile_id THEN
+        RAISE EXCEPTION 'Unauthorized: Cannot create notifications from another user';
+    END IF;
+
+    IF p_type = 'reaction' AND p_source_user_id IS NOT NULL THEN
+        INSERT INTO notification_rate_limits (user_id, notification_type, source_user_id,
+                                              notification_count, last_notification_at, suppressed_until)
+        VALUES (p_user_id, p_type, p_source_user_id, 1, NOW(), NULL)
+        ON CONFLICT (user_id, notification_type, source_user_id)
+        DO UPDATE SET
+            notification_count = CASE
+                WHEN notification_rate_limits.last_notification_at < v_time_threshold
+                THEN 1
+                ELSE notification_rate_limits.notification_count + 1
+            END,
+            last_notification_at = NOW(),
+            suppressed_until = CASE
+                WHEN notification_rate_limits.last_notification_at < v_time_threshold
+                THEN NULL
+                ELSE notification_rate_limits.suppressed_until
+            END
+        RETURNING * INTO v_rate_limit;
+
+        SELECT
+            notification_count > 3 OR
+            (suppressed_until IS NOT NULL AND suppressed_until > NOW())
+        INTO v_should_suppress
+        FROM notification_rate_limits
+        WHERE user_id = p_user_id AND notification_type = p_type AND source_user_id = p_source_user_id;
+
+        IF v_should_suppress THEN
+            UPDATE notification_rate_limits
+            SET suppressed_until = NOW() + INTERVAL '2 minutes'
+            WHERE user_id = p_user_id AND notification_type = p_type AND source_user_id = p_source_user_id;
+            RETURN NULL;
+        END IF;
+    END IF;
+
+    SELECT send_notification_to_user(
+        p_type,
+        p_user_id,
+        p_data,
+        p_server_id,
+        p_channel_id,
+        p_conversation_id,
+        p_source_user_id,
+        'normal'
+    ) INTO v_notification_id;
+
+    RETURN v_notification_id;
 END;
 $$;
 

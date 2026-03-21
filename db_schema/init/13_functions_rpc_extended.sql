@@ -250,18 +250,27 @@ BEGIN
             END IF;
         END IF;
 
-        -- Rate limit reaction notifications
+        -- Rate limit reaction notifications (sliding window: resets after 2 min of quiet)
         IF p_from_user_id IS NOT NULL AND p_notification_type IN ('reaction', 'activitypub_reaction') THEN
-            INSERT INTO notification_rate_limits (user_id, notification_type, source_user_id)
-            VALUES (recipient_id, p_notification_type, p_from_user_id)
+            INSERT INTO notification_rate_limits (user_id, notification_type, source_user_id,
+                                                  notification_count, last_notification_at, suppressed_until)
+            VALUES (recipient_id, p_notification_type, p_from_user_id, 1, NOW(), NULL)
             ON CONFLICT (user_id, notification_type, source_user_id)
             DO UPDATE SET
-                notification_count = notification_rate_limits.notification_count + 1,
-                last_notification_at = NOW();
+                notification_count = CASE
+                    WHEN notification_rate_limits.last_notification_at < v_time_threshold
+                    THEN 1
+                    ELSE notification_rate_limits.notification_count + 1
+                END,
+                last_notification_at = NOW(),
+                suppressed_until = CASE
+                    WHEN notification_rate_limits.last_notification_at < v_time_threshold
+                    THEN NULL
+                    ELSE notification_rate_limits.suppressed_until
+                END;
 
             SELECT
-                (nrl.notification_count > 3) OR
-                (nrl.notification_count > 1 AND nrl.last_notification_at > v_time_threshold) OR
+                nrl.notification_count > 3 OR
                 (nrl.suppressed_until IS NOT NULL AND nrl.suppressed_until > NOW())
             INTO is_rate_limited
             FROM notification_rate_limits nrl
