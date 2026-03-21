@@ -203,6 +203,46 @@ const channelNotificationLevel = ref<'all' | 'mentions' | 'none'>('all')
 const moreMenuRef = ref<HTMLElement | null>(null)
 const menuPosition = ref<Record<string, string>>({})
 
+/**
+ * Insert or update notification_channels for a server channel.
+ * DB uses a partial unique index on (user_id, channel_id), so PostgREST
+ * upsert with onConflict(user_id, channel_id) fails with 42P10.
+ */
+async function mergeServerChannelNotificationRow(
+  profileId: string,
+  channelId: string,
+  serverId: string | null,
+  updates: { muted?: boolean; notification_level?: 'all' | 'mentions' | 'none' }
+) {
+  const { data: existing } = await supabase
+    .from('notification_channels')
+    .select('id')
+    .eq('user_id', profileId)
+    .eq('channel_id', channelId)
+    .maybeSingle()
+
+  const updated_at = new Date().toISOString()
+
+  if (existing?.id) {
+    return supabase
+      .from('notification_channels')
+      .update({
+        ...updates,
+        server_id: serverId,
+        updated_at,
+      })
+      .eq('id', existing.id)
+  }
+
+  return supabase.from('notification_channels').insert({
+    user_id: profileId,
+    channel_id: channelId,
+    server_id: serverId,
+    ...updates,
+    updated_at,
+  })
+}
+
 // Methods
 const loadPinnedCount = async () => {
   if (!props.channel?.id) return
@@ -244,15 +284,12 @@ const setNotificationLevel = async (level: 'all' | 'mentions' | 'none') => {
     const prevLevel = channelNotificationLevel.value
     channelNotificationLevel.value = level
 
-    const { error } = await supabase
-      .from('notification_channels')
-      .upsert({
-        user_id: ctx.profileId,
-        channel_id: props.channel.id,
-        server_id: props.server?.id ?? null,
-        notification_level: level,
-        updated_at: new Date().toISOString()
-      }, { onConflict: 'user_id,channel_id' })
+    const { error } = await mergeServerChannelNotificationRow(
+      ctx.profileId,
+      props.channel.id,
+      props.server?.id ?? null,
+      { notification_level: level }
+    )
 
     if (error) {
       channelNotificationLevel.value = prevLevel
@@ -353,46 +390,17 @@ const handleToggleMute = async () => {
     const newMuted = !isChannelMuted.value
     isChannelMuted.value = newMuted
 
-    // Upsert the notification_channels row
-    const { error } = await supabase
-      .from('notification_channels')
-      .upsert({
-        user_id: ctx.profileId,
-        channel_id: props.channel.id,
-        server_id: props.server?.id ?? null,
-        muted: newMuted,
-        updated_at: new Date().toISOString()
-      }, { onConflict: 'user_id,channel_id' })
+    const { error } = await mergeServerChannelNotificationRow(
+      ctx.profileId,
+      props.channel.id,
+      props.server?.id ?? null,
+      { muted: newMuted }
+    )
 
     if (error) {
-      // Revert optimistic update
       isChannelMuted.value = !newMuted
       debug.error('Failed to toggle mute:', error)
-
-      // Fallback: try select-then-update/insert
-      const { data: existing } = await supabase
-        .from('notification_channels')
-        .select('id')
-        .eq('user_id', ctx.profileId)
-        .eq('channel_id', props.channel.id)
-        .maybeSingle()
-
-      if (existing?.id) {
-        await supabase
-          .from('notification_channels')
-          .update({ muted: newMuted, updated_at: new Date().toISOString() })
-          .eq('id', existing.id)
-      } else {
-        await supabase
-          .from('notification_channels')
-          .insert({
-            user_id: ctx.profileId,
-            channel_id: props.channel.id,
-            server_id: props.server?.id ?? null,
-            muted: newMuted,
-          })
-      }
-      isChannelMuted.value = newMuted
+      return
     }
 
     debug.log(`✅ Channel ${newMuted ? 'muted' : 'unmuted'}:`, props.channel.name)
