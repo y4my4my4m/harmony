@@ -253,6 +253,8 @@
     "failedToDeleteEmoji": "Échec de la suppression de l'émoji",
     "fileNotImageSkipped": "{filename} n'est pas un fichier image et sera ignoré",
     "fileTooLargeSkipped": "{filename} est trop volumineux (plus de 1 Mo) et sera ignoré",
+    "filesNotImageSkipped": "{count} fichier(s) ignoré(s) : pas des images",
+    "filesTooLargeSkipped": "{count} fichier(s) ignoré(s) : taille supérieure à 1 Mo",
     "noValidImageFiles": "Aucun fichier image valide sélectionné",
     "cannotUploadEmojisLimit": "Impossible de téléverser {count} émojis. La limite du serveur est de 50 émojis (actuellement {current})",
     "emojisUploadedSuccess": "{count} émoji{plural} téléversé{plural} avec succès !",

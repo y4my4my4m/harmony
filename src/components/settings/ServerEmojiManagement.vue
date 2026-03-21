@@ -422,17 +422,26 @@ const handleBulkEmojiUpload = async (files: File[]) => {
   }
 
   // Validate files
+  const skippedNotImage: string[] = []
+  const skippedTooLarge: string[] = []
   const validFiles = files.filter(file => {
     if (!file.type.startsWith('image/')) {
-      toast.warning(t('server.fileNotImageSkipped', { filename: file.name }))
+      skippedNotImage.push(file.name)
       return false
     }
     if (file.size > 1024 * 1024) {
-      toast.warning(t('server.fileTooLargeSkipped', { filename: file.name }))
+      skippedTooLarge.push(file.name)
       return false
     }
     return true
   })
+
+  if (skippedNotImage.length > 0) {
+    toast.warning(t('server.filesNotImageSkipped', { count: skippedNotImage.length }))
+  }
+  if (skippedTooLarge.length > 0) {
+    toast.warning(t('server.filesTooLargeSkipped', { count: skippedTooLarge.length }))
+  }
 
   if (validFiles.length === 0) {
     toast.error(t('server.noValidImageFiles'))

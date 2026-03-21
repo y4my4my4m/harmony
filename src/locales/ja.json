@@ -313,6 +313,8 @@
     "failedToDeleteEmoji": "絵文字の削除に失敗しました",
     "fileNotImageSkipped": "{filename}は画像ファイルではないため、スキップされます",
     "fileTooLargeSkipped": "{filename}が大きすぎます（1MB超過）- スキップされます",
+    "filesNotImageSkipped": "{count}件のファイルをスキップ：画像ファイルではありません",
+    "filesTooLargeSkipped": "{count}件のファイルをスキップ：1MBを超えています",
     "noValidImageFiles": "有効な画像ファイルが選択されていません",
     "cannotUploadEmojisLimit": "{count}個の絵文字をアップロードできません。サーバー制限は50個です（現在{current}個）",
     "emojisUploadedSuccess": "{count}個の絵文字{plural}のアップロードに成功しました！",

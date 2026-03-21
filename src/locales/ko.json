@@ -253,6 +253,8 @@
     "failedToDeleteEmoji": "이모지 삭제 실패",
     "fileNotImageSkipped": "{filename}은(는) 이미지 파일이 아니므로 건너뜁니다",
     "fileTooLargeSkipped": "{filename}은(는) 너무 큽니다 (1MB 초과) - 건너뜁니다",
+    "filesNotImageSkipped": "{count}개 파일 건너뜀: 이미지 파일이 아님",
+    "filesTooLargeSkipped": "{count}개 파일 건너뜀: 1MB 초과",
     "noValidImageFiles": "유효한 이미지 파일이 선택되지 않았습니다",
     "cannotUploadEmojisLimit": "{count}개의 이모지를 업로드할 수 없습니다. 서버 제한은 50개입니다 (현재 {current}개)",
     "emojisUploadedSuccess": "{count}개의 이모지{plural} 업로드 성공!",

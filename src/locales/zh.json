@@ -253,6 +253,8 @@
     "failedToDeleteEmoji": "删除表情失败",
     "fileNotImageSkipped": "{filename} 不是图片文件，将被跳过",
     "fileTooLargeSkipped": "{filename} 太大（超过 1MB），将被跳过",
+    "filesNotImageSkipped": "{count} 个文件已跳过：非图片文件",
+    "filesTooLargeSkipped": "{count} 个文件已跳过：超过 1MB",
     "noValidImageFiles": "未选择有效的图片文件",
     "cannotUploadEmojisLimit": "无法上传 {count} 个表情。服务器限制为 50 个表情（当前 {current} 个）",
     "emojisUploadedSuccess": "成功上传 {count} 个表情{plural}！",

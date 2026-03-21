@@ -365,7 +365,6 @@ const handleBannerChange = (file: File | null) => {
 const handleEmojiUploaded = (newEmoji: Emoji) => {
   emojis.value.push(newEmoji)
   emojiCacheStore.invalidate({ serverId: props.serverId })
-  toast.success(t('server.emojiUploadedSuccessToast'))
 }
 
 const handleEmojiDeleted = (emojiId: string) => {

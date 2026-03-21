@@ -896,6 +896,8 @@
     "failedToDeleteEmoji": "Failed to delete emoji",
     "fileNotImageSkipped": "{filename} is not an image file and will be skipped",
     "fileTooLargeSkipped": "{filename} is too large (over 1MB) and will be skipped",
+    "filesNotImageSkipped": "{count} file(s) skipped: not image files",
+    "filesTooLargeSkipped": "{count} file(s) skipped: over 1MB size limit",
     "noValidImageFiles": "No valid image files selected",
     "cannotUploadEmojisLimit": "Cannot upload {count} emojis. Server limit is {max} emojis (currently {current})",
     "emojisUploadedSuccess": "Successfully uploaded {count} emoji{plural}!",
