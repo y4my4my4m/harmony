@@ -193,7 +193,7 @@ import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import { getProfileWithAvatarUrl, updateProfile, uploadAvatar, uploadBanner } from '@/services/ProfileService'
 import { normalizeAvatarForStorage } from '@/utils/avatarUtils'
-import { normalizeBannerForStorage } from '@/utils/bannerUtils'
+import { normalizeBannerForStorage, invalidateBannerCache } from '@/utils/bannerUtils'
 import { createSettingsNavigator, type SettingsSection } from '@/utils/settingsUtils'
 import { useUserData } from '@/composables/useUserData'
 import { useMobileGestures } from '@/composables/useMobileGestures'
@@ -459,6 +459,7 @@ const handleBannerUpload = async (file: File) => {
     
     debug.log('💾 Updating profile with banner...')
     await updateProfile({ banner_url: normalizedPath || undefined })
+    invalidateBannerCache()
     profile.value = { ...profile.value, banner_url: normalizedPath } as User
     
     // Broadcast banner update to all connected clients for real-time updates

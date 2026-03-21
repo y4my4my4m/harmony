@@ -420,9 +420,92 @@ export class CorePostService {
     }
   }
 
+  private static readonly MAX_PINNED_POSTS = 5
+
   /**
-   * Toggle emoji reaction on a post (pure local)
+   * Toggle pin on a post (pin/unpin to profile).
+   * Only the author can pin their own public/unlisted posts, up to MAX_PINNED_POSTS.
    */
+  async togglePinPost(postId: string): Promise<{ pinned: boolean }> {
+    try {
+      const profileId = await this.getCurrentUserProfileId()
+
+      const { data: post, error: fetchError } = await supabase
+        .from('posts')
+        .select('id, author_id, is_pinned, visibility')
+        .eq('id', postId)
+        .single()
+
+      if (fetchError || !post) {
+        throw this.createError('POST_NOT_FOUND', 'Post not found')
+      }
+
+      if (post.author_id !== profileId) {
+        throw this.createError('NOT_AUTHOR', 'Only the author can pin their own posts')
+      }
+
+      const targetState = !post.is_pinned
+
+      if (targetState) {
+        if (post.visibility !== 'public' && post.visibility !== 'unlisted') {
+          throw this.createError('VISIBILITY_RESTRICTED', 'Only public or unlisted posts can be pinned')
+        }
+
+        const { count, error: countError } = await supabase
+          .from('posts')
+          .select('id', { count: 'exact', head: true })
+          .eq('author_id', profileId)
+          .eq('is_pinned', true)
+          .eq('is_deleted', false)
+
+        if (countError) throw this.createError('COUNT_FAILED', countError.message, countError)
+
+        if ((count ?? 0) >= CorePostService.MAX_PINNED_POSTS) {
+          throw this.createError(
+            'PIN_LIMIT_REACHED',
+            `You can pin at most ${CorePostService.MAX_PINNED_POSTS} posts`
+          )
+        }
+      }
+
+      const { error: updateError } = await supabase
+        .from('posts')
+        .update({ is_pinned: targetState })
+        .eq('id', postId)
+
+      if (updateError) throw this.createError('PIN_UPDATE_FAILED', updateError.message, updateError)
+
+      debug.log(`📌 Core: Post ${postId} ${targetState ? 'pinned' : 'unpinned'}`)
+      return { pinned: targetState }
+    } catch (error) {
+      debug.error('❌ Core: Failed to toggle pin:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Get pinned posts for a user profile (includes author join for display)
+   */
+  async getPinnedPosts(authorId: string): Promise<any[]> {
+    try {
+      const { data, error } = await supabase
+        .from('posts')
+        .select('*, author:profiles!posts_author_id_fkey (id, username, display_name, domain, avatar_url, is_local)')
+        .eq('author_id', authorId)
+        .eq('is_pinned', true)
+        .eq('is_deleted', false)
+        .in('visibility', ['public', 'unlisted'])
+        .order('created_at', { ascending: false })
+        .limit(CorePostService.MAX_PINNED_POSTS)
+
+      if (error) throw this.createError('FETCH_PINNED_FAILED', error.message, error)
+      return data || []
+    } catch (error) {
+      debug.error('❌ Core: Failed to fetch pinned posts:', error)
+      throw error
+    }
+  }
+
   /**
    * Toggle reaction on a post
    * Uses AuthContextService for efficient auth lookup
@@ -753,6 +836,7 @@ export class CorePostService {
       in_reply_to: post.in_reply_to,
       conversation_id: post.conversation_id,
       is_deleted: post.is_deleted,
+      is_pinned: post.is_pinned ?? false,
       metadata: post.metadata,
       favorites_count: post.favorites_count || 0,
       reblogs_count: post.reblogs_count || 0,

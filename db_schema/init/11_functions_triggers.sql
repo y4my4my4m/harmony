@@ -807,6 +807,15 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
 BEGIN
+    -- Bookmarks are private/local-only; never federate them
+    IF TG_OP = 'INSERT' AND NEW.interaction_type = 'bookmark' THEN
+        NEW.federation_status := 'skipped';
+        RETURN NEW;
+    END IF;
+    IF TG_OP = 'DELETE' AND OLD.interaction_type = 'bookmark' THEN
+        RETURN OLD;
+    END IF;
+
     IF TG_OP = 'INSERT' THEN
         NEW.federation_status := 'queued';
         PERFORM public.queue_federation_job(

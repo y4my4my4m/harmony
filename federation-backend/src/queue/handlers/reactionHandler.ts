@@ -19,6 +19,12 @@ export async function handleReactionJob(data: FederationJobData): Promise<void> 
 
   logger.info(`❤️ Processing reaction job: ${type} for interaction ${interaction_id}`);
 
+  if (interaction_type === 'bookmark') {
+    logger.info(`⏭️ Bookmarks are private, skipping federation for ${interaction_id}`);
+    await updateFederationStatus(interaction_id, 'post_interactions', 'skipped');
+    return;
+  }
+
   try {
     const { data: post } = await supabase
       .from('posts')

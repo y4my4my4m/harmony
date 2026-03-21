@@ -1,6 +1,16 @@
 import { supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
 
+let bannerCacheBuster = Date.now()
+
+/**
+ * Invalidate cached banner URLs so the next call to getBannerUrl
+ * produces a URL the browser treats as new.
+ */
+export function invalidateBannerCache(): void {
+  bannerCacheBuster = Date.now()
+}
+
 /**
  * Get banner URL for a user
  * Returns a public URL for banner stored in Supabase storage, or fallback to external URL
@@ -38,7 +48,8 @@ export function getPublicBannerUrl(storagePath: string, options?: { width?: numb
       return null
     }
 
-    return data.publicUrl
+    const separator = data.publicUrl.includes('?') ? '&' : '?'
+    return `${data.publicUrl}${separator}v=${bannerCacheBuster}`
   } catch (error) {
     debug.error('Error getting public banner URL:', error)
     return null

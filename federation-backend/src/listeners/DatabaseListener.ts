@@ -156,10 +156,10 @@ export async function startDatabaseListener(): Promise<void> {
           logger.info('🗑️ Post deletion detected:', payload.new.id);
           await handlePostDeletion(payload.new, payload.old);
         }
-        // Handle pin/unpin events (is_pinned changed)
+        // Pin/unpin is handled by the federate-post queue job (type: pin_change)
+        // triggered by handle_post_federation() in the DB, so skip here to avoid duplicates.
         else if (payload.new.is_pinned !== payload.old?.is_pinned) {
-          logger.info(`📌 Post ${payload.new.is_pinned ? 'pinned' : 'unpinned'}:`, payload.new.id);
-          await handlePinChange(payload.new, payload.old);
+          logger.info(`📌 Post ${payload.new.is_pinned ? 'pinned' : 'unpinned'}: ${payload.new.id} (handled by queue job)`);
         }
         // Handle post edits (content or content_warning changed)
         else if (

@@ -196,8 +196,26 @@
           
           <!-- Posts Tab (hidden if blocked) -->
           <div v-else-if="activeTab === 'posts'" class="posts-tab">
+            <!-- Pinned Posts -->
+            <div v-if="pinnedPosts.length > 0" class="pinned-posts-section">
+              <MonyPost
+                v-for="post in pinnedPosts"
+                :key="post.id"
+                :post="post"
+                show-pinned-header
+                @reply="replyToPost"
+                @favorite="handleFavorite"
+                @reblog="handleReblog"
+                @bookmark="handleBookmark"
+                @delete="handleDelete"
+                @user-click="showUserProfile"
+                @hashtag-click="navigateToHashtag"
+                @show-conversation="showConversation"
+              />
+            </div>
+
             <PostsContainer
-              :posts="userPosts"
+              :posts="unpinnedUserPosts"
               :is-loading="isLoadingPosts"
               :has-more="hasMorePosts"
               :empty-title="t('activitypub.noMoniesHereYet')"
@@ -290,6 +308,7 @@ import { useUserData } from '@/composables/useUserData'
 const { t } = useI18n(); 
 
 import { activityPubService } from '@/services/activityPubService';
+import { services } from '@/services';
 import { getBannerUrl } from '@/utils/bannerUtils';
 import type { FederatedUser, TimelinePost } from '@/types';
 import { format } from 'date-fns';
@@ -298,6 +317,7 @@ import { format } from 'date-fns';
 import MonyHeader from '@/components/activitypub/MonyHeader.vue'
 import DisplayName from '@/components/DisplayName.vue'
 import MonyContent from '@/components/activitypub/MonyContent.vue';
+import MonyPost from '@/components/activitypub/MonyPost.vue';
 import PostsContainer from '@/components/common/PostsContainer.vue';
 import ProfileCard from '@/components/common/ProfileCard.vue';
 import UserProfileModal from '@/components/UserProfileModal.vue';
@@ -399,6 +419,7 @@ const toggleActionsMenu = () => {
 
 // Posts
 const userPosts = ref<TimelinePost[]>([]);
+const pinnedPosts = ref<TimelinePost[]>([]);
 const isLoadingPosts = ref(false);
 const hasMorePostsRef = ref(false);
 const remoteOutboxUrl = ref<string | null>(null); // For remote user pagination
@@ -415,6 +436,8 @@ const selectedModalUser = ref<FederatedUser | null>(null);
 
 // Computed properties
 const hasMorePosts = computed(() => props.hasMorePosts || hasMorePostsRef.value);
+const pinnedPostIds = computed(() => new Set(pinnedPosts.value.map(p => p.id)));
+const unpinnedUserPosts = computed(() => userPosts.value.filter(p => !pinnedPostIds.value.has(p.id)));
 const profileTabs = computed(() => [
   { 
     id: 'posts', 
@@ -660,9 +683,10 @@ const loadUserProfile = async (handle: string, forceRefresh: boolean = false) =>
         following: user.value.following_count,
         followers: user.value.followers_count
       });
-      // OPTIMIZED: Load posts, following, and followers in parallel
+      // OPTIMIZED: Load posts, pinned posts, following, and followers in parallel
       await Promise.all([
         loadUserPosts(),
+        loadPinnedPosts(),
         loadFollowing(),
         loadFollowers()
       ]);
@@ -790,6 +814,18 @@ const loadFollowers = async () => {
   } catch (error) {
     debug.error('❌ Failed to load followers:', error);
     followerUsers.value = [];
+  }
+};
+
+const loadPinnedPosts = async () => {
+  if (!user.value) return;
+  try {
+    const posts = await services.posts.getPinnedPosts(user.value.id);
+    pinnedPosts.value = posts as TimelinePost[] || [];
+    debug.log(`📌 Loaded ${pinnedPosts.value.length} pinned posts for ${user.value.username}`);
+  } catch (err) {
+    debug.error('Failed to load pinned posts:', err);
+    pinnedPosts.value = [];
   }
 };
 
@@ -1498,6 +1534,14 @@ onUnmounted(() => {
   min-height: 0;
   display: flex;
   flex-direction: column;
+}
+
+.pinned-posts-section {
+  max-width: 600px;
+  margin: 0 auto;
+  width: 100%;
+  border-bottom: 1px solid var(--border-color);
+  padding: 6px 16px;
 }
 
 .following-tab,

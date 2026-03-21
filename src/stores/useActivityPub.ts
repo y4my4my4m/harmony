@@ -2216,7 +2216,7 @@ export const useActivityPubStore = defineStore('activitypub', {
     /**
      * Update post interaction state in all feeds immediately (state only, counts handled by server refresh)
      */
-    updatePostInteractionInAllFeeds(postId: string, interactionType: 'favorite' | 'reblog' | 'bookmark', isActive: boolean) {
+    updatePostInteractionInAllFeeds(postId: string, interactionType: 'favorite' | 'reblog' | 'bookmark' | 'pin', isActive: boolean) {
       const feeds = [this.homeFeed, this.publicFeed, this.localFeed, this.mentionsFeed];
       
       feeds.forEach(feed => {
@@ -2225,14 +2225,15 @@ export const useActivityPubStore = defineStore('activitypub', {
           switch (interactionType) {
             case 'favorite':
               post.is_favorited = isActive;
-              // Don't update count - server will provide accurate count
               break;
             case 'reblog':
               post.is_reblogged = isActive;
-              // Don't update count - server will provide accurate count
               break;
             case 'bookmark':
               post.is_bookmarked = isActive;
+              break;
+            case 'pin':
+              post.is_pinned = isActive;
               break;
           }
           debug.log(`🔄 Updated ${interactionType} state for post ${postId} in feed: ${isActive} (counts will be synced from server)`);

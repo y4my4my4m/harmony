@@ -7,7 +7,7 @@
 
 import { getSupabaseClient } from '../../config/supabase.js';
 import { DeliveryQueue } from '../../activitypub/DeliveryQueue.js';
-import { createPostActivity, createDeleteActivity, createPostUpdateActivity } from '../../listeners/FederationHandlers.js';
+import { createPostActivity, createDeleteActivity, createPostUpdateActivity, createAddToFeaturedActivity, createRemoveFromFeaturedActivity } from '../../listeners/FederationHandlers.js';
 import config from '../../config/index.js';
 import { logger } from '../../utils/logger.js';
 import type { FederationJobData } from '../BullMQManager.js';
@@ -109,11 +109,14 @@ export async function handlePostJob(data: FederationJobData): Promise<void> {
         break;
 
       case 'pin_change':
-        // Handle pin/unpin - this is typically an Add/Remove activity
-        // For now, we'll skip federation of pin changes as they're primarily local
-        logger.info(`Pin change for post ${post_id} - skipping federation`);
-        await updateFederationStatus(post_id, 'posts', 'skipped');
-        return;
+        if (post.is_pinned) {
+          activity = createAddToFeaturedActivity(author, post);
+        } else {
+          activity = createRemoveFromFeaturedActivity(author, post);
+        }
+        await DeliveryQueue.broadcastToFollowers(author.id, activity);
+        logger.info(`📌 Post ${post_id} ${post.is_pinned ? 'pinned' : 'unpinned'} - Add/Remove activity sent`);
+        break;
 
       default:
         logger.warn(`Unknown post job type: ${type}`);

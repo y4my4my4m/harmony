@@ -895,6 +895,8 @@ export interface ActivityPubPost {
   is_sensitive: boolean;
   is_deleted: boolean;
   deleted_at?: string;
+  // Pin state
+  is_pinned?: boolean;
   // Interaction state properties (for enhanced posts)
   is_favorited?: boolean;
   is_reblogged?: boolean;
