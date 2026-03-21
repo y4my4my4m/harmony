@@ -1,22 +1,23 @@
 <template>
   <div class="public-servers-search">
-    <!-- Search Input -->
-    <div class="search-section">
-      <SearchInput 
-        v-model="localSearchQuery"
-        :placeholder="$t('server.searchCommunities')"
-        :is-loading="isSearching"
-        @clear="handleClearSearch"
-      />
-    </div>
+    <!-- Search + category toggle: side-by-side on wide screens -->
+    <div class="filters-row">
+      <div class="search-section">
+        <SearchInput 
+          v-model="localSearchQuery"
+          :placeholder="$t('server.searchCommunities')"
+          :is-loading="isSearching"
+          @clear="handleClearSearch"
+        />
+      </div>
 
-    <!-- Category Filter -->
-    <div class="category-section">
-      <div class="category-header">
+      <div class="category-toggle-wrap">
         <button 
+          type="button"
           @click="toggleCategories"
           class="category-toggle-btn"
           :class="{ 'category-toggle-btn--expanded': showCategories }"
+          :aria-expanded="showCategories"
         >
           <div class="category-toggle-content">
             <div class="category-toggle-icon">
@@ -36,6 +37,7 @@
           </div>
           <div v-if="selectedCategory" class="category-actions">
             <button 
+              type="button"
               @click.stop="clearCategory"
               class="clear-category-btn"
               :title="$t('server.clearCategoryFilter')"
@@ -47,24 +49,26 @@
           </div>
         </button>
       </div>
-      
-      <Transition name="categories-expand">
-        <div v-show="showCategories" class="category-pills-container">
-          <div class="category-pills">
-            <button
-              v-for="category in categories"
-              :key="category"
-              @click="selectCategory(category)"
-              class="category-pill"
-              :class="{ 'category-pill--active': category === selectedCategory }"
-            >
-              <span class="category-pill-text">{{ translateCategory(category) }}</span>
-              <div v-if="category === selectedCategory" class="category-pill-indicator"></div>
-            </button>
-          </div>
-        </div>
-      </Transition>
     </div>
+
+    <!-- Pills full width when open (room to wrap) -->
+    <Transition name="categories-expand">
+      <div v-show="showCategories" class="category-pills-container">
+        <div class="category-pills">
+          <button
+            v-for="category in categories"
+            :key="category"
+            type="button"
+            @click="selectCategory(category)"
+            class="category-pill"
+            :class="{ 'category-pill--active': category === selectedCategory }"
+          >
+            <span class="category-pill-text">{{ translateCategory(category) }}</span>
+            <div v-if="category === selectedCategory" class="category-pill-indicator"></div>
+          </button>
+        </div>
+      </div>
+    </Transition>
 
     <!-- Stats -->
     <div class="search-stats">
@@ -172,35 +176,95 @@ const formatStats = (filtered: number, total: number): string => {
 
 <style scoped>
 .public-servers-search {
-  padding: 24px 32px;
+  /* Shared height for search + category controls */
+  --filter-row-height: 44px;
+
+  padding: 14px 24px 16px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   background: rgba(32, 34, 37, 0.3);
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 10px;
+}
+
+/* Two equal columns: search | categories (stacks on narrow viewports) */
+.filters-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 14px;
+  align-items: stretch;
 }
 
 .search-section {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 0;
+  min-width: 0;
+  order: 2; /* right column on wide layout */
 }
 
-.category-section {
+/* Same fixed height as category dropdown */
+.search-section :deep(.search-input) {
+  border-radius: 10px;
+  box-sizing: border-box;
+  height: var(--filter-row-height);
+  min-height: var(--filter-row-height);
+  max-height: var(--filter-row-height);
+}
+
+.search-section :deep(.search-input__icon) {
+  align-self: stretch;
+  padding: 0 10px 0 12px;
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  justify-content: center;
 }
 
-.category-header {
-  margin-bottom: 0;
+.search-section :deep(.search-icon) {
+  width: 18px;
+  height: 18px;
+}
+
+.search-section :deep(.loading-spinner) {
+  width: 18px;
+  height: 18px;
+}
+
+.search-section :deep(.spinner) {
+  width: 16px;
+  height: 16px;
+}
+
+.search-section :deep(.search-input__field) {
+  padding: 0 8px 0 0;
+  font-size: 14px;
+  line-height: 1.25;
+}
+
+.search-section :deep(.search-input__clear) {
+  align-self: stretch;
+  padding: 0 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.category-toggle-wrap {
+  min-width: 0;
+  display: flex;
+  order: 1; /* left column on wide layout */
 }
 
 .category-toggle-btn {
   width: 100%;
+  box-sizing: border-box;
+  height: var(--filter-row-height);
+  min-height: var(--filter-row-height);
+  max-height: var(--filter-row-height);
   background: linear-gradient(135deg, rgba(32, 34, 37, 0.8), rgba(47, 49, 54, 0.6));
   border: 1px solid rgba(14, 165, 233, 0.2);
-  border-radius: 12px;
-  padding: 16px 20px;
+  border-radius: 10px;
+  padding: 0 12px;
   cursor: pointer;
   transition: all 0.2s ease;
   position: relative;
@@ -271,14 +335,16 @@ const formatStats = (filtered: number, total: number): string => {
 
 .category-toggle-text {
   display: flex;
-  flex-direction: row;
-  gap: 16px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
   flex: 1;
-  align-items: center;
+  min-width: 0;
+  text-align: left;
 }
 
 .category-title {
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 600;
   color: rgba(255, 255, 255, 0.9);
   margin: 0;
@@ -286,17 +352,20 @@ const formatStats = (filtered: number, total: number): string => {
 }
 
 .selected-category-preview {
-  font-size: 12px;
+  font-size: 11px;
   color: rgba(14, 165, 233, 0.9);
   font-weight: 600;
-  margin-top: 2px;
   text-transform: uppercase;
-  letter-spacing: 0.8px;
+  letter-spacing: 0.5px;
   background: rgba(14, 165, 233, 0.1);
-  padding: 2px 8px;
-  border-radius: 10px;
+  padding: 1px 6px;
+  border-radius: 8px;
   border: 1px solid rgba(14, 165, 233, 0.2);
   display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .category-actions {
@@ -330,25 +399,25 @@ const formatStats = (filtered: number, total: number): string => {
 }
 
 .category-pills-container {
-  padding: 20px;
+  padding: 10px 12px;
   background: rgba(32, 34, 37, 0.4);
-  border-radius: 12px;
+  border-radius: 10px;
   border: 1px solid rgba(14, 165, 233, 0.1);
-  margin-top: 16px;
+  margin-top: 0;
 }
 
 .category-pills {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 6px 8px;
 }
 
 .category-pill {
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.02));
   border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 25px;
-  padding: 10px 18px;
-  font-size: 13px;
+  border-radius: 20px;
+  padding: 6px 12px;
+  font-size: 12px;
   font-weight: 500;
   color: rgba(255, 255, 255, 0.8);
   cursor: pointer;
@@ -432,10 +501,10 @@ const formatStats = (filtered: number, total: number): string => {
 .categories-expand-enter-to,
 .categories-expand-leave-from {
   opacity: 1;
-  max-height: 200px;
-  padding-top: 20px;
-  padding-bottom: 20px;
-  margin-top: 16px;
+  max-height: 420px;
+  padding-top: 10px;
+  padding-bottom: 10px;
+  margin-top: 0;
 }
 
 .search-stats {
@@ -463,7 +532,7 @@ const formatStats = (filtered: number, total: number): string => {
 }
 
 .stats-text {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
   color: rgba(255, 255, 255, 0.9);
 }
@@ -479,24 +548,40 @@ const formatStats = (filtered: number, total: number): string => {
   font-style: italic;
 }
 
+/* Stack: search first (primary), categories below */
+@media (max-width: 680px) {
+  .filters-row {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .search-section {
+    order: 1;
+  }
+
+  .category-toggle-wrap {
+    order: 2;
+  }
+}
+
 /* Mobile responsive */
 @media (max-width: 768px) {
   .public-servers-search {
-    padding: 20px 24px;
-    gap: 16px;
+    padding: 12px 16px 14px;
+    gap: 8px;
   }
   
   .category-toggle-btn {
-    padding: 14px 16px;
+    padding: 0 12px;
   }
   
   .category-title {
-    font-size: 15px;
+    font-size: 13px;
   }
   
   .category-pills-container {
-    padding: 16px;
-    margin-top: 12px;
+    padding: 12px 14px;
+    margin-top: 0;
   }
   
   .category-pills {
@@ -511,11 +596,11 @@ const formatStats = (filtered: number, total: number): string => {
 
 @media (max-width: 480px) {
   .public-servers-search {
-    padding: 16px 20px;
+    padding: 10px 14px 12px;
   }
   
   .category-toggle-btn {
-    padding: 12px 14px;
+    padding: 0 10px;
   }
   
   .category-toggle-content {
