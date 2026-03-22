@@ -25,7 +25,7 @@ import { supabase } from '@/supabase'
 import { recoveryKeyService } from './RecoveryKeyService'
 import { megolmService, type MegolmOutboundSession, type MegolmInboundSession } from './MegolmService'
 import { identityKeyStore } from './SecureSessionKeyStore'
-import type { RealtimeChannel } from '@supabase/supabase-js'
+import { userEventChannel } from '@/services/UserEventChannel'
 import { debug } from '@/utils/debug'
 
 // Key request from the database
@@ -75,15 +75,11 @@ export class MegolmKeyBackupService {
   private userId: string | null = null
   private autoBackupEnabled = true
 
-  // Realtime subscriptions
-  private incomingRequestsChannel: RealtimeChannel | null = null
-  private fulfilledRequestsChannel: RealtimeChannel | null = null
-  
-  // Callbacks for when keys are received
+  private broadcastUnsubs: Array<() => void> = []
+
   private keyReceivedCallbacks: Set<KeyReceivedCallback> = new Set()
-  
-  // Track pending requests we've made (to avoid duplicates)
-  private pendingRequests: Map<string, string> = new Map() // sessionId -> requestId
+
+  private pendingRequests: Map<string, string> = new Map()
 
   private constructor() {}
 
@@ -113,55 +109,29 @@ export class MegolmKeyBackupService {
   }
 
   /**
-   * Set up realtime subscriptions for key request flow
+   * Set up broadcast handlers for key request flow via user:{id} channel.
    */
   private async setupRealtimeSubscriptions(): Promise<void> {
     if (!this.userId) return
 
-    // 1. Subscribe to incoming key requests (where I am the sender)
-    // This lets me automatically fulfill requests for sessions I have
-    this.incomingRequestsChannel = supabase
-      .channel(`key-requests-incoming:${this.userId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'megolm_key_requests',
-          filter: `sender_user_id=eq.${this.userId}`
-        },
-        (payload) => this.handleIncomingKeyRequest(payload.new as KeyRequest)
-      )
-      .subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          debug.log('🔔 Subscribed to incoming key requests')
-        }
-      })
+    for (const unsub of this.broadcastUnsubs) unsub()
+    this.broadcastUnsubs = []
 
-    // 2. Subscribe to fulfilled requests (where I am the requester)
-    // This lets me receive keys and retry decryption
-    this.fulfilledRequestsChannel = supabase
-      .channel(`key-requests-fulfilled:${this.userId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'megolm_key_requests',
-          filter: `requester_user_id=eq.${this.userId}`
-        },
-        (payload) => {
-          const request = payload.new as KeyRequest
-          if (request.status === 'fulfilled') {
-            this.handleFulfilledRequest(request)
-          }
-        }
-      )
-      .subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          debug.log('🔔 Subscribed to fulfilled key requests')
-        }
+    userEventChannel.connect(this.userId)
+
+    this.broadcastUnsubs.push(
+      userEventChannel.on('encryption:key_request', (data) => {
+        this.handleIncomingKeyRequest(data as unknown as KeyRequest)
       })
+    )
+
+    this.broadcastUnsubs.push(
+      userEventChannel.on('encryption:key_fulfilled', (data) => {
+        this.handleFulfilledRequest(data as unknown as KeyRequest)
+      })
+    )
+
+    debug.log('🔔 Encryption key request handlers registered via user:{id} broadcast')
   }
 
   /**
@@ -389,14 +359,8 @@ export class MegolmKeyBackupService {
    * Clean up subscriptions
    */
   cleanup(): void {
-    if (this.incomingRequestsChannel) {
-      this.incomingRequestsChannel.unsubscribe()
-      this.incomingRequestsChannel = null
-    }
-    if (this.fulfilledRequestsChannel) {
-      this.fulfilledRequestsChannel.unsubscribe()
-      this.fulfilledRequestsChannel = null
-    }
+    for (const unsub of this.broadcastUnsubs) unsub()
+    this.broadcastUnsubs = []
     this.keyReceivedCallbacks.clear()
     this.pendingRequests.clear()
   }

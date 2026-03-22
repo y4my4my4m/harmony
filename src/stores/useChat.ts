@@ -1043,17 +1043,14 @@ export const useChatStore = defineStore('chat', {
         }
       });
 
-      // Subscribe to reactions - note: we listen to all reactions and filter client-side
-      // because reactions table doesn't have channel_id for direct filtering
       const reactionsChannelName = `channel-reactions-${channelId}`;
       
-      // Check if already subscribed - prevent duplicate subscriptions
       if (!realtimeConnectionManager.hasSubscription(reactionsChannelName)) {
         realtimeConnectionManager.subscribeToTable({
           channelName: reactionsChannelName,
           table: 'reactions',
+          filter: `channel_id=eq.${channelId}`,
           onInsert: (payload) => {
-            // Filter client-side: only process if the message is in our cache
             const messageId = (payload.new as any)?.message_id;
             if (messageId && store.messages.some(m => m.id === messageId)) {
               reactionsStore.handleRealtimeUpdate(payload);

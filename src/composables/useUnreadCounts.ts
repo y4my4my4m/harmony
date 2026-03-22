@@ -9,7 +9,7 @@ import { debug } from '@/utils/debug'
 const sharedUnreadCounts = ref<Map<string, UnreadCount>>(new Map())
 const sharedIsLoading = ref(false)
 let sharedUnsubscribe: (() => void) | null = null
-let sharedFallbackChannel: ReturnType<typeof supabase.channel> | null = null
+let sharedReconnectUnsub: (() => void) | null = null
 let sharedProfileId: string | null = null
 let initPromise: Promise<void> | null = null
 let subscriberCount = 0
@@ -207,7 +207,7 @@ export function useUnreadCounts() {
    * (same key → same value overwrite), so dedup is implicit.
    */
   const setupRealtimeSubscription = async (): Promise<void> => {
-    if (sharedUnsubscribe && sharedFallbackChannel) return
+    if (sharedUnsubscribe) return
 
     const profileId = await getProfileId()
     if (!profileId) return
@@ -223,44 +223,15 @@ export function useUnreadCounts() {
         debug.log('📡 Broadcast unread:change →', action)
         applyUnreadChange(action, countData)
       })
+
+      sharedReconnectUnsub = userEventChannel.on('_reconnected', async () => {
+        debug.log('🔄 UserEventChannel reconnected — gap-filling unread counts')
+        await fetchUnreadCounts()
+      })
+
       debug.log('✅ Unread counts broadcast handler registered')
     }
 
-    // ---- 2. postgres_changes fallback (reliable CDC) ----
-    if (!sharedFallbackChannel) {
-      sharedFallbackChannel = supabase
-        .channel(`unread-fallback-${profileId}`)
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'unread_counts',
-            filter: `user_id=eq.${profileId}`,
-          },
-          (payload) => {
-            try {
-              if (payload.eventType === 'DELETE') {
-                const old = payload.old as Record<string, any>
-                if (old?.id) applyUnreadChange('delete', old)
-              } else {
-                const row = payload.new as Record<string, any>
-                if (row?.id) applyUnreadChange('upsert', row)
-              }
-              debug.log('📡 CDC unread_counts', payload.eventType)
-            } catch (error) {
-              debug.error('❌ CDC unread_counts error:', error)
-            }
-          }
-        )
-        .subscribe((status) => {
-          if (status === 'SUBSCRIBED') {
-            debug.log('✅ Unread counts CDC fallback subscribed')
-          } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-            debug.warn('⚠️ Unread counts CDC fallback status:', status)
-          }
-        })
-    }
   }
 
   /**
@@ -274,9 +245,9 @@ export function useUnreadCounts() {
         sharedUnsubscribe()
         sharedUnsubscribe = null
       }
-      if (sharedFallbackChannel) {
-        supabase.removeChannel(sharedFallbackChannel)
-        sharedFallbackChannel = null
+      if (sharedReconnectUnsub) {
+        sharedReconnectUnsub()
+        sharedReconnectUnsub = null
       }
       sharedProfileId = null
       initPromise = null

@@ -5,7 +5,8 @@ import { UserStatus } from '@/types';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 
 import { updateUserStatus } from '@/services/ProfileService';
-import { getMembershipService } from '@/services/membershipService';
+// membershipService CDC subscription removed - membership events now
+// flow through the server-structure broadcast channel
 import { userDataService } from '@/services/userDataService';
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
 import { debug } from '@/utils/debug'
@@ -226,19 +227,14 @@ export const useServerUsersStore = defineStore('serverUsers', {
      */
     async initializeMembershipTracking(serverId: string) {
       try {
-        // Only set up if we're switching to a different server
         if (this.currentServerId !== serverId) {
           debug.log(`🔄 Initializing membership tracking for server: ${serverId}`)
-          
-          // Clean up previous server's membership subscription
+
           this.cleanupMembershipTracking()
-          
-          // Subscribe to membership events for the new server
-          await getMembershipService().subscribeToServer(serverId)
-          
+
           this.currentServerId = serverId
           this.membershipSubscriptionActive = true
-          
+
           debug.log(`✅ Membership tracking initialized for server: ${serverId}`)
         }
       } catch (error) {
@@ -252,7 +248,6 @@ export const useServerUsersStore = defineStore('serverUsers', {
     cleanupMembershipTracking() {
       if (this.currentServerId && this.membershipSubscriptionActive) {
         debug.log(`🧹 Cleaning up membership tracking for server: ${this.currentServerId}`)
-        getMembershipService().unsubscribeFromServer(this.currentServerId)
         this.membershipSubscriptionActive = false
       }
     },

@@ -1907,38 +1907,42 @@ export const useServerChannelStore = defineStore('serverChannel', {
       
       this.serverStructureSubscription = supabase
         .channel(`server-structure:${serverId}`)
-        // Listen for channel changes
-        .on(
-          'postgres_changes',
-          { event: 'INSERT', schema: 'public', table: 'channels', filter: `server_id=eq.${serverId}` },
-          (payload) => this._handleChannelInsert(payload)
-        )
-        .on(
-          'postgres_changes',
-          { event: 'UPDATE', schema: 'public', table: 'channels', filter: `server_id=eq.${serverId}` },
-          (payload) => this._handleChannelUpdate(payload)
-        )
-        .on(
-          'postgres_changes',
-          { event: 'DELETE', schema: 'public', table: 'channels', filter: `server_id=eq.${serverId}` },
-          (payload) => this._handleChannelDelete(payload)
-        )
-        // Listen for category changes
-        .on(
-          'postgres_changes',
-          { event: 'INSERT', schema: 'public', table: 'channel_categories', filter: `server_id=eq.${serverId}` },
-          (payload) => this._handleCategoryInsert(payload)
-        )
-        .on(
-          'postgres_changes',
-          { event: 'UPDATE', schema: 'public', table: 'channel_categories', filter: `server_id=eq.${serverId}` },
-          (payload) => this._handleCategoryUpdate(payload)
-        )
-        .on(
-          'postgres_changes',
-          { event: 'DELETE', schema: 'public', table: 'channel_categories', filter: `server_id=eq.${serverId}` },
-          (payload) => this._handleCategoryDelete(payload)
-        )
+        .on('broadcast', { event: 'server_event' }, async (payload) => {
+          const data = payload.payload ?? payload;
+          const type = data?.type as string;
+          if (!type) return;
+
+          switch (type) {
+            case 'channel:insert':
+              this._handleChannelInsert(data);
+              break;
+            case 'channel:update':
+              this._handleChannelUpdate(data);
+              break;
+            case 'channel:delete':
+              this._handleChannelDelete(data);
+              break;
+            case 'category:insert':
+              this._handleCategoryInsert(data);
+              break;
+            case 'category:update':
+              this._handleCategoryUpdate(data);
+              break;
+            case 'category:delete':
+              this._handleCategoryDelete(data);
+              break;
+            case 'membership:event': {
+              const { getMembershipService } = await import('@/services/membershipService');
+              getMembershipService().handleBroadcastEvent(data.new);
+              break;
+            }
+            case 'thread:insert':
+            case 'thread:update':
+            case 'thread:delete':
+              window.dispatchEvent(new CustomEvent('server-structure:thread-change', { detail: data }));
+              break;
+          }
+        })
         .subscribe((status) => {
           debug.log(`📡 Server structure subscription status for ${serverId}:`, status);
         });

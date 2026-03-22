@@ -265,18 +265,21 @@ COMMENT ON TABLE public.emojis IS 'Custom emoji library';
 CREATE TABLE IF NOT EXISTS public.reactions (
     id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    
+
     message_id uuid NOT NULL REFERENCES public.messages(id) ON DELETE CASCADE,
     user_id uuid REFERENCES public.profiles(id) ON DELETE CASCADE,
     bot_id uuid,  -- For bot reactions
-    
+
     emoji_id uuid REFERENCES public.emojis(id) ON DELETE CASCADE,
     custom_emoji_content text,
-    
+
+    -- Denormalized from parent message for CDC server-side filtering
+    channel_id uuid,
+    conversation_id uuid,
+
     federation_status text DEFAULT 'pending'::text,
     metadata jsonb DEFAULT '{}'::jsonb,
-    
-    -- Either user or bot must be set
+
     CONSTRAINT reactions_has_emoji CHECK (emoji_id IS NOT NULL OR custom_emoji_content IS NOT NULL),
     CONSTRAINT reactions_has_author CHECK (user_id IS NOT NULL OR bot_id IS NOT NULL)
 );
@@ -285,8 +288,32 @@ ALTER TABLE public.reactions REPLICA IDENTITY FULL;
 
 CREATE INDEX IF NOT EXISTS idx_reactions_message ON public.reactions(message_id);
 CREATE INDEX IF NOT EXISTS idx_reactions_user ON public.reactions(user_id);
+CREATE INDEX IF NOT EXISTS idx_reactions_channel_id ON public.reactions(channel_id) WHERE channel_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_reactions_conversation_id ON public.reactions(conversation_id) WHERE conversation_id IS NOT NULL;
 
 COMMENT ON TABLE public.reactions IS 'Message emoji reactions';
+
+-- Auto-populate channel_id/conversation_id from the parent message on INSERT
+CREATE OR REPLACE FUNCTION public.populate_reaction_context()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF NEW.channel_id IS NULL AND NEW.conversation_id IS NULL AND NEW.message_id IS NOT NULL THEN
+    SELECT m.channel_id, m.conversation_id
+    INTO NEW.channel_id, NEW.conversation_id
+    FROM messages m
+    WHERE m.id = NEW.message_id;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_populate_reaction_context ON reactions;
+CREATE TRIGGER trg_populate_reaction_context
+  BEFORE INSERT ON reactions
+  FOR EACH ROW
+  EXECUTE FUNCTION populate_reaction_context();
 
 -- ---------------------------------------------------------------------------
 -- USER SERVERS (membership)

@@ -1199,34 +1199,16 @@ watch(() => route.params.threadId, (threadId) => {
   }
 }, { immediate: true });
 
-// Realtime subscription for threads
-let threadsSubscription: ReturnType<typeof supabase.channel> | null = null;
+// Thread changes now arrive via server-structure broadcast
+
+const threadChangeHandler = () => {
+  debug.log('🧵 Thread change detected via broadcast');
+  loadActiveThreads(true);
+};
 
 const setupThreadsSubscription = () => {
   if (!props.currentServer?.id) return;
-  
-  // Clean up existing subscription
-  if (threadsSubscription) {
-    supabase.removeChannel(threadsSubscription);
-  }
-  
-  // Subscribe to thread changes for this server's channels
-  threadsSubscription = supabase
-    .channel(`threads-${props.currentServer.id}`)
-    .on(
-      'postgres_changes',
-      {
-        event: '*',
-        schema: 'public',
-        table: 'threads'
-      },
-      (payload) => {
-        debug.log('🧵 Thread change detected:', payload.eventType);
-        // Reload threads on any change (INSERT, UPDATE, DELETE) - force refresh for external changes
-        loadActiveThreads(true);
-      }
-    )
-    .subscribe();
+  window.addEventListener('server-structure:thread-change', threadChangeHandler);
 };
 
 onMounted(() => {
@@ -1236,9 +1218,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   document.removeEventListener('click', closeContextMenus);
-  if (threadsSubscription) {
-    supabase.removeChannel(threadsSubscription);
-  }
+  window.removeEventListener('server-structure:thread-change', threadChangeHandler);
 });
 
 // Re-setup subscription when server changes
