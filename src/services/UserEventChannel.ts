@@ -58,7 +58,7 @@ class UserEventChannel {
     this.profileId = profileId
     const topic = `user:${profileId}`
 
-    this.channel = supabase.channel(topic)
+    this.channel = supabase.channel(topic, { config: { private: true } })
       .on('broadcast', { event: 'user_event' }, (payload) => {
         this.dispatch(payload.payload ?? payload)
       })

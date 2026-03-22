@@ -41,7 +41,8 @@ BEGIN
       'ap_type',    v_row.ap_type
     ),
     'user_event',
-    'user:' || v_row.author_id::text
+    'user:' || v_row.author_id::text,
+    true
   );
 
   RETURN COALESCE(NEW, OLD);
@@ -91,7 +92,8 @@ BEGIN
       'op',               TG_OP
     ),
     'user_event',
-    'user:' || v_post_author::text
+    'user:' || v_post_author::text,
+    true
   );
 
   RETURN COALESCE(NEW, OLD);
@@ -130,8 +132,8 @@ BEGIN
     'op',           TG_OP
   );
 
-  PERFORM realtime.send(v_payload, 'user_event', 'user:' || v_row.follower_id::text);
-  PERFORM realtime.send(v_payload, 'user_event', 'user:' || v_row.following_id::text);
+  PERFORM realtime.send(v_payload, 'user_event', 'user:' || v_row.follower_id::text, true);
+  PERFORM realtime.send(v_payload, 'user_event', 'user:' || v_row.following_id::text, true);
 
   RETURN COALESCE(NEW, OLD);
 END;

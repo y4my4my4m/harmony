@@ -27,7 +27,8 @@ BEGIN
         'created_at',         NEW.created_at
       ),
       'user_event',
-      'user:' || NEW.sender_user_id::text
+      'user:' || NEW.sender_user_id::text,
+      true
     );
   ELSIF TG_OP = 'UPDATE' AND NEW.status = 'fulfilled' THEN
     PERFORM realtime.send(
@@ -42,7 +43,8 @@ BEGIN
         'fulfilled_at',       NEW.fulfilled_at
       ),
       'user_event',
-      'user:' || NEW.requester_user_id::text
+      'user:' || NEW.requester_user_id::text,
+      true
     );
   END IF;
 
