@@ -831,8 +831,9 @@ export const useNotificationStore = defineStore('notification', {
           return
         }
 
-        // Only show desktop notifications when the tab isn't focused
-        if (document.hasFocus()) {
+        // Only show desktop notifications when the tab is hidden/inactive
+        // (in-app toasts handle notifications while the tab is visible)
+        if (!document.hidden) {
           return
         }
 

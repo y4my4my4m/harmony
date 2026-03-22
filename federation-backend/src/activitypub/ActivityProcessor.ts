@@ -877,6 +877,9 @@ export class ActivityProcessor {
       } else {
         logger.info(`✏️ Updated post: ${object.id}`);
       }
+    } else if (object['harmony:type'] === 'harmony:GroupConversation') {
+      // Update group conversation (DM group) - name, icon changes
+      await this.handleGroupConversationUpdate(activity, object);
     } else if (object.type === 'Group' || object['harmony:ChatServer']) {
       // Update server (Group) - name, icon, description changes
       logger.info(`🏠 Processing server update: ${object.id}`);
@@ -1090,10 +1093,18 @@ export class ActivityProcessor {
         return;
       }
 
+      // Store the AP activity ID for traceability
+      reactionData.metadata = { ...reactionData.metadata, ap_id: activity.id };
+
       const { error: reactionError } = await supabase.from('reactions').insert(reactionData);
 
       if (reactionError) {
-        logger.error('❌ Failed to insert message reaction:', reactionError);
+        // Handle unique constraint violation gracefully (concurrent insert race)
+        if (reactionError.code === '23505') {
+          logger.info(`🔄 Reaction already exists (constraint): ${reactionError.message}`);
+        } else {
+          logger.error('❌ Failed to insert message reaction:', reactionError);
+        }
       } else {
         logger.info(`✅ Added reaction to message ${message.id}: ${emoji || '❤️'}`);
       }
@@ -1756,12 +1767,20 @@ export class ActivityProcessor {
   }
 
   /**
-   * Process Remove activity (unpinning posts from featured collection)
+   * Process Remove activity (unpinning posts, group participant removal)
    */
   private static async processRemove(activity: any): Promise<void> {
     const supabase = getSupabaseClient();
-    const targetUrl = activity.target;
+    const target = activity.target;
+    const targetUrl = typeof target === 'string' ? target : target?.id;
     const objectUrl = typeof activity.object === 'string' ? activity.object : activity.object?.id;
+
+    // Check if this is a group conversation participant removal
+    const targetType = typeof target === 'object' ? target?.['harmony:type'] : null;
+    if (targetType === 'harmony:GroupConversation') {
+      await this.handleGroupConversationParticipantRemove(activity, target);
+      return;
+    }
 
     // Check if this is removing from featured collection
     if (!targetUrl?.includes('/featured') || !objectUrl) {
@@ -2487,6 +2506,130 @@ export class ActivityProcessor {
       if (notifError) logger.warn('Failed to create invite notification:', notifError);
     }
     logger.info(`Group invite processed: conversation ${conversationId}, ${recipientIds.length} recipient(s)`);
+  }
+
+  /**
+   * Handle group conversation Update (name, icon changes from remote instance)
+   */
+  private static async handleGroupConversationUpdate(activity: any, object: any): Promise<void> {
+    const supabase = getSupabaseClient();
+    const conversationId = object['harmony:conversationId'];
+    const updateType = activity['harmony:updateType'];
+
+    if (!conversationId) {
+      logger.warn('Group conversation update missing conversationId');
+      return;
+    }
+
+    logger.info(`📝 Processing group conversation update: ${updateType} for ${conversationId}`);
+
+    const { data: conversation } = await supabase
+      .from('conversations')
+      .select('id, type')
+      .eq('id', conversationId)
+      .eq('type', 'group')
+      .maybeSingle();
+
+    if (!conversation) {
+      logger.warn(`Group conversation not found: ${conversationId}`);
+      return;
+    }
+
+    if (updateType === 'name') {
+      const newName = object.name || null;
+      await supabase
+        .from('conversations')
+        .update({ name: newName, updated_at: new Date().toISOString() })
+        .eq('id', conversationId);
+      logger.info(`✅ Updated group conversation name: ${newName}`);
+    } else if (updateType === 'icon') {
+      const iconUrl = object.icon?.url || null;
+      if (iconUrl) {
+        await supabase
+          .from('conversations')
+          .update({
+            metadata: supabase.rpc ? undefined : undefined, // handled below
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', conversationId);
+
+        // Use raw SQL-style update for jsonb merge
+        const { error } = await supabase.rpc('update_conversation_metadata_icon', {
+          p_conversation_id: conversationId,
+          p_icon_url: iconUrl,
+        });
+
+        // Fallback: direct metadata update if RPC doesn't exist
+        if (error) {
+          await supabase
+            .from('conversations')
+            .update({
+              metadata: { icon_url: iconUrl },
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', conversationId);
+        }
+        logger.info(`✅ Updated group conversation icon: ${iconUrl}`);
+      }
+    } else if (updateType === 'icon_removed') {
+      // Remove icon from metadata
+      const { data: current } = await supabase
+        .from('conversations')
+        .select('metadata')
+        .eq('id', conversationId)
+        .single();
+
+      const metadata = (current?.metadata as any) || {};
+      delete metadata.icon_url;
+
+      await supabase
+        .from('conversations')
+        .update({ metadata, updated_at: new Date().toISOString() })
+        .eq('id', conversationId);
+      logger.info(`✅ Removed group conversation icon`);
+    }
+  }
+
+  /**
+   * Handle group conversation participant removal (from remote instance)
+   */
+  private static async handleGroupConversationParticipantRemove(activity: any, target: any): Promise<void> {
+    const supabase = getSupabaseClient();
+    const conversationId = target['harmony:conversationId'];
+    const removedUserUrl = typeof activity.object === 'string' ? activity.object : activity.object?.id;
+
+    if (!conversationId || !removedUserUrl) {
+      logger.warn('Group participant remove missing conversationId or user URL');
+      return;
+    }
+
+    logger.info(`👥 Processing group participant removal: ${removedUserUrl} from ${conversationId}`);
+
+    // Find the user being removed
+    const { data: removedUser } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('federated_id', removedUserUrl)
+      .maybeSingle();
+
+    if (!removedUser) {
+      logger.warn(`User not found for removal: ${removedUserUrl}`);
+      return;
+    }
+
+    // Mark them as left in the conversation
+    const { error } = await supabase
+      .from('conversation_participants')
+      .update({ left_at: new Date().toISOString() })
+      .eq('conversation_id', conversationId)
+      .eq('user_id', removedUser.id)
+      .is('left_at', null);
+
+    if (error) {
+      logger.error('Failed to remove participant from group conversation:', error);
+    } else {
+      logger.info(`✅ Removed ${removedUserUrl} from group conversation ${conversationId}`);
+    }
   }
 
   /**

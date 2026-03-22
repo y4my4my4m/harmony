@@ -1112,12 +1112,18 @@ async function processReactionActivity(
   // Extract emoji
   const emoji = activity.content || activity.tag?.find((t: any) => t.type === 'Emoji')?.name || '❤️';
   const emojiUrl = activity.tag?.find((t: any) => t.type === 'Emoji')?.icon?.url;
+  const emojiName = activity.tag?.find((t: any) => t.type === 'Emoji')?.name;
 
-  // Find or create emoji
-  let emojiId: string | null = null;
-  
-  if (emojiUrl) {
-    // Custom emoji
+  const isCustomEmoji = !!(emojiUrl && emojiName);
+
+  let reactionData: any = {
+    message_id: message.id,
+    user_id: user.id,
+    metadata: { federated: true, ap_id: activity.id },
+  };
+
+  if (isCustomEmoji) {
+    // Custom emoji with URL — resolve to an emoji_id in the emojis table
     const { data: existingEmoji } = await supabase
       .from('emojis')
       .select('id')
@@ -1125,9 +1131,9 @@ async function processReactionActivity(
       .maybeSingle();
 
     if (existingEmoji) {
-      emojiId = existingEmoji.id;
+      reactionData.emoji_id = existingEmoji.id;
     } else {
-      const cleanName = emoji.replace(/:/g, '');
+      const cleanName = (emojiName || emoji).replace(/:/g, '');
       const { data: newEmoji } = await supabase
         .from('emojis')
         .insert({
@@ -1139,61 +1145,55 @@ async function processReactionActivity(
         })
         .select('id')
         .single();
-      
+
       if (newEmoji) {
-        emojiId = newEmoji.id;
+        reactionData.emoji_id = newEmoji.id;
       }
+    }
+
+    if (!reactionData.emoji_id) {
+      logger.error('Failed to get/create custom emoji for reaction');
+      return;
     }
   } else {
-    // Unicode emoji - find or create
-    const { data: existingEmoji } = await supabase
-      .from('emojis')
-      .select('id')
-      .eq('name', emoji)
-      .is('server_id', null)
-      .is('url', null)
-      .maybeSingle();
-
-    if (existingEmoji) {
-      emojiId = existingEmoji.id;
-    } else {
-      const { data: newEmoji } = await supabase
-        .from('emojis')
-        .insert({
-          name: emoji,
-          url: null,
-          server_id: null,
-          uploader: user.id,
-        })
-        .select('id')
-        .single();
-      
-      if (newEmoji) {
-        emojiId = newEmoji.id;
-      }
-    }
+    // Native/unicode emoji — store with emoji_id=null + custom_emoji_content
+    // Must match ActivityProcessor.processLike storage to prevent double counting
+    let normalizedEmoji = emoji || '❤️';
+    if (normalizedEmoji === '❤') normalizedEmoji = '❤️';
+    reactionData.emoji_id = null;
+    reactionData.custom_emoji_content = normalizedEmoji;
   }
 
-  if (!emojiId) {
-    logger.error('Failed to get/create emoji for reaction');
+  // Deduplicate: check if this reaction already exists
+  let dupQuery = supabase
+    .from('reactions')
+    .select('id')
+    .eq('message_id', message.id)
+    .eq('user_id', user.id);
+
+  if (reactionData.emoji_id) {
+    dupQuery = dupQuery.eq('emoji_id', reactionData.emoji_id);
+  } else {
+    dupQuery = dupQuery.is('emoji_id', null)
+      .eq('custom_emoji_content', reactionData.custom_emoji_content);
+  }
+
+  const { data: existingReaction } = await dupQuery.maybeSingle();
+  if (existingReaction) {
+    logger.info(`🔄 Reaction already exists for user ${user.id} on message ${message.id}`);
     return;
   }
 
-  // Add reaction (idempotent)
-  // For unicode emojis (no URL), set custom_emoji_content so the frontend can display them
   const { error } = await supabase
     .from('reactions')
-    .upsert({
-      message_id: message.id,
-      user_id: user.id,
-      emoji_id: emojiId,
-      custom_emoji_content: !emojiUrl ? emoji : null,
-      metadata: { federated: true, ap_id: activity.id },
-    }, {
-      onConflict: 'message_id,user_id,emoji_id',
-    });
+    .insert(reactionData);
 
   if (error) {
+    // Handle unique constraint violation gracefully (concurrent insert race)
+    if (error.code === '23505') {
+      logger.info(`🔄 Reaction already exists (constraint): ${error.message}`);
+      return;
+    }
     logger.error('Failed to add reaction:', error);
     return;
   }
