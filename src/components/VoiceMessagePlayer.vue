@@ -58,13 +58,15 @@ const progress = computed(() => {
 })
 
 const displayWaveform = computed(() => {
-  const src = props.waveform.length ? props.waveform : new Array(DISPLAY_BARS).fill(0.3)
+  const raw = Array.isArray(props.waveform) && props.waveform.length > 0
+    ? props.waveform
+    : new Array(DISPLAY_BARS).fill(0.3)
   const result: number[] = []
-  const ratio = src.length / DISPLAY_BARS
+  const ratio = raw.length / DISPLAY_BARS
 
   for (let i = 0; i < DISPLAY_BARS; i++) {
     const idx = Math.floor(i * ratio)
-    const val = src[Math.min(idx, src.length - 1)] || 0.3
+    const val = raw[Math.min(idx, raw.length - 1)] || 0.3
     result.push(Math.max(8, val * 100))
   }
   return result

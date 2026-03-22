@@ -247,28 +247,28 @@
           ></video>
         </div>
         
-        <!-- Voice messages (audio with voice_message metadata) -->
-        <VoiceMessagePlayer
-          v-else-if="part && typeof part === 'object' && part.type === 'file' && part.fileType === 'audio' && metadata?.voice_message"
-          :src="part.url"
-          :duration="metadata.voice_message.duration"
-          :waveform="metadata.voice_message.waveform"
-        />
-
-        <!-- Regular audio files -->
-        <div 
-          v-else-if="part && typeof part === 'object' && part.type === 'file' && part.fileType === 'audio'" 
+        <!-- Audio files (voice messages + regular audio) -->
+        <div
+          v-else-if="part && typeof part === 'object' && part.type === 'file' && part.fileType === 'audio'"
           class="media-container audio-container"
         >
-          <div v-if="part.fileName" class="audio-filename">
-            {{ part.fileName }}
-          </div>
-          <audio
+          <VoiceMessagePlayer
+            v-if="metadata?.voice_message"
             :src="part.url"
-            controls
-            preload="metadata"
-            class="content-audio"
-          ></audio>
+            :duration="metadata.voice_message.duration || 0"
+            :waveform="metadata.voice_message.waveform || []"
+          />
+          <template v-else>
+            <div v-if="part.fileName" class="audio-filename">
+              {{ part.fileName }}
+            </div>
+            <audio
+              :src="part.url"
+              controls
+              preload="metadata"
+              class="content-audio"
+            ></audio>
+          </template>
         </div>
         
         <!-- Other file attachments -->
@@ -348,6 +348,7 @@ export default defineComponent({
     CodeBlock,
     ProviderEmbedSwitch,
     RichTextEditor,
+    VoiceMessagePlayer,
   },
   props: {
     content: {

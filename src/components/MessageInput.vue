@@ -120,6 +120,7 @@ import type { SuggestionItem } from '@/components/AutoSuggest.vue';
 import type { Message } from '@/types';
 import { backgroundUploadManager } from '@/services/fileService';
 import type { VoiceRecordingResult } from '@/services/voiceRecordingService';
+import { supabase } from '@/supabase';
 import { useAuthStore } from '@/stores/auth';
 import { useServerChannelStore } from '@/stores/useServerChannel';
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings';
@@ -240,18 +241,22 @@ const handleVoiceRecordingComplete = async (result: VoiceRecordingResult) => {
   const userId = authStore.session?.user?.id
   if (!userId) return
 
+  debug.log('🎙️ Voice recording complete:', { duration: result.duration, blobSize: result.blob.size, mimeType: result.mimeType, waveformLength: result.waveform?.length })
+
   voiceUploading.value = true
   try {
     const ext = result.mimeType.includes('webm') ? 'webm' : result.mimeType.includes('ogg') ? 'ogg' : 'mp4'
     const filePath = `${userId}/voice/${crypto.randomUUID()}.${ext}`
 
-    const { error } = await supabase.storage
+    const { data: uploadData, error } = await supabase.storage
       .from('user_media')
       .upload(filePath, result.blob, { contentType: result.mimeType })
 
     if (error) throw error
+    debug.log('🎙️ Voice upload success:', { path: uploadData?.path || filePath })
 
     const { data } = supabase.storage.from('user_media').getPublicUrl(filePath)
+    debug.log('🎙️ Voice public URL:', data.publicUrl)
 
     if (data.publicUrl) {
       emit('sendVoiceMessage', {
@@ -260,6 +265,8 @@ const handleVoiceRecordingComplete = async (result: VoiceRecordingResult) => {
         waveform: result.waveform,
         mimeType: result.mimeType,
       })
+    } else {
+      debug.error('🎙️ No public URL returned for voice message')
     }
   } catch (err) {
     debug.error('Failed to upload voice message:', err)
