@@ -49,11 +49,21 @@ export class MembershipService {
   }
 
   /**
-   * Subscribe to membership events for a specific server
+   * Handle a membership event from the server-structure broadcast channel.
+   * Called by useServerChannel when it receives a membership:event broadcast.
+   */
+  async handleBroadcastEvent(event: MembershipEvent): Promise<void> {
+    await this.handleMembershipEvent(event)
+  }
+
+  /**
+   * Subscribe to membership events for a specific server.
+   * @deprecated Membership events are now received via the server-structure
+   * broadcast channel (handled by useServerChannel). This method is kept
+   * for backward compatibility but creates a redundant CDC connection.
    */
   async subscribeToServer(serverId: string): Promise<void> {
     try {
-      // Clean up existing subscription for this server
       this.unsubscribeFromServer(serverId)
 
       debug.log(`🔔 Setting up membership subscription for server: ${serverId}`)

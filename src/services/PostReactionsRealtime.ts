@@ -1,22 +1,26 @@
-import { supabase } from '@/supabase';
+import { userEventChannel } from '@/services/UserEventChannel';
 import { usePostReactionsStore } from '@/stores/postReactions';
 import { debug } from '@/utils/debug';
-import type { RealtimeChannel } from '@supabase/supabase-js';
 
 /**
- * Shared realtime subscription for post_interactions.
- * Instead of each PostReactions component creating its own channel,
- * this service manages a single channel and filters client-side.
+ * Post reactions realtime service.
+ *
+ * Previously used a global CDC subscription on post_interactions,
+ * which sent every interaction to every connected client.
+ *
+ * Now listens on the user:{id} broadcast channel for post:interaction
+ * events, which are only delivered to the post author.
+ * Non-author viewers get updated counts on next load/refetch.
  */
 class PostReactionsRealtimeService {
-  private channel: RealtimeChannel | null = null;
   private subscribedPostIds = new Set<string>();
   private refCount = 0;
+  private unsubscribeFn: (() => void) | null = null;
 
   subscribe(postId: string): void {
     this.subscribedPostIds.add(postId);
     this.refCount++;
-    this.ensureChannel();
+    this.ensureHandler();
   }
 
   unsubscribe(postId: string): void {
@@ -27,38 +31,38 @@ class PostReactionsRealtimeService {
     }
   }
 
-  private ensureChannel(): void {
-    if (this.channel) return;
+  private ensureHandler(): void {
+    if (this.unsubscribeFn) return;
 
-    this.channel = supabase
-      .channel('post_reactions_shared')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'post_interactions',
-        },
-        (payload) => {
-          const postId = (payload.new as any)?.post_id || (payload.old as any)?.post_id;
-          if (!postId || !this.subscribedPostIds.has(postId)) return;
+    this.unsubscribeFn = userEventChannel.on('post:interaction', (data) => {
+      const postId = data.post_id;
+      if (!postId || !this.subscribedPostIds.has(postId)) return;
 
-          const interactionType =
-            (payload.new as any)?.interaction_type || (payload.old as any)?.interaction_type;
-          if (interactionType !== 'emoji_reaction') return;
+      if (data.interaction_type !== 'emoji_reaction') return;
 
-          debug.log('🔔 Shared realtime reaction update for post:', postId);
-          const store = usePostReactionsStore();
-          store.handleRealtimeUpdate(payload);
-        }
-      )
-      .subscribe();
+      debug.log('🔔 Post reaction via broadcast for post:', postId);
+      const store = usePostReactionsStore();
+
+      if (data.op === 'INSERT') {
+        store.handleRealtimeUpdate({
+          eventType: 'INSERT',
+          new: { post_id: postId, interaction_type: data.interaction_type, user_id: data.user_id, emoji_id: data.emoji_id },
+          old: {}
+        });
+      } else if (data.op === 'DELETE') {
+        store.handleRealtimeUpdate({
+          eventType: 'DELETE',
+          old: { post_id: postId, interaction_type: data.interaction_type, user_id: data.user_id, emoji_id: data.emoji_id },
+          new: {}
+        });
+      }
+    });
   }
 
   private teardown(): void {
-    if (this.channel) {
-      supabase.removeChannel(this.channel);
-      this.channel = null;
+    if (this.unsubscribeFn) {
+      this.unsubscribeFn();
+      this.unsubscribeFn = null;
     }
     this.subscribedPostIds.clear();
     this.refCount = 0;

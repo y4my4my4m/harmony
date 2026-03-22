@@ -2160,12 +2160,12 @@ export const useDMStore = defineStore('dm', () => {
       dmSubscriptions.value.set(channelName, unsubscribe)
     }
 
-    // Subscribe to reactions (mirrors useChat.ts channel-reactions pattern)
     if (!realtimeConnectionManager.hasSubscription(reactionsChannelName)) {
       const reactionsStore = useReactionsStore()
       const reactionsUnsubscribe = realtimeConnectionManager.subscribeToTable({
         channelName: reactionsChannelName,
         table: 'reactions',
+        filter: `conversation_id=eq.${conversationId}`,
         onInsert: (payload) => {
           const messageId = (payload.new as any)?.message_id
           if (messageId && currentDMMessages.value.some(m => m.id === messageId)) {

@@ -115,7 +115,8 @@ interface ActivityPubState {
   
   // Realtime subscriptions
   realtimeSubscriptions: Map<string, any>;
-  
+  _broadcastUnsubs: Array<() => void>;
+
   // Notification integration
   lastNotificationCheck: Date | null;
   unreadCount: number;
@@ -213,7 +214,8 @@ export const useActivityPubStore = defineStore('activitypub', {
     
     // Realtime subscriptions
     realtimeSubscriptions: new Map(),
-    
+    _broadcastUnsubs: [] as Array<() => void>,
+
     // Notification integration
     lastNotificationCheck: null,
     unreadCount: 0,
@@ -615,46 +617,56 @@ export const useActivityPubStore = defineStore('activitypub', {
 
 
     /**
-     * Setup enhanced realtime subscriptions for ActivityPub
+     * Setup enhanced realtime subscriptions for ActivityPub.
+     * Uses the consolidated user:{id} broadcast channel instead of
+     * three separate global CDC subscriptions.
      */
     async setupEnhancedRealtimeSubscriptions() {
-      // Use AuthContextService for consistent auth handling
       const isAuthenticated = await authContextService.isAuthenticated();
       if (!isAuthenticated) return;
 
-      // Clean up existing subscriptions
       this.cleanupRealtimeSubscriptions();
 
-      // Use activityPubService for realtime subscriptions
-      const postsChannel = activityPubService.subscribeToPostUpdates(
-        (post) => this.handleRealtimePostCreate(post), // This is now async but that's okay
-        (post) => this.handleRealtimePostUpdate(post),
-        (post) => this.handleRealtimePostDelete(post)
-      );
+      const { userEventChannel } = await import('@/services/UserEventChannel');
+      const currentUser = userDataService.getCurrentUser();
+      if (!currentUser?.id) return;
 
-      const followsChannel = activityPubService.subscribeToFollowUpdates(
-        (follow) => this.handleRealtimeFollowCreate(follow),
-        (follow) => this.handleRealtimeFollowUpdate(follow),
-        (follow) => this.handleRealtimeFollowDelete(follow)
-      );
+      userEventChannel.connect(currentUser.id);
 
-      const interactionsChannel = activityPubService.subscribeToInteractionUpdates(
-        (interaction) => {
-          debug.log('🔔 REALTIME: Interaction CREATE received:', interaction);
-          this.handleRealtimeInteractionChange({ event: 'INSERT', new: interaction });
-        },
-        (interaction) => {
-          debug.log('🔔 REALTIME: Interaction DELETE received:', interaction);
-          this.handleRealtimeInteractionChange({ event: 'DELETE', old: interaction });
+      const unsubs: Array<() => void> = [];
+
+      unsubs.push(userEventChannel.on('post:new', (data) => {
+        this.handleRealtimePostCreate({ id: data.post_id, author_id: data.author_id, visibility: data.visibility, ap_type: data.ap_type });
+      }));
+
+      unsubs.push(userEventChannel.on('post:updated', (data) => {
+        this.handleRealtimePostUpdate({ id: data.post_id, author_id: data.author_id, is_deleted: data.is_deleted, visibility: data.visibility });
+      }));
+
+      unsubs.push(userEventChannel.on('post:deleted', (data) => {
+        this.handleRealtimePostDelete({ id: data.post_id });
+      }));
+
+      unsubs.push(userEventChannel.on('post:interaction', (data) => {
+        if (data.op === 'INSERT') {
+          this.handleRealtimeInteractionChange({ event: 'INSERT', new: { post_id: data.post_id, interaction_type: data.interaction_type, user_id: data.user_id, emoji_id: data.emoji_id } });
+        } else if (data.op === 'DELETE') {
+          this.handleRealtimeInteractionChange({ event: 'DELETE', old: { post_id: data.post_id, interaction_type: data.interaction_type, user_id: data.user_id, emoji_id: data.emoji_id } });
         }
-      );
+      }));
 
-      // Store subscriptions for cleanup
-      this.realtimeSubscriptions.set('posts', postsChannel);
-      this.realtimeSubscriptions.set('follows', followsChannel);
-      this.realtimeSubscriptions.set('interactions', interactionsChannel);
+      unsubs.push(userEventChannel.on('follow:change', (data) => {
+        if (data.op === 'INSERT') {
+          this.handleRealtimeFollowCreate(data);
+        } else if (data.op === 'UPDATE') {
+          this.handleRealtimeFollowUpdate(data);
+        } else if (data.op === 'DELETE') {
+          this.handleRealtimeFollowDelete(data);
+        }
+      }));
 
-      debug.log('🔔 Enhanced realtime subscriptions established using ActivityPub service');
+      this._broadcastUnsubs = unsubs;
+      debug.log('🔔 ActivityPub realtime established via user:{id} broadcast');
     },
 
 
@@ -1325,7 +1337,12 @@ export const useActivityPubStore = defineStore('activitypub', {
         supabase.removeChannel(channel);
       });
       this.realtimeSubscriptions.clear();
-      
+
+      for (const unsub of this._broadcastUnsubs) {
+        unsub();
+      }
+      this._broadcastUnsubs = [];
+
       debug.log('🧹 Realtime subscriptions cleaned up');
     },
 

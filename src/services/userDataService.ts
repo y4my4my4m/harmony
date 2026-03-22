@@ -878,25 +878,19 @@ class UserDataService extends EventTarget {
       })
       // 🔥 Listen for profile update broadcasts (the correct way for real-time profile changes)
       .on('broadcast', { event: 'profile_update' }, (payload) => this.handleProfileUpdateBroadcast(serverId, payload))
-      // Listen for real-time server membership changes
-      .on('postgres_changes', {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'user_servers',
-        filter: `server_id=eq.${serverId}`
-      }, (payload) => this.handleServerMemberJoin(serverId, payload))
-      .on('postgres_changes', {
-        event: 'DELETE', 
-        schema: 'public',
-        table: 'user_servers',
-        filter: `server_id=eq.${serverId}`
-      }, (payload) => this.handleServerMemberLeave(serverId, payload))
-      // 🔥 Listen for real-time PROFILE changes (avatar, display name, color, bio)
-      .on('postgres_changes', {
-        event: 'UPDATE',
-        schema: 'public', 
-        table: 'profiles'
-      }, (payload) => this.handleProfileUpdate(serverId, payload))
+      .on('broadcast', { event: 'presence_event' }, (payload) => {
+        const data = payload.payload ?? payload
+        const type = data?.type as string
+        if (type === 'member:join') {
+          this.handleServerMemberJoin(serverId, { new: { user_id: data.user_id } })
+        } else if (type === 'member:leave') {
+          this.handleServerMemberLeave(serverId, { old: { user_id: data.user_id } })
+        } else if (type === 'profile:updated') {
+          this.handleProfileUpdate(serverId, { new: data })
+        } else if (type?.startsWith('emoji:')) {
+          this.handleEmojiBroadcast(data)
+        }
+      })
       .subscribe(async (status: string) => {
         debug.log(`📡 Server presence subscription status for ${serverId}:`, status)
         if (status === 'SUBSCRIBED') {
@@ -1161,6 +1155,24 @@ class UserDataService extends EventTarget {
     })
   }
   
+  /**
+   * Relay emoji broadcast events to the emoji cache store.
+   */
+  private handleEmojiBroadcast(data: any): void {
+    try {
+      const { useEmojiCacheStore } = require('@/stores/useEmojiCache')
+      const emojiStore = useEmojiCacheStore()
+      const eventType = data.type === 'emoji:insert' ? 'INSERT'
+                      : data.type === 'emoji:update' ? 'UPDATE'
+                      : data.type === 'emoji:delete' ? 'DELETE'
+                      : null
+      if (!eventType) return
+      emojiStore.handleEmojiUpdate({ eventType, new: data.new, old: data.old })
+    } catch (err) {
+      debug.warn('Failed to relay emoji broadcast:', err)
+    }
+  }
+
   /**
    * Handle profile update broadcast events from other users
    * This is how we receive real-time profile changes from other clients

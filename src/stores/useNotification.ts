@@ -113,10 +113,11 @@ const DEFAULT_PREFERENCES: Omit<NotificationPreferences, 'id' | 'user_id' | 'cre
 // polluting Pinia serializable state).
 let _unsubNewNotification: (() => void) | null = null
 let _unsubUpdateNotification: (() => void) | null = null
+let _unsubBulkRead: (() => void) | null = null
+let _unsubPrefsUpdated: (() => void) | null = null
+let _unsubReconnected: (() => void) | null = null
 let _dndInterval: ReturnType<typeof setInterval> | null = null
-// Fallback postgres_changes channel for when broadcast is unavailable
-let _fallbackChannel: ReturnType<typeof supabase.channel> | null = null
-// Track notification IDs recently processed to deduplicate across broadcast + postgres_changes
+// Track notification IDs recently processed to deduplicate
 const _recentlyProcessedIds = new Set<string>()
 const DEDUP_TTL_MS = 10_000
 
@@ -562,7 +563,7 @@ export const useNotificationStore = defineStore('notification', {
      * which deduplicate by notification ID so double-delivery is harmless.
      */
     async setupBroadcastNotificationHandlers(userId: string) {
-      if (_unsubNewNotification && _fallbackChannel) {
+      if (_unsubNewNotification) {
         debug.log('✅ Notification handlers already registered, skipping')
         return
       }
@@ -593,72 +594,27 @@ export const useNotificationStore = defineStore('notification', {
           }
         })
 
-        userEventChannel.on('notification:bulk_read', (data) => {
+        _unsubBulkRead = userEventChannel.on('notification:bulk_read', (data) => {
           debug.log('📡 Bulk read event received, marking all notifications as read locally')
           this.notifications.forEach(n => { n.is_read = true })
           this.updateUnreadCount()
         })
 
-        userEventChannel.on('preferences:updated', () => {
+        _unsubPrefsUpdated = userEventChannel.on('preferences:updated', () => {
           debug.log('📡 Preferences updated on another tab/device, reloading...')
           if (this.cachedAuthUserId) {
             this.loadPreferences(this.cachedProfileId || this.cachedAuthUserId)
           }
         })
 
+        _unsubReconnected = userEventChannel.on('_reconnected', async () => {
+          debug.log('🔄 UserEventChannel reconnected — gap-filling notifications')
+          await this.fetchNotifications(profileId)
+        })
+
         debug.log('✅ Broadcast notification handlers registered')
       }
 
-      // ---- 2. postgres_changes fallback (reliable CDC) ----
-      if (!_fallbackChannel) {
-        _fallbackChannel = supabase
-          .channel(`notif-fallback-${profileId}`)
-          .on(
-            'postgres_changes',
-            {
-              event: 'INSERT',
-              schema: 'public',
-              table: 'notifications',
-              filter: `user_id=eq.${profileId}`,
-            },
-            async (payload) => {
-              try {
-                const n = payload.new as Notification
-                if (!n?.id) return
-                debug.log('📡 CDC notification INSERT →', n.id)
-                await this._processIncomingNotification(n)
-              } catch (error) {
-                debug.error('❌ CDC notification INSERT error:', error)
-              }
-            }
-          )
-          .on(
-            'postgres_changes',
-            {
-              event: 'UPDATE',
-              schema: 'public',
-              table: 'notifications',
-              filter: `user_id=eq.${profileId}`,
-            },
-            (payload) => {
-              try {
-                const n = payload.new as Notification
-                if (!n?.id) return
-                debug.log('📡 CDC notification UPDATE →', n.id)
-                this._processNotificationUpdate(n.id, n.is_read)
-              } catch (error) {
-                debug.error('❌ CDC notification UPDATE error:', error)
-              }
-            }
-          )
-          .subscribe((status) => {
-            if (status === 'SUBSCRIBED') {
-              debug.log('✅ Notification CDC fallback subscribed')
-            } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-              debug.warn('⚠️ Notification CDC fallback status:', status)
-            }
-          })
-      }
     },
 
     /**
@@ -741,10 +697,9 @@ export const useNotificationStore = defineStore('notification', {
     cleanupBroadcastHandlers() {
       if (_unsubNewNotification) { _unsubNewNotification(); _unsubNewNotification = null }
       if (_unsubUpdateNotification) { _unsubUpdateNotification(); _unsubUpdateNotification = null }
-      if (_fallbackChannel) {
-        supabase.removeChannel(_fallbackChannel)
-        _fallbackChannel = null
-      }
+      if (_unsubBulkRead) { _unsubBulkRead(); _unsubBulkRead = null }
+      if (_unsubPrefsUpdated) { _unsubPrefsUpdated(); _unsubPrefsUpdated = null }
+      if (_unsubReconnected) { _unsubReconnected(); _unsubReconnected = null }
       _recentlyProcessedIds.clear()
     },
 

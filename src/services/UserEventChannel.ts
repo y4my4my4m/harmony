@@ -22,6 +22,10 @@ type UserEventType =
   | 'conversation:new' | 'conversation:updated'
   | 'server:joined' | 'server:left' | 'server:updated'
   | 'preferences:updated'
+  | 'post:new' | 'post:updated' | 'post:deleted' | 'post:interaction'
+  | 'follow:change'
+  | 'encryption:key_request' | 'encryption:key_fulfilled'
+  | '_reconnected'
 type EventHandler = (payload: Record<string, any>) => void | Promise<void>
 
 const RECONNECT_BASE_DELAY = 2_000
@@ -54,15 +58,19 @@ class UserEventChannel {
     this.profileId = profileId
     const topic = `user:${profileId}`
 
-    this.channel = supabase.channel(topic)
+    this.channel = supabase.channel(topic, { config: { private: true } })
       .on('broadcast', { event: 'user_event' }, (payload) => {
         this.dispatch(payload.payload ?? payload)
       })
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') {
+          const wasReconnect = this.retryCount > 0
           this.connected = true
           this.retryCount = 0
           debug.log('✅ UserEventChannel connected:', topic)
+          if (wasReconnect) {
+            this.dispatch({ type: '_reconnected' })
+          }
         } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
           this.connected = false
           debug.warn('⚠️ UserEventChannel status:', status)

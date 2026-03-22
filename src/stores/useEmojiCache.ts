@@ -607,29 +607,17 @@ export const useEmojiCacheStore = defineStore('emojiCache', {
       return (now.getTime() - cache.lastFetched.getTime()) > this.maxCacheAge;
     },
 
-    // Set up real-time subscriptions for emoji changes
+    /**
+     * Emoji realtime is now handled via server-scoped broadcast
+     * on the server-presence channel (relay through userDataService).
+     * These methods are kept as no-ops for backward compatibility.
+     */
     setupRealtimeSubscriptions() {
-      this.cleanupRealtimeSubscriptions();
-
-      this._emojiChannel = supabase
-        .channel('emoji-changes')
-        .on(
-          'postgres_changes',
-          { event: '*', schema: 'public', table: 'emojis' },
-          (payload) => {
-            this.handleEmojiUpdate(payload);
-          }
-        )
-        .subscribe();
-
-      debug.log('🔔 Set up real-time emoji subscriptions');
+      debug.log('🔔 Emoji realtime: handled via server-presence broadcast');
     },
 
     cleanupRealtimeSubscriptions() {
-      if (this._emojiChannel) {
-        this._emojiChannel.unsubscribe();
-        this._emojiChannel = null;
-      }
+      // No dedicated channel to clean up
     },
 
     // Cleanup expired cache entries and optimize memory
