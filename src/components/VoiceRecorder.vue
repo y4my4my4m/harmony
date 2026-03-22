@@ -11,8 +11,9 @@
 
         <div class="waveform-area">
           <div class="recording-indicator">
-            <span class="rec-dot" />
-            <span class="rec-timer">{{ formattedDuration }}</span>
+            <span class="rec-dot" :class="{ 'near-limit': nearLimit }" />
+            <span class="rec-timer" :class="{ 'near-limit': nearLimit }">{{ formattedDuration }}</span>
+            <span v-if="nearLimit" class="rec-limit-warn">{{ formattedRemaining }} left</span>
           </div>
           <div class="waveform-bars">
             <div
@@ -74,18 +75,34 @@ const emit = defineEmits<{
 const {
   state,
   liveWaveform,
+  maxDuration,
   startRecording: doStart,
   stopRecording: doStop,
   cancelRecording: doCancel,
+  onAutoStop,
 } = useVoiceRecording()
 
 const isRecording = computed(() => state.value.isRecording)
+
+const nearLimit = computed(() => {
+  if (!maxDuration) return false
+  return state.value.duration >= maxDuration - 30
+})
 
 const formattedDuration = computed(() => {
   const secs = Math.floor(state.value.duration)
   const mins = Math.floor(secs / 60)
   const rem = secs % 60
   return `${mins}:${rem.toString().padStart(2, '0')}`
+})
+
+const formattedRemaining = computed(() => {
+  if (!maxDuration) return ''
+  const remaining = Math.max(0, Math.ceil(maxDuration - state.value.duration))
+  const mins = Math.floor(remaining / 60)
+  const secs = remaining % 60
+  if (mins > 0) return `${mins}:${secs.toString().padStart(2, '0')}`
+  return `${secs}s`
 })
 
 const displayBars = computed(() =>
@@ -96,6 +113,10 @@ const startRecording = async () => {
   try {
     await doStart()
     emit('recording-started')
+
+    onAutoStop().then((result) => {
+      emit('recording-complete', result)
+    })
   } catch (err) {
     debug.error('Voice recording failed to start:', err)
   }
@@ -233,6 +254,28 @@ onUnmounted(() => {
   color: var(--text-secondary, #94a3b8);
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.04em;
+  transition: color 0.3s ease;
+}
+
+.rec-timer.near-limit {
+  color: #ef4444;
+}
+
+.rec-dot.near-limit {
+  background: #ef4444;
+  animation: rec-pulse-fast 0.6s ease-in-out infinite;
+}
+
+.rec-limit-warn {
+  font-size: 10px;
+  color: #ef4444;
+  font-weight: 600;
+  opacity: 0.85;
+}
+
+@keyframes rec-pulse-fast {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.15; }
 }
 
 .waveform-bars {

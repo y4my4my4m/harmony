@@ -17,6 +17,7 @@ export interface VoiceRecordingResult {
 
 const WAVEFORM_SAMPLES = 64
 const WAVEFORM_UPDATE_INTERVAL = 50
+export const MAX_RECORDING_DURATION = 15 * 60 // 15 minutes in seconds
 
 function getSupportedMimeType(): string {
   const types = [
@@ -47,6 +48,7 @@ export function useVoiceRecording() {
   let durationTimer: ReturnType<typeof setInterval> | null = null
   let waveformTimer: ReturnType<typeof setInterval> | null = null
   let startTime = 0
+  let autoStopResolver: ((result: VoiceRecordingResult) => void) | null = null
 
   const liveWaveform = ref<number[]>(new Array(WAVEFORM_SAMPLES).fill(0))
   const allAmplitudes: number[] = []
@@ -88,7 +90,13 @@ export function useVoiceRecording() {
       }
 
       durationTimer = setInterval(() => {
-        state.value.duration = (Date.now() - startTime) / 1000
+        const elapsed = (Date.now() - startTime) / 1000
+        state.value.duration = elapsed
+
+        if (elapsed >= MAX_RECORDING_DURATION) {
+          debug.log('🎙️ Max recording duration reached, auto-stopping')
+          autoStop()
+        }
       }, 100)
 
       const dataArray = new Uint8Array(analyser.frequencyBinCount)
@@ -150,7 +158,34 @@ export function useVoiceRecording() {
     })
   }
 
+  const autoStop = () => {
+    if (!mediaRecorder || mediaRecorder.state === 'inactive') return
+
+    mediaRecorder.onstop = () => {
+      const duration = (Date.now() - startTime) / 1000
+      const mimeType = mediaRecorder?.mimeType || 'audio/webm'
+      const blob = new Blob(chunks, { type: mimeType })
+      const waveform = downsampleWaveform(allAmplitudes, WAVEFORM_SAMPLES)
+      cleanup()
+
+      const result: VoiceRecordingResult = { blob, duration, waveform, mimeType }
+      if (autoStopResolver) {
+        autoStopResolver(result)
+        autoStopResolver = null
+      }
+    }
+
+    mediaRecorder.stop()
+  }
+
+  const onAutoStop = (): Promise<VoiceRecordingResult> => {
+    return new Promise((resolve) => {
+      autoStopResolver = resolve
+    })
+  }
+
   const cancelRecording = () => {
+    autoStopResolver = null
     if (mediaRecorder && mediaRecorder.state !== 'inactive') {
       mediaRecorder.onstop = null
       mediaRecorder.stop()
@@ -191,9 +226,11 @@ export function useVoiceRecording() {
   return {
     state,
     liveWaveform,
+    maxDuration: MAX_RECORDING_DURATION,
     startRecording,
     stopRecording,
     cancelRecording,
+    onAutoStop,
   }
 }
 
