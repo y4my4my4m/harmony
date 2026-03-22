@@ -44,6 +44,19 @@ BEGIN
 END
 $$;
 
+-- RLS policies for realtime.messages — required for private broadcast channels.
+-- Without these, authenticated users cannot subscribe to or receive private broadcasts.
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'realtime' AND table_name = 'messages') THEN
+    EXECUTE 'DROP POLICY IF EXISTS "authenticated_users_can_receive" ON realtime.messages';
+    EXECUTE 'CREATE POLICY "authenticated_users_can_receive" ON realtime.messages FOR SELECT TO authenticated USING (true)';
+    EXECUTE 'DROP POLICY IF EXISTS "authenticated_users_can_send" ON realtime.messages';
+    EXECUTE 'CREATE POLICY "authenticated_users_can_send" ON realtime.messages FOR INSERT TO authenticated WITH CHECK (true)';
+  END IF;
+END
+$$;
+
 -- Enable RLS on all Harmony public tables
 ALTER TABLE public.admin_audit_log ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.ap_activities ENABLE ROW LEVEL SECURITY;
