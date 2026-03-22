@@ -247,7 +247,15 @@
           ></video>
         </div>
         
-        <!-- Audio files -->
+        <!-- Voice messages (audio with voice_message metadata) -->
+        <VoiceMessagePlayer
+          v-else-if="part && typeof part === 'object' && part.type === 'file' && part.fileType === 'audio' && metadata?.voice_message"
+          :src="part.url"
+          :duration="metadata.voice_message.duration"
+          :waveform="metadata.voice_message.waveform"
+        />
+
+        <!-- Regular audio files -->
         <div 
           v-else-if="part && typeof part === 'object' && part.type === 'file' && part.fileType === 'audio'" 
           class="media-container audio-container"
@@ -319,6 +327,7 @@ import AutoSuggest from '@/components/AutoSuggest.vue';
 import DisplayName from '@/components/DisplayName.vue';
 import CodeBlock from '@/components/common/CodeBlock.vue';
 import RichTextEditor from '@/components/RichTextEditor.vue';
+import VoiceMessagePlayer from '@/components/VoiceMessagePlayer.vue';
 import type { SuggestionItem } from '@/components/AutoSuggest.vue';
 import { useAutoSuggest } from '@/composables/useAutoSuggest';
 import { useFloatingVideo } from '@/composables/useFloatingVideo';
@@ -384,6 +393,10 @@ export default defineComponent({
     canDecrypt: {
       type: Boolean,
       default: false
+    },
+    metadata: {
+      type: Object as PropType<Record<string, any> | null>,
+      default: null
     }
   },
   emits: ['update:message', 'update:content', 'cancel-edit', 'image-loaded', 'embed-loaded', 'open-lightbox', 'show-user-profile', 'hashtag-click', 'decrypt-message'],

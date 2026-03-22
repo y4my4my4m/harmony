@@ -22,52 +22,69 @@
          @dragover.prevent="handleDragOver"
          @dragleave.prevent="handleDragLeave"
          @drop.prevent="handleDrop">
-      <div class="left-icons">
-        <div class="plus-icon-container">
-          <PlusIcon @click="toggleUploadMenu" :class="{ active: showUploadMenu }" />
-          <FileUploadMenu
-            :isVisible="showUploadMenu"
-            @files-selected="handleFilesSelected"
-            @close="closeUploadMenu"
+      <!-- Voice recording mode: replaces the normal input -->
+      <VoiceRecorder
+        v-if="isVoiceRecording"
+        auto-start
+        @recording-complete="handleVoiceRecordingComplete"
+        @recording-started="isVoiceRecording = true"
+        @recording-cancelled="isVoiceRecording = false"
+      />
+
+      <!-- Normal input mode -->
+      <template v-else>
+        <div class="left-icons">
+          <div class="plus-icon-container">
+            <PlusIcon @click="toggleUploadMenu" :class="{ active: showUploadMenu }" />
+            <FileUploadMenu
+              :isVisible="showUploadMenu"
+              @files-selected="handleFilesSelected"
+              @close="closeUploadMenu"
+            />
+          </div>
+        </div>
+        <div class="textarea-wrapper">
+          <RichTextEditor
+            ref="richEditorRef"
+            :model-value="modelValue"
+            :placeholder="attachedFiles.length > 0 ? $t('message.addComment') : $t('message.typeMessage', { to: placeholderTarget })"
+            :auto-suggest-active="autoSuggest.state.value.isActive"
+            :auto-suggest-selected-id="autoSuggest.state.value.isActive ? 'suggest-' + autoSuggest.state.value.selectedIndex : undefined"
+            @update:model-value="handleModelValueUpdate"
+            @input="handleEditorInput"
+            @keydown="handleKeyDown"
+            @focus="handleFocus"
+            @blur="handleBlur"
+            @cursor-position-changed="handleCursorPositionChanged"
+            @paste="handlePasteFiles"
           />
         </div>
-      </div>
-      <div class="textarea-wrapper">
-        <RichTextEditor
-          ref="richEditorRef"
-          :model-value="modelValue"
-          :placeholder="attachedFiles.length > 0 ? $t('message.addComment') : $t('message.typeMessage', { to: placeholderTarget })"
-          :auto-suggest-active="autoSuggest.state.value.isActive"
-          :auto-suggest-selected-id="autoSuggest.state.value.isActive ? 'suggest-' + autoSuggest.state.value.selectedIndex : undefined"
-          @update:model-value="handleModelValueUpdate"
-          @input="handleEditorInput"
-          @keydown="handleKeyDown"
-          @focus="handleFocus"
-          @blur="handleBlur"
-          @cursor-position-changed="handleCursorPositionChanged"
-          @paste="handlePasteFiles"
-        />
-      </div>
-      <div class="right-icons">
-        <button ref="gifTriggerRef" @click.stop="toggleGiphy" class="icon-button">
-          <GifIcon />
-        </button>
-        <button ref="emojiTriggerRef" @click.stop="toggleEmojiList" class="icon-button">
-          <EmojiUI />
-        </button>
-        <!-- Send button - only visible on mobile when there's content -->
-        <button 
-          v-if="isMobile && hasContent" 
-          @click.stop="send" 
-          class="icon-button send-button"
-          data-testid="message-send-btn"
-          :disabled="!hasContent"
-        >
-          <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
-            <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
-          </svg>
-        </button>
-      </div>
+        <div class="right-icons">
+          <VoiceRecorder
+            :disabled="hasContent"
+            @recording-started="isVoiceRecording = true"
+            @recording-complete="handleVoiceRecordingComplete"
+            @recording-cancelled="isVoiceRecording = false"
+          />
+          <button ref="gifTriggerRef" @click.stop="toggleGiphy" class="icon-button">
+            <GifIcon />
+          </button>
+          <button ref="emojiTriggerRef" @click.stop="toggleEmojiList" class="icon-button">
+            <EmojiUI />
+          </button>
+          <button 
+            v-if="isMobile && hasContent" 
+            @click.stop="send" 
+            class="icon-button send-button"
+            data-testid="message-send-btn"
+            :disabled="!hasContent"
+          >
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+              <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+            </svg>
+          </button>
+        </div>
+      </template>
     </div>
     
     <!-- Auto-suggest component -->
@@ -97,10 +114,12 @@ import FilePreview from '@/components/FilePreview.vue';
 import FileUploadMenu from '@/components/FileUploadMenu.vue';
 import AutoSuggest from '@/components/AutoSuggest.vue';
 import RichTextEditor from '@/components/RichTextEditor.vue';
+import VoiceRecorder from '@/components/VoiceRecorder.vue';
 import type { FilePreviewData } from '@/components/FilePreview.vue';
 import type { SuggestionItem } from '@/components/AutoSuggest.vue';
 import type { Message } from '@/types';
 import { backgroundUploadManager } from '@/services/fileService';
+import type { VoiceRecordingResult } from '@/services/voiceRecordingService';
 import { useAuthStore } from '@/stores/auth';
 import { useServerChannelStore } from '@/stores/useServerChannel';
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings';
@@ -136,9 +155,17 @@ const placeholderTarget = computed(() => {
   return '';
 });
 
+interface VoiceMessageData {
+  url: string
+  duration: number
+  waveform: number[]
+  mimeType: string
+}
+
 interface Emits {
   (e: 'update:modelValue', value: string): void;
   (e: 'sendMessage', content: string, files: FilePreviewData[], replyMessageId?: string): void;
+  (e: 'sendVoiceMessage', data: VoiceMessageData): void;
   (e: 'toggleGiphy'): void;
   (e: 'toggleEmojiList', isReaction: boolean, message?: Message): void;
   (e: 'update:replyMessageId', value: string): void;
@@ -158,6 +185,8 @@ const richEditorRef = ref<InstanceType<typeof RichTextEditor>>();
 const isEditorFocused = ref(false);
 const gifTriggerRef = ref<HTMLElement | null>(null);
 const emojiTriggerRef = ref<HTMLElement | null>(null);
+const isVoiceRecording = ref(false);
+const voiceUploading = ref(false);
 
 // Get store for channel ID (more reliable than props on direct page load)
 const serverChannelStore = useServerChannelStore()
@@ -206,6 +235,39 @@ const checkMobile = () => {
 const hasContent = computed(() => {
   return (props.modelValue?.trim().length ?? 0) > 0 || attachedFiles.value.length > 0;
 });
+
+const handleVoiceRecordingComplete = async (result: VoiceRecordingResult) => {
+  const userId = authStore.session?.user?.id
+  if (!userId) return
+
+  voiceUploading.value = true
+  try {
+    const ext = result.mimeType.includes('webm') ? 'webm' : result.mimeType.includes('ogg') ? 'ogg' : 'mp4'
+    const filePath = `${userId}/voice/${crypto.randomUUID()}.${ext}`
+
+    const { error } = await supabase.storage
+      .from('user_media')
+      .upload(filePath, result.blob, { contentType: result.mimeType })
+
+    if (error) throw error
+
+    const { data } = supabase.storage.from('user_media').getPublicUrl(filePath)
+
+    if (data.publicUrl) {
+      emit('sendVoiceMessage', {
+        url: data.publicUrl,
+        duration: result.duration,
+        waveform: result.waveform,
+        mimeType: result.mimeType,
+      })
+    }
+  } catch (err) {
+    debug.error('Failed to upload voice message:', err)
+  } finally {
+    voiceUploading.value = false
+    isVoiceRecording.value = false
+  }
+}
 
 // Initialize and listen for resize
 onMounted(() => {
@@ -600,6 +662,18 @@ const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText);
         });
       }
     });
+
+    // Auto-focus editor when navigating to a new channel/DM/group
+    watch(
+      () => [props.channelId, props.conversationId],
+      () => {
+        if (!isMobile.value) {
+          nextTick(() => {
+            richEditorRef.value?.focus();
+          });
+        }
+      }
+    );
 
     // Watch for changes in attached files to emit to parent
     watch(attachedFiles, (newFiles) => {

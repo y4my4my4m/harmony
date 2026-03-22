@@ -75,6 +75,7 @@
       @toggleGiphy="toggleGiphy"
       @toggleEmojiList="toggleEmojiList"
       @sendMessage="handleSendMessage"
+      @sendVoiceMessage="handleSendVoiceMessage"
       @update:replyMessageId="handleDontReply"
       @upload-status-changed="handleUploadStatusChanged"
       @edit-last-message="handleEditLastMessage"
@@ -838,6 +839,50 @@
           }
         }
       };
+
+      const handleSendVoiceMessage = async (data: {
+        url: string
+        duration: number
+        waveform: number[]
+        mimeType: string
+      }) => {
+        const messageParts: MessagePart[] = [{
+          type: 'file',
+          url: data.url,
+          fileType: 'audio',
+          fileName: 'Voice message',
+        }]
+
+        const voiceMetadata = {
+          voice_message: {
+            duration: data.duration,
+            waveform: data.waveform,
+          },
+        }
+
+        try {
+          if (props.isDM && props.conversationId) {
+            await coreMessageService.sendDMMessage(
+              props.conversationId,
+              messageParts,
+              undefined,
+              undefined,
+              voiceMetadata
+            )
+          } else if (serverChannelStore.currentServerId && serverChannelStore.currentChannelId) {
+            await chatStore.sendMessage(
+              serverChannelStore.currentServerId,
+              serverChannelStore.currentChannelId,
+              authStore.session.user.id,
+              messageParts,
+              '',
+              voiceMetadata
+            )
+          }
+        } catch (error) {
+          debug.error('Error sending voice message:', error)
+        }
+      }
 
       const handleSendGif = (gif: Gif) => {
         const gifUrl = gif.media_formats.gif.url;

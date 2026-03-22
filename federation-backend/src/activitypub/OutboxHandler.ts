@@ -597,6 +597,7 @@ router.get(
 
     if (conv?.type === 'group') {
       note['harmony:conversationType'] = 'group';
+      note['harmony:conversationId'] = message.conversation_id;
     }
 
     note.directMessage = true;

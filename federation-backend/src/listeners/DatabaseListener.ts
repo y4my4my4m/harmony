@@ -1871,6 +1871,7 @@ export async function handleNewDM(message: any): Promise<void> {
 
     if (conversationType === 'group') {
       note['harmony:conversationType'] = 'group';
+      note['harmony:conversationId'] = message.conversation_id;
 
       // Thread group messages using linear chain: set inReplyTo to the most
       // recent message in the conversation (preferring remote AP IDs that
