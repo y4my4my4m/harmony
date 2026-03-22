@@ -58,13 +58,14 @@ export class MessageService {
     serverId: string,
     channelId: string,
     content: MessagePart[],
-    replyTo?: string
+    replyTo?: string,
+    extraMetadata?: Record<string, any>
   ): Promise<Message> {
     try {
       debug.log(`🚀 Simplified: Sending channel message to: ${channelId}`)
 
       // Channel messages are local-only (no federation by design)
-      const message = await coreMessageService.sendChannelMessage(serverId, channelId, content, replyTo)
+      const message = await coreMessageService.sendChannelMessage(serverId, channelId, content, replyTo, extraMetadata)
 
       debug.log(`✅ Simplified: Channel message sent successfully (local-only): ${message.id}`)
       return message
@@ -87,12 +88,13 @@ export class MessageService {
     conversationId: string,
     content: MessagePart[],
     replyTo?: string,
-    options?: { isSystem?: boolean }
+    options?: { isSystem?: boolean },
+    extraMetadata?: Record<string, any>
   ): Promise<Message> {
     try {
       debug.log(`🚀 Simplified: Sending DM message to conversation: ${conversationId}`)
 
-      const message = await coreMessageService.sendDMMessage(conversationId, content, replyTo, options)
+      const message = await coreMessageService.sendDMMessage(conversationId, content, replyTo, options, extraMetadata)
 
       debug.log(`✅ Simplified: DM message sent successfully - database handling federation: ${message.id}`)
       return message

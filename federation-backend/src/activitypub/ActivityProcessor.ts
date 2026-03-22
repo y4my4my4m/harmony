@@ -2369,10 +2369,12 @@ export class ActivityProcessor {
     let conversationId: string | null = null;
 
     if (isGroup) {
+      const remoteConvId = object['harmony:conversationId'] || object.context || null;
       const { data: convId, error: convError } = await supabase
         .rpc('get_or_create_federated_group_conversation', {
           p_actor_id: authorId,
-          p_local_recipient_ids: recipientIds
+          p_local_recipient_ids: recipientIds,
+          p_remote_conversation_id: remoteConvId
         });
       if (convError || !convId) {
         logger.error(`Failed to get/create group conversation:`, convError);

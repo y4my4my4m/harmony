@@ -97,7 +97,8 @@ export class CoreMessageService {
     serverId: string,
     channelId: string,
     content: MessagePart[],
-    replyTo?: string
+    replyTo?: string,
+    extraMetadata?: Record<string, any>
   ): Promise<Message> {
     try {
       // Enforce max media attachments per message (instance config, default 20)
@@ -201,7 +202,7 @@ export class CoreMessageService {
         reply_to: replyTo || null,
         encrypted,
         encryption_metadata: encryptionMetadata,
-        metadata: { created_via: 'harmony_client' }
+        metadata: { created_via: 'harmony_client', ...extraMetadata }
       }
 
       debug.log('📤 Inserting message to database:', { ...messageData, content: encrypted ? '[encrypted]' : messageData.content })
@@ -240,7 +241,8 @@ export class CoreMessageService {
     conversationId: string,
     content: MessagePart[],
     replyTo?: string,
-    options?: { isSystem?: boolean }
+    options?: { isSystem?: boolean },
+    extraMetadata?: Record<string, any>
   ): Promise<Message> {
     try {
       // Enforce max media attachments per message (instance config, default 20)
@@ -347,7 +349,7 @@ export class CoreMessageService {
         reply_to: replyTo || null,
         encrypted,
         encryption_metadata: encryptionMetadata,
-        metadata: { created_via: 'harmony_client' }
+        metadata: { created_via: 'harmony_client', ...extraMetadata }
       }
 
       const { data: message, error } = await supabase

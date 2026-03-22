@@ -101,6 +101,7 @@
             @click="toggleSection('server-' + group.serverId)"
           >
             <span class="section-chevron" :class="{ collapsed: isSectionCollapsed('server-' + group.serverId) }">&#9662;</span>
+            <ServerIcon :src="group.server_icon" size="mini" shape="rounded" :show-title="false" class="section-server-icon" />
             {{ group.server_name }}
           </h3>
           <div v-if="!isSectionCollapsed('server-' + group.serverId)" class="emoji-list">
@@ -233,6 +234,8 @@ import { getEmojiUrl } from '@/utils/emojiUtils';
 import { EMOJI_CATEGORIES } from '@/utils/emojiConstants';
 import { debug } from '@/utils/debug';
 import LazyEmojiSection from '@/components/LazyEmojiSection.vue';
+import ServerIcon from '@/components/common/ServerIcon.vue';
+import { useServerChannelStore } from '@/stores/useServerChannel';
 
 // Types
 interface FilteredServerEmojiGroup {
@@ -264,6 +267,7 @@ const emit = defineEmits<{
 // State & Composables
 const brokenEmojiUrls = ref(new Set<string>());
 const emojiCacheStore = useEmojiCacheStore();
+const serverChannelStore = useServerChannelStore();
 const { topEmojisForPicker, hasFrequentEmojis, recordEmojiUsage, removeFrequentEmoji, isFrequentEmoji } = useFrequentEmojis();
 const { triggerReaction } = useHapticSettings();
 const { 
@@ -292,32 +296,44 @@ const toggleSection = (id: string) => {
 
 const isSectionCollapsed = (id: string) => collapsedSections.value.has(id);
 
-// Computed: Filtered emoji list
+// Computed: Filtered emoji list (current server first)
 const filteredEmojiList = computed((): FilteredServerEmojiGroup[] => {
   const query = searchQuery.value.toLowerCase().trim();
   const allEmojisByServer = Object.entries(emojiCacheStore.resolvedEmojis);
+  const currentId = serverChannelStore.currentServerId;
+
+  const sortCurrentFirst = (list: FilteredServerEmojiGroup[]) =>
+    list.sort((a, b) => {
+      if (a.serverId === currentId) return -1;
+      if (b.serverId === currentId) return 1;
+      return 0;
+    });
 
   if (!query) {
-    return allEmojisByServer
-      .map(([serverId, data]) => ({ serverId, ...data }))
-      .filter((group) => group.emojis.length > 0);
+    return sortCurrentFirst(
+      allEmojisByServer
+        .map(([serverId, data]) => ({ serverId, ...data }))
+        .filter((group) => group.emojis.length > 0)
+    );
   }
 
-  return allEmojisByServer
-    .map(([serverId, data]) => {
-      const matchingEmojis = data.emojis.filter(
-        (emoji) =>
-          emoji.name.toLowerCase().includes(query) ||
-          emoji.display_name.toLowerCase().includes(query),
-      );
-      return {
-        serverId,
-        server_name: data.server_name,
-        server_icon: data.server_icon,
-        emojis: matchingEmojis,
-      };
-    })
-    .filter((group) => group.emojis.length > 0);
+  return sortCurrentFirst(
+    allEmojisByServer
+      .map(([serverId, data]) => {
+        const matchingEmojis = data.emojis.filter(
+          (emoji) =>
+            emoji.name.toLowerCase().includes(query) ||
+            emoji.display_name.toLowerCase().includes(query),
+        );
+        return {
+          serverId,
+          server_name: data.server_name,
+          server_icon: data.server_icon,
+          emojis: matchingEmojis,
+        };
+      })
+      .filter((group) => group.emojis.length > 0)
+  );
 });
 
 // Computed: Displayed categories from unified emoji service
@@ -840,6 +856,11 @@ onMounted(async () => {
 
 .section-title-collapsible:hover {
   background: rgba(255, 255, 255, 0.06);
+}
+
+.section-server-icon {
+  vertical-align: middle;
+  flex-shrink: 0;
 }
 
 .section-chevron {

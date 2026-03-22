@@ -247,20 +247,28 @@
           ></video>
         </div>
         
-        <!-- Audio files -->
-        <div 
-          v-else-if="part && typeof part === 'object' && part.type === 'file' && part.fileType === 'audio'" 
+        <!-- Audio files (voice messages + regular audio) -->
+        <div
+          v-else-if="part && typeof part === 'object' && part.type === 'file' && part.fileType === 'audio'"
           class="media-container audio-container"
         >
-          <div v-if="part.fileName" class="audio-filename">
-            {{ part.fileName }}
-          </div>
-          <audio
+          <VoiceMessagePlayer
+            v-if="metadata?.voice_message"
             :src="part.url"
-            controls
-            preload="metadata"
-            class="content-audio"
-          ></audio>
+            :duration="metadata.voice_message.duration || 0"
+            :waveform="metadata.voice_message.waveform || []"
+          />
+          <template v-else>
+            <div v-if="part.fileName" class="audio-filename">
+              {{ part.fileName }}
+            </div>
+            <audio
+              :src="part.url"
+              controls
+              preload="metadata"
+              class="content-audio"
+            ></audio>
+          </template>
         </div>
         
         <!-- Other file attachments -->
@@ -319,6 +327,7 @@ import AutoSuggest from '@/components/AutoSuggest.vue';
 import DisplayName from '@/components/DisplayName.vue';
 import CodeBlock from '@/components/common/CodeBlock.vue';
 import RichTextEditor from '@/components/RichTextEditor.vue';
+import VoiceMessagePlayer from '@/components/VoiceMessagePlayer.vue';
 import type { SuggestionItem } from '@/components/AutoSuggest.vue';
 import { useAutoSuggest } from '@/composables/useAutoSuggest';
 import { useFloatingVideo } from '@/composables/useFloatingVideo';
@@ -339,6 +348,7 @@ export default defineComponent({
     CodeBlock,
     ProviderEmbedSwitch,
     RichTextEditor,
+    VoiceMessagePlayer,
   },
   props: {
     content: {
@@ -384,6 +394,10 @@ export default defineComponent({
     canDecrypt: {
       type: Boolean,
       default: false
+    },
+    metadata: {
+      type: Object as PropType<Record<string, any> | null>,
+      default: null
     }
   },
   emits: ['update:message', 'update:content', 'cancel-edit', 'image-loaded', 'embed-loaded', 'open-lightbox', 'show-user-profile', 'hashtag-click', 'decrypt-message'],

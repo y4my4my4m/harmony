@@ -651,7 +651,7 @@ export const useChatStore = defineStore('chat', {
       }
     },
 
-    async sendMessage(serverId: string, channelId: string, userId: string, content: Array<Object>, replyTo: string) {
+    async sendMessage(serverId: string, channelId: string, userId: string, content: Array<Object>, replyTo: string, extraMetadata?: Record<string, any>) {
       // Create optimistic message
       const tempId = `temp-${Date.now()}`;
       const optimisticMessage = {
@@ -675,7 +675,8 @@ export const useChatStore = defineStore('chat', {
           serverId,
           channelId, 
           content as any, // MessagePart[]
-          replyTo || undefined
+          replyTo || undefined,
+          extraMetadata
         );
         
         debug.log('✅ Message saved to database:', message.id);
