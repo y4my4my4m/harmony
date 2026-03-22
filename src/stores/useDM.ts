@@ -80,6 +80,10 @@ export const useDMStore = defineStore('dm', () => {
   const dmSubscriptions = ref<Map<string, any>>(new Map())
   const currentSubscription = ref<any | null>(null)
   
+  // Global broadcast handlers (persist across route changes, cleaned up only on logout)
+  let _globalBroadcastUnsubs: (() => void)[] = []
+  let _globalBroadcastRegistered = false
+  
   // Connection status (mirrors useChat pattern)
   const dmConnectionStatus = ref<import('@/services/RealtimeConnectionManager').ConnectionStatus>('disconnected')
   
@@ -1928,18 +1932,9 @@ export const useDMStore = defineStore('dm', () => {
       // Get reactions store for handling real-time updates
       const reactionsStore = useReactionsStore()
 
-      // Listen for new conversations via the shared UserEventChannel broadcast
-      // (replaces dedicated dm-conversations postgres_changes channel)
-      const { authContextService } = await import('@/services/AuthContextService')
-      const ctx = await authContextService.getCurrentContext()
-      if (ctx.isAuthenticated) {
-        userEventChannel.connect(ctx.profileId)
-        const unsubConversation = userEventChannel.on('conversation:new', (data) => {
-          debug.log('🔔 Broadcast: User added to new DM conversation:', data.conversation_id)
-          fetchUserConversations(userId)
-        })
-        dmSubscriptions.value.set('broadcast:conversation:new', unsubConversation)
-      }
+      // Global conversation:new / conversation:updated handlers are registered
+      // separately via registerGlobalBroadcastHandlers() (called from BaseLayout)
+      // so they persist across route changes — no need to register here.
 
     } catch (error) {
       debug.error('❌ Error setting up DM realtime subscriptions:', error)
@@ -2221,6 +2216,42 @@ export const useDMStore = defineStore('dm', () => {
     }
   }
 
+  /**
+   * Register global broadcast handlers for conversation:new and conversation:updated.
+   * Called once from BaseLayout during app init — persists across route changes.
+   */
+  const registerGlobalBroadcastHandlers = async (userId: string) => {
+    if (_globalBroadcastRegistered) return
+
+    const { authContextService } = await import('@/services/AuthContextService')
+    const ctx = await authContextService.getCurrentContext()
+    if (!ctx.isAuthenticated) return
+
+    userEventChannel.connect(ctx.profileId)
+
+    const unsubNew = userEventChannel.on('conversation:new', (data) => {
+      debug.log('🔔 Global: new conversation broadcast:', data.conversation_id)
+      fetchUserConversations(userId)
+    })
+
+    const unsubUpdated = userEventChannel.on('conversation:updated', (data) => {
+      debug.log('🔔 Global: conversation updated broadcast:', data.conversation_id, data.changes)
+      const conv = conversations.value.find(c => c.id === data.conversation_id)
+      if (conv && data.changes) {
+        if ('name' in data.changes) {
+          conv.name = data.changes.name || null
+        }
+        if (data.changes.metadata !== undefined) {
+          conv.icon_url = data.changes.metadata?.icon_url
+        }
+      }
+    })
+
+    _globalBroadcastUnsubs = [unsubNew, unsubUpdated]
+    _globalBroadcastRegistered = true
+    debug.log('✅ Global conversation broadcast handlers registered')
+  }
+
   const cleanup = () => {
     debug.log('🧹 Cleaning up DM store')
     
@@ -2233,6 +2264,11 @@ export const useDMStore = defineStore('dm', () => {
     
     // Cleanup subscriptions
     cleanupRealtimeSubscriptions()
+    
+    // Cleanup global broadcast handlers
+    _globalBroadcastUnsubs.forEach(unsub => unsub())
+    _globalBroadcastUnsubs = []
+    _globalBroadcastRegistered = false
     
     // Reset state
     conversations.value = []
@@ -2916,6 +2952,7 @@ export const useDMStore = defineStore('dm', () => {
     highlightedMessageId,
     initializeDMEnvironment,
     initializeDMEnvironmentForDirectAccess,
+    registerGlobalBroadcastHandlers,
     fetchConversationDetails,
     fetchUserConversations,
     fetchUserConversationsMetadata,

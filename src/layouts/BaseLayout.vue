@@ -688,6 +688,11 @@ const initializeRouteSpecificData = async (userId: string, strategy: any, userDa
 // Background loading of non-critical data
 const initializeBackgroundData = async (userId: string, strategy: any) => {
   try {
+    // Register global conversation broadcast handlers (new conversations + metadata updates)
+    const { useDMStore } = await import('@/stores/useDM')
+    const dmStore = useDMStore()
+    await dmStore.registerGlobalBroadcastHandlers(userId)
+
     // Load only notification count initially (not full list)
     const { useNotificationStore } = await import('@/stores/useNotification')
     const notificationStore = useNotificationStore()

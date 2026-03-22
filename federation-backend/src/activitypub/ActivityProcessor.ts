@@ -2463,9 +2463,15 @@ export class ActivityProcessor {
       return;
     }
 
+    const remoteConversationId = object.metadata?.conversation_id || null;
+
     const { data: conversationId, error: convError } = await supabase.rpc(
       'get_or_create_federated_group_conversation',
-      { p_actor_id: authorId, p_local_recipient_ids: recipientIds }
+      {
+        p_actor_id: authorId,
+        p_local_recipient_ids: recipientIds,
+        p_remote_conversation_id: remoteConversationId,
+      }
     );
 
     if (convError || !conversationId) {
@@ -2511,81 +2517,85 @@ export class ActivityProcessor {
   /**
    * Handle group conversation Update (name, icon changes from remote instance)
    */
+  /**
+   * Resolve a remote conversation ID to the local conversation row.
+   * Tries direct UUID match first, then falls back to metadata mapping.
+   */
+  private static async resolveGroupConversation(
+    remoteConversationId: string
+  ): Promise<{ id: string; type: string; metadata: any } | null> {
+    const supabase = getSupabaseClient();
+
+    // 1. Direct ID match (same-instance or lucky UUID collision)
+    const { data: direct } = await supabase
+      .from('conversations')
+      .select('id, type, metadata')
+      .eq('id', remoteConversationId)
+      .eq('type', 'group')
+      .maybeSingle();
+
+    if (direct) return direct;
+
+    // 2. Look up by remote_conversation_id stored in metadata
+    const { data: mapped } = await supabase
+      .from('conversations')
+      .select('id, type, metadata')
+      .eq('type', 'group')
+      .filter('metadata->>remote_conversation_id', 'eq', remoteConversationId)
+      .maybeSingle();
+
+    return mapped || null;
+  }
+
   private static async handleGroupConversationUpdate(activity: any, object: any): Promise<void> {
     const supabase = getSupabaseClient();
-    const conversationId = object['harmony:conversationId'];
+    const remoteConversationId = object['harmony:conversationId'];
     const updateType = activity['harmony:updateType'];
 
-    if (!conversationId) {
+    if (!remoteConversationId) {
       logger.warn('Group conversation update missing conversationId');
       return;
     }
 
-    logger.info(`📝 Processing group conversation update: ${updateType} for ${conversationId}`);
+    logger.info(`📝 Processing group conversation update: ${updateType} for ${remoteConversationId}`);
 
-    const { data: conversation } = await supabase
-      .from('conversations')
-      .select('id, type')
-      .eq('id', conversationId)
-      .eq('type', 'group')
-      .maybeSingle();
+    const conversation = await this.resolveGroupConversation(remoteConversationId);
 
     if (!conversation) {
-      logger.warn(`Group conversation not found: ${conversationId}`);
+      logger.warn(`Group conversation not found for remote ID: ${remoteConversationId}`);
       return;
     }
+
+    const localId = conversation.id;
 
     if (updateType === 'name') {
       const newName = object.name || null;
       await supabase
         .from('conversations')
         .update({ name: newName, updated_at: new Date().toISOString() })
-        .eq('id', conversationId);
+        .eq('id', localId);
       logger.info(`✅ Updated group conversation name: ${newName}`);
     } else if (updateType === 'icon') {
       const iconUrl = object.icon?.url || null;
       if (iconUrl) {
+        const currentMetadata = (conversation.metadata as any) || {};
         await supabase
           .from('conversations')
           .update({
-            metadata: supabase.rpc ? undefined : undefined, // handled below
+            metadata: { ...currentMetadata, icon_url: iconUrl },
             updated_at: new Date().toISOString(),
           })
-          .eq('id', conversationId);
-
-        // Use raw SQL-style update for jsonb merge
-        const { error } = await supabase.rpc('update_conversation_metadata_icon', {
-          p_conversation_id: conversationId,
-          p_icon_url: iconUrl,
-        });
-
-        // Fallback: direct metadata update if RPC doesn't exist
-        if (error) {
-          await supabase
-            .from('conversations')
-            .update({
-              metadata: { icon_url: iconUrl },
-              updated_at: new Date().toISOString(),
-            })
-            .eq('id', conversationId);
-        }
+          .eq('id', localId);
         logger.info(`✅ Updated group conversation icon: ${iconUrl}`);
       }
     } else if (updateType === 'icon_removed') {
-      // Remove icon from metadata
-      const { data: current } = await supabase
-        .from('conversations')
-        .select('metadata')
-        .eq('id', conversationId)
-        .single();
-
-      const metadata = (current?.metadata as any) || {};
-      delete metadata.icon_url;
+      const currentMetadata = (conversation.metadata as any) || {};
+      delete currentMetadata.icon_url;
 
       await supabase
         .from('conversations')
-        .update({ metadata, updated_at: new Date().toISOString() })
-        .eq('id', conversationId);
+        .update({ metadata: currentMetadata, updated_at: new Date().toISOString() })
+        .eq('id', localId);
       logger.info(`✅ Removed group conversation icon`);
     }
   }
@@ -2595,17 +2605,22 @@ export class ActivityProcessor {
    */
   private static async handleGroupConversationParticipantRemove(activity: any, target: any): Promise<void> {
     const supabase = getSupabaseClient();
-    const conversationId = target['harmony:conversationId'];
+    const remoteConversationId = target['harmony:conversationId'];
     const removedUserUrl = typeof activity.object === 'string' ? activity.object : activity.object?.id;
 
-    if (!conversationId || !removedUserUrl) {
+    if (!remoteConversationId || !removedUserUrl) {
       logger.warn('Group participant remove missing conversationId or user URL');
       return;
     }
 
-    logger.info(`👥 Processing group participant removal: ${removedUserUrl} from ${conversationId}`);
+    logger.info(`👥 Processing group participant removal: ${removedUserUrl} from ${remoteConversationId}`);
 
-    // Find the user being removed
+    const conversation = await this.resolveGroupConversation(remoteConversationId);
+    if (!conversation) {
+      logger.warn(`Group conversation not found for remote ID: ${remoteConversationId}`);
+      return;
+    }
+
     const { data: removedUser } = await supabase
       .from('profiles')
       .select('id')
@@ -2617,18 +2632,17 @@ export class ActivityProcessor {
       return;
     }
 
-    // Mark them as left in the conversation
     const { error } = await supabase
       .from('conversation_participants')
       .update({ left_at: new Date().toISOString() })
-      .eq('conversation_id', conversationId)
+      .eq('conversation_id', conversation.id)
       .eq('user_id', removedUser.id)
       .is('left_at', null);
 
     if (error) {
       logger.error('Failed to remove participant from group conversation:', error);
     } else {
-      logger.info(`✅ Removed ${removedUserUrl} from group conversation ${conversationId}`);
+      logger.info(`✅ Removed ${removedUserUrl} from group conversation ${conversation.id}`);
     }
   }
 

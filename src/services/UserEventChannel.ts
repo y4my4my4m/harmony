@@ -19,7 +19,7 @@ import { debug } from '@/utils/debug'
 type UserEventType =
   | 'notification:new' | 'notification:update' | 'notification:bulk_read'
   | 'unread:change'
-  | 'conversation:new'
+  | 'conversation:new' | 'conversation:updated'
   | 'server:joined' | 'server:left' | 'server:updated'
   | 'preferences:updated'
 type EventHandler = (payload: Record<string, any>) => void | Promise<void>
