@@ -6,8 +6,8 @@ const serverMemberCache = new Map<string, { userIds: string[], timestamp: number
 const pendingServerMemberRequests = new Map<string, Promise<string[]>>()
 const MEMBER_CACHE_TTL = 2 * 60 * 1000 // 2 minutes
 
-// TODO: fix the RLS!!!
-// currently it's allowing anyone to fetch user_servers, which means people could see what servers other people are in even if they dont share servers...
+// RLS on user_servers is scoped: users can only see memberships for servers
+// they belong to (see migration 20260323_fix_user_servers_select_rls.sql).
 const getUserIdsForServer = async (serverId: string): Promise<string[]> => {
   const now = Date.now()
   

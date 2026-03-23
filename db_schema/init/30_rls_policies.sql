@@ -317,10 +317,15 @@ CREATE POLICY "messages_delete_authorized" ON public.messages
 -- Complex membership checks should be done in application logic.
 ALTER TABLE public.user_servers ENABLE ROW LEVEL SECURITY;
 
--- Allow all authenticated users to read user_servers
--- (membership visibility is handled at the application level)
-CREATE POLICY "Enable read access for all users" ON public.user_servers
-    FOR SELECT USING (true);
+-- Users can see memberships for servers they belong to (co-members),
+-- their own memberships, or all memberships if admin.
+CREATE POLICY "user_servers_select_co_members" ON public.user_servers
+    FOR SELECT TO authenticated
+    USING (
+        user_id = public.get_current_profile_id()
+        OR public.current_user_is_member_of_server(server_id)
+        OR public.is_current_user_admin()
+    );
 
 -- Users can join servers (insert themselves)
 CREATE POLICY "user_servers_insert_self" ON public.user_servers

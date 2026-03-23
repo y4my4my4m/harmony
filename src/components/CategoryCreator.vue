@@ -24,12 +24,12 @@
 
     <template #footer>
       <div class="modal-actions">
-        <ModernButton
+        <UnifiedButton
           variant="ghost"
           text="Cancel"
           @click="closeCategoryCreator"
         />
-        <ModernButton
+        <UnifiedButton
           variant="success"
           text="Create Category"
           :disabled="!canCreate"
@@ -47,7 +47,7 @@ import { useI18n } from 'vue-i18n'
 import { debug } from '@/utils/debug'
 import BaseModal from '@/components/common/BaseModal.vue'
 import ModernInput from '@/components/common/ModernInput.vue'
-import ModernButton from '@/components/common/ModernButton.vue'
+import UnifiedButton from '@/components/shared/UnifiedButton.vue'
 import { supabase } from '@/supabase'
 import { useServerChannelStore } from '@/stores/useServerChannel'
 

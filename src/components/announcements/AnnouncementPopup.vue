@@ -8,7 +8,7 @@
             <h2>{{ $t('announcements.title', 'Announcements') }}</h2>
             <span class="unread-badge" v-if="announcements.length > 1">{{ announcements.length }}</span>
           </div>
-          <button @click="dismiss" class="close-btn">
+          <button @click="dismiss" class="close-btn" aria-label="Close announcements">
             <svg width="20" height="20" viewBox="0 0 24 24">
               <path fill="currentColor" d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
             </svg>
@@ -27,7 +27,7 @@
               <h3 class="announcement-title">{{ announcement.title }}</h3>
               <span v-if="announcement.is_pinned" class="pin-badge">Pinned</span>
             </div>
-            <div class="announcement-content" v-html="announcement.content"></div>
+            <div class="announcement-content" v-html="sanitize(announcement.content)"></div>
             <img
               v-if="announcement.image_url"
               :src="announcement.image_url"
@@ -63,11 +63,20 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import DOMPurify from 'dompurify'
 import { announcementService, type Announcement } from '@/services/AnnouncementService'
 import { userDataService } from '@/services/userDataService'
+import { debug } from '@/utils/debug'
 import DisplayName from '@/components/DisplayName.vue'
 
 const announcements = ref<Announcement[]>([])
+
+const sanitize = (html: string): string => {
+  return DOMPurify.sanitize(html || '', {
+    ALLOWED_TAGS: ['p', 'br', 'a', 'span', 'em', 'strong', 'b', 'i', 'del', 'pre', 'code', 'blockquote', 'ul', 'ol', 'li', 'img', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'],
+    ALLOWED_ATTR: ['href', 'rel', 'target', 'class', 'title', 'src', 'alt', 'width', 'height'],
+  })
+}
 
 const getIconEmoji = (icon: string): string => {
   const icons: Record<string, string> = {
@@ -107,7 +116,7 @@ onMounted(async () => {
   // Prime user cache so DisplayName can resolve custom emojis for authors
   for (const a of announcements.value) {
     if (a.author_id) {
-      userDataService.fetchUserProfile(a.author_id).catch(() => {})
+      userDataService.fetchUserProfile(a.author_id).catch((e) => { debug.warn('Failed to prefetch author profile', e) })
     }
   }
 })

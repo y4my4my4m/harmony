@@ -1,7 +1,8 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { livekitService, type TokenRequest, type FederatedTokenRequest } from '../services/LiveKitService.js';
-import { getSupabaseClient, getSupabaseClientWithAuth } from '../config/supabase.js';
+import { getSupabaseClient } from '../config/supabase.js';
+import { requireAuth, type AuthenticatedRequest } from '../middleware/auth.js';
 import { logger } from '../utils/logger.js';
 import config from '../config/index.js';
 
@@ -31,35 +32,6 @@ const federatedTokenRequestSchema = z.object({
 // =============================================================================
 // MIDDLEWARE
 // =============================================================================
-
-/**
- * Middleware to verify user authentication via Supabase JWT
- */
-const requireAuth = async (req: Request, res: Response, next: Function) => {
-  const authHeader = req.headers.authorization;
-  
-  if (!authHeader?.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'Missing or invalid authorization header' });
-  }
-  
-  const token = authHeader.substring(7);
-  
-  try {
-    const supabase = getSupabaseClientWithAuth(token);
-    const { data: { user }, error } = await supabase.auth.getUser();
-    
-    if (error || !user) {
-      return res.status(401).json({ error: 'Invalid or expired token' });
-    }
-    
-    // Attach user to request
-    (req as any).user = user;
-    next();
-  } catch (error) {
-    logger.error('Auth verification failed:', error);
-    return res.status(401).json({ error: 'Authentication failed' });
-  }
-};
 
 /**
  * Check if LiveKit is configured
@@ -146,7 +118,7 @@ router.post('/token', requireAuth, requireLiveKit, async (req: Request, res: Res
       });
     }
     
-    const user = (req as any).user;
+    const user = (req as AuthenticatedRequest).user;
     const { roomName, roomType, canPublish, canSubscribe, canPublishData, metadata } = validation.data;
     
     const tokenRequest: TokenRequest = {
@@ -247,14 +219,13 @@ router.post('/federated-token', requireLiveKit, async (req: Request, res: Respon
  */
 router.get('/rooms', requireAuth, requireLiveKit, async (req: Request, res: Response) => {
   try {
-    const user = (req as any).user;
+    const user = (req as AuthenticatedRequest).user;
     
-    // Check if user is admin
     const supabase = getSupabaseClient();
     const { data: profile } = await supabase
       .from('profiles')
       .select('is_admin')
-      .eq('id', user.id)
+      .eq('auth_user_id', user.id)
       .single();
     
     if (!profile?.is_admin) {
@@ -311,14 +282,13 @@ router.get('/rooms/:roomName/participants', requireAuth, requireLiveKit, async (
  */
 router.delete('/rooms/:roomName', requireAuth, requireLiveKit, async (req: Request, res: Response) => {
   try {
-    const user = (req as any).user;
+    const user = (req as AuthenticatedRequest).user;
     
-    // Check if user is admin
     const supabase = getSupabaseClient();
     const { data: profile } = await supabase
       .from('profiles')
       .select('is_admin')
-      .eq('id', user.id)
+      .eq('auth_user_id', user.id)
       .single();
     
     if (!profile?.is_admin) {
@@ -345,16 +315,15 @@ router.delete('/rooms/:roomName', requireAuth, requireLiveKit, async (req: Reque
  */
 router.post('/rooms/:roomName/participants/:identity/remove', requireAuth, requireLiveKit, async (req: Request, res: Response) => {
   try {
-    const user = (req as any).user;
+    const user = (req as AuthenticatedRequest).user;
     const { roomName, identity } = req.params;
     
     // TODO: Check if user has moderation permissions in this room
-    // For now, only admins can remove participants
     const supabase = getSupabaseClient();
     const { data: profile } = await supabase
       .from('profiles')
       .select('is_admin')
-      .eq('id', user.id)
+      .eq('auth_user_id', user.id)
       .single();
     
     if (!profile?.is_admin) {
@@ -380,7 +349,7 @@ router.post('/rooms/:roomName/participants/:identity/remove', requireAuth, requi
  */
 router.post('/rooms/:roomName/participants/:identity/permissions', requireAuth, requireLiveKit, async (req: Request, res: Response) => {
   try {
-    const user = (req as any).user;
+    const user = (req as AuthenticatedRequest).user;
     const { roomName, identity } = req.params;
     const { canPublish, canSubscribe, canPublishData } = req.body;
     
@@ -389,7 +358,7 @@ router.post('/rooms/:roomName/participants/:identity/permissions', requireAuth, 
     const { data: profile } = await supabase
       .from('profiles')
       .select('is_admin')
-      .eq('id', user.id)
+      .eq('auth_user_id', user.id)
       .single();
     
     if (!profile?.is_admin) {
@@ -423,7 +392,7 @@ router.post('/rooms/:roomName/participants/:identity/permissions', requireAuth, 
  */
 router.post('/federated-call/invite', requireAuth, requireLiveKit, async (req: Request, res: Response) => {
   try {
-    const user = (req as any).user;
+    const user = (req as AuthenticatedRequest).user;
     const { callerFederatedId, calleeFederatedId, callType, conversationId, livekitUrl, roomName } = req.body;
     
     if (!callerFederatedId || !calleeFederatedId || !callType || !livekitUrl || !roomName) {
@@ -477,7 +446,7 @@ router.post('/federated-call/invite', requireAuth, requireLiveKit, async (req: R
  */
 router.post('/federated-call/accept', requireAuth, requireLiveKit, async (req: Request, res: Response) => {
   try {
-    const user = (req as any).user;
+    const user = (req as AuthenticatedRequest).user;
     const { conversationId, callerFederatedId } = req.body;
     
     if (!conversationId || !callerFederatedId) {
@@ -489,7 +458,7 @@ router.post('/federated-call/accept', requireAuth, requireLiveKit, async (req: R
     const { data: acceptor } = await supabase
       .from('profiles')
       .select('federated_id')
-      .eq('id', user.id)
+      .eq('auth_user_id', user.id)
       .single();
     
     if (!acceptor?.federated_id) {
@@ -556,7 +525,7 @@ router.post('/federated-call/accept', requireAuth, requireLiveKit, async (req: R
  */
 router.post('/federated-call/reject', requireAuth, requireLiveKit, async (req: Request, res: Response) => {
   try {
-    const user = (req as any).user;
+    const user = (req as AuthenticatedRequest).user;
     const { conversationId, callerFederatedId } = req.body;
     
     if (!conversationId || !callerFederatedId) {
@@ -568,7 +537,7 @@ router.post('/federated-call/reject', requireAuth, requireLiveKit, async (req: R
     const { data: rejector } = await supabase
       .from('profiles')
       .select('federated_id')
-      .eq('id', user.id)
+      .eq('auth_user_id', user.id)
       .single();
     
     if (!rejector?.federated_id) {
@@ -631,7 +600,7 @@ router.post('/federated-call/reject', requireAuth, requireLiveKit, async (req: R
  */
 router.post('/federated-call/end', requireAuth, requireLiveKit, async (req: Request, res: Response) => {
   try {
-    const user = (req as any).user;
+    const user = (req as AuthenticatedRequest).user;
     const { conversationId, otherParticipantFederatedId } = req.body;
     
     if (!conversationId) {
@@ -643,7 +612,7 @@ router.post('/federated-call/end', requireAuth, requireLiveKit, async (req: Requ
     const { data: ender } = await supabase
       .from('profiles')
       .select('federated_id')
-      .eq('id', user.id)
+      .eq('auth_user_id', user.id)
       .single();
     
     // Update call status

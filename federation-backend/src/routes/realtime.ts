@@ -4,6 +4,7 @@ import { presenceService, type PresenceStatus } from '../services/PresenceServic
 import { typingService } from '../services/TypingService.js';
 import { profileCacheService } from '../services/ProfileCacheService.js';
 import { redis } from '../services/RedisService.js';
+import { sendSuccess, sendError } from '../utils/response.js';
 
 const router = Router();
 
@@ -20,7 +21,7 @@ const VALID_CONTEXT_TYPES = ['channel', 'conversation', 'thread'] as const;
  */
 router.post('/heartbeat', requireAuth, async (req: Request, res: Response) => {
   const { profileId } = req as AuthenticatedRequest;
-  if (!profileId) return res.status(400).json({ error: 'No profile found' });
+  if (!profileId) return sendError(res, 'No profile found');
 
   const status = VALID_STATUSES.includes(req.body.status) ? req.body.status : 'online';
   const customStatus = typeof req.body.customStatus === 'string'
@@ -28,7 +29,7 @@ router.post('/heartbeat', requireAuth, async (req: Request, res: Response) => {
     : undefined;
 
   await presenceService.heartbeat(profileId, status, customStatus);
-  return res.json({ ok: true });
+  return sendSuccess(res);
 });
 
 /**
@@ -37,10 +38,10 @@ router.post('/heartbeat', requireAuth, async (req: Request, res: Response) => {
  */
 router.post('/offline', requireAuth, async (req: Request, res: Response) => {
   const { profileId } = req as AuthenticatedRequest;
-  if (!profileId) return res.status(400).json({ error: 'No profile found' });
+  if (!profileId) return sendError(res, 'No profile found');
 
   await presenceService.setOffline(profileId);
-  return res.json({ ok: true });
+  return sendSuccess(res);
 });
 
 /**
@@ -52,7 +53,7 @@ router.post('/offline', requireAuth, async (req: Request, res: Response) => {
 router.post('/presence/bulk', requireAuth, async (req: Request, res: Response) => {
   const { profileIds } = req.body;
   if (!Array.isArray(profileIds)) {
-    return res.status(400).json({ error: 'profileIds must be an array' });
+    return sendError(res, 'profileIds must be an array');
   }
 
   const capped = profileIds.slice(0, 200);
@@ -65,7 +66,7 @@ router.post('/presence/bulk', requireAuth, async (req: Request, res: Response) =
     }
   }
 
-  return res.json({ presence: result });
+  return sendSuccess(res, { presence: result });
 });
 
 /**
@@ -74,7 +75,7 @@ router.post('/presence/bulk', requireAuth, async (req: Request, res: Response) =
  */
 router.get('/presence/online', requireAuth, async (_req: Request, res: Response) => {
   const ids = await presenceService.getOnlineIds();
-  return res.json({ online: ids });
+  return sendSuccess(res, { online: ids });
 });
 
 // ─── Typing ──────────────────────────────────────────────────────────────────
@@ -85,16 +86,16 @@ router.get('/presence/online', requireAuth, async (_req: Request, res: Response)
  */
 router.post('/typing/start', requireAuth, async (req: Request, res: Response) => {
   const { profileId } = req as AuthenticatedRequest;
-  if (!profileId) return res.status(400).json({ error: 'No profile found' });
+  if (!profileId) return sendError(res, 'No profile found');
 
   const { contextType, contextId, username } = req.body;
 
   if (!VALID_CONTEXT_TYPES.includes(contextType) || !contextId || !username) {
-    return res.status(400).json({ error: 'Missing contextType, contextId, or username' });
+    return sendError(res, 'Missing contextType, contextId, or username');
   }
 
   await typingService.startTyping(contextType, contextId, profileId, username);
-  return res.json({ ok: true });
+  return sendSuccess(res);
 });
 
 /**
@@ -103,16 +104,16 @@ router.post('/typing/start', requireAuth, async (req: Request, res: Response) =>
  */
 router.post('/typing/stop', requireAuth, async (req: Request, res: Response) => {
   const { profileId } = req as AuthenticatedRequest;
-  if (!profileId) return res.status(400).json({ error: 'No profile found' });
+  if (!profileId) return sendError(res, 'No profile found');
 
   const { contextType, contextId } = req.body;
 
   if (!VALID_CONTEXT_TYPES.includes(contextType) || !contextId) {
-    return res.status(400).json({ error: 'Missing contextType or contextId' });
+    return sendError(res, 'Missing contextType or contextId');
   }
 
   await typingService.stopTyping(contextType, contextId, profileId);
-  return res.json({ ok: true });
+  return sendSuccess(res);
 });
 
 /**
@@ -125,11 +126,11 @@ router.post('/typing/active', requireAuth, async (req: Request, res: Response) =
   const { contextType, contextId } = req.body;
 
   if (!VALID_CONTEXT_TYPES.includes(contextType) || !contextId) {
-    return res.status(400).json({ error: 'Missing contextType or contextId' });
+    return sendError(res, 'Missing contextType or contextId');
   }
 
   const users = await typingService.getTypingUsers(contextType, contextId);
-  return res.json({ typing: users });
+  return sendSuccess(res, { typing: users });
 });
 
 // ─── Profiles (cached) ───────────────────────────────────────────────────────
@@ -143,7 +144,7 @@ router.post('/typing/active', requireAuth, async (req: Request, res: Response) =
 router.post('/profiles/bulk', requireAuth, async (req: Request, res: Response) => {
   const { profileIds } = req.body;
   if (!Array.isArray(profileIds)) {
-    return res.status(400).json({ error: 'profileIds must be an array' });
+    return sendError(res, 'profileIds must be an array');
   }
 
   const capped = profileIds.slice(0, 100);
@@ -165,12 +166,12 @@ router.post('/profiles/bulk', requireAuth, async (req: Request, res: Response) =
     };
   }
 
-  return res.json({ profiles: result });
+  return sendSuccess(res, { profiles: result });
 });
 
 // ─── Health ──────────────────────────────────────────────────────────────────
 
-router.get('/redis-health', async (_req: Request, res: Response) => {
+router.get('/redis-health', requireAuth, async (_req: Request, res: Response) => {
   const health = await redis.healthCheck();
   return res.status(health.ok ? 200 : 503).json(health);
 });

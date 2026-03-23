@@ -979,5 +979,30 @@
     "ja": "日本語",
     "ko": "한국어",
     "zh": "中文"
+  },
+  "nav": {
+    "chat": "Chat",
+    "social": "Social",
+    "directMessages": "Direct Messages",
+    "mentions": "Mentions"
+  },
+  "notFound": {
+    "pageNotFound": "Page not found",
+    "goBack": "Go Back",
+    "goHome": "Go Home",
+    "quickNavigation": "Quick navigation:",
+    "joinHarmony": "Join Harmony",
+    "signInPrompt": "Sign in to access all features and connect with the community.",
+    "backToSocial": "Back to Social",
+    "backToChat": "Back to Chat",
+    "socialNotFound": "This social content doesn't exist or has been removed.",
+    "chatNotFound": "This chat or conversation doesn't exist or you don't have access to it.",
+    "settingsNotFound": "This settings page doesn't exist.",
+    "defaultNotFound": "The page you're looking for doesn't exist or has been moved."
+  },
+  "dm": {
+    "title": "Direct Messages",
+    "callInProgress": "A call is in progress",
+    "joinCall": "Join Call"
   }
 }
