@@ -436,7 +436,7 @@ router.beforeEach((to, from, next) => {
 
   if (to.meta.requiresAdmin && isLoggedIn) {
     const profileStore = useProfileStore();
-    if (profileStore.profile && !profileStore.profile.is_admin) {
+    if (!profileStore.profileFetched || !profileStore.profile?.is_admin) {
       next({ name: 'Chat' });
       return;
     }

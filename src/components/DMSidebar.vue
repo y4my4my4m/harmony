@@ -851,7 +851,7 @@ onUnmounted(() => {
 }
 .active .conversation-time,
 .active .conversation-preview .last-message {
-  color: var(--text-primary)86;
+  color: color-mix(in srgb, var(--text-primary) 53%, transparent);
 }
 
 .user-name-container, .conversation-name-container {

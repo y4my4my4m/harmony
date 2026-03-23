@@ -3372,7 +3372,7 @@ defineExpose({ editLastOwnMessage });
   gap: 8px;
   padding: 4px 0 8px 0;
   margin-bottom: 8px;
-  border-bottom: 1px solid var(--h-black-lighter)49;
+  border-bottom: 1px solid color-mix(in srgb, var(--h-black-lighter) 30%, transparent);
 }
 .tooltip-emoji {
   width: 48px;

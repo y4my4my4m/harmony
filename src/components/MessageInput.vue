@@ -775,7 +775,7 @@ const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText);
     transition: 0.25s;
   }
   .plus-icon-container:hover {
-    background-color: var(--text-primary)3d;
+    background-color: color-mix(in srgb, var(--text-primary) 24%, transparent);
   }
 
   .message-container {
