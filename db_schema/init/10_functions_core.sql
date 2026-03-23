@@ -223,6 +223,21 @@ COMMENT ON FUNCTION public.has_muted IS 'Check if the current user has muted the
 -- SERVER HELPERS
 -- ---------------------------------------------------------------------------
 
+-- Membership check for RLS (SECURITY DEFINER bypasses user_servers RLS; avoids recursion)
+CREATE OR REPLACE FUNCTION public.current_user_is_member_of_server(p_server_id uuid)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+    SELECT EXISTS (
+        SELECT 1 FROM public.user_servers
+        WHERE server_id = p_server_id
+          AND user_id = public.get_current_profile_id()
+    );
+$$;
+
 -- Get channel's server ID
 CREATE OR REPLACE FUNCTION public.get_channel_server_id(channel_uuid uuid)
 RETURNS uuid
@@ -846,6 +861,7 @@ GRANT EXECUTE ON FUNCTION public.is_blocked_by(uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.has_blocked(uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.is_muted_by(uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.has_muted(uuid) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.current_user_is_member_of_server(uuid) TO authenticated;
 
 -- ---------------------------------------------------------------------------
 -- FEDERATION JOB QUEUE

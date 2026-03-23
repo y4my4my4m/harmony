@@ -103,9 +103,19 @@ router.post('/maintenance', requireAuth, async (req: Request, res: Response) => 
  * GET /health/key-consistency
  */
 router.get('/key-consistency', requireAuth, async (req: Request, res: Response) => {
+  const authUser = (req as any).user;
+  const supabase = getSupabaseClient();
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('is_admin')
+    .eq('auth_user_id', authUser.id)
+    .single();
+
+  if (!profile?.is_admin) {
+    return sendError(res, 'Admin access required', 403);
+  }
+
   try {
-    const supabase = getSupabaseClient();
-    
     // Get users with inconsistent keys
     const { data: inconsistent, error: inconsistentError } = await supabase.rpc('check_key_consistency');
     
