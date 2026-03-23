@@ -390,10 +390,9 @@ export class DeliveryQueue {
         logger.warn(`🚫 SSRF: Blocked queue delivery to unsafe inbox URL: ${item.target_inbox_url} - ${ssrfErr.message}`);
         await supabase
           .from('federation_delivery_queue')
-          .update({ status: 'failed', last_error: `SSRF blocked: ${ssrfErr.message}`, updated_at: new Date().toISOString() })
+          .update({ status: 'failed', error_message: `SSRF blocked: ${ssrfErr.message}`, last_attempt_at: new Date().toISOString() })
           .eq('id', item.id);
-        result.failed++;
-        continue;
+        return false;
       }
 
       // Sign the request
