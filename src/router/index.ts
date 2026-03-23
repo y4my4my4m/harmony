@@ -364,13 +364,13 @@ const router = createRouter({
     {
       path: '/admin',
       name: 'AdminPanel',
-      component: () => import('@/views/AdminPanelView.vue'),
+      component: () => import('@/views/AdminPanel.vue'),
       meta: { requiresAuth: true, requiresAdmin: true }
     },
     {
       path: '/new-profile',
       name: 'NewProfile',
-      component: () => import('@/views/NewProfileView.vue'),
+      component: () => import('@/views/NewProfile.vue'),
       meta: { requiresAuth: true }
     },
     // Redirect legacy paths
