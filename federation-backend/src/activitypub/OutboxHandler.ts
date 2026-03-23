@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { getSupabaseClient } from '../config/supabase.js';
+import { getSupabaseClient, getSupabaseClientWithAuth } from '../config/supabase.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { postToNote } from './converters/toActivityPub.js';
 import { renderPostPage, renderOEmbed } from './postPageRenderer.js';
@@ -517,10 +517,36 @@ router.get(
 /**
  * Process delivery queue (called by cron or manually)
  * POST /api/activitypub/process-delivery
+ * Requires admin authentication.
  */
 router.post(
   '/api/activitypub/process-delivery',
   asyncHandler(async (req: Request, res: Response) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader?.startsWith('Bearer ')) {
+      res.status(401).json({ error: 'Authorization required' });
+      return;
+    }
+
+    const supabaseAuth = getSupabaseClientWithAuth(authHeader.substring(7));
+    const { data: { user }, error: authError } = await supabaseAuth.auth.getUser();
+    if (authError || !user) {
+      res.status(401).json({ error: 'Invalid token' });
+      return;
+    }
+
+    const supabase = getSupabaseClient();
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('is_admin')
+      .eq('auth_user_id', user.id)
+      .single();
+
+    if (!profile?.is_admin) {
+      res.status(403).json({ error: 'Admin access required' });
+      return;
+    }
+
     const { DeliveryQueue } = await import('./DeliveryQueue.js');
     
     const result = await DeliveryQueue.processQueue();

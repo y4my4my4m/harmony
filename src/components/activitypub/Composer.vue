@@ -509,7 +509,7 @@ const placeholder = computed(() => {
     return 'Add a comment...';
   }
   if (props.type === 'edit') {
-    return 'Edit your post...';
+    return t('activitypub.editYourPost');
   }
   return t('activitypub.whatsHappeningInMonyverse');
 });
@@ -519,10 +519,10 @@ const headerTitle = computed(() => {
     return t('activitypub.replyToPost');
   }
   if (props.type === 'quote') {
-    return 'Quote Post';
+    return t('activitypub.quotePost');
   }
   if (props.type === 'edit') {
-    return 'Edit Post';
+    return t('activitypub.editPost');
   }
   return t('activitypub.createAPost');
 });
@@ -530,13 +530,13 @@ const headerTitle = computed(() => {
 const submitButtonText = computed(() => {
   if (isPosting.value) {
     if (props.type === 'reply') return t('activitypub.replying');
-    if (props.type === 'quote') return 'Quoting...';
-    if (props.type === 'edit') return 'Saving...';
+    if (props.type === 'quote') return t('activitypub.quoting');
+    if (props.type === 'edit') return t('activitypub.saving');
     return t('activitypub.posting');
   }
   if (props.type === 'reply') return t('activitypub.reply');
-  if (props.type === 'quote') return 'Quote';
-  if (props.type === 'edit') return 'Save';
+  if (props.type === 'quote') return t('activitypub.quote');
+  if (props.type === 'edit') return t('activitypub.save');
   return t('activitypub.post');
 });
 

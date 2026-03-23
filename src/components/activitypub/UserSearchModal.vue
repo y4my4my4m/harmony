@@ -148,7 +148,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
 import { debug } from '@/utils/debug'
 import { activityPubService } from '@/services/activityPubService';
 import type { FederatedUser } from '@/types';
@@ -340,8 +340,7 @@ onMounted(async () => {
   loadSuggestedUsers();
 });
 
-// Cleanup timeout on unmount
-window.addEventListener('beforeunload', () => {
+onUnmounted(() => {
   if (searchTimeout) clearTimeout(searchTimeout);
 });
 </script>

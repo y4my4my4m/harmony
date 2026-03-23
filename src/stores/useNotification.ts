@@ -1219,7 +1219,7 @@ export const useNotificationStore = defineStore('notification', {
             }
               
             case 'server':
-              return `/servers/${navData.serverId}`
+              return `/server/${navData.serverId}`
 
             case 'activitypub_post':
               return `/post/${navData.postId}`
@@ -1280,7 +1280,7 @@ export const useNotificationStore = defineStore('notification', {
               
             case 'server':
               // Navigate to server
-              router.push(`/servers/${navData.serverId}`)
+              router.push(`/server/${navData.serverId}`)
               break
 
             case 'activitypub_post':

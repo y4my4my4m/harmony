@@ -2,6 +2,7 @@ import { getSupabaseClient } from '../config/supabase.js';
 import { SignatureService } from './SignatureService.js';
 import { BlockedInstancesCache } from '../services/BlockedInstancesCache.js';
 import { logger } from '../utils/logger.js';
+import { validateExternalUrl } from '../utils/ssrfProtection.js';
 
 const MAX_CONCURRENT_DOMAINS = 10;
 
@@ -266,6 +267,14 @@ export class DeliveryQueue {
       return false;
     }
 
+    // SSRF protection: validate inbox URL before fetching
+    try {
+      validateExternalUrl(targetInbox);
+    } catch (err: any) {
+      logger.warn(`🚫 SSRF: Blocked delivery to unsafe inbox URL: ${targetInbox} - ${err.message}`);
+      return false;
+    }
+
     try {
       // Sign the request
       const { headers } = await SignatureService.signRequest(
@@ -372,6 +381,19 @@ export class DeliveryQueue {
 
       if (!senderId) {
         throw new Error(`Cannot resolve sender for delivery - no sender_id or actor_username`);
+      }
+
+      // SSRF protection: validate inbox URL before fetching
+      try {
+        validateExternalUrl(item.target_inbox_url);
+      } catch (ssrfErr: any) {
+        logger.warn(`🚫 SSRF: Blocked queue delivery to unsafe inbox URL: ${item.target_inbox_url} - ${ssrfErr.message}`);
+        await supabase
+          .from('federation_delivery_queue')
+          .update({ status: 'failed', last_error: `SSRF blocked: ${ssrfErr.message}`, updated_at: new Date().toISOString() })
+          .eq('id', item.id);
+        result.failed++;
+        continue;
       }
 
       // Sign the request

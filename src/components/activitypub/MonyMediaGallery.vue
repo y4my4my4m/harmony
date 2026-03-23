@@ -102,7 +102,6 @@
   <!-- vue-easy-lightbox: handles images with zoom/pan/rotate/smooth scroll -->
   <vue-easy-lightbox
     teleport="body"
-    class="lightbox"
     :visible="showModal"
     :imgs="lightboxImages"
     :index="currentMediaIndex"

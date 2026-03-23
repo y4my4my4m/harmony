@@ -82,6 +82,18 @@ router.get(
       return;
     }
 
+    if (!user.federated_id) {
+      res.setHeader('Content-Type', 'application/activity+json');
+      res.json({
+        '@context': 'https://www.w3.org/ns/activitystreams',
+        id: `https://${config.INSTANCE_DOMAIN}/users/${username}/inbox`,
+        type: 'OrderedCollection',
+        totalItems: 0,
+        orderedItems: [],
+      });
+      return;
+    }
+
     const baseUrl = `https://${config.INSTANCE_DOMAIN}`;
     const inboxUrl = `${baseUrl}/users/${username}/inbox`;
 
@@ -224,14 +236,12 @@ async function handleInbox(
 ): Promise<void> {
   const activity = req.body;
 
-  logger.info(`🔍 handleInbox called for user: ${username || 'shared inbox'}`);
-  logger.info(`📦 Raw body type: ${typeof activity}, is null: ${activity === null}, is undefined: ${activity === undefined}`);
-  logger.info(`📦 Activity body:`, activity ? JSON.stringify(activity).substring(0, 500) : 'EMPTY OR NULL');
+  logger.debug(`handleInbox called for user: ${username || 'shared inbox'}`);
+  logger.debug(`Raw body type: ${typeof activity}, is null: ${activity === null}`);
 
   // Validate activity structure
   if (!activity || !activity.type || !activity.actor) {
-    logger.error(`❌ Invalid activity structure - type: ${activity?.type}, actor: ${activity?.actor}`);
-    logger.error(`Full body received:`, JSON.stringify(activity));
+    logger.warn(`Invalid activity structure - type: ${activity?.type}, actor: ${activity?.actor}`);
     res.status(400).json({ error: 'Invalid activity' });
     return;
   }
@@ -343,7 +353,9 @@ async function handleInbox(
         r === user.federated_id || r === canonicalUrl
       );
       if (!addressed) {
-        logger.warn(`Activity not addressed to ${username}`);
+        logger.warn(`Rejecting activity not addressed to ${username} (type: ${activity.type})`);
+        res.status(202).json({ status: 'ignored', reason: 'not addressed to this user' });
+        return;
       }
     }
   }

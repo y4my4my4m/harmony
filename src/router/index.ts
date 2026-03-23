@@ -420,7 +420,7 @@ const PROFILE_EXEMPT_ROUTES = new Set([
   'AuthCallback', 'NotFoundPublic', 'NotFound', 'CatchAll'
 ])
 
-router.beforeEach((to, from, next) => {
+router.beforeEach(async (to, from, next) => {
   const authStore = useAuthStore();
   const isLoggedIn = authStore.isLoggedIn;
 
@@ -432,6 +432,20 @@ router.beforeEach((to, from, next) => {
   if (to.meta.requiresAuth && !isLoggedIn) {
     next({ name: 'Login' });
     return;
+  }
+
+  if (to.meta.requiresAdmin && isLoggedIn) {
+    const profileStore = useProfileStore();
+    if (!profileStore.profileFetched) {
+      const authStore2 = useAuthStore();
+      if (authStore2.user?.id) {
+        await profileStore.fetchProfileByAuthUserId(authStore2.user.id);
+      }
+    }
+    if (!profileStore.profile?.is_admin) {
+      next({ name: 'Chat' });
+      return;
+    }
   }
 
   if (isLoggedIn && !PROFILE_EXEMPT_ROUTES.has(to.name as string)) {

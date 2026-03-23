@@ -367,17 +367,17 @@ watch(showFavorites, (show) => {
 });
 
 // Lifecycle
+let listenerSetupTimer: ReturnType<typeof setTimeout> | null = null;
+
 onMounted(async () => {
-  // Delay event listeners to prevent immediate closure
-  setTimeout(() => {
+  listenerSetupTimer = setTimeout(() => {
+    listenerSetupTimer = null;
     document.addEventListener('click', handleClickOutside);
     document.addEventListener('keydown', handleKeyDown);
   }, 100);
   
-  // Initialize favorites cache (single load)
   await loadFavorites();
   
-  // Load trending GIFs
   fetchTrendingGifs();
   
   nextTick(() => {
@@ -387,6 +387,10 @@ onMounted(async () => {
 });
 
 onUnmounted(() => {
+  if (listenerSetupTimer) {
+    clearTimeout(listenerSetupTimer);
+    listenerSetupTimer = null;
+  }
   document.removeEventListener('click', handleClickOutside);
   document.removeEventListener('keydown', handleKeyDown);
   if (searchTimeout) clearTimeout(searchTimeout);

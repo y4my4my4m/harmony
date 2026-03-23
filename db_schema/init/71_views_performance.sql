@@ -161,6 +161,7 @@ CREATE OR REPLACE FUNCTION public.record_slow_query(
 RETURNS void
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 BEGIN
     INSERT INTO public.slow_queries (
@@ -195,6 +196,7 @@ CREATE OR REPLACE FUNCTION public.update_federation_health(
 RETURNS void
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 BEGIN
     -- Upsert federation health by instance_domain (UNIQUE constraint)
@@ -245,6 +247,7 @@ CREATE OR REPLACE FUNCTION public.aggregate_hourly_metrics()
 RETURNS integer
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
     v_count integer := 0;
@@ -296,6 +299,7 @@ CREATE OR REPLACE FUNCTION public.cleanup_old_metrics(
 RETURNS jsonb
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
     v_raw_deleted integer;

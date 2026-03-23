@@ -222,7 +222,7 @@ const confirmDeleteServer = async () => {
       if (availableServers.length > 0) {
         // Navigate to the first available server
         const nextServer = availableServers[0]
-        router.push(`/servers/${nextServer.id}`)
+        router.push(`/server/${nextServer.id}`)
       } else {
         // No servers left, go to home/DMs
         router.push('/dm')

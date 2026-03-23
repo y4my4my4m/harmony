@@ -2027,8 +2027,15 @@ class AdminService {
     status: 'ok' | 'needs_attention';
   }> {
     try {
-      // Call the federation backend health endpoint
-      const response = await fetch('/api/federation/health/key-consistency');
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        throw new Error('Not authenticated');
+      }
+      const response = await fetch('/api/federation/health/key-consistency', {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
       
       if (!response.ok) {
         throw new Error(`Failed to fetch key consistency: ${response.statusText}`);
@@ -2058,10 +2065,15 @@ class AdminService {
     task: 'keygen-sweep' | 'cleanup-orphans'
   ): Promise<{ success: boolean; job_id?: string; message: string }> {
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        return { success: false, message: 'Not authenticated' };
+      }
       const response = await fetch('/api/federation/health/maintenance', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({ task }),
       });

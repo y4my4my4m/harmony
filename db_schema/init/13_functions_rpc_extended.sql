@@ -17,7 +17,9 @@ CREATE OR REPLACE FUNCTION public.is_user_viewing_context(
     p_channel_id uuid DEFAULT NULL,
     p_conversation_id uuid DEFAULT NULL
 ) RETURNS boolean
-LANGUAGE plpgsql STABLE SECURITY DEFINER
+LANGUAGE plpgsql STABLE
+SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
     v_view_context RECORD;
@@ -66,7 +68,9 @@ CREATE OR REPLACE FUNCTION public.sync_view_context_from_presence(
     p_channel_id uuid DEFAULT NULL,
     p_conversation_id uuid DEFAULT NULL
 ) RETURNS void
-LANGUAGE plpgsql SECURITY DEFINER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
     v_auth_id UUID := auth.uid();
@@ -137,7 +141,9 @@ CREATE OR REPLACE FUNCTION public.send_notification(
     p_from_user_id uuid DEFAULT NULL::uuid,
     p_priority character varying DEFAULT 'normal'::character varying
 ) RETURNS uuid[]
-LANGUAGE plpgsql SECURITY DEFINER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
     created_notification_ids uuid[] := '{}';
@@ -453,7 +459,9 @@ $$;
 -- Function: claim_session_share
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.claim_session_share(p_share_id uuid, p_user_id uuid) RETURNS boolean
-    LANGUAGE plpgsql SECURITY DEFINER
+    LANGUAGE plpgsql
+    SECURITY DEFINER
+    SET search_path = public
     AS $$
 BEGIN
     UPDATE public.megolm_session_shares
@@ -898,7 +906,9 @@ $$;
 -- Function: get_federated_timeline
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.get_federated_timeline(p_user_id uuid, p_limit integer DEFAULT 20, p_max_id text DEFAULT NULL::text) RETURNS TABLE(id text, created_at timestamp with time zone, updated_at timestamp with time zone, content jsonb, content_warning text, language text, author_id text, ap_id text, ap_type text, url text, conversation_id text, visibility text, is_local boolean, is_federated boolean, replies_count integer, reblogs_count integer, favorites_count integer, media_attachments jsonb, metadata jsonb, is_sensitive boolean, author jsonb, is_favorited boolean, is_reblogged boolean, is_bookmarked boolean)
-    LANGUAGE plpgsql STABLE SECURITY DEFINER
+    LANGUAGE plpgsql STABLE
+    SECURITY DEFINER
+    SET search_path = public
     AS $$
 BEGIN
     RETURN QUERY
@@ -987,7 +997,9 @@ $$;
 -- Function: get_instance_domain
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.get_instance_domain() RETURNS text
-    LANGUAGE plpgsql SECURITY DEFINER
+    LANGUAGE plpgsql
+    SECURITY DEFINER
+    SET search_path = public
     AS $$
 DECLARE
     domain_value text;
@@ -1443,7 +1455,9 @@ $$;
 -- Function: get_unclaimed_session_shares
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.get_unclaimed_session_shares(p_user_id uuid) RETURNS TABLE(share_id uuid, room_id uuid, session_id text, sender_user_id uuid, encrypted_session_key text, first_known_index integer, created_at timestamp with time zone)
-    LANGUAGE plpgsql SECURITY DEFINER
+    LANGUAGE plpgsql
+    SECURITY DEFINER
+    SET search_path = public
     AS $$
 BEGIN
     RETURN QUERY
@@ -1574,7 +1588,9 @@ CREATE OR REPLACE FUNCTION public.get_user_permissions(
     p_channel_id uuid DEFAULT NULL
 )
 RETURNS jsonb
-LANGUAGE plpgsql STABLE SECURITY DEFINER
+LANGUAGE plpgsql STABLE
+SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
     v_is_owner boolean;
@@ -1684,7 +1700,9 @@ CREATE OR REPLACE FUNCTION public.has_permission(
     p_channel_id uuid DEFAULT NULL
 )
 RETURNS boolean
-LANGUAGE plpgsql STABLE SECURITY DEFINER
+LANGUAGE plpgsql STABLE
+SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
     v_permissions jsonb;
@@ -1698,7 +1716,9 @@ $$;
 -- Function: get_user_prekey_bundle
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.get_user_prekey_bundle(p_user_id uuid, p_device_id text DEFAULT 'default'::text) RETURNS jsonb
-    LANGUAGE plpgsql SECURITY DEFINER
+    LANGUAGE plpgsql
+    SECURITY DEFINER
+    SET search_path = public
     AS $$
 DECLARE
     v_identity_key TEXT;
@@ -1819,7 +1839,9 @@ GRANT EXECUTE ON FUNCTION public.upsert_remote_emoji(text, text, text, text, tex
 -- Function: import_remote_emoji
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.import_remote_emoji(p_remote_emoji_id uuid, p_new_name text DEFAULT NULL::text, p_server_id uuid DEFAULT NULL::uuid) RETURNS uuid
-    LANGUAGE plpgsql SECURITY DEFINER
+    LANGUAGE plpgsql
+    SECURITY DEFINER
+    SET search_path = public
     AS $$
 DECLARE
   v_remote remote_emojis_cache%ROWTYPE;
@@ -1873,7 +1895,9 @@ GRANT EXECUTE ON FUNCTION public.import_remote_emoji(uuid, text, uuid) TO authen
 -- Function: mark_all_notifications_read
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.mark_all_notifications_read(p_user_id uuid) RETURNS void
-LANGUAGE plpgsql SECURITY DEFINER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
     v_count integer;
@@ -1919,7 +1943,9 @@ CREATE OR REPLACE FUNCTION public.mark_notifications_read_by_context(
     p_context_type text,
     p_context_id text
 ) RETURNS integer
-LANGUAGE plpgsql SECURITY DEFINER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
     v_user_id uuid;
@@ -1964,7 +1990,9 @@ $$;
 -- Function: mark_server_as_read
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.mark_server_as_read(p_server_id uuid) RETURNS void
-LANGUAGE plpgsql SECURITY DEFINER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
     v_user_id uuid;
@@ -1994,7 +2022,9 @@ $$;
 -- Function: moderate_user
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.moderate_user(p_admin_id uuid, p_target_user_id uuid, p_action text, p_reason text DEFAULT NULL::text) RETURNS boolean
-    LANGUAGE plpgsql SECURITY DEFINER
+    LANGUAGE plpgsql
+    SECURITY DEFINER
+    SET search_path = public
     AS $$
 DECLARE
     target_username TEXT;
@@ -2065,7 +2095,9 @@ $$;
 -- Function: pin_message
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.pin_message(p_message_id uuid, p_user_id uuid DEFAULT auth.uid()) RETURNS boolean
-    LANGUAGE plpgsql SECURITY DEFINER
+    LANGUAGE plpgsql
+    SECURITY DEFINER
+    SET search_path = public
     AS $$
 DECLARE
     v_channel_id uuid;
@@ -2174,7 +2206,9 @@ $$;
 -- Function: register_recovery_key
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.register_recovery_key(p_user_id uuid, p_verification_code text, p_word_count integer DEFAULT 12) RETURNS public.recovery_key_metadata
-    LANGUAGE plpgsql SECURITY DEFINER
+    LANGUAGE plpgsql
+    SECURITY DEFINER
+    SET search_path = public
     AS $$
 DECLARE
     v_result public.recovery_key_metadata;
@@ -2205,7 +2239,9 @@ $$;
 -- Function: remove_group_icon
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.remove_group_icon(conversation_uuid uuid, user_profile_id uuid) RETURNS jsonb
-    LANGUAGE plpgsql SECURITY DEFINER
+    LANGUAGE plpgsql
+    SECURITY DEFINER
+    SET search_path = public
     AS $$
 DECLARE
   is_participant BOOLEAN := false;
@@ -2253,7 +2289,9 @@ $$;
 -- Function: remove_post_emoji_reaction
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.remove_post_emoji_reaction(p_user_id uuid, p_post_id uuid, p_emoji_id uuid DEFAULT NULL::uuid, p_custom_emoji_content text DEFAULT NULL::text) RETURNS boolean
-    LANGUAGE plpgsql SECURITY DEFINER
+    LANGUAGE plpgsql
+    SECURITY DEFINER
+    SET search_path = public
     AS $$
 DECLARE
     v_deleted_count integer;
@@ -2280,7 +2318,9 @@ $$;
 -- Function: reset_user_encryption
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.reset_user_encryption(p_user_id uuid, p_device_id text DEFAULT 'default'::text) RETURNS jsonb
-    LANGUAGE plpgsql SECURITY DEFINER
+    LANGUAGE plpgsql
+    SECURITY DEFINER
+    SET search_path = public
     AS $$
 DECLARE
     v_deleted_keys INTEGER := 0;
@@ -2353,7 +2393,9 @@ $$;
 -- Function: rotate_prekeys
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.rotate_prekeys(p_user_id uuid, p_device_id text DEFAULT 'default'::text) RETURNS jsonb
-    LANGUAGE plpgsql SECURITY DEFINER
+    LANGUAGE plpgsql
+    SECURITY DEFINER
+    SET search_path = public
     AS $$
 DECLARE
     v_deleted_count INTEGER;
@@ -2574,7 +2616,9 @@ $$;
 -- Function: send_notification_to_user
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.send_notification_to_user(p_notification_type character varying, p_to_user_id uuid, p_notification_data jsonb DEFAULT '{}'::jsonb, p_server_id uuid DEFAULT NULL::uuid, p_channel_id uuid DEFAULT NULL::uuid, p_conversation_id uuid DEFAULT NULL::uuid, p_from_user_id uuid DEFAULT NULL::uuid, p_priority character varying DEFAULT 'normal'::character varying) RETURNS uuid
-    LANGUAGE sql SECURITY DEFINER
+    LANGUAGE sql
+    SECURITY DEFINER
+    SET search_path = public
     AS $$
     SELECT (send_notification(
         p_notification_type,
@@ -2592,7 +2636,9 @@ $$;
 -- Function: unpin_message
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.unpin_message(p_message_id uuid, p_user_id uuid DEFAULT auth.uid()) RETURNS boolean
-    LANGUAGE plpgsql SECURITY DEFINER
+    LANGUAGE plpgsql
+    SECURITY DEFINER
+    SET search_path = public
     AS $$
 DECLARE
     v_channel_id uuid;
@@ -2655,7 +2701,9 @@ $$;
 -- Function: update_group_icon
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.update_group_icon(conversation_uuid uuid, user_profile_id uuid, icon_path text) RETURNS jsonb
-    LANGUAGE plpgsql SECURITY DEFINER
+    LANGUAGE plpgsql
+    SECURITY DEFINER
+    SET search_path = public
     AS $$
 DECLARE
   is_participant BOOLEAN := false;
@@ -2703,7 +2751,9 @@ $$;
 -- Function: update_group_name
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.update_group_name(conversation_uuid uuid, user_profile_id uuid, new_name text) RETURNS jsonb
-    LANGUAGE plpgsql SECURITY DEFINER
+    LANGUAGE plpgsql
+    SECURITY DEFINER
+    SET search_path = public
     AS $$
 DECLARE
   is_participant BOOLEAN := false;
@@ -2841,7 +2891,9 @@ CREATE OR REPLACE FUNCTION public.create_federated_profile(
     p_public_key text DEFAULT NULL,
     p_shared_inbox_url text DEFAULT NULL
 ) RETURNS uuid
-LANGUAGE plpgsql SECURITY DEFINER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
     v_profile_id uuid;
@@ -2914,7 +2966,9 @@ CREATE OR REPLACE FUNCTION public.safe_upsert_remote_profile(
     p_following_url text DEFAULT NULL,
     p_shared_inbox_url text DEFAULT NULL
 ) RETURNS TABLE(profile_id uuid, was_created boolean, was_updated boolean, is_local_user boolean)
-LANGUAGE plpgsql SECURITY DEFINER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
     v_profile_id uuid;
@@ -3170,6 +3224,7 @@ CREATE OR REPLACE FUNCTION public.reset_daily_hashtag_counters()
 RETURNS void
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 BEGIN
     -- Reset daily counters in hashtags table
@@ -3195,6 +3250,7 @@ CREATE OR REPLACE FUNCTION public.update_hashtag_trending_scores()
 RETURNS integer
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
     updated_count INTEGER := 0;
@@ -3244,6 +3300,7 @@ CREATE OR REPLACE FUNCTION public.update_trending_posts()
 RETURNS void
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
     v_now timestamptz := NOW();
@@ -3305,6 +3362,7 @@ CREATE OR REPLACE FUNCTION public.archive_popular_hashtags()
 RETURNS integer
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
     archived_count INTEGER := 0;
@@ -3334,6 +3392,7 @@ CREATE OR REPLACE FUNCTION public.cleanup_inactive_hashtags()
 RETURNS integer
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
     cleaned_count INTEGER := 0;
@@ -3402,6 +3461,7 @@ CREATE OR REPLACE FUNCTION public.check_key_consistency()
 RETURNS TABLE(user_id uuid, username text, has_public_key boolean, has_private_key boolean)
 LANGUAGE plpgsql 
 SECURITY DEFINER
+SET search_path = public
 AS $$
 BEGIN
     RETURN QUERY
@@ -3434,6 +3494,7 @@ RETURNS jsonb
 LANGUAGE plpgsql
 STABLE
 SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
   v_total int;
@@ -3662,7 +3723,9 @@ COMMENT ON FUNCTION public.handle_unified_notification_processing() IS 'Handles 
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.clear_orphaned_public_keys()
 RETURNS INTEGER
-LANGUAGE plpgsql SECURITY DEFINER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
     cleared_count INTEGER;
@@ -3687,7 +3750,9 @@ RETURNS TABLE (
     is_muted BOOLEAN, is_deafened BOOLEAN, is_video_enabled BOOLEAN,
     is_screen_sharing BOOLEAN
 )
-LANGUAGE plpgsql SECURITY DEFINER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
 AS $$
 BEGIN
     RETURN QUERY
@@ -3744,7 +3809,9 @@ CREATE OR REPLACE FUNCTION public.record_metric(
     p_unit text DEFAULT 'ms', p_labels jsonb DEFAULT '{}'::jsonb,
     p_source text DEFAULT 'backend'
 ) RETURNS uuid
-LANGUAGE plpgsql SECURITY DEFINER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE v_id uuid;
 BEGIN

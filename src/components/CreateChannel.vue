@@ -81,12 +81,12 @@
 
     <template #footer>
       <div class="modal-actions">
-        <ModernButton
+        <UnifiedButton
           variant="ghost"
           :text="$t('common.cancel')"
           @click="closeForm"
         />
-        <ModernButton
+        <UnifiedButton
           variant="primary"
           :text="$t('channel.createButton')"
           :disabled="!canCreate"
@@ -104,7 +104,7 @@ import { debug } from '@/utils/debug'
 import { useI18n } from 'vue-i18n'
 import BaseModal from '@/components/common/BaseModal.vue'
 import ModernInput from '@/components/common/ModernInput.vue'
-import ModernButton from '@/components/common/ModernButton.vue'
+import UnifiedButton from '@/components/shared/UnifiedButton.vue'
 import { supabase } from '@/supabase'
 
 // Max channels per server

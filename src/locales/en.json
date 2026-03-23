@@ -646,6 +646,13 @@
     "mony": "Post",
     "replying": "Replying...",
     "posting": "Posting...",
+    "quoting": "Quoting...",
+    "saving": "Saving...",
+    "quote": "Quote",
+    "quotePost": "Quote Post",
+    "editPost": "Edit Post",
+    "editYourPost": "Edit your post...",
+    "save": "Save",
     "shareThoughts": "Share your thoughts...",
     "home": "Home",
     "local": "Local",
@@ -949,6 +956,21 @@
     "federatedUser": "Federated user",
     "federatedBadge": "Federated"
   },
+  "offline": {
+    "banner": "You are offline. Some features may be unavailable."
+  },
+  "chat": {
+    "uploading": "Uploading...",
+    "dropFilesHere": "Drop files here.",
+    "setupNow": "Set up now"
+  },
+  "invite": {
+    "accepting": "Accepting invite...",
+    "accepted": "Invite accepted successfully",
+    "failed": "Failed to accept invite",
+    "noCode": "No invite code found",
+    "notLoggedIn": "You must be logged in to accept invites"
+  },
   "languages": {
     "en": "English",
     "es": "Español",
@@ -957,5 +979,30 @@
     "ja": "日本語",
     "ko": "한국어",
     "zh": "中文"
+  },
+  "nav": {
+    "chat": "Chat",
+    "social": "Social",
+    "directMessages": "Direct Messages",
+    "mentions": "Mentions"
+  },
+  "notFound": {
+    "pageNotFound": "Page not found",
+    "goBack": "Go Back",
+    "goHome": "Go Home",
+    "quickNavigation": "Quick navigation:",
+    "joinHarmony": "Join Harmony",
+    "signInPrompt": "Sign in to access all features and connect with the community.",
+    "backToSocial": "Back to Social",
+    "backToChat": "Back to Chat",
+    "socialNotFound": "This social content doesn't exist or has been removed.",
+    "chatNotFound": "This chat or conversation doesn't exist or you don't have access to it.",
+    "settingsNotFound": "This settings page doesn't exist.",
+    "defaultNotFound": "The page you're looking for doesn't exist or has been moved."
+  },
+  "dm": {
+    "title": "Direct Messages",
+    "callInProgress": "A call is in progress",
+    "joinCall": "Join Call"
   }
 }

@@ -13,6 +13,7 @@ CREATE OR REPLACE FUNCTION public.promote_first_user_to_admin()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 BEGIN
     IF NEW.is_local = true OR NEW.is_local IS NULL THEN
@@ -35,6 +36,7 @@ CREATE OR REPLACE FUNCTION public.create_notification_preferences()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 BEGIN
     IF NEW.is_local = true OR NEW.is_local IS NULL THEN
@@ -116,6 +118,7 @@ CREATE OR REPLACE FUNCTION public.create_default_server_role()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
     everyone_role_id uuid;
@@ -173,6 +176,7 @@ CREATE OR REPLACE FUNCTION public.create_default_server_structure(p_server_id uu
 RETURNS void
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
     v_text_category_id uuid;
@@ -199,6 +203,7 @@ CREATE OR REPLACE FUNCTION public.trigger_create_default_server_structure()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 BEGIN
     IF NEW.is_local_server = true THEN
@@ -213,6 +218,7 @@ CREATE OR REPLACE FUNCTION public.assign_default_role_to_member()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
     default_role_id uuid;
@@ -279,6 +285,7 @@ CREATE OR REPLACE FUNCTION public.create_comprehensive_timeline_entries()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 BEGIN
     IF COALESCE(NEW.is_deleted, false) THEN
@@ -333,6 +340,7 @@ CREATE OR REPLACE FUNCTION public.add_existing_posts_to_new_follower_timeline()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 BEGIN
     IF NEW.status = 'pending' THEN
@@ -374,6 +382,7 @@ CREATE OR REPLACE FUNCTION public.backfill_timeline_on_follow()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 BEGIN
     -- Only for local followers
@@ -407,6 +416,7 @@ CREATE OR REPLACE FUNCTION public.remove_timeline_on_unfollow()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 BEGIN
     DELETE FROM timeline_entries
@@ -427,6 +437,7 @@ CREATE OR REPLACE FUNCTION public.handle_post_soft_delete()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 BEGIN
     IF NEW.is_deleted = true AND (OLD.is_deleted = false OR OLD.is_deleted IS NULL) THEN
@@ -443,6 +454,7 @@ CREATE OR REPLACE FUNCTION public.cascade_delete_reblogs()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 BEGIN
     -- Mark reblogs as deleted too
@@ -595,6 +607,7 @@ CREATE OR REPLACE FUNCTION public.trigger_extract_post_hashtags()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 BEGIN
   IF NEW.content IS NOT NULL AND jsonb_typeof(NEW.content) = 'array' THEN
@@ -697,6 +710,7 @@ CREATE OR REPLACE FUNCTION public.trigger_queue_post_federation()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 BEGIN
     -- Skip remote posts (they came from federation, don't re-federate)
@@ -761,6 +775,7 @@ CREATE OR REPLACE FUNCTION public.trigger_queue_follow_federation()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
     v_follower_is_local BOOLEAN;
@@ -805,6 +820,7 @@ CREATE OR REPLACE FUNCTION public.trigger_queue_interaction_federation()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 BEGIN
     -- Bookmarks are private/local-only; never federate them
@@ -851,7 +867,9 @@ $$;
 -- Queue profile update for federation (includes custom_status)
 CREATE OR REPLACE FUNCTION public.trigger_queue_profile_federation()
 RETURNS trigger
-LANGUAGE plpgsql SECURITY DEFINER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
     v_job_id uuid;
@@ -914,7 +932,9 @@ $$;
 -- Queue thread creation/updates for federation
 CREATE OR REPLACE FUNCTION public.trigger_queue_thread_federation()
 RETURNS trigger
-LANGUAGE plpgsql SECURITY DEFINER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
     v_server_id UUID;
@@ -999,6 +1019,7 @@ CREATE OR REPLACE FUNCTION public.trigger_queue_channel_message_federation()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
     v_server_id UUID;
@@ -1052,6 +1073,7 @@ CREATE OR REPLACE FUNCTION public.trigger_queue_dm_federation()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 BEGIN
     IF NEW.conversation_id IS NOT NULL
@@ -1084,6 +1106,7 @@ CREATE OR REPLACE FUNCTION public.trigger_queue_channel_reaction_federation()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
     v_user_is_local BOOLEAN;
@@ -1118,6 +1141,7 @@ CREATE OR REPLACE FUNCTION public.trigger_queue_channel_reaction_delete_federati
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
     v_user_is_local BOOLEAN;
@@ -1152,6 +1176,7 @@ CREATE OR REPLACE FUNCTION public.trigger_queue_message_reaction_federation()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 BEGIN
     IF NEW.metadata ? 'federated' THEN RETURN NEW; END IF;
@@ -1176,6 +1201,7 @@ CREATE OR REPLACE FUNCTION public.trigger_queue_channel_message_edit_federation(
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
     v_author_is_local BOOLEAN;
@@ -1206,6 +1232,7 @@ CREATE OR REPLACE FUNCTION public.trigger_queue_channel_message_delete_federatio
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
     v_author_is_local BOOLEAN;
@@ -1238,6 +1265,7 @@ CREATE OR REPLACE FUNCTION public.trigger_queue_block_federation()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 BEGIN
     IF TG_OP = 'INSERT' THEN
@@ -1281,6 +1309,7 @@ CREATE OR REPLACE FUNCTION public.trigger_queue_report_federation()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 BEGIN
     NEW.federation_status := 'queued';
@@ -1307,6 +1336,7 @@ CREATE OR REPLACE FUNCTION public.trigger_queue_voice_channel_join_federation()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 BEGIN
     RETURN NEW;
@@ -1317,6 +1347,7 @@ CREATE OR REPLACE FUNCTION public.trigger_queue_voice_channel_leave_federation()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 BEGIN
     RETURN OLD;
@@ -1328,6 +1359,7 @@ CREATE OR REPLACE FUNCTION public.route_server_membership()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 BEGIN
     INSERT INTO server_membership_events (server_id, user_id, event_type, payload)
@@ -1351,6 +1383,7 @@ CREATE OR REPLACE FUNCTION public.route_server_leave()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 BEGIN
     IF EXISTS (SELECT 1 FROM servers WHERE id = OLD.server_id) THEN
@@ -1366,6 +1399,7 @@ CREATE OR REPLACE FUNCTION public.route_channel_message()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 BEGIN
     -- Handled by other triggers
@@ -1415,6 +1449,7 @@ CREATE OR REPLACE FUNCTION public.handle_message_federation()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
     v_federation_type TEXT;
@@ -1646,6 +1681,7 @@ CREATE OR REPLACE FUNCTION public.handle_conversation_participant_added()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
     v_conversation conversations%ROWTYPE;
@@ -1715,6 +1751,7 @@ CREATE OR REPLACE FUNCTION public.handle_post_federation()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 BEGIN
     -- Placeholder for federation handling
@@ -1727,6 +1764,7 @@ CREATE OR REPLACE FUNCTION public.handle_post_interaction_federation()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 BEGIN
     IF TG_OP = 'INSERT' THEN
@@ -1742,6 +1780,7 @@ CREATE OR REPLACE FUNCTION public.handle_local_post_mention_notifications()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
     content_part JSONB;
@@ -1820,6 +1859,7 @@ CREATE OR REPLACE FUNCTION public.handle_post_mention_notifications()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
     content_part JSONB;
@@ -1912,6 +1952,7 @@ CREATE OR REPLACE FUNCTION public.handle_post_reply_notifications()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
     parent_post RECORD;
@@ -1993,6 +2034,7 @@ CREATE OR REPLACE FUNCTION public.handle_remote_user_suspension()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 BEGIN
     -- Remove from follows, etc.
@@ -2005,7 +2047,9 @@ $$;
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.handle_new_message_unread()
 RETURNS trigger
-LANGUAGE plpgsql SECURITY DEFINER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
     v_server_id uuid;
@@ -2048,7 +2092,9 @@ $$;
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.handle_new_dm_unread()
 RETURNS trigger
-LANGUAGE plpgsql SECURITY DEFINER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
 AS $$
 BEGIN
     IF NEW.conversation_id IS NULL THEN
@@ -2082,7 +2128,9 @@ $$;
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.handle_thread_reply_notification()
 RETURNS trigger
-LANGUAGE plpgsql SECURITY DEFINER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
     v_thread record;
@@ -2224,7 +2272,9 @@ $$;
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.handle_role_mention_notifications()
 RETURNS trigger
-LANGUAGE plpgsql SECURITY DEFINER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
     v_server_id uuid;
@@ -2367,6 +2417,7 @@ CREATE OR REPLACE FUNCTION public.increment_unread_mentions()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
     v_user_id uuid;
@@ -2439,6 +2490,7 @@ CREATE OR REPLACE FUNCTION public.index_message()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 BEGIN
     -- Placeholder for full-text search indexing
@@ -2449,7 +2501,9 @@ $$;
 -- Cleanup users with dead federation endpoints
 CREATE OR REPLACE FUNCTION public.cleanup_dead_endpoint_users(p_endpoint_url text)
 RETURNS void
-LANGUAGE plpgsql SECURITY DEFINER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
     v_dead_profiles RECORD;
@@ -2478,7 +2532,9 @@ $$;
 -- Trigger: auto-cleanup when endpoint is marked dead
 CREATE OR REPLACE FUNCTION public.trigger_cleanup_dead_endpoint()
 RETURNS trigger
-LANGUAGE plpgsql SECURITY DEFINER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
 AS $$
 BEGIN
     IF NEW.is_dead = true AND (OLD.is_dead IS NULL OR OLD.is_dead = false) THEN
@@ -2616,6 +2672,7 @@ CREATE OR REPLACE FUNCTION public.broadcast_notification_event()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 BEGIN
   IF TG_OP = 'INSERT' THEN
@@ -2663,6 +2720,7 @@ CREATE OR REPLACE FUNCTION public.broadcast_unread_count_event()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
   v_record record;
@@ -2716,6 +2774,7 @@ CREATE OR REPLACE FUNCTION public.broadcast_conversation_participant_event()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 BEGIN
   IF TG_OP = 'INSERT' THEN
@@ -2740,6 +2799,7 @@ CREATE OR REPLACE FUNCTION public.broadcast_user_server_event()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 BEGIN
   IF TG_OP = 'INSERT' THEN
@@ -2777,6 +2837,7 @@ CREATE OR REPLACE FUNCTION public.broadcast_server_change_event()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
   v_member_id uuid;

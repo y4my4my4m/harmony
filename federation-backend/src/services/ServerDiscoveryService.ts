@@ -5,7 +5,7 @@
  */
 
 import { Router, Request, Response } from 'express';
-import { getSupabaseClient } from '../config/supabase.js';
+import { getSupabaseClient, getSupabaseClientWithAuth } from '../config/supabase.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { SignatureService } from '../activitypub/SignatureService.js';
 import { logger } from '../utils/logger.js';
@@ -313,13 +313,25 @@ router.post(
       return res.status(400).json({ error: 'serverUrl and userId are required' });
     }
 
+    // Verify caller owns the userId they claim
+    const authHeader = req.headers.authorization;
+    if (!authHeader?.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'Authorization required' });
+    }
+    const supabaseAuth = getSupabaseClientWithAuth(authHeader.substring(7));
+    const { data: { user: authUser }, error: authError } = await supabaseAuth.auth.getUser();
+    if (authError || !authUser) {
+      return res.status(401).json({ error: 'Invalid token' });
+    }
+
     const supabase = getSupabaseClient();
 
-    // Verify user exists and is local
+    // Verify user exists, is local, and matches the authenticated caller
     const { data: user, error: userError } = await supabase
       .from('profiles')
       .select('id, username, federated_id, inbox_url')
       .eq('id', userId)
+      .eq('auth_user_id', authUser.id)
       .eq('is_local', true)
       .single();
 
@@ -459,13 +471,25 @@ router.post(
       return res.status(400).json({ error: 'serverId and userId are required' });
     }
 
+    // Verify caller owns the userId they claim
+    const authHeader = req.headers.authorization;
+    if (!authHeader?.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'Authorization required' });
+    }
+    const supabaseAuth = getSupabaseClientWithAuth(authHeader.substring(7));
+    const { data: { user: authUser }, error: authError } = await supabaseAuth.auth.getUser();
+    if (authError || !authUser) {
+      return res.status(401).json({ error: 'Invalid token' });
+    }
+
     const supabase = getSupabaseClient();
 
-    // Get user
+    // Get user and verify they match the authenticated caller
     const { data: user } = await supabase
       .from('profiles')
       .select('id, username, federated_id')
       .eq('id', userId)
+      .eq('auth_user_id', authUser.id)
       .eq('is_local', true)
       .single();
 

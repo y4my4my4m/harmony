@@ -711,7 +711,7 @@ const connectionStats = computed(() => voiceStore.connectionStats);
 .voice-container {
   position: relative;
   /* background: linear-gradient(145deg, var(--background-tertiary), var(--background-secondary)); */
-  background: linear-gradient(145deg, var(--background-tertiary)63, var(--background-secondary)59);
+  background: linear-gradient(145deg, color-mix(in srgb, var(--background-tertiary) 39%, transparent), color-mix(in srgb, var(--background-secondary) 35%, transparent));
   backdrop-filter: blur(20px);
   border-radius: 20px;
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -766,7 +766,7 @@ const connectionStats = computed(() => voiceStore.connectionStats);
   padding: 20px 24px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   /* background: linear-gradient(145deg, var(--background-secondary), var(--background-tertiary)); */
-  background: linear-gradient(145deg, var(--background-secondary)35, var(--background-tertiary)30);
+  background: linear-gradient(145deg, color-mix(in srgb, var(--background-secondary) 21%, transparent), color-mix(in srgb, var(--background-tertiary) 19%, transparent));
   /* backdrop-filter: blur(20px); */
 }
 
@@ -1053,7 +1053,7 @@ const connectionStats = computed(() => voiceStore.connectionStats);
   padding: 20px 24px;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
   /* background: linear-gradient(145deg, var(--background-tertiary), var(--background-secondary)); */
-  background: linear-gradient(145deg, var(--background-tertiary)63, var(--background-secondary)59);
+  background: linear-gradient(145deg, color-mix(in srgb, var(--background-tertiary) 39%, transparent), color-mix(in srgb, var(--background-secondary) 35%, transparent));
 }
 
 .media-controls {

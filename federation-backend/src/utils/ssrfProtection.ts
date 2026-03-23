@@ -75,8 +75,11 @@ export function validateExternalUrl(urlString: string): URL {
   }
 
   // Block IPv6 loopback / private (url.hostname strips brackets from IPv6)
-  if (hostname === '::1' || hostname.startsWith('fc') || hostname.startsWith('fd') || hostname.startsWith('fe80')) {
-    throw new Error(`Blocked private IPv6: ${hostname}`);
+  // Only match actual IPv6 literals (contain ':'), not regular hostnames starting with 'fc'/'fd'
+  if (hostname.includes(':')) {
+    if (hostname === '::1' || hostname.startsWith('fc') || hostname.startsWith('fd') || hostname.startsWith('fe80')) {
+      throw new Error(`Blocked private IPv6: ${hostname}`);
+    }
   }
 
   return url;
@@ -99,8 +102,10 @@ export function validateExternalHostname(hostname: string): void {
     }
   }
 
-  if (lower === '::1' || lower.startsWith('fc') || lower.startsWith('fd') || lower.startsWith('fe80')) {
-    throw new Error(`Blocked private IPv6: ${lower}`);
+  if (lower.includes(':')) {
+    if (lower === '::1' || lower.startsWith('fc') || lower.startsWith('fd') || lower.startsWith('fe80')) {
+      throw new Error(`Blocked private IPv6: ${lower}`);
+    }
   }
 }
 

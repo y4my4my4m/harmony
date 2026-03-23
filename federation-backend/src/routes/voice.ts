@@ -3,6 +3,7 @@ import { asyncHandler } from '../middleware/errorHandler.js';
 import { logger } from '../utils/logger.js';
 import { getSupabaseClientWithAuth } from '../config/supabase.js';
 import { VoiceActivityHandler } from '../activitypub/VoiceActivityHandler.js';
+import { sendSuccess, sendError } from '../utils/response.js';
 
 const router = Router();
 
@@ -18,23 +19,22 @@ router.post(
   asyncHandler(async (req: Request, res: Response) => {
     const authHeader = req.headers.authorization;
     if (!authHeader?.startsWith('Bearer ')) {
-      res.status(401).json({ error: 'Authorization required' });
+      sendError(res, 'Authorization required', 401);
       return;
     }
 
     const token = authHeader.substring(7);
     const supabase = getSupabaseClientWithAuth(token);
 
-    // Get authenticated user
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) {
-      res.status(401).json({ error: 'Invalid token' });
+      sendError(res, 'Invalid token', 401);
       return;
     }
 
     const { channelId, serverId } = req.body;
     if (!channelId || !serverId) {
-      res.status(400).json({ error: 'channelId and serverId are required' });
+      sendError(res, 'channelId and serverId are required');
       return;
     }
 
@@ -42,10 +42,10 @@ router.post(
 
     try {
       await VoiceActivityHandler.federateVoiceChannelJoin(user.id, channelId, serverId);
-      res.json({ success: true, message: 'Voice join request sent' });
+      sendSuccess(res, { message: 'Voice join request sent' });
     } catch (error: any) {
       logger.error('Failed to federate voice join:', error);
-      res.status(500).json({ error: error.message || 'Failed to send voice join request' });
+      sendError(res, error.message || 'Failed to send voice join request', 500);
     }
   })
 );
@@ -62,23 +62,22 @@ router.post(
   asyncHandler(async (req: Request, res: Response) => {
     const authHeader = req.headers.authorization;
     if (!authHeader?.startsWith('Bearer ')) {
-      res.status(401).json({ error: 'Authorization required' });
+      sendError(res, 'Authorization required', 401);
       return;
     }
 
     const token = authHeader.substring(7);
     const supabase = getSupabaseClientWithAuth(token);
 
-    // Get authenticated user
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) {
-      res.status(401).json({ error: 'Invalid token' });
+      sendError(res, 'Invalid token', 401);
       return;
     }
 
     const { channelId, serverId } = req.body;
     if (!channelId || !serverId) {
-      res.status(400).json({ error: 'channelId and serverId are required' });
+      sendError(res, 'channelId and serverId are required');
       return;
     }
 
@@ -86,10 +85,10 @@ router.post(
 
     try {
       await VoiceActivityHandler.federateVoiceChannelLeave(user.id, channelId, serverId);
-      res.json({ success: true, message: 'Voice leave request sent' });
+      sendSuccess(res, { message: 'Voice leave request sent' });
     } catch (error: any) {
       logger.error('Failed to federate voice leave:', error);
-      res.status(500).json({ error: error.message || 'Failed to send voice leave request' });
+      sendError(res, error.message || 'Failed to send voice leave request', 500);
     }
   })
 );

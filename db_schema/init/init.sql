@@ -59,6 +59,10 @@
 \echo '>>> 09_tables_encryption.sql - Creating E2E encryption tables...'
 \i 09_tables_encryption.sql
 
+\echo ''
+\echo '>>> 71_views_performance.sql - Creating performance/monitoring tables, views, functions...'
+\i 71_views_performance.sql
+
 -- ---------------------------------------------------------------------------
 -- PHASE 3: Functions
 -- ---------------------------------------------------------------------------
@@ -109,10 +113,6 @@
 \echo ''
 \echo '>>> 70_views.sql - Creating views...'
 \i 70_views.sql
-
-\echo ''
-\echo '>>> 71_views_performance.sql - Creating performance monitoring views...'
-\i 71_views_performance.sql
 
 -- ---------------------------------------------------------------------------
 -- PHASE 8: Additional Functions (Federation, LiveKit)

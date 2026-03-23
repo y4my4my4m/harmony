@@ -18,6 +18,7 @@ CREATE OR REPLACE FUNCTION public.create_group_conversation(
 RETURNS uuid
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
     v_conversation_id uuid;
@@ -75,6 +76,7 @@ RETURNS SETOF posts
 LANGUAGE plpgsql
 STABLE
 SECURITY DEFINER
+SET search_path = public
 AS $$
 BEGIN
     -- SECURITY: Verify the caller owns this profile (only view your own timeline)
@@ -172,6 +174,7 @@ CREATE OR REPLACE FUNCTION public.add_post_emoji_reaction(
 RETURNS uuid
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
     v_interaction_id uuid;
@@ -356,6 +359,7 @@ CREATE OR REPLACE FUNCTION public.add_bot_to_server(
 RETURNS uuid
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
     v_permission_id uuid;
@@ -397,6 +401,7 @@ CREATE OR REPLACE FUNCTION public.delete_server_with_cleanup(p_server_id uuid, p
 RETURNS void
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
     v_caller_profile_id uuid;
@@ -436,6 +441,7 @@ CREATE OR REPLACE FUNCTION public.create_thread(
 RETURNS uuid
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
     v_thread_id uuid;
@@ -488,6 +494,7 @@ CREATE OR REPLACE FUNCTION public.auto_archive_threads()
 RETURNS void
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 BEGIN
     UPDATE threads
@@ -512,6 +519,7 @@ CREATE OR REPLACE FUNCTION public.initialize_user_encryption(
 RETURNS jsonb
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
     v_key_pair_id UUID;
@@ -546,6 +554,7 @@ CREATE OR REPLACE FUNCTION public.add_user_prekeys(
 RETURNS integer
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
     v_prekey JSONB;
@@ -584,6 +593,7 @@ CREATE OR REPLACE FUNCTION public.get_unused_prekey(p_user_id uuid, p_device_id 
 RETURNS prekeys
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
     v_prekey prekeys;
@@ -615,6 +625,7 @@ CREATE OR REPLACE FUNCTION public.enable_conversation_encryption(p_conversation_
 RETURNS jsonb
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
     v_caller_profile_id uuid;
@@ -666,6 +677,7 @@ CREATE OR REPLACE FUNCTION public.create_notification_with_spam_prevention(
 RETURNS uuid
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
     v_notification_id uuid;
@@ -747,6 +759,7 @@ CREATE OR REPLACE FUNCTION public.create_notification_structured(
 RETURNS uuid
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
     notification_id UUID;
@@ -806,6 +819,7 @@ CREATE OR REPLACE FUNCTION public.delete_push_subscription_by_endpoint(p_endpoin
 RETURNS void
 LANGUAGE sql
 SECURITY DEFINER
+SET search_path = public
 AS $$
     DELETE FROM push_subscriptions WHERE endpoint = p_endpoint;
 $$;
@@ -820,6 +834,7 @@ CREATE OR REPLACE FUNCTION public.end_user_session(p_user_id uuid, p_session_tok
 RETURNS void
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
     v_caller_profile_id uuid;
@@ -846,6 +861,7 @@ CREATE OR REPLACE FUNCTION public.update_session_heartbeat(
 RETURNS void
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
     v_caller_profile_id uuid;
@@ -874,6 +890,7 @@ CREATE OR REPLACE FUNCTION public.update_session_context(
 RETURNS void
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
     v_caller_profile_id uuid;
@@ -944,6 +961,7 @@ CREATE OR REPLACE FUNCTION public.cleanup_expired_voice_calls()
 RETURNS void
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 BEGIN
     -- Mark calls as ended if started more than 4 hours ago and not already ended
@@ -959,6 +977,7 @@ CREATE OR REPLACE FUNCTION public.cleanup_stale_voice_participants()
 RETURNS void
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 BEGIN
     DELETE FROM voice_channel_participants
@@ -988,6 +1007,7 @@ CREATE OR REPLACE FUNCTION public.cleanup_expired_statuses()
 RETURNS integer
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
     cleared_count integer;
@@ -1051,6 +1071,7 @@ CREATE OR REPLACE FUNCTION public.create_federated_emoji(
 RETURNS TABLE(id uuid, created_at timestamptz, name text, url text, server_id uuid, created_by uuid, domain text)
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 BEGIN
     RETURN QUERY
@@ -1076,6 +1097,7 @@ CREATE OR REPLACE FUNCTION public.log_admin_action(
 RETURNS uuid
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
     v_log_id uuid;
@@ -1125,7 +1147,10 @@ GRANT EXECUTE ON FUNCTION public.update_session_context(text, uuid, uuid, uuid) 
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.get_pending_reports_count()
 RETURNS integer
-LANGUAGE sql STABLE SECURITY DEFINER
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
 AS $$
     SELECT COUNT(*)::integer FROM public.reports WHERE status = 'pending';
 $$;
@@ -1157,7 +1182,10 @@ RETURNS TABLE(
     resolution_note text,
     created_at timestamptz
 )
-LANGUAGE plpgsql STABLE SECURITY DEFINER
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public
 AS $$
 BEGIN
     RETURN QUERY
@@ -1249,7 +1277,10 @@ $$;
 -- Funding total from donations (SECURITY DEFINER so any user can see aggregate)
 CREATE OR REPLACE FUNCTION public.get_funding_current_total(p_period text DEFAULT 'monthly')
 RETURNS numeric
-LANGUAGE sql STABLE SECURITY DEFINER
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
 AS $$
   SELECT COALESCE(SUM(dh.amount), 0)::numeric
   FROM public.instance_donation_history dh
