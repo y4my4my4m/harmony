@@ -23,13 +23,14 @@
          @dragleave.prevent="handleDragLeave"
          @drop.prevent="handleDrop">
       <!-- Voice recording mode: replaces the normal input -->
-      <VoiceRecorder
-        v-if="isVoiceRecording"
-        auto-start
-        @recording-complete="handleVoiceRecordingComplete"
-        @recording-started="isVoiceRecording = true"
-        @recording-cancelled="isVoiceRecording = false"
-      />
+      <div v-if="isVoiceRecording" class="voice-recording-wrapper">
+        <VoiceRecorder
+          auto-start
+          @recording-complete="handleVoiceRecordingComplete"
+          @recording-started="isVoiceRecording = true"
+          @recording-cancelled="isVoiceRecording = false"
+        />
+      </div>
 
       <!-- Normal input mode -->
       <template v-else>
@@ -794,6 +795,13 @@ const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText);
     position: relative;
     margin-left: 10px;
     margin-right: 10px;
+  }
+
+  .voice-recording-wrapper {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
   }
 
   /* Focus styling */

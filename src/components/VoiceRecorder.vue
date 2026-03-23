@@ -151,6 +151,12 @@ onUnmounted(() => {
   align-items: center;
 }
 
+.voice-recorder.recording {
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+}
+
 .mic-trigger {
   display: flex;
   align-items: center;
@@ -281,14 +287,15 @@ onUnmounted(() => {
 .waveform-bars {
   display: flex;
   align-items: flex-end;
-  gap: 2px;
+  gap: 1px;
+  width: 100%;
   height: 24px;
+  min-width: 0;
 }
 
 .waveform-bar {
-  flex: 1;
-  min-width: 2px;
-  max-width: 4px;
+  flex: 1 1 0;
+  min-width: 0;
   border-radius: 1px;
   background: var(--harmony-primary, #0EA5E9);
   transition: height 0.06s ease-out;
