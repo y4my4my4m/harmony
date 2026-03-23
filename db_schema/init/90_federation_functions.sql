@@ -353,6 +353,7 @@ CREATE OR REPLACE FUNCTION public.upsert_ap_activity(
 RETURNS TABLE(activity_id uuid, was_updated boolean)
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
     v_activity_id UUID;
@@ -426,7 +427,9 @@ CREATE OR REPLACE FUNCTION public.update_endpoint_health(
     p_http_status integer DEFAULT NULL,
     p_error_message text DEFAULT NULL
 ) RETURNS void
-LANGUAGE plpgsql SECURITY DEFINER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
     v_health_record RECORD;
@@ -489,7 +492,9 @@ COMMENT ON FUNCTION public.update_endpoint_health IS
 -- =============================================================================
 CREATE OR REPLACE FUNCTION public.enable_federation_triggers()
 RETURNS void
-LANGUAGE plpgsql SECURITY DEFINER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
 AS $$
 BEGIN
     ALTER TABLE public.posts ENABLE TRIGGER trigger_federate_post;
@@ -518,7 +523,9 @@ $$;
 
 CREATE OR REPLACE FUNCTION public.disable_federation_triggers()
 RETURNS void
-LANGUAGE plpgsql SECURITY DEFINER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
 AS $$
 BEGIN
     ALTER TABLE public.posts DISABLE TRIGGER trigger_federate_post;

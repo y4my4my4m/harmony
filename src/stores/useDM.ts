@@ -1723,6 +1723,14 @@ export const useDMStore = defineStore('dm', () => {
     if (idx !== -1) {
       currentDMMessages.value[idx] = { ...currentDMMessages.value[idx], sending: false, failed: true } as any
     }
+
+    messageCache.value.forEach((cache) => {
+      const cacheIdx = cache.messages.findIndex(m => m.id === tempId)
+      if (cacheIdx !== -1) {
+        cache.messages[cacheIdx] = { ...cache.messages[cacheIdx], sending: false, failed: true } as any
+        cache.lastModified = new Date()
+      }
+    })
   }
 
   const _replaceDMTempWithReal = (tempId: string, message: any, userId: string, conversationId: string, content: MessagePart[]) => {

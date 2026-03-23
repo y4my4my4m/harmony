@@ -2,13 +2,16 @@
   <Transition name="offline-slide">
     <div v-if="isOffline" class="offline-banner">
       <span class="offline-icon">&#9888;</span>
-      <span>You are offline. Some features may be unavailable.</span>
+      <span>{{ t('offline.banner') }}</span>
     </div>
   </Transition>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
 
 const isOffline = ref(!navigator.onLine)
 

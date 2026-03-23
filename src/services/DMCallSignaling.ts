@@ -192,7 +192,7 @@ class DMCallSignalingService {
     // Insert system message for the call
     let systemMessageId: string | null = null
     try {
-      const { data: msg } = await supabase.from('messages').insert({
+      const { data: msg, error } = await supabase.from('messages').insert({
         user_id: callerId,
         conversation_id: conversationId,
         content: [{ type: 'text', text: 'started a call' }],
@@ -204,7 +204,11 @@ class DMCallSignalingService {
           participants: [callerId],
         }
       }).select('id').single()
-      systemMessageId = msg?.id ?? null
+      if (error) {
+        debug.error('Failed to insert call system message:', error.message)
+      } else {
+        systemMessageId = msg?.id ?? null
+      }
     } catch (error) {
       debug.error('Failed to insert call system message:', error)
     }

@@ -682,7 +682,12 @@ export class MegolmMessageEncryptionService {
    * Import a base64-encoded ECDH public key as a CryptoKey.
    */
   private async importPublicKey(publicKeyBase64: string): Promise<CryptoKey> {
-    const publicKeyBytes = Uint8Array.from(atob(publicKeyBase64), c => c.charCodeAt(0))
+    let publicKeyBytes: Uint8Array
+    try {
+      publicKeyBytes = Uint8Array.from(atob(publicKeyBase64), c => c.charCodeAt(0))
+    } catch {
+      throw new Error('Invalid base64 public key data')
+    }
     return crypto.subtle.importKey(
       'raw', publicKeyBytes,
       { name: 'ECDH', namedCurve: 'P-256' }, false, []
@@ -757,7 +762,12 @@ export class MegolmMessageEncryptionService {
       throw new Error('Recovery key not available — cannot decrypt identity key from DB')
     }
 
-    const combined = Uint8Array.from(atob(encryptedData), c => c.charCodeAt(0))
+    let combined: Uint8Array
+    try {
+      combined = Uint8Array.from(atob(encryptedData), c => c.charCodeAt(0))
+    } catch {
+      throw new Error('Invalid base64 encrypted key data')
+    }
     const iv = combined.slice(0, 12)
     const ciphertext = combined.slice(12)
 
@@ -878,7 +888,12 @@ export class MegolmMessageEncryptionService {
     const senderKey = await this.importPublicKey(senderPublicKey)
     const aesKey = await this.deriveSharedKey(myPrivateKey, senderKey, ['decrypt'])
 
-    const combined = Uint8Array.from(atob(payload), c => c.charCodeAt(0))
+    let combined: Uint8Array
+    try {
+      combined = Uint8Array.from(atob(payload), c => c.charCodeAt(0))
+    } catch {
+      throw new Error('Invalid base64 encrypted session key')
+    }
     const iv = combined.slice(0, 12)
     const ciphertext = combined.slice(12)
 

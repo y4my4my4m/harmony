@@ -14,6 +14,7 @@ RETURNS uuid
 LANGUAGE sql
 STABLE
 SECURITY DEFINER
+SET search_path = public
 AS $$
     SELECT id FROM public.profiles WHERE auth_user_id = auth.uid() LIMIT 1;
 $$;
@@ -27,6 +28,7 @@ RETURNS uuid
 LANGUAGE plpgsql
 STABLE
 SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
     profile_uuid uuid;
@@ -46,6 +48,7 @@ RETURNS boolean
 LANGUAGE sql
 STABLE
 SECURITY DEFINER
+SET search_path = public
 AS $$
     SELECT COALESCE(
         (SELECT is_admin FROM public.profiles WHERE auth_user_id = auth.uid()),
@@ -59,6 +62,7 @@ RETURNS boolean
 LANGUAGE sql
 STABLE
 SECURITY DEFINER
+SET search_path = public
 AS $$
     SELECT COALESCE(
         (SELECT is_moderator FROM public.profiles WHERE auth_user_id = auth.uid()),
@@ -72,6 +76,7 @@ RETURNS boolean
 LANGUAGE sql
 STABLE
 SECURITY DEFINER
+SET search_path = public
 AS $$
     SELECT COALESCE(
         (SELECT (is_admin OR is_moderator) FROM public.profiles WHERE auth_user_id = auth.uid()),
@@ -86,6 +91,7 @@ RETURNS boolean
 LANGUAGE plpgsql
 STABLE
 SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
     v_profile_id uuid;
@@ -126,6 +132,7 @@ RETURNS boolean
 LANGUAGE sql
 STABLE
 SECURITY DEFINER
+SET search_path = public
 AS $$
     SELECT COALESCE(
         (SELECT COALESCE(is_suspended, false) FROM public.profiles WHERE id = p_author_id LIMIT 1),
@@ -146,6 +153,7 @@ RETURNS boolean
 LANGUAGE sql
 STABLE
 SECURITY DEFINER
+SET search_path = public
 AS $$
     SELECT EXISTS (
         SELECT 1 FROM public.user_blocks
@@ -162,6 +170,7 @@ RETURNS boolean
 LANGUAGE sql
 STABLE
 SECURITY DEFINER
+SET search_path = public
 AS $$
     SELECT EXISTS (
         SELECT 1 FROM public.user_blocks
@@ -182,6 +191,7 @@ RETURNS boolean
 LANGUAGE sql
 STABLE
 SECURITY DEFINER
+SET search_path = public
 AS $$
     SELECT EXISTS (
         SELECT 1 FROM public.user_mutes
@@ -198,6 +208,7 @@ RETURNS boolean
 LANGUAGE sql
 STABLE
 SECURITY DEFINER
+SET search_path = public
 AS $$
     SELECT EXISTS (
         SELECT 1 FROM public.user_mutes
@@ -226,6 +237,7 @@ CREATE OR REPLACE FUNCTION public.get_default_channel(p_server_id uuid)
 RETURNS uuid
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
     channel_id UUID;
@@ -358,6 +370,7 @@ CREATE OR REPLACE FUNCTION public.get_or_create_dm_conversation(p_user1_id uuid,
 RETURNS uuid
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
     v_conversation_id uuid;
@@ -389,6 +402,7 @@ CREATE OR REPLACE FUNCTION public.add_user_to_conversation(conversation_uuid uui
 RETURNS uuid
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
     participant_id uuid;
@@ -442,6 +456,7 @@ CREATE OR REPLACE FUNCTION public.create_default_notification_preferences(p_user
 RETURNS void
 LANGUAGE sql
 SECURITY DEFINER
+SET search_path = public
 AS $$
     INSERT INTO notification_preferences (user_id)
     VALUES (p_user_id)
@@ -458,6 +473,7 @@ RETURNS jsonb
 LANGUAGE plpgsql
 STABLE
 SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
     v_status jsonb;
@@ -496,6 +512,7 @@ CREATE OR REPLACE FUNCTION public.set_custom_status(
 RETURNS jsonb
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
     v_status jsonb;
@@ -547,6 +564,7 @@ CREATE OR REPLACE FUNCTION public.clear_custom_status(p_user_id uuid)
 RETURNS boolean
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 BEGIN
     -- SECURITY: Verify the caller owns this profile
@@ -841,6 +859,7 @@ CREATE OR REPLACE FUNCTION public.queue_federation_job(
 )
 RETURNS uuid
 LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
     v_job_id uuid;

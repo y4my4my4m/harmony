@@ -726,6 +726,14 @@ export const useChatStore = defineStore('chat', {
       if (idx !== -1) {
         this.messages[idx] = { ...this.messages[idx], sending: false, failed: true } as any;
       }
+
+      this.messageCache.forEach((cache) => {
+        const cacheIdx = cache.messages.findIndex((m: any) => m.id === tempId);
+        if (cacheIdx !== -1) {
+          cache.messages[cacheIdx] = { ...cache.messages[cacheIdx], sending: false, failed: true } as any;
+          cache.lastModified = new Date();
+        }
+      });
     },
 
     _replaceTempWithReal(tempId: string, message: any, userId: string, channelId: string, content: any) {

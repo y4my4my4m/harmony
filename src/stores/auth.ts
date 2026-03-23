@@ -536,7 +536,7 @@ export const useAuthStore = defineStore('auth', {
       // preventing reactive components from firing queries with stale/undefined data
       // (e.g. user_roles with server_id=undefined, get_supporter_badge after auth gone)
       this.session = null;
-      supabase.auth.signOut();
+      await supabase.auth.signOut();
 
       // Redirect to login BEFORE clearing stores so that components unmount
       // before store resets trigger reactive watchers
@@ -604,9 +604,18 @@ export const useAuthStore = defineStore('auth', {
       try {
         const { useServerChannelStore } = await import('@/stores/useServerChannel')
         const serverStore = useServerChannelStore()
+        await serverStore.cleanupSubscriptions()
         serverStore.$reset()
       } catch (error) {
         debug.error('❌ Error clearing server channel store:', error)
+      }
+
+      try {
+        const { useServerUsersStore } = await import('@/stores/useServerUsers')
+        const serverUsersStore = useServerUsersStore()
+        serverUsersStore.cleanup()
+      } catch (error) {
+        debug.error('❌ Error clearing server users store:', error)
       }
 
       try {

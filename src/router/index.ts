@@ -434,6 +434,14 @@ router.beforeEach((to, from, next) => {
     return;
   }
 
+  if (to.meta.requiresAdmin && isLoggedIn) {
+    const profileStore = useProfileStore();
+    if (profileStore.profile && !profileStore.profile.is_admin) {
+      next({ name: 'Chat' });
+      return;
+    }
+  }
+
   if (isLoggedIn && !PROFILE_EXEMPT_ROUTES.has(to.name as string)) {
     const profileStore = useProfileStore();
     if (profileStore.profileFetched && (!profileStore.profile || !profileStore.profile.username)) {

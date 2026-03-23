@@ -412,18 +412,23 @@ ALTER TABLE public.slow_queries ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.federation_health ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.performance_metrics_hourly ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "slow_queries_admin_only" ON public.slow_queries;
 CREATE POLICY "slow_queries_admin_only" ON public.slow_queries
     FOR ALL USING (public.is_current_user_admin());
 
+DROP POLICY IF EXISTS "federation_health_select_all" ON public.federation_health;
 CREATE POLICY "federation_health_select_all" ON public.federation_health
     FOR SELECT USING (true);
 
+DROP POLICY IF EXISTS "federation_health_modify_admin" ON public.federation_health;
 CREATE POLICY "federation_health_modify_admin" ON public.federation_health
     FOR ALL USING (public.is_current_user_admin());
 
+DROP POLICY IF EXISTS "performance_metrics_hourly_select_all" ON public.performance_metrics_hourly;
 CREATE POLICY "performance_metrics_hourly_select_all" ON public.performance_metrics_hourly
     FOR SELECT USING (true);
 
+DROP POLICY IF EXISTS "performance_metrics_hourly_modify_admin" ON public.performance_metrics_hourly;
 CREATE POLICY "performance_metrics_hourly_modify_admin" ON public.performance_metrics_hourly
     FOR ALL USING (public.is_current_user_admin());
 
@@ -663,7 +668,8 @@ CREATE POLICY "donation_history_modify_admin" ON public.instance_donation_histor
 -- AP ACTIVITIES (ActivityPub activity log)
 -- ---------------------------------------------------------------------------
 DROP POLICY IF EXISTS "System can manage ActivityPub activities" ON public.ap_activities;
-CREATE POLICY "System can manage ActivityPub activities" ON public.ap_activities USING (true);
+CREATE POLICY "System can manage ActivityPub activities" ON public.ap_activities
+    TO service_role USING (true);
 
 DROP POLICY IF EXISTS "Users can view their own activities" ON public.ap_activities;
 CREATE POLICY "Users can view their own activities" ON public.ap_activities

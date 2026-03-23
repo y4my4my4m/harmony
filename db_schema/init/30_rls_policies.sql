@@ -322,9 +322,23 @@ ALTER TABLE public.user_servers ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Enable read access for all users" ON public.user_servers
     FOR SELECT USING (true);
 
--- Allow authenticated users full access
-CREATE POLICY "Allow all" ON public.user_servers
-    TO authenticated USING (true) WITH CHECK (true);
+-- Users can join servers (insert themselves)
+CREATE POLICY "user_servers_insert_self" ON public.user_servers
+    FOR INSERT TO authenticated
+    WITH CHECK (user_id = public.get_current_profile_id());
+
+-- Users can update their own membership, server owners can update any member
+CREATE POLICY "user_servers_update_own_or_owner" ON public.user_servers
+    FOR UPDATE TO authenticated
+    USING (
+        user_id = public.get_current_profile_id()
+        OR EXISTS (
+            SELECT 1 FROM public.servers
+            WHERE servers.id = user_servers.server_id
+            AND owner = public.get_current_profile_id()
+        )
+        OR public.is_current_user_admin()
+    );
 
 -- Allow users to leave servers they're in, or owners to remove members
 CREATE POLICY "Users can leave servers" ON public.user_servers
@@ -497,7 +511,11 @@ CREATE POLICY "federated_instances_select_all" ON public.federated_instances FOR
 
 DROP POLICY IF EXISTS "federated_instances_manage" ON public.federated_instances;
 CREATE POLICY "federated_instances_manage" ON public.federated_instances
-    FOR ALL USING (auth.uid() IS NOT NULL);
+    FOR ALL USING (public.is_current_user_admin());
+
+DROP POLICY IF EXISTS "federated_instances_service_role" ON public.federated_instances;
+CREATE POLICY "federated_instances_service_role" ON public.federated_instances
+    TO service_role USING (true);
 
 -- Federation endpoint health
 ALTER TABLE public.federation_endpoint_health ENABLE ROW LEVEL SECURITY;
@@ -530,7 +548,11 @@ CREATE POLICY "federation_health_select_all" ON public.federation_health
     FOR SELECT USING (true);
 DROP POLICY IF EXISTS "federation_health_manage" ON public.federation_health;
 CREATE POLICY "federation_health_manage" ON public.federation_health
-    FOR ALL USING (auth.uid() IS NOT NULL);
+    FOR ALL USING (public.is_current_user_admin());
+
+DROP POLICY IF EXISTS "federation_health_service_role" ON public.federation_health;
+CREATE POLICY "federation_health_service_role" ON public.federation_health
+    TO service_role USING (true);
 
 ALTER TABLE public.oauth_providers ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "oauth_providers_select_all" ON public.oauth_providers FOR SELECT USING (true);

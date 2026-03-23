@@ -646,6 +646,13 @@
     "mony": "Post",
     "replying": "Replying...",
     "posting": "Posting...",
+    "quoting": "Quoting...",
+    "saving": "Saving...",
+    "quote": "Quote",
+    "quotePost": "Quote Post",
+    "editPost": "Edit Post",
+    "editYourPost": "Edit your post...",
+    "save": "Save",
     "shareThoughts": "Share your thoughts...",
     "home": "Home",
     "local": "Local",
@@ -948,6 +955,21 @@
     "hosted": "Hosted on",
     "federatedUser": "Federated user",
     "federatedBadge": "Federated"
+  },
+  "offline": {
+    "banner": "You are offline. Some features may be unavailable."
+  },
+  "chat": {
+    "uploading": "Uploading...",
+    "dropFilesHere": "Drop files here.",
+    "setupNow": "Set up now"
+  },
+  "invite": {
+    "accepting": "Accepting invite...",
+    "accepted": "Invite accepted successfully",
+    "failed": "Failed to accept invite",
+    "noCode": "No invite code found",
+    "notLoggedIn": "You must be logged in to accept invites"
   },
   "languages": {
     "en": "English",

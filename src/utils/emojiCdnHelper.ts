@@ -1,0 +1,1 @@
+export { getEmojiUrl } from './emojiUtils'

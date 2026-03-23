@@ -7,8 +7,8 @@
     <div v-if="showDragDropArea" 
       class="drag-drop-area"
       @dragleave.prevent="handleDragLeave">
-      <div v-if="uploading" style="color:rgb(18, 143, 18);">Uploading...</div>
-      <div v-else>Drop files here.</div>
+      <div v-if="uploading" class="upload-status">{{ t('chat.uploading') }}</div>
+      <div v-else>{{ t('chat.dropFilesHere') }}</div>
     </div>
 
     <MessageDisplay 
@@ -55,7 +55,7 @@
           class="encryption-setup-btn"
           @click="showEncryptionSetupWizard = true"
         >
-          Set up now
+          {{ t('chat.setupNow') }}
         </button>
       </div>
     </div>
@@ -158,6 +158,7 @@
   import { debug } from '@/utils/debug';
   import { useUserData } from '@/composables/useUserData';
   import { useServerPermissions } from '@/composables/useServerPermissions';
+  import { useI18n } from 'vue-i18n';
 
   // FIXME: probably breaking the __TAURI__ implementation if we declare it here
   declare const __TAURI__: any;
@@ -186,10 +187,10 @@
 
   const emit = defineEmits<Emits>();
 
+  const { t } = useI18n();
   const chatStore = useChatStore();
   const authStore = useAuthStore();
   const serverChannelStore = useServerChannelStore();
-  // Remove serverUsersStore as we now use userDataService
   const dmStore = useDMStore();
   const themeStore = useThemeStore();
   const draftsStore = useDraftsStore();
@@ -702,21 +703,20 @@
         }
       };
 
+      let unlistenTauriFileDrop: (() => void) | null = null;
+
       onMounted(async () => {
         if (!isTauri.value) return;
-        await listen('tauri://file-drop', async (event: any) => {
+        unlistenTauriFileDrop = await listen('tauri://file-drop', async (event: any) => {
           const filePath = event.payload[0];
           try {
-            // Read the file as a binary blob
             const fileBytes = await readFile(filePath);
             const fileBlob = new Blob([fileBytes]);
 
-            // Create a File object
             const file = new File([fileBlob], filePath.split('/').pop(), {
-              type: "mime/type", // Replace with the actual mime type if known
+              type: "mime/type",
             });
 
-            // Forward to MessageInput
             const messageInputEvent = new CustomEvent('external-file-drop', {
               detail: { files: [file] }
             });
@@ -725,6 +725,11 @@
             debug.error('Error processing file drop:', error);
           }
         });
+      });
+
+      onUnmounted(() => {
+        unlistenTauriFileDrop?.();
+        unlistenTauriFileDrop = null;
       });
 
       // Use unified content parsing system (DRY)
@@ -1014,7 +1019,11 @@
     align-items: center;
     justify-content: center;
     transition: 0.2s ease-in-out;
-    font-size: 48px; 
+    font-size: 48px;
+
+    .upload-status {
+      color: rgb(18, 143, 18);
+    } 
     font-weight: bold;
     color: var(--text-primary);
   }
