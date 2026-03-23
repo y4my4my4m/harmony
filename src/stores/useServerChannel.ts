@@ -1951,6 +1951,20 @@ export const useServerChannelStore = defineStore('serverChannel', {
             case 'settings:update':
               window.dispatchEvent(new CustomEvent('server-structure:settings-change', { detail: data }));
               break;
+            case 'role:insert':
+            case 'role:update':
+            case 'role:delete':
+              window.dispatchEvent(new CustomEvent('server-structure:role-change', { detail: data }));
+              break;
+            case 'user_role:insert':
+            case 'user_role:delete':
+              window.dispatchEvent(new CustomEvent('server-structure:user-role-change', { detail: data }));
+              break;
+            case 'permission_override:insert':
+            case 'permission_override:update':
+            case 'permission_override:delete':
+              window.dispatchEvent(new CustomEvent('server-structure:permission-change', { detail: data }));
+              break;
           }
         })
         .subscribe((status) => {

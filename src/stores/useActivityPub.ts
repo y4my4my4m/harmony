@@ -665,6 +665,42 @@ export const useActivityPubStore = defineStore('activitypub', {
         }
       }));
 
+      unsubs.push(userEventChannel.on('mute:insert', (data) => {
+        if (data.muted_user_id) {
+          const updated = new Set(this.mutedUsers);
+          updated.add(data.muted_user_id);
+          this.mutedUsers = updated;
+          debug.log('🔇 Mute synced via broadcast:', data.muted_user_id);
+        }
+      }));
+
+      unsubs.push(userEventChannel.on('mute:delete', (data) => {
+        if (data.muted_user_id) {
+          const updated = new Set(this.mutedUsers);
+          updated.delete(data.muted_user_id);
+          this.mutedUsers = updated;
+          debug.log('🔇 Unmute synced via broadcast:', data.muted_user_id);
+        }
+      }));
+
+      unsubs.push(userEventChannel.on('block:insert', (data) => {
+        if (data.blocked_user_id) {
+          const updated = new Set(this.blockedUsers);
+          updated.add(data.blocked_user_id);
+          this.blockedUsers = updated;
+          debug.log('🚫 Block synced via broadcast:', data.blocked_user_id);
+        }
+      }));
+
+      unsubs.push(userEventChannel.on('block:delete', (data) => {
+        if (data.blocked_user_id) {
+          const updated = new Set(this.blockedUsers);
+          updated.delete(data.blocked_user_id);
+          this.blockedUsers = updated;
+          debug.log('🚫 Unblock synced via broadcast:', data.blocked_user_id);
+        }
+      }));
+
       this._broadcastUnsubs = unsubs;
       debug.log('🔔 ActivityPub realtime established via user:{id} broadcast');
     },

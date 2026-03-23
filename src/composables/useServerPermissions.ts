@@ -1,4 +1,4 @@
-import { computed, ref, watch, reactive } from 'vue'
+import { computed, ref, watch, reactive, onScopeDispose } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useServerChannelStore } from '@/stores/useServerChannel'
 import { useUserData } from '@/composables/useUserData'
@@ -422,6 +422,26 @@ export function useServerPermissions() {
       loadUserRoles(currentProfileId.value, currentServer.value.id)
     ])
   }
+
+  const handleRoleOrPermissionChange = (event: Event) => {
+    const detail = (event as CustomEvent).detail
+    const serverId = detail?.new?.server_id || detail?.old?.server_id
+    if (!serverId) return
+    if (currentServer.value?.id !== serverId) return
+
+    clearServerCache(serverId)
+    refreshPermissions()
+  }
+
+  window.addEventListener('server-structure:role-change', handleRoleOrPermissionChange)
+  window.addEventListener('server-structure:user-role-change', handleRoleOrPermissionChange)
+  window.addEventListener('server-structure:permission-change', handleRoleOrPermissionChange)
+
+  onScopeDispose(() => {
+    window.removeEventListener('server-structure:role-change', handleRoleOrPermissionChange)
+    window.removeEventListener('server-structure:user-role-change', handleRoleOrPermissionChange)
+    window.removeEventListener('server-structure:permission-change', handleRoleOrPermissionChange)
+  })
 
   // Get all roles for a server
   const getServerRoles = async (serverId: string): Promise<ServerRole[]> => {

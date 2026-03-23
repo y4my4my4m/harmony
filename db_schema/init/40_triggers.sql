@@ -544,6 +544,75 @@ CREATE TRIGGER trg_broadcast_server_settings
     FOR EACH ROW
     EXECUTE FUNCTION public.broadcast_server_settings_change();
 
+-- Server structure broadcasts (channels, categories, threads, membership, roles, permissions)
+DROP TRIGGER IF EXISTS trg_broadcast_channel_change ON public.channels;
+CREATE TRIGGER trg_broadcast_channel_change
+    AFTER INSERT OR UPDATE OR DELETE ON public.channels
+    FOR EACH ROW
+    EXECUTE FUNCTION public.broadcast_channel_change();
+
+DROP TRIGGER IF EXISTS trg_broadcast_category_change ON public.channel_categories;
+CREATE TRIGGER trg_broadcast_category_change
+    AFTER INSERT OR UPDATE OR DELETE ON public.channel_categories
+    FOR EACH ROW
+    EXECUTE FUNCTION public.broadcast_category_change();
+
+DROP TRIGGER IF EXISTS trg_broadcast_membership_event ON public.server_membership_events;
+CREATE TRIGGER trg_broadcast_membership_event
+    AFTER INSERT ON public.server_membership_events
+    FOR EACH ROW
+    EXECUTE FUNCTION public.broadcast_membership_event();
+
+DROP TRIGGER IF EXISTS trg_broadcast_thread_change ON public.threads;
+CREATE TRIGGER trg_broadcast_thread_change
+    AFTER INSERT OR UPDATE OR DELETE ON public.threads
+    FOR EACH ROW
+    EXECUTE FUNCTION public.broadcast_thread_change();
+
+DROP TRIGGER IF EXISTS trg_broadcast_role_change ON public.server_roles;
+CREATE TRIGGER trg_broadcast_role_change
+    AFTER INSERT OR UPDATE OR DELETE ON public.server_roles
+    FOR EACH ROW
+    EXECUTE FUNCTION public.broadcast_role_change();
+
+DROP TRIGGER IF EXISTS trg_broadcast_user_role_change ON public.user_roles;
+CREATE TRIGGER trg_broadcast_user_role_change
+    AFTER INSERT OR DELETE ON public.user_roles
+    FOR EACH ROW
+    EXECUTE FUNCTION public.broadcast_user_role_change();
+
+DROP TRIGGER IF EXISTS trg_broadcast_permission_override ON public.channel_permission_overrides;
+CREATE TRIGGER trg_broadcast_permission_override
+    AFTER INSERT OR UPDATE OR DELETE ON public.channel_permission_overrides
+    FOR EACH ROW
+    EXECUTE FUNCTION public.broadcast_permission_override_change();
+
+-- Presence broadcasts (member join/leave, profile changes)
+DROP TRIGGER IF EXISTS trg_broadcast_user_server_change ON public.user_servers;
+CREATE TRIGGER trg_broadcast_user_server_change
+    AFTER INSERT OR DELETE ON public.user_servers
+    FOR EACH ROW
+    EXECUTE FUNCTION public.broadcast_user_server_change();
+
+DROP TRIGGER IF EXISTS trg_broadcast_profile_change ON public.profiles;
+CREATE TRIGGER trg_broadcast_profile_change
+    AFTER UPDATE ON public.profiles
+    FOR EACH ROW
+    EXECUTE FUNCTION public.broadcast_profile_change();
+
+-- User-scoped broadcasts (mutes, blocks)
+DROP TRIGGER IF EXISTS trg_broadcast_user_mute ON public.user_mutes;
+CREATE TRIGGER trg_broadcast_user_mute
+    AFTER INSERT OR DELETE ON public.user_mutes
+    FOR EACH ROW
+    EXECUTE FUNCTION public.broadcast_user_mute_change();
+
+DROP TRIGGER IF EXISTS trg_broadcast_user_block ON public.user_blocks;
+CREATE TRIGGER trg_broadcast_user_block
+    AFTER INSERT OR DELETE ON public.user_blocks
+    FOR EACH ROW
+    EXECUTE FUNCTION public.broadcast_user_block_change();
+
 -- ---------------------------------------------------------------------------
 -- Unread count triggers
 -- ---------------------------------------------------------------------------

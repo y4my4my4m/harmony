@@ -25,6 +25,8 @@ type UserEventType =
   | 'post:new' | 'post:updated' | 'post:deleted' | 'post:interaction'
   | 'follow:change'
   | 'encryption:key_request' | 'encryption:key_fulfilled'
+  | 'mute:insert' | 'mute:delete'
+  | 'block:insert' | 'block:delete'
   | '_reconnected'
 type EventHandler = (payload: Record<string, any>) => void | Promise<void>
 

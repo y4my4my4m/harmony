@@ -2833,6 +2833,8 @@ BEGIN
             'description', NEW.description,
             'icon', NEW.icon,
             'banner', NEW.banner,
+            'public', NEW.public,
+            'federation_enabled', NEW.federation_enabled,
             'updated_at', NEW.updated_at
           )
         ),
@@ -2866,6 +2868,398 @@ BEGIN
     'server_event',
     'server-structure:' || NEW.server_id::text
   );
+  RETURN COALESCE(NEW, OLD);
+EXCEPTION WHEN OTHERS THEN
+  RETURN COALESCE(NEW, OLD);
+END;
+$$;
+
+-- =========================================================================
+-- Server-structure broadcast functions (channels, categories, threads, etc.)
+-- These send to server-structure:{server_id} with event "server_event".
+-- Supabase handles fan-out — no SQL member loops (O(1) from DB).
+-- =========================================================================
+
+-- Channels INSERT/UPDATE/DELETE → server-structure:{server_id}
+CREATE OR REPLACE FUNCTION public.broadcast_channel_change()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_server uuid;
+BEGIN
+  IF TG_OP = 'DELETE' THEN
+    v_server := OLD.server_id;
+  ELSE
+    v_server := NEW.server_id;
+  END IF;
+
+  PERFORM realtime.send(
+    jsonb_build_object(
+      'type', 'channel:' || lower(TG_OP),
+      'new', CASE WHEN TG_OP != 'DELETE' THEN to_jsonb(NEW) ELSE NULL END,
+      'old', CASE WHEN TG_OP != 'INSERT' THEN to_jsonb(OLD) ELSE NULL END
+    ),
+    'server_event',
+    'server-structure:' || v_server::text
+  );
+
+  RETURN COALESCE(NEW, OLD);
+EXCEPTION WHEN OTHERS THEN
+  RETURN COALESCE(NEW, OLD);
+END;
+$$;
+
+-- Channel categories INSERT/UPDATE/DELETE → server-structure:{server_id}
+CREATE OR REPLACE FUNCTION public.broadcast_category_change()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_server uuid;
+BEGIN
+  IF TG_OP = 'DELETE' THEN
+    v_server := OLD.server_id;
+  ELSE
+    v_server := NEW.server_id;
+  END IF;
+
+  PERFORM realtime.send(
+    jsonb_build_object(
+      'type', 'category:' || lower(TG_OP),
+      'new', CASE WHEN TG_OP != 'DELETE' THEN to_jsonb(NEW) ELSE NULL END,
+      'old', CASE WHEN TG_OP != 'INSERT' THEN to_jsonb(OLD) ELSE NULL END
+    ),
+    'server_event',
+    'server-structure:' || v_server::text
+  );
+
+  RETURN COALESCE(NEW, OLD);
+EXCEPTION WHEN OTHERS THEN
+  RETURN COALESCE(NEW, OLD);
+END;
+$$;
+
+-- Server membership events INSERT → server-structure:{server_id}
+CREATE OR REPLACE FUNCTION public.broadcast_membership_event()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  PERFORM realtime.send(
+    jsonb_build_object(
+      'type', 'membership:event',
+      'new', to_jsonb(NEW)
+    ),
+    'server_event',
+    'server-structure:' || NEW.server_id::text
+  );
+
+  RETURN NEW;
+EXCEPTION WHEN OTHERS THEN
+  RETURN NEW;
+END;
+$$;
+
+-- Threads INSERT/UPDATE/DELETE → server-structure:{server_id} (via channel lookup)
+CREATE OR REPLACE FUNCTION public.broadcast_thread_change()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_channel_id uuid;
+  v_server_id  uuid;
+BEGIN
+  IF TG_OP = 'DELETE' THEN
+    v_channel_id := OLD.channel_id;
+  ELSE
+    v_channel_id := NEW.channel_id;
+  END IF;
+
+  SELECT server_id INTO v_server_id
+  FROM channels
+  WHERE id = v_channel_id;
+
+  IF v_server_id IS NULL THEN
+    RETURN COALESCE(NEW, OLD);
+  END IF;
+
+  PERFORM realtime.send(
+    jsonb_build_object(
+      'type', 'thread:' || lower(TG_OP),
+      'new', CASE WHEN TG_OP != 'DELETE' THEN to_jsonb(NEW) ELSE NULL END,
+      'old', CASE WHEN TG_OP != 'INSERT' THEN to_jsonb(OLD) ELSE NULL END
+    ),
+    'server_event',
+    'server-structure:' || v_server_id::text
+  );
+
+  RETURN COALESCE(NEW, OLD);
+EXCEPTION WHEN OTHERS THEN
+  RETURN COALESCE(NEW, OLD);
+END;
+$$;
+
+-- Server roles INSERT/UPDATE/DELETE → server-structure:{server_id}
+CREATE OR REPLACE FUNCTION public.broadcast_role_change()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_server uuid;
+BEGIN
+  IF TG_OP = 'DELETE' THEN
+    v_server := OLD.server_id;
+  ELSE
+    v_server := NEW.server_id;
+  END IF;
+
+  PERFORM realtime.send(
+    jsonb_build_object(
+      'type', 'role:' || lower(TG_OP),
+      'new', CASE WHEN TG_OP != 'DELETE' THEN to_jsonb(NEW) ELSE NULL END,
+      'old', CASE WHEN TG_OP != 'INSERT' THEN to_jsonb(OLD) ELSE NULL END
+    ),
+    'server_event',
+    'server-structure:' || v_server::text
+  );
+
+  RETURN COALESCE(NEW, OLD);
+EXCEPTION WHEN OTHERS THEN
+  RETURN COALESCE(NEW, OLD);
+END;
+$$;
+
+-- User role assignments INSERT/DELETE → server-structure:{server_id}
+CREATE OR REPLACE FUNCTION public.broadcast_user_role_change()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_server uuid;
+BEGIN
+  IF TG_OP = 'DELETE' THEN
+    v_server := OLD.server_id;
+  ELSE
+    v_server := NEW.server_id;
+  END IF;
+
+  PERFORM realtime.send(
+    jsonb_build_object(
+      'type', 'user_role:' || lower(TG_OP),
+      'new', CASE WHEN TG_OP != 'DELETE' THEN to_jsonb(NEW) ELSE NULL END,
+      'old', CASE WHEN TG_OP != 'INSERT' THEN to_jsonb(OLD) ELSE NULL END
+    ),
+    'server_event',
+    'server-structure:' || v_server::text
+  );
+
+  RETURN COALESCE(NEW, OLD);
+EXCEPTION WHEN OTHERS THEN
+  RETURN COALESCE(NEW, OLD);
+END;
+$$;
+
+-- Channel permission overrides INSERT/UPDATE/DELETE → server-structure:{server_id}
+CREATE OR REPLACE FUNCTION public.broadcast_permission_override_change()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_channel_id uuid;
+  v_server_id  uuid;
+BEGIN
+  IF TG_OP = 'DELETE' THEN
+    v_channel_id := OLD.channel_id;
+  ELSE
+    v_channel_id := NEW.channel_id;
+  END IF;
+
+  SELECT server_id INTO v_server_id
+  FROM channels
+  WHERE id = v_channel_id;
+
+  IF v_server_id IS NULL THEN
+    RETURN COALESCE(NEW, OLD);
+  END IF;
+
+  PERFORM realtime.send(
+    jsonb_build_object(
+      'type', 'permission_override:' || lower(TG_OP),
+      'new', CASE WHEN TG_OP != 'DELETE' THEN to_jsonb(NEW) ELSE NULL END,
+      'old', CASE WHEN TG_OP != 'INSERT' THEN to_jsonb(OLD) ELSE NULL END
+    ),
+    'server_event',
+    'server-structure:' || v_server_id::text
+  );
+
+  RETURN COALESCE(NEW, OLD);
+EXCEPTION WHEN OTHERS THEN
+  RETURN COALESCE(NEW, OLD);
+END;
+$$;
+
+-- =========================================================================
+-- Presence broadcast functions (member join/leave, profile changes)
+-- These send to server-presence:{server_id} with event "presence_event".
+-- =========================================================================
+
+-- User servers INSERT/DELETE → server-presence:{server_id} (member:join/leave)
+CREATE OR REPLACE FUNCTION public.broadcast_user_server_change()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_row   record;
+  v_event text;
+BEGIN
+  IF TG_OP = 'DELETE' THEN
+    v_row   := OLD;
+    v_event := 'member:leave';
+  ELSE
+    v_row   := NEW;
+    v_event := 'member:join';
+  END IF;
+
+  PERFORM realtime.send(
+    jsonb_build_object(
+      'type',      v_event,
+      'user_id',   v_row.user_id,
+      'server_id', v_row.server_id
+    ),
+    'presence_event',
+    'server-presence:' || v_row.server_id::text
+  );
+
+  RETURN COALESCE(NEW, OLD);
+EXCEPTION WHEN OTHERS THEN
+  RETURN COALESCE(NEW, OLD);
+END;
+$$;
+
+-- Profile UPDATE → server-presence:{server_id} for each server the user belongs to
+CREATE OR REPLACE FUNCTION public.broadcast_profile_change()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_server_id uuid;
+BEGIN
+  IF OLD.display_name   IS NOT DISTINCT FROM NEW.display_name
+     AND OLD.avatar_url IS NOT DISTINCT FROM NEW.avatar_url
+     AND OLD.banner_url IS NOT DISTINCT FROM NEW.banner_url
+     AND OLD.color      IS NOT DISTINCT FROM NEW.color
+     AND OLD.bio        IS NOT DISTINCT FROM NEW.bio
+     AND OLD.username   IS NOT DISTINCT FROM NEW.username
+     AND OLD.custom_status IS NOT DISTINCT FROM NEW.custom_status
+     AND OLD.federation_metadata IS NOT DISTINCT FROM NEW.federation_metadata
+  THEN
+    RETURN NEW;
+  END IF;
+
+  FOR v_server_id IN
+    SELECT server_id FROM user_servers WHERE user_id = NEW.id
+  LOOP
+    PERFORM realtime.send(
+      jsonb_build_object(
+        'type',                 'profile:updated',
+        'user_id',              NEW.id,
+        'display_name',         NEW.display_name,
+        'avatar_url',           NEW.avatar_url,
+        'banner_url',           NEW.banner_url,
+        'color',                NEW.color,
+        'bio',                  NEW.bio,
+        'username',             NEW.username,
+        'custom_status',        NEW.custom_status,
+        'federation_metadata',  NEW.federation_metadata
+      ),
+      'presence_event',
+      'server-presence:' || v_server_id::text
+    );
+  END LOOP;
+
+  RETURN NEW;
+EXCEPTION WHEN OTHERS THEN
+  RETURN NEW;
+END;
+$$;
+
+-- =========================================================================
+-- User-scoped broadcast functions (mutes, blocks)
+-- These send to user:{id} with event "user_event" for cross-device sync.
+-- =========================================================================
+
+-- User mutes INSERT/DELETE → user:{muter_id}
+CREATE OR REPLACE FUNCTION public.broadcast_user_mute_change()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_row    record;
+  v_user   uuid;
+BEGIN
+  IF TG_OP = 'DELETE' THEN
+    v_row  := OLD;
+    v_user := OLD.muter_id;
+  ELSE
+    v_row  := NEW;
+    v_user := NEW.muter_id;
+  END IF;
+
+  PERFORM realtime.send(
+    jsonb_build_object(
+      'type', 'mute:' || lower(TG_OP),
+      'muted_user_id', v_row.muted_user_id
+    ),
+    'user_event',
+    'user:' || v_user::text,
+    true
+  );
+
+  RETURN COALESCE(NEW, OLD);
+EXCEPTION WHEN OTHERS THEN
+  RETURN COALESCE(NEW, OLD);
+END;
+$$;
+
+-- User blocks INSERT/DELETE → user:{blocker_id}
+CREATE OR REPLACE FUNCTION public.broadcast_user_block_change()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_row    record;
+  v_user   uuid;
+BEGIN
+  IF TG_OP = 'DELETE' THEN
+    v_row  := OLD;
+    v_user := OLD.blocker_id;
+  ELSE
+    v_row  := NEW;
+    v_user := NEW.blocker_id;
+  END IF;
+
+  PERFORM realtime.send(
+    jsonb_build_object(
+      'type', 'block:' || lower(TG_OP),
+      'blocked_user_id', v_row.blocked_user_id
+    ),
+    'user_event',
+    'user:' || v_user::text,
+    true
+  );
+
   RETURN COALESCE(NEW, OLD);
 EXCEPTION WHEN OTHERS THEN
   RETURN COALESCE(NEW, OLD);
