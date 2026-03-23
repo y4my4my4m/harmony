@@ -29,7 +29,7 @@ SUPABASE_URL=your_supabase_url
 SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
 
 # Server Configuration
-PORT=3001
+PORT=3002
 NODE_ENV=development
 
 # Instance Configuration
@@ -42,16 +42,16 @@ INSTANCE_DOMAIN=localhost:3000
 npm run dev
 ```
 
-The gateway will start on `http://localhost:3001`
+The gateway will start on `http://localhost:3002` (default port; federation-backend uses port 3001)
 
-- WebSocket Gateway: `ws://localhost:3001/gateway`
-- REST API: `http://localhost:3001/api/v1`
+- WebSocket Gateway: `ws://localhost:3002/gateway`
+- REST API: `http://localhost:3002/api/v1`
 
 ## Bot Connection
 
 ### WebSocket Protocol
 
-1. **Connect** to `ws://localhost:3001/gateway`
+1. **Connect** to `ws://localhost:3002/gateway`
 2. **Identify** with bot token:
 ```json
 {
@@ -139,7 +139,7 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci --only=production
 COPY dist ./dist
-EXPOSE 3001
+EXPOSE 3002
 CMD ["npm", "start"]
 ```
 

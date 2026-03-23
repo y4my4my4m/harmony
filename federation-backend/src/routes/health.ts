@@ -54,8 +54,22 @@ router.get('/', async (req: Request, res: Response) => {
  * Trigger maintenance tasks manually (admin use)
  * POST /health/maintenance
  * Body: { task: 'keygen-sweep' | 'cleanup-orphans' }
+ * Requires admin authentication.
  */
 router.post('/maintenance', requireAuth, async (req: Request, res: Response) => {
+  // requireAuth already verified the JWT; now enforce admin-only access
+  const authUser = (req as any).user;
+  const supabase = getSupabaseClient();
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('is_admin')
+    .eq('auth_user_id', authUser.id)
+    .single();
+
+  if (!profile?.is_admin) {
+    return sendError(res, 'Admin access required', 403);
+  }
+
   const { task } = req.body;
   
   const validTasks = ['keygen-sweep', 'cleanup-orphans', 'verify-federation'];

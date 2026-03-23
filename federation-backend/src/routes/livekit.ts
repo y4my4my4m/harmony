@@ -1,8 +1,8 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { livekitService, type TokenRequest, type FederatedTokenRequest } from '../services/LiveKitService.js';
-import { getSupabaseClient } from '../config/supabase.js';
-import { requireAuth, type AuthenticatedRequest } from '../middleware/auth.js';
+import { getSupabaseClient, getSupabaseClientWithAuth } from '../config/supabase.js';
+import { SignatureService } from '../activitypub/SignatureService.js';
 import { logger } from '../utils/logger.js';
 import config from '../config/index.js';
 
@@ -32,6 +32,35 @@ const federatedTokenRequestSchema = z.object({
 // =============================================================================
 // MIDDLEWARE
 // =============================================================================
+
+/**
+ * Middleware to verify user authentication via Supabase JWT
+ */
+const requireAuth = async (req: Request, res: Response, next: Function) => {
+  const authHeader = req.headers.authorization;
+  
+  if (!authHeader?.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Missing or invalid authorization header' });
+  }
+  
+  const token = authHeader.substring(7);
+  
+  try {
+    const supabase = getSupabaseClientWithAuth(token);
+    const { data: { user }, error } = await supabase.auth.getUser();
+    
+    if (error || !user) {
+      return res.status(401).json({ error: 'Invalid or expired token' });
+    }
+    
+    // Attach user to request
+    (req as any).user = user;
+    next();
+  } catch (error) {
+    logger.error('Auth verification failed:', error);
+    return res.status(401).json({ error: 'Authentication failed' });
+  }
+};
 
 /**
  * Check if LiveKit is configured
@@ -118,7 +147,7 @@ router.post('/token', requireAuth, requireLiveKit, async (req: Request, res: Res
       });
     }
     
-    const user = (req as AuthenticatedRequest).user;
+    const user = (req as any).user;
     const { roomName, roomType, canPublish, canSubscribe, canPublishData, metadata } = validation.data;
     
     const tokenRequest: TokenRequest = {
@@ -173,11 +202,25 @@ router.post('/federated-token', requireLiveKit, async (req: Request, res: Respon
     
     const { actorId, roomName, roomType, canPublish, canSubscribe } = validation.data;
     
-    // TODO: Verify HTTP Signature from the requesting instance
-    // For now, we do basic validation
-    
-    // Get signature from headers (ActivityPub standard)
-    const signature = req.headers.signature as string | undefined;
+    // Verify HTTP Signature from the requesting instance
+    const signatureHeader = req.headers.signature as string | undefined;
+    if (!signatureHeader) {
+      return res.status(401).json({ error: 'Missing HTTP Signature - federated requests must be signed' });
+    }
+
+    const rawBody = (req as any).rawBody as Buffer | undefined;
+    const verification = await SignatureService.verifySignature(
+      signatureHeader,
+      req.headers as Record<string, string>,
+      req.method,
+      req.originalUrl || req.path,
+      rawBody || req.body
+    );
+
+    if (!verification.verified) {
+      logger.warn(`🚫 Rejecting federated token request with invalid signature: ${verification.error}`);
+      return res.status(401).json({ error: `Invalid HTTP Signature: ${verification.error}` });
+    }
     
     const tokenRequest: FederatedTokenRequest = {
       actorId,
@@ -185,7 +228,7 @@ router.post('/federated-token', requireLiveKit, async (req: Request, res: Respon
       roomType,
       canPublish,
       canSubscribe,
-      signature,
+      signature: signatureHeader,
     };
     
     const token = await livekitService.generateFederatedToken(tokenRequest);
@@ -219,8 +262,9 @@ router.post('/federated-token', requireLiveKit, async (req: Request, res: Respon
  */
 router.get('/rooms', requireAuth, requireLiveKit, async (req: Request, res: Response) => {
   try {
-    const user = (req as AuthenticatedRequest).user;
+    const user = (req as any).user;
     
+    // Check if user is admin (user.id is auth UUID, use auth_user_id)
     const supabase = getSupabaseClient();
     const { data: profile } = await supabase
       .from('profiles')
@@ -282,8 +326,9 @@ router.get('/rooms/:roomName/participants', requireAuth, requireLiveKit, async (
  */
 router.delete('/rooms/:roomName', requireAuth, requireLiveKit, async (req: Request, res: Response) => {
   try {
-    const user = (req as AuthenticatedRequest).user;
+    const user = (req as any).user;
     
+    // Check if user is admin (user.id is auth UUID, use auth_user_id)
     const supabase = getSupabaseClient();
     const { data: profile } = await supabase
       .from('profiles')
@@ -315,10 +360,9 @@ router.delete('/rooms/:roomName', requireAuth, requireLiveKit, async (req: Reque
  */
 router.post('/rooms/:roomName/participants/:identity/remove', requireAuth, requireLiveKit, async (req: Request, res: Response) => {
   try {
-    const user = (req as AuthenticatedRequest).user;
+    const user = (req as any).user;
     const { roomName, identity } = req.params;
     
-    // TODO: Check if user has moderation permissions in this room
     const supabase = getSupabaseClient();
     const { data: profile } = await supabase
       .from('profiles')
@@ -349,11 +393,10 @@ router.post('/rooms/:roomName/participants/:identity/remove', requireAuth, requi
  */
 router.post('/rooms/:roomName/participants/:identity/permissions', requireAuth, requireLiveKit, async (req: Request, res: Response) => {
   try {
-    const user = (req as AuthenticatedRequest).user;
+    const user = (req as any).user;
     const { roomName, identity } = req.params;
     const { canPublish, canSubscribe, canPublishData } = req.body;
     
-    // TODO: Check if user has moderation permissions in this room
     const supabase = getSupabaseClient();
     const { data: profile } = await supabase
       .from('profiles')
@@ -392,7 +435,7 @@ router.post('/rooms/:roomName/participants/:identity/permissions', requireAuth, 
  */
 router.post('/federated-call/invite', requireAuth, requireLiveKit, async (req: Request, res: Response) => {
   try {
-    const user = (req as AuthenticatedRequest).user;
+    const user = (req as any).user;
     const { callerFederatedId, calleeFederatedId, callType, conversationId, livekitUrl, roomName } = req.body;
     
     if (!callerFederatedId || !calleeFederatedId || !callType || !livekitUrl || !roomName) {
@@ -446,14 +489,14 @@ router.post('/federated-call/invite', requireAuth, requireLiveKit, async (req: R
  */
 router.post('/federated-call/accept', requireAuth, requireLiveKit, async (req: Request, res: Response) => {
   try {
-    const user = (req as AuthenticatedRequest).user;
+    const user = (req as any).user;
     const { conversationId, callerFederatedId } = req.body;
     
     if (!conversationId || !callerFederatedId) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
     
-    // Get acceptor's federated ID
+    // Get acceptor's federated ID (user.id is auth UUID)
     const supabase = getSupabaseClient();
     const { data: acceptor } = await supabase
       .from('profiles')
@@ -525,14 +568,14 @@ router.post('/federated-call/accept', requireAuth, requireLiveKit, async (req: R
  */
 router.post('/federated-call/reject', requireAuth, requireLiveKit, async (req: Request, res: Response) => {
   try {
-    const user = (req as AuthenticatedRequest).user;
+    const user = (req as any).user;
     const { conversationId, callerFederatedId } = req.body;
     
     if (!conversationId || !callerFederatedId) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
     
-    // Get rejector's federated ID
+    // Get rejector's federated ID (user.id is auth UUID)
     const supabase = getSupabaseClient();
     const { data: rejector } = await supabase
       .from('profiles')
@@ -600,14 +643,14 @@ router.post('/federated-call/reject', requireAuth, requireLiveKit, async (req: R
  */
 router.post('/federated-call/end', requireAuth, requireLiveKit, async (req: Request, res: Response) => {
   try {
-    const user = (req as AuthenticatedRequest).user;
+    const user = (req as any).user;
     const { conversationId, otherParticipantFederatedId } = req.body;
     
     if (!conversationId) {
       return res.status(400).json({ error: 'Missing conversationId' });
     }
     
-    // Get user's federated ID
+    // Get user's federated ID (user.id is auth UUID)
     const supabase = getSupabaseClient();
     const { data: ender } = await supabase
       .from('profiles')

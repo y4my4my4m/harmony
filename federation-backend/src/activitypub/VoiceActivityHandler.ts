@@ -889,11 +889,11 @@ export class VoiceActivityHandler {
     const supabase = getSupabaseClient();
     const hostDomain = config.INSTANCE_DOMAIN;
 
-    // Get user - use maybeSingle() to avoid throwing on 0 rows
+    // Get user by auth UUID - use maybeSingle() to avoid throwing on 0 rows
     const { data: user } = await supabase
       .from('profiles')
       .select('id, username, federated_id, is_local')
-      .eq('id', userId)
+      .eq('auth_user_id', userId)
       .maybeSingle();
 
     if (!user?.is_local) {
@@ -937,10 +937,10 @@ export class VoiceActivityHandler {
       server.name
     );
 
-    // Send to server inbox
+    // Send to server inbox (use profile.id as the sender for signing)
     if (server.federation_inbox_url) {
       const { DeliveryQueue } = await import('./DeliveryQueue.js');
-      await DeliveryQueue.sendToInbox(server.federation_inbox_url, joinActivity, userId);
+      await DeliveryQueue.sendToInbox(server.federation_inbox_url, joinActivity, user.id);
       logger.info(`📞 Federated voice channel join to ${server.federation_inbox_url}`);
     }
   }
@@ -956,11 +956,11 @@ export class VoiceActivityHandler {
     const supabase = getSupabaseClient();
     const hostDomain = config.INSTANCE_DOMAIN;
 
-    // Get user - use maybeSingle() to avoid throwing on 0 rows
+    // Get user by auth UUID - use maybeSingle() to avoid throwing on 0 rows
     const { data: user } = await supabase
       .from('profiles')
       .select('id, username, federated_id, is_local')
-      .eq('id', userId)
+      .eq('auth_user_id', userId)
       .maybeSingle();
 
     if (!user?.is_local) {
@@ -995,7 +995,7 @@ export class VoiceActivityHandler {
 
     if (server.federation_inbox_url) {
       const { DeliveryQueue } = await import('./DeliveryQueue.js');
-      await DeliveryQueue.sendToInbox(server.federation_inbox_url, leaveActivity, userId);
+      await DeliveryQueue.sendToInbox(server.federation_inbox_url, leaveActivity, user.id);
       logger.info(`📞 Federated voice channel leave to ${server.federation_inbox_url}`);
     }
   }

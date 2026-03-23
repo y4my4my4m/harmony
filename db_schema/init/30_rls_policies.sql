@@ -10,6 +10,7 @@ RETURNS uuid
 LANGUAGE sql
 STABLE
 SECURITY DEFINER
+SET search_path = public
 AS $$
     SELECT id FROM public.profiles WHERE auth_user_id = auth.uid() LIMIT 1;
 $$;

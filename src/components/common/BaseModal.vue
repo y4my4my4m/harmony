@@ -40,7 +40,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, onUnmounted } from 'vue'
+import { onMounted, onUnmounted, watch } from 'vue'
 import Icon from '@/components/common/Icon.vue'
 
 interface Props {
@@ -78,6 +78,10 @@ const handleKeydown = (event: KeyboardEvent) => {
     emit('close')
   }
 }
+
+watch(() => props.show, (visible) => {
+  document.body.style.overflow = visible ? 'hidden' : ''
+})
 
 onMounted(() => {
   document.addEventListener('keydown', handleKeydown)

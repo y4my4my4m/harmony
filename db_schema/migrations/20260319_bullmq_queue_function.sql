@@ -25,6 +25,7 @@ CREATE OR REPLACE FUNCTION public.queue_federation_job(
 )
 RETURNS uuid
 LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
     v_job_id uuid;

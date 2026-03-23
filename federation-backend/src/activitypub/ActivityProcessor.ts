@@ -17,10 +17,33 @@ import config from '../config/index.js';
 /**
  * Extract message UUID from a URL like https://domain/messages/{uuid}
  */
-function extractMessageId(url: string): string | null {
+export function extractMessageId(url: string): string | null {
   if (!url || typeof url !== 'string') return null;
   const match = url.match(/\/messages\/([a-f0-9-]{36})/);
   return match ? match[1] : null;
+}
+
+/**
+ * Determine post visibility from ActivityPub 'to' and 'cc' fields.
+ * Exported for direct testing.
+ */
+export function determineVisibility(object: any): string {
+  const to = Array.isArray(object.to) ? object.to : [object.to].filter(Boolean);
+  const cc = Array.isArray(object.cc) ? object.cc : [object.cc].filter(Boolean);
+
+  const publicUrl = 'https://www.w3.org/ns/activitystreams#Public';
+
+  if (to.includes(publicUrl)) return 'public';
+  if (cc.includes(publicUrl)) return 'unlisted';
+
+  const allRecipients = [...to, ...cc];
+  const hasFollowersCollection = allRecipients.some(
+    (url: any) => typeof url === 'string' && url.includes('/followers')
+  );
+
+  if (!hasFollowersCollection && allRecipients.length > 0) return 'direct';
+  if (hasFollowersCollection) return 'followers';
+  return 'unlisted';
 }
 
 /**
@@ -2649,43 +2672,11 @@ export class ActivityProcessor {
   }
 
   /**
-   * Determine post visibility from ActivityPub 'to' and 'cc' fields
+   * Determine post visibility from ActivityPub 'to' and 'cc' fields.
+   * Delegates to the module-level exported function.
    */
   private static determineVisibility(object: any): string {
-    const to = Array.isArray(object.to) ? object.to : [object.to].filter(Boolean);
-    const cc = Array.isArray(object.cc) ? object.cc : [object.cc].filter(Boolean);
-
-    const publicUrl = 'https://www.w3.org/ns/activitystreams#Public';
-
-    // Public: has Public in 'to'
-    if (to.includes(publicUrl)) {
-      return 'public';
-    }
-    
-    // Unlisted: has Public in 'cc' but not 'to'
-    if (cc.includes(publicUrl)) {
-      return 'unlisted';
-    }
-    
-    // Direct message: addressed to specific users only (no Public, no followers collection)
-    // Check if all recipients are individual user URLs (not collections)
-    const allRecipients = [...to, ...cc];
-    const hasFollowersCollection = allRecipients.some(url => 
-      typeof url === 'string' && url.includes('/followers')
-    );
-    
-    if (!hasFollowersCollection && allRecipients.length > 0) {
-      // Only specific users mentioned, no followers collection = direct message
-      return 'direct';
-    }
-    
-    // Followers-only: has followers collection but no Public
-    if (hasFollowersCollection) {
-      return 'followers';
-    }
-    
-    // Default to unlisted if we can't determine
-    return 'unlisted';
+    return determineVisibility(object);
   }
 }
 

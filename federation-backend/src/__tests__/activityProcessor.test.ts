@@ -1,55 +1,5 @@
-import { describe, it, expect, vi } from 'vitest'
-
-vi.mock('../config/supabase.js', () => ({
-  getSupabaseClient: vi.fn(() => ({
-    from: vi.fn(),
-    rpc: vi.fn(),
-  })),
-}))
-vi.mock('../config/index.js', () => ({
-  default: {
-    INSTANCE_DOMAIN: 'harmony.test',
-    SUPABASE_URL: 'http://localhost:54321',
-    PUBLIC_SUPABASE_URL: 'http://localhost:54321',
-  },
-  config: {
-    INSTANCE_DOMAIN: 'harmony.test',
-  },
-}))
-vi.mock('../utils/logger.js', () => ({
-  logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
-}))
-vi.mock('../activitypub/VoiceActivityHandler.js', () => ({
-  VoiceActivityHandler: {
-    isVoiceActivity: vi.fn(() => false),
-    processVoiceActivity: vi.fn(),
-  },
-}))
-
-// Access the private determineVisibility via the module's internals.
-// Since it's a private static method, we test it indirectly through the module.
-// The cleanest approach is to extract and test the visibility logic directly.
-
-// We'll replicate the visibility logic here and test it, since the original
-// is a private static method. This ensures the LOGIC is correct.
-function determineVisibility(object: any): string {
-  const to = Array.isArray(object.to) ? object.to : [object.to].filter(Boolean)
-  const cc = Array.isArray(object.cc) ? object.cc : [object.cc].filter(Boolean)
-
-  const publicUrl = 'https://www.w3.org/ns/activitystreams#Public'
-
-  if (to.includes(publicUrl)) return 'public'
-  if (cc.includes(publicUrl)) return 'unlisted'
-
-  const allRecipients = [...to, ...cc]
-  const hasFollowersCollection = allRecipients.some(
-    (url: any) => typeof url === 'string' && url.includes('/followers')
-  )
-
-  if (!hasFollowersCollection && allRecipients.length > 0) return 'direct'
-  if (hasFollowersCollection) return 'followers'
-  return 'unlisted'
-}
+import { describe, it, expect } from 'vitest'
+import { determineVisibility, extractMessageId } from '../activitypub/ActivityProcessor.js'
 
 describe('determineVisibility (ActivityPub audience targeting)', () => {
   const PUBLIC = 'https://www.w3.org/ns/activitystreams#Public'
@@ -155,13 +105,6 @@ describe('determineVisibility (ActivityPub audience targeting)', () => {
 })
 
 describe('ActivityPub extractMessageId', () => {
-  // Test the UUID extraction from message URLs
-  function extractMessageId(url: string): string | null {
-    if (!url || typeof url !== 'string') return null
-    const match = url.match(/\/messages\/([a-f0-9-]{36})/)
-    return match ? match[1] : null
-  }
-
   it('extracts UUID from valid message URL', () => {
     expect(extractMessageId('https://harmony.test/messages/550e8400-e29b-41d4-a716-446655440000'))
       .toBe('550e8400-e29b-41d4-a716-446655440000')

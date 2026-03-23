@@ -12,6 +12,7 @@ RETURNS boolean
 LANGUAGE sql
 STABLE
 SECURITY DEFINER
+SET search_path = public
 AS $$
     SELECT COALESCE(
         (SELECT is_admin FROM public.profiles WHERE auth_user_id = auth.uid()),
@@ -27,6 +28,7 @@ RETURNS boolean
 LANGUAGE sql
 STABLE
 SECURITY DEFINER
+SET search_path = public
 AS $$
     SELECT COALESCE(
         (SELECT is_moderator FROM public.profiles WHERE auth_user_id = auth.uid()),
@@ -42,6 +44,7 @@ RETURNS boolean
 LANGUAGE sql
 STABLE
 SECURITY DEFINER
+SET search_path = public
 AS $$
     SELECT COALESCE(
         (SELECT (is_admin OR is_moderator) FROM public.profiles WHERE auth_user_id = auth.uid()),
@@ -58,6 +61,7 @@ RETURNS boolean
 LANGUAGE plpgsql
 STABLE
 SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
     v_profile_id uuid;

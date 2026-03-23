@@ -11,6 +11,15 @@
         {{ $t('server.leaveServer') }}
       </li>
     </ul>
+
+    <ConfirmationModal
+      :show="confirmDialogVisible"
+      :title="confirmDialogTitle"
+      :message="confirmDialogMessage"
+      :confirm-button-text="confirmDialogConfirmText"
+      @confirm="handleConfirm"
+      @close="handleClose"
+    />
   </div>
 </template>
   
@@ -18,6 +27,7 @@
 import { computed, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useServerPermissions } from '@/composables/useServerPermissions';
+import { useConfirmDialog } from '@/composables/useConfirmDialog';
 import { useServerChannelStore } from '@/stores/useServerChannel';
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
 import { useChatStore } from '@/stores/useChat';
@@ -25,6 +35,7 @@ import { useAuthStore } from '@/stores/auth';
 import { supabase } from '@/supabase';
 import { useToast } from 'vue-toastification';
 import { federationServerService } from '@/services/federation/FederationServerService';
+import ConfirmationModal from '@/components/ConfirmationModal.vue';
 
 interface Props {
   serverId?: string
@@ -87,13 +98,26 @@ const generateInviteLink = () => {
   closeDropdown();
 };
 
+const {
+  confirm,
+  confirmDialogVisible,
+  confirmDialogTitle,
+  confirmDialogMessage,
+  confirmDialogConfirmText,
+  handleConfirm,
+  handleClose,
+} = useConfirmDialog()
+
 const confirmLeaveServer = async () => {
   const server = serverChannelStore.currentServer;
   if (!server || !props.serverId) return;
   
-  const confirmed = window.confirm(
-    `Are you sure you want to leave "${server.name}"? You will lose access to all channels and messages.`
-  );
+  const confirmed = await confirm({
+    title: 'Leave Server',
+    message: `Are you sure you want to leave "${server.name}"? You will lose access to all channels and messages.`,
+    confirmButtonText: 'Leave',
+    dangerAction: true,
+  });
   
   if (!confirmed) {
     closeDropdown();
