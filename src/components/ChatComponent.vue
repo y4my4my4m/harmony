@@ -13,7 +13,6 @@
 
     <MessageDisplay 
       ref="messageDisplayRef"
-      data-chat-messages
       :messages="messages" 
       :isLoading="isLoading"
       :currentUserId="currentUserId"
