@@ -3,6 +3,7 @@
     class="message-display"
     ref="messageDisplayContainer"
     data-chat-messages
+    v-bind="$attrs"
     @scroll="handleScroll"
     @click="dismissMobileActions"
     data-testid="message-list"
@@ -449,7 +450,6 @@
   
   <vue-easy-lightbox
     teleport="body"
-    class="lightbox"
     :visible="isLightboxOpen"
     :imgs="activeLightboxImages"
     :index="indexRef"
@@ -537,6 +537,7 @@
 </template>
 
 <script setup lang="ts">
+defineOptions({ inheritAttrs: false })
 import { computed, ref, watch, nextTick, onMounted, onUnmounted, reactive } from 'vue';
 import { debug } from '@/utils/debug'
 import type { PropType, Ref, ComputedRef } from 'vue';

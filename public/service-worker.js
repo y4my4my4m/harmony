@@ -517,6 +517,13 @@ self.addEventListener('fetch', (event) => {
     // Critical API requests - network first with enhanced error handling
     event.respondWith(enhancedNetworkFirst(event.request, API_CACHE))
   } else if (isCSSRequest) {
+    // Vite dev serves imported *.css as JS modules (Content-Type: text/javascript).
+    // Caching those as CSS breaks validation and spams the console; let the dev server handle them.
+    const isViteSourceStyle =
+      url.pathname.startsWith('/src/') || url.pathname.includes('/node_modules/')
+    if (isViteSourceStyle) {
+      return
+    }
     // Static CSS assets - stale while revalidate (better for mobile)
     event.respondWith(staleWhileRevalidate(event.request, STATIC_CACHE))
   }
