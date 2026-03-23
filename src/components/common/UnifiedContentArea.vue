@@ -368,7 +368,9 @@ const getSpecialViewEmptyMessage = (viewType: any) => {
 
 .special-view {
   height: 100%;
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   background: var(--background-primary);
 }
 

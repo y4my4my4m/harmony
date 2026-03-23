@@ -2050,7 +2050,7 @@ export class ActivityProcessor {
     // Check if user already exists by federated_id
     const { data: existing } = await supabase
       .from('profiles')
-      .select('id, updated_at, federated_id, username, display_name, avatar_url, color')
+      .select('id, updated_at, federated_id, username, display_name, avatar_url, color, federation_metadata')
       .eq('federated_id', actorUrl)
       .maybeSingle();
 
@@ -2136,6 +2136,24 @@ export class ActivityProcessor {
       // Include Harmony extension: profile color
       if (profileData.color) {
         profileRecord.color = profileData.color;
+      }
+
+      // Persist shared inbox URL for delivery optimization
+      if (actor.endpoints?.sharedInbox) {
+        profileRecord.shared_inbox_url = actor.endpoints.sharedInbox;
+      }
+
+      // Persist custom emoji metadata so the frontend can render shortcodes
+      if (profileData.display_name_emojis?.length || profileData.bio_emojis?.length) {
+        const existingMeta = (existing as any)?.federation_metadata || {};
+        const meta = typeof existingMeta === 'string' ? JSON.parse(existingMeta) : { ...existingMeta };
+        if (profileData.display_name_emojis?.length) {
+          meta.display_name_emojis = profileData.display_name_emojis;
+        }
+        if (profileData.bio_emojis?.length) {
+          meta.bio_emojis = profileData.bio_emojis;
+        }
+        profileRecord.federation_metadata = meta;
       }
 
       // Upsert the profile

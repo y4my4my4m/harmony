@@ -179,7 +179,7 @@ export const useNotificationStore = defineStore('notification', {
     // Get unread count for specific notification types
     unreadMentions: (state) => {
       return state.notifications.filter(
-        n => !n.is_read && (n.type === 'mention' || n.type === 'activitypub_mention')
+        n => !n.is_read && n.type === 'activitypub_mention'
       ).length
     },
 

@@ -871,9 +871,6 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
 AS $$
-DECLARE
-    v_job_id uuid;
-    v_has_pgboss boolean := false;
 BEGIN
     IF NEW.is_local != true THEN
         RETURN NEW;
@@ -891,41 +888,22 @@ BEGIN
         END IF;
     END IF;
 
-    SELECT EXISTS (
-        SELECT 1 FROM information_schema.tables
-        WHERE table_schema = 'pgboss' AND table_name = 'job'
-    ) INTO v_has_pgboss;
-
-    IF v_has_pgboss THEN
-        INSERT INTO pgboss.job (
-            id, name, data, priority, retry_limit, expire_in, created_on, state
-        ) VALUES (
-            gen_random_uuid(), 'federate-profile',
-            jsonb_build_object(
-                'type', CASE WHEN TG_OP = 'INSERT' THEN 'create' ELSE 'update' END,
-                'profile_id', NEW.id,
-                'username', NEW.username,
-                'display_name', NEW.display_name,
-                'bio', NEW.bio,
-                'avatar_url', NEW.avatar_url,
-                'banner_url', NEW.banner_url,
-                'custom_status', NEW.custom_status
-            ),
-            3, 5, interval '1 hour', now(), 'created'
-        ) RETURNING id INTO v_job_id;
-        RAISE LOG 'Queued profile federation for % (job: %)', NEW.username, v_job_id;
-    ELSE
-        RAISE LOG 'Profile federation skipped for % - pg-boss not initialized', NEW.username;
-    END IF;
+    PERFORM public.queue_federation_job(
+        'federate-profile',
+        jsonb_build_object(
+            'type', CASE WHEN TG_OP = 'INSERT' THEN 'create' ELSE 'update' END,
+            'profile_id', NEW.id,
+            'username', NEW.username,
+            'display_name', NEW.display_name,
+            'bio', NEW.bio,
+            'avatar_url', NEW.avatar_url,
+            'banner_url', NEW.banner_url,
+            'custom_status', NEW.custom_status
+        ),
+        3, 5, 3600
+    );
 
     RETURN NEW;
-EXCEPTION
-    WHEN undefined_table THEN
-        RAISE LOG 'Profile federation skipped - required tables not available';
-        RETURN NEW;
-    WHEN OTHERS THEN
-        RAISE LOG 'Profile federation error: %', SQLERRM;
-        RETURN NEW;
 END;
 $$;
 
@@ -2867,6 +2845,30 @@ BEGIN
   RETURN NEW;
 EXCEPTION WHEN OTHERS THEN
   RETURN NEW;
+END;
+$$;
+
+-- Broadcast server settings changes to server-structure:{server_id} topic.
+-- Covers server_encryption_settings and any future per-server settings tables.
+CREATE OR REPLACE FUNCTION public.broadcast_server_settings_change()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  PERFORM realtime.send(
+    jsonb_build_object(
+      'type', 'settings:' || lower(TG_OP),
+      'table', TG_TABLE_NAME,
+      'new', CASE WHEN TG_OP != 'DELETE' THEN to_jsonb(NEW) ELSE NULL END,
+      'old', CASE WHEN TG_OP != 'INSERT' THEN to_jsonb(OLD) ELSE NULL END
+    ),
+    'server_event',
+    'server-structure:' || NEW.server_id::text
+  );
+  RETURN COALESCE(NEW, OLD);
+EXCEPTION WHEN OTHERS THEN
+  RETURN COALESCE(NEW, OLD);
 END;
 $$;
 

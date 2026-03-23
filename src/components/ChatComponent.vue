@@ -460,6 +460,14 @@
         }
       }
 
+      // Listen for server settings changes (encryption mode, etc.) via server-structure broadcast
+      function handleServerSettingsChange(event: Event) {
+        const detail = (event as CustomEvent).detail
+        if (!props.isDM && detail?.table === 'server_encryption_settings') {
+          checkEncryptionStatus()
+        }
+      }
+
       watch(
         () => serverChannelStore.currentServerId,
         () => { if (!props.isDM) checkEncryptionStatus() },
@@ -495,6 +503,7 @@
         window.addEventListener('harmony-command', handleSlashCommand);
         window.addEventListener('encryption-fallback', handleEncryptionFallback);
         window.addEventListener('dm-encryption-toggled', handleDMEncryptionToggled);
+        window.addEventListener('server-structure:settings-change', handleServerSettingsChange);
       });
 
       onUnmounted(() => {
@@ -502,6 +511,7 @@
         window.removeEventListener('harmony-command', handleSlashCommand);
         window.removeEventListener('encryption-fallback', handleEncryptionFallback);
         window.removeEventListener('dm-encryption-toggled', handleDMEncryptionToggled);
+        window.removeEventListener('server-structure:settings-change', handleServerSettingsChange);
       });
 
       const replyingTo = (messageId: string, displayName: string, userId?: string) => {

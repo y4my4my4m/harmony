@@ -537,6 +537,13 @@ CREATE TRIGGER trg_broadcast_server_change
     FOR EACH ROW
     EXECUTE FUNCTION public.broadcast_server_change_event();
 
+DROP TRIGGER IF EXISTS trg_broadcast_encryption_settings ON public.server_encryption_settings;
+DROP TRIGGER IF EXISTS trg_broadcast_server_settings ON public.server_encryption_settings;
+CREATE TRIGGER trg_broadcast_server_settings
+    AFTER INSERT OR UPDATE ON public.server_encryption_settings
+    FOR EACH ROW
+    EXECUTE FUNCTION public.broadcast_server_settings_change();
+
 -- ---------------------------------------------------------------------------
 -- Unread count triggers
 -- ---------------------------------------------------------------------------

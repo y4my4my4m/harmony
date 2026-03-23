@@ -3312,7 +3312,7 @@ export const useActivityPubStore = defineStore('activitypub', {
            .from('notifications')
            .select('data, created_at')
            .eq('user_id', profileId)
-           .in('type', ['activitypub_mention', 'mention'])
+           .eq('type', 'activitypub_mention')
            .order('created_at', { ascending: false })
            .limit(limit);
 

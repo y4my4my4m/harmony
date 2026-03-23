@@ -1947,6 +1947,10 @@ export const useServerChannelStore = defineStore('serverChannel', {
             case 'thread:delete':
               window.dispatchEvent(new CustomEvent('server-structure:thread-change', { detail: data }));
               break;
+            case 'settings:insert':
+            case 'settings:update':
+              window.dispatchEvent(new CustomEvent('server-structure:settings-change', { detail: data }));
+              break;
           }
         })
         .subscribe((status) => {

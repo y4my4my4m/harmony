@@ -126,7 +126,7 @@ export class CoreMessageService {
         .eq('server_id', serverId)
         .maybeSingle()
       
-      const encryptionMode = serverSettings?.encryption_mode || 'optional'
+      const encryptionMode = serverSettings?.encryption_mode || 'disabled'
       debug.log(`🔐 Server encryption mode: ${encryptionMode}`)
 
       // Skip encryption if server has it disabled

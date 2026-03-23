@@ -643,6 +643,9 @@ watch(blockedUsersCount, (newCount, oldCount) => {
 
 const getDisplayContent = (message: Message): MessagePart[] => {
   if (!message.metadata?.federated) return message.content;
+  // Only strip leading self-mentions for DM conversations (ActivityPub convention),
+  // not for channel messages where @mentions are intentional content
+  if (!message.conversation_id && !props.conversationId) return message.content;
   const username = profileStore.profile?.username;
   if (!username) return message.content;
   return stripLeadingSelfMention(message.content, username);
