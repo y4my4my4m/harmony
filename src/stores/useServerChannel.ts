@@ -1176,11 +1176,14 @@ export const useServerChannelStore = defineStore('serverChannel', {
         throw new Error(`Server creation failed: ${error.message}`)
       }
 
+      // Add server to local state before addUserToServer so the realtime
+      // handler (_handleUserServerJoin) sees it and skips the duplicate push.
+      if (!this.servers.some(s => s.id === data.id)) {
+        this.servers.push(data)
+      }
+
       // Add the new server to the user's server list
       await this.addUserToServer(data.id, serverData.owner)
-      
-      // Add server to local state
-      this.servers.push(data)
       
       return data
     },
@@ -1205,11 +1208,14 @@ export const useServerChannelStore = defineStore('serverChannel', {
         throw error
       }
 
+      // Add server to local state before addUserToServer so the realtime
+      // handler (_handleUserServerJoin) sees it and skips the duplicate push.
+      if (!this.servers.some(s => s.id === data.id)) {
+        this.servers.push(data)
+      }
+
       // Add the new server to the user's server list
       await this.addUserToServer(data.id, serverData.owner)
-      
-      // Add server to local state
-      this.servers.push(data)
       
       debug.log('✅ Server created successfully with default structure:', data)
       return data
@@ -2177,7 +2183,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
       const serverId = payload.new.server_id;
       debug.log('📥 Real-time: User joined server:', serverId);
       
-      // Check if server already in list
+      // Check if server already in list (may have been added by createServer)
       if (this.servers.some(s => s.id === serverId)) {
         debug.log('⚠️ Server already in list, skipping duplicate');
         return;
@@ -2197,8 +2203,13 @@ export const useServerChannelStore = defineStore('serverChannel', {
         }
         
         if (server) {
-          this.servers.push(server);
-          debug.log('✅ Server added to list:', server.name);
+          // Re-check after async fetch to guard against race conditions
+          if (!this.servers.some(s => s.id === serverId)) {
+            this.servers.push(server);
+            debug.log('✅ Server added to list:', server.name);
+          } else {
+            debug.log('⚠️ Server was added while fetching, skipping duplicate');
+          }
         }
       } catch (error) {
         debug.error('Error handling server join:', error);

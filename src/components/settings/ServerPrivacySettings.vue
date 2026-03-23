@@ -107,7 +107,7 @@
               <input
                 type="checkbox"
                 :checked="isPublic"
-                @change="permissions.canChangePrivacySettings ? handlePublicToggle : null"
+                @change="handlePublicToggle"
                 :disabled="loading || !permissions.canChangePrivacySettings"
               />
               <span class="toggle-slider" :class="{ 'disabled': !permissions.canChangePrivacySettings }"></span>
