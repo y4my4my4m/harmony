@@ -696,6 +696,27 @@ CREATE TRIGGER trigger_role_mention_notifications
     WHEN (NEW.channel_id IS NOT NULL AND NEW.is_system = false)
     EXECUTE FUNCTION public.handle_role_mention_notifications();
 
+-- =========================================================================
+-- ActivityPub broadcast triggers: posts, interactions, follows
+-- =========================================================================
+DROP TRIGGER IF EXISTS trg_broadcast_post_event ON public.posts;
+CREATE TRIGGER trg_broadcast_post_event
+    AFTER INSERT OR UPDATE OR DELETE ON public.posts
+    FOR EACH ROW
+    EXECUTE FUNCTION public.broadcast_post_event();
+
+DROP TRIGGER IF EXISTS trg_broadcast_post_interaction ON public.post_interactions;
+CREATE TRIGGER trg_broadcast_post_interaction
+    AFTER INSERT OR DELETE ON public.post_interactions
+    FOR EACH ROW
+    EXECUTE FUNCTION public.broadcast_post_interaction_event();
+
+DROP TRIGGER IF EXISTS trg_broadcast_follow_event ON public.follows;
+CREATE TRIGGER trg_broadcast_follow_event
+    AFTER INSERT OR UPDATE OR DELETE ON public.follows
+    FOR EACH ROW
+    EXECUTE FUNCTION public.broadcast_follow_event();
+
 DO $$
 BEGIN
     RAISE NOTICE 'Triggers created successfully';
