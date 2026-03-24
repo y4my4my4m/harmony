@@ -69,7 +69,7 @@ export async function resolveMentionsUserData(content: string): Promise<Record<s
           userDataMap[user.username] = {
             userId: user.id,
             isLocal: user.is_local,
-            displayName: user.display_name || user.username
+            displayName: user.username
           };
         });
       }
@@ -109,7 +109,7 @@ export async function resolveMentionsUserData(content: string): Promise<Record<s
             userDataMap[key] = {
               userId: user.id,
               isLocal: user.is_local,
-              displayName: user.display_name || user.username
+              displayName: user.username
             };
           }
         });

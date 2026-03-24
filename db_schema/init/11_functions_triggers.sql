@@ -1309,6 +1309,144 @@ BEGIN
 END;
 $$;
 
+-- Queue channel CRUD for federation (real-time, complements sweep)
+CREATE OR REPLACE FUNCTION public.trigger_queue_channel_federation()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+    v_server_is_local boolean;
+    v_federation_enabled boolean;
+BEGIN
+    IF TG_OP = 'DELETE' THEN
+        SELECT s.is_local_server, s.federation_enabled
+        INTO v_server_is_local, v_federation_enabled
+        FROM servers s WHERE s.id = OLD.server_id;
+
+        IF v_server_is_local IS NOT TRUE OR v_federation_enabled IS NOT TRUE THEN
+            RETURN OLD;
+        END IF;
+
+        PERFORM public.queue_federation_job(
+            'federate-channel-crud',
+            jsonb_build_object('type', 'delete', 'channel_id', OLD.id, 'server_id', OLD.server_id),
+            5, 5, 900
+        );
+        RETURN OLD;
+    END IF;
+
+    IF NEW.is_remote THEN
+        NEW.federation_status := 'skipped';
+        RETURN NEW;
+    END IF;
+
+    SELECT s.is_local_server, s.federation_enabled
+    INTO v_server_is_local, v_federation_enabled
+    FROM servers s WHERE s.id = NEW.server_id;
+
+    IF v_server_is_local IS NOT TRUE OR v_federation_enabled IS NOT TRUE THEN
+        NEW.federation_status := 'skipped';
+        RETURN NEW;
+    END IF;
+
+    NEW.federation_status := 'queued';
+    PERFORM public.queue_federation_job(
+        'federate-channel-crud',
+        jsonb_build_object(
+            'type', CASE WHEN TG_OP = 'INSERT' THEN 'create' ELSE 'update' END,
+            'channel_id', NEW.id,
+            'server_id', NEW.server_id
+        ),
+        5, 5, 900
+    );
+    RETURN NEW;
+END;
+$$;
+
+-- Queue category CRUD for federation (real-time, complements sweep)
+CREATE OR REPLACE FUNCTION public.trigger_queue_category_federation()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+    v_server_is_local boolean;
+    v_federation_enabled boolean;
+BEGIN
+    IF TG_OP = 'DELETE' THEN
+        SELECT s.is_local_server, s.federation_enabled
+        INTO v_server_is_local, v_federation_enabled
+        FROM servers s WHERE s.id = OLD.server_id;
+
+        IF v_server_is_local IS NOT TRUE OR v_federation_enabled IS NOT TRUE THEN
+            RETURN OLD;
+        END IF;
+
+        PERFORM public.queue_federation_job(
+            'federate-category-crud',
+            jsonb_build_object('type', 'delete', 'category_id', OLD.id, 'server_id', OLD.server_id),
+            5, 5, 900
+        );
+        RETURN OLD;
+    END IF;
+
+    SELECT s.is_local_server, s.federation_enabled
+    INTO v_server_is_local, v_federation_enabled
+    FROM servers s WHERE s.id = NEW.server_id;
+
+    IF v_server_is_local IS NOT TRUE OR v_federation_enabled IS NOT TRUE THEN
+        NEW.federation_status := 'skipped';
+        RETURN NEW;
+    END IF;
+
+    NEW.federation_status := 'queued';
+    PERFORM public.queue_federation_job(
+        'federate-category-crud',
+        jsonb_build_object(
+            'type', CASE WHEN TG_OP = 'INSERT' THEN 'create' ELSE 'update' END,
+            'category_id', NEW.id,
+            'server_id', NEW.server_id
+        ),
+        5, 5, 900
+    );
+    RETURN NEW;
+END;
+$$;
+
+-- Queue server updates for federation (real-time, complements sweep)
+CREATE OR REPLACE FUNCTION public.trigger_queue_server_update_federation()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+    IF NEW.is_local_server IS NOT TRUE OR NEW.federation_enabled IS NOT TRUE THEN
+        RETURN NEW;
+    END IF;
+
+    IF OLD.name IS NOT DISTINCT FROM NEW.name
+       AND OLD.description IS NOT DISTINCT FROM NEW.description
+       AND OLD.icon IS NOT DISTINCT FROM NEW.icon
+       AND OLD.banner IS NOT DISTINCT FROM NEW.banner
+       AND OLD.public IS NOT DISTINCT FROM NEW.public
+       AND OLD.federation_enabled IS NOT DISTINCT FROM NEW.federation_enabled
+    THEN
+        RETURN NEW;
+    END IF;
+
+    PERFORM public.queue_federation_job(
+        'federate-server-update',
+        jsonb_build_object('type', 'update', 'server_id', NEW.id),
+        5, 5, 900
+    );
+    RETURN NEW;
+END;
+$$;
+
 -- Queue voice join/leave for federation
 CREATE OR REPLACE FUNCTION public.trigger_queue_voice_channel_join_federation()
 RETURNS trigger

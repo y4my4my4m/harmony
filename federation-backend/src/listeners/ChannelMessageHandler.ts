@@ -446,14 +446,15 @@ function createMessageActivity(
   const tags = extractActivityPubTags(message.content);
   const attachments = extractAttachments(message.content);
 
-  // Transform emoji URLs to absolute URLs for federation
+  // Transform content for federation:
+  // - Make emoji URLs absolute
+  // - Strip displayName from mentions (use username as canonical identifier;
+  //   display names contain custom emoji shortcodes that remote instances can't resolve)
   const federatedContent = Array.isArray(message.content) 
     ? message.content.map((item: any) => {
         if (item.type === 'emoji' && item.emoji?.url) {
-          // Make emoji URL absolute if it's relative
           let emojiUrl = item.emoji.url;
           if (!emojiUrl.startsWith('http://') && !emojiUrl.startsWith('https://')) {
-            // Relative URL - make it absolute using PUBLIC_SUPABASE_URL or SUPABASE_URL
             const baseUrl = config.PUBLIC_SUPABASE_URL || config.SUPABASE_URL;
             emojiUrl = emojiUrl.startsWith('/') ? `${baseUrl}${emojiUrl}` : `${baseUrl}/${emojiUrl}`;
           }
@@ -464,6 +465,10 @@ function createMessageActivity(
               url: emojiUrl
             }
           };
+        }
+        if (item.type === 'mention') {
+          const { displayName, ...rest } = item;
+          return rest;
         }
         return item;
       })

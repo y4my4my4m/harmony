@@ -2267,7 +2267,8 @@ export class ActivityProcessor {
     if (object['harmony:rawContent'] && Array.isArray(object['harmony:rawContent'])) {
       content = object['harmony:rawContent'].map((part: any) => {
         if (part.type === 'mention' && part.domain) {
-          return { ...part, isLocal: part.domain === config.INSTANCE_DOMAIN };
+          const { displayName, ...rest } = part;
+          return { ...rest, isLocal: part.domain === config.INSTANCE_DOMAIN };
         }
         return part;
       });

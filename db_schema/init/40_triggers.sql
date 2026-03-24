@@ -442,6 +442,39 @@ CREATE TRIGGER trigger_federate_block_delete
     FOR EACH ROW
     EXECUTE FUNCTION public.trigger_queue_block_federation();
 
+-- Queue channel CRUD for federation
+DROP TRIGGER IF EXISTS trigger_federate_channel ON public.channels;
+CREATE TRIGGER trigger_federate_channel
+    BEFORE INSERT OR UPDATE ON public.channels
+    FOR EACH ROW
+    EXECUTE FUNCTION public.trigger_queue_channel_federation();
+
+DROP TRIGGER IF EXISTS trigger_federate_channel_delete ON public.channels;
+CREATE TRIGGER trigger_federate_channel_delete
+    AFTER DELETE ON public.channels
+    FOR EACH ROW
+    EXECUTE FUNCTION public.trigger_queue_channel_federation();
+
+-- Queue category CRUD for federation
+DROP TRIGGER IF EXISTS trigger_federate_category ON public.channel_categories;
+CREATE TRIGGER trigger_federate_category
+    BEFORE INSERT OR UPDATE ON public.channel_categories
+    FOR EACH ROW
+    EXECUTE FUNCTION public.trigger_queue_category_federation();
+
+DROP TRIGGER IF EXISTS trigger_federate_category_delete ON public.channel_categories;
+CREATE TRIGGER trigger_federate_category_delete
+    AFTER DELETE ON public.channel_categories
+    FOR EACH ROW
+    EXECUTE FUNCTION public.trigger_queue_category_federation();
+
+-- Queue server update for federation
+DROP TRIGGER IF EXISTS trigger_federate_server_update ON public.servers;
+CREATE TRIGGER trigger_federate_server_update
+    AFTER UPDATE ON public.servers
+    FOR EACH ROW
+    EXECUTE FUNCTION public.trigger_queue_server_update_federation();
+
 -- Queue report for federation
 DROP TRIGGER IF EXISTS trigger_federate_report ON public.reports;
 CREATE TRIGGER trigger_federate_report

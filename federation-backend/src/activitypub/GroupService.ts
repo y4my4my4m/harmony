@@ -563,7 +563,15 @@ router.get(
           id: `https://${hostDomain}/messages/${message.id}`,
           attributedTo: authorApId,
           content: contentHtml,
-          'harmony:rawContent': message.content,
+          'harmony:rawContent': Array.isArray(message.content)
+            ? message.content.map((item: any) => {
+                if (item.type === 'mention') {
+                  const { displayName, ...rest } = item;
+                  return rest;
+                }
+                return item;
+              })
+            : message.content,
           context: channelUrl,
           'harmony:channelName': message.channel?.name,
           'harmony:serverId': serverId,
