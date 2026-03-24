@@ -123,7 +123,6 @@ class UserDataService extends EventTarget {
       const saved = userStorage.getItem('user_status')
       if (saved !== null) {
         const statusNumber = parseInt(saved, 10)
-        // Updated range to include Invisible (4)
         if (!isNaN(statusNumber) && statusNumber >= 0 && statusNumber <= 4) {
           debug.log('📱 Found status backup in localStorage:', UserStatus[statusNumber])
           return statusNumber as UserStatus
@@ -133,6 +132,34 @@ class UserDataService extends EventTarget {
       debug.warn('⚠️ Failed to read status from localStorage:', error)
     }
     return null
+  }
+
+  private getManualStatusFlag(): { wasManuallySet: boolean, manualStatus: UserStatus | null } {
+    try {
+      const saved = userStorage.getItem('manual_status_flag')
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        if (parsed.wasManuallySet && parsed.manualStatus !== null && parsed.manualStatus !== undefined) {
+          return { wasManuallySet: true, manualStatus: parsed.manualStatus as UserStatus }
+        }
+      }
+    } catch (_) { /* non-critical */ }
+    return { wasManuallySet: false, manualStatus: null }
+  }
+
+  private saveManualStatusFlag(): void {
+    try {
+      userStorage.setItem('manual_status_flag', JSON.stringify({
+        wasManuallySet: this.wasManuallySet,
+        manualStatus: this.manualStatus
+      }))
+    } catch (_) { /* non-critical */ }
+  }
+
+  private clearManualStatusFlag(): void {
+    try {
+      userStorage.removeItem('manual_status_flag')
+    } catch (_) { /* non-critical */ }
   }
 
   /**
@@ -337,35 +364,60 @@ class UserDataService extends EventTarget {
         // IMPORTANT: Active users should be Online by default, not Offline
         let finalStatus = UserStatus.Online // Always default to Online for active users
         
-        // Primary: Use database status if it exists and is valid AND not offline
+        // Restore manual status flag from localStorage (survives tab close)
+        const savedManualFlag = this.getManualStatusFlag()
+        if (savedManualFlag.wasManuallySet) {
+          this.wasManuallySet = true
+          this.manualStatus = savedManualFlag.manualStatus
+        }
+
+        // Primary: Use database status if it exists and is valid
         if (profile.status !== null && profile.status !== undefined) {
-          // If user was explicitly set to Away/Busy/Invisible, preserve that
           if (profile.status === UserStatus.Away || profile.status === UserStatus.Busy || profile.status === UserStatus.Invisible) {
-            finalStatus = profile.status
-            debug.log('✅ Preserving user-set status from database:', UserStatus[finalStatus])
+            if (this.wasManuallySet && this.manualStatus === profile.status) {
+              // User explicitly chose this status — preserve it
+              finalStatus = profile.status
+              debug.log('✅ Preserving manually-set status from database:', UserStatus[finalStatus])
+            } else if (profile.status === UserStatus.Away && !this.wasManuallySet) {
+              // Away in DB but no manual flag → was auto-idle, reset to Online
+              finalStatus = UserStatus.Online
+              debug.log('🔄 User was auto-idle Away, resetting to Online (user just opened the app)')
+            } else if (this.wasManuallySet && this.manualStatus !== null) {
+              // Manual flag exists but DB status diverged (e.g. auto-idle overrode manual) — restore manual choice
+              finalStatus = this.manualStatus
+              debug.log('🔄 Restoring manual status:', UserStatus[finalStatus])
+            } else {
+              finalStatus = profile.status
+              debug.log('✅ Preserving status from database:', UserStatus[finalStatus])
+            }
           } else if (profile.status === UserStatus.Online) {
             finalStatus = UserStatus.Online
             debug.log('✅ Status loaded from database:', UserStatus[finalStatus])
           } else {
-            // User was offline in database, but they're actively using the app now
+            // Offline in DB — user is actively opening the app, reset to Online
             finalStatus = UserStatus.Online
             debug.log('🔄 User was offline in DB but is now active, setting to Online')
-            
-            // Update database to reflect they're now online
+          }
+
+          // If final status differs from DB, sync it
+          if (finalStatus !== profile.status) {
             try {
               await supabase
                 .from('profiles')
-                .update({ status: UserStatus.Online })
+                .update({ status: finalStatus })
                 .eq('id', userId)
-              debug.log('💾 Updated database to show user as Online')
+              debug.log('💾 Updated database status to', UserStatus[finalStatus])
             } catch (syncError) {
-              debug.warn('⚠️ Failed to update online status in database:', syncError)
+              debug.warn('⚠️ Failed to update status in database:', syncError)
             }
           }
         } else {
-          // No status in database, try localStorage backup for Away/Busy/Invisible only
+          // No status in database — use manual flag if set, otherwise localStorage backup
           const backupStatus = this.getStatusFromLocalStorage()
-          if (backupStatus === UserStatus.Away || backupStatus === UserStatus.Busy || backupStatus === UserStatus.Invisible) {
+          if (this.wasManuallySet && this.manualStatus !== null) {
+            finalStatus = this.manualStatus
+            debug.log('🔄 Using manually-set status from localStorage flag:', UserStatus[finalStatus])
+          } else if (backupStatus === UserStatus.Busy || backupStatus === UserStatus.Invisible) {
             finalStatus = backupStatus
             debug.log('🔄 Using user-preferred status from localStorage backup:', UserStatus[finalStatus])
             
@@ -457,12 +509,13 @@ class UserDataService extends EventTarget {
         this.users.set(userId, userData)
         debug.log('✅ Current user initialized:', userData.displayName, 'Final Status:', UserStatus[finalStatus])
       } else {
-        // No profile exists - user is actively using the app, so they should be Online
+        // No profile exists - check if user had a manual status preference
+        const savedFlag = this.getManualStatusFlag()
         const backupStatus = this.getStatusFromLocalStorage()
-        // Only use backup status if it's Away or Busy (user preference states)
-        // Never use Offline from backup since user is actively using the app
-        const initialStatus = (backupStatus === UserStatus.Away || backupStatus === UserStatus.Busy) 
-          ? backupStatus 
+        const initialStatus = (savedFlag.wasManuallySet && savedFlag.manualStatus !== null)
+          ? savedFlag.manualStatus
+          : (backupStatus === UserStatus.Away || backupStatus === UserStatus.Busy || backupStatus === UserStatus.Invisible)
+          ? backupStatus
           : UserStatus.Online
         
         const userData: UserData = {
@@ -1094,7 +1147,7 @@ class UserDataService extends EventTarget {
    */
   private async handleProfileUpdate(serverId: string, payload: any): Promise<void> {
     const updatedProfile = payload.new
-    const userId = updatedProfile.id
+    const userId = updatedProfile.user_id || updatedProfile.id
     
     debug.log(`🔄 Profile update received for user ${userId} in server ${serverId}:`, {
       display_name: updatedProfile.display_name,
@@ -1407,19 +1460,17 @@ class UserDataService extends EventTarget {
     
     // Track manual status changes
     if (isManual) {
-      // If user manually sets to Away, Busy, or Invisible, remember that choice
       if (status === UserStatus.Away || status === UserStatus.Busy || status === UserStatus.Invisible) {
         this.wasManuallySet = true
         this.manualStatus = status
+        this.saveManualStatusFlag()
         debug.log('📌 Status manually set to:', UserStatus[status])
-      } 
-      // If user manually sets to Online, clear the manual flag (back to automatic mode)
-      else if (status === UserStatus.Online) {
+      } else if (status === UserStatus.Online) {
         this.wasManuallySet = false
         this.manualStatus = null
+        this.clearManualStatusFlag()
         debug.log('📌 Status manually set to Online - clearing manual flag')
       }
-      // Note: activityTracker would be called here if available
     }
     
     // Update local data immediately for instant UI feedback
