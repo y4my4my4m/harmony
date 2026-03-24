@@ -1454,8 +1454,30 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
 AS $$
+DECLARE
+    v_server servers%ROWTYPE;
 BEGIN
+    SELECT * INTO v_server FROM servers WHERE id = NEW.server_id;
+
+    IF v_server IS NULL OR NOT v_server.federation_enabled THEN
+        RETURN NEW;
+    END IF;
+
+    PERFORM public.queue_federation_job(
+        'federate-voice-join',
+        jsonb_build_object(
+            'channel_id', NEW.channel_id,
+            'server_id', NEW.server_id,
+            'user_id', NEW.user_id
+        ),
+        5, 3, 1800
+    );
+
     RETURN NEW;
+EXCEPTION
+    WHEN OTHERS THEN
+        RAISE WARNING 'Voice join federation trigger failed: %', SQLERRM;
+        RETURN NEW;
 END;
 $$;
 
@@ -1465,8 +1487,30 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
 AS $$
+DECLARE
+    v_server servers%ROWTYPE;
 BEGIN
+    SELECT * INTO v_server FROM servers WHERE id = OLD.server_id;
+
+    IF v_server IS NULL OR NOT v_server.federation_enabled THEN
+        RETURN OLD;
+    END IF;
+
+    PERFORM public.queue_federation_job(
+        'federate-voice-leave',
+        jsonb_build_object(
+            'channel_id', OLD.channel_id,
+            'server_id', OLD.server_id,
+            'user_id', OLD.user_id
+        ),
+        5, 3, 1800
+    );
+
     RETURN OLD;
+EXCEPTION
+    WHEN OTHERS THEN
+        RAISE WARNING 'Voice leave federation trigger failed: %', SQLERRM;
+        RETURN OLD;
 END;
 $$;
 
@@ -1858,6 +1902,44 @@ BEGIN
 EXCEPTION
     WHEN OTHERS THEN
         RAISE WARNING 'Conversation participant notification failed: %', SQLERRM;
+        RETURN NEW;
+END;
+$$;
+
+-- Queue federation when a participant leaves a group conversation
+CREATE OR REPLACE FUNCTION public.handle_group_participant_left()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+    v_conversation conversations%ROWTYPE;
+BEGIN
+    IF OLD.left_at IS NOT NULL OR NEW.left_at IS NULL THEN
+        RETURN NEW;
+    END IF;
+
+    SELECT * INTO v_conversation FROM conversations WHERE id = NEW.conversation_id;
+
+    IF v_conversation.type != 'group' THEN
+        RETURN NEW;
+    END IF;
+
+    PERFORM public.queue_federation_job(
+        'federate-group-participant-change',
+        jsonb_build_object(
+            'conversation_id', NEW.conversation_id,
+            'user_id', NEW.user_id,
+            'change_type', 'left'
+        ),
+        5, 5, 3600
+    );
+
+    RETURN NEW;
+EXCEPTION
+    WHEN OTHERS THEN
+        RAISE WARNING 'Group participant left federation failed: %', SQLERRM;
         RETURN NEW;
 END;
 $$;

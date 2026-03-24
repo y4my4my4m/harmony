@@ -379,6 +379,13 @@ CREATE TRIGGER trg_conversation_participant_added
     FOR EACH ROW
     EXECUTE FUNCTION public.handle_conversation_participant_added();
 
+-- Queue federation when a group participant leaves
+DROP TRIGGER IF EXISTS trg_group_participant_left ON public.conversation_participants;
+CREATE TRIGGER trg_group_participant_left
+    AFTER UPDATE ON public.conversation_participants
+    FOR EACH ROW
+    EXECUTE FUNCTION public.handle_group_participant_left();
+
 -- Queue channel message edit for federation
 DROP TRIGGER IF EXISTS trigger_federate_channel_message_edit ON public.messages;
 CREATE TRIGGER trigger_federate_channel_message_edit

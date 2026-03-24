@@ -2277,7 +2277,17 @@ BEGIN
     updated_at = CURRENT_TIMESTAMP
   WHERE id = conversation_uuid
     AND type = 'group';
-  
+
+  PERFORM public.queue_federation_job(
+    'federate-group-update',
+    jsonb_build_object(
+      'conversation_id', conversation_uuid,
+      'updater_id', user_profile_id,
+      'update_type', 'icon_removed'
+    ),
+    5, 5, 3600
+  );
+
   RETURN jsonb_build_object(
     'success', true,
     'message', 'Group icon removed successfully'
@@ -2739,7 +2749,18 @@ BEGIN
     updated_at = CURRENT_TIMESTAMP
   WHERE id = conversation_uuid
     AND type = 'group';
-  
+
+  PERFORM public.queue_federation_job(
+    'federate-group-update',
+    jsonb_build_object(
+      'conversation_id', conversation_uuid,
+      'updater_id', user_profile_id,
+      'update_type', 'icon',
+      'new_value', icon_path
+    ),
+    5, 5, 3600
+  );
+
   RETURN jsonb_build_object(
     'success', true,
     'message', 'Group icon updated successfully'
@@ -2789,7 +2810,18 @@ BEGIN
     updated_at = CURRENT_TIMESTAMP
   WHERE id = conversation_uuid
     AND type = 'group';
-  
+
+  PERFORM public.queue_federation_job(
+    'federate-group-update',
+    jsonb_build_object(
+      'conversation_id', conversation_uuid,
+      'updater_id', user_profile_id,
+      'update_type', 'name',
+      'new_value', COALESCE(new_name, '')
+    ),
+    5, 5, 3600
+  );
+
   RETURN jsonb_build_object(
     'success', true,
     'message', 'Group name updated successfully'

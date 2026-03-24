@@ -517,6 +517,12 @@ BEGIN
     ALTER TABLE public.threads ENABLE TRIGGER trigger_federate_thread;
     ALTER TABLE public.voice_channel_participants ENABLE TRIGGER trigger_federate_voice_channel_join;
     ALTER TABLE public.voice_channel_participants ENABLE TRIGGER trigger_federate_voice_channel_leave;
+    ALTER TABLE public.channels ENABLE TRIGGER trigger_federate_channel;
+    ALTER TABLE public.channels ENABLE TRIGGER trigger_federate_channel_delete;
+    ALTER TABLE public.channel_categories ENABLE TRIGGER trigger_federate_category;
+    ALTER TABLE public.channel_categories ENABLE TRIGGER trigger_federate_category_delete;
+    ALTER TABLE public.servers ENABLE TRIGGER trigger_federate_server_update;
+    ALTER TABLE public.conversation_participants ENABLE TRIGGER trg_group_participant_left;
     RAISE NOTICE 'All federation triggers enabled';
 END;
 $$;
@@ -548,6 +554,12 @@ BEGIN
     ALTER TABLE public.threads DISABLE TRIGGER trigger_federate_thread;
     ALTER TABLE public.voice_channel_participants DISABLE TRIGGER trigger_federate_voice_channel_join;
     ALTER TABLE public.voice_channel_participants DISABLE TRIGGER trigger_federate_voice_channel_leave;
+    ALTER TABLE public.channels DISABLE TRIGGER trigger_federate_channel;
+    ALTER TABLE public.channels DISABLE TRIGGER trigger_federate_channel_delete;
+    ALTER TABLE public.channel_categories DISABLE TRIGGER trigger_federate_category;
+    ALTER TABLE public.channel_categories DISABLE TRIGGER trigger_federate_category_delete;
+    ALTER TABLE public.servers DISABLE TRIGGER trigger_federate_server_update;
+    ALTER TABLE public.conversation_participants DISABLE TRIGGER trg_group_participant_left;
     RAISE NOTICE 'All federation triggers disabled';
 END;
 $$;
