@@ -627,6 +627,34 @@ CREATE TRIGGER trg_broadcast_permission_override
     FOR EACH ROW
     EXECUTE FUNCTION public.broadcast_permission_override_change();
 
+-- Emoji broadcasts → server-presence:{server_id}
+DROP TRIGGER IF EXISTS trg_broadcast_emoji_change ON public.emojis;
+CREATE TRIGGER trg_broadcast_emoji_change
+    AFTER INSERT OR UPDATE OR DELETE ON public.emojis
+    FOR EACH ROW
+    EXECUTE FUNCTION public.broadcast_emoji_change();
+
+-- Key request broadcasts → user:{user_id}
+DROP TRIGGER IF EXISTS trg_broadcast_key_request_event ON public.megolm_key_requests;
+CREATE TRIGGER trg_broadcast_key_request_event
+    AFTER INSERT OR UPDATE ON public.megolm_key_requests
+    FOR EACH ROW
+    EXECUTE FUNCTION public.broadcast_key_request_event();
+
+-- Conversation update broadcasts → user:{participant_id}
+DROP TRIGGER IF EXISTS trg_broadcast_conversation_updated ON public.conversations;
+CREATE TRIGGER trg_broadcast_conversation_updated
+    AFTER UPDATE ON public.conversations
+    FOR EACH ROW
+    EXECUTE FUNCTION public.broadcast_conversation_updated();
+
+-- Protected role modification guard
+DROP TRIGGER IF EXISTS trigger_prevent_protected_role_modification ON public.server_roles;
+CREATE TRIGGER trigger_prevent_protected_role_modification
+    BEFORE UPDATE ON public.server_roles
+    FOR EACH ROW
+    EXECUTE FUNCTION public.prevent_protected_role_modification();
+
 -- Presence broadcasts (member join/leave, profile changes)
 DROP TRIGGER IF EXISTS trg_broadcast_user_server_change ON public.user_servers;
 CREATE TRIGGER trg_broadcast_user_server_change

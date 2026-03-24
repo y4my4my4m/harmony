@@ -3855,3 +3855,609 @@ BEGIN
     RETURN v_id;
 END;
 $$;
+
+-- ---------------------------------------------------------------------------
+-- Server Moderation RPCs
+-- ---------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION public.get_user_highest_role_position(
+    p_user_id uuid,
+    p_server_id uuid
+) RETURNS integer
+LANGUAGE plpgsql STABLE SECURITY DEFINER
+AS $$
+DECLARE
+    v_is_owner boolean;
+    v_max_position integer;
+BEGIN
+    SELECT (owner = p_user_id) INTO v_is_owner
+    FROM public.servers WHERE id = p_server_id;
+
+    IF v_is_owner THEN
+        RETURN 2147483647;
+    END IF;
+
+    SELECT COALESCE(MAX(sr.position), 0) INTO v_max_position
+    FROM public.user_roles ur
+    JOIN public.server_roles sr ON sr.id = ur.role_id
+    WHERE ur.user_id = p_user_id
+      AND ur.server_id = p_server_id;
+
+    RETURN v_max_position;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.kick_server_member(
+    p_server_id uuid,
+    p_user_id uuid,
+    p_reason text DEFAULT NULL,
+    p_delete_message_seconds integer DEFAULT 0
+) RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER
+AS $$
+DECLARE
+    v_caller_id uuid;
+    v_is_owner boolean;
+    v_has_permission boolean;
+    v_caller_position integer;
+    v_target_position integer;
+    v_target_is_owner boolean;
+    v_deleted_count integer := 0;
+    v_system_channel_id uuid;
+BEGIN
+    v_caller_id := public.get_current_profile_id();
+    IF v_caller_id IS NULL THEN
+        RAISE EXCEPTION 'Not authenticated';
+    END IF;
+
+    IF v_caller_id = p_user_id THEN
+        RAISE EXCEPTION 'Cannot kick yourself';
+    END IF;
+
+    SELECT (owner = p_user_id) INTO v_target_is_owner
+    FROM public.servers WHERE id = p_server_id;
+    IF v_target_is_owner THEN
+        RAISE EXCEPTION 'Cannot kick the server owner';
+    END IF;
+
+    SELECT (owner = v_caller_id) INTO v_is_owner
+    FROM public.servers WHERE id = p_server_id;
+
+    IF NOT v_is_owner THEN
+        SELECT COALESCE((public.get_user_permissions(v_caller_id, p_server_id)->>'KICK_MEMBERS')::boolean, false)
+        INTO v_has_permission;
+        IF NOT v_has_permission THEN
+            RAISE EXCEPTION 'Missing KICK_MEMBERS permission';
+        END IF;
+    END IF;
+
+    IF NOT v_is_owner THEN
+        v_caller_position := public.get_user_highest_role_position(v_caller_id, p_server_id);
+        v_target_position := public.get_user_highest_role_position(p_user_id, p_server_id);
+        IF v_caller_position <= v_target_position THEN
+            RAISE EXCEPTION 'Cannot kick a member with an equal or higher role';
+        END IF;
+    END IF;
+
+    IF p_delete_message_seconds > 0 THEN
+        UPDATE public.messages
+        SET is_deleted = true, content = '[{"type":"text","content":"[message deleted]"}]'::jsonb
+        WHERE user_id = p_user_id
+          AND channel_id IN (SELECT id FROM public.channels WHERE server_id = p_server_id)
+          AND created_at > now() - (p_delete_message_seconds || ' seconds')::interval
+          AND is_deleted = false;
+        GET DIAGNOSTICS v_deleted_count = ROW_COUNT;
+    END IF;
+
+    DELETE FROM public.user_servers
+    WHERE user_id = p_user_id AND server_id = p_server_id;
+
+    INSERT INTO public.server_membership_events (server_id, user_id, event_type, payload)
+    VALUES (p_server_id, p_user_id, 'kick', jsonb_build_object(
+        'kicked_by', v_caller_id,
+        'reason', COALESCE(p_reason, ''),
+        'messages_deleted', v_deleted_count
+    ));
+
+    SELECT system_channel_id INTO v_system_channel_id
+    FROM public.server_settings WHERE server_id = p_server_id;
+    IF v_system_channel_id IS NULL THEN
+        v_system_channel_id := public.get_default_channel(p_server_id);
+    END IF;
+    IF v_system_channel_id IS NOT NULL THEN
+        INSERT INTO public.messages (channel_id, user_id, content, is_system, metadata)
+        VALUES (
+            v_system_channel_id,
+            p_user_id,
+            jsonb_build_array(jsonb_build_object('type', 'text', 'text', 'was kicked from the server')),
+            true,
+            jsonb_build_object('type', 'member_kick', 'kicked_by', v_caller_id, 'reason', COALESCE(p_reason, ''))
+        );
+    END IF;
+
+    RETURN jsonb_build_object(
+        'success', true,
+        'messages_deleted', v_deleted_count
+    );
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.ban_server_member(
+    p_server_id uuid,
+    p_user_id uuid,
+    p_reason text DEFAULT NULL,
+    p_delete_message_seconds integer DEFAULT 0
+) RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER
+AS $$
+DECLARE
+    v_caller_id uuid;
+    v_is_owner boolean;
+    v_has_permission boolean;
+    v_caller_position integer;
+    v_target_position integer;
+    v_target_is_owner boolean;
+    v_deleted_count integer := 0;
+    v_already_banned boolean;
+    v_system_channel_id uuid;
+BEGIN
+    v_caller_id := public.get_current_profile_id();
+    IF v_caller_id IS NULL THEN
+        RAISE EXCEPTION 'Not authenticated';
+    END IF;
+
+    IF v_caller_id = p_user_id THEN
+        RAISE EXCEPTION 'Cannot ban yourself';
+    END IF;
+
+    SELECT (owner = p_user_id) INTO v_target_is_owner
+    FROM public.servers WHERE id = p_server_id;
+    IF v_target_is_owner THEN
+        RAISE EXCEPTION 'Cannot ban the server owner';
+    END IF;
+
+    SELECT (owner = v_caller_id) INTO v_is_owner
+    FROM public.servers WHERE id = p_server_id;
+
+    IF NOT v_is_owner THEN
+        SELECT COALESCE((public.get_user_permissions(v_caller_id, p_server_id)->>'BAN_MEMBERS')::boolean, false)
+        INTO v_has_permission;
+        IF NOT v_has_permission THEN
+            RAISE EXCEPTION 'Missing BAN_MEMBERS permission';
+        END IF;
+    END IF;
+
+    IF NOT v_is_owner THEN
+        v_caller_position := public.get_user_highest_role_position(v_caller_id, p_server_id);
+        v_target_position := public.get_user_highest_role_position(p_user_id, p_server_id);
+        IF v_caller_position <= v_target_position THEN
+            RAISE EXCEPTION 'Cannot ban a member with an equal or higher role';
+        END IF;
+    END IF;
+
+    SELECT EXISTS(
+        SELECT 1 FROM public.server_bans
+        WHERE server_id = p_server_id AND user_id = p_user_id
+    ) INTO v_already_banned;
+
+    IF v_already_banned THEN
+        RETURN jsonb_build_object('success', true, 'already_banned', true, 'messages_deleted', 0);
+    END IF;
+
+    IF p_delete_message_seconds > 0 THEN
+        UPDATE public.messages
+        SET is_deleted = true, content = '[{"type":"text","content":"[message deleted]"}]'::jsonb
+        WHERE user_id = p_user_id
+          AND channel_id IN (SELECT id FROM public.channels WHERE server_id = p_server_id)
+          AND created_at > now() - (p_delete_message_seconds || ' seconds')::interval
+          AND is_deleted = false;
+        GET DIAGNOSTICS v_deleted_count = ROW_COUNT;
+    END IF;
+
+    INSERT INTO public.server_bans (server_id, user_id, banned_by, reason, delete_message_seconds)
+    VALUES (p_server_id, p_user_id, v_caller_id, p_reason, p_delete_message_seconds);
+
+    DELETE FROM public.user_servers
+    WHERE user_id = p_user_id AND server_id = p_server_id;
+
+    DELETE FROM public.user_roles
+    WHERE user_id = p_user_id AND server_id = p_server_id;
+
+    INSERT INTO public.server_membership_events (server_id, user_id, event_type, payload)
+    VALUES (p_server_id, p_user_id, 'ban', jsonb_build_object(
+        'banned_by', v_caller_id,
+        'reason', COALESCE(p_reason, ''),
+        'messages_deleted', v_deleted_count
+    ));
+
+    SELECT system_channel_id INTO v_system_channel_id
+    FROM public.server_settings WHERE server_id = p_server_id;
+    IF v_system_channel_id IS NULL THEN
+        v_system_channel_id := public.get_default_channel(p_server_id);
+    END IF;
+    IF v_system_channel_id IS NOT NULL THEN
+        INSERT INTO public.messages (channel_id, user_id, content, is_system, metadata)
+        VALUES (
+            v_system_channel_id,
+            p_user_id,
+            jsonb_build_array(jsonb_build_object('type', 'text', 'text', 'was banned from the server')),
+            true,
+            jsonb_build_object('type', 'member_ban', 'banned_by', v_caller_id, 'reason', COALESCE(p_reason, ''))
+        );
+    END IF;
+
+    RETURN jsonb_build_object(
+        'success', true,
+        'messages_deleted', v_deleted_count
+    );
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.unban_server_member(
+    p_server_id uuid,
+    p_user_id uuid
+) RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER
+AS $$
+DECLARE
+    v_caller_id uuid;
+    v_is_owner boolean;
+    v_has_permission boolean;
+    v_ban_exists boolean;
+BEGIN
+    v_caller_id := public.get_current_profile_id();
+    IF v_caller_id IS NULL THEN
+        RAISE EXCEPTION 'Not authenticated';
+    END IF;
+
+    SELECT (owner = v_caller_id) INTO v_is_owner
+    FROM public.servers WHERE id = p_server_id;
+
+    IF NOT v_is_owner THEN
+        SELECT COALESCE((public.get_user_permissions(v_caller_id, p_server_id)->>'BAN_MEMBERS')::boolean, false)
+        INTO v_has_permission;
+        IF NOT v_has_permission THEN
+            RAISE EXCEPTION 'Missing BAN_MEMBERS permission';
+        END IF;
+    END IF;
+
+    SELECT EXISTS(
+        SELECT 1 FROM public.server_bans
+        WHERE server_id = p_server_id AND user_id = p_user_id
+    ) INTO v_ban_exists;
+
+    IF NOT v_ban_exists THEN
+        RETURN jsonb_build_object('success', false, 'error', 'User is not banned');
+    END IF;
+
+    DELETE FROM public.server_bans
+    WHERE server_id = p_server_id AND user_id = p_user_id;
+
+    INSERT INTO public.server_membership_events (server_id, user_id, event_type, payload)
+    VALUES (p_server_id, p_user_id, 'unban', jsonb_build_object(
+        'unbanned_by', v_caller_id
+    ));
+
+    RETURN jsonb_build_object('success', true);
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.get_server_bans(
+    p_server_id uuid
+) RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER
+AS $$
+DECLARE
+    v_caller_id uuid;
+    v_is_owner boolean;
+    v_has_permission boolean;
+    v_result jsonb;
+BEGIN
+    v_caller_id := public.get_current_profile_id();
+    IF v_caller_id IS NULL THEN
+        RAISE EXCEPTION 'Not authenticated';
+    END IF;
+
+    SELECT (owner = v_caller_id) INTO v_is_owner
+    FROM public.servers WHERE id = p_server_id;
+
+    IF NOT v_is_owner THEN
+        SELECT COALESCE((public.get_user_permissions(v_caller_id, p_server_id)->>'BAN_MEMBERS')::boolean, false)
+        INTO v_has_permission;
+        IF NOT v_has_permission THEN
+            RAISE EXCEPTION 'Missing BAN_MEMBERS permission';
+        END IF;
+    END IF;
+
+    SELECT COALESCE(jsonb_agg(jsonb_build_object(
+        'id', sb.id,
+        'user_id', sb.user_id,
+        'username', p.username,
+        'display_name', p.display_name,
+        'avatar_url', p.avatar_url,
+        'banned_by', sb.banned_by,
+        'banned_by_username', bp.username,
+        'reason', sb.reason,
+        'created_at', sb.created_at
+    ) ORDER BY sb.created_at DESC), '[]'::jsonb) INTO v_result
+    FROM public.server_bans sb
+    JOIN public.profiles p ON p.id = sb.user_id
+    LEFT JOIN public.profiles bp ON bp.id = sb.banned_by
+    WHERE sb.server_id = p_server_id;
+
+    RETURN v_result;
+END;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- Featured Communities RPC
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.set_server_featured(
+    p_server_id uuid,
+    p_is_featured boolean,
+    p_order integer DEFAULT 0
+)
+RETURNS void
+LANGUAGE plpgsql SECURITY DEFINER
+AS $$
+DECLARE
+    v_caller_id uuid;
+    v_is_admin boolean;
+BEGIN
+    v_caller_id := public.get_current_profile_id();
+    IF v_caller_id IS NULL THEN
+        RAISE EXCEPTION 'Not authenticated';
+    END IF;
+
+    SELECT is_admin INTO v_is_admin
+    FROM public.profiles WHERE id = v_caller_id;
+
+    IF NOT COALESCE(v_is_admin, false) THEN
+        RAISE EXCEPTION 'Only instance admins can manage featured communities';
+    END IF;
+
+    UPDATE public.servers
+    SET is_featured = p_is_featured, featured_order = p_order
+    WHERE id = p_server_id;
+END;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- Admin System Health RPCs
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.get_db_connection_count()
+RETURNS integer
+LANGUAGE plpgsql STABLE SECURITY DEFINER
+AS $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND is_admin = true) THEN
+        RETURN 0;
+    END IF;
+    RETURN (SELECT COUNT(*)::integer FROM pg_stat_activity WHERE datname = current_database());
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.get_db_size()
+RETURNS text
+LANGUAGE plpgsql STABLE SECURITY DEFINER
+AS $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND is_admin = true) THEN
+        RETURN '--';
+    END IF;
+    RETURN (SELECT pg_size_pretty(pg_database_size(current_database())));
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.get_admin_user_counts(p_user_ids uuid[])
+RETURNS TABLE(user_id uuid, post_count bigint, server_count bigint)
+LANGUAGE sql STABLE SECURITY DEFINER
+SET search_path = public
+AS $$
+  WITH post_counts AS (
+    SELECT author_id, COUNT(*)::bigint AS cnt
+    FROM public.posts
+    WHERE author_id = ANY(p_user_ids) AND is_deleted = false
+    GROUP BY author_id
+  ),
+  server_counts AS (
+    SELECT user_id, COUNT(*)::bigint AS cnt
+    FROM public.user_servers
+    WHERE user_id = ANY(p_user_ids)
+    GROUP BY user_id
+  )
+  SELECT
+    id AS user_id,
+    COALESCE(pc.cnt, 0) AS post_count,
+    COALESCE(sc.cnt, 0) AS server_count
+  FROM unnest(p_user_ids) AS id
+  LEFT JOIN post_counts pc ON pc.author_id = id
+  LEFT JOIN server_counts sc ON sc.user_id = id;
+$$;
+
+CREATE OR REPLACE FUNCTION public.get_server_member_counts(p_server_ids uuid[])
+RETURNS TABLE(server_id uuid, member_count bigint)
+LANGUAGE sql STABLE SECURITY DEFINER
+SET search_path = public
+AS $$
+  WITH counts AS (
+    SELECT server_id, COUNT(*)::bigint AS cnt
+    FROM public.user_servers
+    WHERE server_id = ANY(p_server_ids)
+    GROUP BY server_id
+  )
+  SELECT id AS server_id, COALESCE(c.cnt, 0) AS member_count
+  FROM unnest(p_server_ids) AS id
+  LEFT JOIN counts c ON c.server_id = id;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- Announcements RPC
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.get_unread_announcements(p_user_id uuid)
+RETURNS TABLE(
+    id uuid,
+    title text,
+    content text,
+    image_url text,
+    icon text,
+    is_pinned boolean,
+    show_popup boolean,
+    silence boolean,
+    created_at timestamptz,
+    author_id uuid,
+    author_username text,
+    author_display_name text,
+    author_avatar_url text
+)
+LANGUAGE sql STABLE SECURITY DEFINER
+AS $$
+    SELECT
+        a.id, a.title, a.content, a.image_url, a.icon,
+        a.is_pinned, a.show_popup, a.silence, a.created_at,
+        a.author_id, p.username AS author_username,
+        p.display_name AS author_display_name,
+        p.avatar_url AS author_avatar_url
+    FROM public.instance_announcements a
+    LEFT JOIN public.profiles p ON p.id = a.author_id
+    LEFT JOIN public.announcement_reads ar ON ar.announcement_id = a.id AND ar.user_id = p_user_id
+    WHERE a.is_active = true
+      AND a.starts_at <= NOW()
+      AND (a.ends_at IS NULL OR a.ends_at > NOW())
+      AND ar.id IS NULL
+    ORDER BY a.is_pinned DESC, a.display_order ASC, a.created_at DESC;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- Federation: insert outbound AP activity (bypasses PostgREST schema cache)
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.insert_ap_activity_outbound(
+    p_ap_id text,
+    p_ap_type text,
+    p_actor_id uuid,
+    p_actor_ap_id text,
+    p_activity_data jsonb,
+    p_object_id text DEFAULT NULL,
+    p_object_type text DEFAULT NULL,
+    p_to_addresses text[] DEFAULT '{}'::text[],
+    p_cc_addresses text[] DEFAULT '{}'::text[],
+    p_origin_domain text DEFAULT NULL
+)
+RETURNS uuid
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+    v_activity_id uuid;
+    v_caller_profile_id uuid;
+BEGIN
+    v_caller_profile_id := public.get_current_profile_id();
+    IF v_caller_profile_id IS NULL OR v_caller_profile_id != p_actor_id THEN
+        RAISE EXCEPTION 'Unauthorized: p_actor_id does not match the authenticated user';
+    END IF;
+
+    INSERT INTO ap_activities (
+        ap_id, ap_type, actor_id, actor_ap_id, object_id, object_type,
+        activity_data, status, is_local, to_addresses, cc_addresses, origin_domain
+    ) VALUES (
+        p_ap_id, p_ap_type, p_actor_id, p_actor_ap_id, p_object_id, p_object_type,
+        p_activity_data, 'pending', true, p_to_addresses, p_cc_addresses, p_origin_domain
+    )
+    RETURNING id INTO v_activity_id;
+
+    RETURN v_activity_id;
+END;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- Federation: get or create federated group conversation
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.get_or_create_federated_group_conversation(
+  p_actor_id uuid,
+  p_local_recipient_ids uuid[],
+  p_remote_conversation_id text DEFAULT NULL
+)
+RETURNS uuid
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_conversation_id uuid;
+  v_participant_id uuid;
+  v_all_ids uuid[];
+BEGIN
+  IF p_local_recipient_ids IS NULL OR array_length(p_local_recipient_ids, 1) < 1 THEN
+    RAISE EXCEPTION 'At least 1 local recipient required';
+  END IF;
+
+  v_all_ids := ARRAY(SELECT DISTINCT unnest(p_local_recipient_ids || ARRAY[p_actor_id]) ORDER BY 1);
+
+  IF p_remote_conversation_id IS NOT NULL THEN
+    SELECT c.id INTO v_conversation_id
+    FROM conversations c
+    WHERE c.type = 'group'
+      AND c.metadata->>'remote_conversation_id' = p_remote_conversation_id
+    LIMIT 1;
+
+    IF v_conversation_id IS NOT NULL THEN
+      RETURN v_conversation_id;
+    END IF;
+  END IF;
+
+  SELECT c.id INTO v_conversation_id
+  FROM conversations c
+  WHERE c.type = 'group'
+    AND EXISTS (SELECT 1 FROM conversation_participants cp WHERE cp.conversation_id = c.id AND cp.user_id = p_actor_id AND cp.left_at IS NULL)
+    AND (SELECT array_agg(cp.user_id ORDER BY cp.user_id) FROM conversation_participants cp WHERE cp.conversation_id = c.id AND cp.left_at IS NULL)
+      = (SELECT array_agg(uid ORDER BY uid) FROM unnest(v_all_ids) uid)
+  LIMIT 1;
+
+  IF v_conversation_id IS NOT NULL THEN
+    IF p_remote_conversation_id IS NOT NULL THEN
+      UPDATE conversations
+      SET metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object('remote_conversation_id', p_remote_conversation_id)
+      WHERE id = v_conversation_id
+        AND (metadata IS NULL OR metadata->>'remote_conversation_id' IS NULL);
+    END IF;
+    RETURN v_conversation_id;
+  END IF;
+
+  INSERT INTO conversations (type, name, created_by, metadata)
+  VALUES (
+    'group',
+    NULL,
+    p_actor_id,
+    CASE
+      WHEN p_remote_conversation_id IS NOT NULL
+      THEN jsonb_build_object('federated', true, 'remote_conversation_id', p_remote_conversation_id)
+      ELSE '{"federated": true}'::jsonb
+    END
+  )
+  RETURNING id INTO v_conversation_id;
+
+  INSERT INTO conversation_participants (conversation_id, user_id, role)
+  VALUES (v_conversation_id, p_actor_id, 'admin')
+  ON CONFLICT (conversation_id, user_id) DO UPDATE SET left_at = NULL, role = 'admin';
+
+  FOREACH v_participant_id IN ARRAY p_local_recipient_ids
+  LOOP
+    IF v_participant_id != p_actor_id THEN
+      INSERT INTO conversation_participants (conversation_id, user_id, role)
+      VALUES (v_conversation_id, v_participant_id, 'member')
+      ON CONFLICT (conversation_id, user_id) DO UPDATE SET left_at = NULL, role = 'member';
+    END IF;
+  END LOOP;
+
+  RETURN v_conversation_id;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.get_db_connection_count() TO authenticated;
+GRANT EXECUTE ON FUNCTION public.get_db_size() TO authenticated;
+GRANT EXECUTE ON FUNCTION public.get_admin_user_counts(uuid[]) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.get_server_member_counts(uuid[]) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.get_unread_announcements(uuid) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.insert_ap_activity_outbound(text, text, uuid, text, jsonb, text, text, text[], text[], text) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.insert_ap_activity_outbound(text, text, uuid, text, jsonb, text, text, text[], text[], text) TO service_role;

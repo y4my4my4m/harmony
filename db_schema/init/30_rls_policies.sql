@@ -702,6 +702,50 @@ CREATE POLICY "notification_channels_update_own" ON public.notification_channels
 CREATE POLICY "notification_channels_delete_own" ON public.notification_channels
     FOR DELETE USING (user_id = public.get_current_profile_id());
 
+-- ---------------------------------------------------------------------------
+-- SERVER BANS RLS
+-- ---------------------------------------------------------------------------
+ALTER TABLE public.server_bans ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "server_bans_select_moderator" ON public.server_bans
+    FOR SELECT TO authenticated USING (true);
+
+CREATE POLICY "server_bans_insert_rpc" ON public.server_bans
+    FOR INSERT TO authenticated WITH CHECK (true);
+
+CREATE POLICY "server_bans_delete_rpc" ON public.server_bans
+    FOR DELETE TO authenticated USING (true);
+
+-- ---------------------------------------------------------------------------
+-- ANNOUNCEMENTS RLS
+-- ---------------------------------------------------------------------------
+ALTER TABLE public.instance_announcements ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.announcement_reads ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "announcements_select_all" ON public.instance_announcements
+    FOR SELECT TO authenticated USING (true);
+
+CREATE POLICY "announcements_insert_admin" ON public.instance_announcements
+    FOR INSERT TO authenticated WITH CHECK (
+        EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND is_admin = true)
+    );
+
+CREATE POLICY "announcements_update_admin" ON public.instance_announcements
+    FOR UPDATE TO authenticated USING (
+        EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND is_admin = true)
+    );
+
+CREATE POLICY "announcements_delete_admin" ON public.instance_announcements
+    FOR DELETE TO authenticated USING (
+        EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND is_admin = true)
+    );
+
+CREATE POLICY "announcement_reads_select_own" ON public.announcement_reads
+    FOR SELECT TO authenticated USING (user_id = auth.uid());
+
+CREATE POLICY "announcement_reads_insert_own" ON public.announcement_reads
+    FOR INSERT TO authenticated WITH CHECK (user_id = auth.uid());
+
 DO $$
 BEGIN
     RAISE NOTICE 'RLS policies created successfully';

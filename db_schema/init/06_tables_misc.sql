@@ -151,6 +151,24 @@ CREATE TABLE IF NOT EXISTS public.notification_preferences (
     activitypub_desktop_mentions boolean DEFAULT true,
     activitypub_desktop_replies boolean DEFAULT true,
 
+    -- ActivityPub sound notifications
+    activitypub_sound_notifications boolean DEFAULT true,
+    activitypub_sound_follows boolean DEFAULT true,
+    activitypub_sound_favorites boolean DEFAULT true,
+    activitypub_sound_reblogs boolean DEFAULT true,
+    activitypub_sound_mentions boolean DEFAULT true,
+    activitypub_sound_replies boolean DEFAULT true,
+
+    -- Sound master toggle
+    sound_notifications boolean DEFAULT true,
+
+    -- Push/email master toggles
+    push_notifications boolean DEFAULT true,
+    push_offline_only boolean DEFAULT true,
+    email_notifications boolean DEFAULT false,
+    email_digest boolean DEFAULT false,
+    email_digest_frequency character varying(20) DEFAULT 'weekly',
+
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone DEFAULT now()
 );
@@ -736,6 +754,48 @@ CREATE TABLE IF NOT EXISTS public.instance_donation_history (
 CREATE INDEX IF NOT EXISTS idx_donation_history_user ON public.instance_donation_history(user_id);
 CREATE INDEX IF NOT EXISTS idx_donation_history_supporter ON public.instance_donation_history(supporter_id);
 CREATE INDEX IF NOT EXISTS idx_donation_history_date ON public.instance_donation_history(donated_at);
+
+-- ---------------------------------------------------------------------------
+-- INSTANCE ANNOUNCEMENTS
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.instance_announcements (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    created_at timestamptz DEFAULT now(),
+    updated_at timestamptz DEFAULT now(),
+    title text NOT NULL,
+    content text NOT NULL,
+    image_url text,
+    icon text DEFAULT 'info',
+    is_active boolean DEFAULT true,
+    starts_at timestamptz DEFAULT now(),
+    ends_at timestamptz,
+    is_pinned boolean DEFAULT false,
+    show_popup boolean DEFAULT true,
+    silence boolean DEFAULT false,
+    author_id uuid REFERENCES public.profiles(id) ON DELETE SET NULL,
+    display_order integer DEFAULT 0
+);
+
+CREATE INDEX IF NOT EXISTS idx_announcements_active
+    ON public.instance_announcements(is_active, starts_at, ends_at);
+
+-- ---------------------------------------------------------------------------
+-- ANNOUNCEMENT READS
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.announcement_reads (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    announcement_id uuid NOT NULL REFERENCES public.instance_announcements(id) ON DELETE CASCADE,
+    user_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    read_at timestamptz DEFAULT now(),
+    CONSTRAINT unique_announcement_read UNIQUE (announcement_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_announcement_reads_user
+    ON public.announcement_reads(user_id);
+
+GRANT SELECT ON public.instance_announcements TO authenticated;
+GRANT INSERT, UPDATE, DELETE ON public.instance_announcements TO authenticated;
+GRANT SELECT, INSERT, UPDATE ON public.announcement_reads TO authenticated;
 
 DO $$
 BEGIN

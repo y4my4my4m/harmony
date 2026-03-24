@@ -115,6 +115,7 @@
     "msw": "^2.12.10",
     "npm-run-all2": "^6.1.1",
     "prettier": "^3.0.3",
+    "supabase": "^2.83.0",
     "typedoc": "^0.25.7",
     "typedoc-plugin-mermaid": "^1.10.0",
     "typedoc-plugin-vue": "^1.2.0",

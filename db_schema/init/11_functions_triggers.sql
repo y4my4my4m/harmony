@@ -3600,6 +3600,146 @@ BEGIN
 END;
 $$;
 
+-- Emoji changes → server-presence:{server_id}
+CREATE OR REPLACE FUNCTION public.broadcast_emoji_change()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_server uuid;
+BEGIN
+  IF TG_OP = 'DELETE' THEN
+    v_server := OLD.server_id;
+  ELSE
+    v_server := NEW.server_id;
+  END IF;
+
+  PERFORM realtime.send(
+    jsonb_build_object(
+      'type',      'emoji:' || lower(TG_OP),
+      'new',       CASE WHEN TG_OP != 'DELETE' THEN to_jsonb(NEW) ELSE NULL END,
+      'old',       CASE WHEN TG_OP != 'INSERT' THEN to_jsonb(OLD) ELSE NULL END
+    ),
+    'presence_event',
+    'server-presence:' || v_server::text
+  );
+
+  RETURN COALESCE(NEW, OLD);
+END;
+$$;
+
+-- Megolm key request/fulfilled → user:{user_id}
+CREATE OR REPLACE FUNCTION public.broadcast_key_request_event()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  IF TG_OP = 'INSERT' AND NEW.sender_user_id IS NOT NULL THEN
+    PERFORM realtime.send(
+      jsonb_build_object(
+        'type',               'encryption:key_request',
+        'id',                 NEW.id,
+        'requester_user_id',  NEW.requester_user_id,
+        'sender_user_id',     NEW.sender_user_id,
+        'room_id',            NEW.room_id,
+        'session_id',         NEW.session_id,
+        'status',             NEW.status,
+        'created_at',         NEW.created_at
+      ),
+      'user_event',
+      'user:' || NEW.sender_user_id::text,
+      true
+    );
+  ELSIF TG_OP = 'UPDATE' AND NEW.status = 'fulfilled' THEN
+    PERFORM realtime.send(
+      jsonb_build_object(
+        'type',               'encryption:key_fulfilled',
+        'id',                 NEW.id,
+        'requester_user_id',  NEW.requester_user_id,
+        'sender_user_id',     NEW.sender_user_id,
+        'room_id',            NEW.room_id,
+        'session_id',         NEW.session_id,
+        'encrypted_key',      NEW.encrypted_key,
+        'fulfilled_at',       NEW.fulfilled_at
+      ),
+      'user_event',
+      'user:' || NEW.requester_user_id::text,
+      true
+    );
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+-- Conversation updates → user:{participant_id} for each active participant
+CREATE OR REPLACE FUNCTION public.broadcast_conversation_updated()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_participant RECORD;
+  v_changes jsonb := '{}'::jsonb;
+BEGIN
+  IF NEW.name IS DISTINCT FROM OLD.name THEN
+    v_changes := v_changes || jsonb_build_object('name', NEW.name);
+  END IF;
+
+  IF NEW.metadata IS DISTINCT FROM OLD.metadata THEN
+    v_changes := v_changes || jsonb_build_object('metadata', COALESCE(NEW.metadata, '{}'::jsonb));
+  END IF;
+
+  IF v_changes = '{}'::jsonb THEN
+    RETURN NEW;
+  END IF;
+
+  FOR v_participant IN
+    SELECT user_id FROM conversation_participants
+    WHERE conversation_id = NEW.id AND left_at IS NULL
+  LOOP
+    PERFORM realtime.send(
+      jsonb_build_object(
+        'type', 'conversation:updated',
+        'conversation_id', NEW.id,
+        'changes', v_changes
+      ),
+      'user_event',
+      'user:' || v_participant.user_id::text,
+      true
+    );
+  END LOOP;
+
+  RETURN NEW;
+EXCEPTION WHEN OTHERS THEN
+  RETURN NEW;
+END;
+$$;
+
+-- Prevent modification of protected role flags (is_admin, is_default, name)
+CREATE OR REPLACE FUNCTION public.prevent_protected_role_modification()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    IF OLD.is_admin = true AND NEW.is_admin = false THEN
+        RAISE EXCEPTION 'Cannot remove admin status from the Admin role.';
+    END IF;
+
+    IF OLD.is_default = true AND NEW.is_default = false THEN
+        RAISE EXCEPTION 'Cannot remove default status from the everyone role.';
+    END IF;
+
+    IF (OLD.is_admin = true OR OLD.is_default = true) AND OLD.name != NEW.name THEN
+        RAISE EXCEPTION 'Cannot rename protected roles.';
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
 DO $$
 BEGIN
     RAISE NOTICE 'Trigger functions created successfully';

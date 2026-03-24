@@ -38,7 +38,11 @@ CREATE TABLE IF NOT EXISTS public.servers (
     invite_code text UNIQUE,
     
     -- Member count (denormalized)
-    member_count integer DEFAULT 0
+    member_count integer DEFAULT 0,
+
+    -- Featured communities (admin-managed)
+    is_featured boolean DEFAULT false,
+    featured_order integer DEFAULT 0
 );
 
 ALTER TABLE public.servers REPLICA IDENTITY FULL;
@@ -47,6 +51,7 @@ CREATE INDEX IF NOT EXISTS idx_servers_owner ON public.servers(owner);
 CREATE INDEX IF NOT EXISTS idx_servers_invite_code ON public.servers(invite_code) WHERE invite_code IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_servers_federation ON public.servers(federation_enabled, is_local_server);
 CREATE INDEX IF NOT EXISTS idx_servers_ap_id ON public.servers(ap_id) WHERE ap_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_servers_featured ON public.servers(is_featured, featured_order) WHERE is_featured = true;
 
 COMMENT ON TABLE public.servers IS 'Discord-like community servers';
 COMMENT ON COLUMN public.servers.allow_cross_server_emojis IS 'Whether server emojis can be used in other servers';
@@ -175,6 +180,20 @@ CREATE INDEX IF NOT EXISTS idx_messages_user ON public.messages(user_id);
 CREATE INDEX IF NOT EXISTS idx_messages_created ON public.messages(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_messages_thread ON public.messages(thread_id) WHERE thread_id IS NOT NULL;
 
+CREATE INDEX IF NOT EXISTS idx_messages_channel_created_main
+  ON public.messages (channel_id, created_at DESC)
+  WHERE thread_id IS NULL AND (is_deleted IS NULL OR is_deleted = false);
+
+CREATE INDEX IF NOT EXISTS idx_messages_conversation_created
+  ON public.messages (conversation_id, created_at DESC)
+  WHERE conversation_id IS NOT NULL
+    AND thread_id IS NULL
+    AND (is_deleted IS NULL OR is_deleted = false);
+
+CREATE INDEX IF NOT EXISTS idx_messages_thread_created
+  ON public.messages (thread_id, created_at ASC)
+  WHERE thread_id IS NOT NULL;
+
 COMMENT ON TABLE public.messages IS 'Channel and DM messages';
 
 -- ---------------------------------------------------------------------------
@@ -291,6 +310,14 @@ CREATE INDEX IF NOT EXISTS idx_reactions_user ON public.reactions(user_id);
 CREATE INDEX IF NOT EXISTS idx_reactions_channel_id ON public.reactions(channel_id) WHERE channel_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_reactions_conversation_id ON public.reactions(conversation_id) WHERE conversation_id IS NOT NULL;
 
+CREATE UNIQUE INDEX IF NOT EXISTS reactions_message_user_emoji_unique
+ON public.reactions (
+  message_id,
+  user_id,
+  COALESCE(emoji_id, '00000000-0000-0000-0000-000000000000'::uuid),
+  COALESCE(custom_emoji_content, '')
+);
+
 COMMENT ON TABLE public.reactions IS 'Message emoji reactions';
 
 -- Auto-populate channel_id/conversation_id from the parent message on INSERT
@@ -355,6 +382,7 @@ CREATE INDEX IF NOT EXISTS idx_user_servers_folder_id ON public.user_servers(fol
 CREATE INDEX IF NOT EXISTS idx_user_servers_user_position ON public.user_servers(user_id, position);
 CREATE INDEX IF NOT EXISTS idx_user_servers_by_instance ON public.user_servers(server_id, member_instance);
 CREATE INDEX IF NOT EXISTS idx_user_servers_status ON public.user_servers(server_id, status);
+CREATE INDEX IF NOT EXISTS idx_user_servers_user_server ON public.user_servers(user_id, server_id);
 
 COMMENT ON TABLE public.user_servers IS 'Server membership records';
 COMMENT ON COLUMN public.user_servers.member_instance IS 'Instance domain of the member (for efficient batching)';
@@ -471,6 +499,7 @@ CREATE TABLE IF NOT EXISTS public.conversation_participants (
 
 CREATE INDEX IF NOT EXISTS idx_conversation_participants_conversation ON public.conversation_participants(conversation_id);
 CREATE INDEX IF NOT EXISTS idx_conversation_participants_user ON public.conversation_participants(user_id);
+CREATE INDEX IF NOT EXISTS idx_conversation_participants_conv_user ON public.conversation_participants(conversation_id, user_id);
 
 COMMENT ON TABLE public.conversation_participants IS 'DM conversation participants';
 
@@ -528,6 +557,28 @@ CREATE INDEX IF NOT EXISTS idx_voice_participants_channel ON public.voice_channe
 CREATE INDEX IF NOT EXISTS idx_voice_participants_user ON public.voice_channel_participants(user_id);
 
 COMMENT ON TABLE public.voice_channel_participants IS 'Active voice channel participants';
+
+-- ---------------------------------------------------------------------------
+-- SERVER BANS
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.server_bans (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    server_id uuid NOT NULL REFERENCES public.servers(id) ON DELETE CASCADE,
+    user_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    banned_by uuid NOT NULL REFERENCES public.profiles(id) ON DELETE SET NULL,
+    reason text,
+    delete_message_seconds integer DEFAULT 0,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+
+    UNIQUE(server_id, user_id)
+);
+
+ALTER TABLE public.server_bans REPLICA IDENTITY FULL;
+
+CREATE INDEX IF NOT EXISTS idx_server_bans_server ON public.server_bans(server_id);
+CREATE INDEX IF NOT EXISTS idx_server_bans_user ON public.server_bans(user_id);
+
+COMMENT ON TABLE public.server_bans IS 'Server-level ban records for moderation';
 
 DO $$
 BEGIN

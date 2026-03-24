@@ -261,6 +261,8 @@ ALTER TABLE public.user_blocks REPLICA IDENTITY FULL;
 
 CREATE INDEX IF NOT EXISTS idx_user_blocks_blocker ON public.user_blocks(blocker_id);
 CREATE INDEX IF NOT EXISTS idx_user_blocks_blocked ON public.user_blocks(blocked_user_id);
+CREATE INDEX IF NOT EXISTS idx_user_blocks_blocker_blocked ON public.user_blocks(blocker_id, blocked_user_id);
+CREATE INDEX IF NOT EXISTS idx_user_blocks_blocked_blocker ON public.user_blocks(blocked_user_id, blocker_id);
 
 COMMENT ON TABLE public.user_blocks IS 'User-level blocking with granular control and optional expiration';
 COMMENT ON COLUMN public.user_blocks.ap_id IS 'ActivityPub ID for federated Block activities';

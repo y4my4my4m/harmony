@@ -873,18 +873,6 @@ CREATE POLICY "Admins can read metrics" ON public.performance_metrics
     FOR SELECT USING (public.is_current_user_admin());
 
 -- ---------------------------------------------------------------------------
--- PG BACKGROUND JOB (may not exist on all installations)
--- ---------------------------------------------------------------------------
-DO $$ BEGIN
-    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'pg_background_job') THEN
-        EXECUTE 'DROP POLICY IF EXISTS "Service role manages all background jobs" ON public.pg_background_job';
-        EXECUTE 'CREATE POLICY "Service role manages all background jobs" ON public.pg_background_job USING (auth.role() = ''service_role'')';
-    ELSE
-        RAISE NOTICE 'pg_background_job table does not exist, skipping';
-    END IF;
-END $$;
-
--- ---------------------------------------------------------------------------
 -- POST HASHTAGS
 -- ---------------------------------------------------------------------------
 DROP POLICY IF EXISTS "Anyone can view post hashtags" ON public.post_hashtags;
