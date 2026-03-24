@@ -3110,10 +3110,12 @@ BEGIN
       'old', CASE WHEN TG_OP != 'INSERT' THEN to_jsonb(OLD) ELSE NULL END
     ),
     'server_event',
-    'server-structure:' || NEW.server_id::text
+    'server-structure:' || NEW.server_id::text,
+    true
   );
   RETURN COALESCE(NEW, OLD);
 EXCEPTION WHEN OTHERS THEN
+  RAISE WARNING 'broadcast_server_settings_change failed: %', SQLERRM;
   RETURN COALESCE(NEW, OLD);
 END;
 $$;
@@ -3146,7 +3148,8 @@ BEGIN
       'old', CASE WHEN TG_OP != 'INSERT' THEN to_jsonb(OLD) ELSE NULL END
     ),
     'server_event',
-    'server-structure:' || v_server::text
+    'server-structure:' || v_server::text,
+    true
   );
 
   RETURN COALESCE(NEW, OLD);
@@ -3178,7 +3181,8 @@ BEGIN
       'old', CASE WHEN TG_OP != 'INSERT' THEN to_jsonb(OLD) ELSE NULL END
     ),
     'server_event',
-    'server-structure:' || v_server::text
+    'server-structure:' || v_server::text,
+    true
   );
 
   RETURN COALESCE(NEW, OLD);
@@ -3201,7 +3205,8 @@ BEGIN
       'new', to_jsonb(NEW)
     ),
     'server_event',
-    'server-structure:' || NEW.server_id::text
+    'server-structure:' || NEW.server_id::text,
+    true
   );
 
   RETURN NEW;
@@ -3241,7 +3246,8 @@ BEGIN
       'old', CASE WHEN TG_OP != 'INSERT' THEN to_jsonb(OLD) ELSE NULL END
     ),
     'server_event',
-    'server-structure:' || v_server_id::text
+    'server-structure:' || v_server_id::text,
+    true
   );
 
   RETURN COALESCE(NEW, OLD);
@@ -3272,7 +3278,8 @@ BEGIN
       'old', CASE WHEN TG_OP != 'INSERT' THEN to_jsonb(OLD) ELSE NULL END
     ),
     'server_event',
-    'server-structure:' || v_server::text
+    'server-structure:' || v_server::text,
+    true
   );
 
   RETURN COALESCE(NEW, OLD);
@@ -3303,7 +3310,8 @@ BEGIN
       'old', CASE WHEN TG_OP != 'INSERT' THEN to_jsonb(OLD) ELSE NULL END
     ),
     'server_event',
-    'server-structure:' || v_server::text
+    'server-structure:' || v_server::text,
+    true
   );
 
   RETURN COALESCE(NEW, OLD);
@@ -3343,7 +3351,8 @@ BEGIN
       'old', CASE WHEN TG_OP != 'INSERT' THEN to_jsonb(OLD) ELSE NULL END
     ),
     'server_event',
-    'server-structure:' || v_server_id::text
+    'server-structure:' || v_server_id::text,
+    true
   );
 
   RETURN COALESCE(NEW, OLD);
@@ -3382,7 +3391,8 @@ BEGIN
       'server_id', v_row.server_id
     ),
     'presence_event',
-    'server-presence:' || v_row.server_id::text
+    'server-presence:' || v_row.server_id::text,
+    true
   );
 
   RETURN COALESCE(NEW, OLD);
@@ -3432,7 +3442,8 @@ BEGIN
           'federation_metadata',  NEW.federation_metadata
         ),
         'presence_event',
-        'server-presence:' || v_server_id::text
+        'server-presence:' || v_server_id::text,
+        true
       );
     EXCEPTION WHEN OTHERS THEN
       RAISE WARNING 'broadcast_profile_change failed for server %: %', v_server_id, SQLERRM;
@@ -3656,7 +3667,8 @@ BEGIN
       'old',       CASE WHEN TG_OP != 'INSERT' THEN to_jsonb(OLD) ELSE NULL END
     ),
     'presence_event',
-    'server-presence:' || v_server::text
+    'server-presence:' || v_server::text,
+    true
   );
 
   RETURN COALESCE(NEW, OLD);

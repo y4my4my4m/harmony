@@ -150,3 +150,30 @@ ALTER TABLE public.user_timeline_cache ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.user_view_contexts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.voice_channel_participants ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.voice_federation_events ENABLE ROW LEVEL SECURITY;
+
+-- =========================================================================
+-- Realtime private broadcast channel setup
+-- Required for private: true channels to work (server-structure, server-presence, user events)
+-- =========================================================================
+GRANT USAGE ON SCHEMA realtime TO authenticated;
+GRANT USAGE ON SCHEMA realtime TO anon;
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_class c JOIN pg_namespace n ON c.relnamespace = n.oid
+    WHERE n.nspname = 'realtime' AND c.relname = 'messages'
+  ) THEN
+    EXECUTE 'GRANT SELECT, INSERT ON realtime.messages TO authenticated';
+    EXECUTE 'GRANT SELECT ON realtime.messages TO anon';
+
+    EXECUTE 'DROP POLICY IF EXISTS "authenticated_users_can_receive" ON realtime.messages';
+    EXECUTE 'CREATE POLICY "authenticated_users_can_receive" ON realtime.messages
+      FOR SELECT TO authenticated USING (true)';
+
+    EXECUTE 'DROP POLICY IF EXISTS "authenticated_users_can_send" ON realtime.messages';
+    EXECUTE 'CREATE POLICY "authenticated_users_can_send" ON realtime.messages
+      FOR INSERT TO authenticated WITH CHECK (true)';
+  END IF;
+END;
+$$;

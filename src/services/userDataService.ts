@@ -952,7 +952,7 @@ class UserDataService extends EventTarget {
             await this.trackCurrentUserInServer(channel, serverId)
           }
         } else if (status === 'CHANNEL_ERROR') {
-          console.error(`[Realtime] server-presence:${serverId} → CHANNEL_ERROR (check realtime.messages RLS policies)`)
+          console.error(`[Realtime] server-presence:${serverId} → CHANNEL_ERROR`)
           setTimeout(() => this.setupServerPresence(serverId, userIds), 5000)
         } else {
           console.log(`[Realtime] server-presence:${serverId} →`, status)

@@ -1971,7 +1971,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
           if (status === 'SUBSCRIBED') {
             console.log(`[Realtime] server-structure:${serverId} → SUBSCRIBED`);
           } else if (status === 'CHANNEL_ERROR') {
-            console.error(`[Realtime] server-structure:${serverId} → CHANNEL_ERROR (check realtime.messages RLS policies)`);
+            console.error(`[Realtime] server-structure:${serverId} → CHANNEL_ERROR`);
           } else {
             console.log(`[Realtime] server-structure:${serverId} →`, status);
           }
