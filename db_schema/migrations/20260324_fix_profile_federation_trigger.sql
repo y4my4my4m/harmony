@@ -46,6 +46,14 @@ BEGIN
 END;
 $$;
 
+-- Ensure the trigger exists (idempotent)
+DROP TRIGGER IF EXISTS trigger_federate_profile ON public.profiles;
+CREATE TRIGGER trigger_federate_profile
+    AFTER UPDATE ON public.profiles
+    FOR EACH ROW
+    WHEN (NEW.is_local = true)
+    EXECUTE FUNCTION public.trigger_queue_profile_federation();
+
 NOTIFY pgrst, 'reload schema';
 
 COMMIT;
