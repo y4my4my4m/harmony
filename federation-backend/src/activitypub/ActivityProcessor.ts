@@ -369,6 +369,13 @@ export class ActivityProcessor {
       return;
     }
 
+    // Handle ChatThread — federated thread creation
+    if (object.type === 'ChatThread') {
+      const { handleThreadActivity } = await import('./ThreadActivityHandler.js');
+      await handleThreadActivity({ ...activity, object });
+      return;
+    }
+
     if (object.type === 'Note' || object.type === 'Article') {
       // Reject our own posts echoed back (federation round-trip)
       const ownDomain = config.INSTANCE_DOMAIN;
@@ -900,6 +907,9 @@ export class ActivityProcessor {
       } else {
         logger.info(`✏️ Updated post: ${object.id}`);
       }
+    } else if (object.type === 'ChatThread') {
+      const { handleThreadActivity } = await import('./ThreadActivityHandler.js');
+      await handleThreadActivity({ ...activity, object });
     } else if (object['harmony:type'] === 'harmony:GroupConversation') {
       // Update group conversation (DM group) - name, icon changes
       await this.handleGroupConversationUpdate(activity, object);
@@ -961,6 +971,13 @@ export class ActivityProcessor {
    * Process Delete activity
    */
   private static async processDelete(activity: any): Promise<void> {
+    const object = activity.object;
+    if (object && typeof object === 'object' && object.type === 'ChatThread') {
+      const { handleThreadActivity } = await import('./ThreadActivityHandler.js');
+      await handleThreadActivity({ ...activity, object });
+      return;
+    }
+
     const { objectUrl } = extractDeleteData(activity);
     const supabase = getSupabaseClient();
 

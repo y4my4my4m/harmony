@@ -231,6 +231,7 @@ ALTER TABLE public.threads REPLICA IDENTITY FULL;
 
 CREATE INDEX IF NOT EXISTS idx_threads_channel ON public.threads(channel_id);
 CREATE INDEX IF NOT EXISTS idx_threads_parent_message ON public.threads(parent_message_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_threads_ap_id ON public.threads(ap_id) WHERE ap_id IS NOT NULL;
 
 COMMENT ON TABLE public.threads IS 'Message threads within channels';
 

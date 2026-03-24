@@ -475,6 +475,13 @@ async function processCreateActivity(
   const supabase = getSupabaseClient();
   const object = activity.object;
 
+  // Route ChatThread to dedicated handler
+  if (object?.type === 'ChatThread') {
+    const { handleThreadActivity } = await import('./ThreadActivityHandler.js');
+    await handleThreadActivity({ ...activity, object });
+    return;
+  }
+
   if (!object || object.type !== 'Note') {
     logger.info(`Create activity object is not a Note: ${object?.type}`);
     return;
@@ -807,6 +814,13 @@ async function processUpdateActivity(
   const object = activity.object;
 
   if (!object) {
+    return;
+  }
+
+  // Handle ChatThread updates
+  if (object.type === 'ChatThread') {
+    const { handleThreadActivity } = await import('./ThreadActivityHandler.js');
+    await handleThreadActivity({ ...activity, object });
     return;
   }
 

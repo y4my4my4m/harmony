@@ -8,6 +8,7 @@ BEGIN;
 ALTER TABLE public.threads ADD COLUMN IF NOT EXISTS ap_id text;
 ALTER TABLE public.threads ADD COLUMN IF NOT EXISTS federation_status text DEFAULT 'pending';
 
-CREATE INDEX IF NOT EXISTS idx_threads_ap_id ON public.threads(ap_id) WHERE ap_id IS NOT NULL;
+-- Unique index required for upsert on ap_id in ThreadActivityHandler
+CREATE UNIQUE INDEX IF NOT EXISTS idx_threads_ap_id ON public.threads(ap_id) WHERE ap_id IS NOT NULL;
 
 COMMIT;
