@@ -640,6 +640,12 @@ async function processCreateActivity(
     messageContent = [{ type: 'text', text: String(object.content || '') }];
   }
 
+  // Resolve mention userIds from origin-instance UUIDs to local profile UUIDs
+  if (Array.isArray(messageContent)) {
+    const { resolveMentionUserIds } = await import('../utils/mentionResolver.js');
+    messageContent = await resolveMentionUserIds(messageContent);
+  }
+
   // Check for duplicate message
   const { data: existingMessage } = await supabase
     .from('messages')

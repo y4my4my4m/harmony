@@ -2581,6 +2581,12 @@ export class ActivityProcessor {
     } else {
       content = [{ type: 'text', text: String(object.content || '') }];
     }
+
+    // Resolve mention userIds from origin-instance UUIDs to local profile UUIDs
+    if (Array.isArray(content)) {
+      const { resolveMentionUserIds } = await import('../utils/mentionResolver.js');
+      content = await resolveMentionUserIds(content);
+    }
     
     // Convert remote emojis to URL-based format (like Discord bridge)
     // Remote emoji UUIDs won't exist locally, so we need their URLs instead
