@@ -896,11 +896,12 @@ EXCEPTION
         IF v_target_domain IS NOT NULL AND v_target_domain != '' THEN
             RAISE LOG 'pg_notify failed, using delivery queue fallback for job % to %', p_job_name, v_target_domain;
             INSERT INTO public.federation_delivery_queue (
-                activity_json, inbox_url,
-                sender_id, status, scheduled_at
+                activity_data, target_inbox_url, target_domain,
+                sender_id, status, next_attempt_at
             ) VALUES (
                 p_job_data,
                 COALESCE(p_job_data->>'target_inbox', 'https://' || v_target_domain || '/inbox'),
+                v_target_domain,
                 (p_job_data->>'sender_id')::UUID,
                 'pending',
                 NOW()

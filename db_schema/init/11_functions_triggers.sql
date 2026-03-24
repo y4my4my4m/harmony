@@ -1351,6 +1351,21 @@ BEGIN
         RETURN NEW;
     END IF;
 
+    -- Skip re-federation when only federation_status changed (prevents infinite loop)
+    IF TG_OP = 'UPDATE' AND
+       OLD.name          IS NOT DISTINCT FROM NEW.name AND
+       OLD.description   IS NOT DISTINCT FROM NEW.description AND
+       OLD.type          IS NOT DISTINCT FROM NEW.type AND
+       OLD.category      IS NOT DISTINCT FROM NEW.category AND
+       OLD.server_id     IS NOT DISTINCT FROM NEW.server_id AND
+       OLD."order"       IS NOT DISTINCT FROM NEW."order" AND
+       OLD.is_private    IS NOT DISTINCT FROM NEW.is_private AND
+       OLD.slowmode_seconds IS NOT DISTINCT FROM NEW.slowmode_seconds AND
+       OLD.ap_id         IS NOT DISTINCT FROM NEW.ap_id
+    THEN
+        RETURN NEW;
+    END IF;
+
     NEW.federation_status := 'queued';
     PERFORM public.queue_federation_job(
         'federate-channel-crud',
@@ -1399,6 +1414,15 @@ BEGIN
 
     IF v_server_is_local IS NOT TRUE OR v_federation_enabled IS NOT TRUE THEN
         NEW.federation_status := 'skipped';
+        RETURN NEW;
+    END IF;
+
+    -- Skip re-federation when only federation_status changed (prevents infinite loop)
+    IF TG_OP = 'UPDATE' AND
+       OLD.name      IS NOT DISTINCT FROM NEW.name AND
+       OLD."order"   IS NOT DISTINCT FROM NEW."order" AND
+       OLD.server_id IS NOT DISTINCT FROM NEW.server_id
+    THEN
         RETURN NEW;
     END IF;
 

@@ -903,6 +903,8 @@ export class ActivityProcessor {
     } else if (object['harmony:type'] === 'harmony:GroupConversation') {
       // Update group conversation (DM group) - name, icon changes
       await this.handleGroupConversationUpdate(activity, object);
+    } else if (['harmony:TextChannel', 'harmony:VoiceChannel', 'harmony:Category'].includes(object.type)) {
+      await this.processHarmonyChannelUpdate(activity, object);
     } else if (object.type === 'Group' || object['harmony:ChatServer']) {
       // Update server (Group) - name, icon, description changes
       logger.info(`🏠 Processing server update: ${object.id}`);
@@ -1752,13 +1754,247 @@ export class ActivityProcessor {
   }
 
   /**
+   * Extract server ID from a Harmony server URL and find the local (remote-copy) server.
+   * Returns the server row or null.
+   */
+  private static async resolveRemoteServer(serverUrl: string): Promise<any | null> {
+    const supabase = getSupabaseClient();
+    const serverIdMatch = serverUrl.match(/\/servers\/([a-f0-9-]{36})$/i);
+    if (!serverIdMatch) return null;
+
+    const { data: server } = await supabase
+      .from('servers')
+      .select('id, federation_enabled')
+      .eq('id', serverIdMatch[1])
+      .eq('is_local_server', false)
+      .maybeSingle();
+
+    return server;
+  }
+
+  /**
+   * Handle Harmony channel/category Add activities received on the shared inbox.
+   */
+  private static async processHarmonyChannelAdd(activity: any, object: any): Promise<void> {
+    const supabase = getSupabaseClient();
+    const actorUrl = typeof activity.actor === 'string' ? activity.actor : activity.actor?.id;
+
+    const server = await this.resolveRemoteServer(actorUrl);
+    if (!server) {
+      logger.warn(`Remote server not found for Add activity actor: ${actorUrl}`);
+      return;
+    }
+    if (!server.federation_enabled) {
+      logger.info(`Federation not enabled for server ${server.id}, ignoring Add`);
+      return;
+    }
+
+    const serverId = server.id;
+    const entityUuidMatch = object.id?.match(/\/channels\/([a-f0-9-]{36})$/i);
+    const entityUuid = entityUuidMatch ? entityUuidMatch[1] : undefined;
+
+    if (object.type === 'harmony:Category') {
+      const { data: existing } = await supabase
+        .from('channel_categories')
+        .select('id')
+        .eq('server_id', serverId)
+        .eq('name', object.name)
+        .maybeSingle();
+
+      if (existing) {
+        logger.info(`Category already exists: ${object.name}`);
+        return;
+      }
+
+      const catData: any = {
+        server_id: serverId,
+        name: object.name,
+        order: object.position || object.order || 0,
+      };
+      if (entityUuid) catData.id = entityUuid;
+
+      const { error } = await supabase.from('channel_categories').insert(catData);
+      if (error) {
+        logger.error(`Failed to create category ${object.name}:`, error);
+      } else {
+        logger.info(`📁 Created remote category: ${object.name}`);
+      }
+    } else {
+      const channelType = object.type === 'harmony:VoiceChannel' ? 1 : 0;
+
+      const { data: existing } = await supabase
+        .from('channels')
+        .select('id')
+        .eq('ap_id', object.id)
+        .maybeSingle();
+
+      if (existing) {
+        logger.info(`Channel already exists: ${object.name}`);
+        return;
+      }
+
+      let categoryId = null;
+      if (object.category) {
+        const catMatch = object.category.match(/\/channels\/([a-f0-9-]{36})$/i);
+        if (catMatch) {
+          const { data: cat } = await supabase
+            .from('channel_categories')
+            .select('id')
+            .eq('id', catMatch[1])
+            .eq('server_id', serverId)
+            .maybeSingle();
+          categoryId = cat?.id || null;
+        }
+      }
+
+      const insertData: any = {
+        server_id: serverId,
+        name: object.name,
+        description: object.description,
+        type: channelType,
+        order: object.position || object.order || 0,
+        ap_id: object.id,
+        is_remote: true,
+        category: categoryId,
+      };
+      if (entityUuid) insertData.id = entityUuid;
+
+      const { error } = await supabase.from('channels').insert(insertData);
+      if (error) {
+        logger.error(`Failed to create channel ${object.name}:`, error);
+      } else {
+        logger.info(`📢 Created remote channel: ${object.name} (${object.type})`);
+      }
+    }
+  }
+
+  /**
+   * Handle Harmony channel/category Update activities received on the shared inbox.
+   */
+  private static async processHarmonyChannelUpdate(activity: any, object: any): Promise<void> {
+    const supabase = getSupabaseClient();
+
+    if (object.type === 'harmony:Category') {
+      const catUuidMatch = object.id?.match(/\/channels\/([a-f0-9-]{36})$/i);
+      if (!catUuidMatch) {
+        logger.warn(`Cannot extract UUID from category ap_id: ${object.id}`);
+        return;
+      }
+
+      const { error } = await supabase
+        .from('channel_categories')
+        .update({
+          name: object.name,
+          order: object.position || object.order,
+        })
+        .eq('id', catUuidMatch[1]);
+
+      if (error) {
+        logger.warn(`Category not found for Update: ${object.id}`);
+      } else {
+        logger.info(`✏️ Updated remote category: ${object.name}`);
+      }
+    } else {
+      const { data: channel } = await supabase
+        .from('channels')
+        .select('id, server_id')
+        .eq('ap_id', object.id)
+        .maybeSingle();
+
+      if (!channel) {
+        logger.warn(`Channel not found for Update: ${object.id}`);
+        return;
+      }
+
+      let categoryId = null;
+      if (object.category) {
+        const catMatch = object.category.match(/\/channels\/([a-f0-9-]{36})$/i);
+        if (catMatch) {
+          const { data: cat } = await supabase
+            .from('channel_categories')
+            .select('id')
+            .eq('id', catMatch[1])
+            .maybeSingle();
+          categoryId = cat?.id || null;
+        }
+      }
+
+      await supabase
+        .from('channels')
+        .update({
+          name: object.name,
+          description: object.description,
+          order: object.position || object.order,
+          category: categoryId,
+        })
+        .eq('id', channel.id);
+
+      logger.info(`✏️ Updated remote channel: ${object.name}`);
+    }
+  }
+
+  /**
+   * Handle Harmony channel/category Remove activities received on the shared inbox.
+   */
+  private static async processHarmonyChannelRemove(activity: any, objectUrl: string): Promise<void> {
+    const supabase = getSupabaseClient();
+    const uuidMatch = objectUrl.match(/\/channels\/([a-f0-9-]{36})$/i);
+    const actorUrl = typeof activity.actor === 'string' ? activity.actor : activity.actor?.id;
+
+    const server = await this.resolveRemoteServer(actorUrl);
+    if (!server) {
+      logger.warn(`Remote server not found for Remove activity actor: ${actorUrl}`);
+      return;
+    }
+
+    // Try channels table first
+    const { data: deletedChannel } = await supabase
+      .from('channels')
+      .delete()
+      .eq('ap_id', objectUrl)
+      .eq('server_id', server.id)
+      .select('id')
+      .maybeSingle();
+
+    if (deletedChannel) {
+      logger.info(`🗑️ Removed remote channel: ${objectUrl}`);
+      return;
+    }
+
+    // Try channel_categories by UUID
+    if (uuidMatch) {
+      const { data: deletedCat } = await supabase
+        .from('channel_categories')
+        .delete()
+        .eq('id', uuidMatch[1])
+        .eq('server_id', server.id)
+        .select('id')
+        .maybeSingle();
+
+      if (deletedCat) {
+        logger.info(`🗑️ Removed remote category: ${uuidMatch[1]}`);
+        return;
+      }
+    }
+
+    logger.warn(`Channel/category not found for Remove: ${objectUrl}`);
+  }
+
+  /**
    * Process Add activity (pinning posts to featured collection)
    */
   private static async processAdd(activity: any): Promise<void> {
     const supabase = getSupabaseClient();
     const actorUrl = normalizeActor(activity.actor);
-    const targetUrl = activity.target; // Should be the featured collection URL
+    const targetUrl = typeof activity.target === 'string' ? activity.target : activity.target?.id;
     const objectUrl = typeof activity.object === 'string' ? activity.object : activity.object?.id;
+    const object = typeof activity.object === 'object' ? activity.object : null;
+
+    // Handle Harmony channel/category additions (sent to shared inbox)
+    if (object && ['harmony:TextChannel', 'harmony:VoiceChannel', 'harmony:Category'].includes(object.type)) {
+      await this.processHarmonyChannelAdd(activity, object);
+      return;
+    }
 
     // Check if this is adding to featured collection
     if (!targetUrl?.includes('/featured') || !objectUrl) {
@@ -1802,6 +2038,12 @@ export class ActivityProcessor {
     const targetType = typeof target === 'object' ? target?.['harmony:type'] : null;
     if (targetType === 'harmony:GroupConversation') {
       await this.handleGroupConversationParticipantRemove(activity, target);
+      return;
+    }
+
+    // Handle Harmony channel/category removal (sent to shared inbox)
+    if (objectUrl?.includes('/channels/') && targetUrl?.includes('/servers/')) {
+      await this.processHarmonyChannelRemove(activity, objectUrl);
       return;
     }
 

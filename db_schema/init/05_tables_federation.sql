@@ -177,35 +177,47 @@ COMMENT ON TABLE public.ap_object_cache IS 'Cached remote ActivityPub objects';
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.federation_delivery_queue (
     id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    
+    created_at timestamp with time zone DEFAULT now(),
+    updated_at timestamp with time zone DEFAULT now(),
+
     -- Target inbox
-    inbox_url text NOT NULL,
-    
+    target_inbox_url text NOT NULL,
+    target_domain text NOT NULL,
+
     -- Activity to deliver
-    activity_json jsonb NOT NULL,
-    
+    activity_data jsonb,
+
     -- Sender (for HTTP signature)
-    sender_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
-    
+    sender_id uuid REFERENCES public.profiles(id) ON DELETE CASCADE,
+    actor_username text,
+    actor_domain text,
+
     -- Status
     status text DEFAULT 'pending'::text,
     attempts integer DEFAULT 0,
     max_attempts integer DEFAULT 5,
-    
+
     -- Timing
-    scheduled_at timestamp with time zone DEFAULT now(),
+    next_attempt_at timestamp with time zone DEFAULT now(),
     last_attempt_at timestamp with time zone,
-    completed_at timestamp with time zone,
-    
+    delivered_at timestamp with time zone,
+
     -- Error tracking
-    last_error text,
-    
-    CONSTRAINT federation_delivery_queue_status_check CHECK (status IN ('pending', 'processing', 'completed', 'failed', 'dead', 'delivered', 'cancelled'))
+    error_message text,
+    http_status_code integer,
+    response_body text,
+    delivery_duration_ms integer,
+
+    -- Priority (1=highest, 10=lowest)
+    priority integer DEFAULT 5,
+
+    CONSTRAINT federation_delivery_queue_status_check CHECK (status IN ('pending', 'processing', 'completed', 'failed', 'dead', 'delivered', 'cancelled')),
+    CONSTRAINT federation_delivery_queue_priority_check CHECK (priority >= 1 AND priority <= 10)
 );
 
 CREATE INDEX IF NOT EXISTS idx_federation_delivery_queue_status ON public.federation_delivery_queue(status);
-CREATE INDEX IF NOT EXISTS idx_federation_delivery_queue_scheduled ON public.federation_delivery_queue(scheduled_at) WHERE status = 'pending';
+CREATE INDEX IF NOT EXISTS idx_fdq_next_attempt ON public.federation_delivery_queue(next_attempt_at) WHERE status = 'pending';
+CREATE INDEX IF NOT EXISTS idx_fdq_target_domain ON public.federation_delivery_queue(target_domain);
 
 COMMENT ON TABLE public.federation_delivery_queue IS 'Queue for outgoing federation deliveries';
 
