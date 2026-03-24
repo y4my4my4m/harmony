@@ -25,8 +25,7 @@ import config from '../config/index.js';
 function normalizeMentionDomains(content: any[]): any[] {
   return content.map((part: any) => {
     if (part.type === 'mention' && part.domain) {
-      const { displayName, ...rest } = part;
-      return { ...rest, isLocal: part.domain === config.INSTANCE_DOMAIN };
+      return { ...part, isLocal: part.domain === config.INSTANCE_DOMAIN };
     }
     return part;
   });

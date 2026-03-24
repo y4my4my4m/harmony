@@ -92,7 +92,7 @@
           :title="getMentionTooltip(part)"
         >
           <span class="mention-at">@</span>
-          <DisplayName :userId="part.userId" :fallback="part.displayName || part.username" :truncate="false" />
+          <DisplayName :userId="part.userId" :fallback="part.username" :truncate="false" />
         </span>
 
         <!-- Role mentions -->
@@ -923,12 +923,12 @@ export default defineComponent({
     // Get tooltip text for a mention
     const getMentionTooltip = (part: any): string => {
       if (part?.domain === 'discord.com') {
-        return `Discord user: ${part.displayName || part.username}`;
+        return `Discord user: ${part.username}`;
       }
       if (!part?.isLocal && part?.domain) {
         return `@${part.username}@${part.domain}`;
       }
-      return part?.displayName || part?.username || '';
+      return part?.username || '';
     };
     
     const handleMentionClick = (part: any, event: MouseEvent) => {

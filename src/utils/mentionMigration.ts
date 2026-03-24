@@ -30,8 +30,7 @@ export function migrateLegacyMentions(content: MessagePart[]): MessagePart[] {
             userId,
             username: userProfile.username,
             domain: userProfile.domain || import.meta.env.VITE_DOMAIN as string,
-            isLocal: userProfile.isLocal || false,
-            displayName: userProfile.displayName
+            isLocal: userProfile.isLocal || false
           };
           return newMention;
         }
@@ -74,8 +73,7 @@ export function createMentionFromUser(userId: string, userProfile?: any): Mentio
     userId,
     username: profile.username,
     domain: profile.domain || import.meta.env.VITE_DOMAIN as string,
-    isLocal: profile.isLocal || false,
-    displayName: profile.displayName
+    isLocal: profile.isLocal || false
   };
 }
 

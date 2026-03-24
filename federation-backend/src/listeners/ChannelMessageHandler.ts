@@ -446,10 +446,7 @@ function createMessageActivity(
   const tags = extractActivityPubTags(message.content);
   const attachments = extractAttachments(message.content);
 
-  // Transform content for federation:
-  // - Make emoji URLs absolute
-  // - Strip displayName from mentions (use username as canonical identifier;
-  //   display names contain custom emoji shortcodes that remote instances can't resolve)
+  // Transform emoji URLs to absolute URLs for federation
   const federatedContent = Array.isArray(message.content) 
     ? message.content.map((item: any) => {
         if (item.type === 'emoji' && item.emoji?.url) {
@@ -465,10 +462,6 @@ function createMessageActivity(
               url: emojiUrl
             }
           };
-        }
-        if (item.type === 'mention') {
-          const { displayName, ...rest } = item;
-          return rest;
         }
         return item;
       })

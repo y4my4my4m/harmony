@@ -22,9 +22,9 @@ const emojiShortcodeRegex = /:([a-zA-Z0-9_+-]+):/g;
  * Helper function to efficiently resolve mention user data in batch
  * This should be called before parseContentToMessageParts for optimal performance
  */
-export async function resolveMentionsUserData(content: string): Promise<Record<string, { userId: string; isLocal: boolean; displayName?: string }>> {
+export async function resolveMentionsUserData(content: string): Promise<Record<string, { userId: string; isLocal: boolean }>> {
   const mentionRegex = /@([a-zA-Z0-9_-]+)(?:@([a-zA-Z0-9.-]+))?/g;
-  const userDataMap: Record<string, { userId: string; isLocal: boolean; displayName?: string }> = {};
+  const userDataMap: Record<string, { userId: string; isLocal: boolean }> = {};
   
   // Pre-scan for URLs to avoid resolving @mentions inside them
   const urlRanges: Array<{ start: number; end: number }> = [];
@@ -68,8 +68,7 @@ export async function resolveMentionsUserData(content: string): Promise<Record<s
         localUsers.forEach(user => {
           userDataMap[user.username] = {
             userId: user.id,
-            isLocal: user.is_local,
-            displayName: user.username
+            isLocal: user.is_local
           };
         });
       }
@@ -108,8 +107,7 @@ export async function resolveMentionsUserData(content: string): Promise<Record<s
             const key = `${user.username}@${user.domain}`;
             userDataMap[key] = {
               userId: user.id,
-              isLocal: user.is_local,
-              displayName: user.username
+              isLocal: user.is_local
             };
           }
         });
@@ -333,7 +331,7 @@ export async function resolveHashtagsData(content: string): Promise<Record<strin
  */
 export async function parseContentToMessageParts(
   content: string,
-  usernameToUserDataMap: Record<string, { userId: string; isLocal: boolean; displayName?: string }> = {},
+  usernameToUserDataMap: Record<string, { userId: string; isLocal: boolean }> = {},
   emojiDataMap: Record<string, any> = {},
   hashtagDataMap: Record<string, { id: string; count: number; last_updated: string; normalized: string }> = {},
   roleDataMap: Record<string, { name: string; color: string | null }> = {}
@@ -409,7 +407,6 @@ export async function parseContentToMessageParts(
       const currentDomain = import.meta.env.VITE_DOMAIN as string;
       const isLocal = userData?.isLocal ?? (!domain || domain === currentDomain);
       const userId = userData?.userId ?? `unresolved-${username}${domain ? '@' + domain : ''}`;
-      const displayName = userData?.displayName ?? username;
       
       const finalDomain = domain || currentDomain;
       
@@ -418,8 +415,7 @@ export async function parseContentToMessageParts(
         userId: userId,
         username: username,
         domain: finalDomain,
-        isLocal: isLocal,
-        displayName: displayName
+        isLocal: isLocal
       });
     } else if (match[9]) {
       // Hashtag (#tagname)

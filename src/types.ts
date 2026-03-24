@@ -282,7 +282,6 @@ export interface MentionContent {
   username: string;
   domain: string;
   isLocal: boolean;
-  displayName?: string;
 }
 
 export interface RoleMentionContent {
