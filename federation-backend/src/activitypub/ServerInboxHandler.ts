@@ -477,8 +477,12 @@ async function processCreateActivity(
 
   // Route ChatThread to dedicated handler
   if (object?.type === 'ChatThread') {
+    logger.info(`📋 Routing server inbox Create ChatThread to handler: ${object.id}`);
     const { handleThreadActivity } = await import('./ThreadActivityHandler.js');
-    await handleThreadActivity({ ...activity, object });
+    const result = await handleThreadActivity({ ...activity, object });
+    if (!result.success) {
+      logger.warn(`Thread Create via server inbox failed: ${result.error}`);
+    }
     return;
   }
 
@@ -825,8 +829,12 @@ async function processUpdateActivity(
 
   // Handle ChatThread updates
   if (object.type === 'ChatThread') {
+    logger.info(`📋 Routing server inbox Update ChatThread to handler: ${object.id}`);
     const { handleThreadActivity } = await import('./ThreadActivityHandler.js');
-    await handleThreadActivity({ ...activity, object });
+    const result = await handleThreadActivity({ ...activity, object });
+    if (!result.success) {
+      logger.warn(`Thread Update via server inbox failed: ${result.error}`);
+    }
     return;
   }
 

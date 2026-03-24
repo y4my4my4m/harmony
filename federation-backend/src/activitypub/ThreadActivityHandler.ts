@@ -114,62 +114,174 @@ export async function handleThreadActivity(
     switch (activity.type) {
       case 'Create': {
         const threadObject = activity.object as ThreadObject;
-        
-        // Find local channel by AP ID
-        const { data: channel } = await supabase
+
+        logger.info(`📋 Thread Create: context=${threadObject.context}, inReplyTo=${threadObject.inReplyTo}, attributedTo=${threadObject.attributedTo}`);
+
+        // --- Resolve channel (with UUID fallback) ---
+        let channel: { id: string; server_id: string } | null = null;
+
+        const { data: channelByApId } = await supabase
           .from('channels')
           .select('id, server_id')
           .eq('ap_id', threadObject.context)
-          .single();
+          .maybeSingle();
+
+        if (channelByApId) {
+          channel = channelByApId;
+        } else {
+          // Fallback: extract UUID from the AP URL
+          const channelUuidMatch = threadObject.context?.match(/\/channels\/([a-f0-9-]{36})/i);
+          if (channelUuidMatch) {
+            const { data: channelById } = await supabase
+              .from('channels')
+              .select('id, server_id')
+              .eq('id', channelUuidMatch[1])
+              .maybeSingle();
+            channel = channelById;
+          }
+        }
 
         if (!channel) {
-          logger.warn(`Channel not found for thread: ${threadObject.context}`);
+          logger.warn(`Channel not found for thread (tried ap_id and UUID): ${threadObject.context}`);
           return { success: false, error: 'Channel not found' };
         }
 
-        // Find local message by AP ID
-        const { data: parentMessage } = await supabase
+        // --- Resolve parent message (with UUID fallback) ---
+        let parentMessageId: string | null = null;
+
+        const { data: parentByApId } = await supabase
           .from('messages')
           .select('id')
           .eq('metadata->>ap_id', threadObject.inReplyTo)
-          .single();
+          .maybeSingle();
 
-        if (!parentMessage) {
-          logger.warn(`Parent message not found for thread: ${threadObject.inReplyTo}`);
+        if (parentByApId) {
+          parentMessageId = parentByApId.id;
+        } else {
+          const msgUuidMatch = threadObject.inReplyTo?.match(/\/messages\/([a-f0-9-]{36})/i);
+          if (msgUuidMatch) {
+            const { data: parentById } = await supabase
+              .from('messages')
+              .select('id')
+              .eq('id', msgUuidMatch[1])
+              .maybeSingle();
+            if (parentById) {
+              parentMessageId = parentById.id;
+            }
+          }
+        }
+
+        if (!parentMessageId) {
+          logger.warn(`Parent message not found for thread (tried ap_id and UUID): ${threadObject.inReplyTo}`);
           return { success: false, error: 'Parent message not found' };
         }
 
-        // Find or create creator profile
-        const { data: creator } = await supabase
+        // --- Resolve creator (with username fallback) ---
+        let creatorId: string | null = null;
+
+        const { data: creatorByFedId } = await supabase
           .from('profiles')
           .select('id')
           .eq('federated_id', threadObject.attributedTo)
-          .single();
+          .maybeSingle();
 
-        if (!creator) {
-          logger.warn(`Creator not found for thread: ${threadObject.attributedTo}`);
+        if (creatorByFedId) {
+          creatorId = creatorByFedId.id;
+        } else {
+          // Fallback: extract username from AP URL (https://domain/users/username)
+          const usernameMatch = threadObject.attributedTo?.match(/\/users\/([^\/]+)$/i);
+          if (usernameMatch) {
+            const { data: creatorByUsername } = await supabase
+              .from('profiles')
+              .select('id')
+              .eq('username', usernameMatch[1])
+              .maybeSingle();
+            if (creatorByUsername) {
+              creatorId = creatorByUsername.id;
+            }
+          }
+        }
+
+        if (!creatorId) {
+          logger.warn(`Creator not found for thread (tried federated_id and username): ${threadObject.attributedTo}`);
           return { success: false, error: 'Creator not found' };
         }
 
+        // --- Check for existing thread ---
+        const threadApId = threadObject.id;
+        let existingThread: { id: string } | null = null;
+
+        if (threadApId) {
+          const { data: byApId } = await supabase
+            .from('threads')
+            .select('id')
+            .eq('ap_id', threadApId)
+            .maybeSingle();
+          existingThread = byApId;
+        }
+
+        // Also try extracting UUID from the thread AP ID
+        if (!existingThread) {
+          const threadUuidMatch = threadApId?.match(/\/threads\/([a-f0-9-]{36})/i);
+          if (threadUuidMatch) {
+            const { data: byId } = await supabase
+              .from('threads')
+              .select('id')
+              .eq('id', threadUuidMatch[1])
+              .maybeSingle();
+            existingThread = byId;
+          }
+        }
+
+        if (existingThread) {
+          // Update existing thread
+          const { error: updateError } = await supabase
+            .from('threads')
+            .update({
+              name: threadObject.name,
+              archived: threadObject.archived || false,
+              locked: threadObject.locked || false,
+              auto_archive_duration: threadObject.autoArchiveDuration || 1440,
+              message_count: threadObject.messageCount || 0,
+              member_count: threadObject.memberCount || 0,
+              last_message_at: threadObject.lastMessageAt,
+              ap_id: threadApId,
+              federation_status: 'synced',
+            })
+            .eq('id', existingThread.id);
+
+          if (updateError) {
+            logger.error('Failed to update existing federated thread:', updateError);
+            return { success: false, error: updateError.message };
+          }
+          logger.info(`✅ Updated existing federated thread: ${threadObject.name}`);
+          return { success: true };
+        }
+
+        // --- Insert new thread ---
         const threadData = activityPubToThread(
           threadObject,
           channel.id,
-          parentMessage.id,
-          creator.id
+          parentMessageId,
+          creatorId
         );
+
+        // Extract UUID from thread AP ID to preserve original ID across instances
+        const threadIdMatch = threadApId?.match(/\/threads\/([a-f0-9-]{36})/i);
+        if (threadIdMatch) {
+          threadData.id = threadIdMatch[1];
+        }
 
         const { error } = await supabase
           .from('threads')
-          .upsert(threadData, {
-            onConflict: 'ap_id',
-          });
+          .insert(threadData);
 
         if (error) {
           logger.error('Failed to create federated thread:', error);
           return { success: false, error: error.message };
         }
 
-        logger.info(`✅ Created federated thread: ${threadObject.name}`);
+        logger.info(`✅ Created federated thread: ${threadObject.name} (ap_id: ${threadApId})`);
         return { success: true };
       }
 

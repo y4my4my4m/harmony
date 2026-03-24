@@ -371,8 +371,12 @@ export class ActivityProcessor {
 
     // Handle ChatThread — federated thread creation
     if (object.type === 'ChatThread') {
+      logger.info(`📋 Routing Create ChatThread to handler: ${object.id}`);
       const { handleThreadActivity } = await import('./ThreadActivityHandler.js');
-      await handleThreadActivity({ ...activity, object });
+      const result = await handleThreadActivity({ ...activity, object });
+      if (!result.success) {
+        logger.warn(`Thread Create failed: ${result.error}`);
+      }
       return;
     }
 
@@ -908,8 +912,12 @@ export class ActivityProcessor {
         logger.info(`✏️ Updated post: ${object.id}`);
       }
     } else if (object.type === 'ChatThread') {
+      logger.info(`📋 Routing Update ChatThread to handler: ${object.id}`);
       const { handleThreadActivity } = await import('./ThreadActivityHandler.js');
-      await handleThreadActivity({ ...activity, object });
+      const result = await handleThreadActivity({ ...activity, object });
+      if (!result.success) {
+        logger.warn(`Thread Update failed: ${result.error}`);
+      }
     } else if (object['harmony:type'] === 'harmony:GroupConversation') {
       // Update group conversation (DM group) - name, icon changes
       await this.handleGroupConversationUpdate(activity, object);
@@ -973,8 +981,12 @@ export class ActivityProcessor {
   private static async processDelete(activity: any): Promise<void> {
     const object = activity.object;
     if (object && typeof object === 'object' && object.type === 'ChatThread') {
+      logger.info(`📋 Routing Delete ChatThread to handler: ${object.id}`);
       const { handleThreadActivity } = await import('./ThreadActivityHandler.js');
-      await handleThreadActivity({ ...activity, object });
+      const result = await handleThreadActivity({ ...activity, object });
+      if (!result.success) {
+        logger.warn(`Thread Delete failed: ${result.error}`);
+      }
       return;
     }
 
