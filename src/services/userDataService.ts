@@ -934,6 +934,7 @@ class UserDataService extends EventTarget {
       .on('broadcast', { event: 'presence_event' }, (payload) => {
         const data = payload.payload ?? payload
         const type = data?.type as string
+        console.log(`[Realtime] presence_event on server-presence:${serverId}`, { type, data })
         if (type === 'member:join') {
           this.handleServerMemberJoin(serverId, { new: { user_id: data.user_id } })
         } else if (type === 'member:leave') {
