@@ -527,7 +527,7 @@ CREATE TRIGGER federation_endpoint_health_cleanup_trigger
 -- Federate thread creation/updates
 DROP TRIGGER IF EXISTS trigger_federate_thread ON public.threads;
 CREATE TRIGGER trigger_federate_thread
-    AFTER INSERT OR UPDATE ON public.threads
+    BEFORE INSERT OR UPDATE ON public.threads
     FOR EACH ROW
     EXECUTE FUNCTION public.trigger_queue_thread_federation();
 
