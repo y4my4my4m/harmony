@@ -916,7 +916,7 @@ class UserDataService extends EventTarget {
     const channelName = `server-presence:${serverId}`
     debug.log('🔄 Setting up presence for server:', serverId, 'with', userIds.length, 'users')
     
-    const channel = supabase.channel(channelName)
+    const channel = supabase.channel(channelName, { config: { private: true } })
       .on('presence', { event: 'sync' }, () => {
         debug.log('🔄 Presence sync for server:', serverId)
         this.handleServerSync(serverId)
@@ -945,17 +945,16 @@ class UserDataService extends EventTarget {
         }
       })
       .subscribe(async (status: string) => {
-        debug.log(`📡 Server presence subscription status for ${serverId}:`, status)
         if (status === 'SUBSCRIBED') {
-          // debug.log(`✅ Server presence connected: ${serverId}`)
-          
-          // Track current user if they're in this server
+          console.log(`[Realtime] server-presence:${serverId} → SUBSCRIBED`)
           if (this.currentUserId && userIds.includes(this.currentUserId)) {
             await this.trackCurrentUserInServer(channel, serverId)
           }
         } else if (status === 'CHANNEL_ERROR') {
-          debug.error(`❌ Server presence error for ${serverId}, retrying...`)
+          console.error(`[Realtime] server-presence:${serverId} → CHANNEL_ERROR (check realtime.messages RLS policies)`)
           setTimeout(() => this.setupServerPresence(serverId, userIds), 5000)
+        } else {
+          console.log(`[Realtime] server-presence:${serverId} →`, status)
         }
       })
     

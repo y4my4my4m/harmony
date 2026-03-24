@@ -1912,7 +1912,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
       debug.log('🔔 Subscribing to server structure updates for:', serverId);
       
       this.serverStructureSubscription = supabase
-        .channel(`server-structure:${serverId}`)
+        .channel(`server-structure:${serverId}`, { config: { private: true } })
         .on('broadcast', { event: 'server_event' }, async (payload) => {
           const data = payload.payload ?? payload;
           const type = data?.type as string;
@@ -1968,7 +1968,13 @@ export const useServerChannelStore = defineStore('serverChannel', {
           }
         })
         .subscribe((status) => {
-          debug.log(`📡 Server structure subscription status for ${serverId}:`, status);
+          if (status === 'SUBSCRIBED') {
+            console.log(`[Realtime] server-structure:${serverId} → SUBSCRIBED`);
+          } else if (status === 'CHANNEL_ERROR') {
+            console.error(`[Realtime] server-structure:${serverId} → CHANNEL_ERROR (check realtime.messages RLS policies)`);
+          } else {
+            console.log(`[Realtime] server-structure:${serverId} →`, status);
+          }
         });
     },
 
