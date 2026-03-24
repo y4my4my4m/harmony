@@ -220,7 +220,11 @@ CREATE TABLE IF NOT EXISTS public.threads (
     member_count integer DEFAULT 0,
     
     last_message_id uuid,
-    last_message_at timestamp with time zone
+    last_message_at timestamp with time zone,
+    
+    -- Federation
+    ap_id text,
+    federation_status text DEFAULT 'pending'
 );
 
 ALTER TABLE public.threads REPLICA IDENTITY FULL;

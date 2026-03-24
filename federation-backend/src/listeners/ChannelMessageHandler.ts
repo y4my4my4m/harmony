@@ -15,6 +15,7 @@ import { DeliveryQueue } from '../activitypub/DeliveryQueue.js';
 import { logger } from '../utils/logger.js';
 import config from '../config/index.js';
 import { convertContentToHTML, extractActivityPubTags, extractAttachments } from '../utils/contentUtils.js';
+import { getRemoteMemberGroups, type RemoteMemberGroup } from '../utils/federationUtils.js';
 
 // =============================================================================
 // TYPES
@@ -39,13 +40,6 @@ interface ChannelMessageDeletePayload {
   channel_id: string;
   server_id: string;
   ap_id?: string;
-}
-
-interface RemoteMemberGroup {
-  instance: string;
-  member_ap_ids: string[];
-  member_count: number;
-  shared_inbox?: string;
 }
 
 // =============================================================================
@@ -360,65 +354,6 @@ export async function handleChannelMessageDelete(
 // =============================================================================
 
 /**
- * Get remote member groups for a server
- */
-async function getRemoteMemberGroups(serverId: string): Promise<RemoteMemberGroup[]> {
-  const supabase = getSupabaseClient();
-  const hostDomain = config.INSTANCE_DOMAIN;
-
-  // Try the RPC function first (more efficient)
-  const { data: memberGroups, error: rpcError } = await supabase
-    .rpc('get_server_members_by_instance', { p_server_id: serverId });
-
-  if (!rpcError && memberGroups) {
-    return memberGroups.filter(
-      (group: any) => group.instance !== 'local' && group.instance !== hostDomain
-    );
-  }
-
-  // Fallback: manual query
-  const { data: members } = await supabase
-    .from('user_servers')
-    .select(`
-      member_instance,
-      profile:profiles!user_servers_user_id_fkey(federated_id, shared_inbox_url)
-    `)
-    .eq('server_id', serverId)
-    .eq('status', 'accepted')
-    .not('member_instance', 'is', null);
-
-  if (!members) {
-    return [];
-  }
-
-  // Group by instance
-  const instanceMap = new Map<string, RemoteMemberGroup>();
-
-  for (const member of members) {
-    const instance = member.member_instance;
-    if (!instance || instance === hostDomain) continue;
-
-    const profile = (member as any).profile;
-    if (!profile?.federated_id) continue;
-
-    if (!instanceMap.has(instance)) {
-      instanceMap.set(instance, {
-        instance,
-        member_ap_ids: [],
-        member_count: 0,
-        shared_inbox: profile.shared_inbox_url || `https://${instance}/inbox`,
-      });
-    }
-
-    const group = instanceMap.get(instance)!;
-    group.member_ap_ids.push(profile.federated_id);
-    group.member_count++;
-  }
-
-  return Array.from(instanceMap.values());
-}
-
-/**
  * Create ActivityPub activity for a message
  */
 function createMessageActivity(
@@ -473,6 +408,12 @@ function createMessageActivity(
     inReplyTo = `https://${hostDomain}/messages/${message.reply_to}`;
   }
 
+  // Thread context — if this message belongs to a thread, include the thread AP ID
+  let threadApId: string | undefined;
+  if (message.thread_id) {
+    threadApId = `https://${hostDomain}/threads/${message.thread_id}`;
+  }
+
   return {
     '@context': [
       'https://www.w3.org/ns/activitystreams',
@@ -484,6 +425,7 @@ function createMessageActivity(
         'serverId': 'harmony:serverId',
         'serverName': 'harmony:serverName',
         'encrypted': 'harmony:encrypted',
+        'threadId': 'harmony:threadId',
       },
     ],
     id: activityType === 'Update' ? `${activityId}/updates/${Date.now()}` : activityId,
@@ -512,6 +454,7 @@ function createMessageActivity(
 
       // Threading
       inReplyTo,
+      'harmony:threadId': threadApId,
 
       // Tags and attachments
       tag: tags.length > 0 ? tags : undefined,

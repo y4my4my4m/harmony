@@ -2625,6 +2625,37 @@ export class ActivityProcessor {
       }
     }
 
+    // Resolve thread_id from harmony:threadId AP extension
+    let resolvedThreadId: string | null = null;
+    const threadApIdValue = object['harmony:threadId'];
+    if (threadApIdValue) {
+      const { data: threadByApId } = await supabase
+        .from('threads')
+        .select('id')
+        .eq('ap_id', threadApIdValue)
+        .maybeSingle();
+
+      if (threadByApId) {
+        resolvedThreadId = threadByApId.id;
+      } else {
+        // Try extracting UUID from the AP URL (e.g. https://domain/threads/{uuid})
+        const threadIdMatch = threadApIdValue.match(/\/threads\/([a-f0-9-]{36})/);
+        if (threadIdMatch) {
+          const { data: threadById } = await supabase
+            .from('threads')
+            .select('id')
+            .eq('id', threadIdMatch[1])
+            .maybeSingle();
+          if (threadById) {
+            resolvedThreadId = threadById.id;
+          }
+        }
+      }
+      if (!resolvedThreadId) {
+        logger.warn(`Thread not found for AP ID ${threadApIdValue}, message will appear in channel`);
+      }
+    }
+
     const { data: insertedMsg, error: insertError } = await supabase
       .from('messages')
       .insert({
@@ -2635,6 +2666,7 @@ export class ActivityProcessor {
         created_at: object.published || new Date().toISOString(),
         updated_at: object.updated || null,
         reply_to: resolvedReplyTo,
+        thread_id: resolvedThreadId,
         is_deleted: false,
         federation_status: 'completed',
         encrypted: object['harmony:encrypted'] === true,

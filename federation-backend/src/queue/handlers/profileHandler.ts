@@ -2,7 +2,7 @@
  * Profile Federation Job Handler
  * 
  * Processes federate-profile jobs (local user profile updates)
- * Sends Update Person activities to followers
+ * Sends Update Person activities to followers AND server co-member instances
  */
 
 import { getSupabaseClient } from '../../config/supabase.js';
@@ -11,6 +11,7 @@ import { profileToActor } from '../../activitypub/converters/toActivityPub.js';
 import { resolveLocalProfileEmojis } from '../../activitypub/emojiResolver.js';
 import { logger } from '../../utils/logger.js';
 import config from '../../config/index.js';
+import { getServerCoMemberInstances } from '../../utils/federationUtils.js';
 import type { FederationJobData } from '../BullMQManager.js';
 
 export async function handleProfileJob(data: FederationJobData): Promise<void> {
@@ -51,7 +52,21 @@ export async function handleProfileJob(data: FederationJobData): Promise<void> {
       object: actor,
     };
 
+    // Broadcast to followers (existing behavior)
     await DeliveryQueue.broadcastToFollowers(profile.id, updateActivity);
+
+    // Also broadcast to all remote instances where the user shares servers.
+    // This ensures co-members who don't follow the user still see profile updates.
+    const coMemberGroups = await getServerCoMemberInstances(profile.id);
+    if (coMemberGroups.length > 0) {
+      let deliveredCount = 0;
+      for (const group of coMemberGroups) {
+        const inbox = group.shared_inbox || `https://${group.instance}/inbox`;
+        await DeliveryQueue.enqueue(updateActivity, inbox, profile.id);
+        deliveredCount++;
+      }
+      logger.info(`📡 Profile update also sent to ${deliveredCount} server co-member instances`);
+    }
     
     logger.info(`✅ Profile update federated for ${profile.username}`);
 

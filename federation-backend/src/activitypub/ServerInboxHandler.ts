@@ -671,6 +671,36 @@ async function processCreateActivity(
     }
   }
 
+  // Resolve thread_id from harmony:threadId AP extension
+  let resolvedThreadId: string | null = null;
+  const threadApIdValue = object['harmony:threadId'];
+  if (threadApIdValue) {
+    const { data: threadByApId } = await supabase
+      .from('threads')
+      .select('id')
+      .eq('ap_id', threadApIdValue)
+      .maybeSingle();
+
+    if (threadByApId) {
+      resolvedThreadId = threadByApId.id;
+    } else {
+      const threadIdMatch = threadApIdValue.match(/\/threads\/([a-f0-9-]{36})/);
+      if (threadIdMatch) {
+        const { data: threadById } = await supabase
+          .from('threads')
+          .select('id')
+          .eq('id', threadIdMatch[1])
+          .maybeSingle();
+        if (threadById) {
+          resolvedThreadId = threadById.id;
+        }
+      }
+    }
+    if (!resolvedThreadId) {
+      logger.warn(`Thread not found for AP ID ${threadApIdValue}, message will appear in channel`);
+    }
+  }
+
   // Insert message
   const messageTimestamp = object.published || new Date().toISOString();
   const isEncrypted = object['harmony:encrypted'] === true;
@@ -680,6 +710,7 @@ async function processCreateActivity(
     user_id: author.id,
     content: messageContent,
     reply_to: replyToId,
+    thread_id: resolvedThreadId,
     metadata: {
       ap_id: object.id,
       from_domain: new URL(actorUrl).hostname,
@@ -687,7 +718,7 @@ async function processCreateActivity(
     },
     encrypted: isEncrypted,
     created_at: messageTimestamp,
-    updated_at: object.updated || messageTimestamp, // Required field
+    updated_at: object.updated || messageTimestamp,
     federation_status: 'completed',
   }).select('id, content, metadata').single();
 
