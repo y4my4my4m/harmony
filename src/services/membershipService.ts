@@ -4,7 +4,6 @@
  */
 
 import { supabase } from '@/supabase'
-import type { RealtimeChannel } from '@supabase/supabase-js'
 import { useServerUsersStore } from '@/stores/useServerUsers'
 import { getUserIdsForServer } from '@/services/usersService'
 import { debug } from '@/utils/debug'
@@ -34,7 +33,6 @@ export interface MembershipServiceOptions {
 }
 
 export class MembershipService {
-  private subscriptions: Map<string, RealtimeChannel> = new Map()
   private options: MembershipServiceOptions = {}
 
   constructor(options: MembershipServiceOptions = {}) {
@@ -57,79 +55,10 @@ export class MembershipService {
   }
 
   /**
-   * Subscribe to membership events for a specific server.
-   * @deprecated Membership events are now received via the server-structure
-   * broadcast channel (handled by useServerChannel). This method is kept
-   * for backward compatibility but creates a redundant CDC connection.
-   */
-  async subscribeToServer(serverId: string): Promise<void> {
-    try {
-      this.unsubscribeFromServer(serverId)
-
-      debug.log(`🔔 Setting up membership subscription for server: ${serverId}`)
-
-      const channel = supabase
-        .channel(`server-membership-${serverId}`)
-        .on(
-          'postgres_changes',
-          {
-            event: 'INSERT',
-            schema: 'public',
-            table: 'server_membership_events',
-            filter: `server_id=eq.${serverId}`
-          },
-          async (payload) => {
-            debug.log('🚨 Membership event received:', payload)
-            await this.handleMembershipEvent(payload.new as MembershipEvent)
-          }
-        )
-        .subscribe((status) => {
-          debug.log(`📡 Membership subscription status for ${serverId}:`, status)
-          if (status === 'SUBSCRIBED') {
-            debug.log(`✅ Successfully subscribed to membership events for server ${serverId}`)
-          } else if (status === 'CHANNEL_ERROR') {
-            debug.error(`❌ Failed to subscribe to membership events for server ${serverId}`)
-            this.options.onError?.(new Error(`Failed to subscribe to membership events for server ${serverId}`))
-          }
-        })
-
-      this.subscriptions.set(serverId, channel)
-    } catch (error) {
-      debug.error('❌ Error setting up membership subscription:', error)
-      this.options.onError?.(error as Error)
-    }
-  }
-
-  /**
-   * Unsubscribe from membership events for a specific server
-   */
-  unsubscribeFromServer(serverId: string): void {
-    const existingChannel = this.subscriptions.get(serverId)
-    if (existingChannel) {
-      debug.log(`🧹 Cleaning up membership subscription for server: ${serverId}`)
-      supabase.removeChannel(existingChannel)
-      this.subscriptions.delete(serverId)
-    }
-  }
-
-  /**
-   * Subscribe to membership events for multiple servers
-   */
-  async subscribeToServers(serverIds: string[]): Promise<void> {
-    for (const serverId of serverIds) {
-      await this.subscribeToServer(serverId)
-    }
-  }
-
-  /**
-   * Unsubscribe from all membership events
+   * Cleanup (no-op — CDC subscriptions removed, events come via server-structure broadcast)
    */
   cleanup(): void {
-    debug.log('🧹 Cleaning up all membership subscriptions')
-    for (const [, channel] of this.subscriptions) {
-      supabase.removeChannel(channel)
-    }
-    this.subscriptions.clear()
+    // No CDC channels to clean up
   }
 
   /**
@@ -205,13 +134,6 @@ export class MembershipService {
       debug.error('❌ Error refreshing server user list:', error)
       this.options.onError?.(error as Error)
     }
-  }
-
-  /**
-   * Get active subscriptions (for debugging)
-   */
-  getActiveSubscriptions(): string[] {
-    return Array.from(this.subscriptions.keys())
   }
 
   /**
