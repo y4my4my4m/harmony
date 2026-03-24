@@ -349,13 +349,32 @@ async function handleInbox(
       const cc = Array.isArray(activity.cc) ? activity.cc : [activity.cc].filter(Boolean);
       const recipients = [...to, ...cc];
       const canonicalUrl = `https://${config.INSTANCE_DOMAIN}/users/${username}`;
-      const addressed = recipients.some((r: string) =>
+      const PUBLIC_ADDRESSING = 'https://www.w3.org/ns/activitystreams#Public';
+
+      const directlyAddressed = recipients.some((r: string) =>
         r === user.federated_id || r === canonicalUrl
       );
-      if (!addressed) {
-        logger.warn(`Rejecting activity not addressed to ${username} (type: ${activity.type})`);
-        res.status(202).json({ status: 'ignored', reason: 'not addressed to this user' });
-        return;
+
+      // Also accept if the activity is public or the object mentions this user
+      let mentionedInTags = false;
+      if (!directlyAddressed) {
+        const isPublic = recipients.some((r: string) =>
+          r === PUBLIC_ADDRESSING || r === 'as:Public' || r === 'Public'
+        );
+        const object = activity.object;
+        const tags = object?.tag || [];
+        const tagArray = Array.isArray(tags) ? tags : [tags];
+        mentionedInTags = tagArray.some((tag: any) =>
+          tag?.type === 'Mention' && (
+            tag.href === user.federated_id ||
+            tag.href === canonicalUrl
+          )
+        );
+        if (!isPublic && !mentionedInTags) {
+          logger.warn(`Rejecting activity not addressed to ${username} (type: ${activity.type})`);
+          res.status(202).json({ status: 'ignored', reason: 'not addressed to this user' });
+          return;
+        }
       }
     }
   }

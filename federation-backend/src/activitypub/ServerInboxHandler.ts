@@ -781,7 +781,6 @@ async function processUpdateActivity(
 
   // Handle CATEGORY updates - stored in channel_categories table
   if (object.type === 'harmony:Category') {
-    // Extract UUID from ap_id
     const catUuidMatch = object.id?.match(/\/channels\/([a-f0-9-]{36})$/i);
     if (!catUuidMatch) {
       logger.warn(`Cannot extract UUID from category ap_id: ${object.id}`);
@@ -789,63 +788,92 @@ async function processUpdateActivity(
     }
     const catUuid = catUuidMatch[1];
 
-    const { error: catError } = await supabase
+    const { data: existingCat } = await supabase
       .from('channel_categories')
-      .update({
-        name: object.name,
-        order: object.position || object.order,
-      })
-      .eq('id', catUuid);
+      .select('id')
+      .eq('id', catUuid)
+      .maybeSingle();
 
-    if (catError) {
-      logger.warn(`Category not found for Update: ${object.id}`);
-    } else {
+    if (existingCat) {
+      await supabase
+        .from('channel_categories')
+        .update({
+          name: object.name,
+          order: object.position || object.order,
+        })
+        .eq('id', catUuid);
       logger.info(`✏️ Updated remote category: ${object.name}`);
+    } else {
+      const { error } = await supabase.from('channel_categories').insert({
+        id: catUuid,
+        server_id: serverId,
+        name: object.name,
+        order: object.position || object.order || 0,
+      });
+      if (error) {
+        logger.error(`Failed to auto-create category ${object.name}:`, error);
+      } else {
+        logger.info(`📁 Auto-created remote category on Update: ${object.name}`);
+      }
     }
     return;
   }
 
   // Handle CHANNEL updates (text/voice) - stored in channels table
   if (['harmony:TextChannel', 'harmony:VoiceChannel'].includes(object.type)) {
-    // Find channel by ap_id
     const { data: channel } = await supabase
       .from('channels')
       .select('id')
       .eq('ap_id', object.id)
       .maybeSingle();
 
-    if (!channel) {
-      logger.warn(`Channel not found for Update: ${object.id}`);
-      return;
-    }
-
-    // Resolve category reference - look up in channel_categories by UUID
+    // Resolve category reference
     let categoryId = null;
     if (object.category) {
       const catMatch = object.category.match(/\/channels\/([a-f0-9-]{36})$/i);
       if (catMatch) {
-        // Look up the category in channel_categories table by UUID
         const { data: cat } = await supabase
           .from('channel_categories')
           .select('id')
           .eq('id', catMatch[1])
           .maybeSingle();
-        
         categoryId = cat?.id || null;
       }
     }
 
-    await supabase
-      .from('channels')
-      .update({
+    if (channel) {
+      await supabase
+        .from('channels')
+        .update({
+          name: object.name,
+          description: object.description,
+          order: object.position || object.order,
+          category: categoryId,
+        })
+        .eq('id', channel.id);
+      logger.info(`✏️ Updated remote channel: ${object.name}`);
+    } else {
+      const entityUuidMatch = object.id?.match(/\/channels\/([a-f0-9-]{36})$/i);
+      const channelType = object.type === 'harmony:VoiceChannel' ? 1 : 0;
+      const insertData: any = {
+        server_id: serverId,
         name: object.name,
         description: object.description,
-        order: object.position || object.order,
+        type: channelType,
+        order: object.position || object.order || 0,
+        ap_id: object.id,
+        is_remote: true,
         category: categoryId,
-      })
-      .eq('id', channel.id);
+      };
+      if (entityUuidMatch) insertData.id = entityUuidMatch[1];
 
-    logger.info(`✏️ Updated remote channel: ${object.name}`);
+      const { error } = await supabase.from('channels').insert(insertData);
+      if (error) {
+        logger.error(`Failed to auto-create channel ${object.name}:`, error);
+      } else {
+        logger.info(`📢 Auto-created remote channel on Update: ${object.name}`);
+      }
+    }
     return;
   }
 

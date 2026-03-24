@@ -434,9 +434,12 @@ const handleDMConversationSelected = (conversationId: string) => {
   router.push(`/dm/${conversationId}`)
 }
 
-const handleChannelCreated = () => {
+const handleChannelCreated = (channel?: any) => {
   showCreateChannelForm.value = false
   currentCategoryId.value = undefined
+  if (channel) {
+    serverChannelStore._handleChannelInsert({ new: channel })
+  }
 }
 
 const handleSendMessage = async (content: any, replyTo?: string) => {

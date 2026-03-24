@@ -1870,29 +1870,52 @@ export class ActivityProcessor {
 
   /**
    * Handle Harmony channel/category Update activities received on the shared inbox.
+   * Auto-creates the entity if it doesn't exist (missed Add / source-of-truth sync).
    */
   private static async processHarmonyChannelUpdate(activity: any, object: any): Promise<void> {
     const supabase = getSupabaseClient();
+    const actorUrl = typeof activity.actor === 'string' ? activity.actor : activity.actor?.id;
+    const entityUuidMatch = object.id?.match(/\/channels\/([a-f0-9-]{36})$/i);
+    const entityUuid = entityUuidMatch ? entityUuidMatch[1] : undefined;
 
     if (object.type === 'harmony:Category') {
-      const catUuidMatch = object.id?.match(/\/channels\/([a-f0-9-]{36})$/i);
-      if (!catUuidMatch) {
+      if (!entityUuid) {
         logger.warn(`Cannot extract UUID from category ap_id: ${object.id}`);
         return;
       }
 
-      const { error } = await supabase
+      const { data: existing } = await supabase
         .from('channel_categories')
-        .update({
-          name: object.name,
-          order: object.position || object.order,
-        })
-        .eq('id', catUuidMatch[1]);
+        .select('id')
+        .eq('id', entityUuid)
+        .maybeSingle();
 
-      if (error) {
-        logger.warn(`Category not found for Update: ${object.id}`);
-      } else {
+      if (existing) {
+        await supabase
+          .from('channel_categories')
+          .update({
+            name: object.name,
+            order: object.position || object.order,
+          })
+          .eq('id', entityUuid);
         logger.info(`✏️ Updated remote category: ${object.name}`);
+      } else {
+        const server = await this.resolveRemoteServer(actorUrl);
+        if (!server) {
+          logger.warn(`Remote server not found, cannot auto-create category: ${object.id}`);
+          return;
+        }
+        const { error } = await supabase.from('channel_categories').insert({
+          id: entityUuid,
+          server_id: server.id,
+          name: object.name,
+          order: object.position || object.order || 0,
+        });
+        if (error) {
+          logger.error(`Failed to auto-create category ${object.name}:`, error);
+        } else {
+          logger.info(`📁 Auto-created remote category on Update: ${object.name}`);
+        }
       }
     } else {
       const { data: channel } = await supabase
@@ -1900,11 +1923,6 @@ export class ActivityProcessor {
         .select('id, server_id')
         .eq('ap_id', object.id)
         .maybeSingle();
-
-      if (!channel) {
-        logger.warn(`Channel not found for Update: ${object.id}`);
-        return;
-      }
 
       let categoryId = null;
       if (object.category) {
@@ -1919,17 +1937,43 @@ export class ActivityProcessor {
         }
       }
 
-      await supabase
-        .from('channels')
-        .update({
+      if (channel) {
+        await supabase
+          .from('channels')
+          .update({
+            name: object.name,
+            description: object.description,
+            order: object.position || object.order,
+            category: categoryId,
+          })
+          .eq('id', channel.id);
+        logger.info(`✏️ Updated remote channel: ${object.name}`);
+      } else {
+        const server = await this.resolveRemoteServer(actorUrl);
+        if (!server) {
+          logger.warn(`Remote server not found, cannot auto-create channel: ${object.id}`);
+          return;
+        }
+        const channelType = object.type === 'harmony:VoiceChannel' ? 1 : 0;
+        const insertData: any = {
+          server_id: server.id,
           name: object.name,
           description: object.description,
-          order: object.position || object.order,
+          type: channelType,
+          order: object.position || object.order || 0,
+          ap_id: object.id,
+          is_remote: true,
           category: categoryId,
-        })
-        .eq('id', channel.id);
+        };
+        if (entityUuid) insertData.id = entityUuid;
 
-      logger.info(`✏️ Updated remote channel: ${object.name}`);
+        const { error } = await supabase.from('channels').insert(insertData);
+        if (error) {
+          logger.error(`Failed to auto-create channel ${object.name}:`, error);
+        } else {
+          logger.info(`📢 Auto-created remote channel on Update: ${object.name}`);
+        }
+      }
     }
   }
 

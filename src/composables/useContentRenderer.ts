@@ -395,7 +395,6 @@ export function useContentRenderer(
         
         case 'mention': {
           const displayText = formatMentionDisplay(part);
-          // Escape HTML entities in the display text
           const escapedDisplayText = displayText
             .replace(/&/g, '&amp;')
             .replace(/</g, '&lt;')
@@ -403,18 +402,13 @@ export function useContentRenderer(
             .replace(/"/g, '&quot;')
             .replace(/'/g, '&#039;');
           
+          // Build a local handle for navigation (e.g. "@bob@mastodon.social")
+          const mentionHandle = part.domain
+            ? `@${part.username || ''}@${part.domain}`
+            : `@${part.username || ''}`;
           const dataAttrs = renderOptions.enableClickHandlers 
-            ? `data-user-id="${escapeHtml(String(part.userId || ''))}" data-handle="${escapedDisplayText}"` 
+            ? `data-user-id="${escapeHtml(String(part.userId || ''))}" data-handle="${escapeHtml(mentionHandle)}"` 
             : '';
-          // Remote mentions: userId is the full profile URL (e.g. https://mastodon.social/users/bob)
-          // Use <a href="..."> so link works and right-click "open in new tab" goes to remote profile
-          const profileHref = part.userId && typeof part.userId === 'string' && /^https?:\/\//i.test(part.userId)
-            ? part.userId
-            : null;
-          const safeHref = profileHref ? escapeHtml(profileHref) : '';
-          if (profileHref && renderOptions.enableClickHandlers) {
-            return `<a href="${safeHref}" target="_blank" rel="noopener noreferrer" class="mention u-url" ${dataAttrs}>${escapedDisplayText}</a>`;
-          }
           return `<span class="mention" ${dataAttrs}>${escapedDisplayText}</span>`;
         }
         

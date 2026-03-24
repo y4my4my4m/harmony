@@ -110,7 +110,7 @@
               <div class="avatar-wrapper">
                 <Avatar 
                   :src="user.avatar_url" 
-                  :alt="user.display_name"
+                  :alt="plainDisplayName"
                   size="2xl" 
                   class="profile-avatar"
                 />
@@ -219,7 +219,7 @@
               :is-loading="isLoadingPosts"
               :has-more="hasMorePosts"
               :empty-title="t('activitypub.noMoniesHereYet')"
-              :empty-message="(isCurrentUser ? 'You haven\'t' : `${(user?.display_name || user?.username) || 'Unknown User'} hasn\'t`) + ' posted anything yet.'"
+              :empty-message="(isCurrentUser ? 'You haven\'t' : `${plainDisplayName} hasn\'t`) + ' posted anything yet.'"
               empty-icon="message-circle"
               @load-more="loadMorePosts"
               @reply="replyToPost"
@@ -238,7 +238,7 @@
             <div v-if="followingUsers.length === 0" class="empty-state">
               <Icon name="users" :size="48" />
               <h3>{{ t('activitypub.notFollowingAnyone') }}</h3>
-              <p>{{ isCurrentUser ? t('activitypub.notFollowingAnyoneYet') : `${user?.display_name || user?.username} ${t('activitypub.notFollowingAnyoneYet')}` }}</p>
+              <p>{{ isCurrentUser ? t('activitypub.notFollowingAnyoneYet') : `${plainDisplayName} ${t('activitypub.notFollowingAnyoneYet')}` }}</p>
             </div>
             
             <div v-else class="users-grid">
@@ -257,7 +257,7 @@
             <div v-if="followerUsers.length === 0" class="empty-state">
               <Icon name="users" :size="48" />
               <h3>No followers</h3>
-              <p>{{ isCurrentUser ? "You don't" : `${user?.display_name || user?.username} doesn't` }} have any followers yet.</p>
+              <p>{{ isCurrentUser ? "You don't" : `${plainDisplayName} doesn't` }} have any followers yet.</p>
             </div>
             
             <div v-else class="users-grid">
@@ -435,6 +435,16 @@ const showProfileModal = ref(false);
 const selectedModalUser = ref<FederatedUser | null>(null);
 
 // Computed properties
+const plainDisplayName = computed(() => {
+  const dn = user.value?.display_name
+  if (!dn) return user.value?.username || 'Unknown User'
+  if (typeof dn === 'string') return dn
+  if (Array.isArray(dn)) {
+    return dn.map((part: any) => typeof part === 'string' ? part : (part.text || part.content || '')).join('')
+  }
+  return String(dn)
+})
+
 const hasMorePosts = computed(() => props.hasMorePosts || hasMorePostsRef.value);
 const pinnedPostIds = computed(() => new Set(pinnedPosts.value.map(p => p.id)));
 const unpinnedUserPosts = computed(() => userPosts.value.filter(p => !pinnedPostIds.value.has(p.id)));

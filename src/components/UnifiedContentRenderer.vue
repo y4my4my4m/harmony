@@ -280,13 +280,10 @@ const handleContentClick = (event: Event) => {
     return;
   }
   
-  // Handle mention clicks in HTML mode
+  // Handle mention clicks in HTML mode — always navigate locally
   if (target.classList.contains('mention')) {
-    // Remote mentions are <a href="https://domain/users/..."> - let default link behavior work
-    const href = target.getAttribute('href') || '';
-    if (target.tagName === 'A' && /^https?:\/\//i.test(href)) {
-      return; // Don't emit; let the link navigate to remote profile
-    }
+    event.preventDefault();
+    event.stopPropagation();
     const userId = target.getAttribute('data-user-id');
     if (userId) {
       emit('user-mention-click', userId, event);
