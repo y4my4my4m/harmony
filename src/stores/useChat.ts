@@ -1059,16 +1059,18 @@ export const useChatStore = defineStore('chat', {
           channelName: reactionsChannelName,
           table: 'reactions',
           filter: `channel_id=eq.${channelId}`,
+          // Forward all reactions for this channel. Thread replies are not in store.messages
+          // but share channel_id; MessageDisplay in ThreadView reads the same reactions store.
           onInsert: (payload) => {
             const messageId = (payload.new as any)?.message_id;
-            if (messageId && store.messages.some(m => m.id === messageId)) {
-              reactionsStore.handleRealtimeUpdate(payload);
+            if (messageId) {
+              void reactionsStore.handleRealtimeUpdate(payload);
             }
           },
           onDelete: (payload) => {
             const messageId = (payload.old as any)?.message_id;
-            if (messageId && store.messages.some(m => m.id === messageId)) {
-              reactionsStore.handleRealtimeUpdate(payload);
+            if (messageId) {
+              void reactionsStore.handleRealtimeUpdate(payload);
             }
           },
         });

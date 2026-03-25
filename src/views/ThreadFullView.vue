@@ -49,6 +49,53 @@
         </svg>
         Leave Thread
       </button>
+
+      <div class="options-divider"></div>
+
+      <button v-if="canManageThread" @click="editThread" class="option-item">
+        <svg width="16" height="16" viewBox="0 0 24 24">
+          <path fill="currentColor" d="M20.71,7.04C21.1,6.65 21.1,6 20.71,5.63L18.37,3.29C18,2.9 17.35,2.9 16.96,3.29L15.12,5.12L18.87,8.87M3,17.25V21H6.75L17.81,9.93L14.06,6.18L3,17.25Z"/>
+        </svg>
+        Edit Thread
+      </button>
+
+      <button v-if="canManageThread && !thread?.archived" @click="closeThread" class="option-item">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M20.54 5.23l-1.39-1.68C18.88 3.21 18.47 3 18 3H6c-.47 0-.88.21-1.16.55L3.46 5.23C3.17 5.57 3 6.02 3 6.5V19c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6.5c0-.48-.17-.93-.46-1.27zM12 17.5L6.5 12H10v-2h4v2h3.5L12 17.5zM5.12 5l.81-1h12l.94 1H5.12z"/>
+        </svg>
+        Close Thread
+      </button>
+
+      <button v-if="canManageThread && thread?.archived" @click="reopenThread" class="option-item">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M20.54 5.23l-1.39-1.68C18.88 3.21 18.47 3 18 3H6c-.47 0-.88.21-1.16.55L3.46 5.23C3.17 5.57 3 6.02 3 6.5V19c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6.5c0-.48-.17-.93-.46-1.27zM12 6.5L17.5 12H14v2h-4v-2H6.5L12 6.5zM5.12 5l.81-1h12l.94 1H5.12z"/>
+        </svg>
+        Reopen Thread
+      </button>
+
+      <button v-if="canManageThread && !thread?.locked" @click="lockThread" class="option-item">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/>
+        </svg>
+        Lock Thread
+      </button>
+
+      <button v-if="canManageThread && thread?.locked" @click="unlockThread" class="option-item">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12 17c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm6-9h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6h1.9c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm0 12H6V10h12v10z"/>
+        </svg>
+        Unlock Thread
+      </button>
+
+      <button v-if="canManageThread" @click="deleteThread" class="option-item danger">
+        <svg width="16" height="16" viewBox="0 0 24 24">
+          <path fill="currentColor" d="M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z"/>
+        </svg>
+        Delete Thread
+      </button>
+
+      <div class="options-divider"></div>
+
       <button @click="toggleNotifications" class="option-item">
         <svg v-if="isMuted" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
           <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/>
@@ -57,6 +104,22 @@
           <path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/>
         </svg>
         {{ isMuted ? 'Unmute Thread' : 'Mute Thread' }}
+      </button>
+
+      <div class="options-divider"></div>
+
+      <button @click="copyThreadLink" class="option-item">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"/>
+        </svg>
+        Copy Link
+      </button>
+
+      <button @click="copyThreadId" class="option-item">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
+        </svg>
+        Copy Thread ID
       </button>
     </div>
 
@@ -179,6 +242,8 @@ import EmojiPopup from '@/components/EmojiPopup.vue'
 import MediaPickerPopup from '@/components/MediaPickerPopup.vue'
 import { useAuthStore } from '@/stores/auth'
 import { useChatStore } from '@/stores/useChat'
+import { useReactionsStore } from '@/stores/useReactions'
+import { useServerPermissions } from '@/composables/useServerPermissions'
 import { parseContentToMessageParts, resolveMentionsUserData, resolveEmojisData } from '@/utils/unifiedContentProcessing'
 import { debug } from '@/utils/debug'
 import { realtimeConnectionManager } from '@/services/RealtimeConnectionManager'
@@ -204,6 +269,10 @@ const {
 
 const authStore = useAuthStore()
 const chatStore = useChatStore()
+const reactionsStore = useReactionsStore()
+const { canManageChannels } = useServerPermissions()
+
+const canManageThread = computed(() => canManageChannels.value)
 
 // Current user ID for MessageDisplay
 const currentUserId = computed(() => authStore.session?.user?.id)
@@ -248,6 +317,7 @@ const messageText = ref('')
 const sending = ref(false)
 const messagesContainer = ref<HTMLElement | null>(null)
 const threadSubscription = ref<(() => void) | null>(null)
+const reactionsSubscription = ref<(() => void) | null>(null)
 
 // Format helpers
 const formatDate = (date: string | Date) => {
@@ -389,6 +459,91 @@ const toggleNotifications = async () => {
   }
 }
 
+const editThread = () => {
+  showOptions.value = false
+  if (!thread.value) return
+  const newName = prompt('Edit thread name:', thread.value.name)
+  if (newName && newName !== thread.value.name) {
+    threadService.updateThread(thread.value.id, { name: newName }).then((updated) => {
+      if (updated && thread.value) {
+        thread.value.name = updated.name
+      }
+    })
+  }
+}
+
+const closeThread = async () => {
+  showOptions.value = false
+  if (!thread.value) return
+  try {
+    await threadService.archiveThread(thread.value.id)
+    if (thread.value) thread.value.archived = true
+  } catch (error) {
+    debug.error('Failed to close thread:', error)
+  }
+}
+
+const reopenThread = async () => {
+  showOptions.value = false
+  if (!thread.value) return
+  try {
+    await threadService.unarchiveThread(thread.value.id)
+    if (thread.value) thread.value.archived = false
+  } catch (error) {
+    debug.error('Failed to reopen thread:', error)
+  }
+}
+
+const lockThread = async () => {
+  showOptions.value = false
+  if (!thread.value) return
+  try {
+    await threadService.lockThread(thread.value.id)
+    if (thread.value) {
+      thread.value.locked = true
+      thread.value.archived = true
+    }
+  } catch (error) {
+    debug.error('Failed to lock thread:', error)
+  }
+}
+
+const unlockThread = async () => {
+  showOptions.value = false
+  if (!thread.value) return
+  try {
+    await threadService.unlockThread(thread.value.id)
+    if (thread.value) thread.value.locked = false
+  } catch (error) {
+    debug.error('Failed to unlock thread:', error)
+  }
+}
+
+const deleteThread = async () => {
+  showOptions.value = false
+  if (!thread.value) return
+  if (!confirm(`Are you sure you want to delete "${thread.value.name}"? This cannot be undone.`)) return
+  try {
+    await threadService.deleteThread(thread.value.id)
+    goBack()
+  } catch (error) {
+    debug.error('Failed to delete thread:', error)
+  }
+}
+
+const copyThreadLink = async () => {
+  showOptions.value = false
+  if (!thread.value) return
+  const url = `${window.location.origin}/chat/${props.serverId}/thread/${thread.value.id}`
+  await navigator.clipboard.writeText(url)
+}
+
+const copyThreadId = async () => {
+  showOptions.value = false
+  if (!thread.value) return
+  await navigator.clipboard.writeText(thread.value.id)
+}
+
 // Use unified content parsing system (DRY - same as ChatComponent)
 const parseMessageInput = async (input: string): Promise<MessagePart[]> => {
   debug.log('🔧 ThreadFullView: Using unified content parsing for:', input)
@@ -497,8 +652,6 @@ const scrollToBottom = () => {
 const handleSendReaction = async (messageId: string, emoji: Emoji) => {
   if (!currentUserId.value) return
   try {
-    const { useReactionsStore } = await import('@/stores/useReactions')
-    const reactionsStore = useReactionsStore()
     await reactionsStore.toggleReaction(messageId, emoji.id, currentUserId.value, emoji)
   } catch (error) {
     console.error('Failed to toggle reaction:', error)
@@ -788,6 +941,35 @@ const setupRealtimeSubscription = () => {
   debug.log(`📡 Subscribed to thread messages: ${channelName}`)
 }
 
+const cleanupReactionsSubscription = () => {
+  if (reactionsSubscription.value) {
+    reactionsSubscription.value()
+    reactionsSubscription.value = null
+  }
+}
+
+/** Full thread route does not run ChatView.subscribeToMessages — mirror channel reactions CDC here. */
+const setupReactionsSubscription = () => {
+  cleanupReactionsSubscription()
+  if (!thread.value?.channel_id || !thread.value?.id) return
+
+  const channelName = `thread-full-reactions-${thread.value.id}`
+  reactionsSubscription.value = realtimeConnectionManager.subscribeToTable({
+    channelName,
+    table: 'reactions',
+    filter: `channel_id=eq.${thread.value.channel_id}`,
+    onInsert: (payload) => {
+      const messageId = (payload.new as any)?.message_id
+      if (messageId) void reactionsStore.handleRealtimeUpdate(payload)
+    },
+    onDelete: (payload) => {
+      const messageId = (payload.old as any)?.message_id
+      if (messageId) void reactionsStore.handleRealtimeUpdate(payload)
+    },
+  })
+  debug.log(`📡 Subscribed to thread reactions: ${channelName}`)
+}
+
 // Watch for threadId changes
 watch(() => props.threadId, () => {
   if (props.threadId) {
@@ -799,12 +981,14 @@ watch(() => props.threadId, () => {
 watch(() => thread.value?.id, (threadId) => {
   if (threadId) {
     setupRealtimeSubscription()
+    setupReactionsSubscription()
   } else {
     // Clean up subscription when thread is unloaded
     if (threadSubscription.value) {
       threadSubscription.value()
       threadSubscription.value = null
     }
+    cleanupReactionsSubscription()
   }
 })
 
@@ -818,6 +1002,7 @@ onUnmounted(() => {
     threadSubscription.value()
     threadSubscription.value = null
   }
+  cleanupReactionsSubscription()
 })
 </script>
 
@@ -957,6 +1142,24 @@ onUnmounted(() => {
 
 .option-item svg {
   color: var(--text-muted);
+}
+
+.option-item.danger {
+  color: #ed4245;
+}
+
+.option-item.danger:hover {
+  background: rgba(237, 66, 69, 0.1);
+}
+
+.option-item.danger svg {
+  color: #ed4245;
+}
+
+.options-divider {
+  height: 1px;
+  background: var(--border-color, var(--h-black-lighter));
+  margin: 4px 8px;
 }
 
 /* Parent Message Section */

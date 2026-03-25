@@ -390,9 +390,14 @@ class ThreadService {
         .update(updateData)
         .eq('id', threadId)
         .select()
-        .single()
+        .maybeSingle()
 
       if (error) throw error
+
+      if (!data) {
+        debug.error('Thread update returned no data — insufficient permissions or thread not found')
+        return null
+      }
 
       // Invalidate cache
       this.threadCache.delete(threadId)
