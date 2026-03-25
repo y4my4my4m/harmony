@@ -114,12 +114,15 @@ export async function handleThreadActivity(
     switch (activity.type) {
       case 'Create': {
         const threadObject = activity.object as ThreadObject;
+        const harmonyServerId = (threadObject as any)['harmony:serverId'];
 
-        logger.info(`📋 Thread Create: context=${threadObject.context}, inReplyTo=${threadObject.inReplyTo}, attributedTo=${threadObject.attributedTo}`);
+        logger.info(`📋 Thread Create: name="${threadObject.name}", context=${threadObject.context}, inReplyTo=${threadObject.inReplyTo}, attributedTo=${threadObject.attributedTo}, harmony:serverId=${harmonyServerId}`);
 
-        // --- Resolve channel (with UUID fallback) ---
+        // --- Resolve channel ---
+        // Try multiple strategies: ap_id match, UUID from URL, server_id scoped lookup
         let channel: { id: string; server_id: string } | null = null;
 
+        // Strategy 1: exact ap_id match
         const { data: channelByApId } = await supabase
           .from('channels')
           .select('id, server_id')
@@ -128,8 +131,11 @@ export async function handleThreadActivity(
 
         if (channelByApId) {
           channel = channelByApId;
-        } else {
-          // Fallback: extract UUID from the AP URL
+          logger.info(`📋 Channel resolved via ap_id: ${channel.id}`);
+        }
+
+        // Strategy 2: extract UUID from context URL
+        if (!channel) {
           const channelUuidMatch = threadObject.context?.match(/\/channels\/([a-f0-9-]{36})/i);
           if (channelUuidMatch) {
             const { data: channelById } = await supabase
@@ -137,18 +143,40 @@ export async function handleThreadActivity(
               .select('id, server_id')
               .eq('id', channelUuidMatch[1])
               .maybeSingle();
-            channel = channelById;
+            if (channelById) {
+              channel = channelById;
+              logger.info(`📋 Channel resolved via UUID: ${channel.id}`);
+            }
+          }
+        }
+
+        // Strategy 3: if we have harmony:serverId, look up channel by server_id scope
+        if (!channel && harmonyServerId) {
+          const channelUuidMatch = threadObject.context?.match(/\/channels\/([a-f0-9-]{36})/i);
+          if (channelUuidMatch) {
+            // The puppet server might use the same UUID as the origin
+            const { data: channelByServerScope } = await supabase
+              .from('channels')
+              .select('id, server_id')
+              .eq('server_id', harmonyServerId)
+              .eq('id', channelUuidMatch[1])
+              .maybeSingle();
+            if (channelByServerScope) {
+              channel = channelByServerScope;
+              logger.info(`📋 Channel resolved via server-scoped UUID: ${channel.id}`);
+            }
           }
         }
 
         if (!channel) {
-          logger.warn(`Channel not found for thread (tried ap_id and UUID): ${threadObject.context}`);
+          logger.warn(`❌ Channel not found for thread. context=${threadObject.context}, harmony:serverId=${harmonyServerId}`);
           return { success: false, error: 'Channel not found' };
         }
 
-        // --- Resolve parent message (with UUID fallback) ---
+        // --- Resolve parent message ---
         let parentMessageId: string | null = null;
 
+        // Strategy 1: metadata.ap_id match
         const { data: parentByApId } = await supabase
           .from('messages')
           .select('id')
@@ -157,7 +185,11 @@ export async function handleThreadActivity(
 
         if (parentByApId) {
           parentMessageId = parentByApId.id;
-        } else {
+          logger.info(`📋 Parent message resolved via ap_id: ${parentMessageId}`);
+        }
+
+        // Strategy 2: UUID from URL
+        if (!parentMessageId) {
           const msgUuidMatch = threadObject.inReplyTo?.match(/\/messages\/([a-f0-9-]{36})/i);
           if (msgUuidMatch) {
             const { data: parentById } = await supabase
@@ -167,16 +199,34 @@ export async function handleThreadActivity(
               .maybeSingle();
             if (parentById) {
               parentMessageId = parentById.id;
+              logger.info(`📋 Parent message resolved via UUID: ${parentMessageId}`);
+            }
+          }
+        }
+
+        // Strategy 3: look in the resolved channel for the message by UUID
+        if (!parentMessageId) {
+          const msgUuidMatch = threadObject.inReplyTo?.match(/\/messages\/([a-f0-9-]{36})/i);
+          if (msgUuidMatch) {
+            const { data: parentInChannel } = await supabase
+              .from('messages')
+              .select('id')
+              .eq('id', msgUuidMatch[1])
+              .eq('channel_id', channel.id)
+              .maybeSingle();
+            if (parentInChannel) {
+              parentMessageId = parentInChannel.id;
+              logger.info(`📋 Parent message resolved via channel-scoped UUID: ${parentMessageId}`);
             }
           }
         }
 
         if (!parentMessageId) {
-          logger.warn(`Parent message not found for thread (tried ap_id and UUID): ${threadObject.inReplyTo}`);
+          logger.warn(`❌ Parent message not found. inReplyTo=${threadObject.inReplyTo}, channel=${channel.id}`);
           return { success: false, error: 'Parent message not found' };
         }
 
-        // --- Resolve creator (with username fallback) ---
+        // --- Resolve creator ---
         let creatorId: string | null = null;
 
         const { data: creatorByFedId } = await supabase
@@ -187,8 +237,8 @@ export async function handleThreadActivity(
 
         if (creatorByFedId) {
           creatorId = creatorByFedId.id;
+          logger.info(`📋 Creator resolved via federated_id: ${creatorId}`);
         } else {
-          // Fallback: extract username from AP URL (https://domain/users/username)
           const usernameMatch = threadObject.attributedTo?.match(/\/users\/([^\/]+)$/i);
           if (usernameMatch) {
             const { data: creatorByUsername } = await supabase
@@ -198,16 +248,17 @@ export async function handleThreadActivity(
               .maybeSingle();
             if (creatorByUsername) {
               creatorId = creatorByUsername.id;
+              logger.info(`📋 Creator resolved via username: ${creatorId}`);
             }
           }
         }
 
         if (!creatorId) {
-          logger.warn(`Creator not found for thread (tried federated_id and username): ${threadObject.attributedTo}`);
+          logger.warn(`❌ Creator not found. attributedTo=${threadObject.attributedTo}`);
           return { success: false, error: 'Creator not found' };
         }
 
-        // --- Check for existing thread ---
+        // --- Check for existing thread (idempotent) ---
         const threadApId = threadObject.id;
         let existingThread: { id: string } | null = null;
 
@@ -220,7 +271,6 @@ export async function handleThreadActivity(
           existingThread = byApId;
         }
 
-        // Also try extracting UUID from the thread AP ID
         if (!existingThread) {
           const threadUuidMatch = threadApId?.match(/\/threads\/([a-f0-9-]{36})/i);
           if (threadUuidMatch) {
@@ -234,7 +284,6 @@ export async function handleThreadActivity(
         }
 
         if (existingThread) {
-          // Update existing thread
           const { error: updateError } = await supabase
             .from('threads')
             .update({
@@ -254,7 +303,7 @@ export async function handleThreadActivity(
             logger.error('Failed to update existing federated thread:', updateError);
             return { success: false, error: updateError.message };
           }
-          logger.info(`✅ Updated existing federated thread: ${threadObject.name}`);
+          logger.info(`✅ Updated existing federated thread: ${threadObject.name} (id: ${existingThread.id})`);
           return { success: true };
         }
 
@@ -266,22 +315,42 @@ export async function handleThreadActivity(
           creatorId
         );
 
-        // Extract UUID from thread AP ID to preserve original ID across instances
+        // Preserve original UUID across instances
         const threadIdMatch = threadApId?.match(/\/threads\/([a-f0-9-]{36})/i);
         if (threadIdMatch) {
           threadData.id = threadIdMatch[1];
         }
+
+        logger.info(`📋 Inserting thread: id=${threadData.id || 'auto'}, channel_id=${threadData.channel_id}, parent_message_id=${threadData.parent_message_id}, created_by=${threadData.created_by}, ap_id=${threadData.ap_id}`);
 
         const { error } = await supabase
           .from('threads')
           .insert(threadData);
 
         if (error) {
-          logger.error('Failed to create federated thread:', error);
+          // If duplicate key, try upsert
+          if (error.code === '23505') {
+            logger.info(`Thread ${threadData.id} already exists (race condition), updating instead`);
+            const { error: upsertError } = await supabase
+              .from('threads')
+              .update({
+                name: threadObject.name,
+                ap_id: threadApId,
+                federation_status: 'synced',
+              })
+              .eq('id', threadData.id);
+            if (upsertError) {
+              logger.error('Failed to upsert federated thread:', upsertError);
+              return { success: false, error: upsertError.message };
+            }
+            logger.info(`✅ Upserted federated thread: ${threadObject.name}`);
+            return { success: true };
+          }
+          logger.error(`Failed to create federated thread: code=${error.code}, message=${error.message}, details=${error.details}`);
           return { success: false, error: error.message };
         }
 
-        logger.info(`✅ Created federated thread: ${threadObject.name} (ap_id: ${threadApId})`);
+        logger.info(`✅ Created federated thread: "${threadObject.name}" (id: ${threadData.id}, ap_id: ${threadApId}, channel: ${channel.id})`);
         return { success: true };
       }
 
@@ -422,20 +491,28 @@ export function createThreadActivity(
   channelApId: string,
   parentMessageApId: string,
   creatorApId: string,
-  actorApId: string
+  actorApId: string,
+  serverId?: string
 ): ThreadActivity {
   const baseUrl = `https://${config.INSTANCE_DOMAIN}`;
   const threadObject = threadToActivityPub(thread, channelApId, parentMessageApId, creatorApId);
+
+  // Include serverId in the object so remote instances can verify server context
+  if (serverId) {
+    (threadObject as any)['harmony:serverId'] = serverId;
+  }
 
   return {
     '@context': [
       'https://www.w3.org/ns/activitystreams',
       {
+        harmony: 'https://harmonyapp.dev/ns#',
         ChatThread: 'harmony:ChatThread',
         autoArchiveDuration: 'harmony:autoArchiveDuration',
         messageCount: 'harmony:messageCount',
         memberCount: 'harmony:memberCount',
         lastMessageAt: 'harmony:lastMessageAt',
+        serverId: 'harmony:serverId',
       },
     ],
     id: `${baseUrl}/activities/${crypto.randomUUID()}`,

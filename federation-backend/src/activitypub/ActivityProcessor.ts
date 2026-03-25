@@ -2666,30 +2666,15 @@ export class ActivityProcessor {
     let resolvedThreadId: string | null = null;
     const threadApIdValue = object['harmony:threadId'];
     if (threadApIdValue) {
-      const { data: threadByApId } = await supabase
-        .from('threads')
-        .select('id')
-        .eq('ap_id', threadApIdValue)
-        .maybeSingle();
-
-      if (threadByApId) {
-        resolvedThreadId = threadByApId.id;
-      } else {
-        // Try extracting UUID from the AP URL (e.g. https://domain/threads/{uuid})
-        const threadIdMatch = threadApIdValue.match(/\/threads\/([a-f0-9-]{36})/);
-        if (threadIdMatch) {
-          const { data: threadById } = await supabase
-            .from('threads')
-            .select('id')
-            .eq('id', threadIdMatch[1])
-            .maybeSingle();
-          if (threadById) {
-            resolvedThreadId = threadById.id;
-          }
-        }
+      resolvedThreadId = await this.resolveThreadId(supabase, threadApIdValue);
+      if (!resolvedThreadId) {
+        // Race condition: thread activity may not have arrived yet. Wait and retry once.
+        logger.info(`Thread not found yet for ${threadApIdValue}, waiting 2s for race condition...`);
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        resolvedThreadId = await this.resolveThreadId(supabase, threadApIdValue);
       }
       if (!resolvedThreadId) {
-        logger.warn(`Thread not found for AP ID ${threadApIdValue}, message will appear in channel`);
+        logger.warn(`Thread not found for AP ID ${threadApIdValue} after retry, message will appear in channel`);
       }
     }
 
@@ -2729,6 +2714,31 @@ export class ActivityProcessor {
         logger.warn('Link preview enrichment failed for federated channel message:', err)
       );
     }
+  }
+
+  /**
+   * Resolve a thread ID from an AP URL. Tries ap_id match first, then UUID extraction.
+   */
+  private static async resolveThreadId(supabase: any, threadApIdValue: string): Promise<string | null> {
+    const { data: threadByApId } = await supabase
+      .from('threads')
+      .select('id')
+      .eq('ap_id', threadApIdValue)
+      .maybeSingle();
+
+    if (threadByApId) return threadByApId.id;
+
+    const threadIdMatch = threadApIdValue.match(/\/threads\/([a-f0-9-]{36})/);
+    if (threadIdMatch) {
+      const { data: threadById } = await supabase
+        .from('threads')
+        .select('id')
+        .eq('id', threadIdMatch[1])
+        .maybeSingle();
+      if (threadById) return threadById.id;
+    }
+
+    return null;
   }
 
   /**
