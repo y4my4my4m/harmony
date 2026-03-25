@@ -883,9 +883,10 @@ const setupRealtimeSubscription = () => {
           thread_id: payloadNew.thread_id,
         }
         
-        // Check if this replaces an optimistic temp message from the same user
+        // Replace the oldest optimistic temp message with matching content
         const tempIndex = messages.value.findIndex(
           m => m.id.startsWith('temp-') && m.user_id === payloadNew.user_id
+            && JSON.stringify(m.content) === JSON.stringify(payloadNew.content)
         )
         if (tempIndex !== -1) {
           messages.value[tempIndex] = newMessage

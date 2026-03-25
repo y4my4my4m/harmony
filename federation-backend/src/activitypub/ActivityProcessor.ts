@@ -2700,7 +2700,7 @@ export class ActivityProcessor {
     const messageMetadata: Record<string, any> = {
       federated: true,
       ap_id: object.id,
-      from_instance: new URL(actorUrl).hostname,
+      from_domain: new URL(actorUrl).hostname,
     };
     // Store unresolved thread AP ID so handleThreadActivity can match orphaned messages
     if (threadApIdValue && !resolvedThreadId) {
