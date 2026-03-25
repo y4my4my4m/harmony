@@ -304,6 +304,30 @@ export async function handleThreadActivity(
             return { success: false, error: updateError.message };
           }
           logger.info(`✅ Updated existing federated thread: ${threadObject.name} (id: ${existingThread.id})`);
+
+          // Assign orphaned messages for existing threads too (thread may have existed but
+          // messages arrived before ap_id was set)
+          if (threadApId) {
+            try {
+              const { data: orphans } = await supabase
+                .from('messages')
+                .select('id')
+                .eq('channel_id', channel.id)
+                .is('thread_id', null)
+                .eq('metadata->>pending_thread_ap_id', threadApId);
+              if (orphans && orphans.length > 0) {
+                const orphanIds = orphans.map((m: any) => m.id);
+                await supabase
+                  .from('messages')
+                  .update({ thread_id: existingThread.id })
+                  .in('id', orphanIds);
+                logger.info(`🔄 Retroactively assigned ${orphanIds.length} orphaned messages to existing thread ${existingThread.id}`);
+              }
+            } catch (err) {
+              logger.warn('Failed to retroactively assign orphaned messages (existing thread):', err);
+            }
+          }
+
           return { success: true };
         }
 
@@ -344,6 +368,29 @@ export async function handleThreadActivity(
               return { success: false, error: upsertError.message };
             }
             logger.info(`✅ Upserted federated thread: ${threadObject.name}`);
+
+            // Also assign orphaned messages for the upsert case
+            if (threadData.id && threadApId) {
+              try {
+                const { data: orphans } = await supabase
+                  .from('messages')
+                  .select('id')
+                  .eq('channel_id', channel.id)
+                  .is('thread_id', null)
+                  .eq('metadata->>pending_thread_ap_id', threadApId);
+                if (orphans && orphans.length > 0) {
+                  const orphanIds = orphans.map((m: any) => m.id);
+                  await supabase
+                    .from('messages')
+                    .update({ thread_id: threadData.id })
+                    .in('id', orphanIds);
+                  logger.info(`🔄 Retroactively assigned ${orphanIds.length} orphaned messages to thread ${threadData.id} (upsert)`);
+                }
+              } catch (err) {
+                logger.warn('Failed to retroactively assign orphaned messages (upsert):', err);
+              }
+            }
+
             return { success: true };
           }
           logger.error(`Failed to create federated thread: code=${error.code}, message=${error.message}, details=${error.details}`);
@@ -351,6 +398,31 @@ export async function handleThreadActivity(
         }
 
         logger.info(`✅ Created federated thread: "${threadObject.name}" (id: ${threadData.id}, ap_id: ${threadApId}, channel: ${channel.id})`);
+
+        // Retroactively assign orphaned messages that arrived before this thread.
+        // These messages have pending_thread_ap_id in their metadata but thread_id = null.
+        const finalThreadId = threadData.id;
+        if (finalThreadId && threadApId) {
+          try {
+            const { data: orphans } = await supabase
+              .from('messages')
+              .select('id')
+              .eq('channel_id', channel.id)
+              .is('thread_id', null)
+              .eq('metadata->>pending_thread_ap_id', threadApId);
+            if (orphans && orphans.length > 0) {
+              const orphanIds = orphans.map((m: any) => m.id);
+              await supabase
+                .from('messages')
+                .update({ thread_id: finalThreadId })
+                .in('id', orphanIds);
+              logger.info(`🔄 Retroactively assigned ${orphanIds.length} orphaned messages to thread ${finalThreadId}`);
+            }
+          } catch (err) {
+            logger.warn('Failed to retroactively assign orphaned messages to thread:', err);
+          }
+        }
+
         return { success: true };
       }
 

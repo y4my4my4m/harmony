@@ -955,6 +955,11 @@ const handleOpenThread = async (threadId?: string) => {
 // Encryption capability check (cached - only updates when service state changes)
 const canDecryptMessages = ref(false);
 
+// Refresh thread indicators when threads change via broadcast
+const handleThreadBroadcast = () => {
+  loadChannelThreads();
+};
+
 // Check encryption status once on mount and load threads
 onMounted(async () => {
   try {
@@ -964,8 +969,8 @@ onMounted(async () => {
     canDecryptMessages.value = false;
   }
   
-  // Load threads for initial channel
   loadChannelThreads();
+  window.addEventListener('server-structure:thread-change', handleThreadBroadcast);
 });
 
 // Reload threads when channel changes
@@ -1832,7 +1837,8 @@ watch(virtualRows, () => {
 
 // Cleanup on unmount
 onUnmounted(() => {
-  // Clear the virtual row observer timeout to prevent post-unmount access
+  window.removeEventListener('server-structure:thread-change', handleThreadBroadcast);
+
   if (virtualRowObserverTimeout) {
     clearTimeout(virtualRowObserverTimeout);
     virtualRowObserverTimeout = null;

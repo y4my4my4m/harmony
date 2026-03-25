@@ -705,6 +705,26 @@ CREATE TRIGGER trigger_new_dm_unread
     EXECUTE FUNCTION public.handle_new_dm_unread();
 
 -- ---------------------------------------------------------------------------
+-- Thread message insert: auto-add member + update stats
+-- ---------------------------------------------------------------------------
+DROP TRIGGER IF EXISTS trigger_thread_message_insert ON public.messages;
+CREATE TRIGGER trigger_thread_message_insert
+    AFTER INSERT ON public.messages
+    FOR EACH ROW
+    WHEN (NEW.thread_id IS NOT NULL)
+    EXECUTE FUNCTION public.thread_message_handler();
+
+-- ---------------------------------------------------------------------------
+-- Thread message delete: decrement count + update last message
+-- ---------------------------------------------------------------------------
+DROP TRIGGER IF EXISTS trigger_thread_message_delete ON public.messages;
+CREATE TRIGGER trigger_thread_message_delete
+    AFTER DELETE OR UPDATE OF is_deleted ON public.messages
+    FOR EACH ROW
+    WHEN (OLD.thread_id IS NOT NULL)
+    EXECUTE FUNCTION public.thread_message_delete_handler();
+
+-- ---------------------------------------------------------------------------
 -- Thread reply notification trigger
 -- ---------------------------------------------------------------------------
 DROP TRIGGER IF EXISTS trigger_thread_reply_notification ON public.messages;

@@ -336,6 +336,7 @@ const displayThreadName = computed(() => {
 const loadThread = async () => {
   // In draft mode, don't load - just show parent message
   if (isDraftMode.value) {
+    thread.value = null
     loading.value = false
     messages.value = []
     return
@@ -481,16 +482,10 @@ const parseMessageInput = async (input: string): Promise<MessagePart[]> => {
 }
 
 const handleSendMessage = async (content: string, files: FilePreviewData[] = [], replyMessageId?: string) => {
-  // Allow sending if we have content OR files
   if ((!content.trim() && files.length === 0) || sending.value) return
-  
-  // In draft mode, need parent message to create thread
   if (isDraftMode.value && !props.draftParentMessage) return
-  
-  // In normal mode, need thread
   if (!isDraftMode.value && !thread.value) return
   
-  // Check if all files are uploaded
   const hasUploadingFiles = files.some(file => file.uploadStatus === 'uploading')
   const hasFailedFiles = files.some(file => file.uploadStatus === 'error')
   
@@ -505,6 +500,15 @@ const handleSendMessage = async (content: string, files: FilePreviewData[] = [],
   }
   
   sending.value = true
+  
+  // Clear input immediately for responsiveness
+  const savedContent = content
+  messageText.value = ''
+  if (threadDraftKey.value) draftsStore.clearDraft(threadDraftKey.value)
+  const savedReplyTo = replyMessageId || replyingToMessageId.value || undefined
+  replyingToMessageId.value = ''
+  replyingToUserName.value = ''
+  replyingToUserId.value = ''
   
   try {
     let targetThreadId = thread.value?.id
@@ -524,7 +528,6 @@ const handleSendMessage = async (content: string, files: FilePreviewData[] = [],
       targetThreadId = newThread.id
       thread.value = await threadService.getThread(newThread.id, true)
       
-      // Emit thread-created event to parent
       emit('thread-created', thread.value!, props.draftParentMessage)
     }
     
@@ -534,13 +537,11 @@ const handleSendMessage = async (content: string, files: FilePreviewData[] = [],
     
     const messageParts: MessagePart[] = []
     
-    // Parse text content if present (handles mentions, emojis, URLs/embeds - same as chat)
-    if (content.trim()) {
-      const parsedMessage = await parseMessageInput(content)
+    if (savedContent.trim()) {
+      const parsedMessage = await parseMessageInput(savedContent)
       messageParts.push(...parsedMessage)
     }
     
-    // Add uploaded files as message parts
     for (const fileData of files) {
       if (fileData.uploadStatus === 'completed' && fileData.uploadedUrl) {
         let fileType: 'image' | 'video' | 'audio' | 'file' = 'file'
@@ -562,26 +563,58 @@ const handleSendMessage = async (content: string, files: FilePreviewData[] = [],
       }
     }
     
-    // Only send if we have message parts
     if (messageParts.length > 0) {
-    const newMessage = await threadService.sendThreadMessage(
-      targetThreadId, 
-      messageParts, 
-      replyMessageId || replyingToMessageId.value || undefined
-    )
-    
-    if (newMessage) {
-      messages.value.push(newMessage)
-      // Update cache
-      threadService.addMessageToCache(targetThreadId, newMessage)
-      messageText.value = ''
-      if (threadDraftKey.value) draftsStore.clearDraft(threadDraftKey.value)
-      replyingToMessageId.value = ''
-      replyingToUserName.value = ''
-      replyingToUserId.value = ''
-      // Scroll to bottom
+      // Optimistic: add a temporary message immediately
+      const tempId = `temp-${crypto.randomUUID()}`
+      const { authContextService } = await import('@/services/AuthContextService')
+      const profileId = await authContextService.getCurrentProfileId()
+      const optimisticMessage: Message = {
+        id: tempId,
+        created_at: new Date(),
+        channel_id: thread.value?.channel_id || '',
+        user_id: profileId,
+        content: messageParts,
+        thread_id: targetThreadId,
+        reply_to: savedReplyTo || null,
+        is_system: false,
+        encrypted: false,
+        reactions: [],
+        metadata: null,
+      }
+      messages.value.push(optimisticMessage)
+      
+      // Optimistic thread count update
+      if (thread.value) {
+        thread.value.message_count = (thread.value.message_count || 0) + 1
+        thread.value.last_message_at = new Date().toISOString()
+      }
+      
       await nextTick()
       scrollToBottom()
+      
+      // Send to DB
+      const newMessage = await threadService.sendThreadMessage(
+        targetThreadId,
+        messageParts,
+        savedReplyTo
+      )
+      
+      if (newMessage) {
+        // Replace optimistic message with real one
+        const tempIndex = messages.value.findIndex(m => m.id === tempId)
+        if (tempIndex !== -1) {
+          messages.value[tempIndex] = newMessage
+        }
+        threadService.addMessageToCache(targetThreadId, newMessage)
+      } else {
+        // Remove optimistic message on failure
+        const tempIndex = messages.value.findIndex(m => m.id === tempId)
+        if (tempIndex !== -1) {
+          messages.value.splice(tempIndex, 1)
+        }
+        if (thread.value) {
+          thread.value.message_count = Math.max(0, (thread.value.message_count || 1) - 1)
+        }
       }
     }
   } catch (error) {
@@ -823,16 +856,14 @@ const setupRealtimeSubscription = () => {
     table: 'messages',
     filter: `thread_id=eq.${thread.value.id}`,
     
-    // Handle new messages
     onInsert: async (payload) => {
       const payloadNew = payload.new as any
       
-      // Skip if already in messages (optimistic update)
+      // Skip if already in messages (non-optimistic duplicate)
       if (messages.value.some(m => m.id === payloadNew.id)) {
         return
       }
       
-      // Only add if it's for this thread
       if (payloadNew.thread_id === thread.value?.id) {
         const newMessage: Message = {
           id: payloadNew.id,
@@ -852,9 +883,23 @@ const setupRealtimeSubscription = () => {
           thread_id: payloadNew.thread_id,
         }
         
-        messages.value.push(newMessage)
-        // Update cache
-        threadService.addMessageToCache(thread.value.id, newMessage)
+        // Check if this replaces an optimistic temp message from the same user
+        const tempIndex = messages.value.findIndex(
+          m => m.id.startsWith('temp-') && m.user_id === payloadNew.user_id
+        )
+        if (tempIndex !== -1) {
+          messages.value[tempIndex] = newMessage
+        } else {
+          messages.value.push(newMessage)
+        }
+
+        // Update thread count
+        if (thread.value) {
+          thread.value.message_count = (thread.value.message_count || 0) + (tempIndex === -1 ? 1 : 0)
+          thread.value.last_message_at = payloadNew.created_at
+        }
+
+        threadService.addMessageToCache(thread.value!.id, newMessage)
         await nextTick()
         scrollToBottom()
         debug.log('📝 Thread message added via realtime:', newMessage.id)

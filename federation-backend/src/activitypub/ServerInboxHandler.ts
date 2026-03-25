@@ -720,31 +720,33 @@ async function processCreateActivity(
     resolvedThreadId = await resolveThreadIdFromAp(supabase, threadApIdValue);
     if (!resolvedThreadId) {
       logger.warn(`Thread not found for AP ID ${threadApIdValue}, message will appear in channel. Will attempt deferred update.`);
-      // Non-blocking deferred re-check: if the ChatThread activity arrives shortly after,
-      // retroactively assign this message to the thread.
+      // Multiple deferred retries with exponential backoff for race conditions
       const deferredApId = object.id;
-      setTimeout(async () => {
-        try {
-          const threadId = await resolveThreadIdFromAp(supabase, threadApIdValue);
-          if (threadId && deferredApId) {
-            const { data: msg } = await supabase
-              .from('messages')
-              .select('id')
-              .eq('metadata->>ap_id', deferredApId)
-              .is('thread_id', null)
-              .maybeSingle();
-            if (msg) {
-              await supabase
+      const retryDelays = [3000, 8000, 20000];
+      for (const delay of retryDelays) {
+        setTimeout(async () => {
+          try {
+            const threadId = await resolveThreadIdFromAp(supabase, threadApIdValue);
+            if (threadId && deferredApId) {
+              const { data: msg } = await supabase
                 .from('messages')
-                .update({ thread_id: threadId })
-                .eq('id', msg.id);
-              logger.info(`🔄 Deferred thread assignment: message ${msg.id} → thread ${threadId}`);
+                .select('id')
+                .eq('metadata->>ap_id', deferredApId)
+                .is('thread_id', null)
+                .maybeSingle();
+              if (msg) {
+                await supabase
+                  .from('messages')
+                  .update({ thread_id: threadId })
+                  .eq('id', msg.id);
+                logger.info(`🔄 Deferred thread assignment (${delay}ms): message ${msg.id} → thread ${threadId}`);
+              }
             }
+          } catch (err) {
+            logger.debug(`Deferred thread resolution attempt (${delay}ms) failed for ${threadApIdValue}:`, err);
           }
-        } catch (err) {
-          logger.debug(`Deferred thread resolution failed for ${threadApIdValue}:`, err);
-        }
-      }, 3000);
+        }, delay);
+      }
     }
   }
 
@@ -752,17 +754,22 @@ async function processCreateActivity(
   const messageTimestamp = object.published || new Date().toISOString();
   const isEncrypted = object['harmony:encrypted'] === true;
 
+  const messageMetadata: Record<string, any> = {
+    ap_id: object.id,
+    from_domain: new URL(actorUrl).hostname,
+    federated: true,
+  };
+  if (threadApIdValue && !resolvedThreadId) {
+    messageMetadata.pending_thread_ap_id = threadApIdValue;
+  }
+
   const { data: insertedMessage, error } = await supabase.from('messages').insert({
     channel_id: channel.id,
     user_id: author.id,
     content: messageContent,
     reply_to: replyToId,
     thread_id: resolvedThreadId,
-    metadata: {
-      ap_id: object.id,
-      from_domain: new URL(actorUrl).hostname,
-      federated: true,
-    },
+    metadata: messageMetadata,
     encrypted: isEncrypted,
     created_at: messageTimestamp,
     updated_at: object.updated || messageTimestamp,

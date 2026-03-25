@@ -907,6 +907,74 @@ BEGIN
 END;
 $$;
 
+-- ---------------------------------------------------------------------------
+-- Thread message handler: auto-add member, update thread stats
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.thread_message_handler()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+    IF NEW.thread_id IS NOT NULL THEN
+        INSERT INTO public.thread_members (thread_id, user_id)
+        VALUES (NEW.thread_id, NEW.user_id)
+        ON CONFLICT (thread_id, user_id) DO NOTHING;
+
+        UPDATE public.threads
+        SET
+            message_count = message_count + 1,
+            last_message_id = NEW.id,
+            last_message_at = NEW.created_at,
+            updated_at = NOW(),
+            archived = CASE WHEN locked THEN archived ELSE false END,
+            archived_at = CASE WHEN locked THEN archived_at ELSE NULL END
+        WHERE id = NEW.thread_id;
+
+        UPDATE public.threads t
+        SET member_count = (
+            SELECT COUNT(*) FROM public.thread_members tm WHERE tm.thread_id = t.id
+        )
+        WHERE t.id = NEW.thread_id;
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- Thread message delete handler: decrement count, update last message
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.thread_message_delete_handler()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+    IF OLD.thread_id IS NOT NULL THEN
+        UPDATE public.threads
+        SET message_count = GREATEST(0, message_count - 1)
+        WHERE id = OLD.thread_id;
+
+        UPDATE public.threads t
+        SET
+            last_message_id = (
+                SELECT id FROM public.messages
+                WHERE thread_id = t.id AND NOT is_deleted
+                ORDER BY created_at DESC LIMIT 1
+            ),
+            last_message_at = (
+                SELECT created_at FROM public.messages
+                WHERE thread_id = t.id AND NOT is_deleted
+                ORDER BY created_at DESC LIMIT 1
+            )
+        WHERE t.id = OLD.thread_id;
+    END IF;
+    RETURN OLD;
+END;
+$$;
+
 -- Queue thread creation/updates for federation
 CREATE OR REPLACE FUNCTION public.trigger_queue_thread_federation()
 RETURNS trigger
