@@ -150,6 +150,7 @@
             :emoji-list-open="emojiListOpen"
             :thread-id="effectiveThreadIdForTyping"
             @send-message="handleSendMessage"
+            @send-voice-message="handleSendVoiceMessage"
             @update:reply-message-id="handleCancelReply"
             @toggle-giphy="toggleGiphy"
             @toggle-emoji-list="toggleEmojiListForInput"
@@ -736,6 +737,103 @@ watch(mediaPickerOpen, () => {
     emojiIconClicked.value = false
   }
 })
+
+// Handle sending a voice message
+const handleSendVoiceMessage = async (data: { url: string, duration: number, waveform: number[], mimeType: string }) => {
+  if (!thread.value && !isDraftMode.value) return
+
+  sending.value = true
+  try {
+    let targetThreadId = thread.value?.id
+
+    if (isDraftMode.value && props.draftParentMessage) {
+      const threadName = displayThreadName.value
+      const newThread = await threadService.createThread({
+        message_id: props.draftParentMessage.id,
+        name: threadName,
+      })
+
+      if (!newThread) {
+        throw new Error('Failed to create thread')
+      }
+
+      targetThreadId = newThread.id
+      thread.value = await threadService.getThread(newThread.id, true)
+      emit('thread-created', thread.value!, props.draftParentMessage)
+    }
+
+    if (!targetThreadId) {
+      throw new Error('No thread ID')
+    }
+
+    const messageParts: MessagePart[] = [{
+      type: 'file',
+      url: data.url,
+      fileType: 'audio',
+      fileName: 'Voice message',
+    }]
+
+    const voiceMetadata = {
+      voice_message: {
+        duration: data.duration,
+        waveform: data.waveform,
+      },
+    }
+
+    const tempId = `temp-${crypto.randomUUID()}`
+    const { authContextService } = await import('@/services/AuthContextService')
+    const profileId = await authContextService.getCurrentProfileId()
+    const optimisticMessage: Message = {
+      id: tempId,
+      created_at: new Date(),
+      channel_id: thread.value?.channel_id || '',
+      user_id: profileId,
+      content: messageParts,
+      thread_id: targetThreadId,
+      reply_to: null,
+      is_system: false,
+      encrypted: false,
+      reactions: [],
+      metadata: voiceMetadata,
+    }
+    messages.value.push(optimisticMessage)
+
+    if (thread.value) {
+      thread.value.message_count = (thread.value.message_count || 0) + 1
+      thread.value.last_message_at = new Date().toISOString()
+    }
+
+    await nextTick()
+    scrollToBottom()
+
+    const newMessage = await threadService.sendThreadMessage(
+      targetThreadId,
+      messageParts,
+      undefined,
+      voiceMetadata
+    )
+
+    if (newMessage) {
+      const tempIndex = messages.value.findIndex(m => m.id === tempId)
+      if (tempIndex !== -1) {
+        messages.value[tempIndex] = newMessage
+      }
+      threadService.addMessageToCache(targetThreadId, newMessage)
+    } else {
+      const tempIndex = messages.value.findIndex(m => m.id === tempId)
+      if (tempIndex !== -1) {
+        messages.value.splice(tempIndex, 1)
+      }
+      if (thread.value) {
+        thread.value.message_count = Math.max(0, (thread.value.message_count || 1) - 1)
+      }
+    }
+  } catch (error) {
+    debug.error('Error sending voice message in thread:', error)
+  } finally {
+    sending.value = false
+  }
+}
 
 // Handle sending a GIF
 const handleSendGif = async (gif: Gif) => {

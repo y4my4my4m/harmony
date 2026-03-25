@@ -835,7 +835,8 @@ class ThreadService {
   async sendThreadMessage(
     threadId: string,
     content: any[],
-    replyTo?: string
+    replyTo?: string,
+    extraMetadata?: Record<string, any>
   ): Promise<Message | null> {
     try {
       // Enforce max media attachments per message (instance config, default 20)
@@ -860,6 +861,10 @@ class ThreadService {
       
       if (replyTo) {
         insertData.reply_to = replyTo
+      }
+
+      if (extraMetadata) {
+        insertData.metadata = { created_via: 'harmony_client', ...extraMetadata }
       }
 
       const { data, error } = await supabase

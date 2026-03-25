@@ -130,6 +130,7 @@
       :giphy-open="giphyOpen"
       :emoji-list-open="emojiListOpen"
       @send-message="handleSendMessage"
+      @send-voice-message="handleSendVoiceMessage"
       @update:reply-message-id="handleCancelReply"
       @toggle-giphy="toggleGiphy"
       @toggle-emoji-list="toggleEmojiListForInput"
@@ -567,6 +568,46 @@ watch(mediaPickerOpen, () => {
     emojiIconClicked.value = false
   }
 })
+
+// Handle sending a voice message
+const handleSendVoiceMessage = async (data: { url: string, duration: number, waveform: number[], mimeType: string }) => {
+  if (!thread.value) return
+
+  sending.value = true
+  try {
+    const messageParts: MessagePart[] = [{
+      type: 'file',
+      url: data.url,
+      fileType: 'audio',
+      fileName: 'Voice message',
+    }]
+
+    const voiceMetadata = {
+      voice_message: {
+        duration: data.duration,
+        waveform: data.waveform,
+      },
+    }
+
+    const newMessage = await threadService.sendThreadMessage(
+      thread.value.id,
+      messageParts,
+      undefined,
+      voiceMetadata
+    )
+
+    if (newMessage) {
+      messages.value.push(newMessage)
+      threadService.addMessageToCache(thread.value.id, newMessage)
+      await nextTick()
+      scrollToBottom()
+    }
+  } catch (error) {
+    debug.error('Error sending voice message in thread:', error)
+  } finally {
+    sending.value = false
+  }
+}
 
 // Handle sending a GIF
 const handleSendGif = async (gif: Gif) => {
