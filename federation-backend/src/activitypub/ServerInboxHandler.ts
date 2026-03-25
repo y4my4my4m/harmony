@@ -719,38 +719,10 @@ async function processCreateActivity(
   if (threadApIdValue) {
     resolvedThreadId = await resolveThreadIdFromAp(supabase, threadApIdValue);
     if (!resolvedThreadId) {
-      logger.warn(`Thread not found for AP ID ${threadApIdValue}, message will appear in channel. Will attempt deferred update.`);
-      // Multiple deferred retries with exponential backoff for race conditions
-      const deferredApId = object.id;
-      const retryDelays = [3000, 8000, 20000];
-      for (const delay of retryDelays) {
-        setTimeout(async () => {
-          try {
-            const threadId = await resolveThreadIdFromAp(supabase, threadApIdValue);
-            if (threadId && deferredApId) {
-              const { data: msg } = await supabase
-                .from('messages')
-                .select('id')
-                .eq('metadata->>ap_id', deferredApId)
-                .is('thread_id', null)
-                .maybeSingle();
-              if (msg) {
-                await supabase
-                  .from('messages')
-                  .update({ thread_id: threadId })
-                  .eq('id', msg.id);
-                logger.info(`🔄 Deferred thread assignment (${delay}ms): message ${msg.id} → thread ${threadId}`);
-              }
-            }
-          } catch (err) {
-            logger.debug(`Deferred thread resolution attempt (${delay}ms) failed for ${threadApIdValue}:`, err);
-          }
-        }, delay);
-      }
+      logger.warn(`Thread not found for AP ID ${threadApIdValue}, will create stub thread after message insert.`);
     }
   }
 
-  // Insert message
   const messageTimestamp = object.published || new Date().toISOString();
   const isEncrypted = object['harmony:encrypted'] === true;
 
@@ -790,6 +762,97 @@ async function processCreateActivity(
   }
   
   logger.info(`✅ Inserted federated message in #${channel.name} from ${author.username}`);
+
+  // If message belongs to a thread that doesn't exist yet, create a stub thread
+  if (threadApIdValue && !resolvedThreadId && insertedMessage) {
+    try {
+      const threadUuidMatch = threadApIdValue.match(/\/threads\/([a-f0-9-]{36})/);
+      const stubThreadId = threadUuidMatch ? threadUuidMatch[1] : crypto.randomUUID();
+
+      // Resolve correct parent message from harmony:parentMessageId
+      let parentMessageId = insertedMessage.id;
+      const parentMessageApId = object['harmony:parentMessageId'];
+      if (parentMessageApId) {
+        const { data: parentByApId } = await supabase
+          .from('messages')
+          .select('id')
+          .eq('metadata->>ap_id', parentMessageApId)
+          .maybeSingle();
+        if (parentByApId) {
+          parentMessageId = parentByApId.id;
+        } else {
+          const parentUuidMatch = parentMessageApId.match(/\/messages\/([a-f0-9-]{36})/);
+          if (parentUuidMatch) {
+            const { data: parentById } = await supabase
+              .from('messages')
+              .select('id')
+              .eq('id', parentUuidMatch[1])
+              .maybeSingle();
+            if (parentById) parentMessageId = parentById.id;
+          }
+        }
+      }
+
+      let threadName = 'Thread';
+      if (Array.isArray(messageContent)) {
+        const textPart = messageContent.find((p: any) => p?.type === 'text' && p?.text);
+        if (textPart) {
+          threadName = String(textPart.text).substring(0, 100);
+        }
+      }
+
+      const { error: stubError } = await supabase
+        .from('threads')
+        .insert({
+          id: stubThreadId,
+          channel_id: channel.id,
+          parent_message_id: parentMessageId,
+          name: threadName,
+          created_by: author.id,
+          ap_id: threadApIdValue,
+          federation_status: 'synced',
+          message_count: 1,
+          member_count: 1,
+        });
+
+      if (stubError) {
+        if (stubError.code === '23505') {
+          resolvedThreadId = stubThreadId;
+          logger.info(`🧵 Stub thread ${stubThreadId} already exists (race condition), assigning message`);
+        } else {
+          logger.warn(`Failed to create stub thread: ${stubError.message}`);
+        }
+      } else {
+        resolvedThreadId = stubThreadId;
+        logger.info(`🧵 Created stub thread ${stubThreadId} for AP ID ${threadApIdValue}`);
+      }
+
+      if (resolvedThreadId) {
+        await supabase
+          .from('messages')
+          .update({ thread_id: resolvedThreadId })
+          .eq('id', insertedMessage.id);
+
+        const { data: orphans } = await supabase
+          .from('messages')
+          .select('id')
+          .eq('channel_id', channel.id)
+          .is('thread_id', null)
+          .eq('metadata->>pending_thread_ap_id', threadApIdValue)
+          .neq('id', insertedMessage.id);
+
+        if (orphans && orphans.length > 0) {
+          await supabase
+            .from('messages')
+            .update({ thread_id: resolvedThreadId })
+            .in('id', orphans.map((m: any) => m.id));
+          logger.info(`🧵 Assigned ${orphans.length} additional orphaned messages to stub thread ${resolvedThreadId}`);
+        }
+      }
+    } catch (err) {
+      logger.warn('Failed to create stub thread from message:', err);
+    }
+  }
 
   // ==========================================================================
   // RE-BROADCAST: If this is the authoritative server, relay to other remotes

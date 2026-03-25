@@ -988,6 +988,12 @@ DECLARE
     v_creator_is_local BOOLEAN;
 BEGIN
     IF TG_OP = 'INSERT' THEN
+        -- Threads with ap_id already set came from federation (stub or ChatThread)
+        IF NEW.ap_id IS NOT NULL THEN
+            NEW.federation_status := 'synced';
+            RETURN NEW;
+        END IF;
+
         SELECT c.server_id, s.is_local_server INTO v_server_id, v_server_is_local
         FROM public.channels c JOIN public.servers s ON c.server_id = s.id
         WHERE c.id = NEW.channel_id;
@@ -1243,6 +1249,8 @@ END;
 $$;
 
 -- Queue channel message edit for federation
+-- Local servers: federate ALL edits (including edits to federated messages by mods)
+-- Non-local servers: federate only local authors' non-federated messages (own edits)
 CREATE OR REPLACE FUNCTION public.trigger_queue_channel_message_edit_federation()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -1250,14 +1258,28 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
+    v_server_id UUID;
+    v_server_is_local BOOLEAN;
+    v_federation_enabled BOOLEAN;
     v_author_is_local BOOLEAN;
 BEGIN
     IF NEW.channel_id IS NOT NULL AND NEW.conversation_id IS NULL THEN
         IF OLD.content IS NOT DISTINCT FROM NEW.content THEN RETURN NEW; END IF;
-        IF NEW.metadata ? 'federated' THEN RETURN NEW; END IF;
 
-        SELECT is_local INTO v_author_is_local FROM public.profiles WHERE id = NEW.user_id;
-        IF v_author_is_local IS NOT TRUE THEN RETURN NEW; END IF;
+        SELECT c.server_id, s.is_local_server, s.federation_enabled
+        INTO v_server_id, v_server_is_local, v_federation_enabled
+        FROM public.channels c JOIN public.servers s ON c.server_id = s.id
+        WHERE c.id = NEW.channel_id;
+
+        IF v_server_is_local IS TRUE THEN
+            -- Authoritative server: federate all edits if federation enabled
+            IF v_federation_enabled IS NOT TRUE THEN RETURN NEW; END IF;
+        ELSE
+            -- Mirror server: only federate local author's own non-federated edits
+            IF NEW.metadata ? 'federated' THEN RETURN NEW; END IF;
+            SELECT is_local INTO v_author_is_local FROM public.profiles WHERE id = NEW.user_id;
+            IF v_author_is_local IS NOT TRUE THEN RETURN NEW; END IF;
+        END IF;
 
         PERFORM public.queue_federation_job(
             'federate-channel-message-edit',
@@ -1265,7 +1287,9 @@ BEGIN
                 'type', 'update',
                 'message_id', NEW.id,
                 'channel_id', NEW.channel_id,
-                'user_id', NEW.user_id
+                'user_id', NEW.user_id,
+                'server_id', v_server_id,
+                'server_is_local', COALESCE(v_server_is_local, true)
             ), 5, 5, 900
         );
     END IF;
@@ -1274,6 +1298,8 @@ END;
 $$;
 
 -- Queue channel message delete for federation
+-- Local servers: federate ALL deletes (including mod deletes of remote users' messages)
+-- Non-local servers: federate only local authors' non-federated messages (own deletes)
 CREATE OR REPLACE FUNCTION public.trigger_queue_channel_message_delete_federation()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -1281,14 +1307,28 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
+    v_server_id UUID;
+    v_server_is_local BOOLEAN;
+    v_federation_enabled BOOLEAN;
     v_author_is_local BOOLEAN;
 BEGIN
     IF NEW.channel_id IS NOT NULL AND NEW.conversation_id IS NULL THEN
         IF OLD.is_deleted = TRUE OR NEW.is_deleted = FALSE THEN RETURN NEW; END IF;
-        IF NEW.metadata ? 'federated' THEN RETURN NEW; END IF;
 
-        SELECT is_local INTO v_author_is_local FROM public.profiles WHERE id = NEW.user_id;
-        IF v_author_is_local IS NOT TRUE THEN RETURN NEW; END IF;
+        SELECT c.server_id, s.is_local_server, s.federation_enabled
+        INTO v_server_id, v_server_is_local, v_federation_enabled
+        FROM public.channels c JOIN public.servers s ON c.server_id = s.id
+        WHERE c.id = NEW.channel_id;
+
+        IF v_server_is_local IS TRUE THEN
+            -- Authoritative server: federate all deletes if federation enabled
+            IF v_federation_enabled IS NOT TRUE THEN RETURN NEW; END IF;
+        ELSE
+            -- Mirror server: only federate local author's own non-federated deletes
+            IF NEW.metadata ? 'federated' THEN RETURN NEW; END IF;
+            SELECT is_local INTO v_author_is_local FROM public.profiles WHERE id = NEW.user_id;
+            IF v_author_is_local IS NOT TRUE THEN RETURN NEW; END IF;
+        END IF;
 
         PERFORM public.queue_federation_job(
             'federate-channel-message-delete',
@@ -1297,7 +1337,9 @@ BEGIN
                 'message_id', NEW.id,
                 'channel_id', NEW.channel_id,
                 'user_id', NEW.user_id,
-                'ap_id', NEW.metadata->>'ap_id'
+                'ap_id', NEW.metadata->>'ap_id',
+                'server_id', v_server_id,
+                'server_is_local', COALESCE(v_server_is_local, true)
             ), 5, 5, 900
         );
     END IF;

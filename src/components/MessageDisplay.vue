@@ -2241,22 +2241,33 @@ const canEditMessage = (message: Message) => {
   
   if (message.id.startsWith('temp-')) return false;
   if (message.sending) return false;
-  if (serverChannelStore.currentServer?.is_local_server === false) return false;
   
   const currentProfileId = profileStore.profile?.id;
   const messageUserId = message.user_id;
-  return messageUserId === currentProfileId || isCurrentUserServerOwner.value;
+  const isOwnMessage = messageUserId === currentProfileId;
+
+  // TODO: account for federated-roles
+  // On non-local (federated mirror) servers, only allow editing own messages
+  if (serverChannelStore.currentServer?.is_local_server === false) {
+    return isOwnMessage;
+  }
+
+  return isOwnMessage || isCurrentUserServerOwner.value;
 };
 
 const canDeleteMessage = (message: Message) => {
   if (!authStore.session?.user || !message) return false;
 
-  if (serverChannelStore.currentServer?.is_local_server === false) return false;
-
   const currentProfileId = profileStore.profile?.id;
   const messageUserId = message.user_id;
+  const isOwnMessage = messageUserId === currentProfileId;
 
-  if (messageUserId === currentProfileId) return true;
+  // On non-local (federated mirror) servers, only allow deleting own messages
+  if (serverChannelStore.currentServer?.is_local_server === false) {
+    return isOwnMessage;
+  }
+
+  if (isOwnMessage) return true;
   if (isCurrentUserServerOwner.value) return true;
   if (profileStore.profile?.is_admin || profileStore.profile?.is_moderator) return true;
   if (canManageMessages.value) return true;

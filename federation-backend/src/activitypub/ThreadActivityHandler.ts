@@ -11,7 +11,7 @@ const router = Router();
  * Extends ActivityPub for Discord-style threads in federated channels
  */
 export interface ThreadActivity {
-  '@context': string | string[];
+  '@context': string | (string | Record<string, string>)[];
   id: string;
   type: 'Create' | 'Update' | 'Delete' | 'Add' | 'Remove';
   actor: string;
@@ -52,12 +52,14 @@ export function threadToActivityPub(
   thread: any,
   channelApId: string,
   parentMessageApId: string,
-  creatorApId: string
+  creatorApId: string,
+  channelName?: string,
+  channelId?: string
 ): ThreadObject {
   const baseUrl = `https://${config.INSTANCE_DOMAIN}`;
   const threadApId = thread.ap_id || `${baseUrl}/threads/${thread.id}`;
 
-  return {
+  const obj: any = {
     type: 'ChatThread',
     id: threadApId,
     name: thread.name,
@@ -73,6 +75,11 @@ export function threadToActivityPub(
     memberCount: thread.member_count,
     lastMessageAt: thread.last_message_at,
   };
+
+  if (channelName) obj['harmony:channelName'] = channelName;
+  if (channelId) obj['harmony:channelId'] = channelId;
+
+  return obj as ThreadObject;
 }
 
 /**
@@ -119,8 +126,11 @@ export async function handleThreadActivity(
         logger.info(`📋 Thread Create: name="${threadObject.name}", context=${threadObject.context}, inReplyTo=${threadObject.inReplyTo}, attributedTo=${threadObject.attributedTo}, harmony:serverId=${harmonyServerId}`);
 
         // --- Resolve channel ---
-        // Try multiple strategies: ap_id match, UUID from URL, server_id scoped lookup
+        // Try multiple strategies: ap_id match, UUID from URL, server_id scoped lookup,
+        // channel name, and parent message fallback
         let channel: { id: string; server_id: string } | null = null;
+        const harmonyChannelName = (threadObject as any)['harmony:channelName'];
+        const harmonyChannelId = (threadObject as any)['harmony:channelId'];
 
         // Strategy 1: exact ap_id match
         const { data: channelByApId } = await supabase
@@ -150,11 +160,10 @@ export async function handleThreadActivity(
           }
         }
 
-        // Strategy 3: if we have harmony:serverId, look up channel by server_id scope
+        // Strategy 3: if we have harmony:serverId, look up channel by server_id scope + UUID
         if (!channel && harmonyServerId) {
           const channelUuidMatch = threadObject.context?.match(/\/channels\/([a-f0-9-]{36})/i);
           if (channelUuidMatch) {
-            // The puppet server might use the same UUID as the origin
             const { data: channelByServerScope } = await supabase
               .from('channels')
               .select('id, server_id')
@@ -168,8 +177,62 @@ export async function handleThreadActivity(
           }
         }
 
+        // Strategy 4: find channel by harmony:channelId within the server
+        if (!channel && harmonyChannelId && harmonyServerId) {
+          const { data: channelByHarmonyId } = await supabase
+            .from('channels')
+            .select('id, server_id')
+            .eq('id', harmonyChannelId)
+            .eq('server_id', harmonyServerId)
+            .maybeSingle();
+          if (channelByHarmonyId) {
+            channel = channelByHarmonyId;
+            logger.info(`📋 Channel resolved via harmony:channelId: ${channel.id}`);
+          }
+        }
+
+        // Strategy 5: find channel by name within the server
+        if (!channel && harmonyChannelName && harmonyServerId) {
+          const { data: channelByName } = await supabase
+            .from('channels')
+            .select('id, server_id')
+            .eq('name', harmonyChannelName)
+            .eq('server_id', harmonyServerId)
+            .maybeSingle();
+          if (channelByName) {
+            channel = channelByName;
+            logger.info(`📋 Channel resolved via channel name "${harmonyChannelName}": ${channel.id}`);
+          }
+        }
+
+        // Strategy 6: find parent message first, use its channel_id
+        if (!channel && threadObject.inReplyTo) {
+          const { data: parentByApId } = await supabase
+            .from('messages')
+            .select('id, channel_id')
+            .eq('metadata->>ap_id', threadObject.inReplyTo)
+            .maybeSingle();
+          if (parentByApId) {
+            channel = { id: parentByApId.channel_id, server_id: harmonyServerId || '' };
+            logger.info(`📋 Channel resolved via parent message: ${channel.id}`);
+          } else {
+            const msgUuidMatch = threadObject.inReplyTo.match(/\/messages\/([a-f0-9-]{36})/i);
+            if (msgUuidMatch) {
+              const { data: parentById } = await supabase
+                .from('messages')
+                .select('id, channel_id')
+                .eq('id', msgUuidMatch[1])
+                .maybeSingle();
+              if (parentById) {
+                channel = { id: parentById.channel_id, server_id: harmonyServerId || '' };
+                logger.info(`📋 Channel resolved via parent message UUID: ${channel.id}`);
+              }
+            }
+          }
+        }
+
         if (!channel) {
-          logger.warn(`❌ Channel not found for thread. context=${threadObject.context}, harmony:serverId=${harmonyServerId}`);
+          logger.warn(`❌ Channel not found for thread. context=${threadObject.context}, harmony:serverId=${harmonyServerId}, harmony:channelName=${harmonyChannelName}, inReplyTo=${threadObject.inReplyTo}`);
           return { success: false, error: 'Channel not found' };
         }
 
@@ -284,19 +347,28 @@ export async function handleThreadActivity(
         }
 
         if (existingThread) {
+          const updateData: Record<string, any> = {
+            name: threadObject.name,
+            archived: threadObject.archived || false,
+            locked: threadObject.locked || false,
+            auto_archive_duration: threadObject.autoArchiveDuration || 1440,
+            message_count: threadObject.messageCount || 0,
+            member_count: threadObject.memberCount || 0,
+            last_message_at: threadObject.lastMessageAt,
+            ap_id: threadApId,
+            federation_status: 'synced',
+          };
+          // Also fix parent_message_id if we have it (stub threads use a placeholder)
+          if (parentMessageId) {
+            updateData.parent_message_id = parentMessageId;
+          }
+          if (creatorId) {
+            updateData.created_by = creatorId;
+          }
+
           const { error: updateError } = await supabase
             .from('threads')
-            .update({
-              name: threadObject.name,
-              archived: threadObject.archived || false,
-              locked: threadObject.locked || false,
-              auto_archive_duration: threadObject.autoArchiveDuration || 1440,
-              message_count: threadObject.messageCount || 0,
-              member_count: threadObject.memberCount || 0,
-              last_message_at: threadObject.lastMessageAt,
-              ap_id: threadApId,
-              federation_status: 'synced',
-            })
+            .update(updateData)
             .eq('id', existingThread.id);
 
           if (updateError) {
@@ -564,12 +636,16 @@ export function createThreadActivity(
   parentMessageApId: string,
   creatorApId: string,
   actorApId: string,
-  serverId?: string
+  serverId?: string,
+  channelName?: string,
+  channelId?: string
 ): ThreadActivity {
   const baseUrl = `https://${config.INSTANCE_DOMAIN}`;
-  const threadObject = threadToActivityPub(thread, channelApId, parentMessageApId, creatorApId);
+  const threadObject = threadToActivityPub(
+    thread, channelApId, parentMessageApId, creatorApId,
+    channelName, channelId
+  );
 
-  // Include serverId in the object so remote instances can verify server context
   if (serverId) {
     (threadObject as any)['harmony:serverId'] = serverId;
   }
@@ -585,6 +661,8 @@ export function createThreadActivity(
         memberCount: 'harmony:memberCount',
         lastMessageAt: 'harmony:lastMessageAt',
         serverId: 'harmony:serverId',
+        channelName: 'harmony:channelName',
+        channelId: 'harmony:channelId',
       },
     ],
     id: `${baseUrl}/activities/${crypto.randomUUID()}`,
