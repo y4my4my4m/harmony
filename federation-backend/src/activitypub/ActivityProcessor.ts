@@ -2668,13 +2668,26 @@ export class ActivityProcessor {
     if (threadApIdValue) {
       resolvedThreadId = await this.resolveThreadId(supabase, threadApIdValue);
       if (!resolvedThreadId) {
-        // Race condition: thread activity may not have arrived yet. Wait and retry once.
-        logger.info(`Thread not found yet for ${threadApIdValue}, waiting 2s for race condition...`);
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        resolvedThreadId = await this.resolveThreadId(supabase, threadApIdValue);
-      }
-      if (!resolvedThreadId) {
-        logger.warn(`Thread not found for AP ID ${threadApIdValue} after retry, message will appear in channel`);
+        logger.warn(`Thread not found for AP ID ${threadApIdValue}, message will appear in channel. Will attempt deferred update.`);
+        // Schedule a lightweight deferred re-check instead of blocking the handler.
+        // If the thread arrives within the next few seconds (race condition),
+        // the message will be retroactively moved to the thread.
+        const capturedMessageId = messageId;
+        setTimeout(async () => {
+          try {
+            const threadId = await this.resolveThreadId(supabase, threadApIdValue);
+            if (threadId && capturedMessageId) {
+              await supabase
+                .from('messages')
+                .update({ thread_id: threadId })
+                .eq('id', capturedMessageId)
+                .is('thread_id', null);
+              logger.info(`🔄 Deferred thread assignment: message ${capturedMessageId} → thread ${threadId}`);
+            }
+          } catch (err) {
+            logger.debug(`Deferred thread resolution failed for ${threadApIdValue}:`, err);
+          }
+        }, 3000);
       }
     }
 

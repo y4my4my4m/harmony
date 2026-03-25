@@ -719,13 +719,32 @@ async function processCreateActivity(
   if (threadApIdValue) {
     resolvedThreadId = await resolveThreadIdFromAp(supabase, threadApIdValue);
     if (!resolvedThreadId) {
-      // Race condition: thread activity may arrive after the message
-      logger.info(`Thread not found yet for ${threadApIdValue}, waiting 2s for race condition...`);
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      resolvedThreadId = await resolveThreadIdFromAp(supabase, threadApIdValue);
-    }
-    if (!resolvedThreadId) {
-      logger.warn(`Thread not found for AP ID ${threadApIdValue} after retry, message will appear in channel`);
+      logger.warn(`Thread not found for AP ID ${threadApIdValue}, message will appear in channel. Will attempt deferred update.`);
+      // Non-blocking deferred re-check: if the ChatThread activity arrives shortly after,
+      // retroactively assign this message to the thread.
+      const deferredApId = object.id;
+      setTimeout(async () => {
+        try {
+          const threadId = await resolveThreadIdFromAp(supabase, threadApIdValue);
+          if (threadId && deferredApId) {
+            const { data: msg } = await supabase
+              .from('messages')
+              .select('id')
+              .eq('metadata->>ap_id', deferredApId)
+              .is('thread_id', null)
+              .maybeSingle();
+            if (msg) {
+              await supabase
+                .from('messages')
+                .update({ thread_id: threadId })
+                .eq('id', msg.id);
+              logger.info(`🔄 Deferred thread assignment: message ${msg.id} → thread ${threadId}`);
+            }
+          }
+        } catch (err) {
+          logger.debug(`Deferred thread resolution failed for ${threadApIdValue}:`, err);
+        }
+      }, 3000);
     }
   }
 
