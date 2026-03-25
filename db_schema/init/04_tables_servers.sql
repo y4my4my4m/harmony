@@ -235,6 +235,11 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_threads_ap_id ON public.threads(ap_id) WHE
 
 COMMENT ON TABLE public.threads IS 'Message threads within channels';
 
+-- FK: threads.parent_message_id → messages.id (needed for PostgREST joins in federation)
+ALTER TABLE public.threads
+    ADD CONSTRAINT threads_parent_message_id_fkey
+    FOREIGN KEY (parent_message_id) REFERENCES public.messages(id) ON DELETE CASCADE;
+
 -- Add FK for messages.thread_id after threads table exists
 ALTER TABLE public.messages 
     ADD CONSTRAINT messages_thread_id_fkey 

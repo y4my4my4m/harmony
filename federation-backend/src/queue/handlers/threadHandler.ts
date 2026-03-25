@@ -14,13 +14,13 @@ import { createThreadActivity } from '../../activitypub/ThreadActivityHandler.js
 
 export async function handleThreadJob(data: FederationJobData): Promise<void> {
   const supabase = getSupabaseClient();
-  const { thread_id, channel_id, server_id, server_is_local, created_by, type } = data;
+  const { thread_id, server_id, type } = data;
   const hostDomain = config.INSTANCE_DOMAIN;
 
   logger.info(`📋 Processing thread ${type} job for thread: ${thread_id}`);
 
   try {
-    // Get thread data
+    // Get thread data with channel and creator joins
     const { data: thread, error: threadError } = await supabase
       .from('threads')
       .select(`
@@ -37,10 +37,6 @@ export async function handleThreadJob(data: FederationJobData): Promise<void> {
             federation_inbox_url
           )
         ),
-        parent_message:messages!threads_parent_message_id_fkey(
-          id,
-          metadata
-        ),
         creator:profiles!threads_created_by_fkey(
           id,
           username,
@@ -56,19 +52,32 @@ export async function handleThreadJob(data: FederationJobData): Promise<void> {
       return;
     }
 
-    const channel = (thread as any).channel;
-    const server = channel?.server;
-    const creator = (thread as any).creator;
-    const parentMessage = (thread as any).parent_message;
+    // Fetch parent message separately (no FK dependency)
+    const { data: parentMessage, error: parentMsgError } = await supabase
+      .from('messages')
+      .select('id, metadata')
+      .eq('id', thread.parent_message_id)
+      .single();
 
-    if (!server || !creator || !parentMessage) {
-      logger.error('Missing required thread data');
+    if (parentMsgError || !parentMessage) {
+      logger.error(`Parent message not found for thread ${thread_id}: ${thread.parent_message_id}`, parentMsgError);
       return;
     }
 
+    const channel = (thread as any).channel;
+    const server = channel?.server;
+    const creator = (thread as any).creator;
+
+    if (!server || !creator) {
+      logger.error(`Missing required thread data: server=${!!server}, creator=${!!creator}`);
+      return;
+    }
+
+    logger.info(`📋 Thread data: creator.is_local=${creator.is_local}, server.is_local=${server.is_local_server}, federation_enabled=${server.federation_enabled}, channel=${channel.name}`);
+
     // Only federate threads from local users
     if (!creator.is_local) {
-      logger.debug('Thread creator is not local, skipping federation');
+      logger.info('Thread creator is not local, skipping federation');
       return;
     }
 

@@ -362,6 +362,8 @@ export class ActivityProcessor {
     const object = activity.object;
     const supabase = getSupabaseClient();
 
+    logger.info(`📨 processCreate: object.type=${object?.type}, id=${object?.id?.substring?.(0, 80)}`);
+
     // Handle Question type (polls) - store as Note with poll metadata
     if (object.type === 'Question') {
       logger.info(`📊 Processing poll: ${object.id}`);

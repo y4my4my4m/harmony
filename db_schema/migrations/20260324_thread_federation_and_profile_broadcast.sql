@@ -12,6 +12,25 @@ ALTER TABLE public.threads ADD COLUMN IF NOT EXISTS federation_status text DEFAU
 CREATE UNIQUE INDEX IF NOT EXISTS idx_threads_ap_id ON public.threads(ap_id) WHERE ap_id IS NOT NULL;
 
 -- =============================================================================
+-- Add missing FK: threads.parent_message_id → messages.id
+-- This existed in production via 20251207_add_threads.sql but was missing
+-- from the init file, causing PostgREST joins to fail.
+-- =============================================================================
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.table_constraints
+        WHERE constraint_name = 'threads_parent_message_id_fkey'
+        AND table_name = 'threads'
+    ) THEN
+        ALTER TABLE public.threads
+            ADD CONSTRAINT threads_parent_message_id_fkey
+            FOREIGN KEY (parent_message_id) REFERENCES public.messages(id) ON DELETE CASCADE;
+    END IF;
+END $$;
+
+-- =============================================================================
 -- Fix thread federation trigger: AFTER → BEFORE
 -- The trigger function modifies NEW.federation_status, which only works in
 -- BEFORE triggers. The PERFORM queue_federation_job() side effect worked in
