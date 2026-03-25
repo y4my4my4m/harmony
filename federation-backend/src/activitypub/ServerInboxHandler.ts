@@ -16,6 +16,7 @@ import { DeliveryQueue } from './DeliveryQueue.js';
 import { noteToContent } from './converters/fromActivityPub.js';
 import { decodeHtmlEntities } from '../utils/contentUtils.js';
 import config from '../config/index.js';
+import { harmonyVoiceMessageFromObject } from '../utils/voiceMessageFederation.js';
 
 /**
  * Resolve a thread ID from an AP URL. Tries ap_id match first, then UUID extraction.
@@ -734,6 +735,10 @@ async function processCreateActivity(
   if (threadApIdValue && !resolvedThreadId) {
     messageMetadata.pending_thread_ap_id = threadApIdValue;
   }
+  const voiceFromAp = harmonyVoiceMessageFromObject(object);
+  if (voiceFromAp) {
+    Object.assign(messageMetadata, voiceFromAp);
+  }
 
   const { data: insertedMessage, error } = await supabase.from('messages').insert({
     channel_id: channel.id,
@@ -1127,13 +1132,28 @@ async function processUpdateActivity(
     messageContent = normalizeMentionDomains(object.content || []);
   }
 
+  const voicePatch = harmonyVoiceMessageFromObject(object);
+  let updatePayload: Record<string, unknown> = {
+    content: messageContent,
+    updated_at: object.updated || new Date().toISOString(),
+  };
+  if (voicePatch) {
+    const { data: existingRow } = await supabase
+      .from('messages')
+      .select('metadata')
+      .eq('id', message.id)
+      .maybeSingle();
+    const meta = (existingRow?.metadata && typeof existingRow.metadata === 'object')
+      ? { ...existingRow.metadata }
+      : {};
+    Object.assign(meta, voicePatch);
+    updatePayload = { ...updatePayload, metadata: meta };
+  }
+
   // Update message
   const { error } = await supabase
     .from('messages')
-    .update({
-      content: messageContent,
-      updated_at: object.updated || new Date().toISOString(),
-    })
+    .update(updatePayload)
     .eq('id', message.id);
 
   if (error) {

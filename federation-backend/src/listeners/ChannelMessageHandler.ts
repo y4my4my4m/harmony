@@ -15,6 +15,7 @@ import { DeliveryQueue } from '../activitypub/DeliveryQueue.js';
 import { logger } from '../utils/logger.js';
 import config from '../config/index.js';
 import { convertContentToHTML, extractActivityPubTags, extractAttachments } from '../utils/contentUtils.js';
+import { harmonyVoiceMessageExtension } from '../utils/voiceMessageFederation.js';
 import { getRemoteMemberGroups, type RemoteMemberGroup } from '../utils/federationUtils.js';
 
 // =============================================================================
@@ -468,6 +469,8 @@ function createMessageActivity(
     }
   }
 
+  const voiceHarmony = harmonyVoiceMessageExtension(message.metadata);
+
   return {
     '@context': [
       'https://www.w3.org/ns/activitystreams',
@@ -481,6 +484,7 @@ function createMessageActivity(
         'encrypted': 'harmony:encrypted',
         'threadId': 'harmony:threadId',
         'parentMessageId': 'harmony:parentMessageId',
+        'voiceMessage': 'harmony:voiceMessage',
       },
     ],
     id: activityType === 'Update' ? `${activityId}/updates/${Date.now()}` : activityId,
@@ -518,6 +522,9 @@ function createMessageActivity(
 
       // E2EE indicator — remote instances can't decrypt but should show the lock glyph
       'harmony:encrypted': message.encrypted === true ? true : undefined,
+
+      // Voice message UI (waveform player) — metadata is not inside harmony:rawContent
+      ...(voiceHarmony ? { 'harmony:voiceMessage': voiceHarmony } : {}),
     },
 
     // Addressing - to server members

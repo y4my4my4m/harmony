@@ -13,6 +13,7 @@ import {
 import { VoiceActivityHandler } from './VoiceActivityHandler.js';
 import { SignatureService } from './SignatureService.js';
 import config from '../config/index.js';
+import { harmonyVoiceMessageFromObject } from '../utils/voiceMessageFederation.js';
 
 /**
  * Extract message UUID from a URL like https://domain/messages/{uuid}
@@ -2679,6 +2680,10 @@ export class ActivityProcessor {
     };
     if (threadApIdValue && !resolvedThreadId) {
       messageMetadata.pending_thread_ap_id = threadApIdValue;
+    }
+    const voiceFromAp = harmonyVoiceMessageFromObject(object);
+    if (voiceFromAp) {
+      Object.assign(messageMetadata, voiceFromAp);
     }
 
     const { data: insertedMsg, error: insertError } = await supabase
