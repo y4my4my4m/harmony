@@ -1207,9 +1207,14 @@ export const useNotificationStore = defineStore('notification', {
         
         if (navData) {
           switch (navData.type) {
-            case 'conversation':
-              return `/dm/${navData.conversationId}`
-              
+            case 'conversation': {
+              let dmPath = `/dm/${navData.conversationId}`
+              if (navData.messageId) {
+                dmPath += `?messageId=${navData.messageId}`
+              }
+              return dmPath
+            }
+
             case 'channel': {
               let path = `/chat/${navData.serverId}/${navData.channelId}`
               if (navData.messageId) {
