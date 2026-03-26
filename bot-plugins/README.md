@@ -87,7 +87,7 @@ Cross-platform bridge connecting Discord and Harmony servers.
 - ✅ Graceful shutdown
 - ✅ TypeScript or well-typed JavaScript
 - ✅ No hardcoded credentials
-- ✅ License file (MIT recommended)
+- ✅ License file (must be compatible with how you distribute the plugin; Harmony core is **AGPL-3.0**)
 
 ## 📖 Documentation
 
@@ -212,9 +212,7 @@ Submit via PR with:
 
 ## 📄 License
 
-Each plugin has its own license. Check individual plugin directories.
-
-The Discord Bridge reference implementation is MIT licensed.
+Each plugin may document its own terms. The Discord bridge in this repo follows the root **AGPL-3.0** `LICENSE`.
 
 ---
 

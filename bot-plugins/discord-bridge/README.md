@@ -198,5 +198,5 @@ CMD ["npm", "start"]
 
 ## License
 
-MIT
+GNU **AGPL-3.0** (same as the main Harmony repository; see root `LICENSE`).
 

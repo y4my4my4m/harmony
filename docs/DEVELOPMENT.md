@@ -765,4 +765,4 @@ const largeData = shallowRef({})
 
 ## 📝 License
 
-This project is licensed under the MIT License. See the [LICENSE](../LICENSE) file for details.
+This project is licensed under **GNU AGPL-3.0**. See the `LICENSE` file in the repository root.

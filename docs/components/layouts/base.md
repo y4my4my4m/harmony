@@ -356,10 +356,9 @@ describe('BaseLayout', () => {
 
 ## Related Components
 
-- [ServerSidebar](/components/shared/server-sidebar) - Server navigation component
-- [ChatLayout](/components/layouts/chat) - Chat-specific layout
-- [SocialLayout](/components/layouts/social) - Social media layout
-- [GlobalModals](/components/shared/modals) - Application-wide modals
+- [ServerSidebar](/components/serversidebar) — Server navigation component
+- Chat-specific and social layouts live in `src/layouts/` in the repository (no separate doc pages yet).
+- [UnifiedModal](/components/shared/unifiedmodal) — Base pattern for application-wide dialogs
 
 ## Best Practices
 

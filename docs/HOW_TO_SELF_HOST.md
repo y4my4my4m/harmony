@@ -6,28 +6,30 @@ A complete guide to deploying your own Harmony instance. Choose the path that fi
 
 ## Architecture Overview
 
+Typical production layout:
+
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                         Your Domain                             │
-│                    harmony.yourdomain.com                       │
-└───────────────────────────┬─────────────────────────────────────┘
-                            │
-    ┌───────────────────────┼───────────────────────┐
-    │                       │                       │
-    ▼                       ▼                       ▼
-┌───────────────┐   ┌───────────────┐       ┌───────────────┐
-│   Frontend    │   │   Database    │       │  Voice/Video  │
-│   (Vue/Vite)  │   │  (Supabase)   │       │   (LiveKit)   │
-└───────────────┘   └───────────────┘       └───────────────┘
-                            │
-                            │  ← Required for federation
-                            ▼
-                    ┌───────────────┐
-                    │   Federation  │
-                    │    Backend    │
-                    │     Server    │
-                    └───────────────┘
+                         Your domain (Nginx TLS)
+                                    │
+          ┌─────────────────────────┼─────────────────────────┐
+          ▼                         ▼                         ▼
+   Static SPA (dist/)     federation-server (HTTP :3001)   bot-gateway (:3002, optional)
+          │                         │
+          │                    Redis (BullMQ, cache, rate limits)
+          │                         │
+          │                 federation-worker (queue consumer, no public port)
+          │                         │
+          └─────────────────────────┴─────────────────────────┘
+                                    │
+                            Supabase (Postgres + Auth + Realtime)
+                                    │
+                         LiveKit (optional, profile `voice` — UDP mux, shares Redis)
 ```
+
+- **federation-server** — ActivityPub HTTP (`/.well-known`, inbox/outbox, link previews, health). Same image as the worker; `FEDERATION_MODE=server`.
+- **federation-worker** — BullMQ / job processing so heavy delivery work does not block the HTTP server. `FEDERATION_MODE=worker`. Requires **Redis** and `USE_PGBOSS_QUEUE=true` (see `federation-backend/.env`).
+- **Redis** — Job queue persistence, caching, presence, rate limiting; LiveKit also uses it when you run voice.
+- **federation-backend** (single container) — Optional **simple** profile: one process with `FEDERATION_MODE=unified` for small installs (`docker compose --profile simple`).
 
 ---
 
@@ -65,8 +67,6 @@ We recommend using [KVM2](https://www.hostinger.com/cart?product=vps%3Avps_kvm_2
 
 This also gives you a free .cloud domain for your instance.
 
-> 💡 **Tip:** Use code `VPSRATES10` at Hostinger for 10% off
-
 ## 1. Initial Server Setup
 
 ```bash
@@ -99,9 +99,9 @@ git clone https://github.com/y4my4my4m/harmony.git .
 
 ## 2. Set Up Supabase
 
-You can use **Supabase Cloud** (easier) or **self-host** (full control).
+You can use **Supabase Cloud** or **self-host** Supabase.
 
-### Using Supabase Cloud (Recommended)
+### Using Supabase Cloud
 
 1. Create project at [supabase.com](https://supabase.com)
 2. Go to **SQL Editor** and run each file from `db_schema/init/` in order (00_extensions.sql through 99_storage_buckets.sql)
@@ -110,6 +110,8 @@ You can use **Supabase Cloud** (easier) or **self-host** (full control).
    - Anon key
    - Service role key
    - Database URL (for LISTEN/NOTIFY bridge): `postgresql://postgres.[ref]:[pwd]@[region].pooler.supabase.com:5432/postgres`
+
+> **Note**: Supabase Cloud is not intensively tested yet, so use at your own risk. We recommend self-hosting Supabase if you are using an early version of Harmony.
 
 ### Self-Hosting Supabase
 
@@ -169,8 +171,11 @@ CORS_ORIGIN=https://harmony.yourdomain.com
 # Redis (shared by BullMQ, caching, presence, rate limiting, and LiveKit)
 REDIS_URL=redis://:your-redis-password@redis:6379
 
-# Enable BullMQ federation queue (recommended)
+# BullMQ federation queue (recommended for production; requires Redis)
 USE_PGBOSS_QUEUE=true
+
+# Local dev / single container only — omit or set unified in Docker:
+# FEDERATION_MODE=server | worker | unified
 
 # LiveKit
 LIVEKIT_API_KEY=your-api-key
@@ -238,54 +243,43 @@ echo "API Key: devkey$(openssl rand -hex 8)"
 echo "API Secret: $(openssl rand -hex 32)"
 ```
 
-## 6. Docker Compose
+## 6. Docker Compose (repository files)
+
+Do **not** hand-roll an old single-service `federation-backend` compose unless you want the minimal **simple** profile. The repo ships:
+
+| File | Use case |
+|------|----------|
+| [`docker-compose.prod.yml`](../docker-compose.prod.yml) | Supabase **Cloud** (or external Supabase) + static `dist/` + Nginx volumes |
+| [`docker-compose.full.yml`](../docker-compose.full.yml) | Self-hosted Supabase on Docker network `supabase_default` + Harmony + Redis + optional LiveKit |
+
+**Default stack (production):** `federation-server` + `federation-worker` + **redis** + **nginx**. Federation env must include `DATABASE_URL`, `REDIS_URL`, and `USE_PGBOSS_QUEUE=true` (see comments at top of `docker-compose.prod.yml`).
+
+**Root `.env` for Compose:** set `REDIS_PASSWORD` (required by the Redis service). In `federation-backend/.env`, set `REDIS_URL=redis://:YOUR_PASSWORD@redis:6379` to match.
+
+**Optional Compose profiles:**
+
+- `--profile simple` — one container `federation-backend` (`FEDERATION_MODE=unified`) instead of server+worker.
+- `--profile bots` — `bot-gateway`.
+- `--profile voice` — LiveKit (see `webrtc/livekit.yaml`; Redis required).
+- `--profile monitoring` — Bull Board on `127.0.0.1:3003` (see [Queue Monitoring](#queue-monitoring-optional) below).
+
+**Examples:**
 
 ```bash
-nano docker-compose.yml
+# Supabase Cloud + built frontend (from repo root)
+cp .env.example .env
+# Set REDIS_PASSWORD=... in .env
+npm ci && npm run build-only
+docker compose -f docker-compose.prod.yml up -d
+
+# With bots
+docker compose -f docker-compose.prod.yml --profile bots up -d
+
+# Self-hosted Supabase already running (same host)
+docker compose -f docker-compose.full.yml up -d
 ```
 
-```yaml
-version: "3.8"
-
-services:
-  federation-backend:
-    build: ./federation-backend
-    container_name: harmony-federation
-    restart: unless-stopped
-    ports:
-      - "3001:3001"
-    env_file:
-      - ./federation-backend/.env
-
-  bot-gateway:
-    build: ./bot-gateway
-    container_name: harmony-bots
-    restart: unless-stopped
-    ports:
-      - "3002:3002"
-    env_file:
-      - ./bot-gateway/.env
-
-  livekit:
-    image: livekit/livekit-server:latest
-    container_name: harmony-livekit
-    restart: unless-stopped
-    ports:
-      - "7880:7880"
-      - "7881:7881"
-      - "3478:3478/udp"
-      - "5349:5349"
-      - "50000-50100:50000-50100/udp"
-    volumes:
-      - ./webrtc/livekit.yaml:/livekit.yaml:ro
-    command: --config /livekit.yaml
-```
-
-Start services:
-```bash
-docker compose up -d
-docker compose logs -f  # Verify everything starts
-```
+After changes, rebuild images when the federation image changes: `docker compose -f docker-compose.prod.yml build && docker compose -f docker-compose.prod.yml up -d`.
 
 ## 7. Configure Nginx
 
@@ -391,25 +385,27 @@ cd /opt/harmony
 git pull
 npm ci
 npm run build-only
-docker compose build
-docker compose up -d
+docker compose -f docker-compose.prod.yml build
+docker compose -f docker-compose.prod.yml up -d
 systemctl reload nginx
 ```
 
 ## Logs
 
 ```bash
-docker compose logs -f                    # All services
-docker compose logs -f federation-backend # Specific service
+docker compose -f docker-compose.prod.yml logs -f   # All services (adjust -f file)
+docker compose -f docker-compose.prod.yml logs -f federation-server
+docker compose -f docker-compose.prod.yml logs -f federation-worker
+docker compose -f docker-compose.prod.yml logs -f redis
 ```
 
 ## Queue Monitoring (Optional)
 
 Bull Board provides a web dashboard for monitoring federation job queues (BullMQ). It runs as a standalone Docker container with HTTP basic auth, accessible via a dedicated subdomain.
 
-**Enable it:**
+**Enable it (from repo root, same compose file you use for Harmony):**
 ```bash
-docker compose --profile monitoring up -d
+docker compose -f docker-compose.prod.yml --profile monitoring up -d
 ```
 
 **Set up the subdomain** (e.g. `bq.yourdomain.com`):
@@ -441,10 +437,11 @@ Run new migration files in Supabase SQL Editor (cloud) or via psql (self-hosted)
 # Troubleshooting
 
 ## Federation not working
-1. Verify federation-backend is running: `docker compose ps`
-2. Check logs: `docker compose logs federation-backend`
-3. Ensure `INSTANCE_DOMAIN` matches your actual domain exactly
-4. Test WebFinger: `curl https://yourdomain.com/.well-known/webfinger?resource=acct:user@yourdomain.com`
+1. Verify containers: `docker compose -f docker-compose.prod.yml ps` (or `docker-compose.full.yml`)
+2. Check **federation-server** logs: `docker compose ... logs federation-server`
+3. If using BullMQ, check **federation-worker** and **redis**; confirm `USE_PGBOSS_QUEUE=true` and `REDIS_URL` match `REDIS_PASSWORD` in Compose
+4. Ensure `INSTANCE_DOMAIN` matches your public domain exactly
+5. Test WebFinger: `curl 'https://yourdomain.com/.well-known/webfinger?resource=acct:user@yourdomain.com'`
 
 ## Voice not working
 1. Check LiveKit is running: `docker compose logs livekit`

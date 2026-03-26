@@ -1,5 +1,7 @@
 # Harmony - Technical Debt & Future Improvements
 
+> **Canonical roadmap:** use **[TODO_latest.md](./TODO_latest.md)** for the current technical-debt list and priorities. This file keeps older “completed work” notes and historical context.
+
 ## Connection Management Cleanup (Completed 2024)
 
 We removed over-engineered connection management that was causing issues:

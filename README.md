@@ -1,176 +1,55 @@
-# 🎵 Harmony - Federated Social Platform
+# 🐻‍❄️ Harmony
 
-A modern, federated social platform combining Discord-like servers with ActivityPub federation, built with Vue 3 and Supabase.
+Harmony is a federated social app: Discord-style servers and chat with ActivityPub, built on Vue 3 and Supabase.
 
-> **✨ Just Refactored!** Check **[START_HERE.md](START_HERE.md)** for what's new!
+**Docs:** `npm run docs:dev` (see [docs/README.md](docs/README.md)).
 
----
+## What it does
 
-## ✨ Features
+- Servers, channels, DMs, threads, voice/video (LiveKit where configured)
+- ActivityPub timelines, follows, and federation with other instances
+- Multi-instance servers (members from different Harmony domains in one server)
 
-### 🏠 **Discord-Like Servers**
-- **Real-time Messaging**: Organized channels with instant delivery
-- **Voice Channels**: Real-time voice communication
-- **Video Calls**: Voice + video in channels and DMs
-- **Servers & Channels**: Organized communities
-- **🚀 FEDERATED SERVERS**: Users from multiple instances in same server!
+## Stack
 
-### 🌐 **ActivityPub Federation** 
-- **Cross-Platform**: Connect with Mastodon, Pleroma, Misskey
-- **Federated Timeline**: Posts from across the fediverse
-- **Remote Follows**: Follow and interact with users everywhere
-- **Federated DMs**: Message users on other platforms
-- **Multi-Instance Servers**: 🆕 Discord servers spanning instances!
+- Frontend: Vue 3, TypeScript, Pinia, Vite
+- Data: Supabase (Postgres, auth, realtime, storage)
+- Federation: Node service in `federation-backend/` ([README](federation-backend/README.md)) — HTTP **server** and queue **worker** split in production Docker; **Redis** for BullMQ and related features
+- Desktop: Tauri (`src-tauri/`)
 
-### 🚀 **Innovation: Federated Discord Servers**
-
-**First in the fediverse!** Users from different Harmony instances can join the same server:
-
-```
-Server "Gaming Hub" on harmonyB.com:
-  ├─ @alice@harmonyA.com  ←──┐
-  ├─ @bob@harmonyB.com        │ All chat together!
-  └─ @charlie@harmonyC.com ←──┘
-
-Local users: < 50ms (instant via Supabase real-time!)
-Remote users: ~ 2s (via ActivityPub federation)
-```
-
----
-
-## 🏗️ **Architecture**
-
-### **The Right Way**
-
-```
-Frontend → Supabase (Direct, Fast!)
-              ↓
-         (triggers)
-              ↓
-    Federation Backend
-       (ActivityPub)
-              ↓
-         Fediverse
-```
-
-### **Tech Stack**
-- **Frontend**: Vue 3 + TypeScript + Pinia + Vite
-- **Database**: Supabase (PostgreSQL + Real-time)
-- **Federation**: Node.js backend (ActivityPub protocol)
-- **Deployment**: Docker / Manual
-
----
-
-## 🚀 **Quick Start**
-
-### **Option 1: Development (Recommended)**
+## Quick start (development)
 
 ```bash
-# 1. Clone
 git clone <repository-url>
 cd harmony
 
-# 2. Install
 npm install
 cd federation-backend && npm install && cd ..
 
-# 3. Start Supabase (Docker)
-cd ../harmonious
-docker compose up -d
+cp .env.example .env
+cp federation-backend/env.template federation-backend/.env
+# Fill in Supabase URL, anon key, instance domain.
 
-# 4. Apply migrations (REQUIRED for server federation!)
-psql -h localhost -p 54322 -U postgres postgres < \
-  ../harmony/db_schema/server_federation.sql
-psql -h localhost -p 54322 -U postgres postgres < \
-  ../harmony/db_schema/triggers/smart_message_routing.sql
+# Database: fresh install → db_schema/init/init.sql (see db_schema/init/README.md)
+# Updates → db_schema/migrations/*.sql in the SQL editor as needed
 
-# 5. Start Frontend
-cd ../harmony
 npm run dev
-
-# 6. Start Federation Backend (optional)
-cd federation-backend
-npm run dev
+# Optional second terminal: cd federation-backend && npm run dev
 ```
 
-Visit: `http://localhost:5173`
+App: http://localhost:5173 — With federation running, health is http://localhost:3001/health.
 
-### **Option 2: Interactive Installer**
+**Installer:** `bash scripts/install.sh` — Full production-style steps: [docs/HOW_TO_SELF_HOST.md](docs/HOW_TO_SELF_HOST.md).
 
-```bash
-bash scripts/install.sh
-```
+## Documentation
 
-See [docs/HOW_TO_SELF_HOST.md](docs/HOW_TO_SELF_HOST.md) for the full manual guide.
+| Topic | Link |
+|--------|------|
+| Self-hosting / Docker / Redis / federation-server & worker | [docs/HOW_TO_SELF_HOST.md](docs/HOW_TO_SELF_HOST.md) |
+| Roadmap & tech debt | [TODO_latest.md](TODO_latest.md) (older notes: [TODO.md](TODO.md)) |
+| DB init | [db_schema/init/README.md](db_schema/init/README.md) |
+| Contributing | [CONTRIBUTING.md](CONTRIBUTING.md) |
 
----
+## License
 
-## 📚 **Documentation**
-
-### **Deployment**
-- [docs/HOW_TO_SELF_HOST.md](docs/HOW_TO_SELF_HOST.md) - **Complete guide** (Cloud free tier or VPS)
-
-### **Development**
-- [TODO_latest.md](TODO_latest.md) - Technical debt & roadmap
-- [db_schema/init/README.md](db_schema/init/README.md) - Database setup
-
-### **For Developers**
-- [CONTRIBUTING.md](CONTRIBUTING.md) - How to contribute
-- [federation-backend/README.md](federation-backend/README.md) - Federation backend docs
-
-### **Database Setup**
-- [db_schema/init/README.md](db_schema/init/README.md) - Database initialization guide
-
----
-
-## 🎯 **What's Different**
-
-### **Architecture**
-- ✅ Supabase used correctly (direct access, fast!)
-- ✅ Federation backend (TypeScript, easy to maintain!)
-- ✅ 15 PostgreSQL functions (down from 124!)
-- ✅ Smart local-first optimization
-
-### **Features**
-- ✅ Federated Discord servers (NEW in fediverse!)
-- ✅ DM video/audio calls
-- ✅ Bug fixes (messages, registration, video)
-- ✅ Professional codebase
-
-### **Deployment**
-- ✅ Interactive installer (`scripts/install.sh`)
-- ✅ Docker Compose
-- ✅ Complete documentation
-
----
-
-## 📊 **Project Status**
-
-### **Complete**
-✅ Federation backend (ActivityPub)  
-✅ Federated servers (multi-instance!)  
-✅ Bug fixes  
-✅ Deployment ready  
-✅ Community infrastructure  
-
-### **In Progress**
-🔄 PostgreSQL cleanup (optional)  
-🔄 Frontend UI for remote servers  
-
----
-
-## 🤝 **Contributing**
-
-See [CONTRIBUTING.md](CONTRIBUTING.md)
-
----
-
-## 📝 **License**
-
-MIT - See [LICENSE](LICENSE)
-
----
-
-**Built with ❤️ for the federated social web** 🌐
-
-[⭐ Star](https://github.com/y4my4my4m/harmony) | [🐛 Report Bug](https://github.com/y4my4my4m/harmony/issues) | [💡 Request Feature](https://github.com/y4my4my4m/harmony/issues)
+[GNU Affero General Public License v3.0](https://www.gnu.org/licenses/agpl-3.0.html) — see [LICENSE](LICENSE).

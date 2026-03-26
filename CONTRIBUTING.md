@@ -46,8 +46,8 @@ We are committed to providing a welcoming and inspiring community for all. Pleas
    # Frontend
    npm install
    
-   # Backend
-   cd backend && npm install
+   # Federation backend
+   cd federation-backend && npm install && cd ..
    ```
 
 3. **Configure Environment**
@@ -67,14 +67,19 @@ We are committed to providing a welcoming and inspiring community for all. Pleas
    # Terminal 1: Frontend
    npm run dev
    
-   # Terminal 2: Backend
-   cd backend && npm run dev
+   # Terminal 2: Federation backend (optional for many UI tasks)
+   cd federation-backend && npm run dev
    ```
 
 6. **Access the App**
    - Frontend: http://localhost:5173
-   - Backend API: http://localhost:3001
+   - Federation backend: http://localhost:3001
    - Health check: http://localhost:3001/health
+
+## Roadmap & technical debt
+
+- **[TODO_latest.md](./TODO_latest.md)** — current priorities and known issues (canonical).
+- **[TODO.md](./TODO.md)** — older notes and completed work; see the pointer at the top of that file.
 
 ## Development Workflow
 
@@ -264,6 +269,11 @@ describe('POST /api/messages', () => {
 
 ## Documentation
 
+### VitePress site and guides
+
+- From the repo root: `npm run docs:dev` (see [docs/README.md](./docs/README.md)).
+- Edit guides under `docs-source/guide/`, then run `npm run docs:generate-guide` (do not edit `docs/guide/` directly).
+
 ### Code Documentation
 
 - Add JSDoc comments for public APIs
@@ -352,9 +362,9 @@ Contributors will be:
 
 ## License
 
-By contributing, you agree that your contributions will be licensed under the AGPL-3.0 License.
+Harmony is under the **GNU Affero General Public License v3.0** (see root `LICENSE`). By contributing, you agree your contributions are licensed under the same terms.
 
 ---
 
-Thank you for contributing to Harmony! 🎵
+Thank you for contributing to Harmony.
 

@@ -59,7 +59,7 @@ users, test real RLS policies, and verify database functions work correctly.
 4. **Restart Supabase** after adding the port mapping:
 
    ```bash
-   cd ~/gits/hobby/harmonious  # or wherever your Supabase lives
+   cd /path/to/your/supabase/docker/checkout
    docker compose down && docker compose up -d
    ```
 

@@ -455,7 +455,7 @@ HarmonyPluginManager.register({
 ## Resources
 
 - [Bot API Reference](./BOT_API.md)
-- [Discord Bridge Source](../bot-plugins/discord-bridge/) — Reference implementation
+- Discord Bridge source: `bot-plugins/discord-bridge/` (reference implementation)
 
 ## Community Plugins
 

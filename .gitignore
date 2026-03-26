@@ -17,6 +17,9 @@ coverage
 /cypress/videos/
 /cypress/screenshots/
 
+# Cursor agent plans (local AI session artifacts)
+.cursor/plans/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

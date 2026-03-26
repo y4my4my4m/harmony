@@ -282,9 +282,9 @@ describe('AuthService', () => {
 ## Related Documentation
 
 - [Auth Store API](/api/stores/auth) - Pinia store for authentication state
-- [User Types](/api/types/user) - TypeScript type definitions
+- [View types](/api/types/viewtypes) — selected UI-related TypeScript types
 - [Authentication Flow](/flows/auth) - System flow diagrams
-- [Security Guide](/guide/security) - Security best practices
+- [2FA security model](/2FA_SECURITY_MODEL) — MFA / AAL notes for auth flows
 
 ## Configuration
 
