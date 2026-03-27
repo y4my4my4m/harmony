@@ -2533,7 +2533,13 @@ const fetchReplyMessageIfNeeded = async (replyMessageId: string) => {
   if (replyMessages.value[replyMessageId] || props.messages.some(msg => msg.id === replyMessageId)) return;
   try {
     const message = await chatStore.fetchReplyMessage(replyMessageId);
-    if (message) replyMessages.value[replyMessageId] = message;
+    if (message) {
+      replyMessages.value[replyMessageId] = message;
+      // Ensure the reply author's profile is loaded so we don't show "Unknown User"
+      if (message.user_id) {
+        ensureProfilesAvailable([message.user_id]).catch(() => {});
+      }
+    }
   } catch (error) {
     debug.error('Error fetching reply message:', error);
   }

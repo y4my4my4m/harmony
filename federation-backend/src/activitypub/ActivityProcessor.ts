@@ -525,13 +525,20 @@ export class ActivityProcessor {
           return;
         }
 
-        const { error } = await supabase.from('posts').insert(postData);
+        const { data: insertedPost, error } = await supabase.from('posts').insert(postData).select('id, content, metadata').single();
 
         if (error) {
           logger.error('Failed to create post from activity:', error);
         } else {
           const postType = quotedPostData ? 'quote post' : 'post';
           logger.info(`✅ Created ${postType} from ${object.id}${parentPostId ? ` (reply to ${parentPostId})` : ''}${quotedPostData ? ` (quoting ${quotedPostData.id})` : ''}`);
+
+          if (insertedPost) {
+            const { enrichPostLinkPreviews } = await import('../listeners/DatabaseListener.js');
+            enrichPostLinkPreviews(insertedPost).catch(err =>
+              logger.warn('Link preview enrichment failed for federated post:', err)
+            );
+          }
         }
       }
     }
@@ -823,6 +830,15 @@ export class ActivityProcessor {
       }
 
       logger.info(`✅ Fetched and created remote post: ${apId}`);
+
+      // Enrich link previews asynchronously
+      if (newPost) {
+        const { enrichPostLinkPreviews } = await import('../listeners/DatabaseListener.js');
+        enrichPostLinkPreviews({ id: newPost.id, content, metadata: {} }).catch(err =>
+          logger.warn('Link preview enrichment failed for fetched post:', err)
+        );
+      }
+
       return newPost;
     } catch (error) {
       logger.warn(`Error fetching remote post ${postUrl}:`, error);

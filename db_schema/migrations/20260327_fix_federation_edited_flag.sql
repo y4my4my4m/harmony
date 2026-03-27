@@ -58,6 +58,21 @@ SET updated_at = created_at
 WHERE is_local = false
   AND updated_at - created_at > interval '2 seconds';
 
+-- Add update_post_embeds RPC for link preview enrichment on posts
+CREATE OR REPLACE FUNCTION public.update_post_embeds(p_post_id uuid, p_embeds jsonb) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public' AS $$
+begin
+  update public.posts
+  set metadata = coalesce(metadata, '{}'::jsonb) || jsonb_build_object('embeds',
+    coalesce(metadata->'embeds', '{}'::jsonb) || p_embeds
+  )
+  where id = p_post_id;
+end;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.update_post_embeds(uuid, jsonb) TO service_role;
+
 COMMIT;
 
 NOTIFY pgrst, 'reload schema';

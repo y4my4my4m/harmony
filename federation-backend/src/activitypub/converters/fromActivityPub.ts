@@ -34,7 +34,10 @@ export function noteToContent(note: any): any[] {
     const cp = parseInt(n, 10);
     return cp >= 0 && cp <= 0x10FFFF ? String.fromCodePoint(cp) : match;
   });
-  cleanText = cleanText.replace(/\s+/g, ' ').trim();
+  // Collapse horizontal whitespace but preserve newlines from <br>/<p> replacements
+  cleanText = cleanText.replace(/[^\S\n]+/g, ' ');
+  cleanText = cleanText.replace(/\n{3,}/g, '\n\n');
+  cleanText = cleanText.trim();
   
   // Build combined tags array (includes both standard AP tags and Misskey-style emojis)
   let allTags = note.tag && Array.isArray(note.tag) ? [...note.tag] : [];

@@ -192,6 +192,18 @@
             :media-attachments="displayMediaAttachments"
             :is-sensitive="displayIsSensitive"
           />
+
+          <!-- Link Preview Cards -->
+          <a
+            v-for="embed in postEmbeds"
+            :key="embed.url"
+            :href="embed.url"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="post-link-preview"
+          >
+            <LinkEmbedCard :payload="embed" />
+          </a>
         </div>
       </div>
 
@@ -542,6 +554,7 @@ import type { TimelinePost } from '@/types';
 
 // Components
 import MonyContent from './MonyContent.vue';
+import LinkEmbedCard from '@/components/embeds/LinkEmbedCard.vue';
 import Icon from '@/components/common/Icon.vue';
 import Avatar from '../common/Avatar.vue';
 import Composer from './Composer.vue';
@@ -860,6 +873,13 @@ const displayMediaAttachments = computed(() => {
     }
     return { ...m, id: m.id || `m-${idx}`, url, type };
   }).filter(Boolean);
+});
+
+const postEmbeds = computed(() => {
+  const source = (isReblog.value && props.post.reblog) ? props.post.reblog : props.post;
+  const embeds = source?.metadata?.embeds;
+  if (!embeds || typeof embeds !== 'object') return [];
+  return Object.values(embeds).filter((e: any) => e && e.title);
 });
 
 // Content for MonyContent: when we have media_attachments, exclude file/image parts from content
@@ -2175,7 +2195,6 @@ const closeLightbox = () => {
 }
 
 .post-text {
-  /* color: var(--text-primary); */
   color: var(--text-primary);
   line-height: 1.6;
   word-wrap: break-word;
@@ -2183,6 +2202,20 @@ const closeLightbox = () => {
   user-select: text;
   -webkit-user-select: text;
   cursor: text;
+}
+
+.post-link-preview {
+  display: block;
+  text-decoration: none;
+  margin-top: 0.5rem;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid var(--border-color, rgba(255,255,255,0.1));
+  transition: border-color 0.2s;
+}
+
+.post-link-preview:hover {
+  border-color: var(--primary);
 }
 
 .post-text :deep(*) {
