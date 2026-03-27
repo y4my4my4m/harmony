@@ -416,8 +416,17 @@
                 <span>Fetch replies</span>
               </button>
               
+              <button
+                v-if="isRemotePost && isCurrentUserAdminOrMod && !isRefetchingContent"
+                class="dropdown-item"
+                @click="handleRefetchFromSource"
+              >
+                <Icon name="refresh-cw" />
+                <span>Refetch from source</span>
+              </button>
+              
               <div 
-                v-if="isRemotePost && (isFetchingReactions || isFetchingReplies)"
+                v-if="isRemotePost && (isFetchingReactions || isFetchingReplies || isRefetchingContent)"
                 class="dropdown-item loading-item"
               >
                 <Icon name="loader" class="spinning" />
@@ -620,6 +629,7 @@ const showReblogMenu = ref(false);
 const showInlineReply = ref(false);
 const showDeleteConfirmation = ref(false);
 const isDeleting = ref(false);
+const isRefetchingContent = ref(false);
 
 // Emoji picker state
 const emojiTriggerRef = ref<HTMLElement>();
@@ -1161,6 +1171,13 @@ const canEdit = computed(() => {
 const canDelete = computed(() => {
   const currentUser = getCurrentUser.value;
   return currentUser?.id === props.post.author.id;
+});
+
+const isCurrentUserAdminOrMod = computed(() => {
+  const currentUser = getCurrentUser.value;
+  if (!currentUser?.id) return false;
+  const profile = getUserProfile(currentUser.id).value;
+  return profile?.is_admin || profile?.is_moderator || false;
 });
 
 // Report
@@ -1753,6 +1770,39 @@ const handleFetchRemoteReactions = () => {
 const handleFetchRemoteReplies = () => {
   showMenu.value = false;
   fetchRemoteReplies();
+};
+
+const handleRefetchFromSource = async () => {
+  showMenu.value = false;
+  isRefetchingContent.value = true;
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) return;
+
+    const response = await fetch(`${activityPubStore.federationApiUrl}/refetch-post`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({ post_id: props.post.id }),
+    });
+
+    const result = await response.json();
+    if (!response.ok) {
+      throw new Error(result.error || 'Refetch failed');
+    }
+
+    if (result.content) {
+      activityPubStore.updatePostContentInAllFeeds(props.post.id, result.content);
+    }
+
+    notificationStore.showToast('server_update', 'Post refetched', 'Content updated from source.', 3000);
+  } catch (error: any) {
+    notificationStore.showToast('server_update', 'Refetch failed', error.message || 'Could not refetch post.', 5000);
+  } finally {
+    isRefetchingContent.value = false;
+  }
 };
 
 // Handle emoji picker for original post (for reblogs, target the original)

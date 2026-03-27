@@ -1,10 +1,11 @@
 import { Router, Request, Response } from 'express';
-import { getSupabaseClient } from '../config/supabase.js';
+import { getSupabaseClient, getSupabaseClientWithAuth } from '../config/supabase.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { profileToActor } from './converters/toActivityPub.js';
-import { actorToProfile } from './converters/fromActivityPub.js';
+import { actorToProfile, noteToContent } from './converters/fromActivityPub.js';
 import { resolveLocalProfileEmojis } from './emojiResolver.js';
 import { ActivityProcessor } from './ActivityProcessor.js';
+import { SignatureService } from './SignatureService.js';
 import { logger } from '../utils/logger.js';
 import config from '../config/index.js';
 import { validateExternalHostname } from '../utils/ssrfProtection.js';
@@ -2799,6 +2800,119 @@ function extractMediaAttachments(attachments: any): any[] {
     blurhash: att.blurhash || null,
   })).filter((att: any) => att.url);
 }
+
+/**
+ * Refetch a remote post from its source, re-process content and link previews.
+ * POST /refetch-post
+ * Body: { post_id: string }
+ * Requires: authenticated admin or moderator
+ */
+router.post(
+  '/refetch-post',
+  asyncHandler(async (req: Request, res: Response) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader?.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'Authorization required' });
+    }
+
+    const supabase = getSupabaseClientWithAuth(authHeader.substring(7));
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
+      return res.status(401).json({ error: 'Invalid token' });
+    }
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('is_admin, is_moderator')
+      .eq('id', user.id)
+      .single();
+
+    if (!profile?.is_admin && !profile?.is_moderator) {
+      return res.status(403).json({ error: 'Admin or moderator role required' });
+    }
+
+    const { post_id } = req.body;
+    if (!post_id || typeof post_id !== 'string') {
+      return res.status(400).json({ error: 'post_id is required' });
+    }
+
+    const adminSupabase = getSupabaseClient();
+    const { data: post, error: postError } = await adminSupabase
+      .from('posts')
+      .select('id, ap_id, is_local, content, metadata')
+      .eq('id', post_id)
+      .single();
+
+    if (postError || !post) {
+      return res.status(404).json({ error: 'Post not found' });
+    }
+
+    if (post.is_local) {
+      return res.status(400).json({ error: 'Cannot refetch a local post' });
+    }
+
+    if (!post.ap_id) {
+      return res.status(400).json({ error: 'Post has no ActivityPub ID' });
+    }
+
+    try {
+      let response = await fetch(post.ap_id, {
+        headers: { 'Accept': 'application/activity+json, application/ld+json' },
+      });
+
+      if (response.status === 401 || response.status === 403) {
+        response = await SignatureService.signedApFetch(post.ap_id);
+      }
+
+      if (!response.ok) {
+        return res.status(502).json({ error: `Remote server returned ${response.status}` });
+      }
+
+      const remoteObject = await response.json();
+
+      if (remoteObject.type !== 'Note' && remoteObject.type !== 'Article') {
+        return res.status(400).json({ error: `Remote object is type "${remoteObject.type}", expected Note or Article` });
+      }
+
+      const content = noteToContent(remoteObject);
+
+      const updatePayload: any = { content };
+      if (remoteObject.summary !== undefined) {
+        updatePayload.content_warning = remoteObject.summary || null;
+      }
+      if (remoteObject.sensitive !== undefined) {
+        updatePayload.is_sensitive = remoteObject.sensitive === true;
+      }
+
+      const { error: updateError } = await adminSupabase
+        .from('posts')
+        .update(updatePayload)
+        .eq('id', post_id);
+
+      if (updateError) {
+        logger.error('Failed to update refetched post:', updateError);
+        return res.status(500).json({ error: 'Failed to update post content' });
+      }
+
+      const { enrichPostLinkPreviews } = await import('../listeners/DatabaseListener.js');
+      enrichPostLinkPreviews({ id: post_id, content, metadata: {} }).catch(err =>
+        logger.warn('Link preview enrichment failed for refetched post:', err)
+      );
+
+      logger.info(`🔄 Admin refetched post ${post_id} from ${post.ap_id}`);
+
+      return res.json({
+        success: true,
+        post_id,
+        content,
+        source_url: post.ap_id,
+      });
+    } catch (error: any) {
+      logger.error(`Failed to refetch post ${post_id}:`, error);
+      return res.status(502).json({ error: error.message || 'Failed to fetch from remote server' });
+    }
+  })
+);
 
 /**
  * Extract custom emoji definitions from ActivityPub tags
