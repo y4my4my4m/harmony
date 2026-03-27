@@ -182,4 +182,4 @@ Logs are written to:
 
 ## License
 
-MIT
+Same as the Harmony repository: **GNU AGPL-3.0** (see root `LICENSE`).

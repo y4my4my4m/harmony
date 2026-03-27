@@ -103,7 +103,9 @@ export async function handleThreadJob(data: FederationJobData): Promise<void> {
         parentMessageApId,
         creatorApId,
         creatorApId,
-        server.id
+        server.id,
+        channel.name,
+        channel.id
       );
 
       await DeliveryQueue.enqueue(
@@ -142,7 +144,9 @@ export async function handleThreadJob(data: FederationJobData): Promise<void> {
         parentMessageApId,
         creatorApId,
         creatorApId,
-        server.id
+        server.id,
+        channel.name,
+        channel.id
       );
 
       for (const group of remoteMemberGroups) {

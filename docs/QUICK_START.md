@@ -4,15 +4,14 @@ Get Harmony running in 5 minutes.
 
 ## Choose Your Path
 
-### Fastest: Vercel + Supabase Cloud
+### Fastest: Supabase Cloud + static host
 
-1. Create [Supabase](https://supabase.com) project
-2. Run SQL schema (see `db_schema/init/`)
-3. Deploy to Vercel with one click
-4. Configure environment variables
-5. Done!
+1. Create a [Supabase](https://supabase.com) project
+2. Run the schema from `db_schema/init/` (see `db_schema/init/README.md` in the repo; use `init.sql` or run numbered files in order)
+3. Build the frontend (`npm install && npm run build-only`) and deploy the `dist/` output to any static host (Vercel, Netlify, S3, etc.)
+4. Set `VITE_*` environment variables in the host’s dashboard to match your Supabase project
 
-See [DEPLOY_VERCEL.md](../DEPLOY_VERCEL.md) for details.
+For a full production stack (Docker, federation, voice), use [HOW_TO_SELF_HOST.md](./HOW_TO_SELF_HOST.md).
 
 ### Recommended: Docker Compose
 
@@ -33,7 +32,7 @@ cp federation-backend/env.template federation-backend/.env
 docker compose -f docker-compose.prod.yml up -d
 ```
 
-See [HOW_TO_SELF_HOST.md](../HOW_TO_SELF_HOST.md) for details.
+See [HOW_TO_SELF_HOST.md](./HOW_TO_SELF_HOST.md) for details.
 
 ### Development Mode
 
@@ -107,5 +106,5 @@ curl http://localhost:5173/.well-known/nodeinfo
 3. Follow federated users
 4. Create posts!
 
-See [INSTALLATION.md](../INSTALLATION.md) for complete documentation.
+See the [installation guide](./guide/installation.md) and [self-hosting guide](./HOW_TO_SELF_HOST.md) for more detail.
 

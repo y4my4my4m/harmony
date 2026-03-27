@@ -52,6 +52,53 @@
               </svg>
               Leave Thread
             </button>
+
+            <div class="options-divider"></div>
+
+            <button v-if="canManageThread" @click="editThread" class="option-item">
+              <svg width="16" height="16" viewBox="0 0 24 24">
+                <path fill="currentColor" d="M20.71,7.04C21.1,6.65 21.1,6 20.71,5.63L18.37,3.29C18,2.9 17.35,2.9 16.96,3.29L15.12,5.12L18.87,8.87M3,17.25V21H6.75L17.81,9.93L14.06,6.18L3,17.25Z"/>
+              </svg>
+              Edit Thread
+            </button>
+
+            <button v-if="canManageThread && !thread?.archived" @click="closeThread" class="option-item">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M20.54 5.23l-1.39-1.68C18.88 3.21 18.47 3 18 3H6c-.47 0-.88.21-1.16.55L3.46 5.23C3.17 5.57 3 6.02 3 6.5V19c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6.5c0-.48-.17-.93-.46-1.27zM12 17.5L6.5 12H10v-2h4v2h3.5L12 17.5zM5.12 5l.81-1h12l.94 1H5.12z"/>
+              </svg>
+              Close Thread
+            </button>
+
+            <button v-if="canManageThread && thread?.archived" @click="reopenThread" class="option-item">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M20.54 5.23l-1.39-1.68C18.88 3.21 18.47 3 18 3H6c-.47 0-.88.21-1.16.55L3.46 5.23C3.17 5.57 3 6.02 3 6.5V19c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6.5c0-.48-.17-.93-.46-1.27zM12 6.5L17.5 12H14v2h-4v-2H6.5L12 6.5zM5.12 5l.81-1h12l.94 1H5.12z"/>
+              </svg>
+              Reopen Thread
+            </button>
+
+            <button v-if="canManageThread && !thread?.locked" @click="lockThread" class="option-item">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/>
+              </svg>
+              Lock Thread
+            </button>
+
+            <button v-if="canManageThread && thread?.locked" @click="unlockThread" class="option-item">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 17c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm6-9h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6h1.9c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm0 12H6V10h12v10z"/>
+              </svg>
+              Unlock Thread
+            </button>
+
+            <button v-if="canManageThread" @click="deleteThread" class="option-item danger">
+              <svg width="16" height="16" viewBox="0 0 24 24">
+                <path fill="currentColor" d="M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z"/>
+              </svg>
+              Delete Thread
+            </button>
+
+            <div class="options-divider"></div>
+
             <button v-if="thread?.muted" @click="toggleMute" class="option-item">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/>
@@ -63,6 +110,22 @@
                 <path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/>
               </svg>
               Mute Thread
+            </button>
+
+            <div class="options-divider"></div>
+
+            <button @click="copyThreadLink" class="option-item">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"/>
+              </svg>
+              Copy Link
+            </button>
+
+            <button @click="copyThreadId" class="option-item">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
+              </svg>
+              Copy Thread ID
             </button>
           </div>
 
@@ -150,6 +213,7 @@
             :emoji-list-open="emojiListOpen"
             :thread-id="effectiveThreadIdForTyping"
             @send-message="handleSendMessage"
+            @send-voice-message="handleSendVoiceMessage"
             @update:reply-message-id="handleCancelReply"
             @toggle-giphy="toggleGiphy"
             @toggle-emoji-list="toggleEmojiListForInput"
@@ -202,6 +266,8 @@ import { useAuthStore } from '@/stores/auth'
 import { useChatStore } from '@/stores/useChat'
 import { useDraftsStore } from '@/stores/drafts'
 import { useThemeStore } from '@/stores/useTheme'
+import { useServerChannelStore } from '@/stores/useServerChannel'
+import { useServerPermissions } from '@/composables/useServerPermissions'
 import { parseContentToMessageParts, resolveMentionsUserData, resolveEmojisData } from '@/utils/unifiedContentProcessing'
 import { recordEmojiUsage } from '@/services/emojiService'
 import { debug } from '@/utils/debug'
@@ -235,6 +301,10 @@ const authStore = useAuthStore()
 const chatStore = useChatStore()
 const draftsStore = useDraftsStore()
 const themeStore = useThemeStore()
+const serverChannelStore = useServerChannelStore()
+const { canManageChannels } = useServerPermissions()
+
+const canManageThread = computed(() => canManageChannels.value)
 
 // Current user ID for MessageDisplay
 const currentUserId = computed(() => authStore.session?.user?.id)
@@ -336,6 +406,7 @@ const displayThreadName = computed(() => {
 const loadThread = async () => {
   // In draft mode, don't load - just show parent message
   if (isDraftMode.value) {
+    thread.value = null
     loading.value = false
     messages.value = []
     return
@@ -461,6 +532,105 @@ const toggleMute = async () => {
   }
 }
 
+const editThread = () => {
+  showOptions.value = false
+  if (!thread.value) return
+  const newName = prompt('Edit thread name:', thread.value.name)
+  if (newName && newName !== thread.value.name) {
+    threadService.updateThread(thread.value.id, { name: newName }).then((updated) => {
+      if (updated && thread.value) {
+        thread.value.name = updated.name
+        emit('thread-updated', thread.value)
+      }
+    })
+  }
+}
+
+const closeThread = async () => {
+  showOptions.value = false
+  if (!thread.value) return
+  try {
+    await threadService.archiveThread(thread.value.id)
+    if (thread.value) {
+      thread.value.archived = true
+      emit('thread-updated', thread.value)
+    }
+  } catch (error) {
+    debug.error('Failed to close thread:', error)
+  }
+}
+
+const reopenThread = async () => {
+  showOptions.value = false
+  if (!thread.value) return
+  try {
+    await threadService.unarchiveThread(thread.value.id)
+    if (thread.value) {
+      thread.value.archived = false
+      emit('thread-updated', thread.value)
+    }
+  } catch (error) {
+    debug.error('Failed to reopen thread:', error)
+  }
+}
+
+const lockThread = async () => {
+  showOptions.value = false
+  if (!thread.value) return
+  try {
+    await threadService.lockThread(thread.value.id)
+    if (thread.value) {
+      thread.value.locked = true
+      thread.value.archived = true
+      emit('thread-updated', thread.value)
+    }
+  } catch (error) {
+    debug.error('Failed to lock thread:', error)
+  }
+}
+
+const unlockThread = async () => {
+  showOptions.value = false
+  if (!thread.value) return
+  try {
+    await threadService.unlockThread(thread.value.id)
+    if (thread.value) {
+      thread.value.locked = false
+      emit('thread-updated', thread.value)
+    }
+  } catch (error) {
+    debug.error('Failed to unlock thread:', error)
+  }
+}
+
+const deleteThread = async () => {
+  showOptions.value = false
+  if (!thread.value) return
+  if (!confirm(`Are you sure you want to delete "${thread.value.name}"? This cannot be undone.`)) return
+  try {
+    await threadService.deleteThread(thread.value.id)
+    close()
+  } catch (error) {
+    debug.error('Failed to delete thread:', error)
+  }
+}
+
+const copyThreadLink = async () => {
+  showOptions.value = false
+  if (!thread.value) return
+  const serverId = serverChannelStore.currentServerId
+  if (serverId) {
+    const url = `${window.location.origin}/chat/${serverId}/thread/${thread.value.id}`
+    await navigator.clipboard.writeText(url)
+  }
+}
+
+const copyThreadId = async () => {
+  showOptions.value = false
+  if (!thread.value) return
+  await navigator.clipboard.writeText(thread.value.id)
+}
+
 // Use unified content parsing system (DRY - same as ChatComponent)
 const parseMessageInput = async (input: string): Promise<MessagePart[]> => {
   debug.log('🔧 ThreadView: Using unified content parsing for:', input)
@@ -481,16 +651,10 @@ const parseMessageInput = async (input: string): Promise<MessagePart[]> => {
 }
 
 const handleSendMessage = async (content: string, files: FilePreviewData[] = [], replyMessageId?: string) => {
-  // Allow sending if we have content OR files
   if ((!content.trim() && files.length === 0) || sending.value) return
-  
-  // In draft mode, need parent message to create thread
   if (isDraftMode.value && !props.draftParentMessage) return
-  
-  // In normal mode, need thread
   if (!isDraftMode.value && !thread.value) return
   
-  // Check if all files are uploaded
   const hasUploadingFiles = files.some(file => file.uploadStatus === 'uploading')
   const hasFailedFiles = files.some(file => file.uploadStatus === 'error')
   
@@ -505,6 +669,15 @@ const handleSendMessage = async (content: string, files: FilePreviewData[] = [],
   }
   
   sending.value = true
+  
+  // Clear input immediately for responsiveness
+  const savedContent = content
+  messageText.value = ''
+  if (threadDraftKey.value) draftsStore.clearDraft(threadDraftKey.value)
+  const savedReplyTo = replyMessageId || replyingToMessageId.value || undefined
+  replyingToMessageId.value = ''
+  replyingToUserName.value = ''
+  replyingToUserId.value = ''
   
   try {
     let targetThreadId = thread.value?.id
@@ -524,7 +697,6 @@ const handleSendMessage = async (content: string, files: FilePreviewData[] = [],
       targetThreadId = newThread.id
       thread.value = await threadService.getThread(newThread.id, true)
       
-      // Emit thread-created event to parent
       emit('thread-created', thread.value!, props.draftParentMessage)
     }
     
@@ -534,13 +706,11 @@ const handleSendMessage = async (content: string, files: FilePreviewData[] = [],
     
     const messageParts: MessagePart[] = []
     
-    // Parse text content if present (handles mentions, emojis, URLs/embeds - same as chat)
-    if (content.trim()) {
-      const parsedMessage = await parseMessageInput(content)
+    if (savedContent.trim()) {
+      const parsedMessage = await parseMessageInput(savedContent)
       messageParts.push(...parsedMessage)
     }
     
-    // Add uploaded files as message parts
     for (const fileData of files) {
       if (fileData.uploadStatus === 'completed' && fileData.uploadedUrl) {
         let fileType: 'image' | 'video' | 'audio' | 'file' = 'file'
@@ -562,26 +732,58 @@ const handleSendMessage = async (content: string, files: FilePreviewData[] = [],
       }
     }
     
-    // Only send if we have message parts
     if (messageParts.length > 0) {
-    const newMessage = await threadService.sendThreadMessage(
-      targetThreadId, 
-      messageParts, 
-      replyMessageId || replyingToMessageId.value || undefined
-    )
-    
-    if (newMessage) {
-      messages.value.push(newMessage)
-      // Update cache
-      threadService.addMessageToCache(targetThreadId, newMessage)
-      messageText.value = ''
-      if (threadDraftKey.value) draftsStore.clearDraft(threadDraftKey.value)
-      replyingToMessageId.value = ''
-      replyingToUserName.value = ''
-      replyingToUserId.value = ''
-      // Scroll to bottom
+      // Optimistic: add a temporary message immediately
+      const tempId = `temp-${crypto.randomUUID()}`
+      const { authContextService } = await import('@/services/AuthContextService')
+      const profileId = await authContextService.getCurrentProfileId()
+      const optimisticMessage: Message = {
+        id: tempId,
+        created_at: new Date(),
+        channel_id: thread.value?.channel_id || '',
+        user_id: profileId,
+        content: messageParts,
+        thread_id: targetThreadId,
+        reply_to: savedReplyTo || null,
+        is_system: false,
+        encrypted: false,
+        reactions: [],
+        metadata: null,
+      }
+      messages.value.push(optimisticMessage)
+      
+      // Optimistic thread count update
+      if (thread.value) {
+        thread.value.message_count = (thread.value.message_count || 0) + 1
+        thread.value.last_message_at = new Date().toISOString()
+      }
+      
       await nextTick()
       scrollToBottom()
+      
+      // Send to DB
+      const newMessage = await threadService.sendThreadMessage(
+        targetThreadId,
+        messageParts,
+        savedReplyTo
+      )
+      
+      if (newMessage) {
+        // Replace optimistic message with real one
+        const tempIndex = messages.value.findIndex(m => m.id === tempId)
+        if (tempIndex !== -1) {
+          messages.value[tempIndex] = newMessage
+        }
+        threadService.addMessageToCache(targetThreadId, newMessage)
+      } else {
+        // Remove optimistic message on failure
+        const tempIndex = messages.value.findIndex(m => m.id === tempId)
+        if (tempIndex !== -1) {
+          messages.value.splice(tempIndex, 1)
+        }
+        if (thread.value) {
+          thread.value.message_count = Math.max(0, (thread.value.message_count || 1) - 1)
+        }
       }
     }
   } catch (error) {
@@ -704,6 +906,103 @@ watch(mediaPickerOpen, () => {
   }
 })
 
+// Handle sending a voice message
+const handleSendVoiceMessage = async (data: { url: string, duration: number, waveform: number[], mimeType: string }) => {
+  if (!thread.value && !isDraftMode.value) return
+
+  sending.value = true
+  try {
+    let targetThreadId = thread.value?.id
+
+    if (isDraftMode.value && props.draftParentMessage) {
+      const threadName = displayThreadName.value
+      const newThread = await threadService.createThread({
+        message_id: props.draftParentMessage.id,
+        name: threadName,
+      })
+
+      if (!newThread) {
+        throw new Error('Failed to create thread')
+      }
+
+      targetThreadId = newThread.id
+      thread.value = await threadService.getThread(newThread.id, true)
+      emit('thread-created', thread.value!, props.draftParentMessage)
+    }
+
+    if (!targetThreadId) {
+      throw new Error('No thread ID')
+    }
+
+    const messageParts: MessagePart[] = [{
+      type: 'file',
+      url: data.url,
+      fileType: 'audio',
+      fileName: 'Voice message',
+    }]
+
+    const voiceMetadata = {
+      voice_message: {
+        duration: data.duration,
+        waveform: data.waveform,
+      },
+    }
+
+    const tempId = `temp-${crypto.randomUUID()}`
+    const { authContextService } = await import('@/services/AuthContextService')
+    const profileId = await authContextService.getCurrentProfileId()
+    const optimisticMessage: Message = {
+      id: tempId,
+      created_at: new Date(),
+      channel_id: thread.value?.channel_id || '',
+      user_id: profileId,
+      content: messageParts,
+      thread_id: targetThreadId,
+      reply_to: null,
+      is_system: false,
+      encrypted: false,
+      reactions: [],
+      metadata: voiceMetadata,
+    }
+    messages.value.push(optimisticMessage)
+
+    if (thread.value) {
+      thread.value.message_count = (thread.value.message_count || 0) + 1
+      thread.value.last_message_at = new Date().toISOString()
+    }
+
+    await nextTick()
+    scrollToBottom()
+
+    const newMessage = await threadService.sendThreadMessage(
+      targetThreadId,
+      messageParts,
+      undefined,
+      voiceMetadata
+    )
+
+    if (newMessage) {
+      const tempIndex = messages.value.findIndex(m => m.id === tempId)
+      if (tempIndex !== -1) {
+        messages.value[tempIndex] = newMessage
+      }
+      threadService.addMessageToCache(targetThreadId, newMessage)
+    } else {
+      const tempIndex = messages.value.findIndex(m => m.id === tempId)
+      if (tempIndex !== -1) {
+        messages.value.splice(tempIndex, 1)
+      }
+      if (thread.value) {
+        thread.value.message_count = Math.max(0, (thread.value.message_count || 1) - 1)
+      }
+    }
+  } catch (error) {
+    debug.error('Error sending voice message in thread:', error)
+  } finally {
+    sending.value = false
+  }
+}
+
 // Handle sending a GIF
 const handleSendGif = async (gif: Gif) => {
   const gifUrl = gif.media_formats.gif.url
@@ -823,16 +1122,14 @@ const setupRealtimeSubscription = () => {
     table: 'messages',
     filter: `thread_id=eq.${thread.value.id}`,
     
-    // Handle new messages
     onInsert: async (payload) => {
       const payloadNew = payload.new as any
       
-      // Skip if already in messages (optimistic update)
+      // Skip if already in messages (non-optimistic duplicate)
       if (messages.value.some(m => m.id === payloadNew.id)) {
         return
       }
       
-      // Only add if it's for this thread
       if (payloadNew.thread_id === thread.value?.id) {
         const newMessage: Message = {
           id: payloadNew.id,
@@ -852,9 +1149,24 @@ const setupRealtimeSubscription = () => {
           thread_id: payloadNew.thread_id,
         }
         
-        messages.value.push(newMessage)
-        // Update cache
-        threadService.addMessageToCache(thread.value.id, newMessage)
+        // Replace the oldest optimistic temp message with matching content
+        const tempIndex = messages.value.findIndex(
+          m => m.id.startsWith('temp-') && m.user_id === payloadNew.user_id
+            && JSON.stringify(m.content) === JSON.stringify(payloadNew.content)
+        )
+        if (tempIndex !== -1) {
+          messages.value[tempIndex] = newMessage
+        } else {
+          messages.value.push(newMessage)
+        }
+
+        // Update thread count
+        if (thread.value) {
+          thread.value.message_count = (thread.value.message_count || 0) + (tempIndex === -1 ? 1 : 0)
+          thread.value.last_message_at = payloadNew.created_at
+        }
+
+        threadService.addMessageToCache(thread.value!.id, newMessage)
         await nextTick()
         scrollToBottom()
         debug.log('📝 Thread message added via realtime:', newMessage.id)
@@ -1086,6 +1398,20 @@ onUnmounted(() => {
 
 .option-item:hover {
   background: var(--background-secondary);
+}
+
+.option-item.danger {
+  color: #ed4245;
+}
+
+.option-item.danger:hover {
+  background: rgba(237, 66, 69, 0.1);
+}
+
+.options-divider {
+  height: 1px;
+  background: var(--border-color);
+  margin: 4px 8px;
 }
 
 /* Parent Message - styled like regular chat */

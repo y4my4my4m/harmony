@@ -13,6 +13,7 @@ import {
 import { VoiceActivityHandler } from './VoiceActivityHandler.js';
 import { SignatureService } from './SignatureService.js';
 import config from '../config/index.js';
+import { harmonyVoiceMessageFromObject } from '../utils/voiceMessageFederation.js';
 
 /**
  * Extract message UUID from a URL like https://domain/messages/{uuid}
@@ -524,13 +525,20 @@ export class ActivityProcessor {
           return;
         }
 
-        const { error } = await supabase.from('posts').insert(postData);
+        const { data: insertedPost, error } = await supabase.from('posts').insert(postData).select('id, content, metadata').single();
 
         if (error) {
           logger.error('Failed to create post from activity:', error);
         } else {
           const postType = quotedPostData ? 'quote post' : 'post';
           logger.info(`✅ Created ${postType} from ${object.id}${parentPostId ? ` (reply to ${parentPostId})` : ''}${quotedPostData ? ` (quoting ${quotedPostData.id})` : ''}`);
+
+          if (insertedPost) {
+            const { enrichPostLinkPreviews } = await import('../listeners/DatabaseListener.js');
+            enrichPostLinkPreviews(insertedPost).catch(err =>
+              logger.warn('Link preview enrichment failed for federated post:', err)
+            );
+          }
         }
       }
     }
@@ -822,6 +830,15 @@ export class ActivityProcessor {
       }
 
       logger.info(`✅ Fetched and created remote post: ${apId}`);
+
+      // Enrich link previews asynchronously
+      if (newPost) {
+        const { enrichPostLinkPreviews } = await import('../listeners/DatabaseListener.js');
+        enrichPostLinkPreviews({ id: newPost.id, content, metadata: {} }).catch(err =>
+          logger.warn('Link preview enrichment failed for fetched post:', err)
+        );
+      }
+
       return newPost;
     } catch (error) {
       logger.warn(`Error fetching remote post ${postUrl}:`, error);
@@ -851,6 +868,11 @@ export class ActivityProcessor {
       // Include custom_status if present
       if (profileData.custom_status) {
         updateData.custom_status = profileData.custom_status;
+      }
+
+      // Update profile fields (PropertyValue attachments)
+      if (profileData.profile_fields) {
+        updateData.profile_fields = profileData.profile_fields;
       }
 
       // Update federation_metadata with emoji data
@@ -2455,6 +2477,11 @@ export class ActivityProcessor {
         profileRecord.color = profileData.color;
       }
 
+      // Persist ActivityPub profile fields (PropertyValue attachments)
+      if (profileData.profile_fields) {
+        profileRecord.profile_fields = profileData.profile_fields;
+      }
+
       // Persist shared inbox URL for delivery optimization
       if (actor.endpoints?.sharedInbox) {
         profileRecord.shared_inbox_url = actor.endpoints.sharedInbox;
@@ -2668,27 +2695,21 @@ export class ActivityProcessor {
     if (threadApIdValue) {
       resolvedThreadId = await this.resolveThreadId(supabase, threadApIdValue);
       if (!resolvedThreadId) {
-        logger.warn(`Thread not found for AP ID ${threadApIdValue}, message will appear in channel. Will attempt deferred update.`);
-        // Schedule a lightweight deferred re-check instead of blocking the handler.
-        // If the thread arrives within the next few seconds (race condition),
-        // the message will be retroactively moved to the thread.
-        const capturedMessageId = messageId;
-        setTimeout(async () => {
-          try {
-            const threadId = await this.resolveThreadId(supabase, threadApIdValue);
-            if (threadId && capturedMessageId) {
-              await supabase
-                .from('messages')
-                .update({ thread_id: threadId })
-                .eq('id', capturedMessageId)
-                .is('thread_id', null);
-              logger.info(`🔄 Deferred thread assignment: message ${capturedMessageId} → thread ${threadId}`);
-            }
-          } catch (err) {
-            logger.debug(`Deferred thread resolution failed for ${threadApIdValue}:`, err);
-          }
-        }, 3000);
+        logger.warn(`Thread not found for AP ID ${threadApIdValue}, will create stub thread after message insert.`);
       }
+    }
+
+    const messageMetadata: Record<string, any> = {
+      federated: true,
+      ap_id: object.id,
+      from_domain: new URL(actorUrl).hostname,
+    };
+    if (threadApIdValue && !resolvedThreadId) {
+      messageMetadata.pending_thread_ap_id = threadApIdValue;
+    }
+    const voiceFromAp = harmonyVoiceMessageFromObject(object);
+    if (voiceFromAp) {
+      Object.assign(messageMetadata, voiceFromAp);
     }
 
     const { data: insertedMsg, error: insertError } = await supabase
@@ -2705,11 +2726,7 @@ export class ActivityProcessor {
         is_deleted: false,
         federation_status: 'completed',
         encrypted: object['harmony:encrypted'] === true,
-        metadata: {
-          federated: true,
-          ap_id: object.id,
-          from_instance: new URL(actorUrl).hostname,
-        },
+        metadata: messageMetadata,
       })
       .select('id, content, metadata')
       .single();
@@ -2720,6 +2737,102 @@ export class ActivityProcessor {
     }
 
     logger.info(`✅ Created channel message ${messageId} in #${channelName} from ${author.username}`);
+
+    // If message belongs to a thread that doesn't exist yet, create a stub thread
+    if (threadApIdValue && !resolvedThreadId && insertedMsg) {
+      try {
+        const threadUuidMatch = threadApIdValue.match(/\/threads\/([a-f0-9-]{36})/);
+        const stubThreadId = threadUuidMatch ? threadUuidMatch[1] : randomUUID();
+
+        // Resolve the correct parent message if provided by the origin
+        let parentMessageId = insertedMsg.id; // fallback: use this message
+        const parentMessageApId = object['harmony:parentMessageId'];
+        if (parentMessageApId) {
+          const { data: parentByApId } = await supabase
+            .from('messages')
+            .select('id')
+            .eq('metadata->>ap_id', parentMessageApId)
+            .maybeSingle();
+          if (parentByApId) {
+            parentMessageId = parentByApId.id;
+          } else {
+            const parentUuidMatch = parentMessageApId.match(/\/messages\/([a-f0-9-]{36})/);
+            if (parentUuidMatch) {
+              const { data: parentById } = await supabase
+                .from('messages')
+                .select('id')
+                .eq('id', parentUuidMatch[1])
+                .maybeSingle();
+              if (parentById) parentMessageId = parentById.id;
+            }
+          }
+        }
+
+        let threadName = 'Thread';
+        if (Array.isArray(content)) {
+          const textPart = content.find((p: any) => p?.type === 'text' && p?.text);
+          if (textPart) {
+            threadName = String(textPart.text).substring(0, 100);
+          }
+        } else if (typeof content === 'string') {
+          threadName = content.substring(0, 100);
+        }
+
+        const { error: stubError } = await supabase
+          .from('threads')
+          .insert({
+            id: stubThreadId,
+            channel_id: channelId,
+            parent_message_id: parentMessageId,
+            name: threadName,
+            created_by: author.id,
+            ap_id: threadApIdValue,
+            federation_status: 'synced',
+            message_count: 1,
+            member_count: 1,
+          });
+
+        if (stubError) {
+          if (stubError.code === '23505') {
+            // Thread was just created (race condition) — resolve and assign
+            resolvedThreadId = stubThreadId;
+            logger.info(`🧵 Stub thread ${stubThreadId} already exists (race condition), assigning message`);
+          } else {
+            logger.warn(`Failed to create stub thread: ${stubError.message}`);
+          }
+        } else {
+          resolvedThreadId = stubThreadId;
+          logger.info(`🧵 Created stub thread ${stubThreadId} for AP ID ${threadApIdValue}`);
+        }
+
+        // Assign this message (and any other orphans) to the thread
+        if (resolvedThreadId) {
+          await supabase
+            .from('messages')
+            .update({ thread_id: resolvedThreadId })
+            .eq('id', insertedMsg.id);
+
+          // Also pick up any other orphaned messages with the same pending_thread_ap_id
+          const { data: orphans } = await supabase
+            .from('messages')
+            .select('id')
+            .eq('channel_id', channelId)
+            .is('thread_id', null)
+            .eq('metadata->>pending_thread_ap_id', threadApIdValue)
+            .neq('id', insertedMsg.id);
+
+          if (orphans && orphans.length > 0) {
+            await supabase
+              .from('messages')
+              .update({ thread_id: resolvedThreadId })
+              .in('id', orphans.map((m: any) => m.id));
+            logger.info(`🧵 Assigned ${orphans.length} additional orphaned messages to stub thread ${resolvedThreadId}`);
+          }
+        }
+      } catch (err) {
+        logger.warn('Failed to create stub thread from message:', err);
+      }
+    }
 
     if (insertedMsg) {
       const { enrichMessageLinkPreviews } = await import('../listeners/DatabaseListener.js');
@@ -2838,6 +2951,7 @@ export class ActivityProcessor {
     if (object.conversation) metadata.conversation = object.conversation;
     if (object.inReplyTo) metadata.in_reply_to_ap = object.inReplyTo;
 
+    const dmTimestamp = object.published || new Date().toISOString();
     const { data: insertedDM, error: messageError } = await supabase
       .from('messages')
       .insert({
@@ -2846,7 +2960,8 @@ export class ActivityProcessor {
         content,
         metadata,
         encrypted: object['harmony:encrypted'] === true,
-        created_at: object.published || new Date().toISOString(),
+        created_at: dmTimestamp,
+        updated_at: object.updated || dmTimestamp,
       })
       .select('id, content, metadata')
       .single();

@@ -312,10 +312,11 @@ const handleUserClick = (user: FederatedUser) => {
   let handle = user.handle
   if (!handle) {
     handle = user.is_local === false && user.domain
-      ? `@${user.username}@${user.domain}`
-      : `@${user.username}`
+      ? `${user.username}@${user.domain}`
+      : user.username
   }
-  router.push(`/social/profile/${handle.replace(/^@/, '')}`);
+  handle = handle.replace(/^@/, '')
+  router.push({ name: 'UserProfile', params: { handle } });
 };
 
 // Watchers

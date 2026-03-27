@@ -15,6 +15,7 @@ import { DeliveryQueue } from '../activitypub/DeliveryQueue.js';
 import { logger } from '../utils/logger.js';
 import config from '../config/index.js';
 import { convertContentToHTML, extractActivityPubTags, extractAttachments } from '../utils/contentUtils.js';
+import { harmonyVoiceMessageExtension } from '../utils/voiceMessageFederation.js';
 import { getRemoteMemberGroups, type RemoteMemberGroup } from '../utils/federationUtils.js';
 
 // =============================================================================
@@ -78,6 +79,18 @@ export async function handleChannelMessageFederation(
     if (message.federation_status === 'completed') {
       logger.info('Message already federated, skipping');
       return;
+    }
+
+    // Enrich with thread parent message ID for stub thread creation on remote instances
+    if (message.thread_id) {
+      const { data: thread } = await supabase
+        .from('threads')
+        .select('parent_message_id')
+        .eq('id', message.thread_id)
+        .maybeSingle();
+      if (thread) {
+        message.thread_parent_message_id = thread.parent_message_id;
+      }
     }
 
     // Get server with federation info
@@ -231,7 +244,6 @@ export async function handleChannelMessageUpdate(
 
     logger.info(`✏️ Federating message update ${message_id}`);
 
-    // Get message with author and channel
     const { data: message, error: messageError } = await supabase
       .from('messages')
       .select(`
@@ -247,40 +259,65 @@ export async function handleChannelMessageUpdate(
       return;
     }
 
-    // Get server
+    if (message.thread_id) {
+      const { data: thread } = await supabase
+        .from('threads')
+        .select('parent_message_id')
+        .eq('id', message.thread_id)
+        .maybeSingle();
+      if (thread) {
+        message.thread_parent_message_id = thread.parent_message_id;
+      }
+    }
+
     const { data: server } = await supabase
       .from('servers')
-      .select('*')
+      .select('*, federation_inbox_url, is_local_server')
       .eq('id', server_id)
       .single();
 
-    if (!server || !server.federation_enabled) {
+    if (!server) {
       return;
     }
 
-    // Get remote member groups
+    if (!message.author?.id) {
+      logger.error(`Message ${message_id} has no valid author, skipping update federation`);
+      return;
+    }
+
+    // CASE 1: Non-local server — forward edit to the remote server's inbox
+    if (server.is_local_server === false && server.federation_inbox_url) {
+      logger.info(`📤 Forwarding message edit to remote server: ${server.name}`);
+
+      const activity = createMessageActivity(
+        message, server, channel_id,
+        message.channel?.name || 'channel', 'Update'
+      );
+
+      await DeliveryQueue.enqueue(
+        activity, server.federation_inbox_url, message.author.id, 5
+      );
+
+      logger.info(`✏️ Message edit forwarded to ${server.federation_inbox_url}`);
+      return;
+    }
+
+    // CASE 2: Local server — broadcast edit to remote member instances
+    if (!server.federation_enabled) {
+      return;
+    }
+
     const remoteMemberGroups = await getRemoteMemberGroups(server_id);
 
     if (remoteMemberGroups.length === 0) {
       return;
     }
 
-    // Ensure author exists for federation
-    if (!message.author?.id) {
-      logger.error(`Message ${message_id} has no valid author, skipping update federation`);
-      return;
-    }
-
-    // Create Update activity
     const activity = createMessageActivity(
-      message,
-      server,
-      channel_id,
-      message.channel?.name || 'channel',
-      'Update'
+      message, server, channel_id,
+      message.channel?.name || 'channel', 'Update'
     );
 
-    // Send to each remote instance
     await deliverToRemoteInstances(remoteMemberGroups, activity, message.author.id);
 
     logger.info(`✏️ Message update federated to ${remoteMemberGroups.length} instances`);
@@ -305,21 +342,13 @@ export async function handleChannelMessageDelete(
 
     logger.info(`🗑️ Federating message deletion ${message_id}`);
 
-    // Get server
     const { data: server } = await supabase
       .from('servers')
-      .select('*')
+      .select('*, federation_inbox_url, is_local_server')
       .eq('id', server_id)
       .single();
 
-    if (!server || !server.federation_enabled) {
-      return;
-    }
-
-    // Get remote member groups
-    const remoteMemberGroups = await getRemoteMemberGroups(server_id);
-
-    if (remoteMemberGroups.length === 0) {
+    if (!server) {
       return;
     }
 
@@ -327,7 +356,6 @@ export async function handleChannelMessageDelete(
     const serverUrl = `https://${hostDomain}/servers/${server_id}`;
     const messageUrl = ap_id || `https://${hostDomain}/messages/${message_id}`;
 
-    // Create Delete activity
     const activity = {
       '@context': [
         'https://www.w3.org/ns/activitystreams',
@@ -335,12 +363,34 @@ export async function handleChannelMessageDelete(
       ],
       id: `${serverUrl}/activities/${crypto.randomUUID()}`,
       type: 'Delete',
-      actor: serverUrl, // Server is the actor for deletions
+      actor: serverUrl,
       object: messageUrl,
       published: new Date().toISOString(),
     };
 
-    // Send to each remote instance
+    // CASE 1: Non-local server — forward delete to the remote server's inbox
+    if (server.is_local_server === false && server.federation_inbox_url) {
+      logger.info(`📤 Forwarding message delete to remote server: ${server.name}`);
+
+      await DeliveryQueue.enqueue(
+        activity, server.federation_inbox_url, server.owner, 5
+      );
+
+      logger.info(`🗑️ Message delete forwarded to ${server.federation_inbox_url}`);
+      return;
+    }
+
+    // CASE 2: Local server — broadcast delete to remote member instances
+    if (!server.federation_enabled) {
+      return;
+    }
+
+    const remoteMemberGroups = await getRemoteMemberGroups(server_id);
+
+    if (remoteMemberGroups.length === 0) {
+      return;
+    }
+
     await deliverToRemoteInstances(remoteMemberGroups, activity, server.owner);
 
     logger.info(`🗑️ Message deletion federated to ${remoteMemberGroups.length} instances`);
@@ -410,9 +460,16 @@ function createMessageActivity(
 
   // Thread context — if this message belongs to a thread, include the thread AP ID
   let threadApId: string | undefined;
+  let parentMessageApId: string | undefined;
   if (message.thread_id) {
     threadApId = `https://${hostDomain}/threads/${message.thread_id}`;
+    // Include thread's parent message so remote instances can create correct stub threads
+    if (message.thread_parent_message_id) {
+      parentMessageApId = `https://${hostDomain}/messages/${message.thread_parent_message_id}`;
+    }
   }
+
+  const voiceHarmony = harmonyVoiceMessageExtension(message.metadata);
 
   return {
     '@context': [
@@ -426,6 +483,8 @@ function createMessageActivity(
         'serverName': 'harmony:serverName',
         'encrypted': 'harmony:encrypted',
         'threadId': 'harmony:threadId',
+        'parentMessageId': 'harmony:parentMessageId',
+        'voiceMessage': 'harmony:voiceMessage',
       },
     ],
     id: activityType === 'Update' ? `${activityId}/updates/${Date.now()}` : activityId,
@@ -455,6 +514,7 @@ function createMessageActivity(
       // Threading
       inReplyTo,
       'harmony:threadId': threadApId,
+      'harmony:parentMessageId': parentMessageApId,
 
       // Tags and attachments
       tag: tags.length > 0 ? tags : undefined,
@@ -462,6 +522,9 @@ function createMessageActivity(
 
       // E2EE indicator — remote instances can't decrypt but should show the lock glyph
       'harmony:encrypted': message.encrypted === true ? true : undefined,
+
+      // Voice message UI (waveform player) — metadata is not inside harmony:rawContent
+      ...(voiceHarmony ? { 'harmony:voiceMessage': voiceHarmony } : {}),
     },
 
     // Addressing - to server members

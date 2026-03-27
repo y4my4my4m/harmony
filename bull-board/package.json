@@ -2,6 +2,7 @@
   "name": "harmony-bull-board",
   "version": "1.0.0",
   "private": true,
+  "license": "AGPL-3.0",
   "type": "module",
   "scripts": {
     "start": "node server.js"

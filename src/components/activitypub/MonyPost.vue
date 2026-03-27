@@ -192,6 +192,18 @@
             :media-attachments="displayMediaAttachments"
             :is-sensitive="displayIsSensitive"
           />
+
+          <!-- Link Preview Cards -->
+          <a
+            v-for="embed in postEmbeds"
+            :key="embed.url"
+            :href="embed.url"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="post-link-preview"
+          >
+            <LinkEmbedCard :payload="embed" />
+          </a>
         </div>
       </div>
 
@@ -404,8 +416,17 @@
                 <span>Fetch replies</span>
               </button>
               
+              <button
+                v-if="isRemotePost && isCurrentUserAdminOrMod && !isRefetchingContent"
+                class="dropdown-item"
+                @click="handleRefetchFromSource"
+              >
+                <Icon name="refresh-cw" />
+                <span>Refetch from source</span>
+              </button>
+              
               <div 
-                v-if="isRemotePost && (isFetchingReactions || isFetchingReplies)"
+                v-if="isRemotePost && (isFetchingReactions || isFetchingReplies || isRefetchingContent)"
                 class="dropdown-item loading-item"
               >
                 <Icon name="loader" class="spinning" />
@@ -542,6 +563,7 @@ import type { TimelinePost } from '@/types';
 
 // Components
 import MonyContent from './MonyContent.vue';
+import LinkEmbedCard from '@/components/embeds/LinkEmbedCard.vue';
 import Icon from '@/components/common/Icon.vue';
 import Avatar from '../common/Avatar.vue';
 import Composer from './Composer.vue';
@@ -607,6 +629,7 @@ const showReblogMenu = ref(false);
 const showInlineReply = ref(false);
 const showDeleteConfirmation = ref(false);
 const isDeleting = ref(false);
+const isRefetchingContent = ref(false);
 
 // Emoji picker state
 const emojiTriggerRef = ref<HTMLElement>();
@@ -671,9 +694,9 @@ const displayAuthorSafe = computed(() => {
 });
 
 const viewProfile = (author: { username: string; domain: string, is_local?: boolean }) => {
-  const isLocal = author.is_local ?? true; // Default to local if not specified
-  const profileHandle = isLocal ? `@${author.username}` : `@${author.username}@${author.domain}`;
-  router.push({ name: 'UserProfile', params: { handle: profileHandle } });
+  const isLocal = author.is_local ?? true;
+  const handle = isLocal ? author.username : `${author.username}@${author.domain}`;
+  router.push({ name: 'UserProfile', params: { handle } });
 };
 
 const instanceDomain = computed(() => {
@@ -860,6 +883,13 @@ const displayMediaAttachments = computed(() => {
     }
     return { ...m, id: m.id || `m-${idx}`, url, type };
   }).filter(Boolean);
+});
+
+const postEmbeds = computed(() => {
+  const source = (isReblog.value && props.post.reblog) ? props.post.reblog : props.post;
+  const embeds = source?.metadata?.embeds;
+  if (!embeds || typeof embeds !== 'object') return [];
+  return Object.values(embeds).filter((e: any) => e && e.title);
 });
 
 // Content for MonyContent: when we have media_attachments, exclude file/image parts from content
@@ -1141,6 +1171,13 @@ const canEdit = computed(() => {
 const canDelete = computed(() => {
   const currentUser = getCurrentUser.value;
   return currentUser?.id === props.post.author.id;
+});
+
+const isCurrentUserAdminOrMod = computed(() => {
+  const currentUser = getCurrentUser.value;
+  if (!currentUser?.id) return false;
+  const profile = getUserProfile(currentUser.id).value;
+  return profile?.is_admin || profile?.is_moderator || false;
 });
 
 // Report
@@ -1735,6 +1772,42 @@ const handleFetchRemoteReplies = () => {
   fetchRemoteReplies();
 };
 
+const handleRefetchFromSource = async () => {
+  showMenu.value = false;
+  isRefetchingContent.value = true;
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) {
+      isRefetchingContent.value = false;
+      return;
+    }
+
+    const response = await fetch(`${activityPubStore.federationApiUrl}/refetch-post`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({ post_id: props.post.id }),
+    });
+
+    const result = await response.json();
+    if (!response.ok) {
+      throw new Error(result.error || 'Refetch failed');
+    }
+
+    if (result.content) {
+      activityPubStore.updatePostContentInAllFeeds(props.post.id, result.content);
+    }
+
+    notificationStore.showToast('server_update', 'Post refetched', 'Content updated from source.', 3000);
+  } catch (error: any) {
+    notificationStore.showToast('server_update', 'Refetch failed', error.message || 'Could not refetch post.', 5000);
+  } finally {
+    isRefetchingContent.value = false;
+  }
+};
+
 // Handle emoji picker for original post (for reblogs, target the original)
 const handleShowEmojiPickerForOriginal = () => {
   // Create a post-like object with the original post ID for the emoji picker
@@ -2175,7 +2248,6 @@ const closeLightbox = () => {
 }
 
 .post-text {
-  /* color: var(--text-primary); */
   color: var(--text-primary);
   line-height: 1.6;
   word-wrap: break-word;
@@ -2183,6 +2255,20 @@ const closeLightbox = () => {
   user-select: text;
   -webkit-user-select: text;
   cursor: text;
+}
+
+.post-link-preview {
+  display: block;
+  text-decoration: none;
+  margin-top: 0.5rem;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid var(--border-color, rgba(255,255,255,0.1));
+  transition: border-color 0.2s;
+}
+
+.post-link-preview:hover {
+  border-color: var(--primary);
 }
 
 .post-text :deep(*) {

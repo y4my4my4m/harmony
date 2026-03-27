@@ -2,10 +2,10 @@
  * Core Services - Pure local operations
  * 
  * Contains only local database operations with NO federation logic:
- * - Message operations (CRUD, reactions, loading)
- * - Post operations (coming in Phase 1B)
- * - Profile operations (coming in Phase 1C)  
- * - Interaction operations (coming in Phase 1D)
+ * - Messages (CRUD, reactions, loading)
+ * - Posts
+ * - Profiles
+ * - Interactions (follow, block, mute, etc.)
  * 
  * NO FEDERATION CONCERNS in any core service:
  * - No ap_activities insertions

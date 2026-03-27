@@ -204,10 +204,10 @@ import MainNavigation from '@/components/MainNavigation.vue'
 
 ## Related Components
 
-- [ServerSidebar](/components/server/server-sidebar) - Secondary server navigation
-- [DMSidebar](/components/special/dm-sidebar) - Direct message navigation
-- [CreateServer](/components/server/create-server) - Server creation modal
-- [UserSidebar](/components/user/user-sidebar) - User list display
+- [ServerSidebar](/components/serversidebar) — Server list rail
+- [DMSidebar](/components/dmsidebar) — Direct message navigation
+- [CreateServer](/components/createserver) — Server creation modal
+- [UserSidebar](/components/usersidebar) — User list display
 
 ## CSS Classes
 

@@ -907,6 +907,74 @@ BEGIN
 END;
 $$;
 
+-- ---------------------------------------------------------------------------
+-- Thread message handler: auto-add member, update thread stats
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.thread_message_handler()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+    IF NEW.thread_id IS NOT NULL THEN
+        INSERT INTO public.thread_members (thread_id, user_id)
+        VALUES (NEW.thread_id, NEW.user_id)
+        ON CONFLICT (thread_id, user_id) DO NOTHING;
+
+        UPDATE public.threads
+        SET
+            message_count = message_count + 1,
+            last_message_id = NEW.id,
+            last_message_at = NEW.created_at,
+            updated_at = NOW(),
+            archived = CASE WHEN locked THEN archived ELSE false END,
+            archived_at = CASE WHEN locked THEN archived_at ELSE NULL END
+        WHERE id = NEW.thread_id;
+
+        UPDATE public.threads t
+        SET member_count = (
+            SELECT COUNT(*) FROM public.thread_members tm WHERE tm.thread_id = t.id
+        )
+        WHERE t.id = NEW.thread_id;
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- Thread message delete handler: decrement count, update last message
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.thread_message_delete_handler()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+    IF OLD.thread_id IS NOT NULL THEN
+        UPDATE public.threads
+        SET message_count = GREATEST(0, message_count - 1)
+        WHERE id = OLD.thread_id;
+
+        UPDATE public.threads t
+        SET
+            last_message_id = (
+                SELECT id FROM public.messages
+                WHERE thread_id = t.id AND NOT is_deleted
+                ORDER BY created_at DESC LIMIT 1
+            ),
+            last_message_at = (
+                SELECT created_at FROM public.messages
+                WHERE thread_id = t.id AND NOT is_deleted
+                ORDER BY created_at DESC LIMIT 1
+            )
+        WHERE t.id = OLD.thread_id;
+    END IF;
+    RETURN OLD;
+END;
+$$;
+
 -- Queue thread creation/updates for federation
 CREATE OR REPLACE FUNCTION public.trigger_queue_thread_federation()
 RETURNS trigger
@@ -920,6 +988,12 @@ DECLARE
     v_creator_is_local BOOLEAN;
 BEGIN
     IF TG_OP = 'INSERT' THEN
+        -- Threads with ap_id already set came from federation (stub or ChatThread)
+        IF NEW.ap_id IS NOT NULL THEN
+            NEW.federation_status := 'synced';
+            RETURN NEW;
+        END IF;
+
         SELECT c.server_id, s.is_local_server INTO v_server_id, v_server_is_local
         FROM public.channels c JOIN public.servers s ON c.server_id = s.id
         WHERE c.id = NEW.channel_id;
@@ -1175,6 +1249,8 @@ END;
 $$;
 
 -- Queue channel message edit for federation
+-- Local servers: federate ALL edits (including edits to federated messages by mods)
+-- Non-local servers: federate only local authors' non-federated messages (own edits)
 CREATE OR REPLACE FUNCTION public.trigger_queue_channel_message_edit_federation()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -1182,14 +1258,28 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
+    v_server_id UUID;
+    v_server_is_local BOOLEAN;
+    v_federation_enabled BOOLEAN;
     v_author_is_local BOOLEAN;
 BEGIN
     IF NEW.channel_id IS NOT NULL AND NEW.conversation_id IS NULL THEN
         IF OLD.content IS NOT DISTINCT FROM NEW.content THEN RETURN NEW; END IF;
-        IF NEW.metadata ? 'federated' THEN RETURN NEW; END IF;
 
-        SELECT is_local INTO v_author_is_local FROM public.profiles WHERE id = NEW.user_id;
-        IF v_author_is_local IS NOT TRUE THEN RETURN NEW; END IF;
+        SELECT c.server_id, s.is_local_server, s.federation_enabled
+        INTO v_server_id, v_server_is_local, v_federation_enabled
+        FROM public.channels c JOIN public.servers s ON c.server_id = s.id
+        WHERE c.id = NEW.channel_id;
+
+        IF v_server_is_local IS TRUE THEN
+            -- Authoritative server: federate all edits if federation enabled
+            IF v_federation_enabled IS NOT TRUE THEN RETURN NEW; END IF;
+        ELSE
+            -- Mirror server: only federate local author's own non-federated edits
+            IF NEW.metadata ? 'federated' THEN RETURN NEW; END IF;
+            SELECT is_local INTO v_author_is_local FROM public.profiles WHERE id = NEW.user_id;
+            IF v_author_is_local IS NOT TRUE THEN RETURN NEW; END IF;
+        END IF;
 
         PERFORM public.queue_federation_job(
             'federate-channel-message-edit',
@@ -1197,7 +1287,9 @@ BEGIN
                 'type', 'update',
                 'message_id', NEW.id,
                 'channel_id', NEW.channel_id,
-                'user_id', NEW.user_id
+                'user_id', NEW.user_id,
+                'server_id', v_server_id,
+                'server_is_local', COALESCE(v_server_is_local, true)
             ), 5, 5, 900
         );
     END IF;
@@ -1206,6 +1298,8 @@ END;
 $$;
 
 -- Queue channel message delete for federation
+-- Local servers: federate ALL deletes (including mod deletes of remote users' messages)
+-- Non-local servers: federate only local authors' non-federated messages (own deletes)
 CREATE OR REPLACE FUNCTION public.trigger_queue_channel_message_delete_federation()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -1213,14 +1307,28 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
+    v_server_id UUID;
+    v_server_is_local BOOLEAN;
+    v_federation_enabled BOOLEAN;
     v_author_is_local BOOLEAN;
 BEGIN
     IF NEW.channel_id IS NOT NULL AND NEW.conversation_id IS NULL THEN
         IF OLD.is_deleted = TRUE OR NEW.is_deleted = FALSE THEN RETURN NEW; END IF;
-        IF NEW.metadata ? 'federated' THEN RETURN NEW; END IF;
 
-        SELECT is_local INTO v_author_is_local FROM public.profiles WHERE id = NEW.user_id;
-        IF v_author_is_local IS NOT TRUE THEN RETURN NEW; END IF;
+        SELECT c.server_id, s.is_local_server, s.federation_enabled
+        INTO v_server_id, v_server_is_local, v_federation_enabled
+        FROM public.channels c JOIN public.servers s ON c.server_id = s.id
+        WHERE c.id = NEW.channel_id;
+
+        IF v_server_is_local IS TRUE THEN
+            -- Authoritative server: federate all deletes if federation enabled
+            IF v_federation_enabled IS NOT TRUE THEN RETURN NEW; END IF;
+        ELSE
+            -- Mirror server: only federate local author's own non-federated deletes
+            IF NEW.metadata ? 'federated' THEN RETURN NEW; END IF;
+            SELECT is_local INTO v_author_is_local FROM public.profiles WHERE id = NEW.user_id;
+            IF v_author_is_local IS NOT TRUE THEN RETURN NEW; END IF;
+        END IF;
 
         PERFORM public.queue_federation_job(
             'federate-channel-message-delete',
@@ -1229,7 +1337,9 @@ BEGIN
                 'message_id', NEW.id,
                 'channel_id', NEW.channel_id,
                 'user_id', NEW.user_id,
-                'ap_id', NEW.metadata->>'ap_id'
+                'ap_id', NEW.metadata->>'ap_id',
+                'server_id', v_server_id,
+                'server_is_local', COALESCE(v_server_is_local, true)
             ), 5, 5, 900
         );
     END IF;

@@ -388,7 +388,8 @@ const handleMention = () => {
 const handleViewProfile = () => {
   if (isFederatedUser.value) {
     const federatedUser = props.user as FederatedUser
-    router.push(`/social/profile/${federatedUser.handle}`)
+    const handle = (federatedUser.handle || '').replace(/^@/, '')
+    router.push({ name: 'UserProfile', params: { handle } })
   } else {
     emit('click', props.user)
   }

@@ -955,6 +955,11 @@ const handleOpenThread = async (threadId?: string) => {
 // Encryption capability check (cached - only updates when service state changes)
 const canDecryptMessages = ref(false);
 
+// Refresh thread indicators when threads change via broadcast
+const handleThreadBroadcast = () => {
+  loadChannelThreads();
+};
+
 // Check encryption status once on mount and load threads
 onMounted(async () => {
   try {
@@ -964,8 +969,8 @@ onMounted(async () => {
     canDecryptMessages.value = false;
   }
   
-  // Load threads for initial channel
   loadChannelThreads();
+  window.addEventListener('server-structure:thread-change', handleThreadBroadcast);
 });
 
 // Reload threads when channel changes
@@ -1832,7 +1837,8 @@ watch(virtualRows, () => {
 
 // Cleanup on unmount
 onUnmounted(() => {
-  // Clear the virtual row observer timeout to prevent post-unmount access
+  window.removeEventListener('server-structure:thread-change', handleThreadBroadcast);
+
   if (virtualRowObserverTimeout) {
     clearTimeout(virtualRowObserverTimeout);
     virtualRowObserverTimeout = null;
@@ -2235,22 +2241,33 @@ const canEditMessage = (message: Message) => {
   
   if (message.id.startsWith('temp-')) return false;
   if (message.sending) return false;
-  if (serverChannelStore.currentServer?.is_local_server === false) return false;
   
   const currentProfileId = profileStore.profile?.id;
   const messageUserId = message.user_id;
-  return messageUserId === currentProfileId || isCurrentUserServerOwner.value;
+  const isOwnMessage = messageUserId === currentProfileId;
+
+  // TODO: account for federated-roles
+  // On non-local (federated mirror) servers, only allow editing own messages
+  if (serverChannelStore.currentServer?.is_local_server === false) {
+    return isOwnMessage;
+  }
+
+  return isOwnMessage || isCurrentUserServerOwner.value;
 };
 
 const canDeleteMessage = (message: Message) => {
   if (!authStore.session?.user || !message) return false;
 
-  if (serverChannelStore.currentServer?.is_local_server === false) return false;
-
   const currentProfileId = profileStore.profile?.id;
   const messageUserId = message.user_id;
+  const isOwnMessage = messageUserId === currentProfileId;
 
-  if (messageUserId === currentProfileId) return true;
+  // On non-local (federated mirror) servers, only allow deleting own messages
+  if (serverChannelStore.currentServer?.is_local_server === false) {
+    return isOwnMessage;
+  }
+
+  if (isOwnMessage) return true;
   if (isCurrentUserServerOwner.value) return true;
   if (profileStore.profile?.is_admin || profileStore.profile?.is_moderator) return true;
   if (canManageMessages.value) return true;
@@ -2516,7 +2533,13 @@ const fetchReplyMessageIfNeeded = async (replyMessageId: string) => {
   if (replyMessages.value[replyMessageId] || props.messages.some(msg => msg.id === replyMessageId)) return;
   try {
     const message = await chatStore.fetchReplyMessage(replyMessageId);
-    if (message) replyMessages.value[replyMessageId] = message;
+    if (message) {
+      replyMessages.value[replyMessageId] = message;
+      // Ensure the reply author's profile is loaded so we don't show "Unknown User"
+      if (message.user_id) {
+        ensureProfilesAvailable([message.user_id]).catch(() => {});
+      }
+    }
   } catch (error) {
     debug.error('Error fetching reply message:', error);
   }

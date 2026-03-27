@@ -355,8 +355,8 @@
         </div>
       </div>
     </div>
-
-    <div class="settings-section">
+    <!-- Maybe someday we integrate friends. Should probably just be morphed into follow request rules config spot -->
+    <!-- <div class="settings-section">
       <h3 class="section-title">Who Can Add You As A Friend</h3>
       
       <div class="radio-group">
@@ -400,7 +400,7 @@
           <span class="radio-label">No One</span>
         </label>
       </div>
-    </div>
+    </div> -->
 
     <div class="settings-section">
       <h3 class="section-title">Data & Privacy</h3>

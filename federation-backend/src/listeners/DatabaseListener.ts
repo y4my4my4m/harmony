@@ -2189,5 +2189,68 @@ export async function enrichMessageLinkPreviews(message: any): Promise<void> {
   }
 }
 
+/**
+ * Detect external URLs in a post's content and fetch previews via LinkPreviewService.
+ * Same as enrichMessageLinkPreviews but for the posts table.
+ */
+export async function enrichPostLinkPreviews(post: any): Promise<void> {
+  const content = post.content;
+  if (!Array.isArray(content)) return;
+
+  const instanceDomain = config.INSTANCE_DOMAIN.toLowerCase();
+  const existingEmbeds: Record<string, any> = post.metadata?.embeds || {};
+
+  const urlParts = content.filter(
+    (part: any) =>
+      part.type === 'url' &&
+      typeof part.url === 'string' &&
+      part.preview !== 'false' &&
+      part.preview !== false
+  );
+
+  if (urlParts.length === 0) return;
+
+  const eligibleUrls = urlParts.filter((part: any) => {
+    try {
+      const host = new URL(part.url).hostname.toLowerCase();
+      return host !== instanceDomain && !existingEmbeds[part.url];
+    } catch {
+      return false;
+    }
+  });
+
+  if (eligibleUrls.length === 0) return;
+
+  const previewResults = await Promise.allSettled(
+    eligibleUrls.map(async (part: any) => {
+      const url: string = part.url;
+      const preview = await linkPreviewService.getPreview(url);
+      if (!preview) return null;
+      return { url, preview };
+    })
+  );
+
+  const newEmbeds: Record<string, any> = {};
+  for (const result of previewResults) {
+    if (result.status === 'fulfilled' && result.value) {
+      newEmbeds[result.value.url] = result.value.preview;
+    }
+  }
+
+  if (Object.keys(newEmbeds).length === 0) return;
+
+  const supabase = getSupabaseClient();
+  const { error } = await supabase.rpc('update_post_embeds', {
+    p_post_id: post.id,
+    p_embeds: newEmbeds,
+  });
+
+  if (error) {
+    logger.warn(`Failed to write embeds for post ${post.id}:`, error);
+  } else {
+    logger.info(`🔗 Enriched post ${post.id} with ${Object.keys(newEmbeds).length} link preview(s)`);
+  }
+}
+
 // Content conversion functions are now in utils/contentUtils.ts
 // Used by: DMs, Channel Messages, Posts - ensuring consistent federation output

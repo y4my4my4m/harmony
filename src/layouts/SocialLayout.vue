@@ -563,7 +563,7 @@ const handleDeletePost = async (post: TimelinePost) => {
 
 const handleShowUserProfile = (user: FederatedUser) => {
   const handle = (user.handle || user.username || '').replace(/^@/, '')
-  router.push({ name: 'UserProfile', params: { handle: encodeURIComponent(handle) } })
+  router.push({ name: 'UserProfile', params: { handle } })
 }
 
 const handleLoadMorePosts = async () => {

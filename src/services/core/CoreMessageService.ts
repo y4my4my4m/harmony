@@ -1009,10 +1009,12 @@ export class CoreMessageService {
   ): Promise<Message[]> {
     const { limit = 50, before } = options
 
+    // Same as local channel load: thread replies must not appear in the main feed
     let query = supabase
       .from('messages')
       .select('*')
       .eq('channel_id', channelId)
+      .is('thread_id', null)
       .or('is_deleted.is.null,is_deleted.eq.false')
       .order('created_at', { ascending: false })
       .limit(limit)
@@ -1022,7 +1024,7 @@ export class CoreMessageService {
     }
 
     const { data: messages } = await query
-    debug.log(`📦 Loaded ${(messages || []).length} cached messages for remote channel`)
+    debug.log(`📦 Loaded ${(messages || []).length} cached messages for remote channel (non-thread only)`)
     
     return (messages || []).reverse()
   }

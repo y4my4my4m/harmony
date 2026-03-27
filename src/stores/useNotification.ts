@@ -1207,9 +1207,14 @@ export const useNotificationStore = defineStore('notification', {
         
         if (navData) {
           switch (navData.type) {
-            case 'conversation':
-              return `/dm/${navData.conversationId}`
-              
+            case 'conversation': {
+              let dmPath = `/dm/${navData.conversationId}`
+              if (navData.messageId) {
+                dmPath += `?messageId=${navData.messageId}`
+              }
+              return dmPath
+            }
+
             case 'channel': {
               let path = `/chat/${navData.serverId}/${navData.channelId}`
               if (navData.messageId) {
@@ -1223,14 +1228,10 @@ export const useNotificationStore = defineStore('notification', {
 
             case 'activitypub_post':
               return `/post/${navData.postId}`
-              
-            case 'activitypub':
-            case 'mention':
-            case 'like':
-            case 'reblog':
-            case 'follow':
-              return '/social/home'
-            
+
+            case 'profile':
+              return `/social/profile/${navData.handle}`
+
             default:
               return '/'
           }
@@ -1293,18 +1294,9 @@ export const useNotificationStore = defineStore('notification', {
 
             case 'profile':
               // Navigate to user's profile (e.g. new follower)
-              router.push(`/social/profile/${navData.handle}`)
+              router.push({ name: 'UserProfile', params: { handle: (navData.handle || '').replace(/^@/, '') } })
               break
-              
-            case 'activitypub':
-            case 'mention':
-            case 'like':
-            case 'reblog':
-            case 'follow':
-              // Navigate to ActivityPub timeline for federated notifications
-              router.push('/social/home')
-              break
-            
+
             default:
               debug.log('⚠️ No navigation data for notification type:', navData.type)
           }

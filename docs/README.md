@@ -8,7 +8,23 @@ Your modern documentation system is now ready!
 npm run docs:dev
 ```
 
-Visit: `http://localhost:3001`
+Visit: `http://localhost:3001` (set in `docs/.vitepress/config.ts`; do not run at the same time as `federation-backend`, which also uses port 3001 unless you change one of the ports).
+
+---
+
+## How documentation is built
+
+| What | Where to edit | Regenerate |
+|------|----------------|------------|
+| Guide (hand-written) | `docs-source/guide/` at repo root | `npm run docs:generate-guide` → writes `docs/guide/` |
+| API reference | Generated from TypeScript | `npm run docs:generate-api` |
+| Components | Generated from Vue | `npm run docs:generate-components` |
+| Typedoc bundle | `typedoc.json` | `npm run docs:generate` |
+| VitePress nav/sidebar | After changing generated trees | `npm run docs:sync-config` |
+
+Full pipeline (guides + API + components + sync + typedoc + static build): `npm run docs:generate-all`. Setup details: [VITEPRESS_SETUP.md](./VITEPRESS_SETUP.md).
+
+**Do not edit `docs/guide/` by hand** — change `docs-source/guide/` and run `docs:generate-guide`.
 
 ---
 
@@ -79,21 +95,23 @@ graph TB
     VUE --> TAURI
 ```
 
-## 🚀 Quick Start
+## 🚀 Quick Start (app)
 
 ```bash
 # Install dependencies
-bun install
+npm install
 
 # Start development server
-bun dev
+npm run dev
 
 # Build for production
-bun build
+npm run build
 
-# Start desktop app development
-bun tauri dev
+# Desktop app (Tauri)
+npm run tauri:dev
 ```
+
+You can use **Bun** instead of npm if you prefer (`bun install`, `bun run dev`, etc.); the repo’s scripts are written for npm.
 
 ## 📁 Project Structure
 
@@ -109,7 +127,8 @@ harmony/
 │   ├── utils/            # Utility functions
 │   ├── types/            # TypeScript type definitions
 │   └── assets/           # Static assets and styles
-├── docs/                 # Documentation (this directory)
+├── docs/                 # VitePress site + generated API/component docs
+├── docs-source/          # Source for guide pages (see “How documentation is built” above)
 ├── db_schema/           # Database schema and migrations
 ├── federation-backend/  # Node.js ActivityPub backend
 ├── bot-gateway/         # Bot API gateway

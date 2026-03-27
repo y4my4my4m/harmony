@@ -966,9 +966,11 @@ export const useChatStore = defineStore('chat', {
         onUpdate: async (payload) => {
           const payloadNew = payload.new as any;
           
-          // Skip thread messages - they only appear in thread view, not main channel
+          // Thread replies belong only in thread UI. If thread_id was set after insert
+          // (e.g. federation resolving a stub thread), remove from main channel cache.
           if (payloadNew.thread_id) {
-            debug.log('⚠️ Skipping thread message update in main channel:', payloadNew.id);
+            store.removeMessageFromCache(payloadNew.id);
+            debug.log('⚠️ Thread reply — removed from main channel if present:', payloadNew.id);
             return;
           }
           
@@ -1059,16 +1061,18 @@ export const useChatStore = defineStore('chat', {
           channelName: reactionsChannelName,
           table: 'reactions',
           filter: `channel_id=eq.${channelId}`,
+          // Forward all reactions for this channel. Thread replies are not in store.messages
+          // but share channel_id; MessageDisplay in ThreadView reads the same reactions store.
           onInsert: (payload) => {
             const messageId = (payload.new as any)?.message_id;
-            if (messageId && store.messages.some(m => m.id === messageId)) {
-              reactionsStore.handleRealtimeUpdate(payload);
+            if (messageId) {
+              void reactionsStore.handleRealtimeUpdate(payload);
             }
           },
           onDelete: (payload) => {
             const messageId = (payload.old as any)?.message_id;
-            if (messageId && store.messages.some(m => m.id === messageId)) {
-              reactionsStore.handleRealtimeUpdate(payload);
+            if (messageId) {
+              void reactionsStore.handleRealtimeUpdate(payload);
             }
           },
         });

@@ -305,13 +305,17 @@ function getNavigationUrl(data) {
 
   // Fallback for push notifications from backend (which use different field names)
   if (data.conversation_id) {
-    return `${baseUrl}/dm/${data.conversation_id}`
+    let url = `${baseUrl}/dm/${data.conversation_id}`
+    if (data.message_id) {
+      url += `?messageId=${encodeURIComponent(data.message_id)}`
+    }
+    return url
   }
 
   if (data.server_id && data.channel_id) {
     let url = `${baseUrl}/chat/${data.server_id}/${data.channel_id}`
     if (data.message_id) {
-      url += `?message=${data.message_id}`
+      url += `?messageId=${encodeURIComponent(data.message_id)}`
     }
     return url
   }

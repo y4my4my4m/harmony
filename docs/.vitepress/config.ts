@@ -6,8 +6,8 @@ export default withMermaid(defineConfig({
   description: 'Federated Social Platform with Chat - Complete Developer Guide',
   base: '/',
   
-  // Ignore dead links during build (some docs are still being developed)
-  ignoreDeadLinks: true,
+  // Fail build on broken internal links; allow localhost (e.g. example URLs in prose)
+  ignoreDeadLinks: 'localhostLinks',
   
   head: [
     ['link', { rel: 'icon', type: 'image/png', href: '/logo.png' }],

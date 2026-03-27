@@ -15,7 +15,12 @@ export function noteToContent(note: any): any[] {
   // Step 1: Clean HTML to get plain text
   let cleanText = note.content;
   cleanText = cleanText.replace(/<br\s*\/?>/gi, '\n');
-  cleanText = cleanText.replace(/<\/(?:p|div|li|blockquote|h[1-6])>/gi, '\n');
+  // Block-level closing tags: <p>, <blockquote>, <h1>-<h6> imply paragraph breaks (double newline)
+  cleanText = cleanText.replace(/<\/(?:p|blockquote|h[1-6])>/gi, '\n\n');
+  // <div>, <li> closing tags imply simple line breaks
+  cleanText = cleanText.replace(/<\/(?:div|li)>/gi, '\n');
+  // Remove opening block-level tags (the closing tag already handles the break)
+  cleanText = cleanText.replace(/<(?:p|div|li|blockquote|h[1-6])(?:\s[^>]*)?>/gi, '');
   // Remove inline tags WITHOUT adding spaces so @<span>user</span> → @user (not "@ user")
   cleanText = cleanText.replace(/<\/?(?:span|a|strong|b|em|i|u|s|del|code|sub|sup|mark|small|big|abbr)[^>]*>/gi, '');
   cleanText = cleanText.replace(/<[^>]*>/g, ' ');
@@ -34,7 +39,10 @@ export function noteToContent(note: any): any[] {
     const cp = parseInt(n, 10);
     return cp >= 0 && cp <= 0x10FFFF ? String.fromCodePoint(cp) : match;
   });
-  cleanText = cleanText.replace(/\s+/g, ' ').trim();
+  // Collapse horizontal whitespace but preserve newlines from <br>/<p> replacements
+  cleanText = cleanText.replace(/[^\S\n]+/g, ' ');
+  cleanText = cleanText.replace(/\n{3,}/g, '\n\n');
+  cleanText = cleanText.trim();
   
   // Build combined tags array (includes both standard AP tags and Misskey-style emojis)
   let allTags = note.tag && Array.isArray(note.tag) ? [...note.tag] : [];
@@ -57,10 +65,10 @@ export function noteToContent(note: any): any[] {
     }
   }
   
-  // If no tags, just return the text
+  // If no tags, parse URLs from the text and return
   if (allTags.length === 0) {
     if (cleanText) {
-      parts.push({ type: 'text', text: cleanText });
+      splitTextWithUrls(parts, cleanText);
     }
     
     // Still check for attachments
@@ -116,11 +124,11 @@ export function noteToContent(note: any): any[] {
   let currentIndex = 0;
   
   for (const tagPos of tagPositions) {
-    // Add text before this tag
+    // Add text before this tag (with URL detection)
     if (tagPos.position > currentIndex) {
-      const textBefore = cleanText.substring(currentIndex, tagPos.position).trim();
-      if (textBefore) {
-        parts.push({ type: 'text', text: textBefore });
+      const textBefore = cleanText.substring(currentIndex, tagPos.position);
+      if (textBefore.trim()) {
+        splitTextWithUrls(parts, textBefore);
       }
     }
     
@@ -196,11 +204,11 @@ export function noteToContent(note: any): any[] {
     currentIndex = tagPos.position + tagPos.length;
   }
   
-  // Add remaining text after all tags
+  // Add remaining text after all tags (with URL detection)
   if (currentIndex < cleanText.length) {
-    const remaining = cleanText.substring(currentIndex).trim();
-    if (remaining) {
-      parts.push({ type: 'text', text: remaining });
+    const remaining = cleanText.substring(currentIndex);
+    if (remaining.trim()) {
+      splitTextWithUrls(parts, remaining);
     }
   }
   
@@ -208,6 +216,35 @@ export function noteToContent(note: any): any[] {
   addAttachments(parts, note.attachment);
   
   return parts.length > 0 ? parts : [{ type: 'text', text: '' }];
+}
+
+/**
+ * Helper: Split text on URLs, emitting alternating text and url parts.
+ * Bare https?:// URLs found in the cleaned plain-text become clickable
+ * `{ type: 'url', url, preview: true }` parts.
+ */
+function splitTextWithUrls(parts: any[], text: string): void {
+  const urlRegex = /\bhttps?:\/\/\S+/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = urlRegex.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      const before = text.substring(lastIndex, match.index);
+      if (before.trim()) parts.push({ type: 'text', text: before });
+    }
+
+    let url = match[0];
+    url = url.replace(/[.,;:!?)>\]]+$/, '');
+
+    parts.push({ type: 'url', url, preview: true });
+    lastIndex = match.index + match[0].length;
+  }
+
+  if (lastIndex < text.length) {
+    const remaining = text.substring(lastIndex);
+    if (remaining.trim()) parts.push({ type: 'text', text: remaining });
+  }
 }
 
 /**

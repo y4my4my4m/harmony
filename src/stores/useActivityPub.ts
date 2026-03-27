@@ -2379,6 +2379,26 @@ export const useActivityPubStore = defineStore('activitypub', {
       });
     },
 
+    updatePostFieldInAllFeeds(postId: string, field: string, value: any) {
+      const feeds = [this.homeFeed, this.publicFeed, this.localFeed, this.mentionsFeed];
+      feeds.forEach(feed => {
+        const post = feed.posts.find(p => p.id === postId);
+        if (post) {
+          (post as any)[field] = value;
+        }
+      });
+      this.userFeeds.forEach(feed => {
+        const post = feed.posts.find(p => p.id === postId);
+        if (post) {
+          (post as any)[field] = value;
+        }
+      });
+    },
+
+    updatePostContentInAllFeeds(postId: string, content: any) {
+      this.updatePostFieldInAllFeeds(postId, 'content', content);
+    },
+
     /**
      * Toggle post bookmark - delegates to activityPubService which handles auth properly
      */

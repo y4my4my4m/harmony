@@ -199,11 +199,15 @@ export class ServiceWorkerManager {
       const router = useRouter()
 
       if (data.data.conversation_id) {
-        await router.push(`/dm/${data.data.conversation_id}`)
+        let dmPath = `/dm/${data.data.conversation_id}`
+        if (data.data.message_id) {
+          dmPath += `?messageId=${encodeURIComponent(data.data.message_id)}`
+        }
+        await router.push(dmPath)
       } else if (data.data.server_id && data.data.channel_id) {
         let path = `/chat/${data.data.server_id}/${data.data.channel_id}`
         if (data.data.message_id) {
-          path += `?message=${data.data.message_id}`
+          path += `?messageId=${encodeURIComponent(data.data.message_id)}`
         }
         await router.push(path)
       } else if (data.data.server_id) {

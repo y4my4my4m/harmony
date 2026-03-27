@@ -278,6 +278,13 @@ CREATE TRIGGER trigger_handle_post_reply_notifications
 -- FEDERATION TRIGGERS
 -- ---------------------------------------------------------------------------
 
+-- On INSERT: default updated_at to created_at so federated posts don't appear edited
+DROP TRIGGER IF EXISTS handle_posts_insert_updated_at ON public.posts;
+CREATE TRIGGER handle_posts_insert_updated_at
+    BEFORE INSERT ON public.posts
+    FOR EACH ROW
+    EXECUTE FUNCTION public.handle_posts_insert_updated_at();
+
 -- Set updated_at on content edits (not on federation_status or count changes)
 DROP TRIGGER IF EXISTS handle_posts_updated_at ON public.posts;
 CREATE TRIGGER handle_posts_updated_at
@@ -703,6 +710,26 @@ CREATE TRIGGER trigger_new_dm_unread
     FOR EACH ROW
     WHEN (NEW.conversation_id IS NOT NULL AND NEW.is_deleted = false AND NEW.is_system = false)
     EXECUTE FUNCTION public.handle_new_dm_unread();
+
+-- ---------------------------------------------------------------------------
+-- Thread message insert: auto-add member + update stats
+-- ---------------------------------------------------------------------------
+DROP TRIGGER IF EXISTS trigger_thread_message_insert ON public.messages;
+CREATE TRIGGER trigger_thread_message_insert
+    AFTER INSERT ON public.messages
+    FOR EACH ROW
+    WHEN (NEW.thread_id IS NOT NULL)
+    EXECUTE FUNCTION public.thread_message_handler();
+
+-- ---------------------------------------------------------------------------
+-- Thread message delete: decrement count + update last message
+-- ---------------------------------------------------------------------------
+DROP TRIGGER IF EXISTS trigger_thread_message_delete ON public.messages;
+CREATE TRIGGER trigger_thread_message_delete
+    AFTER DELETE OR UPDATE OF is_deleted ON public.messages
+    FOR EACH ROW
+    WHEN (OLD.thread_id IS NOT NULL)
+    EXECUTE FUNCTION public.thread_message_delete_handler();
 
 -- ---------------------------------------------------------------------------
 -- Thread reply notification trigger

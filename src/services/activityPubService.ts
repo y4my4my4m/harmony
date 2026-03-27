@@ -1543,7 +1543,8 @@ export class ActivityPubService {
           ...data,
           bio,
           display_name,
-          handle: this.formatUserHandle(data.username, data.domain)
+          handle: this.formatUserHandle(data.username, data.domain),
+          fields: data.profile_fields || [],
         } as FederatedUser;
         
         // Cache the profile
@@ -1754,7 +1755,8 @@ export class ActivityPubService {
         followers_url: data.followers_url,
         following_url: data.following_url,
         featured_url: data.featured_url,
-        last_synced_at: data.last_synced_at
+        last_synced_at: data.last_synced_at,
+        fields: data.profile_fields || [],
       } as FederatedUser;
     } catch (error) {
       debug.error('Failed to get user by ID:', error);

@@ -932,7 +932,7 @@ const navigateToProfile = () => {
   
   router.push({ 
     name: 'UserProfile', 
-    params: { handle: encodeURIComponent(handle) }
+    params: { handle }
   })
 }
 
