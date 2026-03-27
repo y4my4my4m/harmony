@@ -1777,7 +1777,10 @@ const handleRefetchFromSource = async () => {
   isRefetchingContent.value = true;
   try {
     const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.access_token) return;
+    if (!session?.access_token) {
+      isRefetchingContent.value = false;
+      return;
+    }
 
     const response = await fetch(`${activityPubStore.federationApiUrl}/refetch-post`, {
       method: 'POST',
