@@ -335,6 +335,11 @@ router.post(
         last_synced_at: new Date().toISOString(),
       };
       
+      // Persist ActivityPub profile fields (PropertyValue attachments)
+      if (profileData.profile_fields) {
+        profileRecord.profile_fields = profileData.profile_fields;
+      }
+
       // Store bio and display name emojis in federation_metadata for rendering
       const federationMetadata: any = {};
       if (profileData.bio_emojis && profileData.bio_emojis.length > 0) {

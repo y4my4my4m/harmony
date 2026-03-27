@@ -1294,7 +1294,7 @@ export const useNotificationStore = defineStore('notification', {
 
             case 'profile':
               // Navigate to user's profile (e.g. new follower)
-              router.push(`/social/profile/${navData.handle}`)
+              router.push({ name: 'UserProfile', params: { handle: (navData.handle || '').replace(/^@/, '') } })
               break
 
             default:

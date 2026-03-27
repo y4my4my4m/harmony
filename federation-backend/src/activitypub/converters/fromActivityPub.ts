@@ -57,10 +57,10 @@ export function noteToContent(note: any): any[] {
     }
   }
   
-  // If no tags, just return the text
+  // If no tags, parse URLs from the text and return
   if (allTags.length === 0) {
     if (cleanText) {
-      parts.push({ type: 'text', text: cleanText });
+      splitTextWithUrls(parts, cleanText);
     }
     
     // Still check for attachments
@@ -116,11 +116,11 @@ export function noteToContent(note: any): any[] {
   let currentIndex = 0;
   
   for (const tagPos of tagPositions) {
-    // Add text before this tag
+    // Add text before this tag (with URL detection)
     if (tagPos.position > currentIndex) {
       const textBefore = cleanText.substring(currentIndex, tagPos.position).trim();
       if (textBefore) {
-        parts.push({ type: 'text', text: textBefore });
+        splitTextWithUrls(parts, textBefore);
       }
     }
     
@@ -196,11 +196,11 @@ export function noteToContent(note: any): any[] {
     currentIndex = tagPos.position + tagPos.length;
   }
   
-  // Add remaining text after all tags
+  // Add remaining text after all tags (with URL detection)
   if (currentIndex < cleanText.length) {
     const remaining = cleanText.substring(currentIndex).trim();
     if (remaining) {
-      parts.push({ type: 'text', text: remaining });
+      splitTextWithUrls(parts, remaining);
     }
   }
   
@@ -208,6 +208,38 @@ export function noteToContent(note: any): any[] {
   addAttachments(parts, note.attachment);
   
   return parts.length > 0 ? parts : [{ type: 'text', text: '' }];
+}
+
+/**
+ * Helper: Split text on URLs, emitting alternating text and url parts.
+ * Bare https?:// URLs found in the cleaned plain-text become clickable
+ * `{ type: 'url', url, preview: true }` parts.
+ */
+function splitTextWithUrls(parts: any[], text: string): void {
+  const urlRegex = /\bhttps?:\/\/\S+/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = urlRegex.exec(text)) !== null) {
+    // Text before this URL
+    if (match.index > lastIndex) {
+      const before = text.substring(lastIndex, match.index).trim();
+      if (before) parts.push({ type: 'text', text: before });
+    }
+
+    let url = match[0];
+    // Strip trailing punctuation that's unlikely part of the URL
+    url = url.replace(/[.,;:!?)>\]]+$/, '');
+
+    parts.push({ type: 'url', url, preview: true });
+    lastIndex = match.index + match[0].length;
+  }
+
+  // Remaining text after last URL (or entire text if no URLs)
+  if (lastIndex < text.length) {
+    const remaining = text.substring(lastIndex).trim();
+    if (remaining) parts.push({ type: 'text', text: remaining });
+  }
 }
 
 /**

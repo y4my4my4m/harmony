@@ -602,12 +602,22 @@ $$;
 -- ---------------------------------------------------------------------------
 
 -- Handle messages updated_at
+-- On INSERT: preserve the caller's updated_at or default to created_at
+-- On UPDATE: only bump when content actually changes (avoids false "edited" flag)
 CREATE OR REPLACE FUNCTION public.handle_messages_updated_at()
 RETURNS trigger
 LANGUAGE plpgsql
 AS $$
 BEGIN
-    NEW.updated_at := NOW();
+    IF TG_OP = 'INSERT' THEN
+        NEW.updated_at := COALESCE(NEW.created_at, NOW());
+        RETURN NEW;
+    END IF;
+
+    -- UPDATE: only bump when message content is actually edited
+    IF OLD.content IS DISTINCT FROM NEW.content THEN
+        NEW.updated_at := NOW();
+    END IF;
     RETURN NEW;
 END;
 $$;
@@ -630,6 +640,17 @@ LANGUAGE plpgsql
 AS $$
 BEGIN
     NEW.updated_at := NOW();
+    RETURN NEW;
+END;
+$$;
+
+-- Handle posts insert updated_at (default to created_at so new posts don't appear edited)
+CREATE OR REPLACE FUNCTION public.handle_posts_insert_updated_at()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    NEW.updated_at := COALESCE(NEW.created_at, NOW());
     RETURN NEW;
 END;
 $$;

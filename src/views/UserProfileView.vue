@@ -155,6 +155,16 @@
                 <MonyContent :content="user.bio" />
               </div>
 
+              <!-- Profile Fields (ActivityPub PropertyValue) -->
+              <div v-if="userFields?.length" class="profile-fields-section">
+                <div class="profile-fields-grid">
+                  <div v-for="field in userFields" :key="field.name" class="profile-field-item">
+                    <span class="field-label">{{ field.name }}</span>
+                    <span class="field-value" v-html="formatFieldValue(field.value)"></span>
+                  </div>
+                </div>
+              </div>
+
               <!-- Meta info row -->
               <div class="meta-info-row">
                 <div v-if="user.created_at" class="join-date">
@@ -576,6 +586,21 @@ const followButtonText = computed(() => {
   if (isFollowLoading.value) return 'Loading...';
   return isFollowing.value ? 'Following' : 'Follow';
 });
+
+// Profile fields from ActivityPub PropertyValue attachments
+const userFields = computed(() => {
+  if (!user.value) return [];
+  const u = user.value as any;
+  return u.fields || u.profile_fields || [];
+});
+
+const formatFieldValue = (value: string): string => {
+  if (!value) return '';
+  // Values from ActivityPub may contain HTML links - sanitize but keep <a> tags
+  return value
+    .replace(/<(?!a\b|\/a)[^>]*>/gi, '')
+    .replace(/<a\b/gi, '<a target="_blank" rel="noopener noreferrer"');
+};
 
 // Methods
 const formatJoinDate = (dateString: string): string => {
@@ -1021,10 +1046,9 @@ const navigateToProfile = (clickedUser: FederatedUser) => {
   debug.log(`🔗 Navigating to profile: ${handle} (from ${clickedUser.handle})`);
   debug.log(`📍 Current route before navigation:`, route.path);
   
-  // Use named route navigation to ensure proper handling
   router.push({ 
     name: 'UserProfile', 
-    params: { handle: encodeURIComponent(handle) } 
+    params: { handle } 
   }).then(() => {
     debug.log(`✅ Navigation completed to: /social/profile/${handle}`);
   }).catch((error) => {
@@ -1085,9 +1109,16 @@ const showConversation = (postId: string) => {
   router.push({ name: 'PostDetail', params: { postId } });
 };
 
-// Get the handle from props or route params
+// Get the handle from props or route params, always decode URI components
+// (handles may arrive as "user%40domain" from encodeURIComponent callers)
 const currentHandle = computed(() => {
-  return props.profileHandle || (route.params.handle as string);
+  const raw = props.profileHandle || (route.params.handle as string);
+  if (!raw) return raw;
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    return raw;
+  }
 });
 
 // OPTIMIZATION: Track current loading handle to prevent duplicate loads
@@ -1409,6 +1440,51 @@ onUnmounted(() => {
   font-size: 0.95rem;
   line-height: 1.5;
   color: var(--text-secondary);
+}
+
+.profile-fields-section {
+  margin-bottom: 1rem;
+}
+
+.profile-fields-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.profile-field-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0.5rem 0.75rem;
+  background: var(--bg-secondary);
+  border-radius: 8px;
+  min-width: 120px;
+  flex: 1;
+  max-width: 280px;
+}
+
+.profile-field-item .field-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.profile-field-item .field-value {
+  font-size: 0.875rem;
+  color: var(--text-primary);
+  word-break: break-word;
+}
+
+.profile-field-item .field-value :deep(a) {
+  color: var(--primary);
+  text-decoration: none;
+}
+
+.profile-field-item .field-value :deep(a:hover) {
+  text-decoration: underline;
 }
 
 .meta-info-row {

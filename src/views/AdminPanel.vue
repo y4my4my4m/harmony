@@ -3286,12 +3286,10 @@ const moderateUser = async (user: any, action: string) => {
 }
 
 const navigateToUserPosts = (user: any) => {
-  // Navigate to user's profile/posts
-  if (user.domain && user.domain !== import.meta.env.VITE_DOMAIN as string) {
-    router.push(`/social/profile/${user.username}@${user.domain}`)
-  } else {
-    router.push(`/social/profile/${user.username}`)
-  }
+  const handle = (user.domain && user.domain !== import.meta.env.VITE_DOMAIN as string)
+    ? `${user.username}@${user.domain}`
+    : user.username
+  router.push({ name: 'UserProfile', params: { handle } })
 }
 
 const navigateToUserServers = async (user: AdminUser) => {

@@ -278,6 +278,13 @@ CREATE TRIGGER trigger_handle_post_reply_notifications
 -- FEDERATION TRIGGERS
 -- ---------------------------------------------------------------------------
 
+-- On INSERT: default updated_at to created_at so federated posts don't appear edited
+DROP TRIGGER IF EXISTS handle_posts_insert_updated_at ON public.posts;
+CREATE TRIGGER handle_posts_insert_updated_at
+    BEFORE INSERT ON public.posts
+    FOR EACH ROW
+    EXECUTE FUNCTION public.handle_posts_insert_updated_at();
+
 -- Set updated_at on content edits (not on federation_status or count changes)
 DROP TRIGGER IF EXISTS handle_posts_updated_at ON public.posts;
 CREATE TRIGGER handle_posts_updated_at

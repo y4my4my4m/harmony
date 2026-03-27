@@ -854,6 +854,11 @@ export class ActivityProcessor {
         updateData.custom_status = profileData.custom_status;
       }
 
+      // Update profile fields (PropertyValue attachments)
+      if (profileData.profile_fields) {
+        updateData.profile_fields = profileData.profile_fields;
+      }
+
       // Update federation_metadata with emoji data
       const federationMetadata: any = {};
       if (profileData.bio_emojis && profileData.bio_emojis.length > 0) {
@@ -2456,6 +2461,11 @@ export class ActivityProcessor {
         profileRecord.color = profileData.color;
       }
 
+      // Persist ActivityPub profile fields (PropertyValue attachments)
+      if (profileData.profile_fields) {
+        profileRecord.profile_fields = profileData.profile_fields;
+      }
+
       // Persist shared inbox URL for delivery optimization
       if (actor.endpoints?.sharedInbox) {
         profileRecord.shared_inbox_url = actor.endpoints.sharedInbox;
@@ -2925,6 +2935,7 @@ export class ActivityProcessor {
     if (object.conversation) metadata.conversation = object.conversation;
     if (object.inReplyTo) metadata.in_reply_to_ap = object.inReplyTo;
 
+    const dmTimestamp = object.published || new Date().toISOString();
     const { data: insertedDM, error: messageError } = await supabase
       .from('messages')
       .insert({
@@ -2933,7 +2944,8 @@ export class ActivityProcessor {
         content,
         metadata,
         encrypted: object['harmony:encrypted'] === true,
-        created_at: object.published || new Date().toISOString(),
+        created_at: dmTimestamp,
+        updated_at: object.updated || dmTimestamp,
       })
       .select('id, content, metadata')
       .single();

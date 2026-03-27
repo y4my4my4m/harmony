@@ -671,9 +671,9 @@ const displayAuthorSafe = computed(() => {
 });
 
 const viewProfile = (author: { username: string; domain: string, is_local?: boolean }) => {
-  const isLocal = author.is_local ?? true; // Default to local if not specified
-  const profileHandle = isLocal ? `@${author.username}` : `@${author.username}@${author.domain}`;
-  router.push({ name: 'UserProfile', params: { handle: profileHandle } });
+  const isLocal = author.is_local ?? true;
+  const handle = isLocal ? author.username : `${author.username}@${author.domain}`;
+  router.push({ name: 'UserProfile', params: { handle } });
 };
 
 const instanceDomain = computed(() => {
