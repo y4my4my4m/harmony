@@ -1162,16 +1162,25 @@ CREATE OR REPLACE FUNCTION public.get_reports_with_details(
 )
 RETURNS TABLE(
     id uuid,
+    reporter_id uuid,
     reported_user_id uuid,
     reported_message_id uuid,
     reported_post_id uuid,
     reporter_username text,
     reporter_display_name text,
     reporter_avatar_url text,
+    reporter_domain text,
+    reporter_is_local boolean,
     reported_user_username text,
     reported_user_display_name text,
     reported_user_avatar_url text,
+    reported_user_domain text,
+    reported_user_is_local boolean,
     reported_post_preview text,
+    reported_post_ap_id text,
+    reported_post_url text,
+    reported_post_is_sensitive boolean,
+    reported_post_content_warning text,
     reported_message_preview text,
     reason text,
     comment text,
@@ -1191,26 +1200,54 @@ BEGIN
     RETURN QUERY
     SELECT
         r.id,
+        r.reporter_id,
         r.reported_user_id,
         r.reported_message_id,
         r.reported_post_id,
         reporter.username::text,
         reporter.display_name::text,
         reporter.avatar_url::text,
+        reporter.domain::text,
+        COALESCE(reporter.is_local, true),
         reported_user.username::text,
         reported_user.display_name::text,
         reported_user.avatar_url::text,
+        reported_user.domain::text,
+        COALESCE(reported_user.is_local, true),
         CASE
             WHEN r.reported_post_id IS NOT NULL THEN
                 LEFT(
                     COALESCE(
-                        (SELECT p.content->0->>'text' FROM public.posts p WHERE p.id = r.reported_post_id),
+                        (SELECT string_agg(
+                            CASE
+                                WHEN part->>'type' = 'text' THEN COALESCE(part->>'text', '')
+                                WHEN part->>'type' = 'url' THEN COALESCE(part->>'url', '[link]')
+                                WHEN part->>'type' = 'mention' THEN '@' || COALESCE(part->>'username', 'user')
+                                WHEN part->>'type' = 'hashtag' THEN '#' || COALESCE(part->>'name', 'tag')
+                                WHEN part->>'type' = 'emoji' THEN ':' || COALESCE(part->'emoji'->>'name', 'emoji') || ':'
+                                ELSE ''
+                            END, ' '
+                        )
+                        FROM public.posts p, jsonb_array_elements(p.content) AS part
+                        WHERE p.id = r.reported_post_id),
                         '[Post content unavailable]'
                     ),
-                    200
+                    500
                 )
             ELSE NULL
         END::text,
+        CASE WHEN r.reported_post_id IS NOT NULL THEN
+            (SELECT p.ap_id FROM public.posts p WHERE p.id = r.reported_post_id)
+        ELSE NULL END::text,
+        CASE WHEN r.reported_post_id IS NOT NULL THEN
+            (SELECT p.url FROM public.posts p WHERE p.id = r.reported_post_id)
+        ELSE NULL END::text,
+        CASE WHEN r.reported_post_id IS NOT NULL THEN
+            (SELECT p.is_sensitive FROM public.posts p WHERE p.id = r.reported_post_id)
+        ELSE NULL END,
+        CASE WHEN r.reported_post_id IS NOT NULL THEN
+            (SELECT p.content_warning FROM public.posts p WHERE p.id = r.reported_post_id)
+        ELSE NULL END::text,
         CASE
             WHEN r.reported_message_id IS NOT NULL THEN
                 LEFT(
@@ -1248,6 +1285,59 @@ BEGIN
     ORDER BY r.created_at DESC
     LIMIT p_limit
     OFFSET p_offset;
+END;
+$$;
+
+-- Admin post moderation (mark_sensitive, set_cw, delete)
+CREATE OR REPLACE FUNCTION public.admin_moderate_post(
+    p_post_id uuid,
+    p_action text,
+    p_value text DEFAULT NULL
+)
+RETURNS boolean
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+    v_admin_id uuid;
+BEGIN
+    SELECT id INTO v_admin_id
+    FROM public.profiles
+    WHERE auth_user_id = auth.uid()
+      AND (is_admin = true OR is_moderator = true);
+
+    IF v_admin_id IS NULL THEN
+        RAISE EXCEPTION 'Insufficient permissions: admin or moderator role required';
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM public.posts WHERE id = p_post_id) THEN
+        RAISE EXCEPTION 'Post not found';
+    END IF;
+
+    IF p_action = 'mark_sensitive' THEN
+        UPDATE public.posts SET is_sensitive = true WHERE id = p_post_id;
+    ELSIF p_action = 'unmark_sensitive' THEN
+        UPDATE public.posts SET is_sensitive = false WHERE id = p_post_id;
+    ELSIF p_action = 'set_cw' THEN
+        UPDATE public.posts SET content_warning = p_value WHERE id = p_post_id;
+    ELSIF p_action = 'remove_cw' THEN
+        UPDATE public.posts SET content_warning = NULL WHERE id = p_post_id;
+    ELSIF p_action = 'delete' THEN
+        UPDATE public.posts SET is_deleted = true, deleted_at = now() WHERE id = p_post_id;
+    ELSE
+        RAISE EXCEPTION 'Invalid action: %', p_action;
+    END IF;
+
+    PERFORM log_admin_action(
+        v_admin_id,
+        'post_' || p_action,
+        'post',
+        p_post_id::text,
+        jsonb_build_object('action', p_action, 'value', p_value)
+    );
+
+    RETURN true;
 END;
 $$;
 

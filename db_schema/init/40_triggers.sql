@@ -285,6 +285,13 @@ CREATE TRIGGER handle_posts_insert_updated_at
     FOR EACH ROW
     EXECUTE FUNCTION public.handle_posts_insert_updated_at();
 
+-- Auto-set is_sensitive for posts by force_sensitive authors
+DROP TRIGGER IF EXISTS enforce_force_sensitive_on_posts ON public.posts;
+CREATE TRIGGER enforce_force_sensitive_on_posts
+    BEFORE INSERT ON public.posts
+    FOR EACH ROW
+    EXECUTE FUNCTION public.enforce_force_sensitive();
+
 -- Set updated_at on content edits (not on federation_status or count changes)
 DROP TRIGGER IF EXISTS handle_posts_updated_at ON public.posts;
 CREATE TRIGGER handle_posts_updated_at

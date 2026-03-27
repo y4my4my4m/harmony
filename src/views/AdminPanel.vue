@@ -583,6 +583,8 @@
                   <span v-if="user.is_suspended" class="badge suspended">Suspended</span>
                   <span v-if="user.is_admin" class="badge admin">Admin</span>
                   <span v-if="user.is_moderator && !user.is_admin" class="badge moderator">Mod</span>
+                  <span v-if="user.force_sensitive" class="badge sensitive" title="All media from this user is force-marked sensitive">F-Sensitive</span>
+                  <span v-if="user.is_silenced" class="badge silenced" title="This user is silenced (hidden from public timelines)">Silenced</span>
                 </div>
                 <div class="user-meta">
                   {{ user.handle }}
@@ -614,6 +616,22 @@
                   :title="user.is_moderator ? 'Remove Moderator' : 'Make Moderator'"
                 >
                   <Icon :name="user.is_moderator ? 'shield-off' : 'shield'" :size="16" />
+                </button>
+                <button
+                  @click="moderateUser(user, user.force_sensitive ? 'unforce_sensitive' : 'force_sensitive')"
+                  class="mod-btn"
+                  :class="user.force_sensitive ? 'unsuspend-btn' : 'warning-btn'"
+                  :title="user.force_sensitive ? 'Remove force-sensitive' : 'Force all media as sensitive'"
+                >
+                  <Icon :name="user.force_sensitive ? 'eye' : 'eye-off'" :size="16" />
+                </button>
+                <button
+                  @click="moderateUser(user, user.is_silenced ? 'unsilence' : 'silence')"
+                  class="mod-btn"
+                  :class="user.is_silenced ? 'unsuspend-btn' : 'warning-btn'"
+                  :title="user.is_silenced ? 'Remove silence' : 'Silence (hide from public timelines)'"
+                >
+                  <Icon :name="user.is_silenced ? 'volume-2' : 'volume-x'" :size="16" />
                 </button>
                 <button 
                   v-if="user.is_suspended"
@@ -696,23 +714,41 @@
               <div class="report-users">
                 <div class="report-reporter">
                   <Avatar :src="report.reporter_avatar_url" :alt="report.reporter_username" size="xs" />
-                  <span>
+                  <span class="report-user-link" @click.stop="navigateToReportUser(report, 'reporter')">
                     <DisplayName v-if="report.reporter_id" :user-id="(report.reporter_id ?? undefined)" :fallback="(report.reporter_display_name || report.reporter_username) ?? undefined" />
                     <template v-else>{{ report.reporter_display_name || report.reporter_username }}</template>
+                    <span v-if="!report.reporter_is_local && report.reporter_domain" class="federation-badge" title="Federated user">
+                      @{{ report.reporter_domain }}
+                    </span>
                   </span>
                 </div>
                 <span class="report-arrow">&#8594;</span>
                 <div class="report-reported" v-if="report.reported_user_id || report.reported_user_username">
                   <Avatar :src="report.reported_user_avatar_url" :alt="report.reported_user_username ?? undefined" size="xs" />
-                  <span>
+                  <span class="report-user-link" @click.stop="navigateToReportUser(report, 'reported')">
                     <DisplayName v-if="report.reported_user_id" :user-id="(report.reported_user_id ?? undefined)" :fallback="(report.reported_user_display_name || report.reported_user_username) ?? undefined" />
                     <template v-else>{{ report.reported_user_display_name || report.reported_user_username }}</template>
+                    <span v-if="!report.reported_user_is_local && report.reported_user_domain" class="federation-badge" title="Federated user">
+                      @{{ report.reported_user_domain }}
+                    </span>
                   </span>
+                  <a
+                    v-if="!report.reported_user_is_local && report.reported_user_domain"
+                    :href="`https://${report.reported_user_domain}/@${report.reported_user_username}`"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="report-external-link"
+                    title="View on remote instance"
+                    @click.stop
+                  >
+                    <Icon name="external-link" :size="14" />
+                  </a>
                 </div>
               </div>
               <div class="report-reason">{{ report.reason }}</div>
               <div class="report-meta">
-                <span class="report-source" v-if="report.source !== 'local'">{{ report.source_instance || report.source }}</span>
+                <span v-if="report.source !== 'local'" class="report-source federation-badge">{{ report.source_instance || report.source }}</span>
+                <span v-else class="report-source-local">local</span>
                 <time class="report-time">{{ formatDate(report.created_at) }}</time>
               </div>
               <div class="report-status-badge" :class="report.status">{{ report.status }}</div>
@@ -732,6 +768,29 @@
               <div v-if="report.reported_post_preview" class="report-proof">
                 <label>Reported post</label>
                 <blockquote v-html="linkifyReportPreview(report.reported_post_preview)"></blockquote>
+                <div class="report-post-meta">
+                  <span v-if="report.reported_post_is_sensitive" class="badge sensitive">Sensitive</span>
+                  <span v-if="report.reported_post_content_warning" class="badge cw">CW: {{ report.reported_post_content_warning }}</span>
+                </div>
+                <div class="report-post-links">
+                  <button
+                    v-if="report.reported_post_id"
+                    class="report-link-btn"
+                    @click.stop="navigateToPost(report.reported_post_id!)"
+                  >
+                    <Icon name="eye" :size="14" /> View post
+                  </button>
+                  <a
+                    v-if="report.reported_post_url || report.reported_post_ap_id"
+                    :href="report.reported_post_url || report.reported_post_ap_id!"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="report-link-btn"
+                    @click.stop
+                  >
+                    <Icon name="external-link" :size="14" /> View on remote instance
+                  </a>
+                </div>
               </div>
 
               <div v-if="report.resolution_note" class="report-resolution">
@@ -740,8 +799,22 @@
               </div>
 
               <div v-if="report.status === 'pending' || report.status === 'investigating'" class="report-actions-panel">
-                <!-- Punitive actions -->
                 <div class="report-punitive-actions">
+                  <button
+                    v-if="report.reported_post_id"
+                    class="report-action-btn warning"
+                    @click.stop="markPostSensitive(report)"
+                  >{{ report.reported_post_is_sensitive ? 'Unmark Sensitive' : 'Mark Sensitive' }}</button>
+                  <button
+                    v-if="report.reported_post_id"
+                    class="report-action-btn warning"
+                    @click.stop="setPostContentWarning(report)"
+                  >{{ report.reported_post_content_warning ? 'Edit CW' : 'Add CW' }}</button>
+                  <button
+                    v-if="report.reported_post_id"
+                    class="report-action-btn danger"
+                    @click.stop="deleteReportedPost(report)"
+                  >Delete Post</button>
                   <button
                     v-if="report.reported_message_id"
                     class="report-action-btn danger"
@@ -752,6 +825,18 @@
                     class="report-action-btn danger"
                     @click.stop="deleteReportedMedia(report)"
                   >Delete Media ({{ extractStorageUrls(report).length }})</button>
+                </div>
+                <div class="report-punitive-actions">
+                  <button
+                    v-if="report.reported_user_id"
+                    class="report-action-btn warning"
+                    @click.stop="forceSensitiveReportedUser(report)"
+                  >Force Sensitive Account</button>
+                  <button
+                    v-if="report.reported_user_id"
+                    class="report-action-btn warning"
+                    @click.stop="silenceReportedUser(report)"
+                  >Silence Account</button>
                   <button
                     v-if="report.reported_user_id"
                     class="report-action-btn danger"
@@ -3140,6 +3225,98 @@ const suspendReportedUser = async (report: ReportWithDetails) => {
   }
 }
 
+const markPostSensitive = async (report: ReportWithDetails) => {
+  if (!report.reported_post_id) return
+  try {
+    const action = report.reported_post_is_sensitive ? 'unmark_sensitive' : 'mark_sensitive'
+    await adminService.moderatePost(report.reported_post_id, action)
+    report.reported_post_is_sensitive = !report.reported_post_is_sensitive
+    toast.success(report.reported_post_is_sensitive ? 'Post marked as sensitive' : 'Post unmarked as sensitive')
+  } catch (error) {
+    debug.error('Failed to toggle sensitive:', error)
+    toast.error('Failed to update post sensitivity')
+  }
+}
+
+const setPostContentWarning = async (report: ReportWithDetails) => {
+  if (!report.reported_post_id) return
+  const cw = prompt('Content warning text (leave empty to remove):', report.reported_post_content_warning || '')
+  if (cw === null) return
+  try {
+    if (cw.trim()) {
+      await adminService.moderatePost(report.reported_post_id, 'set_cw', cw.trim())
+      report.reported_post_content_warning = cw.trim()
+      toast.success('Content warning set')
+    } else {
+      await adminService.moderatePost(report.reported_post_id, 'remove_cw')
+      report.reported_post_content_warning = null
+      toast.success('Content warning removed')
+    }
+  } catch (error) {
+    debug.error('Failed to set content warning:', error)
+    toast.error('Failed to update content warning')
+  }
+}
+
+const deleteReportedPost = async (report: ReportWithDetails) => {
+  if (!report.reported_post_id) return
+  if (!confirm('Delete this post? This cannot be undone.')) return
+  try {
+    await adminService.moderatePost(report.reported_post_id, 'delete')
+    toast.success('Post deleted')
+    await updateReport(report.id, 'resolved')
+  } catch (error) {
+    debug.error('Failed to delete post:', error)
+    toast.error('Failed to delete post')
+  }
+}
+
+const forceSensitiveReportedUser = async (report: ReportWithDetails) => {
+  if (!report.reported_user_id) return
+  const reason = prompt('Reason for marking all media as sensitive:')
+  if (!reason) return
+  try {
+    await adminService.moderateUser(report.reported_user_id, 'force_sensitive', reason, authStore.session?.user?.id || '')
+    toast.success(`All future media from ${report.reported_user_display_name || report.reported_user_username} will be marked sensitive`)
+  } catch (error) {
+    debug.error('Failed to force sensitive:', error)
+    toast.error('Failed to force-sensitive account')
+  }
+}
+
+const silenceReportedUser = async (report: ReportWithDetails) => {
+  if (!report.reported_user_id) return
+  const reason = prompt('Reason for silencing (hiding from public timelines):')
+  if (!reason) return
+  try {
+    await adminService.moderateUser(report.reported_user_id, 'silence', reason, authStore.session?.user?.id || '')
+    toast.success(`User ${report.reported_user_display_name || report.reported_user_username} silenced`)
+  } catch (error) {
+    debug.error('Failed to silence user:', error)
+    toast.error('Failed to silence user')
+  }
+}
+
+const navigateToReportUser = (report: ReportWithDetails, which: 'reporter' | 'reported') => {
+  let username: string | null
+  let domain: string | null
+  if (which === 'reporter') {
+    username = report.reporter_username
+    domain = report.reporter_domain
+  } else {
+    username = report.reported_user_username
+    domain = report.reported_user_domain
+  }
+  if (!username) return
+  const localDomain = import.meta.env.VITE_DOMAIN as string
+  const handle = (domain && domain !== localDomain) ? `${username}@${domain}` : username
+  router.push({ name: 'UserProfile', params: { handle } })
+}
+
+const navigateToPost = (postId: string) => {
+  router.push(`/post/${postId}`)
+}
+
 const refreshData = async () => {
   await loadInitialData()
 }
@@ -3231,57 +3408,48 @@ const moderateUser = async (user: any, action: string) => {
     if (action === 'suspend') {
       const reason = prompt('Suspension reason:')
       if (!reason) return
-
-      await adminService.moderateUser(
-        user.id,
-        'suspend',
-        reason,
-        authStore.session?.user?.id || ''
-      )
-      
-      // Refresh user list
+      await adminService.moderateUser(user.id, 'suspend', reason, authStore.session?.user?.id || '')
       await loadUsers()
       await loadRecentActivity()
-      debug.log(`User ${user.username} suspended`)
-      alert(`User ${user.username} has been suspended.`)
+      toast.success(`User ${user.username} has been suspended.`)
     } else if (action === 'unsuspend') {
-      if (!confirm(`Are you sure you want to unsuspend user ${user.username}?`)) {
-        return
-      }
-
-      await adminService.moderateUser(
-        user.id,
-        'unsuspend',
-        'Admin unsuspend',
-        authStore.session?.user?.id || ''
-      )
-      
-      // Refresh user list
+      if (!confirm(`Are you sure you want to unsuspend user ${user.username}?`)) return
+      await adminService.moderateUser(user.id, 'unsuspend', 'Admin unsuspend', authStore.session?.user?.id || '')
       await loadUsers()
       await loadRecentActivity()
-      debug.log(`User ${user.username} unsuspended`)
-      alert(`User ${user.username} has been unsuspended.`)
+      toast.success(`User ${user.username} has been unsuspended.`)
     } else if (action === 'delete') {
-      if (!confirm(`Are you sure you want to delete user ${user.username}? This cannot be undone.`)) {
-        return
-      }
-
-      await adminService.moderateUser(
-        user.id,
-        'delete',
-        'Admin deletion',
-        authStore.session?.user?.id || ''
-      )
-      
-      // Refresh user list
+      if (!confirm(`Are you sure you want to delete user ${user.username}? This cannot be undone.`)) return
+      await adminService.moderateUser(user.id, 'delete', 'Admin deletion', authStore.session?.user?.id || '')
       await loadUsers()
       await loadRecentActivity()
-      debug.log(`User ${user.username} deleted`)
-      alert(`User ${user.username} has been deleted.`)
+      toast.success(`User ${user.username} has been deleted.`)
+    } else if (action === 'force_sensitive') {
+      const reason = prompt('Reason for marking all media as sensitive:')
+      if (!reason) return
+      await adminService.moderateUser(user.id, 'force_sensitive', reason, authStore.session?.user?.id || '')
+      await loadUsers()
+      toast.success(`All future media from ${user.username} will be marked sensitive.`)
+    } else if (action === 'unforce_sensitive') {
+      if (!confirm(`Remove force-sensitive from ${user.username}?`)) return
+      await adminService.moderateUser(user.id, 'unforce_sensitive', '', authStore.session?.user?.id || '')
+      await loadUsers()
+      toast.success(`Force-sensitive removed from ${user.username}.`)
+    } else if (action === 'silence') {
+      const reason = prompt('Reason for silencing (hidden from public timelines):')
+      if (!reason) return
+      await adminService.moderateUser(user.id, 'silence', reason, authStore.session?.user?.id || '')
+      await loadUsers()
+      toast.success(`User ${user.username} has been silenced.`)
+    } else if (action === 'unsilence') {
+      if (!confirm(`Remove silence from ${user.username}?`)) return
+      await adminService.moderateUser(user.id, 'unsilence', '', authStore.session?.user?.id || '')
+      await loadUsers()
+      toast.success(`User ${user.username} has been unsilenced.`)
     }
   } catch (error: any) {
     debug.error('Failed to moderate user:', error)
-    alert(`Failed to ${action} user: ${error.message || 'Unknown error'}`)
+    toast.error(`Failed to ${action} user: ${error.message || 'Unknown error'}`)
   }
 }
 
@@ -6141,6 +6309,112 @@ const handleAddInstance = () => {
 .report-action-btn.dismiss {
   background: rgba(255, 255, 255, 0.1);
   color: var(--text-secondary);
+}
+
+.report-action-btn.warning {
+  background: rgba(250, 166, 26, 0.2);
+  color: #faa61a;
+}
+
+.report-action-btn.warning:hover {
+  background: rgba(250, 166, 26, 0.4);
+}
+
+.federation-badge {
+  background: rgba(88, 101, 242, 0.2);
+  color: #7c8af5;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  margin-left: 4px;
+}
+
+.report-user-link {
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.report-user-link:hover {
+  text-decoration: underline;
+  color: var(--accent-color);
+}
+
+.report-external-link {
+  display: inline-flex;
+  align-items: center;
+  color: var(--text-secondary);
+  margin-left: 4px;
+  opacity: 0.7;
+  transition: opacity 0.15s;
+}
+
+.report-external-link:hover {
+  opacity: 1;
+  color: var(--accent-color);
+}
+
+.report-source-local {
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+
+.report-post-meta {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.badge.sensitive {
+  background: rgba(250, 166, 26, 0.2);
+  color: #faa61a;
+}
+
+.badge.cw {
+  background: rgba(88, 101, 242, 0.2);
+  color: #7c8af5;
+}
+
+.badge.silenced {
+  background: rgba(250, 166, 26, 0.2);
+  color: #faa61a;
+}
+
+.report-post-links {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.report-link-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  text-decoration: none;
+  transition: all 0.15s;
+}
+
+.report-link-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--text-primary);
+}
+
+.mod-btn.warning-btn {
+  background: rgba(250, 166, 26, 0.15);
+  color: #faa61a;
+}
+
+.mod-btn.warning-btn:hover {
+  background: rgba(250, 166, 26, 0.3);
 }
 
 .reports-empty {

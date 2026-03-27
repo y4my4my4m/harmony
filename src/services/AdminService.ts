@@ -54,12 +54,16 @@ export interface AdminUser {
   created_at: string;
   updated_at?: string;
   domain?: string;
-  is_local?: boolean; // Indicates if the user is local or remote
+  is_local?: boolean;
   is_admin: boolean;
   is_moderator: boolean;
   is_suspended: boolean;
   suspended_at?: string;
   suspension_reason?: string;
+  force_sensitive: boolean;
+  is_silenced: boolean;
+  silenced_at?: string;
+  silenced_reason?: string;
   federated_id?: string;
   ap_actor_id?: string;
   postCount: number;
@@ -423,6 +427,10 @@ class AdminService {
           is_suspended,
           suspended_at,
           suspension_reason,
+          force_sensitive,
+          is_silenced,
+          silenced_at,
+          silenced_reason,
           federated_id
         `)
         .order('created_at', { ascending: false })
@@ -590,17 +598,14 @@ class AdminService {
    */
   async moderateUser(
     userId: string, 
-    action: 'suspend' | 'unsuspend' | 'delete', 
+    action: 'suspend' | 'unsuspend' | 'delete' | 'force_sensitive' | 'unforce_sensitive' | 'silence' | 'unsilence', 
     reason: string,
     adminId: string
   ): Promise<void> {
     try {
-      // Use the RPC function which has SECURITY DEFINER to bypass RLS
-      // The moderate_user function checks admin permissions internally
-      let rpcAction = action;
+      let rpcAction: string = action;
       let rpcReason = reason;
 
-      // Handle delete as a special case of suspend with DELETED prefix
       if (action === 'delete') {
         rpcAction = 'suspend';
         rpcReason = `DELETED: ${reason}`;
@@ -632,6 +637,34 @@ class AdminService {
       });
     } catch (error) {
       debug.error('Failed to moderate user:', error);
+      throw error;
+    }
+  }
+
+  async moderatePost(
+    postId: string,
+    action: 'mark_sensitive' | 'unmark_sensitive' | 'set_cw' | 'remove_cw' | 'delete',
+    value?: string
+  ): Promise<void> {
+    try {
+      const { data, error } = await supabase.rpc('admin_moderate_post', {
+        p_post_id: postId,
+        p_action: action,
+        p_value: value ?? null
+      });
+
+      if (error) {
+        debug.error('RPC admin_moderate_post failed:', error);
+        throw new Error(error.message || 'Failed to moderate post');
+      }
+
+      if (data === false) {
+        throw new Error('Post moderation failed - insufficient permissions or post not found');
+      }
+
+      debug.log(`Post ${postId} action=${action} succeeded`);
+    } catch (error) {
+      debug.error('Failed to moderate post:', error);
       throw error;
     }
   }

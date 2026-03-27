@@ -892,6 +892,16 @@ BEGIN
             ELSE tp.visibility = 'public'
         END
         
+        -- Hide silenced users from public/local/federated timelines (keep on home)
+        AND (
+            p_timeline_type = 'home'
+            OR NOT EXISTS (
+                SELECT 1 FROM profiles spr
+                WHERE spr.id = tp.author_id
+                  AND spr.is_silenced = true
+            )
+        )
+        
         -- Pagination
         AND (p_max_id IS NULL OR tp.created_at < (
             SELECT tp2.created_at FROM timeline_posts tp2 WHERE tp2.id = p_max_id::UUID
@@ -979,8 +989,9 @@ BEGIN
         -- Not deleted (check both fields for safety)
         AND (p.is_deleted = false OR p.is_deleted IS NULL)
         AND p.deleted_at IS NULL
-        -- Not from suspended users
+        -- Not from suspended or silenced users
         AND (pr.is_suspended = false OR pr.is_suspended IS NULL)
+        AND (pr.is_silenced = false OR pr.is_silenced IS NULL)
         -- Top-level posts only (not replies)
         AND p.in_reply_to IS NULL
         -- Pagination
@@ -2030,63 +2041,86 @@ DECLARE
     target_username TEXT;
     admin_profile_id UUID;
 BEGIN
-    -- Check if admin has permission
-    -- p_admin_id is auth.uid(), so we need to check via auth_user_id
-    SELECT id INTO admin_profile_id 
-    FROM profiles 
-    WHERE auth_user_id = p_admin_id AND is_admin = TRUE;
-    
+    SELECT id INTO admin_profile_id
+    FROM profiles
+    WHERE auth_user_id = p_admin_id AND (is_admin = TRUE OR is_moderator = TRUE);
+
     IF admin_profile_id IS NULL THEN
         RAISE EXCEPTION 'Insufficient permissions';
     END IF;
-    
-    -- Get target username for logging
-    -- p_target_user_id is profiles.id, so we use id directly
+
     SELECT username INTO target_username FROM profiles WHERE id = p_target_user_id;
-    
+
     IF target_username IS NULL THEN
         RAISE EXCEPTION 'User not found';
     END IF;
-    
+
     IF p_action = 'suspend' THEN
-        UPDATE profiles 
-        SET 
-            is_suspended = TRUE,
-            suspended_at = NOW(),
-            suspension_reason = p_reason
+        UPDATE profiles
+        SET is_suspended = TRUE, suspended_at = NOW(), suspension_reason = p_reason
         WHERE id = p_target_user_id;
-        
-        -- Log the action using admin's profile ID for consistency
-        -- Using jsonb_build_object instead of json_build_object
+
         PERFORM log_admin_action(
-            admin_profile_id,
-            'user_suspend',
-            'user',
+            admin_profile_id, 'user_suspend', 'user',
             p_target_user_id::TEXT,
             jsonb_build_object('reason', p_reason, 'username', target_username)
         );
-        
+
     ELSIF p_action = 'unsuspend' THEN
-        UPDATE profiles 
-        SET 
-            is_suspended = FALSE,
-            suspended_at = NULL,
-            suspension_reason = NULL
+        UPDATE profiles
+        SET is_suspended = FALSE, suspended_at = NULL, suspension_reason = NULL
         WHERE id = p_target_user_id;
-        
-        -- Log the action using admin's profile ID for consistency
-        -- Using jsonb_build_object instead of json_build_object
+
         PERFORM log_admin_action(
-            admin_profile_id,
-            'user_unsuspend',
-            'user',
+            admin_profile_id, 'user_unsuspend', 'user',
             p_target_user_id::TEXT,
             jsonb_build_object('username', target_username)
         );
+
+    ELSIF p_action = 'force_sensitive' THEN
+        UPDATE profiles SET force_sensitive = TRUE WHERE id = p_target_user_id;
+
+        PERFORM log_admin_action(
+            admin_profile_id, 'user_force_sensitive', 'user',
+            p_target_user_id::TEXT,
+            jsonb_build_object('reason', p_reason, 'username', target_username)
+        );
+
+    ELSIF p_action = 'unforce_sensitive' THEN
+        UPDATE profiles SET force_sensitive = FALSE WHERE id = p_target_user_id;
+
+        PERFORM log_admin_action(
+            admin_profile_id, 'user_unforce_sensitive', 'user',
+            p_target_user_id::TEXT,
+            jsonb_build_object('username', target_username)
+        );
+
+    ELSIF p_action = 'silence' THEN
+        UPDATE profiles
+        SET is_silenced = TRUE, silenced_at = NOW(), silenced_reason = p_reason
+        WHERE id = p_target_user_id;
+
+        PERFORM log_admin_action(
+            admin_profile_id, 'user_silence', 'user',
+            p_target_user_id::TEXT,
+            jsonb_build_object('reason', p_reason, 'username', target_username)
+        );
+
+    ELSIF p_action = 'unsilence' THEN
+        UPDATE profiles
+        SET is_silenced = FALSE, silenced_at = NULL, silenced_reason = NULL
+        WHERE id = p_target_user_id;
+
+        PERFORM log_admin_action(
+            admin_profile_id, 'user_unsilence', 'user',
+            p_target_user_id::TEXT,
+            jsonb_build_object('username', target_username)
+        );
+
     ELSE
         RAISE EXCEPTION 'Invalid action: %', p_action;
     END IF;
-    
+
     RETURN TRUE;
 END;
 $$;

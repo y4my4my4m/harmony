@@ -433,6 +433,32 @@
                 <span>Loading...</span>
               </div>
 
+              <div v-if="isCurrentUserAdminOrMod && !canDelete" class="dropdown-divider"></div>
+              <button
+                v-if="isCurrentUserAdminOrMod"
+                class="dropdown-item"
+                @click="handleAdminToggleSensitive"
+              >
+                <Icon :name="post.is_sensitive ? 'eye' : 'eye-off'" />
+                <span>{{ post.is_sensitive ? 'Unmark sensitive' : 'Mark sensitive' }}</span>
+              </button>
+              <button
+                v-if="isCurrentUserAdminOrMod"
+                class="dropdown-item"
+                @click="handleAdminSetCW"
+              >
+                <Icon name="alert-triangle" />
+                <span>{{ post.content_warning ? 'Edit content warning' : 'Add content warning' }}</span>
+              </button>
+              <button
+                v-if="isCurrentUserAdminOrMod && !canDelete"
+                class="dropdown-item danger"
+                @click="handleAdminDeletePost"
+              >
+                <Icon name="trash" />
+                <span>Delete (admin)</span>
+              </button>
+
               <div v-if="!canDelete" class="dropdown-divider"></div>
               <button
                 v-if="!canDelete"
@@ -572,6 +598,7 @@ import MonyMediaGallery from './MonyMediaGallery.vue';
 import ConfirmationModal from '../ConfirmationModal.vue';
 import ReportModal from '@/components/moderation/ReportModal.vue';
 import SupporterBadge from '@/components/common/SupporterBadge.vue';
+import { adminService } from '@/services/AdminService';
 import EmojiPopup from '@/components/EmojiPopup.vue';
 import VueEasyLightbox from 'vue-easy-lightbox';
 import { useToast } from 'vue-toastification';
@@ -1805,6 +1832,49 @@ const handleRefetchFromSource = async () => {
     notificationStore.showToast('server_update', 'Refetch failed', error.message || 'Could not refetch post.', 5000);
   } finally {
     isRefetchingContent.value = false;
+  }
+};
+
+const handleAdminToggleSensitive = async () => {
+  showMenu.value = false;
+  try {
+    const action = props.post.is_sensitive ? 'unmark_sensitive' : 'mark_sensitive';
+    await adminService.moderatePost(props.post.id, action);
+    activityPubStore.updatePostFieldInAllFeeds(props.post.id, 'is_sensitive', !props.post.is_sensitive);
+    notificationStore.showToast('server_update', 'Post updated', props.post.is_sensitive ? 'Post unmarked as sensitive.' : 'Post marked as sensitive.', 3000);
+  } catch (error: any) {
+    notificationStore.showToast('server_update', 'Failed', error.message || 'Could not update post.', 5000);
+  }
+};
+
+const handleAdminSetCW = async () => {
+  showMenu.value = false;
+  const cw = prompt('Content warning text (leave empty to remove):', props.post.content_warning || '');
+  if (cw === null) return;
+  try {
+    if (cw.trim()) {
+      await adminService.moderatePost(props.post.id, 'set_cw', cw.trim());
+      activityPubStore.updatePostFieldInAllFeeds(props.post.id, 'content_warning', cw.trim());
+      notificationStore.showToast('server_update', 'Content warning set', '', 3000);
+    } else {
+      await adminService.moderatePost(props.post.id, 'remove_cw');
+      activityPubStore.updatePostFieldInAllFeeds(props.post.id, 'content_warning', null);
+      notificationStore.showToast('server_update', 'Content warning removed', '', 3000);
+    }
+  } catch (error: any) {
+    notificationStore.showToast('server_update', 'Failed', error.message || 'Could not update content warning.', 5000);
+  }
+};
+
+const handleAdminDeletePost = async () => {
+  showMenu.value = false;
+  if (!confirm('Delete this post as admin? This cannot be undone.')) return;
+  try {
+    await adminService.moderatePost(props.post.id, 'delete');
+    activityPubStore.updatePostFieldInAllFeeds(props.post.id, 'is_deleted', true);
+    notificationStore.showToast('server_update', 'Post deleted', 'Post has been removed by admin.', 3000);
+  } catch (error: any) {
+    notificationStore.showToast('server_update', 'Failed', error.message || 'Could not delete post.', 5000);
   }
 };
 
