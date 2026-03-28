@@ -439,8 +439,8 @@
                 class="dropdown-item"
                 @click="handleAdminToggleSensitive"
               >
-                <Icon :name="post.is_sensitive ? 'eye' : 'eye-off'" />
-                <span>{{ post.is_sensitive ? 'Unmark sensitive' : 'Mark sensitive' }}</span>
+                <Icon :name="displayIsSensitive ? 'eye' : 'eye-off'" />
+                <span>{{ displayIsSensitive ? 'Unmark sensitive' : 'Mark sensitive' }}</span>
               </button>
               <button
                 v-if="isCurrentUserAdminOrMod"
@@ -448,7 +448,7 @@
                 @click="handleAdminSetCW"
               >
                 <Icon name="alert-triangle" />
-                <span>{{ post.content_warning ? 'Edit content warning' : 'Add content warning' }}</span>
+                <span>{{ displayContentWarning ? 'Edit content warning' : 'Add content warning' }}</span>
               </button>
               <button
                 v-if="isCurrentUserAdminOrMod && !canDelete"
@@ -970,11 +970,17 @@ const contentForMonyContent = computed(() => {
 });
 
 const displayContentWarning = computed(() => {
-  return (isReblog.value && props.post.reblog) ? props.post.reblog.content_warning : props.post.content_warning;
+  if (isReblog.value && props.post.reblog) {
+    return props.post.reblog.content_warning || props.post.content_warning;
+  }
+  return props.post.content_warning;
 });
 
 const displayIsSensitive = computed(() => {
-  return (isReblog.value && props.post.reblog) ? props.post.reblog.is_sensitive : props.post.is_sensitive;
+  if (isReblog.value && props.post.reblog) {
+    return props.post.reblog.is_sensitive || props.post.is_sensitive;
+  }
+  return props.post.is_sensitive;
 });
 
 // Track dynamically loaded reply context
@@ -1142,10 +1148,14 @@ const originalPostId = computed(() => {
 // Create a post-like object with the correct ID for PostReactions component
 const displayPostForReactions = computed(() => {
   if (isReblog.value && props.post.reblog?.id) {
-    // Return the original post data with the correct ID
     return {
       ...props.post.reblog,
-      id: props.post.reblog.id
+      id: props.post.reblog.id,
+      metadata: {
+        ...props.post.reblog.metadata,
+        remote_reactions: props.post.metadata?.remote_reactions,
+        remote_reactions_fetched_at: props.post.metadata?.remote_reactions_fetched_at,
+      },
     };
   }
   return props.post;
@@ -1840,10 +1850,15 @@ const handleRefetchFromSource = async () => {
 const handleAdminToggleSensitive = async () => {
   showMenu.value = false;
   try {
-    const action = props.post.is_sensitive ? 'unmark_sensitive' : 'mark_sensitive';
+    const currentSensitive = displayIsSensitive.value;
+    const newVal = !currentSensitive;
+    const action = currentSensitive ? 'unmark_sensitive' : 'mark_sensitive';
     await adminService.moderatePost(props.post.id, action);
-    activityPubStore.updatePostFieldInAllFeeds(props.post.id, 'is_sensitive', !props.post.is_sensitive);
-    notificationStore.showToast('server_update', 'Post updated', props.post.is_sensitive ? 'Post unmarked as sensitive.' : 'Post marked as sensitive.', 3000);
+    activityPubStore.updatePostFieldInAllFeeds(props.post.id, 'is_sensitive', newVal);
+    if (isReblog.value && props.post.reblog) {
+      (props.post.reblog as any).is_sensitive = newVal;
+    }
+    notificationStore.showToast('server_update', 'Post updated', newVal ? 'Post marked as sensitive.' : 'Post unmarked as sensitive.', 3000);
   } catch (error: any) {
     notificationStore.showToast('server_update', 'Failed', error.message || 'Could not update post.', 5000);
   }
@@ -1851,16 +1866,23 @@ const handleAdminToggleSensitive = async () => {
 
 const handleAdminSetCW = async () => {
   showMenu.value = false;
-  const cw = prompt('Content warning text (leave empty to remove):', props.post.content_warning || '');
+  const existingCw = (isReblog.value && props.post.reblog?.content_warning) || props.post.content_warning || '';
+  const cw = prompt('Content warning text (leave empty to remove):', existingCw);
   if (cw === null) return;
   try {
     if (cw.trim()) {
       await adminService.moderatePost(props.post.id, 'set_cw', cw.trim());
       activityPubStore.updatePostFieldInAllFeeds(props.post.id, 'content_warning', cw.trim());
+      if (isReblog.value && props.post.reblog) {
+        (props.post.reblog as any).content_warning = cw.trim();
+      }
       notificationStore.showToast('server_update', 'Content warning set', '', 3000);
     } else {
       await adminService.moderatePost(props.post.id, 'remove_cw');
       activityPubStore.updatePostFieldInAllFeeds(props.post.id, 'content_warning', null);
+      if (isReblog.value && props.post.reblog) {
+        (props.post.reblog as any).content_warning = null;
+      }
       notificationStore.showToast('server_update', 'Content warning removed', '', 3000);
     }
   } catch (error: any) {
