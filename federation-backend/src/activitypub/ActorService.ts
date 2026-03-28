@@ -2585,31 +2585,52 @@ async function fetchRecentPostsInBackground(
           const originalUrl = typeof item.object === 'string' ? item.object : item.object?.id;
           if (!originalUrl) continue;
           
-          // Try to find or fetch the original post
-          let originalPostId: string | null = null;
+          // Try to find the original post with full data for the reblog JSON
           const { data: originalPost } = await supabase
             .from('posts')
-            .select('id')
+            .select('id, content, visibility, author_id, created_at, ap_id, url, is_sensitive, content_warning, favorites_count, replies_count, reblogs_count, media_attachments')
             .eq('ap_id', originalUrl)
             .maybeSingle();
-          
+
+          let reblogJson: any = undefined;
+          let reblogAuthorJson: any = null;
           if (originalPost) {
-            originalPostId = originalPost.id;
+            reblogJson = {
+              id: originalPost.id,
+              content: originalPost.content,
+              created_at: originalPost.created_at,
+              visibility: originalPost.visibility,
+              ap_id: originalPost.ap_id || originalUrl,
+              url: originalPost.url || null,
+              is_sensitive: originalPost.is_sensitive || false,
+              content_warning: originalPost.content_warning || null,
+              favorites_count: originalPost.favorites_count || 0,
+              replies_count: originalPost.replies_count || 0,
+              reblogs_count: originalPost.reblogs_count || 0,
+              media_attachments: originalPost.media_attachments || [],
+            };
+            const { data: origAuthor } = await supabase
+              .from('profiles')
+              .select('id, username, display_name, avatar_url, domain, is_local')
+              .eq('id', originalPost.author_id)
+              .single();
+            if (origAuthor) reblogAuthorJson = origAuthor;
           }
-          // Note: We could fetch the original post here, but that's expensive
-          // For now, just store the reference in metadata
-          
+
           const reblogData: any = {
             ap_id: item.id,
             ap_type: 'Announce',
             author_id: authorId,
-            content: [], // Reblogs typically don't have their own content
+            content: [],
             visibility: 'public',
             is_local: false,
             created_at: item.published || new Date().toISOString(),
+            reblog: reblogJson || undefined,
+            reblog_author: reblogAuthorJson,
             metadata: {
-              reblog_of: originalPostId,
+              reblog_of: originalPost?.id || null,
               reblog_of_ap_url: originalUrl,
+              original_ap_id: originalUrl,
               is_reblog: true,
             },
           };

@@ -759,14 +759,16 @@ const {
         (props.post.metadata as any).remote_reactions = result.remote_reactions;
         (props.post.metadata as any).remote_reactions_fetched_at = new Date().toISOString();
       }
+      // For reblogs, update the reblog sub-object (displayInteractionCounts reads from there)
+      const target = (isReblog.value && props.post.reblog) ? props.post.reblog : props.post;
       if (result.favorites_count !== undefined) {
-        (props.post as any).favorites_count = result.favorites_count;
+        (target as any).favorites_count = result.favorites_count;
       }
       if (result.replies_count !== undefined) {
-        (props.post as any).replies_count = result.replies_count;
+        (target as any).replies_count = result.replies_count;
       }
       if (result.reblogs_count !== undefined) {
-        (props.post as any).reblogs_count = result.reblogs_count;
+        (target as any).reblogs_count = result.reblogs_count;
       }
     },
     onRefresh: (postId: string) => emit('refresh', postId),

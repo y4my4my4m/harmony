@@ -1273,12 +1273,14 @@ export class ActivityProcessor {
     }
 
     // Find original post - try ap_id first (correct column), then by UUID extraction
-    let originalPost = null;
+    let originalPost: any = null;
     
+    const originalPostColumns = 'id, content, visibility, author_id, created_at, ap_id, is_sensitive, content_warning, favorites_count, replies_count, reblogs_count, media_attachments, url';
+
     // Method 1: Try by ap_id (correct column name)
     const { data: postByApId } = await supabase
       .from('posts')
-      .select('id, content, visibility, author_id, created_at, ap_id')
+      .select(originalPostColumns)
       .eq('ap_id', objectUrl)
       .maybeSingle();
     
@@ -1293,7 +1295,7 @@ export class ActivityProcessor {
         logger.info(`🔍 Trying to find post by UUID: ${postId}`);
         const { data: postById } = await supabase
           .from('posts')
-          .select('id, content, visibility, author_id, created_at, ap_id')
+          .select(originalPostColumns)
           .eq('id', postId)
           .maybeSingle();
         originalPost = postById;
@@ -1347,7 +1349,7 @@ export class ActivityProcessor {
                   favorites_count: remotePost.likes?.totalItems || remotePost.favouritesCount || 0,
                   reblogs_count: remotePost.shares?.totalItems || remotePost.sharesCount || 0,
                 })
-                .select('id, content, visibility, author_id, created_at, ap_id')
+                .select(originalPostColumns)
                 .single();
               
               if (!createError && newPost) {
@@ -1403,6 +1405,13 @@ export class ActivityProcessor {
         created_at: originalPost.created_at,
         visibility: originalPost.visibility,
         ap_id: originalPost.ap_id || objectUrl,
+        url: originalPost.url || null,
+        is_sensitive: originalPost.is_sensitive || false,
+        content_warning: originalPost.content_warning || null,
+        favorites_count: originalPost.favorites_count || 0,
+        replies_count: originalPost.replies_count || 0,
+        reblogs_count: originalPost.reblogs_count || 0,
+        media_attachments: originalPost.media_attachments || [],
       },
       reblog_author: originalAuthor || null,
       metadata: {
