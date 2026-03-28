@@ -1146,7 +1146,7 @@ const originalPostId = computed(() => {
 
 // For reblogs, we need to show reactions for the ORIGINAL post
 // Create a post-like object with the correct ID for PostReactions component
-const displayPostForReactions = computed(() => {
+const displayPostForReactions = computed((): TimelinePost => {
   if (isReblog.value && props.post.reblog?.id) {
     return {
       ...props.post.reblog,
@@ -1156,7 +1156,7 @@ const displayPostForReactions = computed(() => {
         remote_reactions: props.post.metadata?.remote_reactions,
         remote_reactions_fetched_at: props.post.metadata?.remote_reactions_fetched_at,
       },
-    };
+    } as TimelinePost;
   }
   return props.post;
 });
