@@ -1336,6 +1336,8 @@ export class ActivityProcessor {
                   content,
                   visibility,
                   is_local: false,
+                  is_sensitive: remotePost.sensitive === true,
+                  content_warning: remotePost.summary || null,
                   created_at: remotePost.published || new Date().toISOString(),
                 })
                 .select('id, content, visibility, author_id, created_at, ap_id')

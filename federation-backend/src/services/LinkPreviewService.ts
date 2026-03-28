@@ -4,6 +4,7 @@ import { getSupabaseClient } from '../config/supabase.js';
 import { logger } from '../utils/logger.js';
 import { SignatureService } from '../activitypub/SignatureService.js';
 import { validateExternalUrl } from '../utils/ssrfProtection.js';
+import { decodeHtmlEntities } from '../utils/contentUtils.js';
 
 export type EmbedProvider = 'harmony-post' | 'fediverse-post' | 'youtube' | 'spotify' | 'reddit' | 'generic';
 
@@ -399,21 +400,7 @@ class LinkPreviewService {
       }
 
       const content = note.content || '';
-      let plainText = content.replace(/<[^>]*>/g, '').trim();
-      plainText = plainText
-        .replace(/&amp;/g, '&')
-        .replace(/&lt;/g, '<')
-        .replace(/&gt;/g, '>')
-        .replace(/&quot;/g, '"')
-        .replace(/&apos;/g, "'")
-        .replace(/&#x([\da-fA-F]+);/g, (m: string, h: string) => {
-          const cp = parseInt(h, 16);
-          return cp >= 0 && cp <= 0x10FFFF ? String.fromCodePoint(cp) : m;
-        })
-        .replace(/&#(\d+);/g, (m: string, n: string) => {
-          const cp = parseInt(n, 10);
-          return cp >= 0 && cp <= 0x10FFFF ? String.fromCodePoint(cp) : m;
-        });
+      const plainText = decodeHtmlEntities(content.replace(/<[^>]*>/g, '').trim());
       const platform = await this.detectPlatform(note, url);
 
       const attachments = Array.isArray(note.attachment)
@@ -573,8 +560,8 @@ class LinkPreviewService {
       url,
       normalizedUrl: url,
       provider: 'generic',
-      title: data.title || data.author_name || url,
-      description: data.author_name || data.provider_name,
+      title: decodeHtmlEntities(data.title || data.author_name || url),
+      description: decodeHtmlEntities(data.author_name || data.provider_name || ''),
       siteName: data.provider_name || new URL(url).hostname,
       image: data.thumbnail_url,
       html: data.html,
@@ -607,8 +594,8 @@ class LinkPreviewService {
       url,
       normalizedUrl: url,
       provider: 'reddit',
-      title: data.title || url,
-      description: data.author_name ? `Posted by ${data.author_name}` : undefined,
+      title: decodeHtmlEntities(data.title || url),
+      description: data.author_name ? `Posted by ${decodeHtmlEntities(data.author_name)}` : undefined,
       siteName: 'Reddit',
       image: data.thumbnail_url,
       html: data.html,
@@ -807,7 +794,7 @@ class LinkPreviewService {
     for (const pattern of patterns) {
       const match = html.match(pattern);
       if (match?.[1]) {
-        return match[1];
+        return decodeHtmlEntities(match[1]);
       }
     }
     return undefined;

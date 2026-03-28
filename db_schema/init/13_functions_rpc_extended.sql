@@ -2061,7 +2061,7 @@ BEGIN
         WHERE id = p_target_user_id;
 
         PERFORM log_admin_action(
-            admin_profile_id, 'user_suspend', 'user',
+            admin_profile_id, 'user_suspend'::text, 'user'::text,
             p_target_user_id::TEXT,
             jsonb_build_object('reason', p_reason, 'username', target_username)
         );
@@ -2072,7 +2072,7 @@ BEGIN
         WHERE id = p_target_user_id;
 
         PERFORM log_admin_action(
-            admin_profile_id, 'user_unsuspend', 'user',
+            admin_profile_id, 'user_unsuspend'::text, 'user'::text,
             p_target_user_id::TEXT,
             jsonb_build_object('username', target_username)
         );
@@ -2081,7 +2081,7 @@ BEGIN
         UPDATE profiles SET force_sensitive = TRUE WHERE id = p_target_user_id;
 
         PERFORM log_admin_action(
-            admin_profile_id, 'user_force_sensitive', 'user',
+            admin_profile_id, 'user_force_sensitive'::text, 'user'::text,
             p_target_user_id::TEXT,
             jsonb_build_object('reason', p_reason, 'username', target_username)
         );
@@ -2090,7 +2090,7 @@ BEGIN
         UPDATE profiles SET force_sensitive = FALSE WHERE id = p_target_user_id;
 
         PERFORM log_admin_action(
-            admin_profile_id, 'user_unforce_sensitive', 'user',
+            admin_profile_id, 'user_unforce_sensitive'::text, 'user'::text,
             p_target_user_id::TEXT,
             jsonb_build_object('username', target_username)
         );
@@ -2101,7 +2101,7 @@ BEGIN
         WHERE id = p_target_user_id;
 
         PERFORM log_admin_action(
-            admin_profile_id, 'user_silence', 'user',
+            admin_profile_id, 'user_silence'::text, 'user'::text,
             p_target_user_id::TEXT,
             jsonb_build_object('reason', p_reason, 'username', target_username)
         );
@@ -2112,7 +2112,7 @@ BEGIN
         WHERE id = p_target_user_id;
 
         PERFORM log_admin_action(
-            admin_profile_id, 'user_unsilence', 'user',
+            admin_profile_id, 'user_unsilence'::text, 'user'::text,
             p_target_user_id::TEXT,
             jsonb_build_object('username', target_username)
         );

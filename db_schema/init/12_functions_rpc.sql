@@ -1086,13 +1086,15 @@ $$;
 -- ADMIN RPC FUNCTIONS
 -- ---------------------------------------------------------------------------
 
--- Log admin action
+-- Log admin action (single canonical signature — must match production)
 CREATE OR REPLACE FUNCTION public.log_admin_action(
     p_admin_id uuid,
     p_action_type text,
-    p_target_type text,
-    p_target_id text,
-    p_details jsonb DEFAULT '{}'
+    p_target_type text DEFAULT NULL::text,
+    p_target_id text DEFAULT NULL::text,
+    p_action_details jsonb DEFAULT NULL::jsonb,
+    p_ip_address inet DEFAULT NULL::inet,
+    p_user_agent text DEFAULT NULL::text
 )
 RETURNS uuid
 LANGUAGE plpgsql
@@ -1102,10 +1104,10 @@ AS $$
 DECLARE
     v_log_id uuid;
 BEGIN
-    INSERT INTO admin_audit_log (admin_id, action_type, target_type, target_id, action_details)
-    VALUES (p_admin_id, p_action_type, p_target_type, p_target_id, p_details)
+    INSERT INTO admin_audit_log (admin_id, action_type, target_type, target_id, action_details, ip_address, user_agent)
+    VALUES (p_admin_id, p_action_type, p_target_type, p_target_id, p_action_details, p_ip_address, p_user_agent)
     RETURNING id INTO v_log_id;
-    
+
     RETURN v_log_id;
 END;
 $$;
@@ -1331,8 +1333,8 @@ BEGIN
 
     PERFORM log_admin_action(
         v_admin_id,
-        'post_' || p_action,
-        'post',
+        ('post_' || p_action)::text,
+        'post'::text,
         p_post_id::text,
         jsonb_build_object('action', p_action, 'value', p_value)
     );
