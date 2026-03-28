@@ -486,10 +486,11 @@ export class ActivityProcessor {
           conversation_root_id: conversationRootId,
           created_at: object.published || new Date().toISOString(),
           metadata,
-          // Content warning (ActivityPub uses 'summary' for CW)
           content_warning: object.summary || null,
-          // Sensitive flag
           is_sensitive: object.sensitive === true,
+          replies_count: object.replies?.totalItems || object.repliesCount || 0,
+          favorites_count: object.likes?.totalItems || object.favouritesCount || 0,
+          reblogs_count: object.shares?.totalItems || object.sharesCount || 0,
         };
 
         // Add reblog data for quote posts (for display purposes)
@@ -808,6 +809,9 @@ export class ActivityProcessor {
           created_at: remoteObject.published || new Date().toISOString(),
           content_warning: remoteObject.summary || null,
           is_sensitive: remoteObject.sensitive === true,
+          replies_count: remoteObject.replies?.totalItems || remoteObject.repliesCount || 0,
+          favorites_count: remoteObject.likes?.totalItems || remoteObject.favouritesCount || 0,
+          reblogs_count: remoteObject.shares?.totalItems || remoteObject.sharesCount || 0,
         })
         .select('id, in_reply_to, conversation_root_id')
         .single();
@@ -1339,6 +1343,9 @@ export class ActivityProcessor {
                   is_sensitive: remotePost.sensitive === true,
                   content_warning: remotePost.summary || null,
                   created_at: remotePost.published || new Date().toISOString(),
+                  replies_count: remotePost.replies?.totalItems || remotePost.repliesCount || 0,
+                  favorites_count: remotePost.likes?.totalItems || remotePost.favouritesCount || 0,
+                  reblogs_count: remotePost.shares?.totalItems || remotePost.sharesCount || 0,
                 })
                 .select('id, content, visibility, author_id, created_at, ap_id')
                 .single();
@@ -1798,6 +1805,9 @@ export class ActivityProcessor {
         content_warning: object.summary || null,
         is_sensitive: object.sensitive === true,
         metadata: pollMetadata,
+        replies_count: object.replies?.totalItems || object.repliesCount || 0,
+        favorites_count: object.likes?.totalItems || object.favouritesCount || 0,
+        reblogs_count: object.shares?.totalItems || object.sharesCount || 0,
       });
 
       if (error) {

@@ -63,6 +63,9 @@ export function useRemotePostSync(
       const result = await activityPubService.fetchRemoteReplies(p.ap_id, p.id)
       if (result) {
         debug.log(`📬 Fetched ${result.count} replies for remote post`)
+        if (result.replies_count !== undefined || result.favorites_count !== undefined || result.reblogs_count !== undefined) {
+          options.onReactionsUpdate?.(result)
+        }
         options.onRefresh?.(p.id)
       }
     } catch (error) {

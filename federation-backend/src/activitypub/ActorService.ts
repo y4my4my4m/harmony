@@ -1401,11 +1401,22 @@ router.post(
 
     try {
       const replies = await fetchRemotePostReplies(post_ap_id, post_id, supabase, Math.min(limit, 20));
-      
+
+      let updatedCounts: any = {};
+      if (post_id) {
+        const { data: freshPost } = await supabase
+          .from('posts')
+          .select('replies_count, favorites_count, reblogs_count')
+          .eq('id', post_id)
+          .single();
+        if (freshPost) updatedCounts = freshPost;
+      }
+
       return res.json({
         success: true,
         replies,
         count: replies.length,
+        ...updatedCounts,
       });
     } catch (error: any) {
       logger.error('Failed to fetch replies:', error);
@@ -1671,7 +1682,21 @@ async function fetchRemotePostReplies(
     }
 
     const post = await postResponse.json();
-    
+
+    // Update parent post counts from the freshly fetched remote object
+    if (postId) {
+      const remoteCounts: any = {};
+      const remoteReplies = post.replies?.totalItems || post.repliesCount || 0;
+      const remoteLikes = post.likes?.totalItems || post.favouritesCount || 0;
+      const remoteShares = post.shares?.totalItems || post.sharesCount || 0;
+      if (remoteReplies > 0) remoteCounts.replies_count = remoteReplies;
+      if (remoteLikes > 0) remoteCounts.favorites_count = remoteLikes;
+      if (remoteShares > 0) remoteCounts.reblogs_count = remoteShares;
+      if (Object.keys(remoteCounts).length > 0) {
+        await supabase.from('posts').update(remoteCounts).eq('id', postId);
+      }
+    }
+
     // Get replies collection URL
     const repliesUrl = post.replies;
     if (!repliesUrl) {
@@ -2868,7 +2893,27 @@ router.post(
         return res.status(502).json({ error: `Remote server returned ${response.status}` });
       }
 
-      const remoteObject = await response.json();
+      let remoteObject = await response.json();
+
+      // Announce (reblog): follow the object URL to get the actual Note
+      if (remoteObject.type === 'Announce') {
+        const objectUrl = typeof remoteObject.object === 'string'
+          ? remoteObject.object
+          : remoteObject.object?.id;
+        if (!objectUrl) {
+          return res.status(400).json({ error: 'Announce has no object URL to follow' });
+        }
+        let noteResponse = await fetch(objectUrl, {
+          headers: { 'Accept': 'application/activity+json, application/ld+json' },
+        });
+        if (noteResponse.status === 401 || noteResponse.status === 403) {
+          noteResponse = await SignatureService.signedApFetch(objectUrl);
+        }
+        if (!noteResponse.ok) {
+          return res.status(502).json({ error: `Remote server returned ${noteResponse.status} for announced object` });
+        }
+        remoteObject = await noteResponse.json();
+      }
 
       if (remoteObject.type !== 'Note' && remoteObject.type !== 'Article') {
         return res.status(400).json({ error: `Remote object is type "${remoteObject.type}", expected Note or Article` });
