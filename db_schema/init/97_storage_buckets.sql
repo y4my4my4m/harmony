@@ -8,6 +8,10 @@
 -- CREATE BUCKETS
 -- ---------------------------------------------------------------------------
 
+-- Assume storage owner role so bucket inserts + policy changes succeed
+-- on newer Supabase Docker images where storage.* is owned by supabase_storage_admin.
+SET ROLE supabase_storage_admin;
+
 -- Avatars bucket (profile pictures)
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 VALUES (
@@ -109,7 +113,7 @@ ON CONFLICT (id) DO UPDATE SET
 -- STORAGE RLS POLICIES (idempotent: DROP IF EXISTS then CREATE)
 -- ---------------------------------------------------------------------------
 
--- Enable RLS on storage.objects
+-- RLS is already enabled by default in newer images; this is a no-op / safety net.
 ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
 
 -- Public read access for all public buckets
@@ -337,6 +341,9 @@ CREATE POLICY "Group participants can delete group icons"
               AND cp.left_at IS NULL
         )
     );
+
+-- Revert to the original postgres role after storage policy setup.
+RESET ROLE;
 
 DO $$
 BEGIN
