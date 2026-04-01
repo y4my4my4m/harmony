@@ -653,7 +653,7 @@ const createProfile = async () => {
       .from('instance_config')
       .select('config_value')
       .eq('config_key', 'domain')
-      .single();
+      .maybeSingle();
     
     const instanceDomain = instanceConfig?.config_value 
       ? (typeof instanceConfig.config_value === 'string' 
