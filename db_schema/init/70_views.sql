@@ -110,13 +110,13 @@ SELECT
     count(*) FILTER (WHERE status = 'pending') AS pending_activities,
     count(*) FILTER (WHERE status = 'processing') AS processing_activities,
     count(DISTINCT actor_id) AS unique_actors,
-    activity_type,
+    ap_type AS activity_type,
     date_trunc('hour', created_at) AS hour
 FROM public.ap_activities
-GROUP BY activity_type, date_trunc('hour', created_at)
+GROUP BY ap_type, date_trunc('hour', created_at)
 ORDER BY date_trunc('hour', created_at) DESC;
 
-COMMENT ON VIEW public.federation_stats IS 'Aggregated federation activity statistics by hour';
+COMMENT ON VIEW public.federation_stats IS 'Aggregated federation activity statistics by hour (activity_type column = ap_activities.ap_type)';
 
 -- ---------------------------------------------------------------------------
 -- FEDERATION HEALTH METRICS VIEW - Instance health for admin dashboard
