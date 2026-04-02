@@ -37,8 +37,11 @@ BEGIN
     FOREACH tbl IN ARRAY tbls LOOP
         BEGIN
             EXECUTE format('ALTER TABLE %s ENABLE ROW LEVEL SECURITY', tbl);
-        EXCEPTION WHEN undefined_table THEN
-            RAISE NOTICE 'Skipping RLS for non-existent table: %', tbl;
+        EXCEPTION
+            WHEN undefined_table THEN
+                RAISE NOTICE 'Skipping RLS for non-existent table: %', tbl;
+            WHEN insufficient_privilege THEN
+                RAISE NOTICE 'Skipping RLS for table not owned by current role: %', tbl;
         END;
     END LOOP;
 END

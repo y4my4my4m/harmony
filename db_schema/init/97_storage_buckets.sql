@@ -7,10 +7,10 @@
 -- ---------------------------------------------------------------------------
 -- CREATE BUCKETS
 -- ---------------------------------------------------------------------------
-
--- Assume storage owner role so bucket inserts + policy changes succeed
--- on newer Supabase Docker images where storage.* is owned by supabase_storage_admin.
-SET ROLE supabase_storage_admin;
+-- This file must be run as supabase_admin (superuser) because storage.*
+-- tables are owned by supabase_storage_admin. The install script handles
+-- this automatically; do NOT run as the regular postgres role.
+-- ---------------------------------------------------------------------------
 
 -- Avatars bucket (profile pictures)
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
@@ -341,9 +341,6 @@ CREATE POLICY "Group participants can delete group icons"
               AND cp.left_at IS NULL
         )
     );
-
--- Revert to the original postgres role after storage policy setup.
-RESET ROLE;
 
 DO $$
 BEGIN
