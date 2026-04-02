@@ -7,10 +7,6 @@
 -- ---------------------------------------------------------------------------
 -- CREATE BUCKETS
 -- ---------------------------------------------------------------------------
--- This file must be run as supabase_admin (superuser) because storage.*
--- tables are owned by supabase_storage_admin. The install script handles
--- this automatically; do NOT run as the regular postgres role.
--- ---------------------------------------------------------------------------
 
 -- Avatars bucket (profile pictures)
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)

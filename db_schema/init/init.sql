@@ -132,9 +132,9 @@
 \echo '>>> 96_seed_data.sql - Inserting default configuration...'
 \i 96_seed_data.sql
 
--- NOTE: 97_storage_buckets.sql is NOT included here because storage.* tables
--- are owned by supabase_storage_admin. The install script runs it separately
--- as supabase_admin (a superuser) to avoid "must be owner" / "permission denied" errors.
+\echo ''
+\echo '>>> 97_storage_buckets.sql - Creating storage buckets...'
+\i 97_storage_buckets.sql
 
 \echo ''
 \echo '>>> 98_enable_rls.sql - Enabling Row Level Security on all tables...'
