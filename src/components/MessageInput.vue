@@ -829,14 +829,23 @@ const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText);
 
     .left-icons,
     .right-icons {
-      gap: 8px;
+      gap: 2px;
     }
 
-    .plus-icon-container,
-    .right-icons button {
+    .right-icons {
+      padding-right: 4px;
+    }
+
+    .plus-icon-container {
       width: 36px;
       height: 36px;
       border-radius: 18px;
+    }
+
+    .right-icons button {
+      width: 32px;
+      height: 32px;
+      border-radius: 16px;
     }
 
     .textarea-wrapper {
