@@ -145,5 +145,9 @@
 \i 99_cron_jobs.sql
 
 \echo ''
+\echo '>>> 99_migration_tracking.sql - Creating migration tracking table...'
+\i 99_migration_tracking.sql
+
+\echo ''
 \echo 'Harmony database initialization complete.'
 \echo ''

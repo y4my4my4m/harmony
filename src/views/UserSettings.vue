@@ -193,7 +193,7 @@ import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import { getProfileWithAvatarUrl, updateProfile, uploadAvatar, uploadBanner } from '@/services/ProfileService'
 import { normalizeAvatarForStorage } from '@/utils/avatarUtils'
-import { normalizeBannerForStorage, invalidateBannerCache } from '@/utils/bannerUtils'
+import { invalidateBannerCache } from '@/utils/bannerUtils'
 import { createSettingsNavigator, type SettingsSection } from '@/utils/settingsUtils'
 import { useUserData } from '@/composables/useUserData'
 import { useMobileGestures } from '@/composables/useMobileGestures'
@@ -453,20 +453,19 @@ const handleBannerUpload = async (file: File) => {
     
     debug.log('✅ Banner uploaded to:', result.url)
     
-    // Ensure we normalize the banner URL for storage
-    const normalizedPath = normalizeBannerForStorage(result.url || '')
-    debug.log('🔄 Normalized path:', normalizedPath)
+    const storagePath = result.url || ''
     
-    debug.log('💾 Updating profile with banner...')
-    await updateProfile({ banner_url: normalizedPath || undefined })
     invalidateBannerCache()
-    profile.value = { ...profile.value, banner_url: normalizedPath } as User
+    profile.value = { ...profile.value, banner_url: storagePath } as User
     
-    // Broadcast banner update to all connected clients for real-time updates
-    debug.log('📡 Broadcasting banner update...')
-    await updateCurrentUserProfile({
-      bannerUrl: normalizedPath || undefined
-    })
+    // Broadcast banner update (non-blocking — don't let broadcast failure undo a successful upload)
+    try {
+      await updateCurrentUserProfile({
+        bannerUrl: storagePath || undefined
+      })
+    } catch (broadcastError) {
+      debug.error('⚠️ Banner broadcast failed (upload still succeeded):', broadcastError)
+    }
     
     toast.success('Banner updated successfully')
     debug.log('🎉 Banner upload completed successfully')

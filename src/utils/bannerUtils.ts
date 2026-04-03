@@ -28,20 +28,15 @@ export function getBannerUrl(bannerUrl?: string | null, options?: { width?: numb
 }
 
 /**
- * Get public banner URL from storage path with optional Supabase transform optimization
+ * Get public banner URL from storage path.
+ * Uses raw public URL (no server-side transforms) — CSS handles sizing via background-size: cover.
+ * This avoids dependency on imgproxy/render endpoint which may not be available on all deployments.
  */
-export function getPublicBannerUrl(storagePath: string, options?: { width?: number; height?: number; quality?: number }): string | null {
+export function getPublicBannerUrl(storagePath: string, _options?: { width?: number; height?: number; quality?: number }): string | null {
   try {
     const { data } = supabase.storage
       .from('banners')
-      .getPublicUrl(storagePath, {
-        transform: options ? {
-          width: options.width || 1280,
-          height: options.height || 720,
-          resize: 'cover',
-          quality: options.quality || 80
-        } : undefined
-      })
+      .getPublicUrl(storagePath)
 
     if (!data.publicUrl) {
       debug.error('Error getting public banner URL: No public URL returned')
@@ -80,23 +75,46 @@ export function normalizeBannerForStorage(bannerUrl?: string | null): string | n
   return bannerUrl
 }
 
+const MAX_BANNER_SIZE = 10 * 1024 * 1024 // 10MB — must match bucket file_size_limit
+
 /**
- * Upload banner file to storage
+ * Upload banner file to storage.
+ * Removes stale files from a previous upload (e.g. different extension) before uploading.
  */
 export async function uploadBanner(file: File, userId: string): Promise<{ success: boolean; url?: string; error?: string }> {
   try {
     if (!file || file.size === 0) {
       return { success: false, error: 'Choose a non-empty image file' }
     }
+    if (file.size > MAX_BANNER_SIZE) {
+      return { success: false, error: `File is too large (max ${MAX_BANNER_SIZE / 1024 / 1024}MB)` }
+    }
     if (!file.type.startsWith('image/')) {
       return { success: false, error: 'File must be an image' }
     }
-    const ext = file.name.split('.').pop()
+    const ext = file.name.split('.').pop()?.toLowerCase()
     if (!ext) {
       return { success: false, error: 'File must have an extension' }
     }
     
     const filePath = `${userId}/${userId}_banner.${ext}`
+
+    // Remove any existing banner files with a different extension
+    try {
+      const { data: existing } = await supabase.storage
+        .from('banners')
+        .list(userId, { limit: 20 })
+      if (existing?.length) {
+        const stale = existing
+          .filter(f => f.name.startsWith(`${userId}_banner.`) && f.name !== `${userId}_banner.${ext}`)
+          .map(f => `${userId}/${f.name}`)
+        if (stale.length) {
+          await supabase.storage.from('banners').remove(stale)
+        }
+      }
+    } catch {
+      // Non-critical — continue with upload even if cleanup fails
+    }
     
     const { error } = await supabase.storage
       .from('banners')
