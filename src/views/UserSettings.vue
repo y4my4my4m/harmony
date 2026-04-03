@@ -102,6 +102,7 @@
             v-if="activeSection === 'account'"
             :profile="profile"
             :loading="loading"
+            :banner-uploading="bannerUploading"
             @update-profile="handleProfileUpdate"
             @upload-avatar="handleAvatarUpload"
             @upload-banner="handleBannerUpload"
@@ -248,6 +249,7 @@ const { handleTouchStart, handleTouchMove, handleTouchEnd, touchState } = useMob
 
 // Reactive state
 const loading = ref(false)
+const bannerUploading = ref(false)
 const profile = ref<User | null>(null)
 const activeSection = ref(props.section || 'account')
 const showSidebar = ref(false)
@@ -443,12 +445,13 @@ const handleBannerUpload = async (file: File) => {
   }
   
   try {
-    loading.value = true
+    bannerUploading.value = true
     debug.log('📤 Uploading banner to storage...')
     const result = await uploadBanner(file, authStore.session.user.id)
     
     if (!result.success) {
-      throw new Error(result.error || 'Upload failed')
+      toast.error(result.error || 'Failed to upload banner')
+      return
     }
     
     debug.log('✅ Banner uploaded to:', result.url)
@@ -469,11 +472,11 @@ const handleBannerUpload = async (file: File) => {
     
     toast.success('Banner updated successfully')
     debug.log('🎉 Banner upload completed successfully')
-  } catch (error) {
+  } catch (error: any) {
     debug.error('❌ Error uploading banner:', error)
-    toast.error('Failed to upload banner')
+    toast.error(error?.message || 'Failed to upload banner')
   } finally {
-    loading.value = false
+    bannerUploading.value = false
   }
 }
 
