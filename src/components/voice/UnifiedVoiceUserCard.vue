@@ -676,30 +676,35 @@ watch(
   background: linear-gradient(145deg, #3a252880, #4a2f3280);
 }
 
-/* Video Container */
+/* Video Container - sized to the camera's natural aspect ratio */
 .video-container {
   position: relative;
   width: 100%;
-  aspect-ratio: 16 / 9;
-  min-height: 180px;
-  max-height: 400px;
+  max-width: 480px;
+  max-height: 360px;
   border-radius: 12px;
   overflow: hidden;
   background: #000;
-  margin-bottom: 12px;
+  margin: 0 auto 12px;
   border: 2px solid rgba(255, 255, 255, 0.1);
   box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.5);
 }
 
-/* Webcam video - crop to fill (cover) */
+/* Webcam video - show at native aspect ratio */
 .video-stream {
   width: 100%;
-  height: 100%;
-  object-fit: cover;
+  height: auto;
+  display: block;
+  object-fit: contain;
   background: #000;
 }
 
-/* Screenshare video - preserve full content (contain) */
+/* Screenshare video - preserve full content */
+.harmony-voice-card.screen-sharing .video-container {
+  max-width: 100%;
+  max-height: 400px;
+}
+
 .harmony-voice-card.screen-sharing .video-stream {
   object-fit: contain;
 }

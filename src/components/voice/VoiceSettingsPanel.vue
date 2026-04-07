@@ -686,10 +686,10 @@ export default defineComponent({
 }
 
 .settings-panel {
-  background: linear-gradient(145deg, #2f3349, #252837);
-  border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  background: var(--background-quinary);
+  border-radius: 12px;
+  border: 1px solid var(--border-primary);
+  box-shadow: var(--shadow-modal);
   width: 90vw;
   max-width: 600px;
   max-height: 80vh;
@@ -703,8 +703,7 @@ export default defineComponent({
   align-items: center;
   justify-content: space-between;
   padding: 24px 32px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.02);
+  border-bottom: 1px solid var(--border-primary);
 }
 
 .settings-header h3 {
@@ -725,7 +724,7 @@ export default defineComponent({
 }
 
 .close-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.06);
   color: var(--text-primary);
 }
 
@@ -752,7 +751,7 @@ export default defineComponent({
   color: var(--text-primary);
   margin: 0 0 20px 0;
   padding-bottom: 8px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid var(--border-primary);
 }
 
 .setting-group {
@@ -770,14 +769,14 @@ export default defineComponent({
 }
 
 .setting-value {
-  color: #0EA5E9;
+  color: var(--harmony-primary);
   font-weight: 600;
 }
 
 .setting-select {
   width: 100%;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--background-tertiary);
+  border: 1px solid var(--border-primary);
   border-radius: 8px;
   padding: 12px 16px;
   color: var(--text-secondary);
@@ -787,8 +786,8 @@ export default defineComponent({
 
 .setting-select:focus {
   outline: none;
-  border-color: #0EA5E9;
-  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--harmony-primary);
+  background: var(--background-secondary);
 }
 
 .volume-control {
@@ -814,7 +813,7 @@ export default defineComponent({
   background: var(--harmony-primary);
   border-radius: 50%;
   cursor: pointer;
-  box-shadow: 0 2px 8px rgba(14, 165, 233, 0.3);
+  box-shadow: 0 2px 6px color-mix(in srgb, var(--harmony-primary) 30%, transparent);
 }
 
 .volume-indicator {
@@ -822,7 +821,7 @@ export default defineComponent({
   top: 10px;
   left: 0;
   height: 6px;
-  background: linear-gradient(90deg, #00d4aa, #0EA5E9);
+  background: var(--harmony-primary);
   border-radius: 3px;
   pointer-events: none;
   transition: width 0.1s ease;
@@ -855,7 +854,7 @@ export default defineComponent({
 .checkbox-custom {
   width: 20px;
   height: 20px;
-  border: 2px solid rgba(255, 255, 255, 0.3);
+  border: 2px solid var(--text-muted);
   border-radius: 4px;
   background: transparent;
   position: relative;
@@ -866,7 +865,7 @@ export default defineComponent({
 
 .setting-checkbox:checked + .checkbox-custom {
   background: var(--harmony-primary);
-  border-color: #0EA5E9;
+  border-color: var(--harmony-primary);
 }
 
 .setting-checkbox:checked + .checkbox-custom::after {
@@ -917,11 +916,11 @@ export default defineComponent({
 }
 
 .test-btn:hover {
-  background: #0284C7;
+  background: var(--harmony-primary-hover);
 }
 
 .test-btn.active {
-  background: #00d4aa;
+  background: var(--harmony-primary-hover);
 }
 
 .test-indicator {
@@ -934,7 +933,7 @@ export default defineComponent({
 
 .test-level {
   height: 100%;
-  background: linear-gradient(90deg, #00d4aa, #0EA5E9);
+  background: var(--harmony-primary);
   transition: width 0.1s ease;
 }
 
@@ -993,8 +992,8 @@ export default defineComponent({
 }
 
 kbd {
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: var(--background-tertiary);
+  border: 1px solid var(--border-hover);
   border-radius: 4px;
   padding: 4px 8px;
   font-size: 12px;
@@ -1007,13 +1006,13 @@ kbd {
   justify-content: space-between;
   align-items: center;
   padding: 24px 32px;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(0, 0, 0, 0.2);
+  border-top: 1px solid var(--border-primary);
+  background: var(--background-tertiary);
 }
 
 .reset-btn {
   background: none;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 1px solid var(--border-hover);
   border-radius: 8px;
   padding: 8px 16px;
   color: var(--text-secondary);
@@ -1022,8 +1021,8 @@ kbd {
 }
 
 .reset-btn:hover {
-  border-color: #ed4245;
-  color: #ed4245;
+  border-color: var(--error);
+  color: var(--error);
 }
 
 .footer-actions {
@@ -1033,7 +1032,7 @@ kbd {
 
 .cancel-btn {
   background: none;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 1px solid var(--border-hover);
   border-radius: 8px;
   padding: 8px 16px;
   color: var(--text-secondary);
@@ -1042,7 +1041,7 @@ kbd {
 }
 
 .cancel-btn:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--background-quaternary);
 }
 
 .save-btn {
@@ -1057,26 +1056,24 @@ kbd {
 }
 
 .save-btn:hover {
-  background: #0284C7;
+  background: var(--harmony-primary-hover);
 }
 
-/* Custom scrollbar */
 .settings-content::-webkit-scrollbar {
   width: 6px;
 }
 
 .settings-content::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 3px;
+  background: transparent;
 }
 
 .settings-content::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.2);
+  background: var(--border-hover);
   border-radius: 3px;
 }
 
 .settings-content::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.3);
+  background: var(--text-muted);
 }
 
 /* ============================================

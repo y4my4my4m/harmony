@@ -978,8 +978,8 @@ const connectionStats = computed(() => voiceStore.connectionStats);
 }
 
 .voice-container.maximized .participant-card :deep(.video-container) {
-  height: 300px;
-  max-height: none; /* Allow video to be larger */
+  max-width: 640px;
+  max-height: 480px;
 }
 
 .participants-grid {
@@ -1256,17 +1256,16 @@ const connectionStats = computed(() => voiceStore.connectionStats);
 
 .fullscreen-card :deep(.video-container) {
   flex: 1;
-  height: auto !important;
+  max-width: 100%;
+  max-height: none;
   min-height: 200px;
-  max-height: none !important; /* Override the 400px limit */
-  aspect-ratio: unset; /* Let it stretch to fill */
-  margin-bottom: 0;
+  margin: 0 auto;
 }
 
 .fullscreen-card :deep(.video-stream) {
   width: 100%;
   height: 100%;
-  object-fit: contain !important;
+  object-fit: contain;
 }
 
 /* User info label overlay in fullscreen - positioned at bottom left corner */
@@ -1340,11 +1339,9 @@ const connectionStats = computed(() => voiceStore.connectionStats);
 }
 
 .thumbnail-card :deep(.video-container) {
-  height: 60px !important;
-  min-height: 60px !important;
-  max-height: 60px !important;
+  max-height: 60px;
+  max-width: 100%;
   margin-bottom: 2px;
-  aspect-ratio: 16 / 9;
 }
 
 .thumbnail-card :deep(.username) {
@@ -1679,9 +1676,7 @@ const connectionStats = computed(() => voiceStore.connectionStats);
   }
   
   .thumbnail-card :deep(.video-container) {
-    height: 45px !important;
-    min-height: 45px !important;
-    max-height: 45px !important;
+    max-height: 45px;
   }
   
   .thumbnail-card :deep(.username) {
@@ -1813,9 +1808,9 @@ const connectionStats = computed(() => voiceStore.connectionStats);
 }
 
 .fullscreen-container.full-window-mode .fullscreen-card :deep(.video-container) {
-  height: 100% !important;
-  max-height: none !important;
-  border-radius: 0 !important;
+  max-width: 100%;
+  max-height: 100%;
+  border-radius: 0;
 }
 
 .fullscreen-container.full-window-mode .fullscreen-card :deep(.user-info) {

@@ -1564,16 +1564,16 @@ onUnmounted(() => {
   border-radius: 8px;
   overflow: hidden;
   background: #000;
-  cursor: pointer !important; /* Override parent grab cursor for video preview */
+  cursor: pointer !important;
   transition: all 0.2s ease;
-  border: 2px solid rgba(14, 165, 233, 0.4);
+  border: 2px solid color-mix(in srgb, var(--harmony-primary) 40%, transparent);
   flex-shrink: 0;
 }
 
 .dock-video-preview:hover {
   transform: scale(1.05);
-  border-color: rgba(14, 165, 233, 0.8);
-  box-shadow: 0 4px 12px rgba(14, 165, 233, 0.3);
+  border-color: color-mix(in srgb, var(--harmony-primary) 80%, transparent);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--harmony-primary) 30%, transparent);
 }
 
 .dock-video {
@@ -1668,8 +1668,7 @@ onUnmounted(() => {
 .minimized-video-preview {
   position: relative;
   width: 100%;
-  aspect-ratio: 16 / 9;
-  max-height: 120px;
+  max-height: 200px;
   border-radius: 8px;
   overflow: hidden;
   margin-bottom: 10px;
@@ -1679,8 +1678,9 @@ onUnmounted(() => {
 
 .mini-video {
   width: 100%;
-  height: 100%;
-  object-fit: cover;
+  height: auto;
+  display: block;
+  object-fit: contain;
 }
 
 .mini-video-overlay {
