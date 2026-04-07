@@ -6,7 +6,7 @@ The federation backend enables ActivityPub interoperability with Mastodon, Plero
 
 ```mermaid
 graph LR
-    DB[(PostgreSQL)] -->|trigger| Queue[pg-boss Queue]
+    DB[(PostgreSQL)] -->|pg_notify| Queue[BullMQ Queue]
     Queue --> FedBackend[Federation Backend]
     FedBackend -->|HTTP POST| Remote[Remote Instances]
     Remote -->|HTTP POST| Nginx
@@ -40,7 +40,7 @@ For reliable delivery (recommended):
 | Variable | Description |
 |----------|-------------|
 | `DATABASE_URL` | Direct PostgreSQL connection string |
-| `USE_PGBOSS_QUEUE` | Set to `true` |
+| `USE_BULLMQ_QUEUE` | Set to `true` |
 
 ### 2. Nginx Configuration
 
@@ -107,16 +107,16 @@ Test WebFinger discovery:
 curl "https://your-domain.com/.well-known/webfinger?resource=acct:username@your-domain.com"
 ```
 
-## Job Queue (pg-boss)
+## Job Queue (BullMQ)
 
-When `USE_PGBOSS_QUEUE=true`, federation activities are processed through a PostgreSQL-based job queue:
+When `USE_BULLMQ_QUEUE=true`, federation activities are processed through a Redis-backed job queue:
 
 - Activities are queued by database triggers via `queue_federation_job()`
 - The federation backend's `QueueManager` consumes jobs
 - Failed deliveries are retried with backoff
-- The queue function has a fallback for environments where pg-boss tables don't exist yet (`insufficient_privilege` handling)
+- The `queue_federation_job()` function uses `pg_notify` to bridge jobs into BullMQ via `NotificationListener`
 
-Without pg-boss (`USE_PGBOSS_QUEUE=false`), federation events are processed synchronously through database listeners, which is simpler but less reliable.
+Without BullMQ (`USE_BULLMQ_QUEUE=false`), federation events are processed synchronously through Supabase Realtime database listeners, which is simpler but less reliable.
 
 ## Federation Features
 

@@ -61,8 +61,12 @@ const envSchema = z.object({
   ALLOW_FEDERATED_VOICE: z.string().transform(v => v === 'true').default('true'),
   
   // Enable BullMQ job queue processing (recommended for production)
-  // When true, BullMQ handles federation jobs via LISTEN/NOTIFY bridge; when false, legacy DatabaseListener is used
-  USE_PGBOSS_QUEUE: z.string().transform(v => v === 'true').default('true'),
+  // When true, BullMQ handles federation jobs via LISTEN/NOTIFY bridge; when false, legacy DatabaseListener CDC is used
+  USE_BULLMQ_QUEUE: z.preprocess(
+    // Backward compat: accept USE_PGBOSS_QUEUE from env if USE_BULLMQ_QUEUE is not set
+    (val) => val ?? process.env.USE_PGBOSS_QUEUE ?? 'true',
+    z.string().transform(v => v === 'true')
+  ),
 
   // Process mode: run HTTP server, queue workers, or both in one process
   //   'server'  - Express HTTP server only (ActivityPub inbox, WebFinger, health, etc.)

@@ -144,7 +144,7 @@ const messageService = CoreMessageService.getInstance()
 
 ### Local-First with Federation Triggers
 
-Services write to the local database only. Federation is handled by PostgreSQL triggers that call `queue_federation_job()`, which feeds the pg-boss job queue consumed by the federation backend. This ensures local operations are fast and federation failures don't block the user.
+Services write to the local database only. Federation is handled by PostgreSQL triggers that call `queue_federation_job()`, which uses `pg_notify` to feed the BullMQ job queue consumed by the federation backend. This ensures local operations are fast and federation failures don't block the user.
 
 ### Request Deduplication
 

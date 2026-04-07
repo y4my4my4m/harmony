@@ -11,7 +11,7 @@ sequenceDiagram
     participant User as User Action
     participant DB as PostgreSQL
     participant Trigger as DB Trigger
-    participant Queue as pg-boss Queue
+    participant Queue as BullMQ Queue
     participant FedBE as Federation Backend
     participant Remote as Remote Instance
 
@@ -140,14 +140,14 @@ Harmony servers are represented as ActivityPub Groups:
 
 ## Job Queue Details
 
-### With pg-boss (`USE_PGBOSS_QUEUE=true`)
+### With BullMQ (`USE_BULLMQ_QUEUE=true`)
 
 - Jobs stored in PostgreSQL (same database as application data)
 - Reliable: survives server restarts
 - Retry with exponential backoff on delivery failure
-- `queue_federation_job()` has a fallback for missing pg-boss tables
+- `queue_federation_job()` uses `pg_notify` to bridge jobs into BullMQ
 
-### Without pg-boss
+### Without BullMQ
 
 - Database listeners process events synchronously
 - Simpler but less reliable (events can be lost on restart)

@@ -77,12 +77,12 @@ Copy from `federation-backend/env.template`.
 | `INSTANCE_DOMAIN` | Instance domain (no protocol) | `har.mony.lol` |
 | `CORS_ORIGIN` | Frontend origin for CORS | `https://har.mony.lol` |
 
-### Job Queue (pg-boss)
+### Job Queue (BullMQ)
 
 | Variable | Description |
 |----------|-------------|
-| `DATABASE_URL` | PostgreSQL connection string for pg-boss queue |
-| `USE_PGBOSS_QUEUE` | `true` to enable reliable job queue (recommended) |
+| `DATABASE_URL` | PostgreSQL connection string for LISTEN/NOTIFY bridge |
+| `USE_BULLMQ_QUEUE` | `true` to enable reliable job queue (recommended) |
 
 ### Optional
 
