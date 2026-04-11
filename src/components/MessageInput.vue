@@ -17,6 +17,12 @@
       :files="attachedFiles"
       @remove-file="removeFile"
     />
+    <!-- Inline GIF results (live search during /tenor command) -->
+    <InlineGifPicker
+      v-if="autoSuggest.activeCommand.value?.name === 'tenor'"
+      :query="modelValue || ''"
+      @selectGif="handleInlineGifSelect"
+    />
     <!-- Command parameter hint bar (Discord-style) -->
     <div v-if="autoSuggest.activeCommand.value" class="command-param-bar">
       <div class="command-param-info">
@@ -135,9 +141,10 @@ import FileUploadMenu from '@/components/FileUploadMenu.vue';
 import AutoSuggest from '@/components/AutoSuggest.vue';
 import RichTextEditor from '@/components/RichTextEditor.vue';
 import VoiceRecorder from '@/components/VoiceRecorder.vue';
+import InlineGifPicker from '@/components/InlineGifPicker.vue';
 import type { FilePreviewData } from '@/components/FilePreview.vue';
 import type { SuggestionItem } from '@/components/AutoSuggest.vue';
-import type { Message } from '@/types';
+import type { Message, Gif } from '@/types';
 import { backgroundUploadManager } from '@/services/fileService';
 import type { VoiceRecordingResult } from '@/services/voiceRecordingService';
 import { supabase } from '@/supabase';
@@ -193,7 +200,7 @@ interface Emits {
   (e: 'files-attached', files: FilePreviewData[]): void;
   (e: 'upload-status-changed', uploading: boolean): void;
   (e: 'edit-last-message'): void;
-  (e: 'executeCommand', command: string, query: string): void;
+  (e: 'sendGif', gif: Gif): void;
 }
 
 const emit = defineEmits<Emits>();
@@ -433,16 +440,9 @@ const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText);
       if (event.key === 'Enter' && !event.isComposing && !event.shiftKey && !isMobile.value) {
         event.preventDefault();
 
-        // If a parameterized command is active, execute it instead of sending
+        // If a parameterized command is active, Enter doesn't send
+        // (user picks results by clicking, e.g. GIF grid)
         if (autoSuggest.activeCommand.value) {
-          const cmd = autoSuggest.activeCommand.value;
-          const query = (props.modelValue || '').trim();
-          autoSuggest.dismissActiveCommand();
-          emit('update:modelValue', '');
-          if (richEditorRef.value?.clear) {
-            richEditorRef.value.clear();
-          }
-          emit('executeCommand', cmd.name, query);
           return;
         }
 
@@ -528,6 +528,15 @@ const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText);
         richEditorRef.value.clear();
       }
       nextTick(() => richEditorRef.value?.focus());
+    };
+
+    const handleInlineGifSelect = (gif: Gif) => {
+      autoSuggest.dismissActiveCommand();
+      emit('update:modelValue', '');
+      if (richEditorRef.value?.clear) {
+        richEditorRef.value.clear();
+      }
+      emit('sendGif', gif);
     };
 
     const toggleGiphy = () => {
@@ -808,9 +817,20 @@ const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText);
     justify-content: space-between;
     padding: 8px 12px;
     background: var(--background-quaternary);
+    border-bottom: 1px solid color-mix(in srgb, var(--text-primary) 10%, transparent);
+  }
+
+  /* When inline GIF picker is above, hint bar loses top radius */
+  .inline-gif-picker + .command-param-bar {
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+  }
+
+  /* When hint bar has no picker above, keep top radius */
+  .command-param-bar:first-child,
+  .command-param-bar:not(.inline-gif-picker + .command-param-bar) {
     border-top-left-radius: 8px;
     border-top-right-radius: 8px;
-    border-bottom: 1px solid color-mix(in srgb, var(--text-primary) 10%, transparent);
   }
 
   .command-param-bar + .message-container {
