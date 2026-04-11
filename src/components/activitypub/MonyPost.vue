@@ -1849,12 +1849,13 @@ const handleRefetchFromSource = async () => {
 
 const handleAdminToggleSensitive = async () => {
   showMenu.value = false;
+  const postId = originalPostId.value;
   try {
     const currentSensitive = displayIsSensitive.value;
     const newVal = !currentSensitive;
     const action = currentSensitive ? 'unmark_sensitive' : 'mark_sensitive';
-    await adminService.moderatePost(props.post.id, action);
-    activityPubStore.updatePostFieldInAllFeeds(props.post.id, 'is_sensitive', newVal);
+    await adminService.moderatePost(postId, action);
+    activityPubStore.updatePostFieldInAllFeeds(postId, 'is_sensitive', newVal);
     if (isReblog.value && props.post.reblog) {
       (props.post.reblog as any).is_sensitive = newVal;
     }
@@ -1866,20 +1867,21 @@ const handleAdminToggleSensitive = async () => {
 
 const handleAdminSetCW = async () => {
   showMenu.value = false;
+  const postId = originalPostId.value;
   const existingCw = (isReblog.value && props.post.reblog?.content_warning) || props.post.content_warning || '';
   const cw = prompt('Content warning text (leave empty to remove):', existingCw);
   if (cw === null) return;
   try {
     if (cw.trim()) {
-      await adminService.moderatePost(props.post.id, 'set_cw', cw.trim());
-      activityPubStore.updatePostFieldInAllFeeds(props.post.id, 'content_warning', cw.trim());
+      await adminService.moderatePost(postId, 'set_cw', cw.trim());
+      activityPubStore.updatePostFieldInAllFeeds(postId, 'content_warning', cw.trim());
       if (isReblog.value && props.post.reblog) {
         (props.post.reblog as any).content_warning = cw.trim();
       }
       notificationStore.showToast('server_update', 'Content warning set', '', 3000);
     } else {
-      await adminService.moderatePost(props.post.id, 'remove_cw');
-      activityPubStore.updatePostFieldInAllFeeds(props.post.id, 'content_warning', null);
+      await adminService.moderatePost(postId, 'remove_cw');
+      activityPubStore.updatePostFieldInAllFeeds(postId, 'content_warning', null);
       if (isReblog.value && props.post.reblog) {
         (props.post.reblog as any).content_warning = null;
       }
@@ -1892,10 +1894,11 @@ const handleAdminSetCW = async () => {
 
 const handleAdminDeletePost = async () => {
   showMenu.value = false;
+  const postId = originalPostId.value;
   if (!confirm('Delete this post as admin? This cannot be undone.')) return;
   try {
-    await adminService.moderatePost(props.post.id, 'delete');
-    activityPubStore.updatePostFieldInAllFeeds(props.post.id, 'is_deleted', true);
+    await adminService.moderatePost(postId, 'delete');
+    activityPubStore.updatePostFieldInAllFeeds(postId, 'is_deleted', true);
     notificationStore.showToast('server_update', 'Post deleted', 'Post has been removed by admin.', 3000);
   } catch (error: any) {
     notificationStore.showToast('server_update', 'Failed', error.message || 'Could not delete post.', 5000);
