@@ -125,6 +125,7 @@ import type { Gif } from '@/types';
 
 interface Props {
   showFavorites: boolean;
+  initialSearchQuery?: string;
 }
 
 const props = defineProps<Props>();
@@ -137,7 +138,7 @@ interface Emits {
 const emit = defineEmits<Emits>();
 
 // State
-const searchQuery = ref('');
+const searchQuery = ref(props.initialSearchQuery || '');
 const gifs = ref<Gif[]>([]);
 const favorites = ref<FavoriteGif[]>([]);
 const hoveredGif = ref<string | null>(null);
@@ -279,7 +280,11 @@ watch(() => props.showFavorites, (show) => {
 // Initialize
 onMounted(async () => {
   await loadFavorites();
-  fetchTrendingGifs();
+  if (searchQuery.value) {
+    searchGifs();
+  } else {
+    fetchTrendingGifs();
+  }
   
   nextTick(() => {
     searchInput.value?.focus();

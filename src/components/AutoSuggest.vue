@@ -68,6 +68,10 @@
               </span>
               <DisplayName v-else-if="!suggestion.emoji && suggestion.id" class="suggest-name" :userId="suggestion.id" :fallback="suggestion.display_name || suggestion.name" :truncate="true" />
               <span class="suggest-name" v-else>:{{ suggestion.emoji.name || suggestion.name }}:</span>
+              <!-- Command params -->
+              <span v-if="suggestion.isCommand && suggestion.commandParams?.length" class="suggest-command-params">
+                <span v-for="param in suggestion.commandParams" :key="param.name" class="suggest-param-tag">{{ param.name }}</span>
+              </span>
               <!-- Command description -->
               <span v-if="suggestion.isCommand && suggestion.description" class="suggest-description">
                 {{ suggestion.description }}
@@ -346,6 +350,21 @@ watch(() => props.selectedIndex, (newIndex) => {
 .command-name {
   font-weight: 600;
   color: var(--accent-color, #0EA5E9);
+}
+
+.suggest-command-params {
+  display: flex;
+  gap: 4px;
+  margin-left: 6px;
+}
+
+.suggest-param-tag {
+  font-size: 0.7rem;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--text-primary) 12%, transparent);
+  color: var(--text-secondary);
+  font-weight: 500;
 }
 
 .suggest-description {

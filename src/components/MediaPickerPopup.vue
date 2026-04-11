@@ -43,6 +43,7 @@
     <GifPickerContent
       v-if="activeTab === 'gifs'"
       :show-favorites="showFavorites"
+      :initial-search-query="initialSearchQuery"
       @update:show-favorites="showFavorites = $event"
       @send-gif="handleSendGif"
     />
@@ -67,11 +68,13 @@ interface Props {
   position?: PopupPosition;
   triggerElement?: HTMLElement;
   initialTab?: 'gifs' | 'stickers' | 'emoji';
+  initialSearchQuery?: string;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   position: 'above',
   initialTab: 'gifs',
+  initialSearchQuery: '',
 });
 
 interface Emits {

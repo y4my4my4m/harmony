@@ -218,6 +218,7 @@
             @toggle-giphy="toggleGiphy"
             @toggle-emoji-list="toggleEmojiListForInput"
             @edit-last-message="threadMessageDisplayRef?.editLastOwnMessage()"
+            @execute-command="handleCommandExecuted"
           />
         </div>
       </div>
@@ -245,6 +246,7 @@
       :position="'above'"
       :triggerElement="mediaPickerTriggerElement || undefined"
       :initialTab="mediaPickerInitialTab"
+      :initialSearchQuery="gifSearchQuery"
     />
   </Teleport>
 </template>
@@ -335,6 +337,7 @@ const emojiIconClicked = ref(false)
 // Media picker state (for GIFs + Emoji in message input)
 const mediaPickerOpen = ref(false)
 const mediaPickerInitialTab = ref<'gifs' | 'emoji'>('gifs')
+const gifSearchQuery = ref('')
 
 // Computed values for MessageInput props
 const giphyOpen = computed(() => mediaPickerOpen.value && mediaPickerInitialTab.value === 'gifs')
@@ -876,8 +879,19 @@ watch(reactionEmojiOpen, () => {
   }
 })
 
+// Handle parameterized slash commands from MessageInput
+const handleCommandExecuted = (command: string, query: string) => {
+  if (command === 'tenor') {
+    gifSearchQuery.value = query
+    mediaPickerInitialTab.value = 'gifs'
+    mediaPickerOpen.value = true
+    reactionEmojiOpen.value = false
+  }
+}
+
 // Media picker handlers (GIF + Emoji for message input)
 const toggleGiphy = () => {
+  gifSearchQuery.value = ''
   mediaPickerInitialTab.value = 'gifs'
   mediaPickerOpen.value = !mediaPickerOpen.value
   if (mediaPickerOpen.value) {

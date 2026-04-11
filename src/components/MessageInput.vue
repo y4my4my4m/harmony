@@ -17,6 +17,25 @@
       :files="attachedFiles"
       @remove-file="removeFile"
     />
+    <!-- Command parameter hint bar (Discord-style) -->
+    <div v-if="autoSuggest.activeCommand.value" class="command-param-bar">
+      <div class="command-param-info">
+        <span class="command-badge">/{{ autoSuggest.activeCommand.value.name }}</span>
+        <span 
+          v-for="param in autoSuggest.activeCommand.value.params" 
+          :key="param.name" 
+          class="command-param-item"
+        >
+          <span class="param-name">{{ param.name }}</span>
+          <span class="param-description">{{ param.description }}</span>
+        </span>
+      </div>
+      <button class="command-param-dismiss" @click="dismissCommand" :title="'Dismiss (Esc)'">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+          <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+        </svg>
+      </button>
+    </div>
     <div class="message-container"
          @dragenter.prevent="handleDragEnter"
          @dragover.prevent="handleDragOver"
@@ -48,7 +67,7 @@
           <RichTextEditor
             ref="richEditorRef"
             :model-value="modelValue"
-            :placeholder="attachedFiles.length > 0 ? $t('message.addComment') : $t('message.typeMessage', { to: placeholderTarget })"
+            :placeholder="autoSuggest.activeCommand.value ? autoSuggest.activeCommand.value.params[0]?.description || 'Enter a value...' : (attachedFiles.length > 0 ? $t('message.addComment') : $t('message.typeMessage', { to: placeholderTarget }))"
             :auto-suggest-active="autoSuggest.state.value.isActive"
             :auto-suggest-selected-id="autoSuggest.state.value.isActive ? 'suggest-' + autoSuggest.state.value.selectedIndex : undefined"
             @update:model-value="handleModelValueUpdate"
@@ -174,6 +193,7 @@ interface Emits {
   (e: 'files-attached', files: FilePreviewData[]): void;
   (e: 'upload-status-changed', uploading: boolean): void;
   (e: 'edit-last-message'): void;
+  (e: 'executeCommand', command: string, query: string): void;
 }
 
 const emit = defineEmits<Emits>();
@@ -393,6 +413,13 @@ const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText);
         return; // Auto-suggest handled the event
       }
       
+      // Escape dismisses active command mode
+      if (event.key === 'Escape' && autoSuggest.activeCommand.value) {
+        event.preventDefault();
+        dismissCommand();
+        return;
+      }
+
       // Up arrow on empty input → edit last own message (Discord/Telegram behavior)
       if (event.key === 'ArrowUp' && !props.modelValue?.trim()) {
         event.preventDefault();
@@ -405,6 +432,20 @@ const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText);
       // On desktop, Enter sends (Shift+Enter for new line)
       if (event.key === 'Enter' && !event.isComposing && !event.shiftKey && !isMobile.value) {
         event.preventDefault();
+
+        // If a parameterized command is active, execute it instead of sending
+        if (autoSuggest.activeCommand.value) {
+          const cmd = autoSuggest.activeCommand.value;
+          const query = (props.modelValue || '').trim();
+          autoSuggest.dismissActiveCommand();
+          emit('update:modelValue', '');
+          if (richEditorRef.value?.clear) {
+            richEditorRef.value.clear();
+          }
+          emit('executeCommand', cmd.name, query);
+          return;
+        }
+
         send();
       }
     };
@@ -435,8 +476,9 @@ const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText);
         typingResetTimeout = null
       }
       
-      // Close auto-suggest when sending
+      // Close auto-suggest and active command when sending
       autoSuggest.closeSuggestions();
+      autoSuggest.dismissActiveCommand();
       
       if (props.modelValue?.trim() || attachedFiles.value.length > 0) {
         const content = props.modelValue || '';
@@ -477,6 +519,15 @@ const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText);
         clearTimeout(typingResetTimeout)
         typingResetTimeout = null
       }
+    };
+
+    const dismissCommand = () => {
+      autoSuggest.dismissActiveCommand();
+      emit('update:modelValue', '');
+      if (richEditorRef.value?.clear) {
+        richEditorRef.value.clear();
+      }
+      nextTick(() => richEditorRef.value?.focus());
     };
 
     const toggleGiphy = () => {
@@ -748,6 +799,78 @@ const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText);
   .message-input.has-files .message-container {
     border-top-left-radius: 0;
     border-top-right-radius: 0;
+  }
+
+  /* Command parameter hint bar */
+  .command-param-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    background: var(--background-quaternary);
+    border-top-left-radius: 8px;
+    border-top-right-radius: 8px;
+    border-bottom: 1px solid color-mix(in srgb, var(--text-primary) 10%, transparent);
+  }
+
+  .command-param-bar + .message-container {
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+  }
+
+  .command-param-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .command-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: var(--harmony-primary-alpha, rgba(14, 165, 233, 0.15));
+    color: var(--accent-color, #0EA5E9);
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .command-param-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+  }
+
+  .param-name {
+    color: var(--text-primary);
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 11px;
+    letter-spacing: 0.02em;
+  }
+
+  .param-description {
+    color: var(--text-muted);
+    font-size: 12px;
+  }
+
+  .command-param-dismiss {
+    background: none;
+    border: none;
+    padding: 4px;
+    cursor: pointer;
+    color: var(--text-muted);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s ease;
+  }
+
+  .command-param-dismiss:hover {
+    background: color-mix(in srgb, var(--text-primary) 15%, transparent);
+    color: var(--text-primary);
   }
 
   .left-icons {

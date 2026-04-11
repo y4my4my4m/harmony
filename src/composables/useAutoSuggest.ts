@@ -132,6 +132,9 @@ export function useAutoSuggest(
     position: { x: 0, y: 0 }
   });
 
+  // Active parameterized command (e.g. /tenor waiting for query input)
+  const activeCommand = ref<{ name: string; params: { name: string; description: string }[] } | null>(null);
+
   // Dynamic user search results for ActivityPub mode
   const activityPubUsers = ref<any[]>([]);
   
@@ -441,9 +444,18 @@ export function useAutoSuggest(
   });
 
   // Slash commands filtered by user permissions
-  const SLASH_COMMANDS: { id: string; name: string; description: string; permission: string }[] = [
+  interface SlashCommand {
+    id: string;
+    name: string;
+    description: string;
+    permission: string;
+    params?: { name: string; description: string }[];
+  }
+
+  const SLASH_COMMANDS: SlashCommand[] = [
     { id: 'cmd:kick', name: 'kick', description: 'Kick a member from the server', permission: 'KICK_MEMBERS' },
     { id: 'cmd:ban', name: 'ban', description: 'Ban a member from the server', permission: 'BAN_MEMBERS' },
+    { id: 'cmd:tenor', name: 'tenor', description: 'Search for a GIF', permission: '', params: [{ name: 'query', description: 'Search for a GIF' }] },
   ];
 
   const commandSuggestions = computed((): SuggestionItem[] => {
@@ -453,6 +465,7 @@ export function useAutoSuggest(
     return SLASH_COMMANDS
       .filter(cmd => {
         if (!cmd.name.includes(query)) return false;
+        if (!cmd.permission) return true;
         if (isOwner) return true;
         return hasCurrentUserPermission(Permission[cmd.permission as keyof typeof Permission]);
       })
@@ -462,6 +475,7 @@ export function useAutoSuggest(
         display_name: `/${cmd.name}`,
         description: cmd.description,
         isCommand: true,
+        commandParams: cmd.params,
       }));
   });
 
@@ -819,6 +833,11 @@ export function useAutoSuggest(
     return { x, y };
   };
 
+  // Clear active command state
+  const dismissActiveCommand = () => {
+    activeCommand.value = null;
+  };
+
   // Handle input changes and detect triggers
   const handleInput = (value: string, cursorPosition: number) => {
     const textBeforeCursor = value.substring(0, cursorPosition);
@@ -974,9 +993,20 @@ export function useAutoSuggest(
       
       let insertText = '';
 
-      // Slash commands: dispatch event and clear input
+      // Slash commands
       if (state.value.triggerType === 'command' && suggestion.isCommand) {
         closeSuggestions();
+
+        // Commands with params: clear input and enter command mode
+        if (suggestion.commandParams?.length) {
+          activeCommand.value = { name: suggestion.name, params: suggestion.commandParams };
+          if (updateText) {
+            updateText('', 0);
+          }
+          return '';
+        }
+
+        // Commands without params: dispatch event and clear input
         window.dispatchEvent(new CustomEvent('harmony-command', { detail: { command: suggestion.name } }));
         const clearedText = currentText.substring(0, triggerStart) + currentText.substring(triggerEnd);
         if (updateText) {
@@ -1138,10 +1168,12 @@ export function useAutoSuggest(
     state,
     suggestions,
     headerText,
+    activeCommand,
     handleInput,
     handleKeyDown,
     selectSuggestion,
     closeSuggestions,
+    dismissActiveCommand,
     updatePosition
   };
 }

@@ -78,6 +78,7 @@
       @update:replyMessageId="handleDontReply"
       @upload-status-changed="handleUploadStatusChanged"
       @edit-last-message="handleEditLastMessage"
+      @executeCommand="handleCommandExecuted"
     />
     <!-- Media Picker (GIFs + Emoji) for message input -->
     <MediaPickerPopup
@@ -89,6 +90,7 @@
       :position="'above'"
       :triggerElement="mediaPickerTriggerElement || undefined"
       :initialTab="mediaPickerInitialTab"
+      :initialSearchQuery="gifSearchQuery"
     />
     
     <!-- Emoji Popup for reactions only (teleported to avoid transform containment from virtual scroll) -->
@@ -225,6 +227,7 @@
   // Media picker state (unified GIF + Emoji picker)
   const mediaPickerOpen = ref(false);
   const mediaPickerInitialTab = ref<'gifs' | 'emoji'>('gifs');
+  const gifSearchQuery = ref('');
   
   // Reaction emoji picker (separate for positioning on messages)
   const reactionEmojiOpen = ref(false);
@@ -674,6 +677,7 @@
 
       const toggleGiphy = () => {
           debug.log('toggleGiphy called');
+          gifSearchQuery.value = '';
           mediaPickerInitialTab.value = 'gifs';
           mediaPickerOpen.value = !mediaPickerOpen.value;
           debug.log('mediaPickerOpen is now:', mediaPickerOpen.value);
@@ -681,6 +685,16 @@
               gifIconClicked.value = true;
               reactionEmojiOpen.value = false;
           }
+      };
+
+      // Handle parameterized slash commands from MessageInput
+      const handleCommandExecuted = (command: string, query: string) => {
+        if (command === 'tenor') {
+          gifSearchQuery.value = query;
+          mediaPickerInitialTab.value = 'gifs';
+          mediaPickerOpen.value = true;
+          reactionEmojiOpen.value = false;
+        }
       };
 
       watch(mediaPickerOpen, () => {
