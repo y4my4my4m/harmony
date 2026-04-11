@@ -1,7 +1,7 @@
 /**
  * BullMQManager - Redis-backed job queue for federation processing
  *
- * Replaces pg-boss with BullMQ. DB triggers still use pg_notify to bridge
+ * DB triggers call queue_federation_job() which uses pg_notify to bridge
  * jobs into BullMQ via NotificationListener.  BullMQ handles retries,
  * backoff, persistence (in Redis), repeatable maintenance jobs, and
  * provides a Bull Board dashboard for monitoring.

@@ -9,9 +9,6 @@
 --   supabase_vault -> vault      (has its own schema)
 --   everything else -> extensions (Supabase convention)
 --
--- NOTE: pg_boss is NOT a PG extension. It's an npm package used by the
--- federation-backend. It auto-creates a "pgboss" schema on first start.
--- No SQL setup is needed for it.
 -- =============================================================================
 
 -- Ensure the extensions schema exists (pre-created by Supabase, but not in vanilla PG)

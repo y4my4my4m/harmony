@@ -12,6 +12,7 @@ BEGIN
     BEGIN PERFORM cron.unschedule('update-trending-posts'); EXCEPTION WHEN OTHERS THEN NULL; END;
     BEGIN PERFORM cron.unschedule('update-hashtag-scores'); EXCEPTION WHEN OTHERS THEN NULL; END;
     BEGIN PERFORM cron.unschedule('reset-daily-hashtag-counters'); EXCEPTION WHEN OTHERS THEN NULL; END;
+    BEGIN PERFORM cron.unschedule('cleanup-cron-job-run-details'); EXCEPTION WHEN OTHERS THEN NULL; END;
 
     -- Recompute trending_posts every 15 minutes
     PERFORM cron.schedule(
@@ -32,6 +33,13 @@ BEGIN
       'reset-daily-hashtag-counters',
       '0 0 * * *',
       'SELECT public.reset_daily_hashtag_counters()'
+    );
+
+    -- Purge cron run logs older than 7 days (prevents unbounded growth)
+    PERFORM cron.schedule(
+      'cleanup-cron-job-run-details',
+      '0 4 * * *',
+      $$DELETE FROM cron.job_run_details WHERE end_time < now() - interval '7 days'$$
     );
 
     RAISE NOTICE 'pg_cron jobs scheduled for trending updates';

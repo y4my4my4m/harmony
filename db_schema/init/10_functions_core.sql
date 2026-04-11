@@ -644,6 +644,22 @@ BEGIN
 END;
 $$;
 
+-- Enforce force_sensitive: auto-set is_sensitive for posts by force_sensitive authors
+CREATE OR REPLACE FUNCTION public.enforce_force_sensitive()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM public.profiles
+        WHERE id = NEW.author_id AND force_sensitive = true
+    ) THEN
+        NEW.is_sensitive := true;
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
 -- Handle posts insert updated_at (default to created_at so new posts don't appear edited)
 CREATE OR REPLACE FUNCTION public.handle_posts_insert_updated_at()
 RETURNS trigger

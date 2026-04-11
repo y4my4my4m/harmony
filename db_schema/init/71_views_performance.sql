@@ -115,9 +115,9 @@ SELECT
     max(duration_ms) AS max_duration_ms,
     min(duration_ms) AS min_duration_ms,
     percentile_cont(0.95) WITHIN GROUP (ORDER BY duration_ms) AS p95_duration_ms,
-    max(created_at) AS last_seen
+    max("timestamp") AS last_seen
 FROM public.slow_queries
-WHERE created_at > now() - interval '24 hours'
+WHERE "timestamp" > now() - interval '24 hours'
 GROUP BY table_name, operation_type
 ORDER BY avg(duration_ms) DESC;
 

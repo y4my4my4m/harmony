@@ -14,7 +14,11 @@
           :style="bannerStyle"
           @click="triggerBannerUpload"
         >
-          <div class="banner-overlay">
+          <div v-if="bannerUploading" class="banner-loading-overlay">
+            <span class="banner-spinner"></span>
+            <span>Uploading...</span>
+          </div>
+          <div v-else class="banner-overlay">
             <Icon name="camera" />
             <span>{{ $t('user.banner') }}</span>
           </div>
@@ -33,7 +37,7 @@
               :alt="$t('user.avatar')"
               size="xl"
               :editable="true"
-              :loading="loading"
+              :loading="loading && !bannerUploading"
               @upload="handleAvatarUpload"
             />
           </div>
@@ -258,6 +262,7 @@ import { useToast } from 'vue-toastification'
 interface Props {
   profile: User | null
   loading: boolean
+  bannerUploading?: boolean
 }
 
 const props = defineProps<Props>()
@@ -602,6 +607,30 @@ onMounted(async () => {
 
 .profile-banner:hover .banner-overlay {
   opacity: 1;
+}
+
+.banner-loading-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 500;
+  z-index: 1;
+}
+
+.banner-spinner {
+  width: 24px;
+  height: 24px;
+  border: 3px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #ffffff;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
 }
 
 .profile-info {

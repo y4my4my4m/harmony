@@ -93,8 +93,8 @@ export async function startDatabaseListener(): Promise<void> {
         filter: 'interaction_type=eq.emoji_reaction',
       },
       async (payload) => {
-        if (config.USE_PGBOSS_QUEUE) {
-          logger.debug('❤️ Post reaction detected - handled by pg-boss:', payload.new.id);
+        if (config.USE_BULLMQ_QUEUE) {
+          logger.debug('❤️ Post reaction detected - handled by BullMQ:', payload.new.id);
         } else {
           logger.info('❤️  New reaction detected:', payload.new.id);
           await handleNewReaction(payload.new);
@@ -110,8 +110,8 @@ export async function startDatabaseListener(): Promise<void> {
         filter: 'interaction_type=eq.favorite',
       },
       async (payload) => {
-        if (config.USE_PGBOSS_QUEUE) {
-          logger.debug('⭐ Post favorite detected - handled by pg-boss:', payload.new.id);
+        if (config.USE_BULLMQ_QUEUE) {
+          logger.debug('⭐ Post favorite detected - handled by BullMQ:', payload.new.id);
         } else {
           logger.info('⭐ New favorite/like detected:', payload.new.id);
           await handleNewReaction(payload.new);
@@ -247,19 +247,18 @@ export async function startDatabaseListener(): Promise<void> {
       },
       async (payload) => {
         // Enrich external link previews asynchronously for all local messages
-        // Skip when pg-boss is enabled — the job handler already calls enrichMessageLinkPreviews
-        if (!config.USE_PGBOSS_QUEUE && !payload.new.metadata?.federated) {
+        // Skip when BullMQ is enabled — the job handler already calls enrichMessageLinkPreviews
+        if (!config.USE_BULLMQ_QUEUE && !payload.new.metadata?.federated) {
           enrichMessageLinkPreviews(payload.new).catch(err =>
             logger.warn('Link preview enrichment failed:', err)
           );
         }
 
         // Handle DM messages (conversation_id set)
-        // When pg-boss is enabled, DMs are handled by the job queue for reliable delivery
+        // When BullMQ is enabled, DMs are handled by the job queue for reliable delivery
         if (payload.new.conversation_id && !payload.new.metadata?.federated) {
-          if (config.USE_PGBOSS_QUEUE) {
-            logger.debug('💬 DM detected - handled by pg-boss queue:', payload.new.id);
-            // pg-boss sweep will pick this up via federation_status
+          if (config.USE_BULLMQ_QUEUE) {
+            logger.debug('💬 DM detected - handled by BullMQ:', payload.new.id);
           } else {
             logger.info('💬 DM message detected:', {
               id: payload.new.id,
@@ -269,10 +268,10 @@ export async function startDatabaseListener(): Promise<void> {
           }
         }
         // Handle channel messages (channel_id set)
-        // When pg-boss is enabled, channel messages are handled by pg-boss sweep for reliability
+        // When BullMQ is enabled, channel messages are handled by BullMQ for reliability
         else if (payload.new.channel_id && !payload.new.metadata?.federated) {
-          if (config.USE_PGBOSS_QUEUE) {
-            logger.debug('📨 Channel message detected - handled by pg-boss:', payload.new.id);
+          if (config.USE_BULLMQ_QUEUE) {
+            logger.debug('📨 Channel message detected - handled by BullMQ:', payload.new.id);
           } else {
             logger.info('📨 Channel message detected:', {
               id: payload.new.id,
@@ -295,8 +294,8 @@ export async function startDatabaseListener(): Promise<void> {
         // Only process if content changed
         if (payload.new.channel_id && 
             JSON.stringify(payload.old.content) !== JSON.stringify(payload.new.content)) {
-          if (config.USE_PGBOSS_QUEUE) {
-            logger.debug('✏️ Channel message update detected - handled by pg-boss:', payload.new.id);
+          if (config.USE_BULLMQ_QUEUE) {
+            logger.debug('✏️ Channel message update detected - handled by BullMQ:', payload.new.id);
           } else {
             logger.info('✏️ Channel message update detected:', {
               id: payload.new.id,
@@ -317,8 +316,8 @@ export async function startDatabaseListener(): Promise<void> {
       },
       async (payload) => {
         if (payload.old.channel_id) {
-          if (config.USE_PGBOSS_QUEUE) {
-            logger.debug('🗑️ Channel message deletion detected - handled by pg-boss:', payload.old.id);
+          if (config.USE_BULLMQ_QUEUE) {
+            logger.debug('🗑️ Channel message deletion detected - handled by BullMQ:', payload.old.id);
           } else {
             logger.info('🗑️ Channel message deletion detected:', {
               id: payload.old.id,
@@ -392,7 +391,7 @@ export async function startDatabaseListener(): Promise<void> {
       }
     )
     // Listen for new message reactions (DMs)
-    // When pg-boss is enabled, DM reactions are handled by job queue
+    // When BullMQ is enabled, DM reactions are handled by job queue
     .on(
       'postgres_changes',
       {
@@ -401,8 +400,8 @@ export async function startDatabaseListener(): Promise<void> {
         table: 'reactions',
       },
       async (payload) => {
-        if (config.USE_PGBOSS_QUEUE) {
-          logger.debug('💬❤️ Message reaction detected - handled by pg-boss:', payload.new.id);
+        if (config.USE_BULLMQ_QUEUE) {
+          logger.debug('💬❤️ Message reaction detected - handled by BullMQ:', payload.new.id);
         } else {
           logger.info('💬❤️ New message reaction detected:', payload.new.id);
           await handleNewMessageReaction(payload.new);
@@ -418,8 +417,8 @@ export async function startDatabaseListener(): Promise<void> {
         table: 'reactions',
       },
       async (payload) => {
-        if (config.USE_PGBOSS_QUEUE) {
-          logger.debug('💬💔 Message reaction removed - handled by pg-boss:', payload.old?.id);
+        if (config.USE_BULLMQ_QUEUE) {
+          logger.debug('💬💔 Message reaction removed - handled by BullMQ:', payload.old?.id);
         } else {
           logger.info('💬💔 Message reaction removed:', payload.old?.id);
           await handleMessageReactionRemoval(payload.old);
@@ -2115,7 +2114,7 @@ export async function handleMessageReactionRemoval(deletedReaction: any): Promis
  * Local Harmony post URLs are already handled by the DB trigger (process_local_link_previews).
  * This handles everything else: YouTube, Spotify, Reddit, generic external URLs.
  *
- * Called from pg-boss job handlers (channelMessageHandler, dmHandler) for reliability,
+ * Called from BullMQ job handlers (channelMessageHandler, dmHandler) for reliability,
  * since Supabase Realtime may not fire consistently for all message INSERTs.
  */
 export async function enrichMessageLinkPreviews(message: any): Promise<void> {

@@ -30,17 +30,25 @@ export interface Report {
 
 export interface ReportWithDetails {
   id: string
-  reporter_id?: string
+  reporter_id: string | null
   reported_user_id: string | null
   reported_message_id: string | null
   reported_post_id: string | null
   reporter_username: string
   reporter_display_name: string
   reporter_avatar_url: string
+  reporter_domain: string | null
+  reporter_is_local: boolean
   reported_user_username: string | null
   reported_user_display_name: string | null
   reported_user_avatar_url: string | null
+  reported_user_domain: string | null
+  reported_user_is_local: boolean
   reported_post_preview: string | null
+  reported_post_ap_id: string | null
+  reported_post_url: string | null
+  reported_post_is_sensitive: boolean | null
+  reported_post_content_warning: string | null
   reported_message_preview: string | null
   reason: string
   comment: string | null

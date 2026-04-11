@@ -102,6 +102,7 @@
             v-if="activeSection === 'account'"
             :profile="profile"
             :loading="loading"
+            :banner-uploading="bannerUploading"
             @update-profile="handleProfileUpdate"
             @upload-avatar="handleAvatarUpload"
             @upload-banner="handleBannerUpload"
@@ -193,7 +194,7 @@ import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import { getProfileWithAvatarUrl, updateProfile, uploadAvatar, uploadBanner } from '@/services/ProfileService'
 import { normalizeAvatarForStorage } from '@/utils/avatarUtils'
-import { normalizeBannerForStorage, invalidateBannerCache } from '@/utils/bannerUtils'
+import { invalidateBannerCache } from '@/utils/bannerUtils'
 import { createSettingsNavigator, type SettingsSection } from '@/utils/settingsUtils'
 import { useUserData } from '@/composables/useUserData'
 import { useMobileGestures } from '@/composables/useMobileGestures'
@@ -248,6 +249,7 @@ const { handleTouchStart, handleTouchMove, handleTouchEnd, touchState } = useMob
 
 // Reactive state
 const loading = ref(false)
+const bannerUploading = ref(false)
 const profile = ref<User | null>(null)
 const activeSection = ref(props.section || 'account')
 const showSidebar = ref(false)
@@ -443,38 +445,38 @@ const handleBannerUpload = async (file: File) => {
   }
   
   try {
-    loading.value = true
+    bannerUploading.value = true
     debug.log('📤 Uploading banner to storage...')
     const result = await uploadBanner(file, authStore.session.user.id)
     
     if (!result.success) {
-      throw new Error(result.error || 'Upload failed')
+      toast.error(result.error || 'Failed to upload banner')
+      return
     }
     
     debug.log('✅ Banner uploaded to:', result.url)
     
-    // Ensure we normalize the banner URL for storage
-    const normalizedPath = normalizeBannerForStorage(result.url || '')
-    debug.log('🔄 Normalized path:', normalizedPath)
+    const storagePath = result.url || ''
     
-    debug.log('💾 Updating profile with banner...')
-    await updateProfile({ banner_url: normalizedPath || undefined })
     invalidateBannerCache()
-    profile.value = { ...profile.value, banner_url: normalizedPath } as User
+    profile.value = { ...profile.value, banner_url: storagePath } as User
     
-    // Broadcast banner update to all connected clients for real-time updates
-    debug.log('📡 Broadcasting banner update...')
-    await updateCurrentUserProfile({
-      bannerUrl: normalizedPath || undefined
-    })
+    // Broadcast banner update (non-blocking — don't let broadcast failure undo a successful upload)
+    try {
+      await updateCurrentUserProfile({
+        bannerUrl: storagePath || undefined
+      })
+    } catch (broadcastError) {
+      debug.error('⚠️ Banner broadcast failed (upload still succeeded):', broadcastError)
+    }
     
     toast.success('Banner updated successfully')
     debug.log('🎉 Banner upload completed successfully')
-  } catch (error) {
+  } catch (error: any) {
     debug.error('❌ Error uploading banner:', error)
-    toast.error('Failed to upload banner')
+    toast.error(error?.message || 'Failed to upload banner')
   } finally {
-    loading.value = false
+    bannerUploading.value = false
   }
 }
 

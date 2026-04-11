@@ -1470,10 +1470,17 @@ export const useActivityPubStore = defineStore('activitypub', {
     async batchFetchRemoteReactions(posts: TimelinePost[]) {
       const { fetchedReactionsThisSession } = await import('@/composables/useRemotePostSync');
       const localDomain = this.instanceDomain;
+
+      const getTargetApId = (p: TimelinePost): string | undefined =>
+        (p.ap_type === 'Announce' || p.reblog) ? (p.reblog?.ap_id || p.metadata?.original_ap_id || p.ap_id) : p.ap_id;
+
       const remotePosts = posts.filter(p => {
-        if (p.is_local || !p.ap_id || fetchedReactionsThisSession.has(p.id)) return false;
+        if (fetchedReactionsThisSession.has(p.id)) return false;
+        const targetApId = getTargetApId(p);
+        if (!targetApId) return false;
+        if (!p.reblog && p.is_local) return false;
         try {
-          if (new URL(p.ap_id).hostname === localDomain) return false;
+          if (new URL(targetApId).hostname === localDomain) return false;
         } catch { /* invalid URL, include it */ }
         return true;
       });
@@ -1482,11 +1489,17 @@ export const useActivityPubStore = defineStore('activitypub', {
       // Mark all as fetched upfront so individual MonyPost components skip their own fetch
       for (const p of remotePosts) fetchedReactionsThisSession.add(p.id);
 
+      // Map from target ap_id back to timeline post for result lookup
+      const apIdToPost = new Map<string, TimelinePost>();
+
       try {
-        const batchPayload = remotePosts.map(p => ({
-          post_ap_id: p.ap_id!,
-          post_id: p.id,
-        }));
+        const batchPayload = remotePosts.map(p => {
+          const targetApId = getTargetApId(p)!;
+          const targetPostId = (p.ap_type === 'Announce' || p.reblog)
+            ? (p.reblog?.id || p.metadata?.reblog_of || p.id) : p.id;
+          apIdToPost.set(targetApId, p);
+          return { post_ap_id: targetApId, post_id: targetPostId };
+        });
 
         const response = await fetch(`${this.federationApiUrl}/fetch-reactions-batch`, {
           method: 'POST',
@@ -1499,8 +1512,8 @@ export const useActivityPubStore = defineStore('activitypub', {
         const { results } = await response.json();
         if (!results) return;
 
-        for (const post of remotePosts) {
-          const result = results[post.ap_id!];
+        for (const [targetApId, post] of apIdToPost.entries()) {
+          const result = results[targetApId];
           if (!result?.success) continue;
 
           if (result.remote_reactions) {
@@ -1510,7 +1523,11 @@ export const useActivityPubStore = defineStore('activitypub', {
             });
           }
           if (result.favorites_count !== undefined) {
-            this.updatePostFieldInAllFeeds(post.id, 'favorites_count', result.favorites_count);
+            if (post.reblog) {
+              (post.reblog as any).favorites_count = result.favorites_count;
+            } else {
+              this.updatePostFieldInAllFeeds(post.id, 'favorites_count', result.favorites_count);
+            }
           }
         }
 

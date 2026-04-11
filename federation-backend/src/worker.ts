@@ -34,7 +34,7 @@ export async function startWorker(): Promise<void> {
     logger.error('Failed to initialize blocked instances cache:', error);
   });
 
-  if (config.USE_PGBOSS_QUEUE) {
+  if (config.USE_BULLMQ_QUEUE) {
     logger.info('Starting BullMQ workers with LISTEN/NOTIFY bridge...');
     await bullmqManager.start();
 
@@ -93,7 +93,7 @@ export async function stopWorker(): Promise<void> {
     notificationListener = null;
   }
 
-  if (config.USE_PGBOSS_QUEUE) {
+  if (config.USE_BULLMQ_QUEUE) {
     await bullmqManager.stop();
   }
 

@@ -109,7 +109,7 @@ ON CONFLICT (id) DO UPDATE SET
 -- STORAGE RLS POLICIES (idempotent: DROP IF EXISTS then CREATE)
 -- ---------------------------------------------------------------------------
 
--- Enable RLS on storage.objects
+-- RLS is already enabled by default in newer images; this is a no-op / safety net.
 ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
 
 -- Public read access for all public buckets

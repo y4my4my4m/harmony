@@ -251,7 +251,7 @@ supabase
 ### Backend
 - **Supabase**: PostgreSQL database with real-time features
 - **Federation Backend**: Node.js backend for ActivityPub federation
-- **BullMQ**: Redis-backed job queue for federation processing (replaced pg-boss)
+- **BullMQ**: Redis-backed job queue for federation processing
 - **Redis**: Caching, presence, typing indicators, rate limiting, and BullMQ persistence
 - **Row Level Security**: Database-level security policies
 - **Storage Buckets**: File and media storage

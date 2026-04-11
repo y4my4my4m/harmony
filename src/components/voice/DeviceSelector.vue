@@ -363,7 +363,6 @@ watch(isOpen, (newVal) => {
 </script>
 
 <style scoped>
-/* Backdrop to catch clicks outside */
 .device-dropdown-backdrop {
   position: fixed;
   top: 0;
@@ -384,7 +383,7 @@ watch(isOpen, (newVal) => {
   gap: 2px;
   padding: 4px 6px;
   background: rgba(0, 0, 0, 0.3);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--border-primary);
   border-radius: 6px;
   color: var(--text-secondary);
   cursor: pointer;
@@ -393,15 +392,15 @@ watch(isOpen, (newVal) => {
 }
 
 .selector-trigger:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.08);
   color: var(--text-primary);
-  border-color: rgba(255, 255, 255, 0.2);
+  border-color: var(--border-hover);
 }
 
 .selector-trigger.open {
-  background: rgba(14, 165, 233, 0.3);
+  background: var(--harmony-primary-light);
   color: var(--text-primary);
-  border-color: rgba(14, 165, 233, 0.5);
+  border-color: var(--harmony-primary);
 }
 
 .chevron {
@@ -413,16 +412,14 @@ watch(isOpen, (newVal) => {
   transform: rotate(180deg);
 }
 
-/* Dropdown */
+/* Dropdown - matches app popover/context-menu styling */
 .device-dropdown {
   position: fixed;
   z-index: 10010;
-  background: linear-gradient(145deg, var(--background-tertiary), var(--background-secondary));
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
-  box-shadow: 
-    0 12px 40px rgba(0, 0, 0, 0.6),
-    0 4px 16px rgba(0, 0, 0, 0.4);
+  background: var(--background-quaternary);
+  border: 1px solid var(--border-primary);
+  border-radius: 8px;
+  box-shadow: var(--shadow-modal);
   min-width: 280px;
   max-width: 360px;
   max-height: 400px;
@@ -431,22 +428,21 @@ watch(isOpen, (newVal) => {
   flex-direction: column;
 }
 
-/* Dropdown animation */
 .dropdown-enter-active,
 .dropdown-leave-active {
-  transition: all 0.2s ease;
+  transition: all 0.15s ease;
 }
 
 .dropdown-enter-from,
 .dropdown-leave-to {
   opacity: 0;
-  transform: translateY(-8px) scale(0.95);
+  transform: translateY(-4px);
 }
 
 /* Device Section */
 .device-section {
-  padding: 8px 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border-secondary);
 }
 
 .device-section:last-of-type {
@@ -475,7 +471,7 @@ watch(isOpen, (newVal) => {
   align-items: center;
   gap: 10px;
   width: 100%;
-  padding: 10px 16px;
+  padding: 8px 16px;
   background: transparent;
   border: none;
   color: var(--text-secondary);
@@ -491,12 +487,12 @@ watch(isOpen, (newVal) => {
 }
 
 .device-item.active {
-  background: rgba(14, 165, 233, 0.15);
-  color: #0EA5E9;
+  background: var(--harmony-primary-light);
+  color: var(--harmony-primary);
 }
 
 .device-item.active:hover {
-  background: rgba(14, 165, 233, 0.25);
+  background: rgba(14, 165, 233, 0.18);
 }
 
 .device-label {
@@ -515,9 +511,8 @@ watch(isOpen, (newVal) => {
 
 /* Footer */
 .dropdown-footer {
-  padding: 8px;
-  border-top: 1px solid rgba(255, 255, 255, 0.05);
-  background: rgba(0, 0, 0, 0.1);
+  padding: 6px 8px;
+  border-top: 1px solid var(--border-secondary);
 }
 
 .settings-link {
@@ -525,7 +520,7 @@ watch(isOpen, (newVal) => {
   align-items: center;
   gap: 8px;
   width: 100%;
-  padding: 10px 12px;
+  padding: 8px 12px;
   background: transparent;
   border: none;
   border-radius: 6px;
@@ -562,7 +557,6 @@ watch(isOpen, (newVal) => {
    MOBILE RESPONSIVE STYLES
    ============================================ */
 
-/* Tablet */
 @media (max-width: 768px) {
   .selector-trigger {
     padding: 6px 8px;
@@ -572,7 +566,6 @@ watch(isOpen, (newVal) => {
     justify-content: center;
   }
   
-  /* Hide chevron on tablet - tap to toggle */
   .chevron {
     display: none;
   }
@@ -605,7 +598,6 @@ watch(isOpen, (newVal) => {
   }
 }
 
-/* Mobile - Bottom sheet style */
 @media (max-width: 480px) {
   .selector-trigger {
     padding: 8px 10px;
@@ -619,7 +611,6 @@ watch(isOpen, (newVal) => {
     backdrop-filter: blur(4px);
   }
   
-  /* Bottom sheet positioning */
   .device-dropdown {
     position: fixed !important;
     left: 0 !important;
@@ -629,12 +620,11 @@ watch(isOpen, (newVal) => {
     min-width: 100%;
     max-width: 100%;
     max-height: 70vh;
-    border-radius: 20px 20px 0 0;
+    border-radius: 12px 12px 0 0;
     padding-bottom: env(safe-area-inset-bottom, 0px);
     transform: none !important;
   }
   
-  /* Bottom sheet animation */
   .dropdown-enter-from,
   .dropdown-leave-to {
     opacity: 1;
@@ -646,19 +636,18 @@ watch(isOpen, (newVal) => {
     transition: transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
   }
   
-  /* Bottom sheet handle */
   .device-dropdown::before {
     content: '';
     display: block;
-    width: 40px;
+    width: 36px;
     height: 4px;
-    background: rgba(255, 255, 255, 0.3);
+    background: rgba(255, 255, 255, 0.2);
     border-radius: 2px;
-    margin: 12px auto 8px;
+    margin: 10px auto 6px;
   }
   
   .device-section {
-    padding: 12px 0;
+    padding: 8px 0;
   }
   
   .section-header {
@@ -679,7 +668,7 @@ watch(isOpen, (newVal) => {
   }
   
   .device-item:active {
-    background: rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.08);
   }
   
   .no-devices {
@@ -688,25 +677,24 @@ watch(isOpen, (newVal) => {
   }
   
   .dropdown-footer {
-    padding: 12px 16px;
-    padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+    padding: 10px 12px;
+    padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
   }
   
   .settings-link {
-    padding: 16px;
-    min-height: 56px;
+    padding: 14px;
+    min-height: 52px;
     font-size: 15px;
-    border-radius: 10px;
+    border-radius: 8px;
     justify-content: center;
-    background: rgba(255, 255, 255, 0.05);
+    background: rgba(255, 255, 255, 0.04);
   }
   
   .settings-link:active {
-    background: rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.08);
   }
 }
 
-/* Very small mobile */
 @media (max-width: 360px) {
   .device-dropdown {
     max-height: 80vh;

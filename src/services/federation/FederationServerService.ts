@@ -11,6 +11,7 @@
  */
 
 import { debug } from '@/utils/debug'
+import { supabase } from '@/supabase'
 
 // Types
 export interface RemoteServer {
@@ -274,6 +275,11 @@ export class FederationServerService {
     try {
       debug.log(`👋 Joining remote server: ${serverUrl}${inviteCode ? ` with invite ${inviteCode}` : ''}`)
 
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) {
+        return { success: false, error: 'Not authenticated' }
+      }
+
       const response = await fetch(
         `${FEDERATION_API}/servers/join`,
         {
@@ -281,6 +287,7 @@ export class FederationServerService {
           headers: {
             'Content-Type': 'application/json',
             'Accept': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`,
           },
           body: JSON.stringify({
             serverUrl,
@@ -330,6 +337,11 @@ export class FederationServerService {
     try {
       debug.log(`👋 Leaving server: ${serverId}`)
 
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) {
+        return { success: false, error: 'Not authenticated' }
+      }
+
       const response = await fetch(
         `${FEDERATION_API}/servers/leave`,
         {
@@ -337,6 +349,7 @@ export class FederationServerService {
           headers: {
             'Content-Type': 'application/json',
             'Accept': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`,
           },
           body: JSON.stringify({
             serverId,

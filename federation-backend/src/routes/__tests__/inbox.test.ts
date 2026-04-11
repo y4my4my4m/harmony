@@ -10,7 +10,7 @@ vi.mock('../../config/index.js', () => ({
     SUPABASE_ANON_KEY: 'test-key',
     SUPABASE_SERVICE_ROLE_KEY: 'test-service-key',
     PUBLIC_SUPABASE_URL: 'http://localhost:54321',
-    USE_PGBOSS_QUEUE: false,
+    USE_BULLMQ_QUEUE: false,
     CORS_ORIGIN: 'http://localhost:5173',
     REQUIRE_VALID_SIGNATURES: true,
   },

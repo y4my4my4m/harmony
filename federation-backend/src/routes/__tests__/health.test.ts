@@ -11,7 +11,7 @@ vi.mock('../../config/index.js', () => ({
     SUPABASE_SERVICE_ROLE_KEY: 'test-service-key',
     PUBLIC_SUPABASE_URL: 'http://localhost:54321',
     DATABASE_URL: 'postgresql://postgres:postgres@localhost:54322/postgres',
-    USE_PGBOSS_QUEUE: false,
+    USE_BULLMQ_QUEUE: false,
     CORS_ORIGIN: 'http://localhost:5173',
     INSTANCE_NAME: 'Test Instance',
   },

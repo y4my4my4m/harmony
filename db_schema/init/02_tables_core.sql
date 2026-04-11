@@ -45,6 +45,10 @@ CREATE TABLE IF NOT EXISTS public.profiles (
     is_suspended boolean DEFAULT false,
     suspended_at timestamp with time zone,
     suspension_reason text,
+    force_sensitive boolean DEFAULT false,
+    is_silenced boolean DEFAULT false,
+    silenced_at timestamp with time zone,
+    silenced_reason text,
     
     -- Denormalized counts (maintained by triggers)
     followers_count integer DEFAULT 0,

@@ -1606,7 +1606,7 @@ onUnmounted(() => {
 }
 
 .tab-btn.active .tab-count {
-  background: rgba(14, 165, 233, 0.2);
+  background: color-mix(in srgb, var(--harmony-primary) 20%, transparent);
   color: var(--harmony-primary);
 }
 

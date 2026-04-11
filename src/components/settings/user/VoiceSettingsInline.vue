@@ -736,7 +736,7 @@ onUnmounted(() => {
   color: var(--text-primary);
   margin: 0 0 20px 0;
   padding-bottom: 8px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid var(--border-primary);
 }
 
 .setting-group {
@@ -754,14 +754,14 @@ onUnmounted(() => {
 }
 
 .setting-value {
-  color: #0EA5E9;
+  color: var(--harmony-primary);
   font-weight: 600;
 }
 
 .setting-select {
   width: 100%;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--background-tertiary);
+  border: 1px solid var(--border-primary);
   border-radius: 8px;
   padding: 12px 16px;
   color: var(--text-secondary);
@@ -771,8 +771,8 @@ onUnmounted(() => {
 
 .setting-select:focus {
   outline: none;
-  border-color: #0EA5E9;
-  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--harmony-primary);
+  background: var(--background-secondary);
 }
 
 .volume-control {
@@ -798,7 +798,7 @@ onUnmounted(() => {
   background: var(--harmony-primary);
   border-radius: 50%;
   cursor: pointer;
-  box-shadow: 0 2px 8px rgba(14, 165, 233, 0.3);
+  box-shadow: 0 2px 6px color-mix(in srgb, var(--harmony-primary) 30%, transparent);
 }
 
 .volume-indicator {
@@ -806,7 +806,7 @@ onUnmounted(() => {
   top: 10px;
   left: 0;
   height: 6px;
-  background: linear-gradient(90deg, #00d4aa, #0EA5E9);
+  background: var(--harmony-primary);
   border-radius: 3px;
   pointer-events: none;
   transition: width 0.1s ease;
@@ -839,7 +839,7 @@ onUnmounted(() => {
 .checkbox-custom {
   width: 20px;
   height: 20px;
-  border: 2px solid rgba(255, 255, 255, 0.3);
+  border: 2px solid var(--text-muted);
   border-radius: 4px;
   background: transparent;
   position: relative;
@@ -850,7 +850,7 @@ onUnmounted(() => {
 
 .setting-checkbox:checked + .checkbox-custom {
   background: var(--harmony-primary);
-  border-color: #0EA5E9;
+  border-color: var(--harmony-primary);
 }
 
 .setting-checkbox:checked + .checkbox-custom::after {
@@ -901,11 +901,11 @@ onUnmounted(() => {
 }
 
 .test-btn:hover {
-  background: #0284C7;
+  background: var(--harmony-primary-hover);
 }
 
 .test-btn.active {
-  background: #00d4aa;
+  background: var(--harmony-primary-hover);
 }
 
 .test-indicator {
@@ -918,7 +918,7 @@ onUnmounted(() => {
 
 .test-level {
   height: 100%;
-  background: linear-gradient(90deg, #00d4aa, #0EA5E9);
+  background: var(--harmony-primary);
   transition: width 0.1s ease;
 }
 
@@ -961,27 +961,27 @@ onUnmounted(() => {
   align-items: flex-start;
   gap: 12px;
   padding: 16px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 2px solid rgba(255, 255, 255, 0.1);
+  background: var(--background-tertiary);
+  border: 2px solid var(--border-primary);
   border-radius: 8px;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .input-mode-option:hover {
-  background: rgba(255, 255, 255, 0.05);
-  border-color: rgba(255, 255, 255, 0.2);
+  background: var(--background-secondary);
+  border-color: var(--border-hover);
 }
 
 .input-mode-option.active {
-  background: rgba(14, 165, 233, 0.1);
-  border-color: #0EA5E9;
+  background: var(--harmony-primary-light);
+  border-color: var(--harmony-primary);
 }
 
 .radio-custom {
   width: 20px;
   height: 20px;
-  border: 2px solid rgba(255, 255, 255, 0.3);
+  border: 2px solid var(--text-muted);
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -992,7 +992,7 @@ onUnmounted(() => {
 }
 
 .radio-custom.checked {
-  border-color: #0EA5E9;
+  border-color: var(--harmony-primary);
 }
 
 .radio-inner {
@@ -1004,7 +1004,7 @@ onUnmounted(() => {
 }
 
 .radio-custom.checked .radio-inner {
-  background: #0EA5E9;
+  background: var(--harmony-primary);
 }
 
 .mode-content {
@@ -1028,7 +1028,7 @@ onUnmounted(() => {
 
 .ptt-settings {
   padding-top: 16px;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  border-top: 1px solid var(--border-primary);
 }
 
 .keybind-button {
@@ -1037,8 +1037,8 @@ onUnmounted(() => {
   gap: 10px;
   width: 100%;
   padding: 12px 16px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--background-tertiary);
+  border: 1px solid var(--border-primary);
   border-radius: 8px;
   color: var(--text-secondary);
   font-size: 14px;
@@ -1048,14 +1048,14 @@ onUnmounted(() => {
 }
 
 .keybind-button:hover {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.2);
+  background: var(--background-secondary);
+  border-color: var(--border-hover);
 }
 
 .keybind-button.recording {
-  background: rgba(14, 165, 233, 0.2);
-  border-color: #0EA5E9;
-  color: #0EA5E9;
+  background: var(--harmony-primary-light);
+  border-color: var(--harmony-primary);
+  color: var(--harmony-primary);
   animation: pulse 1.5s ease-in-out infinite;
 }
 

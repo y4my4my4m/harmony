@@ -1401,11 +1401,22 @@ router.post(
 
     try {
       const replies = await fetchRemotePostReplies(post_ap_id, post_id, supabase, Math.min(limit, 20));
-      
+
+      let updatedCounts: any = {};
+      if (post_id) {
+        const { data: freshPost } = await supabase
+          .from('posts')
+          .select('replies_count, favorites_count, reblogs_count')
+          .eq('id', post_id)
+          .single();
+        if (freshPost) updatedCounts = freshPost;
+      }
+
       return res.json({
         success: true,
         replies,
         count: replies.length,
+        ...updatedCounts,
       });
     } catch (error: any) {
       logger.error('Failed to fetch replies:', error);
@@ -1671,7 +1682,21 @@ async function fetchRemotePostReplies(
     }
 
     const post = await postResponse.json();
-    
+
+    // Update parent post counts from the freshly fetched remote object
+    if (postId) {
+      const remoteCounts: any = {};
+      const remoteReplies = post.replies?.totalItems || post.repliesCount || 0;
+      const remoteLikes = post.likes?.totalItems || post.favouritesCount || 0;
+      const remoteShares = post.shares?.totalItems || post.sharesCount || 0;
+      if (remoteReplies > 0) remoteCounts.replies_count = remoteReplies;
+      if (remoteLikes > 0) remoteCounts.favorites_count = remoteLikes;
+      if (remoteShares > 0) remoteCounts.reblogs_count = remoteShares;
+      if (Object.keys(remoteCounts).length > 0) {
+        await supabase.from('posts').update(remoteCounts).eq('id', postId);
+      }
+    }
+
     // Get replies collection URL
     const repliesUrl = post.replies;
     if (!repliesUrl) {
@@ -2560,31 +2585,52 @@ async function fetchRecentPostsInBackground(
           const originalUrl = typeof item.object === 'string' ? item.object : item.object?.id;
           if (!originalUrl) continue;
           
-          // Try to find or fetch the original post
-          let originalPostId: string | null = null;
+          // Try to find the original post with full data for the reblog JSON
           const { data: originalPost } = await supabase
             .from('posts')
-            .select('id')
+            .select('id, content, visibility, author_id, created_at, ap_id, url, is_sensitive, content_warning, favorites_count, replies_count, reblogs_count, media_attachments')
             .eq('ap_id', originalUrl)
             .maybeSingle();
-          
+
+          let reblogJson: any = undefined;
+          let reblogAuthorJson: any = null;
           if (originalPost) {
-            originalPostId = originalPost.id;
+            reblogJson = {
+              id: originalPost.id,
+              content: originalPost.content,
+              created_at: originalPost.created_at,
+              visibility: originalPost.visibility,
+              ap_id: originalPost.ap_id || originalUrl,
+              url: originalPost.url || null,
+              is_sensitive: originalPost.is_sensitive || false,
+              content_warning: originalPost.content_warning || null,
+              favorites_count: originalPost.favorites_count || 0,
+              replies_count: originalPost.replies_count || 0,
+              reblogs_count: originalPost.reblogs_count || 0,
+              media_attachments: originalPost.media_attachments || [],
+            };
+            const { data: origAuthor } = await supabase
+              .from('profiles')
+              .select('id, username, display_name, avatar_url, domain, is_local')
+              .eq('id', originalPost.author_id)
+              .single();
+            if (origAuthor) reblogAuthorJson = origAuthor;
           }
-          // Note: We could fetch the original post here, but that's expensive
-          // For now, just store the reference in metadata
-          
+
           const reblogData: any = {
             ap_id: item.id,
             ap_type: 'Announce',
             author_id: authorId,
-            content: [], // Reblogs typically don't have their own content
+            content: [],
             visibility: 'public',
             is_local: false,
             created_at: item.published || new Date().toISOString(),
+            reblog: reblogJson || undefined,
+            reblog_author: reblogAuthorJson,
             metadata: {
-              reblog_of: originalPostId,
+              reblog_of: originalPost?.id || null,
               reblog_of_ap_url: originalUrl,
+              original_ap_id: originalUrl,
               is_reblog: true,
             },
           };
@@ -2868,7 +2914,27 @@ router.post(
         return res.status(502).json({ error: `Remote server returned ${response.status}` });
       }
 
-      const remoteObject = await response.json();
+      let remoteObject = await response.json();
+
+      // Announce (reblog): follow the object URL to get the actual Note
+      if (remoteObject.type === 'Announce') {
+        const objectUrl = typeof remoteObject.object === 'string'
+          ? remoteObject.object
+          : remoteObject.object?.id;
+        if (!objectUrl) {
+          return res.status(400).json({ error: 'Announce has no object URL to follow' });
+        }
+        let noteResponse = await fetch(objectUrl, {
+          headers: { 'Accept': 'application/activity+json, application/ld+json' },
+        });
+        if (noteResponse.status === 401 || noteResponse.status === 403) {
+          noteResponse = await SignatureService.signedApFetch(objectUrl);
+        }
+        if (!noteResponse.ok) {
+          return res.status(502).json({ error: `Remote server returned ${noteResponse.status} for announced object` });
+        }
+        remoteObject = await noteResponse.json();
+      }
 
       if (remoteObject.type !== 'Note' && remoteObject.type !== 'Article') {
         return res.status(400).json({ error: `Remote object is type "${remoteObject.type}", expected Note or Article` });

@@ -486,10 +486,11 @@ export class ActivityProcessor {
           conversation_root_id: conversationRootId,
           created_at: object.published || new Date().toISOString(),
           metadata,
-          // Content warning (ActivityPub uses 'summary' for CW)
           content_warning: object.summary || null,
-          // Sensitive flag
           is_sensitive: object.sensitive === true,
+          replies_count: object.replies?.totalItems || object.repliesCount || 0,
+          favorites_count: object.likes?.totalItems || object.favouritesCount || 0,
+          reblogs_count: object.shares?.totalItems || object.sharesCount || 0,
         };
 
         // Add reblog data for quote posts (for display purposes)
@@ -808,6 +809,9 @@ export class ActivityProcessor {
           created_at: remoteObject.published || new Date().toISOString(),
           content_warning: remoteObject.summary || null,
           is_sensitive: remoteObject.sensitive === true,
+          replies_count: remoteObject.replies?.totalItems || remoteObject.repliesCount || 0,
+          favorites_count: remoteObject.likes?.totalItems || remoteObject.favouritesCount || 0,
+          reblogs_count: remoteObject.shares?.totalItems || remoteObject.sharesCount || 0,
         })
         .select('id, in_reply_to, conversation_root_id')
         .single();
@@ -1269,12 +1273,14 @@ export class ActivityProcessor {
     }
 
     // Find original post - try ap_id first (correct column), then by UUID extraction
-    let originalPost = null;
+    let originalPost: any = null;
     
+    const originalPostColumns = 'id, content, visibility, author_id, created_at, ap_id, is_sensitive, content_warning, favorites_count, replies_count, reblogs_count, media_attachments, url';
+
     // Method 1: Try by ap_id (correct column name)
     const { data: postByApId } = await supabase
       .from('posts')
-      .select('id, content, visibility, author_id, created_at, ap_id')
+      .select(originalPostColumns)
       .eq('ap_id', objectUrl)
       .maybeSingle();
     
@@ -1289,7 +1295,7 @@ export class ActivityProcessor {
         logger.info(`🔍 Trying to find post by UUID: ${postId}`);
         const { data: postById } = await supabase
           .from('posts')
-          .select('id, content, visibility, author_id, created_at, ap_id')
+          .select(originalPostColumns)
           .eq('id', postId)
           .maybeSingle();
         originalPost = postById;
@@ -1336,9 +1342,14 @@ export class ActivityProcessor {
                   content,
                   visibility,
                   is_local: false,
+                  is_sensitive: remotePost.sensitive === true,
+                  content_warning: remotePost.summary || null,
                   created_at: remotePost.published || new Date().toISOString(),
+                  replies_count: remotePost.replies?.totalItems || remotePost.repliesCount || 0,
+                  favorites_count: remotePost.likes?.totalItems || remotePost.favouritesCount || 0,
+                  reblogs_count: remotePost.shares?.totalItems || remotePost.sharesCount || 0,
                 })
-                .select('id, content, visibility, author_id, created_at, ap_id')
+                .select(originalPostColumns)
                 .single();
               
               if (!createError && newPost) {
@@ -1394,6 +1405,13 @@ export class ActivityProcessor {
         created_at: originalPost.created_at,
         visibility: originalPost.visibility,
         ap_id: originalPost.ap_id || objectUrl,
+        url: originalPost.url || null,
+        is_sensitive: originalPost.is_sensitive || false,
+        content_warning: originalPost.content_warning || null,
+        favorites_count: originalPost.favorites_count || 0,
+        replies_count: originalPost.replies_count || 0,
+        reblogs_count: originalPost.reblogs_count || 0,
+        media_attachments: originalPost.media_attachments || [],
       },
       reblog_author: originalAuthor || null,
       metadata: {
@@ -1796,6 +1814,9 @@ export class ActivityProcessor {
         content_warning: object.summary || null,
         is_sensitive: object.sensitive === true,
         metadata: pollMetadata,
+        replies_count: object.replies?.totalItems || object.repliesCount || 0,
+        favorites_count: object.likes?.totalItems || object.favouritesCount || 0,
+        reblogs_count: object.shares?.totalItems || object.sharesCount || 0,
       });
 
       if (error) {

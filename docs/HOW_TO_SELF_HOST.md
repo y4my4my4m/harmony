@@ -27,7 +27,7 @@ Typical production layout:
 ```
 
 - **federation-server** — ActivityPub HTTP (`/.well-known`, inbox/outbox, link previews, health). Same image as the worker; `FEDERATION_MODE=server`.
-- **federation-worker** — BullMQ / job processing so heavy delivery work does not block the HTTP server. `FEDERATION_MODE=worker`. Requires **Redis** and `USE_PGBOSS_QUEUE=true` (see `federation-backend/.env`).
+- **federation-worker** — BullMQ / job processing so heavy delivery work does not block the HTTP server. `FEDERATION_MODE=worker`. Requires **Redis** and `USE_BULLMQ_QUEUE=true` (see `federation-backend/.env`).
 - **Redis** — Job queue persistence, caching, presence, rate limiting; LiveKit also uses it when you run voice.
 - **federation-backend** (single container) — Optional **simple** profile: one process with `FEDERATION_MODE=unified` for small installs (`docker compose --profile simple`).
 
@@ -172,7 +172,7 @@ CORS_ORIGIN=https://harmony.yourdomain.com
 REDIS_URL=redis://:your-redis-password@redis:6379
 
 # BullMQ federation queue (recommended for production; requires Redis)
-USE_PGBOSS_QUEUE=true
+USE_BULLMQ_QUEUE=true
 
 # Local dev / single container only — omit or set unified in Docker:
 # FEDERATION_MODE=server | worker | unified
@@ -252,7 +252,7 @@ Do **not** hand-roll an old single-service `federation-backend` compose unless y
 | [`docker-compose.prod.yml`](../docker-compose.prod.yml) | Supabase **Cloud** (or external Supabase) + static `dist/` + Nginx volumes |
 | [`docker-compose.full.yml`](../docker-compose.full.yml) | Self-hosted Supabase on Docker network `supabase_default` + Harmony + Redis + optional LiveKit |
 
-**Default stack (production):** `federation-server` + `federation-worker` + **redis** + **nginx**. Federation env must include `DATABASE_URL`, `REDIS_URL`, and `USE_PGBOSS_QUEUE=true` (see comments at top of `docker-compose.prod.yml`).
+**Default stack (production):** `federation-server` + `federation-worker` + **redis** + **nginx**. Federation env must include `DATABASE_URL`, `REDIS_URL`, and `USE_BULLMQ_QUEUE=true` (see comments at top of `docker-compose.prod.yml`).
 
 **Root `.env` for Compose:** set `REDIS_PASSWORD` (required by the Redis service). In `federation-backend/.env`, set `REDIS_URL=redis://:YOUR_PASSWORD@redis:6379` to match.
 
@@ -439,7 +439,7 @@ Run new migration files in Supabase SQL Editor (cloud) or via psql (self-hosted)
 ## Federation not working
 1. Verify containers: `docker compose -f docker-compose.prod.yml ps` (or `docker-compose.full.yml`)
 2. Check **federation-server** logs: `docker compose ... logs federation-server`
-3. If using BullMQ, check **federation-worker** and **redis**; confirm `USE_PGBOSS_QUEUE=true` and `REDIS_URL` match `REDIS_PASSWORD` in Compose
+3. If using BullMQ, check **federation-worker** and **redis**; confirm `USE_BULLMQ_QUEUE=true` and `REDIS_URL` match `REDIS_PASSWORD` in Compose
 4. Ensure `INSTANCE_DOMAIN` matches your public domain exactly
 5. Test WebFinger: `curl 'https://yourdomain.com/.well-known/webfinger?resource=acct:user@yourdomain.com'`
 

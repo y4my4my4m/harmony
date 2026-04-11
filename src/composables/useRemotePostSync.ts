@@ -31,15 +31,31 @@ export function useRemotePostSync(
   const getIsRemote = (): boolean =>
     typeof options.isRemote === 'function' ? options.isRemote() : options.isRemote.value
 
+  // For reblogs, target the original post (reactions/replies live there, not on the Announce)
+  const getTargetApId = (p: TimelinePost): string | undefined => {
+    if (p.ap_type === 'Announce' || p.reblog) {
+      return p.reblog?.ap_id || p.metadata?.original_ap_id || p.ap_id
+    }
+    return p.ap_id
+  }
+
+  const getTargetPostId = (p: TimelinePost): string => {
+    if (p.ap_type === 'Announce' || p.reblog) {
+      return p.reblog?.id || p.metadata?.reblog_of || p.id
+    }
+    return p.id
+  }
+
   const fetchRemoteReactions = async () => {
     if (!getIsRemote() || isFetchingReactions.value) return
 
     const p = getPost()
-    if (!p.ap_id) return
+    const apId = getTargetApId(p)
+    if (!apId) return
 
     isFetchingReactions.value = true
     try {
-      const result = await activityPubService.fetchRemoteReactions(p.ap_id, p.id)
+      const result = await activityPubService.fetchRemoteReactions(apId, getTargetPostId(p))
       if (result) {
         debug.log(`📬 Fetched ${result.count} reactions for remote post`)
         options.onReactionsUpdate?.(result)
@@ -56,13 +72,17 @@ export function useRemotePostSync(
     if (!getIsRemote() || isFetchingReplies.value) return
 
     const p = getPost()
-    if (!p.ap_id) return
+    const apId = getTargetApId(p)
+    if (!apId) return
 
     isFetchingReplies.value = true
     try {
-      const result = await activityPubService.fetchRemoteReplies(p.ap_id, p.id)
+      const result = await activityPubService.fetchRemoteReplies(apId, getTargetPostId(p))
       if (result) {
         debug.log(`📬 Fetched ${result.count} replies for remote post`)
+        if (result.replies_count !== undefined || result.favorites_count !== undefined || result.reblogs_count !== undefined) {
+          options.onReactionsUpdate?.(result)
+        }
         options.onRefresh?.(p.id)
       }
     } catch (error) {
