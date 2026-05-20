@@ -2,7 +2,7 @@ import crypto from 'crypto';
 import { getSupabaseClient } from '../config/supabase.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { logger } from '../utils/logger.js';
-import { validateExternalUrl } from '../utils/ssrfProtection.js';
+import { safeFetch } from '../utils/ssrfProtection.js';
 
 export class SignatureService {
   /**
@@ -401,16 +401,15 @@ export class SignatureService {
       logger.info(`🔄 Force refreshing public key for ${actorUrl}`);
     }
     
-    // Finally, fetch from remote server
+    // Finally, fetch from remote server.
+    // safeFetch handles URL+DNS validation, manual redirect re-validation,
+    // and the 10s timeout — supersedes the previous `validateExternalUrl` +
+    // raw fetch + `AbortSignal.timeout` pattern. BUGS.md H15.
     try {
-      // SSRF protection: validate actor URL before fetching
-      validateExternalUrl(actorUrl);
-
-      const response = await fetch(actorUrl, {
+      const response = await safeFetch(actorUrl, {
         headers: {
           'Accept': 'application/activity+json, application/ld+json',
         },
-        signal: AbortSignal.timeout(10000), // 10 second timeout
       });
 
       if (!response.ok) {
@@ -526,10 +525,11 @@ export class SignatureService {
       }
     }
 
-    return fetch(url, {
+    // safeFetch enforces URL+DNS validation per hop, follows manual redirects
+    // with re-validation (max 3 hops), and bounds each attempt with timeoutMs.
+    return safeFetch(url, {
       headers,
-      redirect: 'follow',
-      signal: AbortSignal.timeout(timeoutMs),
+      timeoutMs,
     });
   }
 

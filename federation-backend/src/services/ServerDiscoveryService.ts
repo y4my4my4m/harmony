@@ -10,7 +10,7 @@ import { asyncHandler } from '../middleware/errorHandler.js';
 import { SignatureService } from '../activitypub/SignatureService.js';
 import { logger } from '../utils/logger.js';
 import config from '../config/index.js';
-import { validateExternalHostname, validateExternalUrl } from '../utils/ssrfProtection.js';
+import { validateExternalHostname, safeFetch } from '../utils/ssrfProtection.js';
 import { discoveryLimiter } from '../middleware/rateLimit.js';
 
 const router = Router();
@@ -107,7 +107,7 @@ router.post(
     try {
       // Fetch invite info from the remote instance
       // Use /api/federation/invites/:code since remote instance also proxies through nginx
-      const remoteResponse = await fetch(`https://${instance}/api/federation/invites/${code}`, {
+      const remoteResponse = await safeFetch(`https://${instance}/api/federation/invites/${code}`, {
         method: 'GET',
         headers: {
           'Accept': 'application/json',
@@ -621,7 +621,8 @@ router.get(
 
       logger.info(`📨 Fetching messages from remote channel: ${fetchUrl}`);
 
-      const response = await fetch(fetchUrl, {
+      // BUGS.md H15: fetchUrl is constructed from remote AP response data.
+      const response = await safeFetch(fetchUrl, {
         headers: {
           'Accept': 'application/activity+json, application/json',
           'User-Agent': `Harmony/${config.VERSION || '1.0.0'} (+https://${config.INSTANCE_DOMAIN})`,
@@ -909,7 +910,7 @@ export class ServerDiscoveryService {
       const webfingerResource = `harmony://server@${domain}/${serverIdentifier}`;
       const webfingerUrl = `https://${domain}/.well-known/webfinger?resource=${encodeURIComponent(webfingerResource)}`;
 
-      const response = await fetch(webfingerUrl, {
+      const response = await safeFetch(webfingerUrl, {
         headers: {
           'Accept': 'application/jrd+json',
         },
@@ -947,7 +948,7 @@ export class ServerDiscoveryService {
     try {
       logger.info(`🔍 Fetching remote server: ${url}`);
 
-      const response = await fetch(url, {
+      const response = await safeFetch(url, {
         headers: {
           'Accept': 'application/activity+json, application/ld+json',
         },
@@ -1365,8 +1366,9 @@ export class ServerDiscoveryService {
     try {
       logger.info(`👥 Syncing remote server members from: ${membersUrl}`);
 
-      // Fetch members collection (public endpoint, no signature needed)
-      const response = await fetch(membersUrl + '?page=1', {
+      // Fetch members collection (public endpoint, no signature needed).
+      // BUGS.md H15: membersUrl is from remote AP response.
+      const response = await safeFetch(membersUrl + '?page=1', {
         headers: {
           'Accept': 'application/activity+json, application/json',
           'User-Agent': `Harmony/${config.VERSION || '1.0.0'} (+https://${config.INSTANCE_DOMAIN})`,

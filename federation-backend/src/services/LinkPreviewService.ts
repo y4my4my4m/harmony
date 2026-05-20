@@ -3,7 +3,7 @@ import config from '../config/index.js';
 import { getSupabaseClient } from '../config/supabase.js';
 import { logger } from '../utils/logger.js';
 import { SignatureService } from '../activitypub/SignatureService.js';
-import { validateExternalUrl } from '../utils/ssrfProtection.js';
+import { validateExternalUrl, safeFetch } from '../utils/ssrfProtection.js';
 import { decodeHtmlEntities } from '../utils/contentUtils.js';
 
 export type EmbedProvider = 'harmony-post' | 'fediverse-post' | 'youtube' | 'spotify' | 'reddit' | 'generic';
@@ -495,13 +495,14 @@ class LinkPreviewService {
       const accept = acceptJson
         ? 'application/json'
         : 'application/activity+json, application/ld+json; profile="https://www.w3.org/ns/activitystreams", application/json';
-      let response = await fetch(url, {
+      let response = await safeFetch(url, {
         headers: {
           Accept: accept,
           'User-Agent': USER_AGENT,
         },
         signal: controller.signal,
-        redirect: 'follow',
+        // safeFetch always follows redirects manually with per-hop
+        // re-validation (max 3 by default) — supersedes `redirect: 'follow'`.
       });
 
       // Retry with HTTP signature for instances requiring authorized fetch
@@ -543,7 +544,7 @@ class LinkPreviewService {
     endpointUrl.searchParams.set('url', url);
     endpointUrl.searchParams.set('format', 'json');
 
-    const response = await fetch(endpointUrl.toString(), {
+    const response = await safeFetch(endpointUrl.toString(), {
       headers: {
         'User-Agent': USER_AGENT,
         Accept: 'application/json',
@@ -577,7 +578,7 @@ class LinkPreviewService {
     endpoint.searchParams.set('url', url);
     endpoint.searchParams.set('format', 'json');
 
-    const response = await fetch(endpoint.toString(), {
+    const response = await safeFetch(endpoint.toString(), {
       headers: {
         'User-Agent': USER_AGENT,
         Accept: 'application/json',
@@ -630,12 +631,17 @@ class LinkPreviewService {
       const timeout = setTimeout(() => controller.abort(), 10000);
       let response: Response;
       try {
-        response = await fetch(url, {
+        response = await safeFetch(url, {
           headers: {
             'User-Agent': USER_AGENT,
             Accept: 'text/html,application/xhtml+xml',
           },
           signal: controller.signal,
+          // HTML link-preview path commonly traverses 4–5 hops (t.co →
+          // publisher → www → canonical → cookie consent). The default
+          // of 3 is sufficient for AP-content but cuts off legitimate
+          // tracker chains here, so allow 5 specifically on this site.
+          maxRedirects: 5,
         });
       } finally {
         clearTimeout(timeout);

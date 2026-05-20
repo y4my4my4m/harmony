@@ -8,7 +8,7 @@ import { ActivityProcessor } from './ActivityProcessor.js';
 import { SignatureService } from './SignatureService.js';
 import { logger } from '../utils/logger.js';
 import config from '../config/index.js';
-import { validateExternalHostname } from '../utils/ssrfProtection.js';
+import { validateExternalHostname, safeFetch } from '../utils/ssrfProtection.js';
 import { discoveryLimiter } from '../middleware/rateLimit.js';
 
 const router = Router();
@@ -140,12 +140,12 @@ router.post(
       const webfingerUrl = `https://${domain}/.well-known/webfinger?resource=acct:${encodeURIComponent(username)}@${encodeURIComponent(domain)}`;
       logger.info(`🌐 WebFinger lookup: ${webfingerUrl}`);
       
-      const webfingerResponse = await fetch(webfingerUrl, {
+      const webfingerResponse = await safeFetch(webfingerUrl, {
         headers: { 
           'Accept': 'application/jrd+json, application/json',
           'User-Agent': `Harmony/${config.INSTANCE_DOMAIN}`
         },
-        signal: AbortSignal.timeout(10000) // 10 second timeout
+        timeoutMs: 10000, // 10 second timeout
       });
 
       if (!webfingerResponse.ok) {
@@ -219,12 +219,14 @@ router.post(
 
       // Step 2: Fetch the Actor
       logger.info(`🌐 Fetching actor: ${selfLink.href}`);
-      const actorResponse = await fetch(selfLink.href, {
+      // BUGS.md H15: selfLink.href comes from the remote webfinger response.
+      // safeFetch re-validates the URL/DNS and follows redirects manually.
+      const actorResponse = await safeFetch(selfLink.href, {
         headers: { 
           'Accept': 'application/activity+json, application/ld+json',
           'User-Agent': `Harmony/${config.INSTANCE_DOMAIN}`
         },
-        signal: AbortSignal.timeout(10000)
+        timeoutMs: 10000,
       });
 
       if (!actorResponse.ok) {
@@ -245,12 +247,12 @@ router.post(
       // Fetch counts in parallel (with timeouts, don't fail if these fail)
       const fetchCollectionCount = async (url: string): Promise<number> => {
         try {
-          const response = await fetch(url, {
+          const response = await safeFetch(url, {
             headers: { 
               'Accept': 'application/activity+json, application/ld+json',
               'User-Agent': `Harmony/${config.INSTANCE_DOMAIN}`
             },
-            signal: AbortSignal.timeout(5000)
+            timeoutMs: 5000,
           });
           if (!response.ok) return 0;
           const collection = await response.json();
@@ -789,7 +791,7 @@ async function fetchMisskeyReactions(
     logger.info(`📬 Fetching reactions via Misskey API for note: ${noteId} on ${domain}`);
     
     const apiUrl = `https://${domain}/api/notes/reactions`;
-    const response = await fetch(apiUrl, {
+    const response = await safeFetch(apiUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -824,7 +826,7 @@ async function fetchMisskeyReactions(
     let originInstanceEmojis: Record<string, string> = {};  // Emojis native to the origin instance
     
     try {
-      const noteResponse = await fetch(`https://${domain}/api/notes/show`, {
+      const noteResponse = await safeFetch(`https://${domain}/api/notes/show`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -861,7 +863,7 @@ async function fetchMisskeyReactions(
     if (originEmojiNames.length > 0) {
       try {
         logger.info(`📬 Fetching ${originEmojiNames.length} origin-instance emojis from ${domain}`);
-        const emojiResponse = await fetch(`https://${domain}/api/emojis`, {
+        const emojiResponse = await safeFetch(`https://${domain}/api/emojis`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -1151,13 +1153,14 @@ async function fetchRemotePostReactions(
     }
 
     // Standard ActivityPub approach
-    // First, fetch the post object to get the likes collection URL
-    const postResponse = await fetch(postApId, {
+    // First, fetch the post object to get the likes collection URL.
+    // BUGS.md H15: postApId is attacker-influenced (from inbox / remote feed).
+    const postResponse = await safeFetch(postApId, {
       headers: {
         'Accept': 'application/activity+json, application/ld+json',
         'User-Agent': `Harmony/${config.INSTANCE_DOMAIN}`
       },
-      signal: AbortSignal.timeout(10000)
+      timeoutMs: 10000,
     });
 
     if (!postResponse.ok) {
@@ -1213,12 +1216,12 @@ async function fetchRemotePostReactions(
 
     logger.info(`📬 Fetching likes from: ${likesCollectionUrl}`);
 
-    const likesResponse = await fetch(likesCollectionUrl, {
+    const likesResponse = await safeFetch(likesCollectionUrl, {
       headers: {
         'Accept': 'application/activity+json, application/ld+json',
         'User-Agent': `Harmony/${config.INSTANCE_DOMAIN}`
       },
-      signal: AbortSignal.timeout(10000)
+      timeoutMs: 10000,
     });
 
     if (!likesResponse.ok) {
@@ -1241,12 +1244,12 @@ async function fetchRemotePostReactions(
         ? likesCollection.first 
         : likesCollection.first.id;
       
-      const pageResponse = await fetch(firstPageUrl, {
+      const pageResponse = await safeFetch(firstPageUrl, {
         headers: {
           'Accept': 'application/activity+json, application/ld+json',
           'User-Agent': `Harmony/${config.INSTANCE_DOMAIN}`
         },
-        signal: AbortSignal.timeout(10000)
+        timeoutMs: 10000,
       });
 
       if (pageResponse.ok) {
@@ -1439,7 +1442,7 @@ async function fetchMisskeyReplies(
     logger.info(`📬 Fetching replies via Misskey API for note: ${noteId} on ${domain}`);
     
     const apiUrl = `https://${domain}/api/notes/children`;
-    const response = await fetch(apiUrl, {
+    const response = await safeFetch(apiUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1667,13 +1670,14 @@ async function fetchRemotePostReplies(
     }
 
     // Standard ActivityPub approach
-    // Fetch the post object to get the replies collection URL
-    const postResponse = await fetch(postApId, {
+    // Fetch the post object to get the replies collection URL.
+    // BUGS.md H15: postApId attacker-influenced.
+    const postResponse = await safeFetch(postApId, {
       headers: {
         'Accept': 'application/activity+json, application/ld+json',
         'User-Agent': `Harmony/${config.INSTANCE_DOMAIN}`
       },
-      signal: AbortSignal.timeout(10000)
+      timeoutMs: 10000,
     });
 
     if (!postResponse.ok) {
@@ -1707,12 +1711,12 @@ async function fetchRemotePostReplies(
     const repliesCollectionUrl = typeof repliesUrl === 'string' ? repliesUrl : repliesUrl.id;
     logger.info(`📬 Fetching replies from: ${repliesCollectionUrl}`);
 
-    const repliesResponse = await fetch(repliesCollectionUrl, {
+    const repliesResponse = await safeFetch(repliesCollectionUrl, {
       headers: {
         'Accept': 'application/activity+json, application/ld+json',
         'User-Agent': `Harmony/${config.INSTANCE_DOMAIN}`
       },
-      signal: AbortSignal.timeout(10000)
+      timeoutMs: 10000,
     });
 
     if (!repliesResponse.ok) {
@@ -1735,12 +1739,12 @@ async function fetchRemotePostReplies(
         ? repliesCollection.first 
         : repliesCollection.first.id;
       
-      const pageResponse = await fetch(firstPageUrl, {
+      const pageResponse = await safeFetch(firstPageUrl, {
         headers: {
           'Accept': 'application/activity+json, application/ld+json',
           'User-Agent': `Harmony/${config.INSTANCE_DOMAIN}`
         },
-        signal: AbortSignal.timeout(10000)
+        timeoutMs: 10000,
       });
 
       if (pageResponse.ok) {
@@ -1763,12 +1767,12 @@ async function fetchRemotePostReplies(
         let note = item;
         if (typeof item === 'string') {
           // It's a URL - need to fetch it
-          const noteResponse = await fetch(item, {
+          const noteResponse = await safeFetch(item, {
             headers: {
               'Accept': 'application/activity+json, application/ld+json',
               'User-Agent': `Harmony/${config.INSTANCE_DOMAIN}`
             },
-            signal: AbortSignal.timeout(5000)
+            timeoutMs: 5000,
           });
           if (!noteResponse.ok) continue;
           note = await noteResponse.json();
@@ -1809,12 +1813,12 @@ async function fetchRemotePostReplies(
         if (!author) {
           // Try to create the user
           try {
-            const actorResponse = await fetch(authorUrl, {
+            const actorResponse = await safeFetch(authorUrl, {
               headers: {
                 'Accept': 'application/activity+json, application/ld+json',
                 'User-Agent': `Harmony/${config.INSTANCE_DOMAIN}`
               },
-              signal: AbortSignal.timeout(5000)
+              timeoutMs: 5000,
             });
             if (actorResponse.ok) {
               const actor = await actorResponse.json();
@@ -2495,12 +2499,12 @@ async function fetchRecentPostsInBackground(
     logger.info(`📬 Fetching posts from: ${fetchUrl}`);
     
     // Fetch the outbox collection or page
-    const outboxResponse = await fetch(fetchUrl, {
+    const outboxResponse = await safeFetch(fetchUrl, {
       headers: {
         'Accept': 'application/activity+json, application/ld+json',
         'User-Agent': `Harmony/${config.INSTANCE_DOMAIN}`
       },
-      signal: AbortSignal.timeout(15000)
+      timeoutMs: 15000,
     });
     
     if (!outboxResponse.ok) {
@@ -2524,12 +2528,12 @@ async function fetchRecentPostsInBackground(
       const firstPageUrl = typeof outbox.first === 'string' ? outbox.first : outbox.first.id;
       logger.info(`📬 Fetching first page: ${firstPageUrl}`);
       
-      const pageResponse = await fetch(firstPageUrl, {
+      const pageResponse = await safeFetch(firstPageUrl, {
         headers: {
           'Accept': 'application/activity+json, application/ld+json',
           'User-Agent': `Harmony/${config.INSTANCE_DOMAIN}`
         },
-        signal: AbortSignal.timeout(15000)
+        timeoutMs: 15000,
       });
       
       if (pageResponse.ok) {
@@ -2902,7 +2906,7 @@ router.post(
     }
 
     try {
-      let response = await fetch(post.ap_id, {
+      let response = await safeFetch(post.ap_id, {
         headers: { 'Accept': 'application/activity+json, application/ld+json' },
       });
 
@@ -2924,7 +2928,7 @@ router.post(
         if (!objectUrl) {
           return res.status(400).json({ error: 'Announce has no object URL to follow' });
         }
-        let noteResponse = await fetch(objectUrl, {
+        let noteResponse = await safeFetch(objectUrl, {
           headers: { 'Accept': 'application/activity+json, application/ld+json' },
         });
         if (noteResponse.status === 401 || noteResponse.status === 403) {

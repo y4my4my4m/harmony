@@ -8,7 +8,7 @@
 
 import { Router, Request, Response } from 'express';
 import { asyncHandler } from '../middleware/errorHandler.js';
-import { validateExternalHostname } from '../utils/ssrfProtection.js';
+import { validateExternalHostname, safeFetch } from '../utils/ssrfProtection.js';
 import { logger } from '../utils/logger.js';
 import { discoveryLimiter } from '../middleware/rateLimit.js';
 
@@ -38,9 +38,9 @@ function resolveUrl(domain: string, url: string | null | undefined): string | un
 
 async function probeNodeinfo(domain: string): Promise<InstanceProbeResult | null> {
   try {
-    const wellKnownResponse = await fetch(`https://${domain}/.well-known/nodeinfo`, {
+    const wellKnownResponse = await safeFetch(`https://${domain}/.well-known/nodeinfo`, {
       headers: { Accept: 'application/json' },
-      signal: AbortSignal.timeout(PROBE_TIMEOUT),
+      timeoutMs: PROBE_TIMEOUT,
     });
 
     if (!wellKnownResponse.ok) return null;
@@ -52,9 +52,12 @@ async function probeNodeinfo(domain: string): Promise<InstanceProbeResult | null
 
     if (!nodeinfoUrl) return null;
 
-    const nodeinfoResponse = await fetch(nodeinfoUrl, {
+    // BUGS.md H16: nodeinfoUrl is a `href` returned by the remote
+    // well-known endpoint — attacker-controlled. safeFetch re-validates
+    // the resolved IP per hop.
+    const nodeinfoResponse = await safeFetch(nodeinfoUrl, {
       headers: { Accept: 'application/json' },
-      signal: AbortSignal.timeout(PROBE_TIMEOUT),
+      timeoutMs: PROBE_TIMEOUT,
     });
 
     if (!nodeinfoResponse.ok) return null;
@@ -81,9 +84,9 @@ async function probeNodeinfo(domain: string): Promise<InstanceProbeResult | null
 async function probeMastodonAPI(domain: string): Promise<InstanceProbeResult | null> {
   for (const version of ['v2', 'v1']) {
     try {
-      const response = await fetch(`https://${domain}/api/${version}/instance`, {
+      const response = await safeFetch(`https://${domain}/api/${version}/instance`, {
         headers: { Accept: 'application/json' },
-        signal: AbortSignal.timeout(PROBE_TIMEOUT),
+        timeoutMs: PROBE_TIMEOUT,
       });
 
       if (!response.ok) continue;
@@ -130,9 +133,9 @@ async function probeMastodonAPI(domain: string): Promise<InstanceProbeResult | n
 async function probeActivityPubActor(domain: string): Promise<InstanceProbeResult | null> {
   try {
     const webfingerUrl = `https://${domain}/.well-known/webfinger?resource=acct:instance@${domain}`;
-    const response = await fetch(webfingerUrl, {
+    const response = await safeFetch(webfingerUrl, {
       headers: { Accept: 'application/jrd+json, application/json' },
-      signal: AbortSignal.timeout(PROBE_TIMEOUT),
+      timeoutMs: PROBE_TIMEOUT,
     });
 
     if (!response.ok) return null;
@@ -151,9 +154,10 @@ async function probeActivityPubActor(domain: string): Promise<InstanceProbeResul
         (l: any) => l.rel === 'self' && l.type === 'application/activity+json'
       );
       if (actorLink?.href) {
-        const actorResp = await fetch(actorLink.href, {
+        // BUGS.md H16: actorLink.href is from the remote webfinger response.
+        const actorResp = await safeFetch(actorLink.href, {
           headers: { Accept: 'application/activity+json, application/ld+json' },
-          signal: AbortSignal.timeout(PROBE_TIMEOUT),
+          timeoutMs: PROBE_TIMEOUT,
         });
         if (actorResp.ok) {
           const actor = await actorResp.json();
@@ -176,11 +180,11 @@ async function probeActivityPubActor(domain: string): Promise<InstanceProbeResul
 
 async function probeMisskeyAPI(domain: string): Promise<InstanceProbeResult | null> {
   try {
-    const response = await fetch(`https://${domain}/api/meta`, {
+    const response = await safeFetch(`https://${domain}/api/meta`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: '{}',
-      signal: AbortSignal.timeout(PROBE_TIMEOUT),
+      timeoutMs: PROBE_TIMEOUT,
     });
     if (!response.ok) return null;
 
@@ -283,9 +287,9 @@ router.get(
 
     try {
       const protocol = cleanDomain.includes('localhost') ? 'http' : 'https';
-      const wellKnownRes = await fetch(`${protocol}://${cleanDomain}/.well-known/nodeinfo`, {
+      const wellKnownRes = await safeFetch(`${protocol}://${cleanDomain}/.well-known/nodeinfo`, {
         headers: { Accept: 'application/json' },
-        signal: AbortSignal.timeout(8000),
+        timeoutMs: 8000,
       });
       if (!wellKnownRes.ok) {
         return res.json({ domain: cleanDomain, status: 'offline' });
@@ -305,9 +309,9 @@ router.get(
         ? infoUrl
         : `${protocol}://${cleanDomain}${infoUrl.startsWith('/') ? '' : '/'}${infoUrl}`;
 
-      const infoRes = await fetch(url, {
+      const infoRes = await safeFetch(url, {
         headers: { Accept: 'application/json' },
-        signal: AbortSignal.timeout(8000),
+        timeoutMs: 8000,
       });
 
       return res.json({ domain: cleanDomain, status: infoRes.ok ? 'online' : 'offline' });

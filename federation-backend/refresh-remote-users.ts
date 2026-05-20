@@ -6,12 +6,16 @@
  */
 
 import { getSupabaseClient } from './src/config/supabase.js';
+import { safeFetch } from './src/utils/ssrfProtection.js';
 
 async function refreshRemoteUser(supabase: any, userId: string, federatedId: string): Promise<boolean> {
   try {
     console.log(`\nFetching actor data for: ${federatedId}`);
     
-    const response = await fetch(federatedId, {
+    // BUGS.md L22: `federatedId` is the stored remote actor URL — refreshing
+    // already-known remote rows, but defense-in-depth via safeFetch covers
+    // poisoned profile rows from earlier inserts.
+    const response = await safeFetch(federatedId, {
       headers: {
         'Accept': 'application/activity+json, application/ld+json',
       },

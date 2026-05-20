@@ -2,7 +2,7 @@ import { getSupabaseClient } from '../config/supabase.js';
 import { SignatureService } from './SignatureService.js';
 import { BlockedInstancesCache } from '../services/BlockedInstancesCache.js';
 import { logger } from '../utils/logger.js';
-import { validateExternalUrl } from '../utils/ssrfProtection.js';
+import { validateExternalUrl, safeFetch } from '../utils/ssrfProtection.js';
 
 const MAX_CONCURRENT_DOMAINS = 10;
 
@@ -287,8 +287,11 @@ export class DeliveryQueue {
       // Add content-type
       headers['Content-Type'] = 'application/activity+json';
 
-      // Send request
-      const response = await fetch(targetInbox, {
+      // Send request. safeFetch additionally re-validates URL+DNS per
+      // redirect hop and bounds the attempt with a timeout — the outer
+      // `validateExternalUrl(targetInbox)` above is kept for the clearer
+      // pre-flight log message but is now strictly defense-in-depth.
+      const response = await safeFetch(targetInbox, {
         method: 'POST',
         headers,
         body: JSON.stringify(activityData),
@@ -406,8 +409,9 @@ export class DeliveryQueue {
       // Add content-type
       headers['Content-Type'] = 'application/activity+json';
 
-      // Send request
-      const response = await fetch(item.target_inbox_url, {
+      // Send request. See note in `deliver()` — `validateExternalUrl(item.target_inbox_url)`
+      // above stays for explicit logging; safeFetch enforces SSRF guarantees.
+      const response = await safeFetch(item.target_inbox_url, {
         method: 'POST',
         headers,
         body: JSON.stringify(item.activity_data),

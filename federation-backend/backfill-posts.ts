@@ -24,6 +24,7 @@ import { getSupabaseClient } from './src/config/supabase.js';
 import { noteToContent } from './src/activitypub/converters/fromActivityPub.js';
 import { SignatureService } from './src/activitypub/SignatureService.js';
 import { enrichPostLinkPreviews } from './src/listeners/DatabaseListener.js';
+import { safeFetch } from './src/utils/ssrfProtection.js';
 
 const args = process.argv.slice(2);
 const DRY_RUN = args.includes('--dry-run');
@@ -41,9 +42,12 @@ async function sleep(ms: number) {
 
 async function fetchApObject(url: string): Promise<any | null> {
   try {
-    let response = await fetch(url, {
+    // BUGS.md M35: `url` comes from `posts.ap_id` which originated from remote
+    // ActivityPub responses (attacker-influenced). safeFetch validates URL/DNS
+    // per hop and bounds the attempt with the timeout.
+    let response = await safeFetch(url, {
       headers: { 'Accept': 'application/activity+json, application/ld+json' },
-      signal: AbortSignal.timeout(10000),
+      timeoutMs: 10000,
     });
 
     if (response.status === 401 || response.status === 403) {
