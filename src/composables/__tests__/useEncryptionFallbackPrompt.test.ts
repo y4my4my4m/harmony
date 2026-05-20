@@ -79,4 +79,69 @@ describe('useEncryptionFallbackPrompt', () => {
     expect(res.status).toBe('error')
     expect((res.error as Error).message).toBe('database down')
   })
+
+  it('falls back to the global modal state when no confirm is provided', async () => {
+    // Default path (no `confirm` option) opens the shared modal state that
+    // `EncryptionFallbackModal.vue` reads from. We simulate the user pressing
+    // Cancel by reading the resolver and calling
+    // `resolveEncryptionFallbackPrompt(false)`.
+    const {
+      runWithEncryptionFallback,
+    } = useEncryptionFallbackPrompt()
+    const {
+      encryptionFallbackPromptState,
+      resolveEncryptionFallbackPrompt,
+    } = await import('../useEncryptionFallbackPrompt')
+
+    const send = vi.fn().mockRejectedValue({ code: 'ENCRYPTION_LOCKED' })
+
+    const runPromise = runWithEncryptionFallback(send, { scope: 'dm' })
+
+    // Give the microtask queue a tick so the send rejects and the modal opens.
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(encryptionFallbackPromptState.value.open).toBe(true)
+    expect(encryptionFallbackPromptState.value.scope).toBe('dm')
+    expect(encryptionFallbackPromptState.value.reason).toContain('locked')
+
+    resolveEncryptionFallbackPrompt(false)
+
+    const res = await runPromise
+    expect(res).toEqual({ status: 'declined' })
+
+    // State should be reset after resolve so a subsequent prompt can open.
+    expect(encryptionFallbackPromptState.value.open).toBe(false)
+    expect(encryptionFallbackPromptState.value.scope).toBeNull()
+    expect(encryptionFallbackPromptState.value.resolver).toBeNull()
+  })
+
+  it('auto-declines concurrent prompts so resolvers cannot be lost', async () => {
+    const {
+      runWithEncryptionFallback,
+    } = useEncryptionFallbackPrompt()
+    const {
+      resolveEncryptionFallbackPrompt,
+    } = await import('../useEncryptionFallbackPrompt')
+
+    const send = vi.fn().mockRejectedValue({ code: 'ENCRYPTION_UNAVAILABLE' })
+
+    const first = runWithEncryptionFallback(send, { scope: 'channel' })
+    await Promise.resolve()
+    await Promise.resolve()
+
+    // Now a second send tries to prompt while the first prompt is still open.
+    const second = runWithEncryptionFallback(send, { scope: 'channel' })
+
+    // Second resolves immediately as declined without touching the open prompt.
+    const secondResult = await second
+    expect(secondResult).toEqual({ status: 'declined' })
+
+    // First is still pending — resolve it now.
+    resolveEncryptionFallbackPrompt(true)
+    // The retry inside `runWithEncryptionFallback` will reject again
+    // (mockRejectedValue), so we expect status 'error' for the first.
+    const firstResult = await first
+    expect(firstResult.status).toBe('error')
+  })
 })
