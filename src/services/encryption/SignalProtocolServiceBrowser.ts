@@ -233,7 +233,7 @@ export class SignalProtocolService {
 
     return {
       type: ciphertext.type === 3 ? 'prekey' : 'message',
-      body: this.encodeToBase64(ciphertext.body!),
+      body: this.encodeToBase64(ciphertext.body! as unknown as ArrayBuffer),
       registrationId: ciphertext.registrationId || 0
     }
   }

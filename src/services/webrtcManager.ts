@@ -619,7 +619,7 @@ class WebRTCManagerService implements WebRTCManager {
    */
   broadcastMessage(message: any): void {
     if (this.activeService === 'p2p') {
-      unifiedWebRTC.broadcastMessage(message);
+      (unifiedWebRTC as any).broadcastMessage(message);
     }
   }
   
@@ -641,7 +641,7 @@ class WebRTCManagerService implements WebRTCManager {
     if (this.activeService === 'livekit') {
       livekitWebRTC.setUserMicVolume(userId, volume);
     } else if (this.activeService === 'p2p') {
-      unifiedWebRTC.setUserVolume?.(userId, volume / 100); // P2P uses 0-1 scale
+      (unifiedWebRTC as any).setUserVolume?.(userId, volume / 100); // P2P uses 0-1 scale
     }
     
     // Also apply to spatial audio chain (operates on the outputGain node,

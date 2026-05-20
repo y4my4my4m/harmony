@@ -478,8 +478,8 @@ export class EncryptionKeyStore implements StorageType {
       STORES.PREKEYS,
       STORES.SIGNED_PREKEYS,
       STORES.SESSIONS,
-      STORES.SENDER_KEYS
-    ]
+      (STORES as any).SENDER_KEYS
+    ].filter(Boolean) as string[]
 
     for (const storeName of storeNames) {
       try {

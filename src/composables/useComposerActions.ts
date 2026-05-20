@@ -221,7 +221,7 @@ export function useComposerActions(options: ComposerActionsOptions) {
         visibility,
         content_warning: contentWarning || undefined,
         in_reply_to: replyToId,
-        media_attachments: options.mediaAttachments.value,
+        media_attachments: options.mediaAttachments.value as unknown as File[],
         is_sensitive: isSensitive
       });
 

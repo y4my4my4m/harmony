@@ -331,7 +331,7 @@ export const usePostReactionsStore = defineStore('postReactions', () => {
         reactions.push({
           emoji_id: emojiId,
           emoji_name: emoji.name || null,
-          emoji_url: emoji.url || null,
+          emoji_url: (emoji as any).url || null,
           custom_emoji_content: customContent,
           reaction_count: 1,
           user_reactions: [], // Empty - will be populated by real fetch  

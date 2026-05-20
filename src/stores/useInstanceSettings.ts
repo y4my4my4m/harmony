@@ -80,6 +80,7 @@ const DEFAULT_SETTINGS: InstanceSettings = {
   maxMediaAttachmentsPerPost: 20,
   allowCustomEmojisInDisplayNames: true,
   defaultThemeJson: null,
+  customEmojiTransformQuality: 80,
 }
 
 // Cache duration: 5 minutes

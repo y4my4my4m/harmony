@@ -49,7 +49,7 @@ function extractTextFromContent(content: MessagePart[]): string {
         case 'text':
           return part.text || ''
         case 'mention':
-          return part.mention || ''
+          return (part as any).mention || part.username || ''
         case 'url':
           return part.url || ''
         case 'emoji':
