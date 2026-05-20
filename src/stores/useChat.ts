@@ -299,11 +299,16 @@ export const useChatStore = defineStore('chat', {
           debug.warn('Failed to prepare message embeds:', error);
         }
 
-        // Check if request was cancelled or channel changed while fetching
+        // Check if request was cancelled or channel changed while fetching.
+        // BUGS.md H34: previously the stale-channel guard only ran on the
+        // INITIAL load (`oldestMessageId === ''`). Pagination requests
+        // (`oldestMessageId !== ''`) had no guard, so switching channels
+        // mid-`fetchOlderMessages` would prepend channel A's history into
+        // channel B's `messages` array and corrupt the cache.
         if (signal?.aborted) {
           throw new Error('Request aborted');
         }
-        if (oldestMessageId === '' && this.currentChannelId !== channelId) {
+        if (this.currentChannelId !== channelId) {
           debug.log(`⏭️ Discarding stale response for channel ${channelId} (current: ${this.currentChannelId})`);
           return;
         }

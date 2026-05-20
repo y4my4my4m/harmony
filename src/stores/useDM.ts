@@ -113,7 +113,14 @@ export const useDMStore = defineStore('dm', () => {
   })
   
   const getSortedConversations = computed(() => {
-    return conversations.value.sort((a, b) => {
+    // BUGS.md H35: previously this called `.sort()` directly on
+    // `conversations.value`, mutating Pinia store state inside a getter.
+    // Side effects in computed getters break reactivity expectations:
+    // any read of `getSortedConversations` would reorder the underlying
+    // array, causing flicker on parallel readers, broken devtools history,
+    // and incorrect ordering when other code assumes the source array is
+    // stable. Sort a copy instead.
+    return [...conversations.value].sort((a, b) => {
       const aTime = new Date(a.last_activity || a.created_at).getTime()
       const bTime = new Date(b.last_activity || b.created_at).getTime()
       return bTime - aTime
@@ -1396,11 +1403,15 @@ export const useDMStore = defineStore('dm', () => {
         }
       )
 
-      // Check if request was cancelled or conversation changed while fetching
+      // Check if request was cancelled or conversation changed while fetching.
+      // BUGS.md H34: previously the stale-conversation guard only ran on the
+      // INITIAL load (`beforeMessageId === undefined`). Pagination calls had
+      // no guard, so switching DMs mid-fetch would prepend conversation A's
+      // history into conversation B's `currentDMMessages` array and cache.
       if (signal?.aborted) {
         throw new Error('Request aborted')
       }
-      if (beforeMessageId === undefined && currentConversationId.value !== conversationId) {
+      if (currentConversationId.value !== conversationId) {
         debug.log(`⏭️ Discarding stale DM response for ${conversationId} (current: ${currentConversationId.value})`)
         return
       }
