@@ -275,22 +275,16 @@
           <!-- Regular Message Content -->
           <template v-else>
             <!-- Reply reference -->
-            <div v-if="item.message.reply_to" @click="handleReplyClick(item.message.reply_to)" class="reply-reference">
-            <div class="reply-spine"></div>
-            <div class="reply-content">
-              <Avatar 
-                :src="getReplyUserAvatar(item.message.reply_to)"
-                size="mini"
-                class="reply-avatar"
-              />
-              <div class="reply-username" :style="{ color: getReplyUserColor(item.message.reply_to) }">
-                <DisplayName :userId="getReplyUserId(item.message.reply_to)" :fallback="getReplyUserDisplayName(item.message.reply_to)" />
-              </div>
-              <div class="reply-preview">
-                {{ getReplyMessagePreview(item.message.reply_to) }}
-              </div>
-            </div>
-          </div>
+            <MessageReplyReference
+              v-if="item.message.reply_to"
+              :reply-to-message-id="item.message.reply_to"
+              :avatar-src="getReplyUserAvatar(item.message.reply_to)"
+              :reply-user-id="getReplyUserId(item.message.reply_to)"
+              :reply-user-display-name="getReplyUserDisplayName(item.message.reply_to)"
+              :username-color="getReplyUserColor(item.message.reply_to)"
+              :preview-text="getReplyMessagePreview(item.message.reply_to)"
+              @open-reply="handleReplyClick"
+            />
           
           <!-- Message content with proper alignment -->
           <div class="message-group" :class="{ 'has-header': shouldShowHeader(item.message, item.index), 'compact': !shouldShowHeader(item.message, item.index) }">
@@ -579,6 +573,7 @@ import { fundingService } from '@/services/FundingService';
 import ThreadIndicator from '@/components/threads/ThreadIndicator.vue';
 import ConfirmationModal from '@/components/ConfirmationModal.vue';
 import MessageFloatingActions from '@/components/messages/MessageFloatingActions.vue';
+import MessageReplyReference from '@/components/messages/MessageReplyReference.vue';
 import { threadService } from '@/services/ThreadService';
 import type { ThreadWithDetails } from '@/services/ThreadService';
 import { messagePartsToMarkdown, messagePartsToPlainText, isSingleEmojiMessage as checkSingleEmoji, stripLeadingSelfMention } from '@/utils/messageContentUtils';
@@ -2976,65 +2971,6 @@ defineExpose({ editLastOwnMessage });
   background-color: rgba(4, 4, 5, 0.07);
 }
 
-/* Reply reference styling */
-.reply-reference {
-  margin-left: 54px; /* Match the gutter width */
-  margin-bottom: 0;
-  cursor: pointer;
-  position: relative;
-}
-
-.reply-spine {
-  position: absolute;
-  left: -36px;
-  bottom: -1px;
-  width: 2px;
-  height: 12px;
-  background-color: #4f545c;
-  border-radius: 1px;
-}
-
-.reply-spine::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 34px;
-  height: 2px;
-  background-color: #4f545c;
-  border-radius: 1px;
-}
-
-.reply-content {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  opacity: 0.64;
-  transition: opacity 0.2s ease;
-}
-
-.reply-content:hover {
-  opacity: 1;
-}
-
-.reply-avatar {
-  flex-shrink: 0;
-}
-
-.reply-username {
-  font-weight: 500;
-  font-size: 0.875rem;
-}
-
-.reply-preview {
-  color: var(--text-secondary);
-  font-size: 0.875rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 300px;
-}
-
 /* Message group - contains header and/or content */
 .message-group {
   display: flex;
@@ -3511,17 +3447,6 @@ defineExpose({ editLastOwnMessage });
     padding: 0 8px 0 12px;
   }
   
-  .reply-reference {
-    margin-left: 50px;
-  }
-  .reply-spine {
-    left: -30px;
-  }
-  
-  .reply-spine::after {
-    width: 28px;
-  }
-
   .message-header {
     gap: 12px;
   }
