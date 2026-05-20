@@ -321,6 +321,23 @@ class GlobalDMCallListenerService {
       return
     }
 
+    // BUGS.md H5: federated incoming calls used to skip the permission gate
+    // entirely (no `canReceiveCall` invocation), so blocked / DND / muted
+    // users would still see a ringing modal from any remote actor. Run the
+    // same check as the local-call path before any UI / call-state side
+    // effects. If the call is auto-declined we don't currently have a
+    // federation-side decline channel — just refuse to ring locally and let
+    // the caller's ring timeout fire.
+    const permissionCheck = await dmCallPermissions.canReceiveCall(
+      payload.callerId,
+      this.currentUserId,
+      payload.conversationId,
+    )
+    if (!permissionCheck.allowed) {
+      debug.log(`🚫 [Federated] Auto-rejecting incoming call: ${permissionCheck.reason}`)
+      return
+    }
+
     // Register this as a federated active call so hasActiveCall() works
     dmCallSignaling.registerRemoteCall(
       payload.conversationId,

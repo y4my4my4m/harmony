@@ -15,7 +15,12 @@ import { debug } from '@/utils/debug'
 
 export interface CallPermissionCheck {
   allowed: boolean
-  reason?: 'blocked' | 'busy' | 'dnd' | 'muted' | 'notifications_disabled'
+  /**
+   * Why the call was disallowed. `'error'` is used when the permission lookup
+   * itself failed (DB / RLS / network) — see BUGS.md H4 (fail-closed on error
+   * for inbound calls).
+   */
+  reason?: 'blocked' | 'busy' | 'dnd' | 'muted' | 'notifications_disabled' | 'error'
   message?: string
 }
 
@@ -109,9 +114,16 @@ class DMCallPermissionService {
       return { allowed: true }
     } catch (error) {
       debug.error('❌ Error checking call permissions:', error)
-      // On error, allow the call (fail open for usability)
-      debug.log('⚠️ Failing open - allowing call despite error')
-      return { allowed: true }
+      // BUGS.md H4: previously this failed OPEN on any error, which meant
+      // that blocked / DND / muted users would still receive calls whenever
+      // the permission lookup hit a DB/RLS error. The cost of a spurious
+      // ring on a transient error is far lower than the cost of bypassing
+      // a real block, so we now fail closed for inbound calls.
+      return {
+        allowed: false,
+        reason: 'error',
+        message: 'Could not verify call permissions — please try again.'
+      }
     }
   }
 

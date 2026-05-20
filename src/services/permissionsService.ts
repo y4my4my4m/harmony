@@ -74,10 +74,16 @@ async function getUserPermissions(userId: string, serverId: string): Promise<Use
     }
   } catch (error) {
     debug.error('Error getting user permissions:', error)
+    // BUGS.md H1: previously this returned SEND_MESSAGES + VIEW_CHANNEL on
+    // error, which means a transient permission-RPC failure silently grants
+    // every caller the ability to send/view. Fail closed instead: callers
+    // that treat the return value as authoritative will deny rather than
+    // permit. Server-side RLS remains the real enforcement boundary, but
+    // client-side UI fail-open is itself a confusion-of-deputy risk.
     return {
       userId,
       serverId,
-      permissions: [Permission.SEND_MESSAGES, Permission.VIEW_CHANNEL], // Default basic permissions
+      permissions: [],
       roles: [],
       isOwner: false,
       isAdmin: false
