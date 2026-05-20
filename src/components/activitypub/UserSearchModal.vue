@@ -215,7 +215,7 @@ const handleSearchInput = () => {
       searchResults.value = [];
       hasMoreResults.value = false;
     }
-  }, 300);
+  }, 300) as unknown as number;
 };
 
 let searchTimeout: number;

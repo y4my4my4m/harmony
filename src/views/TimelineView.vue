@@ -22,7 +22,7 @@
         :posts="posts"
         :is-loading-feed="isLoadingFeed"
         :has-more-posts="hasMorePosts"
-        :view-type="viewType"
+        :view-type="(viewType as any)"
         :current-view="currentView"
         @refresh-timeline="handleRefreshTimeline"
         @post-created="handlePostCreated"

@@ -37,7 +37,7 @@
             :key="mode.value"
             class="mode-option"
             :class="{ selected: currentMode === mode.value }"
-            @click="selectMode(mode.value)"
+            @click="selectMode(mode.value as 'disabled' | 'optional' | 'required')"
           >
             <div class="mode-header">
               <input

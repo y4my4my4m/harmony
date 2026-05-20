@@ -456,7 +456,7 @@ const handleSendMessage = async (content: any, replyTo?: string) => {
     const currentChannelId = channelId.value
     
     if (currentServerId && currentChannelId && currentUser?.id) {
-      await chatStore.sendMessage(currentServerId, currentChannelId, currentUser.id, content, replyTo ?? '')
+      await chatStore.sendMessage(currentServerId, currentChannelId, currentUser.id!, content, replyTo ?? '')
     }
   }
 }

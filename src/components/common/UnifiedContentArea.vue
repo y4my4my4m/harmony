@@ -23,7 +23,7 @@
       <!-- Explore View -->
       <ExploreContent
         v-if="viewType === ViewType.EXPLORE"
-        :current-view="currentView || 'trending'"
+        :current-view="(currentView || 'trending') as any"
       />
       
       <!-- Special Views (Bookmarks, Lists, etc.) -->
