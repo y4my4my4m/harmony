@@ -232,12 +232,14 @@ BEGIN
                 END IF;
             END IF;
 
-            -- Notification level enforcement (only for channels, not conversations)
+            -- Notification level enforcement (only for channels, not conversations).
+            -- Fallback is 'mentions' (was 'all') so new channels notify only on
+            -- @mentions by default. See 20260520_default_notification_level_mentions.sql.
             IF p_channel_id IS NOT NULL AND v_notification_level IS NULL THEN
                 SELECT ss.default_message_notifications INTO v_server_default
                 FROM server_settings ss
                 WHERE ss.server_id = p_server_id;
-                v_notification_level := COALESCE(v_server_default, 'all');
+                v_notification_level := COALESCE(v_server_default, 'mentions');
             END IF;
 
             IF v_notification_level = 'none' THEN

@@ -352,6 +352,7 @@
               :metadata="item.message.metadata"
               :encrypted="item.message.encrypted || false"
               :decrypted="item.message.decrypted || false"
+              :sender-verified="item.message?.sender_verified"
               :can-decrypt="canDecryptMessages"
               @image-loaded="handleImageLoaded"
               @embed-loaded="handleEmbedLoaded(item.message.id)"
@@ -386,6 +387,7 @@
               :metadata="item.message.metadata"
               :encrypted="item.message.encrypted || false"
               :decrypted="item.message.decrypted || false"
+              :sender-verified="item.message?.sender_verified"
               :can-decrypt="canDecryptMessages"
               @image-loaded="handleImageLoaded"
               @embed-loaded="handleEmbedLoaded(item.message.id)"
@@ -1759,11 +1761,16 @@ const flushUnreadUpdate = async () => {
 
 const clearUnreadCount = async (messageId: string) => {
   if (!props.channelId && !props.conversationId) return;
-  
+
   try {
-    const userId = authStore.session?.user?.id;
-    if (!userId) return;
-    
+    // unread_counts.user_id is a profile id (not an auth user id). Using the
+    // wrong identity here silently no-ops the UPDATE, which used to leave the
+    // sidebar badge "stuck" until the next fetch.
+    const { authContextService } = await import('@/services/AuthContextService');
+    const ctx = await authContextService.getCurrentContext();
+    if (!ctx.isAuthenticated) return;
+    const profileId = ctx.profileId;
+
     // Get the message to find channel_id or conversation_id
     const message = props.messages.find(m => m.id === messageId);
     if (!message) return;
@@ -1783,7 +1790,7 @@ const clearUnreadCount = async (messageId: string) => {
         last_read_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       })
-      .eq('user_id', userId)
+      .eq('user_id', profileId)
       .eq(channelId ? 'channel_id' : 'conversation_id', channelId || conversationId);
     
     if (error) {
@@ -2722,18 +2729,28 @@ const handleDecryptMessage = async (message: Message) => {
       encryption_metadata: messageToDecrypt.encryption_metadata
     };
     
-    const decryptedContent = await megolmMessageEncryptionService.decryptMessage(messageForDecryption);
-    
+    const decryptResult = await megolmMessageEncryptionService.decryptMessage(messageForDecryption);
+
+    // decryptMessage now returns { content, senderVerified } for v2-aware
+    // callers. Support the historical bare-array shape too while migrating.
+    const decryptedContent: MessagePart[] = Array.isArray(decryptResult)
+      ? decryptResult
+      : decryptResult.content;
+    const senderVerified: boolean | undefined = Array.isArray(decryptResult)
+      ? undefined
+      : Boolean(decryptResult.senderVerified);
+
     if (decryptedContent) {
       // Update the message in the store with decrypted content
       const resolvedContent = await resolveMentionsUserData(decryptedContent);
-      
+
       // Create updated message object
       const updatedMessage: Message = {
         ...messageToDecrypt,
         content: resolvedContent,
         encrypted: false,
-        decrypted: true
+        decrypted: true,
+        sender_verified: senderVerified,
       };
       
       // Update the message in the appropriate store

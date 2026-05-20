@@ -16,7 +16,7 @@
 
 // Phase 1A: Core Message Service ✅ COMPLETED
 export { CoreMessageService, coreMessageService } from './CoreMessageService'
-export type { SendMessageData, CoreMessageServiceError } from './CoreMessageService'
+export type { SendMessageData, CoreMessageServiceError, SendOptions } from './CoreMessageService'
 
 // Phase 1B: Core Post Service ✅ COMPLETED
 export { CorePostService, corePostService } from './CorePostService'

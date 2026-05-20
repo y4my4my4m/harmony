@@ -13,6 +13,14 @@ interface Props {
   mode?: 'message' | 'voice' | 'server' | 'dm'
   showLabel?: boolean
   size?: 'small' | 'medium' | 'large'
+  /**
+   * Cryptographic sender-binding state for an encrypted message.
+   *  - true      → signature verified
+   *  - false     → message decoded but sender NOT cryptographically verified
+   *                (legacy v1 message or sender has no signing key on file)
+   *  - undefined → not applicable (plaintext, or this indicator isn't for a message)
+   */
+  senderVerified?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -22,20 +30,27 @@ const props = withDefaults(defineProps<Props>(), {
   size: 'medium'
 })
 
+// "Unverified author" is only meaningful for an encrypted message whose
+// sender signature failed/was missing. We surface it visually only in
+// per-message mode.
+const isUnverifiedAuthor = computed(() => {
+  return (
+    props.mode === 'message' && props.encrypted === true && props.senderVerified === false
+  )
+})
+
 const isVisible = computed(() => {
   // Always show for server/dm mode, only show for message/voice if encrypted
   return props.mode === 'server' || props.mode === 'dm' || props.encrypted
 })
 
 const icon = computed(() => {
-  if (props.encrypted) {
-    return '🔐'
-  } else {
-    return '🔓'
-  }
+  if (isUnverifiedAuthor.value) return '⚠️'
+  return props.encrypted ? '🔐' : '🔓'
 })
 
 const label = computed(() => {
+  if (isUnverifiedAuthor.value) return 'Unverified author'
   if (props.encrypted) {
     switch (props.mode) {
       case 'message':
@@ -66,10 +81,13 @@ const label = computed(() => {
 })
 
 const tooltip = computed(() => {
+  if (isUnverifiedAuthor.value) {
+    return 'This message was decrypted but the sender\'s identity could not be cryptographically verified. The sender may be running an older client, or the message may have been tampered with.'
+  }
   if (props.encrypted) {
     switch (props.mode) {
       case 'message':
-        return 'This message is end-to-end encrypted. Only participants can read it.'
+        return 'This message is end-to-end encrypted and the sender\'s identity has been cryptographically verified.'
       case 'voice':
         return 'This call is end-to-end encrypted using insertable streams.'
       case 'server':
@@ -96,11 +114,12 @@ const tooltip = computed(() => {
 })
 
 const indicatorClass = computed(() => {
-  return [
-    `size-${props.size}`,
-    props.encrypted ? 'encrypted' : 'unencrypted',
-    `mode-${props.mode}`
-  ]
+  const variant = isUnverifiedAuthor.value
+    ? 'unverified-author'
+    : props.encrypted
+      ? 'encrypted'
+      : 'unencrypted'
+  return [`size-${props.size}`, variant, `mode-${props.mode}`]
 })
 </script>
 
@@ -165,6 +184,16 @@ const indicatorClass = computed(() => {
 
 .encryption-indicator.unencrypted:hover {
   background: rgba(var(--color-warning-rgb), 0.2);
+}
+
+.encryption-indicator.unverified-author {
+  background: rgba(var(--color-warning-rgb), 0.15);
+  color: var(--color-warning);
+  border: 1px dashed rgba(var(--color-warning-rgb), 0.6);
+}
+
+.encryption-indicator.unverified-author:hover {
+  background: rgba(var(--color-warning-rgb), 0.25);
 }
 
 .icon {

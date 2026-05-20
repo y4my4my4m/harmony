@@ -19,8 +19,10 @@ import { debug } from '@/utils/debug'
 /**
  * Frame encryption using AES-GCM
  * Uses WebCrypto API for fast encryption
+ *
+ * Exported for unit testing fail-closed behavior on encrypt/decrypt errors.
  */
-class FrameEncryptor {
+export class FrameEncryptor {
   private key: CryptoKey | null = null
   private counter = 0
 
@@ -47,25 +49,21 @@ class FrameEncryptor {
     const counterBytes = new DataView(iv.buffer, 4, 8)
     counterBytes.setBigUint64(0, BigInt(this.counter++), false)
 
-    try {
-      // Encrypt frame data
-      const encrypted = await crypto.subtle.encrypt(
-        { name: 'AES-GCM', iv, tagLength: 128 },
-        this.key,
-        frame
-      )
+    // Encrypt frame data. Fail closed: if AES-GCM rejects we MUST NOT
+    // forward the cleartext on the wire — that silently downgrades the
+    // call to plaintext while the UI still claims E2EE is active.
+    const encrypted = await crypto.subtle.encrypt(
+      { name: 'AES-GCM', iv, tagLength: 128 },
+      this.key,
+      frame
+    )
 
-      // Combine IV + encrypted data
-      const result = new Uint8Array(iv.length + encrypted.byteLength)
-      result.set(iv, 0)
-      result.set(new Uint8Array(encrypted), iv.length)
+    // Combine IV + encrypted data
+    const result = new Uint8Array(iv.length + encrypted.byteLength)
+    result.set(iv, 0)
+    result.set(new Uint8Array(encrypted), iv.length)
 
-      return result
-    } catch (error) {
-      debug.error('❌ Frame encryption failed:', error)
-      // Return original frame if encryption fails (fail open for real-time)
-      return frame
-    }
+    return result
   }
 
   async decrypt(encryptedFrame: Uint8Array): Promise<Uint8Array> {
@@ -77,19 +75,16 @@ class FrameEncryptor {
     const iv = encryptedFrame.slice(0, 12)
     const data = encryptedFrame.slice(12)
 
-    try {
-      const decrypted = await crypto.subtle.decrypt(
-        { name: 'AES-GCM', iv, tagLength: 128 },
-        this.key,
-        data
-      )
+    // Throw on decryption failure rather than passing the ciphertext back as
+    // "audio/video data". The transform stream drops the frame on throw,
+    // which is the right behavior for tampered or unauthenticated frames.
+    const decrypted = await crypto.subtle.decrypt(
+      { name: 'AES-GCM', iv, tagLength: 128 },
+      this.key,
+      data
+    )
 
-      return new Uint8Array(decrypted)
-    } catch (error) {
-      debug.error('❌ Frame decryption failed:', error)
-      // Return original frame if decryption fails
-      return encryptedFrame
-    }
+    return new Uint8Array(decrypted)
   }
 
   reset(): void {
@@ -268,7 +263,12 @@ export class WebRTCEncryptionService {
 
       debug.log(`🔐 Encrypting outgoing stream for ${receiverId}`)
 
-      // Create transform stream for encryption
+      // Create transform stream for encryption.
+      //
+      // Fail closed: on encryption failure we drop the frame instead of
+      // forwarding cleartext. Audio/video will glitch — which is much better
+      // than silently transmitting unencrypted media while the UI still
+      // reports "E2EE enabled".
       const transformStream = new TransformStream({
         transform: async (encodedFrame, controller) => {
           try {
@@ -282,9 +282,9 @@ export class WebRTCEncryptionService {
             encodedFrame.data = encrypted.buffer
             controller.enqueue(encodedFrame)
           } catch (error) {
-            debug.error('❌ Frame encryption error:', error)
-            // Forward original frame on error
-            controller.enqueue(encodedFrame)
+            debug.error('❌ Frame encryption error — dropping frame:', error)
+            // INTENTIONAL: do not enqueue the frame. Dropping is the correct
+            // behavior when crypto fails; forwarding plaintext is a downgrade.
           }
         }
       })
@@ -331,7 +331,11 @@ export class WebRTCEncryptionService {
 
       debug.log(`🔓 Decrypting incoming stream from ${senderId}`)
 
-      // Create transform stream for decryption
+      // Create transform stream for decryption.
+      //
+      // Fail closed: drop frames that fail to decrypt rather than passing
+      // the ciphertext bytes to the decoder. Otherwise a tampered or
+      // mis-keyed frame would be rendered as garbled cleartext "audio".
       const transformStream = new TransformStream({
         transform: async (encodedFrame, controller) => {
           try {
@@ -345,9 +349,8 @@ export class WebRTCEncryptionService {
             encodedFrame.data = decrypted.buffer
             controller.enqueue(encodedFrame)
           } catch (error) {
-            debug.error('❌ Frame decryption error:', error)
-            // Forward original frame on error
-            controller.enqueue(encodedFrame)
+            debug.error('❌ Frame decryption error — dropping frame:', error)
+            // INTENTIONAL: drop instead of forwarding raw ciphertext.
           }
         }
       })

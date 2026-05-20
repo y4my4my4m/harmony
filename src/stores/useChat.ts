@@ -651,7 +651,15 @@ export const useChatStore = defineStore('chat', {
       }
     },
 
-    async sendMessage(serverId: string, channelId: string, userId: string, content: Array<Object>, replyTo: string, extraMetadata?: Record<string, any>) {
+    async sendMessage(
+      serverId: string,
+      channelId: string,
+      userId: string,
+      content: Array<Object>,
+      replyTo: string,
+      extraMetadata?: Record<string, any>,
+      options?: { allowPlaintextFallback?: boolean }
+    ) {
       // Create optimistic message
       const tempId = `temp-${Date.now()}`;
       const optimisticMessage = {
@@ -676,7 +684,8 @@ export const useChatStore = defineStore('chat', {
           channelId, 
           content as any, // MessagePart[]
           replyTo || undefined,
-          extraMetadata
+          extraMetadata,
+          options
         );
         
         debug.log('✅ Message saved to database:', message.id);
@@ -687,6 +696,21 @@ export const useChatStore = defineStore('chat', {
         return message;
       } catch (error: any) {
         debug.error('❌ Error sending message via service:', error);
+
+        // Encryption policy errors are NOT transient. Auto-retrying would either
+        // (a) keep failing for the same reason or (b) silently bypass the
+        // fail-closed policy. Surface immediately so the UI can ask the user
+        // whether to send unencrypted.
+        const code = (error?.code || error?.message || '').toString();
+        const isEncryptionPolicyError =
+          code.includes('ENCRYPTION_REQUIRED') ||
+          code.includes('ENCRYPTION_LOCKED') ||
+          code.includes('ENCRYPTION_UNAVAILABLE') ||
+          code.includes('ENCRYPTION_FAILED_NO_FALLBACK')
+        if (isEncryptionPolicyError) {
+          this._markMessageFailed(tempId);
+          throw error;
+        }
 
         // If offline, mark failed immediately — no point retrying
         if (!navigator.onLine) {
@@ -708,7 +732,7 @@ export const useChatStore = defineStore('chat', {
 
           try {
             const retryResult = await services.messages.sendChannelMessage(
-              serverId, channelId, content as any, replyTo || undefined
+              serverId, channelId, content as any, replyTo || undefined, extraMetadata, options
             );
             this._replaceTempWithReal(tempId, retryResult, userId, channelId, content);
             return retryResult;

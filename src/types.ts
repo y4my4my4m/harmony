@@ -371,6 +371,14 @@ export interface Message {
   is_system?: boolean; // for system messages like join/leave announcements
   encrypted?: boolean; // true if this message is encrypted
   decrypted?: boolean; // true if this message was encrypted and successfully decrypted (client-side flag)
+  /**
+   * Client-side verification flag for cryptographic sender binding (Megolm v2).
+   *  - `true`  → signature verified against sender's published signing key.
+   *  - `false` → signature missing (legacy v1) OR sender has no signing key on record.
+   *              UI should show an "unverified author" indicator.
+   *  - absent  → message has not been processed through decryption (e.g., plaintext message).
+   */
+  sender_verified?: boolean;
   encryption_metadata?: {
     algorithm: string;
     encrypted_for: string[];
@@ -378,6 +386,12 @@ export interface Message {
     timestamp: number;
     encrypted_keys?: Record<string, string>; // Map of user_id -> encrypted symmetric key (hybrid encryption)
     iv?: string; // Initialization vector for AES-GCM
+    // Megolm v2 sender-binding fields
+    signature?: string;
+    signing_key_fingerprint?: string;
+    session_id?: string;
+    message_index?: number;
+    sender_user_id?: string;
   };
   metadata?: Record<string, any> & {
     embeds?: Record<string, EmbedPayload>;

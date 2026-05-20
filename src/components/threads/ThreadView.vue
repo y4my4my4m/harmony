@@ -255,6 +255,7 @@ import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { supabase } from '@/supabase'
 import { threadService } from '@/services/ThreadService'
 import { useUserData } from '@/composables/useUserData'
+import { useEncryptionFallbackPrompt } from '@/composables/useEncryptionFallbackPrompt'
 import { format } from 'date-fns'
 import Avatar from '@/components/common/Avatar.vue'
 import DisplayName from '@/components/DisplayName.vue'
@@ -304,6 +305,7 @@ const draftsStore = useDraftsStore()
 const themeStore = useThemeStore()
 const serverChannelStore = useServerChannelStore()
 const { canManageChannels } = useServerPermissions()
+const { runWithEncryptionFallback } = useEncryptionFallbackPrompt()
 
 const canManageThread = computed(() => canManageChannels.value)
 
@@ -762,14 +764,17 @@ const handleSendMessage = async (content: string, files: FilePreviewData[] = [],
       await nextTick()
       scrollToBottom()
       
-      // Send to DB
-      const newMessage = await threadService.sendThreadMessage(
-        targetThreadId,
-        messageParts,
-        savedReplyTo
+      // Send to DB (fail-closed + plaintext override prompt)
+      const sendResult = await runWithEncryptionFallback(
+        ({ allowPlaintextFallback }) =>
+          threadService.sendThreadMessage(targetThreadId!, messageParts, savedReplyTo, undefined, {
+            allowPlaintextFallback,
+          }),
+        { scope: 'thread' },
       )
-      
-      if (newMessage) {
+
+      if (sendResult.status === 'ok' && sendResult.result) {
+        const newMessage = sendResult.result
         // Replace optimistic message with real one
         const tempIndex = messages.value.findIndex(m => m.id === tempId)
         if (tempIndex !== -1) {
@@ -777,13 +782,16 @@ const handleSendMessage = async (content: string, files: FilePreviewData[] = [],
         }
         threadService.addMessageToCache(targetThreadId, newMessage)
       } else {
-        // Remove optimistic message on failure
+        // Remove optimistic message on declined or failed send
         const tempIndex = messages.value.findIndex(m => m.id === tempId)
         if (tempIndex !== -1) {
           messages.value.splice(tempIndex, 1)
         }
         if (thread.value) {
           thread.value.message_count = Math.max(0, (thread.value.message_count || 1) - 1)
+        }
+        if (sendResult.status === 'error') {
+          debug.error('Failed to send thread message:', sendResult.error)
         }
       }
     }
@@ -975,14 +983,16 @@ const handleSendVoiceMessage = async (data: { url: string, duration: number, wav
     await nextTick()
     scrollToBottom()
 
-    const newMessage = await threadService.sendThreadMessage(
-      targetThreadId,
-      messageParts,
-      undefined,
-      voiceMetadata
+    const sendResult = await runWithEncryptionFallback(
+      ({ allowPlaintextFallback }) =>
+        threadService.sendThreadMessage(targetThreadId!, messageParts, undefined, voiceMetadata, {
+          allowPlaintextFallback,
+        }),
+      { scope: 'thread' },
     )
 
-    if (newMessage) {
+    if (sendResult.status === 'ok' && sendResult.result) {
+      const newMessage = sendResult.result
       const tempIndex = messages.value.findIndex(m => m.id === tempId)
       if (tempIndex !== -1) {
         messages.value[tempIndex] = newMessage
@@ -995,6 +1005,9 @@ const handleSendVoiceMessage = async (data: { url: string, duration: number, wav
       }
       if (thread.value) {
         thread.value.message_count = Math.max(0, (thread.value.message_count || 1) - 1)
+      }
+      if (sendResult.status === 'error') {
+        debug.error('Error sending voice message in thread:', sendResult.error)
       }
     }
   } catch (error) {
@@ -1042,13 +1055,16 @@ const handleSendGif = async (gif: Gif) => {
       fileType: 'image'
     }]
     
-    const newMessage = await threadService.sendThreadMessage(
-      targetThreadId,
-      messageParts,
-      replyingToMessageId.value || undefined
+    const sendResult = await runWithEncryptionFallback(
+      ({ allowPlaintextFallback }) =>
+        threadService.sendThreadMessage(targetThreadId!, messageParts, replyingToMessageId.value || undefined, undefined, {
+          allowPlaintextFallback,
+        }),
+      { scope: 'thread' },
     )
-    
-    if (newMessage) {
+
+    if (sendResult.status === 'ok' && sendResult.result) {
+      const newMessage = sendResult.result
       messages.value.push(newMessage)
       // Update cache
       threadService.addMessageToCache(targetThreadId, newMessage)
@@ -1057,6 +1073,8 @@ const handleSendGif = async (gif: Gif) => {
       replyingToUserId.value = ''
       await nextTick()
       scrollToBottom()
+    } else if (sendResult.status === 'error') {
+      debug.error('Failed to send GIF:', sendResult.error)
     }
   } catch (error) {
     debug.error('Failed to send GIF:', error)
