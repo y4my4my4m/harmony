@@ -34,6 +34,7 @@
 import { ref, onMounted } from 'vue'
 import { debug } from '@/utils/debug'
 import { usePushNotifications } from '@/composables/usePushNotifications'
+import { isPWA, isMobileUserAgent } from '@/utils/pwaUtils'
 
 const showBanner = ref(false)
 const enabling = ref(false)
@@ -45,24 +46,6 @@ const {
   subscribe,
   initialize
 } = usePushNotifications()
-
-/**
- * Check if running as installed PWA
- */
-const isPWA = (): boolean => {
-  const isStandalone = window.matchMedia('(display-mode: standalone)').matches
-  const isIOSStandalone = (navigator as any).standalone === true
-  const isFullscreen = window.matchMedia('(display-mode: fullscreen)').matches
-  return isStandalone || isIOSStandalone || isFullscreen
-}
-
-/**
- * Check if on mobile device
- */
-const isMobile = (): boolean => {
-  const ua = navigator.userAgent.toLowerCase()
-  return /iphone|ipod|android.*mobile|windows phone|blackberry/.test(ua)
-}
 
 /**
  * Check if prompt was recently dismissed
@@ -131,7 +114,7 @@ const shouldShowPrompt = (): boolean => {
     return false
   }
   
-  debug.log('🔔 Push prompt: Should show!', { isPWA: isPWA(), isMobile: isMobile() })
+  debug.log('🔔 Push prompt: Should show!', { isPWA: isPWA(), isMobile: isMobileUserAgent() })
   return true
 }
 

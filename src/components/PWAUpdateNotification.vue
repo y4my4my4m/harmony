@@ -28,20 +28,11 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
 import { debug } from '@/utils/debug'
+import { isPWA } from '@/utils/pwaUtils'
 
 const showUpdate = ref(false)
 const updating = ref(false)
 let updateWaiting: ServiceWorker | null = null
-
-/**
- * Check if running as installed PWA
- */
-const isPWA = (): boolean => {
-  const isStandalone = window.matchMedia('(display-mode: standalone)').matches
-  const isIOSStandalone = (navigator as any).standalone === true
-  const isFullscreen = window.matchMedia('(display-mode: fullscreen)').matches
-  return isStandalone || isIOSStandalone || isFullscreen
-}
 
 const handleServiceWorkerUpdate = (event: any) => {
   debug.log('🔔 Service Worker update event received:', event.detail)

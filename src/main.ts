@@ -41,6 +41,7 @@ import { livekitWebRTC } from '@/services/livekitWebRTC';
 if (typeof window !== 'undefined') {
   (window as any).webrtcManager = webrtcManager;
   (window as any).livekitWebRTC = livekitWebRTC;
+  (window as any).pwaManager = pwaManager;
 }
 
 const app = createApp(App);
@@ -81,14 +82,31 @@ app.config.errorHandler = (err, instance, info) => {
 }
 
 async function initializeApp() {
+  let mounted = false
+  const mountApp = () => {
+    if (mounted) return
+    app.use(router).mount('#app')
+    mounted = true
+  }
+
   try {
     // Wait for initial locale to load (ensures translations are available)
     await waitForInitialLocale()
     debug.log('🌐 Initial locale loaded')
     
-    // Initialize PWA features first for better UX (mostly synchronous)
+    // Register service worker before PWA/install checks (push + installability)
+    const swSupported = await serviceWorkerManager.initialize()
+    debug.log('🔔 Service Worker supported:', swSupported)
+
+    // Initialize PWA features (install prompt listener, diagnostics)
     await pwaManager.initialize()
     debug.log('🚀 PWA Manager initialized')
+
+    if (swSupported && Notification.permission === 'default') {
+      serviceWorkerManager.requestNotificationPermission().catch((err) => {
+        debug.warn('⚠️ Notification permission request failed:', err)
+      })
+    }
     
     // Initialize auth store first to check for existing sessions (CRITICAL - must be before mount)
     const authStore = useAuthStore()
@@ -96,33 +114,17 @@ async function initializeApp() {
     debug.log('✅ Auth initialized')
     
     // Mount the app AFTER auth is initialized (so router guard has correct auth state)
-    app.use(router).mount('#app')
-    
-    // Initialize non-critical services in background (don't block rendering)
-    Promise.all([
-      // Service worker - can be slow, run in background
-      serviceWorkerManager.initialize().then(swSupported => {
-        debug.log('🔔 Service Worker supported:', swSupported)
-        
-        // Request notification permission in background (non-blocking)
-        if (swSupported) {
-          // Don't await - let it happen in background
-          serviceWorkerManager.requestNotificationPermission().catch(err => {
-            debug.warn('⚠️ Notification permission request failed:', err)
-          })
-        }
-      }).catch(err => {
-        debug.error('❌ Service Worker initialization failed:', err)
-      })
-    ]).catch(err => {
-      debug.error('❌ Error initializing background services:', err)
-    })
-    
-    reactionCacheManager.startCleanup()
+    mountApp()
+
+    try {
+      reactionCacheManager.startCleanup()
+    } catch (err) {
+      debug.error('❌ reactionCacheManager.startCleanup failed:', err)
+    }
   } catch (error) {
     debug.error('❌ Error initializing app:', error)
-    // Still mount the app even if initialization fails
-    app.use(router).mount('#app')
+    // Still mount the app even if initialization fails (no-op if already mounted)
+    mountApp()
   }
 }
 

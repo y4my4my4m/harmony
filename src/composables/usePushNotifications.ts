@@ -8,6 +8,7 @@
 import { ref, computed } from 'vue'
 import { supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
+import { isPWA } from '@/utils/pwaUtils'
 
 // Federation backend base path (proxied via nginx)
 const FEDERATION_BACKEND_URL = '/api/federation'
@@ -47,17 +48,6 @@ function checkSupport(): boolean {
   const hasNotification = 'Notification' in window
   
   return hasServiceWorker && hasPushManager && hasNotification
-}
-
-/**
- * Check if running as installed PWA (for iOS)
- */
-function isPWA(): boolean {
-  // Check for standalone mode (installed PWA)
-  const isStandalone = window.matchMedia('(display-mode: standalone)').matches
-  const isIOSStandalone = (navigator as any).standalone === true
-  
-  return isStandalone || isIOSStandalone
 }
 
 /**

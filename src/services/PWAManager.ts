@@ -5,6 +5,12 @@
 
 import { debug } from '@/utils/debug'
 import { hapticManager } from '@/utils/hapticFeedback'
+import {
+  isPWA as checkIsPWA,
+  isMobileUserAgent,
+  logInstallDiagnostics,
+  shouldDeferInstallPrompt,
+} from '@/utils/pwaUtils'
 
 export interface PWAInstallPrompt {
   prompt(): Promise<void>
@@ -25,6 +31,8 @@ export interface PWACapabilities {
 export class PWAManager {
   private static instance: PWAManager
   private installPrompt: PWAInstallPrompt | null = null
+  /** Set when beforeinstallprompt fires; cleared on appinstalled */
+  private installOffered = false
   private capabilities: PWACapabilities = {
     canInstall: false,
     isInstalled: false,
@@ -70,6 +78,11 @@ export class PWAManager {
     // Hide loading screen when app is ready
     this.hideLoadingScreen()
 
+    // Refresh flags after listeners are registered (installPrompt may still be null until event fires)
+    this.detectCapabilities()
+
+    void logInstallDiagnostics({ canInstallDeferred: this.installPrompt !== null })
+
     debug.log('✅ PWA Manager: Initialized with capabilities:', this.capabilities)
   }
 
@@ -78,7 +91,7 @@ export class PWAManager {
    */
   private detectCapabilities(): void {
     this.capabilities = {
-      canInstall: this.installPrompt !== null,
+      canInstall: this.installOffered && !this.isAppInstalled(),
       isInstalled: this.isAppInstalled(),
       isStandalone: this.isStandaloneMode(),
       supportsNotifications: 'Notification' in window,
@@ -94,19 +107,32 @@ export class PWAManager {
    */
   private setupInstallPrompt(): void {
     window.addEventListener('beforeinstallprompt', (event) => {
-      debug.log('💾 PWA Manager: Install prompt available')
-      event.preventDefault()
-      this.installPrompt = event as any
-      this.capabilities.canInstall = true
+      debug.log('💾 PWA Manager: Install prompt available', {
+        deferForCustomUi: shouldDeferInstallPrompt(),
+      })
+
+      const installEvent = event as BeforeInstallPromptEvent
+
+      // Desktop: do not preventDefault — Chrome omnibox install uses native UI.
+      // Mobile: defer so we can show the in-app install banner at the right time.
+      this.installOffered = true
+
+      if (shouldDeferInstallPrompt()) {
+        installEvent.preventDefault()
+        this.installPrompt = installEvent
+      } else {
+        this.installPrompt = null
+      }
+
+      this.detectCapabilities()
       this.notifyInstallAvailable()
     })
 
-    // Listen for app installed event
     window.addEventListener('appinstalled', () => {
       debug.log('✅ PWA Manager: App installed successfully')
       this.installPrompt = null
-      this.capabilities.canInstall = false
-      this.capabilities.isInstalled = true
+      this.installOffered = false
+      this.detectCapabilities()
       this.notifyAppInstalled()
     })
   }
@@ -116,7 +142,7 @@ export class PWAManager {
    */
   private setupNativeAppBehaviors(): void {
     // Prevent context menus on touch devices for app-like feel
-    if (this.isStandaloneMode() || this.isMobileDevice()) {
+    if (checkIsPWA() || isMobileUserAgent()) {
       document.addEventListener('contextmenu', (e) => {
         // Allow context menu on text inputs
         const target = e.target as HTMLElement
@@ -127,7 +153,7 @@ export class PWAManager {
     }
 
     // Enhanced pull-to-refresh
-    if (this.isStandaloneMode()) {
+    if (checkIsPWA()) {
       this.setupPullToRefresh()
     }
 
@@ -327,27 +353,42 @@ export class PWAManager {
    */
   async showInstallPrompt(): Promise<boolean> {
     if (!this.installPrompt) {
-      debug.warn('⚠️ PWA Manager: No install prompt available')
+      debug.warn(
+        '⚠️ PWA Manager: No deferred install prompt (use browser address-bar install on desktop)'
+      )
       return false
     }
 
     try {
       await this.installPrompt.prompt()
       const result = await this.installPrompt.userChoice
-      
+
       debug.log('💾 PWA Manager: Install prompt result:', result.outcome)
-      
+
+      // Prompt can only be used once per beforeinstallprompt event
+      this.installPrompt = null
+
       if (result.outcome === 'accepted') {
-        this.installPrompt = null
         this.capabilities.canInstall = false
+        this.detectCapabilities()
         return true
       }
-      
+
+      this.detectCapabilities()
       return false
     } catch (error) {
       debug.error('❌ PWA Manager: Install prompt failed:', error)
+      this.installPrompt = null
+      this.detectCapabilities()
       return false
     }
+  }
+
+  /**
+   * Whether the in-app Install button can call prompt() (mobile deferred flow).
+   */
+  hasDeferredInstallPrompt(): boolean {
+    return this.installPrompt !== null
   }
 
   /**
@@ -598,17 +639,11 @@ export class PWAManager {
    * Utility methods
    */
   private isAppInstalled(): boolean {
-    return window.matchMedia('(display-mode: standalone)').matches ||
-           (window.navigator as any).standalone === true
+    return checkIsPWA()
   }
 
   private isStandaloneMode(): boolean {
-    return window.matchMedia('(display-mode: standalone)').matches ||
-           (window.navigator as any).standalone === true
-  }
-
-  private isMobileDevice(): boolean {
-    return /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+    return checkIsPWA()
   }
 
   private notifyInstallAvailable(): void {

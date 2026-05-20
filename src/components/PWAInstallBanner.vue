@@ -32,6 +32,10 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import { debug } from '@/utils/debug'
 import { pwaManager } from '@/services/PWAManager'
+import {
+  showInstallFailedToast,
+  showInstallUnavailableToast,
+} from '@/utils/pwaInstallToast'
 
 const showBanner = ref(false)
 const installing = ref(false)
@@ -47,16 +51,23 @@ const checkInstallAvailability = () => {
 
 const installApp = async () => {
   installing.value = true
-  
+
   try {
+    if (!pwaManager.hasDeferredInstallPrompt()) {
+      showInstallUnavailableToast()
+      return
+    }
+
     const success = await pwaManager.showInstallPrompt()
     if (success) {
       showBanner.value = false
-      // Store successful install
       localStorage.setItem('harmony-pwa-installed', 'true')
+    } else {
+      showInstallFailedToast()
     }
   } catch (error) {
     debug.error('Failed to install app:', error)
+    showInstallUnavailableToast()
   } finally {
     installing.value = false
   }

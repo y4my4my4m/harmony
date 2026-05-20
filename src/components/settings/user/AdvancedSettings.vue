@@ -8,6 +8,14 @@
     </div>
 
     <div class="settings-section">
+      <h3 class="section-title">Install app</h3>
+      <p class="setting-description install-app-help">
+        Install Harmony as an app for faster loading and notifications. On desktop, use the install icon in your browser address bar if the button below is unavailable.
+      </p>
+      <PWAInstallPrompt variant="button" :is-in-settings="true" />
+    </div>
+
+    <div class="settings-section">
       <h3 class="section-title">Developer Settings</h3>
       
       <div class="setting-item">
@@ -126,6 +134,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { debug } from '@/utils/debug'
 import ToggleSwitch from '@/components/common/ToggleSwitch.vue'
+import PWAInstallPrompt from '@/components/PWAInstallPrompt.vue'
 import { useDeveloperTools } from '@/composables/useDeveloperTools'
 
 interface Props {

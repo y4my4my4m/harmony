@@ -54,6 +54,10 @@
 import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { debug } from '@/utils/debug'
 import { pwaManager } from '@/services/PWAManager'
+import {
+  showInstallFailedToast,
+  showInstallUnavailableToast,
+} from '@/utils/pwaInstallToast'
 
 interface Props {
   variant?: 'banner' | 'button'
@@ -81,9 +85,16 @@ const supportsShare = computed(() =>
 
 // Methods
 const installApp = async () => {
+  if (!pwaManager.hasDeferredInstallPrompt()) {
+    showInstallUnavailableToast()
+    return
+  }
+
   const success = await pwaManager.showInstallPrompt()
   if (success) {
     showInstallPrompt.value = false
+  } else {
+    showInstallFailedToast()
   }
 }
 
