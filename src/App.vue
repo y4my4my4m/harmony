@@ -21,6 +21,9 @@
   
   <!-- Push Notification Prompt (only for authenticated PWA users) -->
   <PushNotificationPrompt v-if="!isAuthRoute" />
+
+  <!-- Suggest "Start app when you sign in" for installed PWAs on Chromium desktop -->
+  <RunOnLoginPrompt v-if="!isAuthRoute" />
   
   <!-- Global Announcements Popup -->
   <AnnouncementPopup v-if="!isAuthRoute" />
@@ -45,6 +48,7 @@ import PersistentVoiceConnection from '@/components/PersistentVoiceConnection.vu
 import PWAInstallBanner from '@/components/PWAInstallBanner.vue'
 import PWAUpdateNotification from '@/components/PWAUpdateNotification.vue'
 import PushNotificationPrompt from '@/components/PushNotificationPrompt.vue'
+import RunOnLoginPrompt from '@/components/RunOnLoginPrompt.vue'
 import PublicServers from '@/components/PublicServers.vue'
 import AnnouncementPopup from '@/components/announcements/AnnouncementPopup.vue'
 import { onMounted } from 'vue'

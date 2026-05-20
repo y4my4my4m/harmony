@@ -133,3 +133,50 @@ export function getManualInstallInstructions(): string {
   }
   return 'Use the install icon in the address bar, or Chrome menu → "Install Harmony…".'
 }
+
+/**
+ * Chromium-based desktop browser (Chrome, Edge, Opera, Brave, Vivaldi…).
+ *
+ * Used to gate the "Run on OS Login" suggestion — that feature is currently
+ * only exposed by Chromium browsers via `about://apps` (Chrome 91+ / Edge 91+).
+ *
+ * See: https://developer.chrome.com/blog/run-on-login
+ */
+export function isChromiumDesktop(): boolean {
+  if (typeof navigator === 'undefined') return false
+  if (isMobileUserAgent()) return false
+  const ua = navigator.userAgent
+  // Modern Chromium browsers all include "Chrome/" in their UA token.
+  // Exclude legacy non-Chromium Edge ("Edge/") and Firefox.
+  if (!/Chrome\//.test(ua)) return false
+  if (/Edge\//.test(ua)) return false
+  if (/Firefox\//.test(ua)) return false
+  return true
+}
+
+/**
+ * URL to open in a browser tab so the user can flip
+ * "Start app when you sign in" for the installed PWA.
+ *
+ * Returns Edge's URL when running in Edge so the address bar accepts it,
+ * Chrome's URL otherwise. The shared `about://apps` alias works in both, but
+ * showing the canonical URL is clearer for users we ask to copy & paste.
+ */
+export function getRunOnLoginUrl(): string {
+  if (typeof navigator === 'undefined') return 'about://apps'
+  return /Edg\//.test(navigator.userAgent) ? 'edge://apps' : 'chrome://apps'
+}
+
+/**
+ * Human-friendly browser label for instructions ("Chrome" / "Edge" / "your browser").
+ */
+export function getChromiumBrowserLabel(): string {
+  if (typeof navigator === 'undefined') return 'your browser'
+  const ua = navigator.userAgent
+  if (/Edg\//.test(ua)) return 'Edge'
+  if (/OPR\//.test(ua)) return 'Opera'
+  if (/Brave\//.test(ua)) return 'Brave'
+  if (/Vivaldi\//.test(ua)) return 'Vivaldi'
+  if (/Chrome\//.test(ua)) return 'Chrome'
+  return 'your browser'
+}
