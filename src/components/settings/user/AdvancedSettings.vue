@@ -13,7 +13,28 @@
         Install Harmony as an app for faster loading and notifications. On desktop, use the install icon in your browser address bar if the button below is unavailable.
       </p>
       <PWAInstallPrompt variant="button" :is-in-settings="true" />
+
+      <div v-if="canShowRunOnLogin" class="setting-item run-on-login-item">
+        <div class="setting-info">
+          <h4 class="setting-label">Start Harmony when you sign in</h4>
+          <p class="setting-description">
+            <span v-if="runOnLoginEnabled">
+              You've enabled this from <code>{{ runOnLoginUrl }}</code>. Tap below for instructions if you ever need to change it.
+            </span>
+            <span v-else>
+              {{ runOnLoginBrowserLabel }} can launch Harmony automatically every time you log into your computer.
+            </span>
+          </p>
+        </div>
+        <div class="setting-control">
+          <button class="btn btn-secondary" @click="showRunOnLoginModal = true">
+            {{ runOnLoginEnabled ? 'Change' : 'Set up' }}
+          </button>
+        </div>
+      </div>
     </div>
+
+    <RunOnLoginInstructionsModal v-model="showRunOnLoginModal" @enabled="onRunOnLoginEnabled" />
 
     <div class="settings-section">
       <h3 class="section-title">Developer Settings</h3>
@@ -135,7 +156,14 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { debug } from '@/utils/debug'
 import ToggleSwitch from '@/components/common/ToggleSwitch.vue'
 import PWAInstallPrompt from '@/components/PWAInstallPrompt.vue'
+import RunOnLoginInstructionsModal from '@/components/RunOnLoginInstructionsModal.vue'
 import { useDeveloperTools } from '@/composables/useDeveloperTools'
+import {
+  getChromiumBrowserLabel,
+  getRunOnLoginUrl,
+  isChromiumDesktop,
+  isPWA,
+} from '@/utils/pwaUtils'
 
 interface Props {
   loading: boolean
@@ -158,6 +186,18 @@ const settings = ref({
 
 const showDeleteModal = ref(false)
 const originalSettings = ref({ ...settings.value })
+
+const showRunOnLoginModal = ref(false)
+const runOnLoginEnabled = ref(localStorage.getItem('harmony-run-on-login-enabled') === 'true')
+const runOnLoginUrl = computed(() => getRunOnLoginUrl())
+const runOnLoginBrowserLabel = computed(() => getChromiumBrowserLabel())
+// Only surface on Chromium desktop when the app is actually installed —
+// the feature lives on `about://apps`, which only manages installed PWAs.
+const canShowRunOnLogin = computed(() => isPWA() && isChromiumDesktop())
+
+const onRunOnLoginEnabled = () => {
+  runOnLoginEnabled.value = true
+}
 
 const hasChanges = computed(() => {
   return JSON.stringify(settings.value) !== JSON.stringify(originalSettings.value)
@@ -292,6 +332,23 @@ const deleteAccount = () => {
   color: var(--text-secondary);
   margin: 0;
   line-height: 1.4;
+}
+
+.setting-description code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  background: rgba(255, 255, 255, 0.06);
+  padding: 1px 5px;
+  border-radius: 4px;
+  color: var(--text-secondary);
+}
+
+.run-on-login-item {
+  margin-top: 16px;
+  padding-top: 16px;
+  padding-bottom: 0;
+  border-top: 1px solid var(--h-chat-light);
+  border-bottom: none;
 }
 
 .setting-control {
