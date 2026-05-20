@@ -27,7 +27,7 @@ export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 're
 export type DatabaseEvent = 'INSERT' | 'UPDATE' | 'DELETE' | '*'
 
 /** Payload handler type */
-export type PayloadHandler<T = any> = (payload: RealtimePostgresChangesPayload<T>) => void | Promise<void>
+export type PayloadHandler<T extends { [key: string]: any } = any> = (payload: RealtimePostgresChangesPayload<T>) => void | Promise<void>
 
 /** Status change handler */
 export type StatusHandler = (status: ConnectionStatus, channelName: string) => void

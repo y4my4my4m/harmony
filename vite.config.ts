@@ -19,7 +19,7 @@ function stripHtmlComments(): Plugin {
 
 export default defineConfig({
   clearScreen: false,
-  server: {
+  server: ({
     strictPort: true,
     port: 5173,
     // Allow custom local domains for development.
@@ -37,7 +37,7 @@ export default defineConfig({
         changeOrigin: true,
       },
     },
-  },
+  } as any),
   plugins: [
     vue({
       template: {

@@ -274,7 +274,5 @@ export {
   acceptInvite, 
   getInviteHistory, 
   revokeInvite, 
-  getInviteDetails,
-  type Invite,
-  type InviteOptions
+  getInviteDetails
 }

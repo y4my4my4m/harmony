@@ -114,7 +114,7 @@ const getProfiles = async (userIds: string[]): Promise<Profile[]> => {
 
 const getProfilesWithAvatarUrls = async (userIds: string[]): Promise<Profile[]> => {
     const profiles = await getProfiles(userIds);
-    const avatarUrls = profiles.map(profile => profile.avatar_url).filter(url => url);
+    const avatarUrls = profiles.map(profile => profile.avatar_url).filter((url): url is string => !!url);
 
     if (avatarUrls.length > 0) {
         const { data: signedUrls, error } = await supabase.storage

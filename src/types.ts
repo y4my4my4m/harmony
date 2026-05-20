@@ -1083,7 +1083,7 @@ export interface ReplyContext {
 }
 
 // Enhanced Post type with author info for timeline display
-export interface EnhancedActivityPubPost extends ActivityPubPost {
+export interface EnhancedActivityPubPost extends Omit<ActivityPubPost, 'author'> {
   author: {
     id: string;
     username: string;

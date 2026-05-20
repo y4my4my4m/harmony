@@ -552,7 +552,7 @@ class AdminService {
 
         for (const entry of entries) {
           if (entry.target_type === 'user' && entry.target_id) {
-            entry.target_username = idToUsername.get(entry.target_id) || `user:${entry.target_id.slice(0, 8)}…`;
+            (entry as any).target_username = idToUsername.get(entry.target_id) || `user:${entry.target_id.slice(0, 8)}…`;
           }
         }
       }
@@ -1958,7 +1958,7 @@ class AdminService {
 
       if (error) throw error;
 
-      const memberships = (data || []) as Array<{ created_at: string; server_id: string; servers: { id: string; name: string; icon: string | null; owner: string } | null }>;
+      const memberships = (data || []) as unknown as Array<{ created_at: string; server_id: string; servers: { id: string; name: string; icon: string | null; owner: string } | null }>;
       const servers = memberships.map((m) => m.servers).filter(Boolean) as Array<{ id: string; name: string; icon: string | null; owner: string }>;
       if (servers.length === 0) return [];
 

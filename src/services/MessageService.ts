@@ -302,7 +302,8 @@ export class MessageService {
       // Transform core service response to match expected API
       const { limit = 50 } = options
       const hasMore = messages.length === limit
-      const nextCursor = hasMore ? messages[messages.length - 1]?.created_at : undefined
+      const lastCreated = hasMore ? messages[messages.length - 1]?.created_at : undefined
+      const nextCursor = lastCreated ? (typeof lastCreated === 'string' ? lastCreated : (lastCreated as Date).toISOString()) : undefined
       
       const result = {
         messages,
@@ -345,7 +346,8 @@ export class MessageService {
       // Transform core service response to match expected API
       const { limit = 50 } = options
       const hasMore = messages.length === limit
-      const nextCursor = hasMore ? messages[messages.length - 1]?.created_at : undefined
+      const lastCreated = hasMore ? messages[messages.length - 1]?.created_at : undefined
+      const nextCursor = lastCreated ? (typeof lastCreated === 'string' ? lastCreated : (lastCreated as Date).toISOString()) : undefined
       
       const result = {
         messages,
