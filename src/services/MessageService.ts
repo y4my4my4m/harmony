@@ -23,7 +23,7 @@ import type { Message, MessagePart } from '@/types'
 import { debug } from '@/utils/debug'
 
 // Import only core service - database handles federation
-import { coreMessageService } from './core'
+import { coreMessageService, type SendOptions } from './core'
 
 export interface CreateChannelMessageData {
   content: MessagePart[]
@@ -36,6 +36,10 @@ export interface CreateDMMessageData {
   conversationId: string
   replyTo?: string
 }
+
+// Re-export for callers (chat stores, components) so they don't have to
+// reach into the core layer to use the fail-closed override flag.
+export type { SendOptions }
 
 export class MessageService {
   private static instance: MessageService
@@ -53,19 +57,25 @@ export class MessageService {
 
   /**
    * Send a channel message (local-only: no federation needed)
+   *
+   * `options.allowPlaintextFallback` opts into plaintext sending when the
+   * channel is encryption-eligible but encryption fails / is unavailable.
+   * Default is fail-closed — callers must catch ENCRYPTION_* errors and
+   * confirm with the user before retrying with the override.
    */
   async sendChannelMessage(
     serverId: string,
     channelId: string,
     content: MessagePart[],
     replyTo?: string,
-    extraMetadata?: Record<string, any>
+    extraMetadata?: Record<string, any>,
+    options?: SendOptions
   ): Promise<Message> {
     try {
       debug.log(`🚀 Simplified: Sending channel message to: ${channelId}`)
 
       // Channel messages are local-only (no federation by design)
-      const message = await coreMessageService.sendChannelMessage(serverId, channelId, content, replyTo, extraMetadata)
+      const message = await coreMessageService.sendChannelMessage(serverId, channelId, content, replyTo, extraMetadata, options)
 
       debug.log(`✅ Simplified: Channel message sent successfully (local-only): ${message.id}`)
       return message
@@ -82,13 +92,17 @@ export class MessageService {
 
   /**
    * Send a DM message (simplified: database triggers handle federation)
+   *
    * @param options.isSystem - If true, stores as system message (not federated)
+   * @param options.allowPlaintextFallback - explicit, user-confirmed opt-in
+   *   to send plaintext into a conversation that's marked encrypted when
+   *   encryption is unavailable. Default is fail-closed.
    */
   async sendDMMessage(
     conversationId: string,
     content: MessagePart[],
     replyTo?: string,
-    options?: { isSystem?: boolean },
+    options?: { isSystem?: boolean; allowPlaintextFallback?: boolean },
     extraMetadata?: Record<string, any>
   ): Promise<Message> {
     try {

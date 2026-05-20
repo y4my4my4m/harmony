@@ -602,8 +602,12 @@ export const useNotificationStore = defineStore('notification', {
 
         _unsubPrefsUpdated = userEventChannel.on('preferences:updated', () => {
           debug.log('📡 Preferences updated on another tab/device, reloading...')
-          if (this.cachedAuthUserId) {
-            this.loadPreferences(this.cachedProfileId || this.cachedAuthUserId)
+          // Prefer profile id (the column the row is keyed on). Fall back to
+          // the auth id only as a last resort — loadPreferences resolves
+          // either to a profile id internally.
+          const id = this.cachedProfileId || this.cachedAuthUserId
+          if (id) {
+            this.loadPreferences(id)
           }
         })
 
@@ -980,22 +984,28 @@ export const useNotificationStore = defineStore('notification', {
 
     /**
      * PREFERENCE MANAGEMENT - Client-side only
+     *
+     * notification_preferences.user_id references profiles(id). Callers may
+     * pass either an auth user id (legacy) or a profile id; we always resolve
+     * to a profile id before touching the row so loads, upserts, and broadcast
+     * reload-handlers stay consistent.
      */
-    async loadPreferences(userId: string) {
+    async loadPreferences(userIdOrAuthId: string) {
+      const profileId = await this.getProfileId(userIdOrAuthId)
       try {
         const { data, error } = await supabase
           .from('notification_preferences')
           .select('*')
-          .eq('user_id', userId)
+          .eq('user_id', profileId)
           .maybeSingle()
 
         if (error && error.code !== 'PGRST116') {
           debug.error('Error loading preferences:', error)
           // Use defaults if no preferences found
-          this.preferences = { 
+          this.preferences = {
             ...DEFAULT_PREFERENCES,
             id: crypto.randomUUID(),
-            user_id: userId,
+            user_id: profileId,
           }
           return
         }
@@ -1003,7 +1013,7 @@ export const useNotificationStore = defineStore('notification', {
         this.preferences = data || {
           ...DEFAULT_PREFERENCES,
           id: crypto.randomUUID(),
-          user_id: userId,
+          user_id: profileId,
         }
 
         debug.log('✅ Loaded notification preferences')
@@ -1012,7 +1022,7 @@ export const useNotificationStore = defineStore('notification', {
         this.preferences = {
           ...DEFAULT_PREFERENCES,
           id: crypto.randomUUID(),
-          user_id: userId,
+          user_id: profileId,
         }
       }
     },
@@ -1144,25 +1154,38 @@ export const useNotificationStore = defineStore('notification', {
     },  
 
     async markAllAsRead() {
+      // Snapshot read state for revert if RPC fails. Mark optimistically
+      // only after we have an authenticated profile id — otherwise the UI
+      // flips to "all read" but the next refresh restores the unread state.
+      const previousReadStates = this.notifications.map(n => ({ id: n.id, is_read: n.is_read }))
+
+      const revertOptimistic = () => {
+        previousReadStates.forEach(({ id, is_read }) => {
+          const notification = this.notifications.find(n => n.id === id)
+          if (notification) notification.is_read = is_read
+        })
+        this.updateUnreadCount()
+      }
+
       try {
-        // Optimistic update
-        const previousReadStates = this.notifications.map(n => ({ id: n.id, is_read: n.is_read }))
+        const authStore = useAuthStore()
+        const authUserId = authStore.session?.user?.id
+        if (!authUserId) return
+
+        // The RPC validates p_user_id against get_current_profile_id(), so we
+        // must resolve the *profile* id, not the auth user id. Passing the
+        // auth id triggers the DB's "Not authorized" guard and reverts the UI.
+        const profileId = await this.getProfileId(authUserId)
+        if (!profileId) return
+
         this.notifications.forEach(n => { n.is_read = true })
         this.updateUnreadCount()
 
-        const authStore = useAuthStore()
-        if (!authStore.session?.user?.id) return
-
         const { error } = await supabase
-          .rpc('mark_all_notifications_read', { p_user_id: authStore.session.user.id })
+          .rpc('mark_all_notifications_read', { p_user_id: profileId })
 
         if (error) {
-          // Revert on error
-          previousReadStates.forEach(({ id, is_read }) => {
-            const notification = this.notifications.find(n => n.id === id)
-            if (notification) notification.is_read = is_read
-          })
-          this.updateUnreadCount()
+          revertOptimistic()
           throw error
         }
 

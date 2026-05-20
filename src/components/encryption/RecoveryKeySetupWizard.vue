@@ -360,8 +360,8 @@ async function generateRecoveryKey() {
     // Import the recovery key service
     const { recoveryKeyService } = await import('@/services/encryption/RecoveryKeyService')
     
-    // Generate 12-word mnemonic
-    recoveryWords.value = recoveryKeyService.generateMnemonic(12)
+    // Generate 12-word mnemonic (async: real BIP39 SHA-256 checksum)
+    recoveryWords.value = await recoveryKeyService.generateMnemonic(12)
     
     // Derive keys to get verification code
     await recoveryKeyService.deriveKeysFromMnemonic(recoveryWords.value)

@@ -835,68 +835,178 @@ class ThreadService {
   }
 
   /**
-   * Send a message to a thread
+   * Send a message to a thread.
+   *
+   * Threads live inside a channel, so the channel's server encryption policy
+   * applies. We reject thread sends in encryption-eligible channels unless
+   * encryption succeeds, mirroring CoreMessageService.sendChannelMessage's
+   * fail-closed policy. Pass `options.allowPlaintextFallback = true` for an
+   * explicit, user-confirmed plaintext send.
+   *
+   * NOTE: Throwing here is intentional. Callers that previously consumed
+   * `null` should treat `null` as "could not load thread" and propagate
+   * encryption errors so the UI can prompt for fallback consent.
    */
   async sendThreadMessage(
     threadId: string,
     content: any[],
     replyTo?: string,
-    extraMetadata?: Record<string, any>
+    extraMetadata?: Record<string, any>,
+    options?: { allowPlaintextFallback?: boolean }
   ): Promise<Message | null> {
-    try {
-      // Enforce max media attachments per message (instance config, default 20)
-      const fileParts = content.filter((p: any) => p?.type === 'file')
-      const maxMedia = await this.getMaxMediaAttachments()
-      if (fileParts.length > maxMedia) {
-        throw new Error(`Maximum ${maxMedia} media attachments per message`)
-      }
-
-      const profileId = await authContextService.getCurrentProfileId()
-
-      // Get channel_id from thread
-      const thread = await this.getThread(threadId)
-      if (!thread) return null
-
-      const insertData: any = {
-        thread_id: threadId,
-        channel_id: thread.channel_id,
-        user_id: profileId,
-        content,
-      }
-      
-      if (replyTo) {
-        insertData.reply_to = replyTo
-      }
-
-      if (extraMetadata) {
-        insertData.metadata = { created_via: 'harmony_client', ...extraMetadata }
-      }
-
-      const { data, error } = await supabase
-        .from('messages')
-        .insert(insertData)
-        .select()
-        .single()
-
-      if (error) throw error
-
-      // Invalidate thread cache to refresh stats
-      this.threadCache.delete(threadId)
-
-      const message = data as Message
-      
-      // Process URL embeds (same as chat/DM messages)
-      try {
-        ensureMessageEmbeds(message)
-      } catch (embedError) {
-        debug.warn('Failed to prepare embeds for sent thread message:', embedError)
-      }
-
-      return message
-    } catch (error) {
-      debug.error('Failed to send thread message:', error)
-      return null
+    // Enforce max media attachments per message (instance config, default 20)
+    const fileParts = content.filter((p: any) => p?.type === 'file')
+    const maxMedia = await this.getMaxMediaAttachments()
+    if (fileParts.length > maxMedia) {
+      throw new Error(`Maximum ${maxMedia} media attachments per message`)
     }
+
+    const profileId = await authContextService.getCurrentProfileId()
+
+    // Get channel_id from thread (cannot proceed without it)
+    const thread = await this.getThread(threadId)
+    if (!thread) return null
+
+    // Apply channel-level encryption policy. Look up the server for this
+    // channel, then defer to the same fail-closed flow used by chat sends.
+    let serverId: string | null = null
+    try {
+      const { data: channelRow } = await supabase
+        .from('channels')
+        .select('server_id')
+        .eq('id', thread.channel_id)
+        .maybeSingle()
+      serverId = (channelRow as any)?.server_id ?? null
+    } catch (lookupError) {
+      debug.warn('Failed to resolve server for thread channel:', lookupError)
+    }
+
+    let finalContent: any[] = content
+    let encrypted = false
+    let encryptionMetadata: any = null
+    let extra: Record<string, any> = { ...(extraMetadata || {}) }
+    const allowFallback = options?.allowPlaintextFallback === true
+
+    let encryptionMode: 'disabled' | 'optional' | 'required' = 'disabled'
+    if (serverId) {
+      try {
+        const { data: settings } = await supabase
+          .from('server_encryption_settings')
+          .select('encryption_mode')
+          .eq('server_id', serverId)
+          .maybeSingle()
+        encryptionMode = ((settings as any)?.encryption_mode as any) || 'disabled'
+      } catch (lookupError) {
+        debug.warn('Failed to resolve server encryption settings:', lookupError)
+      }
+    }
+
+    if (encryptionMode !== 'disabled') {
+      let encryptionService: any = null
+      try {
+        const mod = await import('@/services/encryption/MegolmMessageEncryptionService')
+        encryptionService = mod.megolmMessageEncryptionService
+      } catch (loadErr) {
+        debug.warn('Encryption service unavailable for thread send:', loadErr)
+      }
+
+      const hasService = !!encryptionService && encryptionService.isInitialized()
+      const hasRecoveryKey = hasService ? await encryptionService.hasRecoveryKey() : false
+      const isUnlocked = hasService ? encryptionService.isUnlocked() : false
+
+      if (hasService && hasRecoveryKey && isUnlocked) {
+        try {
+          // Get server members for session sharing (same as channel send)
+          let recipientIds: string[] = []
+          if (serverId) {
+            const { data: members } = await supabase
+              .from('user_servers')
+              .select('user_id')
+              .eq('server_id', serverId)
+            recipientIds = members?.map(m => m.user_id) || []
+          }
+          if (!recipientIds.includes(profileId)) recipientIds.push(profileId)
+
+          const encryptedData = await encryptionService.encryptMessage(content, thread.channel_id, recipientIds)
+          finalContent = encryptedData.content
+          encrypted = true
+          encryptionMetadata = encryptedData.encryption_metadata
+        } catch (encryptError) {
+          debug.error('Thread encryption failed:', encryptError)
+          if (encryptionMode === 'required') {
+            const err: any = new Error('Server requires encryption but encryption failed')
+            err.code = 'ENCRYPTION_REQUIRED'
+            throw err
+          }
+          if (!allowFallback) {
+            const err: any = new Error('Thread encryption failed and plaintext fallback was not authorized')
+            err.code = 'ENCRYPTION_FAILED_NO_FALLBACK'
+            throw err
+          }
+          extra.plaintext_override = { authorized: true, reason: 'thread_encrypt_failed', at: new Date().toISOString() }
+        }
+      } else if (encryptionMode === 'required') {
+        if (!hasRecoveryKey) {
+          const err: any = new Error('This server requires encryption. Set up encryption in Settings first.')
+          err.code = 'ENCRYPTION_REQUIRED'
+          throw err
+        }
+        const err: any = new Error('This server requires encryption. Unlock encryption with your recovery key first.')
+        err.code = 'ENCRYPTION_LOCKED'
+        throw err
+      } else {
+        // optional + unable to encrypt
+        if (!allowFallback) {
+          if (hasRecoveryKey && !isUnlocked) {
+            const err: any = new Error('This thread supports encryption but your keys are locked.')
+            err.code = 'ENCRYPTION_LOCKED'
+            throw err
+          }
+          const err: any = new Error('This thread supports encryption but you have not set it up.')
+          err.code = 'ENCRYPTION_UNAVAILABLE'
+          throw err
+        }
+        extra.plaintext_override = {
+          authorized: true,
+          reason: hasRecoveryKey ? 'thread_encryption_locked' : 'thread_no_recovery_key',
+          at: new Date().toISOString(),
+        }
+      }
+    }
+
+    const insertData: any = {
+      thread_id: threadId,
+      channel_id: thread.channel_id,
+      user_id: profileId,
+      content: finalContent,
+      encrypted,
+      encryption_metadata: encryptionMetadata,
+    }
+
+    if (replyTo) insertData.reply_to = replyTo
+    insertData.metadata = { created_via: 'harmony_client', ...extra }
+
+    const { data, error } = await supabase
+      .from('messages')
+      .insert(insertData)
+      .select()
+      .single()
+
+    if (error) throw error
+
+    // Invalidate thread cache to refresh stats
+    this.threadCache.delete(threadId)
+
+    const message = data as Message
+
+    // Process URL embeds (same as chat/DM messages)
+    try {
+      ensureMessageEmbeds(message)
+    } catch (embedError) {
+      debug.warn('Failed to prepare embeds for sent thread message:', embedError)
+    }
+
+    return message
   }
 
   // =============================================

@@ -232,6 +232,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { threadService } from '@/services/ThreadService'
 import { supabase } from '@/supabase'
 import { useUserData } from '@/composables/useUserData'
+import { useEncryptionFallbackPrompt } from '@/composables/useEncryptionFallbackPrompt'
 import { format } from 'date-fns'
 import Avatar from '@/components/common/Avatar.vue'
 import DisplayName from '@/components/DisplayName.vue'
@@ -271,6 +272,7 @@ const authStore = useAuthStore()
 const chatStore = useChatStore()
 const reactionsStore = useReactionsStore()
 const { canManageChannels } = useServerPermissions()
+const { runWithEncryptionFallback } = useEncryptionFallbackPrompt()
 
 const canManageThread = computed(() => canManageChannels.value)
 
@@ -616,23 +618,33 @@ const handleSendMessage = async (content: string, files: FilePreviewData[] = [],
     
     // Only send if we have message parts
     if (messageParts.length > 0) {
-    const newMessage = await threadService.sendThreadMessage(
-      thread.value.id, 
-      messageParts, 
-      replyMessageId || replyingToMessageId.value || undefined
-    )
-    
-    if (newMessage) {
-      messages.value.push(newMessage)
-      // Update cache
-      threadService.addMessageToCache(thread.value.id, newMessage)
-      messageText.value = ''
-      // Clear reply state
-      replyingToMessageId.value = ''
-      replyingToUserName.value = ''
-      replyingToUserId.value = ''
-      await nextTick()
-      scrollToBottom()
+      const targetThreadId = thread.value.id
+      const sendResult = await runWithEncryptionFallback(
+        ({ allowPlaintextFallback }) =>
+          threadService.sendThreadMessage(
+            targetThreadId,
+            messageParts,
+            replyMessageId || replyingToMessageId.value || undefined,
+            undefined,
+            { allowPlaintextFallback },
+          ),
+        { scope: 'thread' },
+      )
+
+      if (sendResult.status === 'ok' && sendResult.result) {
+        const newMessage = sendResult.result
+        messages.value.push(newMessage)
+        // Update cache
+        threadService.addMessageToCache(targetThreadId, newMessage)
+        messageText.value = ''
+        // Clear reply state
+        replyingToMessageId.value = ''
+        replyingToUserName.value = ''
+        replyingToUserId.value = ''
+        await nextTick()
+        scrollToBottom()
+      } else if (sendResult.status === 'error') {
+        debug.error('Failed to send thread message:', sendResult.error)
       }
     }
   } catch (error) {
@@ -742,18 +754,23 @@ const handleSendVoiceMessage = async (data: { url: string, duration: number, wav
       },
     }
 
-    const newMessage = await threadService.sendThreadMessage(
-      thread.value.id,
-      messageParts,
-      undefined,
-      voiceMetadata
+    const targetThreadId = thread.value.id
+    const sendResult = await runWithEncryptionFallback(
+      ({ allowPlaintextFallback }) =>
+        threadService.sendThreadMessage(targetThreadId, messageParts, undefined, voiceMetadata, {
+          allowPlaintextFallback,
+        }),
+      { scope: 'thread' },
     )
 
-    if (newMessage) {
+    if (sendResult.status === 'ok' && sendResult.result) {
+      const newMessage = sendResult.result
       messages.value.push(newMessage)
-      threadService.addMessageToCache(thread.value.id, newMessage)
+      threadService.addMessageToCache(targetThreadId, newMessage)
       await nextTick()
       scrollToBottom()
+    } else if (sendResult.status === 'error') {
+      debug.error('Error sending voice message in thread:', sendResult.error)
     }
   } catch (error) {
     debug.error('Error sending voice message in thread:', error)
@@ -777,21 +794,27 @@ const handleSendGif = async (gif: Gif) => {
       fileType: 'image'
     }]
     
-    const newMessage = await threadService.sendThreadMessage(
-      thread.value.id,
-      messageParts,
-      replyingToMessageId.value || undefined
+    const targetThreadId = thread.value.id
+    const sendResult = await runWithEncryptionFallback(
+      ({ allowPlaintextFallback }) =>
+        threadService.sendThreadMessage(targetThreadId, messageParts, replyingToMessageId.value || undefined, undefined, {
+          allowPlaintextFallback,
+        }),
+      { scope: 'thread' },
     )
-    
-    if (newMessage) {
+
+    if (sendResult.status === 'ok' && sendResult.result) {
+      const newMessage = sendResult.result
       messages.value.push(newMessage)
       // Update cache
-      threadService.addMessageToCache(thread.value.id, newMessage)
+      threadService.addMessageToCache(targetThreadId, newMessage)
       replyingToMessageId.value = ''
       replyingToUserName.value = ''
       replyingToUserId.value = ''
       await nextTick()
       scrollToBottom()
+    } else if (sendResult.status === 'error') {
+      debug.error('Failed to send GIF:', sendResult.error)
     }
   } catch (error) {
     debug.error('Failed to send GIF:', error)

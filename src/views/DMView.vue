@@ -290,19 +290,60 @@ const fetchMoreMessages = async () => {
   }
 }
 
-const handleSendMessage = async (content: MessagePart[], replyTo?: string) => {
+const handleSendMessage = async (
+  content: MessagePart[],
+  replyTo?: string,
+  sendOptions?: { allowPlaintextFallback?: boolean }
+) => {
   const conversationId = route.params.conversationId as string
   const currentUser = getCurrentUser.value
-  
-  if (conversationId && currentUser?.id) {
+
+  if (!conversationId || !currentUser?.id) return
+
+  const trySend = async (allowPlaintextFallback: boolean) => {
+    return dmStore.sendDMMessage(conversationId, currentUser.id, content, replyTo, {
+      allowPlaintextFallback,
+    })
+  }
+
+  try {
+    const success = await trySend(sendOptions?.allowPlaintextFallback === true)
+    if (success) {
+      emit('sendMessage', { content, replyTo })
+    } else {
+      toast.error('Failed to send message')
+    }
+  } catch (error: any) {
+    const code = (error?.code || error?.message || '').toString()
+    const isFallbackEligible =
+      code.includes('ENCRYPTION_LOCKED') ||
+      code.includes('ENCRYPTION_UNAVAILABLE') ||
+      code.includes('ENCRYPTION_FAILED_NO_FALLBACK')
+
+    if (!isFallbackEligible) {
+      toast.error('Failed to send message')
+      return
+    }
+
+    const human = code.includes('LOCKED')
+      ? 'Your encryption keys are locked.'
+      : code.includes('UNAVAILABLE')
+        ? 'Encryption is not set up for this account.'
+        : 'Encryption failed.'
+
+    const accepted = typeof window !== 'undefined' && typeof window.confirm === 'function'
+      ? window.confirm(`${human}\n\nSend this DM UNENCRYPTED? The recipient will see plaintext.`)
+      : false
+    if (!accepted) {
+      toast.error(`${human} Message was not sent.`)
+      return
+    }
+
     try {
-      const success = await dmStore.sendDMMessage(conversationId, currentUser.id, content, replyTo)
-      if (success) {
-        emit('sendMessage', { content, replyTo })
-      } else {
-        toast.error('Failed to send message')
-      }
-    } catch (error) {
+      const retried = await trySend(true)
+      if (retried) emit('sendMessage', { content, replyTo })
+      else toast.error('Failed to send message')
+    } catch {
       toast.error('Failed to send message')
     }
   }

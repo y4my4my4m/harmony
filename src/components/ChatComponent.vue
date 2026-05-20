@@ -180,7 +180,12 @@
   });
 
   interface Emits {
-    (e: 'sendMessage', content: MessagePart[], replyTo?: string): void;
+    (
+      e: 'sendMessage',
+      content: MessagePart[],
+      replyTo?: string,
+      sendOptions?: { allowPlaintextFallback?: boolean }
+    ): void;
     (e: 'loadMoreMessages'): void;
     (e: 'showAllThreads'): void;
   }
@@ -495,7 +500,14 @@
       };
 
       const handleEncryptionFallback = (e: Event) => {
-        sendError.value = 'Encryption failed — message sent unencrypted'
+        // With the fail-closed policy this event is informational: the actual
+        // ENCRYPTION_FAILED_NO_FALLBACK error is thrown by CoreMessageService
+        // and shown via the confirm() flow. If the override was authorized
+        // the message _was_ sent unencrypted, which is also worth surfacing.
+        const detail = (e as CustomEvent).detail || {}
+        sendError.value = detail.failClosed
+          ? 'Encryption failed — message NOT sent (confirm fallback to send unencrypted)'
+          : 'Encryption failed — message sent unencrypted'
         setTimeout(() => { sendError.value = null }, 6000)
       };
 
@@ -828,32 +840,78 @@
           if (messageParts.length > 0) {
             didAttemptSend = true;
             handleDontReply();
-            if (props.isDM) {
-              emit('sendMessage', messageParts, replyMessageId || undefined);
-            } else {
-              if (serverChannelStore.currentServerId && serverChannelStore.currentChannelId) {
-                await chatStore.sendMessage(
-                  serverChannelStore.currentServerId,
-                  serverChannelStore.currentChannelId,
-                  authStore.session.user.id,
-                  messageParts,
-                  replyMessageId || ''
-                );
-              }
-            }
-            
+            await sendChannelOrDMWithEncryptionPolicy(messageParts, replyMessageId)
+
             messageContent.value = '';
             if (draftKey.value) draftsStore.clearDraft(draftKey.value);
           }
         } catch (error: any) {
           debug.error('Error sending message:', error);
           const msg = error?.message || String(error)
-          if (msg.includes('ENCRYPTION_REQUIRED') || msg.includes('ENCRYPTION_LOCKED')) {
+          if (msg.includes('ENCRYPTION_')) {
             sendError.value = msg
             setTimeout(() => { sendError.value = null }, 6000)
           }
         }
       };
+
+      /**
+       * Run the actual send call, intercept fail-closed encryption policy
+       * errors, and prompt the user before retrying with an explicit
+       * plaintext-fallback override.
+       */
+      const sendChannelOrDMWithEncryptionPolicy = async (
+        messageParts: MessagePart[],
+        replyMessageId?: string,
+      ) => {
+        const trySend = async (allowPlaintextFallback: boolean) => {
+          if (props.isDM) {
+            // DM send is owned by the parent view (DMView) which forwards
+            // through useDM.sendDMMessage. Emit the message; the parent
+            // catches errors and re-prompts via this same flow.
+            emit('sendMessage', messageParts, replyMessageId || undefined, { allowPlaintextFallback })
+            return
+          }
+          if (serverChannelStore.currentServerId && serverChannelStore.currentChannelId && authStore.session?.user) {
+            await chatStore.sendMessage(
+              serverChannelStore.currentServerId,
+              serverChannelStore.currentChannelId,
+              authStore.session.user.id,
+              messageParts,
+              replyMessageId || '',
+              undefined,
+              { allowPlaintextFallback }
+            )
+          }
+        }
+
+        try {
+          await trySend(false)
+        } catch (error: any) {
+          const code = (error?.code || error?.message || '').toString()
+          const isFallbackEligible =
+            code.includes('ENCRYPTION_LOCKED') ||
+            code.includes('ENCRYPTION_UNAVAILABLE') ||
+            code.includes('ENCRYPTION_FAILED_NO_FALLBACK')
+          // `ENCRYPTION_REQUIRED` is server-enforced and never fallback-eligible.
+          if (!isFallbackEligible) throw error
+
+          const human = code.includes('LOCKED')
+            ? 'Your encryption keys are locked.'
+            : code.includes('UNAVAILABLE')
+              ? 'Encryption is not set up for this account.'
+              : 'Encryption failed.'
+          const accepted = typeof window !== 'undefined' && typeof window.confirm === 'function'
+            ? window.confirm(`${human}\n\nSend this message UNENCRYPTED into this room? Other participants will see plaintext.`)
+            : false
+          if (!accepted) {
+            sendError.value = `${human} Message was not sent.`
+            setTimeout(() => { sendError.value = null }, 6000)
+            return
+          }
+          await trySend(true)
+        }
+      }
 
       const handleSendVoiceMessage = async (data: {
         url: string

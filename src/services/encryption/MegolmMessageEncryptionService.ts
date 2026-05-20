@@ -243,8 +243,8 @@ export class MegolmMessageEncryptionService {
       throw new Error('Not initialized')
     }
 
-    // Generate new recovery mnemonic
-    const words = recoveryKeyService.generateMnemonic(12)
+    // Generate new recovery mnemonic (real BIP39 SHA-256 checksum)
+    const words = await recoveryKeyService.generateMnemonic(12)
     
     // Complete setup with the generated words
     await this.completeSetupWithWords(words)
@@ -397,7 +397,14 @@ export class MegolmMessageEncryptionService {
   // =====================================================
 
   /**
-   * Encrypt a message for a room (channel or conversation)
+   * Encrypt a message for a room (channel or conversation).
+   *
+   * Session-share race fix: if there are recipients who do NOT yet have the
+   * outbound session key, we await the share before returning the ciphertext.
+   * This guarantees the first encrypted message in a session can actually be
+   * decrypted by recipients instead of showing as "encrypted glyphs" until a
+   * background share lands. When everyone already has the key (steady-state
+   * sends in an established room), sharing is a no-op and we don't block.
    */
   async encryptMessage(
     content: MessagePart[],
@@ -412,16 +419,32 @@ export class MegolmMessageEncryptionService {
       throw new Error('Encryption not unlocked - enter your recovery key first')
     }
 
+    // Determine if we need to share the session before sending. Cheap
+    // in-memory check; falls through to "no work" when the room is steady.
+    const usersNeedingSession = megolmService.getUsersNeedingSession(roomId, recipientIds)
+
     // Serialize content
     const plaintextContent = JSON.stringify(content)
 
     // Encrypt with Megolm (fast - uses in-memory session key)
     const encryptedMessage = await megolmService.encryptMessage(roomId, plaintextContent)
 
-    // Share session with recipients in the background (non-blocking)
-    // This allows the message to be sent immediately while keys are shared
-    this.ensureSessionShared(roomId, encryptedMessage.sessionId, recipientIds)
-      .catch(err => debug.warn('⚠️ Background session sharing failed:', err))
+    if (usersNeedingSession.length > 0) {
+      // Block on session sharing so recipients have the key when the message
+      // arrives. We still tolerate partial failure (the share helper logs
+      // per-recipient errors), but at least the local round-trip is honored.
+      try {
+        await this.ensureSessionShared(roomId, encryptedMessage.sessionId, recipientIds)
+      } catch (err) {
+        debug.warn('⚠️ Foreground session sharing failed (continuing):', err)
+      }
+    } else {
+      // Steady state: background-share as a defensive backstop in case the
+      // recipient list changed under us (e.g., a new member joined and the
+      // in-memory `sharedWith` list is stale).
+      this.ensureSessionShared(roomId, encryptedMessage.sessionId, recipientIds)
+        .catch(err => debug.warn('⚠️ Background session sharing failed:', err))
+    }
 
     // Store encrypted message in content as base64 text
     const encryptedContent: MessagePart[] = [{

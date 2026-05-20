@@ -274,7 +274,19 @@ export const useAuthStore = defineStore('auth', {
           }
           const isValid = await this.validateSessionForMFA(session);
           if (!isValid) {
-            debug.warn('🚨 SIGNED_IN with invalid AAL1 session (MFA enabled) - rejecting');
+            debug.warn('🚨 SIGNED_IN with invalid AAL1 session (MFA enabled) - signing out');
+            // Match initializeAuth(): we must actively destroy the AAL1
+            // session, otherwise it sits in Supabase storage where the next
+            // tab/refresh will pick it up and silently log in without MFA.
+            this.session = null;
+            this.isPasswordResetMode = false;
+            try {
+              await supabase.auth.signOut();
+            } catch (signOutError) {
+              debug.error('Failed to sign out invalid AAL1 session:', signOutError);
+            }
+            userStorage.clearCurrentUser();
+            this.cleanupNotificationSystem();
             return;
           }
           

@@ -80,19 +80,21 @@ async function generateInviteUrl(
       ? new Date(Date.now() + expiresIn * 60 * 1000)
       : null;
 
-    // Insert the invite code into the database
+    // Insert the invite code into the database.
+    // max_uses: 0 (unlimited) maps to NULL so the DB column is nullable
+    // semantics-aligned with "no cap"; positive values are persisted as-is
+    // and enforced at accept time.
     const { data, error } = await supabase
       .from('invites')
-      .insert([{ 
-        code, 
-        server_id: serverId, 
-        created_by: userId, 
+      .insert([{
+        code,
+        server_id: serverId,
+        created_by: userId,
         expires_at: expiresAt,
-        // TODO: Uncomment when max_uses is implemented
-        // max_uses: maxUses || null,
-        // uses: 0,
-        // temporary,
-        used: false
+        max_uses: maxUses && maxUses > 0 ? maxUses : null,
+        uses: 0,
+        temporary,
+        used: false,
       }])
       .select()
       .single();
@@ -173,17 +175,31 @@ async function acceptInvite(code: string, userId: string): Promise<{ success: bo
       }
     }
 
-    // Update invite usage
-    const newUses = invite.uses + 1;
-    const shouldMarkUsed = invite.max_uses === 1; // Single-use invites
-    
-    await supabase
+    // Update invite usage. Treat NULL `uses` as 0 to defend against legacy
+    // rows where the default never fired. Single-use invites become "used"
+    // immediately; otherwise we mark used when the new count crosses
+    // `max_uses`, which means a parallel race that pushes us over the limit
+    // still flips the flag.
+    const currentUses = typeof invite.uses === 'number' ? invite.uses : 0;
+    const newUses = currentUses + 1;
+    const maxUses = typeof invite.max_uses === 'number' && invite.max_uses > 0
+      ? invite.max_uses
+      : null;
+    const shouldMarkUsed = maxUses !== null && newUses >= maxUses;
+
+    const { error: usageError } = await supabase
       .from('invites')
-      .update({ 
+      .update({
         uses: newUses,
-        used: shouldMarkUsed
+        used: shouldMarkUsed,
       })
       .eq('id', invite.id);
+
+    if (usageError) {
+      debug.error('Failed to update invite usage:', usageError);
+      // Don't fail the join — the user is already in the server — but log
+      // loudly so the limit-enforcement bug doesn't go unnoticed.
+    }
 
     return { success: true, serverId: invite.server_id };
   } catch (error) {

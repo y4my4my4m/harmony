@@ -166,7 +166,6 @@ import type { Channel, Server } from '@/types'
 import Icon from '@/components/common/Icon.vue'
 import { messageService } from '@/services'
 import { supabase } from '@/supabase'
-import { useAuthStore } from '@/stores/auth'
 import { useNotificationStore } from '@/stores/useNotification'
 import { authContextService } from '@/services/AuthContextService'
 import { useServerPermissions } from '@/composables/useServerPermissions'
@@ -338,12 +337,12 @@ const handleMarkAsRead = async () => {
   if (!props.channel?.id) return
 
   try {
-    const authStore = useAuthStore()
-    const userId = authStore.session?.user?.id
-    if (!userId) return
+    const ctx = await authContextService.getCurrentContext()
+    if (!ctx.isAuthenticated) return
 
-    // Clear unread counts for this channel
-    await supabase
+    // RLS-aware identity: unread_counts.user_id references profiles.id,
+    // not auth.users.id. Mixing the two silently mutates zero rows.
+    const { error } = await supabase
       .from('unread_counts')
       .update({
         unread_messages: 0,
@@ -351,15 +350,24 @@ const handleMarkAsRead = async () => {
         last_read_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       })
-      .eq('user_id', userId)
+      .eq('user_id', ctx.profileId)
       .eq('channel_id', props.channel.id)
 
-    // Mark all notifications for this channel as read
+    if (error) {
+      debug.error('Failed to clear channel unread counts:', error)
+      return
+    }
+
+    // Mark all notifications for this channel as read.
+    // Filter on every supported location path used by NotificationFormatter so
+    // notifications stored under data.location.* are also cleared.
     const notificationStore = useNotificationStore()
+    const channelId = props.channel.id
     const channelNotifications = notificationStore.notifications.filter(n =>
       !n.is_read && (
-        n.data?.channel_id === props.channel.id ||
-        n.data?.message?.channel_id === props.channel.id
+        n.data?.channel_id === channelId ||
+        n.data?.message?.channel_id === channelId ||
+        n.data?.location?.channel_id === channelId
       )
     )
     if (channelNotifications.length > 0) {

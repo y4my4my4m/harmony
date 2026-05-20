@@ -282,6 +282,7 @@ import ServerFolderContextMenu from '@/components/ServerFolderContextMenu.vue';
 import ServerFolderSettingsModal from '@/components/ServerFolderSettingsModal.vue';
 import FundingModal from '@/components/FundingModal.vue';
 import { fundingService } from '@/services/FundingService';
+import { debug } from '@/utils/debug';
 import type { Server, ServerFolder as ServerFolderType } from '@/types';
 
 // Define Props
@@ -967,9 +968,9 @@ const handleMarkFolderAsRead = async (folder: ServerFolderType) => {
       .select('id')
       .in('server_id', serverIds);
 
-    if (channels && channels.length > 0) {
-      const channelIds = channels.map(c => c.id);
-      await supabase
+    const channelIds = (channels || []).map(c => c.id);
+    if (channelIds.length > 0) {
+      const { error: unreadError } = await supabase
         .from('unread_counts')
         .update({
           unread_messages: 0,
@@ -979,9 +980,32 @@ const handleMarkFolderAsRead = async (folder: ServerFolderType) => {
         })
         .eq('user_id', profileId)
         .in('channel_id', channelIds);
+      if (unreadError) {
+        debug.error('Failed to clear folder unread counts:', unreadError);
+      }
+    }
+
+    // Also mark in-app notifications belonging to these channels as read so
+    // the bell badge and channel-mention counts catch up immediately.
+    if (channelIds.length > 0) {
+      const channelIdSet = new Set(channelIds);
+      const serverIdSet = new Set(serverIds);
+      const notificationStore = useNotificationStore();
+      const matching = notificationStore.notifications.filter(n => {
+        if (n.is_read) return false;
+        const d: any = n.data || {};
+        const channelId = d.channel_id ?? d.message?.channel_id ?? d.location?.channel_id;
+        const serverId = d.server_id ?? d.location?.server_id;
+        if (channelId && channelIdSet.has(channelId)) return true;
+        if (serverId && serverIdSet.has(serverId)) return true;
+        return false;
+      });
+      if (matching.length > 0) {
+        await Promise.all(matching.map(n => notificationStore.markAsRead(n.id).catch(() => {})));
+      }
     }
   } catch (e) {
-    // Silently fail -- the UI will catch up on next fetch
+    debug.error('Failed to mark folder as read:', e);
   }
 };
 

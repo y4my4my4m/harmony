@@ -1652,7 +1652,8 @@ export const useDMStore = defineStore('dm', () => {
     conversationId: string,
     userId: string,
     content: MessagePart[],
-    replyTo?: string
+    replyTo?: string,
+    options?: { allowPlaintextFallback?: boolean }
   ): Promise<boolean> => {
     // Create optimistic message
     const tempId = `temp-${Date.now()}`;
@@ -1676,7 +1677,8 @@ export const useDMStore = defineStore('dm', () => {
       const message = await services.messages.sendDMMessage(
         conversationId,
         content,
-        replyTo
+        replyTo,
+        options ? { allowPlaintextFallback: options.allowPlaintextFallback } : undefined
       )
 
       debug.log('✅ DM message saved to database:', message.id)
@@ -1687,6 +1689,19 @@ export const useDMStore = defineStore('dm', () => {
       return true
     } catch (error: any) {
       debug.error('❌ Failed to send DM message via service:', error)
+
+      // Encryption policy errors require user consent before retrying — never
+      // auto-retry, never silently fall back to plaintext.
+      const code = (error?.code || error?.message || '').toString()
+      const isEncryptionPolicyError =
+        code.includes('ENCRYPTION_REQUIRED') ||
+        code.includes('ENCRYPTION_LOCKED') ||
+        code.includes('ENCRYPTION_UNAVAILABLE') ||
+        code.includes('ENCRYPTION_FAILED_NO_FALLBACK')
+      if (isEncryptionPolicyError) {
+        _markDMMessageFailed(tempId)
+        throw error
+      }
 
       if (!navigator.onLine) {
         debug.log('📴 Offline — marking DM as failed, will retry when user clicks Retry')
@@ -1705,7 +1720,12 @@ export const useDMStore = defineStore('dm', () => {
         }
 
         try {
-          const retryResult = await services.messages.sendDMMessage(conversationId, content, replyTo)
+          const retryResult = await services.messages.sendDMMessage(
+            conversationId,
+            content,
+            replyTo,
+            options ? { allowPlaintextFallback: options.allowPlaintextFallback } : undefined
+          )
           _replaceDMTempWithReal(tempId, retryResult, userId, conversationId, content)
           return true
         } catch (retryError) {
