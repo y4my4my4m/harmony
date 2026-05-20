@@ -81,9 +81,11 @@ export const useReactionsStore = defineStore('reactions', () => {
       debug.log('🔄 Fetching reactions via service layer for message:', messageId)
 
       const reactions = await services.messages.getMessageReactions(messageId)
-      
-      // Store in cache
-      reactionsByMessage.value.set(messageId, reactions)
+
+      // Store in cache. The service-layer return shape diverges slightly from
+      // the legacy ReactionGroup the store consumes; cast to bridge the two
+      // until the call sites are migrated to the new shape.
+      reactionsByMessage.value.set(messageId, reactions as any)
       lastFetched.value.set(messageId, now)
       
       debug.log('✅ Successfully fetched reactions via service layer')
@@ -125,9 +127,9 @@ export const useReactionsStore = defineStore('reactions', () => {
       // Use the core service directly for batch operations
       const batchReactions = await services.messages.getBatchMessageReactions(idsToFetch)
       
-      // Store all results in cache
+      // Store all results in cache. Same shape-bridge cast as `fetchMessageReactions`.
       for (const [messageId, reactions] of Object.entries(batchReactions)) {
-        reactionsByMessage.value.set(messageId, reactions)
+        reactionsByMessage.value.set(messageId, reactions as any)
         lastFetched.value.set(messageId, now)
       }
       
@@ -325,11 +327,8 @@ export const useReactionsStore = defineStore('reactions', () => {
                  unicode: resolved.unicode,
                  server_id: '',
                  uploader: '',
-                 created_at: '',
-                 updated_at: '',
                  usage_count: 0,
-                 last_used: ''
-               }
+               } as any
              } else {
                // UUID emoji not found in cache
                emoji = {
@@ -338,11 +337,8 @@ export const useReactionsStore = defineStore('reactions', () => {
                  url: '',
                  server_id: '',
                  uploader: '',
-                 created_at: '',
-                 updated_at: '',
                  usage_count: 0,
-                 last_used: ''
-               }
+               } as any
                debug.warn('❌ Emoji not found in cache:', emojiId)
              }
            }

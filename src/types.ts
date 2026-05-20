@@ -83,6 +83,16 @@ export interface User {
   created_at?: string;
   updated_at?: string;
   last_seen?: string;
+  // Federation / profile fields surfaced by profile cards. Optional because
+  // the chat-side `User` is built from a thinner slice of the profiles row.
+  is_local?: boolean;
+  domain?: string;
+  followers_count?: number;
+  following_count?: number;
+  posts_count?: number;
+  // Server activity fields shown in profile cards.
+  message_count?: number;
+  voice_time?: number;
 }
 
 /**
@@ -119,6 +129,10 @@ export interface Profile {
   created_at?: string;
   updated_at?: string;
   handle?: string;
+  // User preferences stored on the profile row (loaded by AppInitService /
+  // useVisualTheme). Both fields are JSON blobs in Postgres.
+  locale?: string;
+  appearance_settings?: Record<string, unknown>;
 }
 
 export interface UserData {
@@ -282,6 +296,11 @@ export interface MentionContent {
   username: string;
   domain: string;
   isLocal: boolean;
+  /**
+   * Optional display name carried alongside the mention for rendering,
+   * populated when the mention is resolved against the profile cache.
+   */
+  displayName?: string;
 }
 
 export interface RoleMentionContent {
@@ -344,6 +363,20 @@ export interface Reaction {
   count: number; // doesn't exist in the database, we're transforming it
   emoji: Emoji; // doesn't exist in the database, we're transforming it
   reactions: Reaction[]; // doesn't exist in the database, we're transforming it
+  /**
+   * Optional per-reaction metadata. Used by bridged Discord reactions to
+   * carry the originating Discord user info so the UI can render the bridge
+   * source instead of a Harmony profile lookup.
+   */
+  metadata?: {
+    discord_user?: {
+      id: string;
+      username?: string;
+      display_name?: string;
+      avatar_url?: string;
+    };
+    [key: string]: unknown;
+  };
 }
 
 // ReactionGroup represents an aggregated group of reactions for a specific emoji
@@ -523,14 +556,20 @@ export interface Gif {
 
 export interface Emoji {
   id: string;
-  created_at: Date;
+  created_at?: Date;
   updated_at?: Date;
   name: string;
   url: string;
-  uploader: string;
-  server_id: string;
+  uploader?: string;
+  server_id?: string;
   usage_count?: number;
   last_used?: Date;
+  /**
+   * Native unicode emoji codepoint(s) when this `Emoji` is a wrapper around
+   * a system emoji rather than a custom server emoji. Set by reaction code
+   * paths that need to round-trip a native emoji through the `Emoji` type.
+   */
+  content?: string;
 }
 export type ResolvedEmoji = Emoji & {
   display_name: string;
@@ -914,6 +953,15 @@ export interface ActivityPubPost {
   is_favorited?: boolean;
   is_reblogged?: boolean;
   is_bookmarked?: boolean;
+  // Reply context — populated by code paths that hydrate the local reply tree
+  // (ThreadedPost, MonyPost). Optional because not all posts are fetched with
+  // their reply subtree.
+  replies?: ActivityPubPost[];
+  // Author profile attached by enhanced-fetch paths (timeline RPCs and feed
+  // queries select the author alongside the post). Kept optional because
+  // bare ActivityPubPost rows from raw `.from('posts').select('*')` won't
+  // have it. EnhancedActivityPubPost narrows this to required.
+  author?: FederatedUser;
 }
 
 export interface MediaAttachment {
@@ -1171,6 +1219,10 @@ export interface FederatedUser extends Profile {
     value: string;
     verified_at?: string;
   }>;
+  // Trending / verification metadata (returned by TrendingService).
+  verified?: boolean;
+  // ActivityPub signing public key (PEM) — used by federation config readers.
+  public_key?: string;
 }
 
 // Additional ActivityPub types for components

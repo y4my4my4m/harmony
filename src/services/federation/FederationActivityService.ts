@@ -105,7 +105,7 @@ export class FederationActivityService {
 
     } catch (error) {
       debug.error('❌ Federation: Error creating message reaction activity:', error)
-      return { success: false, error: error.message }
+      return { success: false, error: (error as Error).message }
     }
   }
 
@@ -167,7 +167,7 @@ export class FederationActivityService {
 
     } catch (error) {
       debug.error('❌ Federation: Error creating post reaction activity:', error)
-      return { success: false, error: error.message }
+      return { success: false, error: (error as Error).message }
     }
   }
 
@@ -187,9 +187,12 @@ export class FederationActivityService {
 
       // Get post data
       const postData = await this.getPostData(postId)
+      if (!postData) {
+        return { success: false, error: 'Missing required data for activity creation' }
+      }
       const actorData = await this.getActorData(postData.author_id)
 
-      if (!postData || !actorData) {
+      if (!actorData) {
         return { success: false, error: 'Missing required data for activity creation' }
       }
 
@@ -235,7 +238,7 @@ export class FederationActivityService {
 
     } catch (error) {
       debug.error('❌ Federation: Error creating post activity:', error)
-      return { success: false, error: error.message }
+      return { success: false, error: (error as Error).message }
     }
   }
 
@@ -297,7 +300,7 @@ export class FederationActivityService {
 
     } catch (error) {
       debug.error('❌ Federation: Error creating follow activity:', error)
-      return { success: false, error: error.message }
+      return { success: false, error: (error as Error).message }
     }
   }
 
@@ -350,7 +353,7 @@ export class FederationActivityService {
 
     } catch (error) {
       debug.error('❌ Federation: Error creating profile update activity:', error)
-      return { success: false, error: error.message }
+      return { success: false, error: (error as Error).message }
     }
   }
 

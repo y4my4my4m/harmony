@@ -604,13 +604,7 @@ These three files alone are ~14 kLoC of Vue+TS that ship in the main chunks and 
 
 ---
 
-### PC3. WebRTC E2EE encryption runs `await crypto.subtle` per frame on the main thread
-
-**File:** `src/services/encryption/WebRTCEncryptionService.ts` (encrypt), 309-388 (decrypt)
-
-The `TransformStream` callback `transform: async (encodedFrame, controller) => { ... await encryptor.encrypt(data) ... }` runs in the same realm/thread that drives Vue updates. Audio frame rate is ~50 Hz, video ~30 Hz; with N remote peers this is `O(N × 80)` `crypto.subtle.encrypt` calls per second on the renderer, plus the same for decrypt. Stalls during scroll/layout become audible (audio drops) and visible (video jitter).
-
-**Fix:** Use `RTCRtpScriptTransform` (the modern API that runs the transform in a `DedicatedWorker` automatically) on browsers that support it, and fall back to manually piping the encoded streams through a Worker via `postMessage(transferable)` on others. This is also a prerequisite for fixing the E2EE key agreement issue **C5** — once the crypto is in a worker, key material lives off the renderer.
+<!-- PC3 fixed; entry removed from open list. See "Fixes applied" -> round-5 section below. -->
 
 ---
 
@@ -733,10 +727,10 @@ The `TransformStream` callback `transform: async (encodedFrame, controller) => {
 
 ## Suggested perf fix order
 
-1. **PC2 — Split AdminPanel.vue + MessageDisplay.vue + useActivityPub.ts.** Not user-visible directly, but cuts cycle-time for everything else.
-2. **PC3 + PH22 + PH23 — Move WebRTC frame crypto and Megolm verify off the main thread.** Prerequisite for **C5** anyway.
-3. **PH2, PH3 — Replace expensive RLS with `SECURITY DEFINER` helpers**, then **PH6** (mark helpers `STABLE`).
-4. **PM27/PM28 — Lazy load LiveKit + Signal Protocol; PM29 preconnects.** Cold-start win for the web client.
+1. **PH22 + PH23 — Move Megolm verify and PBKDF2 off the main thread (worker).** Same pattern as PC3.
+2. **PH2, PH3 — Replace expensive RLS with `SECURITY DEFINER` helpers**, then **PH6** (mark helpers `STABLE`).
+3. **PM27/PM28 — Lazy load LiveKit + Signal Protocol; PM29 preconnects.** Cold-start win for the web client.
+4. **PC2 deeper splits** — `MessageDisplay.vue` (extracted reply-reference; further extractions are cycle-time wins, not runtime perf) and `useActivityPub.ts` (multi-day refactor across 60+ call sites). Both deferred.
 5. Remaining highs, then mediums and lows as background hygiene.
 
 ---
@@ -767,6 +761,8 @@ Historical snapshot counts were removed because they became stale after round-1 
 | Pattern P-β | Hoist regex constants to module scope in markdownParser, urlTrackerStripper, unifiedContentProcessing | ✅ | three files |
 | Pattern P-ε | TTL + LRU cap for module-level Fediverse post-embed cache (was unbounded) | ✅ | `src/components/embeds/ProviderEmbedSwitch.vue` |
 | Pattern P-γ | Reaction-store dead `setInterval` removed; DND check skips polling when DND disabled | ✅ | `src/stores/useReactions.ts`, `src/stores/useNotification.ts` |
+| PC2 (partial) | `AdminPanel.vue` is already lazy-routed (`src/router/index.ts`); `MessageDisplay.vue` reply-reference extracted to a sibling component | ✅ partial | `src/components/messages/MessageReplyReference.vue` (new), `src/components/MessageDisplay.vue`, `src/router/index.ts` (no change required) |
+| PC3 | WebRTC frame crypto moved to a `DedicatedWorker`. `RTCRtpScriptTransform` is preferred (frames never touch the main thread); falls back to `createEncodedStreams()` + transferable `ReadableStream`/`WritableStream` to the worker. Key material is transferred (not copied) so the main thread no longer retains the symmetric key. | ✅ | `src/services/encryption/FrameEncryptor.ts` (new), `src/services/encryption/webrtcFrameCryptoWorker.ts` (new), `src/services/encryption/WebRTCEncryptionService.ts` |
 
 ### Index drift — investigation summary
 

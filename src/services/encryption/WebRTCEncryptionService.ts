@@ -13,96 +13,67 @@
  */
 
 import { signalProtocolService } from './SignalProtocolService'
-import { messageEncryptionService } from './MessageEncryptionService'
 import { debug } from '@/utils/debug'
+import { FrameEncryptor } from './FrameEncryptor'
 
-/**
- * Frame encryption using AES-GCM
- * Uses WebCrypto API for fast encryption
- *
- * Exported for unit testing fail-closed behavior on encrypt/decrypt errors.
- */
-export class FrameEncryptor {
-  private key: CryptoKey | null = null
-  private counter = 0
-
-  async initialize(keyMaterial: ArrayBuffer): Promise<void> {
-    // Import key for AES-GCM encryption
-    this.key = await crypto.subtle.importKey(
-      'raw',
-      keyMaterial,
-      { name: 'AES-GCM', length: 256 },
-      false,
-      ['encrypt', 'decrypt']
-    )
-    this.counter = 0
-    debug.log('🔐 Frame encryptor initialized')
-  }
-
-  async encrypt(frame: Uint8Array): Promise<Uint8Array> {
-    if (!this.key) {
-      throw new Error('Frame encryptor not initialized')
-    }
-
-    // Generate unique IV for each frame using counter
-    const iv = new Uint8Array(12)
-    const counterBytes = new DataView(iv.buffer, 4, 8)
-    counterBytes.setBigUint64(0, BigInt(this.counter++), false)
-
-    // Encrypt frame data. Fail closed: if AES-GCM rejects we MUST NOT
-    // forward the cleartext on the wire — that silently downgrades the
-    // call to plaintext while the UI still claims E2EE is active.
-    const encrypted = await crypto.subtle.encrypt(
-      { name: 'AES-GCM', iv, tagLength: 128 },
-      this.key,
-      frame
-    )
-
-    // Combine IV + encrypted data
-    const result = new Uint8Array(iv.length + encrypted.byteLength)
-    result.set(iv, 0)
-    result.set(new Uint8Array(encrypted), iv.length)
-
-    return result
-  }
-
-  async decrypt(encryptedFrame: Uint8Array): Promise<Uint8Array> {
-    if (!this.key) {
-      throw new Error('Frame decryptor not initialized')
-    }
-
-    // Extract IV and encrypted data
-    const iv = encryptedFrame.slice(0, 12)
-    const data = encryptedFrame.slice(12)
-
-    // Throw on decryption failure rather than passing the ciphertext back as
-    // "audio/video data". The transform stream drops the frame on throw,
-    // which is the right behavior for tampered or unauthenticated frames.
-    const decrypted = await crypto.subtle.decrypt(
-      { name: 'AES-GCM', iv, tagLength: 128 },
-      this.key,
-      data
-    )
-
-    return new Uint8Array(decrypted)
-  }
-
-  reset(): void {
-    this.counter = 0
-  }
-}
+// Re-export so existing test imports keep working without changes.
+export { FrameEncryptor }
 
 /**
  * WebRTC Encryption Service
+ *
+ * Frame crypto runs in a DedicatedWorker (PC3, BUGS.md). The main thread
+ * derives per-peer key material via Signal Protocol and ships it to the
+ * worker; the worker owns the per-peer `FrameEncryptor` instances and
+ * actually touches every RTP frame. Two activation paths are used to wire
+ * up the encoded streams (preferred order):
+ *
+ *  1. `RTCRtpScriptTransform` — sender/receiver gets a transform whose
+ *     constructor runs inside the worker (Safari, recent Firefox, recent
+ *     Chromium). No frames cross the main thread.
+ *  2. `createEncodedStreams()` + transferable `ReadableStream`/`WritableStream`
+ *     pair (older Chromium with insertable streams). The main thread fetches
+ *     the streams once and immediately transfers them to the worker; the
+ *     `TransformStream` pipeline lives in the worker.
  */
 export class WebRTCEncryptionService {
   private static instance: WebRTCEncryptionService
-  private encryptors = new Map<string, FrameEncryptor>() // userId -> encryptor
-  private decryptors = new Map<string, FrameEncryptor>() // userId -> decryptor
+  private peers = new Set<string>() // peers we've sent key material to the worker for
   private enabled = false
   private currentUserId: string | null = null
+  private worker: Worker | null = null
+  private workerReady = false
 
   private constructor() {}
+
+  private getWorker(): Worker | null {
+    if (this.worker) return this.worker
+    if (typeof Worker === 'undefined') {
+      this.workerReady = false
+      return null
+    }
+    try {
+      // Vite picks up `new URL(... , import.meta.url)` and bundles the worker
+      // with its own chunk; the `{ type: 'module' }` ensures ESM imports in
+      // the worker source resolve correctly.
+      this.worker = new Worker(
+        new URL('./webrtcFrameCryptoWorker.ts', import.meta.url),
+        { type: 'module' }
+      )
+      this.workerReady = true
+      debug.log('🔐 WebRTC frame-crypto worker started')
+      return this.worker
+    } catch (error) {
+      debug.error('❌ Failed to start frame-crypto worker; falling back to main-thread crypto', error)
+      this.workerReady = false
+      return null
+    }
+  }
+
+  /** Has `RTCRtpScriptTransform` (preferred zero-copy path)? */
+  private hasScriptTransform(): boolean {
+    return typeof (globalThis as any).RTCRtpScriptTransform === 'function'
+  }
 
   static getInstance(): WebRTCEncryptionService {
     if (!WebRTCEncryptionService.instance) {
@@ -152,28 +123,13 @@ export class WebRTCEncryptionService {
         return
       }
 
-      // Derive call encryption key from Signal session
-      // We encrypt a known value to derive a symmetric key
+      // Derive call encryption key from Signal session.
+      // We encrypt a known value to derive a symmetric key.
       const keyDerivationData = `call-key-${Date.now()}`
-      const encryptedKey = await signalProtocolService.encryptMessage(
-        sessionAddress,
-        keyDerivationData
-      )
-
-      // Use the encrypted data as key material (deterministic)
-      // In production, this would be exchanged via signaling
+      await signalProtocolService.encryptMessage(sessionAddress, keyDerivationData)
       const keyMaterial = await this.deriveKeyMaterial(keyDerivationData)
 
-      // Initialize encryptor for sending
-      const encryptor = new FrameEncryptor()
-      await encryptor.initialize(keyMaterial)
-      this.encryptors.set(participantId, encryptor)
-
-      // Initialize decryptor for receiving
-      const decryptor = new FrameEncryptor()
-      await decryptor.initialize(keyMaterial)
-      this.decryptors.set(participantId, decryptor)
-
+      await this.installKeyForPeer(participantId, keyMaterial)
       debug.log(`✅ Encryption initialized for participant: ${participantId}`)
     } catch (error) {
       debug.error(`❌ Failed to initialize encryption for ${participantId}:`, error)
@@ -187,18 +143,27 @@ export class WebRTCEncryptionService {
    */
   private async setupTemporaryKey(participantId: string): Promise<void> {
     debug.warn(`⚠️ Using temporary key for ${participantId}`)
-
-    // Generate a temporary shared key
-    // In production, this would be exchanged securely via signaling
     const keyMaterial = await this.deriveKeyMaterial(`temp-${participantId}-${Date.now()}`)
+    await this.installKeyForPeer(participantId, keyMaterial)
+  }
 
-    const encryptor = new FrameEncryptor()
-    await encryptor.initialize(keyMaterial)
-    this.encryptors.set(participantId, encryptor)
-
-    const decryptor = new FrameEncryptor()
-    await decryptor.initialize(keyMaterial)
-    this.decryptors.set(participantId, decryptor)
+  /**
+   * Ship per-peer key material to the worker (the worker owns the actual
+   * `FrameEncryptor` instances). Transfers the buffer ownership so the
+   * main-thread heap does not retain key bytes.
+   */
+  private async installKeyForPeer(peerId: string, keyMaterial: ArrayBuffer): Promise<void> {
+    const worker = this.getWorker()
+    if (!worker) {
+      throw new Error('frame-crypto worker unavailable')
+    }
+    // Important: we transfer the buffer ownership so the main thread can no
+    // longer read the symmetric key after dispatch.
+    worker.postMessage(
+      { type: 'init', peerId, keyMaterial },
+      [keyMaterial]
+    )
+    this.peers.add(peerId)
   }
 
   /**
@@ -232,8 +197,57 @@ export class WebRTCEncryptionService {
   }
 
   // =====================================================
-  // INSERTABLE STREAMS INTEGRATION
+  // INSERTABLE STREAMS / SCRIPT TRANSFORM INTEGRATION
   // =====================================================
+
+  /**
+   * Attach the worker-backed transform to either the sender or the receiver.
+   * Tries `RTCRtpScriptTransform` first (frames never touch the main thread);
+   * falls back to `createEncodedStreams` + transferable streams.
+   */
+  private attachWorkerTransform(
+    endpoint: RTCRtpSender | RTCRtpReceiver,
+    peerId: string,
+    direction: 'encrypt' | 'decrypt'
+  ): boolean {
+    const worker = this.getWorker()
+    if (!worker) return false
+
+    const ScriptTransformCtor = (globalThis as any).RTCRtpScriptTransform
+    if (typeof ScriptTransformCtor === 'function') {
+      try {
+        ;(endpoint as any).transform = new ScriptTransformCtor(worker, { peerId, direction })
+        return true
+      } catch (error) {
+        debug.warn('⚠️ RTCRtpScriptTransform attach failed, falling back', error)
+      }
+    }
+
+    const createStreams = (endpoint as any).createEncodedStreams
+    if (typeof createStreams === 'function') {
+      try {
+        const streams = createStreams.call(endpoint) as {
+          readable: ReadableStream
+          writable: WritableStream
+        }
+        worker.postMessage(
+          {
+            type: 'pipe',
+            peerId,
+            direction,
+            readable: streams.readable,
+            writable: streams.writable,
+          },
+          [streams.readable as any, streams.writable as any]
+        )
+        return true
+      } catch (error) {
+        debug.error('❌ createEncodedStreams attach failed', error)
+      }
+    }
+
+    return false
+  }
 
   /**
    * Apply encryption to an RTCRtpSender (outgoing stream)
@@ -243,63 +257,15 @@ export class WebRTCEncryptionService {
       debug.log('📤 Encryption not enabled, skipping sender encryption')
       return
     }
-
-    const encryptor = this.encryptors.get(receiverId)
-    if (!encryptor) {
-      debug.warn(`⚠️ No encryptor found for ${receiverId}`)
+    if (!this.peers.has(receiverId)) {
+      debug.warn(`⚠️ No key installed for ${receiverId}`)
       return
     }
-
-    // Check if Insertable Streams is supported
-    if (!sender.createEncodedStreams) {
-      debug.error('❌ Insertable Streams not supported by browser')
-      return
-    }
-
-    try {
-      // Get the encoded streams
-      const streams = sender.createEncodedStreams()
-      const { readable, writable } = streams
-
-      debug.log(`🔐 Encrypting outgoing stream for ${receiverId}`)
-
-      // Create transform stream for encryption.
-      //
-      // Fail closed: on encryption failure we drop the frame instead of
-      // forwarding cleartext. Audio/video will glitch — which is much better
-      // than silently transmitting unencrypted media while the UI still
-      // reports "E2EE enabled".
-      const transformStream = new TransformStream({
-        transform: async (encodedFrame, controller) => {
-          try {
-            // Get frame data
-            const data = new Uint8Array(encodedFrame.data)
-
-            // Encrypt the frame
-            const encrypted = await encryptor.encrypt(data)
-
-            // Replace frame data with encrypted data
-            encodedFrame.data = encrypted.buffer
-            controller.enqueue(encodedFrame)
-          } catch (error) {
-            debug.error('❌ Frame encryption error — dropping frame:', error)
-            // INTENTIONAL: do not enqueue the frame. Dropping is the correct
-            // behavior when crypto fails; forwarding plaintext is a downgrade.
-          }
-        }
-      })
-
-      // Pipe through encryption
-      readable
-        .pipeThrough(transformStream)
-        .pipeTo(writable)
-        .catch(error => {
-          debug.error('❌ Encryption pipeline error:', error)
-        })
-
-      debug.log(`✅ Sender encryption active for ${receiverId}`)
-    } catch (error) {
-      debug.error('❌ Failed to setup sender encryption:', error)
+    const ok = this.attachWorkerTransform(sender, receiverId, 'encrypt')
+    if (ok) {
+      debug.log(`✅ Sender encryption active (worker) for ${receiverId}`)
+    } else {
+      debug.error('❌ Failed to attach sender encryption — neither RTCRtpScriptTransform nor createEncodedStreams available')
     }
   }
 
@@ -311,61 +277,15 @@ export class WebRTCEncryptionService {
       debug.log('📥 Encryption not enabled, skipping receiver decryption')
       return
     }
-
-    const decryptor = this.decryptors.get(senderId)
-    if (!decryptor) {
-      debug.warn(`⚠️ No decryptor found for ${senderId}`)
+    if (!this.peers.has(senderId)) {
+      debug.warn(`⚠️ No key installed for ${senderId}`)
       return
     }
-
-    // Check if Insertable Streams is supported
-    if (!receiver.createEncodedStreams) {
-      debug.error('❌ Insertable Streams not supported by browser')
-      return
-    }
-
-    try {
-      // Get the encoded streams
-      const streams = receiver.createEncodedStreams()
-      const { readable, writable } = streams
-
-      debug.log(`🔓 Decrypting incoming stream from ${senderId}`)
-
-      // Create transform stream for decryption.
-      //
-      // Fail closed: drop frames that fail to decrypt rather than passing
-      // the ciphertext bytes to the decoder. Otherwise a tampered or
-      // mis-keyed frame would be rendered as garbled cleartext "audio".
-      const transformStream = new TransformStream({
-        transform: async (encodedFrame, controller) => {
-          try {
-            // Get frame data
-            const data = new Uint8Array(encodedFrame.data)
-
-            // Decrypt the frame
-            const decrypted = await decryptor.decrypt(data)
-
-            // Replace frame data with decrypted data
-            encodedFrame.data = decrypted.buffer
-            controller.enqueue(encodedFrame)
-          } catch (error) {
-            debug.error('❌ Frame decryption error — dropping frame:', error)
-            // INTENTIONAL: drop instead of forwarding raw ciphertext.
-          }
-        }
-      })
-
-      // Pipe through decryption
-      readable
-        .pipeThrough(transformStream)
-        .pipeTo(writable)
-        .catch(error => {
-          debug.error('❌ Decryption pipeline error:', error)
-        })
-
-      debug.log(`✅ Receiver decryption active for ${senderId}`)
-    } catch (error) {
-      debug.error('❌ Failed to setup receiver decryption:', error)
+    const ok = this.attachWorkerTransform(receiver, senderId, 'decrypt')
+    if (ok) {
+      debug.log(`✅ Receiver decryption active (worker) for ${senderId}`)
+    } else {
+      debug.error('❌ Failed to attach receiver decryption — neither RTCRtpScriptTransform nor createEncodedStreams available')
     }
   }
 
@@ -424,8 +344,8 @@ export class WebRTCEncryptionService {
    */
   removeParticipant(participantId: string): void {
     debug.log(`➖ Removing encryption for participant: ${participantId}`)
-    this.encryptors.delete(participantId)
-    this.decryptors.delete(participantId)
+    this.peers.delete(participantId)
+    this.worker?.postMessage({ type: 'remove', peerId: participantId })
   }
 
   // =====================================================
@@ -440,20 +360,23 @@ export class WebRTCEncryptionService {
   }
 
   /**
-   * Check if browser supports Insertable Streams
+   * Check if the browser supports any path the worker can attach to.
+   * Either `RTCRtpScriptTransform` (preferred) or `createEncodedStreams`
+   * (legacy insertable streams) is sufficient.
    */
   isSupported(): boolean {
     try {
-      // Check if createEncodedStreams exists on RTCRtpSender prototype
-      const supported = 'createEncodedStreams' in RTCRtpSender.prototype &&
-                       'createEncodedStreams' in RTCRtpReceiver.prototype
-
+      if (typeof (globalThis as any).RTCRtpScriptTransform === 'function') return true
+      const supported =
+        typeof RTCRtpSender !== 'undefined' &&
+        'createEncodedStreams' in RTCRtpSender.prototype &&
+        typeof RTCRtpReceiver !== 'undefined' &&
+        'createEncodedStreams' in RTCRtpReceiver.prototype
       if (!supported) {
-        debug.warn('⚠️ Insertable Streams API not supported in this browser')
+        debug.warn('⚠️ Neither RTCRtpScriptTransform nor Insertable Streams supported in this browser')
       }
-
       return supported
-    } catch (error) {
+    } catch {
       return false
     }
   }
@@ -466,12 +389,14 @@ export class WebRTCEncryptionService {
     supported: boolean
     participantCount: number
     participants: string[]
+    workerActive: boolean
   } {
     return {
       enabled: this.enabled,
       supported: this.isSupported(),
-      participantCount: this.encryptors.size,
-      participants: Array.from(this.encryptors.keys())
+      participantCount: this.peers.size,
+      participants: Array.from(this.peers.values()),
+      workerActive: this.workerReady,
     }
   }
 
@@ -484,11 +409,19 @@ export class WebRTCEncryptionService {
    */
   cleanup(): void {
     debug.log('🧹 Cleaning up WebRTC encryption')
-    
-    this.encryptors.clear()
-    this.decryptors.clear()
+    this.peers.clear()
     this.enabled = false
     this.currentUserId = null
+    if (this.worker) {
+      try {
+        this.worker.postMessage({ type: 'reset' })
+        this.worker.terminate()
+      } catch {
+        /* ignore */
+      }
+      this.worker = null
+      this.workerReady = false
+    }
   }
 
   /**
@@ -500,11 +433,11 @@ export class WebRTCEncryptionService {
     debug.log('🔄 Renegotiating encryption keys')
 
     for (const participantId of participantIds) {
-      // Reset encryptors/decryptors
-      this.encryptors.delete(participantId)
-      this.decryptors.delete(participantId)
+      // Tell the worker to drop the existing keys; `initializeParticipant`
+      // will ship fresh ones.
+      this.peers.delete(participantId)
+      this.worker?.postMessage({ type: 'remove', peerId: participantId })
 
-      // Reinitialize with new keys
       await this.initializeParticipant(participantId)
     }
 

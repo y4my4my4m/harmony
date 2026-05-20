@@ -192,9 +192,12 @@ export function useContentRenderer(
   const formatMentionDisplay = (mention: MessagePart): string => {
     if (mention.type !== 'mention') return '';
     
-    // Use stored mention format if available (legacy support) - normalize to avoid @@
-    if (mention.mention) {
-      const m = String(mention.mention).replace(/^@+/, '@');
+    // Use stored mention format if available (legacy support) - normalize to avoid @@.
+    // The `mention` field is a legacy property not declared on MentionContent;
+    // cast to access it without breaking existing data.
+    const legacyMention = (mention as any).mention as string | undefined;
+    if (legacyMention) {
+      const m = String(legacyMention).replace(/^@+/, '@');
       return m.startsWith('@') ? m : `@${m}`;
     }
     
@@ -442,8 +445,11 @@ export function useContentRenderer(
             return `<img src="${url}" alt=":${emoji.name}:" title=":${emoji.name}:" class="emoji-icon ${sizeClass}" draggable="false" onerror="this.style.display='none';var s=document.createElement('span');s.className='emoji-icon emoji-fallback ${sizeClass}';s.title=':${emoji.name}:';s.innerHTML='<svg viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;currentColor&quot; stroke-width=&quot;2&quot;><line x1=&quot;2&quot; y1=&quot;2&quot; x2=&quot;22&quot; y2=&quot;22&quot;/><path d=&quot;M10.41 10.41a2 2 0 1 1-2.83-2.83&quot;/><path d=&quot;M21 15V5a2 2 0 0 0-2-2H9&quot;/><path d=&quot;M3.59 3.59A1.99 1.99 0 0 0 3 5v14a2 2 0 0 0 2 2h14c.55 0 1.052-.22 1.41-.59&quot;/></svg>';this.parentNode.insertBefore(s,this)" />`;
           }
           
-          // Native/unified emoji - check pack preference
-          const unicode = emoji.native || emoji.unicode;
+          // Native/unified emoji - check pack preference.
+          // `native`/`unicode` are legacy fields on emoji payloads not modelled in the
+          // Emoji type; cast through any so legacy data still works.
+          const emojiAny = emoji as any;
+          const unicode = emojiAny.native || emojiAny.unicode;
           if (unicode) {
             if (isNativePack.value) {
               // Native pack - render unicode

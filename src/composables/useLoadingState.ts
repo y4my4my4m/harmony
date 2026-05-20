@@ -46,7 +46,9 @@ export interface OptimisticUpdateComposable<T> {
  * Professional loading state management
  */
 export function useLoadingState<T>(initialData: T | null = null): LoadingStateComposable<T> {
-  const state = ref(createLoadingState<T>(initialData))
+  // Vue's ref wraps T into UnwrapRef<T>, but the helpers operate on the raw T.
+  // Cast through any so we can use the standard helpers without fighting UnwrapRef.
+  const state = ref(createLoadingState<T>(initialData)) as any
 
   const isLoading = computed(() => state.value.loading)
   const hasError = computed(() => !!state.value.error)
@@ -71,7 +73,7 @@ export function useLoadingState<T>(initialData: T | null = null): LoadingStateCo
   }
 
   return {
-    state,
+    state: state as Ref<LoadingState<T>>,
     isLoading,
     hasError,
     errorMessage,
@@ -84,11 +86,13 @@ export function useLoadingState<T>(initialData: T | null = null): LoadingStateCo
  * Professional optimistic updates with rollback
  */
 export function useOptimisticUpdate<T>(initialData: T | null = null): OptimisticUpdateComposable<T> {
+  // Vue ref unwraps T into UnwrapRef<T>; cast through any so we can store T
+  // directly without juggling UnwrapRef in every assignment.
   const optimistic = ref<OptimisticState<T>>({
     data: initialData,
     isOptimistic: false,
     originalData: null
-  })
+  }) as any
 
   const setOptimistic = (data: T) => {
     if (!optimistic.value.isOptimistic) {
@@ -158,7 +162,7 @@ export function useOptimisticUpdate<T>(initialData: T | null = null): Optimistic
   }
 
   return {
-    optimistic,
+    optimistic: optimistic as Ref<OptimisticState<T>>,
     setOptimistic,
     clearOptimistic,
     rollback,

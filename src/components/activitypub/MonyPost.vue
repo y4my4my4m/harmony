@@ -543,8 +543,8 @@
         />
         <span class="tooltip-username">
           <DisplayName
-            v-if="user.displayNameParts"
-            :parts="user.displayNameParts"
+            v-if="(user as any).displayNameParts"
+            :parts="(user as any).displayNameParts"
             :fallback="user.displayName"
           />
           <DisplayName v-else :userId="user.id" :fallback="user.displayName" />
@@ -732,8 +732,8 @@ const instanceDomain = computed(() => {
 });
 
 // Remote post detection (for fetching reactions)
-const isRemotePost = computed(() => {
-  return !props.post.is_local && props.post.ap_id;
+const isRemotePost = computed<boolean>(() => {
+  return !props.post.is_local && !!props.post.ap_id;
 });
 
 // Remote post sync (reactions/replies) via composable
@@ -895,7 +895,7 @@ const displayContent = computed(() => {
 });
 
 const displayMediaAttachments = computed(() => {
-  const source = (isReblog.value && props.post.reblog) ? props.post.reblog : props.post;
+  const source: any = (isReblog.value && props.post.reblog) ? props.post.reblog : props.post;
   const media = source?.media_attachments ?? source?.mediaAttachments;
   const raw = Array.isArray(media) ? media : [];
   // Normalize federated media (ActivityPub uses type 'Document', mediaType 'image/*') so they render in grid
@@ -914,11 +914,11 @@ const displayMediaAttachments = computed(() => {
   }).filter(Boolean);
 });
 
-const postEmbeds = computed(() => {
+const postEmbeds = computed<Array<{ url: string; title?: string; description?: string; image?: string; provider?: string }>>(() => {
   const source = (isReblog.value && props.post.reblog) ? props.post.reblog : props.post;
   const embeds = source?.metadata?.embeds;
   if (!embeds || typeof embeds !== 'object') return [];
-  return Object.values(embeds).filter((e: any) => e && e.title);
+  return Object.values(embeds).filter((e: any) => e && e.title) as Array<{ url: string; title?: string; description?: string; image?: string; provider?: string }>;
 });
 
 // Content for MonyContent: when we have media_attachments, exclude file/image parts from content
@@ -1231,7 +1231,7 @@ const postTextPreview = computed(() => {
       .slice(0, 200);
   }
   if (typeof content === 'string') {
-    return content.replace(/<[^>]+>/g, '').slice(0, 200);
+    return (content as string).replace(/<[^>]+>/g, '').slice(0, 200);
   }
   return '';
 });
@@ -1380,7 +1380,7 @@ const handleEmojiSelected = async (emoji: any) => {
         closeEmojiPopup();
         // Refresh the reactions display
         if (postReactionsRef.value) {
-          await postReactionsRef.value.loadReactions();
+          await (postReactionsRef.value as any).loadReactions?.();
         }
       }
     }
@@ -1789,8 +1789,8 @@ const handleQuoteReblog = () => {
   const originalPost = props.post.reblog || props.post;
   const originalAuthor = props.post.reblog_author || props.post.author;
   activityPubStore.openComposer({
-    quotePost: originalPost,
-    quoteAuthor: originalAuthor
+    quotePost: originalPost as any,
+    quoteAuthor: originalAuthor as any,
   });
 };
 
@@ -1908,7 +1908,7 @@ const handleAdminDeletePost = async () => {
 // Handle emoji picker for original post (for reblogs, target the original)
 const handleShowEmojiPickerForOriginal = () => {
   // Create a post-like object with the original post ID for the emoji picker
-  const targetPost = isReblog.value && props.post.reblog 
+  const targetPost: any = isReblog.value && props.post.reblog
     ? { ...props.post.reblog, id: originalPostId.value }
     : props.post;
   handleShowEmojiPicker(targetPost);

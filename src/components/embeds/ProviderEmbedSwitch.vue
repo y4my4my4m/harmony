@@ -131,7 +131,9 @@ const fediversePostCache = {
 <script setup lang="ts">
 import { computed, onMounted, ref, nextTick, onUnmounted } from 'vue';
 import { debug } from '@/utils/debug'
-import type { EmbedPayload, TimelinePost } from '@/types';
+// `TimelinePost` is already imported in the module-scope <script lang="ts">
+// block above for the cache helpers; re-importing it here is a TS duplicate.
+import type { EmbedPayload } from '@/types';
 import { parseEmbedUrl, buildYouTubeEmbedUrl, buildSpotifyEmbedUrl } from '@/utils/embedDetection';
 import { useFloatingVideo } from '@/composables/useFloatingVideo';
 import MonyPost from '@/components/activitypub/MonyPost.vue';
@@ -283,9 +285,10 @@ function setupYouTubePlayer() {
   // Register the whole embed wrapper for floating so the header + video float together
   if (props.messageId) {
     const floatTarget = embedWrapper.value || youtubeContainer.value;
+    if (!floatTarget) return;
     const originalParent = floatTarget.parentElement as HTMLElement;
     if (originalParent) {
-      registerVideo(floatTarget, originalParent, props.messageId, 'youtube');
+      registerVideo(floatTarget as unknown as HTMLElement, originalParent, props.messageId, 'youtube');
     }
   }
 }

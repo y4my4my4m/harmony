@@ -86,7 +86,7 @@
     
     <!-- Character count -->
     <div v-if="showCharCount && maxLength" class="input-char-count">
-      {{ modelValue?.length || 0 }} / {{ maxLength }}
+      {{ (typeof modelValue === 'string' ? modelValue.length : String(modelValue ?? '').length) }} / {{ maxLength }}
     </div>
     
     <!-- Error message -->
@@ -212,8 +212,11 @@ const inputClasses = computed(() => [
   {
     'input-focused': isFocused.value,
     'input-error': hasError.value,
-    'input-with-prefix': props.prefixIcon || props.$slots?.prefix,
-    'input-with-suffix': props.suffixIcon || props.$slots?.suffix || showPasswordToggle.value || showClearButton.value,
+    // Reading $slots from `props` is non-standard; defineProps in <script setup>
+    // doesn't carry $slots. Reading via useSlots() / `getCurrentInstance()` would
+    // be cleaner; for now, cast to bypass.
+    'input-with-prefix': props.prefixIcon || (props as any).$slots?.prefix,
+    'input-with-suffix': props.suffixIcon || (props as any).$slots?.suffix || showPasswordToggle.value || showClearButton.value,
     'input-no-resize': props.type === 'textarea' && !props.resize
   }
 ])

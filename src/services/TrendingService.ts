@@ -394,8 +394,8 @@ class TrendingService {
           updated_at: row.updated_at || row.created_at
         };
 
-        const followers = user.followers_count;
-        const posts = user.posts_count;
+        const followers = user.followers_count ?? 0;
+        const posts = user.posts_count ?? 0;
         const createdAt = new Date(row.created_at).getTime();
         const daysSinceCreated = Math.max(1, (now - createdAt) / (1000 * 60 * 60 * 24));
         const updatedAt = new Date(row.updated_at || row.created_at).getTime();

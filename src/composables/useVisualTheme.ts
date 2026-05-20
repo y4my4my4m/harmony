@@ -457,8 +457,9 @@ function applySettings(settings: VisualThemeSettings) {
   // Apply font size
   root.style.setProperty('--message-font-size', `${settings.fontSize}px`)
   
-  // Apply zoom level
-  root.style.zoom = `${settings.zoomLevel}%`
+  // Apply zoom level. `zoom` is a non-standard CSS property not present on
+  // `CSSStyleDeclaration` in lib.dom, but every browser we target understands it.
+  ;(root.style as any).zoom = `${settings.zoomLevel}%`
   
   // Apply compact mode
   if (settings.compactMode) {

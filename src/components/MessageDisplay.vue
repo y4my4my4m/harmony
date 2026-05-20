@@ -112,8 +112,8 @@
         >
           <!-- Hide button for revealed blocked messages -->
           <div v-if="item.isRevealed && item.isFirstInRevealedGroup" class="revealed-blocked-banner">
-            <span class="blocked-warning">⚠️ {{ item.revealedCount }} message{{ item.revealedCount > 1 ? 's' : '' }} from blocked user</span>
-            <button class="hide-btn" @click="hideBlockedGroup(item.groupId)">Hide</button>
+            <span class="blocked-warning">⚠️ {{ item.revealedCount ?? 1 }} message{{ (item.revealedCount ?? 1) > 1 ? 's' : '' }} from blocked user</span>
+            <button class="hide-btn" @click="item.groupId && hideBlockedGroup(item.groupId)">Hide</button>
           </div>
           <!-- Banner for temporarily revealed reported message -->
           <div v-if="revealedReportedIds.has(item.message?.id)" class="revealed-blocked-banner reported-banner">
@@ -312,7 +312,7 @@
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
                   MOD
                 </span>
-                <SupporterBadge v-if="getMessageAuthorId(item.message)" :user-id="getMessageAuthorId(item.message)" />
+                <SupporterBadge v-if="getMessageAuthorId(item.message)" :user-id="getMessageAuthorId(item.message)!" />
               </span>
               <span class="timestamp" :title="formatFullTimestamp(item.message.created_at)">
                 {{ formatTimestamp(item.message.created_at) }}
@@ -659,8 +659,9 @@ const isMessageFromBlockedUser = (message: Message): boolean => {
   // Use the store getter for reliable reactive access
   const isBlocked = activityPubStore.isBlocked(authorId);
   
-  // Debug: log check for first few messages
-  if (debug.isEnabled && props.messages.indexOf(message) < 3) {
+  // Debug: log check for first few messages (debug helper short-circuits on
+  // its own when debug logging is disabled — no `isEnabled` flag needed).
+  if (props.messages.indexOf(message) < 3) {
     debug.log(`🔍 Block check: author=${authorId}, blocked=${isBlocked}, blockedUsers size=${activityPubStore.blockedUsers.size}`);
   }
   
@@ -778,19 +779,29 @@ const hideBlockedMessage = (messageId: string) => {
 };
 
 // Display items: transforms messages into displayable items with blocked groups
-interface DisplayItem {
-  type: 'message' | 'blocked-group' | 'reported';
-  key: string;
-  message?: Message;
-  index?: number;
-  // For blocked groups
-  groupId?: string;
-  count?: number;
-  // For revealed blocked messages
-  isRevealed?: boolean;
-  isFirstInRevealedGroup?: boolean;
-  revealedCount?: number;
-}
+type DisplayItem =
+  | {
+      type: 'message';
+      key: string;
+      message: Message;
+      index: number;
+      isRevealed?: boolean;
+      isFirstInRevealedGroup?: boolean;
+      groupId?: string;
+      revealedCount?: number;
+    }
+  | {
+      type: 'blocked-group';
+      key: string;
+      groupId: string;
+      count: number;
+    }
+  | {
+      type: 'reported';
+      key: string;
+      message: Message;
+      index: number;
+    };
 
 const displayItems = computed((): DisplayItem[] => {
   // Force reactivity
@@ -866,11 +877,16 @@ const displayItems = computed((): DisplayItem[] => {
 const hoveredMessageItem = computed(() => {
   const id = hoveredMessageId.value;
   if (!id) return null;
-  return displayItems.value.find((item) => item.type === 'message' && (item as { message: Message }).message?.id === id) as (DisplayItem & { message: Message }) | null;
+  return (
+    displayItems.value.find(
+      (item): item is Extract<DisplayItem, { type: 'message' }> =>
+        item.type === 'message' && item.message?.id === id
+    ) ?? null
+  );
 });
 
 const THUMB_REACH_PX = 48;
-const floatingActionsStyle = computed(() => {
+const floatingActionsStyle = computed((): Record<string, string> => {
   const pos = mobileActionTapPosition.value;
   if (!pos || typeof window === 'undefined') return {};
   const bottomPx = Math.max(8, window.innerHeight - pos.y + THUMB_REACH_PX);
@@ -930,8 +946,10 @@ const getThreadForMessage = (messageId: string): ThreadWithDetails | undefined =
   return threadsByMessageId.value.get(messageId);
 };
 
-// Open a thread
-const openThread = (thread: ThreadWithDetails) => {
+// Open a thread (accepts the lighter `ThreadData` shape emitted by
+// `<ThreadIndicator>` as well as the full `ThreadWithDetails` from
+// `threadService`; we just forward it to the parent via emit).
+const openThread = (thread: unknown) => {
   emit('createThread', { thread } as any);
 };
 
@@ -1274,13 +1292,15 @@ const BUFFER_THRESHOLD = 15; // pixels needed to trigger buffer effect
 const frozenInitialOffset = ref(0);
 let hasSetInitialOffset = false;
 
-const rowVirtualizer = useVirtualizer(computed(() => ({
-  count: displayItems.value.length,
-  getScrollElement: () => messageDisplayContainer.value,
-  estimateSize: () => 60,
-  overscan: 15,
-  initialOffset: frozenInitialOffset.value,
-})));
+const rowVirtualizer = useVirtualizer<HTMLDivElement, Element>(
+  computed(() => ({
+    count: displayItems.value.length,
+    getScrollElement: () => messageDisplayContainer.value,
+    estimateSize: () => 60,
+    overscan: 15,
+    initialOffset: frozenInitialOffset.value,
+  })) as any
+);
 
 const virtualRows = computed(() => rowVirtualizer.value.getVirtualItems());
 const totalSize = computed(() => rowVirtualizer.value.getTotalSize());
@@ -1652,7 +1672,7 @@ watch(isLoadingOlderMessages, (loading, wasLoading) => {
       const { scrollHeight, clientHeight } = messageDisplayContainer.value;
       if (scrollHeight <= clientHeight + 5) {
         debug.log('📜 Still no scrollbar after loading — auto-loading more');
-        props.loadMoreMessages();
+        props.loadMoreMessages?.();
       }
     }, 300);
   }
@@ -1669,7 +1689,7 @@ watch(() => props.messages.map(msg => msg.reactions?.length), () => {
 // OPTIMIZED: Debounced to prevent 45+ API calls per page load
 let intersectionObserver: IntersectionObserver | null = null;
 const observedMessages = new Set<string>();
-let pendingUnreadUpdate: { messageId: string; timestamp: string } | null = null;
+let pendingUnreadUpdate: { messageId: string; timestamp: Date } | null = null;
 let unreadUpdateTimeout: ReturnType<typeof setTimeout> | null = null;
 let hasUnreadUpdatePending = false;
 
@@ -1695,7 +1715,7 @@ const setupUnreadObserver = () => {
       });
     },
     {
-      root: messageDisplayContainer.value,
+      root: messageDisplayContainer.value as unknown as Element | null,
       rootMargin: '0px',
       threshold: 0.1 // Trigger when 10% of message is visible
     }
@@ -1900,12 +1920,12 @@ const setupTopSentinelObserver = () => {
       const entry = entries[0];
       if (entry?.isIntersecting && hasInitiallyScrolled && !isAllMessagesLoaded.value && !isLoadingOlderMessages.value && props.loadMoreMessages) {
         debug.log('📜 Top sentinel visible (prefetch zone) — auto-loading older messages');
-        props.loadMoreMessages();
+        props.loadMoreMessages?.();
       }
     },
-    { root: messageDisplayContainer.value, threshold: 0, rootMargin: '300px 0px 0px 0px' }
+    { root: messageDisplayContainer.value as unknown as Element | null, threshold: 0, rootMargin: '300px 0px 0px 0px' }
   );
-  topSentinelObserver.observe(topSentinelRef.value);
+  topSentinelObserver.observe(topSentinelRef.value as unknown as Element);
 };
 
 // --- RESIZE OBSERVER for scroll-to-bottom ---
@@ -2013,7 +2033,7 @@ const showTooltip = async (event: MouseEvent, reaction: Reaction) => {
       const discordUser = r.metadata.discord_user;
       return {
         id: discordUser.id,
-        displayName: discordUser.display_name || discordUser.username,
+        displayName: discordUser.display_name || discordUser.username || 'Discord User',
         avatarUrl: discordUser.avatar_url || '',
         userColor: '#0EA5E9', // Discord brand color
         isBridged: true,
@@ -2736,13 +2756,17 @@ const handleDecryptMessage = async (message: Message) => {
       : Boolean(decryptResult.senderVerified);
 
     if (decryptedContent) {
-      // Update the message in the store with decrypted content
-      const resolvedContent = await resolveMentionsUserData(decryptedContent);
-
+      // NOTE: previous code called `resolveMentionsUserData(decryptedContent)`
+      // and assigned its return value to `content`, but
+      // `resolveMentionsUserData` returns a Record<string, {userId, isLocal}>
+      // lookup map (not MessagePart[]). That was a latent bug — assigning the
+      // lookup map to `content` would render nothing. The decrypted content
+      // is already a parsed `MessagePart[]` from
+      // `megolmMessageEncryptionService.decryptMessage`, so we use it directly.
       // Create updated message object
       const updatedMessage: Message = {
         ...messageToDecrypt,
-        content: resolvedContent,
+        content: decryptedContent,
         encrypted: false,
         decrypted: true,
         sender_verified: senderVerified,
@@ -2849,9 +2873,10 @@ const resolveNonUuidProfile = async (userId: string): Promise<any | null> => {
   return null;
 };
 
-const showUserProfile = async (userId: string, event?: MouseEvent) => {
+const showUserProfile = async (userId: string | null | undefined, event?: MouseEvent) => {
   event?.stopPropagation();
-  
+  if (!userId) return;
+
   let user: any = null;
   if (UUID_PATTERN.test(userId)) {
     user = getUserProfile(userId).value || await fetchUserProfile(userId).catch(e => debug.error(e));

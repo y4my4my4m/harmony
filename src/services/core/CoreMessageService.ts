@@ -741,7 +741,7 @@ export class CoreMessageService {
         throw this.createError('FETCH_REACTIONS_FAILED', error.message, error)
       }
 
-      const transformedReactions = reactions?.map(reaction => {
+      const transformedReactions = reactions?.map((reaction: any) => {
         // Native emoji (is_native=true) have no entry in the emojis table,
         // so emoji_id must be null — findReactionGroup relies on this to
         // distinguish UUID-based custom emoji from string-based native emoji.
@@ -798,7 +798,7 @@ export class CoreMessageService {
       })
 
       // Group reactions by message
-      reactions?.forEach(reaction => {
+      reactions?.forEach((reaction: any) => {
         const messageId = reaction.message_id
         
         if (!groupedReactions[messageId]) {
@@ -1354,7 +1354,7 @@ export class CoreMessageService {
     metadata: Record<string, any>
   ): Promise<{ error: string | null }> {
     try {
-      const userId = await this.getCurrentProfileId()
+      const userId = await this.getCurrentUserProfileId()
       
       const { error } = await supabase.from('messages').insert({
         channel_id: channelId,

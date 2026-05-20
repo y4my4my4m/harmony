@@ -570,10 +570,12 @@ export class AudioThemeService {
    */
   private resolveSoundPath(action: AudioAction): string | null {
     const currentTheme = this.getCurrentTheme()
-    if (currentTheme?.sounds[action]) return currentTheme.sounds[action]
+    const currentSound = currentTheme?.sounds[action]
+    if (currentSound) return currentSound
 
     const defaultTheme = this.themes.get('default')
-    if (defaultTheme?.sounds[action]) return defaultTheme.sounds[action]
+    const defaultSound = defaultTheme?.sounds[action]
+    if (defaultSound) return defaultSound
 
     return null
   }
@@ -616,9 +618,10 @@ export class AudioThemeService {
   private async getAudioWithFallback(action: AudioAction): Promise<HTMLAudioElement | null> {
     // Step 1: Try current theme path
     const currentTheme = this.getCurrentTheme()
-    if (currentTheme?.sounds[action]) {
+    const currentSound = currentTheme?.sounds[action]
+    if (currentSound) {
       try {
-        return await this.getOrCreateAudio(currentTheme.sounds[action])
+        return await this.getOrCreateAudio(currentSound)
       } catch (error) {
         debug.warn(`Failed to load ${action} from current theme, trying fallback...`, error)
       }
@@ -626,9 +629,10 @@ export class AudioThemeService {
 
     // Step 2: Try default theme path as fallback
     const defaultTheme = this.themes.get('default')
-    if (defaultTheme?.sounds[action]) {
+    const defaultSound = defaultTheme?.sounds[action]
+    if (defaultSound) {
       try {
-        return await this.getOrCreateAudio(defaultTheme.sounds[action])
+        return await this.getOrCreateAudio(defaultSound)
       } catch (error) {
         debug.warn(`Failed to load ${action} from default theme`, error)
       }

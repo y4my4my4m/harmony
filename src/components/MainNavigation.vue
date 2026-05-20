@@ -13,8 +13,8 @@
             <path d="M12,2A2,2 0 0,1 14,4C14,4.74 13.6,5.39 13,5.73V7H14A7,7 0 0,1 21,14H22A1,1 0 0,1 23,15V18A1,1 0 0,1 22,19H21V20A2,2 0 0,1 19,22H5A2,2 0 0,1 3,20V19H2A1,1 0 0,1 1,18V15A1,1 0 0,1 2,14H3A7,7 0 0,1 10,7H11V5.73C10.4,5.39 10,4.74 10,4A2,2 0 0,1 12,2M5,9V19H19V9A5,5 0 0,0 14,4H10A5,5 0 0,0 5,9Z" fill="currentColor"/>
           </svg>
         </div>
-        <div v-if="dmStore.getTotalUnreadCount > 0" class="unread-badge">
-          {{ dmStore.getTotalUnreadCount > 99 ? '99+' : dmStore.getTotalUnreadCount }}
+        <div v-if="(dmStore as any).getTotalUnreadCount > 0" class="unread-badge">
+          {{ (dmStore as any).getTotalUnreadCount > 99 ? '99+' : (dmStore as any).getTotalUnreadCount }}
         </div>
       </router-link>
     </div>
@@ -46,7 +46,7 @@
           <div 
             v-if="server.is_local_server === false" 
             class="federation-badge"
-            :title="`Federated server from ${server.federation_domain || 'remote instance'}`"
+            :title="`Federated server from ${(server as any).federation_domain || 'remote instance'}`"
           >
             <svg viewBox="0 0 24 24" class="federation-icon">
               <path d="M17.9,17.39C17.64,16.59 16.89,16 16,16H15V13A1,1 0 0,0 14,12H8V10H10A1,1 0 0,0 11,9V7H13A2,2 0 0,0 15,5V4.59C17.93,5.77 20,8.64 20,12C20,14.08 19.2,15.97 17.9,17.39M11,19.93C7.05,19.44 4,16.08 4,12C4,11.38 4.08,10.79 4.21,10.21L9,15V16A2,2 0 0,0 11,18M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z" fill="currentColor"/>

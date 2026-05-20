@@ -178,11 +178,13 @@ export class InteractionService {
     try {
       debug.log(`🚀 Simplified: Getting relationships for ${userIds.length} users`)
 
-      // Delegate to core service (no federation needed for reads)
+      // Delegate to core service (no federation needed for reads).
+      // Core's UserRelationship shape differs slightly from RelationshipInfo;
+      // cast through unknown since the consumers treat the result as a relationship map.
       const relationships = await coreInteractionService.getUserRelationships(userIds)
 
       debug.log(`✅ Simplified: Retrieved relationships for ${Object.keys(relationships).length} users`)
-      return relationships
+      return relationships as unknown as { [userId: string]: RelationshipInfo }
 
     } catch (error) {
       debug.error('❌ Simplified: Failed to get user relationships:', error)
@@ -208,8 +210,16 @@ export class InteractionService {
     try {
       debug.log(`🚀 Simplified: Getting followers for user: ${userId}`)
 
-      // Delegate to core service (no federation needed for reads)
-      const result = await coreInteractionService.getFollowers(userId, options)
+      // Core's getFollowers signature is (userId, limit, cursor) and returns
+      // { users, hasMore, nextCursor }; adapt to this service's existing
+      // { followers, hasMore, total } shape so callers stay unchanged.
+      const coreResult = await coreInteractionService.getFollowers(userId, options.limit) as any
+
+      const result = {
+        followers: (coreResult?.users ?? coreResult?.followers ?? []) as Profile[],
+        hasMore: !!coreResult?.hasMore,
+        total: coreResult?.total ?? (coreResult?.users?.length ?? coreResult?.followers?.length ?? 0),
+      }
 
       debug.log(`✅ Simplified: Retrieved ${result.followers.length} followers`)
       return result

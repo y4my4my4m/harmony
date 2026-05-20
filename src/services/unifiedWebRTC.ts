@@ -53,7 +53,7 @@ export interface UserConnection {
 }
 
 export interface SignalingMessage {
-  type: 'offer' | 'answer' | 'ice-candidate' | 'user-joined' | 'user-left' | 'media-state' | 'state-sync';
+  type: 'offer' | 'answer' | 'ice-candidate' | 'user-joined' | 'user-left' | 'media-state' | 'state-sync' | 'call-start-time' | 'request-call-start-time';
   from: string;
   to?: string;
   data: any;
@@ -314,11 +314,14 @@ export class UnifiedWebRTCService {
     this.selectedOutputDevice = deviceId;
     this.saveAudioSettings(); // Use existing method
     
-    // Update all existing audio elements to use new output device
+    // Update all existing audio elements to use new output device.
+    // setSinkId is part of the Audio Output Devices API and isn't in the lib.dom
+    // HTMLAudioElement type yet, so cast to any.
     for (const [userId, connection] of this.connections) {
-      if (connection.audioElement && connection.audioElement.setSinkId) {
+      const audioEl = connection.audioElement as any;
+      if (audioEl && audioEl.setSinkId) {
         try {
-          await connection.audioElement.setSinkId(deviceId);
+          await audioEl.setSinkId(deviceId);
           debug.log('🔊 Updated output device for user:', userId);
         } catch (error) {
           debug.error('❌ Failed to update output device for user:', userId, error);
@@ -1496,6 +1499,8 @@ export class UnifiedWebRTCService {
   private async createPeerConnection(userId: string, isInitiator: boolean): Promise<void> {
     debug.log('🔗 Creating peer connection with:', userId, 'as initiator:', isInitiator);
     
+    // encodedInsertableStreams is a non-standard Chromium-only RTCConfiguration
+    // field for E2EE; cast to any since it isn't in the lib.dom type.
     const pc = new RTCPeerConnection({
       iceServers: [
         { urls: 'stun:stun.l.google.com:19302' },
@@ -1504,9 +1509,8 @@ export class UnifiedWebRTCService {
         { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
       ],
       iceCandidatePoolSize: 10,
-      // Enable insertable streams for E2EE
       encodedInsertableStreams: this.encryptionEnabled
-    });
+    } as any);
     
     const connection: UserConnection = {
       userId,

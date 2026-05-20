@@ -192,7 +192,7 @@ async function subscribe(deviceName?: string): Promise<{ success: boolean; error
   } catch (err: any) {
     error.value = err.message || 'Failed to subscribe to push notifications'
     debug.error('Push subscription error:', err)
-    return { success: false, error: error.value }
+    return { success: false, error: error.value ?? undefined }
   } finally {
     isLoading.value = false
   }
@@ -248,7 +248,7 @@ async function unsubscribe(): Promise<{ success: boolean; error?: string }> {
       // Surface 429 and other errors so user knows server still has the subscription
       if (response.status === 429) {
         error.value = errMsg
-        return { success: false, error: error.value }
+        return { success: false, error: error.value ?? undefined }
       }
       debug.warn('Server unsubscribe failed:', errMsg)
     }
@@ -262,7 +262,7 @@ async function unsubscribe(): Promise<{ success: boolean; error?: string }> {
   } catch (err: any) {
     error.value = err.message || 'Failed to unsubscribe'
     debug.error('Push unsubscribe error:', err)
-    return { success: false, error: error.value }
+    return { success: false, error: error.value ?? undefined }
   } finally {
     isLoading.value = false
   }
@@ -323,7 +323,7 @@ async function deleteSubscription(subscriptionId: string): Promise<{ success: bo
   } catch (err: any) {
     error.value = err.message || 'Failed to delete subscription'
     debug.error('Delete subscription error:', err)
-    return { success: false, error: error.value }
+    return { success: false, error: error.value ?? undefined }
   } finally {
     isLoading.value = false
   }
@@ -469,7 +469,7 @@ async function sendTestNotification(): Promise<{ success: boolean; error?: strin
   } catch (err: any) {
     error.value = err.message || 'Failed to send test notification'
     debug.error('Test notification error:', err)
-    return { success: false, error: error.value }
+    return { success: false, error: error.value ?? undefined }
   } finally {
     isLoading.value = false
   }

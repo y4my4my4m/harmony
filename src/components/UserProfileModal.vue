@@ -75,7 +75,7 @@
           <div class="profile-info">
             <div class="name-section">
               <h1 class="display-name" :style="{ color: userColor }">
-                <DisplayName :userId="user.id" :fallback="displayName" :color="userColor" />
+                <DisplayName :userId="user!.id" :fallback="displayName" :color="userColor" />
                 <span v-if="getUserVerified(user)" class="verified-badge">
                   <Icon name="check-circle" class="verified-icon" />
                 </span>
@@ -336,9 +336,9 @@
                   class="server-picker-item"
                   @click="inviteToServer(server)"
                 >
-                  <img 
-                    v-if="server.icon_url"
-                    :src="server.icon_url"
+                  <img
+                    v-if="(server as any).icon_url || server.icon"
+                    :src="((server as any).icon_url || server.icon)"
                     :alt="server.name"
                     class="picker-server-icon"
                   />

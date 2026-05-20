@@ -244,7 +244,9 @@ const truncatedBio = computed(() => {
 })
 
 const userRoles = computed(() => {
-  return props.user.roles || []
+  // `roles` is only on the chat-side `User`; federated users don't carry
+  // server-side roles. Cast so the union accessor type-checks.
+  return (props.user as any).roles || []
 })
 
 const isVerified = computed(() => {

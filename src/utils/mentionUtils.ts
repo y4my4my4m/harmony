@@ -4,7 +4,7 @@
  */
 
 import { supabase } from '@/supabase';
-import type { UserData } from '@/types';
+import type { UserData, FederatedUser } from '@/types';
 import { debug } from '@/utils/debug'
 import { getEmojiUrl } from '@/utils/emojiUtils';
 
@@ -277,7 +277,8 @@ export function getDeliveryInboxes(resolvedMentions: ResolvedMention[]): string[
   const inboxes = new Set<string>();
   
   resolvedMentions.forEach(rm => {
-    if (rm.inboxUrl && rm.user && !rm.user.is_local) {
+    // `UserData` uses camelCase `isLocal`, not snake_case `is_local`.
+    if (rm.inboxUrl && rm.user && !rm.user.isLocal) {
       inboxes.add(rm.inboxUrl);
     }
   });

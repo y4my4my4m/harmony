@@ -483,19 +483,22 @@ const attachVideo = (forceReattach = false) => {
     return;
   }
   
+  // Vue's ref unwrapping treats HTMLVideoElement as a structural type that
+  // doesn't satisfy the nominal HTMLVideoElement parameter; cast once here.
+  const videoEl = videoElement.value as HTMLVideoElement;
   if (shouldShowVideo) {
     // If stream changed OR state changed OR forced, we MUST reattach
     if ((streamChanged || stateChanged || forceReattach) && isVideoAttached) {
       debug.log(`📹 ${forceReattach ? 'Force' : 'State/Stream'} reattachment for ${userId}`);
       // Clear old attachment
-      voiceStore.detachVideoFromElement(userId, videoElement.value);
+      voiceStore.detachVideoFromElement(userId, videoEl);
       videoElement.value.srcObject = null;
       isVideoAttached = false;
     }
     
     // Use LiveKit's proper attach method - this is CRITICAL for adaptive streaming
     // Using srcObject directly causes LiveKit to disable all simulcast layers (frozen video)
-    const attached = voiceStore.attachVideoToElement(userId, videoElement.value);
+    const attached = voiceStore.attachVideoToElement(userId, videoEl);
     if (attached) {
       isVideoAttached = true;
       lastAttachedVideoState = { isVideoEnabled: state.isVideoEnabled, isScreenSharing: state.isScreenSharing };
@@ -524,7 +527,7 @@ const attachVideo = (forceReattach = false) => {
     }
   } else if (isVideoAttached) {
     // Detach video properly when turning off
-    voiceStore.detachVideoFromElement(userId, videoElement.value);
+    voiceStore.detachVideoFromElement(userId, videoEl);
     // Clear the video element completely
     videoElement.value.srcObject = null;
     videoElement.value.src = '';
@@ -586,7 +589,7 @@ watch(
       // Screenshare just stopped - immediately clean up video element
       debug.log(`📹 🖥️ Screenshare stopped for ${props.userState.userId}, cleaning up video`);
       if (videoElement.value) {
-        voiceStore.detachVideoFromElement(props.userState.userId, videoElement.value);
+        voiceStore.detachVideoFromElement(props.userState.userId, videoElement.value as HTMLVideoElement);
         videoElement.value.srcObject = null;
         videoElement.value.src = '';
         videoElement.value.load();
@@ -607,7 +610,7 @@ watch(
       // Video stopped and not screensharing - clean up
       debug.log(`📹 Camera stopped for ${props.userState.userId}, cleaning up video`);
       if (videoElement.value && isVideoAttached) {
-        voiceStore.detachVideoFromElement(props.userState.userId, videoElement.value);
+        voiceStore.detachVideoFromElement(props.userState.userId, videoElement.value as HTMLVideoElement);
         videoElement.value.srcObject = null;
         videoElement.value.src = '';
         videoElement.value.load();

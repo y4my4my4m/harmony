@@ -269,7 +269,9 @@ export function useFloatingVideo() {
   const returnToOriginalPosition = () => {
     if (!currentFloatingVideo.value) return
 
-    const { element, originalParent, placeholder, type } = currentFloatingVideo.value
+    // Vue's ref unwrapping types HTMLElement props as a complex unwrapped shape;
+    // cast back to HTMLElement so DOM APIs accept these values.
+    const { element, originalParent, placeholder, type } = currentFloatingVideo.value as unknown as VideoElement
 
     // Pause the video before returning
     if (type === 'video') {

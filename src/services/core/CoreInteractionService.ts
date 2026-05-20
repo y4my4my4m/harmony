@@ -601,16 +601,20 @@ export class CoreInteractionService {
       const hasMore = requests && requests.length > secureLimit
       const actualRequests = hasMore ? requests.slice(0, secureLimit) : requests || []
 
-      // Transform and sanitize data
-      const transformedRequests: FollowRequestUser[] = actualRequests.map(request => ({
-        id: request.profiles.id,
-        username: request.profiles.username,
-        display_name: request.profiles.display_name,
-        avatar_url: request.profiles.avatar_url,
-        is_local: request.profiles.is_local,
-        domain: request.profiles.domain,
-        requested_at: request.created_at
-      }))
+      // Transform and sanitize data. Supabase types `profiles` as an array
+      // here, but the FK is a one-to-one join — pull the first row.
+      const transformedRequests: FollowRequestUser[] = actualRequests.map((request: any) => {
+        const p = Array.isArray(request.profiles) ? request.profiles[0] : request.profiles
+        return {
+          id: p?.id,
+          username: p?.username,
+          display_name: p?.display_name,
+          avatar_url: p?.avatar_url,
+          is_local: p?.is_local,
+          domain: p?.domain,
+          requested_at: request.created_at,
+        }
+      })
 
       const nextCursor = hasMore && actualRequests.length > 0 
         ? actualRequests[actualRequests.length - 1].created_at 
@@ -673,14 +677,17 @@ export class CoreInteractionService {
       const hasMore = followers && followers.length > secureLimit
       const actualFollowers = hasMore ? followers.slice(0, secureLimit) : followers || []
 
-      const users: BasicUser[] = actualFollowers.map(follow => ({
-        id: follow.profiles.id,
-        username: follow.profiles.username,
-        display_name: follow.profiles.display_name,
-        avatar_url: follow.profiles.avatar_url,
-        is_local: follow.profiles.is_local,
-        domain: follow.profiles.domain
-      }))
+      const users: BasicUser[] = actualFollowers.map((follow: any) => {
+        const p = Array.isArray(follow.profiles) ? follow.profiles[0] : follow.profiles
+        return {
+          id: p?.id,
+          username: p?.username,
+          display_name: p?.display_name,
+          avatar_url: p?.avatar_url,
+          is_local: p?.is_local,
+          domain: p?.domain,
+        }
+      })
 
       const nextCursor = hasMore && actualFollowers.length > 0 
         ? actualFollowers[actualFollowers.length - 1].created_at 
@@ -739,14 +746,17 @@ export class CoreInteractionService {
       const hasMore = following && following.length > secureLimit
       const actualFollowing = hasMore ? following.slice(0, secureLimit) : following || []
 
-      const users: BasicUser[] = actualFollowing.map(follow => ({
-        id: follow.profiles.id,
-        username: follow.profiles.username,
-        display_name: follow.profiles.display_name,
-        avatar_url: follow.profiles.avatar_url,
-        is_local: follow.profiles.is_local,
-        domain: follow.profiles.domain
-      }))
+      const users: BasicUser[] = actualFollowing.map((follow: any) => {
+        const p = Array.isArray(follow.profiles) ? follow.profiles[0] : follow.profiles
+        return {
+          id: p?.id,
+          username: p?.username,
+          display_name: p?.display_name,
+          avatar_url: p?.avatar_url,
+          is_local: p?.is_local,
+          domain: p?.domain,
+        }
+      })
 
       const nextCursor = hasMore && actualFollowing.length > 0 
         ? actualFollowing[actualFollowing.length - 1].created_at 
