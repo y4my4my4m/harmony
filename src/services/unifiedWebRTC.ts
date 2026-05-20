@@ -42,6 +42,14 @@ export interface UserConnection {
   audioElement: HTMLAudioElement | null;
   connectionState: RTCPeerConnectionState;
   iceConnectionState: RTCIceConnectionState;
+  /**
+   * BUGS.md H20: ICE candidates that arrive before `setRemoteDescription`
+   * (common with trickle ICE) must be queued and flushed afterwards.
+   * `RTCPeerConnection.addIceCandidate` throws `InvalidStateError` when
+   * called before `remoteDescription` is set, causing flaky / failed P2P
+   * connections on slower networks.
+   */
+  pendingIceCandidates: RTCIceCandidateInit[];
 }
 
 export interface SignalingMessage {
@@ -89,6 +97,11 @@ export class UnifiedWebRTCService {
   // Audio context for level monitoring
   private audioContext: AudioContext | null = null;
   private localAudioAnalyser: AnalyserNode | null = null;
+  // BUGS.md H21: track the RAF so device-changes / constraint-changes can
+  // cancel the previous loop before starting a new one. Otherwise multiple
+  // overlapping RAF loops would all read from `localAudioAnalyser` and
+  // broadcast audio levels in lockstep.
+  private audioLevelRafId: number | null = null;
   
   // Audio constraints settings
   private audioConstraints = {
@@ -230,28 +243,32 @@ export class UnifiedWebRTCService {
     // If we're currently connected, restart the audio stream with new device
     if (this.localStream && this.channelId) {
       const currentMuteState = this.localMediaState.isMuted;
-      
+
+      // BUGS.md H22: previously the code stopped+removed the OLD audio
+      // tracks BEFORE calling `getUserMedia` for the new device. If the
+      // new `getUserMedia` failed (permission revoked, device gone,
+      // OverconstrainedError), the call had no mic at all — the user
+      // would silently lose audio with no recovery until they rejoined
+      // the channel. Acquire the new stream FIRST, then swap.
       try {
-        // Stop current audio tracks
-        const audioTracks = this.localStream.getAudioTracks();
-        audioTracks.forEach(track => {
-          track.stop();
-          this.localStream!.removeTrack(track);
-        });
-        
-        // Get new audio stream with selected device
         const audioConstraints: MediaTrackConstraints = {
           ...this.audioConstraints,
           deviceId: { exact: deviceId }
         };
-        
+
         const newAudioStream = await navigator.mediaDevices.getUserMedia({
           audio: audioConstraints,
           video: false
         });
-        
+
         const newAudioTrack = newAudioStream.getAudioTracks()[0];
         if (newAudioTrack) {
+          // Only NOW do we stop the previous tracks — the swap is committed.
+          const oldAudioTracks = this.localStream.getAudioTracks();
+          oldAudioTracks.forEach(track => {
+            track.stop();
+            this.localStream!.removeTrack(track);
+          });
           // Add new track to local stream
           this.localStream.addTrack(newAudioTrack);
           
@@ -497,11 +514,23 @@ export class UnifiedWebRTCService {
       this.signalChannel = null;
     }
     
-    // Cleanup audio context
+    // Cleanup audio context + level-monitoring RAF
+    // BUGS.md H21 v2: cancel the RAF explicitly, symmetric with the setup
+    // path. The RAF self-terminates next frame via the `else` branch in
+    // `updateLevel` (because `audioContext` becomes null below), so this is
+    // not an active leak, but the asymmetry would silently regress if the
+    // `else` branch is ever removed.
+    if (this.audioLevelRafId !== null) {
+      cancelAnimationFrame(this.audioLevelRafId);
+      this.audioLevelRafId = null;
+    }
+    if (this.localAudioAnalyser) {
+      try { this.localAudioAnalyser.disconnect(); } catch { /* noop */ }
+      this.localAudioAnalyser = null;
+    }
     if (this.audioContext) {
       await this.audioContext.close();
       this.audioContext = null;
-      this.localAudioAnalyser = null;
     }
     
     const oldChannelId = this.channelId;
@@ -1184,7 +1213,27 @@ export class UnifiedWebRTCService {
   }
   private setupAudioLevelMonitoring(): void {
     if (!this.localStream) return;
-    
+
+    // BUGS.md H21: previously each call (incl. on device-change /
+    // constraint-change paths via `updateInputDevice`) created a NEW
+    // AudioContext and left the prior one — plus its RAF loop — running.
+    // Mid-call device switches therefore leaked AudioContexts until
+    // `leaveChannel()`. Tear down the previous context + cancel its RAF
+    // before constructing the new one.
+    if (this.audioLevelRafId !== null) {
+      cancelAnimationFrame(this.audioLevelRafId);
+      this.audioLevelRafId = null;
+    }
+    if (this.localAudioAnalyser) {
+      try { this.localAudioAnalyser.disconnect(); } catch { /* noop */ }
+      this.localAudioAnalyser = null;
+    }
+    if (this.audioContext) {
+      const prev = this.audioContext;
+      this.audioContext = null;
+      prev.close().catch(err => debug.warn('⚠️ Failed to close prior AudioContext:', err));
+    }
+
     try {
       this.audioContext = new AudioContext();
       this.localAudioAnalyser = this.audioContext.createAnalyser();
@@ -1222,11 +1271,13 @@ export class UnifiedWebRTCService {
             // with component reactivity. The component reacts directly to audioLevel changes.
           }
 
-          requestAnimationFrame(updateLevel);
+          this.audioLevelRafId = requestAnimationFrame(updateLevel);
+        } else {
+          this.audioLevelRafId = null;
         }
       };
       
-      updateLevel();
+      this.audioLevelRafId = requestAnimationFrame(updateLevel);
     } catch (error) {
       debug.warn('⚠️ Audio level monitoring setup failed:', error);
     }
@@ -1473,7 +1524,8 @@ export class UnifiedWebRTCService {
       remoteStream: null,
       audioElement: null,
       connectionState: pc.connectionState,
-      iceConnectionState: pc.iceConnectionState
+      iceConnectionState: pc.iceConnectionState,
+      pendingIceCandidates: []
     };
     
     this.connections.set(userId, connection);
@@ -1577,6 +1629,9 @@ export class UnifiedWebRTCService {
     
     try {
       await connection.peerConnection.setRemoteDescription(offer);
+      // BUGS.md H20: flush ICE candidates that arrived between the offer
+      // being received and us setting the remote description.
+      await this.flushPendingIceCandidates(from);
       const answer = await connection.peerConnection.createAnswer();
       await connection.peerConnection.setLocalDescription(answer);
       
@@ -1599,6 +1654,9 @@ export class UnifiedWebRTCService {
     if (connection) {
       try {
         await connection.peerConnection.setRemoteDescription(answer);
+        // BUGS.md H20: flush any ICE candidates that arrived before we
+        // processed the answer.
+        await this.flushPendingIceCandidates(from);
       } catch (error) {
         debug.error('❌ Error handling answer from:', from, error);
       }
@@ -1607,11 +1665,53 @@ export class UnifiedWebRTCService {
 
   private async handleIceCandidate(from: string, candidate: RTCIceCandidateInit): Promise<void> {
     const connection = this.connections.get(from);
-    if (connection) {
+    if (!connection) return;
+
+    // BUGS.md H20: with trickle ICE, candidates frequently arrive before the
+    // remote SDP has been processed. Calling `addIceCandidate` before
+    // `setRemoteDescription` throws `InvalidStateError`. Queue until the
+    // remote description is set, then flush in `flushPendingIceCandidates`.
+    if (!connection.peerConnection.remoteDescription) {
+      // BUGS.md H20 v2: cap the queue. An authenticated peer in the same
+      // Supabase voice channel can flood `ice-candidate` messages without
+      // ever sending an offer, growing this array indefinitely. 100 is
+      // generous (real-world ICE candidate counts per peer are <30) and
+      // turns a memory-DoS into a noisy warning.
+      const MAX_PENDING_ICE = 100;
+      if (connection.pendingIceCandidates.length >= MAX_PENDING_ICE) {
+        debug.warn(
+          `⚠️ Dropping ICE candidate from ${from}: queue full (${MAX_PENDING_ICE}). Peer is sending candidates without an offer.`,
+        );
+        return;
+      }
+      connection.pendingIceCandidates.push(candidate);
+      return;
+    }
+
+    try {
+      await connection.peerConnection.addIceCandidate(candidate);
+    } catch (error) {
+      debug.error('❌ Error adding ICE candidate from:', from, error);
+    }
+  }
+
+  /**
+   * Flush any ICE candidates queued by `handleIceCandidate` while the
+   * remote description was missing. Called from both `handleOffer` (callee
+   * side, after setRemoteDescription on the offer) and `handleAnswer`
+   * (caller side, after setRemoteDescription on the answer).
+   */
+  private async flushPendingIceCandidates(from: string): Promise<void> {
+    const connection = this.connections.get(from);
+    if (!connection || connection.pendingIceCandidates.length === 0) return;
+
+    const queued = connection.pendingIceCandidates.splice(0);
+    debug.log(`🧊 Flushing ${queued.length} queued ICE candidates from ${from}`);
+    for (const candidate of queued) {
       try {
         await connection.peerConnection.addIceCandidate(candidate);
       } catch (error) {
-        debug.error('❌ Error adding ICE candidate from:', from, error);
+        debug.warn('⚠️ Error adding queued ICE candidate from:', from, error);
       }
     }
   }
@@ -1832,23 +1932,29 @@ export class UnifiedWebRTCService {
     // If we're currently connected, restart the audio stream with new constraints
     if (this.localStream && this.channelId) {
       const currentMuteState = this.localMediaState.isMuted;
-      
+
+      // BUGS.md H22 v2: same fix as `updateInputDevice` — acquire the new
+      // stream FIRST, then stop and remove the old tracks. The previous
+      // order would silently kill the user's mic when `getUserMedia` failed
+      // for the new constraints (e.g. AGC toggled to a value the device
+      // doesn't support, or permission flipped between settings save and
+      // apply). BUGS.md H22 explicitly cites this method (range 1837-1883
+      // in the audit) as a second site that needed the same ordering fix.
       try {
-        // Stop current audio tracks
-        const audioTracks = this.localStream.getAudioTracks();
-        audioTracks.forEach(track => {
-          track.stop();
-          this.localStream!.removeTrack(track);
-        });
-        
-        // Get new audio stream with updated constraints
         const newAudioStream = await navigator.mediaDevices.getUserMedia({
           audio: this.audioConstraints,
           video: false
         });
-        
+
         const newAudioTrack = newAudioStream.getAudioTracks()[0];
         if (newAudioTrack) {
+          // Only NOW swap — the old tracks are stopped after the new
+          // stream is committed.
+          const oldAudioTracks = this.localStream.getAudioTracks();
+          oldAudioTracks.forEach(track => {
+            track.stop();
+            this.localStream!.removeTrack(track);
+          });
           // Add new track to local stream
           this.localStream.addTrack(newAudioTrack);
           

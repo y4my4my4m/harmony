@@ -584,9 +584,23 @@ export class LiveKitWebRTCService {
       // Check if this was a cancellation
       if (error instanceof DOMException && error.name === 'AbortError') {
         debug.log('🚫 [LiveKit] Connection cancelled');
+        // BUGS.md H23: cancellation paths already call `leaveChannel()`
+        // inline; this catch only sees the error after they've torn down.
+        // Non-AbortError failures below still need explicit cleanup so a
+        // half-constructed Room / its event listeners don't leak.
         throw error; // Re-throw to propagate cancellation
       }
       debug.error('❌ [LiveKit] Failed to join channel:', error);
+      // BUGS.md H23: previously the catch only logged + emitted. The Room
+      // was instantiated (`this.room = new Room(...)`) and its listeners
+      // were registered BEFORE `room.connect()` was awaited. A connect
+      // failure left both the Room object and the listeners alive,
+      // accumulating across retries. Tear down before returning.
+      try {
+        await this.leaveChannel();
+      } catch (cleanupErr) {
+        debug.warn('⚠️ [LiveKit] join-failure cleanup also failed:', cleanupErr);
+      }
       this.emit('error', error);
       return false;
     }
