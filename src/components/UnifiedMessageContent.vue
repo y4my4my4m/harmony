@@ -33,6 +33,17 @@
     
     <!-- Display mode -->
     <div v-else class="content-display" :class="{ 'system-message-content': isSystem, 'encrypted-glyphs': encrypted && !decrypted }">
+      <!--
+        Unverified-author badge. Only shown for messages that WERE encrypted,
+        WERE successfully decrypted, but whose sender signature could not be
+        verified (legacy v1 message or sender has no signing key on file).
+        This is the user-visible signal for the Megolm v2 sender-binding fix.
+      -->
+      <span
+        v-if="decrypted && senderVerified === false"
+        class="unverified-author-badge"
+        title="This message was decrypted but the sender's identity could not be cryptographically verified. The sender may be running an older client, or the message may have been tampered with."
+      >⚠ unverified author</span>
       <template v-for="(part, partIndex) in content" :key="partIndex">
         <!-- Text content with markdown-style formatting and code blocks -->
         <template 
@@ -394,6 +405,17 @@ export default defineComponent({
     canDecrypt: {
       type: Boolean,
       default: false
+    },
+    /**
+     * Megolm v2 sender-binding verification result.
+     *  - `true`      → signature verified
+     *  - `false`     → decrypted but sender NOT cryptographically verified
+     *                  (legacy v1 message OR sender has no signing key)
+     *  - `undefined` → not applicable (plaintext / never went through decrypt)
+     */
+    senderVerified: {
+      type: Boolean as PropType<boolean | undefined>,
+      default: undefined,
     },
     metadata: {
       type: Object as PropType<Record<string, any> | null>,
@@ -1051,6 +1073,26 @@ export default defineComponent({
   -webkit-user-select: text;
   -moz-user-select: text;
   -ms-user-select: text;
+}
+
+/* Unverified-author badge: shown only when a decrypted message lacks a
+ * verifiable sender signature (Megolm v2 sender binding). Inline so it
+ * sits next to the message content without disrupting layout. */
+.unverified-author-badge {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 0 6px;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.4;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-warning, #d97706);
+  background: rgba(217, 119, 6, 0.1);
+  border: 1px dashed rgba(217, 119, 6, 0.55);
+  border-radius: 3px;
+  cursor: help;
+  vertical-align: 1px;
 }
 
 /* Text content styling */

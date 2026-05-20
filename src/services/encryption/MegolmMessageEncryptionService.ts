@@ -16,7 +16,19 @@ import { supabase } from '@/supabase'
 import { megolmService, type MegolmEncryptedMessage } from './MegolmService'
 import { recoveryKeyService } from './RecoveryKeyService'
 import { megolmKeyBackupService } from './MegolmKeyBackupService'
-import { secureSessionKeyStore, identityKeyStore } from './SecureSessionKeyStore'
+import { secureSessionKeyStore, identityKeyStore, signingKeyStore } from './SecureSessionKeyStore'
+import {
+  canonicalizeForSigning as _canonicalizeForSigning,
+  hashCiphertextB64,
+  generateSigningKeyPair,
+  exportPublicSigningKey,
+  exportPrivateSigningKey,
+  importPublicSigningKey,
+  importPrivateSigningKey,
+  signMessage,
+  verifyMessageSignature,
+  type SignedMessageFields,
+} from './MessageSigner'
 import type { MessagePart } from '@/types'
 import { debug } from '@/utils/debug'
 
@@ -28,16 +40,45 @@ export interface MegolmEncryptionStatus {
   mode: 'disabled' | 'optional' | 'required'
 }
 
+/**
+ * Metadata for an encrypted message.
+ *
+ * `algorithm`:
+ *   - 'megolm_v1' — legacy ciphertext, no per-message sender signature.
+ *     Decryption succeeds but the message is flagged `sender_verified: false`.
+ *   - 'megolm_v2_signed' — current scheme. The `signature` field is an
+ *     ECDSA P-256 SHA-256 signature over a canonical encoding of
+ *     (algorithm, room_id, session_id, message_index, sender_user_id,
+ *      SHA-256(ciphertext_bytes), timestamp). Verification failure rejects
+ *     the message.
+ */
 export interface MegolmEncryptedMessageData {
   encrypted: true
   content: MessagePart[] // Encrypted content (base64 ciphertext in text field)
   encryption_metadata: {
-    algorithm: 'megolm_v1'
+    algorithm: 'megolm_v1' | 'megolm_v2_signed'
     session_id: string
     message_index: number
     sender_user_id: string
     timestamp: number
+    /** base64(ECDSA P-256 SHA-256 signature). Only present for v2. */
+    signature?: string
+    /**
+     * Fingerprint (SHA-256 first 16 chars hex of SPKI) of the signing public
+     * key used. Lets clients distinguish key rotations and warn on changes.
+     * Optional in v2; we set it when we know it.
+     */
+    signing_key_fingerprint?: string
   }
+}
+
+/**
+ * Cache lookup result for a sender's signing public key.
+ */
+interface CachedSigningKey {
+  publicKey: CryptoKey
+  fingerprint: string
+  cachedAt: number
 }
 
 /**
@@ -48,6 +89,12 @@ export class MegolmMessageEncryptionService {
   private static instance: MegolmMessageEncryptionService
   private currentUserId: string | null = null
   private initialized = false
+
+  // Cached signing public keys, keyed by sender user id. SPKI fetches are
+  // batched in the same query as ECDH keys; this cache absorbs verification
+  // for the hot decrypt path. Time-bounded so device rotations propagate.
+  private signingKeyCache = new Map<string, CachedSigningKey>()
+  private static readonly SIGNING_KEY_CACHE_TTL_MS = 5 * 60_000
 
   private constructor() {}
 
@@ -125,6 +172,12 @@ export class MegolmMessageEncryptionService {
         // Initialize Megolm service with the encryption key
         await megolmService.initialize(this.currentUserId, storedKeys.encryptionKey)
         await this.ensureIdentityKeyPair()
+        // Ensure the per-user signing key exists. Legacy users (created
+        // before the signing-key migration) get one minted lazily here so
+        // their next message is fully signed.
+        await this.ensureSigningKeyPair().catch(err =>
+          debug.warn('⚠️ Failed to ensure signing key on auto-unlock:', err),
+        )
 
         try {
           const result = await megolmKeyBackupService.restoreFromBackup()
@@ -174,10 +227,12 @@ export class MegolmMessageEncryptionService {
     if (this.currentUserId) {
       await secureSessionKeyStore.clear(this.currentUserId).catch(() => {})
       await identityKeyStore.clear(this.currentUserId).catch(() => {})
+      await signingKeyStore.clear(this.currentUserId).catch(() => {})
       this.clearLegacyStorage()
     }
     megolmService.close()
     recoveryKeyService.clear()
+    this.signingKeyCache.clear()
     debug.log('🔒 Encryption locked')
   }
 
@@ -196,8 +251,9 @@ export class MegolmMessageEncryptionService {
     // Initialize Megolm service with encryption key
     await megolmService.initialize(this.currentUserId, derivedKeys.encryptionKey)
 
-    // Ensure identity key pair exists
+    // Ensure identity key pair (ECDH) and signing key pair (ECDSA) both exist
     await this.ensureIdentityKeyPair()
+    await this.ensureSigningKeyPair()
 
     // Try to restore from backup
     try {
@@ -274,6 +330,10 @@ export class MegolmMessageEncryptionService {
     // Generate identity key pair for session key exchange
     await this.ensureIdentityKeyPair()
     debug.log('✅ Identity key pair ready')
+
+    // Generate signing key pair for per-message sender binding
+    await this.ensureSigningKeyPair()
+    debug.log('✅ Signing key pair ready')
 
     // Initialize backup service
     await megolmKeyBackupService.initialize(this.currentUserId)
@@ -392,6 +452,166 @@ export class MegolmMessageEncryptionService {
     debug.log('✅ Identity key pair created')
   }
 
+  /**
+   * Ensure the per-user ECDSA P-256 signing key exists.
+   *
+   * Three cases:
+   *   1. Already in IndexedDB → done.
+   *   2. Already in DB but not in IndexedDB → decrypt the wrapped private
+   *      key with the recovery-derived encryption key and cache it.
+   *   3. Not in either → generate a new keypair, store the public SPKI on
+   *      the row and the AES-GCM-wrapped private PKCS#8 alongside it, then
+   *      cache the non-extractable private in IndexedDB.
+   *
+   * Case (3) covers legacy users who set up encryption before this
+   * migration; their next message becomes signed automatically.
+   */
+  private async ensureSigningKeyPair(): Promise<void> {
+    if (!this.currentUserId) return
+
+    // Already cached locally?
+    const cached = await signingKeyStore.load(this.currentUserId)
+
+    const { data: existingRow } = await supabase
+      .from('user_key_pairs')
+      .select('id, identity_signing_public_key, identity_signing_private_key_encrypted')
+      .eq('user_id', this.currentUserId)
+      .eq('is_active', true)
+      .maybeSingle()
+
+    if (existingRow?.identity_signing_public_key && existingRow?.identity_signing_private_key_encrypted) {
+      if (cached) return
+
+      // DB has the keypair; restore the cache copy.
+      try {
+        const privPkcs8B64 = await this.decryptPrivateKeyFromStorage(
+          existingRow.identity_signing_private_key_encrypted,
+        )
+        const nonExtractable = await importPrivateSigningKey(privPkcs8B64, false)
+        await signingKeyStore.store(this.currentUserId, nonExtractable)
+        debug.log('✅ Restored signing key from DB to IndexedDB')
+      } catch (err) {
+        debug.warn('⚠️ Failed to restore signing key from DB:', err)
+      }
+      return
+    }
+
+    // Need to generate a new keypair. Requires the recovery encryption key
+    // (to wrap the private for storage), which is only available when
+    // encryption is unlocked.
+    if (!recoveryKeyService.getEncryptionKey()) {
+      debug.log('ℹ️ Signing key generation deferred — recovery encryption key not available')
+      return
+    }
+
+    const keyPair = await generateSigningKeyPair()
+    const publicSpkiB64 = await exportPublicSigningKey(keyPair.publicKey)
+    const privatePkcs8B64 = await exportPrivateSigningKey(keyPair.privateKey)
+    const encryptedPrivate = await this.encryptPrivateKeyForStorage(privatePkcs8B64)
+
+    if (existingRow?.id) {
+      // Add the signing keypair to the existing row (preserves ECDH key).
+      const { error } = await supabase
+        .from('user_key_pairs')
+        .update({
+          identity_signing_public_key: publicSpkiB64,
+          identity_signing_private_key_encrypted: encryptedPrivate,
+        })
+        .eq('id', existingRow.id)
+      if (error) {
+        debug.error('❌ Failed to attach signing key to existing row:', error)
+        throw new Error('Failed to persist signing key')
+      }
+    } else {
+      // No row at all (no ECDH key yet either) — this path is mostly defensive;
+      // ensureIdentityKeyPair() should have created the row already.
+      const { error } = await supabase
+        .from('user_key_pairs')
+        .insert({
+          user_id: this.currentUserId,
+          identity_signing_public_key: publicSpkiB64,
+          identity_signing_private_key_encrypted: encryptedPrivate,
+          device_id: 1,
+          is_active: true,
+        })
+      if (error) {
+        debug.error('❌ Failed to insert signing-only row:', error)
+        throw new Error('Failed to persist signing key')
+      }
+    }
+
+    // Cache a non-extractable copy for fast signing.
+    const nonExtractable = await importPrivateSigningKey(privatePkcs8B64, false)
+    await signingKeyStore.store(this.currentUserId, nonExtractable)
+
+    debug.log('✅ Signing key pair created and published')
+  }
+
+  /**
+   * Compute a short fingerprint (first 16 hex chars of SHA-256 over SPKI)
+   * for a signing public key. Used purely for logging / UI display so
+   * users can spot a sender's signing key changing.
+   */
+  private async signingKeyFingerprint(spkiBase64: string): Promise<string> {
+    let bytes: Uint8Array
+    try {
+      bytes = Uint8Array.from(atob(spkiBase64), c => c.charCodeAt(0))
+    } catch {
+      return ''
+    }
+    const digest = await crypto.subtle.digest('SHA-256', bytes)
+    const hex = Array.from(new Uint8Array(digest))
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('')
+    return hex.slice(0, 16)
+  }
+
+  /**
+   * Load the current user's signing private key from IndexedDB.
+   * Returns null if missing — callers must decide whether to skip signing
+   * (legacy fallback) or refuse to send (we choose: skip and log).
+   */
+  private async getMySigningPrivateKey(): Promise<CryptoKey | null> {
+    if (!this.currentUserId) return null
+    return signingKeyStore.load(this.currentUserId)
+  }
+
+  /**
+   * Fetch a sender's signing public key, with TTL cache.
+   * Used during message verification on the decrypt hot path.
+   */
+  private async getSenderSigningPublicKey(senderUserId: string): Promise<CachedSigningKey | null> {
+    const cached = this.signingKeyCache.get(senderUserId)
+    if (cached && Date.now() - cached.cachedAt < MegolmMessageEncryptionService.SIGNING_KEY_CACHE_TTL_MS) {
+      return cached
+    }
+
+    const { data, error } = await supabase
+      .from('user_key_pairs')
+      .select('identity_signing_public_key')
+      .eq('user_id', senderUserId)
+      .eq('is_active', true)
+      .maybeSingle()
+
+    if (error) {
+      debug.warn(`⚠️ Failed to fetch signing key for ${senderUserId.substring(0, 8)}:`, error)
+      return null
+    }
+    const spki = data?.identity_signing_public_key as string | undefined
+    if (!spki) return null
+
+    try {
+      const publicKey = await importPublicSigningKey(spki)
+      const fingerprint = await this.signingKeyFingerprint(spki)
+      const entry: CachedSigningKey = { publicKey, fingerprint, cachedAt: Date.now() }
+      this.signingKeyCache.set(senderUserId, entry)
+      return entry
+    } catch (err) {
+      debug.warn(`⚠️ Failed to import signing key for ${senderUserId.substring(0, 8)}:`, err)
+      return null
+    }
+  }
+
   // =====================================================
   // ENCRYPTION / DECRYPTION
   // =====================================================
@@ -452,21 +672,87 @@ export class MegolmMessageEncryptionService {
       text: encryptedMessage.ciphertext
     }]
 
+    const timestamp = Date.now()
+
+    // Try to sign the message (sender binding). If signing isn't possible
+    // (no signing key on this device yet — legacy users), fall back to v1
+    // emitter behavior so we don't block the send. A v1 message is decoded
+    // by recipients but flagged `sender_verified: false` in display.
+    const signingKey = await this.getMySigningPrivateKey().catch(() => null)
+    if (!signingKey) {
+      debug.warn('⚠️ No signing key available — emitting legacy megolm_v1 (unsigned)')
+      return {
+        encrypted: true,
+        content: encryptedContent,
+        encryption_metadata: {
+          algorithm: 'megolm_v1',
+          session_id: encryptedMessage.sessionId,
+          message_index: encryptedMessage.messageIndex,
+          sender_user_id: this.currentUserId,
+          timestamp,
+        },
+      }
+    }
+
+    const ciphertextHash = await hashCiphertextB64(encryptedMessage.ciphertext)
+    const tbsFields: SignedMessageFields = {
+      algorithm: 'megolm_v2_signed',
+      room_id: roomId,
+      session_id: encryptedMessage.sessionId,
+      message_index: encryptedMessage.messageIndex,
+      sender_user_id: this.currentUserId,
+      ciphertext_hash_b64: ciphertextHash,
+      timestamp,
+    }
+    const signature = await signMessage(tbsFields, signingKey)
+
+    // Best-effort fingerprint for UI/debug. If lookup fails we just omit it.
+    let fingerprint: string | undefined
+    try {
+      const { data: myKey } = await supabase
+        .from('user_key_pairs')
+        .select('identity_signing_public_key')
+        .eq('user_id', this.currentUserId)
+        .eq('is_active', true)
+        .maybeSingle()
+      const myPk = (myKey as any)?.identity_signing_public_key as string | undefined
+      if (myPk) fingerprint = await this.signingKeyFingerprint(myPk)
+    } catch { /* non-fatal */ }
+
     return {
       encrypted: true,
       content: encryptedContent,
       encryption_metadata: {
-        algorithm: 'megolm_v1',
+        algorithm: 'megolm_v2_signed',
         session_id: encryptedMessage.sessionId,
         message_index: encryptedMessage.messageIndex,
         sender_user_id: this.currentUserId,
-        timestamp: Date.now()
-      }
+        timestamp,
+        signature,
+        signing_key_fingerprint: fingerprint,
+      },
     }
   }
 
   /**
-   * Decrypt a message
+   * Decrypt a message AND verify the sender signature (Megolm v2).
+   *
+   * Return value:
+   *   - `content`         — decrypted MessagePart[]
+   *   - `senderVerified`  — true ONLY when the signature was present AND
+   *                         verified against the claimed sender's signing
+   *                         public key. False for legacy v1 messages or
+   *                         when the sender has no signing key on file.
+   *
+   * Behavior on signature mismatch (v2 only):
+   *   - Throws `Sender signature invalid …`. The message is NOT decrypted.
+   *     This is the core "reattribution attack" defense — without it, a
+   *     malicious DB writer could swap sender_user_id and have clients
+   *     happily display Bob's content as if from Alice.
+   *
+   * For backwards compatibility this method also accepts a 'megolm_v1'
+   * algorithm tag (no signature), decrypts normally, and reports
+   * `senderVerified: false`.
    */
   async decryptMessage(
     message: {
@@ -478,13 +764,16 @@ export class MegolmMessageEncryptionService {
         session_id?: string
         message_index?: number
         sender_user_id?: string
+        timestamp?: number
+        signature?: string
+        signing_key_fingerprint?: string
         // Legacy Signal Protocol fields
         encrypted_keys?: Record<string, string>
         sender_key_id?: string
         iv?: string
       }
     }
-  ): Promise<MessagePart[]> {
+  ): Promise<{ content: MessagePart[]; senderVerified: boolean }> {
     if (!this.currentUserId) {
       throw new Error('Not initialized')
     }
@@ -497,16 +786,105 @@ export class MegolmMessageEncryptionService {
     // Get room ID from message context
     const roomId = message.channel_id || message.conversation_id || ''
 
-    // Check encryption algorithm
-    if (metadata.algorithm === 'megolm_v1') {
-      return this.decryptMegolmMessage(message, roomId)
-    } else if (metadata.algorithm === 'signal_protocol_v1_hybrid') {
+    if (metadata.algorithm === 'megolm_v2_signed' || metadata.algorithm === 'megolm_v1') {
+      // Verification step runs BEFORE decryption:
+      //   - It's pointless to spend CPU decrypting a message we'll reject.
+      //   - More importantly, it prevents an attacker from using bogus
+      //     signed-metadata to push the client into the key-request /
+      //     session-share fallback path (network noise + log spam).
+      if (metadata.algorithm === 'megolm_v2_signed') {
+        const senderVerified = await this.verifyV2Signature(message)
+        if (!senderVerified) {
+          throw new Error('Sender signature invalid — refusing to display tampered message')
+        }
+      } else {
+        // v1: nothing to verify, log so audits can spot legacy senders.
+        debug.warn(
+          `⚠️ Unsigned megolm_v1 message from ${(metadata.sender_user_id || '').substring(0, 8)} — sender unverified`,
+        )
+      }
+
+      const content = await this.decryptMegolmMessage(message, roomId)
+      return { content, senderVerified: metadata.algorithm === 'megolm_v2_signed' }
+    }
+
+    if (metadata.algorithm === 'signal_protocol_v1_hybrid') {
       // Legacy Signal Protocol message - can't decrypt without old keys
       debug.warn('⚠️ Legacy Signal Protocol message - cannot decrypt')
       throw new Error('Legacy encrypted message - keys no longer available')
     }
 
     throw new Error(`Unsupported encryption algorithm: ${metadata.algorithm}`)
+  }
+
+  /**
+   * Verify the per-message ECDSA signature for a Megolm v2 message.
+   *
+   * Returns:
+   *   - true  → signature verified against the published signing key of
+   *             `sender_user_id`. Safe to display.
+   *   - false → signature missing, malformed, mismatched, or the sender
+   *             has no signing key on file. Caller MUST treat as forgery.
+   */
+  private async verifyV2Signature(
+    message: {
+      content: MessagePart[]
+      channel_id?: string
+      conversation_id?: string
+      encryption_metadata?: {
+        algorithm?: string
+        session_id?: string
+        message_index?: number
+        sender_user_id?: string
+        timestamp?: number
+        signature?: string
+      }
+    },
+  ): Promise<boolean> {
+    const meta = message.encryption_metadata
+    if (!meta) return false
+    const {
+      session_id: sessionId,
+      message_index: messageIndex,
+      sender_user_id: senderUserId,
+      timestamp,
+      signature,
+    } = meta
+    const roomId = message.channel_id || message.conversation_id || ''
+
+    if (
+      !signature ||
+      !sessionId ||
+      messageIndex === undefined ||
+      !senderUserId ||
+      !timestamp ||
+      !roomId
+    ) {
+      debug.warn('⚠️ v2 message missing required fields for verification — rejecting')
+      return false
+    }
+
+    const ciphertext = message.content[0]?.type === 'text' ? message.content[0].text : ''
+    if (!ciphertext) return false
+
+    const senderKey = await this.getSenderSigningPublicKey(senderUserId)
+    if (!senderKey) {
+      debug.warn(`⚠️ No signing key on file for ${senderUserId.substring(0, 8)} — cannot verify`)
+      return false
+    }
+
+    const ciphertextHash = await hashCiphertextB64(ciphertext)
+    const tbsFields: SignedMessageFields = {
+      algorithm: 'megolm_v2_signed',
+      room_id: roomId,
+      session_id: sessionId,
+      message_index: messageIndex,
+      sender_user_id: senderUserId,
+      ciphertext_hash_b64: ciphertextHash,
+      timestamp,
+    }
+
+    return verifyMessageSignature(tbsFields, signature, senderKey.publicKey)
   }
 
   /**

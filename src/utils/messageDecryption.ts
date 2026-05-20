@@ -93,33 +93,47 @@ export async function processMessageDecryption(messages: Message[]): Promise<Mes
   const decryptedResults = await Promise.all(
     encryptedMessages.map(async (message) => {
       try {
-        const decryptedContent = await encryptionService.decryptMessage(message)
+        const decrypted = await encryptionService.decryptMessage(message)
         lastDecryptionError = null
-        
+
+        // decryptMessage returns { content, senderVerified } for v2-aware
+        // callers and (historically) a bare MessagePart[] for the rest.
+        // Handle both shapes so existing in-flight messages still decode.
+        const content: MessagePart[] = Array.isArray(decrypted) ? decrypted : decrypted.content
+        const senderVerified: boolean | undefined = Array.isArray(decrypted)
+          ? undefined
+          : Boolean(decrypted.senderVerified)
+
         return {
           ...message,
-          content: decryptedContent,
+          content,
           encrypted: false,
-          decrypted: true
+          decrypted: true,
+          sender_verified: senderVerified,
         }
       } catch (error: any) {
         const errorMessage = error?.message || String(error)
-        
+
         // Set last error for UI display
-        if (errorMessage.includes('No inbound session') || errorMessage.includes('No outbound session')) {
+        if (errorMessage.includes('Sender signature invalid')) {
+          // Forgery detected — make this visible. Don't fall back to a soft
+          // "session key" message which would hide the attack signal.
+          lastDecryptionError = 'Sender signature mismatch (possible tampering)'
+        } else if (errorMessage.includes('No inbound session') || errorMessage.includes('No outbound session')) {
           lastDecryptionError = 'Session key not available'
         } else if (errorMessage.includes('recovery key')) {
           lastDecryptionError = 'Enter recovery key to decrypt'
         } else {
           lastDecryptionError = `Decryption error`
         }
-        
+
         // PRESERVE original content - UI will show glyphs based on encrypted && !decrypted
         // This allows retry without hitting the database
         return {
           ...message,
           encrypted: true,
-          decrypted: false
+          decrypted: false,
+          sender_verified: false,
         }
       }
     })

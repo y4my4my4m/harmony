@@ -352,6 +352,7 @@
               :metadata="item.message.metadata"
               :encrypted="item.message.encrypted || false"
               :decrypted="item.message.decrypted || false"
+              :sender-verified="item.message?.sender_verified"
               :can-decrypt="canDecryptMessages"
               @image-loaded="handleImageLoaded"
               @embed-loaded="handleEmbedLoaded(item.message.id)"
@@ -386,6 +387,7 @@
               :metadata="item.message.metadata"
               :encrypted="item.message.encrypted || false"
               :decrypted="item.message.decrypted || false"
+              :sender-verified="item.message?.sender_verified"
               :can-decrypt="canDecryptMessages"
               @image-loaded="handleImageLoaded"
               @embed-loaded="handleEmbedLoaded(item.message.id)"
@@ -2727,18 +2729,28 @@ const handleDecryptMessage = async (message: Message) => {
       encryption_metadata: messageToDecrypt.encryption_metadata
     };
     
-    const decryptedContent = await megolmMessageEncryptionService.decryptMessage(messageForDecryption);
-    
+    const decryptResult = await megolmMessageEncryptionService.decryptMessage(messageForDecryption);
+
+    // decryptMessage now returns { content, senderVerified } for v2-aware
+    // callers. Support the historical bare-array shape too while migrating.
+    const decryptedContent: MessagePart[] = Array.isArray(decryptResult)
+      ? decryptResult
+      : decryptResult.content;
+    const senderVerified: boolean | undefined = Array.isArray(decryptResult)
+      ? undefined
+      : Boolean(decryptResult.senderVerified);
+
     if (decryptedContent) {
       // Update the message in the store with decrypted content
       const resolvedContent = await resolveMentionsUserData(decryptedContent);
-      
+
       // Create updated message object
       const updatedMessage: Message = {
         ...messageToDecrypt,
         content: resolvedContent,
         encrypted: false,
-        decrypted: true
+        decrypted: true,
+        sender_verified: senderVerified,
       };
       
       // Update the message in the appropriate store
