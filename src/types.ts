@@ -1223,6 +1223,15 @@ export interface FederatedUser extends Profile {
   verified?: boolean;
   // ActivityPub signing public key (PEM) — used by federation config readers.
   public_key?: string;
+  // ActivityPub endpoint URLs — populated when the profile row carries the
+  // federation actor metadata. Optional because chat-side `User` lookups
+  // don't surface these.
+  inbox_url?: string;
+  outbox_url?: string;
+  followers_url?: string;
+  following_url?: string;
+  featured_url?: string;
+  last_synced_at?: string;
 }
 
 // Additional ActivityPub types for components

@@ -1,5 +1,5 @@
 <template>
-  <MessageCircle :size="size" :stroke-width="2" :class="className" />
+  <MessageCircle :size="Number(size)" :stroke-width="2" :class="className" />
 </template>
 
 <script setup lang="ts">

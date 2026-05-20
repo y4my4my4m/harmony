@@ -1,5 +1,5 @@
 <template>
-  <X :size="size" :stroke-width="2" :class="className" />
+  <X :size="Number(size)" :stroke-width="2" :class="className" />
 </template>
 
 <script setup lang="ts">

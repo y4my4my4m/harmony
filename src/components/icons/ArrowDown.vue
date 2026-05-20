@@ -1,5 +1,5 @@
 <template>
-  <ArrowDown class="icon-component" :size="size" :stroke-width="2" />
+  <ArrowDown class="icon-component" :size="Number(size)" :stroke-width="2" />
 </template>
 
 <script lang="ts">

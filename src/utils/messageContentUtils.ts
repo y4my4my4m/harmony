@@ -21,11 +21,13 @@ export function messagePartsToMarkdown(parts: MessagePart[]): string {
         return part.emoji?.name ? `:${part.emoji.name}:` : '';
       
       case 'mention':
-        return part.mention || '';
+        // `MentionContent` has `username` / `displayName`, not `mention`; this
+        // is a legacy field name kept around for back-compat by some code paths.
+        return (part as any).mention || (part.username ? `@${part.username}` : '');
 
       case 'role_mention':
         return part.roleId ? `@role:${part.roleId}` : '';
-      
+
       case 'url':
         return part.url || '';
 
@@ -62,7 +64,7 @@ export function messagePartsToPlainText(parts: MessagePart[]): string {
         return part.emoji?.name ? `:${part.emoji.name}:` : '';
       
       case 'mention':
-        return part.mention || '';
+        return (part as any).mention || (part.username ? `@${part.username}` : '');
 
       case 'role_mention':
         return part.roleName ? `@${part.roleName}` : '';

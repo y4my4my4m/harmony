@@ -7,18 +7,18 @@
       'deep-thread': threadDepth > 3
     }"
     :style="{ '--thread-depth': threadDepth }"
-    :ref="el => $emit('ref', post.id, el)"
+    :ref="el => $emit('ref', post.id, el as unknown as HTMLElement)"
   >
     <!-- Thread line connector -->
     <div v-if="threadDepth > 0" class="thread-line"></div>
-    
+
     <!-- Post content -->
     <article class="post-content">
       <MonyPost
-        :post="post"
+        :post="post as any"
         :is-reply="true"
         :thread-depth="threadDepth"
-        @reply="handleReply"
+        @reply="(handleReply as any)"
         @favorite="$emit('favorite', post.id)"
         @reblog="$emit('reblog', post.id)"
         @bookmark="$emit('bookmark', post.id)"

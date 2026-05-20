@@ -1,5 +1,5 @@
 <template>
-  <Shield :size="size" :stroke-width="2" :class="className" />
+  <Shield :size="Number(size)" :stroke-width="2" :class="className" />
 </template>
 
 <script lang="ts">

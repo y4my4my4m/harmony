@@ -1,5 +1,5 @@
 <template>
-  <Check :size="size" :stroke-width="2" :class="className" />
+  <Check :size="Number(size)" :stroke-width="2" :class="className" />
 </template>
 
 <script lang="ts">

@@ -842,7 +842,7 @@ const handleReplyingTo = (messageId: string, displayName?: string, userId?: stri
     const replyMessage = messages.value.find(m => m.id === messageId)
     if (replyMessage) {
       replyingToUserName.value = getDisplayName(replyMessage.user_id ?? '').value
-      if (!replyingToUserId.value) replyingToUserId.value = replyMessage.user_id
+      if (!replyingToUserId.value && replyMessage.user_id) replyingToUserId.value = replyMessage.user_id
     }
   }
 }

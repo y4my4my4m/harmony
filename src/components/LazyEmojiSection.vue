@@ -45,7 +45,7 @@ function findScrollParent(el: HTMLElement | null): HTMLElement | null {
 
 onMounted(() => {
   if (!sectionEl.value) return
-  const root = findScrollParent(sectionEl.value)
+  const root = findScrollParent(sectionEl.value as unknown as HTMLElement)
 
   observer = new IntersectionObserver(
     ([entry]) => {
@@ -57,7 +57,7 @@ onMounted(() => {
     },
     { root, rootMargin: '400px 0px 400px 0px' },
   )
-  observer.observe(sectionEl.value)
+  observer.observe(sectionEl.value as unknown as Element)
 })
 
 onUnmounted(() => {

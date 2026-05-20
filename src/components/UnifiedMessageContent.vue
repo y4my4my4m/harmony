@@ -561,7 +561,7 @@ export default defineComponent({
           if (container && props.messageId) {
             const originalParent = container.parentElement as HTMLElement;
             if (originalParent) {
-              registerVideo(container, originalParent, `${props.messageId}-video-${index}`, 'video');
+              registerVideo(container as unknown as HTMLElement, originalParent, `${props.messageId}-video-${index}`, 'video');
             }
           }
         });

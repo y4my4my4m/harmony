@@ -1,5 +1,5 @@
 <template>
-  <CircleArrowUp :size="size" :stroke-width="2" :class="className" />
+  <CircleArrowUp :size="Number(size)" :stroke-width="2" :class="className" />
 </template>
 
 <script setup lang="ts">

@@ -315,7 +315,7 @@
             @sendEmoji="handleEmojiInsert"
             :closePopup="() => showMediaPicker = false"
             :position="'above'"
-            :triggerElement="mediaPickerTriggerRef || undefined"
+            :triggerElement="(mediaPickerTriggerRef as unknown as HTMLElement | null) || undefined"
             :initialTab="mediaPickerInitialTab"
           />
         </Teleport>

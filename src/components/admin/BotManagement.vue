@@ -193,7 +193,7 @@ function validateUsername() {
 
 async function loadBots() {
   try {
-    const userId = authStore.user?.id
+    const userId = authStore.session?.user?.id
     if (!userId) return
     
     const { data, error } = await supabase
@@ -227,7 +227,7 @@ async function loadBots() {
 async function createBot() {
   try {
     creating.value = true
-    const userId = authStore.user?.id
+    const userId = authStore.session?.user?.id
     if (!userId) return
     
     // Generate bot token

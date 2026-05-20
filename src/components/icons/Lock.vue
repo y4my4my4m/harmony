@@ -1,5 +1,5 @@
 <template>
-  <Lock :size="size" :stroke-width="2" :class="className" />
+  <Lock :size="Number(size)" :stroke-width="2" :class="className" />
 </template>
 
 <script lang="ts">

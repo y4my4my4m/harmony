@@ -1483,7 +1483,9 @@ export const useNotificationStore = defineStore('notification', {
               break
 
             default:
-              debug.log('⚠️ No navigation data for notification type:', navData.type)
+              // Exhaustive narrowing collapses `navData.type` to `never` in
+              // the default branch; cast through `any` so we can log it.
+              debug.log('⚠️ No navigation data for notification type:', (navData as any).type)
           }
         } else {
           // ✅ FIX: Fallback navigation for notifications without proper navData

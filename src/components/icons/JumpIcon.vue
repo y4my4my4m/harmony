@@ -1,5 +1,5 @@
 <template>
-  <ArrowUpRight :size="size" :stroke-width="2" :class="className" />
+  <ArrowUpRight :size="Number(size)" :stroke-width="2" :class="className" />
 </template>
 
 <script setup lang="ts">

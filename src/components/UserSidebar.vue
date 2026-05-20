@@ -545,12 +545,14 @@ const sidebarDisplayItems = computed((): SidebarItem[] => {
   return items;
 });
 
-const sidebarVirtualizer = useVirtualizer(computed(() => ({
-  count: sidebarDisplayItems.value.length,
-  getScrollElement: () => sidebarGroupsRef.value,
-  estimateSize: (index: number) => sidebarDisplayItems.value[index]?.type === 'header' ? 30 : 44,
-  overscan: 10,
-})));
+const sidebarVirtualizer = useVirtualizer<HTMLElement, Element>(
+  computed(() => ({
+    count: sidebarDisplayItems.value.length,
+    getScrollElement: () => sidebarGroupsRef.value,
+    estimateSize: (index: number) => sidebarDisplayItems.value[index]?.type === 'header' ? 30 : 44,
+    overscan: 10,
+  })) as any
+);
 
 const sidebarVirtualRows = computed(() => sidebarVirtualizer.value.getVirtualItems());
 const sidebarTotalSize = computed(() => sidebarVirtualizer.value.getTotalSize());

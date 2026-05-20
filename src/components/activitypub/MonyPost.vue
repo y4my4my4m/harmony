@@ -202,7 +202,7 @@
             rel="noopener noreferrer"
             class="post-link-preview"
           >
-            <LinkEmbedCard :payload="embed" />
+            <LinkEmbedCard :payload="(embed as any)" />
           </a>
         </div>
       </div>

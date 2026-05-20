@@ -3,7 +3,7 @@
     <!-- Context Bar -->
     <div class="context-bar-container">
       <UnifiedContextBar
-        mode="activitypub"
+        :mode="'activitypub' as any"
         :is-mobile="isMobile"
         :left-sidebar-open="leftSidebarOpen"
         :right-sidebar-open="rightSidebarOpen"
@@ -126,7 +126,7 @@
                 :user="user"
                 :show-follow-btn="true"
                 :is-compact="true"
-                @click="handleUserCardClick"
+                @click="handleUserCardClick as any"
               />
             </div>
           </div>
@@ -151,7 +151,7 @@
       mode="modal"
       :type="composerType"
       :is-open="activityPubStore.isComposerOpen"
-      :reply-to-post="composerReplyPost ?? undefined"
+      :reply-to-post="(composerReplyPost as any) ?? undefined"
       :quote-post="activityPubStore.composerState.quotePost"
       :quote-author="activityPubStore.composerState.quoteAuthor"
       :initial-content="activityPubStore.composerState.content"

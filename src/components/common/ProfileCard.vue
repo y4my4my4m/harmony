@@ -435,7 +435,7 @@ const closeActionsMenu = () => {
 // ===== DIRECTIVES =====
 const vClickOutside = {
   mounted(el: HTMLElement, binding: any) {
-    el._clickOutsideHandler = (event: Event) => {
+    el._clickOutsideHandler = (event: MouseEvent) => {
       if (!(el === event.target || el.contains(event.target as Node))) {
         binding.value()
       }
@@ -443,7 +443,9 @@ const vClickOutside = {
     document.addEventListener('click', el._clickOutsideHandler)
   },
   unmounted(el: HTMLElement) {
-    document.removeEventListener('click', el._clickOutsideHandler)
+    if (el._clickOutsideHandler) {
+      document.removeEventListener('click', el._clickOutsideHandler)
+    }
   }
 }
 </script>

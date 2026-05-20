@@ -57,7 +57,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted, onUnmounted, nextTick } from 'vue';
+import { ref, watch, onMounted, onUnmounted, nextTick, type Ref } from 'vue';
 import { usePopupPositioning, type PopupPosition } from '@/composables/usePopupPositioning';
 import GifPickerContent from '@/components/GifPickerContent.vue';
 import EmojiPickerContent from '@/components/EmojiPickerContent.vue';
@@ -99,7 +99,7 @@ watch(() => props.triggerElement, (newTrigger) => {
 }, { immediate: true });
 
 const { positionStyle, updatePosition } = usePopupPositioning(
-  triggerElementRef,
+  triggerElementRef as unknown as Ref<HTMLElement | null>,
   POPUP_DIMENSIONS,
   { position: props.position, offset: 8, viewport: { padding: 10 } }
 );

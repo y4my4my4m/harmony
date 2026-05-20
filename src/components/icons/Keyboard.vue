@@ -1,5 +1,5 @@
 <template>
-  <Keyboard :size="size" :stroke-width="2" :class="className" />
+  <Keyboard :size="Number(size)" :stroke-width="2" :class="className" />
 </template>
 
 <script lang="ts">
