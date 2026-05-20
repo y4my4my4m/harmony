@@ -218,32 +218,41 @@ export class CoreMessageService {
               throw this.createError('ENCRYPTION_LOCKED', 'This server requires encryption. Unlock encryption with your recovery key first.')
             }
           } else {
-            // Optional encryption - keys unavailable. Fail closed by default.
-            if (!allowFallback) {
-              if (hasRecoveryKey && !isUnlocked) {
+            // Optional encryption + user cannot encrypt. Two sub-cases:
+            //
+            //  (a) hasRecoveryKey && !isUnlocked
+            //      → The user has set up encryption but their session is
+            //        locked. They previously opted in, so silently
+            //        downgrading to plaintext would defy their stated
+            //        preference. Fail closed and let the UI prompt them
+            //        ("did you forget to unlock your recovery key?").
+            //
+            //  (b) !hasRecoveryKey
+            //      → The user has *never* set up encryption. Encryption is
+            //        only OPTIONAL on this server, so the user is fully
+            //        within policy to send plaintext. Prompting on every
+            //        send would be friction with no security benefit (they
+            //        haven't opted in). Send plaintext silently.
+            if (hasRecoveryKey && !isUnlocked) {
+              if (!allowFallback) {
                 throw this.createError('ENCRYPTION_LOCKED',
                   'This channel supports encryption but your keys are locked. Unlock encryption to send encrypted, or confirm an unencrypted send.')
               }
-              throw this.createError('ENCRYPTION_UNAVAILABLE',
-                'This channel supports encryption but you have not set up a recovery key. Set up encryption to send encrypted, or confirm an unencrypted send.')
-            }
-            if (hasRecoveryKey && !isUnlocked) {
               debug.warn('🔓 User-authorized plaintext fallback — encryption locked')
               this.markPlaintextOverride(extraMetadata = extraMetadata || {}, 'optional_encryption_locked')
             } else {
-              debug.warn('🔓 User-authorized plaintext fallback — no recovery key')
+              // No recovery key set up — silent plaintext, no prompt.
+              debug.log('ℹ️ Optional encryption + no recovery key — sending plaintext')
               this.markPlaintextOverride(extraMetadata = extraMetadata || {}, 'optional_no_recovery_key')
             }
           }
         } else if (encryptionMode === 'required') {
           throw this.createError('ENCRYPTION_REQUIRED', 'This server requires encryption. Set up encryption in Settings first.')
         } else {
-          // optional + encryption service unavailable
-          if (!allowFallback) {
-            throw this.createError('ENCRYPTION_UNAVAILABLE',
-              'This channel supports encryption but the encryption service is unavailable. Confirm an unencrypted send to continue.')
-          }
-          debug.warn('🔓 User-authorized plaintext fallback — encryption service unavailable')
+          // Optional mode + encryption service entirely unavailable.
+          // Same reasoning as case (b) above: user has not opted in to
+          // encryption on this server, so just send plaintext.
+          debug.log('ℹ️ Optional encryption + service unavailable — sending plaintext')
           this.markPlaintextOverride(extraMetadata = extraMetadata || {}, 'optional_service_unavailable')
         }
       }

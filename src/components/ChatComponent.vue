@@ -154,6 +154,7 @@
   import { useEmojiCacheStore } from '@/stores/useEmojiCache';
   import { threadService } from '@/services/ThreadService';
   import { coreMessageService } from '@/services/core/CoreMessageService';
+  import { useEncryptionFallbackPrompt } from '@/composables/useEncryptionFallbackPrompt';
   import { supabase } from '@/supabase';
   import { debug } from '@/utils/debug';
   import { useUserData } from '@/composables/useUserData';
@@ -842,10 +843,16 @@
           if (messageParts.length > 0) {
             didAttemptSend = true;
             handleDontReply();
-            await sendChannelOrDMWithEncryptionPolicy(messageParts, replyMessageId)
+            const sendOutcome = await sendChannelOrDMWithEncryptionPolicy(messageParts, replyMessageId)
 
-            messageContent.value = '';
-            if (draftKey.value) draftsStore.clearDraft(draftKey.value);
+            // Only clear the input / drop the draft if the message actually
+            // went through. If the user declined the encryption fallback,
+            // keep the text so they can edit / retry — otherwise the input
+            // gets blown away and looks like the message "sent" anyway.
+            if (sendOutcome === 'ok') {
+              messageContent.value = '';
+              if (draftKey.value) draftsStore.clearDraft(draftKey.value);
+            }
           }
         } catch (error: any) {
           debug.error('Error sending message:', error);
@@ -857,22 +864,33 @@
         }
       };
 
+      const { runWithEncryptionFallback } = useEncryptionFallbackPrompt()
+
       /**
        * Run the actual send call, intercept fail-closed encryption policy
-       * errors, and prompt the user before retrying with an explicit
-       * plaintext-fallback override.
+       * errors, and prompt the user (via the styled global modal) before
+       * retrying with an explicit plaintext-fallback override.
+       *
+       * Returns one of:
+       *   - 'ok'        — the message was sent (either encrypted or with
+       *                   user-authorized plaintext fallback)
+       *   - 'declined'  — the user pressed Cancel on the fallback modal,
+       *                   nothing was sent
+       *   - 'error'     — an unrecoverable error happened (re-thrown to
+       *                   the outer handler in `handleSendMessage`)
        */
       const sendChannelOrDMWithEncryptionPolicy = async (
         messageParts: MessagePart[],
         replyMessageId?: string,
-      ) => {
-        const trySend = async (allowPlaintextFallback: boolean) => {
+      ): Promise<'ok' | 'declined' | 'error'> => {
+        const trySend = async ({ allowPlaintextFallback }: { allowPlaintextFallback: boolean }) => {
           if (props.isDM) {
             // DM send is owned by the parent view (DMView) which forwards
-            // through useDM.sendDMMessage. Emit the message; the parent
-            // catches errors and re-prompts via this same flow.
+            // through useDM.sendDMMessage. Emit the message and let DMView
+            // do its own fallback handling. DMView's own try/catch covers
+            // the encryption-error path on its side.
             emit('sendMessage', messageParts, replyMessageId || undefined, { allowPlaintextFallback })
-            return
+            return true
           }
           if (serverChannelStore.currentServerId && serverChannelStore.currentChannelId && authStore.session?.user) {
             await chatStore.sendMessage(
@@ -882,37 +900,30 @@
               messageParts,
               replyMessageId || '',
               undefined,
-              { allowPlaintextFallback }
+              { allowPlaintextFallback },
             )
+            return true
           }
+          return false
         }
 
-        try {
-          await trySend(false)
-        } catch (error: any) {
-          const code = (error?.code || error?.message || '').toString()
-          const isFallbackEligible =
-            code.includes('ENCRYPTION_LOCKED') ||
-            code.includes('ENCRYPTION_UNAVAILABLE') ||
-            code.includes('ENCRYPTION_FAILED_NO_FALLBACK')
-          // `ENCRYPTION_REQUIRED` is server-enforced and never fallback-eligible.
-          if (!isFallbackEligible) throw error
-
-          const human = code.includes('LOCKED')
-            ? 'Your encryption keys are locked.'
-            : code.includes('UNAVAILABLE')
-              ? 'Encryption is not set up for this account.'
-              : 'Encryption failed.'
-          const accepted = typeof window !== 'undefined' && typeof window.confirm === 'function'
-            ? window.confirm(`${human}\n\nSend this message UNENCRYPTED into this room? Other participants will see plaintext.`)
-            : false
-          if (!accepted) {
-            sendError.value = `${human} Message was not sent.`
-            setTimeout(() => { sendError.value = null }, 6000)
-            return
-          }
-          await trySend(true)
+        // The DM path emits and returns immediately; there's no awaitable
+        // error to intercept here. DMView handles its own fallback prompt.
+        if (props.isDM) {
+          await trySend({ allowPlaintextFallback: false })
+          return 'ok'
         }
+
+        const outcome = await runWithEncryptionFallback(trySend, { scope: 'channel' })
+        if (outcome.status === 'declined') {
+          sendError.value = 'Message was not sent.'
+          setTimeout(() => { sendError.value = null }, 6000)
+          return 'declined'
+        }
+        if (outcome.status === 'error') {
+          throw outcome.error
+        }
+        return 'ok'
       }
 
       const handleSendVoiceMessage = async (data: {

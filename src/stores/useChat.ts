@@ -709,6 +709,13 @@ export const useChatStore = defineStore('chat', {
         // (a) keep failing for the same reason or (b) silently bypass the
         // fail-closed policy. Surface immediately so the UI can ask the user
         // whether to send unencrypted.
+        //
+        // We *remove* the optimistic instead of marking it failed: if the
+        // user accepts the fallback prompt, the UI will re-call this method
+        // with `allowPlaintextFallback: true`, which creates a fresh
+        // optimistic. Leaving the original as a "failed" message in the
+        // timeline made it look like the message had been sent and rejected,
+        // which is what BUGS.md flagged after the user pressed Cancel.
         const code = (error?.code || error?.message || '').toString();
         const isEncryptionPolicyError =
           code.includes('ENCRYPTION_REQUIRED') ||
@@ -716,7 +723,7 @@ export const useChatStore = defineStore('chat', {
           code.includes('ENCRYPTION_UNAVAILABLE') ||
           code.includes('ENCRYPTION_FAILED_NO_FALLBACK')
         if (isEncryptionPolicyError) {
-          this._markMessageFailed(tempId);
+          this.removeMessageFromCache(tempId);
           throw error;
         }
 

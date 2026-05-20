@@ -1708,7 +1708,11 @@ export const useDMStore = defineStore('dm', () => {
       debug.error('❌ Failed to send DM message via service:', error)
 
       // Encryption policy errors require user consent before retrying — never
-      // auto-retry, never silently fall back to plaintext.
+      // auto-retry, never silently fall back to plaintext. Remove the
+      // optimistic so the timeline doesn't show a phantom "failed" message
+      // after the user cancels the fallback prompt; if they accept, the UI
+      // re-calls with `allowPlaintextFallback: true` which creates a fresh
+      // optimistic.
       const code = (error?.code || error?.message || '').toString()
       const isEncryptionPolicyError =
         code.includes('ENCRYPTION_REQUIRED') ||
@@ -1716,7 +1720,7 @@ export const useDMStore = defineStore('dm', () => {
         code.includes('ENCRYPTION_UNAVAILABLE') ||
         code.includes('ENCRYPTION_FAILED_NO_FALLBACK')
       if (isEncryptionPolicyError) {
-        _markDMMessageFailed(tempId)
+        removeMessageFromCache(tempId)
         throw error
       }
 

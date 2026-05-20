@@ -199,13 +199,23 @@ describe('CoreMessageService - encryption policy (fail-closed by default)', () =
       ).rejects.toMatchObject({ code: 'ENCRYPTION_LOCKED' })
     })
 
-    it('fails closed on optional + no recovery key', async () => {
-      setupSupabase({ encryptionMode: 'optional' })
+    it('silently sends plaintext on optional + no recovery key (user never opted in)', async () => {
+      // Behavior change: in OPTIONAL mode, a user who has never set up
+      // encryption is fully within policy to send plaintext. Don't prompt
+      // them on every send — they never opted in. Only LOCKED (they did
+      // opt in but forgot to unlock) and FAILED (encrypt attempted, threw)
+      // should fail closed.
+      const { insertedRows } = setupSupabase({ encryptionMode: 'optional' })
       encState.hasRecoveryKey = false
 
-      await expect(
-        service.sendChannelMessage(SERVER_ID, CHANNEL_ID, [{ type: 'text', text: 'hi' }] as any),
-      ).rejects.toMatchObject({ code: 'ENCRYPTION_UNAVAILABLE' })
+      const msg = await service.sendChannelMessage(SERVER_ID, CHANNEL_ID, [
+        { type: 'text', text: 'hi' },
+      ] as any)
+
+      expect(msg).toBeDefined()
+      expect(insertedRows[0].encrypted).toBe(false)
+      expect(insertedRows[0].metadata?.plaintext_override?.authorized).toBe(true)
+      expect(insertedRows[0].metadata?.plaintext_override?.reason).toBe('optional_no_recovery_key')
     })
 
     it('fails closed on optional + encryption throws', async () => {

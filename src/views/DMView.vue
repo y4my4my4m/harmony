@@ -108,6 +108,7 @@ import { dmCallSignaling } from '@/services/DMCallSignaling'
 import { useViewContextTracking } from '@/composables/useViewContext'
 import { useNotificationStore } from '@/stores/useNotification'
 import { debug } from '@/utils/debug'
+import { useEncryptionFallbackPrompt } from '@/composables/useEncryptionFallbackPrompt'
 import type { MessagePart } from '@/types'
 import { ViewMode, ViewType } from '@/types/viewTypes'
 
@@ -296,6 +297,8 @@ const fetchMoreMessages = async () => {
   }
 }
 
+const { runWithEncryptionFallback } = useEncryptionFallbackPrompt()
+
 const handleSendMessage = async (
   content: MessagePart[],
   replyTo?: string,
@@ -306,52 +309,57 @@ const handleSendMessage = async (
 
   if (!conversationId || !currentUser?.id) return
 
-  const trySend = async (allowPlaintextFallback: boolean) => {
-    return dmStore.sendDMMessage(conversationId, currentUser.id, content, replyTo, {
-      allowPlaintextFallback,
-    })
+  // If the caller already negotiated the fallback override (e.g. retry path),
+  // call the store directly to avoid double-prompting.
+  if (sendOptions?.allowPlaintextFallback === true) {
+    try {
+      const success = await dmStore.sendDMMessage(conversationId, currentUser.id, content, replyTo, {
+        allowPlaintextFallback: true,
+      })
+      if (success) emit('sendMessage', { content, replyTo })
+      else toast.error('Failed to send message')
+    } catch (error) {
+      debug.error('DM retry send failed:', error)
+      toast.error('Failed to send message')
+    }
+    return
   }
 
-  try {
-    const success = await trySend(sendOptions?.allowPlaintextFallback === true)
-    if (success) {
-      emit('sendMessage', { content, replyTo })
-    } else {
-      toast.error('Failed to send message')
-    }
-  } catch (error: any) {
-    const code = (error?.code || error?.message || '').toString()
-    const isFallbackEligible =
-      code.includes('ENCRYPTION_LOCKED') ||
-      code.includes('ENCRYPTION_UNAVAILABLE') ||
-      code.includes('ENCRYPTION_FAILED_NO_FALLBACK')
+  const outcome = await runWithEncryptionFallback(
+    async ({ allowPlaintextFallback }) => {
+      const success = await dmStore.sendDMMessage(conversationId, currentUser.id, content, replyTo, {
+        allowPlaintextFallback,
+      })
+      if (!success) {
+        // The store returns false on non-encryption transient failures it
+        // couldn't recover. Surface it as a generic error so
+        // `runWithEncryptionFallback` doesn't treat it as success.
+        throw new Error('DM send did not complete')
+      }
+      return success
+    },
+    { scope: 'dm' },
+  )
 
-    if (!isFallbackEligible) {
-      toast.error('Failed to send message')
-      return
-    }
+  if (outcome.status === 'ok') {
+    emit('sendMessage', { content, replyTo })
+    return
+  }
 
-    const human = code.includes('LOCKED')
-      ? 'Your encryption keys are locked.'
-      : code.includes('UNAVAILABLE')
-        ? 'Encryption is not set up for this account.'
-        : 'Encryption failed.'
+  if (outcome.status === 'declined') {
+    // User cancelled the fallback prompt. Optimistic message was already
+    // removed by `dmStore.sendDMMessage`'s catch path, so nothing else to
+    // do here besides letting the user retry from the input.
+    return
+  }
 
-    const accepted = typeof window !== 'undefined' && typeof window.confirm === 'function'
-      ? window.confirm(`${human}\n\nSend this DM UNENCRYPTED? The recipient will see plaintext.`)
-      : false
-    if (!accepted) {
-      toast.error(`${human} Message was not sent.`)
-      return
-    }
-
-    try {
-      const retried = await trySend(true)
-      if (retried) emit('sendMessage', { content, replyTo })
-      else toast.error('Failed to send message')
-    } catch {
-      toast.error('Failed to send message')
-    }
+  // outcome.status === 'error' — bubble a generic toast unless it's an
+  // ENCRYPTION_REQUIRED error (server-enforced, user can't override).
+  const errCode = ((outcome.error as any)?.code || (outcome.error as any)?.message || '').toString()
+  if (errCode.includes('ENCRYPTION_REQUIRED')) {
+    toast.error('This conversation requires encryption. Set up encryption in Settings first.')
+  } else {
+    toast.error('Failed to send message')
   }
 }
 

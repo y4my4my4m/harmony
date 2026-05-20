@@ -4,7 +4,8 @@
  * Helper for callers that want to honor the fail-closed encryption policy
  * from CoreMessageService / ThreadService. When a send rejects with an
  * encryption policy error code, this prompts the user for explicit consent
- * and re-runs the send with `allowPlaintextFallback = true`.
+ * (via a styled in-app modal — see `EncryptionFallbackModal.vue`) and
+ * re-runs the send with `allowPlaintextFallback = true`.
  *
  * Usage:
  * ```ts
@@ -21,6 +22,7 @@
  * `scope` controls the prompt copy ('channel' | 'dm' | 'thread').
  */
 
+import { ref } from 'vue'
 import { debug } from '@/utils/debug'
 
 export type EncryptionFallbackScope = 'channel' | 'dm' | 'thread'
@@ -28,10 +30,11 @@ export type EncryptionFallbackScope = 'channel' | 'dm' | 'thread'
 interface FallbackOptions {
   scope: EncryptionFallbackScope
   /**
-   * Optional override for the prompt(). Defaults to `window.confirm`.
-   * Tests should inject a stub.
+   * Optional override for the prompt. May return a boolean synchronously or
+   * a Promise<boolean>. Tests inject a stub here; production code lets the
+   * default (the styled modal below) handle it.
    */
-  confirm?: (message: string) => boolean
+  confirm?: (message: string) => boolean | Promise<boolean>
 }
 
 interface RunArgs {
@@ -58,24 +61,86 @@ const isFallbackEligible = (error: any) => {
   )
 }
 
-const promptCopy = (scope: EncryptionFallbackScope, error: any): string => {
+const getReasonText = (error: any): string => {
   const code = (error?.code || error?.message || '').toString()
-  const human = code.includes('LOCKED')
-    ? 'Your encryption keys are locked.'
-    : code.includes('UNAVAILABLE')
-      ? 'Encryption is not set up for this account.'
-      : 'Encryption failed.'
+  if (code.includes('LOCKED')) return 'Your encryption keys are locked.'
+  if (code.includes('UNAVAILABLE')) return 'Encryption is not set up for this account.'
+  return 'Encryption failed.'
+}
 
-  const audience =
-    scope === 'dm'
-      ? 'The recipient will see plaintext.'
-      : scope === 'thread'
-        ? 'Other thread participants will see plaintext.'
-        : 'Other channel members will see plaintext.'
+const getAudienceText = (scope: EncryptionFallbackScope): string => {
+  if (scope === 'dm') return 'The recipient will see plaintext.'
+  if (scope === 'thread') return 'Other thread participants will see plaintext.'
+  return 'Other channel members will see plaintext.'
+}
 
-  const noun = scope === 'dm' ? 'DM' : scope === 'thread' ? 'thread reply' : 'message'
+const getNounText = (scope: EncryptionFallbackScope): string => {
+  if (scope === 'dm') return 'DM'
+  if (scope === 'thread') return 'thread reply'
+  return 'message'
+}
 
-  return `${human}\n\nSend this ${noun} UNENCRYPTED? ${audience}`
+const promptCopy = (scope: EncryptionFallbackScope, error: any): string => {
+  return `${getReasonText(error)}\n\nSend this ${getNounText(scope)} UNENCRYPTED? ${getAudienceText(scope)}`
+}
+
+// ===========================================================================
+// Singleton modal state — read by `EncryptionFallbackModal.vue`.
+// The composable is the only writer; the modal is the only consumer (besides
+// `resolveEncryptionFallbackPrompt`).
+// ===========================================================================
+
+export interface EncryptionFallbackPromptState {
+  open: boolean
+  scope: EncryptionFallbackScope | null
+  reason: string
+  audience: string
+  noun: string
+  resolver: ((accepted: boolean) => void) | null
+}
+
+const initialState = (): EncryptionFallbackPromptState => ({
+  open: false,
+  scope: null,
+  reason: '',
+  audience: '',
+  noun: 'message',
+  resolver: null,
+})
+
+export const encryptionFallbackPromptState = ref<EncryptionFallbackPromptState>(initialState())
+
+/**
+ * Called by `EncryptionFallbackModal.vue` when the user clicks the confirm
+ * or cancel button. Resolves the pending Promise and closes the modal.
+ */
+export function resolveEncryptionFallbackPrompt(accepted: boolean): void {
+  const r = encryptionFallbackPromptState.value.resolver
+  encryptionFallbackPromptState.value = initialState()
+  if (r) r(accepted)
+}
+
+/**
+ * Default confirm path: open the styled modal and wait for the user.
+ * Concurrent prompts are not supported (the UI prevents two send actions
+ * overlapping in practice); a second call while a prompt is open
+ * auto-declines to avoid leaking resolvers.
+ */
+function defaultConfirm(scope: EncryptionFallbackScope, error: any): Promise<boolean> {
+  if (encryptionFallbackPromptState.value.open) {
+    debug.warn('🔒 Encryption fallback prompt already open — auto-declining new prompt')
+    return Promise.resolve(false)
+  }
+  return new Promise<boolean>(resolve => {
+    encryptionFallbackPromptState.value = {
+      open: true,
+      scope,
+      reason: getReasonText(error),
+      audience: getAudienceText(scope),
+      noun: getNounText(scope),
+      resolver: resolve,
+    }
+  })
 }
 
 export function useEncryptionFallbackPrompt() {
@@ -88,13 +153,6 @@ export function useEncryptionFallbackPrompt() {
     send: (args: RunArgs) => Promise<T>,
     options: FallbackOptions,
   ): Promise<{ result?: T; status: 'ok' | 'declined' | 'error'; error?: unknown }> {
-    const doConfirm =
-      options.confirm ??
-      ((message: string) =>
-        typeof window !== 'undefined' && typeof window.confirm === 'function'
-          ? window.confirm(message)
-          : false)
-
     try {
       const result = await send({ allowPlaintextFallback: false })
       return { result, status: 'ok' }
@@ -107,7 +165,13 @@ export function useEncryptionFallbackPrompt() {
         return { status: 'error', error }
       }
 
-      const accepted = doConfirm(promptCopy(options.scope, error))
+      // Use the injected confirm if provided (tests), else the styled modal.
+      // Both can return either `boolean` or `Promise<boolean>`; `await
+      // Promise.resolve(x)` handles both shapes uniformly.
+      const accepted = options.confirm
+        ? await Promise.resolve(options.confirm(promptCopy(options.scope, error)))
+        : await defaultConfirm(options.scope, error)
+
       if (!accepted) {
         debug.warn('🔒 User declined plaintext fallback')
         return { status: 'declined' }
