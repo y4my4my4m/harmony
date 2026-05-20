@@ -219,8 +219,20 @@ const handleGlobalCallAccept = async (acceptWithVideo: boolean) => {
   const incomingCall = globalDMCallListener.incomingCall.value
   if (!incomingCall) return
 
-  const currentUserId = authStore.session?.user?.id
-  if (!currentUserId) return
+  if (!authStore.session?.user?.id) return
+
+  // BUGS.md Pattern A: `dmCallSignaling.acceptCall` / `declineCall` and the
+  // signaling channel all key participants on PROFILE ids (every other site
+  // uses `authContextService.getCurrentProfileId()`). Passing the auth UUID
+  // here corrupts `activeCalls.participants` and breaks teardown.
+  let currentUserId: string
+  try {
+    const { authContextService } = await import('@/services/AuthContextService')
+    currentUserId = await authContextService.getCurrentProfileId()
+  } catch (err) {
+    debug.error('Failed to resolve profile id for call accept:', err)
+    return
+  }
 
   try {
     if (incomingCall.isFederated && incomingCall.callerFederatedId) {
@@ -281,8 +293,17 @@ const handleGlobalCallDecline = async () => {
   const incomingCall = globalDMCallListener.incomingCall.value
   if (!incomingCall) return
 
-  const currentUserId = authStore.session?.user?.id
-  if (!currentUserId) return
+  if (!authStore.session?.user?.id) return
+
+  // Same Pattern A fix as handleGlobalCallAccept.
+  let currentUserId: string
+  try {
+    const { authContextService } = await import('@/services/AuthContextService')
+    currentUserId = await authContextService.getCurrentProfileId()
+  } catch (err) {
+    debug.error('Failed to resolve profile id for call decline:', err)
+    return
+  }
 
   try {
     if (incomingCall.isFederated && incomingCall.callerFederatedId) {

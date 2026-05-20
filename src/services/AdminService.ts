@@ -574,13 +574,22 @@ class AdminService {
     details?: Record<string, any>;
   }): Promise<void> {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      // BUGS.md Pattern A: `admin_audit_log.admin_id` references
+      // `profiles(id)`, not auth.users(id). Inserting `user.id` (auth UUID)
+      // produced audit rows with broken FK references / wrong-user
+      // attribution. Resolve to profile id before insert.
+      const { authContextService } = await import('@/services/AuthContextService');
+      let adminProfileId: string;
+      try {
+        adminProfileId = await authContextService.getCurrentProfileId();
+      } catch {
+        return;
+      }
 
       await supabase
         .from('admin_audit_log')
         .insert({
-          admin_id: user.id,
+          admin_id: adminProfileId,
           action_type: params.action,
           target_type: params.targetType,
           target_id: params.targetId,
@@ -1124,11 +1133,17 @@ class AdminService {
    */
   async checkAdminPermissions(userId: string): Promise<boolean> {
     try {
+      // BUGS.md Pattern A: the existing callers (e.g. router admin guard,
+      // AdminPanel.vue) pass `authStore.session?.user?.id` here — that's
+      // the Supabase auth.users UUID, not `profiles.id`. The previous
+      // `.eq('id', userId)` filter therefore matched zero rows and admin
+      // detection was always false on direct calls. Match on
+      // `auth_user_id` so the same call site works correctly.
       const { data, error } = await supabase
         .from('profiles')
         .select('is_admin')
-        .eq('id', userId)
-        .single();
+        .eq('auth_user_id', userId)
+        .maybeSingle();
 
       if (error) throw error;
 
@@ -1144,11 +1159,13 @@ class AdminService {
    */
   async checkModeratorPermissions(userId: string): Promise<boolean> {
     try {
+      // BUGS.md Pattern A: same fix as checkAdminPermissions — callers pass
+      // the auth.users UUID, so we match `auth_user_id`.
       const { data, error } = await supabase
         .from('profiles')
         .select('is_moderator')
-        .eq('id', userId)
-        .single();
+        .eq('auth_user_id', userId)
+        .maybeSingle();
 
       if (error) throw error;
 

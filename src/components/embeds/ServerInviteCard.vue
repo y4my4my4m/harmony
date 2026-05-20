@@ -178,9 +178,19 @@ async function loadInviteData() {
     const memberCount = await getServerMemberCount(server.id);
 
     // Step 4: Check if current user is already a member (use centralized service)
+    // BUGS.md Pattern A v2: `user_servers.user_id` references `profiles(id)`,
+    // so `isUserMemberOfServer` must be called with the profile id, not the
+    // auth UUID. Previously this always returned `false`, so the "Already
+    // a member" pill never showed up for users who actually were members.
     if (authStore.session?.user?.id) {
-      const isMember = await isUserMemberOfServer(authStore.session.user.id, server.id);
-      isJoined.value = isMember;
+      try {
+        const { authContextService } = await import('@/services/AuthContextService');
+        const profileId = await authContextService.getCurrentProfileId();
+        const isMember = await isUserMemberOfServer(profileId, server.id);
+        isJoined.value = isMember;
+      } catch (err) {
+        debug.warn('🎫 Could not check member status:', err);
+      }
     }
 
     const iconUrl = getServerIconUrl(server.icon);
@@ -209,17 +219,32 @@ async function handleJoin() {
   }
 
   isJoining.value = true;
-  
+
+  // BUGS.md Pattern A: acceptInvite inserts into `user_servers.user_id`
+  // which references `profiles(id)`. Pass profile id, not auth UUID.
+  let profileId: string;
   try {
-    const result = await acceptInvite(props.inviteCode, authStore.session.user.id);
+    const { authContextService } = await import('@/services/AuthContextService');
+    profileId = await authContextService.getCurrentProfileId();
+  } catch (err) {
+    debug.error('Failed to resolve profile id for invite join:', err);
+    toast.error('Could not join — please try again.');
+    isJoining.value = false;
+    return;
+  }
+
+  try {
+    const result = await acceptInvite(props.inviteCode, profileId);
     
     if (result.success && result.serverId) {
       isJoined.value = true;
       toast.success(`Joined ${serverData.value?.name}!`);
       emit('joined', result.serverId);
       
-      // Refresh server list
-      await serverStore.fetchServersForUser(authStore.session.user.id);
+      // Refresh server list — `fetchServersForUser` filters by
+      // `user_servers.user_id` (profile FK), so we pass profile id.
+      // BUGS.md Pattern A v2.
+      await serverStore.fetchServersForUser(profileId);
     } else {
       toast.error(result.error || 'Failed to join server');
     }

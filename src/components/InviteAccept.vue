@@ -39,16 +39,29 @@ onMounted(async () => {
     return;
   }
 
-  const userId = authStore.session?.user?.id;
-  if (!userId) {
+  if (!authStore.session?.user?.id) {
     debug.error('User is not logged in');
     status.value = 'error';
     errorMessage.value = t('invite.notLoggedIn');
     return;
   }
 
+  // BUGS.md Pattern A: `acceptInvite` inserts into
+  // `user_servers.user_id` which references `profiles(id)`. Passing the
+  // auth UUID broke the FK / RLS. Resolve profile id here.
+  let profileId: string;
   try {
-    const success = await acceptInvite(code, userId);
+    const { authContextService } = await import('@/services/AuthContextService');
+    profileId = await authContextService.getCurrentProfileId();
+  } catch (err) {
+    debug.error('Failed to resolve profile id for invite accept:', err);
+    status.value = 'error';
+    errorMessage.value = t('invite.notLoggedIn');
+    return;
+  }
+
+  try {
+    const success = await acceptInvite(code, profileId);
     if (success) {
       debug.log('Invite accepted successfully');
       toast.success(t('invite.accepted'));

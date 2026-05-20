@@ -90,13 +90,18 @@ export const REPORT_REASONS: { value: ReportReason; label: string }[] = [
 class ReportService {
   async createReport(params: CreateReportParams): Promise<Report | null> {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error('Not authenticated')
+      // BUGS.md Pattern A: `reports.reporter_id` references `profiles(id)`
+      // (see db_schema/init/06_tables_misc.sql) and RLS enforces
+      // `reporter_id = get_current_profile_id()`. Inserting `user.id`
+      // (auth UUID) either failed the FK / RLS check outright or wrote
+      // garbage data — never the right behavior. Resolve to profile id.
+      const { authContextService } = await import('@/services/AuthContextService')
+      const reporterProfileId = await authContextService.getCurrentProfileId()
 
       const { data, error } = await supabase
         .from('reports')
         .insert({
-          reporter_id: user.id,
+          reporter_id: reporterProfileId,
           reported_user_id: params.reported_user_id || null,
           reported_post_id: params.reported_post_id || null,
           reported_message_id: params.reported_message_id || null,
@@ -121,13 +126,19 @@ class ReportService {
 
   async getMyReports(): Promise<Report[]> {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return []
+      // Same pattern A fix as createReport — filter by profile id.
+      let reporterProfileId: string
+      try {
+        const { authContextService } = await import('@/services/AuthContextService')
+        reporterProfileId = await authContextService.getCurrentProfileId()
+      } catch {
+        return []
+      }
 
       const { data, error } = await supabase
         .from('reports')
         .select('*')
-        .eq('reporter_id', user.id)
+        .eq('reporter_id', reporterProfileId)
         .order('created_at', { ascending: false })
 
       if (error) throw error
@@ -191,10 +202,23 @@ class ReportService {
         updateData.resolution_note = resolutionNote
       }
 
-      const { data: { user } } = await supabase.auth.getUser()
+      // BUGS.md Pattern A: `resolved_by` and the notification `from_user_id`
+      // both reference `profiles(id)`. Resolve once at the top so the same
+      // id flows into the update and the notification payload below.
+      let resolverProfileId: string | null = null
+      try {
+        const { authContextService } = await import('@/services/AuthContextService')
+        resolverProfileId = await authContextService.getCurrentProfileId()
+      } catch {
+        // No authenticated profile — bail if we need to attribute this action.
+        if (status === 'resolved' || status === 'dismissed') {
+          return false
+        }
+      }
+
       if (status === 'resolved' || status === 'dismissed') {
         updateData.resolved_at = new Date().toISOString()
-        updateData.resolved_by = user?.id
+        updateData.resolved_by = resolverProfileId
       }
 
       const { error } = await supabase
@@ -221,12 +245,15 @@ class ReportService {
             resolution_note: resolutionNote ?? null,
             show_resolver: showResolver,
           }
-          if (showResolver && user?.id) {
+          if (showResolver && resolverProfileId) {
+            // Look up the resolver by PROFILE id (Pattern A — the old
+            // `.eq('id', user.id)` was already broken: `user.id` was the
+            // auth UUID but `profiles.id` is the profile UUID).
             const { data: resolverProfile } = await supabase
               .from('profiles')
               .select('username, display_name, avatar_url')
-              .eq('id', user.id)
-              .single()
+              .eq('id', resolverProfileId)
+              .maybeSingle()
             if (resolverProfile) {
               notificationData.resolver_username = resolverProfile.username
               notificationData.resolver_display_name = resolverProfile.display_name
@@ -237,7 +264,7 @@ class ReportService {
             notification_type: 'report_update',
             to_user_id: report.reporter_id,
             notification_data: notificationData,
-            from_user_id: showResolver ? user?.id ?? null : null,
+            from_user_id: showResolver ? resolverProfileId : null,
           })
         }
       } catch (notifError) {

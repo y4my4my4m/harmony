@@ -531,9 +531,26 @@ const cleanupPresenceTracking = async (userId?: string | null) => {
 let callSignalUnsubscribe: (() => void) | null = null
 
 const handleCallSignal = async (signal: CallSignal) => {
-  const currentUserId = authStore.session?.user?.id
-  if (!currentUserId) return
-  
+  if (!authStore.session?.user?.id) return
+
+  // BUGS.md Pattern A: signal participant IDs and permission lookups all
+  // key on PROFILE ids (the rest of the call codebase resolves via
+  // `authContextService.getCurrentProfileId()`). Using the auth UUID here
+  // meant:
+  //   - `signal.callerId === currentUserId` never matched our own outgoing
+  //     signals, so self-suppression was broken,
+  //   - `canReceiveCall(callerId, currentUserId, …)` queried the wrong
+  //     row, breaking block/DND/mute auto-decline,
+  //   - `declineCall(..., currentUserId, …)` recorded the wrong actor.
+  let currentUserId: string
+  try {
+    const { authContextService } = await import('@/services/AuthContextService')
+    currentUserId = await authContextService.getCurrentProfileId()
+  } catch (err) {
+    debug.error('Failed to resolve profile id in handleCallSignal:', err)
+    return
+  }
+
   // Don't show notifications for our own signals, but allow timeout
   // so the caller stops ringing and leaves the voice channel
   if (signal.callerId === currentUserId && signal.type !== 'timeout') return
