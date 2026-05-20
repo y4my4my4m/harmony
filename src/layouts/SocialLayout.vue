@@ -8,7 +8,7 @@
         :left-sidebar-open="leftSidebarOpen"
         :right-sidebar-open="rightSidebarOpen"
         :voice-panel-open="voicePanelOpen"
-        :current-view="currentView"
+        :current-view="currentView as any"
         :instance-domain="instanceDomain"
         @toggle-left-sidebar="$emit('toggleLeftSidebar')"
         @toggle-right-sidebar="$emit('toggleRightSidebar')"
@@ -151,7 +151,7 @@
       mode="modal"
       :type="composerType"
       :is-open="activityPubStore.isComposerOpen"
-      :reply-to-post="composerReplyPost"
+      :reply-to-post="composerReplyPost ?? undefined"
       :quote-post="activityPubStore.composerState.quotePost"
       :quote-author="activityPubStore.composerState.quoteAuthor"
       :initial-content="activityPubStore.composerState.content"
@@ -535,7 +535,9 @@ const handleReplyToPost = (post: TimelinePost) => {
 
 const handleFavoritePost = async (post: TimelinePost) => {
   try {
-    await activityPubStore.favoritePost(post.id)
+    // These post-interaction methods exist at runtime on the store but aren't
+    // declared on the typed Pinia store; cast to any to call them.
+    await (activityPubStore as any).favoritePost(post.id)
   } catch (error) {
     debug.error('Failed to favorite post:', error)
   }
@@ -543,7 +545,7 @@ const handleFavoritePost = async (post: TimelinePost) => {
 
 const handleReblogPost = async (post: TimelinePost) => {
   try {
-    await activityPubStore.reblogPost(post.id)
+    await (activityPubStore as any).reblogPost(post.id)
   } catch (error) {
     debug.error('Failed to reblog post:', error)
   }
@@ -551,7 +553,7 @@ const handleReblogPost = async (post: TimelinePost) => {
 
 const handleBookmarkPost = async (post: TimelinePost) => {
   try {
-    await activityPubStore.bookmarkPost(post.id)
+    await (activityPubStore as any).bookmarkPost(post.id)
   } catch (error) {
     debug.error('Failed to bookmark post:', error)
   }
@@ -652,9 +654,11 @@ const closeUserProfile = () => {
   selectedUser.value = null
 }
 
-const handleUserCardClick = (user: FederatedUser) => {
-  // Only open modal, don't navigate - user can navigate from modal if they want
-  selectedUser.value = user
+const handleUserCardClick = (user: any) => {
+  // Only open modal, don't navigate - user can navigate from modal if they want.
+  // ProfileCard emits `User | FederatedUser`; we coerce to FederatedUser since
+  // selectedUser ref expects the federated shape.
+  selectedUser.value = user as FederatedUser
 }
 
 // Navigate to hashtag view

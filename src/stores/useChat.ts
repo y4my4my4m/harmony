@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import { supabase } from '@/supabase';
 import { services } from '@/services';
-import type { Message, ChannelCache, CacheMetadata, Emoji } from '@/types';
+import type { Message, ChannelCache, CacheMetadata, Emoji, MessagePart } from '@/types';
 import { useReactionsStore } from '@/stores/useReactions';
 import { useServerUsersStore } from '@/stores/useServerUsers';
 import { ensureMessageEmbeds } from '@/utils/messageEmbedUtils';
@@ -579,7 +579,8 @@ export const useChatStore = defineStore('chat', {
       });
 
       try {
-        ensureMessageEmbeds(updatedMessage, { force: true });
+        // `ensureMessageEmbeds` takes a single argument now.
+        ensureMessageEmbeds(updatedMessage);
       } catch (error) {
         debug.warn('Failed to refresh embeds for updated message:', error);
       }
@@ -834,7 +835,7 @@ export const useChatStore = defineStore('chat', {
         } else if (result.reason === 'duplicate_request') {
           // debug.log('🎯 Reaction toggle skipped (duplicate request prevented)');
         } else {
-          debug.error('🎯 Failed to toggle reaction:', result.message || result.reason);
+          debug.error('🎯 Failed to toggle reaction:', (result as any).message || result.reason);
         }
       } catch (e) {
         debug.error('Error during reaction toggle:', e);

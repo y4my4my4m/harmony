@@ -447,11 +447,11 @@ const selectedModalUser = ref<FederatedUser | null>(null);
 
 // Computed properties
 const plainDisplayName = computed(() => {
-  const dn = user.value?.display_name
+  const dn: unknown = user.value?.display_name
   if (!dn) return user.value?.username || 'Unknown User'
   if (typeof dn === 'string') return dn
   if (Array.isArray(dn)) {
-    return dn.map((part: any) => typeof part === 'string' ? part : (part.text || part.content || '')).join('')
+    return (dn as any[]).map((part: any) => typeof part === 'string' ? part : (part.text || part.content || '')).join('')
   }
   return String(dn)
 })
@@ -1032,11 +1032,12 @@ const handleReport = () => {
   showActionsMenu.value = false;
 };
 
-const showUserProfile = (clickedUser: FederatedUser) => {
-  // Show modal first
-  selectedModalUser.value = clickedUser;
+// Accepts both `User` (chat-side) and `FederatedUser` (federation-side) since
+// the `ProfileCard` emit may emit either depending on the source list.
+const showUserProfile = (clickedUser: import('@/types').User | FederatedUser) => {
+  selectedModalUser.value = clickedUser as FederatedUser;
   showProfileModal.value = true;
-  debug.log(`👤 Showing profile modal for: ${clickedUser.handle}`);
+  debug.log(`👤 Showing profile modal for: ${(clickedUser as FederatedUser).handle}`);
 };
 
 const navigateToProfile = (clickedUser: FederatedUser) => {

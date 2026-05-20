@@ -88,10 +88,10 @@
       @sendEmoji="handleSendEmoji"
       :closePopup="closeMediaPicker"
       :position="'above'"
-      :triggerElement="mediaPickerTriggerElement || undefined"
+      :triggerElement="(mediaPickerTriggerElement as unknown as HTMLElement | null) || undefined"
       :initialTab="mediaPickerInitialTab"
     />
-    
+
     <!-- Emoji Popup for reactions only (teleported to avoid transform containment from virtual scroll) -->
     <Teleport to="body">
       <EmojiPopup
@@ -101,7 +101,7 @@
         :closeEmojiList="closeReactionEmoji"
         :emojiIconClicked="emojiIconClicked"
         :position="'left'"
-        :triggerElement="reactionTriggerElement || undefined"
+        :triggerElement="(reactionTriggerElement as unknown as HTMLElement | null) || undefined"
         @resetEmojiIconClicked="emojiIconClicked = false"
       />
     </Teleport>
@@ -310,7 +310,9 @@
         // Fallback: try to get from store
         if (props.isDM) {
           const conversation = dmStore.getCurrentConversation;
-          const otherParticipant = conversation?.other_participants?.[0];
+          // `other_participants` is a legacy view-model field; the canonical
+          // store key is `participants`. Read via `any` to cover both shapes.
+          const otherParticipant = (conversation as any)?.other_participants?.[0] || (conversation as any)?.participants?.[0];
           return otherParticipant?.display_name || otherParticipant?.username;
         }
         return undefined;
@@ -949,7 +951,7 @@
             await chatStore.sendMessage(
               serverChannelStore.currentServerId,
               serverChannelStore.currentChannelId,
-              authStore.session.user.id,
+              authStore.session!.user.id,
               messageParts,
               '',
               voiceMetadata

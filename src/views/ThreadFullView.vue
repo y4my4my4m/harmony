@@ -208,7 +208,7 @@
       :closeEmojiList="closeReactionEmoji"
       :emojiIconClicked="emojiIconClicked"
       :position="'left'"
-      :triggerElement="reactionTriggerElement || undefined"
+      :triggerElement="(reactionTriggerElement as unknown as HTMLElement | null) || undefined"
       @resetEmojiIconClicked="emojiIconClicked = false"
     />
     
@@ -841,7 +841,7 @@ const handleReplyingTo = (messageId: string, displayName?: string, userId?: stri
     // Fallback: find the message and get user display name
     const replyMessage = messages.value.find(m => m.id === messageId)
     if (replyMessage) {
-      replyingToUserName.value = getDisplayName(replyMessage.user_id).value
+      replyingToUserName.value = getDisplayName(replyMessage.user_id ?? '').value
       if (!replyingToUserId.value) replyingToUserId.value = replyMessage.user_id
     }
   }
@@ -903,7 +903,7 @@ const setupRealtimeSubscription = () => {
         
         messages.value.push(newMessage)
         // Update cache
-        threadService.addMessageToCache(thread.value.id, newMessage)
+        threadService.addMessageToCache(thread.value!.id, newMessage)
         await nextTick()
         scrollToBottom()
         debug.log('📝 Thread message added via realtime:', newMessage.id)

@@ -86,17 +86,18 @@
         </div>
         <masonry-wall v-else :items="favorites" :column-width="150" :gap="10">
           <template #default="{ item }">
-            <div 
-              :key="item.id" 
-              class="gif-item" 
-              @mouseover="hoveredGif = item.tenor_id" 
+            <div
+              :key="item.id"
+              class="gif-item"
+              @mouseover="hoveredGif = item.tenor_id ?? null"
               @mouseleave="hoveredGif = null"
               @click="selectFavoriteGif(item)"
             >
-              <img :src="getGifImageSource(item.tenor_id, item.gif_url, item.preview_url)" :alt="item.title || 'GIF'">
-              <button 
+              <img :src="getGifImageSource(item.tenor_id ?? '', item.gif_url, item.preview_url)" :alt="item.title || 'GIF'">
+              <button
+                v-if="item.tenor_id"
                 class="favorite-button favorited"
-                @click.stop="removeFavorite(item.tenor_id)"
+                @click.stop="removeFavorite(item.tenor_id!)"
                 :title="$t('gif.removeFromFavorites')"
               >
                 <StarIcon :filled="true" :size="16" />
@@ -282,7 +283,7 @@ const loadFavorites = async () => {
   isLoading.value = true;
   try {
     favorites.value = await gifService.getFavorites();
-    favoriteTenorIds.value = new Set(favorites.value.map(f => f.tenor_id));
+    favoriteTenorIds.value = new Set(favorites.value.map(f => f.tenor_id ?? '').filter(Boolean));
   } catch (error) {
     debug.error('Failed to load favorites:', error);
   } finally {
@@ -306,6 +307,9 @@ const toggleFavorite = async (gif: Gif) => {
     // Add to favorites array for immediate display when switching to favorites view
     favorites.value.unshift({
       id: crypto.randomUUID(), // Temporary ID until reload
+      // `user_id` is required by `GifFavorite` but unknown at optimistic-insert
+      // time; the row is replaced once `loadFavorites()` reloads from the DB.
+      user_id: '',
       tenor_id: gif.id,
       gif_url: gif.media_formats.gif.url,
       preview_url: gif.media_formats.gifpreview.url,

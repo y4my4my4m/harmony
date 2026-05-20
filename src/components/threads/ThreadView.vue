@@ -232,7 +232,7 @@
       :closeEmojiList="closeReactionEmoji"
       :emojiIconClicked="emojiIconClicked"
       :position="'left'"
-      :triggerElement="reactionTriggerElement || undefined"
+      :triggerElement="(reactionTriggerElement as any) || undefined"
       @resetEmojiIconClicked="emojiIconClicked = false"
     />
     
@@ -396,8 +396,9 @@ const displayParentMessage = computed(() => {
 const displayThreadName = computed(() => {
   if (thread.value?.name) return thread.value.name
   if (isDraftMode.value && props.draftParentMessage) {
+    // find() doesn't narrow the discriminated union, so cast to access .text safely.
     const text = Array.isArray(props.draftParentMessage.content)
-      ? props.draftParentMessage.content.find(p => p.type === 'text')?.text || 'Thread'
+      ? ((props.draftParentMessage.content.find(p => p.type === 'text') as any)?.text || 'Thread')
       : 'Thread'
     return text.substring(0, 50) + (text.length > 50 ? '...' : '')
   }
@@ -740,6 +741,8 @@ const handleSendMessage = async (content: string, files: FilePreviewData[] = [],
       const tempId = `temp-${crypto.randomUUID()}`
       const { authContextService } = await import('@/services/AuthContextService')
       const profileId = await authContextService.getCurrentProfileId()
+      // reply_to/metadata are optional strings/objects in the Message type; use
+      // undefined instead of null to satisfy the optional-property shape.
       const optimisticMessage: Message = {
         id: tempId,
         created_at: new Date(),
@@ -747,11 +750,11 @@ const handleSendMessage = async (content: string, files: FilePreviewData[] = [],
         user_id: profileId,
         content: messageParts,
         thread_id: targetThreadId,
-        reply_to: savedReplyTo || null,
+        reply_to: savedReplyTo || undefined,
         is_system: false,
         encrypted: false,
         reactions: [],
-        metadata: null,
+        metadata: undefined,
       }
       messages.value.push(optimisticMessage)
       
@@ -967,7 +970,7 @@ const handleSendVoiceMessage = async (data: { url: string, duration: number, wav
       user_id: profileId,
       content: messageParts,
       thread_id: targetThreadId,
-      reply_to: null,
+      reply_to: undefined,
       is_system: false,
       encrypted: false,
       reactions: [],
@@ -1102,7 +1105,7 @@ const handleReplyingTo = (messageId: string, displayName?: string, userId?: stri
     const replyMessage = messages.value.find(m => m.id === messageId)
     if (replyMessage) {
       replyingToUserName.value = getDisplayName(replyMessage.user_id).value
-      if (!replyingToUserId.value) replyingToUserId.value = replyMessage.user_id
+      if (!replyingToUserId.value) replyingToUserId.value = replyMessage.user_id ?? ''
     }
   }
 }

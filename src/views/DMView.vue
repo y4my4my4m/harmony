@@ -51,13 +51,13 @@
       <!-- Show chat when conversation is selected -->
       <UnifiedContentArea
         v-else
-        mode="chat"
+        :mode="ViewMode.CHAT"
         :chat-messages="chatMessages"
         :is-loading="isLoading"
         :is-d-m="true"
         :conversation-id="currentConversation?.id"
         :dm-username="currentDMUsername"
-        view-type="dm"
+        :view-type="ViewType.DM"
         current-view="dm"
         @load-more-messages="fetchMoreMessages"
         @update:is-at-bottom="isAtBottom = $event"
@@ -109,6 +109,7 @@ import { useViewContextTracking } from '@/composables/useViewContext'
 import { useNotificationStore } from '@/stores/useNotification'
 import { debug } from '@/utils/debug'
 import type { MessagePart } from '@/types'
+import { ViewMode, ViewType } from '@/types/viewTypes'
 
 // Props
 interface Props {
@@ -202,12 +203,15 @@ const stripShortcodes = (text: string): string => {
 const currentDMUsername = computed(() => {
   const conversation = currentConversation.value
   if (!conversation) return undefined
-  const otherUserId = conversation.other_participants?.[0]?.id || conversation.other_user?.id
+  // `other_participants` is provided by the conversation payload at runtime but
+  // isn't on the typed Conversation interface; cast to access it.
+  const conv = conversation as any
+  const otherUserId = conv.other_participants?.[0]?.id || conv.other_user?.id
   if (otherUserId) {
     const name = getUserDisplayName(otherUserId).value
     if (name && name !== 'Unknown User') return stripShortcodes(name)
   }
-  const rawName = conversation.other_participants?.[0]?.display_name || conversation.other_participants?.[0]?.username || conversation.other_user?.display_name || conversation.other_user?.username
+  const rawName = conv.other_participants?.[0]?.display_name || conv.other_participants?.[0]?.username || conv.other_user?.display_name || conv.other_user?.username
   return rawName ? stripShortcodes(rawName) : undefined
 })
 
@@ -218,7 +222,9 @@ const existingParticipants = computed(() => {
   if (!conversation?.other_user || !currentUser) return []
   
   // For now, return basic participant data
-  // In the future, this could be enhanced to fetch from conversation_participants table
+  // In the future, this could be enhanced to fetch from conversation_participants table.
+  // `domain: null` plus optional fields don't match DMUser exactly; cast through any.
+  const conv = conversation as any
   return [
     {
       id: currentUser.id,
@@ -230,15 +236,15 @@ const existingParticipants = computed(() => {
       handle: `@${currentUser.username}`
     },
     {
-      id: conversation.other_user.id,
-      username: conversation.other_user.username,
-      display_name: conversation.other_user.display_name,
-      avatar_url: conversation.other_user.avatar_url,
-      is_local: conversation.other_user.is_local || false,
-      domain: conversation.other_user.domain,
-      handle: conversation.other_user.handle
+      id: conv.other_user.id,
+      username: conv.other_user.username,
+      display_name: conv.other_user.display_name,
+      avatar_url: conv.other_user.avatar_url,
+      is_local: conv.other_user.is_local || false,
+      domain: conv.other_user.domain,
+      handle: conv.other_user.handle
     }
-  ]
+  ] as any
 })
 
 // Load messages when route changes
