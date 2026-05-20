@@ -64,7 +64,12 @@ export class WebSocketGateway {
             
           case 6: // REGISTER_BRIDGE_DATA
             if (botConnection) {
-              this.handleBridgeDataRegistration(botConnection, payload.d)
+              // Fire-and-forget; the registration is best-effort caching and
+              // an unhandled rejection here would otherwise crash the gateway
+              // worker (see BUGS.md M47 — unhandled rejection policy).
+              this.handleBridgeDataRegistration(botConnection, payload.d).catch(err => {
+                console.error('Error handling bridge data registration:', err)
+              })
             }
             break
             
@@ -290,9 +295,22 @@ export class WebSocketGateway {
   // =====================================================
   
   /**
-   * Handle bridge data registration from Discord bridge
+   * Handle bridge data registration from Discord bridge.
+   *
+   * BUGS.md H40: previously this trusted whatever `harmonyChannelId`s the bot
+   * sent us and cached the member list under those IDs. A compromised or
+   * malicious bot token could therefore inject fake Discord member lists into
+   * `bridgedUsersByChannel` for ANY channel, including channels in servers
+   * the bot is not installed on. The cached lists are then served back to the
+   * Harmony frontend via `/bridged-users/:channelId` (used for mention
+   * autosuggest) — so the attack surface includes both fabricated mention
+   * pings and impersonation by way of crafted Discord user metadata.
+   *
+   * Fix: for each `harmonyChannelId`, resolve `channels.server_id` and verify
+   * that the bot has an active `bot_server_permissions` row for that server.
+   * Channels failing the check are silently dropped from the registration.
    */
-  private handleBridgeDataRegistration(botConnection: BotConnection, data: any) {
+  private async handleBridgeDataRegistration(botConnection: BotConnection, data: any) {
     if (!data.channels || !Array.isArray(data.channels)) {
       console.warn('⚠️ Invalid bridge data registration - missing channels array')
       return
@@ -309,16 +327,65 @@ export class WebSocketGateway {
       this.channelsByBot.set(botConnection.botId, new Set())
     }
     const botChannels = this.channelsByBot.get(botConnection.botId)!
-    
+
+    // Collect candidate harmony channel IDs up-front so we can batch the
+    // server lookup and permission check (one DB round-trip instead of N).
+    const candidates: Array<{ harmonyChannelId: string; members: BridgedUser[] }> = []
     for (const channelData of data.channels) {
       const { harmonyChannelId, members } = channelData
-      
-      if (harmonyChannelId && Array.isArray(members)) {
-        this.bridgedUsersByChannel.set(harmonyChannelId, members)
-        botChannels.add(harmonyChannelId)
-        console.log(`║   📍 ${harmonyChannelId}: ${members.length} Discord users`)
+      if (typeof harmonyChannelId === 'string' && harmonyChannelId.length > 0 && Array.isArray(members)) {
+        candidates.push({ harmonyChannelId, members: members as BridgedUser[] })
       }
     }
+
+    if (candidates.length === 0) {
+      console.log('╚════════════════════════════════════════╝')
+      return
+    }
+
+    // Resolve channel → server_id in one batch.
+    const { data: channelRows } = await supabase
+      .from('channels')
+      .select('id, server_id')
+      .in('id', candidates.map(c => c.harmonyChannelId))
+
+    const channelServerMap = new Map<string, string>()
+    for (const row of (channelRows || []) as Array<{ id: string; server_id: string | null }>) {
+      if (row.server_id) channelServerMap.set(row.id, row.server_id)
+    }
+
+    // Resolve which servers this bot is actually allowed to act on.
+    const candidateServerIds = Array.from(new Set(channelServerMap.values()))
+    let authorizedServerIds = new Set<string>()
+    if (candidateServerIds.length > 0) {
+      const { data: permRows } = await supabase
+        .from('bot_server_permissions')
+        .select('server_id')
+        .eq('bot_id', botConnection.botId)
+        .eq('is_active', true)
+        .in('server_id', candidateServerIds)
+      authorizedServerIds = new Set(
+        ((permRows || []) as Array<{ server_id: string }>).map(r => r.server_id),
+      )
+    }
+
+    let acceptedCount = 0
+    let rejectedCount = 0
+    for (const { harmonyChannelId, members } of candidates) {
+      const serverId = channelServerMap.get(harmonyChannelId)
+      if (!serverId || !authorizedServerIds.has(serverId)) {
+        console.warn(
+          `║   🚫 ${harmonyChannelId}: bot ${botConnection.botId} not authorized for server ${serverId ?? 'unknown'} — dropping`,
+        )
+        rejectedCount++
+        continue
+      }
+      this.bridgedUsersByChannel.set(harmonyChannelId, members)
+      botChannels.add(harmonyChannelId)
+      console.log(`║   📍 ${harmonyChannelId}: ${members.length} Discord users`)
+      acceptedCount++
+    }
+    console.log(`║   accepted=${acceptedCount} rejected=${rejectedCount}`)
     console.log('╚════════════════════════════════════════╝')
   }
   

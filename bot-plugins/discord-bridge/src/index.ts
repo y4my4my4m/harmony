@@ -312,11 +312,19 @@ discordClient.on('messageCreate', async (msg: DiscordMessage) => {
     // Send to Harmony with MessageParts array
     const result = await harmonyClient.sendMessage(harmonyChannelId, contentParts, metadata)
     
-    // Store message ID mapping for reactions
-    if (result?.message?.id) {
-      discordToHarmonyMessages.set(msg.id, result.message.id)
-      harmonyToDiscordMessages.set(result.message.id, msg.id)
-      console.log(`📌 Stored message mapping: Discord ${msg.id} <-> Harmony ${result.message.id}`)
+    // Store message ID mapping for reactions / edits / deletes.
+    // BUGS.md H36: the gateway returns the message object at top level
+    // (`{ id, channel_id, author, ... }` from `BotRestAPI.formatMessage`),
+    // not nested under `.message.id`. The old check meant the mapping was
+    // never written, so Discord→Harmony reaction/edit/delete bridging
+    // silently failed with "No message mapping found".
+    const harmonyMessageId = result?.id ?? result?.message?.id
+    if (harmonyMessageId) {
+      discordToHarmonyMessages.set(msg.id, harmonyMessageId)
+      harmonyToDiscordMessages.set(harmonyMessageId, msg.id)
+      console.log(`📌 Stored message mapping: Discord ${msg.id} <-> Harmony ${harmonyMessageId}`)
+    } else {
+      console.warn(`⚠️ Bridged message returned no id; reaction/edit/delete sync will be skipped for Discord ${msg.id}`)
     }
     
     console.log(`✅ Discord -> Harmony: ${msg.author.username} in #${msg.channel}`)

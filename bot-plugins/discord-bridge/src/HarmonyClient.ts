@@ -20,6 +20,14 @@ export class HarmonyClient extends EventEmitter {
   private apiUrl: string
   private heartbeatInterval: NodeJS.Timeout | null = null
   private sessionId: string | null = null
+  /**
+   * BUGS.md H39: gate the auto-reconnect on `close` so a manual `disconnect()`
+   * (called from the bridge's `shutdown()` path) does not immediately schedule
+   * another `connect()` and resurrect the WebSocket. Without this flag the
+   * shutdown path would loop reconnect timers forever.
+   */
+  private reconnectEnabled: boolean = true
+  private reconnectTimer: NodeJS.Timeout | null = null
   
   constructor(botToken: string, gatewayUrl: string = 'ws://localhost:3002/gateway', apiUrl: string = 'http://localhost:3002') {
     super()
@@ -30,7 +38,15 @@ export class HarmonyClient extends EventEmitter {
   
   async connect() {
     console.log('🔌 Connecting to Harmony gateway...')
-    
+
+    // A new explicit connect() implies we want auto-reconnect again; clear
+    // any pending timer from a previous disconnect cycle.
+    this.reconnectEnabled = true
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer)
+      this.reconnectTimer = null
+    }
+
     this.ws = new WebSocket(this.gatewayUrl)
     
     this.ws.on('open', () => {
@@ -46,8 +62,17 @@ export class HarmonyClient extends EventEmitter {
     this.ws.on('close', () => {
       console.log('🔌 Disconnected from Harmony gateway')
       this.cleanup()
+      if (!this.reconnectEnabled) {
+        console.log('   ↳ reconnect disabled (intentional shutdown)')
+        return
+      }
       // Reconnect after 5 seconds
-      setTimeout(() => this.connect(), 5000)
+      this.reconnectTimer = setTimeout(() => {
+        this.reconnectTimer = null
+        if (this.reconnectEnabled) {
+          this.connect().catch(err => console.error('❌ Reconnect failed:', err))
+        }
+      }, 5000)
     })
     
     this.ws.on('error', (error) => {
@@ -405,6 +430,13 @@ export class HarmonyClient extends EventEmitter {
   }
   
   disconnect() {
+    // Disable auto-reconnect BEFORE closing — the `close` event handler reads
+    // `reconnectEnabled` to decide whether to schedule another connect attempt.
+    this.reconnectEnabled = false
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer)
+      this.reconnectTimer = null
+    }
     this.cleanup()
     if (this.ws) {
       this.ws.close()

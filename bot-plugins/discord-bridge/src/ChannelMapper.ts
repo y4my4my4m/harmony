@@ -68,11 +68,22 @@ export class ChannelMapper {
     return mapping?.harmony || null
   }
   
+  /**
+   * Returns true when a Discord message in this channel should be mirrored
+   * to Harmony.
+   *
+   * BUGS.md H37: previously this returned `bidirectional ?? false`, which —
+   * combined with the same check in `shouldBridgeFromHarmony` — meant
+   * `bidirectional: false` disabled BOTH directions. The example config
+   * (`bridge-config.example.yml`) documents "If false, only Discord -> Harmony",
+   * so Discord→Harmony must remain enabled whenever a mapping exists; only
+   * the Harmony→Discord direction is gated by `bidirectional`.
+   */
   shouldBridgeFromDiscord(discordChannelId: string): boolean {
     const mapping = this.config.channelMappings.find(
       m => m.discord === discordChannelId
     )
-    return mapping?.bidirectional ?? false
+    return Boolean(mapping)
   }
   
   // =====================================================
@@ -86,11 +97,18 @@ export class ChannelMapper {
     return mapping?.discord || null
   }
   
+  /**
+   * Returns true when a Harmony message in this channel should be mirrored
+   * to Discord. Requires the mapping to be explicitly `bidirectional: true`
+   * (the default when not specified is `true` for safety with most existing
+   * configs that omit the flag).
+   */
   shouldBridgeFromHarmony(harmonyChannelId: string): boolean {
     const mapping = this.config.channelMappings.find(
       m => m.harmony === harmonyChannelId
     )
-    return mapping?.bidirectional ?? false
+    if (!mapping) return false
+    return mapping.bidirectional !== false
   }
   
   // =====================================================

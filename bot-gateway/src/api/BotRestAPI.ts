@@ -254,11 +254,17 @@ export class BotRestAPI {
       if (!message || message.bot_id !== botId) {
         return res.status(403).json({ error: 'Cannot edit messages from other bots or users' })
       }
-      
-      // Check permissions
-      const canManage = await this.checkChannelPermission(botId, message.channel_id, 'manage_messages')
-      if (!canManage) {
-        return res.status(403).json({ error: 'Missing permission: manage_messages' })
+
+      // BUGS.md H38: editing your OWN message should only require `send_messages`
+      // (the permission to post in that channel) — requiring `manage_messages`
+      // here broke Discord bridge edit-sync because bridge bots typically only
+      // hold `send_messages`. The ownership check above already guarantees the
+      // bot is the author. `deleteMessage` already follows this pattern (line
+      // 307: own-message delete is allowed; `manage_messages` only required for
+      // OTHER bots' messages).
+      const canSend = await this.checkChannelPermission(botId, message.channel_id, 'send_messages')
+      if (!canSend) {
+        return res.status(403).json({ error: 'Missing permission: send_messages' })
       }
       
       const messageContent = this.formatContent(content)
