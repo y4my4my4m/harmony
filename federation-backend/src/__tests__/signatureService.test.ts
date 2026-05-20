@@ -144,6 +144,39 @@ describe('SignatureService', () => {
         )
       ).toBe(false)
     })
+
+    it('rejects same-domain cross-user signature in strict mode (default)', () => {
+      // Regression for BUGS.md C1: a legitimate signer on a host must not be
+      // able to claim activity.actor for any *other* user on the same host.
+      expect(
+        SignatureService.verifyActorMatch(
+          'https://mastodon.social/users/bob',
+          'https://mastodon.social/users/alice'
+        )
+      ).toBe(false)
+    })
+
+    it('accepts same-domain cross-user signature only when explicitly opted in (Group delegation)', () => {
+      // Server-inbox path (Lemmy-style Group activity signed by a moderator
+      // on the same host) — only safe when caller opts in.
+      expect(
+        SignatureService.verifyActorMatch(
+          'https://lemmy.example/c/news',
+          'https://lemmy.example/u/alice',
+          true,
+        )
+      ).toBe(true)
+    })
+
+    it('still rejects cross-domain even when delegation is allowed', () => {
+      expect(
+        SignatureService.verifyActorMatch(
+          'https://evil.example.com/users/bob',
+          'https://mastodon.social/users/alice',
+          true,
+        )
+      ).toBe(false)
+    })
   })
 
   describe('signRequest + verifySignature roundtrip', () => {

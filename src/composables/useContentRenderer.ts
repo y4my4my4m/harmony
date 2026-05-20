@@ -19,7 +19,7 @@ import { getEmojiUrl } from '@/utils/emojiUtils';
 import { convertActivityPubHTMLToMessageParts } from '@/utils/unifiedContentProcessing';
 import { useUnifiedEmoji } from '@/services/unifiedEmojiService';
 import { isYouTubeUrl, buildYouTubeEmbedUrl, parseEmbedUrl } from '@/utils/embedDetection';
-import { escapeHtml } from '@/utils/sanitize';
+import { escapeHtml, sanitizeUrl } from '@/utils/sanitize';
 
 export interface ContentRenderOptions {
   mode?: 'display' | 'preview' | 'edit';
@@ -300,7 +300,7 @@ export function useContentRenderer(
     const partType = String((p as any).type || '').toLowerCase();
     if (partType === 'file') {
       const fileName = escapeHtml((p as any).fileName || (p as any).filename || 'file');
-      const safeUrl = escapeHtml((p as any).url || '');
+      const safeUrl = escapeHtml(sanitizeUrl((p as any).url || ''));
       const ft = getPartFileType(p);
       if (ft === 'image') {
         return `<div class="media-gallery__item"><img src="${safeUrl}" alt="${fileName}" class="content-image" loading="lazy" draggable="false" /></div>`;
@@ -311,17 +311,17 @@ export function useContentRenderer(
     }
     // Some formats use type: 'image' or type: 'video' directly
     if (partType === 'image' || partType === 'gifv') {
-      const safeUrl = escapeHtml((p as any).url || '');
+      const safeUrl = escapeHtml(sanitizeUrl((p as any).url || ''));
       const alt = escapeHtml((p as any).description || (p as any).alt || 'Image');
       return `<div class="media-gallery__item"><img src="${safeUrl}" alt="${alt}" class="content-image" loading="lazy" draggable="false" /></div>`;
     }
     if (partType === 'video') {
-      const safeUrl = escapeHtml((p as any).url || '');
+      const safeUrl = escapeHtml(sanitizeUrl((p as any).url || ''));
       return `<div class="media-gallery__item"><video src="${safeUrl}" controls class="content-video"></video></div>`;
     }
     if (partType === 'url') {
       const url = (p as any).url || '';
-      const safeUrl = escapeHtml(url);
+      const safeUrl = escapeHtml(sanitizeUrl(url));
       if (isImageUrl(url)) {
         return `<div class="media-gallery__item"><img src="${safeUrl}" alt="Image" class="content-image" loading="lazy" draggable="false" /></div>`;
       }
@@ -331,12 +331,12 @@ export function useContentRenderer(
     }
     // Direct type: 'image' or type: 'video' (e.g. some Fedi/API formats)
     if ((partType === 'image' || partType === 'gifv') && renderOptions.showImages) {
-      const safeUrl = escapeHtml((p as any).url || (p as any).preview_url || '');
+      const safeUrl = escapeHtml(sanitizeUrl((p as any).url || (p as any).preview_url || ''));
       const alt = escapeHtml((p as any).description || (p as any).alt || 'Image');
       return `<div class="media-gallery__item"><img src="${safeUrl}" alt="${alt}" class="content-image" loading="lazy" draggable="false" /></div>`;
     }
     if ((partType === 'video') && renderOptions.showVideos) {
-      const safeUrl = escapeHtml((p as any).url || '');
+      const safeUrl = escapeHtml(sanitizeUrl((p as any).url || ''));
       return `<div class="media-gallery__item"><video src="${safeUrl}" controls class="content-video"></video></div>`;
     }
     return '';
@@ -478,10 +478,22 @@ export function useContentRenderer(
         
         case 'url': {
           const url = part.url || '';
-          const safeUrl = escapeHtml(url);
-          
+          // sanitizeUrl rejects javascript:/data:/etc.; escapeHtml prevents
+          // attribute-context HTML injection.
+          const cleanUrl = sanitizeUrl(url);
+          const safeUrl = escapeHtml(cleanUrl);
+          // Display text uses the raw (escaped) URL so the user sees what they typed
+          // even if the scheme is unsafe — we just don't make it a live link.
+          const safeDisplayText = escapeHtml(url);
+
+          // If the URL was rejected by sanitizeUrl, render it as inert text instead
+          // of a clickable anchor (a `href=""` link would navigate to the current page).
+          if (!cleanUrl) {
+            return `<span class="url-link url-link--unsafe">${safeDisplayText}</span>`;
+          }
+
           if (renderOptions.mode === 'preview') {
-            return `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer" class="url-link">${safeUrl}</a>`;
+            return `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer" class="url-link">${safeDisplayText}</a>`;
           }
           
           // Check for media URLs
@@ -511,8 +523,8 @@ export function useContentRenderer(
               if (embedUrl) {
                 const separator = embedUrl.includes('?') ? '&' : '?';
                 const fullEmbedUrl = `${embedUrl}${separator}enablejsapi=1&origin=${encodeURIComponent(typeof window !== 'undefined' ? window.location.origin : '')}`;
-                const safeEmbedUrl = escapeHtml(fullEmbedUrl);
-                return `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer" class="url-link">${safeUrl}</a>
+                const safeEmbedUrl = escapeHtml(sanitizeUrl(fullEmbedUrl));
+                return `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer" class="url-link">${safeDisplayText}</a>
                   <div class="media-container video-container youtube-embed">
                     <iframe src="${safeEmbedUrl}" frameborder="0" allowfullscreen
                       allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
@@ -522,18 +534,24 @@ export function useContentRenderer(
             }
           }
           
-          return `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer" class="url-link">${safeUrl}</a>`;
+          return `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer" class="url-link">${safeDisplayText}</a>`;
         }
         
         case 'file': {
           const fileName = escapeHtml(part.fileName || 'file');
           const fileSize = part.fileSize ? ` (${formatFileSize(part.fileSize)})` : '';
-          const safeFileUrl = escapeHtml(part.url || '');
+          const safeFileUrl = escapeHtml(sanitizeUrl(part.url || ''));
           
           if (renderOptions.mode === 'preview') {
             return `<span class="file-preview">[${escapeHtml(part.fileType || 'file')}: ${fileName}${fileSize}]</span>`;
           }
-          
+
+          if (!safeFileUrl) {
+            return `<span class="file-link file-link--unsafe">
+              <span class="file-icon">📎</span>${fileName}${fileSize}
+            </span>`;
+          }
+
           if (part.fileType === 'image' && renderOptions.showImages) {
             return `<div class="media-container image-container">
               <img src="${safeFileUrl}" alt="${fileName}" class="content-image" loading="lazy" draggable="false" />

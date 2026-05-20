@@ -115,12 +115,14 @@ async function acceptInvite(code: string, userId: string): Promise<{ success: bo
   const toast = useToast();
   
   try {
-    // Get invite details
-    const { data: invite, error: inviteError } = await supabase
-      .from('invites')
-      .select('*')
-      .eq('code', code)
-      .single();
+    // Look up invite via SECURITY DEFINER RPC. Direct `from('invites').select(...)`
+    // would be blocked by the post-20260520 RLS policies (which restrict reads to
+    // the invite creator / instance admins); the RPC returns exactly one row by
+    // code so it does not enable enumeration.
+    const { data: inviteRows, error: inviteError } = await supabase
+      .rpc('lookup_invite_by_code', { p_code: code });
+
+    const invite = Array.isArray(inviteRows) ? inviteRows[0] : null;
 
     if (inviteError || !invite) {
       return { success: false, error: 'Invalid invite code' };
@@ -248,23 +250,18 @@ async function revokeInvite(inviteId: string, userId: string): Promise<boolean> 
 
 async function getInviteDetails(code: string): Promise<{ invite: Invite; serverName: string } | null> {
   try {
+    // Uses SECURITY DEFINER RPC so anonymous / non-owner viewers can preview
+    // a single invite by code (e.g. shared link cards) without granting broad
+    // SELECT on `public.invites`.
     const { data, error } = await supabase
-      .from('invites')
-      .select(`
-        *,
-        servers!inner (
-          name,
-          icon_url
-        )
-      `)
-      .eq('code', code)
-      .single();
+      .rpc('lookup_invite_by_code', { p_code: code });
 
-    if (error || !data) return null;
+    const row = Array.isArray(data) ? data[0] : null;
+    if (error || !row) return null;
 
     return {
-      invite: data,
-      serverName: data.servers.name
+      invite: row as unknown as Invite,
+      serverName: row.server_name ?? ''
     };
   } catch (error) {
     debug.error('Error fetching invite details:', error);

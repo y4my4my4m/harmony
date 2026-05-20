@@ -131,13 +131,13 @@ async function loadInviteData() {
   debug.log('🎫 Loading invite data for code:', props.inviteCode);
   
   try {
-    // Step 1: Fetch invite details
-    const { data: invite, error: inviteError } = await supabase
-      .from('invites')
-      .select('*')
-      .eq('code', props.inviteCode)
-      .single();
+    // Step 1: Fetch invite details via SECURITY DEFINER RPC (post-20260520).
+    // Direct `from('invites').select('*').eq('code', ...)` is blocked for
+    // non-owners by the tightened RLS; the RPC returns one row by code.
+    const { data: inviteRows, error: inviteError } = await supabase
+      .rpc('lookup_invite_by_code', { p_code: props.inviteCode });
 
+    const invite = Array.isArray(inviteRows) ? inviteRows[0] : null;
     debug.log('🎫 Invite query result:', { invite, inviteError });
 
     if (inviteError || !invite) {

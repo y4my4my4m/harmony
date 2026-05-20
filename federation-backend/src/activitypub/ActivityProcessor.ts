@@ -851,13 +851,27 @@ export class ActivityProcessor {
   }
 
   /**
-   * Process Update activity (profile update, post edit)
+   * Process Update activity (profile update, post edit).
+   *
+   * Each branch verifies that `activity.actor` actually owns the object being
+   * modified before writing anything. Without this guard a remote signer can
+   * Update someone else's profile or edit any post by URL (BUGS.md C2).
    */
   private static async processUpdate(activity: any): Promise<void> {
     const object = activity.object;
     const supabase = getSupabaseClient();
+    const actorUrl = normalizeActor(activity.actor);
 
     if (object.type === 'Person') {
+      // The object IS the actor being updated. Refuse unless the activity
+      // signer == the actor being updated.
+      if (!SignatureService.verifyActorMatch(actorUrl, object.id || '')) {
+        logger.warn(
+          `🚫 Update Person rejected: actor ${actorUrl} cannot update ${object.id}`,
+        );
+        return;
+      }
+
       // Update user profile
       const profileData = actorToProfile(object);
 
@@ -908,15 +922,24 @@ export class ActivityProcessor {
       // Handle post edits
       logger.info(`✏️ Processing post edit: ${object.id}`);
       
-      // Find the existing post
+      // Find the existing post + author actor URL (joined via profiles.federated_id)
+      // so we can verify the editor owns the post.
       const { data: existingPost } = await supabase
         .from('posts')
-        .select('id, author_id')
+        .select('id, author_id, profiles:author_id(federated_id)')
         .eq('ap_id', object.id)
         .maybeSingle();
 
       if (!existingPost) {
         logger.warn(`Post not found for edit: ${object.id}`);
+        return;
+      }
+
+      const ownerActorUrl = (existingPost as any).profiles?.federated_id as string | null | undefined;
+      if (!ownerActorUrl || !SignatureService.verifyActorMatch(actorUrl, ownerActorUrl)) {
+        logger.warn(
+          `🚫 Update Note rejected: actor ${actorUrl} does not own post ${object.id} (owner=${ownerActorUrl ?? 'unknown'})`,
+        );
         return;
       }
 
@@ -965,13 +988,24 @@ export class ActivityProcessor {
       // Find the server by ID (it should already exist as a federated copy)
       const { data: existingServer } = await supabase
         .from('servers')
-        .select('id')
+        .select('id, ap_id')
         .eq('id', serverIdMatch[1])
         .eq('is_local_server', false)
         .maybeSingle();
       
       if (!existingServer) {
         logger.warn(`Remote server not found for Update: ${object.id}`);
+        return;
+      }
+
+      // Group actor ownership: signer must match the server's stored actor URL.
+      // Same-domain delegation is allowed here because the server inbox is
+      // the canonical Group inbox (see SignatureService.verifyActorMatch docs).
+      const serverActorUrl = (existingServer as any).ap_id as string | null | undefined;
+      if (!serverActorUrl || !SignatureService.verifyActorMatch(actorUrl, serverActorUrl, true)) {
+        logger.warn(
+          `🚫 Update Group rejected: actor ${actorUrl} does not own server ${object.id} (server actor=${serverActorUrl ?? 'unknown'})`,
+        );
         return;
       }
       
@@ -1004,7 +1038,11 @@ export class ActivityProcessor {
   }
 
   /**
-   * Process Delete activity
+   * Process Delete activity.
+   *
+   * Verifies that `activity.actor` owns the object before soft-deleting.
+   * Without this guard any signed remote actor could delete any post/message
+   * by URL (BUGS.md C2).
    */
   private static async processDelete(activity: any): Promise<void> {
     const object = activity.object;
@@ -1020,20 +1058,58 @@ export class ActivityProcessor {
 
     const { objectUrl } = extractDeleteData(activity);
     const supabase = getSupabaseClient();
+    const actorUrl = normalizeActor(activity.actor);
 
-    // Try to soft-delete post by ap_id (correct column)
-    const { error: postError } = await supabase
+    // Look up the post first and check that the deleting actor is the author.
+    // We do post and message independently so a Delete that targets one of the
+    // two doesn't fail-open on the other.
+    const { data: existingPost } = await supabase
       .from('posts')
-      .update({ is_deleted: true, deleted_at: new Date().toISOString() })
-      .eq('ap_id', objectUrl);
+      .select('id, profiles:author_id(federated_id)')
+      .eq('ap_id', objectUrl)
+      .maybeSingle();
 
-    // Try to soft-delete message by metadata.ap_id
-    const { error: messageError } = await supabase
+    let postDeleted = false;
+    if (existingPost) {
+      const ownerActorUrl = (existingPost as any).profiles?.federated_id as string | null | undefined;
+      if (!ownerActorUrl || !SignatureService.verifyActorMatch(actorUrl, ownerActorUrl)) {
+        logger.warn(
+          `🚫 Delete post rejected: actor ${actorUrl} does not own ${objectUrl} (owner=${ownerActorUrl ?? 'unknown'})`,
+        );
+      } else {
+        const { error: postError } = await supabase
+          .from('posts')
+          .update({ is_deleted: true, deleted_at: new Date().toISOString() })
+          .eq('id', (existingPost as any).id);
+        if (!postError) postDeleted = true;
+      }
+    }
+
+    // Same pattern for messages: look up sender, verify, then delete.
+    // `messages.user_id` references `profiles(id)` (see db_schema/init/04_tables_servers.sql:130).
+    const { data: existingMessage } = await supabase
       .from('messages')
-      .update({ is_deleted: true })
-      .eq('metadata->>ap_id', objectUrl);
+      .select('id, profiles:user_id(federated_id)')
+      .eq('metadata->>ap_id', objectUrl)
+      .maybeSingle();
 
-    if (!postError || !messageError) {
+    let messageDeleted = false;
+    if (existingMessage) {
+      const ownerActorUrl = (existingMessage as any).profiles?.federated_id as string | null | undefined;
+      if (!ownerActorUrl || !SignatureService.verifyActorMatch(actorUrl, ownerActorUrl)) {
+        logger.warn(
+          `🚫 Delete message rejected: actor ${actorUrl} does not own ${objectUrl} (owner=${ownerActorUrl ?? 'unknown'})`,
+        );
+      } else {
+        const { error: messageError } = await supabase
+          .from('messages')
+          .update({ is_deleted: true })
+          .eq('id', (existingMessage as any).id);
+        if (!messageError) messageDeleted = true;
+      }
+    }
+
+    if (postDeleted || messageDeleted) {
       logger.info(`Deleted object: ${objectUrl}`);
     }
   }
