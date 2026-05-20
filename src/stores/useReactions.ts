@@ -392,6 +392,9 @@ export const useReactionsStore = defineStore('reactions', () => {
    let cleanupTimerId: ReturnType<typeof setInterval> | null = setInterval(cleanupOptimisticState, 30000)
 
    function $dispose() {
+     // BUGS.md Pattern B / #4 v2: also wipe the data Maps/Sets so logout
+     // doesn't leak the previous user's reactions across to the next user.
+     // Previously only the interval + reconcile timeouts were cleared.
      if (cleanupTimerId) {
        clearInterval(cleanupTimerId)
        cleanupTimerId = null
@@ -400,6 +403,11 @@ export const useReactionsStore = defineStore('reactions', () => {
        clearTimeout(timeoutId)
      }
      pendingReconcileTimeouts.clear()
+     reactionsByMessage.value.clear()
+     lastFetched.value.clear()
+     isLoading.value.clear()
+     optimisticReactions.value.clear()
+     pendingToggleRequests.value.clear()
    }
 
    return {

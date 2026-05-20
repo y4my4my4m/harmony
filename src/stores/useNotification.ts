@@ -704,6 +704,13 @@ export const useNotificationStore = defineStore('notification', {
       if (_unsubBulkRead) { _unsubBulkRead(); _unsubBulkRead = null }
       if (_unsubPrefsUpdated) { _unsubPrefsUpdated(); _unsubPrefsUpdated = null }
       if (_unsubReconnected) { _unsubReconnected(); _unsubReconnected = null }
+      // BUGS.md M11: the DND check `setInterval` used to live until tab close
+      // because nothing in the cleanup path cleared `_dndInterval`. Stopping
+      // it here ensures it doesn't keep firing after logout / store reset.
+      if (_dndInterval) {
+        clearInterval(_dndInterval)
+        _dndInterval = null
+      }
       _recentlyProcessedIds.clear()
     },
 

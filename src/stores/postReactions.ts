@@ -388,10 +388,19 @@ export const usePostReactionsStore = defineStore('postReactions', () => {
   }
 
   function $dispose() {
+    // BUGS.md Pattern B / #4 v2: also wipe the Maps/Sets so we don't leak
+    // the previous user's reactions / loading state across logout. Without
+    // these, only the pending reconcile timeouts were cleared and the
+    // actual reaction data + optimistic state survived into the next session.
     for (const timeoutId of pendingReconcileTimeouts.values()) {
       clearTimeout(timeoutId)
     }
     pendingReconcileTimeouts.clear()
+    reactionsByPost.value.clear()
+    lastFetched.value.clear()
+    isLoading.value.clear()
+    optimisticReactions.value.clear()
+    pendingToggleRequests.value.clear()
   }
 
   return {

@@ -1714,7 +1714,12 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
           channelName: this.currentChannelName,
           timestamp: Date.now()
         };
-        localStorage.setItem('voiceChannelState', JSON.stringify(voiceState));
+        // BUGS.md Pattern B / item #2: persist this under `userStorage` so it
+        // is scoped to the current user. Previously the unscoped
+        // `localStorage` key meant logout-without-leave would leave the
+        // state for the next user, and on shared devices the NEXT user
+        // would auto-reconnect to the PREVIOUS user's voice channel.
+        userStorage.setItem('voiceChannelState', JSON.stringify(voiceState));
         
         // Track active voice session for cross-tab prevention
         const activeSession = {
@@ -1762,7 +1767,10 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
      * Clear voice channel state from localStorage (manual leave)
      */
     clearVoiceChannelState(): void {
+      // Best-effort: remove both legacy unscoped and current user-scoped
+      // versions of the key so previously-persisted leaks are also cleared.
       localStorage.removeItem('voiceChannelState');
+      userStorage.removeItem('voiceChannelState');
       userStorage.removeItem('active-voice-session');
       this.stopVoiceSessionHeartbeat();
       debug.log('🗑️ Cleared voice channel state');
@@ -1772,7 +1780,12 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
      * Attempt to reconnect to previous voice channel
      */
     async reconnectToVoiceChannel(): Promise<boolean> {
-      const savedState = localStorage.getItem('voiceChannelState');
+      // Prefer user-scoped storage (current). Fall back to legacy global
+      // localStorage entry so existing in-flight sessions still reconnect on
+      // first deploy. The legacy entry will be migrated/cleared on next
+      // `clearVoiceChannelState()`.
+      const savedState =
+        userStorage.getItem('voiceChannelState') ?? localStorage.getItem('voiceChannelState');
       if (!savedState) {
         debug.log('ℹ️ No saved voice channel state found');
         return false;

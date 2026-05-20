@@ -627,8 +627,75 @@ export const useAuthStore = defineStore('auth', {
         const activityPubStore = useActivityPubStore()
         activityPubStore.cleanupRealtimeSubscriptions()
         activityPubStore.clearTimelineCache()
+        // BUGS.md Pattern B / #3 v2: a typed action on the store, replacing
+        // the previous unsafe `as unknown as { ... }` cast. The earlier
+        // version also had a dead-code branch checking `bookmarks?.posts`
+        // — `bookmarks` is actually `TimelinePost[]`, so the array was
+        // never cleared. See `resetUserRelationshipState` for the full
+        // set of fields covered.
+        activityPubStore.resetUserRelationshipState()
       } catch (error) {
         debug.error('❌ Error clearing ActivityPub timeline:', error)
+      }
+
+      try {
+        // BUGS.md Pattern B / #1: voice channel state was persisted to a
+        // global localStorage key and never cleared on logout, so the next
+        // user on a shared device would auto-reconnect to the previous
+        // user's channel. Force-leave first, then clear the saved state.
+        const { useUnifiedVoiceChannelStore } = await import('@/stores/unifiedVoiceChannel')
+        const voiceStore = useUnifiedVoiceChannelStore()
+        if (voiceStore.isConnected) {
+          await voiceStore.leaveVoiceChannel()
+        }
+        voiceStore.clearVoiceChannelState()
+        voiceStore.stopVoiceSessionHeartbeat()
+      } catch (error) {
+        debug.error('❌ Error clearing voice channel state:', error)
+      }
+
+      try {
+        // BUGS.md Pattern B / #4: reactions Maps + the 30 s reconcile
+        // interval were never stopped on logout, leaking memory + CPU
+        // across user sessions in the same tab. The custom `$dispose`
+        // exposed by useReactions clears the interval and any pending
+        // reconcile timeouts.
+        const { useReactionsStore } = await import('@/stores/useReactions')
+        const reactionsStore = useReactionsStore() as any
+        if (typeof reactionsStore.$dispose === 'function') {
+          try { reactionsStore.$dispose() } catch { /* noop */ }
+        }
+      } catch (error) {
+        debug.error('❌ Error clearing reactions store:', error)
+      }
+
+      try {
+        // BUGS.md Pattern B / #4 v2: `usePostReactionsStore` is a setup
+        // store, so Pinia's built-in `$reset()` throws ("does not implement
+        // $reset") and the previous `try/catch` silently swallowed it.
+        // The store now exposes a `$dispose` that clears its Maps + Sets
+        // and pending reconcile timeouts.
+        const { usePostReactionsStore } = await import('@/stores/postReactions')
+        const postReactionsStore = usePostReactionsStore() as any
+        if (typeof postReactionsStore.$dispose === 'function') {
+          try { postReactionsStore.$dispose() } catch { /* noop */ }
+        }
+      } catch (error) {
+        debug.error('❌ Error clearing post reactions store:', error)
+      }
+
+      try {
+        // BUGS.md Pattern B / #5 + M11: cleanupBroadcastHandlers now also
+        // clears the DND check `setInterval` (see useNotification change in
+        // this PR), so the interval no longer fires against a stale store
+        // after logout.
+        const { useNotificationStore } = await import('@/stores/useNotification')
+        const notificationStore = useNotificationStore() as any
+        if (typeof notificationStore.cleanupBroadcastHandlers === 'function') {
+          notificationStore.cleanupBroadcastHandlers()
+        }
+      } catch (error) {
+        debug.error('❌ Error cleaning up notification store:', error)
       }
 
       try {
@@ -689,6 +756,16 @@ export const useAuthStore = defineStore('auth', {
         await statePersistence.cleanup()
       } catch (error) {
         debug.error('❌ Error cleaning up state persistence:', error)
+      }
+
+      try {
+        // BUGS.md H50: module-level permission/role caches are outside Pinia
+        // state and were never cleared on logout, leaking the previous
+        // user's permission map to the next user on a shared device.
+        const { clearAllPermissionCaches } = await import('@/composables/useServerPermissions')
+        clearAllPermissionCaches()
+      } catch (error) {
+        debug.error('❌ Error clearing permission caches:', error)
       }
     },
 

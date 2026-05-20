@@ -29,6 +29,20 @@ const loadingStates = reactive<Map<string, boolean>>(new Map())
 // Reactive version counter to force computed re-evaluation when cache updates
 const cacheVersion = ref(0)
 
+/**
+ * BUGS.md H50 / Pattern B: clear ALL module-level permission caches. These
+ * caches are not store state, so `pinia.$reset()` cannot reach them — they
+ * would otherwise persist across logout and the next user on the same tab
+ * could briefly see the previous user's cached permissions in UI until a
+ * fresh fetch arrives. Called from `auth.logout()`.
+ */
+export function clearAllPermissionCaches() {
+  permissionsCache.clear()
+  rolesCache.clear()
+  loadingStates.clear()
+  cacheVersion.value++
+}
+
 export function useServerPermissions() {
   const authStore = useAuthStore()
   const serverChannelStore = useServerChannelStore()

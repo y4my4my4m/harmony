@@ -11,6 +11,14 @@ import { debug } from '@/utils/debug'
 class StatusLifecycleDebugger {
   private isDebugging = false
   private logHistory: string[] = []
+  // BUGS.md M12: stopDebugging() used to reference `this.statusChangedListener`
+  // etc., but `startDebugging()` registered ANONYMOUS callbacks and never
+  // stored them. Every start/stop pair therefore leaked listeners on
+  // userDataService + activityTracker. Store bound references explicitly so
+  // removeEventListener actually matches.
+  private statusChangedListener: ((event: any) => void) | null = null
+  private activityResumedListener: ((event: any) => void) | null = null
+  private statusShouldChangeListener: ((event: any) => void) | null = null
 
   /**
    * Start debug monitoring
@@ -21,26 +29,27 @@ class StatusLifecycleDebugger {
     debug.log('🔍 Starting status lifecycle debugging')
     this.isDebugging = true
     this.logHistory = []
-    
-    // Monitor userDataService events
-    userDataService.addEventListener('status-changed', (event: any) => {
+
+    this.statusChangedListener = (event: any) => {
       const log = `✅ Status changed: ${UserStatus[event.detail.status]} (User: ${event.detail.userId})`
       debug.log(log)
       this.logHistory.push(`${new Date().toLocaleTimeString()} - ${log}`)
-    })
-    
-    // Monitor activity tracker events
-    activityTracker.addEventListener('activity-resumed', (event: any) => {
+    }
+    userDataService.addEventListener('status-changed', this.statusChangedListener)
+
+    this.activityResumedListener = (event: any) => {
       const log = `👋 Activity resumed at ${new Date(event.detail.timestamp).toLocaleTimeString()}`
       debug.log(log)
       this.logHistory.push(`${new Date().toLocaleTimeString()} - ${log}`)
-    })
-    
-    activityTracker.addEventListener('status-should-change', (event: any) => {
+    }
+    activityTracker.addEventListener('activity-resumed', this.activityResumedListener)
+
+    this.statusShouldChangeListener = (event: any) => {
       const log = `😴 Auto status change suggested: ${UserStatus[event.detail.status]} (${event.detail.reason})`
       debug.log(log)
       this.logHistory.push(`${new Date().toLocaleTimeString()} - ${log}`)
-    })
+    }
+    activityTracker.addEventListener('status-should-change', this.statusShouldChangeListener)
   }
 
   /**
@@ -49,20 +58,20 @@ class StatusLifecycleDebugger {
   stopDebugging(): void {
     debug.log('⏹️ Stopping status lifecycle debugging')
     this.isDebugging = false
-    
+
     if (this.statusChangedListener) {
       userDataService.removeEventListener('status-changed', this.statusChangedListener)
-      this.statusChangedListener = undefined
+      this.statusChangedListener = null
     }
-    
+
     if (this.activityResumedListener) {
       activityTracker.removeEventListener('activity-resumed', this.activityResumedListener)
-      this.activityResumedListener = undefined
+      this.activityResumedListener = null
     }
-    
+
     if (this.statusShouldChangeListener) {
       activityTracker.removeEventListener('status-should-change', this.statusShouldChangeListener)
-      this.statusShouldChangeListener = undefined
+      this.statusShouldChangeListener = null
     }
   }
 

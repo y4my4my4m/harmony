@@ -334,20 +334,37 @@ export const useActivityPubStore = defineStore('activitypub', {
      */
     async loadBlockingData() {
       debug.log('🚫 Loading blocking/muting data...');
-      
-      // Get current user ID from auth store
+
+      // BUGS.md Pattern A: the previous version passed the Supabase
+      // auth.users UUID into queries that filter on
+      // `user_blocks.blocker_id` / `user_mutes.muter_id`, which reference
+      // `profiles(id)`. Those queries always returned 0 rows, so
+      // `blockedUsers` / `mutedUsers` stayed empty and blocked content
+      // kept showing. Resolve via `authContextService` (auth UUID →
+      // profile UUID) before the load.
       const { useAuthStore } = await import('@/stores/auth');
       const authStore = useAuthStore();
-      const userId = authStore.session?.user?.id;
-      
-      if (!userId) {
+      if (!authStore.session?.user?.id) {
         debug.log('ℹ️ No authenticated user, skipping blocking/muting data loading');
         return;
       }
-      
+      let profileId: string;
+      try {
+        const { authContextService } = await import('@/services/AuthContextService');
+        profileId = await authContextService.getCurrentProfileId();
+      } catch (err) {
+        debug.warn('⚠️ Could not resolve profile id for blocking data load:', err);
+        return;
+      }
+
+      // Reset Sets first so account switches don't leak the previous
+      // user's relationships into the new user's load.
+      this.blockedUsers.clear();
+      this.mutedUsers.clear();
+
       await Promise.all([
-        this.loadBlockedUsers(userId),
-        this.loadMutedUsers(userId)
+        this.loadBlockedUsers(profileId),
+        this.loadMutedUsers(profileId)
       ]);
       debug.log(`🚫 Blocking data loaded: ${this.blockedUsers.size} blocked, ${this.mutedUsers.size} muted`);
     },
@@ -553,6 +570,68 @@ export const useActivityPubStore = defineStore('activitypub', {
       } catch (error) {
         debug.warn('Failed to save timeline to cache:', error);
       }
+    },
+
+    /**
+     * Reset ALL per-user state on logout / account switch.
+     *
+     * BUGS.md Pattern B / #3 v2: previously `auth.logout()` only called
+     * `clearTimelineCache()` (home feed) and a hand-rolled cast against
+     * the store's private state. That:
+     *   - missed `publicFeed` / `localFeed` / `mentionsFeed` / `userFeeds`,
+     *   - missed the `followCountsLoaded` flag, the relationship counts,
+     *     `conversations` / `conversationContexts`, `blockedInstances`,
+     *     `suggestedUsers`, the `lists*` set, and `unreadCount`,
+     *   - had a dead-code branch for `bookmarks` (the audit fixup
+     *     assumed `{ posts: [] }` but the state shape is `TimelinePost[]`).
+     *
+     * Centralising the reset here gives us a typed, single source of
+     * truth that `auth.logout()` can call without unsafe casts.
+     */
+    resetUserRelationshipState() {
+      // Relationship sets + cache flags
+      this.followedUsers.clear();
+      this.blockedUsers.clear();
+      this.mutedUsers.clear();
+      this.blockedInstances.clear();
+      this.followsLoaded = false;
+      this.followCountsLoaded = false;
+      this.followingCount = 0;
+      this.followersCount = 0;
+
+      // Feeds
+      const resetFeed = (feed: typeof this.homeFeed) => {
+        feed.posts = [];
+        feed.has_more = true;
+        feed.cursor = undefined;
+      };
+      resetFeed(this.homeFeed);
+      resetFeed(this.publicFeed);
+      resetFeed(this.localFeed);
+      resetFeed(this.mentionsFeed);
+      this.userFeeds.clear();
+
+      // Bookmarks (note: `bookmarks` is `TimelinePost[]`, not `{ posts: [] }`)
+      this.bookmarks = [];
+      this.hasMoreBookmarks = true;
+      this.bookmarksCursor = null;
+
+      // Lists
+      this.lists = [];
+      this.hasMoreLists = true;
+      this.listsCursor = null;
+      this.listsLoaded = false;
+      this.currentListMembers.clear();
+
+      // DM / conversations
+      this.conversations.clear();
+      this.conversationContexts.clear();
+
+      // Notification / discovery caches
+      this.unreadCount = 0;
+      this.lastNotificationCheck = null;
+      this.suggestedUsers = [];
+      this.suggestedUsersFetchedAt = null;
     },
 
     /**
