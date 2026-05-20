@@ -133,44 +133,48 @@ COMMENT ON COLUMN public.server_folders."position" IS 'Sort order position for t
 CREATE TABLE IF NOT EXISTS public.server_settings (
     id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
     server_id uuid NOT NULL UNIQUE REFERENCES public.servers(id) ON DELETE CASCADE,
-    
+
     -- Default role (set by trigger on server creation)
     default_role_id uuid REFERENCES public.server_roles(id) ON DELETE SET NULL,
-    
+
     -- Invite permissions
     invite_permissions jsonb DEFAULT '{"who_can_create": "everyone", "default_expiration": 1440, "max_expiration": 0, "allow_temporary": true, "max_uses_limit": 0}'::jsonb,
-    
-    -- Moderation settings
+
+    -- Moderation settings (single source of truth — client reads/writes this JSONB,
+    -- not any standalone column). See `src/services/permissionsService.ts`.
     moderation_settings jsonb DEFAULT '{"auto_mod_enabled": false, "spam_filter": false, "link_filter": false}'::jsonb,
-    
-    -- Legacy/extended moderation settings (keep for compatibility)
-    auto_mod_enabled boolean DEFAULT false,
-    auto_mod_rules jsonb DEFAULT '{}'::jsonb,
-    
-    -- Content settings
-    default_message_notifications text DEFAULT 'all'::text,
-    explicit_content_filter text DEFAULT 'disabled'::text,
-    
-    -- Member verification
-    verification_gate_enabled boolean DEFAULT false,
-    verification_gate_rules jsonb DEFAULT '{}'::jsonb,
-    
-    -- Misc settings
-    afk_channel_id uuid,
-    afk_timeout integer DEFAULT 300,
+
+    -- Default notification level for channels in this server. 'mentions' so new
+    -- servers don't flood members with notifications for every channel message.
+    -- Server owners can flip this to 'all' for high-touch servers. Used by
+    -- send_notification() in 13_functions_rpc_extended.sql. See migration
+    -- 20260520_default_notification_level_mentions.sql for the policy rationale.
+    default_message_notifications text DEFAULT 'mentions'::text,
+
+    -- Channel that receives auto-generated system messages (member-join, kick,
+    -- ban announcements). Used by handle_member_join_system_message trigger and
+    -- handle_kicked_user / handle_banned_user RPCs. NULL → fall back to
+    -- get_default_channel(server_id).
     system_channel_id uuid,
-    rules_channel_id uuid,
-    
+
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone DEFAULT now(),
-    
-    CONSTRAINT server_settings_notifications_check CHECK (default_message_notifications IN ('all', 'mentions', 'none')),
-    CONSTRAINT server_settings_filter_check CHECK (explicit_content_filter IN ('disabled', 'members_without_roles', 'all_members'))
+
+    CONSTRAINT server_settings_notifications_check
+        CHECK (default_message_notifications IN ('all', 'mentions', 'none'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_server_settings_server ON public.server_settings(server_id);
 
-COMMENT ON TABLE public.server_settings IS 'Extended server settings and configuration';
+COMMENT ON TABLE public.server_settings IS 'Extended server configuration: roles, invites, moderation, default notification level, system channel.';
+
+-- NOTE: previous versions of this table also declared `auto_mod_enabled`,
+-- `auto_mod_rules`, `explicit_content_filter`, `verification_gate_enabled`,
+-- `verification_gate_rules`, `afk_channel_id`, `afk_timeout`, and
+-- `rules_channel_id`. None of those were ever read by any code, trigger, or
+-- function — they were an aspirational Discord-feature-parity stub. Removed
+-- here and dropped from existing databases by
+-- db_schema/migrations/20260520_server_settings_drop_unused_columns.sql.
 
 -- ---------------------------------------------------------------------------
 -- CHANNEL PERMISSION OVERRIDES - Per-channel role/user permission overrides

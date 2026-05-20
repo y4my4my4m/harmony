@@ -189,7 +189,10 @@ CREATE TABLE IF NOT EXISTS public.notification_channels (
     
     muted boolean DEFAULT false,
     muted_until timestamp with time zone,
-    notification_level varchar(20) DEFAULT 'all'::varchar,
+    -- 'mentions' by default: new channels notify only on @mentions until the
+    -- user explicitly chooses 'all' or 'none' in the channel kebab menu.
+    -- See db_schema/migrations/20260520_default_notification_level_mentions.sql.
+    notification_level varchar(20) DEFAULT 'mentions'::varchar,
     
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone DEFAULT now()
@@ -515,9 +518,15 @@ CREATE TABLE IF NOT EXISTS public.user_key_pairs (
     user_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
     device_id text DEFAULT 'default'::text,
     
-    -- Keys
+    -- ECDH P-256 identity keys (session key exchange)
     identity_public_key text NOT NULL,
     identity_private_key_encrypted text NOT NULL,
+
+    -- ECDSA P-256 signing keys (per-message sender binding, Megolm v2).
+    -- Nullable for legacy rows; client mints them lazily on next unlock.
+    -- See db_schema/migrations/20260520_user_key_pairs_signing_keys.sql for rationale.
+    identity_signing_public_key text,
+    identity_signing_private_key_encrypted text,
     
     -- Versioning & status
     key_version integer DEFAULT 1 NOT NULL,
@@ -534,7 +543,7 @@ CREATE TABLE IF NOT EXISTS public.user_key_pairs (
 CREATE INDEX IF NOT EXISTS idx_user_key_pairs_user ON public.user_key_pairs(user_id);
 CREATE INDEX IF NOT EXISTS idx_user_key_pairs_active ON public.user_key_pairs(user_id, is_active) WHERE is_active = true;
 
-COMMENT ON TABLE public.user_key_pairs IS 'Signal Protocol identity key pairs per user. Supports future per-device migration.';
+COMMENT ON TABLE public.user_key_pairs IS 'Per-user encryption identity keys. ECDH P-256 for session exchange, ECDSA P-256 for per-message sender signatures (Megolm v2 binding). Supports future per-device migration.';
 
 -- ---------------------------------------------------------------------------
 -- PREKEYS (One-time prekeys for Signal protocol)

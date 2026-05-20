@@ -198,7 +198,11 @@ const showMembersList = ref(false)
 const showOptionsMenu = ref(false)
 const pinnedCount = ref(0)
 const isChannelMuted = ref(false)
-const channelNotificationLevel = ref<'all' | 'mentions' | 'none'>('all')
+// Matches the DB default (`notification_channels.notification_level DEFAULT 'mentions'`)
+// so the UI shows the correct check mark before any explicit per-channel
+// override exists. Server- or user-level overrides still take precedence
+// once `loadMuteState` has run.
+const channelNotificationLevel = ref<'all' | 'mentions' | 'none'>('mentions')
 const moreMenuRef = ref<HTMLElement | null>(null)
 const menuPosition = ref<Record<string, string>>({})
 
@@ -266,7 +270,10 @@ const loadMuteState = async () => {
       .maybeSingle()
 
     isChannelMuted.value = data?.muted ?? false
-    channelNotificationLevel.value = (data?.notification_level as 'all' | 'mentions' | 'none') ?? 'all'
+    // No row → show the new default ('mentions'). User-explicit values
+    // (including 'all') are returned as-is and override the default.
+    channelNotificationLevel.value =
+      (data?.notification_level as 'all' | 'mentions' | 'none') ?? 'mentions'
   } catch (error) {
     debug.error('Failed to load mute state:', error)
   }
