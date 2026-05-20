@@ -218,10 +218,10 @@ watch(
   [() => voiceStore.pipActive, () => voiceStore.pipMode, () => voiceStore.pipUserId, fixedVideoElement, () => voiceStore.streamUpdateCounter],
   ([active, mode, userId, videoEl, _counter]) => {
     if (active && mode === 'fixed' && userId && videoEl) {
-      const attached = voiceStore.attachVideoToElement(userId, videoEl);
+      const attached = voiceStore.attachVideoToElement(userId, videoEl as any);
       if (!attached && pipStream.value) {
         // Fallback to srcObject if attach fails
-        videoEl.srcObject = pipStream.value;
+        (videoEl as HTMLVideoElement).srcObject = pipStream.value;
       }
     }
   },
@@ -234,10 +234,10 @@ watch(
   [() => voiceStore.pipActive, () => voiceStore.pipMode, () => voiceStore.pipUserId, draggableVideoElement, () => voiceStore.streamUpdateCounter],
   ([active, mode, userId, videoEl, _counter]) => {
     if (active && mode === 'draggable' && userId && videoEl) {
-      const attached = voiceStore.attachVideoToElement(userId, videoEl);
+      const attached = voiceStore.attachVideoToElement(userId, videoEl as any);
       if (!attached && pipStream.value) {
         // Fallback to srcObject if attach fails
-        videoEl.srcObject = pipStream.value;
+        (videoEl as HTMLVideoElement).srcObject = pipStream.value;
       }
     }
   },

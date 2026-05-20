@@ -280,8 +280,9 @@ export function getDeliveryInboxes(resolvedMentions: ResolvedMention[]): string[
   const inboxes = new Set<string>();
   
   resolvedMentions.forEach(rm => {
-    // `UserData` uses camelCase `isLocal`, not snake_case `is_local`.
-    if (rm.inboxUrl && rm.user && !(rm.user as any).isLocal) {
+    // `ResolvedMention.user` is typed as `UserData` but the actual data is a
+    // snake_case `FederatedUser`/profile row, so read via `any`.
+    if (rm.inboxUrl && rm.user && !(rm.user as any).is_local) {
       inboxes.add(rm.inboxUrl);
     }
   });

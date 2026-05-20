@@ -72,7 +72,7 @@
               :closeEmojiList="closeEmojiPicker"
               :emojiIconClicked="true"
               :position="'below'"
-              :triggerElement="(emojiButtonRef as unknown as HTMLElement | null) || undefined"
+              :triggerElement="((emojiButtonRef as any) as HTMLElement | null) || undefined"
               @resetEmojiIconClicked="() => {}"
             />
 

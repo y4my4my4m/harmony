@@ -17,11 +17,11 @@
       </div>
       
       <!-- Compose Button -->
-      <button 
+      <button
         class="compose-button"
         data-testid="compose-btn"
         @click="openComposer"
-        :disabled="isPosting"
+        :disabled="(activityPubStore as any).isPosting ?? false"
       >
         <Icon name="edit" />
         <span>Mony</span>
