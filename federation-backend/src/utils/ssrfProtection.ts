@@ -9,6 +9,41 @@
 import { logger } from './logger.js';
 import dns from 'dns';
 
+// ---------------------------------------------------------------------------
+// Keep-alive dispatcher for federation outbound HTTP.
+//
+// Node 18+ native `fetch` is undici under the hood, but the default Agent has
+// a 4 s keep-alive — too short for federation delivery, where the same
+// remote instance is contacted repeatedly within seconds (fan-out) and the
+// TLS handshake dominates per-request latency. A tuned dispatcher with a
+// 30 s keep-alive + a sane per-origin connection pool gives a large latency
+// win without changing any caller code.
+//
+// We dynamic-import undici so the file still works if the dep is unavailable
+// (older Node, restricted runtime); we just fall back to the default agent.
+// ---------------------------------------------------------------------------
+let federationDispatcher: any | undefined;
+try {
+  // Top-level await is allowed in this ESM module.
+  const { Agent } = await import('undici');
+  federationDispatcher = new Agent({
+    // Reuse the TCP+TLS connection for 30 s of idle time before closing.
+    keepAliveTimeout: 30_000,
+    keepAliveMaxTimeout: 60_000,
+    // 50 concurrent connections per origin is generous; federation fan-out
+    // is bursty but each remote instance rarely needs more than a handful.
+    connections: 50,
+    // Per-request socket-level timeouts (NOT the application timeout below).
+    // These guard against half-open connections without affecting the
+    // explicit `timeoutMs` budget enforced by `safeFetch`.
+    bodyTimeout: 30_000,
+    headersTimeout: 10_000,
+  });
+  logger.info('🔗 safeFetch: undici keep-alive dispatcher initialized (30s idle, 50 conn/origin)');
+} catch (err) {
+  logger.warn('safeFetch: undici Agent unavailable, falling back to default fetch agent (4s keep-alive)', err);
+}
+
 const BLOCKED_HOSTNAMES = new Set([
   'localhost',
   'localhost.localdomain',
@@ -112,15 +147,31 @@ export function validateExternalHostname(hostname: string): void {
 
 function isBlockedIPv6(ip: string): boolean {
   const lower = ip.toLowerCase();
-  // ::1 loopback
+  // ::1 loopback / :: unspecified
   if (lower === '::1' || lower === '::') return true;
   // IPv4-mapped IPv6 (::ffff:1.2.3.4) — check the embedded v4
   const mapped = lower.match(/^::ffff:([0-9.]+)$/);
   if (mapped && isBlockedIPv4(mapped[1])) return true;
-  // fc00::/7  Unique Local Addresses
+  // 6to4 (2002::/16): the first two hextets after `2002:` encode the
+  // tunnelled IPv4. If that v4 is private/loopback/link-local, this address
+  // routes (via 6to4 gateways on legacy hosts) to an internal target. Decode
+  // and re-check via isBlockedIPv4.
+  const sixToFour = lower.match(/^2002:([0-9a-f]{1,4}):([0-9a-f]{1,4}):/);
+  if (sixToFour) {
+    const hi = parseInt(sixToFour[1], 16);
+    const lo = parseInt(sixToFour[2], 16);
+    if (!Number.isNaN(hi) && !Number.isNaN(lo)) {
+      const v4 = `${(hi >> 8) & 0xff}.${hi & 0xff}.${(lo >> 8) & 0xff}.${lo & 0xff}`;
+      if (isBlockedIPv4(v4)) return true;
+    }
+  }
+  // fc00::/7  Unique Local Addresses (fc + fd)
   if (lower.startsWith('fc') || lower.startsWith('fd')) return true;
-  // fe80::/10  link-local
+  // fe80::/10  link-local (second nibble 8/9/a/b)
   if (lower.startsWith('fe8') || lower.startsWith('fe9') || lower.startsWith('fea') || lower.startsWith('feb')) return true;
+  // fec0::/10  site-local — deprecated by RFC 3879 but still classed
+  // as private; block defensively (second nibble c/d/e/f).
+  if (lower.startsWith('fec') || lower.startsWith('fed') || lower.startsWith('fee') || lower.startsWith('fef')) return true;
   return false;
 }
 
@@ -186,7 +237,34 @@ export interface SafeFetchOptions extends Omit<RequestInit, 'redirect' | 'signal
    * Cancellation from EITHER source aborts the fetch.
    */
   signal?: AbortSignal;
+  /**
+   * Max response body size in bytes. If `Content-Length` is present and
+   * exceeds this, the response is rejected immediately without reading
+   * the body. For chunked responses with no `Content-Length`, the body
+   * is streamed and the response is rejected (with `body.cancel()`) on
+   * overflow. Default: 5_000_000 (5 MB). Pass `Infinity` to opt out.
+   *
+   * Federation payloads are typically small (≤ a few KB); 5 MB allows
+   * generous outbox pages without enabling a remote attacker to fill
+   * memory by serving a 1 GB body.
+   */
+  maxBodyBytes?: number;
 }
+
+/**
+ * Headers we strip BEFORE replaying a request to a redirect target on a
+ * different origin (host or scheme change). This mirrors browser behavior
+ * for `Authorization` and `Cookie`, and additionally covers HTTP Signature
+ * headers, which were signed over the original `(request-target)` and
+ * `Host` and are therefore both useless and a signed-bytes leak when sent
+ * to a different host.
+ */
+const CROSS_ORIGIN_STRIPPED_HEADERS = new Set([
+  'authorization',
+  'cookie',
+  'signature',
+  'digest',
+]);
 
 function linkSignals(external: AbortSignal | undefined, internal: AbortController): AbortSignal {
   if (!external) return internal.signal;
@@ -209,17 +287,26 @@ function linkSignals(external: AbortSignal | undefined, internal: AbortControlle
  *   2. Hostname is not in the static blocked list (localhost, cloud
  *      metadata aliases).
  *   3. If the hostname is a literal IP, it is not in any private /
- *      link-local / loopback range.
+ *      link-local / loopback / 6to4-embedded-private range.
  *   4. DNS A and AAAA resolutions of the hostname are not in any private
  *      range (defends against DNS rebinding and CNAMEs to internal hosts).
  *   5. Redirects are followed MANUALLY with a re-validation per hop
  *      (cannot bypass via `301 → http://internal/`).
  *   6. Each attempt is bounded by `timeoutMs` (default 10s).
+ *   7. Response body size is capped at `maxBodyBytes` (default 5 MB) via
+ *      a `Content-Length` pre-check + streamed-counter overflow on
+ *      chunked responses.
+ *
+ * Header propagation across redirects: by default, `Authorization`,
+ * `Cookie`, `Signature`, and `Digest` are STRIPPED on cross-origin hops
+ * (host or scheme change). This mirrors browser behavior for auth
+ * headers and prevents HTTP-Signature leaks — the signature was bound
+ * to the original `(request-target)` / `Host`, so replaying it to the
+ * redirect target would both fail to verify and leak the signed bytes
+ * to that target. Non-auth headers (e.g. `Accept`, `User-Agent`) are
+ * preserved on every hop.
  *
  * What this DOES NOT guarantee:
- *   - Response body size (caller is responsible — most call sites use
- *     `await res.text()` which can OOM on huge payloads; cap via your own
- *     `Content-Length` check or stream with a counter).
  *   - DNS TOCTOU between this check and the kernel's connect() (mitigated
  *     in practice by node returning cached lookups within a request, but
  *     a fully paranoid setup would also pin the IP via `lookup` in
@@ -229,11 +316,13 @@ export async function safeFetch(urlString: string, options: SafeFetchOptions = {
   const {
     maxRedirects = 3,
     timeoutMs = 10_000,
+    maxBodyBytes = 5_000_000,
     signal: externalSignal,
     ...fetchInit
   } = options;
 
   let currentUrl = urlString;
+  let currentHeaders: HeadersInit | undefined = fetchInit.headers;
   for (let hop = 0; hop <= maxRedirects; hop++) {
     const url = validateExternalUrl(currentUrl);
     await validateResolvedAddress(url.hostname);
@@ -245,9 +334,16 @@ export async function safeFetch(urlString: string, options: SafeFetchOptions = {
     try {
       response = await fetch(currentUrl, {
         ...fetchInit,
+        headers: currentHeaders,
         redirect: 'manual',
         signal: linkSignals(externalSignal, ac),
-      });
+        // `dispatcher` is an undici-specific option that Node's native fetch
+        // forwards through. Cast to any so the standard RequestInit type
+        // (which lacks `dispatcher`) doesn't complain. When the dispatcher
+        // is undefined (no undici), this is a no-op and fetch uses the
+        // default global agent.
+        ...(federationDispatcher ? { dispatcher: federationDispatcher } : {}),
+      } as any);
     } finally {
       clearTimeout(timer);
     }
@@ -255,19 +351,99 @@ export async function safeFetch(urlString: string, options: SafeFetchOptions = {
     // 3xx with a Location header → follow manually after re-validation.
     if (response.status >= 300 && response.status < 400) {
       const location = response.headers.get('location');
-      if (!location) return response;
+      // Malformed redirect (3xx without Location): treat as terminal response,
+      // but still enforce the body-size cap so a hostile peer can't stream
+      // unbounded bytes through a 301/302 without Location.
+      if (!location) return enforceBodySize(response, maxBodyBytes);
       // Drain the redirect response body so node doesn't leak the socket.
       try { await response.body?.cancel(); } catch { /* noop */ }
       const nextUrl = new URL(location, currentUrl).href;
-      logger.info(`🔁 safeFetch redirect ${hop + 1}/${maxRedirects}: ${url.href} → ${nextUrl}`);
+      const nextUrlParsed = new URL(nextUrl);
+
+      // Strip auth-sensitive headers if the hop is cross-origin.
+      const isCrossOrigin = nextUrlParsed.host !== url.host || nextUrlParsed.protocol !== url.protocol;
+      if (isCrossOrigin && currentHeaders) {
+        currentHeaders = stripSensitiveHeaders(currentHeaders);
+      }
+
+      logger.info(`🔁 safeFetch redirect ${hop + 1}/${maxRedirects}: ${url.href} → ${nextUrl}${isCrossOrigin ? ' [cross-origin, stripped auth headers]' : ''}`);
       currentUrl = nextUrl;
       continue;
     }
 
-    return response;
+    return enforceBodySize(response, maxBodyBytes);
   }
 
   throw new Error(`safeFetch: too many redirects (max=${maxRedirects})`);
+}
+
+/**
+ * Return a header collection with auth-sensitive entries removed.
+ * Accepts any HeadersInit and normalizes the output to a plain Record so
+ * downstream `fetch` calls treat it the same as the original.
+ */
+function stripSensitiveHeaders(headers: HeadersInit): Record<string, string> {
+  const out: Record<string, string> = {};
+  const append = (name: string, value: string) => {
+    if (!CROSS_ORIGIN_STRIPPED_HEADERS.has(name.toLowerCase())) {
+      out[name] = value;
+    }
+  };
+  if (headers instanceof Headers) {
+    headers.forEach((value, name) => append(name, value));
+  } else if (Array.isArray(headers)) {
+    for (const [name, value] of headers) append(name, value);
+  } else {
+    for (const [name, value] of Object.entries(headers)) {
+      if (value != null) append(name, String(value));
+    }
+  }
+  return out;
+}
+
+/**
+ * Wrap a response so its body is rejected if it exceeds `maxBytes`.
+ *
+ * Strategy:
+ *   1. Pre-check `Content-Length` header — if it advertises more than
+ *      `maxBytes`, return a rejected response immediately (cheap path).
+ *   2. For chunked / no-Content-Length responses, wrap the body in a
+ *      TransformStream that counts bytes and errors on overflow.
+ *
+ * The returned Response is a normal Response — callers use it as usual
+ * (`await res.text()`, `await res.json()`) and the overflow surfaces as
+ * a thrown error from the body consumer.
+ */
+function enforceBodySize(response: Response, maxBytes: number): Response {
+  if (!Number.isFinite(maxBytes) || maxBytes <= 0) return response;
+
+  const declared = response.headers.get('content-length');
+  if (declared !== null) {
+    const declaredBytes = Number(declared);
+    if (Number.isFinite(declaredBytes) && declaredBytes > maxBytes) {
+      try { response.body?.cancel(); } catch { /* noop */ }
+      throw new Error(`safeFetch: response body too large (${declaredBytes} > ${maxBytes})`);
+    }
+  }
+
+  if (!response.body) return response;
+
+  let received = 0;
+  const counting = new TransformStream<Uint8Array, Uint8Array>({
+    transform(chunk, controller) {
+      received += chunk.byteLength;
+      if (received > maxBytes) {
+        controller.error(new Error(`safeFetch: response body exceeded ${maxBytes} bytes (received ${received})`));
+        return;
+      }
+      controller.enqueue(chunk);
+    },
+  });
+  return new Response(response.body.pipeThrough(counting), {
+    status: response.status,
+    statusText: response.statusText,
+    headers: response.headers,
+  });
 }
 
 // Internal helper exported for tests only. Treat as `@internal`.

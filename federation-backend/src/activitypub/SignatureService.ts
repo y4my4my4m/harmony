@@ -4,6 +4,61 @@ import { AppError } from '../middleware/errorHandler.js';
 import { logger } from '../utils/logger.js';
 import { safeFetch } from '../utils/ssrfProtection.js';
 
+// ---------------------------------------------------------------------------
+// In-memory cache for parsed public keys.
+//
+// `fetchActorPublicKey` already has a multi-tier persistent cache (profiles
+// table → ap_actor_cache table → remote HTTP fetch). But every inbound
+// signature still pays at least one DB roundtrip per verify. For a single
+// federation event with N inbox deliveries (each verified independently)
+// that's N roundtrips just to fetch the same N strings.
+//
+// This LRU sits in front of the DB caches and stores raw PEM strings keyed
+// by actorUrl. TTL is 1 hour, matching `ap_actor_cache.cache_expires_at` so
+// invalidation semantics are consistent.
+// ---------------------------------------------------------------------------
+interface CachedKey {
+  pem: string;
+  expiresAt: number;
+}
+
+const PUBLIC_KEY_CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
+const PUBLIC_KEY_CACHE_MAX = 5_000;
+const publicKeyCache = new Map<string, CachedKey>();
+
+function getCachedPublicKey(actorUrl: string): string | null {
+  const hit = publicKeyCache.get(actorUrl);
+  if (!hit) return null;
+  if (hit.expiresAt <= Date.now()) {
+    publicKeyCache.delete(actorUrl);
+    return null;
+  }
+  // LRU touch: re-insert moves the key to the end of the Map iteration order.
+  publicKeyCache.delete(actorUrl);
+  publicKeyCache.set(actorUrl, hit);
+  return hit.pem;
+}
+
+function setCachedPublicKey(actorUrl: string, pem: string): void {
+  if (publicKeyCache.size >= PUBLIC_KEY_CACHE_MAX) {
+    // Drop the oldest (first iterated) entry. JS Map preserves insertion order.
+    const oldestKey = publicKeyCache.keys().next().value;
+    if (oldestKey !== undefined) publicKeyCache.delete(oldestKey);
+  }
+  publicKeyCache.set(actorUrl, { pem, expiresAt: Date.now() + PUBLIC_KEY_CACHE_TTL_MS });
+}
+
+function invalidatePublicKey(actorUrl: string): void {
+  publicKeyCache.delete(actorUrl);
+}
+
+// Exported for tests / admin endpoints that may want to wipe the cache.
+export const __publicKeyCache = {
+  size: () => publicKeyCache.size,
+  clear: () => publicKeyCache.clear(),
+  invalidate: invalidatePublicKey,
+};
+
 export class SignatureService {
   /**
    * Generate RSA key pair for a user
@@ -368,6 +423,12 @@ export class SignatureService {
     let cachedActorData: any = null;
     
     if (!forceRefresh) {
+      // 0. In-memory LRU. Skips two DB roundtrips per verify on warm cache.
+      const memHit = getCachedPublicKey(actorUrl);
+      if (memHit) {
+        return memHit;
+      }
+      
       // First, check if we have this actor in our profiles table
       const { data: profile } = await supabase
         .from('profiles')
@@ -377,6 +438,7 @@ export class SignatureService {
       
       if (profile?.public_key) {
         logger.debug(`Using cached public key from profiles table for ${actorUrl}`);
+        setCachedPublicKey(actorUrl, profile.public_key);
         return profile.public_key;
       }
       
@@ -394,11 +456,14 @@ export class SignatureService {
       if (cachedActor?.cache_expires_at && new Date(cachedActor.cache_expires_at) > new Date()) {
         if (cachedActorData?.publicKey?.publicKeyPem) {
           logger.debug(`Using cached actor data for ${actorUrl}`);
+          setCachedPublicKey(actorUrl, cachedActorData.publicKey.publicKeyPem);
           return cachedActorData.publicKey.publicKeyPem;
         }
       }
     } else {
       logger.info(`🔄 Force refreshing public key for ${actorUrl}`);
+      // Invalidate stale in-memory entry so the refresh actually re-fetches.
+      invalidatePublicKey(actorUrl);
     }
     
     // Finally, fetch from remote server.
@@ -426,6 +491,7 @@ export class SignatureService {
 
       if (actor.publicKey && actor.publicKey.publicKeyPem) {
         const publicKeyPem = actor.publicKey.publicKeyPem;
+        setCachedPublicKey(actorUrl, publicKeyPem);
         
         // Update the profiles table with the fresh public key
         try {

@@ -98,6 +98,10 @@ export function setUrlTrackingStrippingEnabled(enabled: boolean): void {
   }
 }
 
+// Hoisted to module scope so it isn't recompiled every call. `.replace` with
+// a /g regex does not require a `lastIndex` reset.
+const URL_IN_TEXT_REGEX = /(\bhttps?:\/\/\S+)/g
+
 /**
  * Strip tracking parameters from all URLs in a text string
  * This is used before parsing message content to clean URLs in the raw text
@@ -109,10 +113,7 @@ export function stripUrlsInText(text: string): string {
     return text
   }
   
-  // Match URLs in the text
-  const urlRegex = /(\bhttps?:\/\/\S+)/g
-  
-  return text.replace(urlRegex, (match) => {
+  return text.replace(URL_IN_TEXT_REGEX, (match) => {
     return stripTrackingParameters(match)
   })
 }

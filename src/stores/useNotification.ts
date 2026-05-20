@@ -19,6 +19,27 @@ import type {
   AudioAction
 } from '@/types'
 
+/**
+ * Shape returned by the `notificationCounts` getter. Hoisted to an
+ * exported interface so dependent getters can reference it cleanly
+ * (vue-tsc/Pinia's inference for cross-getter `this` access struggles
+ * with inline anonymous return types).
+ */
+export interface NotificationCounts {
+  total: number
+  unread: number
+  unreadMentions: number
+  unreadDMs: number
+  mentionsAll: number
+  dms: number
+  reactions: number
+  social: number
+  follows: number
+  unreadChannelMentions: Map<string, number>
+  unreadServerMentions: Map<string, number>
+  unreadConversationMentions: Map<string, number>
+}
+
 interface NotificationState {
   notifications: Notification[]
   unreadCount: number
@@ -151,6 +172,98 @@ export const useNotificationStore = defineStore('notification', {
       })
     },
 
+    /**
+     * Single-pass projection of the notifications array into the counters
+     * the rest of the UI needs. Replaces 5+ separate `filter().length`
+     * getters that each scanned the full array (BUGS.md PC5).
+     *
+     * For parameterized counts (per-channel, per-server, per-conversation)
+     * we build Maps so callers do an O(1) lookup instead of an O(n) scan.
+     * Maps and primitive counters here are recomputed by Pinia/Vue only
+     * when `state.notifications` changes, so dependents that read multiple
+     * counts in one frame share a single full scan.
+     */
+    notificationCounts(): NotificationCounts {
+      let total = this.notifications.length
+      let unread = 0
+      let unreadMentions = 0          // activitypub_mention only (matches legacy `unreadMentions` getter)
+      let unreadDMs = 0
+      let mentionsAll = 0             // mention OR activitypub_mention
+      let dms = 0
+      let reactions = 0
+      let social = 0
+      let follows = 0
+
+      const unreadChannelMentions = new Map<string, number>()
+      const unreadServerMentions = new Map<string, number>()
+      const unreadConversationMentions = new Map<string, number>()
+
+      const bumpMap = (m: Map<string, number>, key: string | undefined | null) => {
+        if (!key) return
+        m.set(key, (m.get(key) ?? 0) + 1)
+      }
+
+      for (const n of this.notifications) {
+        const isMention = n.type === 'mention'
+        const isApMention = n.type === 'activitypub_mention'
+        const isDM = n.type === 'dm'
+        const isReaction = n.type === 'reaction'
+        const isFollow = n.type === 'activitypub_follow' || n.type === 'activitypub_follow_request'
+        const isSocial = typeof n.type === 'string' && n.type.startsWith('activitypub_')
+
+        if (isMention || isApMention) mentionsAll++
+        if (isDM) dms++
+        if (isReaction) reactions++
+        if (isSocial) social++
+        if (isFollow) follows++
+
+        if (!n.is_read) {
+          unread++
+          if (isApMention) unreadMentions++
+          if (isDM) unreadDMs++
+          if (isMention) {
+            // The legacy getters used `||` between top-level and nested
+            // forms, which means a notification carrying BOTH
+            // `data.channel_id = X` AND `data.location.channel_id = Y`
+            // (with X !== Y) would count for both X and Y. We preserve
+            // that semantics here by bumping both keys when they differ,
+            // rather than collapsing via `??` which would count only one.
+            // BUGS.md M3 from code review.
+            const cid = n.data?.channel_id
+            const cidLoc = n.data?.location?.channel_id
+            if (cid) bumpMap(unreadChannelMentions, cid)
+            if (cidLoc && cidLoc !== cid) bumpMap(unreadChannelMentions, cidLoc)
+
+            const sid = n.data?.server_id
+            const sidLoc = n.data?.location?.server_id
+            if (sid) bumpMap(unreadServerMentions, sid)
+            if (sidLoc && sidLoc !== sid) bumpMap(unreadServerMentions, sidLoc)
+          }
+          if (isMention || isDM) {
+            const cv = n.data?.conversation_id
+            const cvNested = n.data?.conversation?.id
+            if (cv) bumpMap(unreadConversationMentions, cv)
+            if (cvNested && cvNested !== cv) bumpMap(unreadConversationMentions, cvNested)
+          }
+        }
+      }
+
+      return {
+        total,
+        unread,
+        unreadMentions,
+        unreadDMs,
+        mentionsAll,
+        dms,
+        reactions,
+        social,
+        follows,
+        unreadChannelMentions,
+        unreadServerMentions,
+        unreadConversationMentions,
+      }
+    },
+
     filteredNotifications(): Notification[] {
       if (this.currentFilter === 'all') {
         return this.sortedNotifications
@@ -176,44 +289,38 @@ export const useNotificationStore = defineStore('notification', {
       })
     },
 
-    // Get unread count for specific notification types
-    unreadMentions: (state) => {
-      return state.notifications.filter(
-        n => !n.is_read && n.type === 'activitypub_mention'
-      ).length
+    // Per-type unread counts. These now read from the single-pass
+    // `notificationCounts` projection above instead of each running their
+    // own full-array scan.
+    //
+    // The `(this as any).notificationCounts` cast is a workaround for a
+    // vue-tsc / Pinia type-inference limitation: when one method-form
+    // getter references another via `this`, TypeScript surfaces the
+    // getter as its raw `() => T` function type instead of unwrapping
+    // to `T`. At runtime Pinia unwraps correctly. Tracking issue in
+    // upstream vue-tsc.
+
+    unreadMentions(): number {
+      return (this as any).notificationCounts.unreadMentions
     },
 
-    unreadDMs: (state) => {
-      return state.notifications.filter(
-        n => !n.is_read && n.type === 'dm'
-      ).length
+    unreadDMs(): number {
+      return (this as any).notificationCounts.unreadDMs
     },
 
-    unreadChannelMentions: (state) => {
-      return (channelId: string) => {
-        return state.notifications.filter(
-          n => !n.is_read && n.type === 'mention' && 
-          (n.data?.channel_id === channelId || n.data?.location?.channel_id === channelId)
-        ).length
-      }
+    unreadChannelMentions(): (channelId: string) => number {
+      const map: Map<string, number> = (this as any).notificationCounts.unreadChannelMentions
+      return (channelId: string) => map.get(channelId) ?? 0
     },
 
-    unreadServerMentions: (state) => {
-      return (serverId: string) => {
-        return state.notifications.filter(
-          n => !n.is_read && n.type === 'mention' && 
-          (n.data?.server_id === serverId || n.data?.location?.server_id === serverId)
-        ).length
-      }
+    unreadServerMentions(): (serverId: string) => number {
+      const map: Map<string, number> = (this as any).notificationCounts.unreadServerMentions
+      return (serverId: string) => map.get(serverId) ?? 0
     },
 
-    unreadConversationMentions: (state) => {
-      return (conversationId: string) => {
-        return state.notifications.filter(
-          n => !n.is_read && (n.type === 'mention' || n.type === 'dm') && 
-          (n.data?.conversation_id === conversationId || n.data?.conversation?.id === conversationId)
-        ).length
-      }
+    unreadConversationMentions(): (conversationId: string) => number {
+      const map: Map<string, number> = (this as any).notificationCounts.unreadConversationMentions
+      return (conversationId: string) => map.get(conversationId) ?? 0
     },
 
     isQuietHours: (state) => {
@@ -305,43 +412,48 @@ export const useNotificationStore = defineStore('notification', {
       }
     },
 
-    notificationFilters: (state) => {
+    notificationFilters() {
+      // Counts come from the single-pass `notificationCounts` projection so
+      // a single read of this getter no longer triggers five separate
+      // O(n) scans of `notifications`. The `as any` cast is the same
+      // vue-tsc workaround documented on the per-type getters above.
+      const c: NotificationCounts = (this as any).notificationCounts
       return [
         {
           key: 'all',
           label: 'All',
           icon: 'list',
-          count: state.notifications.length
+          count: c.total
         },
         {
           key: 'unread',
           label: 'Unread',
           icon: 'circle',
-          count: state.notifications.filter(n => !n.is_read).length
+          count: c.unread
         },
         {
           key: 'mentions',
           label: 'Mentions',
           icon: 'at-sign',
-          count: state.notifications.filter(n => n.type === 'mention' || n.type === 'activitypub_mention').length
+          count: c.mentionsAll
         },
         {
           key: 'dms',
           label: 'Messages',
           icon: 'message-circle',
-          count: state.notifications.filter(n => n.type === 'dm').length
+          count: c.dms
         },
         {
           key: 'social',
           label: 'Social',
           icon: 'globe',
-          count: state.notifications.filter(n => n.type.startsWith('activitypub_')).length
+          count: c.social
         },
         {
           key: 'follows',
           label: 'Follows',
           icon: 'users',
-          count: state.notifications.filter(n => n.type === 'activitypub_follow' || n.type === 'activitypub_follow_request').length
+          count: c.follows
         }
       ]
     }
@@ -1023,6 +1135,13 @@ export const useNotificationStore = defineStore('notification', {
           user_id: profileId,
         }
 
+        // BUGS.md H1: setupDndCheck early-returns when dnd_enabled is false,
+        // so we must re-invoke it whenever preferences change so the
+        // interval (re)starts on enable and stops on disable. Without this,
+        // toggling DND in another tab leaves this tab's check dead until
+        // page reload.
+        this.setupDndCheck()
+
         debug.log('✅ Loaded notification preferences')
       } catch (error) {
         debug.error('❌ Failed to load preferences:', error)
@@ -1031,6 +1150,7 @@ export const useNotificationStore = defineStore('notification', {
           id: crypto.randomUUID(),
           user_id: profileId,
         }
+        this.setupDndCheck()
       }
     },
 
@@ -1039,6 +1159,15 @@ export const useNotificationStore = defineStore('notification', {
         if (!this.preferences) return
 
         const previousPreferences = { ...this.preferences }
+        // BUGS.md H1: detect changes that affect the DND check so we can
+        // (re)start/stop the interval at the end. dnd_enabled flipping is
+        // the obvious one; dnd_start_time / dnd_end_time changes require
+        // re-evaluating `isQuietHours` immediately.
+        const dndFieldsChanged =
+          ('dnd_enabled' in newPreferences && newPreferences.dnd_enabled !== previousPreferences.dnd_enabled) ||
+          ('dnd_start_time' in newPreferences && newPreferences.dnd_start_time !== previousPreferences.dnd_start_time) ||
+          ('dnd_end_time' in newPreferences && newPreferences.dnd_end_time !== previousPreferences.dnd_end_time)
+
         Object.assign(this.preferences, newPreferences)
 
         const { error } = await supabase
@@ -1050,6 +1179,13 @@ export const useNotificationStore = defineStore('notification', {
         if (error) {
           this.preferences = previousPreferences
           throw error
+        }
+
+        // Re-arm the DND interval if any relevant field changed. This
+        // re-evaluates `isQuietHours` synchronously and (re)starts or stops
+        // the 60 s tick to match the new `dnd_enabled` state.
+        if (dndFieldsChanged) {
+          this.setupDndCheck()
         }
 
         // Broadcast preferences change to other tabs/devices
@@ -1082,7 +1218,17 @@ export const useNotificationStore = defineStore('notification', {
     },
 
     setupDndCheck() {
-      if (_dndInterval) clearInterval(_dndInterval)
+      if (_dndInterval) {
+        clearInterval(_dndInterval)
+        _dndInterval = null
+      }
+      // Compute current state synchronously so the UI reflects DND status
+      // immediately without waiting for the first interval tick.
+      this.isDndActive = this.isQuietHours
+      // Don't bother polling if DND is disabled — there are no transitions
+      // to detect. The interval is (re)started by callers when preferences
+      // change to enable DND (see action paths around lines 375 / 433).
+      if (!this.preferences?.dnd_enabled) return
       _dndInterval = setInterval(() => {
         this.isDndActive = this.isQuietHours
       }, 60000)

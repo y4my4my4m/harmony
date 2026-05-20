@@ -473,3 +473,468 @@ On `CHANNEL_ERROR`, `setupServerPresence()` schedules another `setupServerPresen
 | **Total** | **~152** |
 
 Cross-cutting patterns (A/B/C) overlap with ~25 of the individual entries above.
+
+---
+
+# Performance addendum (added 2026-05-20)
+
+**Method:** 8 parallel read-only investigations focused on **performance only** (CPU, memory, bundle, latency, scale ceilings). Items already documented above (notably H21–H25, H43–H47, M50–M55, M37–M49) are not re-listed unless there is an additional perf-at-scale dimension worth restating. Highest-impact claims (file sizes, polling intervals, hot-path linear scans, frame-rate crypto, RLS join cost, init-script vs dev-backup index drift) were spot-checked against the actual code; lower-confidence items are marked `[?]`.
+
+This is **not** a load-test report. It is a code-level audit identifying patterns that will hurt at scale or already cost CPU/RAM today. Treat thresholds (e.g. "noticeable at 1k users") as informed estimates, not measured numbers — see `BENCHMARKING.md` for the layered measurement plan.
+
+---
+
+## Cross-cutting performance patterns
+
+Six patterns recur across the codebase and account for the majority of high-severity findings. Fixing each pattern once removes many individual items.
+
+### Pattern P-α — Array linear scans where a `Map<id, T>` would be O(1)
+
+The dominant pattern. Hot paths repeatedly do `arr.find(x => x.id === id)`, `arr.findIndex(...)`, or `arr.filter(...)` over collections that have a natural primary key. Each scan is O(n); when reactive subscribers fire on every realtime event the cost is O(events × collections × n).
+
+| Site | File / lines | Cost surface |
+|------|--------------|--------------|
+| `useActivityPub` post-interaction realtime | `src/stores/useActivityPub.ts` | 4 feeds × `find()` per favourite/reblog/reply event |
+| `useNotification` filter/sort getters | `src/stores/useNotification.ts` | 5+ filter scans + a fresh sort allocation on every notification mutation |
+| `unifiedVoiceChannel.allUsers` lookups | `src/stores/unifiedVoiceChannel.ts` | `findIndex` per join/leave/mute update during a call |
+| `useChat.messageCache` cleanup | `src/stores/useChat.ts` | `forEach` outer + `findIndex` inner on delete/update |
+| `useServerChannel` categories | `src/stores/useServerChannel.ts` | `Object.keys(categoryChannels)` allocates per category op |
+| `useAutoSuggest` user filter | `src/composables/useAutoSuggest.ts` | Full server-user scan per keystroke, no prefix index |
+| Bot gateway channel→server, channel→permissions | `bot-gateway/src/gateway/EventDispatcher.ts` | Two DB roundtrips per message (no caching) |
+
+**Suggested sweep:** Introduce `Map<id, T>` (or a `byId` projection ref) wherever a collection has a stable id and is read more than written. For Pinia getters, cache the `sorted`/`filtered` result behind a `computed()` that tracks only the mutation, not the read.
+
+### Pattern P-β — Per-render content pipeline (regex compile, DOMPurify, JSON.parse, date format)
+
+Message rendering re-runs the full markdown → mention → emoji → linkify → sanitize chain on every reactive tick. Several pieces compile regexes inline, run DOMPurify per render rather than at parse time, and call `format(new Date(...))` directly in templates. With 50 visible messages × 60 fps reactivity bursts during scroll, the cost is meaningful.
+
+| Site | File / lines |
+|------|--------------|
+| Markdown parser inline `new RegExp(...)` | `src/utils/markdownParser.ts` |
+| Unicode emoji regex per render | `src/composables/useContentRenderer.ts` |
+| `DOMPurify.sanitize` called per render | `src/composables/useContentRenderer.ts` |
+| `JSON.parse` in message display hot path | `src/components/MessageDisplay.vue`, `src/components/UserProfileModal.vue` |
+| Date formatted inside `<template>` expressions | `src/views/ThreadFullView.vue`, `src/components/threads/ThreadView.vue` |
+| Provider/embed detection regex per render | `src/components/embeds/ProviderEmbedSwitch.vue` |
+| Mention regex with backtracking risk | `src/utils/unifiedContentProcessing.ts` |
+
+**Suggested sweep:** Hoist regex constants to module scope. Sanitize **once** when constructing message parts, store the resulting HTML on the parsed object, and render via `v-html` of the cached string. Use `computed()` for formatted timestamps. Memoize content renderer output by `(message_id, edited_at, content_hash)`.
+
+### Pattern P-γ — Long-lived `setInterval` polling where a subscription would do
+
+Polling intervals run unconditionally regardless of user state. Most are short and individually cheap, but they add CPU + DB pressure 24/7 and prevent the tab from sleeping.
+
+| Interval | Period | File / lines |
+|----------|--------|--------------|
+| Bot gateway message ingest | **1s** | `bot-gateway/src/gateway/EventDispatcher.ts` |
+| Bot gateway edits/deletes scan | 2s | `bot-gateway/src/gateway/EventDispatcher.ts` |
+| Discord bridge user-list refresh | 5min | `bot-plugins/discord-bridge/src/index.ts` |
+| Reaction optimistic-state cleanup | 30s | `src/stores/useReactions.ts` |
+| DND status recheck | 1min | `src/stores/useNotification.ts` |
+| Audio theme refresh | 5s | `src/components/settings/AudioThemeManager.vue` |
+
+**Suggested sweep:** The bot gateway 1s poll is the biggest win — switch to Postgres `NOTIFY/LISTEN` or Supabase Realtime on `messages`, falling back to polling only when the subscription is unhealthy. The DND check should be reactive on `dnd_enabled` + a single `setTimeout` aligned to the next boundary, not a 60s tick.
+
+### Pattern P-δ — Sequential `await` in loops; missing `Promise.all` / `IN(...)` batches
+
+| Site | File / lines | Effect |
+|------|--------------|--------|
+| Federated mention resolution | `src/utils/unifiedContentProcessing.ts` | One DB query per remote `@user@domain` in a message |
+| Follower inbox collection | `federation-backend/src/activitypub/DeliveryQueue.ts` | Per-follower SELECT; batched IN would do |
+| `formatMessage` author lookup | `bot-gateway/src/gateway/EventDispatcher.ts` (called twice per dispatch) | Two DB roundtrips per message author |
+| Megolm `share_session` over recipients | `src/services/encryption/MegolmMessageEncryptionService.ts` | Batched key fetch good, but ECDH/encrypt loop is serial |
+| Bridge data registration channel validation | `bot-gateway/src/gateway/WebSocketGateway.ts` | One-by-one in loop after a batch lookup |
+
+**Note:** `DeliveryQueue.processBatch` is intentionally sequential *within* a single remote domain (politeness — avoid hammering one instance). Don't parallelize that. The improvement is the *follower inbox collection* before delivery starts, not the delivery itself.
+
+### Pattern P-ε — Unbounded caches / Maps grown for the life of the process
+
+Long-running services (federation worker, bot gateway, Discord bridge) accumulate Maps with no eviction. Individually small, but combined with `>1 week` uptime they become RSS-multiplying.
+
+| Cache | File / lines | Risk |
+|-------|--------------|------|
+| Discord↔Harmony message-id maps | `bot-plugins/discord-bridge/src/index.ts` | Already listed as **M41** above; perf framing: O(messages × bridge-runtime) memory, lookup degrades |
+| Fediverse post embed cache | `src/components/embeds/ProviderEmbedSwitch.vue` | Module-level Map, never pruned |
+| Federation L1 cache promotion w/o eviction | `federation-backend/src/utils/cache.ts` `[?]` | L2 hits promoted to L1 with no LRU cap |
+| `messageVersions` / `processedMessageIds` in bot gateway | `bot-gateway/src/gateway/EventDispatcher.ts` | Has 10k cap (good), but cap-by-slicing-Set is O(n) on every overflow |
+| Permission cache (already H50 above) | restated for completeness | Survives logout |
+
+### Pattern P-ζ — Per-request heavy setup (crypto signer, Supabase client, no HTTP keepalive)
+
+The federation backend does work on every request that could be amortized. With outbound delivery fan-out + signature verification on inbound, this is in the hot path.
+
+| Site | File / lines | Suggested fix |
+|------|--------------|---------------|
+| New `crypto.createSign('SHA256')` per outbound sign | `federation-backend/src/activitypub/SignatureService.ts` | Use async `crypto.sign` (libuv pool) and/or `KeyObject` reuse |
+| Public-key PEM parse per inbound verify | `federation-backend/src/activitypub/SignatureService.ts` | Cache parsed `KeyObject` keyed by `keyId`, TTL 1h, invalidate on `Update` |
+| `safeFetch` without keepalive agent | `federation-backend/src/activitypub/DeliveryQueue.ts` | Pass an `https.Agent({ keepAlive: true, maxSockets: ... })`; saves TCP+TLS handshake per delivery |
+| Per-job Supabase client creation `[?]` | multiple queue handlers | Move to a singleton; SDK already supports it |
+| Bot rate-limit DB roundtrip per API call | `bot-gateway/src/auth/BotAuthMiddleware.ts` | Sliding window in Redis (or in-process w/ shared lock) |
+
+### Pattern P-η — Main-thread work that should be off-thread
+
+Anything that runs in a hot loop on the renderer thread costs frames; anything that runs in the federation API thread costs latency for unrelated requests.
+
+| Site | File / lines | Why it hurts |
+|------|--------------|--------------|
+| Insertable-stream frame encryption | `src/services/encryption/WebRTCEncryptionService.ts` | 50 Hz audio × N peers + 30 Hz video × N peers, all `await crypto.subtle` on main thread |
+| Megolm signature verify per decrypt | `src/services/encryption/MegolmMessageEncryptionService.ts` | ECDSA P-256 verify in front of every visible message decrypt |
+| Spatial-audio HRTF panners | `src/services/spatialAudio.ts` | HRTF is CPU-heavy; fine for ≤4 users, painful at 8+ |
+| PBKDF2 100k iterations for temp keys | `src/services/encryption/MegolmMessageEncryptionService.ts` | Hundreds of ms on weak devices |
+| Pixel-art emoji upscale on `<canvas>` | `src/services/emojiService.ts` | Already **M55**; reframe — also blocks main thread for >100 ms on big emoji |
+| Synchronous keypair generation | `federation-backend/src/activitypub/SignatureService.ts` `[?]` | If called on registration path, stalls the event loop |
+
+---
+
+## Critical perf (user-visible slow or scaling cliff)
+
+### PC1. Bot gateway ingest = 1-second SQL poll + 2 DB roundtrips per message
+
+**File:** `bot-gateway/src/gateway/EventDispatcher.ts`
+
+The bridge runs `setInterval(pollMessages, 1000)` and `setInterval(pollEditsAndDeletes, 2000)` continuously. Each `pollMessages` issues a `SELECT *` against `messages` (line 167) with `created_at > last` and `LIMIT 50`. For every message returned, `handleMessageCreate` then issues two more queries: `channels.select('server_id')` (line 243) **and** `bot_server_permissions` (line 259) — without caching either. At 10 active bridges × idle DB the cost is ~86,400 polls/day per gateway; under load it is 3 queries × N messages on top.
+
+**Fix:** Subscribe to `messages` via Supabase Realtime / Postgres `LISTEN`, keep a small in-memory `channel→server` LRU (channels rarely change), and load `bot_server_permissions` once per (bot, server) into a shared Map invalidated on permission change. Keep the 1 s poll as a *fallback* gated on "realtime healthy".
+
+---
+
+### PC2. Vue render-graph: three files dominate the main bundle and the type-check
+
+**Files:**
+- `src/views/AdminPanel.vue` — **6 793 lines**, eagerly imported route component
+- `src/components/MessageDisplay.vue` — **4 003 lines**, present on every chat view
+- `src/stores/useActivityPub.ts` — **3 714 lines**, single Pinia store
+
+These three files alone are ~14 kLoC of Vue+TS that ship in the main chunks and force `vue-tsc --build --force` to rebuild large slices on any change. HMR latency, time-to-interactive, and the bundle's parse cost all suffer. `vue-docgen` and `typedoc` similarly choke on these files.
+
+**Fix:**
+- `AdminPanel.vue`: split into `views/admin/<Tab>.vue` files lazy-loaded via the admin sub-router. Tabs are independent enough that ~10 chunks of 700 lines each is straightforward.
+- `MessageDisplay.vue`: extract the reaction picker, attachment grid, reply preview, and thread badge into siblings so the parent shrinks and reactivity is scoped.
+- `useActivityPub.ts`: this is several stores in a trench coat — posts, follows, blocks, mutes, feed cursors. Split into `useActivityPubFeeds`, `useActivityPubGraph`, `useActivityPubInteractions`. Each becomes independently watchable and easier to optimise.
+
+---
+
+### PC3. WebRTC E2EE encryption runs `await crypto.subtle` per frame on the main thread
+
+**File:** `src/services/encryption/WebRTCEncryptionService.ts` (encrypt), 309-388 (decrypt)
+
+The `TransformStream` callback `transform: async (encodedFrame, controller) => { ... await encryptor.encrypt(data) ... }` runs in the same realm/thread that drives Vue updates. Audio frame rate is ~50 Hz, video ~30 Hz; with N remote peers this is `O(N × 80)` `crypto.subtle.encrypt` calls per second on the renderer, plus the same for decrypt. Stalls during scroll/layout become audible (audio drops) and visible (video jitter).
+
+**Fix:** Use `RTCRtpScriptTransform` (the modern API that runs the transform in a `DedicatedWorker` automatically) on browsers that support it, and fall back to manually piping the encoded streams through a Worker via `postMessage(transferable)` on others. This is also a prerequisite for fixing the E2EE key agreement issue **C5** — once the crypto is in a worker, key material lives off the renderer.
+
+---
+
+### PC4. ActivityPub feed updates re-scan four arrays per realtime event
+
+**File:** `src/stores/useActivityPub.ts`
+
+`updatePostCountsFromRealtime` and `updatePostInteractionFromRealtime` iterate `[homeFeed, publicFeed, localFeed, mentionsFeed]` and call `.find(p => p.id === postId)` on each `.posts` array. With each feed sized at the default 40 posts × hydrated state, a realtime event from any user triggers `O(4 × 40)` work plus a `SELECT favorites_count, reblogs_count, replies_count FROM posts` roundtrip. In a busy public timeline this fires for every favorite/reblog from anyone in your network.
+
+**Fix:**
+1. Maintain a single `Map<post_id, Post>` (the canonical store) and have each feed hold an array of `post_id` ordered by position. Realtime updates touch the Map once; feeds re-derive count displays via computed.
+2. Drop the per-event SELECT — the realtime payload already carries the new counts (`postgres_changes` row).
+
+---
+
+### PC5. Notification store: every notification mutation triggers 6+ full-list scans
+
+**File:** `src/stores/useNotification.ts`
+
+- `sortedNotifications` does `[...state.notifications].sort()` — fresh allocation + O(n log n) **per access**.
+- `filteredNotifications` reads `sortedNotifications` then `.filter(...)`.
+- `unreadMentions`, `unreadDMs`, `unreadChannelMentions(channelId)`, `unreadServerMentions(serverId)`, `unreadConversationMentions(conversationId)` each call `state.notifications.filter(...)` — additional full scans per getter, per access.
+
+If 5 sidebar badges + the bell + the page itself read these getters and a single notification arrives, that's 6× O(n) scans, none cached, plus a fresh sorted-array allocation. n=1000 is plausible after a busy weekend.
+
+**Fix:**
+- Memoize `sortedNotifications` with a `computed()` that depends on `notifications.length` and a "lastMutationAt" stamp; sort only when stamp changes.
+- Replace `filter(...)` getters with denormalized counters maintained on insert/update/delete (a `unreadByType: Record<string, number>`, `unreadByChannel: Map<string, number>`, etc.). Updating five counters on each mutation is cheaper than scanning the full array once per visible badge.
+
+---
+
+## High perf (significant cost; degrades at 100–1 000 users)
+
+### Database / RLS
+
+| # | Finding | File / lines | Fix |
+|---|---------|--------------|-----|
+| PH1 | **Init schema drift from prod**: 248 indexes in `latest_dev_backup.sql` are missing from `db_schema/init/*.sql`. After review (see `### Fixes applied`), **23 are needed** and have code consumers; **~194 are legacy** (mostly pgboss runtime job-queue indexes, Supabase Realtime internals, abandoned experimental features). The needed set has been ported in `db_schema/init/14_indexes_perf.sql`. The investigation also found a `bot_rate_limits.reset_at` (init) vs `resets_at` (prod + code) column-name drift — fresh installs would create a column the code can't read. Fixed in `init/08_tables_bots_extended.sql`. | `db_schema/init/14_indexes_perf.sql` (new), `db_schema/init/08_tables_bots_extended.sql` | Done — see "Fixes applied" section. The remaining 31 "LIKELY-NEEDED" indexes were not ported in this round; verify whether their consumers (federation worker on `ap_actor_cache_expires`, follower indexes, etc.) are hot before adding. |
+| PH2 | `messages_select_channel_member` RLS does a 3-table join per row | `db_schema/init/30_rls_policies.sql` | Wrap in `SECURITY DEFINER` `can_read_channel(channel_id, profile_id)` with `STABLE` and indexed lookups; cache at app layer for the duration of a request |
+| PH3 | `posts` RLS does two `EXISTS` subqueries (follow + block) per row | `db_schema/init/30_rls_policies.sql` | Single combined predicate via a helper function returning a boolean; or precompute a "visible posts" materialized view if read-heavy |
+| PH4 | `profiles` and `posts` are `REPLICA IDENTITY FULL` on wide rows | `db_schema/init/02_tables_core.sql`, `03_tables_social.sql` | Change to `REPLICA IDENTITY DEFAULT` (uses PK); needed only if any realtime subscriber depends on old-row payloads |
+| PH5 | `OFFSET` pagination on timeline / inbox / outbox / group | `db_schema/init/12_functions_rpc.sql`, `federation-backend/src/activitypub/InboxHandler.ts`, `OutboxHandler.ts`, `GroupService.ts` | Keyset cursor on `(created_at, id)` with composite index |
+| PH6 | `get_current_profile_id()` and related helpers not marked `STABLE` | `db_schema/init/10_functions_core.sql` | Add `STABLE` so Postgres caches the result across calls within a query — RLS that calls them per-row currently re-executes |
+| PH7 | `message_search_index.search_vector` lacks a `GIN` index `[?]` | dev backup grep needed to confirm | If absent, `CREATE INDEX ... USING GIN(search_vector)` — sequential `to_tsvector` matching does not scale |
+
+### Frontend reactivity & data flow
+
+| # | Finding | File / lines | Fix |
+|---|---------|--------------|-----|
+| PH8 | `ServerSidebar` computed maps/filters/sorts the whole server list on every reactive tick | `src/components/ServerSidebar.vue` | Cache derived order in a `computed` keyed only on the inputs that change (folder layout / server set) |
+| PH9 | Auto-suggest scans the full server-user list per keystroke | `src/composables/useAutoSuggest.ts` | Build a `prefixIndex: Map<string, User[]>` on user-list change; reset on context switch |
+| PH10 | Mention resolution N+1 (one DB query per remote user in a message) | `src/utils/unifiedContentProcessing.ts` | Collect all `(username, domain)` tuples, single `select … in (...)` |
+| PH11 | Date formatted inside templates via `format(new Date(...))` | `src/views/ThreadFullView.vue`, `src/components/threads/ThreadView.vue`, many others | Pre-compute `displayedAt` in the parent or in `parseMessage`; render the string |
+| PH12 | `MessageDisplay` and `UnifiedMessageContent` watch with `{ deep: true }` on message props | `src/components/MessageDisplay.vue`, `src/components/UnifiedMessageContent.vue` | Watch the specific reactive sub-paths that actually drive re-render (e.g., `() => msg.reactions.length`, `() => msg.editedAt`) |
+| PH13 | `ResizeObserver` created per `MonyHeader` / `PostsContainer` instance | `src/components/activitypub/MonyHeader.vue`, `src/components/common/PostsContainer.vue` | Singleton observer service (`useSharedResizeObserver`) — one ResizeObserver scales to thousands of targets |
+
+### Federation backend
+
+| # | Finding | File / lines | Fix |
+|---|---------|--------------|-----|
+| PH14 | Activity processor / actor service use `SELECT *` then discard most columns | `federation-backend/src/activitypub/ActorService.ts`, `GroupService.ts`, `OutboxHandler.ts` | Project the columns you actually need; the JSONB columns on these tables are large |
+| PH15 | No HTTP keepalive for federation outbound | `federation-backend/src/activitypub/DeliveryQueue.ts` (`safeFetch`) | Pass a shared `https.Agent({ keepAlive: true })`. Saves a full TLS handshake per delivery; at delivery fan-out, this is the single biggest latency reduction available without protocol changes |
+| PH16 | `crypto.createSign('SHA256')` and PEM parse per signature operation | `federation-backend/src/activitypub/SignatureService.ts` | Cache `KeyObject`s in an LRU keyed by `keyId`; switch to async `crypto.sign`/`crypto.verify` to release the event loop |
+| PH17 | WebFinger fetched on every actor resolution `[?]` | `federation-backend/src/activitypub/ActorService.ts` | Check the local `actors` table first; only WebFinger when the actor URL is unknown or stale |
+| PH18 | Verbose `JSON.stringify` logs in hot federation paths | `federation-backend/src/activitypub/ActivityProcessor.ts`, `routes/reactionHandler.ts` | `logger.debug` with a lazy formatter (`() => JSON.stringify(...)`) so the work skips at INFO/WARN |
+
+### WebRTC / voice
+
+| # | Finding | File / lines | Fix |
+|---|---------|--------------|-----|
+| PH19 | Per-peer `AudioContext` + `AnalyserNode` for audio-level monitoring | `src/services/unifiedWebRTC.ts` (and **H21** above for the cleanup half) | One shared `AnalyserNode` chain; route remote streams via `MediaStreamAudioSourceNode` into a single graph with per-peer gain taps |
+| PH20 | New `Uint8Array(256)` per RAF tick per peer for level sampling | `src/services/unifiedWebRTC.ts`, `src/services/spatialAudio.ts` | Pre-allocate one buffer per peer (or one global), reuse |
+| PH21 | Spatial-audio HRTF `PannerNode` per remote user | `src/services/spatialAudio.ts` | Auto-fallback to `StereoPannerNode` when participants > N (configurable, default 4) |
+| PH22 | Megolm verify on the decrypt hot path | `src/services/encryption/MegolmMessageEncryptionService.ts` | Verify in a worker; cache verify-result by `(senderId, sessionId, messageIndex)` |
+| PH23 | PBKDF2 100 000 iterations on main thread for temp session keys | `src/services/encryption/MegolmMessageEncryptionService.ts` | Move to a worker; consider HKDF instead of PBKDF2 if the input is already high-entropy |
+
+### Bot infrastructure
+
+| # | Finding | File / lines | Fix |
+|---|---------|--------------|-----|
+| PH24 | Unbounded `messageMappings` Maps in Discord bridge (perf framing of **M41**) | `bot-plugins/discord-bridge/src/index.ts` | LRU with explicit cap (say 50k entries) and TTL (24h); persisting to disk if you actually need long-tail edit/delete support |
+| PH25 | Bot gateway `processedMessageIds` overflow trim is O(n) | `bot-gateway/src/gateway/EventDispatcher.ts` | Use a ring buffer or a real LRU — current code does `Array.from(set).slice(-10000); new Set(arr)` |
+
+---
+
+## Medium perf
+
+### Stores / reactivity
+- PM1. `useReactions` and `postReactions` `JSON.parse(JSON.stringify(...))` for optimistic clones — use `structuredClone` or shallow spread — `src/stores/useReactions.ts`, `src/stores/postReactions.ts`
+- PM2. `unifiedVoiceChannel` writes to `localStorage` on every volume change — debounce 250 ms — `src/stores/unifiedVoiceChannel.ts`
+- PM3. `useChat` message merge does `[...older, ...realtime]` on every page — `splice` in place or use a circular buffer — `src/stores/useChat.ts`
+- PM4. `useEmojiCache` debug logs use `Object.keys(resolved).length` instead of `Map.size` — `src/stores/useEmojiCache.ts`
+- PM5. `useDM.getSortedConversations` re-sorts on every read (already **H35** above; perf framing — cache and invalidate on conversation add/update)
+
+### Frontend services / composables
+- PM6. `useMessageSearch` filter watchers fire immediately without debounce — 300 ms `useDebounceFn` — `src/composables/useMessageSearch.ts`
+- PM7. `userDataService` schedules a separate `setTimeout` per server presence sync — batch into one tick — `src/services/userDataService.ts`
+- PM8. `useAutoSuggest` bridged-users cache prunes via full sort — keep a min-heap of `(expiresAt, key)` — `src/composables/useAutoSuggest.ts`
+- PM9. `requestDeduplicator` cache cleaned only when `clearCache()` is called — add a periodic sweep or TTL on entry — `src/utils/requestDeduplicator.ts`
+- PM10. `unifiedContentProcessing` emoji lookups serial: cache → DB → unified pack, per emoji — pre-load server emoji into the cache on server enter; batch DB lookup for misses — `src/utils/unifiedContentProcessing.ts`
+
+### Federation backend
+- PM11. JSON-LD `@context` not bundled; re-parsed every activity — bundle the standard contexts and resolve locally — multiple files
+- PM12. Rate limit middleware falls back to in-memory store under Redis outage — always require Redis in prod, fail closed — `federation-backend/src/middleware/rateLimit.ts`
+- PM13. No default `LIMIT` on internal queries — add a project-wide guard `[?]` — multiple files
+- PM14. Reply-chain fetch uses sequential awaits — `Promise.all` with concurrency cap — `federation-backend/src/activitypub/ActivityProcessor.ts` (also **M33** above for the cycle-detection angle)
+
+### Bot
+- PM15. `formatMessage` author lookup runs twice per dispatch (create & edit/delete events both call it) — memoize per `(message_id, version)` — `bot-gateway/src/gateway/EventDispatcher.ts`
+- PM16. Avatar URL string concat on every message — pre-build template, cache by profile — `bot-gateway/src/gateway/EventDispatcher.ts`, `bot-gateway/src/api/BotRestAPI.ts`
+- PM17. Discord member username cache uses lowercase keys with case-sensitive cleanup — pick one — `bot-plugins/discord-bridge/src/index.ts`
+
+### WebRTC
+- PM18. ICE-candidate queue cap of 100 has no time-based eviction — drop stale candidates > 30 s — `src/services/unifiedWebRTC.ts`
+- PM19. Full SDP renegotiation on every track add/remove — prefer `sender.replaceTrack()` for device switches — `src/services/unifiedWebRTC.ts`
+- PM20. `signalingState === 'stable'` waited via 100 ms polling — listen to `signalingstatechange` instead — `src/services/unifiedWebRTC.ts`
+- PM21. `voiceRecordingService` creates a separate `AudioContext` even while the main one exists — share — `src/services/voiceRecordingService.ts`
+- PM22. LiveKit simulcast not explicitly configured — set layer resolutions/bitrates appropriate for a 4–8 person voice room — `src/services/livekitWebRTC.ts`
+
+### Content rendering / utilities
+- PM23. `new URL(href)` in `embedDetection` thrown for many invalid inputs; exception throw is expensive — pre-validate with a simple regex — `src/utils/embedDetection.ts`
+- PM24. `isImageUrl` extension check called per render (already noted as spoofable in **M59**); also a perf smell — compute once at parse time — `src/components/UnifiedMessageContent.vue`
+- PM25. `file_size` formatting recalculated per render — memoize by byte value — `src/composables/useContentRenderer.ts`
+
+### Build / bundle
+- PM26. `vue-easy-lightbox` eagerly imported in `main.ts` — lazy load on first media open — `src/main.ts`
+- PM27. `@privacyresearch/libsignal-protocol-typescript` listed in `optimizeDeps` — only load when encryption setup actually runs — first-paint matters more than encryption setup time
+- PM28. `livekit-client` (~500 kB) ships even for users who never join voice — dynamic-import on `joinChannel` — multiple files
+- PM29. No `preconnect` hints in `index.html` for Supabase, federation backend, image proxy — add `<link rel="preconnect">` for the three most-used origins
+- PM30. `date-fns` imported across 15+ files — already tree-shakeable, but verify Vite's tree-shaking isn't bundling `format` + locale data twice; consider a single `src/utils/datetime.ts` re-export with the exact functions used
+
+---
+
+## Low perf
+
+- PL1. Inline arrow `@click` handlers in many list components — fine in Vue 3 (event delegation) but creates closures per render
+- PL2. `MessageDisplay` mixes `v-show` and `v-if` for overlay/dropdown content — call out a few specific overlays where `v-if` would let GC reclaim — `src/components/MessageDisplay.vue`
+- PL3. Audio constraint object recreated each device update — cache the static base, override `deviceId` only — `src/services/unifiedWebRTC.ts`
+- PL4. Audio element not pooled — small win, but creates an `HTMLAudioElement` per peer — `src/services/unifiedWebRTC.ts`
+- PL5. Spatial-audio `ConvolverNode` normalize on — disable if not used — `src/services/spatialAudio.ts`
+- PL6. Trig (`sin`/`cos`/`atan2`) called per spatial-audio update — cheap individually, but lookup-tables on a quantized grid help at high update rate — `src/services/spatialAudio.ts`
+- PL7. Federation `crypto.generateKeyPair` is sync — async variant releases the event loop — `federation-backend/src/activitypub/SignatureService.ts` `[?]`
+- PL8. URL tracker stripper recompiles its regex set per call — module-level constant — `src/utils/urlTrackerStripper.ts`
+- PL9. Bot gateway WS broadcast does `JSON.stringify` per recipient even when payload identical — stringify once, send the buffer — `bot-gateway/src/gateway/WebSocketGateway.ts`
+- PL10. Bull Board basic-auth `split(':')` is also a parsing perf wart in addition to the password-with-colon bug (**M46**) — use `indexOf` + `slice`
+- PL11. `MessageInput` `MutationObserver` re-attached on every editor reset — keep observer alive across resets if possible
+- PL12. `FilePreview` index-keyed `v-for` (already **M52** but visible perf-wise: Vue reconciles + re-mounts wrong rows on remove)
+- PL13. `userStorage` falls back to global keys (already **L19**) — small perf concern: extra storage reads on auth changes
+- PL14. Emoji shortcode resolution scans the full Unicode set per message `[?]` — verify; if true, build a `Map<shortcode, codepoint>` once
+- PL15. `Object.keys(...)` to count items in several places — `Object.entries(...).length` and `Map.size` both faster than the keys allocation
+
+---
+
+## Suggested perf fix order
+
+1. **PC1 — Bot gateway poll → realtime + caches** (single biggest scale-cliff; affects production today)
+2. **PC4 + Pattern P-α sweep** (move post / notification / voice-user collections to Map; deduplicate getter scans). Touches ~6 stores, each in <1 day.
+3. **PH15 — HTTP keepalive in federation outbound** (one config change, biggest latency win for federation)
+4. **PC3 + PH22 + PH23 — Move WebRTC frame crypto and Megolm verify off the main thread.** Prerequisite for **C5** anyway.
+5. **PH1 — Sync `db_schema/init` with `latest_dev_backup.sql` indexes** (otherwise every fresh install seq-scans)
+6. **PC5 + Pattern P-β sweep** (notification counters; per-message DOMPurify cache; hoisted regex constants).
+7. **PH2, PH3 — Replace expensive RLS with `SECURITY DEFINER` helpers**, then **PH6** (mark helpers `STABLE`).
+8. **PC2 — Split AdminPanel.vue + MessageDisplay.vue + useActivityPub.ts.** Not user-visible directly, but cuts cycle-time for everything else.
+9. **PM27/PM28 — Lazy load LiveKit + Signal Protocol; PM29 preconnects.** Cold-start win for the web client.
+10. Remaining mediums + lows as background hygiene.
+
+---
+
+## Counts (performance addendum)
+
+| Severity | Count |
+|----------|-------|
+| Critical | 5 |
+| High | 25 |
+| Medium | 30 |
+| Low | 15 |
+| **Total** | **75** |
+
+Cross-cutting patterns (P-α through P-η) overlap with ~30 of the individual entries above. Items marked `[?]` indicate confidence < high — verify before scheduling fix work.
+
+---
+
+## Fixes applied (round 1, 2026-05-20, branch `perf/round-1-fixes`)
+
+### Status table
+
+| ID | Title | Status | Files touched |
+|----|-------|:------:|---------------|
+| PC1 | Bot gateway: cache channel→server, bot perms, and authors per message | ✅ | `bot-gateway/src/gateway/EventDispatcher.ts`, `bot-gateway/src/utils/TTLCache.ts` (new) |
+| PC2 | Split AdminPanel.vue (6 793) / MessageDisplay.vue (4 003) / useActivityPub.ts (3 714) | ⏸️ deferred | — |
+| PC3 | Move WebRTC frame crypto off main thread | ⏸️ deprioritized (P2P is SFU fallback) | — |
+| PC4 | useActivityPub realtime: single-pass `_findPostRefs`, skip DB SELECT when no feed refs | ✅ | `src/stores/useActivityPub.ts` |
+| PC5 | Notification store: single-pass `notificationCounts` getter; all per-type/per-channel/per-server unread counts read from it | ✅ | `src/stores/useNotification.ts` |
+| PH1 | Port verified-needed indexes to init.sql + fix `reset_at`/`resets_at` column drift; **deployed envs run two migration files** in the Supabase SQL editor (both transactional, both safe to paste-and-run in one shot) | ✅ | `db_schema/init/14_indexes_perf.sql` (new), `db_schema/init/08_tables_bots_extended.sql`, `db_schema/migrations/20260520_perf_round1_bot_rate_limits_columns.sql` (new), `db_schema/migrations/20260520_perf_round1_indexes.sql` (new) |
+| PH10 | Batch federated mention resolution (replace per-pair `.eq().eq().maybeSingle()` with single `.or()`) | ✅ | `src/utils/unifiedContentProcessing.ts` |
+| PH15 | HTTP keep-alive for federation outbound (undici dispatcher, 30 s idle, 50 conn/origin) | ✅ | `federation-backend/src/utils/ssrfProtection.ts`, `federation-backend/package.json` |
+| PH16 | In-memory LRU cache for parsed public keys (fronts the existing DB caches) | ✅ | `federation-backend/src/activitypub/SignatureService.ts` |
+| PH24 | Bounded LRU for Discord-bridge message-id Maps (drop-in replacement for unbounded `Map`s) | ✅ | `bot-plugins/discord-bridge/src/utils/BoundedMap.ts` (new), `bot-plugins/discord-bridge/src/index.ts` |
+| PM15 | Cache author lookups in bot gateway (rolled into PC1) | ✅ | `bot-gateway/src/gateway/EventDispatcher.ts` |
+| PM23 / P-β | Hoist regex constants to module scope in markdownParser, urlTrackerStripper, unifiedContentProcessing | ✅ | three files |
+| Pattern P-ε | TTL + LRU cap for module-level Fediverse post-embed cache (was unbounded) | ✅ | `src/components/embeds/ProviderEmbedSwitch.vue` |
+| Pattern P-γ | Reaction-store dead `setInterval` removed; DND check skips polling when DND disabled | ✅ | `src/stores/useReactions.ts`, `src/stores/useNotification.ts` |
+
+### Index drift — investigation summary
+
+A parallel read-only agent enumerated every `CREATE INDEX` in `db_schema/latest_dev_backup.sql` (412) and compared against `db_schema/init/*.sql` (159). Of the 248 indexes present in prod but absent from init:
+
+| Verdict | Count | Example | Action |
+|---------|------:|---------|--------|
+| **NEEDED** (clear code consumers) | 23 | `idx_messages_bot_id`, `idx_reactions_user_message`, `idx_posts_federated_timeline`, `idx_ap_activities_federation_status`, `idx_profiles_auth_user_id` | Ported to `init/14_indexes_perf.sql` |
+| **LIKELY-NEEDED** (partial usage; verify) | 31 | `idx_ap_actor_cache_expires`, `idx_follows_unique`, `idx_messages_thread_id`, `idx_hashtags_trending_rank` | Not ported this round — verify hot-path usage first |
+| **LIKELY-LEGACY** (no consumers) | 194 | pgboss `j[hash]_i*` runtime tables, `_realtime.*` Supabase internals, `archive_i1`, abandoned analytics tables | Leave out of init; can be dropped from prod with `DROP INDEX CONCURRENTLY` |
+
+Confirmed the "dev backup has legacy stuff" intuition — the bulk of the drift is pgboss runtime objects that recreate themselves and should not live in init.
+
+Also discovered (not strictly an index issue): `bot_rate_limits.reset_at` (init) vs `resets_at` (prod + `bot-gateway/src/auth/BotAuthMiddleware.ts`). Fresh installs would silently break bot rate-limiting. Fixed.
+
+### Round-2 fixes (post code-review, 2026-05-20)
+
+Findings from the code-reviewer pass on the round-1 changes were addressed in the same branch. Status:
+
+| ID | Title | Status |
+|----|-------|:------:|
+| **B1** | `bot_rate_limits` schema in init was wrong on more columns than just `resets_at` — `request_count`, `window_start`, `window_duration_seconds`, `max_requests`, `metadata` were also missing. The gateway's `checkRateLimit` would fail-open on every fresh install. Reshaped init/08 to match prod verbatim; extended the migration to add the new columns and drop the obsolete ones, idempotently and state-aware | ✅ |
+| **H1** | `setupDndCheck` short-circuit silently broke DND when toggled on mid-session — no caller re-invoked it after preference changes. Wired `loadPreferences` (always) and `updatePreferences` (only when `dnd_*` fields change) to call `setupDndCheck()` | ✅ |
+| **H2** | `_findPostRefs` didn't scan `bookmarks: TimelinePost[]`, so realtime favourite/reblog/reply count updates were silently skipped for the bookmarks view. Added the scan | ✅ |
+| **H3** | `EventDispatcher` lookup caches poisoned on transient Supabase errors (cached `null` / `[]` for the full TTL on a network blip). Now distinguish PGRST116 "no rows" (cacheable) from any other error (returns null but does NOT cache) for all three caches | ✅ |
+| **H4** | Migration's `NOTIFY pgrst, 'reload schema'` was after the 30+ minute CONCURRENT index block — PostgREST would serve stale schema for that whole window. Moved an explicit NOTIFY between Part 1 (column reconciliation) and Part 2 (CONCURRENT indexes) | ✅ |
+| **H5** | `idx_profiles_auth_user_id` was a redundant duplicate of the implicit btree from the `auth_user_id uuid UNIQUE` column constraint. Removed from both `init/14_indexes_perf.sql` and the migration; documented why | ✅ |
+| **M1** | Dead `invalidate*` helpers in `EventDispatcher` (defined but never called from anywhere). Removed | ✅ |
+| **M2** | `undici` was in `federation-backend/package.json` but not in the lockfile, meaning Docker builds would silently lose the keep-alive dispatcher and fall back to default-fetch's 4 s keep-alive. Ran `npm install --package-lock-only`; lockfile now pins `undici@6.25.0` | ✅ |
+| **M3** | Per-key unread Maps used `??` (single-source coalesce) instead of `||` semantics (count both sources when both present), changing observable behaviour for notifications carrying both `data.X` and `data.location.X`. Restored the disjunction semantics with an explicit two-branch bump | ✅ |
+| **M4** | Three more inline regexes in `unifiedContentProcessing.ts` (`preUrlRegex`, `urlRegex`, `combinedEmojiRegex`, `combinedRegex`) were missed by the round-1 hoist. Hoisted to module scope with `lastIndex = 0` resets at every `.exec`-loop call site | ✅ |
+| L1 | Stale comment in `useReactions.ts` referenced a non-existent `reconcileReaction`. Fixed | ✅ |
+| L2 | `import { BoundedMap }` in `bot-plugins/discord-bridge/src/index.ts` was mid-file. Moved to the top-of-file import block | ✅ |
+| L3 | Defensive `(this.userFeeds as any).values` cast in `_findPostRefs` — `userFeeds` is initialised to `new Map()` and is always present. Removed the defensive check and the cast | ✅ |
+| H6 | `setInterval(async pollMessages, 1000)` can race when a poll takes >1 s. Pre-existing in the bot gateway; **not** addressed in this round | ⏸️ deferred |
+| M5 | Three timeline-index variants in `init/14_indexes_perf.sql` use three different "alive post" predicate forms; planner only uses the one matching the query's WHERE shape. Not addressed; needs a broader audit of query predicates before consolidating | ⏸️ deferred |
+| M6 | Public-key cache invisible to multi-node async profile updates. Acceptable for current single-node deployments; deferred | ⏸️ deferred |
+| L9 | Three other unbounded `Map`s in `discord-bridge/index.ts` (`webhookCache`, `discordMemberCache`, `discordMemberDetails`). Pre-existing; would benefit from the same `BoundedMap` treatment in a follow-up | ⏸️ deferred |
+| L10 | `processedMessageIds.add` overflow trim in `EventDispatcher` is O(n). Pre-existing; not addressed | ⏸️ deferred |
+
+The round-2 fixes added a vue-tsc workaround: dependent getters that read `this.notificationCounts.X` use a `(this as any).notificationCounts` cast because vue-tsc/Pinia surface a method-form getter as its raw `() => T` function type when referenced from another method-form getter. Runtime behaviour is correct (Pinia unwraps via `computed`). The cast sites carry a comment explaining the limitation.
+
+### Round-3 follow-ups (post production-deploy attempt, 2026-05-20)
+
+After the migration was attempted on prod, two issues surfaced and were addressed:
+
+1. **`CREATE INDEX CONCURRENTLY cannot run inside a transaction block` (25001)** — the combined migration file was wrapped in a single transaction by the deploy tooling, which Postgres rejects for `CONCURRENTLY`. First attempt at a fix split the file in two; the indexes-half still failed in the Supabase SQL editor because that editor sends multi-statement pastes as a single implicit-transaction simple-query batch, and CONCURRENTLY rejects implicit transactions just as readily as explicit ones. Final structure:
+   - `db_schema/migrations/20260520_perf_round1_bot_rate_limits_columns.sql` — transactional column reconciliation.
+   - `db_schema/migrations/20260520_perf_round1_indexes.sql` — same 19 indexes, but **non-CONCURRENT** `CREATE INDEX IF NOT EXISTS` inside a single `BEGIN`/`COMMIT`. Pastes and runs in the SQL editor in one shot. The trade-off (a brief ACCESS EXCLUSIVE lock per table, sub-second-to-seconds on hobby-scale data) is documented in the file's header along with the CONCURRENT path for anyone who later needs zero-downtime: swap `CREATE INDEX` for `CREATE INDEX CONCURRENTLY`, drop the transaction wrapper, and run via direct `psql`.
+
+2. **Dev-backup deadcode audit** — the project framing is that `init/*.sql` is the canonical "intended" schema and the production dump (`latest_dev_backup.sql`) may carry legacy. A second-pass code-consumer audit of the 22 originally-ported indexes found **3 with no real consumer**:
+
+   | Dropped index | Original justification | Reality |
+   |---------------|------------------------|---------|
+   | `idx_messages_encrypted` | "Encrypted-only paths" | No `.eq('encrypted', true)` filter in `src/`, `federation-backend/`, or `bot-gateway/`. The column is only set/read via `SELECT *`. |
+   | `idx_messages_megolm_session` | "Megolm session inbound lookup" | No `.eq('megolm_session_id', ...)` filter anywhere. |
+   | `idx_reactions_metadata` (GIN) | "for federation reactionHandler.ts" | That file does not exist. The only `.contains('metadata', ...)` query in the codebase is on `messages`, not `reactions`. |
+
+   Removed from both `init/14_indexes_perf.sql` and the migration file. Net ported: **19 indexes**, not 22.
+
+### B1 reconciliation (round 4): atomic RPC instead of schema swap
+
+Per project framing (init = newer cleaned schema, dev backup = may carry legacy), there were two candidate B1 paths:
+
+- **Schema A** — keep the dev-backup shape (`request_count`/`window_start`/...) that prod and the running code already use.
+- **Schema B** — restore the init shape (`limit_max`/`remaining`/`violations`/`last_violation_at`) and refactor `BotAuthMiddleware.checkRateLimit` to use it.
+
+Picked **Schema A + a proper atomic RPC**. Rationale:
+
+1. **Schema B would require a destructive prod migration** — `DROP COLUMN request_count`, `DROP COLUMN window_start`, etc. — which loses in-flight rate-limit state for every bot. Net risk > net gain.
+2. **The schemas are cosmetic; the real bug is the access pattern**, not the column names. The previous `checkRateLimit` did a SELECT → conditional → UPDATE in three round trips, which is racy (BUGS.md M37): two concurrent requests can both read `count = N`, both pass the threshold, both write `count = N + 1`, letting through ~2× the allowed burst. Either schema breaks under that.
+3. **An atomic UPSERT-and-return RPC fixes M37 in one statement** and reduces the per-check cost from 2-3 DB round trips to 1. After this refactor, the column names matter only inside the SQL function, so the "which schema is cleaner" debate is moot.
+
+What landed:
+
+| Change | Where |
+|--------|-------|
+| Atomic `check_and_increment_bot_rate_limit(bot_id, bucket, limit, window_seconds) RETURNS boolean` — `INSERT … ON CONFLICT DO UPDATE` with window-reset logic in the SET clause, returns true iff the post-increment count exceeds the limit. Exclusive row lock means concurrent calls serialise correctly. | `db_schema/init/13_functions_rpc_extended.sql` (for fresh installs), `db_schema/migrations/20260520_perf_round1_rate_limit_atomic_rpc.sql` (for prod) |
+| `BotAuthMiddleware.checkRateLimit` rewritten to a single `supabase.rpc('check_and_increment_bot_rate_limit', ...)` call. Reads the `config.rateLimit.windowMs` / `maxRequests` env-based defaults instead of hardcoding 60 s / 100 like before. Fail-open behaviour on RPC error is preserved (matches pre-existing M37/L11 stance). | `bot-gateway/src/auth/BotAuthMiddleware.ts` |
+
+What this also closes:
+
+- **M37** (rate-limit racy + fails open) — now atomic.
+- The hardcoded-60s / hardcoded-100 limitation that the previous code carried (it never read `max_requests` from `config.rateLimit`).
+
+What it does NOT change:
+
+- The `bot_rate_limits` schema. Prod stays as-is. Init.sql keeps the Schema-A shape (round-2 B1 fix).
+- The previously-committed Part 1 migration (`20260520_perf_round1_bot_rate_limits_columns.sql`) still applies first, ensuring deployed envs have all the columns the RPC needs (it was already running prior to this round 4 addendum, so no replay risk).
+
+Deploy order for prod (Supabase SQL editor — paste each file, click Run):
+
+1. Run `20260520_perf_round1_bot_rate_limits_columns.sql` first. (If already applied, skipping is fine — every step is idempotent.)
+2. Run `20260520_perf_round1_rate_limit_atomic_rpc.sql` second. Defines the function. `NOTIFY pgrst` at the end refreshes PostgREST so the new RPC is callable immediately.
+3. Run `20260520_perf_round1_indexes.sql` last. Pastes and runs in one shot inside a single transaction. Each table gets a brief ACCESS EXCLUSIVE lock during its index build (sub-second-to-seconds on hobby-scale data) — the bot gateway / federation worker / frontend will see a brief query stall during that window.
+4. Deploy the gateway code. The new `checkRateLimit` now needs the RPC to exist; if the gateway is deployed before step 2, every bot request fail-opens (matches the prior buggy behaviour, so no degradation), but rate-limiting won't actually trigger until the RPC is in place.
+
+### Notes on what was NOT done
+
+- **PC2 (file splitting)** — `AdminPanel.vue` 6 793 lines, `MessageDisplay.vue` 4 003, `useActivityPub.ts` 3 714. Deferred: each is a multi-day refactor with no obvious clean split, and the user-visible win is mostly cycle-time / HMR rather than runtime perf. Plan: do these in their own dedicated PRs.
+- **PC3 (P2P frame crypto on main thread)** — explicitly deprioritized by user since P2P is a fallback path; LiveKit (SFU) is the primary voice/video transport. Worth revisiting if/when SFU usage degrades or for users without TURN reachability.
+- **PC4 full Map refactor** — replacing per-feed array storage with a canonical `Map<post_id, Post>` would touch 30+ insertion sites across `useActivityPub.ts`. This round did the minimal refactor: a single `_findPostRefs` helper used by both realtime update paths, plus an early-exit that skips the DB roundtrip when the post isn't in any visible feed. A future round can layer the canonical Map on top of this.
+- **PH22 / PH23 (Megolm verify, PBKDF2 in worker)** — design work needed (whole crypto stack would move to a worker). Not in scope for round 1.
+- **Index drift: the 31 LIKELY-NEEDED** — not ported this round. They warrant individual verification (some, like `idx_messages_thread_id`, look obvious but the init script already has `idx_messages_thread` on the same column — duplicates would just bloat WAL with no benefit).
+
+### Verification
+
+Re-verified after round-2 fixes:
+
+- Frontend type-check (`npm run type-check`): only pre-existing errors remain in files I didn't touch (`UnifiedProfileCard.vue`, `NotificationsView.vue`, icon components, plus the `DEFAULT_PREFERENCES` mismatch in `useNotification.ts` which has existed for several commits — line numbers shift with my insertions but the error sites are unchanged code). No round-1 or round-2 change introduces a new error. The vue-tsc cross-getter inference limitation noted in the round-2 table is documented at the `(this as any)` cast sites.
+- Federation type-check: pre-existing TS7030 warnings in route handlers only.
+- Bot gateway / Discord bridge `tsc --noEmit`: clean for the edited files.
+- Frontend unit tests: `urlTrackerStripper` (16), `markdownParser` (21), `useNotification` (5) — all 42 green.
+- Federation tests: `ssrfProtection` (60), `signatureService` (21), `activityProcessor` (19) + others — all 199 green. Test logs confirm the new undici dispatcher initialises: `🔗 safeFetch: undici keep-alive dispatcher initialized (30s idle, 50 conn/origin)`.
+- Pre-existing failures (unrelated): `inviteService.acceptInvite > rejects unknown invite codes`, four `useTheme` tests (missing mock for `audioThemeService.ensureCustomPacksLoaded`), three federation route suites that can't load (`supertest` not in `devDependencies`).

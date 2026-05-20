@@ -30,6 +30,20 @@ const PATTERNS = {
   newline: /\n/g
 };
 
+// Hoisted to module scope so they aren't re-allocated on every call to
+// `parseMarkdownWithMarkers`. Stateful 'g' regexes require lastIndex resets
+// before each use, which we do at the call sites.
+const COMPLETE_CODEBLOCK_PATTERN = /```(\w+)?\n?([\s\S]*?)```/g;
+const INCOMPLETE_CODEBLOCK_PATTERN = /```(\w+)?(?:\n([\s\S]*))?$/g;
+const STREAMING_OTHER_PATTERNS = {
+  code: /`([^`\n]+)`/g,
+  bold: /\*\*(.+?)\*\*/g,
+  italic: /(?<!\*)\*([^*\n]+)\*(?!\*)/g,
+  underline: /__((?:(?!__).)+?)__/g,
+  strikethrough: /~~((?:(?!~~).)+?)~~/g,
+  emoji: /:([a-zA-Z0-9_+-]+):/g
+} as const;
+
 export function parseMarkdownToNodes(text: string): MarkdownNode[] {
   const nodes: MarkdownNode[] = [];
 
@@ -47,10 +61,13 @@ export function parseMarkdownToNodes(text: string): MarkdownNode[] {
     const matches: Match[] = [];
 
     Object.entries(PATTERNS).forEach(([type, pattern]) => {
-      const regex = new RegExp(pattern.source, pattern.flags);
+      // Reuse the module-level regex; reset lastIndex so the stateful 'g'
+      // pattern starts from the beginning of the input. Avoids the per-call
+      // `new RegExp(...)` allocation that this code used to do.
+      pattern.lastIndex = 0;
       let match;
       
-      while ((match = regex.exec(text)) !== null) {
+      while ((match = pattern.exec(text)) !== null) {
         let content = '';
         let language = undefined;
         
@@ -310,10 +327,10 @@ export function parseMarkdownWithMarkers(text: string): MarkdownToken[] {
     const matches: Match[] = [];
 
     // Handle code blocks first (they take precedence)
-    // Complete code blocks
-    const completeCodeblockPattern = /```(\w+)?\n?([\s\S]*?)```/g;
+    // Complete code blocks. Reuse hoisted pattern; reset lastIndex per call.
+    COMPLETE_CODEBLOCK_PATTERN.lastIndex = 0;
     let match: RegExpMatchArray | null;
-    while ((match = completeCodeblockPattern.exec(text)) !== null) {
+    while ((match = COMPLETE_CODEBLOCK_PATTERN.exec(text)) !== null) {
       matches.push({
         type: 'codeblock',
         match,
@@ -325,11 +342,11 @@ export function parseMarkdownWithMarkers(text: string): MarkdownToken[] {
         isIncomplete: false
       });
     }
-    completeCodeblockPattern.lastIndex = 0;
+    COMPLETE_CODEBLOCK_PATTERN.lastIndex = 0;
 
     // Incomplete code blocks (starting with ``` but not closed)
-    const incompleteCodeblockPattern = /```(\w+)?(?:\n([\s\S]*))?$/g;
-    while ((match = incompleteCodeblockPattern.exec(text)) !== null) {
+    INCOMPLETE_CODEBLOCK_PATTERN.lastIndex = 0;
+    while ((match = INCOMPLETE_CODEBLOCK_PATTERN.exec(text)) !== null) {
       // Check if this position is already covered by a complete code block
       const isAlreadyCovered = matches.some(existingMatch => 
         match!.index! >= existingMatch.start && match!.index! < existingMatch.end
@@ -348,18 +365,10 @@ export function parseMarkdownWithMarkers(text: string): MarkdownToken[] {
         });
       }
     }
-    incompleteCodeblockPattern.lastIndex = 0;
+    INCOMPLETE_CODEBLOCK_PATTERN.lastIndex = 0;
 
-    const otherPatterns = {
-      code: /`([^`\n]+)`/g,
-      bold: /\*\*(.+?)\*\*/g,
-      italic: /(?<!\*)\*([^*\n]+)\*(?!\*)/g,
-      underline: /__((?:(?!__).)+?)__/g,
-      strikethrough: /~~((?:(?!~~).)+?)~~/g,
-      emoji: /:([a-zA-Z0-9_+-]+):/g
-    };
-
-    Object.entries(otherPatterns).forEach(([type, pattern]) => {
+    Object.entries(STREAMING_OTHER_PATTERNS).forEach(([type, pattern]) => {
+      pattern.lastIndex = 0;
       let match;
       while ((match = pattern.exec(text)) !== null) {
         const start = match.index;

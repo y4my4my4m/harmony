@@ -1,9 +1,37 @@
 import { supabase } from '../config/supabase.js'
 import type { WebSocketGateway } from './WebSocketGateway.js'
+import { TTLCache } from '../utils/TTLCache.js'
+
+// Cached bot-permission row. Only the fields downstream code reads.
+interface BotPermissionRow {
+  bot_id: string
+  read_messages: boolean | null
+}
+
+// ---------------------------------------------------------------------------
+// Per-message DB amplification was the dominant cost of message dispatch
+// before these caches were added (see BUGS.md PC1). Each handled message
+// previously issued TWO additional DB queries (channel → server, then
+// server → bot permissions) — three handlers (create/update/delete) ×
+// N messages = O(N) queries on top of the polling baseline.
+//
+// channel.server_id rarely changes (channels are moved between servers
+// only via admin actions). 1 hour TTL is generous; in practice the cache
+// stays warm for the life of the gateway.
+//
+// bot_server_permissions changes when an admin edits bot permissions or
+// activates/deactivates a bot. 5 minutes is a safe ceiling for staleness
+// for what's effectively a read-mostly access control list.
+// ---------------------------------------------------------------------------
+const CHANNEL_TO_SERVER_TTL_MS = 60 * 60 * 1000
+const CHANNEL_TO_SERVER_MAX = 10_000
+const BOT_PERMISSIONS_TTL_MS = 5 * 60 * 1000
+const BOT_PERMISSIONS_MAX = 1_000
 
 export class EventDispatcher {
   private subscriptions: any[] = []
   private pollingInterval: NodeJS.Timeout | null = null
+  private editPollingInterval: NodeJS.Timeout | null = null
   private lastProcessedTimestamp: Date = new Date()
   private processedMessageIds: Set<string> = new Set()
   
@@ -11,6 +39,28 @@ export class EventDispatcher {
   private messageVersions: Map<string, { updated_at: string, content: string, channel_id: string, metadata: any }> = new Map()
   // Track known message IDs for delete detection
   private knownMessageIds: Set<string> = new Set()
+
+  // Read-mostly lookup caches — see CHANNEL_TO_SERVER_TTL_MS comment above.
+  // A null value is cached too so we don't repeatedly look up channels that
+  // have been deleted or are inaccessible.
+  private channelToServerCache = new TTLCache<string, string | null>(
+    CHANNEL_TO_SERVER_MAX,
+    CHANNEL_TO_SERVER_TTL_MS,
+  )
+  private botPermissionsCache = new TTLCache<string, BotPermissionRow[]>(
+    BOT_PERMISSIONS_MAX,
+    BOT_PERMISSIONS_TTL_MS,
+  )
+  // Author (user OR bot) lookup cache. Username/display_name/avatar are
+  // read-mostly; a 10-minute staleness ceiling is acceptable for bot
+  // event dispatch and saves one DB roundtrip per message.
+  private authorCache = new TTLCache<string, {
+    id: string
+    username: string
+    display_name: string
+    avatar_url: string | null
+    isBot: boolean
+  } | null>(5_000, 10 * 60 * 1000)
   
   constructor(private gateway: WebSocketGateway) {}
   
@@ -61,9 +111,80 @@ export class EventDispatcher {
     }, 1000)
     
     // Poll every 2 seconds for edits/deletes (compares cached content vs DB)
-    setInterval(async () => {
+    // Tracked so shutdown can clear it (previously this handle leaked).
+    this.editPollingInterval = setInterval(async () => {
       await this.pollEditsAndDeletes()
     }, 2000)
+  }
+
+  // ---------------------------------------------------------------------
+  // Cached lookups (BUGS.md PC1)
+  // ---------------------------------------------------------------------
+
+  /**
+   * Resolve a channel's server_id. Cached for 1 hour because channels
+   * rarely move between servers.
+   *
+   * Caching semantics (BUGS.md H3 from code review):
+   * - Channel found with server_id: cache it (positive hit).
+   * - Channel definitively not found (PGRST116 "no rows"): cache `null`
+   *   so deleted/orphan channels don't re-query forever.
+   * - Any other error (network, RLS denial, schema reload, transient
+   *   Postgres issue): do NOT cache; return null for this call and try
+   *   again next time. Caching transient nulls would lock out a working
+   *   channel for the full TTL.
+   */
+  private async resolveServerId(channelId: string | null | undefined): Promise<string | null> {
+    if (!channelId) return null
+    const cached = this.channelToServerCache.get(channelId)
+    if (cached !== undefined) return cached
+
+    const { data: channel, error } = await supabase
+      .from('channels')
+      .select('server_id')
+      .eq('id', channelId)
+      .single()
+
+    // PGRST116 = no row returned by .single() (the channel genuinely
+    // does not exist). Any other error is transient and must not be
+    // cached as a negative result.
+    if (error && error.code !== 'PGRST116') {
+      console.warn(`channels lookup for ${channelId} returned a transient error; skipping cache:`, error)
+      return null
+    }
+
+    const serverId = channel?.server_id ?? null
+    this.channelToServerCache.set(channelId, serverId)
+    return serverId
+  }
+
+  /**
+   * Resolve the list of bots that have read_messages permission in a
+   * server. Cached for 5 minutes because permissions are read-mostly.
+   *
+   * As with `resolveServerId`, only cache on a clean response. A
+   * transient error returning `[]` would silence all bots for that
+   * server for the full TTL.
+   */
+  private async resolveBotPermissions(serverId: string): Promise<BotPermissionRow[]> {
+    const cached = this.botPermissionsCache.get(serverId)
+    if (cached !== undefined) return cached
+
+    const { data: botPermissions, error } = await supabase
+      .from('bot_server_permissions')
+      .select('bot_id, read_messages')
+      .eq('server_id', serverId)
+      .eq('read_messages', true)
+      .eq('is_active', true)
+
+    if (error) {
+      console.warn(`bot_server_permissions lookup for ${serverId} returned a transient error; skipping cache:`, error)
+      return []
+    }
+
+    const list = botPermissions ?? []
+    this.botPermissionsCache.set(serverId, list)
+    return list
   }
   
   private async pollEditsAndDeletes() {
@@ -236,36 +357,19 @@ export class EventDispatcher {
     // Note: We DO dispatch bot messages so other bots can see them
     // Each bot should filter out its own messages using the author.id
     
-    // Get server ID from channel
-    let serverId: string | null = null
-    
-    if (message.channel_id) {
-      const { data: channel } = await supabase
-        .from('channels')
-        .select('server_id')
-        .eq('id', message.channel_id)
-        .single()
-      
-      serverId = channel?.server_id
-      console.log(`📍 Channel lookup: channel_id=${message.channel_id}, server_id=${serverId}`);
-    }
-    
+    // Get server ID from channel (cached, see resolveServerId).
+    const serverId = await this.resolveServerId(message.channel_id)
     if (!serverId) {
       console.log('⚠️  No server ID found, skipping dispatch');
       return
     }
     
-    // Get bots with permissions in this server
-    const { data: botPermissions } = await supabase
-      .from('bot_server_permissions')
-      .select('bot_id, read_messages')
-      .eq('server_id', serverId)
-      .eq('read_messages', true)
-      .eq('is_active', true)
+    // Get bots with permissions in this server (cached).
+    const botPermissions = await this.resolveBotPermissions(serverId)
     
-    console.log(`🔍 Found ${botPermissions?.length || 0} bots with read_messages permission in server ${serverId}`);
+    console.log(`🔍 Found ${botPermissions.length} bots with read_messages permission in server ${serverId}`);
     
-    if (!botPermissions || botPermissions.length === 0) {
+    if (botPermissions.length === 0) {
       console.log('⚠️  No bots have permission to read messages in this server');
       return
     }
@@ -289,30 +393,11 @@ export class EventDispatcher {
     if (!message || !message.id) return
     if (message.encrypted) return
     
-    // Get server ID from channel
-    let serverId: string | null = null
-    
-    if (message.channel_id) {
-      const { data: channel } = await supabase
-        .from('channels')
-        .select('server_id')
-        .eq('id', message.channel_id)
-        .single()
-      
-      serverId = channel?.server_id
-    }
-    
+    const serverId = await this.resolveServerId(message.channel_id)
     if (!serverId) return
     
-    // Get bots with permissions in this server
-    const { data: botPermissions } = await supabase
-      .from('bot_server_permissions')
-      .select('bot_id, read_messages')
-      .eq('server_id', serverId)
-      .eq('read_messages', true)
-      .eq('is_active', true)
-    
-    if (!botPermissions || botPermissions.length === 0) return
+    const botPermissions = await this.resolveBotPermissions(serverId)
+    if (botPermissions.length === 0) return
     
     // Format and dispatch event
     const formattedMessage = await this.formatMessage(message)
@@ -336,33 +421,14 @@ export class EventDispatcher {
       channel_id: message.channel_id
     });
     
-    // Get server ID from channel
-    let serverId: string | null = null
-    
-    if (message.channel_id) {
-      const { data: channel } = await supabase
-        .from('channels')
-        .select('server_id')
-        .eq('id', message.channel_id)
-        .single()
-      
-      serverId = channel?.server_id
-    }
-    
+    const serverId = await this.resolveServerId(message.channel_id)
     if (!serverId) {
       console.log('⚠️  No server ID found, skipping dispatch');
       return
     }
     
-    // Get bots with permissions in this server
-    const { data: botPermissions } = await supabase
-      .from('bot_server_permissions')
-      .select('bot_id, read_messages')
-      .eq('server_id', serverId)
-      .eq('read_messages', true)
-      .eq('is_active', true)
-    
-    if (!botPermissions || botPermissions.length === 0) {
+    const botPermissions = await this.resolveBotPermissions(serverId)
+    if (botPermissions.length === 0) {
       return
     }
     
@@ -414,53 +480,69 @@ export class EventDispatcher {
     return `${publicUrl}/storage/v1/render/image/public/avatars/${cleanPath}?width=256&height=256&resize=contain&quality=80`
   }
   
+  private async resolveAuthor(userId: string | null, botId: string | null) {
+    const cacheKey = userId ? `u:${userId}` : botId ? `b:${botId}` : null
+    if (!cacheKey) return null
+    const cached = this.authorCache.get(cacheKey)
+    if (cached !== undefined) return cached
+
+    // BUGS.md H3: cache only on clean responses or definitive
+    // "row not found" (PGRST116). Transient errors must not poison
+    // the cache for the full 10 min TTL.
+    if (userId) {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, username, display_name, avatar_url')
+        .eq('id', userId)
+        .single()
+      if (error && error.code !== 'PGRST116') {
+        console.warn(`profiles lookup for ${userId} returned a transient error; skipping cache:`, error)
+        return null
+      }
+      const entry = data ? { ...data, isBot: false } : null
+      this.authorCache.set(cacheKey, entry)
+      return entry
+    } else {
+      const { data, error } = await supabase
+        .from('bots')
+        .select('id, username, display_name, avatar_url')
+        .eq('id', botId!)
+        .single()
+      if (error && error.code !== 'PGRST116') {
+        console.warn(`bots lookup for ${botId} returned a transient error; skipping cache:`, error)
+        return null
+      }
+      const entry = data ? { ...data, isBot: true } : null
+      this.authorCache.set(cacheKey, entry)
+      return entry
+    }
+  }
+
   private async formatMessage(message: any) {
     // Get author info - could be user or bot
     let author = null
-    
-    if (message.user_id) {
-      // User message
-      const { data } = await supabase
-        .from('profiles')
-        .select('id, username, display_name, avatar_url')
-        .eq('id', message.user_id)
-        .single()
-      
-      author = data ? {
-        id: data.id,
-        username: data.username,
-        display_name: data.display_name,
-        avatar: this.formatAvatarUrl(data.avatar_url),
-        bot: false
-      } : null
-    } else if (message.bot_id) {
-      // Bot message - check if it has Discord user metadata
-      if (message.metadata?.discord_user) {
-        // Use Discord user info for author
-        const discordUser = message.metadata.discord_user
+
+    // Discord-bridged messages carry the original user's profile inline; no DB hit.
+    if (message.bot_id && message.metadata?.discord_user) {
+      const discordUser = message.metadata.discord_user
+      author = {
+        id: discordUser.id,
+        username: discordUser.username,
+        display_name: discordUser.display_name,
+        avatar: discordUser.avatar_url, // Discord URLs are already complete
+        bot: false, // Treat as regular user for display
+        discord_user: true
+      }
+    } else if (message.user_id || message.bot_id) {
+      const entry = await this.resolveAuthor(message.user_id ?? null, message.bot_id ?? null)
+      if (entry) {
         author = {
-          id: discordUser.id,
-          username: discordUser.username,
-          display_name: discordUser.display_name,
-          avatar: discordUser.avatar_url, // Discord URLs are already complete
-          bot: false, // Treat as regular user for display
-          discord_user: true
+          id: entry.id,
+          username: entry.username,
+          display_name: entry.display_name,
+          avatar: this.formatAvatarUrl(entry.avatar_url),
+          bot: entry.isBot
         }
-      } else {
-        // Regular bot message
-        const { data } = await supabase
-          .from('bots')
-          .select('id, username, display_name, avatar_url')
-          .eq('id', message.bot_id)
-          .single()
-        
-        author = data ? {
-          id: data.id,
-          username: data.username,
-          display_name: data.display_name,
-          avatar: this.formatAvatarUrl(data.avatar_url),
-          bot: true
-        } : null
       }
     }
     
@@ -518,11 +600,18 @@ export class EventDispatcher {
       clearInterval(this.pollingInterval)
       this.pollingInterval = null
     }
+    if (this.editPollingInterval) {
+      clearInterval(this.editPollingInterval)
+      this.editPollingInterval = null
+    }
     
     for (const channel of this.subscriptions) {
       await channel.unsubscribe()
     }
     this.subscriptions = []
+    this.channelToServerCache.clear()
+    this.botPermissionsCache.clear()
+    this.authorCache.clear()
     console.log('🛑 Event Dispatcher shut down')
   }
 }

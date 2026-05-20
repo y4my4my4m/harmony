@@ -18,19 +18,29 @@ import { useEmojiCacheStore } from '@/stores/useEmojiCache'
 const emojiUuidRegex = /:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}):/g;
 const emojiShortcodeRegex = /:([a-zA-Z0-9_+-]+):/g;
 
+// Hoisted to module scope; stateful 'g' patterns need lastIndex reset at
+// the call site before each use. Allocating a fresh RegExp inside every
+// `parseContentToMessageParts` / `parseTextForUrls` / `parseTextForEmojis`
+// call was a hot-path waste because these helpers run per-segment per
+// message (BUGS.md Pattern P-β + code-review M4).
+const MENTION_REGEX = /@([a-zA-Z0-9_-]+)(?:@([a-zA-Z0-9.-]+))?/g;
+const URL_PRESCAN_REGEX = /\bhttps?:\/\/\S+/g;
+const URL_MATCH_REGEX = /(\bhttps?:\/\/\S+)/g;
+const COMBINED_MENTION_HASHTAG_REGEX = /(@role:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}))|(@d!(\d+):([a-zA-Z0-9_.-]+))|(@([a-zA-Z0-9_-]+)(?:@([a-zA-Z0-9.-]+))?)|(?<![&\w])#([\p{L}\p{N}_-]+)/gu;
+const COMBINED_EMOJI_REGEX = /:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[a-zA-Z0-9_+-]+):/g;
+
 /**
  * Helper function to efficiently resolve mention user data in batch
  * This should be called before parseContentToMessageParts for optimal performance
  */
 export async function resolveMentionsUserData(content: string): Promise<Record<string, { userId: string; isLocal: boolean }>> {
-  const mentionRegex = /@([a-zA-Z0-9_-]+)(?:@([a-zA-Z0-9.-]+))?/g;
   const userDataMap: Record<string, { userId: string; isLocal: boolean }> = {};
   
   // Pre-scan for URLs to avoid resolving @mentions inside them
   const urlRanges: Array<{ start: number; end: number }> = [];
-  const preUrlRegex = /\bhttps?:\/\/\S+/g;
+  URL_PRESCAN_REGEX.lastIndex = 0;
   let urlScan;
-  while ((urlScan = preUrlRegex.exec(content)) !== null) {
+  while ((urlScan = URL_PRESCAN_REGEX.exec(content)) !== null) {
     urlRanges.push({ start: urlScan.index, end: urlScan.index + urlScan[0].length });
   }
   const isInsideUrl = (pos: number): boolean =>
@@ -40,7 +50,8 @@ export async function resolveMentionsUserData(content: string): Promise<Record<s
   const uniqueUsernames = new Set<string>();
   
   // Extract all unique usernames from content, skipping those inside URLs
-  while ((match = mentionRegex.exec(content)) !== null) {
+  MENTION_REGEX.lastIndex = 0;
+  while ((match = MENTION_REGEX.exec(content)) !== null) {
     if (isInsideUrl(match.index)) continue;
     const username = match[1];
     const domain = match[2];
@@ -74,43 +85,54 @@ export async function resolveMentionsUserData(content: string): Promise<Record<s
       }
     }
     
-    // Query for remote users (username@domain format)
+    // Query for remote users (username@domain format).
+    //
+    // Previously this issued one query per remote mention (Promise.all of N
+    // round-trips). Replaced with a single PostgREST .or() filter that
+    // unions the (username, domain) pairs into one request. Username and
+    // domain charsets are constrained by MENTION_REGEX above
+    // (`[a-zA-Z0-9_-]+` and `[a-zA-Z0-9.-]+`) — neither contains commas,
+    // parens, or quotes, so the values are safe to interpolate directly
+    // into PostgREST filter syntax without escaping.
     if (remoteUsernames.length > 0) {
-      // For remote users, we need to query each username@domain pair individually
-      // since PostgREST doesn't handle complex AND conditions well in OR clauses
-      const remoteUserPromises = remoteUsernames.map(async (usernameDomain) => {
-        try {
-          const [username, domain] = usernameDomain.split('@');
-          const { data, error } = await supabase
+      try {
+        const pairs = remoteUsernames
+          .map(ud => {
+            const [username, domain] = ud.split('@');
+            if (!username || !domain) return null;
+            // Defense in depth: re-validate charset before string-interpolating.
+            if (!/^[a-zA-Z0-9_-]+$/.test(username)) return null;
+            if (!/^[a-zA-Z0-9.-]+$/.test(domain)) return null;
+            return { username, domain };
+          })
+          .filter((p): p is { username: string; domain: string } => p !== null);
+
+        if (pairs.length > 0) {
+          const orFilter = pairs
+            .map(p => `and(username.eq.${p.username},domain.eq.${p.domain})`)
+            .join(',');
+
+          const { data: remoteUsers, error } = await supabase
             .from('profiles')
             .select('id, username, domain, display_name, is_local')
-            .eq('username', username)
-            .eq('domain', domain)
-            .maybeSingle();
-          
+            .or(orFilter);
+
           if (error && error.code !== 'PGRST116') {
-            debug.warn(`Error fetching remote user ${usernameDomain}:`, error);
+            debug.warn('Error batch-fetching remote users:', error);
           }
-          
-          return data;
-        } catch (error) {
-          debug.warn(`Error querying remote user ${usernameDomain}:`, error);
-          return null;
+
+          if (remoteUsers) {
+            remoteUsers.forEach(user => {
+              const key = `${user.username}@${user.domain}`;
+              userDataMap[key] = {
+                userId: user.id,
+                isLocal: user.is_local
+              };
+            });
+          }
         }
-      });
-      
-      const remoteUsers = (await Promise.all(remoteUserPromises)).filter(Boolean);
-      
-      if (remoteUsers) {
-        remoteUsers.forEach(user => {
-          if (user) {
-            const key = `${user.username}@${user.domain}`;
-            userDataMap[key] = {
-              userId: user.id,
-              isLocal: user.is_local
-            };
-          }
-        });
+      } catch (error) {
+        debug.warn('Error batch-resolving remote mentions:', error);
       }
     }
   } catch (error) {
@@ -341,9 +363,9 @@ export async function parseContentToMessageParts(
   // Pre-scan for URLs so we can skip @mentions and #hashtags that appear
   // inside them (e.g., https://mastodon.social/@user/12345)
   const urlRanges: Array<{ start: number; end: number }> = [];
-  const preUrlRegex = /\bhttps?:\/\/\S+/g;
+  URL_PRESCAN_REGEX.lastIndex = 0;
   let urlScan;
-  while ((urlScan = preUrlRegex.exec(content)) !== null) {
+  while ((urlScan = URL_PRESCAN_REGEX.exec(content)) !== null) {
     urlRanges.push({ start: urlScan.index, end: urlScan.index + urlScan[0].length });
   }
   const isInsideUrl = (pos: number): boolean =>
@@ -354,13 +376,15 @@ export async function parseContentToMessageParts(
   // @d!ID:username - Discord bridged user
   // @username or @username@domain - user mention
   // #hashtag - hashtag
-  const combinedRegex = /(@role:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}))|(@d!(\d+):([a-zA-Z0-9_.-]+))|(@([a-zA-Z0-9_-]+)(?:@([a-zA-Z0-9.-]+))?)|(?<![&\w])#([\p{L}\p{N}_-]+)/gu;
+  // Pattern hoisted to module scope (COMBINED_MENTION_HASHTAG_REGEX); reset
+  // lastIndex per-call since this is a stateful 'g' regex.
+  COMBINED_MENTION_HASHTAG_REGEX.lastIndex = 0;
   const parts: MessagePart[] = [];
   
   let lastIndex = 0;
   let match;
   
-  while ((match = combinedRegex.exec(content)) !== null) {
+  while ((match = COMBINED_MENTION_HASHTAG_REGEX.exec(content)) !== null) {
     // Skip mentions and hashtags that fall inside a URL — they'll be handled
     // as part of the URL by parseTextForUrls (e.g., mastodon.social/@user/123)
     if (isInsideUrl(match.index)) continue;
@@ -508,7 +532,7 @@ export function trimTrailingWhitespace(parts: MessagePart[]): MessagePart[] {
 async function parseTextForUrls(text: string, emojiDataMap: Record<string, any> = {}): Promise<MessagePart[]> {
   if (!text) return [];
   
-  const urlRegex = /(\bhttps?:\/\/\S+)/g;
+  URL_MATCH_REGEX.lastIndex = 0;
   const parts: MessagePart[] = [];
   let lastIndex = 0;
   let match;
@@ -516,7 +540,7 @@ async function parseTextForUrls(text: string, emojiDataMap: Record<string, any> 
   // Check if URL tracking stripping is enabled (respects user privacy setting)
   const shouldStripTrackers = isUrlTrackingStrippingEnabled();
   
-  while ((match = urlRegex.exec(text)) !== null) {
+  while ((match = URL_MATCH_REGEX.exec(text)) !== null) {
     // Add text before URL
     if (match.index > lastIndex) {
       const textBefore = text.substring(lastIndex, match.index);
@@ -559,11 +583,12 @@ async function parseTextForEmojis(text: string, emojiDataMap: Record<string, any
   const parts: MessagePart[] = [];
   let lastIndex = 0;
 
-  // Create a combined regex to match both UUID and shortcode patterns
-  const combinedEmojiRegex = /:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[a-zA-Z0-9_+-]+):/g;
+  // Combined regex hoisted to module scope (COMBINED_EMOJI_REGEX); reset
+  // lastIndex per-call since this is a stateful 'g' regex.
+  COMBINED_EMOJI_REGEX.lastIndex = 0;
   
   let emojiMatch;
-  while ((emojiMatch = combinedEmojiRegex.exec(text)) !== null) {
+  while ((emojiMatch = COMBINED_EMOJI_REGEX.exec(text)) !== null) {
     const emojiIndex = emojiMatch.index;
     
     // Add text before emoji

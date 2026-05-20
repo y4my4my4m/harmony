@@ -126,7 +126,23 @@ CREATE INDEX IF NOT EXISTS idx_bot_presence_status ON public.bot_presence(status
 COMMENT ON TABLE public.bot_presence IS 'Bot online presence and status';
 
 -- ---------------------------------------------------------------------------
--- BOT RATE LIMITS - Rate limit tracking for bots
+-- BOT RATE LIMITS - Sliding-window rate-limit tracking for bot API requests.
+--
+-- BUGS.md B1 (code review of PH1, 2026-05-20):
+-- Init previously declared a `limit_max`/`remaining`/`violations`/
+-- `last_violation_at` shape, but production (`latest_dev_backup.sql:18834`)
+-- and the gateway code (`bot-gateway/src/auth/BotAuthMiddleware.ts:80-119`)
+-- have always used `request_count`/`window_start`/`window_duration_seconds`/
+-- `max_requests`/`resets_at`/`metadata`. A fresh install from the old init
+-- would create a table whose columns the gateway can't read, the catch in
+-- `checkRateLimit` would swallow every failure, and rate-limiting would be
+-- silently fail-open on every fresh deployment.
+--
+-- The shape below mirrors prod verbatim. Deployed environments are not
+-- affected by this rewrite (they already have the prod shape); the
+-- accompanying migration (`db_schema/migrations/20260520_perf_indexes_and_
+-- bot_rate_limits_column.sql`) is state-aware enough to reconcile either
+-- the new-shape init or any partial drift.
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.bot_rate_limits (
     id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
@@ -136,22 +152,22 @@ CREATE TABLE IF NOT EXISTS public.bot_rate_limits (
     -- Rate limit bucket (e.g., 'messages', 'reactions', 'channel:123')
     bucket text NOT NULL,
     
-    -- Limit tracking
-    limit_max integer DEFAULT 10,
-    remaining integer DEFAULT 10,
-    reset_at timestamp with time zone,
+    -- Sliding-window tracking (matches BotAuthMiddleware.checkRateLimit).
+    request_count integer DEFAULT 0,
+    window_start timestamp with time zone DEFAULT now() NOT NULL,
+    window_duration_seconds integer DEFAULT 60,
+    max_requests integer DEFAULT 100,
+    resets_at timestamp with time zone DEFAULT (now() + '00:01:00'::interval),
     
-    -- Violation tracking
-    violations integer DEFAULT 0,
-    last_violation_at timestamp with time zone,
+    metadata jsonb DEFAULT '{}'::jsonb,
     
     UNIQUE(bot_id, bucket)
 );
 
 CREATE INDEX IF NOT EXISTS idx_bot_rate_limits_bot ON public.bot_rate_limits(bot_id);
-CREATE INDEX IF NOT EXISTS idx_bot_rate_limits_reset ON public.bot_rate_limits(reset_at);
+CREATE INDEX IF NOT EXISTS idx_bot_rate_limits_resets_at ON public.bot_rate_limits(resets_at);
 
-COMMENT ON TABLE public.bot_rate_limits IS 'Rate limit tracking for bots';
+COMMENT ON TABLE public.bot_rate_limits IS 'Rate limiting data for bot API requests. Sliding window rate limits per bucket.';
 
 -- ---------------------------------------------------------------------------
 -- BOT AUDIT LOG - Bot action audit trail

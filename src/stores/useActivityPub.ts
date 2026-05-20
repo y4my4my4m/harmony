@@ -1120,10 +1120,58 @@ export const useActivityPubStore = defineStore('activitypub', {
     // complete follower profile data to avoid duplicate notifications
 
     /**
+     * Collect every Post object reference for `postId` that's currently
+     * loaded across the four primary feeds, the bookmarks list, and any
+     * active user feeds.
+     *
+     * Replaces a pattern where each callsite ran `feed.posts.find(...)`
+     * 4–N times PLUS a separate per-realtime-event DB roundtrip even when
+     * the post wasn't currently visible (BUGS.md PC4). Callers now check
+     * the returned list — if empty, the post isn't in any UI surface and
+     * an expensive server resync can be skipped entirely.
+     *
+     * Why bookmarks are included (BUGS.md H2 from code review):
+     * `loadBookmarks` populates `this.bookmarks` independently of the
+     * timeline feeds, with separate Post object instances. Without
+     * scanning it here, realtime favorite/reblog/reply count updates
+     * would silently skip the bookmarks view, causing permanent UI
+     * desync until the next bookmark refresh.
+     */
+    _findPostRefs(postId: string): any[] {
+      const refs: any[] = [];
+      const feeds = [this.homeFeed, this.publicFeed, this.localFeed, this.mentionsFeed];
+      for (const feed of feeds) {
+        const post = feed.posts.find((p: any) => p.id === postId);
+        if (post) refs.push(post);
+      }
+      // Bookmarks live in a separate top-level array, not inside a feed
+      // object. They typically have distinct Post instances from the
+      // timeline feeds (separate API call) so we cannot skip this scan
+      // even when a feed match was found.
+      if (Array.isArray(this.bookmarks)) {
+        const bookmarkPost = this.bookmarks.find((p: any) => p.id === postId);
+        if (bookmarkPost) refs.push(bookmarkPost);
+      }
+      // `userFeeds` is initialized to `new Map()` and is always present,
+      // so no defensive type check is needed.
+      for (const feed of this.userFeeds.values()) {
+        const post = feed?.posts?.find((p: any) => p.id === postId);
+        if (post) refs.push(post);
+      }
+      return refs;
+    },
+
+    /**
      * Update post interaction counts - now uses server sync for consistency
      */
     async updatePostInteractionCounts(postId: string, interactionType: string, eventType: string) {
-      // Get accurate server counts instead of guessing with delta
+      // Short-circuit: if the post isn't visible in any feed, skip the
+      // DB roundtrip entirely — the realtime event isn't relevant to
+      // anything the user is currently looking at, and the cached
+      // counts on the (absent) post object can't be updated anyway.
+      const refs = this._findPostRefs(postId);
+      if (refs.length === 0) return;
+
       const { data: postCounts, error: countsError } = await supabase
         .from('posts')
         .select('favorites_count, reblogs_count, replies_count')
@@ -1135,23 +1183,12 @@ export const useActivityPubStore = defineStore('activitypub', {
         return;
       }
 
-      const feeds = [this.homeFeed, this.publicFeed, this.localFeed, this.mentionsFeed];
-      
-      feeds.forEach(feed => {
-        const post = feed.posts.find(p => p.id === postId);
-        if (post) {
-          // Update with server-accurate counts
-          post.favorites_count = postCounts.favorites_count;
-          post.reblogs_count = postCounts.reblogs_count;
-          post.replies_count = postCounts.replies_count;
-          
-          debug.log(`📊 Updated post ${postId} counts from server (${interactionType} ${eventType}):`, {
-            favorites_count: post.favorites_count,
-            reblogs_count: post.reblogs_count,
-            replies_count: post.replies_count
-          });
-        }
-      });
+      for (const post of refs) {
+        post.favorites_count = postCounts.favorites_count;
+        post.reblogs_count = postCounts.reblogs_count;
+        post.replies_count = postCounts.replies_count;
+      }
+      debug.log(`📊 Updated post ${postId} counts across ${refs.length} feed entries (${interactionType} ${eventType})`);
 
       // Update timeline cache in background
       this.updateTimelineCache();
@@ -1177,6 +1214,14 @@ export const useActivityPubStore = defineStore('activitypub', {
         return;
       }
 
+      // Short-circuit: if the post isn't in any visible feed (primary feeds
+      // or user feeds), nothing to update — skip the DB roundtrip.
+      const refs = this._findPostRefs(postId);
+      if (refs.length === 0) {
+        debug.log(`🔍 Realtime update skipped: post ${postId} not in any visible feed`);
+        return;
+      }
+
       // OPTIMIZED: Use cached auth context
       const context = await authContextService.getCurrentContext();
       const isCurrentUser = context.isAuthenticated && context.authUser?.id === userId;
@@ -1194,7 +1239,7 @@ export const useActivityPubStore = defineStore('activitypub', {
         return;
       }
 
-      debug.log(`📊 Realtime: Server counts for post ${postId}:`, {
+      debug.log(`📊 Realtime: Server counts for post ${postId} (${refs.length} feed refs):`, {
         favorites_count: postCounts.favorites_count,
         reblogs_count: postCounts.reblogs_count,
         replies_count: postCounts.replies_count,
@@ -1203,123 +1248,47 @@ export const useActivityPubStore = defineStore('activitypub', {
         is_current_user: isCurrentUser
       });
 
-      const feeds = [this.homeFeed, this.publicFeed, this.localFeed, this.mentionsFeed];
-      
-      feeds.forEach(feed => {
-        const post = feed.posts.find(p => p.id === postId);
-        if (post) {
-          // Always update with server-accurate counts
-          post.favorites_count = postCounts.favorites_count;
-          post.reblogs_count = postCounts.reblogs_count;
-          post.replies_count = postCounts.replies_count;
-          
-          // IMPORTANT: For reblogs, also update the nested reblog object
-          // This ensures displayInteractionCounts computed property gets updated
-          const postWithReblog = post as any;
-          if (postWithReblog.reblog) {
-            postWithReblog.reblog.favorites_count = postCounts.favorites_count;
-            postWithReblog.reblog.reblogs_count = postCounts.reblogs_count;
-            postWithReblog.reblog.replies_count = postCounts.replies_count;
-            
-            // Update reblog user interaction state
-            if (isCurrentUser) {
-              switch (interactionType) {
-                case 'favorite':
-                case 'emoji_reaction':
-                  postWithReblog.reblog.is_favorited = eventType === 'INSERT';
-                  break;
-                case 'reblog':
-                  postWithReblog.reblog.is_reblogged = eventType === 'INSERT';
-                  break;
-                case 'bookmark':
-                  postWithReblog.reblog.is_bookmarked = eventType === 'INSERT';
-                  break;
-              }
-            }
-          }
-          
-          // Update interaction state only for current user based on event
-          // Force Vue reactivity by creating new object reference
-          if (isCurrentUser) {
-            const updates: any = {};
-            switch (interactionType) {
-              case 'favorite':
-              case 'emoji_reaction':
-                updates.is_favorited = eventType === 'INSERT';
-                break;
-              case 'reblog':
-                updates.is_reblogged = eventType === 'INSERT';
-                break;
-              case 'bookmark':
-                updates.is_bookmarked = eventType === 'INSERT';
-                break;
-            }
-            // Apply updates by creating new object (triggers reactivity!)
-            Object.assign(post, updates);
-            
-            debug.log(`✅ Updated post interaction state (${interactionType} ${eventType}):`, updates);
-          }
-
-          debug.log(`🔍 DEBUG: Realtime update complete:`, {
-            postId: post.id,
-            favorites_count: post.favorites_count,
-            is_favorited: post.is_favorited,
-            reblog_favorites_count: postWithReblog.reblog?.favorites_count,
-            reblog_is_favorited: postWithReblog.reblog?.is_favorited,
-            isCurrentUser
-          });
-        } else {
-          debug.log(`🔍 DEBUG: Post not found in feed for postId: ${postId}`);
+      // Pre-compute user-interaction patch once (was rebuilt for every feed).
+      const userStateUpdates: Record<string, boolean> = {};
+      if (isCurrentUser) {
+        switch (interactionType) {
+          case 'favorite':
+          case 'emoji_reaction':
+            userStateUpdates.is_favorited = eventType === 'INSERT';
+            break;
+          case 'reblog':
+            userStateUpdates.is_reblogged = eventType === 'INSERT';
+            break;
+          case 'bookmark':
+            userStateUpdates.is_bookmarked = eventType === 'INSERT';
+            break;
         }
-      });
+      }
 
-      // Update in user feeds
-      this.userFeeds.forEach(feed => {
-        const post = feed.posts.find(p => p.id === postId);
-        if (post) {
-          post.favorites_count = postCounts.favorites_count;
-          post.reblogs_count = postCounts.reblogs_count;
-          post.replies_count = postCounts.replies_count;
-          
-          // Also update reblog object if this is a reblog
-          const postWithReblog = post as any;
-          if (postWithReblog.reblog) {
-            postWithReblog.reblog.favorites_count = postCounts.favorites_count;
-            postWithReblog.reblog.reblogs_count = postCounts.reblogs_count;
-            postWithReblog.reblog.replies_count = postCounts.replies_count;
-            
-            if (isCurrentUser) {
-              switch (interactionType) {
-                case 'favorite':
-                case 'emoji_reaction':
-                  postWithReblog.reblog.is_favorited = eventType === 'INSERT';
-                  break;
-                case 'reblog':
-                  postWithReblog.reblog.is_reblogged = eventType === 'INSERT';
-                  break;
-                case 'bookmark':
-                  postWithReblog.reblog.is_bookmarked = eventType === 'INSERT';
-                  break;
-              }
-            }
-          }
-          
+      // Single pass: apply count + interaction-state updates to every
+      // reference of the post that exists across primary feeds and user
+      // feeds. Previously this was two separate iterations
+      // (`feeds.forEach` + `userFeeds.forEach`) with duplicated update
+      // logic in each.
+      for (const post of refs) {
+        post.favorites_count = postCounts.favorites_count;
+        post.reblogs_count = postCounts.reblogs_count;
+        post.replies_count = postCounts.replies_count;
+
+        const postWithReblog = post as any;
+        if (postWithReblog.reblog) {
+          postWithReblog.reblog.favorites_count = postCounts.favorites_count;
+          postWithReblog.reblog.reblogs_count = postCounts.reblogs_count;
+          postWithReblog.reblog.replies_count = postCounts.replies_count;
           if (isCurrentUser) {
-            switch (interactionType) {
-              case 'favorite':
-              case 'emoji_reaction':
-                post.is_favorited = eventType === 'INSERT';
-                break;
-              case 'reblog':
-                post.is_reblogged = eventType === 'INSERT';
-                break;
-              case 'bookmark':
-                post.is_bookmarked = eventType === 'INSERT';
-                break;
-            }
+            Object.assign(postWithReblog.reblog, userStateUpdates);
           }
         }
-      });
+
+        if (isCurrentUser) {
+          Object.assign(post, userStateUpdates);
+        }
+      }
 
       debug.log(`💫 Realtime interaction update with server sync: ${interactionType} ${eventType} for post ${postId} (user: ${userId}, current: ${isCurrentUser})`);
     },

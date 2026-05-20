@@ -4497,3 +4497,91 @@ GRANT EXECUTE ON FUNCTION public.get_server_member_counts(uuid[]) TO authenticat
 GRANT EXECUTE ON FUNCTION public.get_unread_announcements(uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.insert_ap_activity_outbound(text, text, uuid, text, jsonb, text, text, text[], text[], text) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.insert_ap_activity_outbound(text, text, uuid, text, jsonb, text, text, text[], text[], text) TO service_role;
+
+-- ---------------------------------------------------------------------------
+-- Function: check_and_increment_bot_rate_limit
+--
+-- Atomic per-(bot, bucket) rate-limit check + increment in one statement.
+-- Replaces the previous read-modify-write pattern in
+-- `bot-gateway/src/auth/BotAuthMiddleware.checkRateLimit()`, which was
+-- documented as racy in BUGS.md M37: two concurrent requests could each
+-- read `request_count = N`, each pass the `< max_requests` check, then
+-- both write `N + 1` — letting through ~2× the allowed burst.
+--
+-- Behaviour:
+--   - First request for a (bot, bucket) pair: INSERT with count=1, return false.
+--   - Subsequent request within the window: UPDATE +1 atomically, return
+--     true iff the post-increment count > p_limit.
+--   - Subsequent request AFTER the window expired: reset count to 1 and
+--     extend `resets_at`, return false.
+--
+-- Returns:
+--   `true`  → caller MUST reject the request with HTTP 429.
+--   `false` → caller may proceed.
+--
+-- Concurrency model:
+--   INSERT ... ON CONFLICT ... DO UPDATE is atomic at the row level; the
+--   UPDATE clause re-reads the conflicting row under an exclusive lock,
+--   so the CASE expression sees a consistent snapshot. No race even
+--   under thousands of concurrent calls for the same (bot, bucket).
+--
+-- The signature accepts `p_limit` and `p_window_seconds` so callers can
+-- vary per-bucket. These are also persisted on the row (`max_requests`,
+-- `window_duration_seconds`) for visibility, but the function uses the
+-- parameters as the source of truth on this call — letting callers
+-- change a bucket's limit without a separate migration.
+-- ---------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION public.check_and_increment_bot_rate_limit(
+    p_bot_id uuid,
+    p_bucket text,
+    p_limit integer DEFAULT 100,
+    p_window_seconds integer DEFAULT 60
+) RETURNS boolean
+    LANGUAGE plpgsql
+    SECURITY DEFINER
+    SET search_path = public, pg_temp
+AS $$
+DECLARE
+    v_count integer;
+BEGIN
+    INSERT INTO public.bot_rate_limits (
+        bot_id, bucket,
+        request_count, window_start, window_duration_seconds, max_requests, resets_at
+    )
+    VALUES (
+        p_bot_id, p_bucket,
+        1, NOW(), p_window_seconds, p_limit,
+        NOW() + make_interval(secs => p_window_seconds)
+    )
+    ON CONFLICT (bot_id, bucket) DO UPDATE
+        SET
+            request_count = CASE
+                WHEN public.bot_rate_limits.resets_at < NOW() THEN 1
+                ELSE public.bot_rate_limits.request_count + 1
+            END,
+            window_start = CASE
+                WHEN public.bot_rate_limits.resets_at < NOW() THEN NOW()
+                ELSE public.bot_rate_limits.window_start
+            END,
+            window_duration_seconds = p_window_seconds,
+            max_requests = p_limit,
+            resets_at = CASE
+                WHEN public.bot_rate_limits.resets_at < NOW() THEN NOW() + make_interval(secs => p_window_seconds)
+                ELSE public.bot_rate_limits.resets_at
+            END
+    RETURNING request_count INTO v_count;
+
+    RETURN v_count > p_limit;
+END;
+$$;
+
+COMMENT ON FUNCTION public.check_and_increment_bot_rate_limit(uuid, text, integer, integer) IS
+    'Atomic per-(bot, bucket) rate-limit check + increment. Returns true if the caller is rate-limited (HTTP 429), false otherwise. Fixes BUGS.md M37 race condition.';
+
+-- The bot-gateway connects with the service role key, so only service_role
+-- needs EXECUTE in normal operation. `authenticated` is granted as well
+-- for any future server-side function that wants to call this from an
+-- authenticated context.
+GRANT EXECUTE ON FUNCTION public.check_and_increment_bot_rate_limit(uuid, text, integer, integer) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.check_and_increment_bot_rate_limit(uuid, text, integer, integer) TO service_role;

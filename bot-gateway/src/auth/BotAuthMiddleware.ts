@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express'
-import { supabase } from '../config/supabase.js'
+import { supabase, config } from '../config/supabase.js'
 import * as crypto from 'crypto'
 
 export interface BotRequest extends Request {
@@ -65,63 +65,48 @@ export async function botAuthMiddleware(
   }
 }
 
+/**
+ * Atomic rate-limit check + increment.
+ *
+ * Replaces the previous read-modify-write implementation which had a
+ * documented race condition (BUGS.md M37): under burst load, two
+ * concurrent requests could both observe `request_count = N`, both pass
+ * the `< max_requests` threshold, then both write `N + 1`, letting
+ * through ~2× the allowed burst. The new path delegates to the SQL
+ * function `check_and_increment_bot_rate_limit`, which combines the
+ * UPSERT, window-reset, and limit check into a single statement under
+ * an exclusive row lock.
+ *
+ * Window and limit defaults come from `config.rateLimit`
+ * (`RATE_LIMIT_WINDOW_MS` / `RATE_LIMIT_MAX_REQUESTS` env vars). Callers
+ * with bucket-specific needs can pass overrides directly.
+ *
+ * Returns `true` if the request must be rejected with HTTP 429, `false`
+ * if it may proceed. On any RPC error we fail open (return `false`) to
+ * avoid a database hiccup taking down the bot API; this matches the
+ * prior behaviour but the surface area is now much smaller.
+ */
 async function checkRateLimit(botId: string, bucket: string): Promise<boolean> {
   try {
-    // Get or create rate limit entry
-    const { data: rateLimit } = await supabase
-      .from('bot_rate_limits')
-      .select('*')
-      .eq('bot_id', botId)
-      .eq('bucket', bucket)
-      .single()
-    
-    const now = new Date()
-    
-    if (!rateLimit) {
-      // Create new rate limit entry
-      await supabase
-        .from('bot_rate_limits')
-        .insert({
-          bot_id: botId,
-          bucket,
-          request_count: 1,
-          window_start: now.toISOString(),
-          resets_at: new Date(now.getTime() + 60000).toISOString()
-        })
+    const windowSeconds = Math.max(1, Math.floor(config.rateLimit.windowMs / 1000))
+    const maxRequests = config.rateLimit.maxRequests
+
+    const { data, error } = await supabase.rpc('check_and_increment_bot_rate_limit', {
+      p_bot_id: botId,
+      p_bucket: bucket,
+      p_limit: maxRequests,
+      p_window_seconds: windowSeconds,
+    })
+
+    if (error) {
+      console.error('Rate limit RPC error:', error)
       return false
     }
-    
-    // Check if window has reset
-    if (new Date(rateLimit.resets_at) < now) {
-      // Reset window
-      await supabase
-        .from('bot_rate_limits')
-        .update({
-          request_count: 1,
-          window_start: now.toISOString(),
-          resets_at: new Date(now.getTime() + 60000).toISOString()
-        })
-        .eq('id', rateLimit.id)
-      return false
-    }
-    
-    // Check if rate limit exceeded
-    if (rateLimit.request_count >= rateLimit.max_requests) {
-      return true
-    }
-    
-    // Increment request count
-    await supabase
-      .from('bot_rate_limits')
-      .update({
-        request_count: rateLimit.request_count + 1
-      })
-      .eq('id', rateLimit.id)
-    
-    return false
+
+    return data === true
   } catch (error) {
     console.error('Rate limit check error:', error)
-    return false // Allow request on error
+    return false // Allow request on error (matches pre-existing fail-open behaviour)
   }
 }
 

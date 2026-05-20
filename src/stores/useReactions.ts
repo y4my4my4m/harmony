@@ -373,42 +373,26 @@ export const useReactionsStore = defineStore('reactions', () => {
      return result
    }
 
-   /**
-    * SMART cleanup for optimistic state - let successful reactions stay
-    */
-   function cleanupOptimisticState(): void {
-     // Only clean up very old optimistic state (30+ seconds)
-     // Let successful reactions keep their optimistic state - no flash!
-     const veryOldCutoff = Date.now() - 30000 // 30 seconds
-     
-     for (const [messageId] of optimisticReactions.value.entries()) {
-       // For now, keep all optimistic state - only clear on error
-       // This prevents any flashing and keeps the UI smooth
-       // Real data will come via realtime naturally
-     }
-   }
+  // NOTE: A 30 s `cleanupOptimisticState` interval used to run here. Its
+  // body was a no-op loop ("real data will come via realtime naturally"),
+  // so it produced no behavior but kept the event loop awake every 30 s
+  // for the life of the tab. Removed — optimistic state is now cleared on
+  // realtime confirmation or via the per-reaction reconcile timeout
+  // tracked in `pendingReconcileTimeouts`.
 
-   // Cleanup timer — store interval ID so it can be cleared on reset
-   let cleanupTimerId: ReturnType<typeof setInterval> | null = setInterval(cleanupOptimisticState, 30000)
-
-   function $dispose() {
-     // BUGS.md Pattern B / #4 v2: also wipe the data Maps/Sets so logout
-     // doesn't leak the previous user's reactions across to the next user.
-     // Previously only the interval + reconcile timeouts were cleared.
-     if (cleanupTimerId) {
-       clearInterval(cleanupTimerId)
-       cleanupTimerId = null
-     }
-     for (const timeoutId of pendingReconcileTimeouts.values()) {
-       clearTimeout(timeoutId)
-     }
-     pendingReconcileTimeouts.clear()
-     reactionsByMessage.value.clear()
-     lastFetched.value.clear()
-     isLoading.value.clear()
-     optimisticReactions.value.clear()
-     pendingToggleRequests.value.clear()
-   }
+  function $dispose() {
+    // BUGS.md Pattern B / #4 v2: also wipe the data Maps/Sets so logout
+    // doesn't leak the previous user's reactions across to the next user.
+    for (const timeoutId of pendingReconcileTimeouts.values()) {
+      clearTimeout(timeoutId)
+    }
+    pendingReconcileTimeouts.clear()
+    reactionsByMessage.value.clear()
+    lastFetched.value.clear()
+    isLoading.value.clear()
+    optimisticReactions.value.clear()
+    pendingToggleRequests.value.clear()
+  }
 
    return {
      // State

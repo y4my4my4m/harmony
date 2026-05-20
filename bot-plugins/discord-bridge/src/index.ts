@@ -15,6 +15,7 @@ import {
 import { HarmonyClient } from './HarmonyClient.js'
 import { MessageTranslator } from './MessageTranslator.js'
 import { ChannelMapper } from './ChannelMapper.js'
+import { BoundedMap } from './utils/BoundedMap.js'
 import * as dotenv from 'dotenv'
 
 dotenv.config()
@@ -39,10 +40,21 @@ translator.setHarmonyDomain(harmonyBaseUrl.hostname)
 // Webhook cache for puppeting
 const webhookCache = new Map<string, Webhook>()
 
-// Message ID mapping: Discord message ID -> Harmony message ID
-const discordToHarmonyMessages = new Map<string, string>()
-// Message ID mapping: Harmony message ID -> Discord message ID
-const harmonyToDiscordMessages = new Map<string, string>()
+// Message ID mappings between Discord and Harmony.
+//
+// Previously these were unbounded Maps that grew for the life of the
+// process (one entry per bridged message, forever) — a long-running bridge
+// would accumulate hundreds of thousands of entries with no eviction. The
+// only operations on these maps are O(1) (set/get/delete/has) so size
+// itself wasn't the perf issue; it was RSS / process longevity.
+//
+// 50_000 entries is enough to cover ~weeks of edit/delete activity for an
+// active server. On overflow, the least-recently-used mapping is dropped —
+// a dropped mapping means an edit/delete on a very old message won't be
+// bridged, which is a strictly better failure mode than OOM.
+const MESSAGE_MAPPING_CAP = 50_000
+const discordToHarmonyMessages = new BoundedMap<string, string>(MESSAGE_MAPPING_CAP)
+const harmonyToDiscordMessages = new BoundedMap<string, string>(MESSAGE_MAPPING_CAP)
 
 // =====================================================
 // DISCORD MEMBER CACHE
