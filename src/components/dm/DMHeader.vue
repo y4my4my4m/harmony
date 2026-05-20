@@ -504,13 +504,23 @@ const initializePresenceTracking = async () => {
   }
 }
 
-const cleanupPresenceTracking = async () => {
-  if (props.conversation.other_user?.id && profileContextId) {
+/**
+ * Stop tracking presence for a previously-subscribed user.
+ *
+ * BUGS.md H30: this used to default to `props.conversation.other_user?.id`,
+ * but on conversation switch the watcher fires AFTER props are already
+ * updated — so cleanup would call `unsubscribeFromProfilePresence(newUserId)`
+ * (a noop) and leak the old user's subscription. Callers in `watch()` paths
+ * must pass `oldUserId` explicitly; the unmount path uses the current id.
+ */
+const cleanupPresenceTracking = async (userId?: string | null) => {
+  const targetUserId = userId ?? props.conversation.other_user?.id
+  if (targetUserId && profileContextId) {
     try {
-      await unsubscribeFromProfilePresence(props.conversation.other_user.id)
+      await unsubscribeFromProfilePresence(targetUserId)
       profileContextId = null
       presenceInitialized.value = false
-      debug.log(`🗨️ DMHeader: Stopped tracking presence for user ${props.conversation.other_user.id}`)
+      debug.log(`🗨️ DMHeader: Stopped tracking presence for user ${targetUserId}`)
     } catch (error) {
       debug.error('Failed to unsubscribe from profile presence:', error)
     }
@@ -645,8 +655,9 @@ watch(
   async (newUserId, oldUserId) => {
     if (newUserId !== oldUserId) {
       debug.log(`🔄 DMHeader: Conversation changed from ${oldUserId} to ${newUserId}`)
-      // Clean up old tracking
-      await cleanupPresenceTracking()
+      // Pass oldUserId explicitly — props.conversation.other_user.id is
+      // already pointing at newUserId by the time this callback runs.
+      await cleanupPresenceTracking(oldUserId ?? null)
       // Initialize new tracking
       if (newUserId) {
         await initializePresenceTracking()

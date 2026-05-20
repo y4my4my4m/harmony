@@ -177,7 +177,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted, onUnmounted } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { debug } from '@/utils/debug'
 import { useRouter, useRoute } from 'vue-router'
 import UnifiedContextBar from '@/components/common/UnifiedContextBar.vue'
@@ -437,9 +437,13 @@ onMounted(() => {
   activityPubStore.fetchInstanceStats()
 })
 
-onUnmounted(() => {
-  activityPubStore.cleanupRealtimeSubscriptions()
-})
+// BUGS.md H32: this layout used to call `cleanupRealtimeSubscriptions()` on
+// unmount, which removed every ActivityPub broadcast handler from the
+// userEventChannel. After visiting social → chat the user lost realtime
+// updates for posts/follows/mutes/blocks until something re-called
+// `initialize()`, which most non-social routes never do. The subscriptions
+// are app-scoped (cleaned up by `auth.logout()` via the auth store), so we
+// no longer tear them down on per-route navigation.
 
 // Track view context in database for notification suppression
 useViewContextTracking()

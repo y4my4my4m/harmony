@@ -109,6 +109,16 @@ interface ManagedSubscription {
   // Track rapid close cycles to detect server-side rejection
   rapidCloseCount: number
   lastClosedAt: Date | null
+  /**
+   * Set whenever a subscription becomes disconnected for any reason
+   * (CHANNEL_ERROR / TIMED_OUT / CLOSED / `forceReconnect[All]` triggered
+   * by `online` / `visibilitychange`). Cleared when the next SUBSCRIBED
+   * event fires `onReconnected`. Required for gap-fill correctness — see
+   * BUGS.md C13: `forceReconnect()` resets `retryCount` to 0 before
+   * reconnecting, so the previous "wasReconnect = retryCount > 0" check
+   * silently missed every wake-from-sleep / network-restore gap.
+   */
+  pendingGapFill: boolean
 }
 
 // ============================================================================
@@ -236,8 +246,20 @@ class RealtimeConnectionManagerService {
     const { channelName } = config
     
     if (this.subscriptions.has(channelName)) {
-      debug.warn(`⚠️ RealtimeManager: Subscription ${channelName} already exists, reusing`)
-      return () => this.unsubscribe(channelName)
+      // BUGS.md H29 (v2): the earlier "replace config in-place" approach was
+      // silently broken — `connectTableSubscription` closed over a LOCAL
+      // `config` reference, so reassigning `managedSub.config` didn't
+      // retarget the `onInsert`/`onUpdate`/`onDelete` handlers. Worse, the
+      // underlying Supabase channel was created with the OLD filter/table
+      // targets, so the new caller's filter set would be silently ignored
+      // even if the handlers HAD updated. The correct fix is to tear the
+      // channel down and rebuild it: this gives the new caller's handlers
+      // a fresh channel with their actual filters. Channel-name collisions
+      // are still a smell — we log loudly so they surface in dev/staging.
+      debug.warn(
+        `⚠️ RealtimeManager: duplicate subscription ${channelName} — tearing down and rebuilding with the new caller's handlers (BUGS.md H29). Callers should use unique channel names.`,
+      )
+      this.unsubscribe(channelName)
     }
     
     const managedSub: ManagedSubscription = {
@@ -251,7 +273,8 @@ class RealtimeConnectionManagerService {
       lastErrorAt: null,
       lastError: null,
       rapidCloseCount: 0,
-      lastClosedAt: null
+      lastClosedAt: null,
+      pendingGapFill: false
     }
     
     this.subscriptions.set(channelName, managedSub)
@@ -280,8 +303,11 @@ class RealtimeConnectionManagerService {
     const { channelName } = config
     
     if (this.subscriptions.has(channelName)) {
-      debug.warn(`⚠️ RealtimeManager: Subscription ${channelName} already exists, reusing`)
-      return () => this.unsubscribe(channelName)
+      // See BUGS.md H29 in subscribeToTable() for context.
+      debug.warn(
+        `⚠️ RealtimeManager: duplicate subscription ${channelName} — tearing down and rebuilding (BUGS.md H29).`,
+      )
+      this.unsubscribe(channelName)
     }
     
     const managedSub: ManagedSubscription = {
@@ -295,7 +321,8 @@ class RealtimeConnectionManagerService {
       lastErrorAt: null,
       lastError: null,
       rapidCloseCount: 0,
-      lastClosedAt: null
+      lastClosedAt: null,
+      pendingGapFill: false
     }
     
     this.subscriptions.set(channelName, managedSub)
@@ -315,8 +342,11 @@ class RealtimeConnectionManagerService {
     const { channelName } = config
     
     if (this.subscriptions.has(channelName)) {
-      debug.warn(`⚠️ RealtimeManager: Subscription ${channelName} already exists, reusing`)
-      return () => this.unsubscribe(channelName)
+      // See BUGS.md H29 in subscribeToTable() for context.
+      debug.warn(
+        `⚠️ RealtimeManager: duplicate subscription ${channelName} — tearing down and rebuilding (BUGS.md H29).`,
+      )
+      this.unsubscribe(channelName)
     }
     
     const managedSub: ManagedSubscription = {
@@ -330,7 +360,8 @@ class RealtimeConnectionManagerService {
       lastErrorAt: null,
       lastError: null,
       rapidCloseCount: 0,
-      lastClosedAt: null
+      lastClosedAt: null,
+      pendingGapFill: false
     }
     
     this.subscriptions.set(channelName, managedSub)
@@ -544,7 +575,14 @@ class RealtimeConnectionManagerService {
     
     switch (status) {
       case 'SUBSCRIBED': {
-        const wasReconnect = managedSub.retryCount > 0
+        // BUGS.md C13: gap-fill must fire whenever this subscription was
+        // disconnected and is now back up — regardless of how it got back
+        // (retry, forceReconnect, forceReconnectAll). The previous
+        // `retryCount > 0` check missed `forceReconnect*()` because those
+        // zero `retryCount` BEFORE reconnecting, so wake-from-sleep and
+        // `window.online` events silently dropped missed messages.
+        const shouldGapFill = managedSub.pendingGapFill
+        managedSub.pendingGapFill = false
         managedSub.retryCount = 0
         managedSub.lastConnectedAt = new Date()
         managedSub.lastError = null
@@ -552,7 +590,7 @@ class RealtimeConnectionManagerService {
         debug.log(`✅ RealtimeManager: ${channelName} connected`)
         
         // Fire onReconnected callback so consumers can gap-fill missed events
-        if (wasReconnect) {
+        if (shouldGapFill) {
           const config = managedSub.config
           if ('onReconnected' in config && typeof config.onReconnected === 'function') {
             try {
@@ -571,6 +609,7 @@ class RealtimeConnectionManagerService {
       case 'CHANNEL_ERROR':
         managedSub.lastErrorAt = new Date()
         managedSub.lastError = err?.message || 'Channel error'
+        managedSub.pendingGapFill = true
         this.updateSubscriptionStatus(channelName, 'error')
         debug.error(`❌ RealtimeManager: ${channelName} error:`, err)
         this.scheduleReconnect(channelName)
@@ -579,12 +618,14 @@ class RealtimeConnectionManagerService {
       case 'TIMED_OUT':
         managedSub.lastErrorAt = new Date()
         managedSub.lastError = 'Connection timed out'
+        managedSub.pendingGapFill = true
         this.updateSubscriptionStatus(channelName, 'error')
         debug.warn(`⏰ RealtimeManager: ${channelName} timed out`)
         this.scheduleReconnect(channelName)
         break
         
       case 'CLOSED':
+        managedSub.pendingGapFill = true
         this.updateSubscriptionStatus(channelName, 'disconnected')
         debug.log(`🔒 RealtimeManager: ${channelName} closed`)
         
@@ -745,7 +786,12 @@ class RealtimeConnectionManagerService {
     }
     
     debug.log(`🔄 RealtimeManager: Force reconnecting ${channelName}`)
-    
+
+    // BUGS.md C13: a forced reconnect (online / visibility / health-check)
+    // means we suspect we missed events while disconnected. Flag gap-fill
+    // BEFORE we zero retryCount, so the SUBSCRIBED handler still knows to
+    // fire `onReconnected`.
+    managedSub.pendingGapFill = true
     managedSub.retryCount = 0
     
     if (managedSub.retryTimeoutId) {

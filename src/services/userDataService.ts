@@ -555,7 +555,27 @@ class UserDataService extends EventTarget {
    */
   private async setupGlobalPresence(): Promise<void> {
     if (!this.currentUserId) return
-    
+
+    // BUGS.md H31 v2: install the beforeunload cleanup hook BEFORE we open
+    // any presence channel. Previous version assigned the function AFTER
+    // `supabase.channel(...).subscribe(...)`, leaving a small window where
+    // a tab close (or a fast initial-session restore + close cycle) would
+    // hit `auth.ts.setupOfflineHandlers`' `__harmonyPresenceCleanup?.()`
+    // before the function existed. The cleanup closure only captures
+    // `this`, so it's safe to install pre-subscribe — `untrackFromAll…`
+    // checks `this.globalChannel` / context channels and no-ops when no
+    // channels have been opened yet.
+    if (typeof window !== 'undefined') {
+      ;(window as any).__harmonyPresenceCleanup = () => {
+        // Synchronous best-effort: fire untrack calls and let the browser
+        // keepalive flush them. We don't `await` because `beforeunload` is
+        // a synchronous-ish hook — promises are unreliable past unload.
+        this.untrackFromAllPresenceChannels().catch(err => {
+          debug.warn('⚠️ __harmonyPresenceCleanup untrack failed:', err)
+        })
+      }
+    }
+
     // 🌐 GLOBAL PRESENCE SYSTEM - Keep it simple
     this.globalChannel = supabase.channel('harmony-global-presence')
       .on('presence', { event: 'sync' }, () => {
@@ -910,11 +930,40 @@ class UserDataService extends EventTarget {
   }
   
   /**
-   * Setup server-specific presence channel
+   * Setup server-specific presence channel.
+   *
+   * BUGS.md C14: previously a `CHANNEL_ERROR` would `setTimeout` another
+   * `setupServerPresence()` call **without** removing the failed channel
+   * and **without** debouncing concurrent retries. Each error therefore
+   * added another live Supabase channel; only the latest was reachable via
+   * `context.channel`, but the orphans kept running and counted against the
+   * realtime quota. This method now:
+   *
+   *  1. Removes any prior channel attached to the context before subscribing.
+   *  2. Stores any pending retry timer on the context so we can cancel it
+   *     (e.g. when the context is torn down).
+   *  3. Bails out of the retry if the context disappears before the timer
+   *     fires (user left the server, logged out, etc.).
    */
   private async setupServerPresence(serverId: string, userIds: string[]): Promise<void> {
     const channelName = `server-presence:${serverId}`
     debug.log('🔄 Setting up presence for server:', serverId, 'with', userIds.length, 'users')
+
+    // Tear down any prior channel + retry timer on this context before
+    // subscribing a new one. This is what prevents accumulating duplicates.
+    const existingContext = this.contexts.get(serverId)
+    if (existingContext?.channel) {
+      try {
+        await supabase.removeChannel(existingContext.channel)
+      } catch (err) {
+        debug.warn(`[Realtime] failed to remove previous server-presence:${serverId} channel:`, err)
+      }
+      existingContext.channel = undefined
+    }
+    if (existingContext && (existingContext as any)._presenceRetryTimer) {
+      clearTimeout((existingContext as any)._presenceRetryTimer)
+      ;(existingContext as any)._presenceRetryTimer = null
+    }
     
     const channel = supabase.channel(channelName, { config: { private: true } })
       .on('presence', { event: 'sync' }, () => {
@@ -953,7 +1002,25 @@ class UserDataService extends EventTarget {
           }
         } else if (status === 'CHANNEL_ERROR') {
           console.error(`[Realtime] server-presence:${serverId} → CHANNEL_ERROR`)
-          setTimeout(() => this.setupServerPresence(serverId, userIds), 5000)
+          // Store the timer on the context so it can be cancelled if the
+          // context is unsubscribed before retry fires. Also defensively
+          // bail if the context disappeared (logout / leave server).
+          const ctx = this.contexts.get(serverId)
+          if (!ctx) {
+            debug.log(`[Realtime] server-presence:${serverId} dropped — no context, skipping retry`)
+            return
+          }
+          if ((ctx as any)._presenceRetryTimer) {
+            clearTimeout((ctx as any)._presenceRetryTimer)
+          }
+          ;(ctx as any)._presenceRetryTimer = setTimeout(() => {
+            ;(ctx as any)._presenceRetryTimer = null
+            // Re-check context still exists when timer fires.
+            if (!this.contexts.has(serverId)) return
+            this.setupServerPresence(serverId, userIds).catch(err => {
+              debug.error(`[Realtime] server-presence:${serverId} retry failed:`, err)
+            })
+          }, 5000)
         } else {
           console.log(`[Realtime] server-presence:${serverId} →`, status)
         }
@@ -1825,10 +1892,22 @@ class UserDataService extends EventTarget {
    */
   async unsubscribeFromContext(contextId: string): Promise<void> {
     const context = this.contexts.get(contextId)
-    if (context?.channel) {
-      await context.channel.unsubscribe()
+    if (context) {
+      // BUGS.md C14 v2: the presence-error retry timer attached in
+      // `setupServerPresence`'s CHANNEL_ERROR branch needs to be cancelled
+      // here too, otherwise a pending retry can resurrect the channel after
+      // the context has been torn down (the in-timer `this.contexts.has`
+      // guard saves correctness, but the timer still pins memory until it
+      // fires).
+      if ((context as any)._presenceRetryTimer) {
+        clearTimeout((context as any)._presenceRetryTimer)
+        ;(context as any)._presenceRetryTimer = null
+      }
+      if (context.channel) {
+        await context.channel.unsubscribe()
+      }
     }
-    
+
     this.contexts.delete(contextId)
     debug.log('✅ Unsubscribed from context:', contextId)
   }
@@ -2015,8 +2094,13 @@ class UserDataService extends EventTarget {
       this.customStatusExpiryTimer = null
     }
     
-    // Unsubscribe from all contexts
+    // Unsubscribe from all contexts (also cancel any pending presence-error
+    // retry timers — BUGS.md C14 v2; see unsubscribeFromContext for context).
     for (const context of this.contexts.values()) {
+      if ((context as any)._presenceRetryTimer) {
+        clearTimeout((context as any)._presenceRetryTimer)
+        ;(context as any)._presenceRetryTimer = null
+      }
       if (context.channel) {
         await context.channel.unsubscribe()
       }
@@ -2026,6 +2110,14 @@ class UserDataService extends EventTarget {
     if (this.globalChannel) {
       await this.globalChannel.unsubscribe()
       this.globalChannel = null
+    }
+
+    // Clear the beforeunload presence-cleanup hook installed by
+    // `setupGlobalPresence` (BUGS.md H31) — otherwise a logout followed by a
+    // tab close would call untrack against a service that's already torn
+    // down. Safe to noop-delete; the next sign-in will re-install it.
+    if (typeof window !== 'undefined' && (window as any).__harmonyPresenceCleanup) {
+      delete (window as any).__harmonyPresenceCleanup
     }
     
     // Clear data
