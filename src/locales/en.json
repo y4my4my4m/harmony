@@ -284,6 +284,56 @@
     "categoryScience": "Science",
     "categorySports": "Sports",
     "categoryOther": "Other",
+    "deleting": "Deleting...",
+    "deleteServerConfirmTitle": "This action is irreversible",
+    "deleteServerConfirmText": "You are about to permanently delete the server {serverName}. This action cannot be undone.",
+    "deleteServerConfirmItem1": "All channels, messages, and attachments will be permanently deleted",
+    "deleteServerConfirmItem2": "All members will lose access to the server",
+    "deleteServerConfirmItem3": "All roles, permissions, and custom emojis will be erased",
+    "deleteServerConfirmItem4": "Invite links and integrations will stop working",
+    "deleteServerConfirmLabel": "Type the server name to confirm:",
+    "deleteServerConfirmPlaceholder": "Type the server name here",
+    "noServerIconSet": "No server icon set",
+    "selectValidImageFile": "Please select a valid image file",
+    "fileSizeTooLarge": "File size is too large",
+    "federationEnabled": "Enable Federation",
+    "federationEnabledDesc": "Allow users from other Harmony instances to join and interact with this server. Required for cross-instance communication.",
+    "federationActive": "Federation Active",
+    "federationBenefit1": "Users from other instances can join via invite links",
+    "federationBenefit2": "Messages are shared with federated members in real-time",
+    "federationBenefit3": "Server appears in federated server discovery",
+    "uploadingEmojis": "Uploading emoji {current} of {total}...",
+    "copyEmojiName": "Copy emoji name",
+    "renameEmoji": "Rename emoji",
+    "deleteEmojiTitle": "Delete emoji",
+    "noPermissionUploadEmojis": "You don't have permission to upload emojis",
+    "noPermissionDeleteEmojis": "You don't have permission to delete emojis",
+    "selectImageFile": "Please select an image file",
+    "fileSizeMustBeLessThan1MB": "File size must be less than 1 MB",
+    "maxEmojisReached": "Maximum number of emojis reached ({max})",
+    "emojiUploadedSuccess": "Emoji \"{name}\" uploaded successfully",
+    "failedToUploadEmoji": "Failed to upload emoji",
+    "confirmDeleteEmoji": "Are you sure you want to delete the emoji \"{name}\"?",
+    "emojiDeletedSuccess": "Emoji \"{name}\" deleted successfully",
+    "failedToDeleteEmoji": "Failed to delete emoji",
+    "filesNotImageSkipped": "{count} file(s) skipped: not an image",
+    "filesTooLargeSkipped": "{count} file(s) skipped: larger than 1 MB",
+    "noValidImageFiles": "No valid image files selected",
+    "cannotUploadEmojisLimit": "Cannot upload {count} emoji(s): would exceed the limit of {max} (currently {current})",
+    "emojisUploadedSuccess": "{count} emoji{plural} uploaded successfully",
+    "emojisFailedToUpload": "{count} emoji{plural} failed to upload",
+    "failedToUploadEmojis": "Failed to upload emojis",
+    "confirmDeleteEmojis": "Are you sure you want to delete {count} emoji(s)? This cannot be undone.",
+    "emojisDeletedSuccess": "{count} emoji(s) deleted successfully",
+    "emojisFailedToDelete": "{count} emoji(s) failed to delete",
+    "failedToDeleteEmojis": "Failed to delete emojis",
+    "emojiRenamedSuccess": "Emoji renamed to \"{name}\"",
+    "failedToRenameEmoji": "Failed to rename emoji",
+    "failedToLoadServerSettings": "Failed to load server settings",
+    "failedToLoadEmojis": "Failed to load emojis",
+    "noPermissionSaveChanges": "You don't have permission to save changes",
+    "serverUpdatedSuccess": "Server updated successfully",
+    "failedToUpdateServer": "Failed to update server",
     "placeholders": {
       "serverName": "My Awesome Server",
       "description": "Tell others what your server is about..."
@@ -329,6 +379,7 @@
     }
   },
   "message": {
+    "encryptedSearchNotice": "End-to-end encrypted messages cannot be searched server-side. Use in-conversation search for encrypted DMs.",
     "typeMessage": "Message {to}",
     "typing": {
       "single": " is typing...",
@@ -419,9 +470,11 @@
     "testMicrophone": "Test Microphone"
   },
   "dm": {
+    "title": "Direct Messages",
     "directMessages": "Direct Messages",
     "newMessage": "New Message",
     "startConversation": "Start a conversation",
+    "sendMessage": "Send Message",
     "searchUsers": "Search users...",
     "searchUsersPlaceholder": "Search users or {'@'}user{'@'}domain.com",
     "noConversations": "No conversations yet",
@@ -433,6 +486,8 @@
     "videoCall": "Video Call",
     "voiceCall": "Voice Call",
     "incomingCall": "Incoming call",
+    "callInProgress": "A call is in progress",
+    "joinCall": "Join Call",
     "answer": "Answer",
     "decline": "Decline",
     "calling": "Calling...",
@@ -440,6 +495,11 @@
     "busy": "User is busy",
     "unavailable": "User is unavailable",
     "missedCall": "Missed call"
+  },
+  "announcements": {
+    "title": "Announcements",
+    "markRead": "Mark as read",
+    "markAllRead": "Mark all as read"
   },
   "user": {
     "profile": "Profile",
@@ -613,6 +673,9 @@
     "feedback": "Feedback"
   },
   "activitypub": {
+    "allStatuses": "All Statuses",
+    "allSoftware": "All Software",
+    "lastSeenLongAgo": "Last seen a while ago",
     "timeline": "Timeline",
     "explore": "Explore",
     "notifications": "Notifications",
@@ -999,10 +1062,5 @@
     "chatNotFound": "This chat or conversation doesn't exist or you don't have access to it.",
     "settingsNotFound": "This settings page doesn't exist.",
     "defaultNotFound": "The page you're looking for doesn't exist or has been moved."
-  },
-  "dm": {
-    "title": "Direct Messages",
-    "callInProgress": "A call is in progress",
-    "joinCall": "Join Call"
   }
 }

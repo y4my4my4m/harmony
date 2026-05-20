@@ -121,6 +121,11 @@
       "accountNotFound": "계정을 찾을 수 없습니다",
       "emailInUse": "이미 사용 중인 이메일입니다",
       "weakPassword": "비밀번호가 너무 약합니다"
+    },
+    "logoutConfirm": {
+      "title": "이 기기에서 로그아웃하시겠습니까?",
+      "description": "계정에 액세스하려면 다시 로그인해야 합니다.",
+      "cancel": "취소"
     }
   },
   "server": {
@@ -219,7 +224,6 @@
     "consideration3": "서버 규칙 및 조정 설정을 검토하는 것을 고려하세요",
     "consideration4": "언제든지 이 설정을 비공개로 다시 변경할 수 있습니다",
     "privateServerInfo": "서버가 현재 비공개입니다. 초대 링크가 있는 멤버만 참여할 수 있습니다. 이는 커뮤니티에 액세스할 수 있는 사람을 더 잘 제어할 수 있게 해줍니다.",
-    "inviteOnly": "초대 전용",
     "inviteOnlyDesc": "멤버는 서버 관리자가 만든 초대 링크를 통해서만 참여할 수 있습니다",
     "publicDirectory": "공개 디렉토리",
     "publicDirectoryDesc": "누구나 공개 서버 목록을 통해 서버를 발견하고 참여할 수 있습니다",
@@ -315,7 +319,6 @@
     "join": "참가",
     "joining": "참가 중...",
     "member": "멤버",
-    "members": "멤버",
     "categoryGaming": "게임",
     "categoryTechnology": "기술",
     "categoryArtDesign": "예술 및 디자인",
@@ -334,7 +337,15 @@
       "nameTooShort": "서버 이름은 최소 2자 이상이어야 합니다",
       "nameTooLong": "서버 이름은 50자 미만이어야 합니다",
       "invalidName": "서버 이름에 잘못된 문자가 포함되어 있습니다"
-    }
+    },
+    "bots": "봇",
+    "encryption": "암호화",
+    "federationEnabled": "연합 활성화",
+    "federationEnabledDesc": "다른 Harmony 인스턴스의 사용자가 이 서버에 참여하고 상호작용할 수 있도록 허용합니다. 인스턴스 간 통신에 필요합니다.",
+    "federationActive": "연합 활성화됨",
+    "federationBenefit1": "다른 인스턴스의 사용자가 초대 링크를 통해 참여할 수 있습니다",
+    "federationBenefit2": "메시지는 연합 멤버와 실시간으로 공유됩니다",
+    "federationBenefit3": "서버가 연합 서버 검색에 표시됩니다"
   },
   "channel": {
     "create": "채널 만들기",
@@ -357,7 +368,9 @@
     "errors": {
       "nameTooShort": "채널 이름은 최소 1자 이상이어야 합니다",
       "nameTooLong": "채널 이름은 100자 미만이어야 합니다",
-      "invalidName": "채널 이름은 문자, 숫자, 하이픈만 포함할 수 있습니다"
+      "invalidName": "채널 이름은 문자, 숫자, 하이픈만 포함할 수 있습니다",
+      "limitReached": "이 서버는 최대 {max}개의 채널 한도에 도달했습니다",
+      "createFailed": "채널 생성에 실패했습니다. 다시 시도해주세요."
     }
   },
   "message": {
@@ -415,6 +428,13 @@
       "add": "반응 추가",
       "remove": "반응 제거",
       "reactedWith": "반응했습니다"
+    },
+    "encryptedSearchNotice": "종단 간 암호화된 메시지는 서버에서 검색할 수 없습니다. 암호화된 DM은 대화 내 검색을 사용하세요.",
+    "typing": {
+      "single": "님이 입력 중...",
+      "two": "님과 {name2}님이 입력 중...",
+      "three": ", {name2}, {name3}님이 입력 중...",
+      "many": "여러 사용자가 입력 중..."
     }
   },
   "voice": {
@@ -465,7 +485,11 @@
     "ringing": "벨소리 울리는 중...",
     "busy": "사용자가 통화 중입니다",
     "unavailable": "사용자를 사용할 수 없습니다",
-    "missedCall": "부재중 전화"
+    "missedCall": "부재중 전화",
+    "title": "다이렉트 메시지",
+    "sendMessage": "메시지 보내기",
+    "callInProgress": "통화 중입니다",
+    "joinCall": "통화 참여"
   },
   "user": {
     "profile": "프로필",
@@ -548,7 +572,9 @@
       "screenReader": "화면 읽기 프로그램 지원",
       "screenReaderDesc": "화면 읽기 프로그램에 최적화합니다.",
       "saveChanges": "변경사항 저장",
-      "resetSettings": "재설정"
+      "resetSettings": "재설정",
+      "showCustomEmojisInDisplayNames": "표시 이름에 이모지 표시",
+      "showCustomEmojisInDisplayNamesDesc": "활성화하면 다른 사용자의 표시 이름에 이모지 이미지가 표시됩니다. 비활성화하면 이모지와 단축 코드가 완전히 숨겨집니다."
     },
     "voice": {
       "title": "음성 및 비디오",
@@ -564,7 +590,17 @@
       "videoQuality": "비디오 품질",
       "low": "낮음",
       "medium": "보통",
-      "high": "높음"
+      "high": "높음",
+      "inputMode": "입력 모드",
+      "voiceActivity": "음성 감지",
+      "voiceActivityDesc": "말할 때 자동으로 전송",
+      "pushToTalk": "푸시 투 토크",
+      "pushToTalkDesc": "키를 눌러 전송",
+      "pttShortcut": "푸시 투 토크 단축키",
+      "pttShortcutHint": "키 바인딩을 변경하려면 클릭하세요",
+      "releaseDelay": "해제 지연",
+      "releaseDelayHint": "키를 놓은 후 음소거하기 전 지연 시간 (단어가 잘리는 것을 방지)",
+      "pressAnyKey": "아무 키나 누르세요..."
     },
     "notifications": {
       "title": "알림",
@@ -598,6 +634,18 @@
       "reportBugSection": "도움말",
       "reportBug": "버그 신고",
       "reportBugDescription": "GitHub에서 버그를 신고하거나 기능을 요청할 수 있습니다."
+    },
+    "security": "보안",
+    "myBots": "내 봇",
+    "supporter": "지원",
+    "myBotsDescription": "생성한 봇을 관리합니다",
+    "audio": {
+      "title": "사운드",
+      "description": "오디오 설정을 구성합니다.",
+      "inputDevice": "입력 장치",
+      "outputDevice": "출력 장치",
+      "inputVolume": "입력 볼륨",
+      "outputVolume": "출력 볼륨"
     }
   },
   "navigation": {
@@ -681,7 +729,6 @@
     "searchTipsExactMatch": "정확한 일치를 위해 {'@'}사용자이름{'@'}도메인 사용",
     "searchTipsPartial": "표시 이름 또는 부분 사용자 이름으로 검색",
     "searchTipsDomain": "연합 사용자의 경우 도메인 포함",
-    "whatsHappening": "무슨 일이 일어나고 있나요?",
     "whatsHappeningInMonyverse": "Monyverse에서 무슨 일이 일어나고 있나요?",
     "whatsYourReply": "답장은 무엇인가요?",
     "createAPost": "게시글 작성",
@@ -754,7 +801,27 @@
     "noMoniesHereYet": "아직 게시물이 없습니다",
     "followUsersToSeeMonies": "사용자를 팔로우하여 타임라인에서 게시물을 보거나 첫 번째 게시물을 만드세요!",
     "notFollowingAnyone": "팔로우 중인 사용자 없음",
-    "notFollowingAnyoneYet": "아직 아무도 팔로우하지 않았습니다."
+    "notFollowingAnyoneYet": "아직 아무도 팔로우하지 않았습니다.",
+    "allStatuses": "모든 상태",
+    "allSoftware": "모든 소프트웨어",
+    "lastSeenLongAgo": "오랫동안 활동 없음",
+    "quoting": "인용 중...",
+    "saving": "저장 중...",
+    "quote": "인용",
+    "quotePost": "게시물 인용",
+    "editPost": "게시물 편집",
+    "editYourPost": "게시물 편집...",
+    "save": "저장",
+    "trendingGettingStarted": "인스턴스가 이제 막 시작되었습니다",
+    "trendingGettingStartedDesc": "해시태그가 있는 게시물을 작성하고, 사람들을 팔로우하고, 페디버스를 탐색하여 인기 콘텐츠를 확인하세요.",
+    "trendingHeroTip1": "#해시태그와 함께 게시하여 주제를 인기로 만드세요",
+    "trendingHeroTip2": "사람들을 팔로우하여 콘텐츠를 발견하고 알리세요",
+    "trendingHeroTip3": "연합 인스턴스를 탐색하여 연결하세요",
+    "createFirstPost": "첫 게시물 작성하기",
+    "browseInstances": "인스턴스 둘러보기",
+    "noTrendingHashtagsHint": "#해시태그를 사용한 게시물은 인스턴스가 성장함에 따라 여기에 표시됩니다.",
+    "noTrendingPostsHint": "인스턴스와 페디버스의 흥미로운 게시물이 여기에 표시됩니다.",
+    "noSuggestedUsersHint": "맞춤 추천을 받으려면 사람들을 팔로우하세요."
   },
   "moderation": {
     "report": "신고",
@@ -801,7 +868,13 @@
     "search": "GIF 검색...",
     "searchGifs": "GIF 검색...",
     "trending": "트렌드",
-    "noResults": "GIF를 찾을 수 없습니다"
+    "noResults": "GIF를 찾을 수 없습니다",
+    "searchTenor": "Tenor 검색",
+    "favorites": "즐겨찾기",
+    "noFavorites": "즐겨찾는 GIF가 없습니다",
+    "noFavoritesHint": "GIF의 별을 클릭하면 여기에 저장됩니다",
+    "addToFavorites": "즐겨찾기 추가",
+    "removeFromFavorites": "즐겨찾기에서 제거"
   },
   "emoji": {
     "search": "이모지 검색...",
@@ -861,7 +934,56 @@
     "blockUser": "사용자 차단",
     "blockUserConfirm": "이 사용자를 차단하시겠습니까?",
     "removeFriend": "친구 제거",
-    "removeFriendConfirm": "이 친구를 제거하시겠습니까?"
+    "removeFriendConfirm": "이 친구를 제거하시겠습니까?",
+    "deleteServerConfirmTitle": "이 작업은 되돌릴 수 없습니다!",
+    "deleteServerConfirmText": "{serverName}을(를) 삭제하면 다음 항목이 영구적으로 제거됩니다:",
+    "deleteServerConfirmItem1": "모든 채널과 메시지",
+    "deleteServerConfirmItem2": "모든 서버 이모지와 파일",
+    "deleteServerConfirmItem3": "모든 멤버 데이터 및 역할",
+    "deleteServerConfirmItem4": "서버 설정 및 구성",
+    "deleteServerConfirmLabel": "삭제를 확인하려면 정확한 서버 이름을 입력하세요:",
+    "deleteServerConfirmPlaceholder": "여기에 서버 이름 입력...",
+    "deleting": "삭제 중...",
+    "noServerIconSet": "서버 아이콘이 설정되지 않았습니다",
+    "fileSizeTooLarge": "파일 크기는 8MB 미만이어야 합니다",
+    "selectValidImageFile": "유효한 이미지 파일을 선택해주세요",
+    "uploadingEmojis": "{total}개 중 {current}개 이모지 업로드 중...",
+    "copyEmojiName": "이모지 이름 복사",
+    "renameEmoji": "이모지 이름 변경",
+    "deleteEmojiTitle": "이모지 삭제",
+    "emojiViewOnlyAccess": "보기 전용 액세스",
+    "emojiViewOnlyMessage": "서버 이모지를 볼 수 있지만 업로드하거나 삭제할 수는 없습니다. 서버 소유자와 이모지 관리 권한이 있는 사용자만 이모지를 수정할 수 있습니다.",
+    "noPermissionUploadEmojis": "이모지를 업로드할 권한이 없습니다",
+    "selectImageFile": "이미지 파일을 선택해주세요",
+    "fileSizeMustBeLessThan1MB": "파일 크기는 1MB 미만이어야 합니다",
+    "maxEmojisReached": "서버당 최대 {max}개의 이모지가 허용됩니다",
+    "emojiUploadedSuccess": "이모지 :{name}:이(가) 업로드되었습니다!",
+    "failedToUploadEmoji": "이모지 업로드에 실패했습니다",
+    "noPermissionDeleteEmojis": "이모지를 삭제할 권한이 없습니다",
+    "confirmDeleteEmoji": ":{name}:을(를) 삭제하시겠습니까?",
+    "emojiDeletedSuccess": "이모지 :{name}:이(가) 삭제되었습니다!",
+    "failedToDeleteEmoji": "이모지 삭제에 실패했습니다",
+    "fileNotImageSkipped": "{filename}은(는) 이미지 파일이 아니므로 건너뜁니다",
+    "fileTooLargeSkipped": "{filename}이(가) 너무 큽니다 (1MB 초과). 건너뜁니다",
+    "filesNotImageSkipped": "{count}개 파일 건너뜀: 이미지 파일이 아님",
+    "filesTooLargeSkipped": "{count}개 파일 건너뜀: 1MB 크기 제한 초과",
+    "noValidImageFiles": "유효한 이미지 파일이 선택되지 않았습니다",
+    "cannotUploadEmojisLimit": "{count}개의 이모지를 업로드할 수 없습니다. 서버 한도는 {max}개입니다 (현재 {current}개)",
+    "emojisUploadedSuccess": "{count}개의 이모지{plural}이(가) 업로드되었습니다!",
+    "emojisFailedToUpload": "{count}개의 이모지{plural} 업로드에 실패했습니다",
+    "failedToUploadEmojis": "이모지 업로드에 실패했습니다",
+    "confirmDeleteEmojis": "{count}개의 이모지{plural}을(를) 삭제하시겠습니까?",
+    "emojisDeletedSuccess": "{count}개의 이모지{plural}이(가) 삭제되었습니다!",
+    "emojisFailedToDelete": "{count}개의 이모지{plural} 삭제에 실패했습니다",
+    "failedToDeleteEmojis": "이모지 삭제에 실패했습니다",
+    "emojiRenamedSuccess": "이모지 이름이 :{name}:(으)로 변경되었습니다",
+    "failedToRenameEmoji": "이모지 이름 변경에 실패했습니다",
+    "failedToLoadServerSettings": "서버 설정을 불러오지 못했습니다",
+    "failedToLoadEmojis": "이모지를 불러오지 못했습니다",
+    "emojiUploadedSuccessToast": "이모지가 업로드되었습니다",
+    "noPermissionSaveChanges": "변경 사항을 저장할 권한이 없습니다",
+    "serverUpdatedSuccess": "서버가 업데이트되었습니다",
+    "failedToUpdateServer": "서버 업데이트에 실패했습니다"
   },
   "languages": {
     "en": "English",
@@ -871,6 +993,75 @@
     "ja": "日本語",
     "ko": "한국어",
     "zh": "中文"
+  },
+  "category": {
+    "create": "카테고리 만들기",
+    "errors": {
+      "limitReached": "이 서버는 최대 {max}개의 카테고리 한도에 도달했습니다",
+      "createFailed": "카테고리 생성에 실패했습니다. 다시 시도해주세요.",
+      "noServer": "선택된 서버가 없습니다"
+    }
+  },
+  "announcements": {
+    "title": "공지사항",
+    "markRead": "읽음으로 표시",
+    "markAllRead": "모두 읽음으로 표시"
+  },
+  "federation": {
+    "joinRemoteServer": "원격 서버 참여",
+    "joinRemoteServerDesc": "다른 Harmony 인스턴스의 커뮤니티와 연결하세요",
+    "serverUrl": "서버 URL, 초대 링크 또는 핸들",
+    "serverUrlPlaceholder": "https://instance.com/invite/CODE 또는 server{'@'}instance.com",
+    "urlFormatHint": "초대 링크, 서버 URL을 붙여넣거나 server{'@'}instance.com 같은 핸들을 입력하세요",
+    "discover": "둘러보기",
+    "members": "멤버",
+    "channels": "채널",
+    "more": "더보기",
+    "joinServer": "서버 참여",
+    "federatedNotice": "이것은 다른 Harmony 인스턴스에서 호스팅되는 연합 서버입니다. 메시지는 네트워크를 통해 전송됩니다.",
+    "joinByUrl": "URL로 참여",
+    "haveInviteLink": "초대 링크가 있나요? 여기에 붙여넣으세요",
+    "inviteLink": "초대 링크",
+    "invitedBy": "초대한 사람",
+    "expires": "만료까지",
+    "remoteServer": "원격 서버",
+    "hosted": "호스팅 위치",
+    "federatedUser": "연합 사용자",
+    "federatedBadge": "연합"
+  },
+  "offline": {
+    "banner": "오프라인 상태입니다. 일부 기능을 사용할 수 없을 수 있습니다."
+  },
+  "chat": {
+    "uploading": "업로드 중...",
+    "dropFilesHere": "여기에 파일을 놓으세요.",
+    "setupNow": "지금 설정"
+  },
+  "invite": {
+    "accepting": "초대 수락 중...",
+    "accepted": "초대를 수락했습니다",
+    "failed": "초대 수락에 실패했습니다",
+    "noCode": "초대 코드를 찾을 수 없습니다",
+    "notLoggedIn": "초대를 수락하려면 로그인해야 합니다"
+  },
+  "nav": {
+    "chat": "채팅",
+    "social": "소셜",
+    "directMessages": "다이렉트 메시지",
+    "mentions": "멘션"
+  },
+  "notFound": {
+    "pageNotFound": "페이지를 찾을 수 없습니다",
+    "goBack": "뒤로 가기",
+    "goHome": "홈으로",
+    "quickNavigation": "빠른 탐색:",
+    "joinHarmony": "Harmony 가입",
+    "signInPrompt": "모든 기능에 액세스하고 커뮤니티와 연결하려면 로그인하세요.",
+    "backToSocial": "소셜로 돌아가기",
+    "backToChat": "채팅으로 돌아가기",
+    "socialNotFound": "이 소셜 콘텐츠가 존재하지 않거나 삭제되었습니다.",
+    "chatNotFound": "이 채팅 또는 대화가 존재하지 않거나 액세스 권한이 없습니다.",
+    "settingsNotFound": "이 설정 페이지는 존재하지 않습니다.",
+    "defaultNotFound": "찾으시는 페이지가 존재하지 않거나 이동되었습니다."
   }
 }
-

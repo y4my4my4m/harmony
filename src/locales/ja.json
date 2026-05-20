@@ -121,6 +121,11 @@
       "accountNotFound": "アカウントが見つかりません",
       "emailInUse": "このメールアドレスは既に使用されています",
       "weakPassword": "パスワードが弱すぎます"
+    },
+    "logoutConfirm": {
+      "title": "このデバイスからログアウトしますか?",
+      "description": "アカウントにアクセスするには、もう一度サインインする必要があります。",
+      "cancel": "キャンセル"
     }
   },
   "server": {
@@ -200,7 +205,6 @@
     "join": "参加",
     "joining": "参加中...",
     "member": "メンバー",
-    "members": "メンバー",
     "categoryGaming": "ゲーム",
     "categoryTechnology": "テクノロジー",
     "categoryArtDesign": "アート＆デザイン",
@@ -279,7 +283,6 @@
     "consideration3": "サーバールールとモデレーション設定を確認することを検討してください",
     "consideration4": "いつでもこの設定を非公開に戻すことができます",
     "privateServerInfo": "サーバーは現在非公開です。招待リンクを持つメンバーのみが参加できます。これにより、コミュニティにアクセスできる人をより適切に制御できます。",
-    "inviteOnly": "招待のみ",
     "inviteOnlyDesc": "メンバーはサーバーモデレーターが作成した招待リンクを通じてのみ参加できます",
     "publicDirectory": "公開ディレクトリ",
     "publicDirectoryDesc": "誰でも公開サーバーリストを通じてサーバーを発見して参加できます",
@@ -334,7 +337,15 @@
     "serverUpdatedSuccess": "サーバーの更新に成功しました",
     "failedToUpdateServer": "サーバーの更新に失敗しました",
     "advancedSettings": "高度な設定",
-    "back": "戻る"
+    "back": "戻る",
+    "bots": "ボット",
+    "encryption": "暗号化",
+    "federationEnabled": "連合を有効化",
+    "federationEnabledDesc": "他の Harmony インスタンスのユーザーがこのサーバーに参加して交流できるようにします。インスタンス間通信に必要です。",
+    "federationActive": "連合が有効",
+    "federationBenefit1": "他のインスタンスのユーザーが招待リンク経由で参加できます",
+    "federationBenefit2": "メッセージは連合メンバーとリアルタイムで共有されます",
+    "federationBenefit3": "サーバーが連合サーバーの検出に表示されます"
   },
   "channel": {
     "create": "チャンネルを作成",
@@ -357,7 +368,9 @@
     "errors": {
       "nameTooShort": "チャンネル名は1文字以上である必要があります",
       "nameTooLong": "チャンネル名は100文字未満である必要があります",
-      "invalidName": "チャンネル名には文字、数字、ハイフンのみ使用できます"
+      "invalidName": "チャンネル名には文字、数字、ハイフンのみ使用できます",
+      "limitReached": "このサーバーはチャンネルの上限 ({max}) に達しています",
+      "createFailed": "チャンネルの作成に失敗しました。もう一度お試しください。"
     }
   },
   "message": {
@@ -401,7 +414,28 @@
       "add": "リアクションを追加",
       "remove": "リアクションを削除",
       "reactedWith": "がリアクションしました"
-    }
+    },
+    "encryptedSearchNotice": "エンドツーエンド暗号化されたメッセージはサーバー側で検索できません。暗号化された DM には会話内検索を使用してください。",
+    "typing": {
+      "single": " が入力中...",
+      "two": " と {name2} が入力中...",
+      "three": "、{name2}、{name3} が入力中...",
+      "many": "複数のユーザーが入力中です..."
+    },
+    "searchMessages": "メッセージを検索...",
+    "filters": "フィルター",
+    "channel": "チャンネル",
+    "fromUser": "送信ユーザー",
+    "dateRange": "日付範囲",
+    "hasMedia": "メディア付き",
+    "hasUrl": "URL 付き",
+    "clearAll": "すべてクリア",
+    "channelPlaceholder": "チャンネル名...",
+    "usernamePlaceholder": "ユーザー名...",
+    "from": "送信元",
+    "to": "宛先",
+    "user": "ユーザー",
+    "yes": "はい"
   },
   "voice": {
     "join": "ボイスに参加",
@@ -451,7 +485,11 @@
     "ringing": "呼び出し中...",
     "busy": "ユーザーは通話中です",
     "unavailable": "ユーザーは不在です",
-    "missedCall": "不在着信"
+    "missedCall": "不在着信",
+    "title": "ダイレクトメッセージ",
+    "sendMessage": "メッセージを送信",
+    "callInProgress": "通話中です",
+    "joinCall": "通話に参加"
   },
   "user": {
     "profile": "プロフィール",
@@ -483,7 +521,9 @@
     "joined": "参加日",
     "placeholders": {
       "bio": "自己紹介を入力..."
-    }
+    },
+    "away": "離席中",
+    "busy": "取り込み中"
   },
   "settings": {
     "title": "設定",
@@ -532,7 +572,9 @@
       "screenReader": "スクリーンリーダーサポート",
       "screenReaderDesc": "スクリーンリーダー向けに最適化します。",
       "saveChanges": "変更を保存",
-      "resetSettings": "リセット"
+      "resetSettings": "リセット",
+      "showCustomEmojisInDisplayNames": "表示名に絵文字を表示",
+      "showCustomEmojisInDisplayNamesDesc": "有効にすると、他のユーザーの表示名に絵文字画像が表示されます。無効にすると、絵文字とショートコードが完全に非表示になります。"
     },
     "voice": {
       "title": "音声とビデオ",
@@ -548,7 +590,17 @@
       "videoQuality": "ビデオ品質",
       "low": "低",
       "medium": "中",
-      "high": "高"
+      "high": "高",
+      "inputMode": "入力モード",
+      "voiceActivity": "音声検出",
+      "voiceActivityDesc": "話したときに自動的に送信",
+      "pushToTalk": "プッシュ・トゥ・トーク",
+      "pushToTalkDesc": "キーを押しながら送信",
+      "pttShortcut": "プッシュ・トゥ・トークのショートカット",
+      "pttShortcutHint": "クリックしてキーバインドを変更",
+      "releaseDelay": "リリースディレイ",
+      "releaseDelayHint": "キーを離した後にミュートするまでの遅延 (言葉の切れを防止)",
+      "pressAnyKey": "任意のキーを押してください..."
     },
     "notifications": {
       "title": "通知",
@@ -582,6 +634,18 @@
       "reportBugSection": "ヘルプ",
       "reportBug": "バグを報告",
       "reportBugDescription": "GitHubでバグの報告や機能リクエストができます。"
+    },
+    "security": "セキュリティ",
+    "myBots": "マイボット",
+    "supporter": "サポート",
+    "myBotsDescription": "作成したボットを管理します",
+    "audio": {
+      "title": "サウンド",
+      "description": "オーディオ設定を構成します。",
+      "inputDevice": "入力デバイス",
+      "outputDevice": "出力デバイス",
+      "inputVolume": "入力音量",
+      "outputVolume": "出力音量"
     }
   },
   "navigation": {
@@ -727,7 +791,37 @@
     "noMoniesHereYet": "まだ投稿がありません",
     "followUsersToSeeMonies": "ユーザーをフォローしてタイムラインで投稿を見るか、最初の投稿を作成しましょう！",
     "notFollowingAnyone": "誰もフォローしていません",
-    "notFollowingAnyoneYet": "まだ誰もフォローしていません。"
+    "notFollowingAnyoneYet": "まだ誰もフォローしていません。",
+    "allStatuses": "すべてのステータス",
+    "allSoftware": "すべてのソフトウェア",
+    "lastSeenLongAgo": "最終ログインから時間が経過",
+    "whatsYourReply": "返信を入力...",
+    "mony": "投稿",
+    "replying": "返信中...",
+    "posting": "投稿中...",
+    "quoting": "引用中...",
+    "saving": "保存中...",
+    "quote": "引用",
+    "quotePost": "投稿を引用",
+    "editPost": "投稿を編集",
+    "editYourPost": "投稿を編集...",
+    "save": "保存",
+    "social": "ソーシャル",
+    "switchToChat": "チャットに切り替え",
+    "trendingGettingStarted": "あなたのインスタンスはまだ始まったばかりです",
+    "trendingGettingStartedDesc": "ハッシュタグ付きの投稿を作成し、ユーザーをフォローし、Fediverseを探索してトレンドコンテンツをここで確認しましょう。",
+    "trendingHeroTip1": "#ハッシュタグを付けて投稿して、トピックをトレンドにしましょう",
+    "trendingHeroTip2": "ユーザーをフォローしてコンテンツを発見し、広めましょう",
+    "trendingHeroTip3": "連合インスタンスを探索してつながりましょう",
+    "createFirstPost": "最初の投稿を作成",
+    "browseInstances": "インスタンスを閲覧",
+    "noTrendingHashtagsHint": "#ハッシュタグを使った投稿は、インスタンスが成長するにつれてここに表示されます。",
+    "noTrendingPostsHint": "あなたのインスタンスやFediverseの注目の投稿がここに表示されます。",
+    "noSuggestedUsersHint": "ユーザーをフォローして、パーソナライズされた提案を受け取りましょう。",
+    "searchAction": "検索",
+    "composeAction": "新規投稿を作成",
+    "refreshAction": "タイムラインを更新",
+    "toggleSidebarAction": "サイドバーを切り替え"
   },
   "moderation": {
     "report": "報告",
@@ -782,7 +876,8 @@
     "symbols": "記号",
     "flags": "旗",
     "custom": "カスタム",
-    "noResults": "絵文字が見つかりません"
+    "noResults": "絵文字が見つかりません",
+    "searchEmojis": "絵文字を検索..."
   },
   "time": {
     "now": "今",
@@ -827,7 +922,56 @@
     "blockUser": "ユーザーをブロック",
     "blockUserConfirm": "このユーザーをブロックしてもよろしいですか？",
     "removeFriend": "友達を削除",
-    "removeFriendConfirm": "この友達を削除してもよろしいですか？"
+    "removeFriendConfirm": "この友達を削除してもよろしいですか？",
+    "deleteServerConfirmTitle": "この操作は元に戻せません!",
+    "deleteServerConfirmText": "{serverName} を削除すると、以下が完全に削除されます:",
+    "deleteServerConfirmItem1": "すべてのチャンネルとメッセージ",
+    "deleteServerConfirmItem2": "すべてのサーバー絵文字とファイル",
+    "deleteServerConfirmItem3": "すべてのメンバーデータとロール",
+    "deleteServerConfirmItem4": "サーバー設定と構成",
+    "deleteServerConfirmLabel": "削除を確認するには、正確なサーバー名を入力してください:",
+    "deleteServerConfirmPlaceholder": "ここにサーバー名を入力...",
+    "deleting": "削除中...",
+    "noServerIconSet": "サーバーアイコンが設定されていません",
+    "fileSizeTooLarge": "ファイルサイズは 8 MB 未満である必要があります",
+    "selectValidImageFile": "有効な画像ファイルを選択してください",
+    "uploadingEmojis": "{total} 個中 {current} 個目の絵文字をアップロード中...",
+    "copyEmojiName": "絵文字名をコピー",
+    "renameEmoji": "絵文字の名前変更",
+    "deleteEmojiTitle": "絵文字を削除",
+    "emojiViewOnlyAccess": "閲覧のみのアクセス",
+    "emojiViewOnlyMessage": "サーバーの絵文字を表示できますが、アップロードや削除はできません。絵文字の変更はサーバー所有者と絵文字管理権限を持つユーザーのみが行えます。",
+    "noPermissionUploadEmojis": "絵文字をアップロードする権限がありません",
+    "selectImageFile": "画像ファイルを選択してください",
+    "fileSizeMustBeLessThan1MB": "ファイルサイズは 1 MB 未満である必要があります",
+    "maxEmojisReached": "サーバーごとに最大 {max} 個の絵文字までです",
+    "emojiUploadedSuccess": "絵文字 :{name}: をアップロードしました!",
+    "failedToUploadEmoji": "絵文字のアップロードに失敗しました",
+    "noPermissionDeleteEmojis": "絵文字を削除する権限がありません",
+    "confirmDeleteEmoji": ":{name}: を削除してもよろしいですか?",
+    "emojiDeletedSuccess": "絵文字 :{name}: を削除しました!",
+    "failedToDeleteEmoji": "絵文字の削除に失敗しました",
+    "fileNotImageSkipped": "{filename} は画像ファイルではないためスキップされます",
+    "fileTooLargeSkipped": "{filename} は大きすぎる (1 MB 超) ためスキップされます",
+    "filesNotImageSkipped": "{count} 個のファイルをスキップ: 画像ファイルではありません",
+    "filesTooLargeSkipped": "{count} 個のファイルをスキップ: 1 MB のサイズ制限を超過",
+    "noValidImageFiles": "有効な画像ファイルが選択されていません",
+    "cannotUploadEmojisLimit": "{count} 個の絵文字をアップロードできません。サーバーの上限は {max} 個です (現在 {current} 個)",
+    "emojisUploadedSuccess": "{count} 個の絵文字{plural}をアップロードしました!",
+    "emojisFailedToUpload": "{count} 個の絵文字{plural}のアップロードに失敗しました",
+    "failedToUploadEmojis": "絵文字のアップロードに失敗しました",
+    "confirmDeleteEmojis": "{count} 個の絵文字{plural}を削除してもよろしいですか?",
+    "emojisDeletedSuccess": "{count} 個の絵文字{plural}を削除しました!",
+    "emojisFailedToDelete": "{count} 個の絵文字{plural}の削除に失敗しました",
+    "failedToDeleteEmojis": "絵文字の削除に失敗しました",
+    "emojiRenamedSuccess": "絵文字を :{name}: に名前変更しました",
+    "failedToRenameEmoji": "絵文字の名前変更に失敗しました",
+    "failedToLoadServerSettings": "サーバー設定の読み込みに失敗しました",
+    "failedToLoadEmojis": "絵文字の読み込みに失敗しました",
+    "emojiUploadedSuccessToast": "絵文字をアップロードしました",
+    "noPermissionSaveChanges": "変更を保存する権限がありません",
+    "serverUpdatedSuccess": "サーバーを更新しました",
+    "failedToUpdateServer": "サーバーの更新に失敗しました"
   },
   "languages": {
     "en": "English",
@@ -837,6 +981,87 @@
     "ja": "日本語",
     "ko": "한국어",
     "zh": "中文"
+  },
+  "category": {
+    "create": "カテゴリを作成",
+    "errors": {
+      "limitReached": "このサーバーはカテゴリの上限 ({max}) に達しています",
+      "createFailed": "カテゴリの作成に失敗しました。もう一度お試しください。",
+      "noServer": "サーバーが選択されていません"
+    }
+  },
+  "announcements": {
+    "title": "お知らせ",
+    "markRead": "既読にする",
+    "markAllRead": "すべて既読にする"
+  },
+  "gif": {
+    "search": "GIF を検索...",
+    "searchGifs": "GIF を検索...",
+    "searchTenor": "Tenor で検索",
+    "trending": "トレンド",
+    "favorites": "お気に入り",
+    "noResults": "GIF が見つかりません",
+    "noFavorites": "お気に入りの GIF はまだありません",
+    "noFavoritesHint": "任意の GIF の星をクリックするとここに保存されます",
+    "addToFavorites": "お気に入りに追加",
+    "removeFromFavorites": "お気に入りから削除"
+  },
+  "federation": {
+    "joinRemoteServer": "リモートサーバーに参加",
+    "joinRemoteServerDesc": "他の Harmony インスタンスのコミュニティとつながりましょう",
+    "serverUrl": "サーバー URL、招待リンク、またはハンドル",
+    "serverUrlPlaceholder": "https://instance.com/invite/CODE または server{'@'}instance.com",
+    "urlFormatHint": "招待リンク、サーバー URL を貼り付けるか、server{'@'}instance.com のようなハンドルを入力してください",
+    "discover": "探索",
+    "members": "メンバー",
+    "channels": "チャンネル",
+    "more": "もっと見る",
+    "joinServer": "サーバーに参加",
+    "federatedNotice": "これは別の Harmony インスタンスでホストされている連合サーバーです。メッセージはネットワーク経由で送信されます。",
+    "joinByUrl": "URL で参加",
+    "haveInviteLink": "招待リンクをお持ちですか?ここに貼り付けてください",
+    "inviteLink": "招待リンク",
+    "invitedBy": "招待者",
+    "expires": "有効期限",
+    "remoteServer": "リモートサーバー",
+    "hosted": "ホスト先",
+    "federatedUser": "連合ユーザー",
+    "federatedBadge": "連合"
+  },
+  "offline": {
+    "banner": "オフラインです。一部の機能が利用できない場合があります。"
+  },
+  "chat": {
+    "uploading": "アップロード中...",
+    "dropFilesHere": "ファイルをここにドロップしてください。",
+    "setupNow": "今すぐ設定"
+  },
+  "invite": {
+    "accepting": "招待を受け入れ中...",
+    "accepted": "招待を受け入れました",
+    "failed": "招待の受け入れに失敗しました",
+    "noCode": "招待コードが見つかりません",
+    "notLoggedIn": "招待を受け入れるにはログインが必要です"
+  },
+  "nav": {
+    "chat": "チャット",
+    "social": "ソーシャル",
+    "directMessages": "ダイレクトメッセージ",
+    "mentions": "メンション"
+  },
+  "notFound": {
+    "pageNotFound": "ページが見つかりません",
+    "goBack": "戻る",
+    "goHome": "ホームへ",
+    "quickNavigation": "クイックナビゲーション:",
+    "joinHarmony": "Harmony に参加",
+    "signInPrompt": "すべての機能にアクセスし、コミュニティとつながるにはサインインしてください。",
+    "backToSocial": "ソーシャルに戻る",
+    "backToChat": "チャットに戻る",
+    "socialNotFound": "このソーシャルコンテンツは存在しないか、削除されました。",
+    "chatNotFound": "このチャットまたは会話は存在しないか、アクセス権限がありません。",
+    "settingsNotFound": "この設定ページは存在しません。",
+    "defaultNotFound": "お探しのページは存在しないか、移動されました。"
   }
 }
-

@@ -121,6 +121,11 @@
       "accountNotFound": "未找到账户",
       "emailInUse": "电子邮箱已被使用",
       "weakPassword": "密码太弱"
+    },
+    "logoutConfirm": {
+      "title": "从此设备注销?",
+      "description": "您需要重新登录才能访问您的帐户。",
+      "cancel": "取消"
     }
   },
   "server": {
@@ -219,7 +224,6 @@
     "consideration3": "考虑审查您的服务器规则和审核设置",
     "consideration4": "您可以随时将此设置改回私有",
     "privateServerInfo": "您的服务器当前是私有的。只有拥有邀请链接的成员可以加入。这可以更好地控制谁可以访问您的社区。",
-    "inviteOnly": "仅限邀请",
     "inviteOnlyDesc": "成员只能通过服务器管理员创建的邀请链接加入",
     "publicDirectory": "公共目录",
     "publicDirectoryDesc": "任何人都可以通过公共服务器列表发现并加入您的服务器",
@@ -315,7 +319,6 @@
     "join": "加入",
     "joining": "正在加入...",
     "member": "成员",
-    "members": "成员",
     "categoryGaming": "游戏",
     "categoryTechnology": "技术",
     "categoryArtDesign": "艺术与设计",
@@ -334,7 +337,15 @@
       "nameTooShort": "服务器名称至少需要2个字符",
       "nameTooLong": "服务器名称必须少于50个字符",
       "invalidName": "服务器名称包含无效字符"
-    }
+    },
+    "bots": "机器人",
+    "encryption": "加密",
+    "federationEnabled": "启用联邦",
+    "federationEnabledDesc": "允许来自其他 Harmony 实例的用户加入此服务器并与之互动。跨实例通信所必需。",
+    "federationActive": "联邦已激活",
+    "federationBenefit1": "其他实例的用户可以通过邀请链接加入",
+    "federationBenefit2": "消息将与联邦成员实时共享",
+    "federationBenefit3": "服务器将出现在联邦服务器发现中"
   },
   "channel": {
     "create": "创建频道",
@@ -357,7 +368,9 @@
     "errors": {
       "nameTooShort": "频道名称至少需要1个字符",
       "nameTooLong": "频道名称必须少于100个字符",
-      "invalidName": "频道名称只能包含字母、数字和连字符"
+      "invalidName": "频道名称只能包含字母、数字和连字符",
+      "limitReached": "此服务器已达到 {max} 个频道的上限",
+      "createFailed": "创建频道失败。请重试。"
     }
   },
   "message": {
@@ -415,6 +428,13 @@
       "add": "添加反应",
       "remove": "移除反应",
       "reactedWith": "做出了反应"
+    },
+    "encryptedSearchNotice": "无法在服务器端搜索端到端加密的消息。请在加密私信中使用对话内搜索。",
+    "typing": {
+      "single": " 正在输入...",
+      "two": " 和 {name2} 正在输入...",
+      "three": "、{name2} 和 {name3} 正在输入...",
+      "many": "多位用户正在输入..."
     }
   },
   "voice": {
@@ -465,7 +485,11 @@
     "ringing": "响铃中...",
     "busy": "用户正忙",
     "unavailable": "用户不可用",
-    "missedCall": "未接来电"
+    "missedCall": "未接来电",
+    "title": "私信",
+    "sendMessage": "发送消息",
+    "callInProgress": "正在通话中",
+    "joinCall": "加入通话"
   },
   "user": {
     "profile": "个人资料",
@@ -548,7 +572,9 @@
       "screenReader": "屏幕阅读器支持",
       "screenReaderDesc": "为屏幕阅读器优化。",
       "saveChanges": "保存更改",
-      "resetSettings": "重置"
+      "resetSettings": "重置",
+      "showCustomEmojisInDisplayNames": "在显示名称中显示表情",
+      "showCustomEmojisInDisplayNamesDesc": "启用后,其他用户的显示名称将显示表情图片。禁用后,表情和短代码将完全隐藏。"
     },
     "voice": {
       "title": "语音与视频",
@@ -564,7 +590,17 @@
       "videoQuality": "视频质量",
       "low": "低",
       "medium": "中",
-      "high": "高"
+      "high": "高",
+      "inputMode": "输入模式",
+      "voiceActivity": "语音活动",
+      "voiceActivityDesc": "说话时自动传输",
+      "pushToTalk": "按键说话",
+      "pushToTalkDesc": "按住按键以传输",
+      "pttShortcut": "按键说话快捷键",
+      "pttShortcutHint": "点击以更改按键绑定",
+      "releaseDelay": "释放延迟",
+      "releaseDelayHint": "释放按键后静音前的延迟 (防止单词被截断)",
+      "pressAnyKey": "按任意键..."
     },
     "notifications": {
       "title": "通知",
@@ -598,6 +634,18 @@
       "reportBugSection": "帮助",
       "reportBug": "报告问题",
       "reportBugDescription": "在 GitHub 上报告错误或请求新功能。"
+    },
+    "security": "安全",
+    "myBots": "我的机器人",
+    "supporter": "支持",
+    "myBotsDescription": "管理您创建的机器人",
+    "audio": {
+      "title": "声音",
+      "description": "配置您的音频设置。",
+      "inputDevice": "输入设备",
+      "outputDevice": "输出设备",
+      "inputVolume": "输入音量",
+      "outputVolume": "输出音量"
     }
   },
   "navigation": {
@@ -681,7 +729,6 @@
     "searchTipsExactMatch": "使用 {'@'}用户名{'@'}域名 进行精确匹配",
     "searchTipsPartial": "按显示名称或部分用户名搜索",
     "searchTipsDomain": "对于联合用户，包含域名",
-    "whatsHappening": "发生了什么？",
     "whatsHappeningInMonyverse": "Monyverse 中发生了什么？",
     "whatsYourReply": "您的回复是什么？",
     "createAPost": "创建帖子",
@@ -754,7 +801,27 @@
     "noMoniesHereYet": "这里还没有帖子",
     "followUsersToSeeMonies": "关注一些用户以在您的时间线中看到他们的帖子，或创建您的第一条帖子！",
     "notFollowingAnyone": "未关注任何人",
-    "notFollowingAnyoneYet": "您还没有关注任何人。"
+    "notFollowingAnyoneYet": "您还没有关注任何人。",
+    "allStatuses": "所有状态",
+    "allSoftware": "所有软件",
+    "lastSeenLongAgo": "很久未活动",
+    "quoting": "引用中...",
+    "saving": "保存中...",
+    "quote": "引用",
+    "quotePost": "引用帖子",
+    "editPost": "编辑帖子",
+    "editYourPost": "编辑你的帖子...",
+    "save": "保存",
+    "trendingGettingStarted": "您的实例才刚刚开始",
+    "trendingGettingStartedDesc": "创建带有标签的帖子,关注他人,探索 fediverse,在此查看热门内容。",
+    "trendingHeroTip1": "使用 #标签 发帖,让话题更受欢迎",
+    "trendingHeroTip2": "关注他人以发现并推广内容",
+    "trendingHeroTip3": "探索联邦实例以建立联系",
+    "createFirstPost": "创建你的第一篇帖子",
+    "browseInstances": "浏览实例",
+    "noTrendingHashtagsHint": "随着实例的发展,使用 #标签 的帖子将显示在此处。",
+    "noTrendingPostsHint": "来自您实例和 fediverse 的精彩帖子将显示在此处。",
+    "noSuggestedUsersHint": "关注他人以获取个性化推荐。"
   },
   "moderation": {
     "report": "举报",
@@ -801,7 +868,13 @@
     "search": "搜索 GIF...",
     "searchGifs": "搜索 GIF...",
     "trending": "趋势",
-    "noResults": "未找到 GIF"
+    "noResults": "未找到 GIF",
+    "searchTenor": "搜索 Tenor",
+    "favorites": "收藏",
+    "noFavorites": "还没有收藏的 GIF",
+    "noFavoritesHint": "点击任何 GIF 上的星标即可保存到此处",
+    "addToFavorites": "添加到收藏",
+    "removeFromFavorites": "从收藏中移除"
   },
   "emoji": {
     "search": "搜索表情...",
@@ -861,7 +934,56 @@
     "blockUser": "屏蔽用户",
     "blockUserConfirm": "您确定要屏蔽此用户吗？",
     "removeFriend": "移除好友",
-    "removeFriendConfirm": "您确定要移除此好友吗？"
+    "removeFriendConfirm": "您确定要移除此好友吗？",
+    "deleteServerConfirmTitle": "此操作无法撤消!",
+    "deleteServerConfirmText": "删除 {serverName} 将永久移除:",
+    "deleteServerConfirmItem1": "所有频道和消息",
+    "deleteServerConfirmItem2": "所有服务器表情和文件",
+    "deleteServerConfirmItem3": "所有成员数据和角色",
+    "deleteServerConfirmItem4": "服务器设置和配置",
+    "deleteServerConfirmLabel": "要确认删除,请输入服务器的确切名称:",
+    "deleteServerConfirmPlaceholder": "在此输入服务器名称...",
+    "deleting": "正在删除...",
+    "noServerIconSet": "未设置服务器图标",
+    "fileSizeTooLarge": "文件大小必须小于 8 MB",
+    "selectValidImageFile": "请选择一个有效的图像文件",
+    "uploadingEmojis": "正在上传第 {current} / {total} 个表情...",
+    "copyEmojiName": "复制表情名称",
+    "renameEmoji": "重命名表情",
+    "deleteEmojiTitle": "删除表情",
+    "emojiViewOnlyAccess": "只读访问",
+    "emojiViewOnlyMessage": "您可以查看服务器表情,但不能上传或删除。只有服务器所有者和拥有表情管理权限的用户才能修改表情。",
+    "noPermissionUploadEmojis": "您没有权限上传表情",
+    "selectImageFile": "请选择一个图像文件",
+    "fileSizeMustBeLessThan1MB": "文件大小必须小于 1 MB",
+    "maxEmojisReached": "每个服务器最多允许 {max} 个表情",
+    "emojiUploadedSuccess": "表情 :{name}: 已成功上传!",
+    "failedToUploadEmoji": "上传表情失败",
+    "noPermissionDeleteEmojis": "您没有权限删除表情",
+    "confirmDeleteEmoji": "确定要删除 :{name}: 吗?",
+    "emojiDeletedSuccess": "表情 :{name}: 已成功删除!",
+    "failedToDeleteEmoji": "删除表情失败",
+    "fileNotImageSkipped": "{filename} 不是图像文件,将被跳过",
+    "fileTooLargeSkipped": "{filename} 太大 (超过 1 MB),将被跳过",
+    "filesNotImageSkipped": "已跳过 {count} 个文件: 非图像文件",
+    "filesTooLargeSkipped": "已跳过 {count} 个文件: 超出 1 MB 大小限制",
+    "noValidImageFiles": "未选择有效的图像文件",
+    "cannotUploadEmojisLimit": "无法上传 {count} 个表情。服务器上限为 {max} 个 (当前 {current} 个)",
+    "emojisUploadedSuccess": "已成功上传 {count} 个表情{plural}!",
+    "emojisFailedToUpload": "{count} 个表情{plural}上传失败",
+    "failedToUploadEmojis": "上传表情失败",
+    "confirmDeleteEmojis": "确定要删除 {count} 个表情{plural}吗?",
+    "emojisDeletedSuccess": "已成功删除 {count} 个表情{plural}!",
+    "emojisFailedToDelete": "{count} 个表情{plural}删除失败",
+    "failedToDeleteEmojis": "删除表情失败",
+    "emojiRenamedSuccess": "表情已重命名为 :{name}:",
+    "failedToRenameEmoji": "重命名表情失败",
+    "failedToLoadServerSettings": "加载服务器设置失败",
+    "failedToLoadEmojis": "加载表情失败",
+    "emojiUploadedSuccessToast": "表情上传成功",
+    "noPermissionSaveChanges": "您没有权限保存更改",
+    "serverUpdatedSuccess": "服务器更新成功",
+    "failedToUpdateServer": "更新服务器失败"
   },
   "languages": {
     "en": "English",
@@ -871,6 +993,75 @@
     "ja": "日本語",
     "ko": "한국어",
     "zh": "中文"
+  },
+  "category": {
+    "create": "创建分类",
+    "errors": {
+      "limitReached": "此服务器已达到 {max} 个分类的上限",
+      "createFailed": "创建分类失败。请重试。",
+      "noServer": "未选择服务器"
+    }
+  },
+  "announcements": {
+    "title": "公告",
+    "markRead": "标记为已读",
+    "markAllRead": "全部标记为已读"
+  },
+  "federation": {
+    "joinRemoteServer": "加入远程服务器",
+    "joinRemoteServerDesc": "与其他 Harmony 实例上的社区连接",
+    "serverUrl": "服务器 URL、邀请链接或句柄",
+    "serverUrlPlaceholder": "https://instance.com/invite/CODE 或 server{'@'}instance.com",
+    "urlFormatHint": "粘贴邀请链接、服务器 URL,或输入类似 server{'@'}instance.com 的句柄",
+    "discover": "发现",
+    "members": "成员",
+    "channels": "频道",
+    "more": "更多",
+    "joinServer": "加入服务器",
+    "federatedNotice": "这是托管在另一个 Harmony 实例上的联邦服务器。您的消息将通过网络发送。",
+    "joinByUrl": "通过 URL 加入",
+    "haveInviteLink": "有邀请链接吗? 粘贴在此处",
+    "inviteLink": "邀请链接",
+    "invitedBy": "邀请者",
+    "expires": "过期时间",
+    "remoteServer": "远程服务器",
+    "hosted": "托管于",
+    "federatedUser": "联邦用户",
+    "federatedBadge": "联邦"
+  },
+  "offline": {
+    "banner": "您处于离线状态。某些功能可能不可用。"
+  },
+  "chat": {
+    "uploading": "上传中...",
+    "dropFilesHere": "将文件拖放到此处。",
+    "setupNow": "立即设置"
+  },
+  "invite": {
+    "accepting": "正在接受邀请...",
+    "accepted": "邀请已成功接受",
+    "failed": "接受邀请失败",
+    "noCode": "未找到邀请码",
+    "notLoggedIn": "您必须登录才能接受邀请"
+  },
+  "nav": {
+    "chat": "聊天",
+    "social": "社交",
+    "directMessages": "私信",
+    "mentions": "提及"
+  },
+  "notFound": {
+    "pageNotFound": "页面未找到",
+    "goBack": "返回",
+    "goHome": "回到首页",
+    "quickNavigation": "快速导航:",
+    "joinHarmony": "加入 Harmony",
+    "signInPrompt": "登录以访问所有功能并与社区建立联系。",
+    "backToSocial": "返回社交",
+    "backToChat": "返回聊天",
+    "socialNotFound": "此社交内容不存在或已被删除。",
+    "chatNotFound": "此聊天或对话不存在,或您没有访问权限。",
+    "settingsNotFound": "此设置页面不存在。",
+    "defaultNotFound": "您查找的页面不存在或已被移动。"
   }
 }
-

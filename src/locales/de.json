@@ -121,6 +121,11 @@
       "accountNotFound": "Konto nicht gefunden",
       "emailInUse": "E-Mail wird bereits verwendet",
       "weakPassword": "Passwort ist zu schwach"
+    },
+    "logoutConfirm": {
+      "title": "Von diesem Gerät abmelden?",
+      "description": "Sie müssen sich erneut anmelden, um auf Ihr Konto zuzugreifen.",
+      "cancel": "Abbrechen"
     }
   },
   "server": {
@@ -219,7 +224,6 @@
     "consideration3": "Erwägen Sie, Ihre Serverregeln und Moderations-Einstellungen zu überprüfen",
     "consideration4": "Sie können diese Einstellung jederzeit wieder auf privat ändern",
     "privateServerInfo": "Ihr Server ist derzeit privat. Nur Mitglieder mit einem Einladungslink können beitreten. Dies bietet eine bessere Kontrolle darüber, wer auf Ihre Community zugreifen kann.",
-    "inviteOnly": "Nur auf Einladung",
     "inviteOnlyDesc": "Mitglieder können nur über Einladungslinks beitreten, die von Server-Moderatoren erstellt wurden",
     "publicDirectory": "Öffentliches Verzeichnis",
     "publicDirectoryDesc": "Jeder kann Ihren Server über die öffentliche Serverliste entdecken und beitreten",
@@ -315,7 +319,6 @@
     "join": "Beitreten",
     "joining": "Tritt bei...",
     "member": "Mitglied",
-    "members": "Mitglieder",
     "categoryGaming": "Gaming",
     "categoryTechnology": "Technologie",
     "categoryArtDesign": "Kunst & Design",
@@ -334,7 +337,15 @@
       "nameTooShort": "Servername muss mindestens 2 Zeichen lang sein",
       "nameTooLong": "Servername muss weniger als 50 Zeichen lang sein",
       "invalidName": "Servername enthält ungültige Zeichen"
-    }
+    },
+    "bots": "Bots",
+    "encryption": "Verschlüsselung",
+    "federationEnabled": "Föderation aktivieren",
+    "federationEnabledDesc": "Erlaubt Benutzern von anderen Harmony-Instanzen, diesem Server beizutreten und zu interagieren. Erforderlich für die Kommunikation zwischen Instanzen.",
+    "federationActive": "Föderation aktiv",
+    "federationBenefit1": "Benutzer aus anderen Instanzen können über Einladungslinks beitreten",
+    "federationBenefit2": "Nachrichten werden in Echtzeit mit föderierten Mitgliedern geteilt",
+    "federationBenefit3": "Server erscheint in der föderierten Server-Suche"
   },
   "channel": {
     "create": "Kanal erstellen",
@@ -357,7 +368,9 @@
     "errors": {
       "nameTooShort": "Kanalname muss mindestens 1 Zeichen lang sein",
       "nameTooLong": "Kanalname muss weniger als 100 Zeichen lang sein",
-      "invalidName": "Kanalname darf nur Buchstaben, Zahlen und Bindestriche enthalten"
+      "invalidName": "Kanalname darf nur Buchstaben, Zahlen und Bindestriche enthalten",
+      "limitReached": "Dieser Server hat das Maximum von {max} Kanälen erreicht",
+      "createFailed": "Kanal konnte nicht erstellt werden. Bitte versuchen Sie es erneut."
     }
   },
   "message": {
@@ -415,6 +428,13 @@
       "add": "Reaktion hinzufügen",
       "remove": "Reaktion entfernen",
       "reactedWith": "hat reagiert mit"
+    },
+    "encryptedSearchNotice": "Ende-zu-Ende-verschlüsselte Nachrichten können nicht serverseitig durchsucht werden. Verwenden Sie die Suche innerhalb der Konversation für verschlüsselte DMs.",
+    "typing": {
+      "single": " tippt...",
+      "two": " und {name2} tippen...",
+      "three": ", {name2} und {name3} tippen...",
+      "many": "Viele Benutzer tippen..."
     }
   },
   "voice": {
@@ -465,7 +485,11 @@
     "ringing": "Klingelt...",
     "busy": "Benutzer ist beschäftigt",
     "unavailable": "Benutzer ist nicht verfügbar",
-    "missedCall": "Verpasster Anruf"
+    "missedCall": "Verpasster Anruf",
+    "title": "Direktnachrichten",
+    "sendMessage": "Nachricht senden",
+    "callInProgress": "Ein Anruf läuft",
+    "joinCall": "Anruf beitreten"
   },
   "user": {
     "profile": "Profil",
@@ -548,7 +572,9 @@
       "screenReader": "Bildschirmleser-Unterstützung",
       "screenReaderDesc": "Für Bildschirmleser optimieren.",
       "saveChanges": "Änderungen speichern",
-      "resetSettings": "Zurücksetzen"
+      "resetSettings": "Zurücksetzen",
+      "showCustomEmojisInDisplayNames": "Emojis in Anzeigenamen anzeigen",
+      "showCustomEmojisInDisplayNamesDesc": "Wenn aktiviert, werden in den Anzeigenamen anderer Benutzer Emoji-Bilder angezeigt. Wenn deaktiviert, werden Emojis und Shortcodes vollständig ausgeblendet."
     },
     "voice": {
       "title": "Sprache & Video",
@@ -564,7 +590,17 @@
       "videoQuality": "Videoqualität",
       "low": "Niedrig",
       "medium": "Mittel",
-      "high": "Hoch"
+      "high": "Hoch",
+      "inputMode": "Eingabemodus",
+      "voiceActivity": "Sprachaktivität",
+      "voiceActivityDesc": "Automatisch übertragen, wenn Sie sprechen",
+      "pushToTalk": "Push-to-Talk",
+      "pushToTalkDesc": "Halten Sie eine Taste zum Senden gedrückt",
+      "pttShortcut": "Push-to-Talk-Tastenkombination",
+      "pttShortcutHint": "Klicken Sie hier, um die Tastenbelegung zu ändern",
+      "releaseDelay": "Loslassverzögerung",
+      "releaseDelayHint": "Verzögerung vor dem Stummschalten nach Loslassen der Taste (verhindert das Abschneiden von Wörtern)",
+      "pressAnyKey": "Drücken Sie eine beliebige Taste..."
     },
     "notifications": {
       "title": "Benachrichtigungen",
@@ -598,6 +634,18 @@
       "reportBugSection": "Hilfe",
       "reportBug": "Bug melden",
       "reportBugDescription": "GitHub öffnen, um einen Bug zu melden oder eine Funktion anzufragen."
+    },
+    "security": "Sicherheit",
+    "myBots": "Meine Bots",
+    "supporter": "Unterstützung",
+    "myBotsDescription": "Verwalten Sie die von Ihnen erstellten Bots",
+    "audio": {
+      "title": "Töne",
+      "description": "Konfigurieren Sie Ihre Audioeinstellungen.",
+      "inputDevice": "Eingabegerät",
+      "outputDevice": "Ausgabegerät",
+      "inputVolume": "Eingabelautstärke",
+      "outputVolume": "Ausgabelautstärke"
     }
   },
   "navigation": {
@@ -681,7 +729,6 @@
     "searchTipsExactMatch": "Verwende {'@'}benutzername{'@'}domain für exakte Treffer",
     "searchTipsPartial": "Suche nach Anzeigename oder teilweisem Benutzernamen",
     "searchTipsDomain": "Füge die Domain für föderierte Benutzer hinzu",
-    "whatsHappening": "Was passiert?",
     "whatsHappeningInMonyverse": "Was passiert im Monyverse?",
     "whatsYourReply": "Was ist deine Antwort?",
     "createAPost": "Beitrag erstellen",
@@ -754,7 +801,27 @@
     "noMoniesHereYet": "Noch keine Beiträge hier",
     "followUsersToSeeMonies": "Folgen Sie einigen Benutzern, um ihre Beiträge in Ihrem Timeline zu sehen, oder erstellen Sie Ihren ersten Beitrag!",
     "notFollowingAnyone": "Folgt niemandem",
-    "notFollowingAnyoneYet": "Sie folgen noch niemandem."
+    "notFollowingAnyoneYet": "Sie folgen noch niemandem.",
+    "allStatuses": "Alle Status",
+    "allSoftware": "Alle Software",
+    "lastSeenLongAgo": "Zuletzt vor längerer Zeit gesehen",
+    "quoting": "Wird zitiert...",
+    "saving": "Wird gespeichert...",
+    "quote": "Zitieren",
+    "quotePost": "Beitrag zitieren",
+    "editPost": "Beitrag bearbeiten",
+    "editYourPost": "Bearbeiten Sie Ihren Beitrag...",
+    "save": "Speichern",
+    "trendingGettingStarted": "Ihre Instanz steht noch am Anfang",
+    "trendingGettingStartedDesc": "Erstellen Sie Beiträge mit Hashtags, folgen Sie Personen und erkunden Sie das Fediverse, um Trendinhalte hier zu sehen.",
+    "trendingHeroTip1": "Posten Sie mit #Hashtags, damit Themen im Trend liegen",
+    "trendingHeroTip2": "Folgen Sie Personen, um Inhalte zu entdecken und zu fördern",
+    "trendingHeroTip3": "Erkunden Sie föderierte Instanzen, um sich zu vernetzen",
+    "createFirstPost": "Erstellen Sie Ihren ersten Beitrag",
+    "browseInstances": "Instanzen durchsuchen",
+    "noTrendingHashtagsHint": "Beiträge mit #Hashtags erscheinen hier, sobald Ihre Instanz wächst.",
+    "noTrendingPostsHint": "Interessante Beiträge von Ihrer Instanz und dem Fediverse erscheinen hier.",
+    "noSuggestedUsersHint": "Folgen Sie Personen, um personalisierte Vorschläge zu erhalten."
   },
   "moderation": {
     "report": "Melden",
@@ -801,7 +868,13 @@
     "search": "GIF suchen...",
     "searchGifs": "GIFs suchen...",
     "trending": "Trends",
-    "noResults": "Keine GIFs gefunden"
+    "noResults": "Keine GIFs gefunden",
+    "searchTenor": "Tenor durchsuchen",
+    "favorites": "Favoriten",
+    "noFavorites": "Noch keine Favoriten-GIFs",
+    "noFavoritesHint": "Klicken Sie auf den Stern eines GIFs, um es hier zu speichern",
+    "addToFavorites": "Zu Favoriten hinzufügen",
+    "removeFromFavorites": "Aus Favoriten entfernen"
   },
   "emoji": {
     "search": "Emoji suchen...",
@@ -861,7 +934,56 @@
     "blockUser": "Benutzer blockieren",
     "blockUserConfirm": "Bist du sicher, dass du diesen Benutzer blockieren möchtest?",
     "removeFriend": "Freund entfernen",
-    "removeFriendConfirm": "Bist du sicher, dass du diesen Freund entfernen möchtest?"
+    "removeFriendConfirm": "Bist du sicher, dass du diesen Freund entfernen möchtest?",
+    "deleteServerConfirmTitle": "Diese Aktion kann nicht rückgängig gemacht werden!",
+    "deleteServerConfirmText": "Das Löschen von {serverName} entfernt dauerhaft:",
+    "deleteServerConfirmItem1": "Alle Kanäle und Nachrichten",
+    "deleteServerConfirmItem2": "Alle Server-Emojis und Dateien",
+    "deleteServerConfirmItem3": "Alle Mitgliederdaten und Rollen",
+    "deleteServerConfirmItem4": "Server-Einstellungen und -Konfiguration",
+    "deleteServerConfirmLabel": "Geben Sie zur Bestätigung den genauen Servernamen ein:",
+    "deleteServerConfirmPlaceholder": "Servername hier eingeben...",
+    "deleting": "Wird gelöscht...",
+    "noServerIconSet": "Kein Server-Symbol festgelegt",
+    "fileSizeTooLarge": "Dateigröße muss kleiner als 8 MB sein",
+    "selectValidImageFile": "Bitte wählen Sie eine gültige Bilddatei aus",
+    "uploadingEmojis": "{current} von {total} Emojis werden hochgeladen...",
+    "copyEmojiName": "Emoji-Namen kopieren",
+    "renameEmoji": "Emoji umbenennen",
+    "deleteEmojiTitle": "Emoji löschen",
+    "emojiViewOnlyAccess": "Nur-Lese-Zugriff",
+    "emojiViewOnlyMessage": "Sie können Server-Emojis ansehen, aber nicht hochladen oder löschen. Nur der Server-Inhaber und Benutzer mit Emoji-Verwaltungsrechten können Emojis ändern.",
+    "noPermissionUploadEmojis": "Sie haben keine Berechtigung, Emojis hochzuladen",
+    "selectImageFile": "Bitte wählen Sie eine Bilddatei aus",
+    "fileSizeMustBeLessThan1MB": "Dateigröße muss kleiner als 1 MB sein",
+    "maxEmojisReached": "Maximal {max} Emojis pro Server erlaubt",
+    "emojiUploadedSuccess": "Emoji :{name}: erfolgreich hochgeladen!",
+    "failedToUploadEmoji": "Emoji konnte nicht hochgeladen werden",
+    "noPermissionDeleteEmojis": "Sie haben keine Berechtigung, Emojis zu löschen",
+    "confirmDeleteEmoji": "Möchten Sie :{name}: wirklich löschen?",
+    "emojiDeletedSuccess": "Emoji :{name}: erfolgreich gelöscht!",
+    "failedToDeleteEmoji": "Emoji konnte nicht gelöscht werden",
+    "fileNotImageSkipped": "{filename} ist keine Bilddatei und wird übersprungen",
+    "fileTooLargeSkipped": "{filename} ist zu groß (über 1 MB) und wird übersprungen",
+    "filesNotImageSkipped": "{count} Datei(en) übersprungen: keine Bilddateien",
+    "filesTooLargeSkipped": "{count} Datei(en) übersprungen: über 1 MB Größenlimit",
+    "noValidImageFiles": "Keine gültigen Bilddateien ausgewählt",
+    "cannotUploadEmojisLimit": "{count} Emojis können nicht hochgeladen werden. Server-Limit ist {max} Emojis (aktuell {current})",
+    "emojisUploadedSuccess": "{count} Emoji{plural} erfolgreich hochgeladen!",
+    "emojisFailedToUpload": "{count} Emoji{plural} konnte{plural} nicht hochgeladen werden",
+    "failedToUploadEmojis": "Emojis konnten nicht hochgeladen werden",
+    "confirmDeleteEmojis": "Möchten Sie {count} Emoji{plural} wirklich löschen?",
+    "emojisDeletedSuccess": "{count} Emoji{plural} erfolgreich gelöscht!",
+    "emojisFailedToDelete": "{count} Emoji{plural} konnte{plural} nicht gelöscht werden",
+    "failedToDeleteEmojis": "Emojis konnten nicht gelöscht werden",
+    "emojiRenamedSuccess": "Emoji umbenannt in :{name}:",
+    "failedToRenameEmoji": "Emoji konnte nicht umbenannt werden",
+    "failedToLoadServerSettings": "Server-Einstellungen konnten nicht geladen werden",
+    "failedToLoadEmojis": "Emojis konnten nicht geladen werden",
+    "emojiUploadedSuccessToast": "Emoji erfolgreich hochgeladen",
+    "noPermissionSaveChanges": "Sie haben keine Berechtigung, Änderungen zu speichern",
+    "serverUpdatedSuccess": "Server erfolgreich aktualisiert",
+    "failedToUpdateServer": "Server konnte nicht aktualisiert werden"
   },
   "languages": {
     "en": "English",
@@ -871,6 +993,75 @@
     "ja": "日本語",
     "ko": "한국어",
     "zh": "中文"
+  },
+  "category": {
+    "create": "Kategorie erstellen",
+    "errors": {
+      "limitReached": "Dieser Server hat das Maximum von {max} Kategorien erreicht",
+      "createFailed": "Kategorie konnte nicht erstellt werden. Bitte versuchen Sie es erneut.",
+      "noServer": "Kein Server ausgewählt"
+    }
+  },
+  "announcements": {
+    "title": "Ankündigungen",
+    "markRead": "Als gelesen markieren",
+    "markAllRead": "Alle als gelesen markieren"
+  },
+  "federation": {
+    "joinRemoteServer": "Remote-Server beitreten",
+    "joinRemoteServerDesc": "Verbinden Sie sich mit Communities auf anderen Harmony-Instanzen",
+    "serverUrl": "Server-URL, Einladungslink oder Handle",
+    "serverUrlPlaceholder": "https://instance.com/invite/CODE oder server{'@'}instance.com",
+    "urlFormatHint": "Fügen Sie einen Einladungslink, eine Server-URL oder einen Handle wie server{'@'}instance.com ein",
+    "discover": "Entdecken",
+    "members": "Mitglieder",
+    "channels": "Kanäle",
+    "more": "mehr",
+    "joinServer": "Server beitreten",
+    "federatedNotice": "Dies ist ein föderierter Server, der auf einer anderen Harmony-Instanz gehostet wird. Ihre Nachrichten werden über das Netzwerk gesendet.",
+    "joinByUrl": "Per URL beitreten",
+    "haveInviteLink": "Haben Sie einen Einladungslink? Fügen Sie ihn hier ein",
+    "inviteLink": "Einladungslink",
+    "invitedBy": "Eingeladen von",
+    "expires": "Läuft ab in",
+    "remoteServer": "Remote-Server",
+    "hosted": "Gehostet auf",
+    "federatedUser": "Föderierter Benutzer",
+    "federatedBadge": "Föderiert"
+  },
+  "offline": {
+    "banner": "Sie sind offline. Einige Funktionen sind möglicherweise nicht verfügbar."
+  },
+  "chat": {
+    "uploading": "Wird hochgeladen...",
+    "dropFilesHere": "Dateien hier ablegen.",
+    "setupNow": "Jetzt einrichten"
+  },
+  "invite": {
+    "accepting": "Einladung wird angenommen...",
+    "accepted": "Einladung erfolgreich angenommen",
+    "failed": "Einladung konnte nicht angenommen werden",
+    "noCode": "Kein Einladungscode gefunden",
+    "notLoggedIn": "Sie müssen angemeldet sein, um Einladungen anzunehmen"
+  },
+  "nav": {
+    "chat": "Chat",
+    "social": "Social",
+    "directMessages": "Direktnachrichten",
+    "mentions": "Erwähnungen"
+  },
+  "notFound": {
+    "pageNotFound": "Seite nicht gefunden",
+    "goBack": "Zurück",
+    "goHome": "Zur Startseite",
+    "quickNavigation": "Schnellnavigation:",
+    "joinHarmony": "Harmony beitreten",
+    "signInPrompt": "Melden Sie sich an, um auf alle Funktionen zuzugreifen und sich mit der Community zu verbinden.",
+    "backToSocial": "Zurück zu Social",
+    "backToChat": "Zurück zum Chat",
+    "socialNotFound": "Dieser soziale Inhalt existiert nicht oder wurde entfernt.",
+    "chatNotFound": "Dieser Chat oder diese Konversation existiert nicht oder Sie haben keinen Zugriff darauf.",
+    "settingsNotFound": "Diese Einstellungsseite existiert nicht.",
+    "defaultNotFound": "Die gesuchte Seite existiert nicht oder wurde verschoben."
   }
 }
-
