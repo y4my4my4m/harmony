@@ -376,7 +376,7 @@ export default defineComponent({
     const isFilledIcon = computed(() => props.filled || FILLED_ICONS.has(props.name));
 
     const componentClass = computed(() => {
-      const classes = ['icon', `icon-${props.name}`];
+      const classes: any[] = ['icon', `icon-${props.name}`];
       if (typeof props.size === 'string') classes.push(`icon-${props.size}`);
       classes.push({ 'icon-filled': isFilledIcon.value });
       return classes;

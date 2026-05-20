@@ -18,7 +18,7 @@
         :current-server="currentServer"
         :current-channel="currentChannel"
         :is-d-m="isDM"
-        :current-view="currentView"
+        :current-view="(currentView as any)"
         :funding-config="fundingConfig"
         @toggle-left-sidebar="$emit('toggleLeftSidebar')"
         @toggle-right-sidebar="$emit('toggleRightSidebar')"
@@ -456,7 +456,7 @@ const handleSendMessage = async (content: any, replyTo?: string) => {
     const currentChannelId = channelId.value
     
     if (currentServerId && currentChannelId && currentUser?.id) {
-      await chatStore.sendMessage(currentServerId, currentChannelId, currentUser.id, content, replyTo)
+      await chatStore.sendMessage(currentServerId, currentChannelId, currentUser.id, content, replyTo ?? '')
     }
   }
 }

@@ -137,7 +137,7 @@
                 @bookmark="$emit('bookmark-post', $event)"
                 @delete="$emit('delete-post', $event)"
                 @show-user-profile="$emit('show-user-profile', $event)"
-                @show-conversation="$emit('show-conversation', $event)"
+                @show-conversation="$emit('show-conversation', $event as any)"
               />
             </div>
             <div v-else class="empty-state section-empty-state">

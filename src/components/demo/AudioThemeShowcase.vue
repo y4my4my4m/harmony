@@ -263,7 +263,7 @@ const removeToast = (id: string): void => {
 }
 
 const getToastIcon = (type: string): string => {
-  const icons = {
+  const icons: Record<string, string> = {
     success: 'check-circle',
     error: 'alert-circle',
     info: 'info',

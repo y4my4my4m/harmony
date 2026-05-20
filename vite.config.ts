@@ -30,7 +30,7 @@ export default defineConfig({
       '/api/federation': {
         target: 'http://localhost:3001',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\/federation/, ''),
+        rewrite: (path: string) => path.replace(/^\/api\/federation/, ''),
       },
       '/api/livekit': {
         target: 'http://localhost:3001',

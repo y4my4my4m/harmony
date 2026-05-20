@@ -127,7 +127,7 @@ const saveChanges = async () => {
     await serverChannelStore.updateChannel({
       id: props.channel.id,
       name: trimmedName,
-      description: trimmedDescription
+      description: trimmedDescription ?? undefined
     })
     
     // Emit updated event with the updated channel data
@@ -135,7 +135,7 @@ const saveChanges = async () => {
       ...props.channel, 
       name: trimmedName, 
       description: trimmedDescription 
-    }
+    } as any
     emit('updated', updatedChannel)
     closeModal()
   } catch (error: any) {

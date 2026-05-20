@@ -12,7 +12,7 @@
           :categories="categories"
           :categoryChannels="categoryChannels"
           @channelSelected="$emit('channel-selected', $event)"
-          @createChannel="$emit('create-channel', $event)"
+          @createChannel="(c?: string) => $emit('create-channel', c ?? '')"
           @openThread="$emit('open-thread', $event)"
         />
       </div>
