@@ -322,6 +322,7 @@ import { services } from '@/services';
 import { getBannerUrl } from '@/utils/bannerUtils';
 import type { FederatedUser, TimelinePost } from '@/types';
 import { format } from 'date-fns';
+import DOMPurify from 'dompurify';
 
 // Components
 import MonyHeader from '@/components/activitypub/MonyHeader.vue'
@@ -596,10 +597,19 @@ const userFields = computed(() => {
 
 const formatFieldValue = (value: string): string => {
   if (!value) return '';
-  // Values from ActivityPub may contain HTML links - sanitize but keep <a> tags
-  return value
-    .replace(/<(?!a\b|\/a)[^>]*>/gi, '')
-    .replace(/<a\b/gi, '<a target="_blank" rel="noopener noreferrer"');
+  // ActivityPub PropertyValue fields are attacker-controlled (remote profile).
+  // DOMPurify strips disallowed tags AND dangerous URI schemes (javascript:, data:, etc.)
+  // from href/src by default. ALLOWED_URI_REGEXP enforces http(s)/mailto only.
+  const sanitized = DOMPurify.sanitize(value, {
+    ALLOWED_TAGS: ['a', 'br', 'span', 'em', 'strong', 'b', 'i'],
+    ALLOWED_ATTR: ['href', 'title'],
+    ALLOWED_URI_REGEXP: /^(?:https?|mailto):/i,
+    ALLOW_DATA_ATTR: false,
+  });
+  // Force-add rel/target on links so external profile links don't leak window.opener
+  // and open in a new tab. DOMPurify's afterSanitizeAttributes hook would also work,
+  // but a single regex pass is fine here since the input is already sanitized.
+  return sanitized.replace(/<a\b(?![^>]*\btarget=)/gi, '<a target="_blank" rel="noopener noreferrer nofollow"');
 };
 
 // Methods

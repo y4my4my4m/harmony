@@ -4,7 +4,7 @@ import { createServer } from 'http'
 import helmet from 'helmet'
 import cors from 'cors'
 import compression from 'compression'
-import { config } from './config/supabase.js'
+import { config, supabase } from './config/supabase.js'
 import { WebSocketGateway } from './gateway/WebSocketGateway.js'
 import { EventDispatcher } from './gateway/EventDispatcher.js'
 import { BotRestAPI } from './api/BotRestAPI.js'
@@ -52,11 +52,46 @@ const botAPI = new BotRestAPI()
 app.use('/api/v1', botAPI.router)
 
 // =====================================================
-// PUBLIC ENDPOINTS (separate from bot API, no auth)
+// USER-AUTHENTICATED ENDPOINTS
 // =====================================================
+//
+// These endpoints used to be public, which let any unauthenticated caller
+// enumerate connected bots (`/status`) and bridged Discord users for any
+// channel ID (`/bridged-users/:channelId` — see BUGS.md C4). They now require
+// a valid Supabase user JWT, and `/bridged-users` additionally checks that
+// the caller is a member of the channel's server.
 
-// Gateway status (public)
-app.get('/status', (req, res) => {
+/**
+ * Validate a Supabase user JWT from the `Authorization: Bearer <token>` header.
+ * Returns the caller's profile id (`profiles.id`), or `null` if unauthenticated.
+ */
+async function getCallerProfileId(req: express.Request): Promise<string | null> {
+  const auth = req.headers.authorization
+  if (!auth || !auth.startsWith('Bearer ')) return null
+  const token = auth.slice('Bearer '.length).trim()
+  if (!token) return null
+
+  const { data: userData, error: userError } = await supabase.auth.getUser(token)
+  if (userError || !userData?.user) return null
+
+  const { data: profile, error: profileError } = await supabase
+    .from('profiles')
+    .select('id')
+    .eq('auth_user_id', userData.user.id)
+    .maybeSingle()
+
+  if (profileError || !profile) return null
+  return profile.id as string
+}
+
+// Gateway status — admin-style endpoint; require authentication so we don't leak
+// connected bot inventory to arbitrary callers.
+app.get('/status', async (req, res): Promise<void> => {
+  const callerProfileId = await getCallerProfileId(req)
+  if (!callerProfileId) {
+    res.status(401).json({ error: 'Authentication required' })
+    return
+  }
   res.json({
     connected_bots: gateway.getConnectedBotCount(),
     total_connections: gateway.getTotalConnectionCount(),
@@ -68,15 +103,46 @@ app.get('/status', (req, res) => {
   })
 })
 
-// Bridged users for Discord bridge (public)
-// Used by Harmony frontend for mention autosuggest
-app.get('/bridged-users/:channelId', (req, res) => {
+// Bridged users for Discord bridge — used by the Harmony frontend for mention
+// autosuggest. Requires the caller to be a member of the channel's server so
+// you can't enumerate Discord user lists for arbitrary channel IDs.
+app.get('/bridged-users/:channelId', async (req, res): Promise<void> => {
+  const callerProfileId = await getCallerProfileId(req)
+  if (!callerProfileId) {
+    res.status(401).json({ error: 'Authentication required' })
+    return
+  }
+
   const { channelId } = req.params
+
+  // Resolve channel → server_id, then check the caller is in user_servers for
+  // that server. Service role bypasses RLS, so this is the authoritative check.
+  const { data: channel } = await supabase
+    .from('channels')
+    .select('server_id')
+    .eq('id', channelId)
+    .maybeSingle()
+
+  if (!channel?.server_id) {
+    res.status(404).json({ error: 'Channel not found' })
+    return
+  }
+
+  const { data: membership } = await supabase
+    .from('user_servers')
+    .select('user_id')
+    .eq('server_id', channel.server_id)
+    .eq('user_id', callerProfileId)
+    .maybeSingle()
+
+  if (!membership) {
+    res.status(403).json({ error: 'Forbidden' })
+    return
+  }
+
   const bridgedUsers = gateway.getBridgedUsers(channelId)
   const hasBridge = gateway.hasChannelBridge(channelId)
-  
-  console.log(`🌉 GET /bridged-users/${channelId} → ${bridgedUsers.length} users, hasBridge=${hasBridge}`)
-  
+
   res.json({
     channel_id: channelId,
     has_bridge: hasBridge,

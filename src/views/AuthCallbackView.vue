@@ -149,9 +149,24 @@ onMounted(async () => {
       }
     }
     
+    // BUGS.md C11: Don't bypass MFA validation. The OAuth callback used to
+    // assign `authStore.session = session` directly, which skips both
+    // `onAuthStateChange`'s SIGNED_IN MFA check and the on-init validation —
+    // any MFA-enrolled user can land here at AAL1 and gain full app access.
+    const isValid = await authStore.validateSessionForMFA(session)
+    if (!isValid) {
+      debug.warn('🚨 OAuth callback session is AAL1 with MFA enabled — signing out and redirecting to MFA challenge')
+      // Sign out the AAL1 session so the user must re-authenticate (the next
+      // sign-in flow will hit the SIGNED_IN handler which knows how to route
+      // pending-MFA users to the verification screen).
+      try { await supabase.auth.signOut() } catch { /* ignore */ }
+      authStore.session = null
+      throw new Error('Multi-factor authentication is required. Please sign in again to complete verification.')
+    }
+
     // Update auth store
     authStore.session = session
-    
+
     // Brief success state
     status.value = 'success'
     

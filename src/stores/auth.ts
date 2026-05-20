@@ -120,9 +120,25 @@ export const useAuthStore = defineStore('auth', {
         // Use existing session from state
         const session = this.session
         if (!session) {
-          // If no cached session, still need to fetch
+          // If no cached session, still need to fetch — and MUST validate
+          // before adopting it, even on a cache "hit". Otherwise a tab can
+          // pick up an AAL1 session written by another tab between cache
+          // refreshes and skip MFA entirely (BUGS.md C11 / M64).
           const { data: getSessionData } = await supabase.auth.getSession()
-          this.session = getSessionData.session
+          const refetched = getSessionData.session
+          if (refetched) {
+            const isValid = await this.validateSessionForMFA(refetched)
+            if (isValid) {
+              this.session = refetched
+              this._mfaValidatedForSession = refetched.access_token
+            } else {
+              debug.warn('🚨 Cached-path session restoration blocked: AAL1 with MFA enabled')
+              try { await supabase.auth.signOut() } catch { /* ignore */ }
+              this.session = null
+            }
+          } else {
+            this.session = null
+          }
           this._sessionCacheTimestamp = now
         }
       } else {
@@ -312,8 +328,23 @@ export const useAuthStore = defineStore('auth', {
         
         // Handle INITIAL_SESSION (app startup)
         if (event === 'INITIAL_SESSION' && session) {
-          // Already validated in initializeAuth, just set session if not set
+          // The comment used to say "already validated in initializeAuth", but
+          // this branch also runs when `this.session` was previously null and
+          // INITIAL_SESSION fires from another tab's just-created AAL1 session
+          // — i.e. an MFA-required session that hasn't completed verification.
+          // Re-validate before adopting unless we explicitly remember
+          // validating it from initializeAuth() (this tab's own boot path).
           if (!this.session) {
+            const alreadyValidated = this._mfaValidatedForSession === session.access_token
+            const isValid = alreadyValidated || (await this.validateSessionForMFA(session))
+            if (!isValid) {
+              debug.warn('🚨 INITIAL_SESSION blocked: AAL1 session with MFA enabled (BUGS.md C11)')
+              try { await supabase.auth.signOut() } catch { /* ignore */ }
+              this.session = null
+              this.cleanupNotificationSystem()
+              return
+            }
+            this._mfaValidatedForSession = session.access_token
             this.session = session;
             if (session.user?.id) {
               // Set user-scoped storage for the current user
@@ -329,8 +360,23 @@ export const useAuthStore = defineStore('auth', {
           return;
         }
         
-        // TOKEN_REFRESHED, USER_UPDATED without current session - just update
+        // TOKEN_REFRESHED / catch-all path. Previously this assigned `session`
+        // unconditionally, which let an AAL1 session sneak in via any
+        // unhandled event when `this.session` was null. Validate before adopt.
         if (session) {
+          // If we already have a logged-in session, just refresh tokens.
+          if (this.session) {
+            this.session = session;
+            return;
+          }
+          const isValid = await this.validateSessionForMFA(session);
+          if (!isValid) {
+            debug.warn(`🚨 ${event} blocked: AAL1 session with MFA enabled (BUGS.md C11)`)
+            try { await supabase.auth.signOut() } catch { /* ignore */ }
+            this.session = null
+            return
+          }
+          this._mfaValidatedForSession = session.access_token
           this.session = session;
         }
       });

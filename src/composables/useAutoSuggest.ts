@@ -619,9 +619,17 @@ export function useAutoSuggest(
       try {
         const url = `/bot-gateway/bridged-users/${channelId}`;
         debug.log(`🌉 fetchBridgedUsers: Fetching from ${url}`);
-        
-        const response = await fetch(url);
-        
+
+        // The gateway requires a Supabase user JWT now (BUGS.md C4).
+        // Pass the current session's access token; without it the request
+        // is rejected with 401.
+        const { data: { session } } = await supabase.auth.getSession();
+        const headers: Record<string, string> = {};
+        if (session?.access_token) {
+          headers['Authorization'] = `Bearer ${session.access_token}`;
+        }
+        const response = await fetch(url, { headers });
+
         if (response.ok) {
           const data = await response.json();
           

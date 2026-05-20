@@ -182,13 +182,19 @@
           </div>
 
           <!-- Regular URL links -->
-          <a 
-            v-else
-            :href="part.url" 
-            target="_blank" 
+          <!-- sanitizeUrl rejects javascript:/data:/etc. and returns "". When empty,
+               render as inert text (no <a>) so dangerous URLs can't execute on click. -->
+          <a
+            v-else-if="sanitizeUrl(part.url)"
+            :href="sanitizeUrl(part.url)"
+            target="_blank"
             rel="noopener noreferrer"
             class="url-link"
           >{{ part.url }}</a>
+          <span
+            v-else
+            class="url-link url-link--unsafe"
+          >{{ part.url }}</span>
           <ProviderEmbedSwitch
             v-if="resolveEmbedPayload(part) && !isImageUrl(part.url) && !isVideoUrl(part.url) && !isAudioUrl(part.url)"
             :payload="resolveEmbedPayload(part)!"
@@ -288,9 +294,18 @@
           class="file-attachment"
         >
           <div class="file-icon">📎</div>
-          <a :href="part.url" target="_blank" rel="noopener noreferrer" class="file-name">
+          <a
+            v-if="sanitizeUrl(part.url)"
+            :href="sanitizeUrl(part.url)"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="file-name"
+          >
             {{ getFileName(part.url) }}
           </a>
+          <span v-else class="file-name file-name--unsafe">
+            {{ getFileName(part.url) }}
+          </span>
         </div>
         
         <!-- System messages (join/leave announcements) -->
@@ -349,7 +364,7 @@ import { parseEmbedUrl, isHarmonyInviteUrl } from '@/utils/embedDetection';
 import { useUnifiedEmoji } from '@/services/unifiedEmojiService';
 import { gifService } from '@/services/GifService';
 import { debug } from '@/utils/debug';
-import { escapeHtml } from '@/utils/sanitize';
+import { escapeHtml, sanitizeUrl } from '@/utils/sanitize';
 
 export default defineComponent({
   name: 'UnifiedMessageContent',
@@ -1031,6 +1046,7 @@ export default defineComponent({
       isImageUrl,
       isVideoUrl,
       isAudioUrl,
+      sanitizeUrl,
       formatFileSize,
       formatMentionDisplay,
       renderTextContent,

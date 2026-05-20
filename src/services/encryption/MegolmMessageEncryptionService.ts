@@ -380,12 +380,13 @@ export class MegolmMessageEncryptionService {
 
     const cachedKey = await identityKeyStore.load(this.currentUserId)
 
-    const { data: existingKey } = await supabase
-      .from('user_key_pairs')
-      .select('identity_public_key, identity_private_key_encrypted')
-      .eq('user_id', this.currentUserId)
-      .eq('is_active', true)
-      .maybeSingle()
+    // Fetch own keypair via SECURITY DEFINER RPC. After the
+    // 20260520 user_key_pairs RLS tightening, the encrypted_private columns
+    // are no longer SELECTable through PostgREST (column-level GRANTs).
+    const { data: keyPairRows } = await supabase.rpc('get_my_key_pair')
+    const existingKey = (Array.isArray(keyPairRows) ? keyPairRows[0] : null) as
+      | { identity_public_key: string; identity_private_key_encrypted: string }
+      | null
 
     if (existingKey) {
       if (cachedKey) return
@@ -472,12 +473,12 @@ export class MegolmMessageEncryptionService {
     // Already cached locally?
     const cached = await signingKeyStore.load(this.currentUserId)
 
-    const { data: existingRow } = await supabase
-      .from('user_key_pairs')
-      .select('id, identity_signing_public_key, identity_signing_private_key_encrypted')
-      .eq('user_id', this.currentUserId)
-      .eq('is_active', true)
-      .maybeSingle()
+    // Same constraint as above — encrypted private signing column is not
+    // SELECTable post-20260520 RLS tightening; use the owner-scoped RPC.
+    const { data: keyPairRows } = await supabase.rpc('get_my_key_pair')
+    const existingRow = (Array.isArray(keyPairRows) ? keyPairRows[0] : null) as
+      | { id: string; identity_signing_public_key: string | null; identity_signing_private_key_encrypted: string | null }
+      | null
 
     if (existingRow?.identity_signing_public_key && existingRow?.identity_signing_private_key_encrypted) {
       if (cached) return

@@ -629,7 +629,16 @@ router.post(
         }
         logger.warn(`⚠️ Accepting invalid signature on server inbox (REQUIRE_VALID_SIGNATURES=false)`);
       } else if (verification.actorUrl && actorUrl) {
-        const actorMatch = SignatureService.verifyActorMatch(actorUrl, verification.actorUrl);
+        // Server inbox carries Group/Service actor activities (e.g. Lemmy
+        // c/<community> announcements signed by u/<moderator>). Allow
+        // same-domain delegation here, but the strict mode used by the
+        // user inbox (`verifyActorMatch(a, b)`) still applies for Person
+        // actors and prevents cross-user impersonation. See BUGS.md C1.
+        const actorMatch = SignatureService.verifyActorMatch(
+          actorUrl,
+          verification.actorUrl,
+          true /* allowSameDomainDelegation */,
+        );
         if (!actorMatch && config.REQUIRE_VALID_SIGNATURES) {
           logger.warn(`🚫 Rejecting: actor mismatch on server inbox. Activity: ${actorUrl}, Signer: ${verification.actorUrl}`);
           res.status(403).json({ error: 'Actor mismatch' });

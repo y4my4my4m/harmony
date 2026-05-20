@@ -293,13 +293,31 @@ export class SignatureService {
   /**
    * Verify that the actor in the activity matches the signing key's owner.
    *
-   * Exact-match is checked first. When it fails we allow same-domain
-   * delegation (e.g. a Group/server actor whose activities are signed by an
-   * authorized user on the same domain). This is standard fediverse practice
-   * — Lemmy, Mastodon and Misskey all accept same-origin delegated signatures
-   * for Group actors.
+   * Two modes:
+   *
+   * - **Strict (default)**: `activity.actor` must EXACTLY equal the signing
+   *   key owner URL after normalization. Use this for `Person`-actor activities
+   *   (user inbox: Create Note, Like, Follow, Update Person, Delete Note, …).
+   *   Allowing same-domain delegation here would let any compromised /
+   *   legitimate user on a remote host forge activities for any other user on
+   *   the same host (cross-user impersonation). See BUGS.md item C1.
+   *
+   * - **Group delegation** (`allowSameDomainDelegation = true`): when the
+   *   activity is on behalf of a `Group`/`Service` actor that is conventionally
+   *   acted upon by an authorized member on the same domain (e.g. Lemmy
+   *   `c/<community>` announcements signed by `u/<moderator>`), accept any
+   *   signer on the same host. Use this only for the server inbox.
+   *
+   * @param activityActor URL of the `activity.actor` from the inbox payload.
+   * @param signingActorUrl URL resolved from the signature `keyId`.
+   * @param allowSameDomainDelegation Set to `true` only when the inbox is
+   *   semantically a Group/Service inbox (server inbox). Defaults to `false`.
    */
-  static verifyActorMatch(activityActor: string, signingActorUrl: string): boolean {
+  static verifyActorMatch(
+    activityActor: string,
+    signingActorUrl: string,
+    allowSameDomainDelegation = false,
+  ): boolean {
     const normalizeUrl = (url: string) => {
       try {
         const parsed = new URL(url);
@@ -316,21 +334,25 @@ export class SignatureService {
       return true;
     }
 
-    // Allow same-domain delegation (Group actor signed by a user on the same host)
-    try {
-      const actorHost = new URL(activityActor).host;
-      const signerHost = new URL(signingActorUrl).host;
-      if (actorHost === signerHost) {
-        logger.info(
-          `Actor mismatch allowed (same domain): activity.actor=${activityActor}, signer=${signingActorUrl}`,
-        );
-        return true;
+    // Same-domain delegation is opt-in (Group/Service inbox only).
+    if (allowSameDomainDelegation) {
+      try {
+        const actorHost = new URL(activityActor).host;
+        const signerHost = new URL(signingActorUrl).host;
+        if (actorHost && actorHost === signerHost) {
+          logger.info(
+            `Actor mismatch allowed (Group same-domain delegation): activity.actor=${activityActor}, signer=${signingActorUrl}`,
+          );
+          return true;
+        }
+      } catch {
+        // fall through to rejection
       }
-    } catch {
-      // fall through to rejection
     }
 
-    logger.warn(`Actor mismatch: activity.actor=${activityActor}, signing key owner=${signingActorUrl}`);
+    logger.warn(
+      `Actor mismatch (delegation=${allowSameDomainDelegation}): activity.actor=${activityActor}, signing key owner=${signingActorUrl}`,
+    );
     return false;
   }
 
