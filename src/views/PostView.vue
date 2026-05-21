@@ -390,19 +390,25 @@ const loadPostWithContext = async () => {
 };
 
 const fetchRemoteRepliesInBackground = async (targetPost: TimelinePost) => {
+  // Snapshot the post id we're fetching for so we can bail if the user
+  // navigates away mid-fetch (otherwise the late context reload below would
+  // clobber `postWithContext.value` with stale data).
+  const startToken = resolvedPostId.value;
   try {
     const targetApId = getOriginalApId(targetPost) || targetPost.ap_id;
     const targetId = getOriginalPostId(targetPost);
     if (!targetApId) return;
     const result = await activityPubService.fetchRemoteReplies(targetApId, targetId);
-    if (result && result.count > 0) {
+    if (result && result.count > 0 && resolvedPostId.value === startToken) {
       const updatedResult = await activityPub.getPostWithContext(targetId, {
         context: props.contextType,
         highlightReply: props.highlightReply,
         maxDepth: maxThreadDepth.value,
         includeInteractions: true,
       });
-      postWithContext.value = updatedResult;
+      if (resolvedPostId.value === startToken) {
+        postWithContext.value = updatedResult;
+      }
     }
   } catch (err) {
     debug.warn('[PostView] Failed to fetch remote replies:', err);
@@ -418,22 +424,41 @@ const fetchRemoteRepliesInBackground = async (targetPost: TimelinePost) => {
  *
  * Cap at MAX_ANCESTOR_DEPTH so a malicious or pathological thread can't make
  * us issue an unbounded number of remote fetches.
+ *
+ * Two pieces of bookkeeping worth noting:
+ *
+ *   - `startToken` snapshots which post we're walking for. If the user
+ *     navigates to a different post mid-walk, `resolvedPostId.value` will
+ *     change and we bail out of the eventual reload — otherwise the late
+ *     `getPostWithContext` would clobber `postWithContext.value` with
+ *     stale-thread data for the post they already left.
+ *   - `newlyImported` only increments on actual new imports (as reported by
+ *     `resolveByApUrlWithStatus`), not on cached hits. A walk that touches
+ *     only already-local ancestors didn't change anything visible to the
+ *     user and shouldn't trigger a redundant reload.
  */
 const fetchRemoteAncestorsInBackground = async (target: TimelinePost) => {
   const MAX_ANCESTOR_DEPTH = 10;
+  const startToken = resolvedPostId.value;
   try {
     const { postResolverService } = await import('@/services/PostResolverService');
     let parentApUrl: string | undefined = target.metadata?.in_reply_to_ap_url;
     const seen = new Set<string>();
-    let imported = 0;
+    let newlyImported = 0;
 
     for (let i = 0; i < MAX_ANCESTOR_DEPTH; i++) {
       if (!parentApUrl || seen.has(parentApUrl)) break;
+      // Bail if the user navigated away during the walk.
+      if (resolvedPostId.value !== startToken) {
+        debug.log('[PostView] Ancestor walker abandoned: navigation changed mid-walk');
+        return;
+      }
       seen.add(parentApUrl);
 
-      const parent = await postResolverService.resolveByApUrl(parentApUrl);
+      const { post: parent, wasImported } =
+        await postResolverService.resolveByApUrlWithStatus(parentApUrl);
       if (!parent) break;
-      imported++;
+      if (wasImported) newlyImported++;
 
       // Continue if this ancestor is itself a reply we don't have above.
       // (Server-side /resolve-post does its own chain walk too, so usually one
@@ -443,15 +468,22 @@ const fetchRemoteAncestorsInBackground = async (target: TimelinePost) => {
       parentApUrl = parent.metadata?.in_reply_to_ap_url;
     }
 
-    if (imported > 0 && resolvedPostId.value) {
-      debug.log(`[PostView] Imported ${imported} federated ancestor(s); reloading context`);
-      const updatedResult = await activityPub.getPostWithContext(resolvedPostId.value, {
+    // Only reload if we actually imported something (cached hits don't
+    // change the local thread state) AND the user is still viewing the
+    // same post we started with.
+    if (newlyImported > 0 && resolvedPostId.value === startToken && startToken) {
+      debug.log(`[PostView] Imported ${newlyImported} federated ancestor(s); reloading context`);
+      const updatedResult = await activityPub.getPostWithContext(startToken, {
         context: props.contextType,
         highlightReply: props.highlightReply,
         maxDepth: maxThreadDepth.value,
         includeInteractions: true,
       });
-      postWithContext.value = updatedResult;
+      // Re-check the token after the awaited reload too — the user could
+      // have navigated during the RPC roundtrip.
+      if (resolvedPostId.value === startToken) {
+        postWithContext.value = updatedResult;
+      }
     }
   } catch (err) {
     debug.warn('[PostView] Failed to fetch remote ancestors:', err);

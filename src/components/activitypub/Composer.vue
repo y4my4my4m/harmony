@@ -341,7 +341,7 @@ import { useAutoSuggest } from '@/composables/useAutoSuggest';
 import type { SuggestionItem } from '@/components/AutoSuggest.vue';
 
 // Utils
-import { getOriginalPost, getOriginalPostId } from '@/utils/postReblog';
+import { getOriginalPost, getOriginalPostId, getReplyMentionAuthor } from '@/utils/postReblog';
 
 // Components
 import MonyContent from './MonyContent.vue';
@@ -868,10 +868,11 @@ onMounted(() => {
       }));
     }
   } else if (props.type === 'reply' && props.replyToPost) {
-    // Mention the *original* author for reblogs (the boost wrapper's author
-    // is the rebloggers, who isn't who the user wants to talk to).
-    const target = getOriginalPost(props.replyToPost);
-    const author = target.author;
+    // Mention whichever author the reply should reach. `getReplyMentionAuthor`
+    // returns the original post's author for pure reblogs, the quoter for
+    // quote posts, and `undefined` for unhydrated reblogs (so we skip the
+    // prefill rather than mention the booster, which would mislead the user).
+    const author = getReplyMentionAuthor(props.replyToPost);
     if (author) {
       const username = author.username || '';
       const domain = author.domain || '';
@@ -917,10 +918,9 @@ watch(() => props.initialContent, (val) => {
 // Watch for reply context changes (when opening reply composer)
 watch(() => props.replyToPost, (replyPost) => {
   if (props.type === 'reply' && replyPost && content.value === '') {
-    // Same reblog-aware unwrap as onMounted — the user is replying to the
-    // *original* post, not the booster.
-    const target = getOriginalPost(replyPost);
-    const author = target.author;
+    // Same routing rule as onMounted — pure reblog → original author,
+    // quote → quoter, unhydrated reblog → no prefill.
+    const author = getReplyMentionAuthor(replyPost);
     if (!author) return;
     const username = author.username || '';
     const domain = author.domain || '';

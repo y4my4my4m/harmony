@@ -586,6 +586,7 @@ import DisplayName from '@/components/DisplayName.vue';
 import { userDataService } from '@/services/userDataService';
 import { unicodeToShortcode } from '@/services/unifiedEmojiService';
 import { getEmojiUrl } from '@/utils/emojiUtils';
+import { getOriginalPost } from '@/utils/postReblog';
 import { supabase } from '@/supabase';
 import type { TimelinePost } from '@/types';
 
@@ -1146,23 +1147,14 @@ const originalPostId = computed(() => {
   return props.post.id;
 });
 
-// The post that "Reply" should address. For reblogs we hand the *original*
-// post to the Composer so the mention targets the original author and the
-// reply is threaded under the original note (Mastodon/Pleroma/Misskey
-// behavior). For regular posts, this is just `props.post`.
-const replyTarget = computed<TimelinePost>(() => {
-  if (isReblog.value && props.post.reblog) {
-    const original = props.post.reblog as TimelinePost;
-    // ActivityPubPost.author is optional; the timeline view flattens the
-    // original author onto `reblog_author`. Rehydrate it so the Composer's
-    // mention prefill (which reads `replyToPost.author`) works.
-    if (!original.author && props.post.reblog_author) {
-      return { ...original, author: props.post.reblog_author as any };
-    }
-    return original;
-  }
-  return props.post;
-});
+// The post that "Reply" should address. For *pure* reblogs we hand the
+// original post to the Composer so the mention targets the original author
+// and the reply is threaded under the original note (Mastodon/Pleroma/Misskey
+// behavior). For quote posts and regular posts, the reply targets the post
+// itself — quote posts are first-class user posts whose replies belong on
+// them, not on the post they quote. The shared util encodes this rule so
+// every reply call site agrees.
+const replyTarget = computed<TimelinePost>(() => getOriginalPost(props.post));
 
 // For reblogs, we need to show reactions for the ORIGINAL post
 // Create a post-like object with the correct ID for PostReactions component

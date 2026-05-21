@@ -102,6 +102,16 @@ async function resolveProfileByActorUrl(actorUrl: string): Promise<{ id: string 
 
 export class ActivityProcessor {
   /**
+   * Maximum reply-chain depth for federated post resolution. Bounds total
+   * outbound fetches per `/resolve-post` call (and per inbox Create) so a
+   * malicious or pathological remote can't chain the importer into a deep
+   * cascade of remote requests. Shared between `resolveReplyChain` (chain
+   * walker) and `fetchAndCreateRemotePost` (per-post fetcher) so the mutual
+   * recursion lands at exactly N fetches total, not 2N or N+1.
+   */
+  private static readonly MAX_REPLY_CHAIN_DEPTH = 10;
+
+  /**
    * Check if an actor is suspended on our instance
    */
   private static async isActorSuspended(actorUrl: string): Promise<boolean> {
@@ -538,11 +548,13 @@ export class ActivityProcessor {
           if (insertedPost) {
             // Heal any orphan replies that were waiting on this post (children
             // that arrived before their parent and got stamped with
-            // metadata.in_reply_to_ap_url = object.id).
+            // metadata.in_reply_to_ap_url = object.id). Pass `object.url`
+            // too so orphans stamped with the alternate URL form match.
             await this.relinkPendingChildren(
               object.id,
               insertedPost.id,
               (insertedPost as any).conversation_root_id ?? null,
+              object.url || null,
             );
 
             const { enrichPostLinkPreviews } = await import('../listeners/DatabaseListener.js');
@@ -609,11 +621,13 @@ export class ActivityProcessor {
     parentPostId: string | null;
     conversationRootId: string | null;
   }> {
-    const MAX_DEPTH = 10;
     const supabase = getSupabaseClient();
 
-    if (depth > MAX_DEPTH) {
-      logger.warn(`Reply chain too deep (>${MAX_DEPTH}), stopping resolution`);
+    // Use `>=` (not `>`) so the bound matches the intuitive "max N fetches".
+    // Combined with the matching guard in `fetchAndCreateRemotePost`, mutual
+    // recursion stops at exactly MAX_REPLY_CHAIN_DEPTH outbound fetches.
+    if (depth >= this.MAX_REPLY_CHAIN_DEPTH) {
+      logger.warn(`Reply chain too deep (>=${this.MAX_REPLY_CHAIN_DEPTH}), stopping resolution`);
       return { parentPostId: null, conversationRootId: null };
     }
 
@@ -710,15 +724,35 @@ export class ActivityProcessor {
     parentApId: string,
     parentLocalId: string,
     parentConversationRootId: string | null,
+    parentApUrl?: string | null,
   ): Promise<void> {
-    if (!parentApId || !parentLocalId) return;
+    if (!parentLocalId) return;
     const supabase = getSupabaseClient();
+
+    // Match orphans by *every* known URL form for this post — Mastodon
+    // canonical id (`/users/x/statuses/N`), pretty url (`/@x/N`), GoToSocial
+    // (`/users/x/statuses/N` ↔ `/@x/statuses/N`), Pleroma `/objects/UUID`,
+    // etc. all surface in different `inReplyTo` payloads, and an orphan
+    // could have stamped any of them. PostgREST `.or()` syntax lets us OR
+    // multiple jsonb-arrow-extracted comparisons in a single query.
+    const candidateUrls = Array.from(
+      new Set(
+        [parentApId, parentApUrl ?? undefined].filter(
+          (v): v is string => typeof v === 'string' && v.length > 0,
+        ),
+      ),
+    );
+    if (candidateUrls.length === 0) return;
+
+    const orFilter = candidateUrls
+      .map((u) => `metadata->>in_reply_to_ap_url.eq.${u}`)
+      .join(',');
 
     const { data: orphans, error: queryError } = await supabase
       .from('posts')
       .select('id')
       .is('in_reply_to', null)
-      .eq('metadata->>in_reply_to_ap_url', parentApId)
+      .or(orFilter)
       .eq('is_deleted', false);
 
     if (queryError) {
@@ -766,6 +800,16 @@ export class ActivityProcessor {
     in_reply_to: string | null;
     conversation_root_id: string | null;
   } | null> {
+    // Hard cap on outbound fetches per chain. Without this guard, mutual
+    // recursion through `resolveReplyChain` could overshoot the depth budget
+    // by one (resolveReplyChain checks then calls fetchAndCreateRemotePost
+    // which calls resolveReplyChain again at depth+1, allowing one extra
+    // fetch beyond the intended max).
+    if (depth >= this.MAX_REPLY_CHAIN_DEPTH) {
+      logger.warn(`Reply chain fetch too deep (>=${this.MAX_REPLY_CHAIN_DEPTH}), aborting fetch for ${postUrl}`);
+      return null;
+    }
+
     const supabase = getSupabaseClient();
 
     try {
@@ -773,7 +817,7 @@ export class ActivityProcessor {
       // before doing any network requests
       const { data: existing } = await supabase
         .from('posts')
-        .select('id, ap_id, in_reply_to, conversation_root_id')
+        .select('id, ap_id, url, in_reply_to, conversation_root_id')
         .or(`ap_id.eq.${postUrl},url.eq.${postUrl}`)
         .eq('is_deleted', false)
         .limit(1)
@@ -782,10 +826,13 @@ export class ActivityProcessor {
       if (existing) {
         logger.info(`⏭️ Post already exists for ${postUrl} → ${existing.id}, skipping fetch`);
         // Heal any orphan replies that arrived before this post got stored.
+        // Pass both the canonical ap_id AND the alternate url so an orphan
+        // stamped with either form gets matched.
         await this.relinkPendingChildren(
           existing.ap_id || postUrl,
           existing.id,
           existing.conversation_root_id,
+          existing.url || postUrl,
         );
         return {
           id: existing.id,
@@ -842,6 +889,7 @@ export class ActivityProcessor {
             apId,
             existingByApId.id,
             existingByApId.conversation_root_id,
+            apUrl,
           );
           return existingByApId;
         }
@@ -919,7 +967,7 @@ export class ActivityProcessor {
             .maybeSingle();
           if (raced) {
             logger.info(`⏭️ Concurrent insert resolved for ${apId} → ${raced.id}`);
-            await this.relinkPendingChildren(apId, raced.id, raced.conversation_root_id);
+            await this.relinkPendingChildren(apId, raced.id, raced.conversation_root_id, apUrl);
             return raced;
           }
         }
@@ -931,7 +979,7 @@ export class ActivityProcessor {
 
       // Heal any orphan replies that were waiting for this post to land.
       if (newPost) {
-        await this.relinkPendingChildren(apId, newPost.id, newPost.conversation_root_id);
+        await this.relinkPendingChildren(apId, newPost.id, newPost.conversation_root_id, apUrl);
       }
 
       // Enrich link previews asynchronously

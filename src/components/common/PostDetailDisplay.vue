@@ -51,11 +51,15 @@
         </article>
 
         <!-- Reply composer (if replying) -->
-        <div v-if="showReplyComposer" class="reply-composer">
+        <!-- Bind the unwrapped post so reblog wrappers route the reply to the
+             original author (the Composer also unwraps defensively, but doing
+             it here keeps `replyTargetForComposer` available for any future
+             markup that needs the same value). -->
+        <div v-if="showReplyComposer && post" class="reply-composer">
           <Composer
             mode="inline"
             type="reply"
-            :reply-to-post="post"
+            :reply-to-post="replyTargetForComposer"
             @posted="handleReplyCreated"
             @close="showReplyComposer = false"
           />
@@ -123,6 +127,7 @@ import { debug } from '@/utils/debug'
 import { useActivityPubStore } from '@/stores/useActivityPub';
 import { services } from '@/services';
 import { activityPubService } from '@/services/activityPubService';
+import { getOriginalPost } from '@/utils/postReblog';
 import type { TimelinePost } from '@/types';
 
 // Components
@@ -169,6 +174,13 @@ const INLINE_REPLY_THRESHOLD = 5;
 const shouldShowInline = computed(() => {
   return totalReplies.value <= INLINE_REPLY_THRESHOLD;
 });
+
+// Unwrap reblogs so the inline composer addresses the original author and
+// threads under the original note (Mastodon/Pleroma/Misskey behavior).
+// Quote posts pass through unchanged via the shared helper.
+const replyTargetForComposer = computed<TimelinePost | undefined>(() =>
+  post.value ? getOriginalPost(post.value) : undefined,
+);
 
 // Methods
 const loadPost = async () => {
