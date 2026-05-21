@@ -22,7 +22,9 @@ export const useChatStore = defineStore('chat', {
     cacheValidityDuration: 5 * 60 * 1000, // 5 minutes
     maxCacheSize: 50, // Maximum number of channels to cache
     currentChannelId: null as string | null,
-    
+    /** Channel id bound to `currentSubscription` (may differ from `currentChannelId` during navigation). */
+    realtimeChannelId: null as string | null,
+
     // Cache for individual reply messages (bounded to prevent unbounded growth)
     replyMessageCache: new Map<string, Message>(),
     maxReplyCacheSize: 200,
@@ -853,44 +855,54 @@ export const useChatStore = defineStore('chat', {
      * Subscribe to real-time messages for a channel using RealtimeConnectionManager
      * Handles INSERT, UPDATE, DELETE events with automatic reconnection
      */
+    _teardownChannelRealtime(): void {
+      if (this.currentSubscription) {
+        if (typeof this.currentSubscription === 'function') {
+          this.currentSubscription();
+        } else {
+          this.currentSubscription.unsubscribe?.();
+        }
+        this.currentSubscription = null;
+      }
+      if (this.realtimeChannelId) {
+        realtimeConnectionManager.unsubscribe(`channel-reactions-${this.realtimeChannelId}`);
+        realtimeConnectionManager.unsubscribe(`channel-messages-${this.realtimeChannelId}`);
+      }
+      this.realtimeChannelId = null;
+    },
+
     subscribeToMessages(channelId: string) {
       const channelName = `channel-messages-${channelId}`;
       const reactionsChannelName = `channel-reactions-${channelId}`;
       const hasMessagesSub = realtimeConnectionManager.hasSubscription(channelName);
       const hasReactionsSub = realtimeConnectionManager.hasSubscription(reactionsChannelName);
+      const boundToThisChannel = this.realtimeChannelId === channelId;
 
-      // Require BOTH subscriptions — messages-only early return left reactions
-      // dead after a partial teardown/reconnect (DM store already checks both).
-      if (hasMessagesSub && hasReactionsSub) {
+      // Require BOTH subscriptions AND a matching binding. `currentChannelId` is
+      // updated early for UI/stale guards, so it must NOT drive teardown — that
+      // left the previous channel's realtime active when switching channels.
+      if (hasMessagesSub && hasReactionsSub && boundToThisChannel && this.currentSubscription) {
         debug.log('📡 Already subscribed to channel + reactions:', channelName);
         return;
       }
 
       const reactionsStore = useReactionsStore();
 
-      if (hasMessagesSub && !hasReactionsSub) {
+      if (hasMessagesSub && !hasReactionsSub && boundToThisChannel) {
         debug.log('📡 Messages subscription exists but reactions missing — re-attaching reactions for:', channelId);
         this.setupEncryptionKeyListener();
         this._subscribeToChannelReactions(channelId, reactionsChannelName, reactionsStore);
+        this.realtimeChannelId = channelId;
         return;
       }
 
-      debug.log('🔔 Setting up real-time subscription for channel:', channelId);
-      
-      // Unsubscribe from previous channel if exists (different channel)
-      if (this.currentSubscription && this.currentChannelId !== channelId) {
-        debug.log('🔄 Unsubscribing from previous channel:', this.currentChannelId);
-        if (typeof this.currentSubscription === 'function') {
-          this.currentSubscription(); // RealtimeConnectionManager returns unsubscribe function
-        } else {
-          this.currentSubscription.unsubscribe?.();
-        }
-        
-        // Also cleanup old reactions subscription
-        if (this.currentChannelId) {
-          realtimeConnectionManager.unsubscribe(`channel-reactions-${this.currentChannelId}`);
-        }
+      // Stale binding or orphaned subs from a prior channel — rebuild cleanly.
+      if (this.currentSubscription || this.realtimeChannelId) {
+        debug.log('🔄 Tearing down previous realtime channel:', this.realtimeChannelId, '→', channelId);
+        this._teardownChannelRealtime();
       }
+
+      debug.log('🔔 Setting up real-time subscription for channel:', channelId);
 
       const store = this; // Capture store reference for handlers
 
@@ -1105,6 +1117,7 @@ export const useChatStore = defineStore('chat', {
       });
 
       this._subscribeToChannelReactions(channelId, reactionsChannelName, reactionsStore);
+      this.realtimeChannelId = channelId;
     },
 
     _subscribeToChannelReactions(
@@ -1140,17 +1153,7 @@ export const useChatStore = defineStore('chat', {
      * Unsubscribe from current channel
      */
     unsubscribeFromMessages() {
-      if (this.currentSubscription) {
-        if (typeof this.currentSubscription === 'function') {
-          this.currentSubscription();
-        }
-        this.currentSubscription = null;
-      }
-      
-      if (this.currentChannelId) {
-        realtimeConnectionManager.unsubscribe(`channel-reactions-${this.currentChannelId}`);
-      }
-
+      this._teardownChannelRealtime();
       this.cleanupEncryptionKeyListener();
     },
 

@@ -328,39 +328,10 @@ class TypingIndicatorService {
     this.notifyCallbacks(context, typingArray)
   }
 
-  private handlePresenceJoin(context: TypingContext, newPresences: any[]): void {
-    const contextKey = this.getContextKey(context)
-    let typingSet = this.typingUsers.get(contextKey) || new Set<TypingUser>()
-
-    newPresences.forEach((presence: any) => {
-      const userId = presence.user_id
-      if (!userId || userId === this.currentUserId) return
-
-      if (presence.typing) {
-        const typingAt = presence.typing_at ? new Date(presence.typing_at) : new Date()
-        const timeSinceTyping = Date.now() - typingAt.getTime()
-        if (timeSinceTyping < this.TYPING_TIMEOUT_MS) {
-          typingSet.add({
-            user_id: userId,
-            display_name: presence.display_name,
-            username: presence.username,
-            typing_at: presence.typing_at || new Date().toISOString()
-          })
-        }
-      } else {
-        // stopTyping() tracks { typing: false } — join must clear stale entries,
-        // not only add on typing:true (otherwise "is typing..." never disappears).
-        for (const user of Array.from(typingSet)) {
-          if (user.user_id === userId) {
-            typingSet.delete(user)
-          }
-        }
-      }
-    })
-
-    const typingArray = Array.from(typingSet).slice(0, 3)
-    this.typingUsers.set(contextKey, new Set(typingArray))
-    this.notifyCallbacks(context, typingArray)
+  private handlePresenceJoin(context: TypingContext, _newPresences: any[]): void {
+    // Always rebuild from authoritative presence — incremental join updates
+    // missed typing:false and left "is typing..." stuck on screen.
+    this.handlePresenceSync(context)
   }
 
   private handlePresenceLeave(context: TypingContext, leftPresences: any[]): void {

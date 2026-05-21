@@ -252,8 +252,10 @@ export const useReactionsStore = defineStore('reactions', () => {
     }
 
     if (optimisticReactions.value.has(messageId)) {
-      debug.log('🔄 Optimistic state present, scheduling reconcile')
-      scheduleReconcile(messageId, 1500)
+      // Short reconcile so other users' reactions still appear quickly while
+      // our own optimistic toggle is in flight.
+      debug.log('🔄 Optimistic state present, scheduling reconcile from realtime')
+      scheduleReconcile(messageId, 400)
       return
     }
     
