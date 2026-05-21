@@ -282,10 +282,10 @@ onUnmounted(() => {
     padding: 16px;
   }
   
-  .modal-container {
+  /* .modal-container {
     max-width: 100%;
     border-radius: 16px;
-  }
+  } */
   
   .modal-header {
     padding: 24px 24px 16px;
