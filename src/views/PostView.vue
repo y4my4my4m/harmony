@@ -175,6 +175,7 @@ import { useToast } from 'vue-toastification';
 import Icon from '@/components/common/Icon.vue';
 import MonyPost from '@/components/activitypub/MonyPost.vue';
 import Composer from '@/components/activitypub/Composer.vue';
+import { getOriginalPost, getOriginalPostId, getOriginalApId, isReblogPost } from '@/utils/postReblog';
 
 import type { 
   TimelinePost, 
@@ -304,12 +305,31 @@ const loadPostWithContext = async () => {
 
     resolvedPostId.value = postId;
     
-    const result = await activityPub.getPostWithContext(postId, {
+    let result = await activityPub.getPostWithContext(postId, {
       context: props.contextType,
       highlightReply: props.highlightReply,
       maxDepth: maxThreadDepth.value,
       includeInteractions: true
     });
+
+    // If we navigated in via the reblog (Announce) wrapper, the SQL walked the
+    // wrong tree — the wrapper has no replies and isn't itself a reply. Swap
+    // to the original post id and re-query so ancestors/descendants are found
+    // under the original Note.
+    if (result.mainPost && isReblogPost(result.mainPost)) {
+      const originalId = getOriginalPostId(result.mainPost);
+      if (originalId && originalId !== postId) {
+        debug.log('[PostView] Detected reblog wrapper, re-resolving to original:', originalId);
+        postId = originalId;
+        resolvedPostId.value = originalId;
+        result = await activityPub.getPostWithContext(originalId, {
+          context: props.contextType,
+          highlightReply: props.highlightReply,
+          maxDepth: maxThreadDepth.value,
+          includeInteractions: true,
+        });
+      }
+    }
 
     postWithContext.value = result;
     
@@ -335,10 +355,29 @@ const loadPostWithContext = async () => {
       scrollToTimestamp(props.timestamp);
     }
     
-    // For remote posts, auto-fetch replies from the origin instance in the background.
-    // Reactions are handled by MonyPost's useRemotePostSync composable on mount.
-    if (result.mainPost?.ap_id && !result.mainPost.is_local) {
-      fetchRemoteRepliesInBackground(result.mainPost);
+    // For remote posts, auto-fetch replies AND walk the ancestor chain in
+    // the background. Reactions are handled by MonyPost's useRemotePostSync
+    // composable on mount.
+    //
+    // Use the unwrapped main post so we hit the *original* note's collections
+    // (the Announce wrapper has no replies/reactions of its own). We also kick
+    // off ancestor resolution for federated replies whose parents aren't yet
+    // in the local DB — without this, federated reply threads show as a
+    // single floating post.
+    const mainTarget = result.mainPost ? getOriginalPost(result.mainPost) : null;
+    if (mainTarget) {
+      const targetApId = getOriginalApId(mainTarget) || mainTarget.ap_id;
+      const isRemote = !mainTarget.is_local && !!targetApId;
+      if (isRemote) {
+        fetchRemoteRepliesInBackground(mainTarget);
+        // Walk up the ancestor chain. The federation backend's /resolve-post
+        // endpoint imports each ancestor it doesn't already have, links the
+        // child via in_reply_to, and populates conversation_root_id — so the
+        // local thread RPC can then walk the full chain.
+        if (mainTarget.metadata?.in_reply_to_ap_url && !mainTarget.in_reply_to) {
+          fetchRemoteAncestorsInBackground(mainTarget);
+        }
+      }
     }
     
   } catch (err) {
@@ -352,9 +391,12 @@ const loadPostWithContext = async () => {
 
 const fetchRemoteRepliesInBackground = async (targetPost: TimelinePost) => {
   try {
-    const result = await activityPubService.fetchRemoteReplies(targetPost.ap_id!, targetPost.id);
+    const targetApId = getOriginalApId(targetPost) || targetPost.ap_id;
+    const targetId = getOriginalPostId(targetPost);
+    if (!targetApId) return;
+    const result = await activityPubService.fetchRemoteReplies(targetApId, targetId);
     if (result && result.count > 0) {
-      const updatedResult = await activityPub.getPostWithContext(targetPost.id, {
+      const updatedResult = await activityPub.getPostWithContext(targetId, {
         context: props.contextType,
         highlightReply: props.highlightReply,
         maxDepth: maxThreadDepth.value,
@@ -367,12 +409,66 @@ const fetchRemoteRepliesInBackground = async (targetPost: TimelinePost) => {
   }
 };
 
+/**
+ * Walk a federated post's reply chain upward, importing missing ancestors via
+ * the federation backend's /resolve-post endpoint until we hit a post that's
+ * already local or a post with no `inReplyTo`. The endpoint links each
+ * imported child→parent and stamps `conversation_root_id`, so the local
+ * thread RPC will pick up the full chain on the next reload.
+ *
+ * Cap at MAX_ANCESTOR_DEPTH so a malicious or pathological thread can't make
+ * us issue an unbounded number of remote fetches.
+ */
+const fetchRemoteAncestorsInBackground = async (target: TimelinePost) => {
+  const MAX_ANCESTOR_DEPTH = 10;
+  try {
+    const { postResolverService } = await import('@/services/PostResolverService');
+    let parentApUrl: string | undefined = target.metadata?.in_reply_to_ap_url;
+    const seen = new Set<string>();
+    let imported = 0;
+
+    for (let i = 0; i < MAX_ANCESTOR_DEPTH; i++) {
+      if (!parentApUrl || seen.has(parentApUrl)) break;
+      seen.add(parentApUrl);
+
+      const parent = await postResolverService.resolveByApUrl(parentApUrl);
+      if (!parent) break;
+      imported++;
+
+      // Continue if this ancestor is itself a reply we don't have above.
+      // (Server-side /resolve-post does its own chain walk too, so usually one
+      // call suffices — but we loop here to handle older versions / partial
+      // imports.)
+      if (parent.in_reply_to) break;
+      parentApUrl = parent.metadata?.in_reply_to_ap_url;
+    }
+
+    if (imported > 0 && resolvedPostId.value) {
+      debug.log(`[PostView] Imported ${imported} federated ancestor(s); reloading context`);
+      const updatedResult = await activityPub.getPostWithContext(resolvedPostId.value, {
+        context: props.contextType,
+        highlightReply: props.highlightReply,
+        maxDepth: maxThreadDepth.value,
+        includeInteractions: true,
+      });
+      postWithContext.value = updatedResult;
+    }
+  } catch (err) {
+    debug.warn('[PostView] Failed to fetch remote ancestors:', err);
+  }
+};
+
 const handleFetchReactions = async () => {
   showActionsMenu.value = false;
-  if (!mainPost.value?.ap_id || isFetchingReactions.value) return;
+  if (!mainPost.value || isFetchingReactions.value) return;
+  // Target the *original* note's reactions/replies (Announce wrappers don't
+  // collect them) — same rule as the background auto-fetch.
+  const targetApId = getOriginalApId(mainPost.value) || mainPost.value.ap_id;
+  const targetId = getOriginalPostId(mainPost.value);
+  if (!targetApId) return;
   isFetchingReactions.value = true;
   try {
-    const result = await activityPubService.fetchRemoteReactions(mainPost.value.ap_id, mainPost.value.id);
+    const result = await activityPubService.fetchRemoteReactions(targetApId, targetId);
     if (result) {
       toast.success(`Fetched ${result.count || 0} reactions`);
       await loadPostWithContext();
@@ -388,10 +484,13 @@ const handleFetchReactions = async () => {
 
 const handleFetchReplies = async () => {
   showActionsMenu.value = false;
-  if (!mainPost.value?.ap_id || isFetchingReplies.value) return;
+  if (!mainPost.value || isFetchingReplies.value) return;
+  const targetApId = getOriginalApId(mainPost.value) || mainPost.value.ap_id;
+  const targetId = getOriginalPostId(mainPost.value);
+  if (!targetApId) return;
   isFetchingReplies.value = true;
   try {
-    const result = await activityPubService.fetchRemoteReplies(mainPost.value.ap_id, mainPost.value.id);
+    const result = await activityPubService.fetchRemoteReplies(targetApId, targetId);
     if (result) {
       toast.success(`Fetched ${result.count || 0} replies`);
       await loadPostWithContext();
@@ -406,8 +505,10 @@ const handleFetchReplies = async () => {
 };
 
 const handleReply = (post: TimelinePost) => {
-  replyToPost.value = post;
-  replyingToPostId.value = post.id;
+  // Unwrap reblog wrappers so the reply targets the original author (the
+  // booster isn't who the user wants to talk to).
+  replyToPost.value = getOriginalPost(post);
+  replyingToPostId.value = getOriginalPostId(post);
   showReplyComposer.value = true;
 };
 

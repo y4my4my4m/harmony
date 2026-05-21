@@ -642,10 +642,12 @@ export class ActivityProcessor {
         }
       }
 
-      // Fetch from remote if not found locally
+      // Fetch from remote if not found locally. Forward depth so the inner
+      // chain walk done by fetchAndCreateRemotePost shares the same depth
+      // budget (otherwise mutual recursion could exceed MAX_DEPTH).
       if (!parentPost) {
         logger.info(`🔍 Parent post not found locally, fetching: ${inReplyToRef}`);
-        parentPost = await this.fetchAndCreateRemotePost(inReplyToRef);
+        parentPost = await this.fetchAndCreateRemotePost(inReplyToRef, depth + 1);
       }
     }
 
@@ -686,9 +688,16 @@ export class ActivityProcessor {
   }
 
   /**
-   * Fetch a remote post and create it locally
+   * Fetch a remote post and create it locally.
+   *
+   * If the post is a reply, the parent chain is walked recursively (sharing
+   * the depth budget with `resolveReplyChain`) so the imported post lands
+   * with `in_reply_to` and `conversation_root_id` populated, and any missing
+   * ancestors are imported alongside it. Without this, calling /resolve-post
+   * for a federated reply leaves it as a floating post — the local thread
+   * RPC then has nothing to walk and the user sees no context.
    */
-  public static async fetchAndCreateRemotePost(postUrl: string): Promise<{
+  public static async fetchAndCreateRemotePost(postUrl: string, depth = 0): Promise<{
     id: string;
     in_reply_to: string | null;
     conversation_root_id: string | null;
@@ -779,27 +788,24 @@ export class ActivityProcessor {
       const content = noteToContent(remoteObject);
       const visibility = this.determineVisibility(remoteObject);
 
-      // Resolve inReplyTo URL to a local post UUID (in_reply_to is a UUID FK)
+      // Walk the reply chain so the imported post lands with `in_reply_to`
+      // and `conversation_root_id` correctly set, AND any missing ancestors
+      // are imported alongside it. We share `depth` with the caller so a
+      // mutually-recursive walk stops at MAX_DEPTH overall (not per-frame).
       let resolvedInReplyTo: string | null = null;
+      let conversationRootId: string | null = null;
       if (remoteObject.inReplyTo) {
-        const { data: parentByApId } = await supabase
-          .from('posts')
-          .select('id')
-          .eq('ap_id', remoteObject.inReplyTo)
-          .maybeSingle();
-        if (parentByApId) {
-          resolvedInReplyTo = parentByApId.id;
-        } else if (remoteObject.inReplyTo.includes('/posts/')) {
-          const uuidMatch = remoteObject.inReplyTo.match(/\/posts\/([a-f0-9-]{36})/);
-          if (uuidMatch) {
-            const { data: parentById } = await supabase
-              .from('posts')
-              .select('id')
-              .eq('id', uuidMatch[1])
-              .maybeSingle();
-            if (parentById) resolvedInReplyTo = parentById.id;
-          }
-        }
+        const replyResult = await this.resolveReplyChain(remoteObject.inReplyTo, depth);
+        resolvedInReplyTo = replyResult.parentPostId;
+        conversationRootId = replyResult.conversationRootId;
+      }
+
+      // Always stamp the AP url of the parent in metadata so we have a paper
+      // trail even if resolution failed (e.g. parent server unreachable). The
+      // client-side ancestor walker can retry from this hint later.
+      const metadata: Record<string, any> = {};
+      if (remoteObject.inReplyTo) {
+        metadata.in_reply_to_ap_url = remoteObject.inReplyTo;
       }
 
       const { data: newPost, error } = await supabase
@@ -812,6 +818,8 @@ export class ActivityProcessor {
           visibility,
           is_local: false,
           in_reply_to: resolvedInReplyTo,
+          conversation_root_id: conversationRootId,
+          metadata,
           created_at: remoteObject.published || new Date().toISOString(),
           content_warning: remoteObject.summary || null,
           is_sensitive: remoteObject.sensitive === true,

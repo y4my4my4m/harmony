@@ -486,11 +486,13 @@
     />
 
     <!-- Inline Reply Composer -->
+    <!-- For reblogs, reply to the ORIGINAL post (not the boost wrapper) so the
+         mention targets the original author and threads under the original note. -->
     <Composer 
       v-if="showInlineReply"
       mode="inline"
       type="reply"
-      :reply-to-post="post"
+      :reply-to-post="replyTarget"
       @posted="handleReplySent"
       @close="showInlineReply = false"
     />
@@ -1142,6 +1144,24 @@ const originalPostId = computed(() => {
     return props.post.reblog.id;
   }
   return props.post.id;
+});
+
+// The post that "Reply" should address. For reblogs we hand the *original*
+// post to the Composer so the mention targets the original author and the
+// reply is threaded under the original note (Mastodon/Pleroma/Misskey
+// behavior). For regular posts, this is just `props.post`.
+const replyTarget = computed<TimelinePost>(() => {
+  if (isReblog.value && props.post.reblog) {
+    const original = props.post.reblog as TimelinePost;
+    // ActivityPubPost.author is optional; the timeline view flattens the
+    // original author onto `reblog_author`. Rehydrate it so the Composer's
+    // mention prefill (which reads `replyToPost.author`) works.
+    if (!original.author && props.post.reblog_author) {
+      return { ...original, author: props.post.reblog_author as any };
+    }
+    return original;
+  }
+  return props.post;
 });
 
 // For reblogs, we need to show reactions for the ORIGINAL post

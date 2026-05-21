@@ -191,6 +191,7 @@ import { trendingService } from '@/services/TrendingService'
 import { useViewContextTracking } from '@/composables/useViewContext'
 import { useLayoutState } from '@/composables/useLayoutState'
 import { supabase } from '@/supabase'
+import { getOriginalPost } from '@/utils/postReblog'
 import type { FederatedUser, TimelinePost } from '@/types'
 
 // Props - Made view props optional since we extract from route
@@ -529,7 +530,9 @@ const handlePostCreated = async () => {
 }
 
 const handleReplyToPost = (post: TimelinePost) => {
-  composerReplyPost.value = post
+  // For reblogs, target the original post — the user wants to reply to the
+  // author whose words they're seeing, not to the booster.
+  composerReplyPost.value = getOriginalPost(post)
   activityPubStore.openComposer()
 }
 

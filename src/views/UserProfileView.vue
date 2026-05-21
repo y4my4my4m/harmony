@@ -320,6 +320,7 @@ const { t } = useI18n();
 import { activityPubService } from '@/services/activityPubService';
 import { services } from '@/services';
 import { getBannerUrl } from '@/utils/bannerUtils';
+import { getOriginalPost, getOriginalPostId } from '@/utils/postReblog';
 import type { FederatedUser, TimelinePost } from '@/types';
 import { format } from 'date-fns';
 import DOMPurify from 'dompurify';
@@ -1068,10 +1069,14 @@ const navigateToProfile = (clickedUser: FederatedUser) => {
 };
 
 const replyToPost = (post: TimelinePost) => {
-  const handle = post.author.handle || '';
+  // For reblogs, address the original author and thread under the original
+  // note (Mastodon/Pleroma/Misskey behaviour). The reblog wrapper has the
+  // booster as `author`, which isn't what the user wants to reply to.
+  const target = getOriginalPost(post);
+  const handle = target.author?.handle || '';
   const mentionText = handle.startsWith('@') ? handle : `@${handle}`;
   activityPubStore.openComposer({
-    replyTo: post.id,
+    replyTo: getOriginalPostId(post),
     content: `${mentionText} `
   });
   router.push('/social/home');
