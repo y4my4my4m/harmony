@@ -12,7 +12,7 @@
         <div class="banner-actions">
           <button 
             v-if="!isCurrentUser" 
-            @click="showActionsMenu = !showActionsMenu"
+            @click.stop="showActionsMenu = !showActionsMenu"
             class="action-button"
             :class="{ active: showActionsMenu }"
           >
@@ -25,7 +25,11 @@
       </div>
 
       <!-- Actions Dropdown -->
-      <div v-if="showActionsMenu" class="actions-dropdown" @click.stop>
+      <div
+        v-if="showActionsMenu"
+        class="actions-dropdown"
+        v-click-outside="() => (showActionsMenu = false)"
+      >
         <div class="action-item" @click="copyUserId">
           <Icon name="copy" class="action-item-icon" />
           Copy User ID
@@ -1169,13 +1173,17 @@ const cleanupProfilePresence = async () => {
 // Watch for modal show/hide and user changes
 watch(() => ({ show: props.show, userId: props.user?.id }), async (newVal, oldVal) => {
   if (!newVal.show || !newVal.userId) {
-    // Modal closed or no user - cleanup
+    // Modal closed or no user - cleanup. Reset the dropdown too so the next
+    // open of the modal doesn't restore a stale "..." menu state.
+    showActionsMenu.value = false
     await cleanupProfilePresence()
     instanceInfo.value = null
     fetchedUserStats.value = null
     fetchedCreatedAt.value = null
     fetchedUserRoles.value = []
   } else if (newVal.show && newVal.userId && (newVal.userId !== oldVal?.userId || !oldVal?.show)) {
+    // Modal opened or user switched — ensure the dropdown isn't carried over.
+    showActionsMenu.value = false
     // Modal opened with user or user changed - cleanup old and setup new
     await cleanupProfilePresence()
     await initializeProfilePresence()

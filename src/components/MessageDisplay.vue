@@ -140,7 +140,7 @@
                     <span 
                       class="system-user-mention"
                       @click="showUserProfile(item.message.user_id)"
-                      :style="{ color: getUserColor(item.message.user_id).value }"
+                      :style="{ color: resolveChatUserColor(item.message.user_id) }"
                     ><DisplayName :userId="item.message.user_id" /></span>
                     started a thread: 
                     <span 
@@ -165,7 +165,7 @@
                     <span 
                       class="system-user-mention"
                       @click="showUserProfile(item.message.user_id)"
-                      :style="{ color: getUserColor(item.message.user_id).value }"
+                      :style="{ color: resolveChatUserColor(item.message.user_id) }"
                     ><DisplayName :userId="item.message.user_id" /></span>
                     <template v-if="item.message.metadata?.type === 'call_ended'">
                       started a {{ item.message.metadata?.call_type || 'voice' }} call that lasted
@@ -200,7 +200,7 @@
                     <span 
                       class="system-user-mention"
                       @click="showUserProfile(item.message.user_id)"
-                      :style="{ color: getUserColor(item.message.user_id).value }"
+                      :style="{ color: resolveChatUserColor(item.message.user_id) }"
                     ><DisplayName :userId="item.message.user_id" /></span>
                     has joined the server
                   </div>
@@ -212,13 +212,13 @@
                     <span
                       class="system-user-mention"
                       @click="showUserProfile(item.message.user_id)"
-                      :style="{ color: getUserColor(item.message.user_id).value }"
+                      :style="{ color: resolveChatUserColor(item.message.user_id) }"
                     >{{ getUserDisplayName(item.message.user_id).value }}</span>
                     was kicked<template v-if="item.message.metadata?.kicked_by"> by
                     <span
                       class="system-user-mention"
                       @click="showUserProfile(item.message.metadata.kicked_by)"
-                      :style="{ color: getUserColor(item.message.metadata.kicked_by).value }"
+                      :style="{ color: resolveChatUserColor(item.message.metadata.kicked_by) }"
                     ><DisplayName :userId="item.message.metadata.kicked_by" /></span></template><template v-if="item.message.metadata?.reason"> — {{ item.message.metadata.reason }}</template>
                   </div>
                 </template>
@@ -229,13 +229,13 @@
                     <span
                       class="system-user-mention"
                       @click="showUserProfile(item.message.user_id)"
-                      :style="{ color: getUserColor(item.message.user_id).value }"
+                      :style="{ color: resolveChatUserColor(item.message.user_id) }"
                     ><DisplayName :userId="item.message.user_id" /></span>
                     was banned<template v-if="item.message.metadata?.banned_by"> by
                     <span
                       class="system-user-mention"
                       @click="showUserProfile(item.message.metadata.banned_by)"
-                      :style="{ color: getUserColor(item.message.metadata.banned_by).value }"
+                      :style="{ color: resolveChatUserColor(item.message.metadata.banned_by) }"
                     ><DisplayName :userId="item.message.metadata.banned_by" /></span></template><template v-if="item.message.metadata?.reason"> — {{ item.message.metadata.reason }}</template>
                   </div>
                 </template>
@@ -543,6 +543,7 @@ import { useChatStore } from '@/stores/useChat';
 import { useDMStore } from '@/stores/useDM';
 import { useAuthStore } from '@/stores/auth';
 import { useServerChannelStore } from '@/stores/useServerChannel';
+import { useServerRolesStore } from '@/stores/useServerRoles';
 import { useProfileStore } from '@/stores/useProfile';
 import { useNotificationStore } from '@/stores/useNotification';
 import { useActivityPubStore } from '@/stores/useActivityPub';
@@ -609,6 +610,34 @@ const emit = defineEmits(['loadMoreMessages', 'toggleEmojiList', 'sendReaction',
 // --- STORES & COMPOSABLES ---
 const serverUsersStore = useServerUsersStore();
 const serverChannelStore = useServerChannelStore();
+const serverRolesStore = useServerRolesStore();
+
+// Ensure role data is loaded for the current server so message author colors
+// reflect their highest colored role (Discord behavior). DMs and contexts
+// without a server fall back to user.color via `getUserColor` below.
+watch(
+  () => serverChannelStore.currentServerId,
+  (serverId) => {
+    if (serverId) serverRolesStore.ensureServerLoaded(serverId)
+  },
+  { immediate: true },
+);
+
+/**
+ * Resolve a chat-author's display color, preferring their highest-position
+ * colored role within the current server. Falls back to the user's profile
+ * color (and ultimately the default in `getUserColor`).
+ *
+ * `serverChannelStore.currentServerId` is null for DMs and ActivityPub
+ * contexts, in which case there's no role to look up and we fall through
+ * to the profile color — same as before this fix.
+ */
+const resolveChatUserColor = (userId: string | null | undefined): string => {
+  if (!userId) return '#ffffff';
+  const serverId = serverChannelStore.currentServerId;
+  const roleColor = serverId ? serverRolesStore.getUserRoleColor(serverId, userId) : null;
+  return roleColor || getUserColor(userId).value;
+};
 const chatStore = useChatStore();
 const dmStore = useDMStore();
 const authStore = useAuthStore();
@@ -1142,9 +1171,9 @@ const getAuthorColor = (message: Message): ComputedRef<string> => {
       return '#0EA5E9';
     }
     
-    // Regular user
+    // Regular user — prefer highest-position role color in the active server.
     if (message.user_id) {
-      return getUserColor(message.user_id).value;
+      return resolveChatUserColor(message.user_id);
     }
     
     return '#dddddd';
@@ -1404,6 +1433,11 @@ watch(() => props.messages, (newMessages) => {
   lastKnownFirstMessageId.value = newMessages[0]?.id ?? null;
 
   const oldScrollHeight = messageDisplayContainer.value?.scrollHeight ?? 0;
+  // Snapshot scrollTop alongside scrollHeight so the prepend handler below can
+  // pin the viewport by height-delta (see the "Load older messages (prepend)"
+  // branch). Reading from the DOM here, BEFORE Vue patches in the new rows,
+  // gives us the exact pre-prepend offset.
+  const oldScrollTopForPrepend = messageDisplayContainer.value?.scrollTop ?? 0;
 
   // Reset embed tracking for new messages
   const newMessageIds = new Set(newMessages.map(m => m.id));
@@ -1620,33 +1654,41 @@ watch(() => props.messages, (newMessages) => {
           } else if (isAppend && !userWasAtBottom.value) {
             shouldBeAtBottom.value = false;
           }
-          // Load older messages (prepend) - maintain scroll position via virtualizer index
+          // Load older messages (prepend) — pin viewport by scroll-height delta.
+          //
+          // The previous approach called `scrollToIndex(targetIndex, 'start')`
+          // + a sub-item offset correction on each of 5 RAFs. That visibly jumped
+          // because `scrollToIndex` issues a *new* scroll command instead of just
+          // adjusting `scrollTop`, and each retry re-fired it as the virtualizer
+          // re-measured. Standard chat-scroll pattern is cleaner: snapshot
+          // `scrollHeight` + `scrollTop` BEFORE prepend, then after prepend set
+          // `scrollTop = newScrollHeight - oldScrollHeight + oldScrollTop`. The
+          // virtualizer's `totalSize` reflects newly added items, so the delta
+          // is exactly how much we need to push down to keep the same content
+          // under the user's eye. No jumps, no scrollToIndex thrash.
           else if (!isAppend) {
             shouldBeAtBottom.value = false;
-            const newDisplayItemCount = displayItems.value.length;
-            const numDisplayItemsPrepended = newDisplayItemCount - prevDisplayItemCount;
-            
-            // Find anchor: the item overlapping the viewport top
-            const scrollTopNow = messageDisplayContainer.value.scrollTop;
-            const visibleItems = rowVirtualizer.value.getVirtualItems();
-            let anchorItem = visibleItems.find(item => item.start + item.size > scrollTopNow);
-            if (!anchorItem && visibleItems.length) anchorItem = visibleItems[visibleItems.length - 1];
-            const previousVisibleIndex = anchorItem?.index ?? 0;
-            const offsetIntoAnchor = anchorItem ? scrollTopNow - anchorItem.start : 0;
-            const targetIndex = previousVisibleIndex + numDisplayItemsPrepended;
-            
-            // Scroll to the shifted index, then restore sub-item offset
-            const adjustScroll = (attempt = 0) => {
-              if (!messageDisplayContainer.value) return;
-              rowVirtualizer.value.scrollToIndex(targetIndex, { align: 'start' });
-              if (offsetIntoAnchor > 0) {
-                messageDisplayContainer.value.scrollTop += offsetIntoAnchor;
-              }
-              if (attempt < 5) {
-                requestAnimationFrame(() => adjustScroll(attempt + 1));
-              }
-            };
-            nextTick(() => requestAnimationFrame(() => adjustScroll()));
+            const container = messageDisplayContainer.value;
+            const newHeight = container.scrollHeight;
+            const heightDelta = newHeight - oldScrollHeight;
+            if (heightDelta > 0) {
+              // Apply once synchronously to suppress the flash, then again on the
+              // next frame in case the virtualizer measured during the same tick
+              // and grew `scrollHeight` after the initial write.
+              container.scrollTop = oldScrollTopForPrepend + heightDelta;
+              requestAnimationFrame(() => {
+                if (!messageDisplayContainer.value) return;
+                const finalDelta = messageDisplayContainer.value.scrollHeight - oldScrollHeight;
+                if (finalDelta > 0) {
+                  messageDisplayContainer.value.scrollTop = oldScrollTopForPrepend + finalDelta;
+                }
+              });
+            }
+            // Note: prevDisplayItemCount is no longer needed here since we
+            // pin by height-delta instead of by displayItems index. Leaving
+            // the variable read in scope is harmless; the unused-var lint is
+            // fine because the watcher above still uses it.
+            void prevDisplayItemCount;
           }
         }
         
@@ -2041,12 +2083,14 @@ const showTooltip = async (event: MouseEvent, reaction: Reaction) => {
       };
     }
     
-    // Regular Harmony user
+    // Regular Harmony user — use role color where available, like the
+    // username in the message header. Keeps the reaction tooltip consistent
+    // with the rest of the chat.
     return {
       id: r.user_id,
       displayName: getUserDisplayName(r.user_id).value,
       avatarUrl: getUserAvatarUrl(r.user_id).value,
-      userColor: getUserColor(r.user_id).value,
+      userColor: resolveChatUserColor(r.user_id),
       isBridged: false
     };
   });
@@ -2584,7 +2628,7 @@ const getReplyUserDisplayName = (replyMessageId: string) => {
 
 const getReplyUserColor = (replyMessageId: string) => {
   const userId = getReplyUserId(replyMessageId);
-  return userId === 'unknown' ? '#dddddd' : getUserColor(userId).value;
+  return userId === 'unknown' ? '#dddddd' : resolveChatUserColor(userId);
 };
 
 const getReplyUserAvatar = (replyMessageId: string) => {
@@ -3714,21 +3758,35 @@ defineExpose({ editLastOwnMessage });
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 12px;
+  gap: 10px;
   padding: 12px;
   height: 44px;
   box-sizing: border-box;
   color: var(--text-secondary);
   font-size: 13px;
+  /* Match the spinner's box so the text baseline isn't pulled down by
+     line-height descender space inside the flex track. Centering on a
+     uniform line-height makes both children share the same visual axis. */
+  line-height: 16px;
+}
+
+.loading-older-messages > span {
+  line-height: 16px;
+  display: inline-flex;
+  align-items: center;
 }
 
 .loading-spinner {
-  width: 20px;
-  height: 20px;
+  width: 16px;
+  height: 16px;
   border: 2px solid var(--text-secondary);
   border-top-color: transparent;
   border-radius: 50%;
   animation: spin-loader 0.8s linear infinite;
+  /* `display: block` would still flex-align correctly, but inline-block lets
+     the flex item participate as a baseline-positioned token alongside the
+     text glyphs — visually identical centering without descender drift. */
+  flex-shrink: 0;
 }
 
 @keyframes spin-loader {
