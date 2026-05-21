@@ -533,11 +533,14 @@ const handleReplyToPost = (post: TimelinePost) => {
   activityPubStore.openComposer()
 }
 
+// Previously these called `activityPubStore.favoritePost / reblogPost /
+// bookmarkPost` via `as any`, but those methods don't actually exist on the
+// store — the real action methods are `toggleFavorite / toggleReblog /
+// toggleBookmark`. The `as any` cast hid a TypeError so the buttons in the
+// social layout's wrapper UI silently failed (caught + logged, no toast).
 const handleFavoritePost = async (post: TimelinePost) => {
   try {
-    // These post-interaction methods exist at runtime on the store but aren't
-    // declared on the typed Pinia store; cast to any to call them.
-    await (activityPubStore as any).favoritePost(post.id)
+    await activityPubStore.toggleFavorite(post.id)
   } catch (error) {
     debug.error('Failed to favorite post:', error)
   }
@@ -545,7 +548,7 @@ const handleFavoritePost = async (post: TimelinePost) => {
 
 const handleReblogPost = async (post: TimelinePost) => {
   try {
-    await (activityPubStore as any).reblogPost(post.id)
+    await activityPubStore.toggleReblog(post.id)
   } catch (error) {
     debug.error('Failed to reblog post:', error)
   }
@@ -553,7 +556,7 @@ const handleReblogPost = async (post: TimelinePost) => {
 
 const handleBookmarkPost = async (post: TimelinePost) => {
   try {
-    await (activityPubStore as any).bookmarkPost(post.id)
+    await activityPubStore.toggleBookmark(post.id)
   } catch (error) {
     debug.error('Failed to bookmark post:', error)
   }

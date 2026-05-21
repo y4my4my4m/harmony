@@ -127,6 +127,21 @@ export const useDMStore = defineStore('dm', () => {
     })
   })
 
+  /**
+   * Total unread DM count across every conversation. Drives the unread
+   * badge on the DM tab in the main navigation. Previously the badge code
+   * read `(dmStore as any).getTotalUnreadCount`, but no such getter
+   * existed — the cast hid `undefined > 0 === false`, so the badge never
+   * appeared even when the user had unread DMs.
+   */
+  const getTotalUnreadCount = computed(() => {
+    let total = 0
+    for (const c of conversations.value) {
+      total += c.unread_count || 0
+    }
+    return total
+  })
+
   // Check if user is online using modern user data system
   const isUserOnline = async (userId: string): Promise<boolean> => {
     try {
@@ -2989,6 +3004,7 @@ export const useDMStore = defineStore('dm', () => {
     // Computed
     getCurrentConversation,
     getSortedConversations,
+    getTotalUnreadCount,
     
     // Methods
     isUserOnline,

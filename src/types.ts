@@ -11,6 +11,18 @@ export interface Server {
   public: boolean;
   federation_enabled?: boolean;
   is_local_server?: boolean;
+  /**
+   * Domain part of a remote server's ActivityPub identity, e.g. `mony.dev`.
+   * Selected by `useServerChannel.fetchServersForUser` and surfaced in the
+   * server-tooltip on the main nav. Optional because local servers don't
+   * carry this column.
+   */
+  federation_domain?: string;
+  /**
+   * ActivityPub `inbox` URL for the (remote) server actor. Same provenance
+   * as `federation_domain`.
+   */
+  federation_inbox_url?: string;
   created_at?: string;
   folder_id?: string | null;
   position?: number;
