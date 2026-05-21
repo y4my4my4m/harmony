@@ -836,16 +836,16 @@
           // Send the message with all parts
           if (messageParts.length > 0) {
             didAttemptSend = true;
-            handleDontReply();
             const sendOutcome = await sendChannelOrDMWithEncryptionPolicy(messageParts, replyMessageId)
 
-            // Only clear the input / drop the draft if the message actually
-            // went through. If the user declined the encryption fallback,
-            // keep the text so they can edit / retry — otherwise the input
-            // gets blown away and looks like the message "sent" anyway.
+            // Only clear the input / draft / reply state if the message
+            // actually went through. On 'declined' (encryption cancel) or
+            // 'no-context' (missing channel/conversation/user — rare race),
+            // keep the text and the reply target so the user can retry.
             if (sendOutcome === 'ok') {
               messageContent.value = '';
               if (draftKey.value) draftsStore.clearDraft(draftKey.value);
+              handleDontReply();
             }
           }
         } catch (error: any) {
@@ -866,12 +866,16 @@
        * retrying with an explicit plaintext-fallback override.
        *
        * Returns one of:
-       *   - 'ok'        — the message was sent (either encrypted or with
-       *                   user-authorized plaintext fallback)
-       *   - 'declined'  — the user pressed Cancel on the fallback modal,
-       *                   nothing was sent
-       *   - 'error'     — an unrecoverable error happened (re-thrown to
-       *                   the outer handler in `handleSendMessage`)
+       *   - 'ok'         — the message was sent (either encrypted or with
+       *                    user-authorized plaintext fallback)
+       *   - 'declined'   — the user pressed Cancel on the fallback modal,
+       *                    nothing was sent
+       *   - 'no-context' — the conversation/channel/user context was missing
+       *                    (rare race: channel just deleted, user logging out,
+       *                    DM conversation not loaded yet). Nothing was sent.
+       *                    Caller must NOT treat this as success.
+       *   - 'error'      — an unrecoverable error happened (re-thrown to
+       *                    the outer handler in `handleSendMessage`)
        *
        * Both DM and channel sends go through the same composable here so
        * the input/draft state in `handleSendMessage` can synchronize with
@@ -880,15 +884,30 @@
       const sendChannelOrDMWithEncryptionPolicy = async (
         messageParts: MessagePart[],
         replyMessageId?: string,
-      ): Promise<'ok' | 'declined' | 'error'> => {
+      ): Promise<'ok' | 'declined' | 'error' | 'no-context'> => {
+        // Pre-check context so a missing channel/conversation/user surfaces as
+        // a distinct outcome instead of being swallowed as a `false` resolution
+        // (which `runWithEncryptionFallback` would have reported as success).
+        if (props.isDM) {
+          if (!props.conversationId || !authStore.session?.user?.id) {
+            debug.warn('Cannot send: missing DM conversation or user context')
+            return 'no-context'
+          }
+        } else if (
+          !serverChannelStore.currentServerId ||
+          !serverChannelStore.currentChannelId ||
+          !authStore.session?.user
+        ) {
+          debug.warn('Cannot send: missing channel/server or user context')
+          return 'no-context'
+        }
+
         const trySend = async ({ allowPlaintextFallback }: { allowPlaintextFallback: boolean }) => {
           if (props.isDM) {
-            // DM send: call the store directly so we can await the result
-            // and surface encryption-policy throws through the composable.
-            if (!props.conversationId || !authStore.session?.user?.id) return false
+            // Context guaranteed by the pre-check above.
             const success = await dmStore.sendDMMessage(
-              props.conversationId,
-              authStore.session.user.id,
+              props.conversationId!,
+              authStore.session!.user!.id,
               messageParts,
               replyMessageId || undefined,
               { allowPlaintextFallback },
@@ -900,19 +919,16 @@
             if (!success) throw new Error('DM send did not complete')
             return true
           }
-          if (serverChannelStore.currentServerId && serverChannelStore.currentChannelId && authStore.session?.user) {
-            await chatStore.sendMessage(
-              serverChannelStore.currentServerId,
-              serverChannelStore.currentChannelId,
-              authStore.session.user.id,
-              messageParts,
-              replyMessageId || '',
-              undefined,
-              { allowPlaintextFallback },
-            )
-            return true
-          }
-          return false
+          await chatStore.sendMessage(
+            serverChannelStore.currentServerId!,
+            serverChannelStore.currentChannelId!,
+            authStore.session!.user!.id,
+            messageParts,
+            replyMessageId || '',
+            undefined,
+            { allowPlaintextFallback },
+          )
+          return true
         }
 
         const scope: 'channel' | 'dm' = props.isDM ? 'dm' : 'channel'
@@ -994,11 +1010,16 @@
         }];
 
         try {
-          await sendChannelOrDMWithEncryptionPolicy(
+          const sendOutcome = await sendChannelOrDMWithEncryptionPolicy(
             messageParts,
             replyToMessageId.value || undefined,
           );
-          handleDontReply();
+          // Only clear reply state on actual success. `'declined'` (user
+          // cancelled fallback) and `'no-context'` (missing channel/DM)
+          // must preserve the reply target so the user can retry.
+          if (sendOutcome === 'ok') {
+            handleDontReply();
+          }
         } catch (error) {
           debug.error('Error sending GIF:', error);
         }
