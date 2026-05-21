@@ -878,6 +878,14 @@
        *                   nothing was sent
        *   - 'error'     — an unrecoverable error happened (re-thrown to
        *                   the outer handler in `handleSendMessage`)
+       *
+       * Both DM and channel sends go through the same composable here so
+       * the input/draft state in `handleSendMessage` can synchronize with
+       * the *actual* outcome. Previously the DM branch emitted up to
+       * `DMView.handleSendMessage` and returned `'ok'` immediately, so the
+       * input was cleared before the parent had even attempted the send —
+       * if the user declined the fallback prompt in `DMView`, the typed
+       * text was already gone.
        */
       const sendChannelOrDMWithEncryptionPolicy = async (
         messageParts: MessagePart[],
@@ -885,11 +893,23 @@
       ): Promise<'ok' | 'declined' | 'error'> => {
         const trySend = async ({ allowPlaintextFallback }: { allowPlaintextFallback: boolean }) => {
           if (props.isDM) {
-            // DM send is owned by the parent view (DMView) which forwards
-            // through useDM.sendDMMessage. Emit the message and let DMView
-            // do its own fallback handling. DMView's own try/catch covers
-            // the encryption-error path on its side.
-            emit('sendMessage', messageParts, replyMessageId || undefined, { allowPlaintextFallback })
+            // DM send: call the store directly so we can await the result
+            // and surface encryption-policy throws through the composable.
+            // DMView's `sendMessage` listener is now a notification hook
+            // only — the actual send happens here.
+            if (!props.conversationId || !authStore.session?.user?.id) return false
+            const success = await dmStore.sendDMMessage(
+              props.conversationId,
+              authStore.session.user.id,
+              messageParts,
+              replyMessageId || undefined,
+              { allowPlaintextFallback },
+            )
+            // `dmStore.sendDMMessage` returns false on non-encryption
+            // transient failures it couldn't recover after retry; throw so
+            // `runWithEncryptionFallback` classifies it as `error` rather
+            // than `ok`.
+            if (!success) throw new Error('DM send did not complete')
             return true
           }
           if (serverChannelStore.currentServerId && serverChannelStore.currentChannelId && authStore.session?.user) {
@@ -907,22 +927,25 @@
           return false
         }
 
-        // The DM path emits and returns immediately; there's no awaitable
-        // error to intercept here. DMView handles its own fallback prompt.
-        if (props.isDM) {
-          await trySend({ allowPlaintextFallback: false })
-          return 'ok'
-        }
+        const scope: 'channel' | 'dm' = props.isDM ? 'dm' : 'channel'
+        const outcome = await runWithEncryptionFallback(trySend, { scope })
 
-        const outcome = await runWithEncryptionFallback(trySend, { scope: 'channel' })
         if (outcome.status === 'declined') {
           sendError.value = 'Message was not sent.'
           setTimeout(() => { sendError.value = null }, 6000)
           return 'declined'
         }
         if (outcome.status === 'error') {
+          // ENCRYPTION_REQUIRED is server-enforced and not overridable;
+          // bubble it up as a regular error so `handleSendMessage` can show
+          // the appropriate copy. Same path for non-encryption failures.
           throw outcome.error
         }
+
+        // Fire-and-forget notification emit for the parent view (e.g.
+        // DMView, BaseLayout) so it can scroll-to-bottom / clear unreads /
+        // etc. The actual send is already complete by the time we emit.
+        emit('sendMessage', messageParts, replyMessageId || undefined)
         return 'ok'
       }
 

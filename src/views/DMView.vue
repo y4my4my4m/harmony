@@ -108,7 +108,9 @@ import { dmCallSignaling } from '@/services/DMCallSignaling'
 import { useViewContextTracking } from '@/composables/useViewContext'
 import { useNotificationStore } from '@/stores/useNotification'
 import { debug } from '@/utils/debug'
-import { useEncryptionFallbackPrompt } from '@/composables/useEncryptionFallbackPrompt'
+// `useEncryptionFallbackPrompt` is no longer needed here — `ChatComponent`
+// now owns the DM send + fallback flow so it can await the actual outcome
+// before clearing the input. This file is a notification-only forwarder.
 import type { MessagePart } from '@/types'
 import { ViewMode, ViewType } from '@/types/viewTypes'
 
@@ -297,70 +299,24 @@ const fetchMoreMessages = async () => {
   }
 }
 
-const { runWithEncryptionFallback } = useEncryptionFallbackPrompt()
-
-const handleSendMessage = async (
+/**
+ * Notification-only hook. The actual DM send now happens inside
+ * `ChatComponent.sendChannelOrDMWithEncryptionPolicy` so it can await the
+ * encryption-fallback flow and keep `messageContent` in sync with the
+ * real send outcome (BUGS.md). We keep this listener to bubble a
+ * `sendMessage` event up to whatever wraps `<DMView>` (notifications,
+ * focus-management, etc.).
+ *
+ * `sendOptions` is intentionally ignored — the store call is already
+ * complete by the time we receive this event.
+ */
+const handleSendMessage = (
   content: MessagePart[],
   replyTo?: string,
-  sendOptions?: { allowPlaintextFallback?: boolean }
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  _sendOptions?: { allowPlaintextFallback?: boolean },
 ) => {
-  const conversationId = route.params.conversationId as string
-  const currentUser = getCurrentUser.value
-
-  if (!conversationId || !currentUser?.id) return
-
-  // If the caller already negotiated the fallback override (e.g. retry path),
-  // call the store directly to avoid double-prompting.
-  if (sendOptions?.allowPlaintextFallback === true) {
-    try {
-      const success = await dmStore.sendDMMessage(conversationId, currentUser.id, content, replyTo, {
-        allowPlaintextFallback: true,
-      })
-      if (success) emit('sendMessage', { content, replyTo })
-      else toast.error('Failed to send message')
-    } catch (error) {
-      debug.error('DM retry send failed:', error)
-      toast.error('Failed to send message')
-    }
-    return
-  }
-
-  const outcome = await runWithEncryptionFallback(
-    async ({ allowPlaintextFallback }) => {
-      const success = await dmStore.sendDMMessage(conversationId, currentUser.id, content, replyTo, {
-        allowPlaintextFallback,
-      })
-      if (!success) {
-        // The store returns false on non-encryption transient failures it
-        // couldn't recover. Surface it as a generic error so
-        // `runWithEncryptionFallback` doesn't treat it as success.
-        throw new Error('DM send did not complete')
-      }
-      return success
-    },
-    { scope: 'dm' },
-  )
-
-  if (outcome.status === 'ok') {
-    emit('sendMessage', { content, replyTo })
-    return
-  }
-
-  if (outcome.status === 'declined') {
-    // User cancelled the fallback prompt. Optimistic message was already
-    // removed by `dmStore.sendDMMessage`'s catch path, so nothing else to
-    // do here besides letting the user retry from the input.
-    return
-  }
-
-  // outcome.status === 'error' — bubble a generic toast unless it's an
-  // ENCRYPTION_REQUIRED error (server-enforced, user can't override).
-  const errCode = ((outcome.error as any)?.code || (outcome.error as any)?.message || '').toString()
-  if (errCode.includes('ENCRYPTION_REQUIRED')) {
-    toast.error('This conversation requires encryption. Set up encryption in Settings first.')
-  } else {
-    toast.error('Failed to send message')
-  }
+  emit('sendMessage', { content, replyTo })
 }
 
 // Group chat methods

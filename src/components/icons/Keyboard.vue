@@ -1,11 +1,12 @@
 <template>
-  <Keyboard :size="Number(size)" :stroke-width="2" :class="className" />
+  <Keyboard :size="iconSize" :stroke-width="2" :class="className" />
 </template>
 
 <script lang="ts">
-import { defineComponent } from 'vue';
+import { defineComponent, computed } from 'vue';
 import { Keyboard } from 'lucide-vue-next';
 
+import { resolveIconSize } from '@/utils/iconSize';
 export default defineComponent({
   name: 'KeyboardIcon',
   components: { Keyboard },
@@ -13,5 +14,11 @@ export default defineComponent({
     size: { type: [Number, String], default: 20 },
     className: { type: String, default: '' }
   }
+  ,
+  setup(props) {
+    const iconSize = computed(() => resolveIconSize(props.size as number | string | undefined, 20))
+    return { iconSize }
+  }
+
 });
 </script>
