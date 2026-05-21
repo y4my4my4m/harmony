@@ -527,7 +527,7 @@ export class ActivityProcessor {
           return;
         }
 
-        const { data: insertedPost, error } = await supabase.from('posts').insert(postData).select('id, content, metadata').single();
+        const { data: insertedPost, error } = await supabase.from('posts').insert(postData).select('id, content, metadata, conversation_root_id').single();
 
         if (error) {
           logger.error('Failed to create post from activity:', error);
@@ -536,6 +536,15 @@ export class ActivityProcessor {
           logger.info(`✅ Created ${postType} from ${object.id}${parentPostId ? ` (reply to ${parentPostId})` : ''}${quotedPostData ? ` (quoting ${quotedPostData.id})` : ''}`);
 
           if (insertedPost) {
+            // Heal any orphan replies that were waiting on this post (children
+            // that arrived before their parent and got stamped with
+            // metadata.in_reply_to_ap_url = object.id).
+            await this.relinkPendingChildren(
+              object.id,
+              insertedPost.id,
+              (insertedPost as any).conversation_root_id ?? null,
+            );
+
             const { enrichPostLinkPreviews } = await import('../listeners/DatabaseListener.js');
             enrichPostLinkPreviews(insertedPost).catch(err =>
               logger.warn('Link preview enrichment failed for federated post:', err)
@@ -688,6 +697,57 @@ export class ActivityProcessor {
   }
 
   /**
+   * Re-link orphan replies whose `metadata.in_reply_to_ap_url` matches the
+   * given parent ap_id but whose `in_reply_to` foreign key is still NULL.
+   *
+   * This happens when a child reply arrives (via inbox or /resolve-post)
+   * before its parent — we stamp `metadata.in_reply_to_ap_url` so the link
+   * isn't lost, but the child stays orphaned in the thread RPC until the
+   * parent shows up. Calling this every time we import or look up a post
+   * means the thread "self-heals" as soon as the parent arrives.
+   */
+  private static async relinkPendingChildren(
+    parentApId: string,
+    parentLocalId: string,
+    parentConversationRootId: string | null,
+  ): Promise<void> {
+    if (!parentApId || !parentLocalId) return;
+    const supabase = getSupabaseClient();
+
+    const { data: orphans, error: queryError } = await supabase
+      .from('posts')
+      .select('id')
+      .is('in_reply_to', null)
+      .eq('metadata->>in_reply_to_ap_url', parentApId)
+      .eq('is_deleted', false);
+
+    if (queryError) {
+      logger.warn(`Orphan reply lookup failed for ${parentApId}:`, queryError);
+      return;
+    }
+    if (!orphans || orphans.length === 0) return;
+
+    // The conversation root: prefer the parent's root if known, else the
+    // parent itself (matches `resolveReplyChain`'s convention).
+    const conversationRootId = parentConversationRootId || parentLocalId;
+    const orphanIds = orphans.map((o: { id: string }) => o.id);
+
+    const { error: updateError } = await supabase
+      .from('posts')
+      .update({
+        in_reply_to: parentLocalId,
+        conversation_root_id: conversationRootId,
+      })
+      .in('id', orphanIds);
+
+    if (updateError) {
+      logger.warn(`Failed to re-link ${orphans.length} orphan(s) → ${parentLocalId}:`, updateError);
+      return;
+    }
+    logger.info(`🔗 Re-linked ${orphans.length} orphan reply(s) → parent ${parentLocalId} (${parentApId})`);
+  }
+
+  /**
    * Fetch a remote post and create it locally.
    *
    * If the post is a reply, the parent chain is walked recursively (sharing
@@ -696,6 +756,10 @@ export class ActivityProcessor {
    * ancestors are imported alongside it. Without this, calling /resolve-post
    * for a federated reply leaves it as a floating post — the local thread
    * RPC then has nothing to walk and the user sees no context.
+   *
+   * Whether the post was freshly imported or already cached, we also re-link
+   * any orphaned local replies whose `metadata.in_reply_to_ap_url` points at
+   * this post's ap_id (children that arrived before their parent).
    */
   public static async fetchAndCreateRemotePost(postUrl: string, depth = 0): Promise<{
     id: string;
@@ -709,7 +773,7 @@ export class ActivityProcessor {
       // before doing any network requests
       const { data: existing } = await supabase
         .from('posts')
-        .select('id, in_reply_to, conversation_root_id')
+        .select('id, ap_id, in_reply_to, conversation_root_id')
         .or(`ap_id.eq.${postUrl},url.eq.${postUrl}`)
         .eq('is_deleted', false)
         .limit(1)
@@ -717,7 +781,17 @@ export class ActivityProcessor {
 
       if (existing) {
         logger.info(`⏭️ Post already exists for ${postUrl} → ${existing.id}, skipping fetch`);
-        return existing;
+        // Heal any orphan replies that arrived before this post got stored.
+        await this.relinkPendingChildren(
+          existing.ap_id || postUrl,
+          existing.id,
+          existing.conversation_root_id,
+        );
+        return {
+          id: existing.id,
+          in_reply_to: existing.in_reply_to,
+          conversation_root_id: existing.conversation_root_id,
+        };
       }
 
       // BUGS.md H15: postUrl comes from inbox-supplied AP objects (attacker-
@@ -764,6 +838,11 @@ export class ActivityProcessor {
 
         if (existingByApId) {
           logger.info(`⏭️ Post already exists for AP id ${apId} → ${existingByApId.id}, skipping create`);
+          await this.relinkPendingChildren(
+            apId,
+            existingByApId.id,
+            existingByApId.conversation_root_id,
+          );
           return existingByApId;
         }
       }
@@ -840,6 +919,7 @@ export class ActivityProcessor {
             .maybeSingle();
           if (raced) {
             logger.info(`⏭️ Concurrent insert resolved for ${apId} → ${raced.id}`);
+            await this.relinkPendingChildren(apId, raced.id, raced.conversation_root_id);
             return raced;
           }
         }
@@ -848,6 +928,11 @@ export class ActivityProcessor {
       }
 
       logger.info(`✅ Fetched and created remote post: ${apId}`);
+
+      // Heal any orphan replies that were waiting for this post to land.
+      if (newPost) {
+        await this.relinkPendingChildren(apId, newPost.id, newPost.conversation_root_id);
+      }
 
       // Enrich link previews asynchronously
       if (newPost) {
