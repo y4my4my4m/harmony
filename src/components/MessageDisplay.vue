@@ -1668,21 +1668,30 @@ watch(() => props.messages, (newMessages) => {
           // under the user's eye. No jumps, no scrollToIndex thrash.
           else if (!isAppend) {
             shouldBeAtBottom.value = false;
+            // Re-read the ref locally with a null guard — match the defensive
+            // style used throughout this watcher (lines 1435, 1440, 1646, 1680).
+            // The outer `if (messageDisplayContainer.value)` at the top of the
+            // nextTick is enough at runtime today, but binding `container` once
+            // here keeps the property accesses below from depending on TS
+            // narrowing flowing across nested branches.
             const container = messageDisplayContainer.value;
-            const newHeight = container.scrollHeight;
-            const heightDelta = newHeight - oldScrollHeight;
-            if (heightDelta > 0) {
-              // Apply once synchronously to suppress the flash, then again on the
-              // next frame in case the virtualizer measured during the same tick
-              // and grew `scrollHeight` after the initial write.
-              container.scrollTop = oldScrollTopForPrepend + heightDelta;
-              requestAnimationFrame(() => {
-                if (!messageDisplayContainer.value) return;
-                const finalDelta = messageDisplayContainer.value.scrollHeight - oldScrollHeight;
-                if (finalDelta > 0) {
-                  messageDisplayContainer.value.scrollTop = oldScrollTopForPrepend + finalDelta;
-                }
-              });
+            if (container) {
+              const newHeight = container.scrollHeight;
+              const heightDelta = newHeight - oldScrollHeight;
+              if (heightDelta > 0) {
+                // Apply once synchronously to suppress the flash, then again on
+                // the next frame in case the virtualizer measured during the
+                // same tick and grew `scrollHeight` after the initial write.
+                container.scrollTop = oldScrollTopForPrepend + heightDelta;
+                requestAnimationFrame(() => {
+                  const c = messageDisplayContainer.value;
+                  if (!c) return;
+                  const finalDelta = c.scrollHeight - oldScrollHeight;
+                  if (finalDelta > 0) {
+                    c.scrollTop = oldScrollTopForPrepend + finalDelta;
+                  }
+                });
+              }
             }
             // Note: prevDisplayItemCount is no longer needed here since we
             // pin by height-delta instead of by displayItems index. Leaving
