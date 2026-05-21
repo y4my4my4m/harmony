@@ -855,13 +855,26 @@ export const useChatStore = defineStore('chat', {
      */
     subscribeToMessages(channelId: string) {
       const channelName = `channel-messages-${channelId}`;
-      
-      // Check if already subscribed to this exact channel
-      if (realtimeConnectionManager.hasSubscription(channelName)) {
-        debug.log('📡 Already subscribed to channel:', channelName);
+      const reactionsChannelName = `channel-reactions-${channelId}`;
+      const hasMessagesSub = realtimeConnectionManager.hasSubscription(channelName);
+      const hasReactionsSub = realtimeConnectionManager.hasSubscription(reactionsChannelName);
+
+      // Require BOTH subscriptions — messages-only early return left reactions
+      // dead after a partial teardown/reconnect (DM store already checks both).
+      if (hasMessagesSub && hasReactionsSub) {
+        debug.log('📡 Already subscribed to channel + reactions:', channelName);
         return;
       }
-      
+
+      const reactionsStore = useReactionsStore();
+
+      if (hasMessagesSub && !hasReactionsSub) {
+        debug.log('📡 Messages subscription exists but reactions missing — re-attaching reactions for:', channelId);
+        this.setupEncryptionKeyListener();
+        this._subscribeToChannelReactions(channelId, reactionsChannelName, reactionsStore);
+        return;
+      }
+
       debug.log('🔔 Setting up real-time subscription for channel:', channelId);
       
       // Unsubscribe from previous channel if exists (different channel)
@@ -879,8 +892,6 @@ export const useChatStore = defineStore('chat', {
         }
       }
 
-      // Get reactions store for handling real-time updates
-      const reactionsStore = useReactionsStore();
       const store = this; // Capture store reference for handlers
 
       // Ensure encryption key listener is active
@@ -1093,29 +1104,36 @@ export const useChatStore = defineStore('chat', {
         }
       });
 
-      const reactionsChannelName = `channel-reactions-${channelId}`;
-      
-      if (!realtimeConnectionManager.hasSubscription(reactionsChannelName)) {
-        realtimeConnectionManager.subscribeToTable({
-          channelName: reactionsChannelName,
-          table: 'reactions',
-          filter: `channel_id=eq.${channelId}`,
-          // Forward all reactions for this channel. Thread replies are not in store.messages
-          // but share channel_id; MessageDisplay in ThreadView reads the same reactions store.
-          onInsert: (payload) => {
-            const messageId = (payload.new as any)?.message_id;
-            if (messageId) {
-              void reactionsStore.handleRealtimeUpdate(payload);
-            }
-          },
-          onDelete: (payload) => {
-            const messageId = (payload.old as any)?.message_id;
-            if (messageId) {
-              void reactionsStore.handleRealtimeUpdate(payload);
-            }
-          },
-        });
+      this._subscribeToChannelReactions(channelId, reactionsChannelName, reactionsStore);
+    },
+
+    _subscribeToChannelReactions(
+      channelId: string,
+      reactionsChannelName: string,
+      reactionsStore: ReturnType<typeof useReactionsStore>,
+    ) {
+      if (realtimeConnectionManager.hasSubscription(reactionsChannelName)) {
+        return;
       }
+      realtimeConnectionManager.subscribeToTable({
+        channelName: reactionsChannelName,
+        table: 'reactions',
+        filter: `channel_id=eq.${channelId}`,
+        // Forward all reactions for this channel. Thread replies are not in store.messages
+        // but share channel_id; MessageDisplay in ThreadView reads the same reactions store.
+        onInsert: (payload) => {
+          const messageId = (payload.new as any)?.message_id;
+          if (messageId) {
+            void reactionsStore.handleRealtimeUpdate(payload);
+          }
+        },
+        onDelete: (payload) => {
+          const messageId = (payload.old as any)?.message_id;
+          if (messageId) {
+            void reactionsStore.handleRealtimeUpdate(payload);
+          }
+        },
+      });
     },
 
     /**

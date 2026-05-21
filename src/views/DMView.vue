@@ -61,7 +61,6 @@
         current-view="dm"
         @load-more-messages="fetchMoreMessages"
         @update:is-at-bottom="isAtBottom = $event"
-        @send-message="handleSendMessage"
       />
     </div>
 
@@ -111,7 +110,6 @@ import { debug } from '@/utils/debug'
 // `useEncryptionFallbackPrompt` is no longer needed here — `ChatComponent`
 // now owns the DM send + fallback flow so it can await the actual outcome
 // before clearing the input. This file is a notification-only forwarder.
-import type { MessagePart } from '@/types'
 import { ViewMode, ViewType } from '@/types/viewTypes'
 
 // Props
@@ -126,7 +124,6 @@ const props = defineProps<Props>()
 const emit = defineEmits<{
   toggleLeftSidebar: []
   toggleVoicePanel: []
-  sendMessage: [message: any]
 }>()
 
 // Stores
@@ -297,26 +294,6 @@ const fetchMoreMessages = async () => {
     const oldestMessage = dmStore.currentDMMessages[0]
     await dmStore.fetchConversationMessages(conversationId, oldestMessage.id)
   }
-}
-
-/**
- * Notification-only hook. The actual DM send now happens inside
- * `ChatComponent.sendChannelOrDMWithEncryptionPolicy` so it can await the
- * encryption-fallback flow and keep `messageContent` in sync with the
- * real send outcome (BUGS.md). We keep this listener to bubble a
- * `sendMessage` event up to whatever wraps `<DMView>` (notifications,
- * focus-management, etc.).
- *
- * `sendOptions` is intentionally ignored — the store call is already
- * complete by the time we receive this event.
- */
-const handleSendMessage = (
-  content: MessagePart[],
-  replyTo?: string,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  _sendOptions?: { allowPlaintextFallback?: boolean },
-) => {
-  emit('sendMessage', { content, replyTo })
 }
 
 // Group chat methods

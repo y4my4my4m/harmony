@@ -12,7 +12,6 @@
         :dmUsername="dmUsername"
         :loadMoreMessages="() => $emit('load-more-messages')"
         @update:isAtBottom="$emit('update:is-at-bottom', $event)" 
-        @sendMessage="(messageParts, replyId) => $emit('send-message', messageParts, replyId)"
         @showAllThreads="$emit('show-all-threads')"
       />
     </div>
@@ -215,7 +214,6 @@ defineEmits<{
   // Chat mode events
   'load-more-messages': []
   'update:is-at-bottom': [value: boolean]
-  'send-message': [messageParts: any, replyId?: string]
   'show-all-threads': []
   
   // Essential ActivityPub events (interactions now handled by composable)

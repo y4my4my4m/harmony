@@ -181,12 +181,6 @@
   });
 
   interface Emits {
-    (
-      e: 'sendMessage',
-      content: MessagePart[],
-      replyTo?: string,
-      sendOptions?: { allowPlaintextFallback?: boolean }
-    ): void;
     (e: 'loadMoreMessages'): void;
     (e: 'showAllThreads'): void;
   }
@@ -881,11 +875,7 @@
        *
        * Both DM and channel sends go through the same composable here so
        * the input/draft state in `handleSendMessage` can synchronize with
-       * the *actual* outcome. Previously the DM branch emitted up to
-       * `DMView.handleSendMessage` and returned `'ok'` immediately, so the
-       * input was cleared before the parent had even attempted the send —
-       * if the user declined the fallback prompt in `DMView`, the typed
-       * text was already gone.
+       * the actual outcome (including encryption-fallback decline).
        */
       const sendChannelOrDMWithEncryptionPolicy = async (
         messageParts: MessagePart[],
@@ -895,8 +885,6 @@
           if (props.isDM) {
             // DM send: call the store directly so we can await the result
             // and surface encryption-policy throws through the composable.
-            // DMView's `sendMessage` listener is now a notification hook
-            // only — the actual send happens here.
             if (!props.conversationId || !authStore.session?.user?.id) return false
             const success = await dmStore.sendDMMessage(
               props.conversationId,
@@ -942,10 +930,6 @@
           throw outcome.error
         }
 
-        // Fire-and-forget notification emit for the parent view (e.g.
-        // DMView, BaseLayout) so it can scroll-to-bottom / clear unreads /
-        // etc. The actual send is already complete by the time we emit.
-        emit('sendMessage', messageParts, replyMessageId || undefined)
         return 'ok'
       }
 
@@ -999,24 +983,24 @@
         }
       }
 
-      const handleSendGif = (gif: Gif) => {
+      const handleSendGif = async (gif: Gif) => {
         const gifUrl = gif.media_formats.gif.url;
         closeMediaPicker();
-        
-        if (props.isDM && dmStore.currentConversationId && authStore.session?.user) {
-          // Emit for DM
-          emit('sendMessage', [{type: "file", url: gifUrl, fileType: "image"}], replyToMessageId.value);
-          handleDontReply();
-        } else if (!props.isDM && serverChannelStore.currentChannelId && serverChannelStore.currentServerId && authStore.session?.user) {
-          // Handle server channel directly
-          chatStore.sendMessage(
-            serverChannelStore.currentServerId, 
-            serverChannelStore.currentChannelId, 
-            authStore.session.user.id, 
-            [{type: "file", url: gifUrl, fileType: "image"}], 
-            replyToMessageId.value
+
+        const messageParts: MessagePart[] = [{
+          type: 'file',
+          url: gifUrl,
+          fileType: 'image',
+        }];
+
+        try {
+          await sendChannelOrDMWithEncryptionPolicy(
+            messageParts,
+            replyToMessageId.value || undefined,
           );
           handleDontReply();
+        } catch (error) {
+          debug.error('Error sending GIF:', error);
         }
       };
 

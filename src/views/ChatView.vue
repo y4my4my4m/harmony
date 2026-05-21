@@ -12,7 +12,6 @@
     current-view="chat"
     @load-more-messages="fetchMoreMessages"
     @update:is-at-bottom="isAtBottom = $event"
-    @send-message="handleSendMessage"
     @show-all-threads="handleShowAllThreads"
   />
 </template>
@@ -43,7 +42,6 @@ const props = withDefaults(defineProps<Props>(), {
 
 // Emits
 const emit = defineEmits<{
-  sendMessage: [message: any]
   toggleLeftSidebar: []
   toggleVoicePanel: []
   showAllThreads: []
@@ -203,10 +201,6 @@ const fetchMoreMessages = async () => {
       debug.log('📜 Cannot fetch messages: no channel or no messages yet')
     }
   }
-}
-
-const handleSendMessage = (message: any) => {
-  emit('sendMessage', message)
 }
 
 const handleShowAllThreads = () => {
