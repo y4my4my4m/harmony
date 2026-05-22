@@ -102,6 +102,16 @@ async function resolveProfileByActorUrl(actorUrl: string): Promise<{ id: string 
 
 export class ActivityProcessor {
   /**
+   * Maximum reply-chain depth for federated post resolution. Bounds total
+   * outbound fetches per `/resolve-post` call (and per inbox Create) so a
+   * malicious or pathological remote can't chain the importer into a deep
+   * cascade of remote requests. Shared between `resolveReplyChain` (chain
+   * walker) and `fetchAndCreateRemotePost` (per-post fetcher) so the mutual
+   * recursion lands at exactly N fetches total, not 2N or N+1.
+   */
+  private static readonly MAX_REPLY_CHAIN_DEPTH = 10;
+
+  /**
    * Check if an actor is suspended on our instance
    */
   private static async isActorSuspended(actorUrl: string): Promise<boolean> {
@@ -527,7 +537,7 @@ export class ActivityProcessor {
           return;
         }
 
-        const { data: insertedPost, error } = await supabase.from('posts').insert(postData).select('id, content, metadata').single();
+        const { data: insertedPost, error } = await supabase.from('posts').insert(postData).select('id, content, metadata, conversation_root_id').single();
 
         if (error) {
           logger.error('Failed to create post from activity:', error);
@@ -536,6 +546,17 @@ export class ActivityProcessor {
           logger.info(`✅ Created ${postType} from ${object.id}${parentPostId ? ` (reply to ${parentPostId})` : ''}${quotedPostData ? ` (quoting ${quotedPostData.id})` : ''}`);
 
           if (insertedPost) {
+            // Heal any orphan replies that were waiting on this post (children
+            // that arrived before their parent and got stamped with
+            // metadata.in_reply_to_ap_url = object.id). Pass `object.url`
+            // too so orphans stamped with the alternate URL form match.
+            await this.relinkPendingChildren(
+              object.id,
+              insertedPost.id,
+              (insertedPost as any).conversation_root_id ?? null,
+              object.url || null,
+            );
+
             const { enrichPostLinkPreviews } = await import('../listeners/DatabaseListener.js');
             enrichPostLinkPreviews(insertedPost).catch(err =>
               logger.warn('Link preview enrichment failed for federated post:', err)
@@ -600,11 +621,13 @@ export class ActivityProcessor {
     parentPostId: string | null;
     conversationRootId: string | null;
   }> {
-    const MAX_DEPTH = 10;
     const supabase = getSupabaseClient();
 
-    if (depth > MAX_DEPTH) {
-      logger.warn(`Reply chain too deep (>${MAX_DEPTH}), stopping resolution`);
+    // Use `>=` (not `>`) so the bound matches the intuitive "max N fetches".
+    // Combined with the matching guard in `fetchAndCreateRemotePost`, mutual
+    // recursion stops at exactly MAX_REPLY_CHAIN_DEPTH outbound fetches.
+    if (depth >= this.MAX_REPLY_CHAIN_DEPTH) {
+      logger.warn(`Reply chain too deep (>=${this.MAX_REPLY_CHAIN_DEPTH}), stopping resolution`);
       return { parentPostId: null, conversationRootId: null };
     }
 
@@ -642,10 +665,12 @@ export class ActivityProcessor {
         }
       }
 
-      // Fetch from remote if not found locally
+      // Fetch from remote if not found locally. Forward depth so the inner
+      // chain walk done by fetchAndCreateRemotePost shares the same depth
+      // budget (otherwise mutual recursion could exceed MAX_DEPTH).
       if (!parentPost) {
         logger.info(`🔍 Parent post not found locally, fetching: ${inReplyToRef}`);
-        parentPost = await this.fetchAndCreateRemotePost(inReplyToRef);
+        parentPost = await this.fetchAndCreateRemotePost(inReplyToRef, depth + 1);
       }
     }
 
@@ -686,13 +711,105 @@ export class ActivityProcessor {
   }
 
   /**
-   * Fetch a remote post and create it locally
+   * Re-link orphan replies whose `metadata.in_reply_to_ap_url` matches the
+   * given parent ap_id but whose `in_reply_to` foreign key is still NULL.
+   *
+   * This happens when a child reply arrives (via inbox or /resolve-post)
+   * before its parent — we stamp `metadata.in_reply_to_ap_url` so the link
+   * isn't lost, but the child stays orphaned in the thread RPC until the
+   * parent shows up. Calling this every time we import or look up a post
+   * means the thread "self-heals" as soon as the parent arrives.
    */
-  public static async fetchAndCreateRemotePost(postUrl: string): Promise<{
+  private static async relinkPendingChildren(
+    parentApId: string,
+    parentLocalId: string,
+    parentConversationRootId: string | null,
+    parentApUrl?: string | null,
+  ): Promise<void> {
+    if (!parentLocalId) return;
+    const supabase = getSupabaseClient();
+
+    // Match orphans by *every* known URL form for this post — Mastodon
+    // canonical id (`/users/x/statuses/N`), pretty url (`/@x/N`), GoToSocial
+    // (`/users/x/statuses/N` ↔ `/@x/statuses/N`), Pleroma `/objects/UUID`,
+    // etc. all surface in different `inReplyTo` payloads, and an orphan
+    // could have stamped any of them. PostgREST `.or()` syntax lets us OR
+    // multiple jsonb-arrow-extracted comparisons in a single query.
+    const candidateUrls = Array.from(
+      new Set(
+        [parentApId, parentApUrl ?? undefined].filter(
+          (v): v is string => typeof v === 'string' && v.length > 0,
+        ),
+      ),
+    );
+    if (candidateUrls.length === 0) return;
+
+    const orFilter = candidateUrls
+      .map((u) => `metadata->>in_reply_to_ap_url.eq.${u}`)
+      .join(',');
+
+    const { data: orphans, error: queryError } = await supabase
+      .from('posts')
+      .select('id')
+      .is('in_reply_to', null)
+      .or(orFilter)
+      .eq('is_deleted', false);
+
+    if (queryError) {
+      logger.warn(`Orphan reply lookup failed for ${parentApId}:`, queryError);
+      return;
+    }
+    if (!orphans || orphans.length === 0) return;
+
+    // The conversation root: prefer the parent's root if known, else the
+    // parent itself (matches `resolveReplyChain`'s convention).
+    const conversationRootId = parentConversationRootId || parentLocalId;
+    const orphanIds = orphans.map((o: { id: string }) => o.id);
+
+    const { error: updateError } = await supabase
+      .from('posts')
+      .update({
+        in_reply_to: parentLocalId,
+        conversation_root_id: conversationRootId,
+      })
+      .in('id', orphanIds);
+
+    if (updateError) {
+      logger.warn(`Failed to re-link ${orphans.length} orphan(s) → ${parentLocalId}:`, updateError);
+      return;
+    }
+    logger.info(`🔗 Re-linked ${orphans.length} orphan reply(s) → parent ${parentLocalId} (${parentApId})`);
+  }
+
+  /**
+   * Fetch a remote post and create it locally.
+   *
+   * If the post is a reply, the parent chain is walked recursively (sharing
+   * the depth budget with `resolveReplyChain`) so the imported post lands
+   * with `in_reply_to` and `conversation_root_id` populated, and any missing
+   * ancestors are imported alongside it. Without this, calling /resolve-post
+   * for a federated reply leaves it as a floating post — the local thread
+   * RPC then has nothing to walk and the user sees no context.
+   *
+   * Whether the post was freshly imported or already cached, we also re-link
+   * any orphaned local replies whose `metadata.in_reply_to_ap_url` points at
+   * this post's ap_id (children that arrived before their parent).
+   */
+  public static async fetchAndCreateRemotePost(postUrl: string, depth = 0): Promise<{
     id: string;
     in_reply_to: string | null;
     conversation_root_id: string | null;
   } | null> {
+    // Hard cap on outbound fetches per chain. Without this guard, mutual
+    // recursion through `resolveReplyChain` could overshoot the depth budget
+    // by one (resolveReplyChain checks then calls fetchAndCreateRemotePost
+    // which calls resolveReplyChain again at depth+1, allowing one extra
+    // fetch beyond the intended max).
+    if (depth >= this.MAX_REPLY_CHAIN_DEPTH) {
+      logger.warn(`Reply chain fetch too deep (>=${this.MAX_REPLY_CHAIN_DEPTH}), aborting fetch for ${postUrl}`);
+      return null;
+    }
+
     const supabase = getSupabaseClient();
 
     try {
@@ -700,7 +817,7 @@ export class ActivityProcessor {
       // before doing any network requests
       const { data: existing } = await supabase
         .from('posts')
-        .select('id, in_reply_to, conversation_root_id')
+        .select('id, ap_id, url, in_reply_to, conversation_root_id')
         .or(`ap_id.eq.${postUrl},url.eq.${postUrl}`)
         .eq('is_deleted', false)
         .limit(1)
@@ -708,7 +825,20 @@ export class ActivityProcessor {
 
       if (existing) {
         logger.info(`⏭️ Post already exists for ${postUrl} → ${existing.id}, skipping fetch`);
-        return existing;
+        // Heal any orphan replies that arrived before this post got stored.
+        // Pass both the canonical ap_id AND the alternate url so an orphan
+        // stamped with either form gets matched.
+        await this.relinkPendingChildren(
+          existing.ap_id || postUrl,
+          existing.id,
+          existing.conversation_root_id,
+          existing.url || postUrl,
+        );
+        return {
+          id: existing.id,
+          in_reply_to: existing.in_reply_to,
+          conversation_root_id: existing.conversation_root_id,
+        };
       }
 
       // BUGS.md H15: postUrl comes from inbox-supplied AP objects (attacker-
@@ -755,6 +885,12 @@ export class ActivityProcessor {
 
         if (existingByApId) {
           logger.info(`⏭️ Post already exists for AP id ${apId} → ${existingByApId.id}, skipping create`);
+          await this.relinkPendingChildren(
+            apId,
+            existingByApId.id,
+            existingByApId.conversation_root_id,
+            apUrl,
+          );
           return existingByApId;
         }
       }
@@ -779,27 +915,24 @@ export class ActivityProcessor {
       const content = noteToContent(remoteObject);
       const visibility = this.determineVisibility(remoteObject);
 
-      // Resolve inReplyTo URL to a local post UUID (in_reply_to is a UUID FK)
+      // Walk the reply chain so the imported post lands with `in_reply_to`
+      // and `conversation_root_id` correctly set, AND any missing ancestors
+      // are imported alongside it. We share `depth` with the caller so a
+      // mutually-recursive walk stops at MAX_DEPTH overall (not per-frame).
       let resolvedInReplyTo: string | null = null;
+      let conversationRootId: string | null = null;
       if (remoteObject.inReplyTo) {
-        const { data: parentByApId } = await supabase
-          .from('posts')
-          .select('id')
-          .eq('ap_id', remoteObject.inReplyTo)
-          .maybeSingle();
-        if (parentByApId) {
-          resolvedInReplyTo = parentByApId.id;
-        } else if (remoteObject.inReplyTo.includes('/posts/')) {
-          const uuidMatch = remoteObject.inReplyTo.match(/\/posts\/([a-f0-9-]{36})/);
-          if (uuidMatch) {
-            const { data: parentById } = await supabase
-              .from('posts')
-              .select('id')
-              .eq('id', uuidMatch[1])
-              .maybeSingle();
-            if (parentById) resolvedInReplyTo = parentById.id;
-          }
-        }
+        const replyResult = await this.resolveReplyChain(remoteObject.inReplyTo, depth);
+        resolvedInReplyTo = replyResult.parentPostId;
+        conversationRootId = replyResult.conversationRootId;
+      }
+
+      // Always stamp the AP url of the parent in metadata so we have a paper
+      // trail even if resolution failed (e.g. parent server unreachable). The
+      // client-side ancestor walker can retry from this hint later.
+      const metadata: Record<string, any> = {};
+      if (remoteObject.inReplyTo) {
+        metadata.in_reply_to_ap_url = remoteObject.inReplyTo;
       }
 
       const { data: newPost, error } = await supabase
@@ -812,6 +945,8 @@ export class ActivityProcessor {
           visibility,
           is_local: false,
           in_reply_to: resolvedInReplyTo,
+          conversation_root_id: conversationRootId,
+          metadata,
           created_at: remoteObject.published || new Date().toISOString(),
           content_warning: remoteObject.summary || null,
           is_sensitive: remoteObject.sensitive === true,
@@ -832,6 +967,7 @@ export class ActivityProcessor {
             .maybeSingle();
           if (raced) {
             logger.info(`⏭️ Concurrent insert resolved for ${apId} → ${raced.id}`);
+            await this.relinkPendingChildren(apId, raced.id, raced.conversation_root_id, apUrl);
             return raced;
           }
         }
@@ -840,6 +976,11 @@ export class ActivityProcessor {
       }
 
       logger.info(`✅ Fetched and created remote post: ${apId}`);
+
+      // Heal any orphan replies that were waiting for this post to land.
+      if (newPost) {
+        await this.relinkPendingChildren(apId, newPost.id, newPost.conversation_root_id, apUrl);
+      }
 
       // Enrich link previews asynchronously
       if (newPost) {

@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import { supabase } from '@/supabase';
 import { services } from '@/services';
-import type { Message, ChannelCache, CacheMetadata, Emoji } from '@/types';
+import type { Message, ChannelCache, CacheMetadata, Emoji, MessagePart } from '@/types';
 import { useReactionsStore } from '@/stores/useReactions';
 import { useServerUsersStore } from '@/stores/useServerUsers';
 import { ensureMessageEmbeds } from '@/utils/messageEmbedUtils';
@@ -22,7 +22,9 @@ export const useChatStore = defineStore('chat', {
     cacheValidityDuration: 5 * 60 * 1000, // 5 minutes
     maxCacheSize: 50, // Maximum number of channels to cache
     currentChannelId: null as string | null,
-    
+    /** Channel id bound to `currentSubscription` (may differ from `currentChannelId` during navigation). */
+    realtimeChannelId: null as string | null,
+
     // Cache for individual reply messages (bounded to prevent unbounded growth)
     replyMessageCache: new Map<string, Message>(),
     maxReplyCacheSize: 200,
@@ -271,10 +273,12 @@ export const useChatStore = defineStore('chat', {
           // Get the timestamp of the oldest message for pagination
           const oldestMessage = this.messages.find(m => m.id === oldestMessageId);
           if (oldestMessage) {
-            // Handle both Date objects and ISO strings
-            beforeTimestamp = oldestMessage.created_at instanceof Date 
-              ? oldestMessage.created_at.toISOString()
-              : oldestMessage.created_at;
+            // Handle both Date objects and ISO strings. `created_at` is typed
+            // as `Date` but legacy code paths sometimes pass through ISO strings.
+            const ts: unknown = oldestMessage.created_at;
+            beforeTimestamp = ts instanceof Date
+              ? ts.toISOString()
+              : (typeof ts === 'string' ? ts : undefined);
             debug.log('📅 Using timestamp for pagination:', beforeTimestamp);
           }
         }
@@ -577,7 +581,8 @@ export const useChatStore = defineStore('chat', {
       });
 
       try {
-        ensureMessageEmbeds(updatedMessage, { force: true });
+        // `ensureMessageEmbeds` takes a single argument now.
+        ensureMessageEmbeds(updatedMessage);
       } catch (error) {
         debug.warn('Failed to refresh embeds for updated message:', error);
       }
@@ -706,6 +711,13 @@ export const useChatStore = defineStore('chat', {
         // (a) keep failing for the same reason or (b) silently bypass the
         // fail-closed policy. Surface immediately so the UI can ask the user
         // whether to send unencrypted.
+        //
+        // We *remove* the optimistic instead of marking it failed: if the
+        // user accepts the fallback prompt, the UI will re-call this method
+        // with `allowPlaintextFallback: true`, which creates a fresh
+        // optimistic. Leaving the original as a "failed" message in the
+        // timeline made it look like the message had been sent and rejected,
+        // which is what BUGS.md flagged after the user pressed Cancel.
         const code = (error?.code || error?.message || '').toString();
         const isEncryptionPolicyError =
           code.includes('ENCRYPTION_REQUIRED') ||
@@ -713,7 +725,7 @@ export const useChatStore = defineStore('chat', {
           code.includes('ENCRYPTION_UNAVAILABLE') ||
           code.includes('ENCRYPTION_FAILED_NO_FALLBACK')
         if (isEncryptionPolicyError) {
-          this._markMessageFailed(tempId);
+          this.removeMessageFromCache(tempId);
           throw error;
         }
 
@@ -832,7 +844,7 @@ export const useChatStore = defineStore('chat', {
         } else if (result.reason === 'duplicate_request') {
           // debug.log('🎯 Reaction toggle skipped (duplicate request prevented)');
         } else {
-          debug.error('🎯 Failed to toggle reaction:', result.message || result.reason);
+          debug.error('🎯 Failed to toggle reaction:', (result as any).message || result.reason);
         }
       } catch (e) {
         debug.error('Error during reaction toggle:', e);
@@ -843,34 +855,55 @@ export const useChatStore = defineStore('chat', {
      * Subscribe to real-time messages for a channel using RealtimeConnectionManager
      * Handles INSERT, UPDATE, DELETE events with automatic reconnection
      */
-    subscribeToMessages(channelId: string) {
-      const channelName = `channel-messages-${channelId}`;
-      
-      // Check if already subscribed to this exact channel
-      if (realtimeConnectionManager.hasSubscription(channelName)) {
-        debug.log('📡 Already subscribed to channel:', channelName);
-        return;
-      }
-      
-      debug.log('🔔 Setting up real-time subscription for channel:', channelId);
-      
-      // Unsubscribe from previous channel if exists (different channel)
-      if (this.currentSubscription && this.currentChannelId !== channelId) {
-        debug.log('🔄 Unsubscribing from previous channel:', this.currentChannelId);
+    _teardownChannelRealtime(): void {
+      if (this.currentSubscription) {
         if (typeof this.currentSubscription === 'function') {
-          this.currentSubscription(); // RealtimeConnectionManager returns unsubscribe function
+          this.currentSubscription();
         } else {
           this.currentSubscription.unsubscribe?.();
         }
-        
-        // Also cleanup old reactions subscription
-        if (this.currentChannelId) {
-          realtimeConnectionManager.unsubscribe(`channel-reactions-${this.currentChannelId}`);
-        }
+        this.currentSubscription = null;
+      }
+      if (this.realtimeChannelId) {
+        realtimeConnectionManager.unsubscribe(`channel-reactions-${this.realtimeChannelId}`);
+        realtimeConnectionManager.unsubscribe(`channel-messages-${this.realtimeChannelId}`);
+      }
+      this.realtimeChannelId = null;
+    },
+
+    subscribeToMessages(channelId: string) {
+      const channelName = `channel-messages-${channelId}`;
+      const reactionsChannelName = `channel-reactions-${channelId}`;
+      const hasMessagesSub = realtimeConnectionManager.hasSubscription(channelName);
+      const hasReactionsSub = realtimeConnectionManager.hasSubscription(reactionsChannelName);
+      const boundToThisChannel = this.realtimeChannelId === channelId;
+
+      // Require BOTH subscriptions AND a matching binding. `currentChannelId` is
+      // updated early for UI/stale guards, so it must NOT drive teardown — that
+      // left the previous channel's realtime active when switching channels.
+      if (hasMessagesSub && hasReactionsSub && boundToThisChannel && this.currentSubscription) {
+        debug.log('📡 Already subscribed to channel + reactions:', channelName);
+        return;
       }
 
-      // Get reactions store for handling real-time updates
       const reactionsStore = useReactionsStore();
+
+      if (hasMessagesSub && !hasReactionsSub && boundToThisChannel) {
+        debug.log('📡 Messages subscription exists but reactions missing — re-attaching reactions for:', channelId);
+        this.setupEncryptionKeyListener();
+        this._subscribeToChannelReactions(channelId, reactionsChannelName, reactionsStore);
+        this.realtimeChannelId = channelId;
+        return;
+      }
+
+      // Stale binding or orphaned subs from a prior channel — rebuild cleanly.
+      if (this.currentSubscription || this.realtimeChannelId) {
+        debug.log('🔄 Tearing down previous realtime channel:', this.realtimeChannelId, '→', channelId);
+        this._teardownChannelRealtime();
+      }
+
+      debug.log('🔔 Setting up real-time subscription for channel:', channelId);
+
       const store = this; // Capture store reference for handlers
 
       // Ensure encryption key listener is active
@@ -1083,46 +1116,44 @@ export const useChatStore = defineStore('chat', {
         }
       });
 
-      const reactionsChannelName = `channel-reactions-${channelId}`;
-      
-      if (!realtimeConnectionManager.hasSubscription(reactionsChannelName)) {
-        realtimeConnectionManager.subscribeToTable({
-          channelName: reactionsChannelName,
-          table: 'reactions',
-          filter: `channel_id=eq.${channelId}`,
-          // Forward all reactions for this channel. Thread replies are not in store.messages
-          // but share channel_id; MessageDisplay in ThreadView reads the same reactions store.
-          onInsert: (payload) => {
-            const messageId = (payload.new as any)?.message_id;
-            if (messageId) {
-              void reactionsStore.handleRealtimeUpdate(payload);
-            }
-          },
-          onDelete: (payload) => {
-            const messageId = (payload.old as any)?.message_id;
-            if (messageId) {
-              void reactionsStore.handleRealtimeUpdate(payload);
-            }
-          },
-        });
+      this._subscribeToChannelReactions(channelId, reactionsChannelName, reactionsStore);
+      this.realtimeChannelId = channelId;
+    },
+
+    _subscribeToChannelReactions(
+      channelId: string,
+      reactionsChannelName: string,
+      reactionsStore: ReturnType<typeof useReactionsStore>,
+    ) {
+      if (realtimeConnectionManager.hasSubscription(reactionsChannelName)) {
+        return;
       }
+      realtimeConnectionManager.subscribeToTable({
+        channelName: reactionsChannelName,
+        table: 'reactions',
+        filter: `channel_id=eq.${channelId}`,
+        // Forward all reactions for this channel. Thread replies are not in store.messages
+        // but share channel_id; MessageDisplay in ThreadView reads the same reactions store.
+        onInsert: (payload) => {
+          const messageId = (payload.new as any)?.message_id;
+          if (messageId) {
+            void reactionsStore.handleRealtimeUpdate(payload);
+          }
+        },
+        onDelete: (payload) => {
+          const messageId = (payload.old as any)?.message_id;
+          if (messageId) {
+            void reactionsStore.handleRealtimeUpdate(payload);
+          }
+        },
+      });
     },
 
     /**
      * Unsubscribe from current channel
      */
     unsubscribeFromMessages() {
-      if (this.currentSubscription) {
-        if (typeof this.currentSubscription === 'function') {
-          this.currentSubscription();
-        }
-        this.currentSubscription = null;
-      }
-      
-      if (this.currentChannelId) {
-        realtimeConnectionManager.unsubscribe(`channel-reactions-${this.currentChannelId}`);
-      }
-
+      this._teardownChannelRealtime();
       this.cleanupEncryptionKeyListener();
     },
 

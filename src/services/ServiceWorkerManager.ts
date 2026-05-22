@@ -237,7 +237,7 @@ export class ServiceWorkerManager {
       const { supabase } = await import('@/supabase')
       const { useAuthStore } = await import('@/stores/auth')
       const authStore = useAuthStore()
-      const profileId = authStore.currentProfile?.id
+      const profileId = (authStore as any).currentProfile?.id
 
       if (!profileId) {
         debug.error('❌ Quick reply: no active profile')

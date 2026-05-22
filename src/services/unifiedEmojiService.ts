@@ -84,8 +84,15 @@ const mutantLookups = ref<EmojiLookups | null>(null)
 // Twemoji file map for accurate SVG path resolution
 const twemojiFileMap = ref<Record<string, boolean> | null>(null)
 
-// Cache version — bump this when the static JSON files change to bust the IndexedDB cache
-const EMOJI_DATA_CACHE_VERSION = '1'
+// Cache version — bump this when the static JSON files change to bust the IndexedDB cache.
+//
+// v2 (2026-05-21): `unicode-emoji-data.json` was regenerated on 2026-05-20 to
+// include keyword aliases (`+1`, `thumbsup`, etc.). Users whose IndexedDB
+// still holds the v1 blob would not see `:+1` resolve to thumbs_up in
+// autosuggest or in the emoji-picker search, because the keyword check
+// can't match a field that isn't in the cached payload. Bumping forces a
+// one-time refetch the next time the emoji loader runs.
+const EMOJI_DATA_CACHE_VERSION = '2'
 
 /**
  * Load the unified emoji data.

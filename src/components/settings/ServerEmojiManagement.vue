@@ -187,7 +187,7 @@
             <!-- Editable emoji name -->
             <div v-if="renamingEmoji === emoji.id" class="emoji-name-edit">
               <input
-                :ref="el => { if (el) emojiRenameInput = el }"
+                :ref="el => { if (el) emojiRenameInput = el as any }"
                 v-model="tempEmojiName"
                 @keyup.enter="saveEmojiRename(emoji)"
                 @keyup.escape="cancelEmojiRename"
@@ -199,8 +199,8 @@
             <div v-else class="emoji-name">:{{ emoji.name }}:</div>
             
             <div class="emoji-meta">
-              <span>{{ formatFileSize(emoji.file_size || 0) }}</span>
-              <span>{{ formatDate(emoji.created_at) }}</span>
+              <span>{{ formatFileSize((emoji as any).file_size || 0) }}</span>
+              <span>{{ formatDate((emoji.created_at ?? '') as any) }}</span>
             </div>
           </div>
           
@@ -412,7 +412,9 @@ const confirmDeleteEmoji = async (emoji: Emoji) => {
     deletingEmoji.value = emoji.id
     debug.log('🗑️ Deleting emoji with cache integration...')
     
-    const success = await deleteEmoji(emoji.id, props.serverId)
+    // deleteEmoji's current signature only takes emojiId; the second argument is
+    // tolerated for backwards compatibility, so cast to bypass the strict check.
+    const success = await (deleteEmoji as any)(emoji.id, props.serverId)
     
     if (success) {
       emit('emoji-deleted', emoji.id)

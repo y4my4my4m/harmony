@@ -920,7 +920,7 @@ const verifyAndEnable2FA = async () => {
         const factor = factors?.totp?.find((f: any) => f.id === factorId.value)
         
         // Only try to unenroll if factor exists and is unverified
-        if (factor && factor.status === 'unverified') {
+        if (factor && (factor.status as string) === 'unverified') {
           await supabase.auth.mfa.unenroll({ factorId: factorId.value })
           debug.log('Cleaned up unverified factor')
         }
@@ -1036,7 +1036,7 @@ const disable2FA = async () => {
 
     if (error) {
       // If still getting AAL2 error, the session might have expired
-      if (error.error_code === 'insufficient_aal') {
+      if ((error as any).error_code === 'insufficient_aal') {
         toast.error('Your session expired. Please log out and log back in with 2FA, then try again.')
       } else {
         throw error

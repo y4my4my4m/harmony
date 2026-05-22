@@ -163,7 +163,7 @@ export function generateActorJson(user: FederatedUser): ActivityPubActor {
       sharedInbox: `${ACTIVITYPUB_CONFIG.baseUrl}/api/activitypub/inbox`
     },
     url: `${ACTIVITYPUB_CONFIG.baseUrl}/social/profile/${user.username}`
-  };
+  } as ActivityPubActor;
 }
 
 // Generate WebFinger JSON response

@@ -10,7 +10,7 @@
     
     <!-- Clear All Button (for bookmarks) -->
     <button 
-      v-if="viewType === 'bookmarks' && dataCount > 0"
+      v-if="viewType === 'bookmarks' && (dataCount ?? 0) > 0"
       @click="$emit('clear-all')"
       class="clear-all-btn"
     >

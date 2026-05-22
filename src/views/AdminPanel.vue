@@ -1639,7 +1639,7 @@
                       :closeEmojiList="() => showEditTierEmojiPicker = false"
                       :emojiIconClicked="true"
                       :position="'below'"
-                      :triggerElement="editTierEmojiButtonRef || undefined"
+                      :triggerElement="((editTierEmojiButtonRef as any) as HTMLElement | null) || undefined"
                       @resetEmojiIconClicked="() => {}"
                     />
                   </div>
@@ -1692,7 +1692,7 @@
                   :closeEmojiList="() => showNewTierEmojiPicker = false"
                   :emojiIconClicked="true"
                   :position="'above'"
-                  :triggerElement="newTierEmojiButtonRef || undefined"
+                  :triggerElement="((newTierEmojiButtonRef as any) as HTMLElement | null) || undefined"
                   @resetEmojiIconClicked="() => {}"
                 />
               </div>

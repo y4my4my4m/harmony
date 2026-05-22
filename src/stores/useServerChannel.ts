@@ -31,7 +31,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
     _userServerBroadcastUnsubs: [] as (() => void)[],
     currentUserId: null as string | null,
     // Request deduplication - prevents concurrent duplicate fetches
-    _pendingFetches: {} as Record<string, Promise<void>>,
+    _pendingFetches: {} as Record<string, Promise<void> | undefined>,
     // Tracks which server's categories/channels are currently loaded in memory
     // Since categories/channels are shared state, only ONE server's data exists at a time
     _loadedCategoriesServerId: null as string | null,

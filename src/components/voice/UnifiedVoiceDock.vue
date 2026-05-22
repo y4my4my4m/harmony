@@ -1111,14 +1111,14 @@ watch(
       const attached = voiceStore.attachVideoToElement(user.userId, videoEl);
       if (!attached && activeVideoStream.value) {
         // Fallback to srcObject if attach fails (P2P mode)
-        videoEl.srcObject = activeVideoStream.value;
+        (videoEl as HTMLVideoElement).srcObject = activeVideoStream.value;
       }
       lastAttachedUserId = userId;
-      lastAttachedElement = videoEl;
+      lastAttachedElement = videoEl as any;
     } else if (videoEl) {
       // Clean up when no active video user
-      voiceStore.detachVideoFromElement(lastAttachedUserId || '', videoEl);
-      videoEl.srcObject = null;
+      voiceStore.detachVideoFromElement(lastAttachedUserId || '', videoEl as unknown as HTMLVideoElement);
+      (videoEl as HTMLVideoElement).srcObject = null;
       lastAttachedUserId = null;
       lastAttachedElement = null;
     }

@@ -163,6 +163,7 @@ import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useActivityPubStore } from '@/stores/useActivityPub'
 import { useUserData } from '@/composables/useUserData'
+import { services } from '@/services'
 import Avatar from './Avatar.vue'
 import DisplayName from '@/components/DisplayName.vue'
 import Icon from './Icon.vue'
@@ -258,7 +259,9 @@ const truncatedBio = computed(() => {
 
 const userRoles = computed(() => {
   if (!props.showRoles) return []
-  return props.user.roles || []
+  // `roles` is only present on the chat-side `User` shape; federated users
+  // don't carry server-roles. Cast through `any` so the union access is OK.
+  return (props.user as any).roles || []
 })
 
 const hasInstanceBadge = computed(() => {
@@ -439,7 +442,7 @@ const closeActionsMenu = () => {
 // Click outside directive
 const vClickOutside = {
   mounted(el: HTMLElement, binding: any) {
-    el._clickOutsideHandler = (event: Event) => {
+    el._clickOutsideHandler = (event: MouseEvent) => {
       if (!(el === event.target || el.contains(event.target as Node))) {
         binding.value()
       }
@@ -447,7 +450,9 @@ const vClickOutside = {
     document.addEventListener('click', el._clickOutsideHandler)
   },
   unmounted(el: HTMLElement) {
-    document.removeEventListener('click', el._clickOutsideHandler)
+    if (el._clickOutsideHandler) {
+      document.removeEventListener('click', el._clickOutsideHandler)
+    }
   }
 }
 </script>

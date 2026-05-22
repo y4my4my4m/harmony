@@ -334,6 +334,5 @@ export {
   canManageMessages,
   canPinMessages,
   canCreateThreads,
-  canModerateMembers,
-  type UserPermissions
+  canModerateMembers
 }

@@ -72,7 +72,7 @@ export const usePublicServersStore = defineStore('publicServers', {
     featuredServers: (state) => {
       const pinned = state.servers
         .filter(server => server.is_featured)
-        .sort((a, b) => (a.featured_order || 0) - (b.featured_order || 0))
+        .sort((a, b) => (((a as any).featured_order) || 0) - (((b as any).featured_order) || 0))
 
       if (pinned.length >= 6) return pinned.slice(0, 6)
 

@@ -165,7 +165,8 @@ const getTypeIcon = (type: NotificationType) => {
     ])
   }
   
-  return iconMap[type] || iconMap.mention
+  const map = iconMap as Record<string, () => any>
+  return map[type] || iconMap.mention
 }
 </script>
 

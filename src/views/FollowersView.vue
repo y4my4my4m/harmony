@@ -157,12 +157,14 @@ const scrollContainerRef = ref<HTMLDivElement | null>(null);
 const sentinelRef = ref<HTMLDivElement | null>(null);
 
 // Virtual scrolling
-const usersVirtualizer = useVirtualizer(computed(() => ({
-  count: users.value.length,
-  getScrollElement: () => scrollContainerRef.value,
-  estimateSize: () => 100,
-  overscan: 5,
-})));
+const usersVirtualizer = useVirtualizer<HTMLDivElement, Element>(
+  computed(() => ({
+    count: users.value.length,
+    getScrollElement: () => scrollContainerRef.value,
+    estimateSize: () => 100,
+    overscan: 5,
+  })) as any
+);
 
 const usersVirtualRows = computed(() => usersVirtualizer.value.getVirtualItems());
 const usersTotalSize = computed(() => usersVirtualizer.value.getTotalSize());
@@ -184,9 +186,9 @@ const setupScrollObserver = () => {
         loadMore();
       }
     },
-    { root: scrollContainerRef.value, rootMargin: '200px' }
+    { root: scrollContainerRef.value as unknown as Element | null, rootMargin: '200px' }
   );
-  scrollObserver.observe(sentinelRef.value);
+  scrollObserver.observe(sentinelRef.value as unknown as Element);
 };
 
 watch([hasMore, sentinelRef], () => setupScrollObserver());

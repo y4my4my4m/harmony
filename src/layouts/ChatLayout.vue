@@ -18,7 +18,7 @@
         :current-server="currentServer"
         :current-channel="currentChannel"
         :is-d-m="isDM"
-        :current-view="currentView"
+        :current-view="(currentView as any)"
         :funding-config="fundingConfig"
         @toggle-left-sidebar="$emit('toggleLeftSidebar')"
         @toggle-right-sidebar="$emit('toggleRightSidebar')"
@@ -97,7 +97,6 @@
               :server-id="serverId"
               :channel-id="channelId"
               :conversation-id="conversationId"
-              @send-message="handleSendMessage"
               @toggle-left-sidebar="$emit('toggleLeftSidebar')"
               @show-all-threads="showAllThreads = true"
             />
@@ -439,25 +438,6 @@ const handleChannelCreated = (channel?: any) => {
   currentCategoryId.value = undefined
   if (channel) {
     serverChannelStore._handleChannelInsert({ new: channel })
-  }
-}
-
-const handleSendMessage = async (content: any, replyTo?: string) => {
-  const currentUser = getCurrentUser.value
-  
-  if (props.isDM) {
-    const conversationId = props.conversationId
-    
-    if (conversationId && currentUser?.id) {
-      await dmStore.sendDMMessage(conversationId, currentUser.id, content, replyTo)
-    }
-  } else {
-    const currentServerId = serverId.value
-    const currentChannelId = channelId.value
-    
-    if (currentServerId && currentChannelId && currentUser?.id) {
-      await chatStore.sendMessage(currentServerId, currentChannelId, currentUser.id, content, replyTo)
-    }
   }
 }
 

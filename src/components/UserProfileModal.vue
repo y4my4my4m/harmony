@@ -12,7 +12,7 @@
         <div class="banner-actions">
           <button 
             v-if="!isCurrentUser" 
-            @click="showActionsMenu = !showActionsMenu"
+            @click.stop="showActionsMenu = !showActionsMenu"
             class="action-button"
             :class="{ active: showActionsMenu }"
           >
@@ -25,7 +25,11 @@
       </div>
 
       <!-- Actions Dropdown -->
-      <div v-if="showActionsMenu" class="actions-dropdown" @click.stop>
+      <div
+        v-if="showActionsMenu"
+        class="actions-dropdown"
+        v-click-outside="() => (showActionsMenu = false)"
+      >
         <div class="action-item" @click="copyUserId">
           <Icon name="copy" class="action-item-icon" />
           Copy User ID
@@ -75,7 +79,7 @@
           <div class="profile-info">
             <div class="name-section">
               <h1 class="display-name" :style="{ color: userColor }">
-                <DisplayName :userId="user.id" :fallback="displayName" :color="userColor" />
+                <DisplayName :userId="user!.id" :fallback="displayName" :color="userColor" />
                 <span v-if="getUserVerified(user)" class="verified-badge">
                   <Icon name="check-circle" class="verified-icon" />
                 </span>
@@ -336,9 +340,9 @@
                   class="server-picker-item"
                   @click="inviteToServer(server)"
                 >
-                  <img 
-                    v-if="server.icon_url"
-                    :src="server.icon_url"
+                  <img
+                    v-if="(server as any).icon_url || server.icon"
+                    :src="((server as any).icon_url || server.icon)"
                     :alt="server.name"
                     class="picker-server-icon"
                   />
@@ -1169,13 +1173,17 @@ const cleanupProfilePresence = async () => {
 // Watch for modal show/hide and user changes
 watch(() => ({ show: props.show, userId: props.user?.id }), async (newVal, oldVal) => {
   if (!newVal.show || !newVal.userId) {
-    // Modal closed or no user - cleanup
+    // Modal closed or no user - cleanup. Reset the dropdown too so the next
+    // open of the modal doesn't restore a stale "..." menu state.
+    showActionsMenu.value = false
     await cleanupProfilePresence()
     instanceInfo.value = null
     fetchedUserStats.value = null
     fetchedCreatedAt.value = null
     fetchedUserRoles.value = []
   } else if (newVal.show && newVal.userId && (newVal.userId !== oldVal?.userId || !oldVal?.show)) {
+    // Modal opened or user switched — ensure the dropdown isn't carried over.
+    showActionsMenu.value = false
     // Modal opened with user or user changed - cleanup old and setup new
     await cleanupProfilePresence()
     await initializeProfilePresence()

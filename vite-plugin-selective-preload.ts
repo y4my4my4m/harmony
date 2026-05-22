@@ -39,7 +39,6 @@ export function selectivePreload(options: SelectivePreloadOptions = {}): Plugin 
 
   return {
     name: 'selective-preload',
-    order: 'post',
     transformIndexHtml: {
       order: 'post',
       handler(html: string) {

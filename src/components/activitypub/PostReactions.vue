@@ -9,7 +9,7 @@
       <!-- Reaction groups -->
       <div
         v-for="reaction in reactions"
-        :key="reaction.emoji_id || reaction.emoji_name || reaction.custom_emoji_content"
+        :key="(reaction.emoji_id || reaction.emoji_name || reaction.custom_emoji_content) ?? undefined"
         class="reaction"
         :class="{ 
           'reacted': reaction.current_user_reacted,
@@ -161,16 +161,17 @@ const reactions = computed(() => {
     });
     
     if (existingIndex === -1) {
-      mergedReactions.push(remote);
+      mergedReactions.push(remote as any);
     } else {
-      if (remote.reaction_count > mergedReactions[existingIndex].reaction_count) {
-        mergedReactions[existingIndex].reaction_count = remote.reaction_count;
+      const target = mergedReactions[existingIndex] as any;
+      if (remote.reaction_count > target.reaction_count) {
+        target.reaction_count = remote.reaction_count;
       }
-      if (remote.emoji_url && !mergedReactions[existingIndex].emoji_url) {
-        mergedReactions[existingIndex].emoji_url = remote.emoji_url;
+      if (remote.emoji_url && !target.emoji_url) {
+        target.emoji_url = remote.emoji_url;
       }
-      if (remote.reactors && remote.reactors.length > 0 && (!mergedReactions[existingIndex].reactors || mergedReactions[existingIndex].reactors!.length === 0)) {
-        (mergedReactions[existingIndex] as any).reactors = remote.reactors;
+      if (remote.reactors && remote.reactors.length > 0 && (!target.reactors || target.reactors!.length === 0)) {
+        target.reactors = remote.reactors;
       }
     }
   }
@@ -223,14 +224,15 @@ const handleReactionClick = async (reaction: PostEmojiReaction) => {
       // Don't block the reaction if audio fails
     }
     
-    // Use the store to toggle the reaction
+    // Use the store to toggle the reaction. Some fields can be null from the
+    // remote/legacy data shape; coerce to undefined to match the store API.
     const emoji = {
-      id: reaction.emoji_id,
-      native: reaction.custom_emoji_content,
-      name: reaction.emoji_name,
-      url: reaction.emoji_url
+      id: reaction.emoji_id ?? undefined,
+      native: reaction.custom_emoji_content ?? undefined,
+      name: reaction.emoji_name ?? undefined,
+      url: reaction.emoji_url ?? undefined,
     };
-    
+
     const result = await postReactionsStore.toggleReaction(
       props.post.id,
       emoji,

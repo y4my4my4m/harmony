@@ -1115,7 +1115,7 @@ const getReceiverIds = (): string[] => {
   if (props.conversation.type === 'group') {
     // For group chats, call all participants except self
     return (props.conversation.participants || [])
-      .map(p => p.id || p.user_id)
+      .map(p => p.id || (p as any).user_id)
       .filter(id => id && id !== currentUserId)
   } else {
     // For 1-on-1, call the other user

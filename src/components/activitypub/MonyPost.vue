@@ -202,7 +202,7 @@
             rel="noopener noreferrer"
             class="post-link-preview"
           >
-            <LinkEmbedCard :payload="embed" />
+            <LinkEmbedCard :payload="(embed as any)" />
           </a>
         </div>
       </div>
@@ -486,11 +486,13 @@
     />
 
     <!-- Inline Reply Composer -->
+    <!-- For reblogs, reply to the ORIGINAL post (not the boost wrapper) so the
+         mention targets the original author and threads under the original note. -->
     <Composer 
       v-if="showInlineReply"
       mode="inline"
       type="reply"
-      :reply-to-post="post"
+      :reply-to-post="replyTarget"
       @posted="handleReplySent"
       @close="showInlineReply = false"
     />
@@ -543,8 +545,8 @@
         />
         <span class="tooltip-username">
           <DisplayName
-            v-if="user.displayNameParts"
-            :parts="user.displayNameParts"
+            v-if="(user as any).displayNameParts"
+            :parts="(user as any).displayNameParts"
             :fallback="user.displayName"
           />
           <DisplayName v-else :userId="user.id" :fallback="user.displayName" />
@@ -584,6 +586,7 @@ import DisplayName from '@/components/DisplayName.vue';
 import { userDataService } from '@/services/userDataService';
 import { unicodeToShortcode } from '@/services/unifiedEmojiService';
 import { getEmojiUrl } from '@/utils/emojiUtils';
+import { getOriginalPost } from '@/utils/postReblog';
 import { supabase } from '@/supabase';
 import type { TimelinePost } from '@/types';
 
@@ -732,8 +735,8 @@ const instanceDomain = computed(() => {
 });
 
 // Remote post detection (for fetching reactions)
-const isRemotePost = computed(() => {
-  return !props.post.is_local && props.post.ap_id;
+const isRemotePost = computed<boolean>(() => {
+  return !props.post.is_local && !!props.post.ap_id;
 });
 
 // Remote post sync (reactions/replies) via composable
@@ -895,7 +898,7 @@ const displayContent = computed(() => {
 });
 
 const displayMediaAttachments = computed(() => {
-  const source = (isReblog.value && props.post.reblog) ? props.post.reblog : props.post;
+  const source: any = (isReblog.value && props.post.reblog) ? props.post.reblog : props.post;
   const media = source?.media_attachments ?? source?.mediaAttachments;
   const raw = Array.isArray(media) ? media : [];
   // Normalize federated media (ActivityPub uses type 'Document', mediaType 'image/*') so they render in grid
@@ -914,11 +917,11 @@ const displayMediaAttachments = computed(() => {
   }).filter(Boolean);
 });
 
-const postEmbeds = computed(() => {
+const postEmbeds = computed<Array<{ url: string; title?: string; description?: string; image?: string; provider?: string }>>(() => {
   const source = (isReblog.value && props.post.reblog) ? props.post.reblog : props.post;
   const embeds = source?.metadata?.embeds;
   if (!embeds || typeof embeds !== 'object') return [];
-  return Object.values(embeds).filter((e: any) => e && e.title);
+  return Object.values(embeds).filter((e: any) => e && e.title) as Array<{ url: string; title?: string; description?: string; image?: string; provider?: string }>;
 });
 
 // Content for MonyContent: when we have media_attachments, exclude file/image parts from content
@@ -1144,6 +1147,15 @@ const originalPostId = computed(() => {
   return props.post.id;
 });
 
+// The post that "Reply" should address. For *pure* reblogs we hand the
+// original post to the Composer so the mention targets the original author
+// and the reply is threaded under the original note (Mastodon/Pleroma/Misskey
+// behavior). For quote posts and regular posts, the reply targets the post
+// itself — quote posts are first-class user posts whose replies belong on
+// them, not on the post they quote. The shared util encodes this rule so
+// every reply call site agrees.
+const replyTarget = computed<TimelinePost>(() => getOriginalPost(props.post));
+
 // For reblogs, we need to show reactions for the ORIGINAL post
 // Create a post-like object with the correct ID for PostReactions component
 const displayPostForReactions = computed((): TimelinePost => {
@@ -1231,7 +1243,7 @@ const postTextPreview = computed(() => {
       .slice(0, 200);
   }
   if (typeof content === 'string') {
-    return content.replace(/<[^>]+>/g, '').slice(0, 200);
+    return (content as string).replace(/<[^>]+>/g, '').slice(0, 200);
   }
   return '';
 });
@@ -1380,7 +1392,7 @@ const handleEmojiSelected = async (emoji: any) => {
         closeEmojiPopup();
         // Refresh the reactions display
         if (postReactionsRef.value) {
-          await postReactionsRef.value.loadReactions();
+          await (postReactionsRef.value as any).loadReactions?.();
         }
       }
     }
@@ -1789,8 +1801,8 @@ const handleQuoteReblog = () => {
   const originalPost = props.post.reblog || props.post;
   const originalAuthor = props.post.reblog_author || props.post.author;
   activityPubStore.openComposer({
-    quotePost: originalPost,
-    quoteAuthor: originalAuthor
+    quotePost: originalPost as any,
+    quoteAuthor: originalAuthor as any,
   });
 };
 
@@ -1908,7 +1920,7 @@ const handleAdminDeletePost = async () => {
 // Handle emoji picker for original post (for reblogs, target the original)
 const handleShowEmojiPickerForOriginal = () => {
   // Create a post-like object with the original post ID for the emoji picker
-  const targetPost = isReblog.value && props.post.reblog 
+  const targetPost: any = isReblog.value && props.post.reblog
     ? { ...props.post.reblog, id: originalPostId.value }
     : props.post;
   handleShowEmojiPicker(targetPost);

@@ -51,17 +51,16 @@
       <!-- Show chat when conversation is selected -->
       <UnifiedContentArea
         v-else
-        mode="chat"
+        :mode="ViewMode.CHAT"
         :chat-messages="chatMessages"
         :is-loading="isLoading"
         :is-d-m="true"
         :conversation-id="currentConversation?.id"
         :dm-username="currentDMUsername"
-        view-type="dm"
+        :view-type="ViewType.DM"
         current-view="dm"
         @load-more-messages="fetchMoreMessages"
         @update:is-at-bottom="isAtBottom = $event"
-        @send-message="handleSendMessage"
       />
     </div>
 
@@ -108,7 +107,10 @@ import { dmCallSignaling } from '@/services/DMCallSignaling'
 import { useViewContextTracking } from '@/composables/useViewContext'
 import { useNotificationStore } from '@/stores/useNotification'
 import { debug } from '@/utils/debug'
-import type { MessagePart } from '@/types'
+// `useEncryptionFallbackPrompt` is no longer needed here — `ChatComponent`
+// now owns the DM send + fallback flow so it can await the actual outcome
+// before clearing the input. This file is a notification-only forwarder.
+import { ViewMode, ViewType } from '@/types/viewTypes'
 
 // Props
 interface Props {
@@ -122,7 +124,6 @@ const props = defineProps<Props>()
 const emit = defineEmits<{
   toggleLeftSidebar: []
   toggleVoicePanel: []
-  sendMessage: [message: any]
 }>()
 
 // Stores
@@ -202,12 +203,15 @@ const stripShortcodes = (text: string): string => {
 const currentDMUsername = computed(() => {
   const conversation = currentConversation.value
   if (!conversation) return undefined
-  const otherUserId = conversation.other_participants?.[0]?.id || conversation.other_user?.id
+  // `other_participants` is provided by the conversation payload at runtime but
+  // isn't on the typed Conversation interface; cast to access it.
+  const conv = conversation as any
+  const otherUserId = conv.other_participants?.[0]?.id || conv.other_user?.id
   if (otherUserId) {
     const name = getUserDisplayName(otherUserId).value
     if (name && name !== 'Unknown User') return stripShortcodes(name)
   }
-  const rawName = conversation.other_participants?.[0]?.display_name || conversation.other_participants?.[0]?.username || conversation.other_user?.display_name || conversation.other_user?.username
+  const rawName = conv.other_participants?.[0]?.display_name || conv.other_participants?.[0]?.username || conv.other_user?.display_name || conv.other_user?.username
   return rawName ? stripShortcodes(rawName) : undefined
 })
 
@@ -218,7 +222,9 @@ const existingParticipants = computed(() => {
   if (!conversation?.other_user || !currentUser) return []
   
   // For now, return basic participant data
-  // In the future, this could be enhanced to fetch from conversation_participants table
+  // In the future, this could be enhanced to fetch from conversation_participants table.
+  // `domain: null` plus optional fields don't match DMUser exactly; cast through any.
+  const conv = conversation as any
   return [
     {
       id: currentUser.id,
@@ -230,15 +236,15 @@ const existingParticipants = computed(() => {
       handle: `@${currentUser.username}`
     },
     {
-      id: conversation.other_user.id,
-      username: conversation.other_user.username,
-      display_name: conversation.other_user.display_name,
-      avatar_url: conversation.other_user.avatar_url,
-      is_local: conversation.other_user.is_local || false,
-      domain: conversation.other_user.domain,
-      handle: conversation.other_user.handle
+      id: conv.other_user.id,
+      username: conv.other_user.username,
+      display_name: conv.other_user.display_name,
+      avatar_url: conv.other_user.avatar_url,
+      is_local: conv.other_user.is_local || false,
+      domain: conv.other_user.domain,
+      handle: conv.other_user.handle
     }
-  ]
+  ] as any
 })
 
 // Load messages when route changes
@@ -287,65 +293,6 @@ const fetchMoreMessages = async () => {
   if (conversationId && dmStore.currentDMMessages.length > 0) {
     const oldestMessage = dmStore.currentDMMessages[0]
     await dmStore.fetchConversationMessages(conversationId, oldestMessage.id)
-  }
-}
-
-const handleSendMessage = async (
-  content: MessagePart[],
-  replyTo?: string,
-  sendOptions?: { allowPlaintextFallback?: boolean }
-) => {
-  const conversationId = route.params.conversationId as string
-  const currentUser = getCurrentUser.value
-
-  if (!conversationId || !currentUser?.id) return
-
-  const trySend = async (allowPlaintextFallback: boolean) => {
-    return dmStore.sendDMMessage(conversationId, currentUser.id, content, replyTo, {
-      allowPlaintextFallback,
-    })
-  }
-
-  try {
-    const success = await trySend(sendOptions?.allowPlaintextFallback === true)
-    if (success) {
-      emit('sendMessage', { content, replyTo })
-    } else {
-      toast.error('Failed to send message')
-    }
-  } catch (error: any) {
-    const code = (error?.code || error?.message || '').toString()
-    const isFallbackEligible =
-      code.includes('ENCRYPTION_LOCKED') ||
-      code.includes('ENCRYPTION_UNAVAILABLE') ||
-      code.includes('ENCRYPTION_FAILED_NO_FALLBACK')
-
-    if (!isFallbackEligible) {
-      toast.error('Failed to send message')
-      return
-    }
-
-    const human = code.includes('LOCKED')
-      ? 'Your encryption keys are locked.'
-      : code.includes('UNAVAILABLE')
-        ? 'Encryption is not set up for this account.'
-        : 'Encryption failed.'
-
-    const accepted = typeof window !== 'undefined' && typeof window.confirm === 'function'
-      ? window.confirm(`${human}\n\nSend this DM UNENCRYPTED? The recipient will see plaintext.`)
-      : false
-    if (!accepted) {
-      toast.error(`${human} Message was not sent.`)
-      return
-    }
-
-    try {
-      const retried = await trySend(true)
-      if (retried) emit('sendMessage', { content, replyTo })
-      else toast.error('Failed to send message')
-    } catch {
-      toast.error('Failed to send message')
-    }
   }
 }
 

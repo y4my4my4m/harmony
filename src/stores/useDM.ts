@@ -127,6 +127,21 @@ export const useDMStore = defineStore('dm', () => {
     })
   })
 
+  /**
+   * Total unread DM count across every conversation. Drives the unread
+   * badge on the DM tab in the main navigation. Previously the badge code
+   * read `(dmStore as any).getTotalUnreadCount`, but no such getter
+   * existed — the cast hid `undefined > 0 === false`, so the badge never
+   * appeared even when the user had unread DMs.
+   */
+  const getTotalUnreadCount = computed(() => {
+    let total = 0
+    for (const c of conversations.value) {
+      total += c.unread_count || 0
+    }
+    return total
+  })
+
   // Check if user is online using modern user data system
   const isUserOnline = async (userId: string): Promise<boolean> => {
     try {
@@ -253,7 +268,9 @@ export const useDMStore = defineStore('dm', () => {
     })
 
     try {
-      ensureMessageEmbeds(updatedMessage, { force: true })
+      // `ensureMessageEmbeds` takes a single argument now; the legacy
+      // `{ force: true }` flag is no longer honoured.
+      ensureMessageEmbeds(updatedMessage)
     } catch (error) {
       debug.warn('Failed to refresh DM embeds for updated message:', error)
     }
@@ -656,17 +673,17 @@ export const useDMStore = defineStore('dm', () => {
             user_id: lastMessage.user_id,
             conversation_id: lastMessage.conversation_id
           } : undefined,
-          // OPTIMIZED: No user profile data loaded - just placeholders
-          // Real user data will be loaded lazily when conversation is viewed/hovered
-          other_user: primaryOtherUserId ? {
+          // OPTIMIZED: No user profile data loaded - just placeholders.
+          // Real user data will be loaded lazily when conversation is viewed/hovered.
+          // Cast to `any` because `_isPlaceholder` is a runtime hint not on `DMUser`.
+          other_user: (primaryOtherUserId ? {
             id: primaryOtherUserId,
             username: '', // Will be loaded on demand
             display_name: '', // Will be loaded on demand
             avatar_url: null, // Will be loaded on demand
             is_online: false, // Will be loaded on demand
-            // Store that this is placeholder data
-            _isPlaceholder: true
-          } : undefined
+            _isPlaceholder: true,
+          } : undefined) as any
         }
 
         return dmConversation
@@ -1452,9 +1469,11 @@ export const useDMStore = defineStore('dm', () => {
       const orderedMessages = messagesData
       const allLoaded = !hasMore
 
-      // Ensure all messages have conversation_id set and include encryption fields
+      // Ensure all messages have conversation_id set and include encryption fields.
       // Note: Messages from CoreMessageService are already decrypted, preserve the decrypted flag!
-      let formattedMessages: Message[] = orderedMessages.map(msg => ({
+      // `user_id` is `string | undefined` on the source rows; cast the mapped
+      // array to `Message[]` to bridge the optional/required mismatch.
+      let formattedMessages: Message[] = (orderedMessages.map(msg => ({
         id: msg.id,
         user_id: msg.user_id,
         content: msg.content,
@@ -1468,7 +1487,7 @@ export const useDMStore = defineStore('dm', () => {
         encrypted: msg.encrypted || false,
         decrypted: msg.decrypted || false,  // Preserve decrypted flag from CoreMessageService!
         encryption_metadata: msg.encryption_metadata
-      }))
+      })) as unknown as Message[])
 
       try {
         ensureMessageEmbeds(formattedMessages)
@@ -1547,7 +1566,9 @@ export const useDMStore = defineStore('dm', () => {
       // Use activityPubService for federated user search (includes local users)
       const users = await services.activityPub.searchUsers(query, 10)
       
-      debug.log('🔍 Raw search results from service:', users.map(u => ({ id: u.id, user_id: u.user_id, username: u.username })))
+      // `user_id` is not on the `FederatedUser` type; service responses may
+      // include it through the legacy shape. Cast to bypass the strict typing.
+      debug.log('🔍 Raw search results from service:', users.map((u: any) => ({ id: u.id, user_id: u.user_id, username: u.username })))
       
       // Normalize and filter users with consistent ID structure
       const filteredUsers = users
@@ -1702,7 +1723,11 @@ export const useDMStore = defineStore('dm', () => {
       debug.error('❌ Failed to send DM message via service:', error)
 
       // Encryption policy errors require user consent before retrying — never
-      // auto-retry, never silently fall back to plaintext.
+      // auto-retry, never silently fall back to plaintext. Remove the
+      // optimistic so the timeline doesn't show a phantom "failed" message
+      // after the user cancels the fallback prompt; if they accept, the UI
+      // re-calls with `allowPlaintextFallback: true` which creates a fresh
+      // optimistic.
       const code = (error?.code || error?.message || '').toString()
       const isEncryptionPolicyError =
         code.includes('ENCRYPTION_REQUIRED') ||
@@ -1710,7 +1735,7 @@ export const useDMStore = defineStore('dm', () => {
         code.includes('ENCRYPTION_UNAVAILABLE') ||
         code.includes('ENCRYPTION_FAILED_NO_FALLBACK')
       if (isEncryptionPolicyError) {
-        _markDMMessageFailed(tempId)
+        removeMessageFromCache(tempId)
         throw error
       }
 
@@ -1954,8 +1979,8 @@ export const useDMStore = defineStore('dm', () => {
       const userUpdatedHandler = (event: any) => {
         const { userId: updatedUserId } = event.detail
         
-        const updatedConversations = conversations.value.filter(conv => 
-          conv.other_user?.id === updatedUserId && !conv.other_user._isPlaceholder
+        const updatedConversations = conversations.value.filter(conv =>
+          conv.other_user?.id === updatedUserId && !(conv.other_user as any)?._isPlaceholder
         )
         
         if (updatedConversations.length > 0) {
@@ -2391,7 +2416,9 @@ export const useDMStore = defineStore('dm', () => {
     content.forEach(part => {
       if (part.type === 'mention' && part.username) {
         const domain = part.domain || instanceDomain
-        const url = part.url || `https://${domain}/users/${part.username}`  // ✅ FIX: Use /users/ format
+        // `url` is not on the narrowed `MentionContent` type; some legacy paths
+        // attach it at runtime, so read via `any`.
+        const url = (part as any).url || `https://${domain}/users/${part.username}`
         const name = domain === instanceDomain ? `@${part.username}` : `@${part.username}@${domain}`
         
         if (!processedUrls.has(url)) {
@@ -2547,11 +2574,11 @@ export const useDMStore = defineStore('dm', () => {
         debug.log('💡 You may need to re-run the migration data population step')
       }
       
-      return { 
-        migrationApplied: true, 
-        participantCount, 
+      return {
+        migrationApplied: true,
+        participantCount,
         conversationCount,
-        dataMigrated: participantCount > 0
+        dataMigrated: (participantCount ?? 0) > 0
       }
       
     } catch (error) {
@@ -2977,6 +3004,7 @@ export const useDMStore = defineStore('dm', () => {
     // Computed
     getCurrentConversation,
     getSortedConversations,
+    getTotalUnreadCount,
     
     // Methods
     isUserOnline,

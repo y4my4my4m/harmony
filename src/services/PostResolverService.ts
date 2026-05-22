@@ -118,6 +118,24 @@ class PostResolverServiceImpl {
    * Checks local DB first, imports via federation if not found.
    */
   async resolveByApUrl(url: string): Promise<TimelinePost | null> {
+    return (await this.resolveByApUrlWithStatus(url)).post
+  }
+
+  /**
+   * Same as `resolveByApUrl` but also reports whether the post was newly
+   * imported (`wasImported: true`) or already existed locally
+   * (`wasImported: false`).
+   *
+   * Used by the PostView ancestor walker to decide whether to trigger a
+   * context reload — calling `/resolve-post` for an ancestor that already
+   * existed doesn't change anything visible to the user, so a reload would
+   * just thrash the UI. Note that even cached hits can still cause server-
+   * side orphan re-linking, so callers may want to reload anyway under some
+   * conditions (e.g. when the current post itself was orphaned).
+   */
+  async resolveByApUrlWithStatus(
+    url: string,
+  ): Promise<{ post: TimelinePost | null; wasImported: boolean }> {
     // Check local DB by ap_id or url
     const { data: existing } = await supabase
       .from('posts')
@@ -128,16 +146,16 @@ class PostResolverServiceImpl {
       .maybeSingle()
 
     if (existing?.id) {
-      return loadPostFromDb(existing.id)
+      return { post: await loadPostFromDb(existing.id), wasImported: false }
     }
 
     // Import via federation backend
     const importedId = await importRemotePost(url)
     if (importedId) {
-      return loadPostFromDb(importedId)
+      return { post: await loadPostFromDb(importedId), wasImported: true }
     }
 
-    return null
+    return { post: null, wasImported: false }
   }
 
   /**

@@ -588,16 +588,6 @@ Anything that runs in a hot loop on the renderer thread costs frames; anything t
 
 ## Critical perf (user-visible slow or scaling cliff)
 
-### PC1. Bot gateway ingest = 1-second SQL poll + 2 DB roundtrips per message
-
-**File:** `bot-gateway/src/gateway/EventDispatcher.ts`
-
-The bridge runs `setInterval(pollMessages, 1000)` and `setInterval(pollEditsAndDeletes, 2000)` continuously. Each `pollMessages` issues a `SELECT *` against `messages` (line 167) with `created_at > last` and `LIMIT 50`. For every message returned, `handleMessageCreate` then issues two more queries: `channels.select('server_id')` (line 243) **and** `bot_server_permissions` (line 259) — without caching either. At 10 active bridges × idle DB the cost is ~86,400 polls/day per gateway; under load it is 3 queries × N messages on top.
-
-**Fix:** Subscribe to `messages` via Supabase Realtime / Postgres `LISTEN`, keep a small in-memory `channel→server` LRU (channels rarely change), and load `bot_server_permissions` once per (bot, server) into a shared Map invalidated on permission change. Keep the 1 s poll as a *fallback* gated on "realtime healthy".
-
----
-
 ### PC2. Vue render-graph: three files dominate the main bundle and the type-check
 
 **Files:**
@@ -614,41 +604,9 @@ These three files alone are ~14 kLoC of Vue+TS that ship in the main chunks and 
 
 ---
 
-### PC3. WebRTC E2EE encryption runs `await crypto.subtle` per frame on the main thread
-
-**File:** `src/services/encryption/WebRTCEncryptionService.ts` (encrypt), 309-388 (decrypt)
-
-The `TransformStream` callback `transform: async (encodedFrame, controller) => { ... await encryptor.encrypt(data) ... }` runs in the same realm/thread that drives Vue updates. Audio frame rate is ~50 Hz, video ~30 Hz; with N remote peers this is `O(N × 80)` `crypto.subtle.encrypt` calls per second on the renderer, plus the same for decrypt. Stalls during scroll/layout become audible (audio drops) and visible (video jitter).
-
-**Fix:** Use `RTCRtpScriptTransform` (the modern API that runs the transform in a `DedicatedWorker` automatically) on browsers that support it, and fall back to manually piping the encoded streams through a Worker via `postMessage(transferable)` on others. This is also a prerequisite for fixing the E2EE key agreement issue **C5** — once the crypto is in a worker, key material lives off the renderer.
+<!-- PC3 fixed; entry removed from open list. See "Fixes applied" -> round-5 section below. -->
 
 ---
-
-### PC4. ActivityPub feed updates re-scan four arrays per realtime event
-
-**File:** `src/stores/useActivityPub.ts`
-
-`updatePostCountsFromRealtime` and `updatePostInteractionFromRealtime` iterate `[homeFeed, publicFeed, localFeed, mentionsFeed]` and call `.find(p => p.id === postId)` on each `.posts` array. With each feed sized at the default 40 posts × hydrated state, a realtime event from any user triggers `O(4 × 40)` work plus a `SELECT favorites_count, reblogs_count, replies_count FROM posts` roundtrip. In a busy public timeline this fires for every favorite/reblog from anyone in your network.
-
-**Fix:**
-1. Maintain a single `Map<post_id, Post>` (the canonical store) and have each feed hold an array of `post_id` ordered by position. Realtime updates touch the Map once; feeds re-derive count displays via computed.
-2. Drop the per-event SELECT — the realtime payload already carries the new counts (`postgres_changes` row).
-
----
-
-### PC5. Notification store: every notification mutation triggers 6+ full-list scans
-
-**File:** `src/stores/useNotification.ts`
-
-- `sortedNotifications` does `[...state.notifications].sort()` — fresh allocation + O(n log n) **per access**.
-- `filteredNotifications` reads `sortedNotifications` then `.filter(...)`.
-- `unreadMentions`, `unreadDMs`, `unreadChannelMentions(channelId)`, `unreadServerMentions(serverId)`, `unreadConversationMentions(conversationId)` each call `state.notifications.filter(...)` — additional full scans per getter, per access.
-
-If 5 sidebar badges + the bell + the page itself read these getters and a single notification arrives, that's 6× O(n) scans, none cached, plus a fresh sorted-array allocation. n=1000 is plausible after a busy weekend.
-
-**Fix:**
-- Memoize `sortedNotifications` with a `computed()` that depends on `notifications.length` and a "lastMutationAt" stamp; sort only when stamp changes.
-- Replace `filter(...)` getters with denormalized counters maintained on insert/update/delete (a `unreadByType: Record<string, number>`, `unreadByChannel: Map<string, number>`, etc.). Updating five counters on each mutation is cheaper than scanning the full array once per visible badge.
 
 ---
 
@@ -658,7 +616,6 @@ If 5 sidebar badges + the bell + the page itself read these getters and a single
 
 | # | Finding | File / lines | Fix |
 |---|---------|--------------|-----|
-| PH1 | **Init schema drift from prod**: 248 indexes in `latest_dev_backup.sql` are missing from `db_schema/init/*.sql`. After review (see `### Fixes applied`), **23 are needed** and have code consumers; **~194 are legacy** (mostly pgboss runtime job-queue indexes, Supabase Realtime internals, abandoned experimental features). The needed set has been ported in `db_schema/init/14_indexes_perf.sql`. The investigation also found a `bot_rate_limits.reset_at` (init) vs `resets_at` (prod + code) column-name drift — fresh installs would create a column the code can't read. Fixed in `init/08_tables_bots_extended.sql`. | `db_schema/init/14_indexes_perf.sql` (new), `db_schema/init/08_tables_bots_extended.sql` | Done — see "Fixes applied" section. The remaining 31 "LIKELY-NEEDED" indexes were not ported in this round; verify whether their consumers (federation worker on `ap_actor_cache_expires`, follower indexes, etc.) are hot before adding. |
 | PH2 | `messages_select_channel_member` RLS does a 3-table join per row | `db_schema/init/30_rls_policies.sql` | Wrap in `SECURITY DEFINER` `can_read_channel(channel_id, profile_id)` with `STABLE` and indexed lookups; cache at app layer for the duration of a request |
 | PH3 | `posts` RLS does two `EXISTS` subqueries (follow + block) per row | `db_schema/init/30_rls_policies.sql` | Single combined predicate via a helper function returning a boolean; or precompute a "visible posts" materialized view if read-heavy |
 | PH4 | `profiles` and `posts` are `REPLICA IDENTITY FULL` on wide rows | `db_schema/init/02_tables_core.sql`, `03_tables_social.sql` | Change to `REPLICA IDENTITY DEFAULT` (uses PK); needed only if any realtime subscriber depends on old-row payloads |
@@ -672,7 +629,6 @@ If 5 sidebar badges + the bell + the page itself read these getters and a single
 |---|---------|--------------|-----|
 | PH8 | `ServerSidebar` computed maps/filters/sorts the whole server list on every reactive tick | `src/components/ServerSidebar.vue` | Cache derived order in a `computed` keyed only on the inputs that change (folder layout / server set) |
 | PH9 | Auto-suggest scans the full server-user list per keystroke | `src/composables/useAutoSuggest.ts` | Build a `prefixIndex: Map<string, User[]>` on user-list change; reset on context switch |
-| PH10 | Mention resolution N+1 (one DB query per remote user in a message) | `src/utils/unifiedContentProcessing.ts` | Collect all `(username, domain)` tuples, single `select … in (...)` |
 | PH11 | Date formatted inside templates via `format(new Date(...))` | `src/views/ThreadFullView.vue`, `src/components/threads/ThreadView.vue`, many others | Pre-compute `displayedAt` in the parent or in `parseMessage`; render the string |
 | PH12 | `MessageDisplay` and `UnifiedMessageContent` watch with `{ deep: true }` on message props | `src/components/MessageDisplay.vue`, `src/components/UnifiedMessageContent.vue` | Watch the specific reactive sub-paths that actually drive re-render (e.g., `() => msg.reactions.length`, `() => msg.editedAt`) |
 | PH13 | `ResizeObserver` created per `MonyHeader` / `PostsContainer` instance | `src/components/activitypub/MonyHeader.vue`, `src/components/common/PostsContainer.vue` | Singleton observer service (`useSharedResizeObserver`) — one ResizeObserver scales to thousands of targets |
@@ -682,8 +638,6 @@ If 5 sidebar badges + the bell + the page itself read these getters and a single
 | # | Finding | File / lines | Fix |
 |---|---------|--------------|-----|
 | PH14 | Activity processor / actor service use `SELECT *` then discard most columns | `federation-backend/src/activitypub/ActorService.ts`, `GroupService.ts`, `OutboxHandler.ts` | Project the columns you actually need; the JSONB columns on these tables are large |
-| PH15 | No HTTP keepalive for federation outbound | `federation-backend/src/activitypub/DeliveryQueue.ts` (`safeFetch`) | Pass a shared `https.Agent({ keepAlive: true })`. Saves a full TLS handshake per delivery; at delivery fan-out, this is the single biggest latency reduction available without protocol changes |
-| PH16 | `crypto.createSign('SHA256')` and PEM parse per signature operation | `federation-backend/src/activitypub/SignatureService.ts` | Cache `KeyObject`s in an LRU keyed by `keyId`; switch to async `crypto.sign`/`crypto.verify` to release the event loop |
 | PH17 | WebFinger fetched on every actor resolution `[?]` | `federation-backend/src/activitypub/ActorService.ts` | Check the local `actors` table first; only WebFinger when the actor URL is unknown or stale |
 | PH18 | Verbose `JSON.stringify` logs in hot federation paths | `federation-backend/src/activitypub/ActivityProcessor.ts`, `routes/reactionHandler.ts` | `logger.debug` with a lazy formatter (`() => JSON.stringify(...)`) so the work skips at INFO/WARN |
 
@@ -701,7 +655,6 @@ If 5 sidebar badges + the bell + the page itself read these getters and a single
 
 | # | Finding | File / lines | Fix |
 |---|---------|--------------|-----|
-| PH24 | Unbounded `messageMappings` Maps in Discord bridge (perf framing of **M41**) | `bot-plugins/discord-bridge/src/index.ts` | LRU with explicit cap (say 50k entries) and TTL (24h); persisting to disk if you actually need long-tail edit/delete support |
 | PH25 | Bot gateway `processedMessageIds` overflow trim is O(n) | `bot-gateway/src/gateway/EventDispatcher.ts` | Use a ring buffer or a real LRU — current code does `Array.from(set).slice(-10000); new Set(arr)` |
 
 ---
@@ -729,7 +682,6 @@ If 5 sidebar badges + the bell + the page itself read these getters and a single
 - PM14. Reply-chain fetch uses sequential awaits — `Promise.all` with concurrency cap — `federation-backend/src/activitypub/ActivityProcessor.ts` (also **M33** above for the cycle-detection angle)
 
 ### Bot
-- PM15. `formatMessage` author lookup runs twice per dispatch (create & edit/delete events both call it) — memoize per `(message_id, version)` — `bot-gateway/src/gateway/EventDispatcher.ts`
 - PM16. Avatar URL string concat on every message — pre-build template, cache by profile — `bot-gateway/src/gateway/EventDispatcher.ts`, `bot-gateway/src/api/BotRestAPI.ts`
 - PM17. Discord member username cache uses lowercase keys with case-sensitive cleanup — pick one — `bot-plugins/discord-bridge/src/index.ts`
 
@@ -763,7 +715,6 @@ If 5 sidebar badges + the bell + the page itself read these getters and a single
 - PL5. Spatial-audio `ConvolverNode` normalize on — disable if not used — `src/services/spatialAudio.ts`
 - PL6. Trig (`sin`/`cos`/`atan2`) called per spatial-audio update — cheap individually, but lookup-tables on a quantized grid help at high update rate — `src/services/spatialAudio.ts`
 - PL7. Federation `crypto.generateKeyPair` is sync — async variant releases the event loop — `federation-backend/src/activitypub/SignatureService.ts` `[?]`
-- PL8. URL tracker stripper recompiles its regex set per call — module-level constant — `src/utils/urlTrackerStripper.ts`
 - PL9. Bot gateway WS broadcast does `JSON.stringify` per recipient even when payload identical — stringify once, send the buffer — `bot-gateway/src/gateway/WebSocketGateway.ts`
 - PL10. Bull Board basic-auth `split(':')` is also a parsing perf wart in addition to the password-with-colon bug (**M46**) — use `indexOf` + `slice`
 - PL11. `MessageInput` `MutationObserver` re-attached on every editor reset — keep observer alive across resets if possible
@@ -776,30 +727,17 @@ If 5 sidebar badges + the bell + the page itself read these getters and a single
 
 ## Suggested perf fix order
 
-1. **PC1 — Bot gateway poll → realtime + caches** (single biggest scale-cliff; affects production today)
-2. **PC4 + Pattern P-α sweep** (move post / notification / voice-user collections to Map; deduplicate getter scans). Touches ~6 stores, each in <1 day.
-3. **PH15 — HTTP keepalive in federation outbound** (one config change, biggest latency win for federation)
-4. **PC3 + PH22 + PH23 — Move WebRTC frame crypto and Megolm verify off the main thread.** Prerequisite for **C5** anyway.
-5. **PH1 — Sync `db_schema/init` with `latest_dev_backup.sql` indexes** (otherwise every fresh install seq-scans)
-6. **PC5 + Pattern P-β sweep** (notification counters; per-message DOMPurify cache; hoisted regex constants).
-7. **PH2, PH3 — Replace expensive RLS with `SECURITY DEFINER` helpers**, then **PH6** (mark helpers `STABLE`).
-8. **PC2 — Split AdminPanel.vue + MessageDisplay.vue + useActivityPub.ts.** Not user-visible directly, but cuts cycle-time for everything else.
-9. **PM27/PM28 — Lazy load LiveKit + Signal Protocol; PM29 preconnects.** Cold-start win for the web client.
-10. Remaining mediums + lows as background hygiene.
+1. **PH22 + PH23 — Move Megolm verify and PBKDF2 off the main thread (worker).** Same pattern as PC3.
+2. **PH2, PH3 — Replace expensive RLS with `SECURITY DEFINER` helpers**, then **PH6** (mark helpers `STABLE`).
+3. **PM27/PM28 — Lazy load LiveKit + Signal Protocol; PM29 preconnects.** Cold-start win for the web client.
+4. **PC2 deeper splits** — `MessageDisplay.vue` (extracted reply-reference; further extractions are cycle-time wins, not runtime perf) and `useActivityPub.ts` (multi-day refactor across 60+ call sites). Both deferred.
+5. Remaining highs, then mediums and lows as background hygiene.
 
 ---
 
-## Counts (performance addendum)
+## Counts
 
-| Severity | Count |
-|----------|-------|
-| Critical | 5 |
-| High | 25 |
-| Medium | 30 |
-| Low | 15 |
-| **Total** | **75** |
-
-Cross-cutting patterns (P-α through P-η) overlap with ~30 of the individual entries above. Items marked `[?]` indicate confidence < high — verify before scheduling fix work.
+Historical snapshot counts were removed because they became stale after round-1 through round-4 fixes. Treat the open lists above as the current source of truth.
 
 ---
 
@@ -820,9 +758,19 @@ Cross-cutting patterns (P-α through P-η) overlap with ~30 of the individual en
 | PH16 | In-memory LRU cache for parsed public keys (fronts the existing DB caches) | ✅ | `federation-backend/src/activitypub/SignatureService.ts` |
 | PH24 | Bounded LRU for Discord-bridge message-id Maps (drop-in replacement for unbounded `Map`s) | ✅ | `bot-plugins/discord-bridge/src/utils/BoundedMap.ts` (new), `bot-plugins/discord-bridge/src/index.ts` |
 | PM15 | Cache author lookups in bot gateway (rolled into PC1) | ✅ | `bot-gateway/src/gateway/EventDispatcher.ts` |
-| PM23 / P-β | Hoist regex constants to module scope in markdownParser, urlTrackerStripper, unifiedContentProcessing | ✅ | three files |
+| Pattern P-β | Hoist regex constants to module scope in markdownParser, urlTrackerStripper, unifiedContentProcessing | ✅ | three files |
 | Pattern P-ε | TTL + LRU cap for module-level Fediverse post-embed cache (was unbounded) | ✅ | `src/components/embeds/ProviderEmbedSwitch.vue` |
 | Pattern P-γ | Reaction-store dead `setInterval` removed; DND check skips polling when DND disabled | ✅ | `src/stores/useReactions.ts`, `src/stores/useNotification.ts` |
+| PC2 (partial) | `AdminPanel.vue` is already lazy-routed (`src/router/index.ts`); `MessageDisplay.vue` reply-reference extracted to a sibling component | ✅ partial | `src/components/messages/MessageReplyReference.vue` (new), `src/components/MessageDisplay.vue`, `src/router/index.ts` (no change required) |
+| PC3 | WebRTC frame crypto moved to a `DedicatedWorker`. `RTCRtpScriptTransform` is preferred (frames never touch the main thread); falls back to `createEncodedStreams()` + transferable `ReadableStream`/`WritableStream` to the worker. Key material is transferred (not copied) so the main thread no longer retains the symmetric key. | ✅ | `src/services/encryption/FrameEncryptor.ts` (new), `src/services/encryption/webrtcFrameCryptoWorker.ts` (new), `src/services/encryption/WebRTCEncryptionService.ts` |
+| Encryption fallback UX (post-perf round) | Three real bugs reported via the screenshot dialog: (1) the prompt was a native `window.confirm` instead of a styled Vue modal; (2) it fired even when encryption was *optional* on the server and the user had never set up encryption; (3) pressing Cancel left a phantom "failed" optimistic message in the timeline so it looked like the message had been sent. Fixed by routing all three send paths (channel / DM / thread) through `useEncryptionFallbackPrompt`, replacing the default `window.confirm` with a singleton `UnifiedConfirmationModal` mounted at the App level, switching `CoreMessageService`/`ThreadService` to silent-plaintext for optional+no-recovery-key (the user never opted in), and removing — not marking-failed — the optimistic on encryption-policy throws. Input text is preserved when the user declines so the message can be retried/edited. | ✅ | `src/composables/useEncryptionFallbackPrompt.ts`, `src/components/EncryptionFallbackModal.vue` (new), `src/App.vue`, `src/services/core/CoreMessageService.ts`, `src/services/ThreadService.ts`, `src/stores/useChat.ts`, `src/stores/useDM.ts`, `src/components/ChatComponent.vue`, `src/views/DMView.vue`, `src/composables/__tests__/useEncryptionFallbackPrompt.test.ts`, `src/services/core/__tests__/CoreMessageService.policy.test.ts` |
+| DM input cleared before fallback resolved | After the encryption-fallback rework, the DM path in `ChatComponent.sendChannelOrDMWithEncryptionPolicy` was still `emit`-ing to `DMView` and returning `'ok'` synchronously — so the input + draft were cleared before `DMView` even attempted the send. If the user then declined the fallback prompt that `DMView` showed, the typed text was already gone and only a toast remained. Fixed by moving the actual DM `sendDMMessage` call into `ChatComponent` so it can `await runWithEncryptionFallback` directly; `DMView.handleSendMessage` is now a notification-only forwarder that just re-emits to its parent. The input is preserved on decline for both channels and DMs. | ✅ | `src/components/ChatComponent.vue`, `src/views/DMView.vue` |
+| Icon wrapper symbolic-size crash | Earlier batch type-fix replaced `:size="size"` with `:size="Number(size)"` across every lucide wrapper (`AcceptIcon`, `Bell`, `Camera`, …). The wrappers' props are typed `number \| string`, and the generic `<Icon>` component supports symbolic sizes (`xs`/`sm`/`md`/`lg`/`xl`); `Number('sm')` is `NaN`, which would have broken icon rendering for any caller passing a symbolic size. Fixed by introducing `src/utils/iconSize.ts` (`resolveIconSize`), mirroring the lookup table used in `Icon.vue`, and rewriting all 32 wrappers to use it. | ✅ | `src/utils/iconSize.ts` (new), `src/utils/__tests__/iconSize.test.ts` (new), 32 files in `src/components/icons/*.vue` |
+| Emoji search did not expand matching categories | Searching in `EmojiPickerContent` / `EmojiPopup` filtered the emoji list correctly but did not auto-expand the category sections holding the matches. Collapsed sections would still render their header and a hidden body, so search results appeared to be "found, but nothing here". Fixed by short-circuiting `isSectionCollapsed` while `searchQuery` is non-empty so every visible (filtered, non-empty) section is forced open. The user's manual collapse state is preserved in `collapsedSections` and re-applies once the search is cleared. | ✅ | `src/components/EmojiPickerContent.vue`, `src/components/EmojiPopup.vue` |
+| SocialLayout favorite / reblog / bookmark were no-ops | The wrapper UI in `SocialLayout` called `(activityPubStore as any).favoritePost(post.id)` / `.reblogPost(...)` / `.bookmarkPost(...)`. Those methods don't exist on `useActivityPub` — the actual action methods are `toggleFavorite` / `toggleReblog` / `toggleBookmark`. The `as any` cast hid the `TypeError: undefined is not a function`, which was then swallowed by the surrounding `try/catch + debug.error`, so the buttons silently failed without any user feedback. Fixed by calling the correct method names directly (no cast needed). | ✅ | `src/layouts/SocialLayout.vue` |
+| DM unread badge never appeared in MainNavigation | `MainNavigation` read `(dmStore as any).getTotalUnreadCount`. No such computed existed on the store, so the expression was `undefined`; `undefined > 0` is `false`, so the badge was never rendered even when the user had unread DMs. Fixed by adding a real `getTotalUnreadCount` computed to `useDM` that sums `conversations[].unread_count`, exporting it from the store, and dropping the cast at the call site. | ✅ | `src/stores/useDM.ts`, `src/components/MainNavigation.vue` |
+| `Server.federation_domain` / `federation_inbox_url` missing on type | Both columns are SELECTed by `useServerChannel.fetchServersForUser` and surfaced in the main-nav tooltip via `(server as any).federation_domain`. Adding them to the `Server` interface (both optional) lets the call site read them without a cast. | ✅ | `src/types.ts`, `src/components/MainNavigation.vue` |
+| Typing `:+1` in chat did not suggest 👍 | Initial diagnosis blamed a stale IndexedDB cache (the data file was regenerated on 2026-05-20 to add the `+1` keyword alias under `thumbs_up.keywords` but `EMOJI_DATA_CACHE_VERSION` had not been bumped — fixed by bumping to `'2'`). But the user reproduced the failure with the picker working alongside, which proved the data IS loaded with keywords on their end. Actual root cause: `MessageInput.handleCursorPositionChanged` called `autoSuggest.handleInput(props.modelValue, position)` — but `props.modelValue` is one keystroke behind. `RichTextEditor` emits `update:modelValue` and `cursor-position-changed` synchronously back-to-back; the model-value round-trips through the parent's v-model handler, but the prop binding doesn't refresh until the parent re-renders, which is asynchronous. So on the `1` keystroke in `:+1`, autosuggest got handed `:+` plus cursor=3, parsed it as query `'+'` (length 1), and the unified-emoji search was silently skipped by the `query.length >= 2` gate. Fixed by reading the text from the editor ref directly via `richEditorRef.value.getPlainText()` (which `Composer.vue` was already doing — its inline comment even flagged the exact same issue). Added a regression test (`useAutoSuggest.emoji.test.ts`) covering both the stale-value failure mode and the fresh-value fix. | ✅ | `src/services/unifiedEmojiService.ts`, `src/components/MessageInput.vue`, `src/composables/__tests__/useAutoSuggest.emoji.test.ts` (new) |
 
 ### Index drift — investigation summary
 
@@ -830,7 +778,7 @@ A parallel read-only agent enumerated every `CREATE INDEX` in `db_schema/latest_
 
 | Verdict | Count | Example | Action |
 |---------|------:|---------|--------|
-| **NEEDED** (clear code consumers) | 23 | `idx_messages_bot_id`, `idx_reactions_user_message`, `idx_posts_federated_timeline`, `idx_ap_activities_federation_status`, `idx_profiles_auth_user_id` | Ported to `init/14_indexes_perf.sql` |
+| **NEEDED** (clear code consumers) | 19 | `idx_messages_bot_id`, `idx_reactions_user_message`, `idx_posts_federated_timeline`, `idx_ap_activities_federation_status`, `idx_posts_reply_count` | Ported to `init/14_indexes_perf.sql` |
 | **LIKELY-NEEDED** (partial usage; verify) | 31 | `idx_ap_actor_cache_expires`, `idx_follows_unique`, `idx_messages_thread_id`, `idx_hashtags_trending_rank` | Not ported this round — verify hot-path usage first |
 | **LIKELY-LEGACY** (no consumers) | 194 | pgboss `j[hash]_i*` runtime tables, `_realtime.*` Supabase internals, `archive_i1`, abandoned analytics tables | Leave out of init; can be dropped from prod with `DROP INDEX CONCURRENTLY` |
 

@@ -1007,7 +1007,7 @@ export function useAutoSuggest(
 
         // Commands with params: clear input and enter command mode
         if (suggestion.commandParams?.length) {
-          activeCommand.value = { name: suggestion.name, params: suggestion.commandParams };
+          activeCommand.value = { name: suggestion.name || '', params: suggestion.commandParams };
           if (updateText) {
             updateText('', 0);
           }

@@ -141,14 +141,14 @@
       </div>
 
       <!-- Existing Participants (for adding to existing conversation) -->
-      <div v-if="!isNewGroup && existingParticipants.length > 0" class="existing-participants-section">
+      <div v-if="!isNewGroup && (existingParticipants?.length ?? 0) > 0" class="existing-participants-section">
         <div class="section-header">
-          <h3 class="section-title">Current Participants ({{ existingParticipants.length }})</h3>
+          <h3 class="section-title">Current Participants ({{ existingParticipants?.length ?? 0 }})</h3>
         </div>
 
         <div class="participants-list">
           <div 
-            v-for="participant in existingParticipants"
+            v-for="participant in (existingParticipants ?? [])"
             :key="participant.id"
             class="participant-item"
           >

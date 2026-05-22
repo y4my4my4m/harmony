@@ -21,7 +21,7 @@ export default defineComponent({
     }
   },
   emits: ['toggle-reaction', 'show-reaction-tooltip', 'hide-reaction-tooltip'],
-  setup(props: Props, { emit }: { emit: (event: string, ...args: any[]) => void }) {
+  setup(props: Props, { emit }: { emit: any }) {
     const reactionsStore = useReactionsStore();
     const authStore = useAuthStore();
 
@@ -57,7 +57,7 @@ export default defineComponent({
       
       // Log result but don't show error for duplicate requests (they're expected)
       if (!result.success && result.reason !== 'duplicate_request') {
-        debug.error('🎯 Failed to toggle reaction:', result.message || result.reason);
+        debug.error('🎯 Failed to toggle reaction:', (result as any).message || result.reason);
       }
     };
 

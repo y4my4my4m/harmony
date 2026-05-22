@@ -527,7 +527,7 @@ export class NotificationFormatter {
    */
   static getServerName(notification: Notification): string | null {
     const data = notification.data
-    return data.location?.server_name || data.server_name || null
+    return (data.location as any)?.server_name || data.server_name || null
   }
   
   /**
@@ -536,7 +536,7 @@ export class NotificationFormatter {
    */
   static getChannelName(notification: Notification): string | null {
     const data = notification.data
-    return data.location?.channel_name || data.channel_name || null
+    return (data.location as any)?.channel_name || data.channel_name || null
   }
   
   /**

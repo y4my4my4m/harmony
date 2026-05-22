@@ -71,8 +71,9 @@ export function useUserData() {
   /**
    * Get user avatar URL
    */
-  const getUserAvatarUrl = (userId: string) => computed(() => {
+  const getUserAvatarUrl = (userId: string | null | undefined) => computed(() => {
     forceUpdate.value // Force reactivity
+    if (!userId) return '/default_avatar.webp'
     const user = userDataService.getUser(userId)
     return user?.avatarUrl || '/default_avatar.webp'
   })
@@ -103,8 +104,9 @@ export function useUserData() {
   /**
    * Get user display name (plain text, shortcodes stripped when emojis disabled)
    */
-  const getUserDisplayName = (userId: string) => computed(() => {
+  const getUserDisplayName = (userId: string | null | undefined) => computed(() => {
     forceUpdate.value // Force reactivity
+    if (!userId) return 'Unknown User'
     const user = userDataService.getUser(userId)
     let name = user?.displayName || user?.username || 'Unknown User'
     const instanceSettings = useInstanceSettingsStore()
@@ -171,8 +173,9 @@ export function useUserData() {
   /**
    * Get user color
    */
-  const getUserColor = (userId: string) => computed(() => {
+  const getUserColor = (userId: string | null | undefined) => computed(() => {
     forceUpdate.value // Force reactivity
+    if (!userId) return '#ffffff'
     const user = userDataService.getUser(userId)
     return user?.color || '#ffffff'
   })

@@ -840,8 +840,8 @@ class UserDataService extends EventTarget {
     const mapStatusToRedis = (s: UserStatus): string => {
       switch (s) {
         case UserStatus.Online: return 'online'
-        case UserStatus.Idle: return 'idle'
-        case UserStatus.DoNotDisturb: return 'dnd'
+        case UserStatus.Away: return 'idle'
+        case UserStatus.Busy: return 'dnd'
         case UserStatus.Invisible: return 'invisible'
         default: return 'online'
       }
@@ -1571,8 +1571,8 @@ class UserDataService extends EventTarget {
 
       // Sync to Redis presence
       const redisStatus = status === UserStatus.Online ? 'online'
-        : status === UserStatus.Idle || status === UserStatus.Away ? 'idle'
-        : status === UserStatus.DoNotDisturb || status === UserStatus.Busy ? 'dnd'
+        : status === UserStatus.Away ? 'idle'
+        : status === UserStatus.Busy ? 'dnd'
         : status === UserStatus.Invisible ? 'invisible'
         : 'offline'
       realtimeApiService.updateStatus(redisStatus as any, userData.customStatus?.text)

@@ -77,7 +77,7 @@
 import { ref, computed, watch, nextTick } from 'vue'
 import { debug } from '@/utils/debug'
 import { threadService } from '@/services/ThreadService'
-import type { Thread } from '@/services/ThreadService'
+import type { Thread } from '@/types'
 
 interface Props {
   show: boolean

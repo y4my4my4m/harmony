@@ -99,7 +99,7 @@ export class FederationDecisionService {
       debug.error('❌ Federation: Failed to decide reaction federation:', error)
       return {
         shouldFederate: false,
-        reason: `Error checking federation: ${error.message}`
+        reason: `Error checking federation: ${(error as Error).message}`
       }
     }
   }
@@ -140,7 +140,7 @@ export class FederationDecisionService {
       debug.error('❌ Federation: Failed to decide post reaction federation:', error)
       return {
         shouldFederate: false,
-        reason: `Error checking federation: ${error.message}`
+        reason: `Error checking federation: ${(error as Error).message}`
       }
     }
   }
@@ -210,7 +210,7 @@ export class FederationDecisionService {
       debug.error('❌ Federation: Failed to decide post federation:', error)
       return {
         shouldFederate: false,
-        reason: `Error checking federation: ${error.message}`
+        reason: `Error checking federation: ${(error as Error).message}`
       }
     }
   }
@@ -271,7 +271,7 @@ export class FederationDecisionService {
       debug.error('❌ Federation: Failed to decide follow federation:', error)
       return {
         shouldFederate: false,
-        reason: `Error checking federation: ${error.message}`
+        reason: `Error checking federation: ${(error as Error).message}`
       }
     }
   }
@@ -323,7 +323,7 @@ export class FederationDecisionService {
       debug.error('❌ Federation: Failed to decide profile update federation:', error)
       return {
         shouldFederate: false,
-        reason: `Error checking federation: ${error.message}`
+        reason: `Error checking federation: ${(error as Error).message}`
       }
     }
   }

@@ -118,7 +118,7 @@ onMounted(() => {
         isCompact.value = entry.contentRect.width < COMPACT_THRESHOLD;
       }
     });
-    resizeObserver.observe(headerRef.value);
+    resizeObserver.observe(headerRef.value as unknown as Element);
   }
 });
 

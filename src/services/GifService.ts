@@ -23,6 +23,12 @@ export interface GifFavorite {
   preview_url: string
   title: string | null
   created_at: string
+  /**
+   * Tenor's stable GIF identifier. Populated for Tenor-sourced favorites;
+   * absent for direct-URL favorites. Surfaced to consumers (GifComponent)
+   * for hover-preview keying and de-duplication.
+   */
+  tenor_id?: string
 }
 
 // Simplified type for favorites (same as database row)

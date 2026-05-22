@@ -2,6 +2,7 @@
   "extends": "@tsconfig/node18/tsconfig.json",
   "include": [
     "vite.config.*",
+    "vite-plugin-selective-preload.ts",
     "vitest.config.*",
     "cypress.config.*",
     "nightwatch.conf.*",

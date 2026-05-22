@@ -955,21 +955,27 @@ class ThreadService {
         err.code = 'ENCRYPTION_LOCKED'
         throw err
       } else {
-        // optional + unable to encrypt
-        if (!allowFallback) {
-          if (hasRecoveryKey && !isUnlocked) {
+        // Optional + unable to encrypt. Mirrors `CoreMessageService`:
+        //   - keys locked  → fail closed (prompt the user, they opted in)
+        //   - no keys      → silent plaintext (user never opted in)
+        if (hasRecoveryKey && !isUnlocked) {
+          if (!allowFallback) {
             const err: any = new Error('This thread supports encryption but your keys are locked.')
             err.code = 'ENCRYPTION_LOCKED'
             throw err
           }
-          const err: any = new Error('This thread supports encryption but you have not set it up.')
-          err.code = 'ENCRYPTION_UNAVAILABLE'
-          throw err
-        }
-        extra.plaintext_override = {
-          authorized: true,
-          reason: hasRecoveryKey ? 'thread_encryption_locked' : 'thread_no_recovery_key',
-          at: new Date().toISOString(),
+          extra.plaintext_override = {
+            authorized: true,
+            reason: 'thread_encryption_locked',
+            at: new Date().toISOString(),
+          }
+        } else {
+          // No recovery key — silent plaintext, no prompt.
+          extra.plaintext_override = {
+            authorized: true,
+            reason: 'thread_no_recovery_key',
+            at: new Date().toISOString(),
+          }
         }
       }
     }

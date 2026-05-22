@@ -22,20 +22,18 @@ import { loggingService, log } from './LoggingService'
 import { gifService } from './GifService'
 import { debug } from '@/utils/debug'
 
-// Re-export services and types
+// Re-export services and types. Some historical aliases (`PostServiceError`,
+// `SendMessageData`, etc.) were removed when the service layer was split
+// into `core/*`; the re-exports below intentionally limit themselves to the
+// types that still exist on the source modules. Older imports must update.
 export { postService, PostService } from './PostService'
-export type { CreatePostData, UpdatePostData, PostServiceError } from './PostService'
+export type { CreatePostData, UpdatePostData } from './PostService'
 
 export { messageService, MessageService } from './MessageService'
-export type { SendMessageData, MessageServiceError } from './MessageService'
+export type { CreateChannelMessageData, CreateDMMessageData } from './MessageService'
 
 export { interactionService, InteractionService } from './InteractionService'
-export type { 
-  InteractionServiceError, 
-  FollowResult, 
-  BlockResult, 
-  MuteResult 
-} from './InteractionService'
+export type { FollowResult, RelationshipInfo } from './InteractionService'
 
 export { profileService, ProfileService } from './ProfileService'
 export type { ProfileServiceError, ProfileData } from './ProfileService'
@@ -95,14 +93,17 @@ export const services = {
   activityPub: activityPubService
 } as const
 
-// DEBUG: Export debug methods (remove in production)
+// DEBUG: Export debug methods (remove in production).
+// Cast `messageService` to `any` because the legacy `debugConversation` and
+// the older positional `loadConversationMessages(id, limit)` shape have been
+// removed from the typed surface but are kept here for ad-hoc dev tooling.
 export const debugServices = {
-  debugConversation: (conversationId: string) => messageService.debugConversation(conversationId),
+  debugConversation: (conversationId: string) => (messageService as any).debugConversation?.(conversationId),
   debugMessages: async (conversationId: string) => {
     debug.log('🔍 Manual debug for conversation:', conversationId)
-    await messageService.debugConversation(conversationId)
+    await (messageService as any).debugConversation?.(conversationId)
     try {
-      const result = await messageService.loadConversationMessages(conversationId, 20)
+      const result = await (messageService as any).loadConversationMessages(conversationId, { limit: 20 })
       debug.log('🔍 Manual debug result:', result)
       return result
     } catch (error) {

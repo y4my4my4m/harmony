@@ -45,6 +45,7 @@
 
 <script lang="ts">
 import { defineComponent, watch, ref, nextTick, type PropType } from 'vue';
+import { debug } from '@/utils/debug';
 import type { MessagePart } from '@/types';
 import AutoSuggest from '@/components/AutoSuggest.vue';
 import UnifiedContentRenderer from '@/components/UnifiedContentRenderer.vue';

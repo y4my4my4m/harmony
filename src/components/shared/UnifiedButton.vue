@@ -102,7 +102,7 @@ const buttonClasses = computed(() => [
     'btn-rounded': props.rounded,
     'btn-full-width': props.fullWidth,
     'btn-outline': props.outline,
-    'btn-icon-only': props.iconOnly || (!props.text && !props.$slots.default && (props.iconLeft || props.iconRight))
+    'btn-icon-only': props.iconOnly || (!props.text && !(props as any).$slots?.default && (props.iconLeft || props.iconRight))
   }
 ])
 

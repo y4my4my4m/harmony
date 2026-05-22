@@ -120,8 +120,9 @@ export const useEmojiCacheStore = defineStore('emojiCache', {
         if (name.toLowerCase().includes(queryLower) && results.length < limit) {
           for (const entry of entries) {
             if (results.length >= limit) break;
-            
-            const cache = state.serverCaches.get(entry.emoji.server_id);
+            const serverId = entry.emoji.server_id;
+            if (!serverId) continue;
+            const cache = state.serverCaches.get(serverId);
             if (cache && !cache.isStale) {
               results.push({
                 ...entry.emoji,
@@ -343,10 +344,12 @@ export const useEmojiCacheStore = defineStore('emojiCache', {
 
       const emojiMap = new Map<string, Emoji[]>();
       data.forEach((emoji: Emoji) => {
-        if (!emojiMap.has(emoji.server_id)) {
-          emojiMap.set(emoji.server_id, []);
+        const serverId = emoji.server_id;
+        if (!serverId) return;
+        if (!emojiMap.has(serverId)) {
+          emojiMap.set(serverId, []);
         }
-        emojiMap.get(emoji.server_id)!.push(emoji);
+        emojiMap.get(serverId)!.push(emoji);
       });
 
       return emojiMap;
@@ -494,10 +497,12 @@ export const useEmojiCacheStore = defineStore('emojiCache', {
 
     // Handle emoji insertion
     async handleEmojiInsert(emoji: Emoji) {
-      const cache = this.serverCaches.get(emoji.server_id);
+      const serverId = emoji.server_id;
+      if (!serverId) return;
+      const cache = this.serverCaches.get(serverId);
       if (!cache) {
         // Server not in cache, might need to reload
-        this.markServerStale(emoji.server_id);
+        this.markServerStale(serverId);
         return;
       }
 
@@ -522,10 +527,12 @@ export const useEmojiCacheStore = defineStore('emojiCache', {
 
     // Handle emoji updates - distinct from handleEmojiUpdate to avoid recursion
     async handleEmojiUpdateEntry(emoji: Emoji) {
-      const cache = this.serverCaches.get(emoji.server_id);
+      const serverId = emoji.server_id;
+      if (!serverId) return;
+      const cache = this.serverCaches.get(serverId);
       if (!cache) {
         // Server not in cache, might need to reload
-        this.markServerStale(emoji.server_id);
+        this.markServerStale(serverId);
         return;
       }
 
@@ -568,7 +575,9 @@ export const useEmojiCacheStore = defineStore('emojiCache', {
 
     // Handle emoji deletion
     async handleEmojiDelete(emoji: Emoji) {
-      const cache = this.serverCaches.get(emoji.server_id);
+      const serverId = emoji.server_id;
+      if (!serverId) return;
+      const cache = this.serverCaches.get(serverId);
       if (!cache) return;
 
       const entry = cache.emojis.get(emoji.id);
@@ -710,7 +719,7 @@ export const useEmojiCacheStore = defineStore('emojiCache', {
       } else if (target.emojiId) {
         // Refresh the server containing this emoji
         const entry = this.globalEmojiIndex.get(target.emojiId);
-        if (entry) {
+        if (entry && entry.emoji.server_id) {
           await this.refreshServer(entry.emoji.server_id);
         }
       }

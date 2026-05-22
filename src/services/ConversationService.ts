@@ -64,8 +64,9 @@ export class ConversationService {
         root_post: posts.find((p: any) => p.reply_context === null) || posts[0],
         posts: posts,
         reply_count: posts.length - 1,
-        created_at: posts[0]?.created_at || new Date().toISOString(),
-      };
+        participant_count: 0,
+        last_updated: posts[0]?.created_at || new Date().toISOString(),
+      } as ConversationThread;
       
     } catch (error) {
       debug.error('❌ Failed to load ActivityPub conversation thread:', error);

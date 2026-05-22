@@ -126,7 +126,9 @@ const estimatePostSize = (index: number): number => {
 
   const content = post.content
   if (Array.isArray(content)) {
-    const textLength = content.reduce((sum, part) => sum + (part?.text?.length || 0), 0)
+    // `text` only exists on text-typed parts; narrow via `any` so the union
+    // member access stays loose for length estimation.
+    const textLength = content.reduce((sum: number, part: any) => sum + (part?.text?.length || 0), 0)
     estimate += Math.min(textLength * 0.4, 400)
   }
 
@@ -142,12 +144,14 @@ const estimatePostSize = (index: number): number => {
 }
 
 // +1 phantom row when there's more to load — acts as in-flow loading indicator
-const rowVirtualizer = useVirtualizer(computed(() => ({
-  count: props.hasMore ? props.posts.length + 1 : props.posts.length,
-  getScrollElement: () => scrollContainer.value,
-  estimateSize: estimatePostSize,
-  overscan: 8,
-})))
+const rowVirtualizer = useVirtualizer<HTMLElement, Element>(
+  computed(() => ({
+    count: props.hasMore ? props.posts.length + 1 : props.posts.length,
+    getScrollElement: () => scrollContainer.value,
+    estimateSize: estimatePostSize,
+    overscan: 8,
+  })) as any
+)
 
 const virtualRows = computed(() => rowVirtualizer.value.getVirtualItems())
 const totalSize = computed(() => rowVirtualizer.value.getTotalSize())
@@ -184,7 +188,7 @@ watchEffect(() => {
 })
 
 onMounted(() => {
-  props.registerScroll?.(scrollContainer.value)
+  props.registerScroll?.(scrollContainer.value as unknown as HTMLElement | null)
 })
 
 onUnmounted(() => {

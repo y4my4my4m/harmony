@@ -101,6 +101,10 @@ interface VoiceChannelState {
   
   // Active WebRTC transport ('livekit' for SFU, 'p2p' for peer-to-peer, null when disconnected)
   connectionMode: 'livekit' | 'p2p' | null;
+
+  // Cache of the last-seen voice-channel user IDs, used to short-circuit
+  // `ensureProfilesAvailable` when the membership list has not changed.
+  previousUserIds: string[];
 }
 
 // =============================================================================
@@ -169,7 +173,9 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     
     streamUpdateCounter: 0,
     
-    connectionMode: null
+    connectionMode: null,
+
+    previousUserIds: [],
   }),
 
   // =============================================================================
@@ -470,7 +476,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
           || 'DM Call';
       } else {
         this.dmOtherUserId = null;
-        this.currentChannelName = serverChannelStore.getChannelNameById(channelId) || 'Voice Channel';
+        this.currentChannelName = (serverChannelStore as any).getChannelNameById?.(channelId) || 'Voice Channel';
       }
       this.isConnected = true;
       this.isConnecting = false; // Connection attempt complete
@@ -1391,16 +1397,16 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       const currentUserId = authStore.session?.user?.id;
       
       // Channel events
-      webrtcManager.on('channel-joined', (data) => {
+      webrtcManager.on('channel-joined', (data: any) => {
         debug.log('✅ Channel joined:', data);
         this.connectionMode = webrtcManager.getActiveService();
       });
 
-      webrtcManager.on('channel-left', (data) => {
+      webrtcManager.on('channel-left', (data: any) => {
         debug.log('👋 Channel left:', data);
       });
 
-      webrtcManager.on('channel-state-synced', async (data) => {
+      webrtcManager.on('channel-state-synced', async (data: any) => {
         debug.log('🔄 Channel state synced:', data);
         this.allUsers = data.users;
         
@@ -1420,8 +1426,8 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         const userIds = data.users.map((user: any) => user.userId);
         
         // Check if user list has changed
-        const userIdsChanged = !this.previousUserIds || userIds.length !== this.previousUserIds.length || 
-          userIds.some((id, index) => id !== this.previousUserIds[index]);
+        const userIdsChanged = !this.previousUserIds || userIds.length !== this.previousUserIds.length ||
+          userIds.some((id: string, index: number) => id !== this.previousUserIds[index]);
         
         if (userIdsChanged && userIds.length > 0) {
           try {
@@ -1437,7 +1443,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       });
 
       // User events
-      webrtcManager.on('user-joined', async (data) => {
+      webrtcManager.on('user-joined', async (data: any) => {
         debug.log('👋 User joined:', data);
         
         // Add user if not already in list
@@ -1479,7 +1485,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         }
       });
 
-      webrtcManager.on('user-left', (data) => {
+      webrtcManager.on('user-left', (data: any) => {
         debug.log('👋 User left:', data);
         
         // Remove user from list
@@ -1515,7 +1521,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         }
       });
 
-      webrtcManager.on('user-state-changed', (data) => {
+      webrtcManager.on('user-state-changed', (data: any) => {
         // Update user state
         const userIndex = this.allUsers.findIndex(u => u.userId === data.userId);
         // Check if video/screenshare state changed (not just audio level)
@@ -1562,7 +1568,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         // Auto-open only happens in user-joined for initial sync when joining
       });
 
-      webrtcManager.on('user-stream-changed', (data) => {
+      webrtcManager.on('user-stream-changed', (data: any) => {
         debug.log('📹 User stream changed:', data.userId, 'hasStream:', !!data.stream);
         
         if (data.stream) {
@@ -1580,7 +1586,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       });
 
       // Local events
-      webrtcManager.on('local-state-changed', (state) => {
+      webrtcManager.on('local-state-changed', (state: any) => {
         debug.log('🎛️ Local state changed in store:', {
           isVideoEnabled: state.isVideoEnabled,
           isScreenSharing: state.isScreenSharing,
@@ -1589,13 +1595,13 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         this.localState = state;
       });
       
-      webrtcManager.on('local-stream-changed', (stream) => {
+      webrtcManager.on('local-stream-changed', (stream: any) => {
         // debug.log('📹 Local stream changed:', stream);
         this.localStream = stream;
       });
       
       // Handle generic stream changes (for better compatibility)
-      webrtcManager.on('stream-changed', (data) => {
+      webrtcManager.on('stream-changed', (data: any) => {
         // debug.log('📡 Stream changed:', data.userId, data.type, data.stream);
         if (data.type === 'local' && data.userId === this.localState.userId) {
           this.localStream = data.stream;
@@ -1609,7 +1615,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       });
 
       // Audio levels (also drives the speaking indicator for remote users)
-      webrtcManager.on('audio-level', (data) => {
+      webrtcManager.on('audio-level', (data: any) => {
         const speaking = data.level > 20;
         if (data.userId === this.localState.userId) {
           this.localState.audioLevel = data.level;
@@ -1634,7 +1640,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       });
 
       // Error handling
-      webrtcManager.on('error', (error) => {
+      webrtcManager.on('error', (error: any) => {
         debug.error('❌ WebRTC error:', error);
         // Could show notification to user
       });

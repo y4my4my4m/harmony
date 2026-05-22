@@ -88,10 +88,10 @@
       @sendEmoji="handleSendEmoji"
       :closePopup="closeMediaPicker"
       :position="'above'"
-      :triggerElement="mediaPickerTriggerElement || undefined"
+      :triggerElement="(mediaPickerTriggerElement as unknown as HTMLElement | null) || undefined"
       :initialTab="mediaPickerInitialTab"
     />
-    
+
     <!-- Emoji Popup for reactions only (teleported to avoid transform containment from virtual scroll) -->
     <Teleport to="body">
       <EmojiPopup
@@ -101,7 +101,7 @@
         :closeEmojiList="closeReactionEmoji"
         :emojiIconClicked="emojiIconClicked"
         :position="'left'"
-        :triggerElement="reactionTriggerElement || undefined"
+        :triggerElement="(reactionTriggerElement as unknown as HTMLElement | null) || undefined"
         @resetEmojiIconClicked="emojiIconClicked = false"
       />
     </Teleport>
@@ -154,6 +154,7 @@
   import { useEmojiCacheStore } from '@/stores/useEmojiCache';
   import { threadService } from '@/services/ThreadService';
   import { coreMessageService } from '@/services/core/CoreMessageService';
+  import { useEncryptionFallbackPrompt } from '@/composables/useEncryptionFallbackPrompt';
   import { supabase } from '@/supabase';
   import { debug } from '@/utils/debug';
   import { useUserData } from '@/composables/useUserData';
@@ -180,12 +181,6 @@
   });
 
   interface Emits {
-    (
-      e: 'sendMessage',
-      content: MessagePart[],
-      replyTo?: string,
-      sendOptions?: { allowPlaintextFallback?: boolean }
-    ): void;
     (e: 'loadMoreMessages'): void;
     (e: 'showAllThreads'): void;
   }
@@ -310,7 +305,9 @@
         // Fallback: try to get from store
         if (props.isDM) {
           const conversation = dmStore.getCurrentConversation;
-          const otherParticipant = conversation?.other_participants?.[0];
+          // `other_participants` is a legacy view-model field; the canonical
+          // store key is `participants`. Read via `any` to cover both shapes.
+          const otherParticipant = (conversation as any)?.other_participants?.[0] || (conversation as any)?.participants?.[0];
           return otherParticipant?.display_name || otherParticipant?.username;
         }
         return undefined;
@@ -839,11 +836,17 @@
           // Send the message with all parts
           if (messageParts.length > 0) {
             didAttemptSend = true;
-            handleDontReply();
-            await sendChannelOrDMWithEncryptionPolicy(messageParts, replyMessageId)
+            const sendOutcome = await sendChannelOrDMWithEncryptionPolicy(messageParts, replyMessageId)
 
-            messageContent.value = '';
-            if (draftKey.value) draftsStore.clearDraft(draftKey.value);
+            // Only clear the input / draft / reply state if the message
+            // actually went through. On 'declined' (encryption cancel) or
+            // 'no-context' (missing channel/conversation/user — rare race),
+            // keep the text and the reply target so the user can retry.
+            if (sendOutcome === 'ok') {
+              messageContent.value = '';
+              if (draftKey.value) draftsStore.clearDraft(draftKey.value);
+              handleDontReply();
+            }
           }
         } catch (error: any) {
           debug.error('Error sending message:', error);
@@ -855,62 +858,95 @@
         }
       };
 
+      const { runWithEncryptionFallback } = useEncryptionFallbackPrompt()
+
       /**
        * Run the actual send call, intercept fail-closed encryption policy
-       * errors, and prompt the user before retrying with an explicit
-       * plaintext-fallback override.
+       * errors, and prompt the user (via the styled global modal) before
+       * retrying with an explicit plaintext-fallback override.
+       *
+       * Returns one of:
+       *   - 'ok'         — the message was sent (either encrypted or with
+       *                    user-authorized plaintext fallback)
+       *   - 'declined'   — the user pressed Cancel on the fallback modal,
+       *                    nothing was sent
+       *   - 'no-context' — the conversation/channel/user context was missing
+       *                    (rare race: channel just deleted, user logging out,
+       *                    DM conversation not loaded yet). Nothing was sent.
+       *                    Caller must NOT treat this as success.
+       *   - 'error'      — an unrecoverable error happened (re-thrown to
+       *                    the outer handler in `handleSendMessage`)
+       *
+       * Both DM and channel sends go through the same composable here so
+       * the input/draft state in `handleSendMessage` can synchronize with
+       * the actual outcome (including encryption-fallback decline).
        */
       const sendChannelOrDMWithEncryptionPolicy = async (
         messageParts: MessagePart[],
         replyMessageId?: string,
-      ) => {
-        const trySend = async (allowPlaintextFallback: boolean) => {
+      ): Promise<'ok' | 'declined' | 'error' | 'no-context'> => {
+        // Pre-check context so a missing channel/conversation/user surfaces as
+        // a distinct outcome instead of being swallowed as a `false` resolution
+        // (which `runWithEncryptionFallback` would have reported as success).
+        if (props.isDM) {
+          if (!props.conversationId || !authStore.session?.user?.id) {
+            debug.warn('Cannot send: missing DM conversation or user context')
+            return 'no-context'
+          }
+        } else if (
+          !serverChannelStore.currentServerId ||
+          !serverChannelStore.currentChannelId ||
+          !authStore.session?.user
+        ) {
+          debug.warn('Cannot send: missing channel/server or user context')
+          return 'no-context'
+        }
+
+        const trySend = async ({ allowPlaintextFallback }: { allowPlaintextFallback: boolean }) => {
           if (props.isDM) {
-            // DM send is owned by the parent view (DMView) which forwards
-            // through useDM.sendDMMessage. Emit the message; the parent
-            // catches errors and re-prompts via this same flow.
-            emit('sendMessage', messageParts, replyMessageId || undefined, { allowPlaintextFallback })
-            return
-          }
-          if (serverChannelStore.currentServerId && serverChannelStore.currentChannelId && authStore.session?.user) {
-            await chatStore.sendMessage(
-              serverChannelStore.currentServerId,
-              serverChannelStore.currentChannelId,
-              authStore.session.user.id,
+            // Context guaranteed by the pre-check above.
+            const success = await dmStore.sendDMMessage(
+              props.conversationId!,
+              authStore.session!.user!.id,
               messageParts,
-              replyMessageId || '',
-              undefined,
-              { allowPlaintextFallback }
+              replyMessageId || undefined,
+              { allowPlaintextFallback },
             )
+            // `dmStore.sendDMMessage` returns false on non-encryption
+            // transient failures it couldn't recover after retry; throw so
+            // `runWithEncryptionFallback` classifies it as `error` rather
+            // than `ok`.
+            if (!success) throw new Error('DM send did not complete')
+            return true
           }
+          await chatStore.sendMessage(
+            serverChannelStore.currentServerId!,
+            serverChannelStore.currentChannelId!,
+            authStore.session!.user!.id,
+            messageParts,
+            replyMessageId || '',
+            undefined,
+            { allowPlaintextFallback },
+          )
+          return true
         }
 
-        try {
-          await trySend(false)
-        } catch (error: any) {
-          const code = (error?.code || error?.message || '').toString()
-          const isFallbackEligible =
-            code.includes('ENCRYPTION_LOCKED') ||
-            code.includes('ENCRYPTION_UNAVAILABLE') ||
-            code.includes('ENCRYPTION_FAILED_NO_FALLBACK')
-          // `ENCRYPTION_REQUIRED` is server-enforced and never fallback-eligible.
-          if (!isFallbackEligible) throw error
+        const scope: 'channel' | 'dm' = props.isDM ? 'dm' : 'channel'
+        const outcome = await runWithEncryptionFallback(trySend, { scope })
 
-          const human = code.includes('LOCKED')
-            ? 'Your encryption keys are locked.'
-            : code.includes('UNAVAILABLE')
-              ? 'Encryption is not set up for this account.'
-              : 'Encryption failed.'
-          const accepted = typeof window !== 'undefined' && typeof window.confirm === 'function'
-            ? window.confirm(`${human}\n\nSend this message UNENCRYPTED into this room? Other participants will see plaintext.`)
-            : false
-          if (!accepted) {
-            sendError.value = `${human} Message was not sent.`
-            setTimeout(() => { sendError.value = null }, 6000)
-            return
-          }
-          await trySend(true)
+        if (outcome.status === 'declined') {
+          sendError.value = 'Message was not sent.'
+          setTimeout(() => { sendError.value = null }, 6000)
+          return 'declined'
         }
+        if (outcome.status === 'error') {
+          // ENCRYPTION_REQUIRED is server-enforced and not overridable;
+          // bubble it up as a regular error so `handleSendMessage` can show
+          // the appropriate copy. Same path for non-encryption failures.
+          throw outcome.error
+        }
+
+        return 'ok'
       }
 
       const handleSendVoiceMessage = async (data: {
@@ -949,7 +985,7 @@
             await chatStore.sendMessage(
               serverChannelStore.currentServerId,
               serverChannelStore.currentChannelId,
-              authStore.session.user.id,
+              authStore.session!.user.id,
               messageParts,
               '',
               voiceMetadata
@@ -963,24 +999,29 @@
         }
       }
 
-      const handleSendGif = (gif: Gif) => {
+      const handleSendGif = async (gif: Gif) => {
         const gifUrl = gif.media_formats.gif.url;
         closeMediaPicker();
-        
-        if (props.isDM && dmStore.currentConversationId && authStore.session?.user) {
-          // Emit for DM
-          emit('sendMessage', [{type: "file", url: gifUrl, fileType: "image"}], replyToMessageId.value);
-          handleDontReply();
-        } else if (!props.isDM && serverChannelStore.currentChannelId && serverChannelStore.currentServerId && authStore.session?.user) {
-          // Handle server channel directly
-          chatStore.sendMessage(
-            serverChannelStore.currentServerId, 
-            serverChannelStore.currentChannelId, 
-            authStore.session.user.id, 
-            [{type: "file", url: gifUrl, fileType: "image"}], 
-            replyToMessageId.value
+
+        const messageParts: MessagePart[] = [{
+          type: 'file',
+          url: gifUrl,
+          fileType: 'image',
+        }];
+
+        try {
+          const sendOutcome = await sendChannelOrDMWithEncryptionPolicy(
+            messageParts,
+            replyToMessageId.value || undefined,
           );
-          handleDontReply();
+          // Only clear reply state on actual success. `'declined'` (user
+          // cancelled fallback) and `'no-context'` (missing channel/DM)
+          // must preserve the reply target so the user can retry.
+          if (sendOutcome === 'ok') {
+            handleDontReply();
+          }
+        } catch (error) {
+          debug.error('Error sending GIF:', error);
         }
       };
 

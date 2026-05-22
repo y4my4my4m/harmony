@@ -210,7 +210,8 @@ export function useServerPermissions() {
     const isOwner = isServerOwner(serverId, profileId)
     const cacheKey = getCacheKey(profileId, serverId)
     const cachedRoles = rolesCache.get(cacheKey) || []
-    const cachedPermissions = permissionsCache.get(cacheKey) || {}
+    // Default to an empty record typed by Permission so indexing by enum values type-checks.
+    const cachedPermissions: Record<Permission, boolean> = (permissionsCache.get(cacheKey) || {}) as Record<Permission, boolean>
 
     // If owner, return owner role
     if (isOwner) {

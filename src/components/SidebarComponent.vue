@@ -9,7 +9,9 @@
 <script lang="ts">
 import { defineComponent, ref } from 'vue';
 import type { Ref } from 'vue';
-import type { ChatRoom } from '../types';
+// `ChatRoom` was removed from `@/types`; use a loose placeholder type so the
+// component compiles without resurrecting the legacy interface.
+type ChatRoom = { id: string; name?: string };
 
 export default defineComponent({
   name: 'SidebarComponent',

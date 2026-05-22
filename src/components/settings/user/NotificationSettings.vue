@@ -1012,7 +1012,7 @@ const createTestNotificationData = (type: NotificationType) => {
     }
   }
   
-  return testMessages[type] || {
+  return (testMessages as any)[type] || {
     title: 'Test Notification',
     message: 'This is a test notification',
     avatar: userData.getUserAvatarUrlCurrent

@@ -652,7 +652,7 @@ export class CorePostService {
       })
 
       // Group reactions by post
-      reactions?.forEach(reaction => {
+      reactions?.forEach((reaction: any) => {
         const postId = reaction.post_id
         
         if (!groupedReactions[postId]) {
@@ -850,7 +850,7 @@ export class CorePostService {
       media_attachments: post.media_attachments || [],
       reblog: post.reblog || undefined,
       reblog_author: post.reblog_author || undefined
-    }
+    } as TimelinePost
   }
 
   private createError(code: string, message: string, details?: any): CorePostServiceError {

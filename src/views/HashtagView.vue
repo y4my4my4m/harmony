@@ -69,6 +69,7 @@ import { useLayoutState } from '@/composables/useLayoutState'
 import MonyHeader from '@/components/activitypub/MonyHeader.vue'
 import PostsContainer from '@/components/common/PostsContainer.vue'
 import Icon from '@/components/common/Icon.vue'
+import { getOriginalPostId, getReplyMentionAuthor } from '@/utils/postReblog'
 import type { TimelinePost } from '@/types'
 
 // Props
@@ -186,7 +187,19 @@ const formatTimeAgo = (dateStr: string): string => {
 
 // Event handlers
 const handleReply = (post: TimelinePost) => {
-  activityPubStore.openComposer({ replyTo: post.id })
+  // For pure reblogs, route the reply to the original post and prefill the
+  // original author's mention — same rule as `UserProfileView.replyToPost`
+  // and `SocialLayout.handleReplyToPost`. Quote posts and regular posts
+  // pass through unchanged via the shared util.
+  const author = getReplyMentionAuthor(post)
+  const handle = author?.handle || ''
+  const mentionText = handle
+    ? (handle.startsWith('@') ? `${handle} ` : `@${handle} `)
+    : ''
+  activityPubStore.openComposer({
+    replyTo: getOriginalPostId(post),
+    content: mentionText,
+  })
 }
 
 const handleFavorite = async (postId: string) => {

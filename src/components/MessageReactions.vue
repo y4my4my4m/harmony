@@ -15,7 +15,7 @@
         @mouseleave="hideTooltip"
       >
         <!-- Custom server emoji with URL (priority) -->
-        <template v-if="reactionGroup.emoji?.url && !reactionGroup.emoji?.is_native">
+        <template v-if="reactionGroup.emoji?.url && !(reactionGroup.emoji as any)?.is_native">
           <Icon 
             v-if="brokenEmojiUrls.has(reactionGroup.emoji.url)" 
             name="image-off" 
@@ -33,12 +33,12 @@
         <!-- Resolved emoji (native unicode or pack SVG) -->
         <template v-else-if="getResolvedEmoji(reactionGroup)">
           <img 
-            v-if="getResolvedEmoji(reactionGroup).display.type === 'svg'"
-            :src="getResolvedEmoji(reactionGroup).display.content"
-            :alt="getResolvedEmoji(reactionGroup).shortcode || 'emoji'"
+            v-if="getResolvedEmoji(reactionGroup)!.display.type === 'svg'"
+            :src="getResolvedEmoji(reactionGroup)!.display.content"
+            :alt="getResolvedEmoji(reactionGroup)!.shortcode || 'emoji'"
             class="reaction-emoji"
           />
-          <span v-else class="native-emoji">{{ getResolvedEmoji(reactionGroup).display.content }}</span>
+          <span v-else class="native-emoji">{{ getResolvedEmoji(reactionGroup)!.display.content }}</span>
         </template>
         <!-- Fallback for missing emoji -->
         <span v-else class="missing-emoji" :title="`Emoji: ${reactionGroup.emoji?.name || reactionGroup.emoji_id}`">?</span>

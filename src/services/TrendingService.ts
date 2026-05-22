@@ -394,8 +394,8 @@ class TrendingService {
           updated_at: row.updated_at || row.created_at
         };
 
-        const followers = user.followers_count;
-        const posts = user.posts_count;
+        const followers = user.followers_count ?? 0;
+        const posts = user.posts_count ?? 0;
         const createdAt = new Date(row.created_at).getTime();
         const daysSinceCreated = Math.max(1, (now - createdAt) / (1000 * 60 * 60 * 24));
         const updatedAt = new Date(row.updated_at || row.created_at).getTime();
@@ -735,7 +735,7 @@ class TrendingService {
       is_sensitive: post.is_sensitive,
       is_deleted: post.is_deleted,
       deleted_at: post.deleted_at,
-      author: post.author ? {
+      author: post.author ? ({
         id: post.author.id,
         username: post.author.username,
         domain: post.author.domain || import.meta.env.VITE_DOMAIN as string,
@@ -746,11 +746,11 @@ class TrendingService {
         is_local: !post.author.domain || post.author.domain === import.meta.env.VITE_DOMAIN as string,
         verified: post.author.verified || false,
         followers_count: 0, // Would need separate query
-        following_count: 0, // Would need separate query  
+        following_count: 0, // Would need separate query
         posts_count: 0, // Would need separate query
         created_at: post.author.created_at,
         updated_at: post.author.updated_at || post.author.created_at
-      } : {
+      } as any) : {
         id: post.author_id,
         username: 'Unknown',
         domain: import.meta.env.VITE_DOMAIN as string,

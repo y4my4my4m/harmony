@@ -321,7 +321,14 @@ onUnmounted(() => {
 });
 
 // Auto-suggest setup
-const getCurrentText = () => richEditorRef.value ? props.modelValue : '';
+// Read straight from the editor — `props.modelValue` lags by one keystroke
+// because `update:modelValue` round-trips through the parent's v-model
+// before the prop binding is patched back down. Using the editor ref means
+// autosuggest sees the value as of *this* tick, which matters when handlers
+// fire synchronously after a keystroke (e.g. `cursor-position-changed`
+// arriving immediately after `update:modelValue`). The `props.modelValue`
+// fallback covers the brief window before `richEditorRef.value` mounts.
+const getCurrentText = () => richEditorRef.value?.getPlainText?.() ?? props.modelValue;
 const updateText = (newText: string, cursorPosition?: number) => {
   debug.log('🔧 MessageInput updateText called:', { newText, cursorPosition });
   
@@ -406,9 +413,18 @@ const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText);
     };
 
     const handleCursorPositionChanged = (position: number) => {
-      // Handle auto-suggest based on cursor position and current text
+      // Handle auto-suggest based on cursor position and current text.
+      // Pull the text from the editor ref instead of `props.modelValue`:
+      // `RichTextEditor.handleInput` emits `update:modelValue` and
+      // `cursor-position-changed` synchronously back-to-back, but the prop
+      // only refreshes after the parent's v-model round-trip — so reading
+      // the prop here gives us the value from BEFORE the keystroke. That
+      // caused queries like `:+1` to be evaluated as `:+`, and the
+      // unified-emoji search (which is gated on `query.length >= 2`) was
+      // silently skipped, so `+1` never resolved to thumbs_up.
       if (richEditorRef.value) {
-        autoSuggest.handleInput(props.modelValue, position);
+        const text = richEditorRef.value.getPlainText?.() ?? props.modelValue;
+        autoSuggest.handleInput(text, position);
       }
     };
 

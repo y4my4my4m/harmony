@@ -861,7 +861,7 @@ const createElementFromToken = (token: MarkdownToken): Node => {
     }
     
     case 'emoji': {
-      const emoji = findEmojiByName(token.content);
+      const emoji = findEmojiByName(token.content) as any;
       if (emoji) {
         const span = document.createElement('span');
         span.className = 'editor-emoji';

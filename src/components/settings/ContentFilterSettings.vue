@@ -215,7 +215,7 @@
     </div>
 
     <!-- Language Selector Modal -->
-    <BaseModal v-if="showLanguageSelector" @close="showLanguageSelector = false">
+    <BaseModal v-if="showLanguageSelector" :show="showLanguageSelector" @close="showLanguageSelector = false">
       <div class="language-selector">
         <h3>Select Languages</h3>
         <div class="language-grid">

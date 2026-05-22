@@ -71,6 +71,18 @@ CREATE INDEX IF NOT EXISTS timeline_posts_visibility_created_idx
   ON public.posts (visibility, created_at DESC)
   WHERE is_deleted = false;
 
+-- Orphan-reply relink lookup (federation context fixes, 2026-05-21):
+-- ActivityProcessor.relinkPendingChildren queries for orphaned replies
+-- whose parent's ap_id we just imported. The set of orphaned replies is
+-- always a small fraction of `posts`, so a partial expression index keeps
+-- the index tiny and the lookup O(log n). See
+-- migrations/20260521_orphan_reply_relink_index.sql for the rollout note.
+CREATE INDEX IF NOT EXISTS idx_posts_pending_in_reply_to_ap_url
+  ON public.posts ((metadata->>'in_reply_to_ap_url'))
+  WHERE in_reply_to IS NULL
+    AND (is_deleted = false OR is_deleted IS NULL)
+    AND metadata ? 'in_reply_to_ap_url';
+
 -- ---------------------------------------------------------------------------
 -- messages (bot/channel/federation hot paths)
 -- ---------------------------------------------------------------------------

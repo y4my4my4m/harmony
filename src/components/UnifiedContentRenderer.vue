@@ -256,7 +256,10 @@ const contentOptions: ContentRenderOptions = {
 };
 
 const contentRef = computed(() => props.content);
-const renderer = useContentRenderer(contentRef, contentOptions, emit);
+// Vue's typed `emit` is a tuple-of-overloads function; useContentRenderer
+// expects the simpler `(event, ...args) => void` shape. The runtime call
+// signature matches; cast to bridge the type-level mismatch.
+const renderer = useContentRenderer(contentRef, contentOptions, emit as unknown as (event: string, ...args: any[]) => void);
 
 // Computed helpers
 const isPreviewMode = computed(() => props.mode === 'preview');
@@ -319,17 +322,19 @@ const handleMentionClick = (mention: MessagePart) => {
 const currentDomain = import.meta.env.VITE_DOMAIN as string;
 
 const isFederatedMention = (part: MessagePart): boolean => {
+  if (part.type !== 'mention') return false;
   return !part.isLocal && !!part.domain && part.domain !== currentDomain && part.domain !== 'discord.com';
 };
 
 const getMentionTooltip = (part: MessagePart): string => {
+  if (part.type !== 'mention') return '';
   if (part.domain === 'discord.com') {
-    return `Discord user: ${(part as any).displayName || part.username}`;
+    return `Discord user: ${part.displayName || part.username}`;
   }
   if (!part.isLocal && part.domain) {
     return `@${part.username}@${part.domain}`;
   }
-  return (part as any).displayName || part.username || '';
+  return part.displayName || part.username || '';
 };
 
 const handleImageLoad = (url: string) => {

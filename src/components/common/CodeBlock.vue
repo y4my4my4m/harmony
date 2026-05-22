@@ -26,6 +26,7 @@
 
 <script lang="ts">
 import { defineComponent, ref, computed } from 'vue';
+import { debug } from '@/utils/debug';
 import CopyIcon from '@/components/icons/Copy.vue';
 import CheckIcon from '@/components/icons/Check.vue';
 

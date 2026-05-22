@@ -4,7 +4,7 @@
  */
 
 import { supabase } from '@/supabase';
-import type { UserData } from '@/types';
+import type { UserData, FederatedUser } from '@/types';
 import { debug } from '@/utils/debug'
 import { getEmojiUrl } from '@/utils/emojiUtils';
 
@@ -241,11 +241,14 @@ export async function resolveMentions(mentions: MentionMatch[]): Promise<Resolve
         inboxUrl = user.inbox_url || `${actorUrl}/inbox`;
       }
 
+      // Cast through `any`: `ResolvedMention.user` is typed as `UserData`
+      // (camelCase) but we actually pass the snake_case row from the
+      // `profiles` table. Tightening the type would be a larger refactor.
       resolved.push({
         mention,
-        user: federatedUser,
+        user: federatedUser as any,
         inboxUrl,
-        actorUrl
+        actorUrl,
       });
 
     } catch (error) {
@@ -277,7 +280,9 @@ export function getDeliveryInboxes(resolvedMentions: ResolvedMention[]): string[
   const inboxes = new Set<string>();
   
   resolvedMentions.forEach(rm => {
-    if (rm.inboxUrl && rm.user && !rm.user.is_local) {
+    // `ResolvedMention.user` is typed as `UserData` but the actual data is a
+    // snake_case `FederatedUser`/profile row, so read via `any`.
+    if (rm.inboxUrl && rm.user && !(rm.user as any).is_local) {
       inboxes.add(rm.inboxUrl);
     }
   });
@@ -383,13 +388,17 @@ export async function resolveRemoteMention(username: string, domain: string, for
     return {
       id: savedUser.id,
       username: savedUser.username,
-      display_name, // Can be string or MessagePart[] with emojis
+      // `display_name` is typed as `string | undefined` on `Profile`, but in
+      // practice may be either a string or a `MessagePart[]` carrying inline
+      // emoji parts. Cast at the field boundary.
+      display_name: display_name as any,
       domain: savedUser.domain,
       avatar_url: savedUser.avatar_url,
       banner_url: savedUser.banner_url,
       handle: `@${username}@${domain}`,
       is_local: false,
-      bio,
+      // Same `bio` shape concern as `display_name` above.
+      bio: bio as any,
       verified: false,
       followers_count: savedUser.followers_count || 0,
       following_count: savedUser.following_count || 0,

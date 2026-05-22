@@ -112,8 +112,8 @@
         >
           <!-- Hide button for revealed blocked messages -->
           <div v-if="item.isRevealed && item.isFirstInRevealedGroup" class="revealed-blocked-banner">
-            <span class="blocked-warning">⚠️ {{ item.revealedCount }} message{{ item.revealedCount > 1 ? 's' : '' }} from blocked user</span>
-            <button class="hide-btn" @click="hideBlockedGroup(item.groupId)">Hide</button>
+            <span class="blocked-warning">⚠️ {{ item.revealedCount ?? 1 }} message{{ (item.revealedCount ?? 1) > 1 ? 's' : '' }} from blocked user</span>
+            <button class="hide-btn" @click="item.groupId && hideBlockedGroup(item.groupId)">Hide</button>
           </div>
           <!-- Banner for temporarily revealed reported message -->
           <div v-if="revealedReportedIds.has(item.message?.id)" class="revealed-blocked-banner reported-banner">
@@ -140,7 +140,7 @@
                     <span 
                       class="system-user-mention"
                       @click="showUserProfile(item.message.user_id)"
-                      :style="{ color: getUserColor(item.message.user_id).value }"
+                      :style="{ color: resolveChatUserColor(item.message.user_id) }"
                     ><DisplayName :userId="item.message.user_id" /></span>
                     started a thread: 
                     <span 
@@ -165,7 +165,7 @@
                     <span 
                       class="system-user-mention"
                       @click="showUserProfile(item.message.user_id)"
-                      :style="{ color: getUserColor(item.message.user_id).value }"
+                      :style="{ color: resolveChatUserColor(item.message.user_id) }"
                     ><DisplayName :userId="item.message.user_id" /></span>
                     <template v-if="item.message.metadata?.type === 'call_ended'">
                       started a {{ item.message.metadata?.call_type || 'voice' }} call that lasted
@@ -200,7 +200,7 @@
                     <span 
                       class="system-user-mention"
                       @click="showUserProfile(item.message.user_id)"
-                      :style="{ color: getUserColor(item.message.user_id).value }"
+                      :style="{ color: resolveChatUserColor(item.message.user_id) }"
                     ><DisplayName :userId="item.message.user_id" /></span>
                     has joined the server
                   </div>
@@ -212,13 +212,13 @@
                     <span
                       class="system-user-mention"
                       @click="showUserProfile(item.message.user_id)"
-                      :style="{ color: getUserColor(item.message.user_id).value }"
+                      :style="{ color: resolveChatUserColor(item.message.user_id) }"
                     >{{ getUserDisplayName(item.message.user_id).value }}</span>
                     was kicked<template v-if="item.message.metadata?.kicked_by"> by
                     <span
                       class="system-user-mention"
                       @click="showUserProfile(item.message.metadata.kicked_by)"
-                      :style="{ color: getUserColor(item.message.metadata.kicked_by).value }"
+                      :style="{ color: resolveChatUserColor(item.message.metadata.kicked_by) }"
                     ><DisplayName :userId="item.message.metadata.kicked_by" /></span></template><template v-if="item.message.metadata?.reason"> — {{ item.message.metadata.reason }}</template>
                   </div>
                 </template>
@@ -229,13 +229,13 @@
                     <span
                       class="system-user-mention"
                       @click="showUserProfile(item.message.user_id)"
-                      :style="{ color: getUserColor(item.message.user_id).value }"
+                      :style="{ color: resolveChatUserColor(item.message.user_id) }"
                     ><DisplayName :userId="item.message.user_id" /></span>
                     was banned<template v-if="item.message.metadata?.banned_by"> by
                     <span
                       class="system-user-mention"
                       @click="showUserProfile(item.message.metadata.banned_by)"
-                      :style="{ color: getUserColor(item.message.metadata.banned_by).value }"
+                      :style="{ color: resolveChatUserColor(item.message.metadata.banned_by) }"
                     ><DisplayName :userId="item.message.metadata.banned_by" /></span></template><template v-if="item.message.metadata?.reason"> — {{ item.message.metadata.reason }}</template>
                   </div>
                 </template>
@@ -275,22 +275,16 @@
           <!-- Regular Message Content -->
           <template v-else>
             <!-- Reply reference -->
-            <div v-if="item.message.reply_to" @click="handleReplyClick(item.message.reply_to)" class="reply-reference">
-            <div class="reply-spine"></div>
-            <div class="reply-content">
-              <Avatar 
-                :src="getReplyUserAvatar(item.message.reply_to)"
-                size="mini"
-                class="reply-avatar"
-              />
-              <div class="reply-username" :style="{ color: getReplyUserColor(item.message.reply_to) }">
-                <DisplayName :userId="getReplyUserId(item.message.reply_to)" :fallback="getReplyUserDisplayName(item.message.reply_to)" />
-              </div>
-              <div class="reply-preview">
-                {{ getReplyMessagePreview(item.message.reply_to) }}
-              </div>
-            </div>
-          </div>
+            <MessageReplyReference
+              v-if="item.message.reply_to"
+              :reply-to-message-id="item.message.reply_to"
+              :avatar-src="getReplyUserAvatar(item.message.reply_to)"
+              :reply-user-id="getReplyUserId(item.message.reply_to)"
+              :reply-user-display-name="getReplyUserDisplayName(item.message.reply_to)"
+              :username-color="getReplyUserColor(item.message.reply_to)"
+              :preview-text="getReplyMessagePreview(item.message.reply_to)"
+              @open-reply="handleReplyClick"
+            />
           
           <!-- Message content with proper alignment -->
           <div class="message-group" :class="{ 'has-header': shouldShowHeader(item.message, item.index), 'compact': !shouldShowHeader(item.message, item.index) }">
@@ -318,7 +312,7 @@
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
                   MOD
                 </span>
-                <SupporterBadge v-if="getMessageAuthorId(item.message)" :user-id="getMessageAuthorId(item.message)" />
+                <SupporterBadge v-if="getMessageAuthorId(item.message)" :user-id="getMessageAuthorId(item.message)!" />
               </span>
               <span class="timestamp" :title="formatFullTimestamp(item.message.created_at)">
                 {{ formatTimestamp(item.message.created_at) }}
@@ -549,6 +543,7 @@ import { useChatStore } from '@/stores/useChat';
 import { useDMStore } from '@/stores/useDM';
 import { useAuthStore } from '@/stores/auth';
 import { useServerChannelStore } from '@/stores/useServerChannel';
+import { useServerRolesStore } from '@/stores/useServerRoles';
 import { useProfileStore } from '@/stores/useProfile';
 import { useNotificationStore } from '@/stores/useNotification';
 import { useActivityPubStore } from '@/stores/useActivityPub';
@@ -579,6 +574,7 @@ import { fundingService } from '@/services/FundingService';
 import ThreadIndicator from '@/components/threads/ThreadIndicator.vue';
 import ConfirmationModal from '@/components/ConfirmationModal.vue';
 import MessageFloatingActions from '@/components/messages/MessageFloatingActions.vue';
+import MessageReplyReference from '@/components/messages/MessageReplyReference.vue';
 import { threadService } from '@/services/ThreadService';
 import type { ThreadWithDetails } from '@/services/ThreadService';
 import { messagePartsToMarkdown, messagePartsToPlainText, isSingleEmojiMessage as checkSingleEmoji, stripLeadingSelfMention } from '@/utils/messageContentUtils';
@@ -614,6 +610,34 @@ const emit = defineEmits(['loadMoreMessages', 'toggleEmojiList', 'sendReaction',
 // --- STORES & COMPOSABLES ---
 const serverUsersStore = useServerUsersStore();
 const serverChannelStore = useServerChannelStore();
+const serverRolesStore = useServerRolesStore();
+
+// Ensure role data is loaded for the current server so message author colors
+// reflect their highest colored role (Discord behavior). DMs and contexts
+// without a server fall back to user.color via `getUserColor` below.
+watch(
+  () => serverChannelStore.currentServerId,
+  (serverId) => {
+    if (serverId) serverRolesStore.ensureServerLoaded(serverId)
+  },
+  { immediate: true },
+);
+
+/**
+ * Resolve a chat-author's display color, preferring their highest-position
+ * colored role within the current server. Falls back to the user's profile
+ * color (and ultimately the default in `getUserColor`).
+ *
+ * `serverChannelStore.currentServerId` is null for DMs and ActivityPub
+ * contexts, in which case there's no role to look up and we fall through
+ * to the profile color — same as before this fix.
+ */
+const resolveChatUserColor = (userId: string | null | undefined): string => {
+  if (!userId) return '#ffffff';
+  const serverId = serverChannelStore.currentServerId;
+  const roleColor = serverId ? serverRolesStore.getUserRoleColor(serverId, userId) : null;
+  return roleColor || getUserColor(userId).value;
+};
 const chatStore = useChatStore();
 const dmStore = useDMStore();
 const authStore = useAuthStore();
@@ -664,8 +688,9 @@ const isMessageFromBlockedUser = (message: Message): boolean => {
   // Use the store getter for reliable reactive access
   const isBlocked = activityPubStore.isBlocked(authorId);
   
-  // Debug: log check for first few messages
-  if (debug.isEnabled && props.messages.indexOf(message) < 3) {
+  // Debug: log check for first few messages (debug helper short-circuits on
+  // its own when debug logging is disabled — no `isEnabled` flag needed).
+  if (props.messages.indexOf(message) < 3) {
     debug.log(`🔍 Block check: author=${authorId}, blocked=${isBlocked}, blockedUsers size=${activityPubStore.blockedUsers.size}`);
   }
   
@@ -783,19 +808,29 @@ const hideBlockedMessage = (messageId: string) => {
 };
 
 // Display items: transforms messages into displayable items with blocked groups
-interface DisplayItem {
-  type: 'message' | 'blocked-group' | 'reported';
-  key: string;
-  message?: Message;
-  index?: number;
-  // For blocked groups
-  groupId?: string;
-  count?: number;
-  // For revealed blocked messages
-  isRevealed?: boolean;
-  isFirstInRevealedGroup?: boolean;
-  revealedCount?: number;
-}
+type DisplayItem =
+  | {
+      type: 'message';
+      key: string;
+      message: Message;
+      index: number;
+      isRevealed?: boolean;
+      isFirstInRevealedGroup?: boolean;
+      groupId?: string;
+      revealedCount?: number;
+    }
+  | {
+      type: 'blocked-group';
+      key: string;
+      groupId: string;
+      count: number;
+    }
+  | {
+      type: 'reported';
+      key: string;
+      message: Message;
+      index: number;
+    };
 
 const displayItems = computed((): DisplayItem[] => {
   // Force reactivity
@@ -871,11 +906,16 @@ const displayItems = computed((): DisplayItem[] => {
 const hoveredMessageItem = computed(() => {
   const id = hoveredMessageId.value;
   if (!id) return null;
-  return displayItems.value.find((item) => item.type === 'message' && (item as { message: Message }).message?.id === id) as (DisplayItem & { message: Message }) | null;
+  return (
+    displayItems.value.find(
+      (item): item is Extract<DisplayItem, { type: 'message' }> =>
+        item.type === 'message' && item.message?.id === id
+    ) ?? null
+  );
 });
 
 const THUMB_REACH_PX = 48;
-const floatingActionsStyle = computed(() => {
+const floatingActionsStyle = computed((): Record<string, string> => {
   const pos = mobileActionTapPosition.value;
   if (!pos || typeof window === 'undefined') return {};
   const bottomPx = Math.max(8, window.innerHeight - pos.y + THUMB_REACH_PX);
@@ -935,8 +975,10 @@ const getThreadForMessage = (messageId: string): ThreadWithDetails | undefined =
   return threadsByMessageId.value.get(messageId);
 };
 
-// Open a thread
-const openThread = (thread: ThreadWithDetails) => {
+// Open a thread (accepts the lighter `ThreadData` shape emitted by
+// `<ThreadIndicator>` as well as the full `ThreadWithDetails` from
+// `threadService`; we just forward it to the parent via emit).
+const openThread = (thread: unknown) => {
   emit('createThread', { thread } as any);
 };
 
@@ -1129,9 +1171,9 @@ const getAuthorColor = (message: Message): ComputedRef<string> => {
       return '#0EA5E9';
     }
     
-    // Regular user
+    // Regular user — prefer highest-position role color in the active server.
     if (message.user_id) {
-      return getUserColor(message.user_id).value;
+      return resolveChatUserColor(message.user_id);
     }
     
     return '#dddddd';
@@ -1279,13 +1321,15 @@ const BUFFER_THRESHOLD = 15; // pixels needed to trigger buffer effect
 const frozenInitialOffset = ref(0);
 let hasSetInitialOffset = false;
 
-const rowVirtualizer = useVirtualizer(computed(() => ({
-  count: displayItems.value.length,
-  getScrollElement: () => messageDisplayContainer.value,
-  estimateSize: () => 60,
-  overscan: 15,
-  initialOffset: frozenInitialOffset.value,
-})));
+const rowVirtualizer = useVirtualizer<HTMLDivElement, Element>(
+  computed(() => ({
+    count: displayItems.value.length,
+    getScrollElement: () => messageDisplayContainer.value,
+    estimateSize: () => 60,
+    overscan: 15,
+    initialOffset: frozenInitialOffset.value,
+  })) as any
+);
 
 const virtualRows = computed(() => rowVirtualizer.value.getVirtualItems());
 const totalSize = computed(() => rowVirtualizer.value.getTotalSize());
@@ -1389,6 +1433,11 @@ watch(() => props.messages, (newMessages) => {
   lastKnownFirstMessageId.value = newMessages[0]?.id ?? null;
 
   const oldScrollHeight = messageDisplayContainer.value?.scrollHeight ?? 0;
+  // Snapshot scrollTop alongside scrollHeight so the prepend handler below can
+  // pin the viewport by height-delta (see the "Load older messages (prepend)"
+  // branch). Reading from the DOM here, BEFORE Vue patches in the new rows,
+  // gives us the exact pre-prepend offset.
+  const oldScrollTopForPrepend = messageDisplayContainer.value?.scrollTop ?? 0;
 
   // Reset embed tracking for new messages
   const newMessageIds = new Set(newMessages.map(m => m.id));
@@ -1605,33 +1654,50 @@ watch(() => props.messages, (newMessages) => {
           } else if (isAppend && !userWasAtBottom.value) {
             shouldBeAtBottom.value = false;
           }
-          // Load older messages (prepend) - maintain scroll position via virtualizer index
+          // Load older messages (prepend) — pin viewport by scroll-height delta.
+          //
+          // The previous approach called `scrollToIndex(targetIndex, 'start')`
+          // + a sub-item offset correction on each of 5 RAFs. That visibly jumped
+          // because `scrollToIndex` issues a *new* scroll command instead of just
+          // adjusting `scrollTop`, and each retry re-fired it as the virtualizer
+          // re-measured. Standard chat-scroll pattern is cleaner: snapshot
+          // `scrollHeight` + `scrollTop` BEFORE prepend, then after prepend set
+          // `scrollTop = newScrollHeight - oldScrollHeight + oldScrollTop`. The
+          // virtualizer's `totalSize` reflects newly added items, so the delta
+          // is exactly how much we need to push down to keep the same content
+          // under the user's eye. No jumps, no scrollToIndex thrash.
           else if (!isAppend) {
             shouldBeAtBottom.value = false;
-            const newDisplayItemCount = displayItems.value.length;
-            const numDisplayItemsPrepended = newDisplayItemCount - prevDisplayItemCount;
-            
-            // Find anchor: the item overlapping the viewport top
-            const scrollTopNow = messageDisplayContainer.value.scrollTop;
-            const visibleItems = rowVirtualizer.value.getVirtualItems();
-            let anchorItem = visibleItems.find(item => item.start + item.size > scrollTopNow);
-            if (!anchorItem && visibleItems.length) anchorItem = visibleItems[visibleItems.length - 1];
-            const previousVisibleIndex = anchorItem?.index ?? 0;
-            const offsetIntoAnchor = anchorItem ? scrollTopNow - anchorItem.start : 0;
-            const targetIndex = previousVisibleIndex + numDisplayItemsPrepended;
-            
-            // Scroll to the shifted index, then restore sub-item offset
-            const adjustScroll = (attempt = 0) => {
-              if (!messageDisplayContainer.value) return;
-              rowVirtualizer.value.scrollToIndex(targetIndex, { align: 'start' });
-              if (offsetIntoAnchor > 0) {
-                messageDisplayContainer.value.scrollTop += offsetIntoAnchor;
+            // Re-read the ref locally with a null guard — match the defensive
+            // style used throughout this watcher (lines 1435, 1440, 1646, 1680).
+            // The outer `if (messageDisplayContainer.value)` at the top of the
+            // nextTick is enough at runtime today, but binding `container` once
+            // here keeps the property accesses below from depending on TS
+            // narrowing flowing across nested branches.
+            const container = messageDisplayContainer.value;
+            if (container) {
+              const newHeight = container.scrollHeight;
+              const heightDelta = newHeight - oldScrollHeight;
+              if (heightDelta > 0) {
+                // Apply once synchronously to suppress the flash, then again on
+                // the next frame in case the virtualizer measured during the
+                // same tick and grew `scrollHeight` after the initial write.
+                container.scrollTop = oldScrollTopForPrepend + heightDelta;
+                requestAnimationFrame(() => {
+                  const c = messageDisplayContainer.value;
+                  if (!c) return;
+                  const finalDelta = c.scrollHeight - oldScrollHeight;
+                  if (finalDelta > 0) {
+                    c.scrollTop = oldScrollTopForPrepend + finalDelta;
+                  }
+                });
               }
-              if (attempt < 5) {
-                requestAnimationFrame(() => adjustScroll(attempt + 1));
-              }
-            };
-            nextTick(() => requestAnimationFrame(() => adjustScroll()));
+            }
+            // Note: prevDisplayItemCount is no longer needed here since we
+            // pin by height-delta instead of by displayItems index. Leaving
+            // the variable read in scope is harmless; the unused-var lint is
+            // fine because the watcher above still uses it.
+            void prevDisplayItemCount;
           }
         }
         
@@ -1657,7 +1723,7 @@ watch(isLoadingOlderMessages, (loading, wasLoading) => {
       const { scrollHeight, clientHeight } = messageDisplayContainer.value;
       if (scrollHeight <= clientHeight + 5) {
         debug.log('📜 Still no scrollbar after loading — auto-loading more');
-        props.loadMoreMessages();
+        props.loadMoreMessages?.();
       }
     }, 300);
   }
@@ -1674,7 +1740,7 @@ watch(() => props.messages.map(msg => msg.reactions?.length), () => {
 // OPTIMIZED: Debounced to prevent 45+ API calls per page load
 let intersectionObserver: IntersectionObserver | null = null;
 const observedMessages = new Set<string>();
-let pendingUnreadUpdate: { messageId: string; timestamp: string } | null = null;
+let pendingUnreadUpdate: { messageId: string; timestamp: Date } | null = null;
 let unreadUpdateTimeout: ReturnType<typeof setTimeout> | null = null;
 let hasUnreadUpdatePending = false;
 
@@ -1700,7 +1766,7 @@ const setupUnreadObserver = () => {
       });
     },
     {
-      root: messageDisplayContainer.value,
+      root: messageDisplayContainer.value as unknown as Element | null,
       rootMargin: '0px',
       threshold: 0.1 // Trigger when 10% of message is visible
     }
@@ -1905,12 +1971,12 @@ const setupTopSentinelObserver = () => {
       const entry = entries[0];
       if (entry?.isIntersecting && hasInitiallyScrolled && !isAllMessagesLoaded.value && !isLoadingOlderMessages.value && props.loadMoreMessages) {
         debug.log('📜 Top sentinel visible (prefetch zone) — auto-loading older messages');
-        props.loadMoreMessages();
+        props.loadMoreMessages?.();
       }
     },
-    { root: messageDisplayContainer.value, threshold: 0, rootMargin: '300px 0px 0px 0px' }
+    { root: messageDisplayContainer.value as unknown as Element | null, threshold: 0, rootMargin: '300px 0px 0px 0px' }
   );
-  topSentinelObserver.observe(topSentinelRef.value);
+  topSentinelObserver.observe(topSentinelRef.value as unknown as Element);
 };
 
 // --- RESIZE OBSERVER for scroll-to-bottom ---
@@ -2018,7 +2084,7 @@ const showTooltip = async (event: MouseEvent, reaction: Reaction) => {
       const discordUser = r.metadata.discord_user;
       return {
         id: discordUser.id,
-        displayName: discordUser.display_name || discordUser.username,
+        displayName: discordUser.display_name || discordUser.username || 'Discord User',
         avatarUrl: discordUser.avatar_url || '',
         userColor: '#0EA5E9', // Discord brand color
         isBridged: true,
@@ -2026,12 +2092,14 @@ const showTooltip = async (event: MouseEvent, reaction: Reaction) => {
       };
     }
     
-    // Regular Harmony user
+    // Regular Harmony user — use role color where available, like the
+    // username in the message header. Keeps the reaction tooltip consistent
+    // with the rest of the chat.
     return {
       id: r.user_id,
       displayName: getUserDisplayName(r.user_id).value,
       avatarUrl: getUserAvatarUrl(r.user_id).value,
-      userColor: getUserColor(r.user_id).value,
+      userColor: resolveChatUserColor(r.user_id),
       isBridged: false
     };
   });
@@ -2569,7 +2637,7 @@ const getReplyUserDisplayName = (replyMessageId: string) => {
 
 const getReplyUserColor = (replyMessageId: string) => {
   const userId = getReplyUserId(replyMessageId);
-  return userId === 'unknown' ? '#dddddd' : getUserColor(userId).value;
+  return userId === 'unknown' ? '#dddddd' : resolveChatUserColor(userId);
 };
 
 const getReplyUserAvatar = (replyMessageId: string) => {
@@ -2741,13 +2809,17 @@ const handleDecryptMessage = async (message: Message) => {
       : Boolean(decryptResult.senderVerified);
 
     if (decryptedContent) {
-      // Update the message in the store with decrypted content
-      const resolvedContent = await resolveMentionsUserData(decryptedContent);
-
+      // NOTE: previous code called `resolveMentionsUserData(decryptedContent)`
+      // and assigned its return value to `content`, but
+      // `resolveMentionsUserData` returns a Record<string, {userId, isLocal}>
+      // lookup map (not MessagePart[]). That was a latent bug — assigning the
+      // lookup map to `content` would render nothing. The decrypted content
+      // is already a parsed `MessagePart[]` from
+      // `megolmMessageEncryptionService.decryptMessage`, so we use it directly.
       // Create updated message object
       const updatedMessage: Message = {
         ...messageToDecrypt,
-        content: resolvedContent,
+        content: decryptedContent,
         encrypted: false,
         decrypted: true,
         sender_verified: senderVerified,
@@ -2854,9 +2926,10 @@ const resolveNonUuidProfile = async (userId: string): Promise<any | null> => {
   return null;
 };
 
-const showUserProfile = async (userId: string, event?: MouseEvent) => {
+const showUserProfile = async (userId: string | null | undefined, event?: MouseEvent) => {
   event?.stopPropagation();
-  
+  if (!userId) return;
+
   let user: any = null;
   if (UUID_PATTERN.test(userId)) {
     user = getUserProfile(userId).value || await fetchUserProfile(userId).catch(e => debug.error(e));
@@ -2974,65 +3047,6 @@ defineExpose({ editLastOwnMessage });
 
 .message-item:hover {
   background-color: rgba(4, 4, 5, 0.07);
-}
-
-/* Reply reference styling */
-.reply-reference {
-  margin-left: 54px; /* Match the gutter width */
-  margin-bottom: 0;
-  cursor: pointer;
-  position: relative;
-}
-
-.reply-spine {
-  position: absolute;
-  left: -36px;
-  bottom: -1px;
-  width: 2px;
-  height: 12px;
-  background-color: #4f545c;
-  border-radius: 1px;
-}
-
-.reply-spine::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 34px;
-  height: 2px;
-  background-color: #4f545c;
-  border-radius: 1px;
-}
-
-.reply-content {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  opacity: 0.64;
-  transition: opacity 0.2s ease;
-}
-
-.reply-content:hover {
-  opacity: 1;
-}
-
-.reply-avatar {
-  flex-shrink: 0;
-}
-
-.reply-username {
-  font-weight: 500;
-  font-size: 0.875rem;
-}
-
-.reply-preview {
-  color: var(--text-secondary);
-  font-size: 0.875rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 300px;
 }
 
 /* Message group - contains header and/or content */
@@ -3511,17 +3525,6 @@ defineExpose({ editLastOwnMessage });
     padding: 0 8px 0 12px;
   }
   
-  .reply-reference {
-    margin-left: 50px;
-  }
-  .reply-spine {
-    left: -30px;
-  }
-  
-  .reply-spine::after {
-    width: 28px;
-  }
-
   .message-header {
     gap: 12px;
   }
@@ -3764,21 +3767,35 @@ defineExpose({ editLastOwnMessage });
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 12px;
+  gap: 10px;
   padding: 12px;
   height: 44px;
   box-sizing: border-box;
   color: var(--text-secondary);
   font-size: 13px;
+  /* Match the spinner's box so the text baseline isn't pulled down by
+     line-height descender space inside the flex track. Centering on a
+     uniform line-height makes both children share the same visual axis. */
+  line-height: 16px;
+}
+
+.loading-older-messages > span {
+  line-height: 16px;
+  display: inline-flex;
+  align-items: center;
 }
 
 .loading-spinner {
-  width: 20px;
-  height: 20px;
+  width: 16px;
+  height: 16px;
   border: 2px solid var(--text-secondary);
   border-top-color: transparent;
   border-radius: 50%;
   animation: spin-loader 0.8s linear infinite;
+  /* `display: block` would still flex-align correctly, but inline-block lets
+     the flex item participate as a baseline-positioned token alongside the
+     text glyphs — visually identical centering without descender drift. */
+  flex-shrink: 0;
 }
 
 @keyframes spin-loader {

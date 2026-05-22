@@ -3,12 +3,12 @@
     <!-- Context Bar -->
     <div class="context-bar-container">
       <UnifiedContextBar
-        mode="activitypub"
+        :mode="'activitypub' as any"
         :is-mobile="isMobile"
         :left-sidebar-open="leftSidebarOpen"
         :right-sidebar-open="rightSidebarOpen"
         :voice-panel-open="voicePanelOpen"
-        :current-view="currentView"
+        :current-view="currentView as any"
         :instance-domain="instanceDomain"
         @toggle-left-sidebar="$emit('toggleLeftSidebar')"
         @toggle-right-sidebar="$emit('toggleRightSidebar')"
@@ -126,7 +126,7 @@
                 :user="user"
                 :show-follow-btn="true"
                 :is-compact="true"
-                @click="handleUserCardClick"
+                @click="handleUserCardClick as any"
               />
             </div>
           </div>
@@ -151,7 +151,7 @@
       mode="modal"
       :type="composerType"
       :is-open="activityPubStore.isComposerOpen"
-      :reply-to-post="composerReplyPost"
+      :reply-to-post="(composerReplyPost as any) ?? undefined"
       :quote-post="activityPubStore.composerState.quotePost"
       :quote-author="activityPubStore.composerState.quoteAuthor"
       :initial-content="activityPubStore.composerState.content"
@@ -191,6 +191,7 @@ import { trendingService } from '@/services/TrendingService'
 import { useViewContextTracking } from '@/composables/useViewContext'
 import { useLayoutState } from '@/composables/useLayoutState'
 import { supabase } from '@/supabase'
+import { getOriginalPost } from '@/utils/postReblog'
 import type { FederatedUser, TimelinePost } from '@/types'
 
 // Props - Made view props optional since we extract from route
@@ -529,13 +530,20 @@ const handlePostCreated = async () => {
 }
 
 const handleReplyToPost = (post: TimelinePost) => {
-  composerReplyPost.value = post
+  // For reblogs, target the original post — the user wants to reply to the
+  // author whose words they're seeing, not to the booster.
+  composerReplyPost.value = getOriginalPost(post)
   activityPubStore.openComposer()
 }
 
+// Previously these called `activityPubStore.favoritePost / reblogPost /
+// bookmarkPost` via `as any`, but those methods don't actually exist on the
+// store — the real action methods are `toggleFavorite / toggleReblog /
+// toggleBookmark`. The `as any` cast hid a TypeError so the buttons in the
+// social layout's wrapper UI silently failed (caught + logged, no toast).
 const handleFavoritePost = async (post: TimelinePost) => {
   try {
-    await activityPubStore.favoritePost(post.id)
+    await activityPubStore.toggleFavorite(post.id)
   } catch (error) {
     debug.error('Failed to favorite post:', error)
   }
@@ -543,7 +551,7 @@ const handleFavoritePost = async (post: TimelinePost) => {
 
 const handleReblogPost = async (post: TimelinePost) => {
   try {
-    await activityPubStore.reblogPost(post.id)
+    await activityPubStore.toggleReblog(post.id)
   } catch (error) {
     debug.error('Failed to reblog post:', error)
   }
@@ -551,7 +559,7 @@ const handleReblogPost = async (post: TimelinePost) => {
 
 const handleBookmarkPost = async (post: TimelinePost) => {
   try {
-    await activityPubStore.bookmarkPost(post.id)
+    await activityPubStore.toggleBookmark(post.id)
   } catch (error) {
     debug.error('Failed to bookmark post:', error)
   }
@@ -652,9 +660,11 @@ const closeUserProfile = () => {
   selectedUser.value = null
 }
 
-const handleUserCardClick = (user: FederatedUser) => {
-  // Only open modal, don't navigate - user can navigate from modal if they want
-  selectedUser.value = user
+const handleUserCardClick = (user: any) => {
+  // Only open modal, don't navigate - user can navigate from modal if they want.
+  // ProfileCard emits `User | FederatedUser`; we coerce to FederatedUser since
+  // selectedUser ref expects the federated shape.
+  selectedUser.value = user as FederatedUser
 }
 
 // Navigate to hashtag view

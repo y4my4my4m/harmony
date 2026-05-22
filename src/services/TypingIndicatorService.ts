@@ -37,6 +37,16 @@ class TypingIndicatorService {
 
   private typingUsers = new Map<string, Set<TypingUser>>()
   private typingCallbacks = new Map<string, Set<(users: TypingUser[]) => void>>()
+  /**
+   * Per-context interval that re-evaluates `typingUsers` from `channel.presenceState()`
+   * every {@link STALE_REEVAL_MS}. Supabase only emits presence `sync` when the
+   * underlying state changes, so a typer whose `stopTyping()` never reached the
+   * channel (network drop, race, closed tab without graceful cleanup) would stay
+   * on screen forever. Periodic re-eval applies the age filter so stale typers
+   * always clear within `TYPING_TIMEOUT_MS`.
+   */
+  private staleSweepers = new Map<string, number>()
+  private readonly STALE_REEVAL_MS = 1000
 
   async initialize(): Promise<void> {
     if (this.currentUserId) return
@@ -268,6 +278,7 @@ class TypingIndicatorService {
           clearTimeout(timeout)
           this.channelsByKey.set(contextKey, ch)
           this.handlePresenceSync(context)
+          this.startStaleSweeper(context)
           resolve(true)
         } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
           resolved = true
@@ -292,9 +303,39 @@ class TypingIndicatorService {
       await this.stopTyping()
     }
 
+    this.stopStaleSweeper(contextKey)
     this.channelsByKey.delete(contextKey)
     this.typingUsers.delete(contextKey)
     await supabase.removeChannel(ch)
+  }
+
+  /**
+   * Start a per-context interval that re-runs `handlePresenceSync`. Idempotent.
+   * The sync handler already applies the `typing_at` age filter, so stale
+   * entries naturally fall off without needing a new presence event from
+   * Supabase Realtime.
+   */
+  private startStaleSweeper(context: TypingContext): void {
+    const contextKey = this.getContextKey(context)
+    if (this.staleSweepers.has(contextKey)) return
+
+    const handle = window.setInterval(() => {
+      if (!this.channelsByKey.has(contextKey)) {
+        this.stopStaleSweeper(contextKey)
+        return
+      }
+      this.handlePresenceSync(context)
+    }, this.STALE_REEVAL_MS)
+
+    this.staleSweepers.set(contextKey, handle)
+  }
+
+  private stopStaleSweeper(contextKey: string): void {
+    const handle = this.staleSweepers.get(contextKey)
+    if (handle !== undefined) {
+      clearInterval(handle)
+      this.staleSweepers.delete(contextKey)
+    }
   }
 
   private handlePresenceSync(context: TypingContext): void {
@@ -328,24 +369,10 @@ class TypingIndicatorService {
     this.notifyCallbacks(context, typingArray)
   }
 
-  private handlePresenceJoin(context: TypingContext, newPresences: any[]): void {
-    const contextKey = this.getContextKey(context)
-    let typingSet = this.typingUsers.get(contextKey) || new Set<TypingUser>()
-
-    newPresences.forEach((presence: any) => {
-      if (presence.typing && presence.user_id !== this.currentUserId) {
-        typingSet.add({
-          user_id: presence.user_id,
-          display_name: presence.display_name,
-          username: presence.username,
-          typing_at: presence.typing_at || new Date().toISOString()
-        })
-      }
-    })
-
-    const typingArray = Array.from(typingSet).slice(0, 3)
-    this.typingUsers.set(contextKey, new Set(typingArray))
-    this.notifyCallbacks(context, typingArray)
+  private handlePresenceJoin(context: TypingContext, _newPresences: any[]): void {
+    // Always rebuild from authoritative presence — incremental join updates
+    // missed typing:false and left "is typing..." stuck on screen.
+    this.handlePresenceSync(context)
   }
 
   private handlePresenceLeave(context: TypingContext, leftPresences: any[]): void {
@@ -422,6 +449,11 @@ class TypingIndicatorService {
     for (const key of keys) {
       await this.teardownContextKey(key)
     }
+
+    for (const handle of this.staleSweepers.values()) {
+      clearInterval(handle)
+    }
+    this.staleSweepers.clear()
 
     this.typingUsers.clear()
     this.typingCallbacks.clear()

@@ -38,7 +38,7 @@ export class ReactionCacheManager {
   private pruneStaleEntries() {
     try {
       const reactionsStore = useReactionsStore();
-      const lastFetched = reactionsStore.lastFetched;
+      const lastFetched = (reactionsStore as any).lastFetched;
       const reactionsByMessage = reactionsStore.reactionsByMessage;
       const now = Date.now();
       let pruned = 0;

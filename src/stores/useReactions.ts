@@ -81,9 +81,11 @@ export const useReactionsStore = defineStore('reactions', () => {
       debug.log('🔄 Fetching reactions via service layer for message:', messageId)
 
       const reactions = await services.messages.getMessageReactions(messageId)
-      
-      // Store in cache
-      reactionsByMessage.value.set(messageId, reactions)
+
+      // Store in cache. The service-layer return shape diverges slightly from
+      // the legacy ReactionGroup the store consumes; cast to bridge the two
+      // until the call sites are migrated to the new shape.
+      reactionsByMessage.value.set(messageId, reactions as any)
       lastFetched.value.set(messageId, now)
       
       debug.log('✅ Successfully fetched reactions via service layer')
@@ -125,9 +127,9 @@ export const useReactionsStore = defineStore('reactions', () => {
       // Use the core service directly for batch operations
       const batchReactions = await services.messages.getBatchMessageReactions(idsToFetch)
       
-      // Store all results in cache
+      // Store all results in cache. Same shape-bridge cast as `fetchMessageReactions`.
       for (const [messageId, reactions] of Object.entries(batchReactions)) {
-        reactionsByMessage.value.set(messageId, reactions)
+        reactionsByMessage.value.set(messageId, reactions as any)
         lastFetched.value.set(messageId, now)
       }
       
@@ -250,8 +252,10 @@ export const useReactionsStore = defineStore('reactions', () => {
     }
 
     if (optimisticReactions.value.has(messageId)) {
-      debug.log('🔄 Optimistic state present, scheduling reconcile')
-      scheduleReconcile(messageId, 1500)
+      // Short reconcile so other users' reactions still appear quickly while
+      // our own optimistic toggle is in flight.
+      debug.log('🔄 Optimistic state present, scheduling reconcile from realtime')
+      scheduleReconcile(messageId, 400)
       return
     }
     
@@ -309,27 +313,34 @@ export const useReactionsStore = defineStore('reactions', () => {
              const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(emojiId)
              
              if (!isUuid) {
-               // Try to resolve using unified emoji service
-               const { resolveEmoji, isNativePack, getSvgUrl } = useUnifiedEmoji()
+               // Resolve via unifiedEmoji for the *display* fields (SVG URL or
+               // unicode glyph), but keep `name` and `content` equal to the
+               // raw `emojiId` so the optimistic group's identity matches what
+               // the server stores in `custom_emoji_content`. MessageReactions'
+               // `getReactionKey` falls back to `emoji.name` when `emoji_id`
+               // is null — if optimistic uses the shortcode and the server
+               // returns the raw content (or vice versa), the v-for keys
+               // differ and TransitionGroup runs a leave→enter cycle that
+               // looks like a reorder when the reconcile fires.
+               const { resolveEmoji } = useUnifiedEmoji()
                const resolved = resolveEmoji(emojiId)
                
                debug.log('🎨 Resolving native/mutant emoji:', emojiId, resolved)
                
                emoji = {
                  id: emojiId,
-                 name: resolved.shortcode || emojiId,
-                 // For native pack, don't set URL (render as native)
-                 // For mutant pack, set SVG URL
+                 name: emojiId,
+                 content: emojiId,
+                 // For native pack, don't set URL (render as native).
+                 // For mutant pack, set the SVG URL so the chip renders the
+                 // pack image instead of an empty span pre-reconcile.
                  url: resolved.display.type === 'svg' ? resolved.display.content : '',
                  native: resolved.unicode,
                  unicode: resolved.unicode,
                  server_id: '',
                  uploader: '',
-                 created_at: '',
-                 updated_at: '',
                  usage_count: 0,
-                 last_used: ''
-               }
+               } as any
              } else {
                // UUID emoji not found in cache
                emoji = {
@@ -338,11 +349,8 @@ export const useReactionsStore = defineStore('reactions', () => {
                  url: '',
                  server_id: '',
                  uploader: '',
-                 created_at: '',
-                 updated_at: '',
                  usage_count: 0,
-                 last_used: ''
-               }
+               } as any
                debug.warn('❌ Emoji not found in cache:', emojiId)
              }
            }

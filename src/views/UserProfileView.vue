@@ -320,6 +320,7 @@ const { t } = useI18n();
 import { activityPubService } from '@/services/activityPubService';
 import { services } from '@/services';
 import { getBannerUrl } from '@/utils/bannerUtils';
+import { getOriginalPost, getOriginalPostId } from '@/utils/postReblog';
 import type { FederatedUser, TimelinePost } from '@/types';
 import { format } from 'date-fns';
 import DOMPurify from 'dompurify';
@@ -447,11 +448,11 @@ const selectedModalUser = ref<FederatedUser | null>(null);
 
 // Computed properties
 const plainDisplayName = computed(() => {
-  const dn = user.value?.display_name
+  const dn: unknown = user.value?.display_name
   if (!dn) return user.value?.username || 'Unknown User'
   if (typeof dn === 'string') return dn
   if (Array.isArray(dn)) {
-    return dn.map((part: any) => typeof part === 'string' ? part : (part.text || part.content || '')).join('')
+    return (dn as any[]).map((part: any) => typeof part === 'string' ? part : (part.text || part.content || '')).join('')
   }
   return String(dn)
 })
@@ -1032,11 +1033,12 @@ const handleReport = () => {
   showActionsMenu.value = false;
 };
 
-const showUserProfile = (clickedUser: FederatedUser) => {
-  // Show modal first
-  selectedModalUser.value = clickedUser;
+// Accepts both `User` (chat-side) and `FederatedUser` (federation-side) since
+// the `ProfileCard` emit may emit either depending on the source list.
+const showUserProfile = (clickedUser: import('@/types').User | FederatedUser) => {
+  selectedModalUser.value = clickedUser as FederatedUser;
   showProfileModal.value = true;
-  debug.log(`👤 Showing profile modal for: ${clickedUser.handle}`);
+  debug.log(`👤 Showing profile modal for: ${(clickedUser as FederatedUser).handle}`);
 };
 
 const navigateToProfile = (clickedUser: FederatedUser) => {
@@ -1067,10 +1069,14 @@ const navigateToProfile = (clickedUser: FederatedUser) => {
 };
 
 const replyToPost = (post: TimelinePost) => {
-  const handle = post.author.handle || '';
+  // For reblogs, address the original author and thread under the original
+  // note (Mastodon/Pleroma/Misskey behaviour). The reblog wrapper has the
+  // booster as `author`, which isn't what the user wants to reply to.
+  const target = getOriginalPost(post);
+  const handle = target.author?.handle || '';
   const mentionText = handle.startsWith('@') ? handle : `@${handle}`;
   activityPubStore.openComposer({
-    replyTo: post.id,
+    replyTo: getOriginalPostId(post),
     content: `${mentionText} `
   });
   router.push('/social/home');

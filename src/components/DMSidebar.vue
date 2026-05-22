@@ -270,7 +270,9 @@ const getUserStatus = (userId: string): 'online' | 'away' | 'busy' | 'offline' =
   try {
     const status = getPresenceAwareStatus(userId).value;
     debug.log('DMSidebar - Status for user', userId, ':', status);
-    return status;
+    // `getPresenceAwareStatus` may return 'invisible' too; the UI only renders
+    // four states, so collapse 'invisible' to 'offline' for indicator color.
+    return status === 'invisible' ? 'offline' : (status as 'online' | 'away' | 'busy' | 'offline');
   } catch (error) {
     debug.error('DMSidebar - Error getting status for user', userId, ':', error);
     return 'offline';
@@ -402,10 +404,12 @@ const getMessagePreviewText = (message: Message): string => {
   const content = message.content as MessagePart[]
   if (!Array.isArray(content)) return 'No messages yet'
   
-  // Extract text from message parts
+  // Extract text from message parts. After the type filter narrows to the
+  // 'text' arm, `.text` is safe to read, but TypeScript's narrowing across
+  // .filter+.map is not always tight enough; cast through `any`.
   const textParts = content
-    .filter(part => part.type === 'text')
-    .map(part => part.text)
+    .filter((part: any) => part.type === 'text')
+    .map((part: any) => part.text)
     .join(' ')
   
   if (textParts) return textParts.length > 50 ? textParts.substring(0, 50) + '...' : textParts

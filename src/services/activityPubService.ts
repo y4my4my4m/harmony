@@ -173,14 +173,14 @@ export class ActivityPubService {
 
     // Process user interactions into boolean flags and filter out suspended users
     const posts = (data || [])
-      .filter(post => !post.author?.is_suspended) // Exclude posts from suspended users
-      .map(post => {
+      .filter((post: any) => !post.author?.is_suspended) // Exclude posts from suspended users
+      .map((post: any) => {
         const interactions = post.my_interactions || [];
         return {
           ...post,
-          is_bookmarked: interactions.some(i => i.interaction_type === 'bookmark'),
-          is_favorited: interactions.some(i => i.interaction_type === 'favorite' || i.interaction_type === 'emoji_reaction'),
-          is_reblogged: interactions.some(i => i.interaction_type === 'reblog'),
+          is_bookmarked: interactions.some((i: any) => i.interaction_type === 'bookmark'),
+          is_favorited: interactions.some((i: any) => i.interaction_type === 'favorite' || i.interaction_type === 'emoji_reaction'),
+          is_reblogged: interactions.some((i: any) => i.interaction_type === 'reblog'),
         };
       });
 
@@ -225,14 +225,14 @@ export class ActivityPubService {
 
       // Process user interactions into boolean flags and filter out suspended users
       const posts = (data || [])
-        .filter(post => !post.author?.is_suspended)
-        .map(post => {
+        .filter((post: any) => !post.author?.is_suspended)
+        .map((post: any) => {
           const interactions = post.my_interactions || [];
           return {
             ...post,
-            is_bookmarked: interactions.some(i => i.interaction_type === 'bookmark'),
-            is_favorited: interactions.some(i => i.interaction_type === 'favorite' || i.interaction_type === 'emoji_reaction'),
-            is_reblogged: interactions.some(i => i.interaction_type === 'reblog'),
+            is_bookmarked: interactions.some((i: any) => i.interaction_type === 'bookmark'),
+            is_favorited: interactions.some((i: any) => i.interaction_type === 'favorite' || i.interaction_type === 'emoji_reaction'),
+            is_reblogged: interactions.some((i: any) => i.interaction_type === 'reblog'),
           };
         });
       
@@ -1775,8 +1775,11 @@ export class ActivityPubService {
     const limit = options.limit || 20;
     const max_id = options.max_id || null;
 
-    // Build query based on timeline type
-    let query = supabase.from('posts');
+    // Build query based on timeline type.
+    // Typed as `any` because the Postgrest chain returns a different builder
+    // type per chained call (`PostgrestQueryBuilder` -> `PostgrestFilterBuilder`),
+    // and reassigning back to the same `let` variable would otherwise mismatch.
+    let query: any = supabase.from('posts');
 
     if (timelineType === 'home') {
       // Get following list - include both accepted AND pending follows
@@ -1841,16 +1844,16 @@ export class ActivityPubService {
     if (error) throw error;
 
     // Process user interactions into boolean flags and filter out suspended users
-    const rawData = data || [];
+    const rawData: any[] = data || [];
     const posts = rawData
-      .filter(post => !post.author?.is_suspended)
-      .map(post => {
+      .filter((post: any) => !post.author?.is_suspended)
+      .map((post: any) => {
         const interactions = post.my_interactions || [];
         return {
           ...post,
-          is_bookmarked: interactions.some(i => i.interaction_type === 'bookmark'),
-          is_favorited: interactions.some(i => i.interaction_type === 'favorite' || i.interaction_type === 'emoji_reaction'),
-          is_reblogged: interactions.some(i => i.interaction_type === 'reblog'),
+          is_bookmarked: interactions.some((i: any) => i.interaction_type === 'bookmark'),
+          is_favorited: interactions.some((i: any) => i.interaction_type === 'favorite' || i.interaction_type === 'emoji_reaction'),
+          is_reblogged: interactions.some((i: any) => i.interaction_type === 'reblog'),
         };
       });
 

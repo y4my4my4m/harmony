@@ -11,6 +11,11 @@
   
   <NotificationToast />
   <OfflineBanner />
+
+  <!-- Global encryption-fallback prompt. Replaces `window.confirm` in the
+       channel / DM / thread send paths so the dialog matches the rest of
+       the app's UI and isn't a native browser alert. -->
+  <EncryptionFallbackModal />
   
   <!-- Persistent Voice Connection (only when authenticated) -->
   <PersistentVoiceConnection v-if="!isAuthRoute" />
@@ -44,6 +49,7 @@ import BaseLayout from '@/layouts/BaseLayout.vue'
 import AuthLayout from '@/layouts/AuthLayout.vue'
 import NotificationToast from '@/components/NotificationToast.vue'
 import OfflineBanner from '@/components/OfflineBanner.vue'
+import EncryptionFallbackModal from '@/components/EncryptionFallbackModal.vue'
 import PersistentVoiceConnection from '@/components/PersistentVoiceConnection.vue'
 import PWAInstallBanner from '@/components/PWAInstallBanner.vue'
 import PWAUpdateNotification from '@/components/PWAUpdateNotification.vue'

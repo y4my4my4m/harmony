@@ -20,6 +20,7 @@ export function useTypingIndicator(context: TypingContext | null | (() => Typing
   let unsubscribe: (() => void) | null = null
   let currentSubscribedKey = ''
   let isSubscribing = false
+  let pendingContextKey: string | null = null
 
   // Handle both computed refs and direct values
   const getContext = () => {
@@ -45,8 +46,9 @@ export function useTypingIndicator(context: TypingContext | null | (() => Typing
       return
     }
     
-    // Prevent concurrent subscription attempts
+    // Queue a follow-up if context changes mid-flight (common on channel switch).
     if (isSubscribing) {
+      pendingContextKey = key
       return
     }
     
@@ -81,6 +83,15 @@ export function useTypingIndicator(context: TypingContext | null | (() => Typing
       // Silently fail - typing indicators are non-critical
     } finally {
       isSubscribing = false
+      const queued = pendingContextKey
+      pendingContextKey = null
+      if (queued && queued !== currentSubscribedKey) {
+        const queuedCtx = getContext()
+        const queuedKey = getContextKey(queuedCtx)
+        if (queuedCtx && queuedKey === queued) {
+          void subscribeToContext(queuedCtx, queued)
+        }
+      }
     }
   }
 

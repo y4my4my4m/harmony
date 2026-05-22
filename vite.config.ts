@@ -1,13 +1,13 @@
 import { fileURLToPath, URL } from 'node:url'
-import { defineConfig } from 'vite'
+import { defineConfig, type Plugin } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { selectivePreload } from './vite-plugin-selective-preload'
 
 /** Strip HTML comments from index.html during production build. */
-function stripHtmlComments() {
+function stripHtmlComments(): Plugin {
   return {
     name: 'strip-html-comments',
-    apply: 'build' as const,
+    apply: 'build',
     transformIndexHtml: {
       order: 'post',
       handler(html: string) {
@@ -19,23 +19,25 @@ function stripHtmlComments() {
 
 export default defineConfig({
   clearScreen: false,
-  server: {
+  server: ({
     strictPort: true,
     port: 5173,
-    // Allow custom local domains for development
-    allowedHosts: ['har.mony.local', 'localhost'],
+    // Allow custom local domains for development.
+    // `allowedHosts` is `string[] | true` in Vite 5+, the array literal is fine
+    // at runtime but vue-tsc's older Vite types may infer it differently; cast.
+    allowedHosts: (['har.mony.local', 'localhost'] as unknown as string[]),
     proxy: {
       '/api/federation': {
         target: 'http://localhost:3001',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\/federation/, ''),
+        rewrite: (path: string) => path.replace(/^\/api\/federation/, ''),
       },
       '/api/livekit': {
         target: 'http://localhost:3001',
         changeOrigin: true,
       },
     },
-  },
+  } as any),
   plugins: [
     vue({
       template: {
@@ -121,14 +123,13 @@ export default defineConfig({
             }
           }
         },
-        // Optimize chunk size
-        chunkSizeWarningLimit: 1000,
       }
     },
+    // Optimize chunk size — must live at `build.chunkSizeWarningLimit`, not
+    // inside `rollupOptions.output`.
+    chunkSizeWarningLimit: 1000,
     target: process.env.TAURI_PLATFORM === 'windows' ? 'chrome105' : 'safari16',
     minify: !process.env.TAURI_DEBUG ? 'esbuild' : false,
     sourcemap: !!process.env.TAURI_DEBUG,
-    // Increase chunk size limit for better splitting
-    chunkSizeWarningLimit: 1000,
   },
 })

@@ -12,7 +12,6 @@
         :dmUsername="dmUsername"
         :loadMoreMessages="() => $emit('load-more-messages')"
         @update:isAtBottom="$emit('update:is-at-bottom', $event)" 
-        @sendMessage="(messageParts, replyId) => $emit('send-message', messageParts, replyId)"
         @showAllThreads="$emit('show-all-threads')"
       />
     </div>
@@ -23,7 +22,7 @@
       <!-- Explore View -->
       <ExploreContent
         v-if="viewType === ViewType.EXPLORE"
-        :current-view="currentView || 'trending'"
+        :current-view="(currentView || 'trending') as any"
       />
       
       <!-- Special Views (Bookmarks, Lists, etc.) -->
@@ -165,8 +164,10 @@ onUnmounted(() => {
 })
 
 interface Props {
-  mode: ViewMode;
-  
+  // Accept both `ViewMode` enum values and matching string literals so legacy
+  // call sites that pass `mode="chat"` / `mode="activitypub"` still type-check.
+  mode: ViewMode | 'chat' | 'activitypub';
+
   // Chat mode props
   chatMessages?: Message[];
   isLoading?: boolean;
@@ -175,20 +176,21 @@ interface Props {
   conversationId?: string;
   channelName?: string;
   dmUsername?: string;
-  
-  // ActivityPub mode props
-  viewType?: ViewType;
+
+  // ActivityPub mode props. Same accommodation as `mode`: accept both the
+  // enum and the raw string variants the routed views still emit.
+  viewType?: ViewType | 'timeline' | 'explore' | 'profile' | 'post' | 'hashtag' | 'bookmarks' | 'mentions' | 'lists' | 'dm' | 'chat';
   currentView?: string; // Can be timeline feeds or explore views
   posts?: TimelinePost[];
   isLoadingFeed?: boolean;
   hasMorePosts?: boolean;
-  
+
   // Special view props (profile, bookmarks, etc.)
   profileUser?: FederatedUser | null;
   profileHandle?: string;
   specialViewData?: TimelinePost[]; // Generic data for bookmarks, lists, etc.
   hasMoreSpecialData?: boolean;
-  
+
   // Post detail props
   postId?: string;
 }
@@ -212,7 +214,6 @@ defineEmits<{
   // Chat mode events
   'load-more-messages': []
   'update:is-at-bottom': [value: boolean]
-  'send-message': [messageParts: any, replyId?: string]
   'show-all-threads': []
   
   // Essential ActivityPub events (interactions now handled by composable)

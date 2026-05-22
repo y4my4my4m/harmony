@@ -72,7 +72,7 @@
               :closeEmojiList="closeEmojiPicker"
               :emojiIconClicked="true"
               :position="'below'"
-              :triggerElement="emojiButtonRef || undefined"
+              :triggerElement="((emojiButtonRef as any) as HTMLElement | null) || undefined"
               @resetEmojiIconClicked="() => {}"
             />
 
@@ -132,6 +132,7 @@
 import { ref, computed, watch, h } from 'vue'
 import { userDataService } from '@/services/userDataService'
 import { getEmojiUrl } from '@/utils/emojiUtils'
+import { formatCustomStatusDisplay } from '@/utils/customStatusDisplay'
 import EmojiPopup from '@/components/EmojiPopup.vue'
 import type { CustomUserStatus, Emoji } from '@/types'
 

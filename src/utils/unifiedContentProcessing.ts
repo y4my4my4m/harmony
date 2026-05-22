@@ -877,7 +877,7 @@ export function convertActivityPubHTMLToMessageParts(html: string): MessagePart[
           parts.push({
             type: 'hashtag',
             name: tagMatch[1]
-          });
+          } as any);
           return;
         }
       }

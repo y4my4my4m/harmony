@@ -16,8 +16,8 @@
         @click="addQuickReaction(emoji)"
         :title="emoji.name"
       >
-        <img v-if="emoji.url" :src="getEmojiUrl(emoji.url, 32)" :alt="emoji.name" class="quick-reaction-custom-emoji" />
-        <template v-else>{{ emoji.native || emoji.name }}</template>
+        <img v-if="(emoji as any).url" :src="getEmojiUrl((emoji as any).url, 32)" :alt="emoji.name" class="quick-reaction-custom-emoji" />
+        <template v-else>{{ (emoji as any).native || emoji.name }}</template>
       </button>
       <button 
         class="quick-reaction-btn more-btn"

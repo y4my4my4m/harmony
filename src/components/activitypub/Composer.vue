@@ -15,22 +15,25 @@
         </div>
 
         <!-- Reply Context (for modal replies only) -->
-        <div v-if="type === 'reply' && replyToPost && mode === 'modal'" class="reply-context">
+        <!-- Bound to `effectiveReplyToPost` so reblog wrappers show the
+             original author / content in the preview, matching what the
+             submitted reply will actually target. -->
+        <div v-if="type === 'reply' && effectiveReplyToPost && mode === 'modal'" class="reply-context">
           <div class="reply-thread-line"></div>
           <div class="reply-to-post">
             <Avatar 
-              :src="replyToPost.author?.avatar_url"
-              :alt="replyToPost.author?.display_name || replyToPost.author?.username"
+              :src="effectiveReplyToPost.author?.avatar_url"
+              :alt="effectiveReplyToPost.author?.display_name || effectiveReplyToPost.author?.username"
               size="md"
               :interactive="true"
             />
             <div class="reply-content">
               <div class="reply-author">
-                <span class="author-name">{{ replyToPost.author?.display_name }}</span>
-                <span class="author-handle">{{ replyToPost.author?.handle }}</span>
+                <span class="author-name">{{ effectiveReplyToPost.author?.display_name }}</span>
+                <span class="author-handle">{{ effectiveReplyToPost.author?.handle }}</span>
               </div>
               <div class="reply-text">
-                <MonyContent :content="replyToPost.content" :truncate="3" />
+                <MonyContent :content="effectiveReplyToPost.content" :truncate="3" />
               </div>
             </div>
           </div>
@@ -315,7 +318,7 @@
             @sendEmoji="handleEmojiInsert"
             :closePopup="() => showMediaPicker = false"
             :position="'above'"
-            :triggerElement="mediaPickerTriggerRef || undefined"
+            :triggerElement="(mediaPickerTriggerRef as unknown as HTMLElement | null) || undefined"
             :initialTab="mediaPickerInitialTab"
           />
         </Teleport>
@@ -336,6 +339,9 @@ import type { TimelinePost, Post, FederatedUser } from '@/types';
 import { useComposerActions } from '@/composables/useComposerActions';
 import { useAutoSuggest } from '@/composables/useAutoSuggest';
 import type { SuggestionItem } from '@/components/AutoSuggest.vue';
+
+// Utils
+import { getOriginalPost, getOriginalPostId, getReplyMentionAuthor } from '@/utils/postReblog';
 
 // Components
 import MonyContent from './MonyContent.vue';
@@ -413,6 +419,13 @@ const characterLimit = 500;
 
 // Computed
 const maxMediaAttachments = computed(() => instanceSettings.settings.maxMediaAttachmentsPerPost ?? 20);
+
+// For reblog targets, the actual reply-to is the original post, not the
+// Announce wrapper. Used by the modal preview block above so the displayed
+// author/content matches what the submitted reply will thread under.
+const effectiveReplyToPost = computed(() =>
+  props.replyToPost ? getOriginalPost(props.replyToPost) : undefined
+);
 
 // Computed
 const remainingCharacters = computed(() => characterLimit - content.value.length);
@@ -791,11 +804,17 @@ const handleSubmit = async () => {
         isSensitive.value
       );
     } else {
+      // For reblogs, thread the reply under the *original* post — never under
+      // the Announce wrapper. Callers should already pass the unwrapped post,
+      // but unwrap defensively here so future call sites can't regress this.
+      const replyToId = props.type === 'reply' && props.replyToPost
+        ? getOriginalPostId(props.replyToPost)
+        : undefined;
       post = await actions.submitPost(
         visibility.value,
         contentWarning.value,
         isSensitive.value,
-        props.type === 'reply' ? props.replyToPost?.id : undefined
+        replyToId
       );
     }
 
@@ -848,16 +867,22 @@ onMounted(() => {
         description: m.description,
       }));
     }
-  } else if (props.type === 'reply' && props.replyToPost?.author) {
-    const author = props.replyToPost.author;
-    const username = author.username || '';
-    const domain = author.domain || '';
-    const isLocal = author.is_local !== false;
-    
-    const mention = (!isLocal && domain)
-      ? `@${username}@${domain} `
-      : `@${username} `;
-    content.value = mention;
+  } else if (props.type === 'reply' && props.replyToPost) {
+    // Mention whichever author the reply should reach. `getReplyMentionAuthor`
+    // returns the original post's author for pure reblogs, the quoter for
+    // quote posts, and `undefined` for unhydrated reblogs (so we skip the
+    // prefill rather than mention the booster, which would mislead the user).
+    const author = getReplyMentionAuthor(props.replyToPost);
+    if (author) {
+      const username = author.username || '';
+      const domain = author.domain || '';
+      const isLocal = author.is_local !== false;
+
+      const mention = (!isLocal && domain)
+        ? `@${username}@${domain} `
+        : `@${username} `;
+      content.value = mention;
+    }
   } else if (props.type === 'post' && props.initialContent?.trim()) {
     content.value = props.initialContent;
   }
@@ -892,12 +917,15 @@ watch(() => props.initialContent, (val) => {
 
 // Watch for reply context changes (when opening reply composer)
 watch(() => props.replyToPost, (replyPost) => {
-  if (props.type === 'reply' && replyPost?.author && content.value === '') {
-    const author = replyPost.author;
+  if (props.type === 'reply' && replyPost && content.value === '') {
+    // Same routing rule as onMounted — pure reblog → original author,
+    // quote → quoter, unhydrated reblog → no prefill.
+    const author = getReplyMentionAuthor(replyPost);
+    if (!author) return;
     const username = author.username || '';
     const domain = author.domain || '';
     const isLocal = author.is_local !== false;
-    
+
     const mention = (!isLocal && domain)
       ? `@${username}@${domain} `
       : `@${username} `;

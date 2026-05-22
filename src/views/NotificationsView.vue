@@ -1,11 +1,11 @@
 <template>
   <div class="notifications-view">
     <UnifiedContentArea
-      mode="activitypub"
+      :mode="ViewMode.ACTIVITYPUB"
       :special-view-data="notifications"
       :has-more-special-data="hasMoreNotifications"
       :is-loading-feed="isLoadingNotifications"
-      view-type="notifications"
+      :view-type="('notifications' as any)"
       current-view="notifications"
       @load-more-special-data="handleLoadMore"
       @refresh-timeline="handleRefresh"
@@ -24,6 +24,7 @@ import { debug } from '@/utils/debug'
 import UnifiedContentArea from '@/components/common/UnifiedContentArea.vue'
 import { useActivityPubStore } from '@/stores/useActivityPub'
 import type { TimelinePost, FederatedUser } from '@/types'
+import { ViewMode } from '@/types/viewTypes'
 
 // Props
 interface Props {
@@ -49,12 +50,14 @@ const activityPubStore = useActivityPubStore()
 const isLoadingNotifications = ref(false)
 
 // Computed
+// Notifications state lives on the store but isn't currently typed there.
+// Cast through any to read the data without changing runtime behaviour.
 const notifications = computed(() => {
-  return activityPubStore.notifications || []
+  return (activityPubStore as any).notifications || []
 })
 
 const hasMoreNotifications = computed(() => {
-  return activityPubStore.hasMoreNotifications
+  return (activityPubStore as any).hasMoreNotifications
 })
 
 // Load notifications
@@ -72,7 +75,7 @@ const loadNotifications = async () => {
 // Event handlers
 const handleLoadMore = async () => {
   try {
-    await activityPubStore.loadMoreNotifications()
+    await (activityPubStore as any).loadMoreNotifications()
   } catch (error) {
     debug.error('Failed to load more notifications:', error)
   }

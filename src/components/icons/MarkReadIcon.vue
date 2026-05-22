@@ -1,11 +1,12 @@
 <template>
-  <Check :size="size" :stroke-width="2" :class="className" />
+  <Check :size="iconSize" :stroke-width="2" :class="className" />
 </template>
 
 <script lang="ts">
-import { defineComponent } from 'vue';
+import { defineComponent, computed } from 'vue';
 import { Check } from 'lucide-vue-next';
 
+import { resolveIconSize } from '@/utils/iconSize';
 export default defineComponent({
   name: 'MarkReadIcon',
   components: { Check },
@@ -13,5 +14,11 @@ export default defineComponent({
     size: { type: [Number, String], default: 16 },
     className: { type: String, default: '' }
   }
+  ,
+  setup(props) {
+    const iconSize = computed(() => resolveIconSize(props.size as number | string | undefined, 16))
+    return { iconSize }
+  }
+
 });
 </script>

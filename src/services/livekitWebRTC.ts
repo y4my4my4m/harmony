@@ -351,11 +351,13 @@ export class LiveKitWebRTCService {
       case 480:
         return { width: 854, height: 480, frameRate: 30 };
       case 720:
-        return VideoPresets.h720.resolution;
+        // VideoPresets.*.resolution has frameRate as optional in the lib types,
+        // but presets always provide it; cast to the stricter shape.
+        return VideoPresets.h720.resolution as { width: number; height: number; frameRate: number };
       case 1080:
-        return VideoPresets.h1080.resolution;
+        return VideoPresets.h1080.resolution as { width: number; height: number; frameRate: number };
       case -1: // Source/Native - use 1080p as max
-        return VideoPresets.h1080.resolution;
+        return VideoPresets.h1080.resolution as { width: number; height: number; frameRate: number };
       default:
         // For any other value, calculate 16:9 dimensions
         const height = resolution;
@@ -733,11 +735,13 @@ export class LiveKitWebRTCService {
       // Convert kbps to bps for LiveKit (settings stored in kbps, LiveKit expects bps)
       const audioBitrateBps = (this.streamQualitySettings.audioBitrate || 128) * 1000;
       
+      // audioBitrate isn't on the official TrackPublishOptions type, but LiveKit
+      // accepts it at runtime. Cast to any to avoid the type check.
       await this.room.localParticipant.publishTrack(audioTrack, {
         audioBitrate: audioBitrateBps,
         dtx: true, // Discontinuous transmission for bandwidth saving
         red: true, // Redundant encoding for packet loss resilience
-      });
+      } as any);
       
       debug.log('🎵 [LiveKit] Published audio with bitrate:', audioBitrateBps, 'bps');
       
@@ -913,7 +917,10 @@ export class LiveKitWebRTCService {
           screenShareAudioBitrate: audioBitrateKbps * 1000,
         };
         
-        await this.room.localParticipant.setScreenShareEnabled(true, captureOptions, publishOptions);
+        // captureOptions includes a few non-standard fields (contentHint, systemAudio)
+        // that LiveKit forwards to getDisplayMedia; the official type doesn't include
+        // them so we widen here.
+        await this.room.localParticipant.setScreenShareEnabled(true, captureOptions as any, publishOptions);
         
         // Also try to apply constraints directly to the track for browsers that support it
         for (const pub of this.room.localParticipant.videoTrackPublications.values()) {
@@ -1852,7 +1859,7 @@ export class LiveKitWebRTCService {
     });
     
     // Disconnected
-    this.room.on(RoomEvent.Disconnected, (reason?: string) => {
+    this.room.on(RoomEvent.Disconnected, (reason?: any) => {
       debug.log('🔌 [LiveKit] Disconnected:', reason);
       this.emit('channel-left', { channelId: this.channelId, reason });
     });

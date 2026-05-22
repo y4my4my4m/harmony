@@ -80,7 +80,7 @@ export const useProfileStore = defineStore('profile', {
         debug.log('🔄 Creating profile via ProfileService:', profileData.username);
         this.loadingState = setLoading(this.loadingState);
 
-        const newProfile = await services.profiles.createProfile(profileData);
+        const newProfile = await services.profiles.createProfile(profileData as any);
         
         this.profile = newProfile;
         this.loadingState = setSuccess(this.loadingState, newProfile);

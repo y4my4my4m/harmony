@@ -88,10 +88,13 @@ const DEFAULT_PREFERENCES: Omit<NotificationPreferences, 'id' | 'user_id' | 'cre
   desktop_dms: true,
   desktop_reactions: true,
   desktop_replies: true,
+  desktop_chat_messages: true,
   sound_notifications: true,
   sound_mentions: true,
   sound_dms: true,
   sound_reactions: true,
+  sound_replies: true,
+  sound_chat_messages: true,
   sound_voice_activity: true,
   push_notifications: true,
   push_mentions: true,
@@ -529,7 +532,7 @@ export const useNotificationStore = defineStore('notification', {
           if (error) {
             debug.error('Failed to load unread notifications:', error)
           } else {
-            this.notifications = data || []
+            this.notifications = (data || []) as any
             debug.log(`✅ Loaded ${this.notifications.length} unread notifications for badges`)
           }
         } catch (err) {
@@ -1125,6 +1128,8 @@ export const useNotificationStore = defineStore('notification', {
             ...DEFAULT_PREFERENCES,
             id: crypto.randomUUID(),
             user_id: profileId,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
           }
           return
         }
@@ -1133,6 +1138,8 @@ export const useNotificationStore = defineStore('notification', {
           ...DEFAULT_PREFERENCES,
           id: crypto.randomUUID(),
           user_id: profileId,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
         }
 
         // BUGS.md H1: setupDndCheck early-returns when dnd_enabled is false,
@@ -1149,6 +1156,8 @@ export const useNotificationStore = defineStore('notification', {
           ...DEFAULT_PREFERENCES,
           id: crypto.randomUUID(),
           user_id: profileId,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
         }
         this.setupDndCheck()
       }
@@ -1474,7 +1483,9 @@ export const useNotificationStore = defineStore('notification', {
               break
 
             default:
-              debug.log('⚠️ No navigation data for notification type:', navData.type)
+              // Exhaustive narrowing collapses `navData.type` to `never` in
+              // the default branch; cast through `any` so we can log it.
+              debug.log('⚠️ No navigation data for notification type:', (navData as any).type)
           }
         } else {
           // ✅ FIX: Fallback navigation for notifications without proper navData
@@ -1505,8 +1516,10 @@ export const useNotificationStore = defineStore('notification', {
      * DEVELOPMENT HELPER - Updated to use structured data
      */
     createMockNotifications(userId: string) {
-      // Development helper for testing
-      const mockNotifications: Notification[] = [
+      // Development helper for testing. Mock shape includes legacy
+      // `sender`/`message`/`conversation`/`title` fields that aren't on the
+      // current `Notification`/`NotificationData` typings; cast through `any`.
+      const mockNotifications: Notification[] = ([
         {
           id: '1',
           user_id: userId,
@@ -1556,7 +1569,7 @@ export const useNotificationStore = defineStore('notification', {
           expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
           title: ''
         }
-      ]
+      ] as any) as Notification[]
 
       this.notifications = mockNotifications
       this.updateUnreadCount()
