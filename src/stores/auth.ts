@@ -210,6 +210,30 @@ export const useAuthStore = defineStore('auth', {
           // Keep the session - it's needed for updateUser to work
           // But isLoggedIn will return false because of isPasswordResetMode
           this.session = session;
+        } else if (currentPath === '/auth/callback') {
+          // OAuth callback path: Supabase's `detectSessionInUrl: true` has
+          // already exchanged the OAuth code for an AAL1 session by the time
+          // we get here (it runs at client-create time, which is before
+          // initializeAuth). If we run validateSessionForMFA on it now, an
+          // MFA-enrolled user gets rejected → signed out → AuthCallbackView
+          // mounts and finds no session, throws "Authentication failed",
+          // and the user is permanently locked out of OAuth login.
+          //
+          // Defer everything to AuthCallbackView, which has its own MFA
+          // challenge flow. We:
+          //   - Leave the session untouched in localStorage (the view will
+          //     read it via getSession()).
+          //   - Don't adopt it into Pinia (so isLoggedIn=false until the
+          //     view explicitly adopts after successful validation/MFA).
+          //   - Set _pendingMFAVerification so SIGNED_IN / INITIAL_SESSION
+          //     events fired during the OAuth processing are skipped by
+          //     `onAuthStateChange` (they'd otherwise hit the same
+          //     validateSessionForMFA rejection path).
+          //   - AuthCallbackView clears the flag after it adopts the session
+          //     itself or routes the user to MFA challenge / login.
+          debug.log('🔒 OAuth callback detected on initialization — deferring session adoption to AuthCallbackView');
+          this._pendingMFAVerification = true;
+          this.session = null;
         } else if (session) {
           // 🚨 CRITICAL SECURITY: Check AAL2 on session restoration
           // This prevents MFA bypass when another tab creates an AAL1 session
@@ -384,6 +408,17 @@ export const useAuthStore = defineStore('auth', {
           // Re-validate before adopting unless we explicitly remember
           // validating it from initializeAuth() (this tab's own boot path).
           if (!this.session) {
+            // Skip when an MFA flow is in progress (login() / verify2FA() /
+            // OAuth callback). gotrue-js fires INITIAL_SESSION as a microtask
+            // when its `_emitInitialSession` runs after `detectSessionInUrl`
+            // exchanges the OAuth code; this microtask runs BEFORE
+            // AuthCallbackView mounts. Without this guard, the AAL1 OAuth
+            // session would be torn down by `validateSessionForMFA` before
+            // the callback view's MFA challenge UI ever appears.
+            if (this._pendingMFAVerification) {
+              debug.log('🔒 INITIAL_SESSION during pending MFA verification - skipping')
+              return
+            }
             const alreadyValidated = this._mfaValidatedForSession === session.access_token
             const isValid = alreadyValidated || (await this.validateSessionForMFA(session))
             if (!isValid) {
@@ -417,6 +452,13 @@ export const useAuthStore = defineStore('auth', {
           if (this.session) {
             this.session = session;
             return;
+          }
+          // Same MFA-in-progress guard as above — without it, a
+          // TOKEN_REFRESHED arriving while AuthCallbackView is mid-challenge
+          // would tear down the AAL1 session before verification completes.
+          if (this._pendingMFAVerification) {
+            debug.log(`🔒 ${event} during pending MFA verification - skipping`)
+            return
           }
           const isValid = await this.validateSessionForMFA(session);
           if (!isValid) {

@@ -2890,6 +2890,21 @@ $$;
 
 -- ---------------------------------------------------------------------------
 -- Function: verify_recovery_code
+--
+-- Authorization: pre-2026-05-23 this function trusted the `p_user_id`
+-- argument supplied by the caller (BUGS.md H49), which let any
+-- authenticated user atomically burn another user's MFA recovery codes
+-- (the function is `SECURITY DEFINER`, so it bypassed the row-level RLS
+-- that would otherwise have constrained the SELECT to `auth.uid()`).
+-- The hardened version below requires the caller to be verifying their
+-- OWN codes — if `p_user_id` doesn't match `auth.uid()`, we raise. This
+-- mirrors the security model of `mfa.verify` itself: only the session
+-- holder can spend their own recovery codes.
+--
+-- Note: `auth.uid()` reads from the JWT's `sub` claim and is independent
+-- of `SECURITY DEFINER` (definer changes the *role* used for table
+-- access, not the request's auth context). It returns NULL for the anon
+-- role, which we explicitly reject below.
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.verify_recovery_code(p_user_id uuid, p_code text) RETURNS boolean
     LANGUAGE plpgsql SECURITY DEFINER
@@ -2899,6 +2914,21 @@ DECLARE
   v_code_hash TEXT;
   v_code_id UUID;
 BEGIN
+  -- Reject calls from the anon role (no JWT → no caller identity to bind).
+  IF auth.uid() IS NULL THEN
+    RAISE EXCEPTION 'Unauthorized: verify_recovery_code requires an authenticated session'
+      USING ERRCODE = '42501';
+  END IF;
+
+  -- Reject calls where the caller is trying to verify someone *else's*
+  -- recovery code. `IS DISTINCT FROM` treats two NULLs as equal, but the
+  -- guard above already rejects auth.uid() = NULL, so this only ever
+  -- compares two non-null UUIDs.
+  IF p_user_id IS DISTINCT FROM auth.uid() THEN
+    RAISE EXCEPTION 'Unauthorized: cannot verify recovery codes for another user'
+      USING ERRCODE = '42501';
+  END IF;
+
   -- Hash the provided code (using SHA-256)
   -- Use extensions.digest() to explicitly reference the pgcrypto extension
   v_code_hash := encode(extensions.digest(p_code::bytea, 'sha256'), 'hex');
