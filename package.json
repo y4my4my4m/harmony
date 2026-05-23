@@ -75,7 +75,7 @@
     "pinia": "^2.1.7",
     "qrcode": "^1.5.4",
     "simple-peer": "^9.11.1",
-    "uuidv4": "^6.2.13",
+    "uuid": "^11.1.0",
     "v3-color-picker": "^2.0.0",
     "vue": "^3.3.11",
     "vue-color-kit": "^1.0.6",
@@ -109,9 +109,9 @@
     "eslint-plugin-vue": "^9.17.0",
     "fake-indexeddb": "^6.2.5",
     "glob": "^11.0.3",
-    "happy-dom": "^15.11.7",
+    "happy-dom": "^20.9.0",
     "jsdoc-to-markdown": "^9.1.1",
-    "markdownlint-cli": "^0.37.0",
+    "markdownlint-cli": "^0.48.0",
     "mermaid": "^11.9.0",
     "msw": "^2.12.10",
     "npm-run-all2": "^6.1.1",
@@ -129,6 +129,9 @@
     "vitest": "^2.1.9",
     "vue-docgen-api": "^4.79.2",
     "vue-docgen-cli": "^4.79.0",
-    "vue-tsc": "^1.8.25"
+    "vue-tsc": "^2.2.12"
+  },
+  "overrides": {
+    "minimatch": "^9.0.7"
   }
 }
