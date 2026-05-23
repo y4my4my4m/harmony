@@ -501,28 +501,49 @@
     </div>
 
     <!-- Disable 2FA Confirmation Modal -->
-    <div v-if="showDisable2FAModal" class="modal-overlay" @click="showDisable2FAModal = false">
+    <!-- Asks for the current TOTP code (or a recovery code). Verifying the
+         code via `mfa.challengeAndVerify` upgrades the session to AAL2,
+         which is what Supabase requires before `mfa.unenroll` will accept
+         the call. This replaces the previous password-only flow that
+         couldn't actually complete the unenroll from an AAL1 session. -->
+    <div v-if="showDisable2FAModal" class="modal-overlay" @click="closeDisable2FAModal">
       <div class="modal-content" @click.stop>
         <h3 class="modal-title">Disable Two-Factor Authentication?</h3>
         <p class="modal-description">
-          This will make your account less secure. Enter your password to confirm.
+          This will make your account less secure. Enter your
+          {{ useDisableRecoveryCode ? 'recovery code' : '6-digit authenticator code' }}
+          to confirm.
         </p>
         <form @submit.prevent="disable2FA">
           <div class="form-group">
-            <label class="form-label">Password</label>
+            <label class="form-label">
+              {{ useDisableRecoveryCode ? 'Recovery code' : 'Authenticator code' }}
+            </label>
             <input
-              v-model="disable2FAPassword"
-              type="password"
+              v-model="disable2FACode"
+              :type="useDisableRecoveryCode ? 'text' : 'tel'"
+              :inputmode="useDisableRecoveryCode ? 'text' : 'numeric'"
               class="form-input"
-              placeholder="Enter your password"
-              autocomplete="current-password"
+              :placeholder="useDisableRecoveryCode ? 'XXXXXXXX' : '123456'"
+              :maxlength="useDisableRecoveryCode ? 8 : 6"
+              :pattern="useDisableRecoveryCode ? undefined : '[0-9]*'"
+              autocomplete="one-time-code"
+              @input="onDisable2FACodeInput"
             />
+            <p v-if="disable2FAError" class="form-error">{{ disable2FAError }}</p>
           </div>
+          <button
+            type="button"
+            class="link-button"
+            @click="toggleDisableRecoveryCodeMode"
+          >
+            {{ useDisableRecoveryCode ? 'Use authenticator code instead' : 'Use a recovery code instead' }}
+          </button>
           <div class="modal-actions">
             <button 
               type="submit"
               class="btn btn-danger"
-              :disabled="twoFactorLoading || !disable2FAPassword"
+              :disabled="twoFactorLoading || !isDisable2FACodeValid"
             >
               <span v-if="!twoFactorLoading">Disable 2FA</span>
               <div v-else class="loading-spinner"></div>
@@ -530,7 +551,7 @@
             <button 
               type="button"
               class="btn btn-secondary"
-              @click="showDisable2FAModal = false"
+              @click="closeDisable2FAModal"
             >
               Cancel
             </button>
@@ -609,7 +630,18 @@ const verificationCode = ref('')
 const recoveryCodes = ref<string[]>([])
 const twoFactorError = ref('')
 const showDisable2FAModal = ref(false)
-const disable2FAPassword = ref('')
+// Code the user types to authorize the unenroll. 6 digits for TOTP, 8 chars
+// for recovery code — `useDisableRecoveryCode` toggles which one we expect.
+const disable2FACode = ref('')
+const useDisableRecoveryCode = ref(false)
+const disable2FAError = ref('')
+
+const isDisable2FACodeValid = computed(() => {
+  if (useDisableRecoveryCode.value) {
+    return disable2FACode.value.trim().length === 8
+  }
+  return /^\d{6}$/.test(disable2FACode.value)
+})
 
 // Privacy State
 const settings = ref({
@@ -796,24 +828,28 @@ const check2FAStatus = async () => {
     const { data, error } = await supabase.auth.mfa.listFactors()
     if (error) throw error
 
-    // Only check for VERIFIED factors - unverified factors from incomplete enrollment shouldn't count
+    // Only count VERIFIED factors — unverified factors from incomplete
+    // enrollments should never gate enable/disable UI.
     const totpFactor = data?.totp?.find((f: any) => f.status === 'verified')
     twoFactorEnabled.value = !!totpFactor
-    
+
     debug.log('2FA Status Check:', {
       allFactors: data?.totp,
       verifiedFactor: totpFactor,
-      enabled: twoFactorEnabled.value
+      enabled: twoFactorEnabled.value,
     })
-    
-    if (totpFactor) {
-      factorId.value = totpFactor.id
-    } else {
-      // Clear factor ID if no verified factor exists
-      factorId.value = ''
-    }
+
+    factorId.value = totpFactor?.id ?? ''
   } catch (error: any) {
     debug.error('2FA status check error:', error)
+    // Surface the failure instead of silently flipping the UI to "disabled"
+    // — a transient `listFactors` error used to make 2FA appear off when
+    // it was actually still enabled, which then cascaded into broken
+    // enable/disable UI (the disable button would be hidden, the enable
+    // flow would race against an existing factor, etc.).
+    toast.error(`Could not check 2FA status: ${error?.message ?? 'unknown error'}`)
+    // Intentionally do NOT mutate `twoFactorEnabled` / `factorId` here —
+    // keep whatever state we had before so the user's UI doesn't jitter.
   }
 }
 
@@ -971,90 +1007,133 @@ const cancelEnroll2FA = async () => {
   await check2FAStatus()
 }
 
+const onDisable2FACodeInput = () => {
+  // Clear error as the user retypes — same UX as the login MFA modal.
+  disable2FAError.value = ''
+}
+
+const toggleDisableRecoveryCodeMode = () => {
+  useDisableRecoveryCode.value = !useDisableRecoveryCode.value
+  disable2FACode.value = ''
+  disable2FAError.value = ''
+}
+
+const closeDisable2FAModal = () => {
+  if (twoFactorLoading.value) return
+  showDisable2FAModal.value = false
+  disable2FACode.value = ''
+  disable2FAError.value = ''
+  useDisableRecoveryCode.value = false
+}
+
+/**
+ * Disable 2FA by stepping the current session up to AAL2 (so Supabase will
+ * accept the `mfa.unenroll` call), then unenrolling the verified factor and
+ * clearing recovery codes.
+ *
+ * The previous version asked for the user's password and then bailed out
+ * with "log out and log back in" because it never completed the AAL2
+ * upgrade. Supabase's `challengeAndVerify` is the canonical step-up path:
+ * it creates a fresh challenge for the existing factor and verifies the
+ * supplied TOTP in one call, leaving the session at AAL2.
+ *
+ * For users who lost their authenticator, the modal also accepts a
+ * recovery code; we verify it via the existing `verify_recovery_code` RPC
+ * (which atomically marks the code as used) and then unenroll the factor.
+ * Recovery-code unenroll matches the same flow used by `AuthComponent`'s
+ * recovery-code login path.
+ */
 const disable2FA = async () => {
-  if (!disable2FAPassword.value) return
+  if (!isDisable2FACodeValid.value) {
+    disable2FAError.value = useDisableRecoveryCode.value
+      ? 'Enter the 8-character recovery code'
+      : 'Enter the 6-digit code from your authenticator'
+    return
+  }
+  if (!factorId.value) {
+    // `factorId` is populated by `check2FAStatus`. If it's empty here the
+    // status check probably failed silently; surface that explicitly.
+    toast.error('No active 2FA factor found. Try refreshing the page.')
+    return
+  }
 
   twoFactorLoading.value = true
+  disable2FAError.value = ''
 
   try {
-    // Check current AAL level first
-    const { data: sessionData } = await supabase.auth.getSession()
-    const currentAAL = authStore.getAAL(sessionData.session)
-    
-    // If we don't have AAL2, we need to verify 2FA first
-    // But first verify password
-    const email = authStore.session?.user?.email
-    if (!email) throw new Error('User email not found')
+    if (useDisableRecoveryCode.value) {
+      // Recovery-code path: verify the code server-side, then unenroll.
+      // The `verify_recovery_code` RPC atomically marks the code as used.
+      const userId = authStore.session?.user?.id
+      if (!userId) throw new Error('User session not found')
 
-    if (currentAAL !== 'aal2') {
-      // Need to verify password and then 2FA
-    const { error: signInError } = await supabase.auth.signInWithPassword({
-      email,
-      password: disable2FAPassword.value
-    })
-
-    if (signInError) {
-      toast.error('Incorrect password')
-      return
-    }
-
-      // Now create a 2FA challenge to get AAL2
-      const { data: challengeData, error: challengeError } = await supabase.auth.mfa.challenge({
-        factorId: factorId.value
+      const { data: isValid, error: verifyError } = await supabase.rpc('verify_recovery_code', {
+        p_user_id: userId,
+        p_code: disable2FACode.value.trim().toUpperCase(),
       })
 
-      if (challengeError) {
-        toast.error('Failed to create 2FA challenge. Please try logging out and back in.')
+      if (verifyError) throw verifyError
+      if (!isValid) {
+        disable2FAError.value = 'Invalid or already-used recovery code'
         return
       }
+    } else {
+      // TOTP path: `challengeAndVerify` upgrades the session to AAL2 in
+      // one round-trip. This is what Supabase requires before unenroll.
+      const { error: verifyError } = await supabase.auth.mfa.challengeAndVerify({
+        factorId: factorId.value,
+        code: disable2FACode.value,
+      })
 
-      // Show 2FA code input (we'll need to add this to the modal)
-      toast.warning('Please verify your 2FA code to disable 2FA. This requires AAL2 authentication.')
-      // For now, tell them to verify via login
-      toast.info('You need to verify 2FA to disable it. Please log out, log back in with 2FA, then try again.')
-      return
+      if (verifyError) {
+        const errCode = (verifyError as any).error_code
+        const errMsg = verifyError.message ?? ''
+        if (errCode === 'invalid_code' || /invalid/i.test(errMsg)) {
+          disable2FAError.value = 'Invalid 2FA code'
+        } else {
+          disable2FAError.value = errMsg || 'Failed to verify 2FA code'
+        }
+        return
+      }
     }
 
-    // We have AAL2, proceed with disabling
-    // Delete recovery codes first
+    // Clear recovery codes BEFORE unenroll so that even if unenroll fails
+    // partway, we don't leave dangling codes that can't be regenerated.
     const userId = authStore.session?.user?.id
     if (userId) {
       const { error: deleteError } = await supabase
         .from('mfa_recovery_codes')
         .delete()
         .eq('user_id', userId)
-
       if (deleteError) {
+        // Non-fatal — user can retry, and unenroll will still proceed.
         debug.error('Error deleting recovery codes:', deleteError)
       }
     }
 
-    // Disable 2FA (we have AAL2)
-    const { error } = await supabase.auth.mfa.unenroll({
-      factorId: factorId.value
+    const { error: unenrollError } = await supabase.auth.mfa.unenroll({
+      factorId: factorId.value,
     })
 
-    if (error) {
-      // If still getting AAL2 error, the session might have expired
-      if ((error as any).error_code === 'insufficient_aal') {
-        toast.error('Your session expired. Please log out and log back in with 2FA, then try again.')
+    if (unenrollError) {
+      if ((unenrollError as any).error_code === 'insufficient_aal') {
+        // Should be unreachable with the `challengeAndVerify` step-up, but
+        // surface a helpful message rather than the raw Supabase code.
+        toast.error('Session security level expired. Please log out and log back in with 2FA, then try again.')
       } else {
-        throw error
+        throw unenrollError
       }
       return
     }
 
     toast.success('Two-Factor Authentication disabled')
     showDisable2FAModal.value = false
-    disable2FAPassword.value = ''
+    disable2FACode.value = ''
+    useDisableRecoveryCode.value = false
     await check2FAStatus()
   } catch (error: any) {
     debug.error('2FA disable error:', error)
-    if (error.error_code === 'insufficient_aal') {
-      toast.error('Please verify your 2FA code first. You may need to log out and log back in.')
-    } else {
-      toast.error(error.message || 'Failed to disable 2FA')
-    }
+    toast.error(error?.message || 'Failed to disable 2FA')
   } finally {
     twoFactorLoading.value = false
   }
@@ -1744,6 +1823,31 @@ onMounted(async () => {
   gap: 10px;
   justify-content: flex-end;
   margin-top: 18px;
+}
+
+/* Inline error inside the disable-2FA modal's TOTP/recovery input. */
+.form-error {
+  margin: 6px 0 0 0;
+  color: var(--color-error, #ed4245);
+  font-size: 13px;
+}
+
+/* Subtle "Use a recovery code instead" toggle in the disable-2FA modal —
+   matches the visual weight of the equivalent toggle in the login MFA
+   modal so the two flows feel consistent. */
+.link-button {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 8px 0 0 0;
+  color: var(--harmony-primary, #0EA5E9);
+  font-size: 13px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.link-button:hover {
+  color: var(--harmony-primary-hover, #0284C7);
 }
 
 @media (max-width: 768px) {

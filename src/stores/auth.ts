@@ -58,57 +58,106 @@ export const useAuthStore = defineStore('auth', {
     },
 
     /**
-     * 🔒 CRITICAL SECURITY: Validate if session meets MFA requirements
-     * 
-     * Returns true if:
-     * - User has no MFA enabled (AAL1 is sufficient)
-     * - User has MFA enabled AND session is at AAL2
-     * 
-     * Returns false if:
-     * - User has MFA enabled but session is at AAL1 (MFA not completed)
-     * 
-     * This prevents the MFA bypass vulnerability where:
-     * 1. Tab A is logged in as UserA (no MFA)
-     * 2. Tab B logs out then starts login as UserB (has MFA)
-     * 3. Tab B creates AAL1 session before MFA verification
-     * 4. Tab A refreshes and picks up Tab B's AAL1 session
-     * 5. Without this check, Tab A would be logged in as UserB bypassing MFA!
+     * Read the JWT's `amr` (Authentication Methods References) claim and
+     * return the list of method names. Supabase records the methods the
+     * session was authenticated with — `password` after `signInWithPassword`,
+     * `totp` after `mfa.verify`, `oauth` after a third-party callback, etc.
+     *
+     * Crucially, AMR persists through token refresh: it's session metadata,
+     * not a one-shot value. So a session that was once AAL2 (password+totp)
+     * still has `totp` in `amr` after Supabase's automatic AAL2 expiry
+     * downgrade to AAL1 (~24h default). That's how we distinguish "long
+     * session whose MFA grace period expired" (safe — keep the user logged
+     * in per docs/2FA_SECURITY_MODEL.md) from "fresh AAL1 mid-login that
+     * never completed MFA" (unsafe — must reject, BUGS.md C11/M64).
+     */
+    getAMR(session: Session | null): string[] {
+      if (!session) return [];
+      try {
+        const decoded = this.decodeJWT(session.access_token);
+        const amr = decoded?.amr;
+        if (!Array.isArray(amr)) return [];
+        // GoTrue emits objects like `{ method: 'totp', timestamp: ... }`,
+        // but older specs allow plain strings — accept both shapes.
+        return amr
+          .map((entry: any) => (typeof entry === 'string' ? entry : entry?.method))
+          .filter((m: any): m is string => typeof m === 'string');
+      } catch (e) {
+        debug.error('Failed to get AMR from token:', e);
+        return [];
+      }
+    },
+
+    /**
+     * 🔒 CRITICAL SECURITY: Validate if a session is allowed to be adopted
+     * by this tab.
+     *
+     * Three accepted shapes (return true):
+     * - User has no MFA enabled (AAL1 is sufficient).
+     * - User has MFA, session is at AAL2 (just verified).
+     * - User has MFA, session is at AAL1, AND the session's `amr` claim
+     *   contains `totp` (i.e. MFA was completed earlier in this session
+     *   and AAL2 has since expired naturally — the documented long-session
+     *   UX in `docs/2FA_SECURITY_MODEL.md`).
+     *
+     * One rejected shape (return false):
+     * - User has MFA, session is at AAL1, AND `amr` does NOT contain `totp`.
+     *   This is either a fresh password sign-in that hasn't yet completed
+     *   MFA (must redirect to challenge), or an OAuth callback for an
+     *   MFA-enrolled user (must show MFA challenge before granting access).
+     *
+     * The `amr` check is what closes the cross-tab MFA bypass without
+     * forcing every MFA user to re-enter their TOTP daily:
+     *   1. Tab A is logged in as UserA (no MFA).
+     *   2. Tab B logs out then starts password login as UserB (has MFA).
+     *   3. Tab B creates AAL1 session (amr=['password']) before TOTP verify.
+     *   4. Tab A refreshes and picks up Tab B's AAL1 session from storage.
+     *   5. Without this guard, Tab A would be logged in as UserB at AAL1.
+     *   6. With this guard, the AMR lacks `totp`, so we reject + sign out.
+     *
+     * Conversely, a UserB session that DID complete MFA (amr includes
+     * `totp`), then sat for 25h until AAL2 expired, is restored cleanly.
      */
     async validateSessionForMFA(session: Session): Promise<boolean> {
       try {
-        // Get the AAL from the session token
         const aal = this.getAAL(session);
-        
-        // If already at AAL2, session is valid
         if (aal === 'aal2') {
           debug.log('✅ Session at AAL2 - MFA verified');
           return true;
         }
-        
-        // Session is at AAL1, need to check if user has MFA enabled
+
+        // AAL1: distinguish "post-MFA, AAL2-expired" from "pre-MFA, mid-login".
+        const amr = this.getAMR(session);
+        if (amr.includes('totp')) {
+          // The AAL2 grace window has lapsed but the user previously
+          // completed TOTP verification on this session. Per
+          // docs/2FA_SECURITY_MODEL.md the documented model accepts AAL1
+          // here so users stay logged in across days/weeks like Mastodon,
+          // Discord, GitHub, etc. — 2FA gates the LOGIN, not the SESSION.
+          debug.log('✅ AAL1 session with prior TOTP verification — accepting (AAL2 expired post-login, refresh-token still valid)');
+          return true;
+        }
+
+        // AMR has no totp. Definitive check: does the user actually have
+        // MFA enrolled? If not, AAL1 is fine. If yes, this is a mid-login
+        // session and we must reject so the caller routes to MFA challenge.
         const { data: factors, error } = await supabase.auth.mfa.listFactors();
-        
         if (error) {
           debug.error('❌ Failed to check MFA factors:', error);
-          // On error, be conservative - reject the session
+          // Conservative on error — same fallback as before the fix.
           return false;
         }
-        
+
         const has2FA = factors?.totp?.some((f: any) => f.status === 'verified');
-        
         if (has2FA) {
-          // User has MFA but session is AAL1 - this is an incomplete login!
-          debug.warn('🚨 AAL1 session detected for user with MFA enabled - blocking access');
+          debug.warn('🚨 AAL1 session for MFA-enrolled user without prior TOTP verification — blocking (mid-login or OAuth without MFA challenge)');
           return false;
         }
-        
-        // User doesn't have MFA, AAL1 is sufficient
-        debug.log('✅ Session at AAL1, no MFA required');
+
+        debug.log('✅ Session at AAL1, no MFA enrolled — accepting');
         return true;
-        
       } catch (error) {
         debug.error('❌ Error validating session MFA:', error);
-        // On error, be conservative - reject the session
         return false;
       }
     },

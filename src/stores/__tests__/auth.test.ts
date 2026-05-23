@@ -40,6 +40,19 @@ function jwtWithAAL(aal: 'aal1' | 'aal2'): string {
   return `header.${encoded}.signature`
 }
 
+// Build a JWT carrying both an AAL claim and an AMR claim. Mirrors the real
+// Supabase token shape: `amr` is an array of `{ method, timestamp }` entries
+// (see https://supabase.com/docs/guides/auth/auth-mfa#access-token-claims).
+function jwtWithAALAndAMR(aal: 'aal1' | 'aal2', methods: string[]): string {
+  const payload = {
+    aal,
+    sub: 'sub-1',
+    amr: methods.map((m) => ({ method: m, timestamp: 1700000000 })),
+  }
+  const encoded = btoa(JSON.stringify(payload))
+  return `header.${encoded}.signature`
+}
+
 describe('useAuthStore', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
@@ -148,6 +161,86 @@ describe('useAuthStore', () => {
       }
       const ok = await store.validateSessionForMFA({ access_token: jwtWithAAL('aal1') } as any)
       expect(ok).toBe(false)
+    })
+
+    // Regression: prior to the AMR-aware fix, MFA users got logged out on
+    // every device after Supabase's ~24h AAL2 grace period expired. The
+    // fix accepts AAL1 sessions whose JWT amr already records a `totp`
+    // verification, matching the documented "stay logged in for weeks"
+    // model in `docs/2FA_SECURITY_MODEL.md`.
+    it('accepts AAL1 session when amr already records totp (post-AAL2-expiry long session)', async () => {
+      const store = useAuthStore()
+      const listFactors = vi.fn().mockResolvedValue({
+        data: { totp: [{ status: 'verified' }] },
+        error: null,
+      })
+      ;(supabase.auth as any).mfa = { listFactors }
+      const session = {
+        access_token: jwtWithAALAndAMR('aal1', ['password', 'totp']),
+      } as any
+      const ok = await store.validateSessionForMFA(session)
+      expect(ok).toBe(true)
+      // The amr-fast-path means we don't even need to call listFactors —
+      // the JWT alone tells us MFA was completed on this session.
+      expect(listFactors).not.toHaveBeenCalled()
+    })
+
+    it('still rejects AAL1 session whose amr lacks totp (mid-login or OAuth)', async () => {
+      const store = useAuthStore()
+      ;(supabase.auth as any).mfa = {
+        listFactors: vi.fn().mockResolvedValue({
+          data: { totp: [{ status: 'verified' }] },
+          error: null,
+        }),
+      }
+      // amr only carries `password` — same shape as a fresh password
+      // sign-in that hasn't yet completed MFA, or an OAuth callback.
+      const session = {
+        access_token: jwtWithAALAndAMR('aal1', ['password']),
+      } as any
+      const ok = await store.validateSessionForMFA(session)
+      expect(ok).toBe(false)
+    })
+
+    // Edge: user who once verified MFA then disabled it. amr still carries
+    // historical totp, but listFactors is empty. Must accept.
+    it('accepts AAL1 session when amr has totp but MFA was later removed', async () => {
+      const store = useAuthStore()
+      ;(supabase.auth as any).mfa = {
+        listFactors: vi.fn().mockResolvedValue({ data: { totp: [] }, error: null }),
+      }
+      const session = {
+        access_token: jwtWithAALAndAMR('aal1', ['password', 'totp']),
+      } as any
+      expect(await store.validateSessionForMFA(session)).toBe(true)
+    })
+  })
+
+  describe('getAMR', () => {
+    it('returns empty array when session is null', () => {
+      const store = useAuthStore()
+      expect(store.getAMR(null)).toEqual([])
+    })
+
+    it('extracts method names from amr claim', () => {
+      const store = useAuthStore()
+      const session = {
+        access_token: jwtWithAALAndAMR('aal2', ['password', 'totp']),
+      } as any
+      expect(store.getAMR(session)).toEqual(['password', 'totp'])
+    })
+
+    it('returns empty array when amr is missing', () => {
+      const store = useAuthStore()
+      expect(store.getAMR({ access_token: jwtWithAAL('aal1') } as any)).toEqual([])
+    })
+
+    it('tolerates plain-string amr entries (older / non-Supabase tokens)', () => {
+      const store = useAuthStore()
+      const payload = { aal: 'aal2', sub: 'u', amr: ['password', 'totp'] }
+      const encoded = btoa(JSON.stringify(payload))
+      const session = { access_token: `h.${encoded}.s` } as any
+      expect(store.getAMR(session)).toEqual(['password', 'totp'])
     })
   })
 
