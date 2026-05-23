@@ -307,7 +307,7 @@ On `CHANNEL_ERROR`, `setupServerPresence()` schedules another `setupServerPresen
 | # | Bug | Location |
 |---|-----|----------|
 | H48 | Invite usage update blocked for accepter by RLS — `max_uses` not enforced atomically | `src/services/inviteService.ts` + `db_schema/init/30_rls_policies.sql` |
-| H49 | `verify_recovery_code` has no caller binding — DoS another user's codes | `db_schema/init/13_functions_rpc_extended.sql` (callers: `AuthComponent.vue`, `ResetPasswordView.vue`) |
+| ~~H49~~ | ~~`verify_recovery_code` has no caller binding — DoS another user's codes~~ **fixed 2026-05-23** — function now rejects calls where `auth.uid()` is null or does not match `p_user_id`. | `db_schema/migrations/20260523_verify_recovery_code_authcheck.sql` (mirrored in `db_schema/init/13_functions_rpc_extended.sql`) |
 | H50 | Permission caches survive logout (shared device) | `src/composables/useServerPermissions.ts` + `src/stores/auth.ts` logout flow |
 
 ---

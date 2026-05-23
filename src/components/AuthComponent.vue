@@ -378,7 +378,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useThemeStore } from '@/stores/useTheme'
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings'
 import { useToast } from 'vue-toastification'
-import { supabase } from '@/supabase'
+import { supabase, setRememberMe, getRememberMe } from '@/supabase'
 import { getRandomLoginBackground } from '@/utils/backgroundUtils'
 import { adminService } from '@/services/AdminService'
 import type { Provider } from '@supabase/supabase-js'
@@ -424,7 +424,11 @@ const enabledOAuthProviders = ref<typeof allOAuthProviders>([])
 // Reactive state
 const email = ref('')
 const password = ref('')
-const rememberMe = ref(false)
+// Initialize from the persisted preference so the checkbox reflects the
+// user's last choice across visits to the login page (defaults to `true`
+// for first-time visitors, matching the pre-fix hardcoded `persistSession`
+// behavior — see `src/supabase.ts`).
+const rememberMe = ref(getRememberMe())
 const showPassword = ref(false)
 const isLoading = ref(false)
 const oauthLoading = ref<string | null>(null)
@@ -553,7 +557,14 @@ const validatePassword = () => {
 // OAuth Login
 const handleOAuthLogin = async (providerId: string) => {
   oauthLoading.value = providerId
-  
+
+  // Persist the remember-me preference BEFORE the OAuth redirect. The
+  // session won't actually be created until the OAuth callback returns,
+  // but the storage adapter consults this preference at write-time, so
+  // it has to be set in the originating tab's localStorage *now* — the
+  // callback runs after a full page navigation and reads the same key.
+  setRememberMe(rememberMe.value)
+
   try {
     // Check if user is already logged in - if so, warn them about potential account linking
     const { data: { session } } = await supabase.auth.getSession()
@@ -603,8 +614,16 @@ const handleSubmit = async () => {
   
   try {
     if (props.isLogin) {
+      // Persist the remember-me preference BEFORE signInWithPassword. The
+      // session-aware storage adapter in `src/supabase.ts` reads this on
+      // every `setItem` and routes the freshly-issued session token to
+      // either `localStorage` (remember) or `sessionStorage` (this tab
+      // only). Setting it after `login()` would land the token in the
+      // wrong store.
+      setRememberMe(rememberMe.value)
+
       const result = await authStore.login(email.value, password.value)
-      
+
       if (result.requires2FA) {
         pendingFactorId.value = result.factorId!
         pendingChallengeId.value = result.challengeId!
@@ -615,6 +634,9 @@ const handleSubmit = async () => {
 
       toast.success('Welcome back!')
     } else {
+      // New signups also respect the toggle so a user signing up on a
+      // shared computer can keep their session tab-bound.
+      setRememberMe(rememberMe.value)
       await authStore.register(email.value, password.value)
       toast.success('Account created successfully!')
       router.push('/new-profile')
@@ -692,7 +714,7 @@ const handleCodeInput = () => {
   }
 }
 
-const close2FAModal = () => {
+const close2FAModal = async () => {
   show2FAModal.value = false
   twoFactorCode.value = ''
   twoFactorError.value = ''
@@ -700,6 +722,19 @@ const close2FAModal = () => {
   pendingChallengeId.value = ''
   useRecoveryCode.value = false
   authStore._pendingMFAVerification = false
+
+  // Defense-in-depth: sign out the AAL1 session that signInWithPassword
+  // wrote to localStorage. Without this, the unfinished MFA session
+  // lingers in shared browser storage until the next page load triggers
+  // INITIAL_SESSION → validateSessionForMFA → signOut. While that
+  // self-heal is enough to prevent any actual access (validateSessionForMFA
+  // still rejects the AAL1+MFA combination), it's cleaner to clear the
+  // token immediately when the user explicitly cancels the flow.
+  try {
+    await supabase.auth.signOut()
+  } catch (err) {
+    debug.error('Failed to sign out AAL1 session on 2FA modal cancel:', err)
+  }
 }
 
 // Forgot Password
