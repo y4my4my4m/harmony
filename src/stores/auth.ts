@@ -515,65 +515,118 @@ export const useAuthStore = defineStore('auth', {
     },
 
     async login(email: string, password: string) {
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) throw error;
-      
-      // Check if user is suspended BEFORE allowing further login
-      if (data.user) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('is_suspended, suspension_reason')
-          .eq('auth_user_id', data.user.id)
-          .maybeSingle();
-        
-        if (profile?.is_suspended) {
-          // Sign out the user immediately
-          await supabase.auth.signOut();
-          throw new Error(
-            profile.suspension_reason 
-              ? `Your account has been suspended: ${profile.suspension_reason}`
-              : 'Your account has been suspended. Please contact an administrator.'
-          );
+      // CRITICAL ORDERING: set the pending-MFA flag BEFORE signInWithPassword.
+      //
+      // `signInWithPassword` resolves with an AAL1 session and immediately
+      // queues a `SIGNED_IN` event as a microtask. The `await`s below for
+      // the suspended-user check and `listFactors` yield the event loop,
+      // letting that microtask run *before* we know whether MFA is needed.
+      //
+      // If the flag is set inside the `if (totpFactor)` branch (where it
+      // used to live), the SIGNED_IN handler runs while the flag is still
+      // false, calls `validateSessionForMFA` which rejects the AAL1 session
+      // for an MFA-enrolled user, and signs the user out. By the time
+      // `listFactors` runs, the session is already gone — `totpFactor` is
+      // undefined and `login()` returns `{ requires2FA: false }` despite
+      // the user clearly having 2FA. The login UI then shows "Welcome
+      // back!", navigates to /chat, and the protected route renders blank
+      // because the session is null. This was the user-reported bug:
+      // "log in, but nothing loads, and the MFA modal never appeared".
+      //
+      // Hoisting the flag to the very top means the SIGNED_IN handler
+      // returns early, the AAL1 session survives, listFactors actually
+      // finds the factor, and we either route to the MFA modal (2FA users)
+      // or finalize the session ourselves (non-2FA users) below.
+      this._pendingMFAVerification = true;
+
+      try {
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) throw error;
+
+        // Check if user is suspended BEFORE allowing further login
+        if (data.user) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('is_suspended, suspension_reason')
+            .eq('auth_user_id', data.user.id)
+            .maybeSingle();
+
+          if (profile?.is_suspended) {
+            // Sign out the user immediately. The `finally` below will clear
+            // the flag — we don't reset it here to avoid the SIGNED_OUT
+            // handler racing against a half-cleared state.
+            await supabase.auth.signOut();
+            throw new Error(
+              profile.suspension_reason
+                ? `Your account has been suspended: ${profile.suspension_reason}`
+                : 'Your account has been suspended. Please contact an administrator.'
+            );
+          }
         }
-      }
-      
-      // Check if user has 2FA enabled
-      const { data: factors } = await supabase.auth.mfa.listFactors();
-      const totpFactor = factors?.totp?.find((f: any) => f.status === 'verified');
-      
-      if (totpFactor) {
-        debug.log('🔒 2FA required - session is AAL1, need AAL2 verification');
-        
-        // Signal that MFA is in progress so onAuthStateChange skips
-        // SIGNED_IN events for this AAL1 session (prevents race on mobile)
-        this._pendingMFAVerification = true;
-        
-        const { data: challengeData, error: challengeError } = await supabase.auth.mfa.challenge({
-          factorId: totpFactor.id
-        });
-        
-        if (challengeError) {
-          this._pendingMFAVerification = false;
-          throw challengeError;
+
+        // Check if user has 2FA enabled
+        const { data: factors } = await supabase.auth.mfa.listFactors();
+        const totpFactor = factors?.totp?.find((f: any) => f.status === 'verified');
+
+        if (totpFactor) {
+          debug.log('🔒 2FA required - session is AAL1, need AAL2 verification');
+
+          const { data: challengeData, error: challengeError } = await supabase.auth.mfa.challenge({
+            factorId: totpFactor.id,
+          });
+
+          if (challengeError) {
+            // Reset the flag here (rather than rely on `finally`) because
+            // we still want to throw upward to the caller — the login UI
+            // shows the error and lets the user retry.
+            this._pendingMFAVerification = false;
+            throw challengeError;
+          }
+
+          // KEEP the flag set across the function return — `verify2FA` in
+          // its `finally` block clears it once MFA actually completes.
+          return {
+            requires2FA: true,
+            factorId: totpFactor.id,
+            challengeId: challengeData.id,
+            session: null,
+          };
         }
-        
+
+        // No 2FA path: the SIGNED_IN handler skipped (because of our flag),
+        // so we have to do its work ourselves — adopt the session AND run
+        // the same post-login setup it would have run. Mirror the
+        // `event === 'SIGNED_IN'` block in `onAuthStateChange` exactly so
+        // non-2FA login produces identical state regardless of which path
+        // got to it.
+        this._pendingMFAVerification = false;
+        this.isPasswordResetMode = false;
+        this.session = data.session;
+        if (data.session?.user?.id) {
+          userStorage.setCurrentUser(data.session.user.id);
+          this.setupOfflineHandlers(data.session.user.id);
+          this.initializeUserSettings(data.session.user.id);
+          const activityPubStore = useActivityPubStore();
+          // Fire and forget — matches the SIGNED_IN handler's pattern
+          // (it doesn't await this either, and we don't want to block
+          // the login UI on a slow blocks/mutes query).
+          activityPubStore.loadBlockingData();
+        }
+
         return {
-          requires2FA: true,
-          factorId: totpFactor.id,
-          challengeId: challengeData.id,
-          session: null
+          requires2FA: false,
+          factorId: null,
+          challengeId: null,
+          session: data.session,
         };
+      } catch (err) {
+        // Any failure path — sign-in error, suspended user, MFA challenge
+        // error — must clear the flag so subsequent login attempts (or a
+        // page refresh that triggers a fresh INITIAL_SESSION) aren't stuck
+        // in the "skip SIGNED_IN" state.
+        this._pendingMFAVerification = false;
+        throw err;
       }
-      
-      // No 2FA, session is at AAL1 which is sufficient
-      // Set session and proceed
-      this.session = data.session;
-      return {
-        requires2FA: false,
-        factorId: null,
-        challengeId: null,
-        session: data.session
-      };
     },
 
     async verify2FA(factorId: string, challengeId: string, code: string) {
@@ -582,29 +635,45 @@ export const useAuthStore = defineStore('auth', {
         const verifyPromise = supabase.auth.mfa.verify({
           factorId,
           challengeId,
-          code
+          code,
         });
         const timeoutPromise = new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('MFA verification timed out. Please try logging in again.')), 30000)
+          setTimeout(() => reject(new Error('MFA verification timed out. Please try logging in again.')), 30000),
         );
 
         const { data: verifyData, error: verifyError } = await Promise.race([
           verifyPromise,
-          timeoutPromise
+          timeoutPromise,
         ]);
 
         if (verifyError) {
-          debug.error('❌ MFA verify error:', verifyError)
+          debug.error('❌ MFA verify error:', verifyError);
           throw verifyError;
         }
 
-        await new Promise(resolve => setTimeout(resolve, 500));
-        
+        await new Promise((resolve) => setTimeout(resolve, 500));
+
         const { data: sessionData } = await supabase.auth.getSession();
         this.session = sessionData.session;
-        
+
+        // The `MFA_CHALLENGE_VERIFIED` event handler only runs
+        // `setupOfflineHandlers` — it skips `userStorage.setCurrentUser`,
+        // `initializeUserSettings`, and `activityPubStore.loadBlockingData`,
+        // all of which the SIGNED_IN handler runs. We mirror those here so
+        // 2FA users land in the same fully-initialized state as non-2FA
+        // users (otherwise the chat view loads with default theme, no
+        // user-scoped storage, and stale block lists).
+        this.isPasswordResetMode = false;
+        if (sessionData.session?.user?.id) {
+          userStorage.setCurrentUser(sessionData.session.user.id);
+          this.setupOfflineHandlers(sessionData.session.user.id);
+          this.initializeUserSettings(sessionData.session.user.id);
+          const activityPubStore = useActivityPubStore();
+          activityPubStore.loadBlockingData();
+        }
+
         debug.log('✅ 2FA verified - session upgraded to AAL2');
-        
+
         return { session: sessionData.session };
       } finally {
         this._pendingMFAVerification = false;

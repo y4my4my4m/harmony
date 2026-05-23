@@ -300,4 +300,103 @@ describe('useAuthStore', () => {
       expect(store.session?.user?.id).toBe('valid-user')
     })
   })
+
+  // Regression test for the race condition where SIGNED_IN's `validateSessionForMFA`
+  // fired BEFORE `login()` had time to flag the in-flight MFA attempt, causing the
+  // freshly-issued AAL1 session to be torn down — `listFactors` then ran against a
+  // dead session, returned empty, and `login()` reported "no 2FA needed" even though
+  // the user had a verified TOTP factor. The login UI navigated to the home route
+  // with no session and the page rendered blank.
+  describe('login() — concurrent SIGNED_IN handling', () => {
+    it('keeps the AAL1 session alive across SIGNED_IN microtask so listFactors can detect 2FA', async () => {
+      // Mocks: a 2FA-enrolled user. signInWithPassword resolves and would
+      // normally fire SIGNED_IN on the global handler — we simulate that
+      // mid-login by invoking the captured handler ourselves between the
+      // `signInWithPassword` resolution and the rest of `login()` running.
+      let stateChangeHandler: ((event: string, session: any) => Promise<void>) | null = null
+      ;(supabase.auth as any).onAuthStateChange = vi.fn((fn: any) => {
+        stateChangeHandler = fn
+        return { data: { subscription: { unsubscribe: vi.fn() } } }
+      })
+
+      const aal1Session = {
+        access_token: jwtWithAALAndAMR('aal1', ['password']),
+        user: { id: 'mfa-user' },
+      }
+
+      const signOutSpy = vi.fn().mockResolvedValue({ error: null })
+      ;(supabase.auth as any).signOut = signOutSpy
+      ;(supabase.auth as any).getSession = vi.fn().mockResolvedValue({ data: { session: null } })
+
+      // signInWithPassword: race the SIGNED_IN handler in *before* returning.
+      // This reproduces the real-world ordering where Supabase fires SIGNED_IN
+      // as a microtask while login() is awaiting its next `await`.
+      ;(supabase.auth as any).signInWithPassword = vi.fn(async () => {
+        // Schedule the SIGNED_IN dispatch to run as soon as login() yields.
+        Promise.resolve().then(() => stateChangeHandler?.('SIGNED_IN', aal1Session))
+        return { data: { user: aal1Session.user, session: aal1Session }, error: null }
+      })
+
+      const fromMock = vi.fn(() => ({
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            maybeSingle: vi.fn().mockResolvedValue({ data: { is_suspended: false }, error: null }),
+          }),
+        }),
+      }))
+      ;(supabase as any).from = fromMock
+
+      ;(supabase.auth as any).mfa = {
+        listFactors: vi.fn().mockResolvedValue({
+          data: { totp: [{ id: 'factor-1', status: 'verified' }] },
+          error: null,
+        }),
+        challenge: vi.fn().mockResolvedValue({
+          data: { id: 'challenge-1' },
+          error: null,
+        }),
+      }
+
+      const store = useAuthStore()
+      await store.initializeAuth()
+
+      const result = await store.login('mfa@example.com', 'pw')
+
+      // The whole point: we get the MFA-required signal back, NOT a silent
+      // "{ requires2FA: false }" caused by the SIGNED_IN handler having
+      // already destroyed the session.
+      expect(result.requires2FA).toBe(true)
+      expect(result.factorId).toBe('factor-1')
+      expect(result.challengeId).toBe('challenge-1')
+      // And critically, the SIGNED_IN handler did NOT sign us out: the
+      // pending-MFA flag was set before signInWithPassword resolved, so
+      // the handler's early return triggered.
+      expect(signOutSpy).not.toHaveBeenCalled()
+    })
+
+    it('clears _pendingMFAVerification when login() throws (so subsequent attempts are not stuck)', async () => {
+      ;(supabase.auth as any).onAuthStateChange = vi.fn(() => ({
+        data: { subscription: { unsubscribe: vi.fn() } },
+      }))
+      ;(supabase.auth as any).signInWithPassword = vi.fn().mockResolvedValue({
+        data: { user: null, session: null },
+        error: new Error('Invalid login credentials'),
+      })
+      ;(supabase.auth as any).mfa = {
+        listFactors: vi.fn(),
+        challenge: vi.fn(),
+      }
+      ;(supabase.auth as any).getSession = vi.fn().mockResolvedValue({ data: { session: null } })
+
+      const store = useAuthStore()
+      await store.initializeAuth()
+
+      await expect(store.login('bad@example.com', 'wrong')).rejects.toThrow()
+      // The flag must be cleared on the error path. If it leaked, the next
+      // SIGNED_IN event (e.g. from a successful retry) would be silently
+      // skipped and the user would be stuck looking at a "logged in but
+      // empty" state.
+      expect((store as any)._pendingMFAVerification).toBe(false)
+    })
+  })
 })
