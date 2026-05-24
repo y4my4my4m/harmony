@@ -34,11 +34,11 @@
           :key="bot.id"
           class="bot-card available"
         >
-          <div class="bot-avatar">
-            <Avatar :src="bot.avatar_url" size="sm" :alt="bot.username" />
-            <div class="bot-badge">BOT</div>
+          <div class="bot-card-header">
+            <BotAvatar :bot="bot" :size="48" />
+            <span class="bot-badge">BOT</span>
           </div>
-          
+
           <div class="bot-info">
             <h4>{{ bot.username }}</h4>
             <p class="bot-bio">{{ bot.bio || 'No description' }}</p>
@@ -74,10 +74,7 @@
           :key="installation.id"
           class="bot-item"
         >
-          <div class="bot-avatar">
-            <Avatar :src="installation.bot.avatar_url" size="sm" :alt="installation.bot.username" />
-            <div class="bot-status" :class="{ online: botStatuses[installation.bot_id] }"></div>
-          </div>
+          <BotAvatar :bot="installation.bot" :size="40" :show-status="true" />
 
           <div class="bot-info">
             <h4>{{ installation.bot.username }}</h4>
@@ -107,27 +104,32 @@
 
         <div v-if="selectedBot" class="modal-content">
           <div class="bot-preview">
-            <img :src="selectedBot.avatar_url || '/default_avatar.webp'" :alt="selectedBot.username" />
-            <div>
+            <BotAvatar :bot="selectedBot" :size="56" />
+            <div class="bot-preview-text">
               <h4>{{ selectedBot.username }}</h4>
-              <p>{{ selectedBot.bio }}</p>
+              <p>{{ selectedBot.bio || 'No description' }}</p>
             </div>
           </div>
 
           <div class="permissions-section">
-            <h4>Bot Permissions</h4>
-            <p class="permissions-hint">Select permissions this bot will have in your server.</p>
+            <div class="permissions-section-header">
+              <h4>Bot Permissions</h4>
+              <p class="permissions-hint">Select what this bot can do in your server. Required permissions can't be turned off.</p>
+            </div>
 
-            <div class="permissions-grid">
-              <label v-for="perm in availablePermissions" :key="perm.key" class="permission-checkbox">
+            <div class="permissions-list">
+              <label v-for="perm in availablePermissions" :key="perm.key" class="permission-row" :class="{ disabled: perm.required }">
                 <input
                   type="checkbox"
                   v-model="selectedPermissions[perm.key]"
                   :disabled="perm.required"
                 />
-                <div>
-                  <strong>{{ perm.label }}</strong>
-                  <p>{{ perm.description }}</p>
+                <div class="permission-text">
+                  <span class="permission-label">
+                    {{ perm.label }}
+                    <span v-if="perm.required" class="permission-required-badge">Required</span>
+                  </span>
+                  <span class="permission-description">{{ perm.description }}</span>
                 </div>
               </label>
             </div>
@@ -153,24 +155,27 @@
 
         <div v-if="selectedInstallation" class="modal-content">
           <div class="bot-preview">
-            <img :src="selectedInstallation.bot.avatar_url || '/default_avatar.webp'" :alt="selectedInstallation.bot.username" />
-            <div>
+            <BotAvatar :bot="selectedInstallation.bot" :size="56" />
+            <div class="bot-preview-text">
               <h4>{{ selectedInstallation.bot.username }}</h4>
               <p>Manage permissions for this bot</p>
             </div>
           </div>
 
           <div class="permissions-section">
-            <div class="permissions-grid">
-              <label v-for="perm in availablePermissions" :key="perm.key" class="permission-checkbox">
+            <div class="permissions-list">
+              <label v-for="perm in availablePermissions" :key="perm.key" class="permission-row" :class="{ disabled: perm.required }">
                 <input
                   type="checkbox"
                   v-model="editingPermissions[perm.key]"
                   :disabled="perm.required"
                 />
-                <div>
-                  <strong>{{ perm.label }}</strong>
-                  <p>{{ perm.description }}</p>
+                <div class="permission-text">
+                  <span class="permission-label">
+                    {{ perm.label }}
+                    <span v-if="perm.required" class="permission-required-badge">Required</span>
+                  </span>
+                  <span class="permission-description">{{ perm.description }}</span>
                 </div>
               </label>
             </div>
@@ -200,6 +205,7 @@ import { debug } from '@/utils/debug'
 import { supabase } from '@/supabase'
 import { formatDistanceToNow } from 'date-fns'
 import Avatar from '@/components/common/Avatar.vue'
+import BotAvatar from '@/components/common/BotAvatar.vue'
 
 interface Props {
   serverId: string
@@ -663,6 +669,228 @@ onMounted(() => {
 
 .btn-danger:hover {
   background-color: #c03537;
+}
+
+/* =========================================================================
+   Bot card header & badge
+   ======================================================================= */
+.bot-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.bot-card .bot-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  background: var(--harmony-primary, #0EA5E9);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  border-radius: 3px;
+}
+
+/* =========================================================================
+   Modal — wider, breathable, scrollable permission list
+   ======================================================================= */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  padding: 24px;
+}
+
+.modal {
+  background: var(--background-primary, #1e1f22);
+  border: 1px solid var(--border-color, #2b2d31);
+  border-radius: 12px;
+  width: 100%;
+  max-width: 560px;
+  max-height: calc(100vh - 48px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 24px;
+  border-bottom: 1px solid var(--border-color, #2b2d31);
+  flex-shrink: 0;
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.modal-header .close-btn {
+  background: none;
+  border: none;
+  font-size: 24px;
+  line-height: 1;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: background 0.15s, color 0.15s;
+}
+
+.modal-header .close-btn:hover {
+  background: var(--background-modifier-hover, var(--background-secondary));
+  color: var(--text-primary);
+}
+
+.modal-content {
+  padding: 20px 24px;
+  overflow-y: auto;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* Bot preview header inside modal */
+.bot-preview {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px;
+  background: var(--background-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+}
+
+.bot-preview-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.bot-preview-text h4 {
+  margin: 0 0 4px;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.bot-preview-text p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+/* Permissions list */
+.permissions-section-header {
+  margin-bottom: 4px;
+}
+
+.permissions-section-header h4 {
+  margin: 0 0 4px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.permissions-hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.permissions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.permission-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.permission-row:hover:not(.disabled) {
+  background: var(--background-modifier-hover, var(--background-secondary));
+}
+
+.permission-row.disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.permission-row input[type="checkbox"] {
+  margin-top: 2px;
+  width: 16px;
+  height: 16px;
+  accent-color: var(--harmony-primary, #0EA5E9);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.permission-row.disabled input[type="checkbox"] {
+  cursor: not-allowed;
+}
+
+.permission-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.permission-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.permission-required-badge {
+  font-size: 10px;
+  padding: 1px 6px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.permission-description {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-color);
 }
 </style>
 

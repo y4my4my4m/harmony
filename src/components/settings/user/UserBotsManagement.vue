@@ -35,10 +35,7 @@
       <div class="bots-list">
         <div v-for="bot in myBots" :key="bot.id" class="bot-card">
           <div class="bot-header">
-            <div class="bot-avatar">
-              <Avatar :src="bot.avatar_url" size="sm" :alt="bot.username" />
-              <div class="bot-status" :class="{ online: bot.last_online_at }"></div>
-            </div>
+            <BotAvatar :bot="bot" :size="48" :show-status="true" />
 
             <div class="bot-info">
               <div class="bot-title">
@@ -161,6 +158,79 @@
       </div>
     </Teleport>
 
+    <!-- Edit Bot Modal -->
+    <Teleport to="body">
+      <div v-if="showEditModal" class="modal-overlay" @click.self="closeEditModal">
+        <div class="modal">
+          <div class="modal-header">
+            <h3>Edit Bot</h3>
+            <button @click="closeEditModal" class="close-btn">×</button>
+          </div>
+
+          <div class="modal-content">
+            <div class="form-group">
+              <label>Username</label>
+              <input
+                :value="editBotForm.username"
+                type="text"
+                disabled
+                class="disabled-input"
+              />
+              <span class="hint">Bot usernames cannot be changed after creation.</span>
+            </div>
+
+            <div class="form-group">
+              <label>Display Name</label>
+              <input
+                v-model="editBotForm.display_name"
+                type="text"
+                placeholder="Bot display name"
+                maxlength="100"
+              />
+            </div>
+
+            <div class="form-group">
+              <label>Description</label>
+              <textarea
+                v-model="editBotForm.bio"
+                placeholder="What does your bot do?"
+                rows="3"
+                maxlength="500"
+              ></textarea>
+              <span class="hint">{{ (editBotForm.bio?.length ?? 0) }} / 500</span>
+            </div>
+
+            <div class="form-group">
+              <label>Bot Type</label>
+              <select v-model="editBotForm.bot_type">
+                <option value="bot">Standard Bot</option>
+                <option value="bridge">Cross-Platform Bridge</option>
+                <option value="integration">Service Integration</option>
+              </select>
+            </div>
+
+            <div class="form-group checkbox">
+              <label>
+                <input type="checkbox" v-model="editBotForm.is_public" />
+                <span>Public Bot (anyone can add it to their servers)</span>
+              </label>
+            </div>
+          </div>
+
+          <div class="modal-actions">
+            <button @click="closeEditModal" class="btn-secondary">Cancel</button>
+            <button
+              @click="saveEditBot"
+              :disabled="savingEdit"
+              class="btn-primary"
+            >
+              {{ savingEdit ? 'Saving...' : 'Save Changes' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
     <!-- Token Display Modal -->
     <Teleport to="body">
       <div v-if="showToken" class="modal-overlay" @click.self="closeTokenModal">
@@ -219,6 +289,7 @@ import { useToast } from 'vue-toastification'
 import { formatDistanceToNow } from 'date-fns'
 import { generateBotToken, hashBotToken } from '@/utils/botUtils'
 import Avatar from '@/components/common/Avatar.vue'
+import BotAvatar from '@/components/common/BotAvatar.vue'
 
 defineProps<{ loading: boolean }>()
 const toast = useToast()
@@ -451,10 +522,64 @@ async function regenerateToken() {
   }
 }
 
+// -------------------------------------------------------------------------
+// Edit bot
+// -------------------------------------------------------------------------
+const showEditModal = ref(false)
+const savingEdit = ref(false)
+const editingBotId = ref<string | null>(null)
+const editBotForm = ref({
+  username: '',
+  display_name: '',
+  bio: '',
+  bot_type: 'bot',
+  is_public: true,
+})
+
 function editBot(bot: any) {
-  debug.log('Editing bot:', bot)
-  // TODO: Implement edit modal
-  toast.info('Edit bot coming soon!')
+  editingBotId.value = bot.id
+  editBotForm.value = {
+    username: bot.username ?? '',
+    display_name: bot.display_name ?? '',
+    bio: bot.bio ?? '',
+    bot_type: bot.bot_type ?? 'bot',
+    is_public: !!bot.is_public,
+  }
+  showEditModal.value = true
+}
+
+function closeEditModal() {
+  showEditModal.value = false
+  editingBotId.value = null
+}
+
+async function saveEditBot() {
+  if (!editingBotId.value || savingEdit.value) return
+  savingEdit.value = true
+
+  try {
+    // Username is immutable here — never include it in the update payload.
+    const { error } = await supabase
+      .from('bots')
+      .update({
+        display_name: editBotForm.value.display_name || null,
+        bio: editBotForm.value.bio || null,
+        bot_type: editBotForm.value.bot_type,
+        is_public: editBotForm.value.is_public,
+      })
+      .eq('id', editingBotId.value)
+
+    if (error) throw error
+
+    toast.success('Bot updated')
+    closeEditModal()
+    await loadMyBots()
+  } catch (error: any) {
+    debug.error('Failed to update bot:', error)
+    toast.error(error.message || 'Failed to update bot')
+  } finally {
+    savingEdit.value = false
+  }
 }
 
 async function deleteBot(bot: any) {
@@ -883,6 +1008,13 @@ onMounted(() => {
 .form-group select:focus {
   outline: none;
   border-color: var(--color-primary, #0EA5E9);
+}
+
+.form-group input.disabled-input,
+.form-group input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  background: var(--background-secondary);
 }
 
 .form-group.checkbox {

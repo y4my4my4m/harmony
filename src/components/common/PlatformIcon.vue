@@ -41,6 +41,12 @@ import {
   siBitcoin,
   siEthereum,
   siGithub,
+  // Bridge platforms (used by BotAvatar.vue for branded bot icons)
+  siDiscord,
+  siSlack,
+  siTelegram,
+  siMatrix,
+  siTwitch,
 } from 'simple-icons'
 
 /**
@@ -67,6 +73,12 @@ const PLATFORM_ICONS: Record<string, typeof siKofi> = {
   'venmo': siVenmo,
   'bitcoin': siBitcoin,
   'ethereum': siEthereum,
+  // Bridges
+  'discord': siDiscord,
+  'slack': siSlack,
+  'telegram': siTelegram,
+  'matrix': siMatrix,
+  'twitch': siTwitch,
 }
 
 const props = withDefaults(defineProps<{

@@ -42,7 +42,16 @@
         </svg>
       </button>
     </div>
-    <div class="message-container"
+    <!-- Read-only state: user lacks SEND_MESSAGES on this channel.
+         Backend RLS / triggers still enforce — this is UX, not security. -->
+    <div v-if="!canSendMessages" class="message-readonly-banner" role="status">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true">
+        <path d="M12 1a4.5 4.5 0 0 0-4.5 4.5V9H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V11a2 2 0 0 0-2-2h-1.5V5.5A4.5 4.5 0 0 0 12 1zm-2.5 4.5a2.5 2.5 0 0 1 5 0V9h-5V5.5z"/>
+      </svg>
+      <span>{{ readOnlyPlaceholder }}</span>
+    </div>
+
+    <div v-else class="message-container"
          @dragenter.prevent="handleDragEnter"
          @dragover.prevent="handleDragOver"
          @dragleave.prevent="handleDragLeave"
@@ -151,6 +160,7 @@ import { supabase } from '@/supabase';
 import { useAuthStore } from '@/stores/auth';
 import { useServerChannelStore } from '@/stores/useServerChannel';
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings';
+import { roleService, Permission } from '@/services/RoleService';
 import { v4 as uuidv4 } from 'uuid';
 
 interface Props {
@@ -181,6 +191,60 @@ const placeholderTarget = computed(() => {
   if (props.username) return `@${props.username}`;
   if (props.channelName) return `#${props.channelName}`;
   return '';
+});
+
+// =========================================================================
+// Send permission gating (channel-level role permissions)
+// =========================================================================
+// DMs are always sendable. For server channels, we resolve the current user's
+// effective SEND_MESSAGES permission, which includes channel_permission_overrides
+// applied on top of role permissions (RoleService.getUserPermissions does the
+// merge server-side via the RPC). This is the FRONTEND gate; the database
+// trigger / RLS policy is still the source of truth (defense in depth).
+// `serverChannelStore` is also instantiated later in the file for unrelated
+// usage; share that singleton instead of re-declaring.
+const sendPermStore = useServerChannelStore();
+const canSendMessages = ref(true); // optimistic until first resolution
+const isResolvingPermissions = ref(false);
+
+async function refreshSendPermission() {
+  // DMs / threads / no channel context → always allowed.
+  if (!props.channelId || props.conversationId) {
+    canSendMessages.value = true;
+    return;
+  }
+  const userId = authStore.session?.user?.id;
+  const serverId = sendPermStore.currentServerId;
+  if (!userId || !serverId) {
+    canSendMessages.value = true;
+    return;
+  }
+  isResolvingPermissions.value = true;
+  try {
+    const allowed = await roleService.hasPermission(
+      userId,
+      serverId,
+      Permission.SEND_MESSAGES,
+      props.channelId,
+    );
+    canSendMessages.value = allowed;
+  } catch (err) {
+    debug.warn('Failed to resolve SEND_MESSAGES permission, defaulting to allowed:', err);
+    canSendMessages.value = true;
+  } finally {
+    isResolvingPermissions.value = false;
+  }
+}
+
+watch(
+  () => [props.channelId, authStore.session?.user?.id, sendPermStore.currentServerId],
+  () => { void refreshSendPermission(); },
+  { immediate: true },
+);
+
+const readOnlyPlaceholder = computed(() => {
+  if (isResolvingPermissions.value) return 'Checking permissions…';
+  return 'You do not have permission to send messages in this channel.';
 });
 
 interface VoiceMessageData {
@@ -824,6 +888,28 @@ const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText);
   .message-input.has-files .message-container {
     border-top-left-radius: 0;
     border-top-right-radius: 0;
+  }
+
+  /* Read-only state when user lacks SEND_MESSAGES on the current channel.
+     Mirrors Discord's "You don't have permission to send messages in this channel" UI. */
+  .message-readonly-banner {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    margin: 0 12px 12px;
+    background: var(--background-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    color: var(--text-secondary);
+    font-size: 13px;
+    line-height: 1.4;
+    user-select: none;
+  }
+
+  .message-readonly-banner svg {
+    flex-shrink: 0;
+    color: var(--text-tertiary, var(--text-secondary));
   }
 
   /* Command parameter hint bar */

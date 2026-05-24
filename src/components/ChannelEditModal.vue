@@ -10,61 +10,145 @@
             </svg>
           </button>
         </div>
-        
-        <div class="modal-body">
-          <div class="form-group">
-            <label for="channel-name">Channel Name</label>
-            <input
-              id="channel-name"
-              v-model="editedName"
-              type="text"
-              class="form-input"
-              placeholder="Enter channel name"
-              maxlength="100"
-              @keydown.enter="saveChanges"
-              @keydown.escape="closeModal"
-              ref="nameInput"
-            />
-            <div class="character-count">{{ editedName.length }}/100</div>
-          </div>
-          
-          <div class="form-group">
-            <label for="channel-description">Description</label>
-            <textarea
-              id="channel-description"
-              v-model="editedDescription"
-              class="form-textarea"
-              placeholder="What's this channel about?"
-              maxlength="1024"
-              rows="3"
-            />
-            <div class="character-count">{{ (editedDescription || '').length }}/1024</div>
-          </div>
-          
-          <div class="form-group">
-            <label>Channel Type</label>
-            <div class="channel-type-display">
-              <div class="channel-type-icon">
-                <HashTagIcon v-if="channel?.type === 0" />
-                <SpeakerIcon v-else />
-              </div>
-              <span>{{ channel?.type === 0 ? 'Text Channel' : 'Voice Channel' }}</span>
-            </div>
-            <div class="form-hint">Channel type cannot be changed after creation</div>
-          </div>
+
+        <!-- Tabs -->
+        <div class="modal-tabs">
+          <button
+            v-for="tab in tabs"
+            :key="tab.id"
+            class="modal-tab"
+            :class="{ active: activeTab === tab.id }"
+            @click="activeTab = tab.id"
+          >
+            {{ tab.label }}
+          </button>
         </div>
-        
+
+        <div class="modal-body">
+          <!-- General tab -->
+          <template v-if="activeTab === 'general'">
+            <div class="form-group">
+              <label for="channel-name">Channel Name</label>
+              <input
+                id="channel-name"
+                v-model="editedName"
+                type="text"
+                class="form-input"
+                placeholder="Enter channel name"
+                maxlength="100"
+                @keydown.enter="saveChanges"
+                @keydown.escape="closeModal"
+                ref="nameInput"
+              />
+              <div class="character-count">{{ editedName.length }}/100</div>
+            </div>
+
+            <div class="form-group">
+              <label for="channel-description">Description</label>
+              <textarea
+                id="channel-description"
+                v-model="editedDescription"
+                class="form-textarea"
+                placeholder="What's this channel about?"
+                maxlength="1024"
+                rows="3"
+              />
+              <div class="character-count">{{ (editedDescription || '').length }}/1024</div>
+            </div>
+
+            <div class="form-group">
+              <label>Channel Type</label>
+              <div class="channel-type-display">
+                <div class="channel-type-icon">
+                  <HashTagIcon v-if="channel?.type === 0" />
+                  <SpeakerIcon v-else />
+                </div>
+                <span>{{ channel?.type === 0 ? 'Text Channel' : 'Voice Channel' }}</span>
+              </div>
+              <div class="form-hint">Channel type cannot be changed after creation</div>
+            </div>
+          </template>
+
+          <!-- Permissions tab -->
+          <template v-else-if="activeTab === 'permissions'">
+            <p class="permissions-intro">
+              Override permissions for specific roles in this channel. Discord-style:
+              <strong>Allow</strong> grants, <strong>Deny</strong> revokes,
+              <strong>Inherit</strong> uses the role's server-wide setting.
+            </p>
+
+            <div v-if="rolesLoading" class="perm-loading">Loading roles…</div>
+            <div v-else-if="serverRoles.length === 0" class="perm-empty">
+              This server has no roles yet.
+            </div>
+
+            <div v-else class="role-perms-list">
+              <div
+                v-for="role in serverRoles"
+                :key="role.id"
+                class="role-perm-card"
+              >
+                <div class="role-perm-header">
+                  <span
+                    class="role-color-dot"
+                    :style="{ background: role.color || '#99aab5' }"
+                  ></span>
+                  <span class="role-perm-name">{{ role.name }}</span>
+                </div>
+                <div class="perm-rows">
+                  <div
+                    v-for="perm in editablePermissions"
+                    :key="perm.key"
+                    class="perm-row"
+                  >
+                    <div class="perm-row-text">
+                      <span class="perm-row-label">{{ perm.label }}</span>
+                      <span class="perm-row-desc">{{ perm.description }}</span>
+                    </div>
+                    <div class="perm-tristate" role="radiogroup" :aria-label="perm.label">
+                      <button
+                        v-for="state in TRISTATE_OPTIONS"
+                        :key="state.value"
+                        type="button"
+                        class="perm-tristate-btn"
+                        :class="[
+                          `state-${state.value}`,
+                          { active: getPermState(role.id, perm.key) === state.value },
+                        ]"
+                        :title="state.label"
+                        @click="setPermState(role.id, perm.key, state.value)"
+                      >
+                        {{ state.icon }}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </template>
+        </div>
+
         <div class="modal-footer">
           <button class="btn btn-secondary" @click="closeModal">
             Cancel
           </button>
-          <button 
-            class="btn btn-primary" 
+          <button
+            v-if="activeTab === 'general'"
+            class="btn btn-primary"
             @click="saveChanges"
             :disabled="!isValidName || isLoading"
           >
             <span v-if="isLoading" class="loading-spinner"></span>
             {{ isLoading ? 'Saving...' : 'Save Changes' }}
+          </button>
+          <button
+            v-else
+            class="btn btn-primary"
+            @click="savePermissions"
+            :disabled="!permissionsDirty || savingPermissions"
+          >
+            <span v-if="savingPermissions" class="loading-spinner"></span>
+            {{ savingPermissions ? 'Saving...' : 'Save Permissions' }}
           </button>
         </div>
       </div>
@@ -79,7 +163,33 @@ import { debug } from '@/utils/debug'
 import { useServerChannelStore } from '@/stores/useServerChannel'
 import HashTagIcon from '@/components/icons/HashTag.vue'
 import SpeakerIcon from '@/components/icons/Speaker.vue'
+import {
+  roleService,
+  Permission,
+  bitmaskToPermissions,
+  type ServerRole,
+  type ChannelPermissionOverride,
+} from '@/services/RoleService'
 import type { Channel } from '@/types'
+
+type TriState = 'allow' | 'inherit' | 'deny'
+
+const TRISTATE_OPTIONS: Array<{ value: TriState; label: string; icon: string }> = [
+  { value: 'deny', label: 'Deny', icon: '✕' },
+  { value: 'inherit', label: 'Inherit from server', icon: '／' },
+  { value: 'allow', label: 'Allow', icon: '✓' },
+]
+
+const editablePermissions: Array<{ key: Permission; label: string; description: string }> = [
+  { key: Permission.VIEW_CHANNEL,    label: 'View Channel',    description: 'See this channel in the sidebar and read messages.' },
+  { key: Permission.SEND_MESSAGES,   label: 'Send Messages',   description: 'Post messages in this channel.' },
+  { key: Permission.MANAGE_MESSAGES, label: 'Manage Messages', description: 'Delete and pin messages from anyone.' },
+  { key: Permission.EMBED_LINKS,     label: 'Embed Links',     description: 'Send embeds and link previews.' },
+  { key: Permission.ATTACH_FILES,    label: 'Attach Files',    description: 'Upload files in this channel.' },
+  { key: Permission.ADD_REACTIONS,   label: 'Add Reactions',   description: 'React to messages with emoji.' },
+  { key: Permission.MENTION_EVERYONE, label: 'Mention Everyone', description: 'Use @everyone / @here mentions.' },
+  { key: Permission.CREATE_PUBLIC_THREADS, label: 'Create Public Threads', description: 'Start public threads from messages.' },
+]
 
 interface Props {
   show: boolean
@@ -162,6 +272,141 @@ watch(() => props.show, (isVisible) => {
       nameInput.value?.focus()
       nameInput.value?.select()
     })
+  }
+})
+
+// =========================================================================
+// Tabs + Permissions tab state
+// =========================================================================
+
+const tabs = [
+  { id: 'general' as const, label: 'General' },
+  { id: 'permissions' as const, label: 'Permissions' },
+]
+const activeTab = ref<'general' | 'permissions'>('general')
+
+const serverRoles = ref<ServerRole[]>([])
+const rolesLoading = ref(false)
+const savingPermissions = ref(false)
+
+/**
+ * Per-role tri-state map for this channel's overrides.
+ * Structure: { [roleId]: { [Permission]: 'allow' | 'deny' | 'inherit' } }
+ *
+ * 'inherit' = no row in channel_permission_overrides (or the bit is 0 in both
+ * allow_permissions and deny_permissions).
+ * 'allow'   = bit set in allow_permissions.
+ * 'deny'    = bit set in deny_permissions.
+ *
+ * We keep two copies (initial + working) to detect dirty state and only persist
+ * roles whose permissions actually changed.
+ */
+const initialPermState = ref<Record<string, Partial<Record<Permission, TriState>>>>({})
+const workingPermState = ref<Record<string, Partial<Record<Permission, TriState>>>>({})
+
+const permissionsDirty = computed(() => {
+  return JSON.stringify(initialPermState.value) !== JSON.stringify(workingPermState.value)
+})
+
+function getPermState(roleId: string, perm: Permission): TriState {
+  return workingPermState.value[roleId]?.[perm] ?? 'inherit'
+}
+
+function setPermState(roleId: string, perm: Permission, state: TriState) {
+  if (!workingPermState.value[roleId]) workingPermState.value[roleId] = {}
+  workingPermState.value[roleId][perm] = state
+}
+
+async function loadPermissions() {
+  if (!props.channel?.server_id) return
+  rolesLoading.value = true
+  try {
+    const [roles, overrides] = await Promise.all([
+      roleService.getRolesForServer(props.channel.server_id),
+      roleService.getChannelOverrides(props.channel.id),
+    ])
+    // Sort by position descending (highest-role-first), matching the role manager.
+    serverRoles.value = [...roles].sort((a, b) => b.position - a.position)
+
+    const state: typeof initialPermState.value = {}
+    for (const role of serverRoles.value) {
+      state[role.id] = {}
+    }
+    for (const ov of overrides) {
+      if (ov.target_type !== 'role' || !ov.role_id) continue
+      const allowMap = bitmaskToPermissions(BigInt(ov.allow_permissions ?? 0))
+      const denyMap = bitmaskToPermissions(BigInt(ov.deny_permissions ?? 0))
+      if (!state[ov.role_id]) state[ov.role_id] = {}
+      for (const perm of editablePermissions) {
+        if (allowMap[perm.key]) state[ov.role_id][perm.key] = 'allow'
+        else if (denyMap[perm.key]) state[ov.role_id][perm.key] = 'deny'
+      }
+    }
+
+    initialPermState.value = JSON.parse(JSON.stringify(state))
+    workingPermState.value = JSON.parse(JSON.stringify(state))
+  } catch (err) {
+    debug.error('Failed to load channel permissions:', err)
+    const t = useToast()
+    t.error('Failed to load channel permissions')
+  } finally {
+    rolesLoading.value = false
+  }
+}
+
+async function savePermissions() {
+  if (!props.channel || savingPermissions.value || !permissionsDirty.value) return
+  savingPermissions.value = true
+  const t = useToast()
+  try {
+    for (const role of serverRoles.value) {
+      const before = initialPermState.value[role.id] ?? {}
+      const after = workingPermState.value[role.id] ?? {}
+      // Skip roles whose state didn't change.
+      if (JSON.stringify(before) === JSON.stringify(after)) continue
+
+      const allow: Partial<Record<Permission, boolean>> = {}
+      const deny: Partial<Record<Permission, boolean>> = {}
+      for (const perm of editablePermissions) {
+        const s = after[perm.key] ?? 'inherit'
+        if (s === 'allow') allow[perm.key] = true
+        else if (s === 'deny') deny[perm.key] = true
+      }
+
+      const ok = await roleService.setChannelOverride(
+        props.channel.id,
+        'role',
+        role.id,
+        allow,
+        deny,
+      )
+      if (!ok) throw new Error(`Failed to save override for ${role.name}`)
+    }
+
+    initialPermState.value = JSON.parse(JSON.stringify(workingPermState.value))
+    t.success('Channel permissions saved')
+  } catch (err: any) {
+    debug.error('Failed to save channel permissions:', err)
+    t.error(err?.message || 'Failed to save channel permissions')
+  } finally {
+    savingPermissions.value = false
+  }
+}
+
+// Load permissions when the Permissions tab is first opened (lazy)
+watch([() => props.show, activeTab, () => props.channel?.id], ([visible, tab]) => {
+  if (visible && tab === 'permissions' && serverRoles.value.length === 0) {
+    void loadPermissions()
+  }
+})
+
+// Reset to General tab when modal closes
+watch(() => props.show, (visible) => {
+  if (!visible) {
+    activeTab.value = 'general'
+    serverRoles.value = []
+    initialPermState.value = {}
+    workingPermState.value = {}
   }
 })
 </script>
@@ -406,5 +651,171 @@ watch(() => props.show, (isVisible) => {
     width: 100%;
     justify-content: center;
   }
+}
+
+/* =========================================================================
+   Tabs
+   ======================================================================= */
+.modal-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 0 24px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.modal-tab {
+  background: none;
+  border: none;
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.modal-tab:hover {
+  color: var(--text-primary);
+}
+
+.modal-tab.active {
+  color: var(--harmony-primary, #0EA5E9);
+  border-bottom-color: var(--harmony-primary, #0EA5E9);
+}
+
+/* Make modal wider so the permissions grid fits comfortably */
+.modal-container {
+  max-width: 640px;
+}
+
+/* =========================================================================
+   Permissions tab
+   ======================================================================= */
+.permissions-intro {
+  margin: 0 0 16px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.perm-loading,
+.perm-empty {
+  padding: 24px;
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.role-perms-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.role-perm-card {
+  background: var(--background-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.role-perm-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--background-secondary);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.role-color-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.role-perm-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.perm-rows {
+  display: flex;
+  flex-direction: column;
+}
+
+.perm-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--border-color);
+}
+
+.perm-row:first-child {
+  border-top: none;
+}
+
+.perm-row-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.perm-row-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.perm-row-desc {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+/* Tri-state allow/inherit/deny toggle — Discord-style three-button group */
+.perm-tristate {
+  display: inline-flex;
+  background: var(--background-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.perm-tristate-btn {
+  width: 36px;
+  height: 28px;
+  background: transparent;
+  border: none;
+  color: var(--text-tertiary, var(--text-secondary));
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 700;
+  transition: background 0.15s, color 0.15s;
+}
+
+.perm-tristate-btn:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.perm-tristate-btn.active.state-allow {
+  background: rgba(59, 165, 92, 0.18);
+  color: #3ba55c;
+}
+
+.perm-tristate-btn.active.state-deny {
+  background: rgba(237, 66, 69, 0.18);
+  color: #ed4245;
+}
+
+.perm-tristate-btn.active.state-inherit {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
 }
 </style>

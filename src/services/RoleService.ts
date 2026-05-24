@@ -248,9 +248,14 @@ export interface ChannelPermissionOverride {
   id: string
   channel_id: string
   target_type: 'role' | 'user'
-  target_id: string
-  allow: Record<Permission, boolean>
-  deny: Record<Permission, boolean>
+  /** Set when target_type === 'role' */
+  role_id: string | null
+  /** Set when target_type === 'user' */
+  user_id: string | null
+  /** Permissions to grant explicitly (bigint bitmask stored, decoded here). */
+  allow_permissions: string | number
+  /** Permissions to deny explicitly (bigint bitmask stored, decoded here). */
+  deny_permissions: string | number
   created_at: string
   updated_at: string
 }
@@ -850,7 +855,13 @@ class RoleService {
   }
 
   /**
-   * Set permission override for a channel
+   * Upsert a permission override for a channel.
+   * `allow` / `deny` are partial permission maps (e.g. `{ SEND_MESSAGES: true }`)
+   * which are converted to the bigint bitmask the DB stores.
+   *
+   * Schema constraint: exactly one of role_id / user_id is non-null, matching
+   * target_type. We upsert on (channel_id, role_id, user_id) per the table's
+   * UNIQUE index.
    */
   async setChannelOverride(
     channelId: string,
@@ -860,23 +871,29 @@ class RoleService {
     deny: Partial<Record<Permission, boolean>>
   ): Promise<boolean> {
     try {
+      const allowMask = permissionsToBitmask(allow)
+      const denyMask = permissionsToBitmask(deny)
+
+      const payload = {
+        channel_id: channelId,
+        target_type: targetType,
+        role_id: targetType === 'role' ? targetId : null,
+        user_id: targetType === 'user' ? targetId : null,
+        // Postgres bigint accepts string (avoids JS precision loss for >32 bits).
+        allow_permissions: allowMask.toString(),
+        deny_permissions: denyMask.toString(),
+        updated_at: new Date().toISOString(),
+      }
+
       const { error } = await supabase
         .from('channel_permission_overrides')
-        .upsert({
-          channel_id: channelId,
-          target_type: targetType,
-          target_id: targetId,
-          allow,
-          deny,
-        }, {
-          onConflict: 'channel_id,target_type,target_id',
+        .upsert(payload, {
+          onConflict: 'channel_id,role_id,user_id',
         })
 
       if (error) throw error
 
-      // Invalidate permission cache
       this.permissionCache.clear()
-
       return true
     } catch (error) {
       debug.error('Failed to set channel override:', error)
