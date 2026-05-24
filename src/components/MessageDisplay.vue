@@ -1654,7 +1654,7 @@ watch(() => props.messages, (newMessages) => {
             };
             requestAnimationFrame(() => scrollNewToBottom());
           } else if (isAppend && !userWasAtBottom.value) {
-            shouldBeAtBottom.value = false;-
+            shouldBeAtBottom.value = false;
           }
           // Load older messages (prepend) — pin viewport by scroll-height delta.
           //
@@ -1668,7 +1668,7 @@ watch(() => props.messages, (newMessages) => {
           // virtualizer's `totalSize` reflects newly added items, so the delta
           // is exactly how much we need to push down to keep the same content
           // under the user's eye. No jumps, no scrollToIndex thrash.
-          else if (!isAppend) {-
+          else if (!isAppend) {
             shouldBeAtBottom.value = false;
             // Re-read the ref locally with a null guard — match the defensive
             // style used throughout this watcher (lines 1435, 1440, 1646, 1680).
@@ -1970,7 +1970,7 @@ const setupTopSentinelObserver = () => {
 
   topSentinelObserver = new IntersectionObserver(
     (entries) => {
-      const entry = entries[0];-
+      const entry = entries[0];
       if (entry?.isIntersecting && hasInitiallyScrolled && !isAllMessagesLoaded.value && !isLoadingOlderMessages.value && props.loadMoreMessages) {
         debug.log('📜 Top sentinel visible (prefetch zone) — auto-loading older messages');
         props.loadMoreMessages?.();
@@ -2092,7 +2092,7 @@ const showTooltip = async (event: MouseEvent, reaction: Reaction) => {
         isBridged: true,
         bridgeSource: 'discord'
       };
-    }-
+    }
     
     // Regular Harmony user — use role color where available, like the
     // username in the message header. Keeps the reaction tooltip consistent
@@ -2850,7 +2850,7 @@ const handleOpenLightbox = (url: string) => {
   const index = lightboxImages.value.indexOf(url);
   if (index !== -1) {
     indexRef.value = index;
-    activeLightboxImages.value = lightboxImages.value;-
+    activeLightboxImages.value = lightboxImages.value;
   } else {
     // Image from an embed not in the pre-computed list — show standalone
     activeLightboxImages.value = [url];
