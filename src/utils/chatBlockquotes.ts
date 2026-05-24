@@ -12,7 +12,7 @@
 
 export interface BlockquoteOptions {
   /**
-   * When true, lines beginning with `>` (no space) render as 4chan-style
+   * When true, lines beginning with `>` (no space) render as imageboard-style
    * greentext rather than plain text. Lines with `> ` are always blockquotes
    * regardless of this option.
    */
@@ -48,7 +48,7 @@ export function stripMultiQuotePrefix(line: string): string {
   return line.slice(4);
 }
 
-// 4chan-style greentext: `>foo` at the start of a line, but NOT `> foo` (which
+// Imageboard-style greentext: `>foo` at the start of a line, but NOT `> foo` (which
 // is a blockquote) and NOT `>>>` (a multi-line blockquote marker). `>>foo` is
 // allowed because it's commonly used for post replies on imageboards.
 export function isGreentextLine(line: string): boolean {

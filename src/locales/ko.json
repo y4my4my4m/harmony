@@ -576,7 +576,7 @@
       "showCustomEmojisInDisplayNames": "표시 이름에 이모지 표시",
       "showCustomEmojisInDisplayNamesDesc": "활성화하면 다른 사용자의 표시 이름에 이모지 이미지가 표시됩니다. 비활성화하면 이모지와 단축 코드가 완전히 숨겨집니다.",
       "greentext": "Greentext",
-      "greentextDesc": "Render lines starting with > (no space) in green, 4chan-style. > text with a space is always a quote regardless of this setting."
+      "greentextDesc": "Render lines starting with > (no space) in green, imageboard-style. > text with a space is always a quote regardless of this setting."
     },
     "voice": {
       "title": "음성 및 비디오",

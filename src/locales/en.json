@@ -582,7 +582,7 @@
       "showCustomEmojisInDisplayNames": "Show emojis in display names",
       "showCustomEmojisInDisplayNamesDesc": "When enabled, other users' display names show emoji images. When disabled, emojis and shortcodes are hidden entirely.",
       "greentext": "Greentext",
-      "greentextDesc": "Render lines starting with > (no space) in green, 4chan-style. `> text` with a space is always a quote regardless of this setting.",
+      "greentextDesc": "Render lines starting with > (no space) in green, imageboard-style. `> text` with a space is always a quote regardless of this setting.",
       "highContrast": "High Contrast",
       "highContrastDesc": "Increase contrast for better visibility.",
       "reduceMotion": "Reduce Motion",

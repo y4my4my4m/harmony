@@ -800,7 +800,7 @@ export default defineComponent({
       // Underline: __text__ (alternative, not conflicting with bold)
       rendered = rendered.replace(/\+\+(.*?)\+\+/g, '<u class="md-underline">$1</u>');
       
-      // Discord-style blockquotes (`> line`, `>>> block`) and 4chan-style
+      // Discord-style blockquotes (`> line`, `>>> block`) and imageboard-style
       // greentext (`>line` with no space) — chat/DM only, ActivityPub uses its
       // own renderer. `escapeHtml` above turned the user-typed `>` into `&gt;`,
       // so restore it only at line starts so the parser can match. Other

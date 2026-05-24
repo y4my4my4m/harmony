@@ -576,7 +576,7 @@
       "showCustomEmojisInDisplayNames": "在显示名称中显示表情",
       "showCustomEmojisInDisplayNamesDesc": "启用后,其他用户的显示名称将显示表情图片。禁用后,表情和短代码将完全隐藏。",
       "greentext": "Greentext",
-      "greentextDesc": "Render lines starting with > (no space) in green, 4chan-style. > text with a space is always a quote regardless of this setting."
+      "greentextDesc": "Render lines starting with > (no space) in green, imageboard-style. > text with a space is always a quote regardless of this setting."
     },
     "voice": {
       "title": "语音与视频",

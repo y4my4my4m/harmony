@@ -576,7 +576,7 @@
       "showCustomEmojisInDisplayNames": "Afficher les emojis dans les noms d'affichage",
       "showCustomEmojisInDisplayNamesDesc": "Lorsque activé, les noms d'affichage des autres utilisateurs affichent des images d'emojis. Lorsque désactivé, les emojis et les codes courts sont entièrement masqués.",
       "greentext": "Greentext",
-      "greentextDesc": "Render lines starting with > (no space) in green, 4chan-style. > text with a space is always a quote regardless of this setting."
+      "greentextDesc": "Render lines starting with > (no space) in green, imageboard-style. > text with a space is always a quote regardless of this setting."
     },
     "voice": {
       "title": "Voix et vidéo",

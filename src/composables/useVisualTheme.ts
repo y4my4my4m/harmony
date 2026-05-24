@@ -36,7 +36,7 @@ export interface VisualThemeSettings {
   /** Show custom emojis in other users' display names. Instance must allow it too. */
   showCustomEmojisInDisplayNames?: boolean
   /**
-   * Render `>foo` lines (no space after `>`) as 4chan-style greentext in
+   * Render `>foo` lines (no space after `>`) as imageboard-style greentext in
    * chat/DM messages. `> foo` is always a blockquote regardless of this flag.
    * Default: true (opt-out).
    */
