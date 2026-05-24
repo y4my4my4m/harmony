@@ -243,7 +243,7 @@ export class WebSocketGateway {
   broadcast(event: any) {
     let sent = 0
     
-    for (const [ws, conn] of this.connections) {
+    for (const ws of this.connections.keys()) {
       if (ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify(event))
         sent++
