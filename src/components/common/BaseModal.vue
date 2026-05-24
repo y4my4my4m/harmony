@@ -188,7 +188,7 @@ onUnmounted(() => {
 .modal-icon {
   width: 28px;
   height: 28px;
-  color: var(--text-primary);
+  color: #fff;
 }
 
 .header-text {

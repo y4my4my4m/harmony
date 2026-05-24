@@ -71,59 +71,80 @@
 
           <!-- Permissions tab -->
           <template v-else-if="activeTab === 'permissions'">
-            <p class="permissions-intro">
-              Override permissions for specific roles in this channel. Discord-style:
-              <strong>Allow</strong> grants, <strong>Deny</strong> revokes,
-              <strong>Inherit</strong> uses the role's server-wide setting.
-            </p>
-
-            <div v-if="rolesLoading" class="perm-loading">Loading roles…</div>
-            <div v-else-if="serverRoles.length === 0" class="perm-empty">
-              This server has no roles yet.
-            </div>
-
-            <div v-else class="role-perms-list">
-              <div
-                v-for="role in serverRoles"
-                :key="role.id"
-                class="role-perm-card"
-              >
-                <div class="role-perm-header">
-                  <span
-                    class="role-color-dot"
-                    :style="{ background: role.color || '#99aab5' }"
-                  ></span>
-                  <span class="role-perm-name">{{ role.name }}</span>
+            <div class="perm-layout">
+              <!-- Role rail (left) - Discord-style role list -->
+              <aside class="perm-role-rail">
+                <div class="perm-rail-label">Roles</div>
+                <button
+                  v-for="role in serverRoles"
+                  :key="role.id"
+                  type="button"
+                  class="perm-role-pill"
+                  :class="{ active: selectedRoleId === role.id, dirty: isRoleDirty(role.id) }"
+                  @click="selectedRoleId = role.id"
+                >
+                  <span class="role-color-dot" :style="{ background: role.color || '#99aab5' }"></span>
+                  <span class="role-pill-name">{{ role.name }}</span>
+                  <span v-if="isRoleDirty(role.id)" class="role-pill-dot" title="Unsaved changes"></span>
+                </button>
+                <div v-if="!rolesLoading && serverRoles.length === 0" class="perm-empty-mini">
+                  No roles
                 </div>
-                <div class="perm-rows">
-                  <div
-                    v-for="perm in editablePermissions"
-                    :key="perm.key"
-                    class="perm-row"
-                  >
-                    <div class="perm-row-text">
-                      <span class="perm-row-label">{{ perm.label }}</span>
-                      <span class="perm-row-desc">{{ perm.description }}</span>
+              </aside>
+
+              <!-- Permission editor (right) -->
+              <section class="perm-editor">
+                <div v-if="rolesLoading" class="perm-loading">Loading roles…</div>
+                <template v-else-if="selectedRole">
+                  <header class="perm-editor-head">
+                    <div class="perm-editor-title">
+                      <span class="role-color-dot" :style="{ background: selectedRole.color || '#99aab5' }"></span>
+                      <h4>{{ selectedRole.name }}</h4>
                     </div>
-                    <div class="perm-tristate" role="radiogroup" :aria-label="perm.label">
-                      <button
-                        v-for="state in TRISTATE_OPTIONS"
-                        :key="state.value"
-                        type="button"
-                        class="perm-tristate-btn"
-                        :class="[
-                          `state-${state.value}`,
-                          { active: getPermState(role.id, perm.key) === state.value },
-                        ]"
-                        :title="state.label"
-                        @click="setPermState(role.id, perm.key, state.value)"
-                      >
-                        {{ state.icon }}
+                    <p class="perm-editor-sub">
+                      <strong>Allow</strong> grants, <strong>Deny</strong> revokes, <strong>Inherit</strong> uses the server-wide setting.
+                      <button v-if="isRoleDirty(selectedRole.id)" type="button" class="perm-reset-link" @click="resetRole(selectedRole.id)">
+                        Reset changes
                       </button>
+                    </p>
+                  </header>
+
+                  <div
+                    v-for="group in PERMISSION_GROUPS"
+                    :key="group.id"
+                    class="perm-group"
+                  >
+                    <div class="perm-group-label">{{ group.label }}</div>
+                    <div
+                      v-for="perm in group.permissions"
+                      :key="perm.key"
+                      class="perm-row"
+                    >
+                      <div class="perm-row-text">
+                        <span class="perm-row-label">{{ perm.label }}</span>
+                        <span class="perm-row-desc">{{ perm.description }}</span>
+                      </div>
+                      <div class="perm-tristate" role="radiogroup" :aria-label="perm.label">
+                        <button
+                          v-for="state in TRISTATE_OPTIONS"
+                          :key="state.value"
+                          type="button"
+                          class="perm-tristate-btn"
+                          :class="[
+                            `state-${state.value}`,
+                            { active: getPermState(selectedRole.id, perm.key) === state.value },
+                          ]"
+                          :title="state.label"
+                          @click="setPermState(selectedRole.id, perm.key, state.value)"
+                        >
+                          {{ state.icon }}
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              </div>
+                </template>
+                <div v-else class="perm-empty">Select a role on the left to edit its channel overrides.</div>
+              </section>
             </div>
           </template>
         </div>
@@ -180,16 +201,50 @@ const TRISTATE_OPTIONS: Array<{ value: TriState; label: string; icon: string }> 
   { value: 'allow', label: 'Allow', icon: '✓' },
 ]
 
-const editablePermissions: Array<{ key: Permission; label: string; description: string }> = [
-  { key: Permission.VIEW_CHANNEL,    label: 'View Channel',    description: 'See this channel in the sidebar and read messages.' },
-  { key: Permission.SEND_MESSAGES,   label: 'Send Messages',   description: 'Post messages in this channel.' },
-  { key: Permission.MANAGE_MESSAGES, label: 'Manage Messages', description: 'Delete and pin messages from anyone.' },
-  { key: Permission.EMBED_LINKS,     label: 'Embed Links',     description: 'Send embeds and link previews.' },
-  { key: Permission.ATTACH_FILES,    label: 'Attach Files',    description: 'Upload files in this channel.' },
-  { key: Permission.ADD_REACTIONS,   label: 'Add Reactions',   description: 'React to messages with emoji.' },
-  { key: Permission.MENTION_EVERYONE, label: 'Mention Everyone', description: 'Use @everyone / @here mentions.' },
-  { key: Permission.CREATE_PUBLIC_THREADS, label: 'Create Public Threads', description: 'Start public threads from messages.' },
+// Permissions are grouped Discord-style so the modal doesn't read as one
+// flat wall of toggles. Editing OTHER people's messages is intentionally
+// not exposed here — it's owner/admin-only and lives outside the
+// channel-override surface. MANAGE_MESSAGES is delete+pin only.
+const PERMISSION_GROUPS: Array<{
+  id: string
+  label: string
+  permissions: Array<{ key: Permission; label: string; description: string }>
+}> = [
+  {
+    id: 'general',
+    label: 'General',
+    permissions: [
+      { key: Permission.VIEW_CHANNEL,    label: 'View Channel',    description: 'See this channel in the sidebar and read messages.' },
+      { key: Permission.MANAGE_CHANNELS, label: 'Manage Channel',  description: 'Rename, edit, or delete this channel.' },
+    ],
+  },
+  {
+    id: 'messages',
+    label: 'Messages',
+    permissions: [
+      { key: Permission.SEND_MESSAGES,         label: 'Send Messages',         description: 'Post messages in this channel.' },
+      { key: Permission.EMBED_LINKS,           label: 'Embed Links',           description: 'Send embeds and link previews.' },
+      { key: Permission.ATTACH_FILES,          label: 'Attach Files',          description: 'Upload files in this channel.' },
+      { key: Permission.ADD_REACTIONS,         label: 'Add Reactions',         description: 'React to messages with emoji.' },
+      { key: Permission.USE_EXTERNAL_EMOJIS,   label: 'Use External Emojis',   description: 'Send emojis from other servers.' },
+      { key: Permission.MENTION_EVERYONE,      label: 'Mention @everyone',     description: 'Use @everyone and @here.' },
+      { key: Permission.MANAGE_MESSAGES,       label: 'Manage Messages',       description: 'Delete and pin other members\' messages. Does NOT allow editing.' },
+      { key: Permission.READ_MESSAGE_HISTORY,  label: 'Read Message History',  description: 'See messages posted before they joined.' },
+    ],
+  },
+  {
+    id: 'threads',
+    label: 'Threads',
+    permissions: [
+      { key: Permission.CREATE_PUBLIC_THREADS,  label: 'Create Public Threads',  description: 'Start public threads from messages.' },
+      { key: Permission.CREATE_PRIVATE_THREADS, label: 'Create Private Threads', description: 'Start invite-only threads.' },
+      { key: Permission.SEND_MESSAGES_IN_THREADS, label: 'Send in Threads',      description: 'Post messages inside threads.' },
+    ],
+  },
 ]
+
+// Flat list (used by load/save). Order doesn't matter for storage.
+const editablePermissions = PERMISSION_GROUPS.flatMap(g => g.permissions)
 
 interface Props {
   show: boolean
@@ -303,6 +358,23 @@ const savingPermissions = ref(false)
  */
 const initialPermState = ref<Record<string, Partial<Record<Permission, TriState>>>>({})
 const workingPermState = ref<Record<string, Partial<Record<Permission, TriState>>>>({})
+const selectedRoleId = ref<string | null>(null)
+
+const selectedRole = computed(() =>
+  serverRoles.value.find(r => r.id === selectedRoleId.value) || null,
+)
+
+function isRoleDirty(roleId: string): boolean {
+  const a = initialPermState.value[roleId] ?? {}
+  const b = workingPermState.value[roleId] ?? {}
+  return JSON.stringify(a) !== JSON.stringify(b)
+}
+
+function resetRole(roleId: string) {
+  workingPermState.value[roleId] = JSON.parse(
+    JSON.stringify(initialPermState.value[roleId] ?? {}),
+  )
+}
 
 const permissionsDirty = computed(() => {
   return JSON.stringify(initialPermState.value) !== JSON.stringify(workingPermState.value)
@@ -345,6 +417,11 @@ async function loadPermissions() {
 
     initialPermState.value = JSON.parse(JSON.stringify(state))
     workingPermState.value = JSON.parse(JSON.stringify(state))
+    // Auto-select @everyone (or the first role) so the editor pane isn't blank.
+    if (!selectedRoleId.value || !serverRoles.value.some(r => r.id === selectedRoleId.value)) {
+      const everyone = serverRoles.value.find(r => r.is_default) || serverRoles.value[0]
+      selectedRoleId.value = everyone?.id ?? null
+    }
   } catch (err) {
     debug.error('Failed to load channel permissions:', err)
     const t = useToast()
@@ -407,6 +484,7 @@ watch(() => props.show, (visible) => {
     serverRoles.value = []
     initialPermState.value = {}
     workingPermState.value = {}
+    selectedRoleId.value = null
   }
 })
 </script>
@@ -428,11 +506,13 @@ watch(() => props.show, (visible) => {
 
 .modal-container {
   background: var(--background-secondary);
-  border-radius: 8px;
+  border-radius: 10px;
   box-shadow: 0 8px 16px rgba(0, 0, 0, 0.24);
   width: 100%;
   max-width: 480px;
   max-height: 90vh;
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
   animation: slideUp 0.15s ease-out;
 }
@@ -441,7 +521,9 @@ watch(() => props.show, (visible) => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 24px 24px 0;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--border-color);
+  flex-shrink: 0;
 }
 
 .modal-title {
@@ -468,6 +550,9 @@ watch(() => props.show, (visible) => {
 
 .modal-body {
   padding: 24px;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
 }
 
 .form-group {
@@ -558,7 +643,10 @@ watch(() => props.show, (visible) => {
   align-items: center;
   justify-content: flex-end;
   gap: 12px;
-  padding: 0 24px 24px;
+  padding: 16px 24px;
+  border-top: 1px solid var(--border-color);
+  background: var(--background-secondary);
+  flex-shrink: 0;
 }
 
 .btn {
@@ -635,7 +723,7 @@ watch(() => props.show, (visible) => {
   }
   
   .modal-header {
-    padding: 20px 20px 0;
+    padding: 16px 20px;
   }
   
   .modal-body {
@@ -643,7 +731,7 @@ watch(() => props.show, (visible) => {
   }
   
   .modal-footer {
-    padding: 0 20px 20px;
+    padding: 12px 20px;
     flex-direction: column-reverse;
   }
   
@@ -661,6 +749,7 @@ watch(() => props.show, (visible) => {
   gap: 4px;
   padding: 0 24px;
   border-bottom: 1px solid var(--border-color);
+  flex-shrink: 0;
 }
 
 .modal-tab {
@@ -684,19 +773,145 @@ watch(() => props.show, (visible) => {
   border-bottom-color: var(--harmony-primary, #0EA5E9);
 }
 
-/* Make modal wider so the permissions grid fits comfortably */
+/* Wider modal so the rail + editor layout breathes */
 .modal-container {
-  max-width: 640px;
+  max-width: 760px;
 }
 
 /* =========================================================================
-   Permissions tab
+   Permissions tab — Discord-style rail + editor layout
    ======================================================================= */
-.permissions-intro {
-  margin: 0 0 16px;
+.perm-layout {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  gap: 20px;
+  min-height: 360px;
+}
+
+.perm-role-rail {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-right: 4px;
+  border-right: 1px solid var(--border-color);
+}
+
+.perm-rail-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  padding: 0 8px 8px;
+}
+
+.perm-role-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: var(--text-secondary);
   font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s, color 0.12s;
+}
+
+.perm-role-pill:hover {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-primary);
+}
+
+.perm-role-pill.active {
+  background: var(--background-tertiary);
+  color: var(--text-primary);
+}
+
+.perm-role-pill .role-pill-name {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.role-pill-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--harmony-primary, #0EA5E9);
+  flex-shrink: 0;
+}
+
+.perm-empty-mini {
+  padding: 8px 10px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.perm-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+.perm-editor-head {
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 12px;
+}
+
+.perm-editor-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.perm-editor-title h4 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.perm-editor-sub {
+  margin: 0;
+  font-size: 12px;
   color: var(--text-secondary);
   line-height: 1.5;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.perm-reset-link {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 12px;
+  color: var(--harmony-primary, #0EA5E9);
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.perm-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.perm-group-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  margin: 8px 0 4px;
 }
 
 .perm-loading,
@@ -707,28 +922,6 @@ watch(() => props.show, (visible) => {
   font-size: 13px;
 }
 
-.role-perms-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.role-perm-card {
-  background: var(--background-tertiary);
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  overflow: hidden;
-}
-
-.role-perm-header {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 14px;
-  background: var(--background-secondary);
-  border-bottom: 1px solid var(--border-color);
-}
-
 .role-color-dot {
   width: 12px;
   height: 12px;
@@ -736,26 +929,15 @@ watch(() => props.show, (visible) => {
   flex-shrink: 0;
 }
 
-.role-perm-name {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.perm-rows {
-  display: flex;
-  flex-direction: column;
-}
-
 .perm-row {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 10px 14px;
+  padding: 10px 4px;
   border-top: 1px solid var(--border-color);
 }
 
-.perm-row:first-child {
+.perm-group .perm-row:first-of-type {
   border-top: none;
 }
 

@@ -207,6 +207,18 @@ CREATE INDEX IF NOT EXISTS idx_channel_permission_overrides_channel ON public.ch
 CREATE INDEX IF NOT EXISTS idx_channel_permission_overrides_role ON public.channel_permission_overrides(role_id);
 CREATE INDEX IF NOT EXISTS idx_channel_permission_overrides_user ON public.channel_permission_overrides(user_id);
 
+-- Partial unique indexes needed for PostgREST upserts. The composite UNIQUE
+-- above does NOT enforce uniqueness for role-only or user-only rows because
+-- Postgres treats NULLs as distinct, so `onConflict=channel_id,role_id,user_id`
+-- fails with a 400 when one of role_id/user_id is null. These give us a real
+-- index per shape that the upsert can match.
+CREATE UNIQUE INDEX IF NOT EXISTS uniq_cpo_channel_role
+    ON public.channel_permission_overrides (channel_id, role_id)
+    WHERE user_id IS NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS uniq_cpo_channel_user
+    ON public.channel_permission_overrides (channel_id, user_id)
+    WHERE role_id IS NULL;
+
 COMMENT ON TABLE public.channel_permission_overrides IS 'Channel-specific permission overrides for roles and users';
 
 -- ---------------------------------------------------------------------------

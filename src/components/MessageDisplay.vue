@@ -1015,12 +1015,28 @@ onMounted(async () => {
   
   loadChannelThreads();
   window.addEventListener('server-structure:thread-change', handleThreadBroadcast);
+  // Bot owners can change avatar/display_name in settings; UserBotsManagement
+  // fires `bot:updated` after a successful save so we can refresh the in-memory
+  // cache instead of waiting for a full re-render.
+  window.addEventListener('bot:updated', handleBotUpdated as EventListener);
 });
 
 // Reload threads when channel changes
 watch(() => props.channelId, () => {
   loadChannelThreads();
 });
+
+const handleBotUpdated = (event: CustomEvent) => {
+  const updated = event.detail as { id: string; display_name?: string | null; avatar_url?: string | null; bio?: string | null } | null
+  if (!updated?.id) return
+  const existing = botDataCache.value.get(updated.id)
+  // Merge so we keep any fields the event doesn't carry (e.g. username).
+  botDataCache.value.set(updated.id, {
+    username: existing?.username ?? '',
+    display_name: updated.display_name ?? existing?.display_name ?? '',
+    avatar_url: updated.avatar_url ?? existing?.avatar_url ?? '',
+  });
+};
 
 // Fetch bot data from database
 const fetchBotData = async (botId: string) => {
@@ -1913,6 +1929,7 @@ watch(virtualRows, () => {
 // Cleanup on unmount
 onUnmounted(() => {
   window.removeEventListener('server-structure:thread-change', handleThreadBroadcast);
+  window.removeEventListener('bot:updated', handleBotUpdated as EventListener);
 
   if (virtualRowObserverTimeout) {
     clearTimeout(virtualRowObserverTimeout);

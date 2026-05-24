@@ -11,6 +11,13 @@ export function getAvatarUrl(avatarUrl: string | null | undefined, size: number 
     return '/default_avatar.webp'
   }
 
+  // Legacy DB rows still have '/default_avatar.png' as their DEFAULT value;
+  // the asset doesn't exist on disk anymore (it's .webp now). Normalize so we
+  // don't fire 404s for every old profile/bot.
+  if (avatarUrl === '/default_avatar.png') {
+    return '/default_avatar.webp'
+  }
+
   // If it's already a full URL, check if it's a Supabase storage URL
   if (avatarUrl.startsWith('http://') || avatarUrl.startsWith('https://')) {
     // Check if this is a Supabase storage URL for avatars

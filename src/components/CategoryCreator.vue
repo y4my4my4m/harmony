@@ -3,7 +3,7 @@
     :show="true"
     title="Create Category"
     subtitle="Organize your channels with categories"
-    :icon="CategoryIcon"
+    icon="layers"
     compact
     @close="closeCategoryCreator"
   >
@@ -56,17 +56,6 @@ const MAX_CATEGORIES_PER_SERVER = 25
 
 const { t } = useI18n()
 const serverChannelStore = useServerChannelStore()
-
-// Icon component for the modal header
-const CategoryIcon = {
-  template: `
-    <svg viewBox="0 0 24 24" fill="currentColor">
-      <path d="M3 4C3 3.44772 3.44772 3 4 3H20C20.5523 3 21 3.44772 21 4V6C21 6.55228 20.5523 7 20 7H4C3.44772 7 3 6.55228 3 6V4Z"/>
-      <path d="M3 10C3 9.44772 3.44772 9 4 9H20C20.5523 9 21 9.44772 21 10V12C21 12.5523 20.5523 13 20 13H4C3.44772 13 3 12.5523 3 12V10Z"/>
-      <path d="M4 15C3.44772 15 3 15.4477 3 16V18C3 18.5523 3.44772 19 4 19H20C20.5523 19 21 18.5523 21 18V16C21 15.4477 20.5523 15 20 15H4Z"/>
-    </svg>
-  `
-}
 
 const emit = defineEmits<{
   showCategoryCreator: [show: boolean]

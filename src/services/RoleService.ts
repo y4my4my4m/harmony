@@ -885,11 +885,35 @@ class RoleService {
         updated_at: new Date().toISOString(),
       }
 
+      // PostgREST needs an `onConflict` that matches a real unique index. The
+      // table's composite UNIQUE(channel_id, role_id, user_id) doesn't enforce
+      // uniqueness when one of role_id/user_id is NULL (PG treats NULLs as
+      // distinct), which is why upserts used to fail with HTTP 400. We now
+      // have partial indexes `uniq_cpo_channel_role` / `uniq_cpo_channel_user`
+      // (see migrations/20260524_channel_overrides_fix.sql) and route the
+      // upsert to the correct one per target type.
+      const onConflict =
+        targetType === 'role' ? 'channel_id,role_id' : 'channel_id,user_id'
+
+      // If both allow and deny masks are zero, the row is meaningless
+      // ("inherit everything") — delete instead of writing a noisy 0/0 row.
+      if (allowMask === BigInt(0) && denyMask === BigInt(0)) {
+        const delQuery = supabase
+          .from('channel_permission_overrides')
+          .delete()
+          .eq('channel_id', channelId)
+        const { error: delErr } =
+          targetType === 'role'
+            ? await delQuery.eq('role_id', targetId).is('user_id', null)
+            : await delQuery.eq('user_id', targetId).is('role_id', null)
+        if (delErr) throw delErr
+        this.permissionCache.clear()
+        return true
+      }
+
       const { error } = await supabase
         .from('channel_permission_overrides')
-        .upsert(payload, {
-          onConflict: 'channel_id,role_id,user_id',
-        })
+        .upsert(payload, { onConflict })
 
       if (error) throw error
 

@@ -193,60 +193,6 @@ const placeholderTarget = computed(() => {
   return '';
 });
 
-// =========================================================================
-// Send permission gating (channel-level role permissions)
-// =========================================================================
-// DMs are always sendable. For server channels, we resolve the current user's
-// effective SEND_MESSAGES permission, which includes channel_permission_overrides
-// applied on top of role permissions (RoleService.getUserPermissions does the
-// merge server-side via the RPC). This is the FRONTEND gate; the database
-// trigger / RLS policy is still the source of truth (defense in depth).
-// `serverChannelStore` is also instantiated later in the file for unrelated
-// usage; share that singleton instead of re-declaring.
-const sendPermStore = useServerChannelStore();
-const canSendMessages = ref(true); // optimistic until first resolution
-const isResolvingPermissions = ref(false);
-
-async function refreshSendPermission() {
-  // DMs / threads / no channel context → always allowed.
-  if (!props.channelId || props.conversationId) {
-    canSendMessages.value = true;
-    return;
-  }
-  const userId = authStore.session?.user?.id;
-  const serverId = sendPermStore.currentServerId;
-  if (!userId || !serverId) {
-    canSendMessages.value = true;
-    return;
-  }
-  isResolvingPermissions.value = true;
-  try {
-    const allowed = await roleService.hasPermission(
-      userId,
-      serverId,
-      Permission.SEND_MESSAGES,
-      props.channelId,
-    );
-    canSendMessages.value = allowed;
-  } catch (err) {
-    debug.warn('Failed to resolve SEND_MESSAGES permission, defaulting to allowed:', err);
-    canSendMessages.value = true;
-  } finally {
-    isResolvingPermissions.value = false;
-  }
-}
-
-watch(
-  () => [props.channelId, authStore.session?.user?.id, sendPermStore.currentServerId],
-  () => { void refreshSendPermission(); },
-  { immediate: true },
-);
-
-const readOnlyPlaceholder = computed(() => {
-  if (isResolvingPermissions.value) return 'Checking permissions…';
-  return 'You do not have permission to send messages in this channel.';
-});
-
 interface VoiceMessageData {
   url: string
   duration: number
@@ -283,6 +229,54 @@ const voiceUploading = ref(false);
 
 // Get store for channel ID (more reliable than props on direct page load)
 const serverChannelStore = useServerChannelStore()
+
+// =========================================================================
+// Send permission gating (channel-level role permissions)
+// =========================================================================
+// IMPORTANT: must be declared AFTER `authStore` / `serverChannelStore` above
+// because the immediate-watch resolves synchronously and would otherwise hit a
+// temporal-dead-zone (`Cannot access 'authStore' before initialization`).
+const canSendMessages = ref(true); // optimistic until first resolution
+const isResolvingPermissions = ref(false);
+
+async function refreshSendPermission() {
+  if (!props.channelId || props.conversationId) {
+    canSendMessages.value = true;
+    return;
+  }
+  const userId = authStore.session?.user?.id;
+  const serverId = serverChannelStore.currentServerId;
+  if (!userId || !serverId) {
+    canSendMessages.value = true;
+    return;
+  }
+  isResolvingPermissions.value = true;
+  try {
+    const allowed = await roleService.hasPermission(
+      userId,
+      serverId,
+      Permission.SEND_MESSAGES,
+      props.channelId,
+    );
+    canSendMessages.value = allowed;
+  } catch (err) {
+    debug.warn('Failed to resolve SEND_MESSAGES permission, defaulting to allowed:', err);
+    canSendMessages.value = true;
+  } finally {
+    isResolvingPermissions.value = false;
+  }
+}
+
+watch(
+  () => [props.channelId, authStore.session?.user?.id, serverChannelStore.currentServerId],
+  () => { void refreshSendPermission(); },
+  { immediate: true },
+);
+
+const readOnlyPlaceholder = computed(() => {
+  if (isResolvingPermissions.value) return 'Checking permissions…';
+  return 'You do not have permission to send messages in this channel.';
+});
 
 // Typing context - use props first, fall back to store
 // This is a computed that Vue can properly track for reactivity

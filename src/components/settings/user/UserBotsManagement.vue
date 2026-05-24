@@ -168,6 +168,44 @@
           </div>
 
           <div class="modal-content">
+            <!-- Avatar uploader: bot owners can change the avatar.
+                 Changes propagate to every chat view that re-reads the
+                 `bots` row (we also broadcast `bot:updated` after save so
+                 anything caching bot rows in-memory can invalidate). -->
+            <div class="form-group bot-avatar-edit">
+              <label>Avatar</label>
+              <div class="bot-avatar-edit-row">
+                <BotAvatar :bot="editAvatarPreview" :size="72" />
+                <div class="bot-avatar-edit-actions">
+                  <button
+                    type="button"
+                    class="btn-secondary"
+                    :disabled="uploadingAvatar"
+                    @click="botAvatarInput?.click()"
+                  >
+                    {{ uploadingAvatar ? 'Uploading…' : 'Change Avatar' }}
+                  </button>
+                  <button
+                    v-if="editBotForm.avatar_url"
+                    type="button"
+                    class="btn-secondary"
+                    :disabled="uploadingAvatar"
+                    @click="editBotForm.avatar_url = null"
+                  >
+                    Remove
+                  </button>
+                  <input
+                    ref="botAvatarInput"
+                    type="file"
+                    accept="image/png, image/jpeg, image/webp, image/gif"
+                    style="display: none"
+                    @change="handleBotAvatarUpload"
+                  />
+                </div>
+              </div>
+              <span class="hint">PNG, JPG, WebP, or GIF. Max 4 MB.</span>
+            </div>
+
             <div class="form-group">
               <label>Username</label>
               <input
@@ -528,13 +566,29 @@ async function regenerateToken() {
 const showEditModal = ref(false)
 const savingEdit = ref(false)
 const editingBotId = ref<string | null>(null)
-const editBotForm = ref({
+const editBotForm = ref<{
+  username: string
+  display_name: string
+  bio: string
+  bot_type: string
+  is_public: boolean
+  avatar_url: string | null
+}>({
   username: '',
   display_name: '',
   bio: '',
   bot_type: 'bot',
   is_public: true,
+  avatar_url: null,
 })
+const botAvatarInput = ref<HTMLInputElement | null>(null)
+const uploadingAvatar = ref(false)
+
+// Used purely to feed <BotAvatar> with reactive form data.
+const editAvatarPreview = computed(() => ({
+  username: editBotForm.value.username,
+  avatar_url: editBotForm.value.avatar_url,
+}))
 
 function editBot(bot: any) {
   editingBotId.value = bot.id
@@ -544,8 +598,40 @@ function editBot(bot: any) {
     bio: bot.bio ?? '',
     bot_type: bot.bot_type ?? 'bot',
     is_public: !!bot.is_public,
+    avatar_url: bot.avatar_url ?? null,
   }
   showEditModal.value = true
+}
+
+async function handleBotAvatarUpload(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = '' // reset so the same file re-fires change next time
+  if (!file || !editingBotId.value) return
+
+  if (file.size > 4 * 1024 * 1024) {
+    toast.error('Avatar must be 4 MB or smaller.')
+    return
+  }
+
+  uploadingAvatar.value = true
+  try {
+    const ext = file.name.split('.').pop()?.toLowerCase() || 'png'
+    const path = `bots/${editingBotId.value}/avatar-${Date.now()}.${ext}`
+    const { error: upErr } = await supabase.storage
+      .from('avatars')
+      .upload(path, file, { upsert: true, cacheControl: '3600', contentType: file.type })
+    if (upErr) throw upErr
+
+    const { data: pub } = supabase.storage.from('avatars').getPublicUrl(path)
+    editBotForm.value.avatar_url = pub.publicUrl
+    toast.success('Avatar updated — remember to save.')
+  } catch (err: any) {
+    debug.error('Failed to upload bot avatar:', err)
+    toast.error(err?.message || 'Failed to upload avatar.')
+  } finally {
+    uploadingAvatar.value = false
+  }
 }
 
 function closeEditModal() {
@@ -566,10 +652,22 @@ async function saveEditBot() {
         bio: editBotForm.value.bio || null,
         bot_type: editBotForm.value.bot_type,
         is_public: editBotForm.value.is_public,
+        avatar_url: editBotForm.value.avatar_url,
       })
       .eq('id', editingBotId.value)
 
     if (error) throw error
+
+    // Broadcast so any view caching this bot row in memory (MessageDisplay's
+    // botDataCache, etc.) can refresh without a full reload.
+    window.dispatchEvent(new CustomEvent('bot:updated', {
+      detail: {
+        id: editingBotId.value,
+        display_name: editBotForm.value.display_name || null,
+        avatar_url: editBotForm.value.avatar_url,
+        bio: editBotForm.value.bio || null,
+      },
+    }))
 
     toast.success('Bot updated')
     closeEditModal()
@@ -1008,6 +1106,19 @@ onMounted(() => {
 .form-group select:focus {
   outline: none;
   border-color: var(--color-primary, #0EA5E9);
+}
+
+.bot-avatar-edit-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 4px;
+}
+
+.bot-avatar-edit-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .form-group input.disabled-input,

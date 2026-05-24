@@ -184,13 +184,61 @@ CREATE POLICY "channel_permission_overrides_select" ON public.channel_permission
         )
     );
 
-CREATE POLICY "channel_permission_overrides_modify_owner" ON public.channel_permission_overrides
-    FOR ALL USING (
+-- Server owners, instance staff (is_admin / is_moderator), and members with
+-- MANAGE_CHANNELS, MANAGE_ROLES, or ADMINISTRATOR can manage overrides.
+-- See migrations/20260524_channel_overrides_fix.sql for the reasoning.
+DROP POLICY IF EXISTS "channel_permission_overrides_modify_owner"
+    ON public.channel_permission_overrides;
+DROP POLICY IF EXISTS "channel_permission_overrides_modify"
+    ON public.channel_permission_overrides;
+CREATE POLICY "channel_permission_overrides_modify" ON public.channel_permission_overrides
+    FOR ALL
+    USING (
         EXISTS (
             SELECT 1 FROM public.channels c
             JOIN public.servers s ON s.id = c.server_id
+            LEFT JOIN public.profiles p ON p.id = public.get_current_profile_id()
             WHERE c.id = channel_permission_overrides.channel_id
-            AND s.owner = public.get_current_profile_id()
+              AND (
+                    s.owner = public.get_current_profile_id()
+                    OR COALESCE(p.is_admin, false)
+                    OR COALESCE(p.is_moderator, false)
+                    OR EXISTS (
+                        SELECT 1 FROM public.user_roles ur
+                        JOIN public.server_roles sr ON sr.id = ur.role_id
+                        WHERE ur.user_id = public.get_current_profile_id()
+                          AND ur.server_id = s.id
+                          AND (
+                                (sr.permissions::bigint & (1::bigint << 0)) <> 0
+                             OR (sr.permissions::bigint & (1::bigint << 2)) <> 0
+                             OR (sr.permissions::bigint & (1::bigint << 3)) <> 0
+                          )
+                    )
+              )
+        )
+    )
+    WITH CHECK (
+        EXISTS (
+            SELECT 1 FROM public.channels c
+            JOIN public.servers s ON s.id = c.server_id
+            LEFT JOIN public.profiles p ON p.id = public.get_current_profile_id()
+            WHERE c.id = channel_permission_overrides.channel_id
+              AND (
+                    s.owner = public.get_current_profile_id()
+                    OR COALESCE(p.is_admin, false)
+                    OR COALESCE(p.is_moderator, false)
+                    OR EXISTS (
+                        SELECT 1 FROM public.user_roles ur
+                        JOIN public.server_roles sr ON sr.id = ur.role_id
+                        WHERE ur.user_id = public.get_current_profile_id()
+                          AND ur.server_id = s.id
+                          AND (
+                                (sr.permissions::bigint & (1::bigint << 0)) <> 0
+                             OR (sr.permissions::bigint & (1::bigint << 2)) <> 0
+                             OR (sr.permissions::bigint & (1::bigint << 3)) <> 0
+                          )
+                    )
+              )
         )
     );
 
