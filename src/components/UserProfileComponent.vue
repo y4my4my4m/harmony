@@ -1,11 +1,22 @@
 <template>
   <div class="user-profile" ref="targetRef">
-    <div @click.stop="handleAvatarClick">
+    <div class="avatar-wrapper" @click.stop="handleAvatarClick">
       <Avatar 
         :src="getUserAvatarUrlCurrent"
         size="md"
         :status="currentStatusForAvatar"
       />
+      <!-- Mobile-only: collapsed view hides the inline NotificationBell, so
+           surface unread counts on the avatar itself. This badge is hidden
+           when the profile is expanded into the overlay (where the bell is
+           visible again) - see CSS below. -->
+      <div
+        v-if="isMobile && mobileUnreadCount > 0"
+        class="mobile-avatar-badge"
+        :aria-label="`${mobileUnreadCount} unread notification${mobileUnreadCount === 1 ? '' : 's'}`"
+      >
+        {{ mobileUnreadCount > 99 ? '99+' : mobileUnreadCount }}
+      </div>
     </div>
     <div class="user-info">
       <p class="user-name"><DisplayName :userId="currentUser.id" :fallback="currentUser.displayName" :truncate="true" /></p>
@@ -116,6 +127,7 @@ import { ref, onMounted, onBeforeUnmount, computed, nextTick } from 'vue'
 import { debug } from '@/utils/debug'
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel'
 import { useThemeStore } from '@/stores/useTheme'
+import { useNotificationStore } from '@/stores/useNotification'
 import { useRouter } from 'vue-router'
 import { UserStatus, type UserData } from '@/types'
 import { useUserData } from '@/composables/useUserData'
@@ -133,7 +145,12 @@ import { getEmojiUrl } from '@/utils/emojiUtils'
 
 const voiceChannelStore = useUnifiedVoiceChannelStore()
 const themeStore = useThemeStore()
+const notificationStore = useNotificationStore()
 const router = useRouter()
+
+// Mirrors NotificationBell.unreadCount so the collapsed-mobile avatar badge
+// matches the bell when it becomes visible after expansion.
+const mobileUnreadCount = computed(() => notificationStore.unreadCount)
 const showStatusDropdown = ref(false)
 const targetRef = ref<HTMLElement | null>(null)
 const { isMobile, closeMobileSidebars } = useLayoutState()
@@ -765,6 +782,39 @@ onBeforeUnmount(() => {
 
 .dropdown-arrow.rotated {
   transform: rotate(180deg);
+}
+
+/* Mobile-only avatar unread badge. Anchored to the avatar; .avatar-wrapper
+   only exists in mobile (collapsed) and mobile-overlay flows but the badge
+   itself is gated on isMobile in the template so it never renders on
+   desktop. */
+.avatar-wrapper {
+  position: relative;
+  display: inline-flex;
+}
+
+.mobile-avatar-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: #f04747;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+  box-shadow: 0 0 0 2px var(--background-secondary, #2f3136);
+  pointer-events: none;
+}
+
+/* In the expanded mobile overlay the inline NotificationBell is visible, so
+   hide the redundant avatar badge to avoid double-counting. */
+.mobile-profile-overlay .mobile-avatar-badge {
+  display: none;
 }
 
 @media screen and (max-width: 768px) {

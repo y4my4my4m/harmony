@@ -92,7 +92,14 @@ const twemojiFileMap = ref<Record<string, boolean> | null>(null)
 // autosuggest or in the emoji-picker search, because the keyword check
 // can't match a field that isn't in the cached payload. Bumping forces a
 // one-time refetch the next time the emoji loader runs.
-const EMOJI_DATA_CACHE_VERSION = '2'
+//
+// v3 (2026-05-25): The data was regenerated to merge ~884 GitHub/Discord-style
+// shortcode aliases (from `gemoji`) directly into `shortcodeToUnicode`. This
+// is what makes `:joy:`, `:heart:`, `:thumbsup:`, etc. resolve as standalone
+// shortcodes (not just keyword fuzzy-matches inside the picker). Without
+// bumping, users still see the v2 blob where only the picker's keyword
+// search could find these aliases.
+const EMOJI_DATA_CACHE_VERSION = '3'
 
 /**
  * Load the unified emoji data.

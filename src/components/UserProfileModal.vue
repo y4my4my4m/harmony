@@ -374,6 +374,7 @@ import { debug } from '@/utils/debug'
 import { escapeHtml } from '@/utils/sanitize'
 import { useI18n } from 'vue-i18n'
 import { useRouter, useRoute } from 'vue-router'
+import { supabase } from '@/supabase'
 import { useAuthStore } from '../stores/auth'
 import { useActivityPubStore } from '../stores/useActivityPub'
 import { useServerChannelStore } from '../stores/useServerChannel'
@@ -437,7 +438,8 @@ const {
   getUserCustomStatus,
   subscribeToProfilePresence,
   unsubscribeFromProfilePresence,
-  getPresenceAwareStatus
+  getPresenceAwareStatus,
+  getCurrentUser
 } = useUserData()
 
 // Reactive state
@@ -674,8 +676,21 @@ function getProfileUrl(user: FederatedUser | User | null): string {
 }
 
 // Computed properties
+//
+// `props.user.id` is a PROFILE id, but `authStore.session.user.id` is the
+// Supabase AUTH user id - the two are different UUIDs in this codebase
+// (BUGS.md Pattern A). Comparing them used to always return false, which
+// caused two regressions:
+//   1. Looking at your OWN profile would show "Send Message" / "Follow" /
+//      "Invite to Server" instead of "Edit Profile".
+//   2. The DM button on your own card would call create_or_get_direct_
+//      conversation with self as both participants → RPC accepted it and
+//      silently swallowed the click.
+// Compare against the cached current-user profile id from userDataService
+// (kept in sync by useUserData) so the check is reactive and id-correct.
 const isCurrentUser = computed(() => {
-  return props.user?.id === authStore.session?.user?.id
+  if (!props.user?.id) return false
+  return props.user.id === getCurrentUser.value?.id
 })
 
 const displayHandle = computed(() => {

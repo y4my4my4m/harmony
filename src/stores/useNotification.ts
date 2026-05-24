@@ -1315,6 +1315,38 @@ export const useNotificationStore = defineStore('notification', {
       }
     },  
 
+    /**
+     * Delete every notification for the current user. Optimistically clears
+     * the in-memory list and reverts on failure so the panel doesn't strand
+     * the user staring at an empty list after a network/RLS error.
+     */
+    async clearAllNotifications() {
+      if (this.notifications.length === 0) return
+
+      const snapshot = [...this.notifications]
+
+      try {
+        const authStore = useAuthStore()
+        const authUserId = authStore.session?.user?.id
+        if (!authUserId) return
+
+        const profileId = await this.getProfileId(authUserId)
+        if (!profileId) return
+
+        // Optimistic: clear immediately so the panel reacts instantly.
+        this.notifications = []
+        this.updateUnreadCount()
+
+        await services.notifications.deleteAllNotifications(profileId)
+      } catch (error) {
+        debug.error('Failed to clear all notifications:', error)
+        // Revert if the server rejected the delete (RLS, network, etc.).
+        this.notifications = snapshot
+        this.updateUnreadCount()
+        this.showToast('server_update', 'Failed to clear notifications', 'Please try again', 3000)
+      }
+    },
+
     async markAllAsRead() {
       // Snapshot read state for revert if RPC fails. Mark optimistically
       // only after we have an authenticated profile id - otherwise the UI

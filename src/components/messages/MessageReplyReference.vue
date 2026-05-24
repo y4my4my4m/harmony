@@ -4,7 +4,7 @@
     <div class="reply-content">
       <Avatar :src="avatarSrc" size="mini" class="reply-avatar" />
       <div class="reply-username" :style="{ color: usernameColor }">
-        <DisplayName :userId="replyUserId" :fallback="replyUserDisplayName" />
+        <DisplayName :userId="replyUserId" :fallback="replyUserDisplayName" :truncate="true" />
       </div>
       <div class="reply-preview">
         {{ previewText }}
@@ -66,6 +66,7 @@ const emit = defineEmits<{
   gap: 4px;
   opacity: 0.64;
   transition: opacity 0.2s ease;
+  min-width: 0; /* allow flex children to shrink/ellipsize instead of overflowing */
 }
 
 .reply-content:hover {
@@ -79,6 +80,15 @@ const emit = defineEmits<{
 .reply-username {
   font-weight: 500;
   font-size: 0.875rem;
+  /* Names contain inline emoji <img>s and badges; without nowrap the username
+     can wrap onto a second line on narrow widths, which collides with the
+     reply spine. Cap at half the row and ellipsize so the preview still gets
+     space next to it. */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 50%;
+  flex-shrink: 0;
 }
 
 .reply-preview {
@@ -88,6 +98,8 @@ const emit = defineEmits<{
   text-overflow: ellipsis;
   white-space: nowrap;
   max-width: 300px;
+  min-width: 0;
+  flex: 1;
 }
 
 @media (max-width: 768px) {
@@ -101,6 +113,16 @@ const emit = defineEmits<{
 
   .reply-spine::after {
     width: 28px;
+  }
+
+  /* On narrow widths give the username a tighter cap so it doesn't push
+     the preview off-screen, but keep it on a single line. */
+  .reply-username {
+    max-width: 40%;
+  }
+
+  .reply-preview {
+    max-width: none;
   }
 }
 </style>

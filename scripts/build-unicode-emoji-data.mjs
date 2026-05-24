@@ -29,6 +29,11 @@ const require = createRequire(import.meta.url);
 // Load the unicode emoji data using require (handles JSON properly)
 const unicodeEmoji = require('unicode-emoji-json');
 
+// gemoji ships GitHub-style shortcodes (`+1`, `joy`, `thumbsup`, ...) that
+// every popular chat client recognizes. Merging these into our shortcode
+// lookup is what makes `:joy:` resolve to 😂 without us hard-coding the list.
+const { gemoji } = await import('gemoji');
+
 const OUTPUT_DIR = path.join(__dirname, '../public/assets/emojis');
 const TWEMOJI_DIR = path.join(OUTPUT_DIR, 'twemoji');
 
@@ -145,6 +150,13 @@ function main() {
   // Build Twemoji file map first
   const twemojiFileMap = buildTwemojiFileMap();
   
+  // Build a unicode → gemoji entry map so we can attach GitHub aliases
+  // (`names` + `tags`) as keywords on each emoji.
+  const gemojiByUnicode = new Map();
+  for (const g of gemoji) {
+    gemojiByUnicode.set(g.emoji, g);
+  }
+
   const emojis = [];
   const shortcodeToUnicode = {};
   const unicodeToShortcode = {};
@@ -171,7 +183,27 @@ function main() {
     
     // Generate shortcode from name
     const shortcode = nameToShortcode(data.name);
-    
+
+    // Pull GitHub/Discord-style aliases from gemoji for this emoji
+    const gemojiEntry = gemojiByUnicode.get(unicode);
+    const githubAliases = gemojiEntry?.names ?? [];
+    const githubTags = gemojiEntry?.tags ?? [];
+
+    const baseKeywords = [
+      shortcode,
+      ...data.name.toLowerCase().split(' '),
+      ...githubAliases,
+      ...githubTags,
+    ].filter(Boolean);
+    // Dedup keywords (case-insensitive)
+    const seenKw = new Set();
+    const keywords = baseKeywords.filter(kw => {
+      const key = kw.toLowerCase();
+      if (seenKw.has(key)) return false;
+      seenKw.add(key);
+      return true;
+    });
+
     // Skip if shortcode already exists (handle duplicates)
     if (shortcodeToUnicode[shortcode]) {
       // Append number to make unique
@@ -183,42 +215,62 @@ function main() {
       }
       // Use the unique shortcode
       const codepoint = emojiToCodepoint(unicode);
-      
+
       emojis.push({
         unicode,
         shortcode: uniqueShortcode,
         name: data.name,
         category,
         codepoint,
-        keywords: [shortcode, ...data.name.toLowerCase().split(' ')].filter(Boolean),
+        keywords,
         skinToneSupport: data.skin_tone_support || false
       });
-      
+
       shortcodeToUnicode[uniqueShortcode] = unicode;
       unicodeToShortcode[unicode] = uniqueShortcode;
       unicodeToCodepoint[unicode] = codepoint;
       categoryCounts[category]++;
       continue;
     }
-    
+
     const codepoint = emojiToCodepoint(unicode);
-    
+
     emojis.push({
       unicode,
       shortcode,
       name: data.name,
       category,
       codepoint,
-      keywords: [shortcode, ...data.name.toLowerCase().split(' ')].filter(Boolean),
+      keywords,
       skinToneSupport: data.skin_tone_support || false
     });
-    
+
     // Build lookup maps
     shortcodeToUnicode[shortcode] = unicode;
     unicodeToShortcode[unicode] = shortcode;
     unicodeToCodepoint[unicode] = codepoint;
     categoryCounts[category]++;
   }
+
+  // Register GitHub/Discord-style aliases as additional shortcode lookup
+  // entries. We do this AFTER the main pass so we never overwrite the
+  // canonical Unicode-derived shortcode (e.g. `grinning_face` keeps its
+  // mapping; `:grinning:` is added as an alias).
+  let aliasCount = 0;
+  for (const entry of gemoji) {
+    const names = entry.names ?? [];
+    for (const alias of names) {
+      if (!alias) continue;
+      // Normalize alias to match `[a-zA-Z0-9_+-]+` (the inner shortcode regex).
+      // gemoji aliases already match this, but defensively skip anything weird.
+      if (!/^[a-zA-Z0-9_+-]+$/.test(alias)) continue;
+      if (!shortcodeToUnicode[alias]) {
+        shortcodeToUnicode[alias] = entry.emoji;
+        aliasCount++;
+      }
+    }
+  }
+  console.log(`📎 Added ${aliasCount} GitHub/Discord-style shortcode aliases`);
   
   // Sort emojis by category order, then by their position in the original data
   emojis.sort((a, b) => {

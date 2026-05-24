@@ -215,7 +215,7 @@ const authStore = useAuthStore()
 const activityPubStore = useActivityPubStore()
 
 // Professional presence system
-const { getPresenceAwareStatus, isUserOnline } = useUserData()
+const { getPresenceAwareStatus, isUserOnline, getCurrentUser } = useUserData()
 
 // State
 const isFollowLoading = ref(false)
@@ -228,8 +228,14 @@ const isFederatedUser = (user: User | FederatedUser): user is FederatedUser => {
 }
 
 // Computed properties
+//
+// props.user.id is a profile id but authStore.session.user.id is the
+// Supabase auth user id - they are different UUIDs (BUGS.md Pattern A).
+// Compare against the cached current-user profile id so cards on your
+// own profile correctly hide "Send Message" / "Follow" actions.
 const isCurrentUser = computed(() => {
-  return props.user.id === authStore.session?.user?.id
+  if (!props.user.id) return false
+  return props.user.id === getCurrentUser.value?.id
 })
 
 const displayName = computed(() => {
@@ -360,13 +366,18 @@ const handleFollowToggle = async () => {
 const handleMessage = async () => {
   emit('message', props.user)
 
-  const currentUserId = authStore.session?.user?.id
-  if (!currentUserId) {
-    router.push('/dm')
-    return
-  }
-
   try {
+    // create_or_get_direct_conversation expects PROFILE IDs on both sides.
+    // Using authStore.session.user.id here previously passed the auth UUID,
+    // which fails the RPC's participant check and silently dropped users on
+    // the DM landing page instead of the new conversation (BUGS.md Pattern A).
+    const { authContextService } = await import('@/services/AuthContextService')
+    const currentProfileId = await authContextService.getCurrentProfileId()
+    if (!currentProfileId) {
+      router.push('/dm')
+      return
+    }
+
     const { useDMStore } = await import('@/stores/useDM')
     const dmStore = useDMStore()
 
@@ -376,7 +387,7 @@ const handleMessage = async () => {
       return
     }
 
-    const conversationId = await dmStore.createOrGetConversation(currentUserId, props.user.id)
+    const conversationId = await dmStore.createOrGetConversation(currentProfileId, props.user.id)
     if (conversationId) {
       router.push(`/dm/${conversationId}`)
     } else {

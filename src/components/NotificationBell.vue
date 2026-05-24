@@ -74,7 +74,24 @@
                   <span>Mark all read</span>
                 </button>
               </Transition>
-              
+
+              <!-- Clear All Button (mass delete) -->
+              <Transition name="button-fade">
+                <button
+                  v-if="notifications.length > 0"
+                  @click="clearAllNotifications"
+                  class="action-button clear-all"
+                  data-testid="notification-clear-all"
+                  :disabled="isClearingAll"
+                  :aria-label="'Clear all notifications'"
+                  title="Clear all notifications"
+                >
+                  <Icon v-if="!isClearingAll" name="trash" :size="16" />
+                  <div v-else class="loading-spinner"></div>
+                  <span>Clear all</span>
+                </button>
+              </Transition>
+
               <!-- Settings Button -->
               <button @click="openSettings" class="action-button settings-btn" aria-label="Notification settings">
                 <Icon name="settings" :size="16" />
@@ -201,6 +218,7 @@ const { closeMobileSidebars } = useLayoutState()
 // Reactive state
 const isOpen = ref(false)
 const isMarkingAllAsRead = ref(false)
+const isClearingAll = ref(false)
 const isLoadingMore = ref(false)
 const hasMoreNotifications = ref(false)
 
@@ -236,6 +254,24 @@ const togglePanel = async () => {
 const closePanel = () => {
   isOpen.value = false
   document.body.style.overflow = ''
+}
+
+const clearAllNotifications = async () => {
+  if (isClearingAll.value || notifications.value.length === 0) return
+
+  // Soft confirmation - destructive irreversible action. Using native
+  // confirm avoids dragging another modal into the panel for one rare op.
+  const confirmed = window.confirm('Clear all notifications? This cannot be undone.')
+  if (!confirmed) return
+
+  try {
+    isClearingAll.value = true
+    await notificationStore.clearAllNotifications()
+  } catch (error) {
+    debug.error('❌ Failed to clear all notifications:', error)
+  } finally {
+    isClearingAll.value = false
+  }
 }
 
 const markAllAsRead = async () => {
@@ -571,6 +607,24 @@ onUnmounted(() => {
   transform: none;
 }
 
+.clear-all {
+  background: linear-gradient(135deg, rgba(237, 66, 69, 0.12), rgba(237, 66, 69, 0.22));
+  color: #ed4245;
+  border: 1px solid rgba(237, 66, 69, 0.3);
+}
+
+.clear-all:hover:not(:disabled) {
+  background: linear-gradient(135deg, rgba(237, 66, 69, 0.22), rgba(237, 66, 69, 0.32));
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(237, 66, 69, 0.2);
+}
+
+.clear-all:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
 .settings-btn, .close-btn {
   background: rgba(79, 84, 92, 0.3);
   color: var(--text-secondary);
@@ -741,6 +795,15 @@ onUnmounted(() => {
   border-radius: 10px;
   font-size: 10px;
   font-weight: 700;
+  color: var(--text-primary);
+}
+
+/* When a filter tab is active the label takes on the brand color (blue),
+   but the count pill should stay white so it stays readable on top of
+   the translucent brand-tinted background. Without this override the
+   number inherits the active brand color and disappears into the pill. */
+.filter-tab.active .filter-count {
+  color: var(--text-primary);
 }
 
 /* Notifications container */

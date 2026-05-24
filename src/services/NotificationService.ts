@@ -263,6 +263,33 @@ export class NotificationService {
   }
 
   /**
+   * Delete every notification for the given profile id.
+   * RLS already restricts to the caller's notifications, but we also scope
+   * by `user_id` so an `eq('user_id', ...)` mismatch fails loudly instead
+   * of silently wiping rows for the wrong account.
+   */
+  async deleteAllNotifications(profileId: string): Promise<boolean> {
+    try {
+      debug.log('🔄 Deleting all notifications for profile:', profileId)
+
+      const { error } = await supabase
+        .from('notifications')
+        .delete()
+        .eq('user_id', profileId)
+
+      if (error) {
+        throw this.createError('DELETE_ALL_FAILED', error.message, error)
+      }
+
+      debug.log('✅ All notifications deleted')
+      return true
+    } catch (error) {
+      debug.error('❌ Failed to delete all notifications:', error)
+      throw error
+    }
+  }
+
+  /**
    * Get unread notification count
    */
   async getUnreadCount(userId: string): Promise<number> {

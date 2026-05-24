@@ -69,13 +69,13 @@
               class="modern-input"
               data-testid="create-server-name-input"
               :placeholder="$t('server.placeholders.serverName')"
-              maxlength="50"
+              maxlength="28"
               @input="validateServerName"
             />
             <div class="input-accent"></div>
           </div>
           <div class="input-feedback">
-            <span class="char-count">{{ serverName.length }}/50</span>
+            <span class="char-count">{{ serverName.length }}/28</span>
             <span v-if="serverNameError" class="error-text">{{ serverNameError }}</span>
           </div>
         </div>
@@ -224,8 +224,8 @@ const validateServerName = () => {
     serverNameError.value = 'Server name is required';
   } else if (serverName.value.trim().length < 2) {
     serverNameError.value = 'Server name must be at least 2 characters';
-  } else if (serverName.value.trim().length > 50) {
-    serverNameError.value = 'Server name is too long';
+  } else if (serverName.value.trim().length > 28) {
+    serverNameError.value = 'Server name must be 28 characters or fewer';
   } else {
     serverNameError.value = '';
   }

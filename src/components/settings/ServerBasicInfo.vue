@@ -33,7 +33,7 @@
           :placeholder="$t('server.enterServerName')"
           :disabled="loading || !permissions.canChangeServerName"
           :readonly="!permissions.canChangeServerName"
-          maxlength="100"
+          maxlength="28"
         />
         <div class="form-hint">
           {{ permissions.canEditBasicInfo ? $t('server.serverNameAppearance') : $t('server.serverNameAppearanceView') }}
@@ -337,7 +337,9 @@ const removeIcon = () => {
 
 const updateServerName = (event: Event) => {
   if (!props.permissions.canChangeServerName) return
-  const newName = (event.target as HTMLInputElement).value
+  // Belt-and-suspenders: maxlength enforces this in the native input, but
+  // paste-then-truncate keeps the model in sync with the visible value.
+  const newName = (event.target as HTMLInputElement).value.slice(0, 28)
   const updatedServer = { ...props.server, name: newName }
   emit('update:server', updatedServer)
 }

@@ -33,22 +33,28 @@
     </div>
     
     <div class="context-menu-divider"></div>
-    
+
+    <div v-if="hasTextContent" class="context-menu-item" @click="copyText">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
+        <rect x="8" y="2" width="8" height="4" rx="1" ry="1"/>
+      </svg>
+      <span>Copy Text</span>
+    </div>
+
     <div class="context-menu-item" @click="copyMessageURL">
       <svg width="16" height="16" viewBox="0 0 24 24">
         <path fill="currentColor" d="M3.9,12C3.9,10.29 5.29,8.9 7,8.9H11V7H7A5,5 0 0,0 2,12A5,5 0 0,0 7,17H11V15.1H7C5.29,15.1 3.9,13.71 3.9,12M8,13H16V11H8V13M17,7H13V8.9H17C18.71,8.9 20.1,10.29 20.1,12C20.1,13.71 18.71,15.1 17,15.1H13V17H17A5,5 0 0,0 22,12A5,5 0 0,0 17,7Z" />
       </svg>
       <span>Copy Message URL</span>
     </div>
-    
+
     <template v-if="hasMediaURL">
-      <div class="context-menu-divider"></div>
-      
       <div class="context-menu-item" @click="copyLinkURL">
         <svg width="16" height="16" viewBox="0 0 24 24">
           <path fill="currentColor" d="M16,6H13V7.9H16C18.26,7.9 20.1,9.73 20.1,12A4.1,4.1 0 0,1 16,16.1H13V18H16A6,6 0 0,0 22,12C22,8.68 19.31,6 16,6M3.9,12C3.9,9.73 5.74,7.9 8,7.9H11V6H8A6,6 0 0,0 2,12A6,6 0 0,0 8,18H11V16.1H8C5.74,16.1 3.9,14.26 3.9,12M8,13H16V11H8V13Z" />
         </svg>
-        <span>Copy Link URL</span>
+        <span>{{ mediaUrlLabel }}</span>
       </div>
     </template>
     
@@ -98,6 +104,7 @@ import { useServerPermissions } from '@/composables/useServerPermissions';
 import { useDeveloperTools } from '@/composables/useDeveloperTools';
 import { messageService } from '@/services';
 import { getEmojiUrl } from '@/utils/emojiUtils';
+import { messagePartsToPlainText } from '@/utils/messageContentUtils';
 import type { Message, Emoji } from '@/types';
 
 interface Props {
@@ -229,6 +236,28 @@ const hasMediaURL = computed(() => {
   return false;
 });
 
+const hasTextContent = computed(() => {
+  if (!props.message || !Array.isArray(props.message.content)) return false;
+  return props.message.content.some(part => {
+    if (part.type === 'text' && (part.text || '').trim().length > 0) return true;
+    if (part.type === 'mention' || part.type === 'role_mention') return true;
+    if (part.type === 'emoji') return true;
+    if (part.type === 'url') return true;
+    return false;
+  });
+});
+
+// Show "Copy Media URL" when the message has a file attachment, otherwise
+// "Copy Link URL" for plain URLs. Matches Discord's wording: media files
+// (images/videos/audio) get "Media URL"; bare links get "Link".
+const mediaUrlLabel = computed(() => {
+  if (!props.message || !Array.isArray(props.message.content)) return 'Copy Link URL';
+  const hasFileMedia = props.message.content.some(
+    part => part.type === 'file' && ['image', 'video', 'audio'].includes(part.fileType)
+  );
+  return hasFileMedia ? 'Copy Media URL' : 'Copy Link URL';
+});
+
 const copyMessageURL = async () => {
   if (!props.message) return;
   
@@ -278,6 +307,28 @@ const copyLinkURL = async () => {
     }
   }
   
+  emit('close');
+};
+
+const copyText = async () => {
+  if (!props.message || !Array.isArray(props.message.content)) {
+    emit('close');
+    return;
+  }
+
+  const text = messagePartsToPlainText(props.message.content);
+  if (!text) {
+    emit('close');
+    return;
+  }
+
+  try {
+    await navigator.clipboard.writeText(text);
+    debug.log('Message text copied to clipboard');
+  } catch (error) {
+    debug.error('Failed to copy message text:', error);
+  }
+
   emit('close');
 };
 
