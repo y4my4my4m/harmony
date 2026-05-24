@@ -1668,24 +1668,84 @@ BEGIN
         RETURN v_result;
     END IF;
 
-    -- Apply channel overrides
+    -- =====================================================================
+    -- Channel permission overrides - DISCORD-STYLE LAYERED PRECEDENCE
+    -- =====================================================================
+    -- Reference: https://discord.com/developers/docs/topics/permissions
+    --
+    -- The previous implementation OR'd all allows + all denies into one
+    -- mask, which broke the common "deny @everyone in #announcements, allow
+    -- @mods to still send" pattern: the @everyone DENY would erase the
+    -- @mods ALLOW because they were combined before being applied.
+    --
+    -- Discord's actual order is:
+    --   1) Start with base = merged server-role permissions (computed above)
+    --   2) Apply @everyone channel override: clear deny, then set allow
+    --   3) Apply COMBINED non-everyone role channel overrides: clear all
+    --      role-denies, then set all role-allows  (any role allow > role deny)
+    --   4) Apply user-specific channel override: clear deny, then set allow
+    --
+    -- Each layer's ALLOW comes after its DENY, and a higher layer always
+    -- wins over a lower layer. This matches Discord exactly and is what
+    -- the rest of the app (frontend gating, role docs) assumes.
+    -- =====================================================================
     v_final_mask := v_base_mask;
-    IF p_channel_id IS NOT NULL THEN
-        FOR v_override IN
-            SELECT allow_permissions, deny_permissions
-            FROM public.channel_permission_overrides
-            WHERE channel_id = p_channel_id
-              AND (role_id IN (
-                  SELECT sr.id FROM public.user_roles ur
-                  JOIN public.server_roles sr ON ur.role_id = sr.id
-                  WHERE ur.user_id = p_user_id AND ur.server_id = p_server_id
-              ) OR user_id = p_user_id)
-        LOOP
-            v_allow_mask := v_allow_mask | COALESCE(v_override.allow_permissions, 0);
-            v_deny_mask := v_deny_mask | COALESCE(v_override.deny_permissions, 0);
-        END LOOP;
 
-        v_final_mask := (v_final_mask | v_allow_mask) & ~v_deny_mask;
+    IF p_channel_id IS NOT NULL THEN
+        DECLARE
+            v_everyone_role_id uuid;
+            v_everyone_allow bigint := 0;
+            v_everyone_deny  bigint := 0;
+            v_role_allow     bigint := 0;
+            v_role_deny      bigint := 0;
+            v_user_allow     bigint := 0;
+            v_user_deny      bigint := 0;
+        BEGIN
+            -- Resolve @everyone role id for this server (single lookup).
+            SELECT id INTO v_everyone_role_id
+              FROM public.server_roles
+             WHERE server_id = p_server_id AND is_default = true
+             LIMIT 1;
+
+            -- Pull ALL overrides for this channel that could apply to this
+            -- user, then partition into the three layers below in a single
+            -- pass. We over-fetch a little so we only hit the table once.
+            FOR v_override IN
+                SELECT role_id, user_id,
+                       COALESCE(allow_permissions, 0) AS allow_p,
+                       COALESCE(deny_permissions, 0)  AS deny_p
+                  FROM public.channel_permission_overrides
+                 WHERE channel_id = p_channel_id
+                   AND (
+                        role_id = v_everyone_role_id
+                     OR role_id IN (
+                            SELECT ur.role_id
+                              FROM public.user_roles ur
+                             WHERE ur.user_id = p_user_id
+                               AND ur.server_id = p_server_id
+                        )
+                     OR user_id = p_user_id
+                   )
+            LOOP
+                IF v_override.user_id = p_user_id THEN
+                    v_user_allow := v_user_allow | v_override.allow_p;
+                    v_user_deny  := v_user_deny  | v_override.deny_p;
+                ELSIF v_override.role_id = v_everyone_role_id THEN
+                    v_everyone_allow := v_everyone_allow | v_override.allow_p;
+                    v_everyone_deny  := v_everyone_deny  | v_override.deny_p;
+                ELSIF v_override.role_id IS NOT NULL THEN
+                    v_role_allow := v_role_allow | v_override.allow_p;
+                    v_role_deny  := v_role_deny  | v_override.deny_p;
+                END IF;
+            END LOOP;
+
+            -- Layer 2: @everyone channel override
+            v_final_mask := (v_final_mask & ~v_everyone_deny) | v_everyone_allow;
+            -- Layer 3: combined non-everyone role overrides
+            v_final_mask := (v_final_mask & ~v_role_deny) | v_role_allow;
+            -- Layer 4: user-specific override
+            v_final_mask := (v_final_mask & ~v_user_deny) | v_user_allow;
+        END;
     END IF;
 
     -- Convert bitmask to jsonb result
