@@ -65,7 +65,14 @@ export class BotRestAPI {
     
     // Get server channels
     this.router.get('/servers/:serverId/channels', this.getGuildChannels.bind(this))
-    
+
+    // Create channel / category (bot must have manage_channels)
+    this.router.post('/servers/:serverId/channels', this.createChannel.bind(this))
+    this.router.post('/servers/:serverId/categories', this.createCategory.bind(this))
+
+    // List categories (for clone/diff)
+    this.router.get('/servers/:serverId/categories', this.getCategories.bind(this))
+
     // Legacy aliases (Discord terminology - deprecated)
     this.router.get('/guilds/:guildId', this.getGuild.bind(this))
     this.router.get('/guilds/:guildId/members', this.getGuildMembers.bind(this))
@@ -563,6 +570,120 @@ export class BotRestAPI {
   // USER ENDPOINTS
   // =====================================================
   
+  // =====================================================
+  // CHANNEL / CATEGORY CREATION (used by bridges to mirror server structure)
+  // =====================================================
+  //
+  // These two endpoints intentionally trust the `manage_channels` permission
+  // already enforced via bot_server_permissions; we do NOT re-implement a
+  // separate "is the invoker server owner" check here because that gate
+  // belongs to the *calling tool* (e.g. the /bridge clone-server slash
+  // command), not the API. If the bot has `manage_channels` for this server
+  // (granted by the server owner during install), it can create channels.
+
+  private async createCategory(req: BotRequest, res: Response) {
+    try {
+      const serverId = req.params.serverId
+      const { name, order } = req.body as { name?: string; order?: number }
+      const botId = req.bot!.id
+
+      if (!name || typeof name !== 'string' || !name.trim()) {
+        return res.status(400).json({ error: 'name is required' })
+      }
+
+      const allowed = await this.checkServerPermission(botId, serverId, 'manage_channels')
+      if (!allowed) {
+        return res.status(403).json({ error: 'Missing permission: manage_channels' })
+      }
+
+      const { data, error } = await supabase
+        .from('channel_categories')
+        .insert({
+          server_id: serverId,
+          name: name.trim().slice(0, 100),
+          order: typeof order === 'number' ? order : 0,
+        })
+        .select('*')
+        .single()
+
+      if (error) return res.status(500).json({ error: error.message })
+
+      await this.logBotAction(botId, 'category_created', { server_id: serverId, category_id: data.id })
+      res.status(201).json(data)
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || 'Internal server error' })
+    }
+  }
+
+  private async createChannel(req: BotRequest, res: Response) {
+    try {
+      const serverId = req.params.serverId
+      const { name, type, category_id, description, order, is_private } =
+        req.body as {
+          name?: string
+          type?: number
+          category_id?: string | null
+          description?: string | null
+          order?: number
+          is_private?: boolean
+        }
+      const botId = req.bot!.id
+
+      if (!name || typeof name !== 'string' || !name.trim()) {
+        return res.status(400).json({ error: 'name is required' })
+      }
+      // Harmony channel types: 0=text, 1=voice, 2=category
+      // We don't accept category here (use /categories endpoint).
+      const channelType = type === 1 ? 1 : 0
+
+      const allowed = await this.checkServerPermission(botId, serverId, 'manage_channels')
+      if (!allowed) {
+        return res.status(403).json({ error: 'Missing permission: manage_channels' })
+      }
+
+      const { data, error } = await supabase
+        .from('channels')
+        .insert({
+          server_id: serverId,
+          name: name.trim().slice(0, 100),
+          type: channelType,
+          category: category_id || null,
+          description: description ? description.slice(0, 1024) : null,
+          order: typeof order === 'number' ? order : 0,
+          is_private: !!is_private,
+        })
+        .select('*')
+        .single()
+
+      if (error) return res.status(500).json({ error: error.message })
+
+      await this.logBotAction(botId, 'channel_created', { server_id: serverId, channel_id: data.id })
+      res.status(201).json(this.formatChannel(data))
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || 'Internal server error' })
+    }
+  }
+
+  private async getCategories(req: BotRequest, res: Response) {
+    try {
+      const serverId = req.params.serverId || req.params.guildId
+      const botId = req.bot!.id
+      const hasAccess = await this.checkBotInGuild(botId, serverId)
+      if (!hasAccess) return res.status(403).json({ error: 'Bot not in server' })
+
+      const { data, error } = await supabase
+        .from('channel_categories')
+        .select('*')
+        .eq('server_id', serverId)
+        .order('order')
+
+      if (error) return res.status(500).json({ error: error.message })
+      res.json(data || [])
+    } catch (error: any) {
+      res.status(500).json({ error: error.message })
+    }
+  }
+
   private async getUser(req: BotRequest, res: Response) {
     try {
       const { userId } = req.params
@@ -631,6 +752,24 @@ export class BotRestAPI {
     return data === true
   }
   
+  /**
+   * Server-scoped permission check (no channelId required).
+   * Used for actions like channel/category creation that are server-wide,
+   * not channel-specific.
+   */
+  private async checkServerPermission(botId: string, serverId: string, permission: string): Promise<boolean> {
+    const { data, error } = await supabase.rpc('check_bot_permission', {
+      p_bot_id: botId,
+      p_server_id: serverId,
+      p_permission: permission,
+    })
+    if (error) {
+      console.error(`[checkServerPermission] RPC error: ${error.message}`)
+      return false
+    }
+    return data === true
+  }
+
   private async checkBotInGuild(botId: string, guildId: string): Promise<boolean> {
     const { data } = await supabase
       .from('bot_server_permissions')

@@ -498,23 +498,40 @@ async function loadUserStats(userId: string) {
       debug.log('👤 Loaded user created_at:', fetchedCreatedAt.value)
     }
 
-    // Activity counters (denormalized on profiles, maintained by triggers).
-    // One tiny SELECT; no count(*) scans.
-    const { data: activity, error: activityErr } = await supabase
-      .from('profiles')
-      .select('message_count, voice_minutes')
-      .eq('id', userId)
-      .maybeSingle()
-    if (!activityErr && activity) {
-      fetchedActivity.value = {
-        message_count: Number(activity.message_count ?? 0),
-        voice_minutes: Number(activity.voice_minutes ?? 0),
-      }
-    }
+    await loadUserActivity(userId)
   } catch (error) {
     debug.error('Failed to load user stats:', error)
   } finally {
     isLoadingUserStats.value = false
+  }
+}
+
+/**
+ * Activity counters (denormalized columns on `profiles`, maintained by
+ * triggers — see migrations/20260524_bot_grants_and_activity_counters.sql).
+ * One tiny SELECT on PK; no count(*) scans. Separate function so we can
+ * also call it when the rest of `loadUserStats` is skipped because the
+ * caller already had post/follow counts.
+ */
+async function loadUserActivity(userId: string) {
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('message_count, voice_minutes')
+      .eq('id', userId)
+      .maybeSingle()
+    if (error) {
+      debug.warn('Failed to load user activity counters:', error)
+      return
+    }
+    if (data) {
+      fetchedActivity.value = {
+        message_count: Number(data.message_count ?? 0),
+        voice_minutes: Number(data.voice_minutes ?? 0),
+      }
+    }
+  } catch (err) {
+    debug.warn('Failed to load user activity counters:', err)
   }
 }
 
@@ -1227,8 +1244,15 @@ watch(() => ({ show: props.show, userId: props.user?.id }), async (newVal, oldVa
     if (props.user) {
       const user = props.user as any
       const hasStats = user.posts_count !== undefined || user.following_count !== undefined
+      // Activity counters (`message_count` / `voice_minutes`) live on the
+      // profile row and are NEVER pre-populated on `props.user` from chat
+      // contexts — so we always need to load them, even when `hasStats` is
+      // already true from a federated stats blob. `loadUserStats` is the
+      // function that fetches them.
       if (!hasStats) {
         loadUserStats(props.user.id)
+      } else {
+        void loadUserActivity(props.user.id)
       }
       
       // Load user roles for current server context

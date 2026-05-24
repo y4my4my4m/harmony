@@ -180,24 +180,114 @@ export class HarmonyClient extends EventEmitter {
   
   // REST API Methods
   
-  async sendMessage(channelId: string, content: string | any[], metadata?: any): Promise<any> {
+  async sendMessage(
+    channelId: string,
+    content: string | any[],
+    metadata?: any,
+    replyTo?: string | null,
+  ): Promise<any> {
     const response = await fetch(`${this.apiUrl}/api/v1/channels/${channelId}/messages`, {
       method: 'POST',
       headers: {
         'Authorization': `Bot ${this.botToken}`,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ 
+      body: JSON.stringify({
         content,
-        metadata 
+        metadata,
+        reply_to: replyTo || undefined,
       })
     })
-    
+
     if (!response.ok) {
       const errorData = await response.json() as any
       throw new Error(errorData.error || 'Failed to send message')
     }
-    
+
+    return response.json()
+  }
+
+  // ---------------------------------------------------------------------------
+  // Server structure: categories + channels.
+  // Used by the bridge's `/bridge clone-server` and `/bridge link` commands.
+  // The bot must have `manage_channels` on the target server (granted at
+  // install time by the owner) for these to succeed; the gateway enforces it.
+  // ---------------------------------------------------------------------------
+
+  async getServerInfo(serverId: string): Promise<any> {
+    const response = await fetch(`${this.apiUrl}/api/v1/servers/${serverId}`, {
+      headers: { 'Authorization': `Bot ${this.botToken}` }
+    })
+    if (!response.ok) {
+      throw new Error(`Failed to fetch server info: ${response.status}`)
+    }
+    return response.json()
+  }
+
+  async getServerChannels(serverId: string): Promise<any[]> {
+    const response = await fetch(`${this.apiUrl}/api/v1/servers/${serverId}/channels`, {
+      headers: { 'Authorization': `Bot ${this.botToken}` }
+    })
+    if (!response.ok) {
+      throw new Error(`Failed to fetch server channels: ${response.status}`)
+    }
+    return response.json() as Promise<any[]>
+  }
+
+  async getServerCategories(serverId: string): Promise<any[]> {
+    const response = await fetch(`${this.apiUrl}/api/v1/servers/${serverId}/categories`, {
+      headers: { 'Authorization': `Bot ${this.botToken}` }
+    })
+    if (!response.ok) {
+      throw new Error(`Failed to fetch server categories: ${response.status}`)
+    }
+    return response.json() as Promise<any[]>
+  }
+
+  async createCategory(serverId: string, name: string, order: number = 0): Promise<any> {
+    const response = await fetch(`${this.apiUrl}/api/v1/servers/${serverId}/categories`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bot ${this.botToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ name, order })
+    })
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({})) as any
+      throw new Error(errorData.error || `Failed to create category (${response.status})`)
+    }
+    return response.json()
+  }
+
+  async createChannel(
+    serverId: string,
+    opts: {
+      name: string
+      type?: 0 | 1
+      categoryId?: string | null
+      description?: string | null
+      order?: number
+    },
+  ): Promise<any> {
+    const response = await fetch(`${this.apiUrl}/api/v1/servers/${serverId}/channels`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bot ${this.botToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        name: opts.name,
+        type: opts.type ?? 0,
+        category_id: opts.categoryId ?? null,
+        description: opts.description ?? null,
+        order: opts.order ?? 0,
+      })
+    })
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({})) as any
+      throw new Error(errorData.error || `Failed to create channel (${response.status})`)
+    }
     return response.json()
   }
   
