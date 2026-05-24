@@ -26,5 +26,12 @@ const { parts, displayText } = useSupporterBadgeIcon(iconRef)
 .supporter-badge-icon :deep(.display-name-emoji) {
   height: 1em;
   vertical-align: -0.1em;
+  /*
+   * Suppress the inner <img>'s `title=":har_love:"` tooltip so hover surfaces
+   * the parent <span class="supporter-badge">'s title (e.g. "Fantastic
+   * Supporter") instead of the raw emoji shortcode. Tooltips come from the
+   * topmost hovered element, and DisplayName always sets a per-emoji title.
+   */
+  pointer-events: none;
 }
 </style>

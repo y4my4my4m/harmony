@@ -1722,7 +1722,7 @@ watch(isLoadingOlderMessages, (loading, wasLoading) => {
     // Delay to let virtualizer measure new elements before checking overflow
     setTimeout(() => {
       if (!messageDisplayContainer.value) return;
-      const { scrollHeight, clientHeight } = messageDis-layContainer.value;
+      const { scrollHeight, clientHeight } = messageDisplayContainer.value;
       if (scrollHeight <= clientHeight + 5) {
         debug.log('📜 Still no scrollbar after loading — auto-loading more');
         props.loadMoreMessages?.();
@@ -2696,7 +2696,7 @@ const correctScrollAfterResize = (callback: () => void) => {
         const updatedItems = rowVirtualizer.value.getVirtualItems();
         const updatedAnchor = updatedItems.find(item => item.index === anchorIdx);
         if (updatedAnchor) {
-          delta = updatedAnchor.start - anchorS-artBefore;
+          delta = updatedAnchor.start - anchorStartBefore;
         } else {
           // Anchor no longer in virtual items — fall back to total size delta
           delta = rowVirtualizer.value.getTotalSize() - totalSizeBefore;
