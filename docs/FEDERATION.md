@@ -708,15 +708,19 @@ interface ModerationTools {
 ## 📈 Future Enhancements
 
 ### Planned Features
-1. **Enhanced Voice Federation**: Cross-instance voice channels
-2. **Server-to-Server Messaging**: Direct server communication
-3. **Advanced Content Types**: Polls, events, rich media
-4. **Improved Discovery**: Better instance and user discovery
-5. **Performance Optimizations**: Caching, batch processing
-6. **Enhanced Security**: Advanced spam detection, security monitoring
+1. **Server-to-Server Messaging**: Direct server communication
+2. **Advanced Content Types**: Polls, events, rich media
+3. **Improved Discovery**: Better instance and user discovery
+4. **Performance Optimizations**: Caching, batch processing
+5. **Enhanced Security**: Advanced spam detection, security monitoring
+6. **Federated E2EE — Phase 1 (Harmony ↔ Harmony)**: Extend Harmony's existing Megolm-style encryption to work across Harmony instances. Adds device-key publishing on AP Actors, an `EncryptedMessage` activity type, Olm-style pairwise key sharing between remote devices, and cross-user verification UX. Doesn't depend on any external standard. See [`E2EE_IMPLEMENTATION.md` → Roadmap: Federated E2EE](./E2EE_IMPLEMENTATION.md#roadmap-federated-e2ee).
+7. **Federated E2EE — Phase 2 (Harmony ↔ other AP clients)**: Either implement the [MLS-on-ActivityPub draft](https://swicg.github.io/activitypub-e2ee/mls) for interop with Sup and future MLS-AP clients, or publish Harmony's Phase-1 protocol as a [FEP](https://codeberg.org/fediverse/fep) for ecosystem adoption. Phase 1 is the prerequisite either way.
 
 ### Experimental Features
 1. **Nostr Protocol Support**: Dual-protocol support
 2. **Decentralized Identity**: DID-based user identity
 3. **Blockchain Integration**: Optional blockchain features
 4. **AI-Powered Moderation**: Automated content moderation
+
+### Already Shipped
+- **Cross-Instance Voice**: federated voice channels via LiveKit (`allow_federated_voice` setting, `federated_voice_calls` table) — see `federation-backend/src/services/LiveKitService.ts`.

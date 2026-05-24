@@ -1,12 +1,27 @@
 /**
  * Megolm Service
- * 
+ *
  * Implements Megolm-style group encryption for Harmony.
+ *
+ * LICENSING / PROVENANCE
+ * ----------------------
+ * Independent clean-room implementation inspired by Matrix.org's Megolm
+ * design (specification: https://gitlab.matrix.org/matrix-org/olm/-/blob/master/docs/megolm.md).
+ * This is NOT a port of libolm/vodozemac/matrix-js-sdk — no Matrix code or
+ * libraries are bundled. Crypto primitives come from the browser's WebCrypto
+ * API (AES-GCM + HKDF). Licensed under AGPL-3.0 with the rest of Harmony.
+ *
+ * Wire format and ratchet construction are Harmony-specific (HKDF info string
+ * `megolm_ratchet_${messageIndex}`) and intentionally NOT wire-compatible with
+ * Matrix's Megolm. Cross-Matrix interop would require a separate adapter.
+ *
+ * DESIGN
+ * ------
  * Unlike Signal's per-message key exchange, Megolm uses:
  * - One session key per room/conversation that rotates periodically
  * - Efficient for group messaging (one encryption, many recipients)
  * - Keys are backed up to server (encrypted with recovery key)
- * 
+ *
  * Key Concepts:
  * - Outbound Session: Your sending key for a room (you rotate it)
  * - Inbound Session: Others' keys you've received (they rotate them)
