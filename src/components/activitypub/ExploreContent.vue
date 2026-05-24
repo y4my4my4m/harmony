@@ -87,6 +87,33 @@
 
         <!-- Individual Sections (when any has content or when showing empty with hints) -->
         <div class="trending-sections">
+          <!-- Trending Posts -->
+          <div class="section trending-section trending-posts">
+            <h3 class="section-title">
+              <Icon name="trending-up" />
+              {{ $t('activitypub.trendingPosts') }}
+            </h3>
+            <div v-if="trendingPosts.length > 0" data-timeline class="posts-list">
+              <MonyPost
+                v-for="trendingPost in trendingPosts"
+                :key="trendingPost.post?.id || trendingPost.id"
+                :post="trendingPost.post || trendingPost"
+                @reply="$emit('reply-to-post', $event)"
+                @favorite="$emit('favorite-post', $event)"
+                @reblog="$emit('reblog-post', $event)"
+                @bookmark="$emit('bookmark-post', $event)"
+                @delete="$emit('delete-post', $event)"
+                @show-user-profile="$emit('show-user-profile', $event)"
+                @show-conversation="$emit('show-conversation', $event as any)"
+              />
+            </div>
+            <div v-else class="empty-state section-empty-state">
+              <Icon name="trending-up" :size="40" class="empty-icon" />
+              <p class="empty-title">{{ $t('activitypub.noTrendingPosts') }}</p>
+              <p class="empty-subtitle">{{ $t('activitypub.noTrendingPostsHint') }}</p>
+            </div>
+          </div>
+
           <!-- Trending Hashtags -->
           <div class="section trending-section trending-hashtags">
             <h3 class="section-title">
@@ -117,33 +144,6 @@
               <button class="btn btn-primary" style="margin-top: 6px;" @click="openComposer">
                 {{ $t('activitypub.createFirstPost') }}
               </button>
-            </div>
-          </div>
-
-          <!-- Trending Posts -->
-          <div class="section trending-section trending-posts">
-            <h3 class="section-title">
-              <Icon name="trending-up" />
-              {{ $t('activitypub.trendingPosts') }}
-            </h3>
-            <div v-if="trendingPosts.length > 0" data-timeline class="posts-list">
-              <MonyPost
-                v-for="trendingPost in trendingPosts"
-                :key="trendingPost.post?.id || trendingPost.id"
-                :post="trendingPost.post || trendingPost"
-                @reply="$emit('reply-to-post', $event)"
-                @favorite="$emit('favorite-post', $event)"
-                @reblog="$emit('reblog-post', $event)"
-                @bookmark="$emit('bookmark-post', $event)"
-                @delete="$emit('delete-post', $event)"
-                @show-user-profile="$emit('show-user-profile', $event)"
-                @show-conversation="$emit('show-conversation', $event as any)"
-              />
-            </div>
-            <div v-else class="empty-state section-empty-state">
-              <Icon name="trending-up" :size="40" class="empty-icon" />
-              <p class="empty-title">{{ $t('activitypub.noTrendingPosts') }}</p>
-              <p class="empty-subtitle">{{ $t('activitypub.noTrendingPostsHint') }}</p>
             </div>
           </div>
 
@@ -434,7 +434,7 @@ const loadTrendingContent = async () => {
     const days = getTimeRangeDays();
     
     const [hashtags, posts, users] = await Promise.all([
-      trendingService.getTrendingHashtags({ limit: 20, days }),
+      trendingService.getTrendingHashtags({ limit: 10, days }),
       trendingService.getTrendingPosts({ 
         limit: 20, 
         timeframe: 'daily',
@@ -983,10 +983,6 @@ defineExpose({ refreshContent });
 .section-title {
   border-left: 3px solid var(--harmony-primary);
   padding-left: 12px;
-}
-
-.trending-posts {
-  margin-top: 16px;
 }
 
 .trending-posts .mony-post {
