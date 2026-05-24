@@ -1,5 +1,19 @@
 <template>
-  <div ref="emojiPopup" class="emoji-popup" :style="positionStyle">
+  <!--
+    Teleport the popup to <body> so it escapes any ancestor that creates a
+    new positioning containing block. In particular:
+      - `transform: translateY(...)` on a parent (e.g. .admin-module:hover)
+        traps `position: fixed` children — they position relative to the
+        transformed ancestor instead of the viewport. The popup then renders
+        inside the box and gets clipped by `overflow: hidden` on the module.
+      - Same trap is triggered by `filter`, `perspective`, `will-change`,
+        `contain: layout|paint|strict`, etc.
+    Teleporting to body sidesteps all of these because the popup's nearest
+    positioned ancestor becomes the viewport, regardless of CSS transforms
+    further up the original DOM tree.
+  -->
+  <Teleport to="body">
+    <div ref="emojiPopup" class="emoji-popup" :style="positionStyle">
     <!-- Search Input -->
     <div class="emoji-search">
       <input
@@ -217,7 +231,8 @@
         </div>
       </div>
     </Teleport>
-  </div>
+    </div>
+  </Teleport>
 </template>
 
 <script setup lang="ts">

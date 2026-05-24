@@ -92,19 +92,20 @@
       :initialTab="mediaPickerInitialTab"
     />
 
-    <!-- Emoji Popup for reactions only (teleported to avoid transform containment from virtual scroll) -->
-    <Teleport to="body">
-      <EmojiPopup
-        v-if="reactionEmojiOpen"
-        @click.stop
-        @sendEmoji="handleSendEmoji"
-        :closeEmojiList="closeReactionEmoji"
-        :emojiIconClicked="emojiIconClicked"
-        :position="'left'"
-        :triggerElement="(reactionTriggerElement as unknown as HTMLElement | null) || undefined"
-        @resetEmojiIconClicked="emojiIconClicked = false"
-      />
-    </Teleport>
+    <!-- Emoji Popup for message reactions.
+         EmojiPopup teleports itself to <body>, so no outer Teleport wrapper
+         needed — that avoids transform/overflow containment from virtual
+         scroll ancestors automatically. See EmojiPopup.vue template. -->
+    <EmojiPopup
+      v-if="reactionEmojiOpen"
+      @click.stop
+      @sendEmoji="handleSendEmoji"
+      :closeEmojiList="closeReactionEmoji"
+      :emojiIconClicked="emojiIconClicked"
+      :position="'left'"
+      :triggerElement="(reactionTriggerElement as unknown as HTMLElement | null) || undefined"
+      @resetEmojiIconClicked="emojiIconClicked = false"
+    />
     
     <!-- Thread View -->
     <ThreadView
