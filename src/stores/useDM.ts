@@ -1556,15 +1556,20 @@ export const useDMStore = defineStore('dm', () => {
   const searchUsers = async (query: string, currentUserId: string) => {
     try {
       isSearching.value = true
-      debug.log('🔄 Searching users via service layer:', query)
-      
-      if (!query.trim()) {
+
+      // Normalize @prefix: users type "@alice" or "@alice@mastodon.social".
+      // The RPC matches against bare usernames + "username@domain"; a leading
+      // "@" never matches anything, so strip it here.
+      const normalizedQuery = query.trim().replace(/^@+/, '')
+      debug.log('🔄 Searching users via service layer:', normalizedQuery)
+
+      if (!normalizedQuery) {
         searchResults.value = []
         return
       }
 
       // Use activityPubService for federated user search (includes local users)
-      const users = await services.activityPub.searchUsers(query, 10)
+      const users = await services.activityPub.searchUsers(normalizedQuery, 10)
       
       // `user_id` is not on the `FederatedUser` type; service responses may
       // include it through the legacy shape. Cast to bypass the strict typing.
@@ -1585,7 +1590,10 @@ export const useDMStore = defineStore('dm', () => {
       // Fallback to local search if service fails
       try {
         debug.log('🔄 Falling back to local user search')
-        await _searchLocalUsers(query, currentUserId)
+        const normalizedQuery = query.trim().replace(/^@+/, '')
+        if (normalizedQuery) {
+          await _searchLocalUsers(normalizedQuery, currentUserId)
+        }
       } catch (fallbackError) {
         debug.error('❌ Fallback search also failed:', fallbackError)
       }

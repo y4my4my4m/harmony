@@ -1627,10 +1627,8 @@
                       @click.stop="showEditTierEmojiPicker = !showEditTierEmojiPicker"
                       title="Pick emoji"
                     >
-                      <template v-if="resolveIconForPreview(editTierIcon).type === 'img'">
-                        <img :src="resolveIconForPreview(editTierIcon).value" class="icon-preview-img" />
-                      </template>
-                      <template v-else>{{ editTierIcon || '😀' }}</template>
+                      <SupporterBadgeIcon v-if="editTierIcon" :icon="editTierIcon" />
+                      <template v-else>😀</template>
                     </button>
                     <EmojiPopup
                       v-if="showEditTierEmojiPicker"
@@ -1651,10 +1649,7 @@
                 </template>
                 <template v-else>
                   <span class="tier-icon" :style="tier.badge_color ? { color: tier.badge_color } : {}">
-                    <template v-if="resolveIconForPreview(tier.badge_icon || '⭐').type === 'img'">
-                      <img :src="resolveIconForPreview(tier.badge_icon || '⭐').value" class="icon-preview-img" />
-                    </template>
-                    <template v-else>{{ tier.badge_icon || '⭐' }}</template>
+                    <SupporterBadgeIcon :icon="tier.badge_icon" />
                   </span>
                   <div class="tier-info">
                     <span class="tier-name">{{ tier.name }}</span>
@@ -1680,10 +1675,8 @@
                   @click.stop="showNewTierEmojiPicker = !showNewTierEmojiPicker"
                   title="Pick emoji"
                 >
-                  <template v-if="resolveIconForPreview(newTierIcon).type === 'img'">
-                    <img :src="resolveIconForPreview(newTierIcon).value" class="icon-preview-img" />
-                  </template>
-                  <template v-else>{{ newTierIcon || '😀' }}</template>
+                  <SupporterBadgeIcon v-if="newTierIcon" :icon="newTierIcon" />
+                  <template v-else>😀</template>
                 </button>
                 <EmojiPopup
                   v-if="showNewTierEmojiPicker"
@@ -2015,8 +2008,8 @@ import { getServerIconUrl } from '@/utils/serverUtils'
 import { userDataService } from '@/services/userDataService'
 import { activityPubService } from '@/services/activityPubService'
 import EmojiPopup from '@/components/EmojiPopup.vue'
-import { getEmojiUrl } from '@/utils/emojiUtils'
 import { getEmojiShortcodeForInsert } from '@/services/emojiShortcodeResolver'
+import SupporterBadgeIcon from '@/components/common/SupporterBadgeIcon.vue'
 import type { Emoji } from '@/types'
 
 const authStore = useAuthStore()
@@ -2842,15 +2835,6 @@ const handleNewTierEmoji = (emoji: Emoji & { display_name?: string }) => {
 const handleEditTierEmoji = (emoji: Emoji & { display_name?: string }) => {
   editTierIcon.value = getEmojiShortcodeForInsert(emoji)
   showEditTierEmojiPicker.value = false
-}
-
-const resolveIconForPreview = (icon: string): { type: 'text' | 'img'; value: string } => {
-  const parts = userDataService.resolveDisplayNameParts(icon)
-  const emojiPart = parts?.find(p => p.type === 'emoji')
-  if (emojiPart && emojiPart.type === 'emoji') {
-    return { type: 'img', value: getEmojiUrl(emojiPart.emoji.url, 32) }
-  }
-  return { type: 'text', value: icon }
 }
 
 const deleteTier = async (tierId: string) => {

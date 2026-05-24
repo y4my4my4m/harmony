@@ -2904,6 +2904,27 @@ const resolveNonUuidProfile = async (userId: string): Promise<any | null> => {
       return getUserProfile(data.id).value || data;
     }
   }
+  // Handle plain "@user@domain" / "user@domain" / "@user" handles from
+  // chat mentions. Routes through activityPubService so federated users we
+  // haven't seen yet get fetched from their origin instance.
+  const handleMatch = userId.match(/^@?([^@\s]+)(?:@([^\s]+))?$/);
+  if (
+    handleMatch
+    && !userId.startsWith('http')
+    && !userId.startsWith('unresolved-')
+    && !UUID_PATTERN.test(userId)
+  ) {
+    try {
+      const { activityPubService } = await import('@/services/activityPubService');
+      const federated = await activityPubService.getUserByHandle(userId);
+      if (federated?.id) {
+        await fetchUserProfile(federated.id).catch(() => null);
+        return getUserProfile(federated.id).value || federated;
+      }
+    } catch (e) {
+      debug.warn('Failed to resolve federated mention by handle:', userId, e);
+    }
+  }
   // Handle ActivityPub URL format (https://domain/users/username)
   if (userId.startsWith('http')) {
     try {

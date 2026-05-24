@@ -183,7 +183,7 @@
               borderColor: supporterBadge.badge_color,
               color: supporterBadge.badge_color
             } : {}"
-          >{{ supporterBadge.badge_icon || '⭐' }}</span>
+          ><SupporterBadgeIcon :icon="supporterBadge.badge_icon" /></span>
           <div class="supporter-details">
             <span class="supporter-tier">{{ supporterBadge.tier_name }} Supporter</span>
             <span class="supporter-active">Active</span>
@@ -250,6 +250,7 @@ import Avatar from '@/components/common/Avatar.vue'
 import Icon from '@/components/common/Icon.vue'
 import AutoSuggest from '@/components/AutoSuggest.vue'
 import DisplayName from '@/components/DisplayName.vue'
+import SupporterBadgeIcon from '@/components/common/SupporterBadgeIcon.vue'
 import { fundingService, type SupporterBadge, type DonationRecord, type FundingLink } from '@/services/FundingService'
 import { supabase } from '@/supabase'
 import { useAutoSuggest } from '@/composables/useAutoSuggest'

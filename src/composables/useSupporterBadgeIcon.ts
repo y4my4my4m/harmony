@@ -5,7 +5,13 @@ import {
   normalizeToInnerToken,
 } from '@/services/emojiShortcodeResolver'
 import { userDataService } from '@/services/userDataService'
+import { debug } from '@/utils/debug'
 import type { DisplayNamePart } from '@/types'
+
+const SHORTCODE_PATTERN = /^:[a-zA-Z0-9_+~-]+:$/
+// One-time warn per shortcode so we don't spam when N message rows render
+// the same broken badge_icon.
+const warnedMissing = new Set<string>()
 
 /**
  * Resolves supporter tier badge_icon values for display.
@@ -52,8 +58,19 @@ export function useSupporterBadgeIcon(iconSource: Ref<string | null | undefined>
         type: 'emoji',
         emoji: { id: emoji.id, name: emoji.name, url: emoji.url },
       }]
-    } else {
-      parts.value = null
+      return
+    }
+
+    parts.value = null
+
+    // Surface tier misconfiguration: the admin saved a :shortcode: that
+    // doesn't match any row in the emojis table for this instance.
+    if (SHORTCODE_PATTERN.test(icon) && !warnedMissing.has(icon)) {
+      warnedMissing.add(icon)
+      debug.warn(
+        `[SupporterBadge] No custom emoji found for tier icon ${icon}. ` +
+        `Check Admin → Supporter Tiers; the shortcode must match an existing emoji name.`,
+      )
     }
   }
 

@@ -103,7 +103,15 @@
           :title="getMentionTooltip(part)"
         >
           <span class="mention-at">@</span>
-          <DisplayName :userId="part.userId" :fallback="part.username" :truncate="false" />
+          <template v-if="part.userId">
+            <DisplayName :userId="part.userId" :fallback="part.username" :truncate="false" />
+          </template>
+          <template v-else>{{ part.username }}</template>
+          <!-- Always surface @domain for federated mentions so users can tell where the account lives -->
+          <span
+            v-if="!part.isLocal && part.domain && part.domain !== 'discord.com'"
+            class="mention-domain"
+          >@{{ part.domain }}</span>
         </span>
 
         <!-- Role mentions -->
@@ -970,15 +978,27 @@ export default defineComponent({
     
     const handleMentionClick = (part: any, event: MouseEvent) => {
       event.stopPropagation();
-      
+
       // Don't try to open profile for bridged/Discord users
       if (isBridgedMention(part)) {
         debug.log('Bridged mention clicked (Discord user):', part.username);
         return;
       }
-      
-      // For Harmony users (local or federated), emit event to show profile
-      emit('show-user-profile', part.userId, event);
+
+      // Local profile already cached: pass UUID.
+      if (part.userId) {
+        emit('show-user-profile', part.userId, event);
+        return;
+      }
+
+      // Federated user we don't know yet: pass the handle so MessageDisplay
+      // can resolve it via activityPubService.getUserByHandle.
+      if (part.username) {
+        const handle = part.domain
+          ? `${part.username}@${part.domain}`
+          : part.username;
+        emit('show-user-profile', handle, event);
+      }
     };
 
     // Generate cool glyph characters for encrypted messages
@@ -1508,6 +1528,11 @@ export default defineComponent({
 .mention:hover {
   background-color: rgba(14, 165, 233, 0.3);
   text-decoration: underline;
+}
+
+.mention .mention-domain {
+  opacity: 0.7;
+  margin-left: 1px;
 }
 
 /* Discord bridged mentions - Discord blurple #5865F2 */

@@ -52,6 +52,8 @@
           <template v-if="part.userId">
             <span class="mention-at">@</span>
             <DisplayName :userId="part.userId" :fallback="part.displayName || part.username" :truncate="false" />
+            <!-- Show @domain suffix for federated users so the handle is unambiguous -->
+            <span v-if="isFederatedMention(part)" class="mention-domain">@{{ part.domain }}</span>
           </template>
           <template v-else>{{ renderer.formatMentionDisplay(part) }}</template>
         </span>
@@ -237,7 +239,12 @@ const props = withDefaults(defineProps<Props>(), {
 });
 
 const emit = defineEmits<{
-  'user-mention-click': [userId: string, event: Event];
+  /**
+   * Fired when a user mention is clicked.
+   * `userIdOrHandle` is the local profile UUID when known, otherwise a
+   * `username@domain` handle so the parent can fetch the federated profile.
+   */
+  'user-mention-click': [userIdOrHandle: string, event: Event];
   'hashtag-click': [tag: string];
   'link-click': [url: string, event: Event];
   'image-load': [url: string];
@@ -314,8 +321,18 @@ const handleContentClick = (event: Event) => {
 };
 
 const handleMentionClick = (mention: MessagePart) => {
-  if (mention.type === 'mention' && mention.userId) {
+  if (mention.type !== 'mention') return;
+  if (mention.userId) {
     emit('user-mention-click', mention.userId, new Event('click'));
+    return;
+  }
+  // Federated user we haven't resolved locally — pass the handle so the parent
+  // can fetch via activityPubService.getUserByHandle.
+  if (mention.username) {
+    const handle = mention.domain
+      ? `${mention.username}@${mention.domain}`
+      : mention.username;
+    emit('user-mention-click', handle, new Event('click'));
   }
 };
 
@@ -583,6 +600,11 @@ const formatFileSize = (bytes: number): string => {
 
 .mention .mention-at {
   opacity: 0.7;
+}
+
+.mention .mention-domain {
+  opacity: 0.7;
+  margin-left: 1px;
 }
 
 .mention:hover {

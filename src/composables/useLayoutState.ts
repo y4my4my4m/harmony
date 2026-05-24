@@ -27,21 +27,40 @@ const SIDEBAR_WIDTH = 280
 const SERVER_SIDEBAR_WIDTH = 72
 
 // Mobile detection
+//
+// IMPORTANT: only mutate sidebar state on *transitions* (desktop⇄mobile) and on
+// first mount. Every keystroke on mobile triggers a `resize` event because the
+// soft keyboard changes viewport height — if we closed sidebars on every call,
+// the DM search input would dismiss its own surrounding sidebar mid-typing.
+let hasInitialized = false
 const checkMobileDevice = () => {
   const wasMobile = isMobile.value
-  isMobile.value = typeof window !== 'undefined' ? window.innerWidth <= 768 : false
-  
-  if (isMobile.value) {
-    leftSidebarOpen.value = false
-    rightSidebarOpen.value = false
-    profileOpen.value = false
-    mobileProfileOpen.value = false
-  } else {
-    if (!wasMobile || !leftSidebarOpen.value) {
+  const nowMobile = typeof window !== 'undefined' ? window.innerWidth <= 768 : false
+  isMobile.value = nowMobile
+
+  const isInitialMount = !hasInitialized
+  const becameMobile = !wasMobile && nowMobile
+  const becameDesktop = wasMobile && !nowMobile
+  hasInitialized = true
+
+  if (isInitialMount || becameMobile) {
+    if (nowMobile) {
+      leftSidebarOpen.value = false
+      rightSidebarOpen.value = false
+      profileOpen.value = false
+      mobileProfileOpen.value = false
+    } else {
       leftSidebarOpen.value = true
+      rightSidebarOpen.value = true
     }
+    return
+  }
+
+  if (becameDesktop) {
+    if (!leftSidebarOpen.value) leftSidebarOpen.value = true
     rightSidebarOpen.value = true
   }
+  // Same-mode resize (e.g. mobile keyboard show/hide): leave sidebars alone.
 }
 
 // Resize handler
