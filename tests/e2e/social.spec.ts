@@ -1,7 +1,7 @@
 import { test, expect } from './fixtures/auth.fixture'
 import { SocialPage } from './pages/SocialPage'
 
-test.describe('Social / ActivityPub — Timelines', () => {
+test.describe('Social / ActivityPub - Timelines', () => {
   test('home timeline loads', async ({ alicePage }) => {
     const social = new SocialPage(alicePage)
     await social.navigateToHome()
@@ -23,7 +23,7 @@ test.describe('Social / ActivityPub — Timelines', () => {
   test('mentions page loads', async ({ alicePage }) => {
     const social = new SocialPage(alicePage)
     await social.navigateToMentions()
-    // Should not crash — page loads
+    // Should not crash - page loads
     expect(alicePage.url()).toContain('/social/mentions')
   })
 
@@ -34,7 +34,7 @@ test.describe('Social / ActivityPub — Timelines', () => {
   })
 })
 
-test.describe('Social / ActivityPub — Compose & Interact', () => {
+test.describe('Social / ActivityPub - Compose & Interact', () => {
   test('can compose and publish a post', async ({ alicePage }) => {
     const social = new SocialPage(alicePage)
     await social.navigateToLocal()
@@ -119,7 +119,7 @@ test.describe('Social / ActivityPub — Compose & Interact', () => {
   })
 })
 
-test.describe('Social / ActivityPub — Profile & Follow', () => {
+test.describe('Social / ActivityPub - Profile & Follow', () => {
   test('can view user profile', async ({ alicePage, seedData }) => {
     const social = new SocialPage(alicePage)
     await social.navigateToProfile(seedData.bob.username)

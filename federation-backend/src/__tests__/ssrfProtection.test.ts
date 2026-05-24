@@ -150,7 +150,7 @@ describe('validateExternalHostname', () => {
 });
 
 // ---------------------------------------------------------------------------
-// validateResolvedAddress  — these tests mock dns.resolve4 / dns.resolve6
+// validateResolvedAddress  - these tests mock dns.resolve4 / dns.resolve6
 // ---------------------------------------------------------------------------
 describe('validateResolvedAddress', () => {
   let resolve4Spy: ReturnType<typeof vi.spyOn>;
@@ -262,7 +262,7 @@ describe('safeFetch', () => {
     const res = await safeFetch('https://first.example/a');
     expect(res.status).toBe(200);
     expect(fetchSpy).toHaveBeenCalledTimes(2);
-    // Second hop should re-validate via DNS — resolve4 was called twice
+    // Second hop should re-validate via DNS - resolve4 was called twice
     expect(resolve4Spy).toHaveBeenCalledTimes(2);
   });
 
@@ -314,7 +314,7 @@ describe('safeFetch', () => {
     const ac = new AbortController();
     fetchSpy.mockImplementation(abortableFetchImpl);
     const p = safeFetch('https://slow.example/', { signal: ac.signal });
-    // Wait a microtask so safeFetch reaches the fetch() call before we abort —
+    // Wait a microtask so safeFetch reaches the fetch() call before we abort -
     // otherwise the abort happens during the `await validateResolvedAddress`
     // phase, the linkSignals branch fires `internal.abort()` pre-fetch, and
     // we're testing a different code path.

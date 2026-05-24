@@ -1,5 +1,5 @@
 /**
- * Auth E2E tests — exercises real UI flows:
+ * Auth E2E tests - exercises real UI flows:
  *   1. Registration via the register form
  *   2. New profile wizard (avatar, info, customization)
  *   3. Logout
@@ -28,7 +28,7 @@ const TEST_PASSWORD = 'e2e-test-password-12345'
 const TEST_USERNAME = `e2eauth${TEST_RUN_ID}`
 const TEST_DISPLAY_NAME = `Auth Test ${TEST_RUN_ID}`
 
-test.describe('Auth flow — full lifecycle', () => {
+test.describe('Auth flow - full lifecycle', () => {
   test.beforeAll(async () => {
     const admin = createAdminClient()
     await cleanupUserByEmail(admin, TEST_EMAIL)
@@ -57,14 +57,14 @@ test.describe('Auth flow — full lifecycle', () => {
       await expect(page.locator('[data-testid="new-profile-card"]')).toBeVisible({ timeout: 10000 })
     })
 
-    await test.step('profile wizard — step 1: avatar', async () => {
+    await test.step('profile wizard - step 1: avatar', async () => {
       await expect(page.locator('[data-testid="profile-step-1"]')).toBeVisible({ timeout: 10000 })
       await page.locator('[data-testid="avatar-use-default"]').click()
       await page.locator('[data-testid="profile-next-btn"]').click()
       await expect(page.locator('[data-testid="profile-step-2"]')).toBeVisible({ timeout: 10000 })
     })
 
-    await test.step('profile wizard — step 2: basic info', async () => {
+    await test.step('profile wizard - step 2: basic info', async () => {
       await page.locator('[data-testid="profile-display-name"]').fill(TEST_DISPLAY_NAME)
       await page.locator('[data-testid="profile-username"]').fill(TEST_USERNAME)
 
@@ -74,7 +74,7 @@ test.describe('Auth flow — full lifecycle', () => {
       await expect(page.locator('[data-testid="profile-step-3"]')).toBeVisible({ timeout: 10000 })
     })
 
-    await test.step('profile wizard — step 3: customization & create profile', async () => {
+    await test.step('profile wizard - step 3: customization & create profile', async () => {
       await page.locator('[data-testid="color-preset"]').first().click()
       await page.locator('[data-testid="profile-next-btn"]').click()
 
@@ -151,7 +151,7 @@ test.describe('Auth flow — full lifecycle', () => {
   })
 })
 
-test.describe('Auth — unauthenticated guards', () => {
+test.describe('Auth - unauthenticated guards', () => {
   test('unauthenticated user is redirected from /chat to login', async ({ page }) => {
     await page.goto('/chat')
     await expect(page).toHaveURL(/login|\/$/, { timeout: 10000 })
@@ -168,7 +168,7 @@ test.describe('Auth — unauthenticated guards', () => {
   })
 })
 
-test.describe('Auth — page rendering', () => {
+test.describe('Auth - page rendering', () => {
   test('login page renders with required fields', async ({ page }) => {
     await page.goto('/login')
     await expect(page.locator('[data-testid="auth-email"]')).toBeVisible({ timeout: 10000 })

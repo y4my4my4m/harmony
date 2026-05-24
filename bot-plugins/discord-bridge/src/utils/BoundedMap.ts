@@ -7,7 +7,7 @@
  * the eviction policy effectively LRU on writes; reads also touch the key
  * (configurable) so a busy key stays alive.
  *
- * This is a *bounded* cache — when full, set() discards the least recently
+ * This is a *bounded* cache - when full, set() discards the least recently
  * used entry. It is NOT a TTL cache; pair with an external sweep if you
  * need time-based expiration.
  *

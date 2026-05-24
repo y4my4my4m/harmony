@@ -8,7 +8,7 @@ BEGIN;
 --
 -- This migration adds a functional unique index that uses COALESCE to convert
 -- NULLs to sentinel values, preventing the same user from reacting with the
--- same emoji twice on the same message — even when emoji_id is NULL.
+-- same emoji twice on the same message - even when emoji_id is NULL.
 
 -- First, clean up any existing duplicates (keep the oldest row per group)
 DELETE FROM reactions
@@ -29,7 +29,7 @@ WHERE id NOT IN (
 );
 
 -- Also clean up rows where both emoji_id (as a UUID) and emoji_id=NULL exist
--- for the same user+message+emoji content — keep the one with emoji_id set
+-- for the same user+message+emoji content - keep the one with emoji_id set
 DELETE FROM reactions r1
 WHERE r1.emoji_id IS NULL
   AND r1.custom_emoji_content IS NOT NULL

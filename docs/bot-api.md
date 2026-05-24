@@ -400,7 +400,7 @@ Most Discord.js patterns work with minimal changes:
 
 ## Security Best Practices
 
-1. **Never commit tokens to git** — use environment variables
+1. **Never commit tokens to git** - use environment variables
 2. **Regenerate compromised tokens immediately** via admin panel
 3. **Use separate tokens for dev/prod**
 4. **Request only the permissions your bot needs**

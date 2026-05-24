@@ -149,7 +149,7 @@ const fundingPercent = computed(() => {
 
 const fundingTooltip = computed(() => {
   if (!props.fundingConfig) return '';
-  return `${fundingPercent.value}% funded${props.fundingConfig.goal_description ? ' — ' + props.fundingConfig.goal_description : ''}`;
+  return `${fundingPercent.value}% funded${props.fundingConfig.goal_description ? ' - ' + props.fundingConfig.goal_description : ''}`;
 });
 
 const formatCurrency = (amount: number, currency: string) => {

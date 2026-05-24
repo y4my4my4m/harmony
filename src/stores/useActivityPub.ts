@@ -1134,7 +1134,7 @@ export const useActivityPubStore = defineStore('activitypub', {
      * Replaces a pattern where each callsite ran `feed.posts.find(...)`
      * 4–N times PLUS a separate per-realtime-event DB roundtrip even when
      * the post wasn't currently visible (BUGS.md PC4). Callers now check
-     * the returned list — if empty, the post isn't in any UI surface and
+     * the returned list - if empty, the post isn't in any UI surface and
      * an expensive server resync can be skipped entirely.
      *
      * Why bookmarks are included (BUGS.md H2 from code review):
@@ -1173,7 +1173,7 @@ export const useActivityPubStore = defineStore('activitypub', {
      */
     async updatePostInteractionCounts(postId: string, interactionType: string, eventType: string) {
       // Short-circuit: if the post isn't visible in any feed, skip the
-      // DB roundtrip entirely — the realtime event isn't relevant to
+      // DB roundtrip entirely - the realtime event isn't relevant to
       // anything the user is currently looking at, and the cached
       // counts on the (absent) post object can't be updated anyway.
       const refs = this._findPostRefs(postId);
@@ -1222,7 +1222,7 @@ export const useActivityPubStore = defineStore('activitypub', {
       }
 
       // Short-circuit: if the post isn't in any visible feed (primary feeds
-      // or user feeds), nothing to update — skip the DB roundtrip.
+      // or user feeds), nothing to update - skip the DB roundtrip.
       const refs = this._findPostRefs(postId);
       if (refs.length === 0) {
         debug.log(`🔍 Realtime update skipped: post ${postId} not in any visible feed`);
@@ -1602,7 +1602,7 @@ export const useActivityPubStore = defineStore('activitypub', {
         if (hasCachedPosts) {
           debug.log('📋 Showing cached timeline, fetching fresh in background...');
           // Pre-mark remote posts so individual MonyPost components don't fire N+1
-          // per-post fetch-reactions calls — the batch fetch in refreshHomeFeedInBackground
+          // per-post fetch-reactions calls - the batch fetch in refreshHomeFeedInBackground
           // will clear and re-fetch them properly.
           import('@/composables/useRemotePostSync').then(({ fetchedReactionsThisSession }) => {
             for (const p of this.homeFeed.posts) {
@@ -1854,7 +1854,7 @@ export const useActivityPubStore = defineStore('activitypub', {
           throw new Error('Invalid content format - must be MessagePart[] or string');
         }
         
-        // Don't add media to content when we have media_attachments — MonyMediaGallery
+        // Don't add media to content when we have media_attachments - MonyMediaGallery
         // shows them with lightbox. Federated posts often have media in content only
         // (no media_attachments), so they render via MonyContent's grid.
         
@@ -3419,7 +3419,7 @@ export const useActivityPubStore = defineStore('activitypub', {
         if (error) throw error;
 
         debug.log('🔔 Notifications loaded:', data);
-        // `notifications` is not on the strict store state typing — the store
+        // `notifications` is not on the strict store state typing - the store
         // exposes `loadNotifications()` instead. Stash via `any` so legacy
         // call sites continue to read this field directly.
         (this as any).notifications = data;

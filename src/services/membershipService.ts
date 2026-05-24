@@ -55,7 +55,7 @@ export class MembershipService {
   }
 
   /**
-   * Cleanup (no-op — CDC subscriptions removed, events come via server-structure broadcast)
+   * Cleanup (no-op - CDC subscriptions removed, events come via server-structure broadcast)
    */
   cleanup(): void {
     // No CDC channels to clean up

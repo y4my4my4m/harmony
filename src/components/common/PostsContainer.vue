@@ -143,7 +143,7 @@ const estimatePostSize = (index: number): number => {
   return Math.max(estimate, 120)
 }
 
-// +1 phantom row when there's more to load — acts as in-flow loading indicator
+// +1 phantom row when there's more to load - acts as in-flow loading indicator
 const rowVirtualizer = useVirtualizer<HTMLElement, Element>(
   computed(() => ({
     count: props.hasMore ? props.posts.length + 1 : props.posts.length,

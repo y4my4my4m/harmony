@@ -8,7 +8,7 @@
 -- legacy ones, so depending on rollout order they could still co-exist and
 -- the union of policies leaves the permissive ones in effect.
 --
--- This migration is idempotent — DROP POLICY IF EXISTS is a no-op when the
+-- This migration is idempotent - DROP POLICY IF EXISTS is a no-op when the
 -- policy is already absent.
 -- ---------------------------------------------------------------------------
 BEGIN;

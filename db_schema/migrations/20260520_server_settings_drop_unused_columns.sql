@@ -16,7 +16,7 @@
 --   afk_timeout                       NOTHING               dead
 --   rules_channel_id                  NOTHING               dead
 --
--- (*) The client reads/writes `moderation_settings.auto_mod_enabled` — a
+-- (*) The client reads/writes `moderation_settings.auto_mod_enabled` - a
 --     field inside the `moderation_settings` JSONB column. The standalone
 --     boolean column is a leftover of an early refactor; the archived
 --     `fix_invites_and_server_settings.sql` migration already migrated its
@@ -73,7 +73,7 @@ END $$;
 -- 3. Drop the CHECK constraint that references a column we're about to drop.
 --    PostgreSQL won't let us drop the column while the constraint exists,
 --    and CASCADE on DROP COLUMN would silently nuke other things we may not
---    expect — explicit constraint drop is safer.
+--    expect - explicit constraint drop is safer.
 ALTER TABLE public.server_settings DROP CONSTRAINT IF EXISTS server_settings_filter_check;
 
 -- 4. Drop dead columns.

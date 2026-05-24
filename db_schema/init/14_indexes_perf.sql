@@ -5,7 +5,7 @@
 -- This file ports indexes that exist in production (per
 -- db_schema/latest_dev_backup.sql) but were missing from init/. They were
 -- verified against actual query usage in src/, federation-backend/src/,
--- and bot-gateway/src/ before being added — see the investigation in
+-- and bot-gateway/src/ before being added - see the investigation in
 -- BUGS.md addendum. Indexes that only appear in the prod dump but have no
 -- code consumers (mostly legacy pgboss runtime tables and abandoned
 -- features) are NOT ported here.
@@ -102,7 +102,7 @@ CREATE INDEX IF NOT EXISTS idx_messages_bot_channel
 -- that they had code consumers. A second-pass code audit found NO
 -- `.eq('encrypted', ...)` or `.eq('megolm_session_id', ...)` filter
 -- usage anywhere in `src/`, `federation-backend/src/`, or
--- `bot-gateway/src/` — the `encrypted` column is only ever set/read via
+-- `bot-gateway/src/` - the `encrypted` column is only ever set/read via
 -- `SELECT *`, never as a WHERE-filter predicate. Both indexes were
 -- dev-backup-only artifacts and are intentionally NOT ported here.
 

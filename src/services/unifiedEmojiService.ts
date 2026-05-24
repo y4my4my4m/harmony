@@ -84,7 +84,7 @@ const mutantLookups = ref<EmojiLookups | null>(null)
 // Twemoji file map for accurate SVG path resolution
 const twemojiFileMap = ref<Record<string, boolean> | null>(null)
 
-// Cache version — bump this when the static JSON files change to bust the IndexedDB cache.
+// Cache version - bump this when the static JSON files change to bust the IndexedDB cache.
 //
 // v2 (2026-05-21): `unicode-emoji-data.json` was regenerated on 2026-05-20 to
 // include keyword aliases (`+1`, `thumbsup`, etc.). Users whose IndexedDB

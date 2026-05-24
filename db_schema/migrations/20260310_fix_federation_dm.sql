@@ -1,13 +1,13 @@
 -- Fix federation DMs: add proper UNIQUE constraint on federated_id and ensure
 -- get_or_create_dm_conversation function exists.
--- The partial unique index does NOT satisfy ON CONFLICT (federated_id) — a real
+-- The partial unique index does NOT satisfy ON CONFLICT (federated_id) - a real
 -- UNIQUE constraint is required.
 BEGIN;
 
 -- Drop the partial index (superseded by the constraint)
 DROP INDEX IF EXISTS profiles_federated_id_key;
 
--- Add proper UNIQUE constraint (allows NULLs — only non-null values must be unique)
+-- Add proper UNIQUE constraint (allows NULLs - only non-null values must be unique)
 ALTER TABLE public.profiles
     DROP CONSTRAINT IF EXISTS profiles_federated_id_unique;
 

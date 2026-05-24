@@ -72,8 +72,8 @@ export class ChannelMapper {
    * Returns true when a Discord message in this channel should be mirrored
    * to Harmony.
    *
-   * BUGS.md H37: previously this returned `bidirectional ?? false`, which —
-   * combined with the same check in `shouldBridgeFromHarmony` — meant
+   * BUGS.md H37: previously this returned `bidirectional ?? false`, which -
+   * combined with the same check in `shouldBridgeFromHarmony` - meant
    * `bidirectional: false` disabled BOTH directions. The example config
    * (`bridge-config.example.yml`) documents "If false, only Discord -> Harmony",
    * so Discord→Harmony must remain enabled whenever a mapping exists; only

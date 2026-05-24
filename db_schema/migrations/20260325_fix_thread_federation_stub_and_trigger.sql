@@ -1,7 +1,7 @@
 BEGIN;
 
 -- =============================================
--- Fix: Thread federation — prevent stub/federated threads from being re-federated
+-- Fix: Thread federation - prevent stub/federated threads from being re-federated
 --
 -- The trigger_queue_thread_federation function previously only checked if the
 -- creator was local. Stub threads created by the federation backend (from

@@ -1,7 +1,7 @@
 -- Add a BEFORE UPDATE trigger on posts to set updated_at when content changes.
 -- Without this, edited posts keep their original updated_at = created_at,
 -- so the "(edited)" label never appears.
--- Only fires on content/CW/sensitive edits — not on federation_status or count changes.
+-- Only fires on content/CW/sensitive edits - not on federation_status or count changes.
 
 BEGIN;
 

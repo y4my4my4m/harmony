@@ -118,7 +118,7 @@ export const usePostReactionsStore = defineStore('postReactions', () => {
   async function fetchMultiplePostReactions(postIds: string[], force = false): Promise<void> {
     if (!postIds.length) return
 
-    // Deduplicate concurrent batch calls — return existing promise if in-flight
+    // Deduplicate concurrent batch calls - return existing promise if in-flight
     if (batchFetchInFlight) {
       debug.log('📊 Batch fetch already in-flight, awaiting existing request')
       return batchFetchInFlight

@@ -82,7 +82,7 @@ test.describe('Direct Messages', () => {
     const msg = `Unread test ${Date.now()}`
     await aliceDM.sendMessage(msg)
 
-    // Bob opens DM sidebar — should see conversation from Alice
+    // Bob opens DM sidebar - should see conversation from Alice
     await bobDM.navigate()
     // Conversation items may show display name or username
     const bobConvo = bobDM.conversationItems.first()

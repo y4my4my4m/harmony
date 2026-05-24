@@ -6,14 +6,14 @@
  * when the section scrolls near the viewport. The `header` slot is always
  * rendered so category titles remain in the DOM for scrolling context.
  *
- * Once a section becomes visible it stays visible — no unmounting on scroll-out
+ * Once a section becomes visible it stays visible - no unmounting on scroll-out
  * to avoid flicker when scrolling back up (same pattern Discord uses).
  */
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 
 const props = withDefaults(
   defineProps<{
-    /** Number of emoji items in this section — used to estimate placeholder height. */
+    /** Number of emoji items in this section - used to estimate placeholder height. */
     emojiCount: number
     /** Grid column count. Defaults to 7 (fits a 320px popup). */
     columns?: number

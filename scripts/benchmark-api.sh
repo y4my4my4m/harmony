@@ -135,8 +135,8 @@ fi
 if [[ -z "$TEST_MODE" ]]; then
     echo ""
     echo -e "${BOLD}Select benchmark mode:${RESET}"
-    echo -e "  ${CYAN}1${RESET}) Quick  — curl-based latency checks (~30s, no extra tools)"
-    echo -e "  ${CYAN}2${RESET}) Full   — k6 concurrent load test (requires k6)"
+    echo -e "  ${CYAN}1${RESET}) Quick  - curl-based latency checks (~30s, no extra tools)"
+    echo -e "  ${CYAN}2${RESET}) Full   - k6 concurrent load test (requires k6)"
     echo ""
     echo -ne "Choice [1]: "
     read -r choice
@@ -162,7 +162,7 @@ echo -e "  Mode:         ${CYAN}${TEST_MODE}${RESET}"
 echo ""
 
 # =====================================================================
-# QUICK MODE — curl latency probes
+# QUICK MODE - curl latency probes
 # =====================================================================
 
 quick_test() {
@@ -236,7 +236,7 @@ run_quick() {
 }
 
 # =====================================================================
-# FULL MODE — k6 load test
+# FULL MODE - k6 load test
 # =====================================================================
 
 run_full() {

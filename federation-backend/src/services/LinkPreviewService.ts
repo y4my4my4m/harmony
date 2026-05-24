@@ -502,7 +502,7 @@ class LinkPreviewService {
         },
         signal: controller.signal,
         // safeFetch always follows redirects manually with per-hop
-        // re-validation (max 3 by default) — supersedes `redirect: 'follow'`.
+        // re-validation (max 3 by default) - supersedes `redirect: 'follow'`.
       });
 
       // Retry with HTTP signature for instances requiring authorized fetch
@@ -528,7 +528,7 @@ class LinkPreviewService {
         throw new Error(`Not an AP response (${contentType})`);
       }
 
-      // Success — clear any failure record
+      // Success - clear any failure record
       this.apFailedDomains.delete(domain);
       return await response.json();
     } catch (err) {
@@ -621,7 +621,7 @@ class LinkPreviewService {
           }
         }
       } catch {
-        // AP fetch failed — expected for non-fediverse URLs, continue to HTML
+        // AP fetch failed - expected for non-fediverse URLs, continue to HTML
       }
     }
 
@@ -653,7 +653,7 @@ class LinkPreviewService {
 
       const html = await response.text();
 
-      // Check for ActivityPub alternate link — upgrade to fediverse embed if found.
+      // Check for ActivityPub alternate link - upgrade to fediverse embed if found.
       // Still useful when the AP endpoint URL differs from the HTML page URL.
       const apAlternate = this.findApAlternateLink(html);
       if (apAlternate) {
@@ -748,7 +748,7 @@ class LinkPreviewService {
    * Misskey embeds full note data in `<script id="misskey_clientCtx">`.
    */
   private extractStatsFromHtml(html: string): FediverseEmbedData['stats'] | undefined {
-    // Misskey / Sharkey / Firefish — embedded client context
+    // Misskey / Sharkey / Firefish - embedded client context
     const misskeyMatch = html.match(
       /<script[^>]+id=["']misskey_clientCtx["'][^>]*>([\s\S]*?)<\/script>/i
     );

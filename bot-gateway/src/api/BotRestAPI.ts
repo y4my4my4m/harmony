@@ -256,7 +256,7 @@ export class BotRestAPI {
       }
 
       // BUGS.md H38: editing your OWN message should only require `send_messages`
-      // (the permission to post in that channel) — requiring `manage_messages`
+      // (the permission to post in that channel) - requiring `manage_messages`
       // here broke Discord bridge edit-sync because bridge bots typically only
       // hold `send_messages`. The ownership check above already guarantees the
       // bot is the author. `deleteMessage` already follows this pattern (line

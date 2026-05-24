@@ -461,7 +461,7 @@ const handleBannerUpload = async (file: File) => {
     invalidateBannerCache()
     profile.value = { ...profile.value, banner_url: storagePath } as User
     
-    // Broadcast banner update (non-blocking — don't let broadcast failure undo a successful upload)
+    // Broadcast banner update (non-blocking - don't let broadcast failure undo a successful upload)
     try {
       await updateCurrentUserProfile({
         bannerUrl: storagePath || undefined

@@ -1,5 +1,5 @@
 -- ---------------------------------------------------------------------------
--- Round-1 performance fixes — Part 1 of 2 (BUGS.md PH1 / B1).
+-- Round-1 performance fixes - Part 1 of 2 (BUGS.md PH1 / B1).
 --
 -- This file reconciles the `bot_rate_limits` schema on already-deployed
 -- environments. Transactional. Run through any standard migration tool
@@ -8,12 +8,12 @@
 -- Part 2 (CONCURRENT index creation) is in the SIBLING file
 --   20260520_perf_round1_indexes_concurrent.sql
 -- and CANNOT be run through tools that wrap each migration in a single
--- transaction — see the header of that file for run instructions.
+-- transaction - see the header of that file for run instructions.
 --
 -- Background:
 -- The init schema previously declared `bot_rate_limits` with columns
 -- (`limit_max`, `remaining`, `resets_at`, `violations`, `last_violation_at`)
--- — none of which are used by the running gateway code in
+-- - none of which are used by the running gateway code in
 -- `bot-gateway/src/auth/BotAuthMiddleware.ts:80-119`. That code reads/writes
 -- (`request_count`, `window_start`, `window_duration_seconds`,
 -- `max_requests`, `resets_at`, `metadata`) instead. Production

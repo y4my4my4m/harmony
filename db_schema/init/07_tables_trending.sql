@@ -140,7 +140,7 @@ CREATE TABLE IF NOT EXISTS public.server_settings (
     -- Invite permissions
     invite_permissions jsonb DEFAULT '{"who_can_create": "everyone", "default_expiration": 1440, "max_expiration": 0, "allow_temporary": true, "max_uses_limit": 0}'::jsonb,
 
-    -- Moderation settings (single source of truth — client reads/writes this JSONB,
+    -- Moderation settings (single source of truth - client reads/writes this JSONB,
     -- not any standalone column). See `src/services/permissionsService.ts`.
     moderation_settings jsonb DEFAULT '{"auto_mod_enabled": false, "spam_filter": false, "link_filter": false}'::jsonb,
 
@@ -172,7 +172,7 @@ COMMENT ON TABLE public.server_settings IS 'Extended server configuration: roles
 -- `auto_mod_rules`, `explicit_content_filter`, `verification_gate_enabled`,
 -- `verification_gate_rules`, `afk_channel_id`, `afk_timeout`, and
 -- `rules_channel_id`. None of those were ever read by any code, trigger, or
--- function — they were an aspirational Discord-feature-parity stub. Removed
+-- function - they were an aspirational Discord-feature-parity stub. Removed
 -- here and dropped from existing databases by
 -- db_schema/migrations/20260520_server_settings_drop_unused_columns.sql.
 

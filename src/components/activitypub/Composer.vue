@@ -804,7 +804,7 @@ const handleSubmit = async () => {
         isSensitive.value
       );
     } else {
-      // For reblogs, thread the reply under the *original* post — never under
+      // For reblogs, thread the reply under the *original* post - never under
       // the Announce wrapper. Callers should already pass the unwrapped post,
       // but unwrap defensively here so future call sites can't regress this.
       const replyToId = props.type === 'reply' && props.replyToPost
@@ -823,7 +823,7 @@ const handleSubmit = async () => {
     emit('close');
   } catch (error: any) {
     debug.error('Failed to create post:', error);
-    postError.value = error?.message || 'Failed to send post. Your content has been preserved — try again.';
+    postError.value = error?.message || 'Failed to send post. Your content has been preserved - try again.';
   } finally {
     isPosting.value = false;
   }
@@ -918,7 +918,7 @@ watch(() => props.initialContent, (val) => {
 // Watch for reply context changes (when opening reply composer)
 watch(() => props.replyToPost, (replyPost) => {
   if (props.type === 'reply' && replyPost && content.value === '') {
-    // Same routing rule as onMounted — pure reblog → original author,
+    // Same routing rule as onMounted - pure reblog → original author,
     // quote → quoter, unhydrated reblog → no prefill.
     const author = getReplyMentionAuthor(replyPost);
     if (!author) return;

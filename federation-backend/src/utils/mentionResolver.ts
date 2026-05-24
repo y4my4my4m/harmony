@@ -41,7 +41,7 @@ function setCache(key: string, profile: ResolvedProfile): void {
  * (local + remote), with a 60s in-process cache to avoid repeated lookups
  * for the same users across messages.
  * 
- * Only runs at ingestion time — stored content has correct local UUIDs,
+ * Only runs at ingestion time - stored content has correct local UUIDs,
  * so the frontend never needs to re-resolve.
  */
 export async function resolveMentionUserIds(content: any[]): Promise<any[]> {

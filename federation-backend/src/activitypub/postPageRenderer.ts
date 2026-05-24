@@ -21,7 +21,7 @@ function resolveStorageUrl(
 ): string {
   if (!raw || typeof raw !== 'string') return '';
 
-  // Already a full URL — append transform query params if it's our Supabase
+  // Already a full URL - append transform query params if it's our Supabase
   // storage URL and no transforms are present yet
   if (raw.startsWith('http://') || raw.startsWith('https://')) {
     if (width && raw.includes('/storage/v1/') && !raw.includes('width=')) {

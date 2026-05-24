@@ -15,7 +15,7 @@ async function waitForNotificationSystem(page: Page) {
   })
 }
 
-test.describe('Notifications — Bell & Panel', () => {
+test.describe('Notifications - Bell & Panel', () => {
   test('notification bell is visible when logged in', async ({ alicePage }) => {
     await alicePage.goto('/chat')
     await dismissAnnouncements(alicePage)
@@ -62,7 +62,7 @@ test.describe('Notifications — Bell & Panel', () => {
   })
 })
 
-test.describe('Notifications — Toast appears on mention', () => {
+test.describe('Notifications - Toast appears on mention', () => {
   test('mention in channel shows toast on recipient page', async ({
     alicePage,
     bobPage,
@@ -137,7 +137,7 @@ test.describe('Notifications — Toast appears on mention', () => {
   })
 })
 
-test.describe('Notifications — Toast appears on DM', () => {
+test.describe('Notifications - Toast appears on DM', () => {
   test('DM message shows toast on recipient page', async ({
     alicePage,
     bobPage,
@@ -163,7 +163,7 @@ test.describe('Notifications — Toast appears on DM', () => {
   })
 })
 
-test.describe('Notifications — Toast suppressed when viewing same context', () => {
+test.describe('Notifications - Toast suppressed when viewing same context', () => {
   test('mention does NOT show toast if recipient is in the same channel', async ({
     alicePage,
     bobPage,
@@ -187,7 +187,7 @@ test.describe('Notifications — Toast suppressed when viewing same context', ()
   })
 })
 
-test.describe('Notifications — Toast auto-dismiss', () => {
+test.describe('Notifications - Toast auto-dismiss', () => {
   test('toast disappears after ~4 seconds', async ({
     alicePage,
     bobPage,
@@ -213,7 +213,7 @@ test.describe('Notifications — Toast auto-dismiss', () => {
   })
 })
 
-test.describe('Notifications — Settings', () => {
+test.describe('Notifications - Settings', () => {
   test('notification settings page loads', async ({ alicePage }) => {
     const notifications = new NotificationsPage(alicePage)
     await notifications.navigateToSettings()

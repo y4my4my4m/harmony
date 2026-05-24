@@ -159,7 +159,7 @@ describe('RecoveryKeyService', () => {
       expect(encRaw).not.toEqual(bkpRaw)
     })
 
-    it('is deterministic — same mnemonic yields same keys', async () => {
+    it('is deterministic - same mnemonic yields same keys', async () => {
       const keys1 = await service.deriveKeysFromMnemonic(TEST_MNEMONIC)
       const raw1 = new Uint8Array(await crypto.subtle.exportKey('raw', keys1.encryptionKey))
 

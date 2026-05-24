@@ -561,7 +561,7 @@ async function autoSyncAfterEnable() {
     // Dispatch event so DM store also reprocesses
     window.dispatchEvent(new CustomEvent('megolm-key-received', { detail: { roomId: '*', sessionId: '*' } }))
   } catch (error) {
-    // Non-critical — encryption is already enabled
+    // Non-critical - encryption is already enabled
   }
 }
 

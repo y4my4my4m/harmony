@@ -225,7 +225,7 @@ router.post('/federated-token', requireLiveKit, async (req: Request, res: Respon
     // The signature is verified, but that only proves "some remote actor signed
     // this request". We must also bind the claimed `actorId` to the signer so a
     // valid signer can't mint a LiveKit token for a different actor (BUGS.md C3).
-    // Strict match — no same-domain delegation for Person-style identities.
+    // Strict match - no same-domain delegation for Person-style identities.
     if (!verification.actorUrl) {
       logger.warn('🚫 Rejecting federated token request: signature verification did not return an actor URL');
       return res.status(401).json({ error: 'Signature verification did not yield an actor URL' });

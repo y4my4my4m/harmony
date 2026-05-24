@@ -4,7 +4,7 @@
 -- 19 indexes that were present in production (`db_schema/latest_dev_backup.sql`)
 -- but missing from the init scripts. Each one was verified to have a real
 -- code consumer in `src/`, `federation-backend/src/`, or `bot-gateway/src/`
--- before being included — three originally proposed indexes
+-- before being included - three originally proposed indexes
 -- (`idx_messages_encrypted`, `idx_messages_megolm_session`,
 -- `idx_reactions_metadata`) were dropped on second review because no
 -- query in the codebase uses them as a filter predicate.
@@ -24,7 +24,7 @@
 -- NOTE ON `CONCURRENTLY`
 -- ---------------------------------------------------------------------------
 --
--- These statements use plain `CREATE INDEX IF NOT EXISTS` — not
+-- These statements use plain `CREATE INDEX IF NOT EXISTS` - not
 -- `CONCURRENTLY`. The trade-off:
 --
 --   - CREATE INDEX takes an ACCESS EXCLUSIVE lock on each table for the
@@ -35,8 +35,8 @@
 --     errors during that window.
 --
 --   - CONCURRENTLY would avoid the lock but cannot run inside ANY
---     transaction block — including the implicit transaction the
---     Supabase SQL editor uses when you paste multi-statement input —
+--     transaction block - including the implicit transaction the
+--     Supabase SQL editor uses when you paste multi-statement input -
 --     producing `ERROR: 25001`. Running CONCURRENTLY requires either a
 --     direct `psql` connection (no `--single-transaction`) or running
 --     each statement individually.
@@ -46,7 +46,7 @@
 -- SQL editor, OR via `psql "$DATABASE_URL" -f` after replacing each
 -- `CREATE INDEX IF NOT EXISTS` with `CREATE INDEX CONCURRENTLY IF NOT
 -- EXISTS` and removing the `BEGIN`/`COMMIT` wrapper. (Don't do this if
--- you don't need to — the brief lock is cheap.)
+-- you don't need to - the brief lock is cheap.)
 --
 -- ---------------------------------------------------------------------------
 

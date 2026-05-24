@@ -435,7 +435,7 @@ router.post(
 );
 
 /**
- * Resolve a remote post by URL — imports it (and its author) via ActivityPub if not already local.
+ * Resolve a remote post by URL - imports it (and its author) via ActivityPub if not already local.
  * POST /resolve-post (proxied via /api/federation/resolve-post)
  * Body: { url: string }
  */
@@ -451,7 +451,7 @@ router.post(
 
     const supabase = getSupabaseClient();
 
-    // Build a set of URL variants to check — fediverse platforms use different
+    // Build a set of URL variants to check - fediverse platforms use different
     // URL formats for the same post (e.g. GoToSocial: /users/x/statuses/ID vs /@x/statuses/ID)
     const urlVariants = new Set<string>([url]);
     try {
@@ -666,7 +666,7 @@ router.post(
 
     const supabase = getSupabaseClient();
 
-    // Skip federation fetch for local posts — data is already in the database
+    // Skip federation fetch for local posts - data is already in the database
     try {
       const apDomain = new URL(post_ap_id).hostname;
       if (apDomain === config.INSTANCE_DOMAIN) {
@@ -1129,7 +1129,7 @@ async function fetchRemotePostReactions(
   supabase: any
 ): Promise<any[]> {
   try {
-    // Skip local posts — reactions are already in our DB
+    // Skip local posts - reactions are already in our DB
     try {
       const apDomain = new URL(postApId).hostname;
       if (apDomain === config.INSTANCE_DOMAIN) {
@@ -1391,7 +1391,7 @@ router.post(
 
     const supabase = getSupabaseClient();
 
-    // Skip federation fetch for local posts — replies are already in the database
+    // Skip federation fetch for local posts - replies are already in the database
     try {
       const apDomain = new URL(post_ap_id).hostname;
       if (apDomain === config.INSTANCE_DOMAIN) {

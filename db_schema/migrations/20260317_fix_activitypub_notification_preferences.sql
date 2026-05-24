@@ -3,7 +3,7 @@ BEGIN;
 -- Fix: send_notification() was ANDing content toggles (e.g. activitypub_favorites)
 -- with desktop toggles (e.g. activitypub_desktop_favorites) to decide whether to
 -- CREATE the notification record. Desktop toggles for favorites/reblogs/reactions
--- default to false, so the notification was never created — neither in-app nor push.
+-- default to false, so the notification was never created - neither in-app nor push.
 --
 -- The fix: only check the content toggle for notification record creation.
 -- Desktop/push delivery preferences are enforced separately by PushNotificationService.

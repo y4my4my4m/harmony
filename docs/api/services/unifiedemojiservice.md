@@ -160,7 +160,7 @@ const mutantLookups = ref<EmojiLookups | null>(null)
 // Twemoji file map for accurate SVG path resolution
 const twemojiFileMap = ref<Record<string, boolean> | null>(null)
 
-// Cache version — bump this when the static JSON files change to bust the IndexedDB cache
+// Cache version - bump this when the static JSON files change to bust the IndexedDB cache
 const EMOJI_DATA_CACHE_VERSION = '1'
 
 /**

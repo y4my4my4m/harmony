@@ -158,7 +158,7 @@ class DMCallSignalingService {
       })
     } else {
       const channelName = `dm-call:${conversationId}`
-      debug.log(`📤 No existing subscription — using temp channel: ${channelName}`)
+      debug.log(`📤 No existing subscription - using temp channel: ${channelName}`)
       const tempChannel = supabase.channel(channelName)
       await new Promise<void>((resolve, reject) => {
         tempChannel.subscribe((status) => {
@@ -474,7 +474,7 @@ class DMCallSignalingService {
     call.participants = call.participants.filter(id => id !== userId)
     
     if (isCallerCancel) {
-      // Caller cancelled before anyone answered — treat as call end
+      // Caller cancelled before anyone answered - treat as call end
       await this.finalizeCallMessage(call)
       this.deleteActiveCall(conversationId)
       

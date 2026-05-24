@@ -4,7 +4,7 @@
  * Per-message sender binding for Megolm v2.
  *
  * Without this, `messages.encryption_metadata.sender_user_id` is just plain
- * JSON on the row — any DB writer can re-attribute a ciphertext to another
+ * JSON on the row - any DB writer can re-attribute a ciphertext to another
  * user. Clients trust that field for display AND for public-key lookup
  * during decrypt, so reattribution is silent and undetectable.
  *
@@ -54,7 +54,7 @@ const KEY_GEN_PARAMS: EcKeyGenParams = { name: 'ECDSA', namedCurve: 'P-256' }
 
 /**
  * Deterministic JSON encoding with sorted keys. Numbers are encoded as JSON
- * numbers (no Date.toJSON or BigInt surprises — caller must pass primitives).
+ * numbers (no Date.toJSON or BigInt surprises - caller must pass primitives).
  *
  * Why we don't use a 3rd-party canonicalizer: this is the only canonical
  * encoding consumed in the codebase, and the shape we sign is small and

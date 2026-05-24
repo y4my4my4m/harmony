@@ -64,7 +64,7 @@ describe('MegolmMessageEncryptionService', () => {
     // signing keypair from `ensureSigningKeyPair`) and inject the user id
     // directly. Without a signing key in IndexedDB the service falls back to
     // emitting legacy `megolm_v1` (unsigned), and decrypt reports
-    // `senderVerified: false`. That's the correct legacy path — separate
+    // `senderVerified: false`. That's the correct legacy path - separate
     // tests below exercise the v2 signed path.
     it('encrypts and decrypts a text message', async () => {
       const content: MessagePart[] = [{ type: 'text', text: 'Hello encrypted world!' }]
@@ -256,7 +256,7 @@ describe('MegolmMessageEncryptionService', () => {
         }
         return builder
       })
-      // Make sure RPC and any other supabase calls don't blow up the test —
+      // Make sure RPC and any other supabase calls don't blow up the test -
       // claimPendingSessionShares() should never run on the v2 fast path, but
       // we're defensive in case a future code change starts touching it.
       ;(supabase.rpc as any).mockResolvedValue({ data: [], error: null })
@@ -306,7 +306,7 @@ describe('MegolmMessageEncryptionService', () => {
 
       // The server pretends Alice's ciphertext was actually sent by Mallory.
       // We publish Mallory's (different) signing key so the verifier can
-      // even attempt the check — it must still fail because the signature
+      // even attempt the check - it must still fail because the signature
       // was over `sender_user_id: alice`.
       const malloryId = '00000000-0000-0000-0000-cafecafecafe'
       const mallory = await generateSigningKeyPair()

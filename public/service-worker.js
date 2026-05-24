@@ -80,7 +80,7 @@ async function handlePushEvent(event) {
     const data = event.data.json()
     console.log('📨 Service Worker: Notification data:', data)
 
-    // Skip push notification if any app window is focused — the realtime
+    // Skip push notification if any app window is focused - the realtime
     // subscription already handles desktop notifications in that case
     const windowClients = await self.clients.matchAll({ type: 'window', includeUncontrolled: false })
     const hasFocusedClient = windowClients.some(client => client.focused)
@@ -120,7 +120,7 @@ async function handlePushEvent(event) {
         await navigator.setAppBadge(badgeCount)
       }
     } catch (e) {
-      // Badging API not supported in this context — safe to ignore
+      // Badging API not supported in this context - safe to ignore
     }
 
     // Show notification with proper title
@@ -194,7 +194,7 @@ async function updateBadgeCount() {
       }
     }
   } catch (e) {
-    // Badging API not available — safe to ignore
+    // Badging API not available - safe to ignore
   }
 }
 

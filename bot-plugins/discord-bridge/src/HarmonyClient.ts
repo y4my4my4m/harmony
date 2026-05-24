@@ -430,7 +430,7 @@ export class HarmonyClient extends EventEmitter {
   }
   
   disconnect() {
-    // Disable auto-reconnect BEFORE closing — the `close` event handler reads
+    // Disable auto-reconnect BEFORE closing - the `close` event handler reads
     // `reconnectEnabled` to decide whether to schedule another connect attempt.
     this.reconnectEnabled = false
     if (this.reconnectTimer) {

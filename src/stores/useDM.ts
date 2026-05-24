@@ -131,7 +131,7 @@ export const useDMStore = defineStore('dm', () => {
    * Total unread DM count across every conversation. Drives the unread
    * badge on the DM tab in the main navigation. Previously the badge code
    * read `(dmStore as any).getTotalUnreadCount`, but no such getter
-   * existed — the cast hid `undefined > 0 === false`, so the badge never
+   * existed - the cast hid `undefined > 0 === false`, so the badge never
    * appeared even when the user had unread DMs.
    */
   const getTotalUnreadCount = computed(() => {
@@ -323,7 +323,7 @@ export const useDMStore = defineStore('dm', () => {
     window.addEventListener('megolm-key-received', async (e: Event) => {
       const detail = (e as CustomEvent).detail
       const roomId = detail?.roomId as string | undefined
-      debug.log(`🔑 Key received${roomId ? ` for room ${roomId.substring(0, 8)}...` : ''} — re-decrypting DMs`)
+      debug.log(`🔑 Key received${roomId ? ` for room ${roomId.substring(0, 8)}...` : ''} - re-decrypting DMs`)
       await reprocessEncryptedDMMessages(roomId)
     })
   }
@@ -1722,7 +1722,7 @@ export const useDMStore = defineStore('dm', () => {
     } catch (error: any) {
       debug.error('❌ Failed to send DM message via service:', error)
 
-      // Encryption policy errors require user consent before retrying — never
+      // Encryption policy errors require user consent before retrying - never
       // auto-retry, never silently fall back to plaintext. Remove the
       // optimistic so the timeline doesn't show a phantom "failed" message
       // after the user cancels the fallback prompt; if they accept, the UI
@@ -1740,7 +1740,7 @@ export const useDMStore = defineStore('dm', () => {
       }
 
       if (!navigator.onLine) {
-        debug.log('📴 Offline — marking DM as failed, will retry when user clicks Retry')
+        debug.log('📴 Offline - marking DM as failed, will retry when user clicks Retry')
         _markDMMessageFailed(tempId)
         return false
       }
@@ -1751,7 +1751,7 @@ export const useDMStore = defineStore('dm', () => {
         await new Promise(r => setTimeout(r, delay))
 
         if (!navigator.onLine) {
-          debug.log('📴 Went offline during retry — marking as failed')
+          debug.log('📴 Went offline during retry - marking as failed')
           break
         }
 
@@ -1998,7 +1998,7 @@ export const useDMStore = defineStore('dm', () => {
 
       // Global conversation:new / conversation:updated handlers are registered
       // separately via registerGlobalBroadcastHandlers() (called from BaseLayout)
-      // so they persist across route changes — no need to register here.
+      // so they persist across route changes - no need to register here.
 
     } catch (error) {
       debug.error('❌ Error setting up DM realtime subscriptions:', error)
@@ -2282,7 +2282,7 @@ export const useDMStore = defineStore('dm', () => {
 
   /**
    * Register global broadcast handlers for conversation:new and conversation:updated.
-   * Called once from BaseLayout during app init — persists across route changes.
+   * Called once from BaseLayout during app init - persists across route changes.
    */
   const registerGlobalBroadcastHandlers = async (userId: string) => {
     if (_globalBroadcastRegistered) return
@@ -2631,7 +2631,7 @@ export const useDMStore = defineStore('dm', () => {
 
       debug.log('✅ Created conversation:', conversationId)
 
-      // Return immediately — system message and fetch run in background for responsive UX
+      // Return immediately - system message and fetch run in background for responsive UX
       ;(async () => {
         try {
           const systemMessageContent = [{

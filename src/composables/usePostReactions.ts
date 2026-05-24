@@ -11,7 +11,7 @@ interface Props {
 
 /**
  * Reads reaction state from the store (batch-populated by timeline loaders).
- * Does NOT fetch per-post — that's handled by useActivityPub / PostView via
+ * Does NOT fetch per-post - that's handled by useActivityPub / PostView via
  * fetchMultiplePostReactions(). This avoids N+1 request storms during scroll.
  */
 export function usePostReactions(props: Props) {

@@ -10,7 +10,7 @@
  * unread counts.  This dramatically reduces channel count per user.
  *
  * Consumers register typed handlers via on(type, handler).  Handlers can be
- * added/removed at any time — they are dispatched internally.
+ * added/removed at any time - they are dispatched internally.
  */
 
 import { supabase } from '@/supabase'
@@ -44,7 +44,7 @@ class UserEventChannel {
 
   /**
    * Open (or reuse) the broadcast channel for the given user.
-   * Safe to call multiple times — reconnects only if the profileId changed.
+   * Safe to call multiple times - reconnects only if the profileId changed.
    */
   connect(profileId: string): void {
     if (this.connected && this.profileId === profileId) return

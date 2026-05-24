@@ -44,9 +44,9 @@ export interface MegolmEncryptionStatus {
  * Metadata for an encrypted message.
  *
  * `algorithm`:
- *   - 'megolm_v1' — legacy ciphertext, no per-message sender signature.
+ *   - 'megolm_v1' - legacy ciphertext, no per-message sender signature.
  *     Decryption succeeds but the message is flagged `sender_verified: false`.
- *   - 'megolm_v2_signed' — current scheme. The `signature` field is an
+ *   - 'megolm_v2_signed' - current scheme. The `signature` field is an
  *     ECDSA P-256 SHA-256 signature over a canonical encoding of
  *     (algorithm, room_id, session_id, message_index, sender_user_id,
  *      SHA-256(ciphertext_bytes), timestamp). Verification failure rejects
@@ -161,10 +161,10 @@ export class MegolmMessageEncryptionService {
     if (!this.currentUserId) return false
 
     try {
-      // Try IndexedDB first (non-extractable CryptoKeys — preferred)
+      // Try IndexedDB first (non-extractable CryptoKeys - preferred)
       const storedKeys = await secureSessionKeyStore.load(this.currentUserId)
       if (storedKeys) {
-        debug.log('🔐 Found stored CryptoKeys in IndexedDB — auto-unlocking...')
+        debug.log('🔐 Found stored CryptoKeys in IndexedDB - auto-unlocking...')
 
         // Set derived keys directly (no mnemonic needed)
         recoveryKeyService.setDerivedKeys(storedKeys)
@@ -194,9 +194,9 @@ export class MegolmMessageEncryptionService {
         return true
       }
 
-      // No stored keys — encryption is locked
+      // No stored keys - encryption is locked
       this.clearLegacyStorage()
-      debug.log('🔐 No stored session — encryption locked')
+      debug.log('🔐 No stored session - encryption locked')
       return false
     } catch (error) {
       debug.warn('⚠️ Failed to auto-unlock:', error)
@@ -391,7 +391,7 @@ export class MegolmMessageEncryptionService {
     if (existingKey) {
       if (cachedKey) return
 
-      // Key pair in DB but not in IndexedDB — decrypt from DB using recovery key
+      // Key pair in DB but not in IndexedDB - decrypt from DB using recovery key
       if (existingKey.identity_private_key_encrypted) {
         try {
           const privateKeyBase64 = await this.decryptPrivateKeyFromStorage(
@@ -473,7 +473,7 @@ export class MegolmMessageEncryptionService {
     // Already cached locally?
     const cached = await signingKeyStore.load(this.currentUserId)
 
-    // Same constraint as above — encrypted private signing column is not
+    // Same constraint as above - encrypted private signing column is not
     // SELECTable post-20260520 RLS tightening; use the owner-scoped RPC.
     const { data: keyPairRows } = await supabase.rpc('get_my_key_pair')
     const existingRow = (Array.isArray(keyPairRows) ? keyPairRows[0] : null) as
@@ -501,7 +501,7 @@ export class MegolmMessageEncryptionService {
     // (to wrap the private for storage), which is only available when
     // encryption is unlocked.
     if (!recoveryKeyService.getEncryptionKey()) {
-      debug.log('ℹ️ Signing key generation deferred — recovery encryption key not available')
+      debug.log('ℹ️ Signing key generation deferred - recovery encryption key not available')
       return
     }
 
@@ -524,7 +524,7 @@ export class MegolmMessageEncryptionService {
         throw new Error('Failed to persist signing key')
       }
     } else {
-      // No row at all (no ECDH key yet either) — this path is mostly defensive;
+      // No row at all (no ECDH key yet either) - this path is mostly defensive;
       // ensureIdentityKeyPair() should have created the row already.
       const { error } = await supabase
         .from('user_key_pairs')
@@ -569,7 +569,7 @@ export class MegolmMessageEncryptionService {
 
   /**
    * Load the current user's signing private key from IndexedDB.
-   * Returns null if missing — callers must decide whether to skip signing
+   * Returns null if missing - callers must decide whether to skip signing
    * (legacy fallback) or refuse to send (we choose: skip and log).
    */
   private async getMySigningPrivateKey(): Promise<CryptoKey | null> {
@@ -676,12 +676,12 @@ export class MegolmMessageEncryptionService {
     const timestamp = Date.now()
 
     // Try to sign the message (sender binding). If signing isn't possible
-    // (no signing key on this device yet — legacy users), fall back to v1
+    // (no signing key on this device yet - legacy users), fall back to v1
     // emitter behavior so we don't block the send. A v1 message is decoded
     // by recipients but flagged `sender_verified: false` in display.
     const signingKey = await this.getMySigningPrivateKey().catch(() => null)
     if (!signingKey) {
-      debug.warn('⚠️ No signing key available — emitting legacy megolm_v1 (unsigned)')
+      debug.warn('⚠️ No signing key available - emitting legacy megolm_v1 (unsigned)')
       return {
         encrypted: true,
         content: encryptedContent,
@@ -739,15 +739,15 @@ export class MegolmMessageEncryptionService {
    * Decrypt a message AND verify the sender signature (Megolm v2).
    *
    * Return value:
-   *   - `content`         — decrypted MessagePart[]
-   *   - `senderVerified`  — true ONLY when the signature was present AND
+   *   - `content`         - decrypted MessagePart[]
+   *   - `senderVerified`  - true ONLY when the signature was present AND
    *                         verified against the claimed sender's signing
    *                         public key. False for legacy v1 messages or
    *                         when the sender has no signing key on file.
    *
    * Behavior on signature mismatch (v2 only):
    *   - Throws `Sender signature invalid …`. The message is NOT decrypted.
-   *     This is the core "reattribution attack" defense — without it, a
+   *     This is the core "reattribution attack" defense - without it, a
    *     malicious DB writer could swap sender_user_id and have clients
    *     happily display Bob's content as if from Alice.
    *
@@ -796,12 +796,12 @@ export class MegolmMessageEncryptionService {
       if (metadata.algorithm === 'megolm_v2_signed') {
         const senderVerified = await this.verifyV2Signature(message)
         if (!senderVerified) {
-          throw new Error('Sender signature invalid — refusing to display tampered message')
+          throw new Error('Sender signature invalid - refusing to display tampered message')
         }
       } else {
         // v1: nothing to verify, log so audits can spot legacy senders.
         debug.warn(
-          `⚠️ Unsigned megolm_v1 message from ${(metadata.sender_user_id || '').substring(0, 8)} — sender unverified`,
+          `⚠️ Unsigned megolm_v1 message from ${(metadata.sender_user_id || '').substring(0, 8)} - sender unverified`,
         )
       }
 
@@ -861,7 +861,7 @@ export class MegolmMessageEncryptionService {
       !timestamp ||
       !roomId
     ) {
-      debug.warn('⚠️ v2 message missing required fields for verification — rejecting')
+      debug.warn('⚠️ v2 message missing required fields for verification - rejecting')
       return false
     }
 
@@ -870,7 +870,7 @@ export class MegolmMessageEncryptionService {
 
     const senderKey = await this.getSenderSigningPublicKey(senderUserId)
     if (!senderKey) {
-      debug.warn(`⚠️ No signing key on file for ${senderUserId.substring(0, 8)} — cannot verify`)
+      debug.warn(`⚠️ No signing key on file for ${senderUserId.substring(0, 8)} - cannot verify`)
       return false
     }
 
@@ -1077,7 +1077,7 @@ export class MegolmMessageEncryptionService {
     const key = await identityKeyStore.load(this.currentUserId)
     if (key) return key
 
-    throw new Error('Identity private key not found in IndexedDB — run encryption setup')
+    throw new Error('Identity private key not found in IndexedDB - run encryption setup')
   }
 
   /**
@@ -1161,7 +1161,7 @@ export class MegolmMessageEncryptionService {
   private async decryptPrivateKeyFromStorage(encryptedData: string): Promise<string> {
     const encryptionKey = recoveryKeyService.getEncryptionKey()
     if (!encryptionKey) {
-      throw new Error('Recovery key not available — cannot decrypt identity key from DB')
+      throw new Error('Recovery key not available - cannot decrypt identity key from DB')
     }
 
     let combined: Uint8Array
@@ -1189,7 +1189,7 @@ export class MegolmMessageEncryptionService {
     const encryptionKey = recoveryKeyService.getEncryptionKey()
 
     if (!encryptionKey) {
-      throw new Error('Recovery key not available — cannot encrypt identity key for storage')
+      throw new Error('Recovery key not available - cannot encrypt identity key for storage')
     }
 
     const encoder = new TextEncoder()

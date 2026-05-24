@@ -202,7 +202,7 @@ describe('CoreMessageService - encryption policy (fail-closed by default)', () =
     it('silently sends plaintext on optional + no recovery key (user never opted in)', async () => {
       // Behavior change: in OPTIONAL mode, a user who has never set up
       // encryption is fully within policy to send plaintext. Don't prompt
-      // them on every send — they never opted in. Only LOCKED (they did
+      // them on every send - they never opted in. Only LOCKED (they did
       // opt in but forgot to unlock) and FAILED (encrypt attempted, threw)
       // should fail closed.
       const { insertedRows } = setupSupabase({ encryptionMode: 'optional' })

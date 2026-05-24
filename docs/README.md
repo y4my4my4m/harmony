@@ -24,7 +24,7 @@ Visit: `http://localhost:3001` (set in `docs/.vitepress/config.ts`; do not run a
 
 Full pipeline (guides + API + components + sync + typedoc + static build): `npm run docs:generate-all`. Setup details: [VITEPRESS_SETUP.md](./VITEPRESS_SETUP.md).
 
-**Do not edit `docs/guide/` by hand** — change `docs-source/guide/` and run `docs:generate-guide`.
+**Do not edit `docs/guide/` by hand** - change `docs-source/guide/` and run `docs:generate-guide`.
 
 ---
 

@@ -27,10 +27,10 @@ The Harmony Plugin System allows developers to create bridges, integrations, and
 
 ### Core Components
 
-1. **Platform Client** — connects to the external platform
-2. **Harmony Client** (`HarmonyClient.ts`) — connects to Harmony Bot Gateway
-3. **Message Translator** — converts formats, translates mentions/emojis
-4. **Channel Mapper** — maps channels between platforms
+1. **Platform Client** - connects to the external platform
+2. **Harmony Client** (`HarmonyClient.ts`) - connects to Harmony Bot Gateway
+3. **Message Translator** - converts formats, translates mentions/emojis
+4. **Channel Mapper** - maps channels between platforms
 
 ## Creating a Plugin
 
@@ -167,10 +167,10 @@ console.log('🌉 Bridge is running!')
 
 ## Best Practices
 
-- **Loop prevention** — always check if a message originated from your bridge
-- **Rate limiting** — implement proper request queuing (5 messages/sec max)
-- **Error recovery** — reconnection with exponential backoff
-- **Graceful shutdown** — handle `SIGTERM`/`SIGINT` signals
+- **Loop prevention** - always check if a message originated from your bridge
+- **Rate limiting** - implement proper request queuing (5 messages/sec max)
+- **Error recovery** - reconnection with exponential backoff
+- **Graceful shutdown** - handle `SIGTERM`/`SIGINT` signals
 
 ## Deployment
 
@@ -207,14 +207,14 @@ services:
 
 ## Plugin Ideas
 
-- **IRC Bridge** — Connect to IRC networks
-- **Matrix Bridge** — Full Matrix federation
-- **RSS Bot** — Post RSS feed updates
-- **GitHub Bot** — Commit/PR notifications
-- **Twitch Bot** — Stream notifications
-- **Music Bot** — Play music in voice channels
-- **Moderation Bot** — Auto-mod system
-- **Translation Bot** — Auto-translate messages
+- **IRC Bridge** - Connect to IRC networks
+- **Matrix Bridge** - Full Matrix federation
+- **RSS Bot** - Post RSS feed updates
+- **GitHub Bot** - Commit/PR notifications
+- **Twitch Bot** - Stream notifications
+- **Music Bot** - Play music in voice channels
+- **Moderation Bot** - Auto-mod system
+- **Translation Bot** - Auto-translate messages
 
 ## Contributing
 

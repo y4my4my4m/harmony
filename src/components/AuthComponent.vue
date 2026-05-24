@@ -427,7 +427,7 @@ const password = ref('')
 // Initialize from the persisted preference so the checkbox reflects the
 // user's last choice across visits to the login page (defaults to `true`
 // for first-time visitors, matching the pre-fix hardcoded `persistSession`
-// behavior — see `src/supabase.ts`).
+// behavior - see `src/supabase.ts`).
 const rememberMe = ref(getRememberMe())
 const showPassword = ref(false)
 const isLoading = ref(false)
@@ -561,7 +561,7 @@ const handleOAuthLogin = async (providerId: string) => {
   // Persist the remember-me preference BEFORE the OAuth redirect. The
   // session won't actually be created until the OAuth callback returns,
   // but the storage adapter consults this preference at write-time, so
-  // it has to be set in the originating tab's localStorage *now* — the
+  // it has to be set in the originating tab's localStorage *now* - the
   // callback runs after a full page navigation and reads the same key.
   setRememberMe(rememberMe.value)
 

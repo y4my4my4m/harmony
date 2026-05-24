@@ -2897,7 +2897,7 @@ $$;
 -- (the function is `SECURITY DEFINER`, so it bypassed the row-level RLS
 -- that would otherwise have constrained the SELECT to `auth.uid()`).
 -- The hardened version below requires the caller to be verifying their
--- OWN codes — if `p_user_id` doesn't match `auth.uid()`, we raise. This
+-- OWN codes - if `p_user_id` doesn't match `auth.uid()`, we raise. This
 -- mirrors the security model of `mfa.verify` itself: only the session
 -- holder can spend their own recovery codes.
 --
@@ -4536,7 +4536,7 @@ GRANT EXECUTE ON FUNCTION public.insert_ap_activity_outbound(text, text, uuid, t
 -- `bot-gateway/src/auth/BotAuthMiddleware.checkRateLimit()`, which was
 -- documented as racy in BUGS.md M37: two concurrent requests could each
 -- read `request_count = N`, each pass the `< max_requests` check, then
--- both write `N + 1` — letting through ~2× the allowed burst.
+-- both write `N + 1` - letting through ~2× the allowed burst.
 --
 -- Behaviour:
 --   - First request for a (bot, bucket) pair: INSERT with count=1, return false.
@@ -4558,7 +4558,7 @@ GRANT EXECUTE ON FUNCTION public.insert_ap_activity_outbound(text, text, uuid, t
 -- The signature accepts `p_limit` and `p_window_seconds` so callers can
 -- vary per-bucket. These are also persisted on the row (`max_requests`,
 -- `window_duration_seconds`) for visibility, but the function uses the
--- parameters as the source of truth on this call — letting callers
+-- parameters as the source of truth on this call - letting callers
 -- change a bucket's limit without a separate migration.
 -- ---------------------------------------------------------------------------
 

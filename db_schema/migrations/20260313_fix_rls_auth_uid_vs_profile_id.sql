@@ -59,7 +59,7 @@ CREATE POLICY "donation_history_modify_admin" ON public.instance_donation_histor
     FOR ALL TO authenticated USING (public.is_current_user_admin());
 
 -- ---------------------------------------------------------------------------
--- AP ACTIVITIES (conditional — actor_id must be uuid; old schema had actor_id as text)
+-- AP ACTIVITIES (conditional - actor_id must be uuid; old schema had actor_id as text)
 -- ---------------------------------------------------------------------------
 DO $$ BEGIN
     IF EXISTS (
@@ -76,7 +76,7 @@ DO $$ BEGIN
         EXECUTE 'DROP POLICY IF EXISTS "Users can update their own activities" ON public.ap_activities';
         EXECUTE 'CREATE POLICY "Users can update their own activities" ON public.ap_activities FOR UPDATE USING (actor_id = public.get_current_profile_id())';
     ELSE
-        RAISE NOTICE 'ap_activities.actor_id is not uuid (old schema?) — skipping user-level ap_activities policies. Run 20260310_ap_activities_schema_update first.';
+        RAISE NOTICE 'ap_activities.actor_id is not uuid (old schema?) - skipping user-level ap_activities policies. Run 20260310_ap_activities_schema_update first.';
     END IF;
 EXCEPTION WHEN undefined_table THEN
     RAISE NOTICE 'ap_activities table does not exist, skipping';
@@ -90,7 +90,7 @@ CREATE POLICY "Admin audit log admin access" ON public.admin_audit_log
     TO authenticated USING (public.is_current_user_admin());
 
 -- ---------------------------------------------------------------------------
--- BLOCKED INSTANCES (was using profiles.id = auth.uid() — wrong comparison)
+-- BLOCKED INSTANCES (was using profiles.id = auth.uid() - wrong comparison)
 -- ---------------------------------------------------------------------------
 DROP POLICY IF EXISTS "Blocked instances admin access" ON public.blocked_instances;
 CREATE POLICY "Blocked instances admin access" ON public.blocked_instances
@@ -168,7 +168,7 @@ CREATE POLICY "Users can view voice events they're involved in" ON public.voice_
     FOR SELECT USING (user_id = public.get_current_profile_id());
 
 -- ---------------------------------------------------------------------------
--- SERVER FEDERATION EVENTS (conditional — only if user_id column exists)
+-- SERVER FEDERATION EVENTS (conditional - only if user_id column exists)
 -- ---------------------------------------------------------------------------
 DO $$ BEGIN
     IF EXISTS (
@@ -198,7 +198,7 @@ CREATE POLICY "Members can view server membership events" ON public.server_membe
     );
 
 -- ---------------------------------------------------------------------------
--- FEDERATED VOICE CALLS (conditional — only if caller_id column exists)
+-- FEDERATED VOICE CALLS (conditional - only if caller_id column exists)
 -- ---------------------------------------------------------------------------
 DO $$ BEGIN
     IF EXISTS (

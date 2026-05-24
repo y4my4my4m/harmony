@@ -28,7 +28,7 @@ export { FrameEncryptor }
  * actually touches every RTP frame. Two activation paths are used to wire
  * up the encoded streams (preferred order):
  *
- *  1. `RTCRtpScriptTransform` — sender/receiver gets a transform whose
+ *  1. `RTCRtpScriptTransform` - sender/receiver gets a transform whose
  *     constructor runs inside the worker (Safari, recent Firefox, recent
  *     Chromium). No frames cross the main thread.
  *  2. `createEncodedStreams()` + transferable `ReadableStream`/`WritableStream`
@@ -265,7 +265,7 @@ export class WebRTCEncryptionService {
     if (ok) {
       debug.log(`✅ Sender encryption active (worker) for ${receiverId}`)
     } else {
-      debug.error('❌ Failed to attach sender encryption — neither RTCRtpScriptTransform nor createEncodedStreams available')
+      debug.error('❌ Failed to attach sender encryption - neither RTCRtpScriptTransform nor createEncodedStreams available')
     }
   }
 
@@ -285,7 +285,7 @@ export class WebRTCEncryptionService {
     if (ok) {
       debug.log(`✅ Receiver decryption active (worker) for ${senderId}`)
     } else {
-      debug.error('❌ Failed to attach receiver decryption — neither RTCRtpScriptTransform nor createEncodedStreams available')
+      debug.error('❌ Failed to attach receiver decryption - neither RTCRtpScriptTransform nor createEncodedStreams available')
     }
   }
 

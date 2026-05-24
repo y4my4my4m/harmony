@@ -134,7 +134,7 @@ vi.mock('@/services/unifiedEmojiService', () => ({
 
 import { useAutoSuggest } from '../useAutoSuggest'
 
-describe('useAutoSuggest — emoji trigger for `:+1`', () => {
+describe('useAutoSuggest - emoji trigger for `:+1`', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     isLoaded.value = true
@@ -218,7 +218,7 @@ describe('useAutoSuggest — emoji trigger for `:+1`', () => {
   // the autosuggest then sees `:+` (query="+", length 1) instead of `:+1`
   // (query="+1", length 2), and the unified-emoji search is skipped entirely.
   // The fix reads the text from the editor ref, not the prop, so this no
-  // longer happens — but we still want a test that fails if the upstream
+  // longer happens - but we still want a test that fails if the upstream
   // call site is ever wired up to a lagged source again.
   it('with a fresh value, gates on actual cursor text not on the stale prop', async () => {
     const { auto } = setup()
@@ -227,7 +227,7 @@ describe('useAutoSuggest — emoji trigger for `:+1`', () => {
     // should still read the value from the `value` argument, so this is
     // the *correct* behavior to validate: with a stale value the query
     // is `+` and no thumbs_up is surfaced. This documents the failure mode
-    // — and the matching positive test below documents the fix.
+    // - and the matching positive test below documents the fix.
     auto.handleInput(':+', 3)
     await nextTick()
     const staleSuggestions = auto.suggestions.value

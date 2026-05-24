@@ -31,11 +31,11 @@ CREATE POLICY "user_servers_update_own_or_owner" ON public.user_servers
     );
 
 -- Note on conversations_insert_authenticated (WITH CHECK (true)):
--- Intentionally permissive — conversation creation is a multi-step operation
+-- Intentionally permissive - conversation creation is a multi-step operation
 -- (create row + add participants). Access control is in application logic.
 
 -- Note on notifications INSERT (WITH CHECK (true)):
--- Intentionally permissive — notifications are created by DB triggers and
+-- Intentionally permissive - notifications are created by DB triggers and
 -- SECURITY DEFINER functions that need unrestricted INSERT.
 
 NOTIFY pgrst, 'reload schema';

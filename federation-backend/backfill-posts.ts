@@ -63,7 +63,7 @@ async function fetchApObject(url: string): Promise<any | null> {
 
 async function backfillContent() {
   console.log('=== Backfill: Re-fetch federated post content ===');
-  if (DRY_RUN) console.log('(DRY RUN — no writes)');
+  if (DRY_RUN) console.log('(DRY RUN - no writes)');
 
   let offset = 0;
   let totalProcessed = 0;
@@ -109,7 +109,7 @@ async function backfillContent() {
       if (oldText === newText) {
         console.log(`  ✅ Content unchanged, skipping`);
       } else {
-        console.log(`  📝 Content differs — updating`);
+        console.log(`  📝 Content differs - updating`);
         if (!DRY_RUN) {
           const { error: updateError } = await supabase
             .from('posts')
@@ -143,7 +143,7 @@ async function backfillContent() {
 
 async function backfillLinkPreviews() {
   console.log('\n=== Backfill: Link previews for posts ===');
-  if (DRY_RUN) console.log('(DRY RUN — no writes)');
+  if (DRY_RUN) console.log('(DRY RUN - no writes)');
 
   let offset = 0;
   let totalProcessed = 0;

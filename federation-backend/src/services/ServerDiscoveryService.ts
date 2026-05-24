@@ -1016,7 +1016,7 @@ export class ServerDiscoveryService {
       if (admin) {
         ownerUserId = admin.id;
       } else if (!ownerUserId) {
-        // No admin found (shouldn't happen) — fall back to the joining user
+        // No admin found (shouldn't happen) - fall back to the joining user
         const { data: anyUser } = await supabase
           .from('profiles')
           .select('id')

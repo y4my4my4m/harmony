@@ -73,7 +73,7 @@
           <li>
             <span class="step-num">3</span>
             <div class="step-body">
-              <p class="step-title">That's it — Harmony will launch the next time you sign in to your computer.</p>
+              <p class="step-title">That's it - Harmony will launch the next time you sign in to your computer.</p>
             </div>
           </li>
         </ol>

@@ -14,7 +14,7 @@ test.describe('Navigation', () => {
     // Wait for the app to handle the route
     await page.waitForLoadState('networkidle', { timeout: 10000 })
 
-    // Should show a 404 page, redirect to home, or redirect to login — not crash
+    // Should show a 404 page, redirect to home, or redirect to login - not crash
     const url = page.url()
     const has404Content = await page.locator('text=/not found|404|page.*not.*exist/i').count()
     const redirectedAway = !url.includes('this-route-does-not-exist')

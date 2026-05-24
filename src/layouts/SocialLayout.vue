@@ -526,11 +526,11 @@ const handleOpenComposer = () => {
 
 const handlePostCreated = async () => {
   // Realtime subscription handles adding the new post to feeds.
-  // No manual refresh needed — avoids duplicate timeline/follows/reactions queries.
+  // No manual refresh needed - avoids duplicate timeline/follows/reactions queries.
 }
 
 const handleReplyToPost = (post: TimelinePost) => {
-  // For reblogs, target the original post — the user wants to reply to the
+  // For reblogs, target the original post - the user wants to reply to the
   // author whose words they're seeing, not to the booster.
   composerReplyPost.value = getOriginalPost(post)
   activityPubStore.openComposer()
@@ -538,7 +538,7 @@ const handleReplyToPost = (post: TimelinePost) => {
 
 // Previously these called `activityPubStore.favoritePost / reblogPost /
 // bookmarkPost` via `as any`, but those methods don't actually exist on the
-// store — the real action methods are `toggleFavorite / toggleReblog /
+// store - the real action methods are `toggleFavorite / toggleReblog /
 // toggleBookmark`. The `as any` cast hid a TypeError so the buttons in the
 // social layout's wrapper UI silently failed (caught + logged, no toast).
 const handleFavoritePost = async (post: TimelinePost) => {

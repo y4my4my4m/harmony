@@ -395,7 +395,7 @@ class ThreadService {
       if (error) throw error
 
       if (!data) {
-        debug.error('Thread update returned no data — insufficient permissions or thread not found')
+        debug.error('Thread update returned no data - insufficient permissions or thread not found')
         return null
       }
 
@@ -970,7 +970,7 @@ class ThreadService {
             at: new Date().toISOString(),
           }
         } else {
-          // No recovery key — silent plaintext, no prompt.
+          // No recovery key - silent plaintext, no prompt.
           extra.plaintext_override = {
             authorized: true,
             reason: 'thread_no_recovery_key',

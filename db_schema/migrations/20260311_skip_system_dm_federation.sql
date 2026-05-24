@@ -1,4 +1,4 @@
--- Skip federating system messages (group_created, users_added) — they are
+-- Skip federating system messages (group_created, users_added) - they are
 -- internal metadata and shouldn't be sent to remote instances.
 BEGIN;
 

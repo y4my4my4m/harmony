@@ -383,7 +383,7 @@ export class ActivityProcessor {
       return;
     }
 
-    // Handle ChatThread — federated thread creation
+    // Handle ChatThread - federated thread creation
     if (object.type === 'ChatThread') {
       logger.info(`📋 Routing Create ChatThread to handler: ${object.id}`);
       const { handleThreadActivity } = await import('./ThreadActivityHandler.js');
@@ -693,7 +693,7 @@ export class ActivityProcessor {
       };
     }
 
-    // Parent is also a reply — in_reply_to is always a UUID (DB column), recurse
+    // Parent is also a reply - in_reply_to is always a UUID (DB column), recurse
     const parentResult = await this.resolveReplyChain(parentPost.in_reply_to, depth + 1);
     
     // Update the parent post with its conversation_root_id if we found it
@@ -715,7 +715,7 @@ export class ActivityProcessor {
    * given parent ap_id but whose `in_reply_to` foreign key is still NULL.
    *
    * This happens when a child reply arrives (via inbox or /resolve-post)
-   * before its parent — we stamp `metadata.in_reply_to_ap_url` so the link
+   * before its parent - we stamp `metadata.in_reply_to_ap_url` so the link
    * isn't lost, but the child stays orphaned in the thread RPC until the
    * parent shows up. Calling this every time we import or look up a post
    * means the thread "self-heals" as soon as the parent arrives.
@@ -729,7 +729,7 @@ export class ActivityProcessor {
     if (!parentLocalId) return;
     const supabase = getSupabaseClient();
 
-    // Match orphans by *every* known URL form for this post — Mastodon
+    // Match orphans by *every* known URL form for this post - Mastodon
     // canonical id (`/users/x/statuses/N`), pretty url (`/@x/N`), GoToSocial
     // (`/users/x/statuses/N` ↔ `/@x/statuses/N`), Pleroma `/objects/UUID`,
     // etc. all surface in different `inReplyTo` payloads, and an orphan
@@ -788,7 +788,7 @@ export class ActivityProcessor {
    * the depth budget with `resolveReplyChain`) so the imported post lands
    * with `in_reply_to` and `conversation_root_id` populated, and any missing
    * ancestors are imported alongside it. Without this, calling /resolve-post
-   * for a federated reply leaves it as a floating post — the local thread
+   * for a federated reply leaves it as a floating post - the local thread
    * RPC then has nothing to walk and the user sees no context.
    *
    * Whether the post was freshly imported or already cached, we also re-link
@@ -1359,7 +1359,7 @@ export class ActivityProcessor {
       };
 
       if (isCustomEmoji) {
-        // Custom emoji with URL — resolve to an emoji_id in the emojis table
+        // Custom emoji with URL - resolve to an emoji_id in the emojis table
         const emojiId = await this.resolveInboundEmojiId(
           supabase, emoji, emojiName, emojiUrl, user.id,
         );
@@ -1369,7 +1369,7 @@ export class ActivityProcessor {
         }
         reactionData.emoji_id = emojiId;
       } else {
-        // Native/unicode emoji — store as custom_emoji_content with null emoji_id
+        // Native/unicode emoji - store as custom_emoji_content with null emoji_id
         // This matches how local reactions are stored and groups correctly
         let normalizedEmoji = emoji || '❤️';
         if (normalizedEmoji === '❤') normalizedEmoji = '❤️';
@@ -1430,7 +1430,7 @@ export class ActivityProcessor {
       
       logger.info(`💾 Inserting reaction: emoji_id=${emojiId}, custom_content=${normalizedEmoji}`);
       
-      // Duplicate check — match on user + post + specific emoji to allow
+      // Duplicate check - match on user + post + specific emoji to allow
       // multiple different reactions from the same user
       const duplicateQuery = supabase
         .from('post_interactions')
@@ -2593,7 +2593,7 @@ export class ActivityProcessor {
       return created?.id ?? null;
     }
 
-    // Standard unicode emoji — find or create a global emoji entry
+    // Standard unicode emoji - find or create a global emoji entry
     let normalizedEmoji = emoji || '❤️';
     if (!emoji || normalizedEmoji === '❤' || normalizedEmoji === '❤️') {
       normalizedEmoji = '❤️';
@@ -3041,7 +3041,7 @@ export class ActivityProcessor {
 
         if (stubError) {
           if (stubError.code === '23505') {
-            // Thread was just created (race condition) — resolve and assign
+            // Thread was just created (race condition) - resolve and assign
             resolvedThreadId = stubThreadId;
             logger.info(`🧵 Stub thread ${stubThreadId} already exists (race condition), assigning message`);
           } else {
@@ -3227,7 +3227,7 @@ export class ActivityProcessor {
   }
 
   /**
-   * Handle group invite (remote user added to group) — create conversation + notification
+   * Handle group invite (remote user added to group) - create conversation + notification
    */
   private static async handleGroupInvite(object: any, authorId: string): Promise<void> {
     const supabase = getSupabaseClient();

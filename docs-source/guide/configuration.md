@@ -17,18 +17,18 @@ The Vite configuration handles:
 
 The project uses a multi-config TypeScript setup:
 
-- `tsconfig.app.json` — App code (`src/`), extends `@vue/tsconfig/tsconfig.dom.json`
-- `tsconfig.node.json` — Build tooling and configs, extends `@tsconfig/node18`
-- `tsconfig.json` — Project references combining both
+- `tsconfig.app.json` - App code (`src/`), extends `@vue/tsconfig/tsconfig.dom.json`
+- `tsconfig.node.json` - Build tooling and configs, extends `@tsconfig/node18`
+- `tsconfig.json` - Project references combining both
 
 ### ActivityPub Config (`src/config/activitypub.ts`)
 
 Federation-specific settings derived from environment variables:
 
-- `domain` — Instance domain from `VITE_DOMAIN`
-- `federationApiBase` — API prefix (`/api/federation`)
-- `endpoints` — WebFinger, NodeInfo, actor, inbox, outbox paths
-- `contentTypes` — ActivityPub MIME types
+- `domain` - Instance domain from `VITE_DOMAIN`
+- `federationApiBase` - API prefix (`/api/federation`)
+- `endpoints` - WebFinger, NodeInfo, actor, inbox, outbox paths
+- `contentTypes` - ActivityPub MIME types
 
 ## Feature Flags
 

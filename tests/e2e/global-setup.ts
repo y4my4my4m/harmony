@@ -101,7 +101,7 @@ async function globalSetup(_config: FullConfig): Promise<void> {
     isPublic: true,
   })
 
-  // The server INSERT trigger auto-creates a default "general" channel — use it
+  // The server INSERT trigger auto-creates a default "general" channel - use it
   const { data: defaultChannel } = await admin
     .from('channels')
     .select('id')

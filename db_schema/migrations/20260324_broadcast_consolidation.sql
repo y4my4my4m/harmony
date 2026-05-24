@@ -438,7 +438,7 @@ END;
 $$;
 
 -- =========================================================================
--- F. Triggers (idempotent — DROP IF EXISTS + CREATE)
+-- F. Triggers (idempotent - DROP IF EXISTS + CREATE)
 -- =========================================================================
 
 -- Server structure triggers

@@ -468,7 +468,7 @@ export class SignatureService {
     
     // Finally, fetch from remote server.
     // safeFetch handles URL+DNS validation, manual redirect re-validation,
-    // and the 10s timeout — supersedes the previous `validateExternalUrl` +
+    // and the 10s timeout - supersedes the previous `validateExternalUrl` +
     // raw fetch + `AbortSignal.timeout` pattern. BUGS.md H15.
     try {
       const response = await safeFetch(actorUrl, {

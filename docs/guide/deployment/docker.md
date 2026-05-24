@@ -113,10 +113,10 @@ docker compose -f docker-compose.full.yml --profile voice up -d
 - **Image**: `nginx:alpine`
 - **Ports**: 80, 443
 - **Volumes**:
-  - `./dist` — Frontend static files
-  - `./docs/.vitepress/dist` — Documentation site
-  - `./dev/nginx-harmony.conf` — Nginx configuration
-  - `/etc/letsencrypt` — SSL certificates
+  - `./dist` - Frontend static files
+  - `./docs/.vitepress/dist` - Documentation site
+  - `./dev/nginx-harmony.conf` - Nginx configuration
+  - `/etc/letsencrypt` - SSL certificates
 
 ## Networking
 

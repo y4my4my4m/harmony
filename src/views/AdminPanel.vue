@@ -590,7 +590,7 @@
                   {{ user.handle }}
                   <span class="user-joined">Joined {{ formatDate(user.created_at) }}</span>
                   <span v-if="user.is_suspended && user.suspension_reason" class="suspension-reason">
-                    — {{ user.suspension_reason }}
+                    - {{ user.suspension_reason }}
                   </span>
                 </div>
               </div>
@@ -3816,7 +3816,7 @@ const formatActivityMessage = (event: { type: string; message: string | object; 
     // User moderation with target
     if ((event.type?.startsWith('user_') || obj.action === 'suspend' || obj.action === 'delete' || obj.action === 'unsuspend') && (targetUser || obj.user_id)) {
       const who = targetUser ? `@${targetUser}` : (obj.user_id ? `user ${String(obj.user_id).slice(0, 8)}…` : '')
-      const reason = obj.reason ? ` — ${obj.reason}` : ''
+      const reason = obj.reason ? ` - ${obj.reason}` : ''
       const verb = event.type === 'user_suspend' ? 'Suspended' : event.type === 'user_delete' ? 'Deleted' : event.type === 'user_unsuspend' ? 'Unsuspended' : ''
       return `${verb || 'Moderated'} ${who}${reason}`.trim()
     }
@@ -3824,7 +3824,7 @@ const formatActivityMessage = (event: { type: string; message: string | object; 
     // Build human-readable message from common keys
     const parts: string[] = []
     if (obj.domain) parts.push(obj.domain)
-    if (obj.reason) parts.push(`— ${obj.reason}`)
+    if (obj.reason) parts.push(`- ${obj.reason}`)
     if (obj.action) parts.push(`(${obj.action})`)
     if (obj.user_id && !targetUser) parts.push(`user: ${obj.user_id}`)
     if (targetUser) parts.unshift(`@${targetUser}`)

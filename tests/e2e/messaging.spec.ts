@@ -98,7 +98,7 @@ test.describe('Channel Messaging', () => {
     await chat.messageInput.click()
     await alicePage.keyboard.press('Enter')
 
-    // No new empty message should appear — count shouldn't increase
+    // No new empty message should appear - count shouldn't increase
     // (just verifying no crash/error)
     await alicePage.waitForTimeout(1000)
   })

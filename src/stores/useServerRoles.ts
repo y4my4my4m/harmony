@@ -13,7 +13,7 @@
  *   - `UserSidebar` already did a batched server-wide fetch for the hoist
  *     feature, but the result lived in component-local refs and was filtered
  *     to *hoisted* roles only. Chat name color wants ANY role with a color,
- *     hoisted or not, by highest position — same as Discord.
+ *     hoisted or not, by highest position - same as Discord.
  *
  * This store does one batched fetch per server (server_roles + user_roles in
  * 2 queries) and exposes synchronous getters keyed by (serverId, userId).

@@ -60,7 +60,7 @@ export class MessageService {
    *
    * `options.allowPlaintextFallback` opts into plaintext sending when the
    * channel is encryption-eligible but encryption fails / is unavailable.
-   * Default is fail-closed — callers must catch ENCRYPTION_* errors and
+   * Default is fail-closed - callers must catch ENCRYPTION_* errors and
    * confirm with the user before retrying with the override.
    */
   async sendChannelMessage(

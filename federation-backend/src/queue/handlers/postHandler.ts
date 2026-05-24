@@ -74,9 +74,9 @@ export async function handlePostJob(data: FederationJobData): Promise<void> {
             : [];
 
           if (mentions.length === 0) {
-            logger.warn(`📧 Direct post ${post.id} has no remote recipients — cannot federate`);
+            logger.warn(`📧 Direct post ${post.id} has no remote recipients - cannot federate`);
             await updateFederationStatus(post_id, 'posts', 'failed');
-            throw new Error(`Direct post ${post_id} has no remote mention recipients — nothing to deliver`);
+            throw new Error(`Direct post ${post_id} has no remote mention recipients - nothing to deliver`);
           }
 
           await deliverToMentionedUsers(post, activity, author, supabase);

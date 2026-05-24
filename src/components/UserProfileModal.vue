@@ -611,7 +611,7 @@ function getProfileUrl(user: FederatedUser | User | null): string {
     return (fed as any).url
   }
   
-  // federated_id is the AP actor ID (e.g. /users/name) — not always a viewable page
+  // federated_id is the AP actor ID (e.g. /users/name) - not always a viewable page
   if (fed.federated_id) {
     return fed.federated_id
   }
@@ -1182,7 +1182,7 @@ watch(() => ({ show: props.show, userId: props.user?.id }), async (newVal, oldVa
     fetchedCreatedAt.value = null
     fetchedUserRoles.value = []
   } else if (newVal.show && newVal.userId && (newVal.userId !== oldVal?.userId || !oldVal?.show)) {
-    // Modal opened or user switched — ensure the dropdown isn't carried over.
+    // Modal opened or user switched - ensure the dropdown isn't carried over.
     showActionsMenu.value = false
     // Modal opened with user or user changed - cleanup old and setup new
     await cleanupProfilePresence()

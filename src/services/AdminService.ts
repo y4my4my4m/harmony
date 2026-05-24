@@ -988,7 +988,7 @@ class AdminService {
         updated_at: new Date().toISOString()
       };
 
-      // Singleton table — fetch the existing row and update, or insert if empty
+      // Singleton table - fetch the existing row and update, or insert if empty
       const { data: existing } = await supabase
         .from('instance_webrtc_settings')
         .select('id')
@@ -1134,7 +1134,7 @@ class AdminService {
   async checkAdminPermissions(userId: string): Promise<boolean> {
     try {
       // BUGS.md Pattern A: the existing callers (e.g. router admin guard,
-      // AdminPanel.vue) pass `authStore.session?.user?.id` here — that's
+      // AdminPanel.vue) pass `authStore.session?.user?.id` here - that's
       // the Supabase auth.users UUID, not `profiles.id`. The previous
       // `.eq('id', userId)` filter therefore matched zero rows and admin
       // detection was always false on direct calls. Match on
@@ -1159,7 +1159,7 @@ class AdminService {
    */
   async checkModeratorPermissions(userId: string): Promise<boolean> {
     try {
-      // BUGS.md Pattern A: same fix as checkAdminPermissions — callers pass
+      // BUGS.md Pattern A: same fix as checkAdminPermissions - callers pass
       // the auth.users UUID, so we match `auth_user_id`.
       const { data, error } = await supabase
         .from('profiles')
@@ -1666,7 +1666,7 @@ class AdminService {
 
   /**
    * Discover an instance by proxying through the federation backend.
-   * This avoids CORS issues — browsers block direct cross-origin requests
+   * This avoids CORS issues - browsers block direct cross-origin requests
    * to remote fediverse servers that don't set Access-Control-Allow-Origin.
    */
   async discoverInstance(domain: string): Promise<InstanceSearchResult | null> {

@@ -310,7 +310,7 @@ BEGIN
     END IF;
 
     -- Try to find the creator / inviter (the most recent other participant
-    -- who was added in the same second — a heuristic for batch inserts from
+    -- who was added in the same second - a heuristic for batch inserts from
     -- create_group_conversation).  Falls back to the conversation creator
     -- if available, otherwise NULL.
     SELECT p.* INTO v_inviter

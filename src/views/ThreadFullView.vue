@@ -971,7 +971,7 @@ const cleanupReactionsSubscription = () => {
   }
 }
 
-/** Full thread route does not run ChatView.subscribeToMessages — mirror channel reactions CDC here. */
+/** Full thread route does not run ChatView.subscribeToMessages - mirror channel reactions CDC here. */
 const setupReactionsSubscription = () => {
   cleanupReactionsSubscription()
   if (!thread.value?.channel_id || !thread.value?.id) return

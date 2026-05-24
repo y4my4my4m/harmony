@@ -631,7 +631,7 @@ const recoveryCodes = ref<string[]>([])
 const twoFactorError = ref('')
 const showDisable2FAModal = ref(false)
 // Code the user types to authorize the unenroll. 6 digits for TOTP, 8 chars
-// for recovery code — `useDisableRecoveryCode` toggles which one we expect.
+// for recovery code - `useDisableRecoveryCode` toggles which one we expect.
 const disable2FACode = ref('')
 const useDisableRecoveryCode = ref(false)
 const disable2FAError = ref('')
@@ -828,7 +828,7 @@ const check2FAStatus = async () => {
     const { data, error } = await supabase.auth.mfa.listFactors()
     if (error) throw error
 
-    // Only count VERIFIED factors — unverified factors from incomplete
+    // Only count VERIFIED factors - unverified factors from incomplete
     // enrollments should never gate enable/disable UI.
     const totpFactor = data?.totp?.find((f: any) => f.status === 'verified')
     twoFactorEnabled.value = !!totpFactor
@@ -843,12 +843,12 @@ const check2FAStatus = async () => {
   } catch (error: any) {
     debug.error('2FA status check error:', error)
     // Surface the failure instead of silently flipping the UI to "disabled"
-    // — a transient `listFactors` error used to make 2FA appear off when
+    // - a transient `listFactors` error used to make 2FA appear off when
     // it was actually still enabled, which then cascaded into broken
     // enable/disable UI (the disable button would be hidden, the enable
     // flow would race against an existing factor, etc.).
     toast.error(`Could not check 2FA status: ${error?.message ?? 'unknown error'}`)
-    // Intentionally do NOT mutate `twoFactorEnabled` / `factorId` here —
+    // Intentionally do NOT mutate `twoFactorEnabled` / `factorId` here -
     // keep whatever state we had before so the user's UI doesn't jitter.
   }
 }
@@ -1008,7 +1008,7 @@ const cancelEnroll2FA = async () => {
 }
 
 const onDisable2FACodeInput = () => {
-  // Clear error as the user retypes — same UX as the login MFA modal.
+  // Clear error as the user retypes - same UX as the login MFA modal.
   disable2FAError.value = ''
 }
 
@@ -1106,7 +1106,7 @@ const disable2FA = async () => {
         .delete()
         .eq('user_id', userId)
       if (deleteError) {
-        // Non-fatal — user can retry, and unenroll will still proceed.
+        // Non-fatal - user can retry, and unenroll will still proceed.
         debug.error('Error deleting recovery codes:', deleteError)
       }
     }
@@ -1832,7 +1832,7 @@ onMounted(async () => {
   font-size: 13px;
 }
 
-/* Subtle "Use a recovery code instead" toggle in the disable-2FA modal —
+/* Subtle "Use a recovery code instead" toggle in the disable-2FA modal -
    matches the visual weight of the equivalent toggle in the login MFA
    modal so the two flows feel consistent. */
 .link-button {

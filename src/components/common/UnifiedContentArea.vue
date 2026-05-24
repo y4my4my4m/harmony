@@ -313,7 +313,7 @@ const getSpecialViewEmptyMessage = (viewType: any) => {
     case 'explore': return 'Check back later for trending content and discover new instances.'
     case 'bookmarks': return 'Posts you bookmark will appear here for easy access later.'
     case 'lists': return 'Create lists to organize users and topics you follow.'
-    case 'mentions': return 'Posts where someone @mentions you will appear here — even from people you don\'t follow.'
+    case 'mentions': return 'Posts where someone @mentions you will appear here - even from people you don\'t follow.'
     default: return 'Content will appear here when available.'
   }
 }

@@ -85,8 +85,8 @@ manager.onStatusChange('channelName', (status) => {
 
 ## Debug Components
 
-- `UserDataDebugPanel` (`src/components/debug/`) — Inspect cached user data and presence state
-- Status lifecycle debugger (`StatusLifecycleDebugger` service) — Track user status transitions
+- `UserDataDebugPanel` (`src/components/debug/`) - Inspect cached user data and presence state
+- Status lifecycle debugger (`StatusLifecycleDebugger` service) - Track user status transitions
 
 ## Supabase Dashboard
 

@@ -4,7 +4,7 @@
  * Helper for callers that want to honor the fail-closed encryption policy
  * from CoreMessageService / ThreadService. When a send rejects with an
  * encryption policy error code, this prompts the user for explicit consent
- * (via a styled in-app modal — see `EncryptionFallbackModal.vue`) and
+ * (via a styled in-app modal - see `EncryptionFallbackModal.vue`) and
  * re-runs the send with `allowPlaintextFallback = true`.
  *
  * Usage:
@@ -85,7 +85,7 @@ const promptCopy = (scope: EncryptionFallbackScope, error: any): string => {
 }
 
 // ===========================================================================
-// Singleton modal state — read by `EncryptionFallbackModal.vue`.
+// Singleton modal state - read by `EncryptionFallbackModal.vue`.
 // The composable is the only writer; the modal is the only consumer (besides
 // `resolveEncryptionFallbackPrompt`).
 // ===========================================================================
@@ -128,7 +128,7 @@ export function resolveEncryptionFallbackPrompt(accepted: boolean): void {
  */
 function defaultConfirm(scope: EncryptionFallbackScope, error: any): Promise<boolean> {
   if (encryptionFallbackPromptState.value.open) {
-    debug.warn('🔒 Encryption fallback prompt already open — auto-declining new prompt')
+    debug.warn('🔒 Encryption fallback prompt already open - auto-declining new prompt')
     return Promise.resolve(false)
   }
   return new Promise<boolean>(resolve => {
@@ -161,7 +161,7 @@ export function useEncryptionFallbackPrompt() {
         return { status: 'error', error }
       }
       if (!isFallbackEligible(error)) {
-        // ENCRYPTION_REQUIRED — server policy, no override allowed.
+        // ENCRYPTION_REQUIRED - server policy, no override allowed.
         return { status: 'error', error }
       }
 

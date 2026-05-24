@@ -489,7 +489,7 @@ export function useContentRenderer(
           const cleanUrl = sanitizeUrl(url);
           const safeUrl = escapeHtml(cleanUrl);
           // Display text uses the raw (escaped) URL so the user sees what they typed
-          // even if the scheme is unsafe — we just don't make it a live link.
+          // even if the scheme is unsafe - we just don't make it a live link.
           const safeDisplayText = escapeHtml(url);
 
           // If the URL was rejected by sanitizeUrl, render it as inert text instead

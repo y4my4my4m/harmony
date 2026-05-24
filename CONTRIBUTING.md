@@ -78,8 +78,8 @@ We are committed to providing a welcoming and inspiring community for all. Pleas
 
 ## Roadmap & technical debt
 
-- **[TODO_latest.md](./TODO_latest.md)** — current priorities and known issues (canonical).
-- **[TODO.md](./TODO.md)** — older notes and completed work; see the pointer at the top of that file.
+- **[TODO_latest.md](./TODO_latest.md)** - current priorities and known issues (canonical).
+- **[TODO.md](./TODO.md)** - older notes and completed work; see the pointer at the top of that file.
 
 ## Development Workflow
 

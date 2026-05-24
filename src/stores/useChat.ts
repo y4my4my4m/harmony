@@ -547,7 +547,7 @@ export const useChatStore = defineStore('chat', {
       const handler = async (e: Event) => {
         const detail = (e as CustomEvent).detail;
         const roomId = detail?.roomId as string | undefined;
-        debug.log(`🔑 Key received${roomId ? ` for room ${roomId.substring(0, 8)}...` : ''} — re-decrypting`);
+        debug.log(`🔑 Key received${roomId ? ` for room ${roomId.substring(0, 8)}...` : ''} - re-decrypting`);
         await this.reprocessEncryptedMessages(roomId);
       };
       (this as any)._keyListenerHandler = handler;
@@ -729,9 +729,9 @@ export const useChatStore = defineStore('chat', {
           throw error;
         }
 
-        // If offline, mark failed immediately — no point retrying
+        // If offline, mark failed immediately - no point retrying
         if (!navigator.onLine) {
-          debug.log('📴 Offline — marking message as failed, will retry when user clicks Retry');
+          debug.log('📴 Offline - marking message as failed, will retry when user clicks Retry');
           this._markMessageFailed(tempId);
           return;
         }
@@ -743,7 +743,7 @@ export const useChatStore = defineStore('chat', {
           await new Promise(r => setTimeout(r, delay));
 
           if (!navigator.onLine) {
-            debug.log('📴 Went offline during retry — marking as failed');
+            debug.log('📴 Went offline during retry - marking as failed');
             break;
           }
 
@@ -879,7 +879,7 @@ export const useChatStore = defineStore('chat', {
       const boundToThisChannel = this.realtimeChannelId === channelId;
 
       // Require BOTH subscriptions AND a matching binding. `currentChannelId` is
-      // updated early for UI/stale guards, so it must NOT drive teardown — that
+      // updated early for UI/stale guards, so it must NOT drive teardown - that
       // left the previous channel's realtime active when switching channels.
       if (hasMessagesSub && hasReactionsSub && boundToThisChannel && this.currentSubscription) {
         debug.log('📡 Already subscribed to channel + reactions:', channelName);
@@ -889,14 +889,14 @@ export const useChatStore = defineStore('chat', {
       const reactionsStore = useReactionsStore();
 
       if (hasMessagesSub && !hasReactionsSub && boundToThisChannel) {
-        debug.log('📡 Messages subscription exists but reactions missing — re-attaching reactions for:', channelId);
+        debug.log('📡 Messages subscription exists but reactions missing - re-attaching reactions for:', channelId);
         this.setupEncryptionKeyListener();
         this._subscribeToChannelReactions(channelId, reactionsChannelName, reactionsStore);
         this.realtimeChannelId = channelId;
         return;
       }
 
-      // Stale binding or orphaned subs from a prior channel — rebuild cleanly.
+      // Stale binding or orphaned subs from a prior channel - rebuild cleanly.
       if (this.currentSubscription || this.realtimeChannelId) {
         debug.log('🔄 Tearing down previous realtime channel:', this.realtimeChannelId, '→', channelId);
         this._teardownChannelRealtime();
@@ -1032,7 +1032,7 @@ export const useChatStore = defineStore('chat', {
           // (e.g. federation resolving a stub thread), remove from main channel cache.
           if (payloadNew.thread_id) {
             store.removeMessageFromCache(payloadNew.id);
-            debug.log('⚠️ Thread reply — removed from main channel if present:', payloadNew.id);
+            debug.log('⚠️ Thread reply - removed from main channel if present:', payloadNew.id);
             return;
           }
           

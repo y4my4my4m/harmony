@@ -25,14 +25,14 @@ export function useUndoRedo(opts?: UseUndoRedoOptions) {
 
   function findChangedChar(oldText: string, newText: string): string | null {
     if (newText.length > oldText.length) {
-      // Character(s) inserted — find the first differing position
+      // Character(s) inserted - find the first differing position
       for (let i = 0; i < newText.length; i++) {
         if (i >= oldText.length || newText[i] !== oldText[i]) {
           return newText[i];
         }
       }
     } else if (newText.length < oldText.length) {
-      // Deletion — treat as a boundary break (new group)
+      // Deletion - treat as a boundary break (new group)
       return ' ';
     }
     return null;

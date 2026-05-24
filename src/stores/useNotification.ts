@@ -668,10 +668,10 @@ export const useNotificationStore = defineStore('notification', {
      *
      * Sets up two parallel listeners for maximum reliability:
      *
-     * 1. Broadcast handler — via UserEventChannel (realtime.send() from DB triggers).
+     * 1. Broadcast handler - via UserEventChannel (realtime.send() from DB triggers).
      *    Lower latency, fewer channels, but depends on realtime.send() working.
      *
-     * 2. postgres_changes fallback — classic CDC subscription on the notifications
+     * 2. postgres_changes fallback - classic CDC subscription on the notifications
      *    table.  Always works if the table is in the supabase_realtime publication.
      *
      * Both paths funnel through _processIncomingNotification / _processNotificationUpdate
@@ -718,7 +718,7 @@ export const useNotificationStore = defineStore('notification', {
         _unsubPrefsUpdated = userEventChannel.on('preferences:updated', () => {
           debug.log('📡 Preferences updated on another tab/device, reloading...')
           // Prefer profile id (the column the row is keyed on). Fall back to
-          // the auth id only as a last resort — loadPreferences resolves
+          // the auth id only as a last resort - loadPreferences resolves
           // either to a profile id internally.
           const id = this.cachedProfileId || this.cachedAuthUserId
           if (id) {
@@ -727,7 +727,7 @@ export const useNotificationStore = defineStore('notification', {
         })
 
         _unsubReconnected = userEventChannel.on('_reconnected', async () => {
-          debug.log('🔄 UserEventChannel reconnected — gap-filling notifications')
+          debug.log('🔄 UserEventChannel reconnected - gap-filling notifications')
           await this.fetchNotifications(profileId)
         })
 
@@ -1234,7 +1234,7 @@ export const useNotificationStore = defineStore('notification', {
       // Compute current state synchronously so the UI reflects DND status
       // immediately without waiting for the first interval tick.
       this.isDndActive = this.isQuietHours
-      // Don't bother polling if DND is disabled — there are no transitions
+      // Don't bother polling if DND is disabled - there are no transitions
       // to detect. The interval is (re)started by callers when preferences
       // change to enable DND (see action paths around lines 375 / 433).
       if (!this.preferences?.dnd_enabled) return
@@ -1317,7 +1317,7 @@ export const useNotificationStore = defineStore('notification', {
 
     async markAllAsRead() {
       // Snapshot read state for revert if RPC fails. Mark optimistically
-      // only after we have an authenticated profile id — otherwise the UI
+      // only after we have an authenticated profile id - otherwise the UI
       // flips to "all read" but the next refresh restores the unread state.
       const previousReadStates = this.notifications.map(n => ({ id: n.id, is_read: n.is_read }))
 

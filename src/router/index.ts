@@ -438,7 +438,7 @@ router.beforeEach(async (to, from, next) => {
     const profileStore = useProfileStore();
     if (!profileStore.profileFetched) {
       const authStore2 = useAuthStore();
-      // BUGS.md Pattern A: there is no `authStore.user` — the auth store
+      // BUGS.md Pattern A: there is no `authStore.user` - the auth store
       // exposes `session.user`. Reading `authStore2.user?.id` always
       // produced `undefined`, so the profile fetch was skipped and the
       // admin gate fell back to a (possibly stale) `profileStore.profile`

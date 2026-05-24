@@ -11,7 +11,7 @@
 --   - Showing "Replying to @<the-booster>" in the UI (the timeline view's
 --     `reply_context` is JOINed off `posts.in_reply_to`).
 --   - Invisible in the original author's thread (the descendants query
---     walks `WHERE in_reply_to = original_id` — and the reply doesn't
+--     walks `WHERE in_reply_to = original_id` - and the reply doesn't
 --     point there).
 --
 -- The frontend fix (`src/utils/postReblog.ts` + the call sites that use it)
@@ -67,7 +67,7 @@ WITH redirect AS (
    AND w.metadata ? 'reblog_of'
    AND w.metadata->>'reblog_of' IS NOT NULL
   -- Sanity check: the original post must actually exist locally. (Boost
-  -- wrappers without a hydrated original are out of scope — we can't
+  -- wrappers without a hydrated original are out of scope - we can't
   -- redirect to a row we don't have.)
   JOIN public.posts o
     ON o.id = (w.metadata->>'reblog_of')::uuid

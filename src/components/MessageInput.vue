@@ -321,7 +321,7 @@ onUnmounted(() => {
 });
 
 // Auto-suggest setup
-// Read straight from the editor — `props.modelValue` lags by one keystroke
+// Read straight from the editor - `props.modelValue` lags by one keystroke
 // because `update:modelValue` round-trips through the parent's v-model
 // before the prop binding is patched back down. Using the editor ref means
 // autosuggest sees the value as of *this* tick, which matters when handlers
@@ -417,7 +417,7 @@ const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText);
       // Pull the text from the editor ref instead of `props.modelValue`:
       // `RichTextEditor.handleInput` emits `update:modelValue` and
       // `cursor-position-changed` synchronously back-to-back, but the prop
-      // only refreshes after the parent's v-model round-trip — so reading
+      // only refreshes after the parent's v-model round-trip - so reading
       // the prop here gives us the value from BEFORE the keystroke. That
       // caused queries like `:+1` to be evaluated as `:+`, and the
       // unified-emoji search (which is gated on `query.length >= 2`) was

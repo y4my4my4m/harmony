@@ -1,4 +1,4 @@
-# Harmony — TODO & technical debt
+# Harmony - TODO & technical debt
 
 **Canonical roadmap.** Older notes: [`TODO.md`](./TODO.md).
 
@@ -30,7 +30,7 @@ Comments still mark mobile fixes as TODO (profile / nav affordances on small scr
 
 ### 3. Channel sidebar scale
 
-`ChannelSidebar.vue` — consider virtualizing channel/category lists for very large servers (TODO in file).
+`ChannelSidebar.vue` - consider virtualizing channel/category lists for very large servers (TODO in file).
 
 ### 4. Group DMs & ActivityPub
 
@@ -38,7 +38,7 @@ Group DMs: delivery is largely driven by DB + `federation-backend` listeners; en
 
 ### 5. Admin: instance discovery
 
-`AdminService` uses **fediverse.observer** (`api.fediverse.observer`) for discovery hints — not `instances.social` / `fediverse.info` as older notes assumed. Optional follow-up: add more sources or unify UX.
+`AdminService` uses **fediverse.observer** (`api.fediverse.observer`) for discovery hints - not `instances.social` / `fediverse.info` as older notes assumed. Optional follow-up: add more sources or unify UX.
 
 ### 6. Group encryption (Signal / DM groups)
 
@@ -64,21 +64,21 @@ Some historical conflation may remain; tighten over time when touching auth/prof
 
 ## Recently completed (verified March 2026)
 
-- [x] **Call blocking** — `DMCallPermissions.ts` uses `user_blocks` with RLS; block checks are active (no longer “disabled pending RLS”).
-- [x] **Mute / block from ActivityPub UI** — `useActivityPub` mute/block/unmute/unblock call `InteractionService` / DB (`user_mutes`, `user_blocks`).
-- [x] **Lists** — `user_lists` + `loadLists` / CRUD in `useActivityPub`; `ListsView` loads via store.
-- [x] **Thread edit UI** — `ThreadEditModal` wired from `ChannelSidebar.vue`.
-- [x] **Voice channel name resolution** — prior “fetch all channels” FIXME in `unifiedVoiceChannel.ts` is gone; names come from `serverChannelStore` / channel objects.
-- [x] **Core service split** — `src/services/core/index.ts` exports CoreMessage, CorePost, CoreProfile, CoreInteraction services (module comment updated to match).
-- [x] **Docs / self-host** — Compose reflects `federation-server`, `federation-worker`, Redis, profiles (`docker-compose.prod.yml` / `docker-compose.full.yml`).
+- [x] **Call blocking** - `DMCallPermissions.ts` uses `user_blocks` with RLS; block checks are active (no longer “disabled pending RLS”).
+- [x] **Mute / block from ActivityPub UI** - `useActivityPub` mute/block/unmute/unblock call `InteractionService` / DB (`user_mutes`, `user_blocks`).
+- [x] **Lists** - `user_lists` + `loadLists` / CRUD in `useActivityPub`; `ListsView` loads via store.
+- [x] **Thread edit UI** - `ThreadEditModal` wired from `ChannelSidebar.vue`.
+- [x] **Voice channel name resolution** - prior “fetch all channels” FIXME in `unifiedVoiceChannel.ts` is gone; names come from `serverChannelStore` / channel objects.
+- [x] **Core service split** - `src/services/core/index.ts` exports CoreMessage, CorePost, CoreProfile, CoreInteraction services (module comment updated to match).
+- [x] **Docs / self-host** - Compose reflects `federation-server`, `federation-worker`, Redis, profiles (`docker-compose.prod.yml` / `docker-compose.full.yml`).
 
 ---
 
 ## Parking lot / federation standards
 
-- Channel/category “double refresh” (realtime + client) — investigate if still reproducible.
+- Channel/category “double refresh” (realtime + client) - investigate if still reproducible.
 - Thread list caching parity with channels.
-- FEP / `harmony:ChatServer` / `/.well-known/harmony-instance` — see [`docs/ACTIVITYPUB_EXTENSIONS.md`](docs/ACTIVITYPUB_EXTENSIONS.md).
+- FEP / `harmony:ChatServer` / `/.well-known/harmony-instance` - see [`docs/ACTIVITYPUB_EXTENSIONS.md`](docs/ACTIVITYPUB_EXTENSIONS.md).
 
 ---
 

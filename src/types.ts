@@ -965,7 +965,7 @@ export interface ActivityPubPost {
   is_favorited?: boolean;
   is_reblogged?: boolean;
   is_bookmarked?: boolean;
-  // Reply context — populated by code paths that hydrate the local reply tree
+  // Reply context - populated by code paths that hydrate the local reply tree
   // (ThreadedPost, MonyPost). Optional because not all posts are fetched with
   // their reply subtree.
   replies?: ActivityPubPost[];
@@ -1233,9 +1233,9 @@ export interface FederatedUser extends Profile {
   }>;
   // Trending / verification metadata (returned by TrendingService).
   verified?: boolean;
-  // ActivityPub signing public key (PEM) — used by federation config readers.
+  // ActivityPub signing public key (PEM) - used by federation config readers.
   public_key?: string;
-  // ActivityPub endpoint URLs — populated when the profile row carries the
+  // ActivityPub endpoint URLs - populated when the profile row carries the
   // federation actor metadata. Optional because chat-side `User` lookups
   // don't surface these.
   inbox_url?: string;
@@ -1338,14 +1338,14 @@ export interface TimelineOptions {
   max_id?: string;
   since_id?: string;
   min_id?: string;
-  /** ISO timestamp cursor — fetch posts created before this time */
+  /** ISO timestamp cursor - fetch posts created before this time */
   before?: string;
 }
 
-/** Result from timeline fetches — used to set has_more from raw DB count before client-side filtering */
+/** Result from timeline fetches - used to set has_more from raw DB count before client-side filtering */
 export interface TimelineResult {
   posts: TimelinePost[];
-  /** True if the DB returned a full page (raw count >= limit) — use for pagination, not filtered posts.length */
+  /** True if the DB returned a full page (raw count >= limit) - use for pagination, not filtered posts.length */
   fullPage: boolean;
 }
 

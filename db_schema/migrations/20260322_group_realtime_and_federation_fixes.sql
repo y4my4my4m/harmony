@@ -13,7 +13,7 @@ BEGIN;
 -- =============================================================================
 
 -- ---------------------------------------------------------------------------
--- 1. broadcast_conversation_updated — fires on conversations UPDATE
+-- 1. broadcast_conversation_updated - fires on conversations UPDATE
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.broadcast_conversation_updated()
 RETURNS trigger
@@ -65,7 +65,7 @@ CREATE TRIGGER trg_broadcast_conversation_updated
   EXECUTE FUNCTION broadcast_conversation_updated();
 
 -- ---------------------------------------------------------------------------
--- 2. get_or_create_federated_group_conversation — add remote_conversation_id
+-- 2. get_or_create_federated_group_conversation - add remote_conversation_id
 -- ---------------------------------------------------------------------------
 -- Drop the old 2-param overload so the new 3-param version (with DEFAULT)
 -- doesn't cause ambiguous calls.

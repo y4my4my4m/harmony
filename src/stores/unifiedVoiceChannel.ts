@@ -338,7 +338,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
           debug.log('⚠️ Already in a voice channel, leaving first...');
           const leaveOk = await this.leaveVoiceChannel();
           if (!leaveOk) {
-            debug.warn('⚠️ leaveVoiceChannel returned false — forcing cleanup');
+            debug.warn('⚠️ leaveVoiceChannel returned false - forcing cleanup');
             await webrtcManager.leaveChannel();
             this.resetState();
           }
@@ -1382,7 +1382,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     },
 
     /**
-     * Setup WebRTC event listeners (idempotent — only registers once)
+     * Setup WebRTC event listeners (idempotent - only registers once)
      */
     setupWebRTCListeners(): void {
       if (webrtcListenersRegistered) return;

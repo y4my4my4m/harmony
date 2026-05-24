@@ -600,7 +600,7 @@ export class RecoveryKeyService {
 
   /**
    * Set pre-derived keys directly (for auto-unlock from IndexedDB).
-   * The mnemonic is intentionally NOT stored — only CryptoKey objects.
+   * The mnemonic is intentionally NOT stored - only CryptoKey objects.
    */
   setDerivedKeys(keys: DerivedKeys): void {
     this.derivedKeys = keys

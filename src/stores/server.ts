@@ -67,7 +67,7 @@ export const useServerStore = defineStore('server', {
           throw new Error('Server ID is required to update');
         }
 
-        // Use PATCH update — not upsert. Chaining .eq() after .upsert() does not
+        // Use PATCH update - not upsert. Chaining .eq() after .upsert() does not
         // reliably apply row filters on POST/merge in PostgREST, so privacy flags
         // (e.g. public) and other fields could fail to persist.
         const { error } = await supabase

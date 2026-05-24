@@ -12,7 +12,7 @@ async function refreshRemoteUser(supabase: any, userId: string, federatedId: str
   try {
     console.log(`\nFetching actor data for: ${federatedId}`);
     
-    // BUGS.md L22: `federatedId` is the stored remote actor URL — refreshing
+    // BUGS.md L22: `federatedId` is the stored remote actor URL - refreshing
     // already-known remote rows, but defense-in-depth via safeFetch covers
     // poisoned profile rows from earlier inserts.
     const response = await safeFetch(federatedId, {

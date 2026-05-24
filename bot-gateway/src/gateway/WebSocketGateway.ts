@@ -66,7 +66,7 @@ export class WebSocketGateway {
             if (botConnection) {
               // Fire-and-forget; the registration is best-effort caching and
               // an unhandled rejection here would otherwise crash the gateway
-              // worker (see BUGS.md M47 — unhandled rejection policy).
+              // worker (see BUGS.md M47 - unhandled rejection policy).
               this.handleBridgeDataRegistration(botConnection, payload.d).catch(err => {
                 console.error('Error handling bridge data registration:', err)
               })
@@ -303,7 +303,7 @@ export class WebSocketGateway {
    * `bridgedUsersByChannel` for ANY channel, including channels in servers
    * the bot is not installed on. The cached lists are then served back to the
    * Harmony frontend via `/bridged-users/:channelId` (used for mention
-   * autosuggest) — so the attack surface includes both fabricated mention
+   * autosuggest) - so the attack surface includes both fabricated mention
    * pings and impersonation by way of crafted Discord user metadata.
    *
    * Fix: for each `harmonyChannelId`, resolve `channels.server_id` and verify
@@ -375,7 +375,7 @@ export class WebSocketGateway {
       const serverId = channelServerMap.get(harmonyChannelId)
       if (!serverId || !authorizedServerIds.has(serverId)) {
         console.warn(
-          `║   🚫 ${harmonyChannelId}: bot ${botConnection.botId} not authorized for server ${serverId ?? 'unknown'} — dropping`,
+          `║   🚫 ${harmonyChannelId}: bot ${botConnection.botId} not authorized for server ${serverId ?? 'unknown'} - dropping`,
         )
         rejectedCount++
         continue

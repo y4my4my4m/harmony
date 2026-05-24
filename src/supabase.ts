@@ -11,12 +11,12 @@ if (!supabaseUrl || !supabaseAnonKey) {
 }
 
 // ============================================================================
-// "Remember me" — session persistence preference
+// "Remember me" - session persistence preference
 // ============================================================================
 //
 // The Supabase client persists its session token via a `Storage`-shaped
 // adapter. The default adapter writes to `localStorage`, which means
-// sessions survive browser restarts unconditionally — there's no way for
+// sessions survive browser restarts unconditionally - there's no way for
 // the user to opt into "session-only" persistence (where closing the
 // browser logs them out).
 //
@@ -65,7 +65,7 @@ export function setRememberMe(remember: boolean): void {
   } catch {
     // localStorage write blocked (private mode quota, hardened browsers).
     // The preference falls back to the default (remember) on next read,
-    // which is the safest behavior — at worst the user's "session-only"
+    // which is the safest behavior - at worst the user's "session-only"
     // wish is ignored, but we never accidentally log them out.
   }
 }
@@ -98,24 +98,24 @@ export function getRememberMe(): boolean {
  *    user who had remember-me checked, was logged in, then unchecks and
  *    refreshes WITHOUT logging in again will still find their session
  *    (it's in localStorage, the now-inactive store). This is intentional
- *    — the preference takes effect on the NEXT login, not retroactively.
+ *    - the preference takes effect on the NEXT login, not retroactively.
  *
  * 2. `setItem` writes to the active store and explicitly removes the
  *    key from the inactive store. Without this clean-up, a token would
- *    end up in BOTH stores — fine in steady state, but if the user
+ *    end up in BOTH stores - fine in steady state, but if the user
  *    later flips remember-me, the fallback in (1) would let the stale
  *    copy keep them "logged in" past their intent.
  *
  * 3. `removeItem` (called by `signOut`) clears both stores so logging
  *    out is total regardless of the current preference.
  *
- * All store accesses are wrapped in try/catch — `localStorage` /
+ * All store accesses are wrapped in try/catch - `localStorage` /
  * `sessionStorage` can throw `SecurityError` / `QuotaExceededError` in
  * private-browsing modes and locked-down enterprise browsers.
  */
 // Type matches Supabase's `SupportedStorage` (Pick<Storage, get/set/remove>).
 // We don't import that type to keep `@supabase/auth-js` out of our public
-// surface, but the structural compatibility is guaranteed — `auth.storage`
+// surface, but the structural compatibility is guaranteed - `auth.storage`
 // only ever invokes these three methods.
 const sessionAwareStorage: Pick<Storage, 'getItem' | 'setItem' | 'removeItem'> = {
   getItem(key: string): string | null {

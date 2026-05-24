@@ -88,7 +88,7 @@ sequenceDiagram
 
 ## Thread Messages
 
-Thread messages use `ThreadService` and bypass encryption entirely — they are always sent as plaintext directly to the database.
+Thread messages use `ThreadService` and bypass encryption entirely - they are always sent as plaintext directly to the database.
 
 ## DM Messages
 

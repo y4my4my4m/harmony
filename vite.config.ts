@@ -125,7 +125,7 @@ export default defineConfig({
         },
       }
     },
-    // Optimize chunk size — must live at `build.chunkSizeWarningLimit`, not
+    // Optimize chunk size - must live at `build.chunkSizeWarningLimit`, not
     // inside `rollupOptions.output`.
     chunkSizeWarningLimit: 1000,
     target: process.env.TAURI_PLATFORM === 'windows' ? 'chrome105' : 'safari16',

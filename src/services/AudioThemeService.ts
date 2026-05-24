@@ -546,7 +546,7 @@ export class AudioThemeService {
         return
       }
 
-      // Not cached — play directly without waiting for canplaythrough
+      // Not cached - play directly without waiting for canplaythrough
       // so the browser doesn't expire the user gesture
       const audio = new Audio(soundPath)
       audio.volume = this.settings.volume

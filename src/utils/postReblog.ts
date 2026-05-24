@@ -3,7 +3,7 @@
  *
  * In ActivityPub, a *pure reblog* (Boost / `Announce`) is a thin wrapper
  * around the original `Note`. Most user actions on a reblog row in a timeline
- * should target the original — not the wrapper:
+ * should target the original - not the wrapper:
  *
  *   - Replies should be addressed to the original author and threaded under
  *     the original note (Mastodon, Pleroma, Misskey all do this).
@@ -15,7 +15,7 @@
  * A *quote post*, by contrast, is a first-class user post that *references*
  * another note. It carries its own content, its own author, its own replies,
  * and its own reactions. Quote posts are *not* reblogs for action-routing
- * purposes — replying to Alice's quote of Bob mentions Alice, not Bob, and
+ * purposes - replying to Alice's quote of Bob mentions Alice, not Bob, and
  * threads under Alice's quote, not Bob's note.
  *
  * Both kinds populate the `reblog` JSONB column (a quote stores the quoted
@@ -23,7 +23,7 @@
  * unwrap pure reblogs only.
  *
  * `MonyPost.originalPostId` (used for favorite / reblog / bookmark) does
- * NOT discriminate today — that's a pre-existing UX issue (favoriting a
+ * NOT discriminate today - that's a pre-existing UX issue (favoriting a
  * quote post favorites the quoted note rather than the quote itself). It
  * is intentionally left untouched by this module to keep this commit
  * scoped to the reply / context bugs the user reported; the same
@@ -34,7 +34,7 @@
 import type { TimelinePost, ActivityPubPost, FederatedUser } from '@/types';
 
 /**
- * `true` if the post is a quote — a first-class user post that references
+ * `true` if the post is a quote - a first-class user post that references
  * another note via `reblog`. Mirrors `MonyPost.isQuotePost`'s logic so all
  * code paths agree on classification.
  */
@@ -77,7 +77,7 @@ export function isQuotePost(post: TimelinePost | ActivityPubPost | null | undefi
 /**
  * `true` if the post is a *pure* reblog / Announce wrapper.
  *
- * A pure reblog has no user-authored content of its own — the timeline row
+ * A pure reblog has no user-authored content of its own - the timeline row
  * exists only to surface the reblogged note. Quote posts are NOT pure
  * reblogs (they carry the quoter's commentary), so this returns `false` for
  * them even though they share the same `reblog` column.
@@ -114,7 +114,7 @@ export function isUnhydratedReblog(post: TimelinePost | null | undefined): boole
  *
  * For pure reblogs, this is `post.reblog` with its `author` slot guaranteed
  * to be populated (falling back to the flat `post.reblog_author` field when
- * `post.reblog.author` is missing — `ActivityPubPost.author` is optional).
+ * `post.reblog.author` is missing - `ActivityPubPost.author` is optional).
  *
  * For quote posts, regular posts, and unhydrated reblogs, returns `post`
  * unchanged. Callers that need to *know* whether unwrapping happened should
@@ -173,7 +173,7 @@ export function getOriginalApId(post: TimelinePost): string | undefined {
  *   the boosted note, not the booster).
  * - Quote post: the quoter (we're replying to their commentary, not the
  *   quoted post).
- * - Unhydrated reblog: `undefined` — we don't know the original author and
+ * - Unhydrated reblog: `undefined` - we don't know the original author and
  *   silently mentioning the booster would mislead the user. Callers should
  *   skip mention prefill in this case.
  */

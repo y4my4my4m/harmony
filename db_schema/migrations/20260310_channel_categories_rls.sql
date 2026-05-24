@@ -4,7 +4,7 @@ BEGIN;
 -- Add missing RLS policies for channel_categories
 -- =============================================================================
 -- The init schema enabled RLS on channel_categories but had NO policies,
--- causing PostgREST queries to return zero rows — channels invisible in UI.
+-- causing PostgREST queries to return zero rows - channels invisible in UI.
 -- =============================================================================
 
 ALTER TABLE public.channel_categories ENABLE ROW LEVEL SECURITY;

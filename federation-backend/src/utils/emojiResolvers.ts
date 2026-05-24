@@ -12,7 +12,7 @@ import { getFullEmojiUrl } from './urlUtils.js';
 import { logger } from './logger.js';
 
 export interface ResolvedEmoji {
-  /** The string to put in `content` / `_misskey_reaction` — either a unicode
+  /** The string to put in `content` / `_misskey_reaction` - either a unicode
    *  character (e.g. "😇") or a shortcode (e.g. ":blobcat:"). */
   content: string;
   /** Non-null only for custom emojis that have an image URL. */
@@ -40,7 +40,7 @@ export function formatEmojiForFederation(
     const fullUrl = getFullEmojiUrl(emoji.url) || emoji.url;
     // When the emoji originates from the target instance, use `:name:` (local)
     // so the remote instance recognises it as its own emoji.
-    // Otherwise always qualify with the originating domain — our own local
+    // Otherwise always qualify with the originating domain - our own local
     // emojis are never "local" to a remote instance.
     const useLocalShortcode = emoji.domain
       ? (targetDomain && emoji.domain.toLowerCase() === targetDomain.toLowerCase())

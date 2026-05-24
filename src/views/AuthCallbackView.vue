@@ -144,7 +144,7 @@ const toggleRecoveryCodeMode = () => {
 
 const cancelMfaAndGoToLogin = async () => {
   // The user clicked "Cancel" instead of completing MFA. Tear down the
-  // AAL1 session — leaving it in storage means a different tab on the
+  // AAL1 session - leaving it in storage means a different tab on the
   // same browser would pick it up via INITIAL_SESSION, hit
   // validateSessionForMFA's reject branch, and call signOut anyway, but
   // doing it here makes the intent explicit and avoids the brief window
@@ -161,7 +161,7 @@ const cancelMfaAndGoToLogin = async () => {
  * Final post-login navigation: profile-existence check, then redirect.
  * Called from BOTH the no-MFA path (validateSessionForMFA returned true
  * directly) and the post-MFA path (after successful verify2FA). The
- * `authStore.session` must already be populated at this point —
+ * `authStore.session` must already be populated at this point -
  * `verify2FA` updates it itself, and the no-MFA path sets it explicitly
  * just before calling this helper.
  */
@@ -196,8 +196,8 @@ const handleMFAVerification = async () => {
     if (useRecoveryCode.value) {
       // Recovery-code path: verify the code, then unenroll the factor
       // (mirroring `AuthComponent.handle2FAVerification`'s recovery flow).
-      // The user is in a recovery scenario — they presumably lost their
-      // authenticator — so it makes sense to disable MFA and route them
+      // The user is in a recovery scenario - they presumably lost their
+      // authenticator - so it makes sense to disable MFA and route them
       // to settings to re-enable it later.
       const { data: sessionData } = await supabase.auth.getSession()
       const userId = sessionData.session?.user?.id
@@ -331,13 +331,13 @@ onMounted(async () => {
 
     // BUGS.md C11: Don't bypass MFA validation. The OAuth callback used to
     // assign `authStore.session = session` directly, which skips both
-    // `onAuthStateChange`'s SIGNED_IN MFA check and the on-init validation —
+    // `onAuthStateChange`'s SIGNED_IN MFA check and the on-init validation -
     // any MFA-enrolled user could land here at AAL1 and gain full app access.
     const isValid = await authStore.validateSessionForMFA(session)
     if (!isValid) {
       // The session is AAL1; figure out WHY validateSessionForMFA rejected.
       // If the user has a verified TOTP factor, this is a recoverable
-      // "MFA needed" state — challenge them inline. If listFactors fails
+      // "MFA needed" state - challenge them inline. If listFactors fails
       // or returns empty (some other validation failure path), give up
       // and redirect to login.
       const { data: factors, error: factorsError } = await supabase.auth.mfa.listFactors()
@@ -351,7 +351,7 @@ onMounted(async () => {
       const totpFactor = factors?.totp?.find((f: any) => f.status === 'verified')
       if (!totpFactor) {
         // No factor → not the "needs MFA" case. Bail.
-        debug.warn('🚨 OAuth callback rejected at AAL1 with no MFA factor — unexpected, signing out')
+        debug.warn('🚨 OAuth callback rejected at AAL1 with no MFA factor - unexpected, signing out')
         try { await supabase.auth.signOut() } catch { /* ignore */ }
         authStore.session = null
         throw new Error('Authentication failed. Please try again.')
@@ -362,7 +362,7 @@ onMounted(async () => {
       // SIGNED_IN/INITIAL_SESSION events that arrive while we're waiting
       // for user input don't trigger validateSessionForMFA's reject path
       // and tear down the AAL1 session out from under us. (Same pattern
-      // as `authStore.login()` — see `src/stores/auth.ts:540`.)
+      // as `authStore.login()` - see `src/stores/auth.ts:540`.)
       authStore._pendingMFAVerification = true
 
       const { data: challengeData, error: challengeError } = await supabase.auth.mfa.challenge({
@@ -380,7 +380,7 @@ onMounted(async () => {
       pendingFactorId.value = totpFactor.id
       pendingChallengeId.value = challengeData.id
       // Show the challenge form and wait for `handleMFAVerification` to
-      // finish the login. We do NOT set `authStore.session` here — it
+      // finish the login. We do NOT set `authStore.session` here - it
       // gets set by `verify2FA` (or by the recovery-code branch).
       status.value = 'mfa'
       return
@@ -408,10 +408,10 @@ onMounted(async () => {
 // not run. Without this `onBeforeUnmount`, `_pendingMFAVerification`
 // would stay true for the rest of the page's lifetime and silently
 // suppress every SIGNED_IN / INITIAL_SESSION / TOKEN_REFRESHED for the
-// session — including legitimate cross-user logins.
+// session - including legitimate cross-user logins.
 onBeforeUnmount(() => {
   if (authStore._pendingMFAVerification) {
-    debug.log('🔒 AuthCallbackView unmounting with pending-MFA flag set — clearing')
+    debug.log('🔒 AuthCallbackView unmounting with pending-MFA flag set - clearing')
     authStore._pendingMFAVerification = false
   }
 })
@@ -598,7 +598,7 @@ onBeforeUnmount(() => {
 }
 
 /* The TOTP input matches the visual style of the login modal's code-input
-   for cross-flow consistency — same monospace, centered digits, large
+   for cross-flow consistency - same monospace, centered digits, large
    tap target on mobile. */
 .code-input {
   width: 100%;

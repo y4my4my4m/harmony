@@ -12,7 +12,7 @@ interface BotPermissionRow {
 // Per-message DB amplification was the dominant cost of message dispatch
 // before these caches were added (see BUGS.md PC1). Each handled message
 // previously issued TWO additional DB queries (channel → server, then
-// server → bot permissions) — three handlers (create/update/delete) ×
+// server → bot permissions) - three handlers (create/update/delete) ×
 // N messages = O(N) queries on top of the polling baseline.
 //
 // channel.server_id rarely changes (channels are moved between servers
@@ -40,7 +40,7 @@ export class EventDispatcher {
   // Track known message IDs for delete detection
   private knownMessageIds: Set<string> = new Set()
 
-  // Read-mostly lookup caches — see CHANNEL_TO_SERVER_TTL_MS comment above.
+  // Read-mostly lookup caches - see CHANNEL_TO_SERVER_TTL_MS comment above.
   // A null value is cached too so we don't repeatedly look up channels that
   // have been deleted or are inaccessible.
   private channelToServerCache = new TTLCache<string, string | null>(

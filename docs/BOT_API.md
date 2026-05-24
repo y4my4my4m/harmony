@@ -847,5 +847,5 @@ Connect to other platforms (Discord, Matrix, IRC).
 
 ## 📄 License
 
-GNU **AGPL-3.0** — same as the main Harmony repository; see the root `LICENSE` file.
+GNU **AGPL-3.0** - same as the main Harmony repository; see the root `LICENSE` file.
 

@@ -19,14 +19,14 @@ graph TB
 
 | Name | Type | Default | Required | Description |
 |------|------|---------|----------|-------------|
-| `emojiCount` | `number` | `undefined` | ✅ | Number of emoji items in this section — used to estimate placeholder height. |
+| `emojiCount` | `number` | `undefined` | ✅ | Number of emoji items in this section - used to estimate placeholder height. |
 | `columns` | `number` | `7` | ❌ | Grid column count. Defaults to 7 (fits a 320px popup). |
 
 ### Props Details
 
 #### `emojiCount`
 
-Number of emoji items in this section — used to estimate placeholder height.
+Number of emoji items in this section - used to estimate placeholder height.
 
 - **Type:** `number`
 - **Required:** Yes

@@ -19,7 +19,7 @@ interface PresenceData {
  *  - Bulk presence queries (sidebar, profiles)
  *  - Typing indicator relay (when Redis is available)
  *
- * Falls back gracefully when the API is unreachable — the existing
+ * Falls back gracefully when the API is unreachable - the existing
  * Supabase Realtime Presence continues to work in parallel.
  */
 class RealtimeApiServiceSingleton {

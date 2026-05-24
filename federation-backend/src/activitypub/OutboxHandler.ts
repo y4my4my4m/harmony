@@ -260,7 +260,7 @@ router.get(
 );
 
 /**
- * oEmbed endpoint — allows platforms to embed Harmony posts.
+ * oEmbed endpoint - allows platforms to embed Harmony posts.
  * GET /oembed?url=https://domain/posts/:id&format=json
  */
 router.get(

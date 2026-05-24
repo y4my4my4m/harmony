@@ -11,13 +11,13 @@
 --   3. The hardcoded fallback in `send_notification(...)`
 --      (`COALESCE(v_server_default, 'all')` → `COALESCE(v_server_default, 'mentions')`)
 --
--- IMPORTANT — what this does NOT do:
+-- IMPORTANT - what this does NOT do:
 --   - Existing rows in `notification_channels` and `server_settings` keep their
 --     stored values. A user who already set a channel to "All Messages"
 --     deliberately is unaffected.
 --   - The CHECK constraints on both columns already accept 'mentions', so no
 --     constraint changes are needed.
---   - DMs (conversations) are not affected — the `notification_level` enforcement
+--   - DMs (conversations) are not affected - the `notification_level` enforcement
 --     block in `send_notification` only runs for `p_channel_id IS NOT NULL`.
 --
 -- Most users have NO row in `notification_channels` at all (rows are only
@@ -46,7 +46,7 @@ ALTER TABLE public.server_settings
 ALTER TABLE public.server_settings
     ALTER COLUMN default_message_notifications SET DEFAULT 'mentions'::text;
 
--- 2a. CHECK constraint may or may not exist — add it iff missing.
+-- 2a. CHECK constraint may or may not exist - add it iff missing.
 DO $$
 BEGIN
     IF NOT EXISTS (
@@ -72,7 +72,7 @@ END $$;
 --    DROP first: PostgreSQL refuses CREATE OR REPLACE when input parameter
 --    names change (42P13). Older environments may have a `send_notification`
 --    whose first arg was named `notification_type` instead of
---    `p_notification_type` — drop unconditionally so the rename works.
+--    `p_notification_type` - drop unconditionally so the rename works.
 DROP FUNCTION IF EXISTS public.send_notification(character varying, uuid[], jsonb, uuid, uuid, uuid, uuid, character varying);
 
 CREATE OR REPLACE FUNCTION public.send_notification(

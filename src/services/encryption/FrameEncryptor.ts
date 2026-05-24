@@ -37,7 +37,7 @@ export class FrameEncryptor {
     counterBytes.setBigUint64(0, BigInt(this.counter++), false)
 
     // Fail closed: if AES-GCM rejects we MUST NOT forward the cleartext on
-    // the wire — that silently downgrades the call to plaintext while the
+    // the wire - that silently downgrades the call to plaintext while the
     // UI still claims E2EE is active.
     const encrypted = await crypto.subtle.encrypt(
       { name: 'AES-GCM', iv, tagLength: 128 },

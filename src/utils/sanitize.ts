@@ -14,7 +14,7 @@ export function escapeHtml(text: string): string {
 
 /**
  * Schemes that are safe to render in href/src for user-controlled content.
- * NOTE: `data:` is intentionally excluded — it enables XSS via `data:text/html,...`.
+ * NOTE: `data:` is intentionally excluded - it enables XSS via `data:text/html,...`.
  * `blob:` is allowed because it's commonly used for in-app previews (own-origin only).
  */
 const SAFE_URL_SCHEMES = new Set(['http:', 'https:', 'mailto:', 'tel:', 'blob:']);
@@ -31,7 +31,7 @@ const SAFE_URL_SCHEMES = new Set(['http:', 'https:', 'mailto:', 'tel:', 'blob:']
  * - Returns the (trimmed) input unchanged for safe absolute URLs and for
  *   scheme-less URLs (relative paths, protocol-relative `//host/...`).
  * - Strips ASCII control characters (incl. tabs/newlines) which browsers ignore
- *   when parsing the scheme — these are a known XSS bypass vector
+ *   when parsing the scheme - these are a known XSS bypass vector
  *   (`java\tscript:`, `java\nscript:`).
  *
  * Use together with `escapeHtml` when inlining into HTML:
@@ -39,7 +39,7 @@ const SAFE_URL_SCHEMES = new Set(['http:', 'https:', 'mailto:', 'tel:', 'blob:']
  */
 export function sanitizeUrl(url: string | null | undefined): string {
   if (url == null) return '';
-  // Strip ASCII control chars (0x00–0x1F and 0x7F) — browsers ignore these
+  // Strip ASCII control chars (0x00–0x1F and 0x7F) - browsers ignore these
   // when matching the URL scheme, enabling bypasses like "java\tscript:".
   const cleaned = String(url).replace(/[\x00-\x1F\x7F]/g, '').trim();
   if (!cleaned) return '';

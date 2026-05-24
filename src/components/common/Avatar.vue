@@ -164,7 +164,7 @@ const handleImageError = () => {
 }
 
 const handleImageLoad = () => {
-  // Do NOT reset imageError here — the fallback image loading successfully
+  // Do NOT reset imageError here - the fallback image loading successfully
   // would re-trigger the broken src, causing an infinite loop.
 }
 

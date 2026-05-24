@@ -357,7 +357,7 @@ function handleYouTubeMessage(event: MessageEvent) {
       sendListeningEvent();
     }
     
-    // YouTube may send initialDelivery before onReady — subscribe immediately
+    // YouTube may send initialDelivery before onReady - subscribe immediately
     if (data.event === 'initialDelivery') {
       sendListeningEvent();
     }

@@ -32,7 +32,7 @@ BOLD='\033[1m'
 DIM='\033[2m'
 RESET='\033[0m'
 
-# Defaults — can be overridden via env vars or flags
+# Defaults - can be overridden via env vars or flags
 : "${LIVEKIT_URL:=}"
 : "${LIVEKIT_API_KEY:=}"
 : "${LIVEKIT_API_SECRET:=}"
@@ -175,12 +175,12 @@ fi
 if [[ -z "$PRESET" && $AUDIO_PUBS -eq 0 && $VIDEO_PUBS -eq 0 ]]; then
     echo ""
     echo -e "${BOLD}Select benchmark preset:${RESET}"
-    echo -e "  ${CYAN}1${RESET}) Audio small   — 5 speakers, 50 listeners"
-    echo -e "  ${CYAN}2${RESET}) Audio medium  — 10 speakers, 200 listeners"
-    echo -e "  ${CYAN}3${RESET}) Audio large   — 10 speakers, 1000 listeners"
-    echo -e "  ${CYAN}4${RESET}) Video small   — 10 publishers, 10 subscribers"
-    echo -e "  ${CYAN}5${RESET}) Video medium  — 50 publishers, 50 subscribers"
-    echo -e "  ${CYAN}6${RESET}) Livestream    — 1 publisher, 1000 subscribers"
+    echo -e "  ${CYAN}1${RESET}) Audio small   - 5 speakers, 50 listeners"
+    echo -e "  ${CYAN}2${RESET}) Audio medium  - 10 speakers, 200 listeners"
+    echo -e "  ${CYAN}3${RESET}) Audio large   - 10 speakers, 1000 listeners"
+    echo -e "  ${CYAN}4${RESET}) Video small   - 10 publishers, 10 subscribers"
+    echo -e "  ${CYAN}5${RESET}) Video medium  - 50 publishers, 50 subscribers"
+    echo -e "  ${CYAN}6${RESET}) Livestream    - 1 publisher, 1000 subscribers"
     echo ""
     echo -ne "Choice [1]: "
     read -r choice

@@ -89,7 +89,7 @@ BEGIN
     END IF;
 END $$;
 
--- Drop unused FK columns (only if they exist — dev never had them)
+-- Drop unused FK columns (only if they exist - dev never had them)
 DO $$
 BEGIN
     IF EXISTS (SELECT 1 FROM information_schema.columns
@@ -550,5 +550,5 @@ ALTER TABLE public.user_view_contexts ENABLE ROW LEVEL SECURITY;
 -- The send_notification function (with built-in reaction spam rate limiting)
 -- is too large to duplicate here. Apply it by running the function definition
 -- from db_schema/init/13_functions_rpc_extended.sql (the send_notification block).
--- You already did this manually — this note is just for documentation.
+-- You already did this manually - this note is just for documentation.
 -- ---------------------------------------------------------------------------

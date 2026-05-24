@@ -333,7 +333,7 @@ export function createLikeActivity(
   const rawReaction = emojiContent || '❤';
 
   // Misskey's isCustomEmojiRegexp /^:([\w+-]+)(?:@\.)?:$/ only matches
-  // `:name:` or `:name@.:` — NOT `:name@domain:`.  Sending the qualified
+  // `:name:` or `:name@.:` - NOT `:name@domain:`.  Sending the qualified
   // form causes Misskey to fall back to a generic ❤.  Strip @domain here;
   // Misskey infers the origin domain from the actor's host and the tag data
   // provides the icon URL.

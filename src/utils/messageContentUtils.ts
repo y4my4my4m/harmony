@@ -83,7 +83,7 @@ export function messagePartsToPlainText(parts: MessagePart[]): string {
 
 /**
  * Strip a leading @mention of the current user from federated messages.
- * ActivityPub clients prepend @recipient on replies/DMs by convention — this
+ * ActivityPub clients prepend @recipient on replies/DMs by convention - this
  * makes federated messages look awkward in a chat-style UI.  If the very first
  * content part is a mention of `currentUsername` (local), we remove it and trim
  * any whitespace that directly followed it.  When the mention is the *only*

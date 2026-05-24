@@ -19,21 +19,29 @@
 
         <div class="invite-link-container">
           <div class="invite-link-wrapper" :class="{ 'link-copied': linkCopied }">
-            <div class="invite-preview">
-              <div class="server-icon">
-                <img 
-                  v-if="props.serverData?.icon_url" 
-                  :src="props.serverData.icon_url" 
-                  :alt="props.serverData.name"
-                  class="server-image"
-                />
-                <div v-else class="default-server-icon">
-                  {{ serverInitial }}
+            <div
+              class="invite-preview"
+              :class="{ 'has-banner': !!resolvedBanner }"
+              :style="resolvedBanner ? { backgroundImage: `url(${resolvedBanner})` } : undefined"
+            >
+              <div v-if="resolvedBanner" class="invite-preview-overlay"></div>
+              <div class="invite-preview-content">
+                <div class="server-icon">
+                  <img
+                    v-if="resolvedIcon && !iconLoadError"
+                    :src="resolvedIcon"
+                    :alt="props.serverData?.name || 'Server icon'"
+                    class="server-image"
+                    @error="iconLoadError = true"
+                  />
+                  <div v-else class="default-server-icon">
+                    {{ serverInitial }}
+                  </div>
                 </div>
-              </div>
-              <div class="server-info">
-                <h4 class="server-name">{{ props.serverData?.name || 'Server' }}</h4>
-                <p class="member-count">{{ memberCount }} members</p>
+                <div class="server-info">
+                  <h4 class="server-name">{{ props.serverData?.name || 'Server' }}</h4>
+                  <p class="member-count">{{ resolvedMemberCount }} {{ resolvedMemberCount === 1 ? 'member' : 'members' }}</p>
+                </div>
               </div>
             </div>
             
@@ -249,16 +257,25 @@ import { useToast } from 'vue-toastification'
 import { generateInviteUrl, getInviteHistory, revokeInvite, type Invite, type InviteOptions } from '@/services/inviteService'
 import { getInviteConstraints } from '@/services/permissionsService'
 import { useAuthStore } from '@/stores/auth'
+import { supabase } from '@/supabase'
+import { getServerIconUrl, getServerBannerUrl } from '@/utils/serverUtils'
 import BaseModal from '@/components/common/BaseModal.vue'
 import InviteIcon from '@/components/icons/ServerInviteIcon.vue'
 
 interface Props {
   show: boolean
   serverId?: string
+  // Accepts a raw `servers` row (icon / banner columns) OR a pre-resolved object
+  // with `icon_url` / `banner_url`. Whichever the caller provides, the modal
+  // normalizes via the server-utils helpers below.
   serverData?: {
     id: string
     name: string
-    icon_url?: string
+    icon?: string | null
+    icon_url?: string | null
+    banner?: string | null
+    banner_url?: string | null
+    description?: string | null
     member_count?: number
   }
 }
@@ -292,14 +309,50 @@ const inviteConstraints = ref({
 })
 const permissionError = ref('')
 
+// Image fallbacks
+const iconLoadError = ref(false)
+// Member count fetched live from the server (the RPC truth) - falls back to
+// whatever the caller passed in via serverData.member_count.
+const liveMemberCount = ref<number | null>(null)
+
 // Computed
 const serverInitial = computed(() => {
   return props.serverData?.name?.charAt(0).toUpperCase() || 'S'
 })
 
-const memberCount = computed(() => {
+const resolvedIcon = computed(() => {
+  const raw = props.serverData?.icon ?? props.serverData?.icon_url ?? null
+  return raw ? getServerIconUrl(raw, 96) : null
+})
+
+const resolvedBanner = computed(() => {
+  const raw = props.serverData?.banner ?? props.serverData?.banner_url ?? null
+  return raw ? getServerBannerUrl(raw, { width: 480, height: 140 }) : null
+})
+
+const resolvedMemberCount = computed(() => {
+  if (typeof liveMemberCount.value === 'number') return liveMemberCount.value
   return props.serverData?.member_count || 0
 })
+
+// Pull the canonical member count from the RPC every time the modal opens.
+// The caller's count (Object.keys(userProfiles).length) is usually stale or 0.
+const fetchMemberCount = async () => {
+  const id = props.serverId || props.serverData?.id
+  if (!id) return
+  try {
+    const { data, error } = await supabase.rpc('get_server_member_counts', {
+      p_server_ids: [id],
+    })
+    if (error) throw error
+    const row = Array.isArray(data) ? data[0] : null
+    if (row && (row.server_id === id || !row.server_id)) {
+      liveMemberCount.value = Number(row.member_count) || 0
+    }
+  } catch (err) {
+    debug.warn('Failed to fetch server member count:', err)
+  }
+}
 
 // Methods
 const generateInvite = async () => {
@@ -494,7 +547,11 @@ const loadInviteHistory = async () => {
 // Lifecycle
 onMounted(async () => {
   if (props.show && props.serverId) {
-    await loadInviteConstraints()
+    iconLoadError.value = false
+    await Promise.all([
+      loadInviteConstraints(),
+      fetchMemberCount(),
+    ])
     if (canCreateInvites.value) {
       await generateInvite()
     }
@@ -505,7 +562,12 @@ onMounted(async () => {
 // Watch for modal opening
 watch(() => props.show, async (newValue) => {
   if (newValue && props.serverId) {
-    await loadInviteConstraints()
+    iconLoadError.value = false
+    liveMemberCount.value = null
+    await Promise.all([
+      loadInviteConstraints(),
+      fetchMemberCount(),
+    ])
     if (canCreateInvites.value) {
       await generateInvite()
     }
@@ -564,12 +626,60 @@ watch(() => props.show, async (newValue) => {
 }
 
 .invite-preview {
-  display: flex;
-  align-items: center;
-  gap: 16px;
+  position: relative;
   margin-bottom: 16px;
   padding-bottom: 16px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.invite-preview:not(.has-banner) {
+  /* No banner - keep the original flat row layout */
+  padding: 0 0 16px 0;
+  border-radius: 0;
+}
+
+.invite-preview.has-banner {
+  /* Banner mode - image sits behind, content overlays */
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  padding: 0;
+  border-bottom: none;
+  min-height: 140px;
+  margin-bottom: 16px;
+}
+
+.invite-preview-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0.25) 0%,
+    rgba(0, 0, 0, 0.55) 60%,
+    rgba(0, 0, 0, 0.75) 100%
+  );
+  pointer-events: none;
+}
+
+.invite-preview-content {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.invite-preview.has-banner .invite-preview-content {
+  padding: 16px;
+  /* Push content to the bottom of the banner so the image is visible above it */
+  padding-top: 70px;
+}
+
+.invite-preview.has-banner .server-name,
+.invite-preview.has-banner .member-count {
+  color: var(--text-primary);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
 }
 
 .server-icon {

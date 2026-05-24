@@ -35,8 +35,8 @@ Root-level components in `src/components/` include major features like `MessageD
 
 ### Layout Components
 
-- **Layouts** (`src/layouts/`): `BaseLayout`, `AuthLayout`, `ChatLayout`, `SocialLayout` — control the overall page structure depending on the route
-- **Navigation**: `MainNavigation`, `ServerSidebar`, `ChannelSidebar`, `DMSidebar` — persistent navigation elements
+- **Layouts** (`src/layouts/`): `BaseLayout`, `AuthLayout`, `ChatLayout`, `SocialLayout` - control the overall page structure depending on the route
+- **Navigation**: `MainNavigation`, `ServerSidebar`, `ChannelSidebar`, `DMSidebar` - persistent navigation elements
 
 ### View Components
 
@@ -56,45 +56,45 @@ Views in `src/views/` correspond to routes:
 ### Feature Components
 
 **Chat & Messaging**:
-- `MessageDisplay` — Main message list with virtual scrolling
-- `MessageInput` — Message composer with rich text, file upload, emoji
-- `MessageContent` / `UnifiedMessageContent` — Message rendering with markdown
-- `MessageReactions` — Emoji reactions on messages
-- `MessageContextMenu` — Right-click actions
-- `RichTextEditor` — Rich text editing with formatting toolbar
+- `MessageDisplay` - Main message list with virtual scrolling
+- `MessageInput` - Message composer with rich text, file upload, emoji
+- `MessageContent` / `UnifiedMessageContent` - Message rendering with markdown
+- `MessageReactions` - Emoji reactions on messages
+- `MessageContextMenu` - Right-click actions
+- `RichTextEditor` - Rich text editing with formatting toolbar
 
 **ActivityPub / Social**:
-- `MonyPost` — Single post display with reactions and interactions
-- `MonyFeed` — Post list/timeline feed
-- `Composer` — Post/reply/quote composer (modal and inline modes)
-- `ExploreContent` — Trending, tags, suggested users, instances
-- `MonyMediaGallery` / `MonyMediaUpload` — Media handling
+- `MonyPost` - Single post display with reactions and interactions
+- `MonyFeed` - Post list/timeline feed
+- `Composer` - Post/reply/quote composer (modal and inline modes)
+- `ExploreContent` - Trending, tags, suggested users, instances
+- `MonyMediaGallery` / `MonyMediaUpload` - Media handling
 
 **Voice & Video**:
-- `UnifiedVoiceOverlay` — Main voice channel UI
-- `UnifiedVoiceDock` — Compact docked voice indicator
-- `VoiceChannelParticipants` — Participant grid
-- `SpatialAudioPanel` — 2D spatial audio controls
-- `DeviceSelector` — Audio/video device picker
+- `UnifiedVoiceOverlay` - Main voice channel UI
+- `UnifiedVoiceDock` - Compact docked voice indicator
+- `VoiceChannelParticipants` - Participant grid
+- `SpatialAudioPanel` - 2D spatial audio controls
+- `DeviceSelector` - Audio/video device picker
 
 **Encryption**:
-- `RecoveryKeySetupWizard` — Guided E2EE key setup
-- `EncryptionIndicator` — Lock icon showing encryption status
-- `EncryptionSettings` — Server encryption mode configuration
+- `RecoveryKeySetupWizard` - Guided E2EE key setup
+- `EncryptionIndicator` - Lock icon showing encryption status
+- `EncryptionSettings` - Server encryption mode configuration
 
 ### Shared UI Components
 
 The `common/` and `shared/` directories contain reusable primitives:
 
-- `Avatar` — User/server avatar with presence indicator
-- `BaseModal` / `UnifiedModal` — Modal dialog system
-- `ModernButton` / `UnifiedButton` — Styled buttons
-- `ModernInput` / `UnifiedInput` — Styled inputs
-- `ToggleSwitch` — Toggle control
-- `ServerCard` — Server preview card
-- `ProfileCard` / `UnifiedProfileCard` — User info popover
-- `CodeBlock` — Syntax-highlighted code display
-- `SearchInput` — Search bar with debounce
+- `Avatar` - User/server avatar with presence indicator
+- `BaseModal` / `UnifiedModal` - Modal dialog system
+- `ModernButton` / `UnifiedButton` - Styled buttons
+- `ModernInput` / `UnifiedInput` - Styled inputs
+- `ToggleSwitch` - Toggle control
+- `ServerCard` - Server preview card
+- `ProfileCard` / `UnifiedProfileCard` - User info popover
+- `CodeBlock` - Syntax-highlighted code display
+- `SearchInput` - Search bar with debounce
 
 ## Naming Conventions
 

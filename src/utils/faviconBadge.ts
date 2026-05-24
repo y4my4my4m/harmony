@@ -93,6 +93,6 @@ export async function updateFaviconBadge(count: number): Promise<void> {
 
     favicon.href = drawBadge(cachedImage, count)
   } catch {
-    // Silently fail — favicon badge is non-critical
+    // Silently fail - favicon badge is non-critical
   }
 }

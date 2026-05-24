@@ -98,7 +98,7 @@ class SecureSessionKeyStore {
         }
 
         if (!result.encryptionKey || !result.backupKey || !result.signingKey) {
-          debug.warn('⚠️ Stored session keys are incomplete — clearing')
+          debug.warn('⚠️ Stored session keys are incomplete - clearing')
           this.clear(userId).catch(() => {})
           resolve(null)
           return

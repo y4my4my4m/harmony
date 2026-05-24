@@ -332,7 +332,7 @@ const wrapper = mount(ChatComponent, {
 
 ## Related Components
 
-- [MessageDisplay](/components/messagedisplay) — Message list rendering
-- [MessageInput](/components/messageinput) — Message composition
-- [GifComponent](/components/gifcomponent) — GIF selection
-- [EmojiPopup](/components/emojipopup) — Emoji picker
+- [MessageDisplay](/components/messagedisplay) - Message list rendering
+- [MessageInput](/components/messageinput) - Message composition
+- [GifComponent](/components/gifcomponent) - GIF selection
+- [EmojiPopup](/components/emojipopup) - Emoji picker

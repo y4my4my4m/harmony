@@ -1,10 +1,10 @@
 -- Migration: Tighten permissive RLS policies + add search_path to SECURITY DEFINER functions
 --
 -- Issues fixed:
--- 1. federation_health_manage: was USING(auth.uid() IS NOT NULL) — any auth user could write.
+-- 1. federation_health_manage: was USING(auth.uid() IS NOT NULL) - any auth user could write.
 --    Now restricted to admin-only + service_role.
 -- 2. federated_instances_manage: same problem, now admin-only + service_role.
--- 3. ap_activities "System" policy: was USING(true) with no role restriction — any user passed.
+-- 3. ap_activities "System" policy: was USING(true) with no role restriction - any user passed.
 --    Now restricted to service_role only.
 -- 4. SECURITY DEFINER functions missing SET search_path = public (hardening).
 --
@@ -43,7 +43,7 @@ CREATE POLICY "System can manage ActivityPub activities" ON public.ap_activities
 
 -- =========================================================================
 -- 4. Add SET search_path = public to critical SECURITY DEFINER helpers
---    (used by RLS policies — most security-sensitive)
+--    (used by RLS policies - most security-sensitive)
 -- =========================================================================
 
 CREATE OR REPLACE FUNCTION public.get_current_profile_id()

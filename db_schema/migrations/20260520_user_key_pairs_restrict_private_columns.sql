@@ -57,7 +57,7 @@ ALTER TABLE public.user_key_pairs
 -- 1. Drop the row-wide public SELECT policy.
 DROP POLICY IF EXISTS "Users can view others' public keys for encryption" ON public.user_key_pairs;
 
--- 2. Owner-only SELECT — full row, including encrypted private columns.
+-- 2. Owner-only SELECT - full row, including encrypted private columns.
 DROP POLICY IF EXISTS "Users can view own key pair (full row)" ON public.user_key_pairs;
 CREATE POLICY "Users can view own key pair (full row)" ON public.user_key_pairs
     FOR SELECT
@@ -69,7 +69,7 @@ CREATE POLICY "Users can view own key pair (full row)" ON public.user_key_pairs
         )
     );
 
--- 3. Other-users SELECT — restricted to active rows; column GRANTs below
+-- 3. Other-users SELECT - restricted to active rows; column GRANTs below
 -- enforce the public-only column projection.
 DROP POLICY IF EXISTS "Users can view active public key columns" ON public.user_key_pairs;
 CREATE POLICY "Users can view active public key columns" ON public.user_key_pairs

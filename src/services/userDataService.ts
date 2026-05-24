@@ -375,7 +375,7 @@ class UserDataService extends EventTarget {
         if (profile.status !== null && profile.status !== undefined) {
           if (profile.status === UserStatus.Away || profile.status === UserStatus.Busy || profile.status === UserStatus.Invisible) {
             if (this.wasManuallySet && this.manualStatus === profile.status) {
-              // User explicitly chose this status — preserve it
+              // User explicitly chose this status - preserve it
               finalStatus = profile.status
               debug.log('✅ Preserving manually-set status from database:', UserStatus[finalStatus])
             } else if (profile.status === UserStatus.Away && !this.wasManuallySet) {
@@ -383,7 +383,7 @@ class UserDataService extends EventTarget {
               finalStatus = UserStatus.Online
               debug.log('🔄 User was auto-idle Away, resetting to Online (user just opened the app)')
             } else if (this.wasManuallySet && this.manualStatus !== null) {
-              // Manual flag exists but DB status diverged (e.g. auto-idle overrode manual) — restore manual choice
+              // Manual flag exists but DB status diverged (e.g. auto-idle overrode manual) - restore manual choice
               finalStatus = this.manualStatus
               debug.log('🔄 Restoring manual status:', UserStatus[finalStatus])
             } else {
@@ -394,7 +394,7 @@ class UserDataService extends EventTarget {
             finalStatus = UserStatus.Online
             debug.log('✅ Status loaded from database:', UserStatus[finalStatus])
           } else {
-            // Offline in DB — user is actively opening the app, reset to Online
+            // Offline in DB - user is actively opening the app, reset to Online
             finalStatus = UserStatus.Online
             debug.log('🔄 User was offline in DB but is now active, setting to Online')
           }
@@ -412,7 +412,7 @@ class UserDataService extends EventTarget {
             }
           }
         } else {
-          // No status in database — use manual flag if set, otherwise localStorage backup
+          // No status in database - use manual flag if set, otherwise localStorage backup
           const backupStatus = this.getStatusFromLocalStorage()
           if (this.wasManuallySet && this.manualStatus !== null) {
             finalStatus = this.manualStatus
@@ -562,14 +562,14 @@ class UserDataService extends EventTarget {
     // a tab close (or a fast initial-session restore + close cycle) would
     // hit `auth.ts.setupOfflineHandlers`' `__harmonyPresenceCleanup?.()`
     // before the function existed. The cleanup closure only captures
-    // `this`, so it's safe to install pre-subscribe — `untrackFromAll…`
+    // `this`, so it's safe to install pre-subscribe - `untrackFromAll…`
     // checks `this.globalChannel` / context channels and no-ops when no
     // channels have been opened yet.
     if (typeof window !== 'undefined') {
       ;(window as any).__harmonyPresenceCleanup = () => {
         // Synchronous best-effort: fire untrack calls and let the browser
         // keepalive flush them. We don't `await` because `beforeunload` is
-        // a synchronous-ish hook — promises are unreliable past unload.
+        // a synchronous-ish hook - promises are unreliable past unload.
         this.untrackFromAllPresenceChannels().catch(err => {
           debug.warn('⚠️ __harmonyPresenceCleanup untrack failed:', err)
         })
@@ -1007,7 +1007,7 @@ class UserDataService extends EventTarget {
           // bail if the context disappeared (logout / leave server).
           const ctx = this.contexts.get(serverId)
           if (!ctx) {
-            debug.log(`[Realtime] server-presence:${serverId} dropped — no context, skipping retry`)
+            debug.log(`[Realtime] server-presence:${serverId} dropped - no context, skipping retry`)
             return
           }
           if ((ctx as any)._presenceRetryTimer) {
@@ -1940,7 +1940,7 @@ class UserDataService extends EventTarget {
   /**
    * Resolve display name shortcodes into structured parts.
    * Priority: pinnedEmojis (from federation_metadata) > emoji cache > unified emoji pack.
-   * Called once per profile load/update — not on every render.
+   * Called once per profile load/update - not on every render.
    */
   resolveDisplayNameParts(displayName: string | any[], pinnedEmojis?: Array<{ id: string; name: string; url: string }>): DisplayNamePart[] | undefined {
     if (!displayName) return undefined
@@ -1954,7 +1954,7 @@ class UserDataService extends EventTarget {
     if (!EMOJI_SHORTCODE_REGEX.test(displayName)) return undefined
     EMOJI_SHORTCODE_REGEX.lastIndex = 0
 
-    // Trigger lazy load of emoji data if not loaded — reResolveAllDisplayNames()
+    // Trigger lazy load of emoji data if not loaded - reResolveAllDisplayNames()
     // will be called automatically when the load completes (see unifiedEmojiService)
     if (!unifiedEmojiLoaded.value) {
       loadEmojiData().catch(() => {})
@@ -2095,7 +2095,7 @@ class UserDataService extends EventTarget {
     }
     
     // Unsubscribe from all contexts (also cancel any pending presence-error
-    // retry timers — BUGS.md C14 v2; see unsubscribeFromContext for context).
+    // retry timers - BUGS.md C14 v2; see unsubscribeFromContext for context).
     for (const context of this.contexts.values()) {
       if ((context as any)._presenceRetryTimer) {
         clearTimeout((context as any)._presenceRetryTimer)
@@ -2113,7 +2113,7 @@ class UserDataService extends EventTarget {
     }
 
     // Clear the beforeunload presence-cleanup hook installed by
-    // `setupGlobalPresence` (BUGS.md H31) — otherwise a logout followed by a
+    // `setupGlobalPresence` (BUGS.md H31) - otherwise a logout followed by a
     // tab close would call untrack against a service that's already torn
     // down. Safe to noop-delete; the next sign-in will re-install it.
     if (typeof window !== 'undefined' && (window as any).__harmonyPresenceCleanup) {

@@ -53,7 +53,7 @@ async function probeNodeinfo(domain: string): Promise<InstanceProbeResult | null
     if (!nodeinfoUrl) return null;
 
     // BUGS.md H16: nodeinfoUrl is a `href` returned by the remote
-    // well-known endpoint — attacker-controlled. safeFetch re-validates
+    // well-known endpoint - attacker-controlled. safeFetch re-validates
     // the resolved IP per hop.
     const nodeinfoResponse = await safeFetch(nodeinfoUrl, {
       headers: { Accept: 'application/json' },
@@ -265,7 +265,7 @@ router.get(
 
 /**
  * GET /instances/health?domain=mastodon.social
- * Lightweight health check — just verifies nodeinfo is reachable.
+ * Lightweight health check - just verifies nodeinfo is reachable.
  */
 router.get(
   '/instances/health',

@@ -94,7 +94,7 @@ class ReportService {
       // (see db_schema/init/06_tables_misc.sql) and RLS enforces
       // `reporter_id = get_current_profile_id()`. Inserting `user.id`
       // (auth UUID) either failed the FK / RLS check outright or wrote
-      // garbage data — never the right behavior. Resolve to profile id.
+      // garbage data - never the right behavior. Resolve to profile id.
       const { authContextService } = await import('@/services/AuthContextService')
       const reporterProfileId = await authContextService.getCurrentProfileId()
 
@@ -126,7 +126,7 @@ class ReportService {
 
   async getMyReports(): Promise<Report[]> {
     try {
-      // Same pattern A fix as createReport — filter by profile id.
+      // Same pattern A fix as createReport - filter by profile id.
       let reporterProfileId: string
       try {
         const { authContextService } = await import('@/services/AuthContextService')
@@ -210,7 +210,7 @@ class ReportService {
         const { authContextService } = await import('@/services/AuthContextService')
         resolverProfileId = await authContextService.getCurrentProfileId()
       } catch {
-        // No authenticated profile — bail if we need to attribute this action.
+        // No authenticated profile - bail if we need to attribute this action.
         if (status === 'resolved' || status === 'dismissed') {
           return false
         }
@@ -246,7 +246,7 @@ class ReportService {
             show_resolver: showResolver,
           }
           if (showResolver && resolverProfileId) {
-            // Look up the resolver by PROFILE id (Pattern A — the old
+            // Look up the resolver by PROFILE id (Pattern A - the old
             // `.eq('id', user.id)` was already broken: `user.id` was the
             // auth UUID but `profiles.id` is the profile UUID).
             const { data: resolverProfile } = await supabase

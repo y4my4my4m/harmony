@@ -25,7 +25,7 @@ BEGIN
         RETURN NEW;
     END IF;
 
-    -- Don't notify the creator of the group — they already know they created it.
+    -- Don't notify the creator of the group - they already know they created it.
     IF NEW.user_id = v_conversation.created_by THEN
         RETURN NEW;
     END IF;

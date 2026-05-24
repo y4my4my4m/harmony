@@ -137,7 +137,7 @@ export function getManualInstallInstructions(): string {
 /**
  * Chromium-based desktop browser (Chrome, Edge, Opera, Brave, Vivaldi…).
  *
- * Used to gate the "Run on OS Login" suggestion — that feature is currently
+ * Used to gate the "Run on OS Login" suggestion - that feature is currently
  * only exposed by Chromium browsers via `about://apps` (Chrome 91+ / Edge 91+).
  *
  * See: https://developer.chrome.com/blog/run-on-login

@@ -228,7 +228,7 @@ async function handleJoin() {
     profileId = await authContextService.getCurrentProfileId();
   } catch (err) {
     debug.error('Failed to resolve profile id for invite join:', err);
-    toast.error('Could not join — please try again.');
+    toast.error('Could not join - please try again.');
     isJoining.value = false;
     return;
   }
@@ -241,7 +241,7 @@ async function handleJoin() {
       toast.success(`Joined ${serverData.value?.name}!`);
       emit('joined', result.serverId);
       
-      // Refresh server list — `fetchServersForUser` filters by
+      // Refresh server list - `fetchServersForUser` filters by
       // `user_servers.user_id` (profile FK), so we pass profile id.
       // BUGS.md Pattern A v2.
       await serverStore.fetchServersForUser(profileId);

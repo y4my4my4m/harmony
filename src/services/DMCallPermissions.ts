@@ -17,7 +17,7 @@ export interface CallPermissionCheck {
   allowed: boolean
   /**
    * Why the call was disallowed. `'error'` is used when the permission lookup
-   * itself failed (DB / RLS / network) — see BUGS.md H4 (fail-closed on error
+   * itself failed (DB / RLS / network) - see BUGS.md H4 (fail-closed on error
    * for inbound calls).
    */
   reason?: 'blocked' | 'busy' | 'dnd' | 'muted' | 'notifications_disabled' | 'error'
@@ -122,7 +122,7 @@ class DMCallPermissionService {
       return {
         allowed: false,
         reason: 'error',
-        message: 'Could not verify call permissions — please try again.'
+        message: 'Could not verify call permissions - please try again.'
       }
     }
   }

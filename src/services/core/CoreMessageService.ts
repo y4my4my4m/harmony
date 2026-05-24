@@ -207,7 +207,7 @@ export class CoreMessageService {
                 throw this.createError('ENCRYPTION_FAILED_NO_FALLBACK',
                   'Encryption failed and plaintext fallback was not authorized', error)
               }
-              debug.warn('⚠️ User-authorized plaintext fallback — sending unencrypted')
+              debug.warn('⚠️ User-authorized plaintext fallback - sending unencrypted')
               this.markPlaintextOverride(extraMetadata = extraMetadata || {}, 'optional_encrypt_failed')
             }
           } else if (encryptionMode === 'required') {
@@ -238,11 +238,11 @@ export class CoreMessageService {
                 throw this.createError('ENCRYPTION_LOCKED',
                   'This channel supports encryption but your keys are locked. Unlock encryption to send encrypted, or confirm an unencrypted send.')
               }
-              debug.warn('🔓 User-authorized plaintext fallback — encryption locked')
+              debug.warn('🔓 User-authorized plaintext fallback - encryption locked')
               this.markPlaintextOverride(extraMetadata = extraMetadata || {}, 'optional_encryption_locked')
             } else {
-              // No recovery key set up — silent plaintext, no prompt.
-              debug.log('ℹ️ Optional encryption + no recovery key — sending plaintext')
+              // No recovery key set up - silent plaintext, no prompt.
+              debug.log('ℹ️ Optional encryption + no recovery key - sending plaintext')
               this.markPlaintextOverride(extraMetadata = extraMetadata || {}, 'optional_no_recovery_key')
             }
           }
@@ -252,7 +252,7 @@ export class CoreMessageService {
           // Optional mode + encryption service entirely unavailable.
           // Same reasoning as case (b) above: user has not opted in to
           // encryption on this server, so just send plaintext.
-          debug.log('ℹ️ Optional encryption + service unavailable — sending plaintext')
+          debug.log('ℹ️ Optional encryption + service unavailable - sending plaintext')
           this.markPlaintextOverride(extraMetadata = extraMetadata || {}, 'optional_service_unavailable')
         }
       }
@@ -406,7 +406,7 @@ export class CoreMessageService {
                 throw this.createError('ENCRYPTION_FAILED_NO_FALLBACK',
                   'DM encryption failed and plaintext fallback was not authorized', error)
               }
-              debug.warn('⚠️ User-authorized plaintext fallback — sending DM unencrypted')
+              debug.warn('⚠️ User-authorized plaintext fallback - sending DM unencrypted')
               this.markPlaintextOverride(extraMetadata = extraMetadata || {}, 'dm_encrypt_failed')
             }
           } else if (hasRecoveryKey && !isUnlocked) {
@@ -414,14 +414,14 @@ export class CoreMessageService {
               throw this.createError('ENCRYPTION_LOCKED',
                 'This conversation is encrypted but your keys are locked. Unlock encryption to send encrypted, or confirm an unencrypted send.')
             }
-            debug.warn('🔓 User-authorized plaintext fallback — DM keys locked')
+            debug.warn('🔓 User-authorized plaintext fallback - DM keys locked')
             this.markPlaintextOverride(extraMetadata = extraMetadata || {}, 'dm_encryption_locked')
           } else {
             if (!allowFallback) {
               throw this.createError('ENCRYPTION_UNAVAILABLE',
                 'This conversation is encrypted but you have not set up a recovery key. Set up encryption to send encrypted, or confirm an unencrypted send.')
             }
-            debug.warn('🔓 User-authorized plaintext fallback — DM no recovery key')
+            debug.warn('🔓 User-authorized plaintext fallback - DM no recovery key')
             this.markPlaintextOverride(extraMetadata = extraMetadata || {}, 'dm_no_recovery_key')
           }
         } else {
@@ -429,7 +429,7 @@ export class CoreMessageService {
             throw this.createError('ENCRYPTION_UNAVAILABLE',
               'This conversation is encrypted but the encryption service is unavailable. Confirm an unencrypted send to continue.')
           }
-          debug.warn('🔓 User-authorized plaintext fallback — DM encryption service unavailable')
+          debug.warn('🔓 User-authorized plaintext fallback - DM encryption service unavailable')
           this.markPlaintextOverride(extraMetadata = extraMetadata || {}, 'dm_service_unavailable')
         }
       }
@@ -752,7 +752,7 @@ export class CoreMessageService {
 
       const transformedReactions = reactions?.map((reaction: any) => {
         // Native emoji (is_native=true) have no entry in the emojis table,
-        // so emoji_id must be null — findReactionGroup relies on this to
+        // so emoji_id must be null - findReactionGroup relies on this to
         // distinguish UUID-based custom emoji from string-based native emoji.
         const isNative = reaction.emoji?.is_native === true
         return {
@@ -993,7 +993,7 @@ export class CoreMessageService {
   ): Promise<Message[]> {
     const { limit = 50, before } = options
 
-    // Prefer local DB first — AP federation inserts messages with proper structured
+    // Prefer local DB first - AP federation inserts messages with proper structured
     // content (preserving custom emojis, etc.). The remote API re-parses HTML and
     // loses that structure. Only fall back to remote fetch if local DB is empty.
     const localMessages = await this.loadCachedRemoteMessages(channelId, options)
@@ -1013,7 +1013,7 @@ export class CoreMessageService {
       return localMessages
     }
 
-    // No local messages — fetch from remote server API
+    // No local messages - fetch from remote server API
     try {
       const params = new URLSearchParams()
       params.append('limit', String(limit))

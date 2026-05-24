@@ -69,7 +69,7 @@ The settings panel (`UserSettings` view) provides:
 
 The `user_mutes` table uses boolean flags:
 
-- `hide_notifications` — Suppress notifications from the user
+- `hide_notifications` - Suppress notifications from the user
 - Muted users' messages are still received but can be hidden in the UI
 
 ### User Blocks

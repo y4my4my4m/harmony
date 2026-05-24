@@ -660,7 +660,7 @@ $$;
 -- ---------------------------------------------------------------------------
 
 -- Create notification with spam prevention
--- SECURITY: Validates caller identity — p_source_user_id must match the authenticated user.
+-- SECURITY: Validates caller identity - p_source_user_id must match the authenticated user.
 -- Uses rate limiting for reaction notifications to avoid spam.
 -- Delegates to send_notification_to_user for the actual insert.
 CREATE OR REPLACE FUNCTION public.create_notification_with_spam_prevention(
@@ -1086,7 +1086,7 @@ $$;
 -- ADMIN RPC FUNCTIONS
 -- ---------------------------------------------------------------------------
 
--- Log admin action (single canonical signature — must match production)
+-- Log admin action (single canonical signature - must match production)
 CREATE OR REPLACE FUNCTION public.log_admin_action(
     p_admin_id uuid,
     p_action_type text,

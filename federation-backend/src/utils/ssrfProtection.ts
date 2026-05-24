@@ -13,7 +13,7 @@ import dns from 'dns';
 // Keep-alive dispatcher for federation outbound HTTP.
 //
 // Node 18+ native `fetch` is undici under the hood, but the default Agent has
-// a 4 s keep-alive — too short for federation delivery, where the same
+// a 4 s keep-alive - too short for federation delivery, where the same
 // remote instance is contacted repeatedly within seconds (fan-out) and the
 // TLS handshake dominates per-request latency. A tuned dispatcher with a
 // 30 s keep-alive + a sane per-origin connection pool gives a large latency
@@ -94,7 +94,7 @@ export function validateExternalUrl(urlString: string): URL {
   }
 
   // `new URL('http://[::1]').hostname` returns `'[::1]'` (with brackets) on
-  // modern Node (WHATWG URL spec) — strip them before pattern checks.
+  // modern Node (WHATWG URL spec) - strip them before pattern checks.
   const hostname = url.hostname.toLowerCase().replace(/^\[|\]$/g, '');
 
   if (BLOCKED_HOSTNAMES.has(hostname)) {
@@ -149,7 +149,7 @@ function isBlockedIPv6(ip: string): boolean {
   const lower = ip.toLowerCase();
   // ::1 loopback / :: unspecified
   if (lower === '::1' || lower === '::') return true;
-  // IPv4-mapped IPv6 (::ffff:1.2.3.4) — check the embedded v4
+  // IPv4-mapped IPv6 (::ffff:1.2.3.4) - check the embedded v4
   const mapped = lower.match(/^::ffff:([0-9.]+)$/);
   if (mapped && isBlockedIPv4(mapped[1])) return true;
   // 6to4 (2002::/16): the first two hextets after `2002:` encode the
@@ -169,7 +169,7 @@ function isBlockedIPv6(ip: string): boolean {
   if (lower.startsWith('fc') || lower.startsWith('fd')) return true;
   // fe80::/10  link-local (second nibble 8/9/a/b)
   if (lower.startsWith('fe8') || lower.startsWith('fe9') || lower.startsWith('fea') || lower.startsWith('feb')) return true;
-  // fec0::/10  site-local — deprecated by RFC 3879 but still classed
+  // fec0::/10  site-local - deprecated by RFC 3879 but still classed
   // as private; block defensively (second nibble c/d/e/f).
   if (lower.startsWith('fec') || lower.startsWith('fed') || lower.startsWith('fee') || lower.startsWith('fef')) return true;
   return false;
@@ -186,7 +186,7 @@ function isBlockedIPv6(ip: string): boolean {
  *    subsequent resolutions are private (mitigated when we re-resolve
  *    on every redirect in `safeFetch`).
  *
- * DNS failures (NXDOMAIN, refused) are treated as benign — they aren't a
+ * DNS failures (NXDOMAIN, refused) are treated as benign - they aren't a
  * security concern here, and surface naturally when the actual fetch
  * also fails to resolve.
  */
@@ -218,7 +218,7 @@ export async function validateResolvedAddress(hostname: string): Promise<void> {
 }
 
 // ============================================================================
-// safeFetch — the canonical helper for outbound HTTP from federation code.
+// safeFetch - the canonical helper for outbound HTTP from federation code.
 // ============================================================================
 
 export interface SafeFetchOptions extends Omit<RequestInit, 'redirect' | 'signal'> {
@@ -300,7 +300,7 @@ function linkSignals(external: AbortSignal | undefined, internal: AbortControlle
  * Header propagation across redirects: by default, `Authorization`,
  * `Cookie`, `Signature`, and `Digest` are STRIPPED on cross-origin hops
  * (host or scheme change). This mirrors browser behavior for auth
- * headers and prevents HTTP-Signature leaks — the signature was bound
+ * headers and prevents HTTP-Signature leaks - the signature was bound
  * to the original `(request-target)` / `Host`, so replaying it to the
  * redirect target would both fail to verify and leak the signed bytes
  * to that target. Non-auth headers (e.g. `Accept`, `User-Agent`) are
@@ -405,12 +405,12 @@ function stripSensitiveHeaders(headers: HeadersInit): Record<string, string> {
  * Wrap a response so its body is rejected if it exceeds `maxBytes`.
  *
  * Strategy:
- *   1. Pre-check `Content-Length` header — if it advertises more than
+ *   1. Pre-check `Content-Length` header - if it advertises more than
  *      `maxBytes`, return a rejected response immediately (cheap path).
  *   2. For chunked / no-Content-Length responses, wrap the body in a
  *      TransformStream that counts bytes and errors on overflow.
  *
- * The returned Response is a normal Response — callers use it as usual
+ * The returned Response is a normal Response - callers use it as usual
  * (`await res.text()`, `await res.json()`) and the overflow surfaces as
  * a thrown error from the body consumer.
  */

@@ -1074,7 +1074,7 @@ async function processUpdateActivity(
     if (object.summary !== undefined) {
       updateData.description = object.summary;
     }
-    // Icon — explicit null means the server removed its icon
+    // Icon - explicit null means the server removed its icon
     if (object.icon?.url) {
       updateData.icon = object.icon.url;
     } else if (object.icon === null) {
@@ -1330,7 +1330,7 @@ async function processReactionActivity(
   };
 
   if (isCustomEmoji) {
-    // Custom emoji with URL — resolve to an emoji_id in the emojis table
+    // Custom emoji with URL - resolve to an emoji_id in the emojis table
     const { data: existingEmoji } = await supabase
       .from('emojis')
       .select('id')
@@ -1363,7 +1363,7 @@ async function processReactionActivity(
       return;
     }
   } else {
-    // Native/unicode emoji — store with emoji_id=null + custom_emoji_content
+    // Native/unicode emoji - store with emoji_id=null + custom_emoji_content
     // Must match ActivityProcessor.processLike storage to prevent double counting
     let normalizedEmoji = emoji || '❤️';
     if (normalizedEmoji === '❤') normalizedEmoji = '❤️';

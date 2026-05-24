@@ -191,7 +191,7 @@ const showRunOnLoginModal = ref(false)
 const runOnLoginEnabled = ref(localStorage.getItem('harmony-run-on-login-enabled') === 'true')
 const runOnLoginUrl = computed(() => getRunOnLoginUrl())
 const runOnLoginBrowserLabel = computed(() => getChromiumBrowserLabel())
-// Only surface on Chromium desktop when the app is actually installed —
+// Only surface on Chromium desktop when the app is actually installed -
 // the feature lives on `about://apps`, which only manages installed PWAs.
 const canShowRunOnLogin = computed(() => isPWA() && isChromiumDesktop())
 

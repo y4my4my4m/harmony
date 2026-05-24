@@ -51,7 +51,7 @@ async function ensurePeer(peerId: string, keyMaterial?: ArrayBuffer): Promise<Pe
 
   const enc = new FrameEncryptor()
   const dec = new FrameEncryptor()
-  // Clone the buffer so encrypt and decrypt both own independent keys —
+  // Clone the buffer so encrypt and decrypt both own independent keys -
   // `crypto.subtle.importKey` consumes the buffer, and we need it twice.
   const encBuf = keyMaterial.slice(0)
   const decBuf = keyMaterial.slice(0)
@@ -89,7 +89,7 @@ self.addEventListener('message', (event: MessageEvent<WorkerInMessage>) => {
     case 'init':
       ensurePeer(data.peerId, data.keyMaterial).catch(() => {
         // Surfacing the failure via postMessage would let the main thread
-        // fall back to non-E2EE silently — that's a downgrade. Drop the
+        // fall back to non-E2EE silently - that's a downgrade. Drop the
         // request; encryptSender/decryptReceiver will skip if peer absent.
       })
       break
@@ -109,7 +109,7 @@ self.addEventListener('message', (event: MessageEvent<WorkerInMessage>) => {
       break
     }
     default:
-      // Unknown message — ignore.
+      // Unknown message - ignore.
       break
   }
 })
@@ -133,7 +133,7 @@ self.addEventListener('rtctransform' as any, async (event: any) => {
       /* pipeline closed */
     })
   } catch {
-    /* transform construction failed — drop silently to fail closed */
+    /* transform construction failed - drop silently to fail closed */
   }
 })
 

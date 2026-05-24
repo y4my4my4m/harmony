@@ -55,7 +55,7 @@ const SAVED_THEMES_KEY = 'custom-themes'
 export const COMMUNITY_PRESETS: ThemePreset[] = [
   {
     name: 'Harmony Teal',
-    description: 'The signature Harmony look — fresh, modern, and inviting',
+    description: 'The signature Harmony look - fresh, modern, and inviting',
     settings: {
       theme: 'custom',
       customThemeMode: 'dark',

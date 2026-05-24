@@ -13,7 +13,7 @@ BEGIN;
 -- Without these, private channel subscriptions fail with CHANNEL_ERROR.
 --
 -- User-scoped broadcasts (user:{profileId}) already work because they
--- use the same mechanism — this migration ensures it's properly set up
+-- use the same mechanism - this migration ensures it's properly set up
 -- for ALL private channels.
 -- ============================================================================
 

@@ -1857,7 +1857,7 @@ export class ActivityPubService {
         };
       });
 
-    // Use raw DB count for pagination — filtering suspended users reduces posts.length, which would incorrectly stop pagination
+    // Use raw DB count for pagination - filtering suspended users reduces posts.length, which would incorrectly stop pagination
     return { posts, fullPage: rawData.length >= limit };
   }
 

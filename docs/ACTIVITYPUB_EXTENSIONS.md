@@ -3,7 +3,7 @@
 **Namespace URI:** `https://harmonyapp.dev/ns#`
 **Prefix:** `harmony`
 **Version:** Draft 0.1
-**Status:** Informal — not yet submitted as a FEP
+**Status:** Informal - not yet submitted as a FEP
 
 This document specifies the ActivityPub vocabulary extensions used by Harmony to federate chat-server functionality (channels, threads, voice, moderation, roles) alongside standard Fediverse interactions.
 
@@ -80,9 +80,9 @@ Applied to `Person` actors representing user profiles.
 - **Type:** `object`
 - **Description:** User's custom status (similar to Discord's custom status).
 - **Properties:**
-  - `text` (string) — Status text
-  - `emoji` (string, optional) — Unicode emoji
-  - `emoji_url` (string, optional) — URL to custom emoji image
+  - `text` (string) - Status text
+  - `emoji` (string, optional) - Unicode emoji
+  - `emoji_url` (string, optional) - URL to custom emoji image
 
 **Example:**
 
@@ -118,7 +118,7 @@ Applied to `Note` objects representing messages sent within server channels.
 
 ### `harmony:channelType`
 
-- **Type:** `string` — `"text"` | `"voice"`
+- **Type:** `string` - `"text"` | `"voice"`
 - **Description:** Type of the originating channel.
 
 ### `harmony:serverId`
@@ -168,7 +168,7 @@ Applied to `Group` actors representing chat servers.
 
 ### `harmony:type`
 
-- **Type:** `string` — `"ChatServer"`
+- **Type:** `string` - `"ChatServer"`
 - **Description:** Identifies this Group as a Harmony chat server (as opposed to a generic ActivityPub Group).
 
 ### `harmony:memberCount`

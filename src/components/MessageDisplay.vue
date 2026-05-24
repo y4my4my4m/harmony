@@ -56,7 +56,7 @@
         <div class="blocked-group-content">
           <span class="blocked-icon">🚫</span>
           <span class="blocked-text">{{ item.count }} blocked message{{ item.count > 1 ? 's' : '' }}</span>
-          <span class="blocked-separator">—</span>
+          <span class="blocked-separator">-</span>
           <button class="reveal-btn" @click="revealBlockedGroup(item.groupId)">
             Show message{{ item.count > 1 ? 's' : '' }}
           </button>
@@ -68,7 +68,7 @@
         <div class="reported-group-content">
           <span class="reported-icon">&#9873;</span>
           <span class="reported-text">You reported this message</span>
-          <span class="blocked-separator">—</span>
+          <span class="blocked-separator">-</span>
           <button class="reveal-btn" @click="revealedReportedIds.add(item.message.id)">Show</button>
           <button class="reveal-btn unreport-btn" @click="unreportMessage(item.message.id)">Unhide</button>
         </div>
@@ -219,7 +219,7 @@
                       class="system-user-mention"
                       @click="showUserProfile(item.message.metadata.kicked_by)"
                       :style="{ color: resolveChatUserColor(item.message.metadata.kicked_by) }"
-                    ><DisplayName :userId="item.message.metadata.kicked_by" /></span></template><template v-if="item.message.metadata?.reason"> — {{ item.message.metadata.reason }}</template>
+                    ><DisplayName :userId="item.message.metadata.kicked_by" /></span></template><template v-if="item.message.metadata?.reason"> - {{ item.message.metadata.reason }}</template>
                   </div>
                 </template>
                 <!-- Member ban system message -->
@@ -236,7 +236,7 @@
                       class="system-user-mention"
                       @click="showUserProfile(item.message.metadata.banned_by)"
                       :style="{ color: resolveChatUserColor(item.message.metadata.banned_by) }"
-                    ><DisplayName :userId="item.message.metadata.banned_by" /></span></template><template v-if="item.message.metadata?.reason"> — {{ item.message.metadata.reason }}</template>
+                    ><DisplayName :userId="item.message.metadata.banned_by" /></span></template><template v-if="item.message.metadata?.reason"> - {{ item.message.metadata.reason }}</template>
                   </div>
                 </template>
                 <!-- Default system message -->
@@ -630,7 +630,7 @@ watch(
  *
  * `serverChannelStore.currentServerId` is null for DMs and ActivityPub
  * contexts, in which case there's no role to look up and we fall through
- * to the profile color — same as before this fix.
+ * to the profile color - same as before this fix.
  */
 const resolveChatUserColor = (userId: string | null | undefined): string => {
   if (!userId) return '#ffffff';
@@ -689,7 +689,7 @@ const isMessageFromBlockedUser = (message: Message): boolean => {
   const isBlocked = activityPubStore.isBlocked(authorId);
   
   // Debug: log check for first few messages (debug helper short-circuits on
-  // its own when debug logging is disabled — no `isEnabled` flag needed).
+  // its own when debug logging is disabled - no `isEnabled` flag needed).
   if (props.messages.indexOf(message) < 3) {
     debug.log(`🔍 Block check: author=${authorId}, blocked=${isBlocked}, blockedUsers size=${activityPubStore.blockedUsers.size}`);
   }
@@ -1171,7 +1171,7 @@ const getAuthorColor = (message: Message): ComputedRef<string> => {
       return '#0EA5E9';
     }
     
-    // Regular user — prefer highest-position role color in the active server.
+    // Regular user - prefer highest-position role color in the active server.
     if (message.user_id) {
       return resolveChatUserColor(message.user_id);
     }
@@ -1377,13 +1377,15 @@ const lightboxImages = computed(() => {
 const currentServerData = computed(() => {
   const serverId = serverChannelStore.currentServerId;
   if (!serverId) return null;
-  
-  const currentServer = serverChannelStore.currentServer;
+
+  const currentServer = serverChannelStore.currentServer as any;
   return {
     id: serverId,
     name: currentServer?.name || 'Unknown Server',
-    icon_url: currentServer?.icon || '',
-    member_count: Object.keys(serverUsersStore.userProfiles).length
+    icon: currentServer?.icon ?? null,
+    banner: currentServer?.banner ?? null,
+    description: currentServer?.description ?? null,
+    member_count: Object.keys(serverUsersStore.userProfiles).length || 0,
   };
 });
 
@@ -1652,7 +1654,7 @@ watch(() => props.messages, (newMessages) => {
             };
             requestAnimationFrame(() => scrollNewToBottom());
           } else if (isAppend && !userWasAtBottom.value) {
-            shouldBeAtBottom.value = false;
+            shouldBeAtBottom.value = false;-
           }
           // Load older messages (prepend) — pin viewport by scroll-height delta.
           //
@@ -1666,7 +1668,7 @@ watch(() => props.messages, (newMessages) => {
           // virtualizer's `totalSize` reflects newly added items, so the delta
           // is exactly how much we need to push down to keep the same content
           // under the user's eye. No jumps, no scrollToIndex thrash.
-          else if (!isAppend) {
+          else if (!isAppend) {-
             shouldBeAtBottom.value = false;
             // Re-read the ref locally with a null guard — match the defensive
             // style used throughout this watcher (lines 1435, 1440, 1646, 1680).
@@ -1720,7 +1722,7 @@ watch(isLoadingOlderMessages, (loading, wasLoading) => {
     // Delay to let virtualizer measure new elements before checking overflow
     setTimeout(() => {
       if (!messageDisplayContainer.value) return;
-      const { scrollHeight, clientHeight } = messageDisplayContainer.value;
+      const { scrollHeight, clientHeight } = messageDis-layContainer.value;
       if (scrollHeight <= clientHeight + 5) {
         debug.log('📜 Still no scrollbar after loading — auto-loading more');
         props.loadMoreMessages?.();
@@ -1968,7 +1970,7 @@ const setupTopSentinelObserver = () => {
 
   topSentinelObserver = new IntersectionObserver(
     (entries) => {
-      const entry = entries[0];
+      const entry = entries[0];-
       if (entry?.isIntersecting && hasInitiallyScrolled && !isAllMessagesLoaded.value && !isLoadingOlderMessages.value && props.loadMoreMessages) {
         debug.log('📜 Top sentinel visible (prefetch zone) — auto-loading older messages');
         props.loadMoreMessages?.();
@@ -2090,7 +2092,7 @@ const showTooltip = async (event: MouseEvent, reaction: Reaction) => {
         isBridged: true,
         bridgeSource: 'discord'
       };
-    }
+    }-
     
     // Regular Harmony user — use role color where available, like the
     // username in the message header. Keeps the reaction tooltip consistent
@@ -2694,7 +2696,7 @@ const correctScrollAfterResize = (callback: () => void) => {
         const updatedItems = rowVirtualizer.value.getVirtualItems();
         const updatedAnchor = updatedItems.find(item => item.index === anchorIdx);
         if (updatedAnchor) {
-          delta = updatedAnchor.start - anchorStartBefore;
+          delta = updatedAnchor.start - anchorS-artBefore;
         } else {
           // Anchor no longer in virtual items — fall back to total size delta
           delta = rowVirtualizer.value.getTotalSize() - totalSizeBefore;
@@ -2810,7 +2812,7 @@ const handleDecryptMessage = async (message: Message) => {
 
     if (decryptedContent) {
       // NOTE: previous code called `resolveMentionsUserData(decryptedContent)`
-      // and assigned its return value to `content`, but
+      // and assigned its return value to `content`, but-
       // `resolveMentionsUserData` returns a Record<string, {userId, isLocal}>
       // lookup map (not MessagePart[]). That was a latent bug — assigning the
       // lookup map to `content` would render nothing. The decrypted content
@@ -2848,7 +2850,7 @@ const handleOpenLightbox = (url: string) => {
   const index = lightboxImages.value.indexOf(url);
   if (index !== -1) {
     indexRef.value = index;
-    activeLightboxImages.value = lightboxImages.value;
+    activeLightboxImages.value = lightboxImages.value;-
   } else {
     // Image from an embed not in the pre-computed list — show standalone
     activeLightboxImages.value = [url];
@@ -3792,7 +3794,7 @@ defineExpose({ editLastOwnMessage });
   border-top-color: transparent;
   border-radius: 50%;
   animation: spin-loader 0.8s linear infinite;
-  /* `display: block` would still flex-align correctly, but inline-block lets
+  /* `display: bl-ck` would still flex-align correctly, but inline-block lets
      the flex item participate as a baseline-positioned token alongside the
      text glyphs — visually identical centering without descender drift. */
   flex-shrink: 0;

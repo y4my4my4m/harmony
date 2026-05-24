@@ -1,7 +1,7 @@
 import { redis } from './RedisService.js';
 import { logger } from '../utils/logger.js';
 
-const TYPING_TTL = 5; // seconds — auto-expires
+const TYPING_TTL = 5; // seconds - auto-expires
 const TYPING_KEY_PREFIX = 'typing:';
 
 export interface TypingUser {

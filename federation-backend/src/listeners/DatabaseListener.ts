@@ -247,7 +247,7 @@ export async function startDatabaseListener(): Promise<void> {
       },
       async (payload) => {
         // Enrich external link previews asynchronously for all local messages
-        // Skip when BullMQ is enabled — the job handler already calls enrichMessageLinkPreviews
+        // Skip when BullMQ is enabled - the job handler already calls enrichMessageLinkPreviews
         if (!config.USE_BULLMQ_QUEUE && !payload.new.metadata?.federated) {
           enrichMessageLinkPreviews(payload.new).catch(err =>
             logger.warn('Link preview enrichment failed:', err)
@@ -1823,7 +1823,7 @@ export async function handleNewDM(message: any): Promise<void> {
     );
     // For group conversations, also include local participants (except sender) so the
     // receiver knows the full participant list (they appear as non-resolvable URLs, which
-    // is fine — the receiver just counts them to decide group vs direct)
+    // is fine - the receiver just counts them to decide group vs direct)
     const localParticipantUrls = conversationType === 'group'
       ? allParticipantProfiles
           .filter((p: any) => p.is_local && p.id !== sender.id)

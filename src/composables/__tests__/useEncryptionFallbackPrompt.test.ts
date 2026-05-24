@@ -137,7 +137,7 @@ describe('useEncryptionFallbackPrompt', () => {
     const secondResult = await second
     expect(secondResult).toEqual({ status: 'declined' })
 
-    // First is still pending — resolve it now.
+    // First is still pending - resolve it now.
     resolveEncryptionFallbackPrompt(true)
     // The retry inside `runWithEncryptionFallback` will reject again
     // (mockRejectedValue), so we expect status 'error' for the first.

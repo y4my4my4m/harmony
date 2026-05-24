@@ -100,7 +100,7 @@ export default defineComponent({
       });
     });
 
-    // Watch for edit mode changes — place cursor at end on initial open
+    // Watch for edit mode changes - place cursor at end on initial open
     watch(() => props.editableMessageId, (newVal) => {
       if (newVal === props.messageId) {
         nextTick(() => {

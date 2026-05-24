@@ -29,7 +29,7 @@ export function getBannerUrl(bannerUrl?: string | null, options?: { width?: numb
 
 /**
  * Get public banner URL from storage path.
- * Uses raw public URL (no server-side transforms) — CSS handles sizing via background-size: cover.
+ * Uses raw public URL (no server-side transforms) - CSS handles sizing via background-size: cover.
  * This avoids dependency on imgproxy/render endpoint which may not be available on all deployments.
  */
 export function getPublicBannerUrl(storagePath: string, _options?: { width?: number; height?: number; quality?: number }): string | null {
@@ -75,7 +75,7 @@ export function normalizeBannerForStorage(bannerUrl?: string | null): string | n
   return bannerUrl
 }
 
-const MAX_BANNER_SIZE = 10 * 1024 * 1024 // 10MB — must match bucket file_size_limit
+const MAX_BANNER_SIZE = 10 * 1024 * 1024 // 10MB - must match bucket file_size_limit
 
 /**
  * Upload banner file to storage.
@@ -113,7 +113,7 @@ export async function uploadBanner(file: File, userId: string): Promise<{ succes
         }
       }
     } catch {
-      // Non-critical — continue with upload even if cleanup fails
+      // Non-critical - continue with upload even if cleanup fails
     }
     
     const { error } = await supabase.storage

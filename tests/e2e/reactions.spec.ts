@@ -2,7 +2,7 @@ import { test, expect } from './fixtures/auth.fixture'
 import { ChatPage } from './pages/ChatPage'
 import { SocialPage } from './pages/SocialPage'
 
-test.describe('Reactions — Channel Messages', () => {
+test.describe('Reactions - Channel Messages', () => {
   test('can react to a message via emoji picker', async ({ alicePage, seedData }) => {
     const chat = new ChatPage(alicePage)
     await chat.navigateToChannel(seedData.serverId, seedData.channelId)
@@ -42,7 +42,7 @@ test.describe('Reactions — Channel Messages', () => {
     await aliceChat.waitForMessage(msg)
     await bobChat.waitForMessage(msg)
 
-    // Both users react — count should show 2
+    // Both users react - count should show 2
     // Alice reacts
     const aliceMsgEl = aliceChat.getMessageByContent(msg)
     await aliceMsgEl.hover()
@@ -79,7 +79,7 @@ test.describe('Reactions — Channel Messages', () => {
   })
 })
 
-test.describe('Reactions — ActivityPub Posts', () => {
+test.describe('Reactions - ActivityPub Posts', () => {
   test('can favorite a post', async ({ alicePage }) => {
     const social = new SocialPage(alicePage)
     await social.navigateToLocal()

@@ -60,16 +60,16 @@ export const useAuthStore = defineStore('auth', {
     /**
      * Read the JWT's `amr` (Authentication Methods References) claim and
      * return the list of method names. Supabase records the methods the
-     * session was authenticated with — `password` after `signInWithPassword`,
+     * session was authenticated with - `password` after `signInWithPassword`,
      * `totp` after `mfa.verify`, `oauth` after a third-party callback, etc.
      *
      * Crucially, AMR persists through token refresh: it's session metadata,
      * not a one-shot value. So a session that was once AAL2 (password+totp)
      * still has `totp` in `amr` after Supabase's automatic AAL2 expiry
      * downgrade to AAL1 (~24h default). That's how we distinguish "long
-     * session whose MFA grace period expired" (safe — keep the user logged
+     * session whose MFA grace period expired" (safe - keep the user logged
      * in per docs/2FA_SECURITY_MODEL.md) from "fresh AAL1 mid-login that
-     * never completed MFA" (unsafe — must reject, BUGS.md C11/M64).
+     * never completed MFA" (unsafe - must reject, BUGS.md C11/M64).
      */
     getAMR(session: Session | null): string[] {
       if (!session) return [];
@@ -78,7 +78,7 @@ export const useAuthStore = defineStore('auth', {
         const amr = decoded?.amr;
         if (!Array.isArray(amr)) return [];
         // GoTrue emits objects like `{ method: 'totp', timestamp: ... }`,
-        // but older specs allow plain strings — accept both shapes.
+        // but older specs allow plain strings - accept both shapes.
         return amr
           .map((entry: any) => (typeof entry === 'string' ? entry : entry?.method))
           .filter((m: any): m is string => typeof m === 'string');
@@ -97,7 +97,7 @@ export const useAuthStore = defineStore('auth', {
      * - User has MFA, session is at AAL2 (just verified).
      * - User has MFA, session is at AAL1, AND the session's `amr` claim
      *   contains `totp` (i.e. MFA was completed earlier in this session
-     *   and AAL2 has since expired naturally — the documented long-session
+     *   and AAL2 has since expired naturally - the documented long-session
      *   UX in `docs/2FA_SECURITY_MODEL.md`).
      *
      * One rejected shape (return false):
@@ -133,8 +133,8 @@ export const useAuthStore = defineStore('auth', {
           // completed TOTP verification on this session. Per
           // docs/2FA_SECURITY_MODEL.md the documented model accepts AAL1
           // here so users stay logged in across days/weeks like Mastodon,
-          // Discord, GitHub, etc. — 2FA gates the LOGIN, not the SESSION.
-          debug.log('✅ AAL1 session with prior TOTP verification — accepting (AAL2 expired post-login, refresh-token still valid)');
+          // Discord, GitHub, etc. - 2FA gates the LOGIN, not the SESSION.
+          debug.log('✅ AAL1 session with prior TOTP verification - accepting (AAL2 expired post-login, refresh-token still valid)');
           return true;
         }
 
@@ -144,17 +144,17 @@ export const useAuthStore = defineStore('auth', {
         const { data: factors, error } = await supabase.auth.mfa.listFactors();
         if (error) {
           debug.error('❌ Failed to check MFA factors:', error);
-          // Conservative on error — same fallback as before the fix.
+          // Conservative on error - same fallback as before the fix.
           return false;
         }
 
         const has2FA = factors?.totp?.some((f: any) => f.status === 'verified');
         if (has2FA) {
-          debug.warn('🚨 AAL1 session for MFA-enrolled user without prior TOTP verification — blocking (mid-login or OAuth without MFA challenge)');
+          debug.warn('🚨 AAL1 session for MFA-enrolled user without prior TOTP verification - blocking (mid-login or OAuth without MFA challenge)');
           return false;
         }
 
-        debug.log('✅ Session at AAL1, no MFA enrolled — accepting');
+        debug.log('✅ Session at AAL1, no MFA enrolled - accepting');
         return true;
       } catch (error) {
         debug.error('❌ Error validating session MFA:', error);
@@ -169,7 +169,7 @@ export const useAuthStore = defineStore('auth', {
         // Use existing session from state
         const session = this.session
         if (!session) {
-          // If no cached session, still need to fetch — and MUST validate
+          // If no cached session, still need to fetch - and MUST validate
           // before adopting it, even on a cache "hit". Otherwise a tab can
           // pick up an AAL1 session written by another tab between cache
           // refreshes and skip MFA entirely (BUGS.md C11 / M64).
@@ -231,7 +231,7 @@ export const useAuthStore = defineStore('auth', {
           //     validateSessionForMFA rejection path).
           //   - AuthCallbackView clears the flag after it adopts the session
           //     itself or routes the user to MFA challenge / login.
-          debug.log('🔒 OAuth callback detected on initialization — deferring session adoption to AuthCallbackView');
+          debug.log('🔒 OAuth callback detected on initialization - deferring session adoption to AuthCallbackView');
           this._pendingMFAVerification = true;
           this.session = null;
         } else if (session) {
@@ -355,7 +355,7 @@ export const useAuthStore = defineStore('auth', {
         
         // Handle new login (SIGNED_IN with different/new user)
         if (event === 'SIGNED_IN' && session) {
-          // Skip validation if MFA flow is in progress — the AAL1 session is
+          // Skip validation if MFA flow is in progress - the AAL1 session is
           // expected and will be upgraded to AAL2 by verify2FA()
           if (this._pendingMFAVerification) {
             debug.log('🔒 SIGNED_IN during pending MFA verification - skipping (will upgrade to AAL2)');
@@ -404,7 +404,7 @@ export const useAuthStore = defineStore('auth', {
           // The comment used to say "already validated in initializeAuth", but
           // this branch also runs when `this.session` was previously null and
           // INITIAL_SESSION fires from another tab's just-created AAL1 session
-          // — i.e. an MFA-required session that hasn't completed verification.
+          // - i.e. an MFA-required session that hasn't completed verification.
           // Re-validate before adopting unless we explicitly remember
           // validating it from initializeAuth() (this tab's own boot path).
           if (!this.session) {
@@ -453,7 +453,7 @@ export const useAuthStore = defineStore('auth', {
             this.session = session;
             return;
           }
-          // Same MFA-in-progress guard as above — without it, a
+          // Same MFA-in-progress guard as above - without it, a
           // TOKEN_REFRESHED arriving while AuthCallbackView is mid-challenge
           // would tear down the AAL1 session before verification completes.
           if (this._pendingMFAVerification) {
@@ -568,7 +568,7 @@ export const useAuthStore = defineStore('auth', {
       // used to live), the SIGNED_IN handler runs while the flag is still
       // false, calls `validateSessionForMFA` which rejects the AAL1 session
       // for an MFA-enrolled user, and signs the user out. By the time
-      // `listFactors` runs, the session is already gone — `totpFactor` is
+      // `listFactors` runs, the session is already gone - `totpFactor` is
       // undefined and `login()` returns `{ requires2FA: false }` despite
       // the user clearly having 2FA. The login UI then shows "Welcome
       // back!", navigates to /chat, and the protected route renders blank
@@ -595,7 +595,7 @@ export const useAuthStore = defineStore('auth', {
 
           if (profile?.is_suspended) {
             // Sign out the user immediately. The `finally` below will clear
-            // the flag — we don't reset it here to avoid the SIGNED_OUT
+            // the flag - we don't reset it here to avoid the SIGNED_OUT
             // handler racing against a half-cleared state.
             await supabase.auth.signOut();
             throw new Error(
@@ -619,13 +619,13 @@ export const useAuthStore = defineStore('auth', {
 
           if (challengeError) {
             // Reset the flag here (rather than rely on `finally`) because
-            // we still want to throw upward to the caller — the login UI
+            // we still want to throw upward to the caller - the login UI
             // shows the error and lets the user retry.
             this._pendingMFAVerification = false;
             throw challengeError;
           }
 
-          // KEEP the flag set across the function return — `verify2FA` in
+          // KEEP the flag set across the function return - `verify2FA` in
           // its `finally` block clears it once MFA actually completes.
           return {
             requires2FA: true,
@@ -636,7 +636,7 @@ export const useAuthStore = defineStore('auth', {
         }
 
         // No 2FA path: the SIGNED_IN handler skipped (because of our flag),
-        // so we have to do its work ourselves — adopt the session AND run
+        // so we have to do its work ourselves - adopt the session AND run
         // the same post-login setup it would have run. Mirror the
         // `event === 'SIGNED_IN'` block in `onAuthStateChange` exactly so
         // non-2FA login produces identical state regardless of which path
@@ -649,7 +649,7 @@ export const useAuthStore = defineStore('auth', {
           this.setupOfflineHandlers(data.session.user.id);
           this.initializeUserSettings(data.session.user.id);
           const activityPubStore = useActivityPubStore();
-          // Fire and forget — matches the SIGNED_IN handler's pattern
+          // Fire and forget - matches the SIGNED_IN handler's pattern
           // (it doesn't await this either, and we don't want to block
           // the login UI on a slow blocks/mutes query).
           activityPubStore.loadBlockingData();
@@ -662,8 +662,8 @@ export const useAuthStore = defineStore('auth', {
           session: data.session,
         };
       } catch (err) {
-        // Any failure path — sign-in error, suspended user, MFA challenge
-        // error — must clear the flag so subsequent login attempts (or a
+        // Any failure path - sign-in error, suspended user, MFA challenge
+        // error - must clear the flag so subsequent login attempts (or a
         // page refresh that triggers a fresh INITIAL_SESSION) aren't stuck
         // in the "skip SIGNED_IN" state.
         this._pendingMFAVerification = false;
@@ -699,7 +699,7 @@ export const useAuthStore = defineStore('auth', {
         this.session = sessionData.session;
 
         // The `MFA_CHALLENGE_VERIFIED` event handler only runs
-        // `setupOfflineHandlers` — it skips `userStorage.setCurrentUser`,
+        // `setupOfflineHandlers` - it skips `userStorage.setCurrentUser`,
         // `initializeUserSettings`, and `activityPubStore.loadBlockingData`,
         // all of which the SIGNED_IN handler runs. We mirror those here so
         // 2FA users land in the same fully-initialized state as non-2FA
@@ -750,7 +750,7 @@ export const useAuthStore = defineStore('auth', {
       }
       this.cleanupOfflineHandlers();
 
-      // Null session and sign out FIRST — this makes isLoggedIn false immediately,
+      // Null session and sign out FIRST - this makes isLoggedIn false immediately,
       // preventing reactive components from firing queries with stale/undefined data
       // (e.g. user_roles with server_id=undefined, get_supporter_badge after auth gone)
       this.session = null;
@@ -764,7 +764,7 @@ export const useAuthStore = defineStore('auth', {
       // Clear user-scoped localStorage on logout
       userStorage.clearCurrentUser();
       
-      // Clear stores in the background after navigation — order no longer matters
+      // Clear stores in the background after navigation - order no longer matters
       // since components have already unmounted
       try {
         const { useProfileStore } = await import('@/stores/useProfile')
@@ -790,7 +790,7 @@ export const useAuthStore = defineStore('auth', {
         // BUGS.md Pattern B / #3 v2: a typed action on the store, replacing
         // the previous unsafe `as unknown as { ... }` cast. The earlier
         // version also had a dead-code branch checking `bookmarks?.posts`
-        // — `bookmarks` is actually `TimelinePost[]`, so the array was
+        // - `bookmarks` is actually `TimelinePost[]`, so the array was
         // never cleared. See `resetUserRelationshipState` for the full
         // set of fields covered.
         activityPubStore.resetUserRelationshipState()

@@ -154,7 +154,7 @@ CREATE POLICY "Server owners can delete their servers" ON public.servers
 -- CHANNEL CATEGORIES RLS
 -- ---------------------------------------------------------------------------
 -- Note: 98_enable_rls.sql already enables RLS on this table.
--- Categories are not sensitive — allow all authenticated users to read.
+-- Categories are not sensitive - allow all authenticated users to read.
 
 DROP POLICY IF EXISTS "channel_categories_select" ON public.channel_categories;
 CREATE POLICY "channel_categories_select" ON public.channel_categories

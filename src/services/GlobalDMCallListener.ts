@@ -203,16 +203,16 @@ class GlobalDMCallListenerService {
         break
         
       case 'timeout':
-        // Caller's timeout fired — dismiss our incoming call modal
-        debug.log('⏰ Call timed out — dismissing incoming call modal')
+        // Caller's timeout fired - dismiss our incoming call modal
+        debug.log('⏰ Call timed out - dismissing incoming call modal')
         dmCallSignaling.handleRemoteSignal(signal)
         this.dismissIncomingCall()
         toast.warning('Missed call')
         break
         
       case 'end':
-        // Caller cancelled or call ended — dismiss incoming call modal
-        debug.log('📞 Call ended/cancelled — dismissing incoming call modal')
+        // Caller cancelled or call ended - dismiss incoming call modal
+        debug.log('📞 Call ended/cancelled - dismissing incoming call modal')
         dmCallSignaling.handleRemoteSignal(signal)
         this.dismissIncomingCall()
         break
@@ -326,7 +326,7 @@ class GlobalDMCallListenerService {
     // users would still see a ringing modal from any remote actor. Run the
     // same check as the local-call path before any UI / call-state side
     // effects. If the call is auto-declined we don't currently have a
-    // federation-side decline channel — just refuse to ring locally and let
+    // federation-side decline channel - just refuse to ring locally and let
     // the caller's ring timeout fire.
     const permissionCheck = await dmCallPermissions.canReceiveCall(
       payload.callerId,

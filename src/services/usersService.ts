@@ -48,7 +48,7 @@ const getUserIdsForServer = async (serverId: string): Promise<string[]> => {
 
 /**
  * Batch-fetch member IDs for multiple servers in a single query.
- * Uses the same cache as getUserIdsForServer — only queries uncached servers.
+ * Uses the same cache as getUserIdsForServer - only queries uncached servers.
  */
 const getUserIdsForServers = async (serverIds: string[]): Promise<Map<string, string[]>> => {
   const now = Date.now()

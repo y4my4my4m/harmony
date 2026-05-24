@@ -37,7 +37,7 @@
             <div class="card-footer">
               <span class="announcement-date">{{ formatDate(announcement.created_at) }}</span>
               <span v-if="announcement.author_id || announcement.author_display_name" class="announcement-author">
-                — <DisplayName
+                - <DisplayName
                   v-if="announcement.author_id"
                   :user-id="announcement.author_id"
                   :fallback="announcement.author_display_name"

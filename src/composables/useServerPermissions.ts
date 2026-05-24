@@ -31,7 +31,7 @@ const cacheVersion = ref(0)
 
 /**
  * BUGS.md H50 / Pattern B: clear ALL module-level permission caches. These
- * caches are not store state, so `pinia.$reset()` cannot reach them — they
+ * caches are not store state, so `pinia.$reset()` cannot reach them - they
  * would otherwise persist across logout and the next user on the same tab
  * could briefly see the previous user's cached permissions in UI until a
  * fresh fetch arrives. Called from `auth.logout()`.

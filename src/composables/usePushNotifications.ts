@@ -453,7 +453,7 @@ async function sendTestNotification(): Promise<{ success: boolean; error?: strin
     let data = await sendTest()
 
     // If device-specific lookup failed, re-register the browser subscription
-    // with the server and retry — covers desync after logout/login
+    // with the server and retry - covers desync after logout/login
     if (data.sent === 0 && currentEndpoint) {
       debug.log('🔔 Test notification found no subscription, re-registering device...')
       const resubResult = await subscribe()

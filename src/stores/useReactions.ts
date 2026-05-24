@@ -318,7 +318,7 @@ export const useReactionsStore = defineStore('reactions', () => {
                // raw `emojiId` so the optimistic group's identity matches what
                // the server stores in `custom_emoji_content`. MessageReactions'
                // `getReactionKey` falls back to `emoji.name` when `emoji_id`
-               // is null — if optimistic uses the shortcode and the server
+               // is null - if optimistic uses the shortcode and the server
                // returns the raw content (or vice versa), the v-for keys
                // differ and TransitionGroup runs a leave→enter cycle that
                // looks like a reorder when the reconcile fires.
@@ -384,7 +384,7 @@ export const useReactionsStore = defineStore('reactions', () => {
   // NOTE: A 30 s `cleanupOptimisticState` interval used to run here. Its
   // body was a no-op loop ("real data will come via realtime naturally"),
   // so it produced no behavior but kept the event loop awake every 30 s
-  // for the life of the tab. Removed — optimistic state is now cleared on
+  // for the life of the tab. Removed - optimistic state is now cleared on
   // realtime confirmation or via the per-reaction reconcile timeout
   // tracked in `pendingReconcileTimeouts`.
 

@@ -274,7 +274,7 @@ LOGO
     printf "    ${DIM}Federated Social Platform${RESET}\n"
     echo ""
     print_line 42
-    printf "  ${DIM}Interactive Setup — v1.0${RESET}\n"
+    printf "  ${DIM}Interactive Setup - v1.0${RESET}\n"
     print_line 42
     echo ""
 }
@@ -290,8 +290,8 @@ select_mode() {
 
     local choice=0
     prompt_choice "Select deployment mode:" \
-        "Production (VPS) — Full self-hosting with nginx, SSL, Docker" \
-        "Local Development — Dev environment with hot-reload" || choice=$?
+        "Production (VPS) - Full self-hosting with nginx, SSL, Docker" \
+        "Local Development - Dev environment with hot-reload" || choice=$?
     if [[ $choice -eq 0 ]]; then
         MODE="production"
     else
@@ -404,11 +404,11 @@ setup_selfhosted_supabase_docker() {
     print_step "4b" "Email verification for signups"
     echo ""
     print_info "Require new users to verify their email before signing in?"
-    print_info "We recommend ${BOLD}Yes${RESET} and using a transactional email provider like ${BOLD}Resend${RESET} (resend.com — free tier available)."
+    print_info "We recommend ${BOLD}Yes${RESET} and using a transactional email provider like ${BOLD}Resend${RESET} (resend.com - free tier available)."
     print_info "If you skip verification, anyone can sign up with any email without confirmation."
     echo ""
     if prompt_yn "Require email verification?" "y"; then
-        # Verification enabled — need SMTP for emails to send
+        # Verification enabled - need SMTP for emails to send
         if prompt_yn "Configure Resend now? (you need an API key from resend.com)" "y"; then
             local resend_key
             resend_key=$(prompt_input "Resend API key (starts with re_)" "")
@@ -454,7 +454,7 @@ setup_selfhosted_supabase_docker() {
 
 start_supabase() {
     if [[ -z "$SUPABASE_PROJECT_DIR" ]] || [[ ! -d "$SUPABASE_PROJECT_DIR" ]]; then
-        print_warn "Supabase project directory not set or missing — cannot start Supabase."
+        print_warn "Supabase project directory not set or missing - cannot start Supabase."
         return 1
     fi
 
@@ -505,7 +505,7 @@ ensure_supabase_running() {
         return 0
     fi
 
-    print_info "Supabase is not running — starting it now..."
+    print_info "Supabase is not running - starting it now..."
     start_supabase
 }
 
@@ -553,7 +553,7 @@ configure_supabase() {
     else
         local choice=0
         prompt_choice "Supabase hosting:" \
-            "Supabase Cloud (supabase.com — free tier available)" \
+            "Supabase Cloud (supabase.com - free tier available)" \
             "Self-hosted Supabase (Docker on this VPS)" || choice=$?
         if [[ $choice -eq 0 ]]; then
             SUPABASE_MODE="cloud"
@@ -655,13 +655,13 @@ configure_features() {
         fi
 
         echo ""
-        print_info "LiveKit uses UDP mux — all media on a single port (${LIVEKIT_UDP_PORT}/udp)."
+        print_info "LiveKit uses UDP mux - all media on a single port (${LIVEKIT_UDP_PORT}/udp)."
         print_info "Scaling is limited by CPU/bandwidth, not port count."
         if [[ "$MODE" == "production" ]]; then
             echo ""
             printf "    ${BYELLOW}Scaling tip:${RESET} For 200+ simultaneous voice users, consider running\n"
             printf "    LiveKit on a dedicated VPS with more CPU cores. LiveKit supports\n"
-            printf "    multi-node clustering via Redis — just point additional nodes at\n"
+            printf "    multi-node clustering via Redis - just point additional nodes at\n"
             printf "    the same Redis instance and they coordinate automatically.\n"
             printf "    See: ${CYAN}https://docs.livekit.io/realtime/self-hosting/deployment/${RESET}\n"
             echo ""
@@ -674,7 +674,7 @@ configure_features() {
     echo ""
     printf "  ${BOLD}Bot Gateway${RESET}\n"
     print_info "Allows bots to connect to your instance via WebSocket."
-    print_info "Optional — most instances don't need this initially."
+    print_info "Optional - most instances don't need this initially."
     echo ""
     if prompt_yn "Enable bot gateway?" "n"; then
         ENABLE_BOTS=true
@@ -716,12 +716,12 @@ configure_features() {
         printf "  ${BOLD}Backend Deployment${RESET}\n"
         print_info "How should the backend services (federation, voice, bot-gateway) run?"
         print_info "The web app is always built to static files and served by nginx."
-        print_info "Docker runs federation, LiveKit, Redis, and nginx in one stack — one-command deploy."
+        print_info "Docker runs federation, LiveKit, Redis, and nginx in one stack - one-command deploy."
         echo ""
 
         local choice=0
         prompt_choice "Backend deployment:" \
-            "Docker Compose (recommended — federation, LiveKit, nginx in containers)" \
+            "Docker Compose (recommended - federation, LiveKit, nginx in containers)" \
             "Native Node.js (run federation/LiveKit directly on the host)" || choice=$?
 
         if [[ $choice -eq 0 ]]; then
@@ -757,7 +757,7 @@ configure_features() {
         printf "    ${DIM}[ ]${RESET} Documentation Site\n"
     fi
     if $ENABLE_MONITORING; then
-        printf "    ${BGREEN}[x]${RESET} Queue Monitoring (Bull Board — ${BULL_BOARD_SUBDOMAIN})\n"
+        printf "    ${BGREEN}[x]${RESET} Queue Monitoring (Bull Board - ${BULL_BOARD_SUBDOMAIN})\n"
     else
         printf "    ${DIM}[ ]${RESET} Queue Monitoring\n"
     fi
@@ -904,7 +904,7 @@ REDIS_PASSWORD=$REDIS_PASSWORD"
     if $ENABLE_VOICE; then
         env_extra+="
 
-# LiveKit uses UDP mux on port $LIVEKIT_UDP_PORT — see webrtc/livekit.yaml
+# LiveKit uses UDP mux on port $LIVEKIT_UDP_PORT - see webrtc/livekit.yaml
 LIVEKIT_UDP_PORT=$LIVEKIT_UDP_PORT"
     fi
 
@@ -917,7 +917,7 @@ BULL_BOARD_PASSWORD=$BULL_BOARD_PASSWORD"
     fi
 
     cat > "$env_file" << EOF
-# Generated by Harmony installer — $(date '+%Y-%m-%d %H:%M:%S')
+# Generated by Harmony installer - $(date '+%Y-%m-%d %H:%M:%S')
 VITE_SUPABASE_URL=$SUPABASE_URL
 VITE_SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY
 VITE_DOMAIN=$DOMAIN
@@ -978,7 +978,7 @@ generate_federation_env() {
     fi
 
     cat > "$env_file" << EOF
-# Generated by Harmony installer — $(date '+%Y-%m-%d %H:%M:%S')
+# Generated by Harmony installer - $(date '+%Y-%m-%d %H:%M:%S')
 NODE_ENV=${MODE/local/development}
 PORT=3001
 API_BASE_URL=$api_base_url
@@ -1045,7 +1045,7 @@ console.log(JSON.stringify({ publicKey, privateKey }));
                     local vapid_email="admin@${DOMAIN}"
                     {
                         echo ""
-                        echo "# Web Push (VAPID) — generated by installer"
+                        echo "# Web Push (VAPID) - generated by installer"
                         echo "VAPID_PUBLIC_KEY=$vapid_pub"
                         echo "VAPID_PRIVATE_KEY=$vapid_priv"
                         echo "VAPID_SUBJECT=$vapid_email"
@@ -1098,7 +1098,7 @@ generate_bot_gateway_env() {
     fi
 
     cat > "$env_file" << EOF
-# Generated by Harmony installer — $(date '+%Y-%m-%d %H:%M:%S')
+# Generated by Harmony installer - $(date '+%Y-%m-%d %H:%M:%S')
 NODE_ENV=${MODE/local/development}
 PORT=3002
 SUPABASE_URL=${SUPABASE_INTERNAL_URL:-$SUPABASE_URL}
@@ -1151,10 +1151,10 @@ generate_livekit_config() {
     fi
 
     cat > "$config_file" << EOF
-# Generated by Harmony installer — $(date '+%Y-%m-%d %H:%M:%S')
+# Generated by Harmony installer - $(date '+%Y-%m-%d %H:%M:%S')
 #
 # UDP mux: all WebRTC media on port ${LIVEKIT_UDP_PORT} (single port).
-# LiveKit demuxes by ICE session — one port serves thousands of participants.
+# LiveKit demuxes by ICE session - one port serves thousands of participants.
 # Scaling limits are CPU/bandwidth, not port count.
 #
 # Multi-node: deploy additional LiveKit instances pointing at the same Redis.
@@ -1177,7 +1177,7 @@ turn:
   enabled: true
   domain: $turn_domain
   udp_port: 3478
-  # TLS handled by nginx — leave tls_port commented
+  # TLS handled by nginx - leave tls_port commented
   # tls_port: 5349
 
 room:
@@ -1211,10 +1211,10 @@ generate_nginx_config() {
         fi
     fi
 
-    # Determine web root — nginx can't traverse /root/, so use /var/www/harmony
+    # Determine web root - nginx can't traverse /root/, so use /var/www/harmony
     if [[ "$PROJECT_DIR" == /root/* ]]; then
         WEB_ROOT="/var/www/harmony"
-        print_warn "Project is inside /root/ — nginx cannot access it."
+        print_warn "Project is inside /root/ - nginx cannot access it."
         print_info "Static files will be served from ${BOLD}$WEB_ROOT${RESET}"
     else
         WEB_ROOT="$PROJECT_DIR/dist"
@@ -1242,7 +1242,7 @@ generate_nginx_config() {
 
         if ! $skip_bb; then
             cat > "$bb_output" << BBEOF
-# Bull Board queue monitoring — generated by Harmony installer
+# Bull Board queue monitoring - generated by Harmony installer
 server {
     listen 80;
     server_name $BULL_BOARD_SUBDOMAIN;
@@ -1283,7 +1283,7 @@ BBEOF
 
         if ! $skip_lk; then
             cat > "$lk_output" << LKEOF
-# LiveKit WebSocket proxy — generated by Harmony installer
+# LiveKit WebSocket proxy - generated by Harmony installer
 server {
     listen 80;
     server_name $LIVEKIT_SUBDOMAIN;
@@ -1813,7 +1813,7 @@ build_frontend() {
 
     echo ""
     printf "  ${BOLD}Build frontend (static files)?${RESET}\n"
-    print_info "The Vue app is built once into ${BOLD}dist/${RESET} — static HTML/JS/CSS."
+    print_info "The Vue app is built once into ${BOLD}dist/${RESET} - static HTML/JS/CSS."
     if $USE_DOCKER; then
         print_info "The nginx container will serve that folder; it does not build the app."
     fi
@@ -1861,7 +1861,7 @@ build_frontend() {
 start_services() {
     if [[ "$MODE" == "production" ]] && ! $USE_DOCKER; then
         echo ""
-        printf "  ${BOLD}Native deployment — manual service startup${RESET}\n"
+        printf "  ${BOLD}Native deployment - manual service startup${RESET}\n"
         echo ""
         print_info "Start each service manually:"
         echo ""
@@ -1887,7 +1887,7 @@ start_services() {
     printf "  ${BOLD}Start Harmony Services${RESET}\n"
     echo ""
 
-    # Ensure Supabase is running first (self-hosted) — the Harmony compose
+    # Ensure Supabase is running first (self-hosted) - the Harmony compose
     # connects to the supabase_default network and needs it to exist.
     ensure_supabase_running
 
@@ -2057,7 +2057,7 @@ show_summary() {
         printf "    ${CROSS} Bot Gateway ${DIM}(disabled)${RESET}\n"
     fi
     if $ENABLE_MONITORING; then
-        printf "    ${CHECK} Queue Monitoring ${DIM}(Bull Board — ${BULL_BOARD_SUBDOMAIN})${RESET}\n"
+        printf "    ${CHECK} Queue Monitoring ${DIM}(Bull Board - ${BULL_BOARD_SUBDOMAIN})${RESET}\n"
     else
         printf "    ${CROSS} Queue Monitoring ${DIM}(disabled)${RESET}\n"
     fi
@@ -2169,7 +2169,7 @@ setup_database() {
     if [[ "$SUPABASE_MODE" == "cloud" ]]; then
         print_info "For Supabase Cloud, run the schema via the SQL Editor or psql."
         echo ""
-        print_info "Option A: ${BOLD}Supabase Dashboard → SQL Editor${RESET} — run files from db_schema/init/ then db_schema/migrations/ in order."
+        print_info "Option A: ${BOLD}Supabase Dashboard → SQL Editor${RESET} - run files from db_schema/init/ then db_schema/migrations/ in order."
         echo ""
         print_info "Option B: Install PostgreSQL client, then from the project root:"
         echo ""
@@ -2193,7 +2193,7 @@ setup_database() {
 
     if ! $SCHEMA_SETUP_ONLY && ! prompt_yn "Set up database schema now?" "y"; then
         echo ""
-        print_info "Run it manually (init.sql uses \\i to include other files — run from db_schema/init):"
+        print_info "Run it manually (init.sql uses \\i to include other files - run from db_schema/init):"
         printf "    ${CYAN}cd db_schema/init && PGPASSWORD=... psql -h %s -p %s -U %s -d %s -f init.sql${RESET}\n" "$db_host" "$db_port" "$db_user" "$db_name"
         printf "    ${CYAN}cd - && for f in db_schema/migrations/*.sql; do psql -h %s -p %s -U %s -d %s -f \"\$f\"; done${RESET}\n" "$db_host" "$db_port" "$db_user" "$db_name"
         echo ""
@@ -2220,7 +2220,7 @@ setup_database() {
 
     # Determine how to run psql: docker exec into db container (best), local psql, or fallback
     if require_cmd docker && docker inspect "$db_container" &>/dev/null; then
-        print_info "Found running ${BOLD}$db_container${RESET} container — will use docker exec."
+        print_info "Found running ${BOLD}$db_container${RESET} container - will use docker exec."
         use_docker_exec=true
     elif require_cmd psql; then
         print_info "Using local psql client."
@@ -2232,7 +2232,7 @@ setup_database() {
                 if start_supabase; then
                     db_container="${SUPABASE_DB_CONTAINER:-supabase-db}"
                     if docker inspect "$db_container" &>/dev/null; then
-                        print_info "Found running ${BOLD}$db_container${RESET} container — will use docker exec."
+                        print_info "Found running ${BOLD}$db_container${RESET} container - will use docker exec."
                         use_docker_exec=true
                     fi
                 fi
@@ -2268,7 +2268,7 @@ setup_database() {
         fi
     }
 
-    # Test connection (with retries — Supabase init can take 60–90+ seconds on first boot)
+    # Test connection (with retries - Supabase init can take 60–90+ seconds on first boot)
     print_info "Testing database connection (Supabase init may take 1–2 minutes)..."
     try_db_connect() {
         run_psql -c "SELECT 1" &>/dev/null
@@ -2290,7 +2290,7 @@ setup_database() {
 
     # If supabase_admin fails, try postgres (Supabase roles.sql has a known bug leaving supabase_admin without password)
     if ! $connected && [[ "$db_user" == "supabase_admin" ]]; then
-        print_info "supabase_admin failed — trying postgres (password from .env)..."
+        print_info "supabase_admin failed - trying postgres (password from .env)..."
         db_user="postgres"
         for ((i=1; i<=3; i++)); do
             if try_db_connect; then
@@ -2415,7 +2415,7 @@ setup_database() {
             print_success "Set link_preview_backend_url=${BOLD}$link_preview_url${RESET}"
         fi
     else
-        print_warn "Could not update instance_config — set manually in the admin panel"
+        print_warn "Could not update instance_config - set manually in the admin panel"
     fi
 
     DB_SCHEMA_LOADED=true
@@ -2482,10 +2482,10 @@ run_move_dist() {
     local web_root
     if [[ "$PROJECT_DIR" == /root/* ]]; then
         web_root="/var/www/harmony"
-        print_info "Project is under /root/ — deploying to ${BOLD}$web_root${RESET}"
+        print_info "Project is under /root/ - deploying to ${BOLD}$web_root${RESET}"
     else
         web_root="$PROJECT_DIR/dist"
-        print_info "Web root: ${BOLD}$web_root${RESET} (same as dist — no copy needed)"
+        print_info "Web root: ${BOLD}$web_root${RESET} (same as dist - no copy needed)"
         if $do_build; then
             cd "$PROJECT_DIR"
             if require_cmd npm; then
@@ -2686,7 +2686,7 @@ run_regenerate_keys() {
     local new_logflare_private
     new_logflare_private=$(openssl rand -hex 32)
 
-    # Update Supabase .env — keys always (must match Supabase's expected var names)
+    # Update Supabase .env - keys always (must match Supabase's expected var names)
     sed -i.bak \
         -e "s|JWT_SECRET=.*|JWT_SECRET=$new_jwt_secret|" \
         -e "s|ANON_KEY=.*|ANON_KEY=$new_anon_key|" \
@@ -2718,7 +2718,7 @@ run_regenerate_keys() {
         printf "    ${BOLD}New Postgres password:${RESET}        ${CYAN}%s${RESET}\n" "$pg_pw"
         echo ""
         print_warn "If the DB was already initialized, Postgres still uses the OLD password."
-        print_info "Supabase restricts superuser — ALTER ROLE does not work. You must remove the DB volume and start fresh:"
+        print_info "Supabase restricts superuser - ALTER ROLE does not work. You must remove the DB volume and start fresh:"
         printf "    ${CYAN}cd %s && docker compose down -v && docker compose up -d${RESET}\n" "$(dirname "$supabase_env")"
         print_info "(-v removes volumes; DB will reinitialize with the new password. Re-run schema/migrations.)"
         echo ""
@@ -2799,7 +2799,7 @@ run_regenerate_keys() {
     printf "    ${CYAN}cd %s && docker compose down && docker compose up -d${RESET}\n" "$PROJECT_DIR"
     echo ""
     if [[ "$include_passwords" == "true" ]]; then
-        print_warn "Postgres password changed — if analytics fails with invalid_password, remove DB volume and restart:"
+        print_warn "Postgres password changed - if analytics fails with invalid_password, remove DB volume and restart:"
         printf "    ${CYAN}cd %s && docker compose down -v && docker compose up -d${RESET}\n" "$supabase_dir"
         echo ""
     fi

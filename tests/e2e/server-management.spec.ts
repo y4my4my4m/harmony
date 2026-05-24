@@ -57,7 +57,7 @@ test.describe('Server Management', () => {
   })
 })
 
-test.describe('Server Management — Invites', () => {
+test.describe('Server Management - Invites', () => {
   test('invite page loads for valid server', async ({ alicePage, seedData }) => {
     await alicePage.goto(`/server/${seedData.serverId}`)
     await dismissAnnouncements(alicePage)
@@ -72,7 +72,7 @@ test.describe('Server Management — Invites', () => {
   })
 })
 
-test.describe('Server Management — Leave', () => {
+test.describe('Server Management - Leave', () => {
   test('bob can leave the seeded server', async ({ bobPage, seedData }) => {
     await bobPage.goto(`/chat/${seedData.serverId}/${seedData.channelId}`)
     await dismissAnnouncements(bobPage)

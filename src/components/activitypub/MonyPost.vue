@@ -507,7 +507,7 @@
       @close="handleDeleteCancel"
     />
 
-    <!-- Emoji Popup for reactions — teleported to body to escape stacking contexts -->
+    <!-- Emoji Popup for reactions - teleported to body to escape stacking contexts -->
     <Teleport to="body">
       <EmojiPopup
         v-if="showEmojiPopup"
@@ -926,7 +926,7 @@ const postEmbeds = computed<Array<{ url: string; title?: string; description?: s
 
 // Content for MonyContent: when we have media_attachments, exclude file/image parts from content
 // so they're only shown once in MonyMediaGallery (which has the lightbox). Federated posts often
-// have media in content only (no media_attachments) — then we show them in MonyContent's grid.
+// have media in content only (no media_attachments) - then we show them in MonyContent's grid.
 const contentForMonyContent = computed(() => {
   const content = displayContent.value;
   const mediaAttachments = displayMediaAttachments.value;
@@ -1151,7 +1151,7 @@ const originalPostId = computed(() => {
 // original post to the Composer so the mention targets the original author
 // and the reply is threaded under the original note (Mastodon/Pleroma/Misskey
 // behavior). For quote posts and regular posts, the reply targets the post
-// itself — quote posts are first-class user posts whose replies belong on
+// itself - quote posts are first-class user posts whose replies belong on
 // them, not on the post they quote. The shared util encodes this rule so
 // every reply call site agrees.
 const replyTarget = computed<TimelinePost>(() => getOriginalPost(props.post));
@@ -1173,7 +1173,7 @@ const displayPostForReactions = computed((): TimelinePost => {
   return props.post;
 });
 
-// Optimistic override for favorite state — set immediately on click, reconciled after DB response
+// Optimistic override for favorite state - set immediately on click, reconciled after DB response
 const favoriteOverride = ref<{ is_favorited: boolean; favorites_count: number } | null>(null)
 
 const displayInteractionCounts = computed(() => {
@@ -1740,7 +1740,7 @@ const handleMenuToggle = () => {
   showMenu.value = !showMenu.value;
 };
 
-// Optimistic favorite toggle — fills/unfills the heart immediately
+// Optimistic favorite toggle - fills/unfills the heart immediately
 const handleToggleFavorite = async () => {
   const postId = originalPostId.value;
   if (!postId) return;
@@ -1812,7 +1812,7 @@ const handleToggleBookmark = async () => {
   toggleBookmark(postId);
 };
 
-// Manual menu triggers for fetch — close menu before calling composable methods
+// Manual menu triggers for fetch - close menu before calling composable methods
 const handleFetchRemoteReactions = () => {
   showMenu.value = false;
   fetchRemoteReactions();

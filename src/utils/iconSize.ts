@@ -12,7 +12,7 @@
  *
  * Previously the wrappers used `Number(size)` blindly. `Number("sm")` is
  * `NaN`, which broke icon rendering whenever a caller passed a symbolic
- * size — a real possibility given the wrappers' props were typed
+ * size - a real possibility given the wrappers' props were typed
  * `number | string`. See BUGS.md for the report.
  */
 export function resolveIconSize(

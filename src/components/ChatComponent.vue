@@ -373,21 +373,21 @@
                 level: 'locked',
                 icon: '🔓',
                 text: mode === 'required'
-                  ? 'Encryption required — unlock in Settings > Encryption'
-                  : 'Encryption available but locked — messages sent as plaintext'
+                  ? 'Encryption required - unlock in Settings > Encryption'
+                  : 'Encryption available but locked - messages sent as plaintext'
               }
             } else if (mode === 'required') {
               encryptionStatusData.value = {
                 level: 'error',
                 icon: '⚠️',
-                text: 'Encryption required — set up in Settings > Encryption',
+                text: 'Encryption required - set up in Settings > Encryption',
                 showSetup: true
               }
             } else if (forceSetup) {
               encryptionStatusData.value = {
                 level: 'setup-prompt',
                 icon: '🔑',
-                text: 'This server recommends encryption — set up your keys to enable E2EE',
+                text: 'This server recommends encryption - set up your keys to enable E2EE',
                 showSetup: true
               }
             } else {
@@ -441,7 +441,7 @@
             encryptionStatusData.value = {
               level: 'locked',
               icon: '🔓',
-              text: 'Encryption enabled — unlock in Settings > Encryption',
+              text: 'Encryption enabled - unlock in Settings > Encryption',
               showSetup: true
             }
           }
@@ -503,8 +503,8 @@
         // the message _was_ sent unencrypted, which is also worth surfacing.
         const detail = (e as CustomEvent).detail || {}
         sendError.value = detail.failClosed
-          ? 'Encryption failed — message NOT sent (confirm fallback to send unencrypted)'
-          : 'Encryption failed — message sent unencrypted'
+          ? 'Encryption failed - message NOT sent (confirm fallback to send unencrypted)'
+          : 'Encryption failed - message sent unencrypted'
         setTimeout(() => { sendError.value = null }, 6000)
       };
 
@@ -840,7 +840,7 @@
 
             // Only clear the input / draft / reply state if the message
             // actually went through. On 'declined' (encryption cancel) or
-            // 'no-context' (missing channel/conversation/user — rare race),
+            // 'no-context' (missing channel/conversation/user - rare race),
             // keep the text and the reply target so the user can retry.
             if (sendOutcome === 'ok') {
               messageContent.value = '';
@@ -866,15 +866,15 @@
        * retrying with an explicit plaintext-fallback override.
        *
        * Returns one of:
-       *   - 'ok'         — the message was sent (either encrypted or with
+       *   - 'ok'         - the message was sent (either encrypted or with
        *                    user-authorized plaintext fallback)
-       *   - 'declined'   — the user pressed Cancel on the fallback modal,
+       *   - 'declined'   - the user pressed Cancel on the fallback modal,
        *                    nothing was sent
-       *   - 'no-context' — the conversation/channel/user context was missing
+       *   - 'no-context' - the conversation/channel/user context was missing
        *                    (rare race: channel just deleted, user logging out,
        *                    DM conversation not loaded yet). Nothing was sent.
        *                    Caller must NOT treat this as success.
-       *   - 'error'      — an unrecoverable error happened (re-thrown to
+       *   - 'error'      - an unrecoverable error happened (re-thrown to
        *                    the outer handler in `handleSendMessage`)
        *
        * Both DM and channel sends go through the same composable here so

@@ -19,7 +19,7 @@
 --   3. Add `lookup_invite_by_code(p_code text)` SECURITY DEFINER RPC that
 --      returns a single invite row matched by code. Callable by `anon`
 --      (public invite preview pages) and `authenticated` (accept flow).
---      This intentionally only exposes one specific code per call — no
+--      This intentionally only exposes one specific code per call - no
 --      enumeration.
 --
 -- Client follow-up: update `src/services/inviteService.ts`
@@ -75,7 +75,7 @@ CREATE POLICY "invites_select_instance_admin" ON public.invites
     USING (public.is_current_user_admin());
 
 -- ---------------------------------------------------------------------------
--- Lookup RPC — single-code, no enumeration.
+-- Lookup RPC - single-code, no enumeration.
 --
 -- Returns the join-relevant columns of one invite plus the resolved server
 -- display fields, so the existing `getInviteDetails` / preview flows can
@@ -102,7 +102,7 @@ STABLE
 SET search_path = public, pg_temp
 AS $$
     -- NOTE: `servers.icon` stores a relative path (e.g. '/default_server.webp').
-    -- The deployed schema does not have an `icon_url` column — the existing
+    -- The deployed schema does not have an `icon_url` column - the existing
     -- client code (ServerInviteCard.vue) resolves the display URL itself via
     -- `getServerIconUrl(server.icon)`. We return the raw `icon` field here.
     SELECT

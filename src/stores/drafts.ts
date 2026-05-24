@@ -24,7 +24,7 @@ export const useDraftsStore = defineStore('drafts', () => {
   function persistNow() {
     try {
       userStorage.setItem(STORAGE_KEY, JSON.stringify(drafts.value))
-    } catch { /* quota exceeded — silently drop */ }
+    } catch { /* quota exceeded - silently drop */ }
   }
 
   function persistDebounced() {

@@ -1140,7 +1140,7 @@ const removeServerFromFolder = async () => {
   width: 100%;
 }
 
-/* Header item wrapper — same pattern as .server-item-wrapper */
+/* Header item wrapper - same pattern as .server-item-wrapper */
 .header-item-wrapper {
   position: relative;
   margin: 10px;
@@ -1389,7 +1389,7 @@ const removeServerFromFolder = async () => {
   height: 36px;
 }
 
-/* Header wrappers stay still — pill just grows, no counter-shift */
+/* Header wrappers stay still - pill just grows, no counter-shift */
 .header-item-wrapper:hover .server-pill {
   opacity: 1;
   height: 20px;

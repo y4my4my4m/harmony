@@ -54,9 +54,9 @@ The setup file:
 
 Encryption tests in `src/services/encryption/__tests__/` use `fake-indexeddb` to simulate the browser's IndexedDB:
 
-- `MegolmService.test.ts` — Session creation, rotation, encrypt/decrypt cycles
-- `MegolmMessageEncryptionService.test.ts` — High-level message encryption
-- `RecoveryKeyService.test.ts` — Mnemonic derivation and key recovery
+- `MegolmService.test.ts` - Session creation, rotation, encrypt/decrypt cycles
+- `MegolmMessageEncryptionService.test.ts` - High-level message encryption
+- `RecoveryKeyService.test.ts` - Mnemonic derivation and key recovery
 
 ## Integration Tests
 

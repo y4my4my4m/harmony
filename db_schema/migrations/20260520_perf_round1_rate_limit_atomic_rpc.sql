@@ -12,7 +12,7 @@
 -- (`request_count`, `window_start`, `window_duration_seconds`,
 -- `max_requests`, `resets_at`, `metadata`) are kept. The init shape's
 -- alternative (`limit_max`, `remaining`, `violations`, `last_violation_at`)
--- was considered and rejected — see BUGS.md "B1 reconciliation choice".
+-- was considered and rejected - see BUGS.md "B1 reconciliation choice".
 -- Reasons: prod already has the kept shape, no destructive migration is
 -- needed, the columns naturally support per-bucket overrides, and the
 -- atomic-RPC approach hides the column shape behind one function call so

@@ -91,7 +91,7 @@ export function createApp(): Application {
   app.use('/api/federation/realtime', realtimeRouter);
 
   // Rate limiting is applied per-route inside each router (not at the mount level)
-  // to prevent cascade bleeding — mounting `app.use('/', limiter, routerA)` causes
+  // to prevent cascade bleeding - mounting `app.use('/', limiter, routerA)` causes
   // the limiter to count requests that don't match routerA but fall through to routerB.
   app.use('/', webFingerRouter);
   app.use('/', nodeInfoRouter);

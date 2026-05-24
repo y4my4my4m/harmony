@@ -57,7 +57,7 @@ app.use('/api/v1', botAPI.router)
 //
 // These endpoints used to be public, which let any unauthenticated caller
 // enumerate connected bots (`/status`) and bridged Discord users for any
-// channel ID (`/bridged-users/:channelId` — see BUGS.md C4). They now require
+// channel ID (`/bridged-users/:channelId` - see BUGS.md C4). They now require
 // a valid Supabase user JWT, and `/bridged-users` additionally checks that
 // the caller is a member of the channel's server.
 
@@ -84,7 +84,7 @@ async function getCallerProfileId(req: express.Request): Promise<string | null> 
   return profile.id as string
 }
 
-// Gateway status — admin-style endpoint; require authentication so we don't leak
+// Gateway status - admin-style endpoint; require authentication so we don't leak
 // connected bot inventory to arbitrary callers.
 app.get('/status', async (req, res): Promise<void> => {
   const callerProfileId = await getCallerProfileId(req)
@@ -103,7 +103,7 @@ app.get('/status', async (req, res): Promise<void> => {
   })
 })
 
-// Bridged users for Discord bridge — used by the Harmony frontend for mention
+// Bridged users for Discord bridge - used by the Harmony frontend for mention
 // autosuggest. Requires the caller to be a member of the channel's server so
 // you can't enumerate Discord user lists for arbitrary channel IDs.
 app.get('/bridged-users/:channelId', async (req, res): Promise<void> => {

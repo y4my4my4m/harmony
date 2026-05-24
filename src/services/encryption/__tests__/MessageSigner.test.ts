@@ -100,7 +100,7 @@ describe('sign/verify round-trip', () => {
     const aliceFields = sampleFields({ sender_user_id: 'alice' })
 
     const signature = await signMessage(aliceFields, keyPair.privateKey)
-    // Server swaps the metadata to Bob — verify should reject.
+    // Server swaps the metadata to Bob - verify should reject.
     const bobFields = sampleFields({ sender_user_id: 'bob' })
     const ok = await verifyMessageSignature(bobFields, signature, keyPair.publicKey)
     expect(ok).toBe(false)

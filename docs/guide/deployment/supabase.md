@@ -76,8 +76,8 @@ Run migrations via the Supabase SQL Editor or CLI.
 
 Every table has RLS enabled (`98_enable_rls.sql`). Policies are defined in:
 
-- `30_rls_policies.sql` — Core policies
-- `31_rls_policies_extended.sql` — Extended policies
+- `30_rls_policies.sql` - Core policies
+- `31_rls_policies_extended.sql` - Extended policies
 
 Key RLS helper: `get_current_profile_id()` returns the profile ID for the authenticated user, used extensively in policies.
 
@@ -136,7 +136,7 @@ A database trigger creates a profile record when a new user registers.
 
 ## Reference Backup
 
-`db_schema/latest_dev_backup.sql` contains a full schema dump from a production-like environment. Use it as a reference but not as an installation source — always use `db_schema/init/` for fresh deploys.
+`db_schema/latest_dev_backup.sql` contains a full schema dump from a production-like environment. Use it as a reference but not as an installation source - always use `db_schema/init/` for fresh deploys.
 
 ---
 

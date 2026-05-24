@@ -105,7 +105,7 @@ const handleEnabled = () => {
 }
 
 const handleAppInstalled = () => {
-  // Just installed — wait a moment, then re-evaluate. The app is usually
+  // Just installed - wait a moment, then re-evaluate. The app is usually
   // re-opened in standalone mode shortly after install; if it isn't, the
   // mounted check on the next launch will catch it.
   setTimeout(() => {

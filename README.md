@@ -14,7 +14,7 @@ Harmony is a federated social app: Discord-style servers and chat with ActivityP
 
 - Frontend: Vue 3, TypeScript, Pinia, Vite
 - Data: Supabase (Postgres, auth, realtime, storage)
-- Federation: Node service in `federation-backend/` ([README](federation-backend/README.md)) — HTTP **server** and queue **worker** split in production Docker; **Redis** for BullMQ and related features
+- Federation: Node service in `federation-backend/` ([README](federation-backend/README.md)) - HTTP **server** and queue **worker** split in production Docker; **Redis** for BullMQ and related features
 - Desktop: Tauri (`src-tauri/`)
 
 ## Quick start (development)
@@ -37,9 +37,9 @@ npm run dev
 # Optional second terminal: cd federation-backend && npm run dev
 ```
 
-App: http://localhost:5173 — With federation running, health is http://localhost:3001/health.
+App: http://localhost:5173 - With federation running, health is http://localhost:3001/health.
 
-**Installer:** `bash scripts/install.sh` — Full production-style steps: [docs/HOW_TO_SELF_HOST.md](docs/HOW_TO_SELF_HOST.md).
+**Installer:** `bash scripts/install.sh` - Full production-style steps: [docs/HOW_TO_SELF_HOST.md](docs/HOW_TO_SELF_HOST.md).
 
 ## Documentation
 
@@ -52,4 +52,4 @@ App: http://localhost:5173 — With federation running, health is http://localho
 
 ## License
 
-[GNU Affero General Public License v3.0](https://www.gnu.org/licenses/agpl-3.0.html) — see [LICENSE](LICENSE).
+[GNU Affero General Public License v3.0](https://www.gnu.org/licenses/agpl-3.0.html) - see [LICENSE](LICENSE).

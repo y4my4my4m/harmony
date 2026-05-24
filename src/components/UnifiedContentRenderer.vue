@@ -283,7 +283,7 @@ const handleContentClick = (event: Event) => {
     return;
   }
   
-  // Handle mention clicks in HTML mode — always navigate locally
+  // Handle mention clicks in HTML mode - always navigate locally
   if (target.classList.contains('mention')) {
     event.preventDefault();
     event.stopPropagation();

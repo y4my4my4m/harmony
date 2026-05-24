@@ -199,7 +199,7 @@ async function acceptInvite(code: string, userId: string): Promise<{ success: bo
 
     if (usageError) {
       debug.error('Failed to update invite usage:', usageError);
-      // Don't fail the join — the user is already in the server — but log
+      // Don't fail the join - the user is already in the server - but log
       // loudly so the limit-enforcement bug doesn't go unnoticed.
     }
 

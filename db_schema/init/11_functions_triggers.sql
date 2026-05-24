@@ -1738,7 +1738,7 @@ BEGIN
 END;
 $$;
 
--- Handle message federation — sends DM/group-chat/mention notifications
+-- Handle message federation - sends DM/group-chat/mention notifications
 CREATE OR REPLACE FUNCTION public.handle_message_federation()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -1994,7 +1994,7 @@ BEGIN
         RETURN NEW;
     END IF;
 
-    -- Don't notify the creator of the group — they already know they created it.
+    -- Don't notify the creator of the group - they already know they created it.
     IF NEW.user_id = v_conversation.created_by THEN
         RETURN NEW;
     END IF;
@@ -3233,7 +3233,7 @@ $$;
 -- =========================================================================
 -- Server-structure broadcast functions (channels, categories, threads, etc.)
 -- These send to server-structure:{server_id} with event "server_event".
--- Supabase handles fan-out — no SQL member loops (O(1) from DB).
+-- Supabase handles fan-out - no SQL member loops (O(1) from DB).
 -- =========================================================================
 
 -- Channels INSERT/UPDATE/DELETE → server-structure:{server_id}

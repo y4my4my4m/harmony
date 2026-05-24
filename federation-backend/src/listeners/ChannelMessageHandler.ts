@@ -285,7 +285,7 @@ export async function handleChannelMessageUpdate(
       return;
     }
 
-    // CASE 1: Non-local server — forward edit to the remote server's inbox
+    // CASE 1: Non-local server - forward edit to the remote server's inbox
     if (server.is_local_server === false && server.federation_inbox_url) {
       logger.info(`📤 Forwarding message edit to remote server: ${server.name}`);
 
@@ -302,7 +302,7 @@ export async function handleChannelMessageUpdate(
       return;
     }
 
-    // CASE 2: Local server — broadcast edit to remote member instances
+    // CASE 2: Local server - broadcast edit to remote member instances
     if (!server.federation_enabled) {
       return;
     }
@@ -368,7 +368,7 @@ export async function handleChannelMessageDelete(
       published: new Date().toISOString(),
     };
 
-    // CASE 1: Non-local server — forward delete to the remote server's inbox
+    // CASE 1: Non-local server - forward delete to the remote server's inbox
     if (server.is_local_server === false && server.federation_inbox_url) {
       logger.info(`📤 Forwarding message delete to remote server: ${server.name}`);
 
@@ -380,7 +380,7 @@ export async function handleChannelMessageDelete(
       return;
     }
 
-    // CASE 2: Local server — broadcast delete to remote member instances
+    // CASE 2: Local server - broadcast delete to remote member instances
     if (!server.federation_enabled) {
       return;
     }
@@ -458,7 +458,7 @@ function createMessageActivity(
     inReplyTo = `https://${hostDomain}/messages/${message.reply_to}`;
   }
 
-  // Thread context — if this message belongs to a thread, include the thread AP ID
+  // Thread context - if this message belongs to a thread, include the thread AP ID
   let threadApId: string | undefined;
   let parentMessageApId: string | undefined;
   if (message.thread_id) {
@@ -520,10 +520,10 @@ function createMessageActivity(
       tag: tags.length > 0 ? tags : undefined,
       attachment: attachments.length > 0 ? attachments : undefined,
 
-      // E2EE indicator — remote instances can't decrypt but should show the lock glyph
+      // E2EE indicator - remote instances can't decrypt but should show the lock glyph
       'harmony:encrypted': message.encrypted === true ? true : undefined,
 
-      // Voice message UI (waveform player) — metadata is not inside harmony:rawContent
+      // Voice message UI (waveform player) - metadata is not inside harmony:rawContent
       ...(voiceHarmony ? { 'harmony:voiceMessage': voiceHarmony } : {}),
     },
 

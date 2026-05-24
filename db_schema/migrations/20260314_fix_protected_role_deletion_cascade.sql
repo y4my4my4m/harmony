@@ -3,7 +3,7 @@ BEGIN;
 -- Fix: prevent_protected_role_deletion trigger was blocking server deletion.
 -- When a server is deleted, CASCADE removes its roles, but the trigger raised
 -- an exception for @everyone / Admin roles. Now we check if the parent server
--- still exists — if not, it's a cascade delete and we allow it.
+-- still exists - if not, it's a cascade delete and we allow it.
 
 CREATE OR REPLACE FUNCTION public.prevent_protected_role_deletion()
 RETURNS trigger

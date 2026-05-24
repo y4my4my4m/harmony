@@ -96,7 +96,7 @@
               </svg>
               <span class="group-title">
                 <span v-if="item.roleColor" class="role-color-dot" :style="{ backgroundColor: item.roleColor }"></span>
-                {{ item.title }} — {{ item.count }}
+                {{ item.title }} - {{ item.count }}
               </span>
             </button>
 

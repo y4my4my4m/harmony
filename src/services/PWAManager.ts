@@ -114,7 +114,7 @@ export class PWAManager {
       // `BeforeInstallPromptEvent` is not in lib.dom; treat as `any`.
       const installEvent = event as any
 
-      // Desktop: do not preventDefault — Chrome omnibox install uses native UI.
+      // Desktop: do not preventDefault - Chrome omnibox install uses native UI.
       // Mobile: defer so we can show the in-app install banner at the right time.
       this.installOffered = true
 

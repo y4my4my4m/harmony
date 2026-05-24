@@ -602,7 +602,7 @@ export class CoreInteractionService {
       const actualRequests = hasMore ? requests.slice(0, secureLimit) : requests || []
 
       // Transform and sanitize data. Supabase types `profiles` as an array
-      // here, but the FK is a one-to-one join — pull the first row.
+      // here, but the FK is a one-to-one join - pull the first row.
       const transformedRequests: FollowRequestUser[] = actualRequests.map((request: any) => {
         const p = Array.isArray(request.profiles) ? request.profiles[0] : request.profiles
         return {

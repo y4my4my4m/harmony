@@ -116,7 +116,7 @@ export async function processMessageDecryption(messages: Message[]): Promise<Mes
 
         // Set last error for UI display
         if (errorMessage.includes('Sender signature invalid')) {
-          // Forgery detected — make this visible. Don't fall back to a soft
+          // Forgery detected - make this visible. Don't fall back to a soft
           // "session key" message which would hide the attack signal.
           lastDecryptionError = 'Sender signature mismatch (possible tampering)'
         } else if (errorMessage.includes('No inbound session') || errorMessage.includes('No outbound session')) {

@@ -107,7 +107,7 @@ import { dmCallSignaling } from '@/services/DMCallSignaling'
 import { useViewContextTracking } from '@/composables/useViewContext'
 import { useNotificationStore } from '@/stores/useNotification'
 import { debug } from '@/utils/debug'
-// `useEncryptionFallbackPrompt` is no longer needed here — `ChatComponent`
+// `useEncryptionFallbackPrompt` is no longer needed here - `ChatComponent`
 // now owns the DM send + fallback flow so it can await the actual outcome
 // before clearing the input. This file is a notification-only forwarder.
 import { ViewMode, ViewType } from '@/types/viewTypes'

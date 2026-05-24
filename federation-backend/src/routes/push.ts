@@ -288,7 +288,7 @@ router.post('/test', async (req: Request, res: Response): Promise<void> => {
     };
 
     if (endpoint) {
-      // Send to current device only — use the same RPC as production to get
+      // Send to current device only - use the same RPC as production to get
       // subscription data with real notification preferences from the JOIN
       const { data: allSubs, error: subError } = await supabaseAdmin
         .rpc('get_user_push_subscriptions', { p_user_id: userId });

@@ -265,7 +265,7 @@ export class MegolmKeyBackupService {
     if (!this.userId) throw new Error('Not initialized')
     const key = await identityKeyStore.load(this.userId)
     if (key) return key
-    throw new Error('Identity private key not found — run encryption setup')
+    throw new Error('Identity private key not found - run encryption setup')
   }
 
   private async importPublicKey(publicKeyBase64: string): Promise<CryptoKey> {

@@ -5,7 +5,7 @@ BEGIN;
 --
 -- Removes:
 --   - CDC on user_servers (INSERT/DELETE filtered by server_id)
---   - CDC on profiles (UPDATE, UNFILTERED — worst offender, sends ALL profile
+--   - CDC on profiles (UPDATE, UNFILTERED - worst offender, sends ALL profile
 --     updates to ALL connected clients)
 --
 -- Replaces with:

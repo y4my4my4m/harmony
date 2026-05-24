@@ -13,7 +13,7 @@
 -- and atomically burn one of the victim's recovery codes (the UPDATE that
 -- marks `used_at = NOW()` is unconditional once the hash matches). Even
 -- without knowing a code, a brute-force grinder could exhaust the 10
--- codes by spraying random 8-character strings — the function returns
+-- codes by spraying random 8-character strings - the function returns
 -- whether the call hit, so it's a usable oracle.
 --
 -- This migration adds two `auth.uid()` guards at the top of the function:

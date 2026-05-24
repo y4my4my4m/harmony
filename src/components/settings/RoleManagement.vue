@@ -68,7 +68,7 @@
               <path d="M19 12H5M12 19l-7-7 7-7"/>
             </svg>
           </button>
-          <h3>Edit Role — {{ selectedRole.name }}</h3>
+          <h3>Edit Role - {{ selectedRole.name }}</h3>
         </div>
 
         <div class="editor-tabs">

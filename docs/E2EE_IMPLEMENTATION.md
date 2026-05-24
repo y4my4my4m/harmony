@@ -71,7 +71,7 @@ Harmony uses **Megolm** (the same group encryption protocol as Matrix/Element) f
 
 ### Auto-Unlock on Page Load
 
-On subsequent visits, `tryAutoUnlock()` loads the non-extractable CryptoKeys from IndexedDB. No mnemonic or password is needed — the keys are bound to the browser's origin via the Web Crypto API.
+On subsequent visits, `tryAutoUnlock()` loads the non-extractable CryptoKeys from IndexedDB. No mnemonic or password is needed - the keys are bound to the browser's origin via the Web Crypto API.
 
 ### Recovery
 
@@ -175,7 +175,7 @@ Megolm sessions can be rotated per channel. When a session is rotated:
 
 ### Key Storage
 
-- **IndexedDB** (`SecureSessionKeyStore`): Non-extractable CryptoKeys — cannot be exported from the browser
+- **IndexedDB** (`SecureSessionKeyStore`): Non-extractable CryptoKeys - cannot be exported from the browser
 - **Database** (`megolm_session_shares`): Encrypted session key shares for cross-device delivery
 - **User's memory**: Mnemonic recovery words (the only way to recover on a new device)
 
@@ -239,9 +239,9 @@ If the mnemonic is lost and browser data is cleared, encrypted messages from bef
 
 Encryption tests live in `src/services/encryption/__tests__/`:
 
-- `MegolmService.test.ts` — Session creation, rotation, encrypt/decrypt cycles
-- `MegolmMessageEncryptionService.test.ts` — High-level message encryption
-- `RecoveryKeyService.test.ts` — Mnemonic derivation and key recovery
+- `MegolmService.test.ts` - Session creation, rotation, encrypt/decrypt cycles
+- `MegolmMessageEncryptionService.test.ts` - High-level message encryption
+- `RecoveryKeyService.test.ts` - Mnemonic derivation and key recovery
 
 Tests use `fake-indexeddb` to simulate browser IndexedDB.
 

@@ -853,7 +853,7 @@ export default defineComponent({
       });
     });
 
-    // Watch for edit mode changes — place cursor at end on initial open.
+    // Watch for edit mode changes - place cursor at end on initial open.
     // setTimeout(0) ensures this runs after all microtasks (Vue nextTicks,
     // RichTextEditor's onMounted renderContent, and its internal nextTick
     // cursor restore), so our setCursorPosition(end) is the final word.

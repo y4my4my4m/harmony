@@ -247,7 +247,7 @@ export class UnifiedWebRTCService {
       // BUGS.md H22: previously the code stopped+removed the OLD audio
       // tracks BEFORE calling `getUserMedia` for the new device. If the
       // new `getUserMedia` failed (permission revoked, device gone,
-      // OverconstrainedError), the call had no mic at all — the user
+      // OverconstrainedError), the call had no mic at all - the user
       // would silently lose audio with no recovery until they rejoined
       // the channel. Acquire the new stream FIRST, then swap.
       try {
@@ -263,7 +263,7 @@ export class UnifiedWebRTCService {
 
         const newAudioTrack = newAudioStream.getAudioTracks()[0];
         if (newAudioTrack) {
-          // Only NOW do we stop the previous tracks — the swap is committed.
+          // Only NOW do we stop the previous tracks - the swap is committed.
           const oldAudioTracks = this.localStream.getAudioTracks();
           oldAudioTracks.forEach(track => {
             track.stop();
@@ -1219,7 +1219,7 @@ export class UnifiedWebRTCService {
 
     // BUGS.md H21: previously each call (incl. on device-change /
     // constraint-change paths via `updateInputDevice`) created a NEW
-    // AudioContext and left the prior one — plus its RAF loop — running.
+    // AudioContext and left the prior one - plus its RAF loop - running.
     // Mid-call device switches therefore leaked AudioContexts until
     // `leaveChannel()`. Tear down the previous context + cancel its RAF
     // before constructing the new one.
@@ -1937,7 +1937,7 @@ export class UnifiedWebRTCService {
     if (this.localStream && this.channelId) {
       const currentMuteState = this.localMediaState.isMuted;
 
-      // BUGS.md H22 v2: same fix as `updateInputDevice` — acquire the new
+      // BUGS.md H22 v2: same fix as `updateInputDevice` - acquire the new
       // stream FIRST, then stop and remove the old tracks. The previous
       // order would silently kill the user's mic when `getUserMedia` failed
       // for the new constraints (e.g. AGC toggled to a value the device
@@ -1952,7 +1952,7 @@ export class UnifiedWebRTCService {
 
         const newAudioTrack = newAudioStream.getAudioTracks()[0];
         if (newAudioTrack) {
-          // Only NOW swap — the old tracks are stopped after the new
+          // Only NOW swap - the old tracks are stopped after the new
           // stream is committed.
           const oldAudioTracks = this.localStream.getAudioTracks();
           oldAudioTracks.forEach(track => {

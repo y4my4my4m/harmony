@@ -113,7 +113,7 @@ interface ManagedSubscription {
    * Set whenever a subscription becomes disconnected for any reason
    * (CHANNEL_ERROR / TIMED_OUT / CLOSED / `forceReconnect[All]` triggered
    * by `online` / `visibilitychange`). Cleared when the next SUBSCRIBED
-   * event fires `onReconnected`. Required for gap-fill correctness — see
+   * event fires `onReconnected`. Required for gap-fill correctness - see
    * BUGS.md C13: `forceReconnect()` resets `retryCount` to 0 before
    * reconnecting, so the previous "wasReconnect = retryCount > 0" check
    * silently missed every wake-from-sleep / network-restore gap.
@@ -247,7 +247,7 @@ class RealtimeConnectionManagerService {
     
     if (this.subscriptions.has(channelName)) {
       // BUGS.md H29 (v2): the earlier "replace config in-place" approach was
-      // silently broken — `connectTableSubscription` closed over a LOCAL
+      // silently broken - `connectTableSubscription` closed over a LOCAL
       // `config` reference, so reassigning `managedSub.config` didn't
       // retarget the `onInsert`/`onUpdate`/`onDelete` handlers. Worse, the
       // underlying Supabase channel was created with the OLD filter/table
@@ -255,9 +255,9 @@ class RealtimeConnectionManagerService {
       // even if the handlers HAD updated. The correct fix is to tear the
       // channel down and rebuild it: this gives the new caller's handlers
       // a fresh channel with their actual filters. Channel-name collisions
-      // are still a smell — we log loudly so they surface in dev/staging.
+      // are still a smell - we log loudly so they surface in dev/staging.
       debug.warn(
-        `⚠️ RealtimeManager: duplicate subscription ${channelName} — tearing down and rebuilding with the new caller's handlers (BUGS.md H29). Callers should use unique channel names.`,
+        `⚠️ RealtimeManager: duplicate subscription ${channelName} - tearing down and rebuilding with the new caller's handlers (BUGS.md H29). Callers should use unique channel names.`,
       )
       this.unsubscribe(channelName)
     }
@@ -305,7 +305,7 @@ class RealtimeConnectionManagerService {
     if (this.subscriptions.has(channelName)) {
       // See BUGS.md H29 in subscribeToTable() for context.
       debug.warn(
-        `⚠️ RealtimeManager: duplicate subscription ${channelName} — tearing down and rebuilding (BUGS.md H29).`,
+        `⚠️ RealtimeManager: duplicate subscription ${channelName} - tearing down and rebuilding (BUGS.md H29).`,
       )
       this.unsubscribe(channelName)
     }
@@ -344,7 +344,7 @@ class RealtimeConnectionManagerService {
     if (this.subscriptions.has(channelName)) {
       // See BUGS.md H29 in subscribeToTable() for context.
       debug.warn(
-        `⚠️ RealtimeManager: duplicate subscription ${channelName} — tearing down and rebuilding (BUGS.md H29).`,
+        `⚠️ RealtimeManager: duplicate subscription ${channelName} - tearing down and rebuilding (BUGS.md H29).`,
       )
       this.unsubscribe(channelName)
     }
@@ -576,7 +576,7 @@ class RealtimeConnectionManagerService {
     switch (status) {
       case 'SUBSCRIBED': {
         // BUGS.md C13: gap-fill must fire whenever this subscription was
-        // disconnected and is now back up — regardless of how it got back
+        // disconnected and is now back up - regardless of how it got back
         // (retry, forceReconnect, forceReconnectAll). The previous
         // `retryCount > 0` check missed `forceReconnect*()` because those
         // zero `retryCount` BEFORE reconnecting, so wake-from-sleep and

@@ -2,7 +2,7 @@
  * TypingIndicatorService - Typing indicators via Supabase Realtime presence
  *
  * Supports channel, thread, and DM contexts. Multiple contexts can be active at
- * once (e.g. main channel + open thread) — each has its own Realtime channel.
+ * once (e.g. main channel + open thread) - each has its own Realtime channel.
  */
 
 import { supabase } from '@/supabase'
@@ -370,7 +370,7 @@ class TypingIndicatorService {
   }
 
   private handlePresenceJoin(context: TypingContext, _newPresences: any[]): void {
-    // Always rebuild from authoritative presence — incremental join updates
+    // Always rebuild from authoritative presence - incremental join updates
     // missed typing:false and left "is typing..." stuck on screen.
     this.handlePresenceSync(context)
   }

@@ -200,8 +200,8 @@ export function useUnreadCounts() {
   /**
    * Dual-mode subscription for unread count changes:
    *
-   * 1. Broadcast — via UserEventChannel (realtime.send() from DB triggers).
-   * 2. postgres_changes fallback — classic CDC, always works.
+   * 1. Broadcast - via UserEventChannel (realtime.send() from DB triggers).
+   * 2. postgres_changes fallback - classic CDC, always works.
    *
    * Both paths call applyUnreadChange which is naturally idempotent
    * (same key → same value overwrite), so dedup is implicit.
@@ -225,7 +225,7 @@ export function useUnreadCounts() {
       })
 
       sharedReconnectUnsub = userEventChannel.on('_reconnected', async () => {
-        debug.log('🔄 UserEventChannel reconnected — gap-filling unread counts')
+        debug.log('🔄 UserEventChannel reconnected - gap-filling unread counts')
         await fetchUnreadCounts()
       })
 

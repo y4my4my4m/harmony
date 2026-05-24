@@ -265,7 +265,7 @@ CREATE INDEX IF NOT EXISTS idx_thread_members_thread ON public.thread_members(th
 CREATE INDEX IF NOT EXISTS idx_thread_members_user ON public.thread_members(user_id);
 
 -- ---------------------------------------------------------------------------
--- EMOJIS (moved here from 06_tables_misc.sql — reactions FK depends on it)
+-- EMOJIS (moved here from 06_tables_misc.sql - reactions FK depends on it)
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.emojis (
     id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,

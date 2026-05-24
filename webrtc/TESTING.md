@@ -87,7 +87,7 @@ The official LiveKit CLI runs load tests server-side (no browser APIs needed).
 Use the included benchmark wrapper:
 
 ```bash
-# Interactive — prompts for URL/keys and preset selection
+# Interactive - prompts for URL/keys and preset selection
 ./scripts/benchmark-voice.sh
 
 # Or use a preset directly

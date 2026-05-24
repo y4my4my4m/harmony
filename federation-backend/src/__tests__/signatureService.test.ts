@@ -158,7 +158,7 @@ describe('SignatureService', () => {
 
     it('accepts same-domain cross-user signature only when explicitly opted in (Group delegation)', () => {
       // Server-inbox path (Lemmy-style Group activity signed by a moderator
-      // on the same host) — only safe when caller opts in.
+      // on the same host) - only safe when caller opts in.
       expect(
         SignatureService.verifyActorMatch(
           'https://lemmy.example/c/news',

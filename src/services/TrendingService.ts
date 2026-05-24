@@ -651,7 +651,7 @@ class TrendingService {
     
     if (hoursSince < 24) return 'online';
     if (hoursSince < 24 * 7) return 'slow';
-    // Beyond a week without federation activity — we don't actually know;
+    // Beyond a week without federation activity - we don't actually know;
     // the instance may be fine, we just haven't exchanged data recently.
     return 'unknown';
   }

@@ -141,9 +141,9 @@ sequenceDiagram
 
 `AuthContextService` is a singleton that caches the mapping from `auth_user_id` to `profile_id`:
 
-- `getCurrentProfileId()` — Returns the profile ID, using cache when available
-- `getCurrentAuthUser()` — Returns the Supabase auth user
-- `isAuthenticated()` — Check if a valid session exists
+- `getCurrentProfileId()` - Returns the profile ID, using cache when available
+- `getCurrentAuthUser()` - Returns the Supabase auth user
+- `isAuthenticated()` - Check if a valid session exists
 - Cache is cleared on `SIGNED_OUT`, `USER_UPDATED`, and relevant `SIGNED_IN` events
 
 This service is used by all other services that need to identify the current user, avoiding redundant database queries.

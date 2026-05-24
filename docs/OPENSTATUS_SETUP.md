@@ -78,12 +78,12 @@ Wait for all services to become healthy:
 docker compose -f docker-compose-lightweight.yaml ps
 ```
 
-The `db-migrate` service will show as "exited" — this is expected (it runs once).
+The `db-migrate` service will show as "exited" - this is expected (it runs once).
 
 | Service    | Purpose                     | Default Port |
 |------------|-----------------------------|--------------|
 | libsql     | Database                    | 8080         |
-| db-migrate | One-shot migration (exits)  | —            |
+| db-migrate | One-shot migration (exits)  | -            |
 | dashboard  | Admin interface             | 3000         |
 | status-page| Public status page          | 3001         |
 
@@ -98,7 +98,7 @@ server {
     listen 80;
     server_name status.example.com;
 
-    # Dashboard (admin only — consider restricting by IP)
+    # Dashboard (admin only - consider restricting by IP)
     location /dashboard/ {
         proxy_pass http://127.0.0.1:3000/;
         proxy_set_header Host $host;
@@ -170,7 +170,7 @@ In the dashboard:
 All data is stored in the `openstatus-libsql-data` Docker volume.
 
 - `docker compose down` preserves data
-- `docker compose down -v` **destroys** data — be careful
+- `docker compose down -v` **destroys** data - be careful
 - Back up the volume regularly for production use
 
 ## Updating
@@ -183,6 +183,6 @@ docker compose -f docker-compose-lightweight.yaml up -d --build
 
 ## Further Reading
 
-- [OpenStatus Self-Hosting Guide (Full)](https://docs.openstatus.dev/guides/self-hosting-openstatus/) — includes automated monitoring and analytics
-- [OpenStatus Self-Hosting Guide (Lightweight)](https://docs.openstatus.dev/guides/self-host-status-page-only/) — status page only
+- [OpenStatus Self-Hosting Guide (Full)](https://docs.openstatus.dev/guides/self-hosting-openstatus/) - includes automated monitoring and analytics
+- [OpenStatus Self-Hosting Guide (Lightweight)](https://docs.openstatus.dev/guides/self-host-status-page-only/) - status page only
 - [OpenStatus GitHub](https://github.com/openstatushq/openstatus)

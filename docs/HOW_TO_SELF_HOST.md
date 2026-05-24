@@ -23,13 +23,13 @@ Typical production layout:
                                     │
                             Supabase (Postgres + Auth + Realtime)
                                     │
-                         LiveKit (optional, profile `voice` — UDP mux, shares Redis)
+                         LiveKit (optional, profile `voice` - UDP mux, shares Redis)
 ```
 
-- **federation-server** — ActivityPub HTTP (`/.well-known`, inbox/outbox, link previews, health). Same image as the worker; `FEDERATION_MODE=server`.
-- **federation-worker** — BullMQ / job processing so heavy delivery work does not block the HTTP server. `FEDERATION_MODE=worker`. Requires **Redis** and `USE_BULLMQ_QUEUE=true` (see `federation-backend/.env`).
-- **Redis** — Job queue persistence, caching, presence, rate limiting; LiveKit also uses it when you run voice.
-- **federation-backend** (single container) — Optional **simple** profile: one process with `FEDERATION_MODE=unified` for small installs (`docker compose --profile simple`).
+- **federation-server** - ActivityPub HTTP (`/.well-known`, inbox/outbox, link previews, health). Same image as the worker; `FEDERATION_MODE=server`.
+- **federation-worker** - BullMQ / job processing so heavy delivery work does not block the HTTP server. `FEDERATION_MODE=worker`. Requires **Redis** and `USE_BULLMQ_QUEUE=true` (see `federation-backend/.env`).
+- **Redis** - Job queue persistence, caching, presence, rate limiting; LiveKit also uses it when you run voice.
+- **federation-backend** (single container) - Optional **simple** profile: one process with `FEDERATION_MODE=unified` for small installs (`docker compose --profile simple`).
 
 ---
 
@@ -159,7 +159,7 @@ SUPABASE_ANON_KEY=eyJ...
 SUPABASE_SERVICE_ROLE_KEY=eyJ...
 DATABASE_URL=postgresql://postgres.[ref]:[pwd]@[region].pooler.supabase.com:5432/postgres
 
-# Supavisor connection pooler (transaction mode, port 6543) — recommended for production
+# Supavisor connection pooler (transaction mode, port 6543) - recommended for production
 # Pools many logical connections into a small number of real PG connections.
 # Self-hosted: postgresql://postgres:PASSWORD@supabase-pooler:6543/postgres
 # Cloud:       postgresql://postgres.[ref]:[pwd]@[region].pooler.supabase.com:6543/postgres
@@ -174,7 +174,7 @@ REDIS_URL=redis://:your-redis-password@redis:6379
 # BullMQ federation queue (recommended for production; requires Redis)
 USE_BULLMQ_QUEUE=true
 
-# Local dev / single container only — omit or set unified in Docker:
+# Local dev / single container only - omit or set unified in Docker:
 # FEDERATION_MODE=server | worker | unified
 
 # LiveKit
@@ -217,7 +217,7 @@ nano webrtc/livekit.yaml
 ```yaml
 port: 7880
 rtc:
-  # UDP mux — all WebRTC media on a single port.
+  # UDP mux - all WebRTC media on a single port.
   # Scaling limits are CPU/bandwidth, not port count.
   udp_port: 7882
   tcp_port: 7881
@@ -229,13 +229,13 @@ turn:
   domain: harmony.yourdomain.com
   tls_port: 5349
   udp_port: 3478
-# Required for multi-node scaling — all LiveKit nodes share state via Redis
+# Required for multi-node scaling - all LiveKit nodes share state via Redis
 redis:
   address: redis:6379
   password: your-redis-password
 ```
 
-> **Scaling tip**: For 500+ simultaneous voice/video users, run LiveKit on a dedicated VPS with more CPU cores and a wider port range (e.g. 50000-60000). LiveKit supports multi-node clustering — additional instances pointed at the same Redis automatically coordinate room routing. See [LiveKit deployment docs](https://docs.livekit.io/realtime/self-hosting/deployment/).
+> **Scaling tip**: For 500+ simultaneous voice/video users, run LiveKit on a dedicated VPS with more CPU cores and a wider port range (e.g. 50000-60000). LiveKit supports multi-node clustering - additional instances pointed at the same Redis automatically coordinate room routing. See [LiveKit deployment docs](https://docs.livekit.io/realtime/self-hosting/deployment/).
 
 Generate keys:
 ```bash
@@ -258,10 +258,10 @@ Do **not** hand-roll an old single-service `federation-backend` compose unless y
 
 **Optional Compose profiles:**
 
-- `--profile simple` — one container `federation-backend` (`FEDERATION_MODE=unified`) instead of server+worker.
-- `--profile bots` — `bot-gateway`.
-- `--profile voice` — LiveKit (see `webrtc/livekit.yaml`; Redis required).
-- `--profile monitoring` — Bull Board on `127.0.0.1:3003` (see [Queue Monitoring](#queue-monitoring-optional) below).
+- `--profile simple` - one container `federation-backend` (`FEDERATION_MODE=unified`) instead of server+worker.
+- `--profile bots` - `bot-gateway`.
+- `--profile voice` - LiveKit (see `webrtc/livekit.yaml`; Redis required).
+- `--profile monitoring` - Bull Board on `127.0.0.1:3003` (see [Queue Monitoring](#queue-monitoring-optional) below).
 
 **Examples:**
 
@@ -418,11 +418,11 @@ sudo ln -s /etc/nginx/sites-available/bullboard /etc/nginx/sites-enabled/
 sudo certbot certonly --nginx -d bq.yourdomain.com
 sudo nginx -t && sudo systemctl reload nginx
 ```
-3. Access at `https://bq.yourdomain.com` — log in with the `BULL_BOARD_USER` and `BULL_BOARD_PASSWORD` from your `.env`.
+3. Access at `https://bq.yourdomain.com` - log in with the `BULL_BOARD_USER` and `BULL_BOARD_PASSWORD` from your `.env`.
 
 The port is bound to `127.0.0.1:3003` so it's only accessible through nginx, not directly from the internet.
 
-**Alternative — SSH tunnel** (no DNS/SSL needed, for occasional debugging):
+**Alternative - SSH tunnel** (no DNS/SSL needed, for occasional debugging):
 ```bash
 ssh -L 3003:localhost:3003 your-server
 # Then open http://localhost:3003 in your browser
@@ -477,7 +477,7 @@ The main bottleneck for text is Supabase Realtime (WebSocket connections). For v
 
 Set `DATABASE_POOL_URL` in `federation-backend/.env` to use Supavisor's transaction-mode pooler on port 6543. This pools hundreds of logical connections into a small number of real PostgreSQL connections, removing the PG connection limit as a bottleneck.
 
-- **Self-hosted**: `postgresql://postgres:PASSWORD@supabase-pooler:6543/postgres` — Supavisor ships with self-hosted Supabase Docker, no extra setup needed
+- **Self-hosted**: `postgresql://postgres:PASSWORD@supabase-pooler:6543/postgres` - Supavisor ships with self-hosted Supabase Docker, no extra setup needed
 - **Cloud**: `postgresql://postgres.[ref]:[pwd]@[region].pooler.supabase.com:6543/postgres`
 
 `DATABASE_URL` (session mode, port 5432) is kept for `LISTEN/NOTIFY` which requires a persistent connection.
@@ -492,9 +492,9 @@ LiveKit supports **multi-node clustering via Redis**. All LiveKit instances shar
 2. Copy `webrtc/livekit.yaml` to the new server (same API keys)
 3. Point the `redis` section at your existing Redis (or a shared Redis)
 4. Open UDP port 7882 (or your `rtc.udp_port` value) on the new server's firewall
-5. LiveKit handles routing automatically — no load balancer needed for media traffic
+5. LiveKit handles routing automatically - no load balancer needed for media traffic
 
-**Capacity**: LiveKit uses UDP mux — all media goes through a single port. One port can serve thousands of participants; the real limits are CPU, bandwidth, and kernel buffers. For multi-vCPU machines, you can widen the mux range (e.g. `udp_port: 7882-7890`) to spread kernel processing across cores.
+**Capacity**: LiveKit uses UDP mux - all media goes through a single port. One port can serve thousands of participants; the real limits are CPU, bandwidth, and kernel buffers. For multi-vCPU machines, you can widen the mux range (e.g. `udp_port: 7882-7890`) to spread kernel processing across cores.
 
 ## Scaling Services to Multiple Servers
 
@@ -507,7 +507,7 @@ When you outgrow a single server (~1,000+ users), split services:
 | **Federation workers** | 2+ vCPU | Burst processing for ActivityPub |
 | **Redis** | 2 GB+ RAM | Shared state (low resource usage) |
 
-The `webrtc/docker-compose.yml` already runs LiveKit independently. Federation workers scale horizontally — add more `federation-worker` containers pointing at the same Redis and they share the BullMQ workload.
+The `webrtc/docker-compose.yml` already runs LiveKit independently. Federation workers scale horizontally - add more `federation-worker` containers pointing at the same Redis and they share the BullMQ workload.
 
 ---
 

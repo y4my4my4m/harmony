@@ -47,7 +47,7 @@ BEGIN
 END
 $$;
 
--- RLS policies for realtime.messages — required for private broadcast channels.
+-- RLS policies for realtime.messages - required for private broadcast channels.
 -- Without these, authenticated users cannot subscribe to or receive private broadcasts.
 DO $$
 BEGIN

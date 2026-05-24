@@ -502,13 +502,17 @@ const dragGroup = computed(() => ({
   pull: true,
 }));
 
+// Pass the raw server row through - InviteModal normalizes `icon`/`banner`
+// via serverUtils and fetches the live member count itself.
 const currentServerData = computed(() => {
-  const memberCount = Object.keys(serverUsersStore.userProfiles).length || props.currentServer.member_count || 0;
+  if (!props.currentServer) return null;
   return {
     id: props.currentServer.id,
     name: props.currentServer.name,
-    icon_url: props.currentServer.icon_url,
-    member_count: memberCount
+    icon: props.currentServer.icon,
+    banner: props.currentServer.banner,
+    description: props.currentServer.description,
+    member_count: Object.keys(serverUsersStore.userProfiles).length || props.currentServer.member_count || 0,
   };
 });
 

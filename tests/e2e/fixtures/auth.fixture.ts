@@ -24,7 +24,7 @@ async function dismissAnnouncements(page: Page): Promise<void> {
 
   const overlay = page.locator('[data-testid="announcement-overlay"]')
 
-  // The popup loads via an async RPC — give it time to appear
+  // The popup loads via an async RPC - give it time to appear
   const isVisible = await overlay.isVisible({ timeout: 5000 }).catch(() => false)
   if (!isVisible) return
 
@@ -44,7 +44,7 @@ async function dismissAnnouncements(page: Page): Promise<void> {
       await markReadBtn.click()
       await page.waitForTimeout(500)
     } else {
-      // No buttons found — click overlay background to dismiss
+      // No buttons found - click overlay background to dismiss
       await overlay.click({ position: { x: 5, y: 5 } }).catch(() => {})
       break
     }

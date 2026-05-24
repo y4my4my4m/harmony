@@ -313,7 +313,7 @@ const loadPostWithContext = async () => {
     });
 
     // If we navigated in via the reblog (Announce) wrapper, the SQL walked the
-    // wrong tree — the wrapper has no replies and isn't itself a reply. Swap
+    // wrong tree - the wrapper has no replies and isn't itself a reply. Swap
     // to the original post id and re-query so ancestors/descendants are found
     // under the original Note.
     if (result.mainPost && isReblogPost(result.mainPost)) {
@@ -362,7 +362,7 @@ const loadPostWithContext = async () => {
     // Use the unwrapped main post so we hit the *original* note's collections
     // (the Announce wrapper has no replies/reactions of its own). We also kick
     // off ancestor resolution for federated replies whose parents aren't yet
-    // in the local DB — without this, federated reply threads show as a
+    // in the local DB - without this, federated reply threads show as a
     // single floating post.
     const mainTarget = result.mainPost ? getOriginalPost(result.mainPost) : null;
     if (mainTarget) {
@@ -372,7 +372,7 @@ const loadPostWithContext = async () => {
         fetchRemoteRepliesInBackground(mainTarget);
         // Walk up the ancestor chain. The federation backend's /resolve-post
         // endpoint imports each ancestor it doesn't already have, links the
-        // child via in_reply_to, and populates conversation_root_id — so the
+        // child via in_reply_to, and populates conversation_root_id - so the
         // local thread RPC can then walk the full chain.
         if (mainTarget.metadata?.in_reply_to_ap_url && !mainTarget.in_reply_to) {
           fetchRemoteAncestorsInBackground(mainTarget);
@@ -429,7 +429,7 @@ const fetchRemoteRepliesInBackground = async (targetPost: TimelinePost) => {
  *
  *   - `startToken` snapshots which post we're walking for. If the user
  *     navigates to a different post mid-walk, `resolvedPostId.value` will
- *     change and we bail out of the eventual reload — otherwise the late
+ *     change and we bail out of the eventual reload - otherwise the late
  *     `getPostWithContext` would clobber `postWithContext.value` with
  *     stale-thread data for the post they already left.
  *   - `newlyImported` only increments on actual new imports (as reported by
@@ -462,7 +462,7 @@ const fetchRemoteAncestorsInBackground = async (target: TimelinePost) => {
 
       // Continue if this ancestor is itself a reply we don't have above.
       // (Server-side /resolve-post does its own chain walk too, so usually one
-      // call suffices — but we loop here to handle older versions / partial
+      // call suffices - but we loop here to handle older versions / partial
       // imports.)
       if (parent.in_reply_to) break;
       parentApUrl = parent.metadata?.in_reply_to_ap_url;
@@ -479,7 +479,7 @@ const fetchRemoteAncestorsInBackground = async (target: TimelinePost) => {
         maxDepth: maxThreadDepth.value,
         includeInteractions: true,
       });
-      // Re-check the token after the awaited reload too — the user could
+      // Re-check the token after the awaited reload too - the user could
       // have navigated during the RPC roundtrip.
       if (resolvedPostId.value === startToken) {
         postWithContext.value = updatedResult;
@@ -494,7 +494,7 @@ const handleFetchReactions = async () => {
   showActionsMenu.value = false;
   if (!mainPost.value || isFetchingReactions.value) return;
   // Target the *original* note's reactions/replies (Announce wrappers don't
-  // collect them) — same rule as the background auto-fetch.
+  // collect them) - same rule as the background auto-fetch.
   const targetApId = getOriginalApId(mainPost.value) || mainPost.value.ap_id;
   const targetId = getOriginalPostId(mainPost.value);
   if (!targetApId) return;

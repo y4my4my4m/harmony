@@ -188,7 +188,7 @@ const formatTimeAgo = (dateStr: string): string => {
 // Event handlers
 const handleReply = (post: TimelinePost) => {
   // For pure reblogs, route the reply to the original post and prefill the
-  // original author's mention — same rule as `UserProfileView.replyToPost`
+  // original author's mention - same rule as `UserProfileView.replyToPost`
   // and `SocialLayout.handleReplyToPost`. Quote posts and regular posts
   // pass through unchanged via the shared util.
   const author = getReplyMentionAuthor(post)

@@ -91,7 +91,7 @@ export async function resolveMentionsUserData(content: string): Promise<Record<s
     // round-trips). Replaced with a single PostgREST .or() filter that
     // unions the (username, domain) pairs into one request. Username and
     // domain charsets are constrained by MENTION_REGEX above
-    // (`[a-zA-Z0-9_-]+` and `[a-zA-Z0-9.-]+`) — neither contains commas,
+    // (`[a-zA-Z0-9_-]+` and `[a-zA-Z0-9.-]+`) - neither contains commas,
     // parens, or quotes, so the values are safe to interpolate directly
     // into PostgREST filter syntax without escaping.
     if (remoteUsernames.length > 0) {
@@ -385,7 +385,7 @@ export async function parseContentToMessageParts(
   let match;
   
   while ((match = COMBINED_MENTION_HASHTAG_REGEX.exec(content)) !== null) {
-    // Skip mentions and hashtags that fall inside a URL — they'll be handled
+    // Skip mentions and hashtags that fall inside a URL - they'll be handled
     // as part of the URL by parseTextForUrls (e.g., mastodon.social/@user/123)
     if (isInsideUrl(match.index)) continue;
 
@@ -621,7 +621,7 @@ async function parseTextForEmojis(text: string, emojiDataMap: Record<string, any
         }
       } catch {}
 
-      // Still not found — try database as last resort
+      // Still not found - try database as last resort
       if (!emojiData) {
         if (emojiIdentifier.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/)) {
           emojiData = await getEmoji(emojiIdentifier);
@@ -882,7 +882,7 @@ export function convertActivityPubHTMLToMessageParts(html: string): MessagePart[
         }
       }
       
-      // Regular links (not mentions/hashtags) — preserve as URL parts
+      // Regular links (not mentions/hashtags) - preserve as URL parts
       // so YouTube, Spotify, etc. embeds render properly
       if (element.tagName === 'A' && !element.classList.contains('mention') && !element.classList.contains('hashtag')) {
         const href = element.getAttribute('href');

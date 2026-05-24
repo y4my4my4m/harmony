@@ -509,7 +509,7 @@ const initializePresenceTracking = async () => {
  *
  * BUGS.md H30: this used to default to `props.conversation.other_user?.id`,
  * but on conversation switch the watcher fires AFTER props are already
- * updated — so cleanup would call `unsubscribeFromProfilePresence(newUserId)`
+ * updated - so cleanup would call `unsubscribeFromProfilePresence(newUserId)`
  * (a noop) and leak the old user's subscription. Callers in `watch()` paths
  * must pass `oldUserId` explicitly; the unmount path uses the current id.
  */
@@ -672,7 +672,7 @@ watch(
   async (newUserId, oldUserId) => {
     if (newUserId !== oldUserId) {
       debug.log(`🔄 DMHeader: Conversation changed from ${oldUserId} to ${newUserId}`)
-      // Pass oldUserId explicitly — props.conversation.other_user.id is
+      // Pass oldUserId explicitly - props.conversation.other_user.id is
       // already pointing at newUserId by the time this callback runs.
       await cleanupPresenceTracking(oldUserId ?? null)
       // Initialize new tracking

@@ -5,7 +5,7 @@ BEGIN;
 -- 
 -- PROBLEM: The old trigger uses FOR ... LOOP to insert one row at a time for
 -- each follower AND each local user (public timeline). With N local users,
--- one public post causes ~N individual INSERTs — a massive bottleneck.
+-- one public post causes ~N individual INSERTs - a massive bottleneck.
 --
 -- FIX: Replace all loops with bulk INSERT ... SELECT statements.
 -- =============================================================================

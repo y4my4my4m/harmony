@@ -26,7 +26,7 @@ log_level: info
 # RTC (WebRTC) Settings
 # =============================================================================
 # UDP mux: all WebRTC media traffic goes through a single port (7882).
-# LiveKit demuxes by ICE session, not by port — one port can serve thousands
+# LiveKit demuxes by ICE session, not by port - one port can serve thousands
 # of participants. Scaling limits are CPU/bandwidth, not port count.
 # For multi-vCPU machines you can use a range (e.g. udp_port: 7882-7890).
 # See: https://docs.livekit.io/transport/self-hosting/ports-firewall/

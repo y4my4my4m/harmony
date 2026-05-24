@@ -653,7 +653,7 @@ export class FederationActivityService {
       return error ? null : data
     }
 
-    // Native/unicode emoji — return a synthetic emoji object for federation
+    // Native/unicode emoji - return a synthetic emoji object for federation
     return { id: null, name: emojiId, url: null, native: emojiId }
   }
 
