@@ -144,6 +144,7 @@
   import { useDraftsStore } from '@/stores/drafts';
   import type { Message, Gif, Emoji, MessagePart } from '@/types';
   import { recordEmojiUsage } from '@/services/emojiService';
+  import { getEmojiShortcodeForInsert } from '@/services/emojiShortcodeResolver';
   import { listen } from '@tauri-apps/api/event';
   import { readFile } from '@tauri-apps/plugin-fs';
   import MediaPickerPopup from '@/components/MediaPickerPopup.vue';
@@ -1053,7 +1054,7 @@
           }
         } else {
           // Append emoji immediately so it appears in the editor without delay
-          messageContent.value += `:${emoji.name}:`;
+          messageContent.value += getEmojiShortcodeForInsert(emoji);
           debug.log("Emoji added in Parent:", messageContent.value);
 
           // Track emoji usage in background (non-blocking)

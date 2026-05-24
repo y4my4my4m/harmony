@@ -14,12 +14,12 @@
 
 import { computed, type Ref } from 'vue';
 import type { MessagePart } from '@/types';
-import { useEmojiCacheStore } from '@/stores/useEmojiCache';
 import { getEmojiUrl } from '@/utils/emojiUtils';
 import { convertActivityPubHTMLToMessageParts } from '@/utils/unifiedContentProcessing';
 import { useUnifiedEmoji } from '@/services/unifiedEmojiService';
 import { isYouTubeUrl, buildYouTubeEmbedUrl, parseEmbedUrl } from '@/utils/embedDetection';
 import { escapeHtml, sanitizeUrl } from '@/utils/sanitize';
+import { findEmojiByName as resolveEmojiByShortcode } from '@/services/emojiShortcodeResolver';
 
 export interface ContentRenderOptions {
   mode?: 'display' | 'preview' | 'edit';
@@ -57,9 +57,7 @@ export function useContentRenderer(
   options: ContentRenderOptions = {},
   emit?: (event: string, ...args: any[]) => void
 ): ContentRenderResult {
-  
-  const emojiCache = useEmojiCacheStore();
-  
+
   // Unified emoji service for mutant pack rendering
   const { resolveEmoji, isNativePack, isLoaded: emojiServiceLoaded } = useUnifiedEmoji();
   
@@ -75,22 +73,7 @@ export function useContentRenderer(
     ...options
   };
 
-  // Emoji resolution function (unified across all components)
-  const findEmojiByName = (name: string) => {
-    if (!emojiCache.isInitialized) {
-      return undefined;
-    }
-    
-    const resolvedEmojis = emojiCache.resolvedEmojis;
-    for (const serverId in resolvedEmojis) {
-      const server = resolvedEmojis[serverId];
-      const emoji = server.emojis.find((e: any) => e.name === name);
-      if (emoji) {
-        return emoji;
-      }
-    }
-    return undefined;
-  };
+  const findEmojiByName = (name: string) => resolveEmojiByShortcode(name) ?? undefined;
 
   // Convert any content format to MessagePart[]
   const normalizeContent = (rawContent: any): MessagePart[] => {

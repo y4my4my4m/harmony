@@ -14,11 +14,19 @@ import { activityTracker } from '@/services/ActivityTracker'
 import { debug } from '@/utils/debug'
 import { userStorage } from '@/utils/userScopedStorage'
 import type { RealtimeChannel } from '@supabase/supabase-js'
-import { getSvgUrl, resolveEmoji, getTwemojiUrl, loadEmojiData, isLoaded as unifiedEmojiLoaded } from '@/services/unifiedEmojiService'
-import { useEmojiCacheStore } from '@/stores/useEmojiCache'
+import { loadEmojiData, isLoaded as unifiedEmojiLoaded } from '@/services/unifiedEmojiService'
 import { realtimeApiService } from '@/services/RealtimeApiService'
+import {
+  createShortcodeRegex,
+  parseEmojiShortcodeToken,
+  findCustomEmojiInCache,
+  getDbCachedEmoji,
+  ensureCustomEmojisResolved,
+  isDbMissCached,
+  resolveUnifiedEmojiDisplay,
+} from '@/services/emojiShortcodeResolver'
 
-const EMOJI_SHORTCODE_REGEX = /:([a-zA-Z0-9_+-]+):/g
+const EMOJI_SHORTCODE_TEST_REGEX = createShortcodeRegex()
 
 /**
  * Detect if user is on a mobile device
@@ -1950,9 +1958,8 @@ class UserDataService extends EventTarget {
       return undefined
     }
 
-    EMOJI_SHORTCODE_REGEX.lastIndex = 0
-    if (!EMOJI_SHORTCODE_REGEX.test(displayName)) return undefined
-    EMOJI_SHORTCODE_REGEX.lastIndex = 0
+    EMOJI_SHORTCODE_TEST_REGEX.lastIndex = 0
+    if (!EMOJI_SHORTCODE_TEST_REGEX.test(displayName)) return undefined
 
     // Trigger lazy load of emoji data if not loaded - reResolveAllDisplayNames()
     // will be called automatically when the load completes (see unifiedEmojiService)
@@ -1968,40 +1975,47 @@ class UserDataService extends EventTarget {
       }
     }
 
-    let emojiCacheStore: ReturnType<typeof useEmojiCacheStore> | null = null
-    try {
-      emojiCacheStore = useEmojiCacheStore()
-    } catch { /* Pinia not ready */ }
-
     const parts: DisplayNamePart[] = []
+    const pendingDbTokens: string[] = []
     let lastIndex = 0
     let match: RegExpExecArray | null
 
-    while ((match = EMOJI_SHORTCODE_REGEX.exec(displayName)) !== null) {
-      const shortcode = match[1]
+    // Fresh regex per call — never share `g`-flag regexes with `.exec()` loops
+    // (see emojiShortcodeResolver.createShortcodeRegex for rationale).
+    const matcher = createShortcodeRegex()
+    while ((match = matcher.exec(displayName)) !== null) {
+      const token = match[1]
+      const parsed = parseEmojiShortcodeToken(token)
 
       if (match.index > lastIndex) {
         parts.push({ type: 'text', text: displayName.substring(lastIndex, match.index) })
       }
 
-      // 1. Pinned emoji from federation_metadata (exact match, cross-user safe; id may be missing from AP)
-      const pinned = pinnedMap.get(shortcode)
-      if (pinned) {
-        parts.push({ type: 'emoji', emoji: { id: pinned.id || pinned.name || '', name: pinned.name, url: pinned.url } })
-      }
-      // 2. Emoji cache (custom server emojis the viewer has access to)
-      else if (emojiCacheStore) {
-        const entries = emojiCacheStore.nameIndex.get(shortcode)
-        const emoji = entries?.[0]?.emoji
-        if (emoji) {
-          parts.push({ type: 'emoji', emoji: { id: emoji.id, name: emoji.name, url: emoji.url } })
+      const pinned =
+        pinnedMap.get(parsed.token) ??
+        pinnedMap.get(parsed.baseName)
+
+      let emojiPart: { id: string; name: string; url: string } | null = null
+      if (pinned?.url) {
+        emojiPart = { id: pinned.id || pinned.name || '', name: pinned.name, url: pinned.url }
+      } else {
+        const fromCache = findCustomEmojiInCache(parsed.token) ?? getDbCachedEmoji(parsed.token)
+        if (fromCache?.url) {
+          emojiPart = { id: fromCache.id, name: fromCache.name, url: fromCache.url }
         } else {
-          this.resolveUnifiedFallback(shortcode, parts, match[0])
+          emojiPart = resolveUnifiedEmojiDisplay(parsed.baseName)
         }
       }
-      // 3. Unified emoji pack fallback
-      else {
-        this.resolveUnifiedFallback(shortcode, parts, match[0])
+
+      if (emojiPart?.url) {
+        parts.push({ type: 'emoji', emoji: emojiPart })
+      } else {
+        parts.push({ type: 'text', text: match[0] })
+        // Only enqueue tokens we haven't already proven absent — prevents
+        // ensureCustomEmojisResolved → reResolveAllDisplayNames loops.
+        if (!parsed.isUuid && !isDbMissCached(parsed.token)) {
+          pendingDbTokens.push(parsed.token)
+        }
       }
 
       lastIndex = match.index + match[0].length
@@ -2011,29 +2025,18 @@ class UserDataService extends EventTarget {
       parts.push({ type: 'text', text: displayName.substring(lastIndex) })
     }
 
+    if (pendingDbTokens.length > 0) {
+      ensureCustomEmojisResolved(pendingDbTokens)
+        .then(resolved => {
+          // Only trigger re-resolve if at least one token actually loaded;
+          // otherwise we'd loop forever on legitimately-missing emojis.
+          if (resolved > 0) this.reResolveAllDisplayNames()
+        })
+        .catch(() => {})
+    }
+
     const hasEmoji = parts.some(p => p.type === 'emoji')
     return hasEmoji ? parts : undefined
-  }
-
-  private resolveUnifiedFallback(shortcode: string, parts: DisplayNamePart[], rawText: string): void {
-    let fallbackUrl: string | null = null
-    try {
-      fallbackUrl = getSvgUrl(shortcode)
-      if (!fallbackUrl) {
-        const resolved = resolveEmoji(shortcode)
-        if (resolved.display.type === 'svg' && resolved.display.content) {
-          fallbackUrl = resolved.display.content
-        } else if (resolved.display.type === 'native' && resolved.unicode && resolved.unicode !== shortcode) {
-          // Only call getTwemojiUrl if unicode is an actual emoji character, not the shortcode text echoed back
-          fallbackUrl = getTwemojiUrl(resolved.unicode)
-        }
-      }
-    } catch { /* ignore */ }
-    if (fallbackUrl) {
-      parts.push({ type: 'emoji', emoji: { id: shortcode, name: shortcode, url: fallbackUrl } })
-    } else {
-      parts.push({ type: 'text', text: rawText })
-    }
   }
 
   /**

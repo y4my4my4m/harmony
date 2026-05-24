@@ -65,7 +65,7 @@
                         borderColor: tier.badge_color,
                         color: tier.badge_color
                       } : {}"
-                    ><SupporterBadgeIcon :icon="tier.badge_icon" :size="28" /></span>
+                    ><SupporterBadgeIcon :icon="tier.badge_icon" /></span>
                   </div>
                   <div class="tier-details">
                     <span class="tier-name">{{ tier.name }}</span>
@@ -81,7 +81,7 @@
               <h3>Your Support</h3>
               <div class="my-badge-row">
                 <span class="my-badge-icon" :style="badgeStyle">
-                  <SupporterBadgeIcon :icon="myBadge.badge_icon" :size="32" />
+                  <SupporterBadgeIcon :icon="myBadge.badge_icon" />
                 </span>
                 <div class="my-badge-info">
                   <span class="my-badge-tier">{{ myBadge.tier_name }} Supporter</span>

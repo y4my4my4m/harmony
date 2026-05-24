@@ -5,7 +5,7 @@
     :style="badgeStyle"
     :title="`${badge.tier_name} Supporter`"
   >
-    <SupporterBadgeIcon :icon="badge.badge_icon" :size="32" />
+    <SupporterBadgeIcon :icon="badge.badge_icon" />
   </span>
 </template>
 

@@ -2016,6 +2016,7 @@ import { userDataService } from '@/services/userDataService'
 import { activityPubService } from '@/services/activityPubService'
 import EmojiPopup from '@/components/EmojiPopup.vue'
 import { getEmojiUrl } from '@/utils/emojiUtils'
+import { getEmojiShortcodeForInsert } from '@/services/emojiShortcodeResolver'
 import type { Emoji } from '@/types'
 
 const authStore = useAuthStore()
@@ -2833,19 +2834,17 @@ const saveEditTier = async (tierId: string) => {
   }
 }
 
-const handleNewTierEmoji = (emoji: Emoji) => {
-  newTierIcon.value = emoji.url ? `:${emoji.name}:` : emoji.id
+const handleNewTierEmoji = (emoji: Emoji & { display_name?: string }) => {
+  newTierIcon.value = getEmojiShortcodeForInsert(emoji)
   showNewTierEmojiPicker.value = false
 }
 
-const handleEditTierEmoji = (emoji: Emoji) => {
-  editTierIcon.value = emoji.url ? `:${emoji.name}:` : emoji.id
+const handleEditTierEmoji = (emoji: Emoji & { display_name?: string }) => {
+  editTierIcon.value = getEmojiShortcodeForInsert(emoji)
   showEditTierEmojiPicker.value = false
 }
 
 const resolveIconForPreview = (icon: string): { type: 'text' | 'img'; value: string } => {
-  const match = icon.match(/^:([a-zA-Z0-9_+-]+):$/)
-  if (!match) return { type: 'text', value: icon }
   const parts = userDataService.resolveDisplayNameParts(icon)
   const emojiPart = parts?.find(p => p.type === 'emoji')
   if (emojiPart && emojiPart.type === 'emoji') {

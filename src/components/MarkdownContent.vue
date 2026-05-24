@@ -10,7 +10,7 @@
 import { computed } from 'vue';
 import { debug } from '@/utils/debug'
 import { renderMarkdownToHTML, type RenderOptions } from '@/utils/markdownRenderer';
-import { useEmojiCacheStore } from '@/stores/useEmojiCache';
+import { findEmojiByName } from '@/services/emojiShortcodeResolver';
 
 interface Props {
   content: string;
@@ -25,31 +25,13 @@ const props = withDefaults(defineProps<Props>(), {
   showMarkers: false
 });
 
-const emojiCache = useEmojiCacheStore();
-
-// Emoji resolver function
+// Resolves :shortcode: to URLs via the central emoji resolver
+// (cache → DB fallback → unified pack, with ~N disambiguation).
 const emojiResolver = (name: string) => {
   try {
-    // First check server custom emojis via name index (fast path)
-    const nameIndexEntries = emojiCache.nameIndex.get(name);
-    if (nameIndexEntries && nameIndexEntries.length > 0) {
-      for (const entry of nameIndexEntries) {
-        if (entry.emoji && entry.emoji.url) {
-          return { url: entry.emoji.url, id: entry.emoji.id };
-        }
-      }
-    }
-    
-    // Fallback: iterate through server caches
-    const allServerIds = Array.from(emojiCache.serverCaches.keys());
-    for (const serverId of allServerIds) {
-      const serverEmojis = emojiCache.getServerEmojis(serverId);
-      if (serverEmojis && serverEmojis.length > 0) {
-        const emoji = serverEmojis.find(e => e.name === name);
-        if (emoji && emoji.url) {
-          return { url: emoji.url, id: emoji.id };
-        }
-      }
+    const emoji = findEmojiByName(name);
+    if (emoji?.url) {
+      return { url: emoji.url, id: emoji.id };
     }
     return null;
   } catch (error) {

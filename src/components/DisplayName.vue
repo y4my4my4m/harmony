@@ -44,7 +44,7 @@ type RenderPart =
   | { type: 'unicode-emoji'; unicode: string; svgUrl: string | null }
 
 const UNICODE_EMOJI_REGEX = /[\u{1F1E6}-\u{1F1FF}]{2}|(\p{Emoji_Presentation}|\p{Emoji}\uFE0F)(\u200D(\p{Emoji_Presentation}|\p{Emoji}\uFE0F))*/gu
-const SHORTCODE_REGEX = /:([a-zA-Z0-9_+-]+):/
+const SHORTCODE_REGEX = /:([a-zA-Z0-9_+~-]+):/
 
 const props = defineProps<{
   userId?: string

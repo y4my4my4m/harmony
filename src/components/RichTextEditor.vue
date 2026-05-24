@@ -40,13 +40,13 @@ import { ref, onMounted, watch, nextTick, computed } from 'vue';
 import { debug } from '@/utils/debug'
 import { parseMarkdownWithMarkers, type MarkdownToken } from '@/utils/markdownParser';
 import { highlightSyntax } from '@/utils/syntaxHighlighter';
-import { useEmojiCacheStore } from '@/stores/useEmojiCache';
 import { getEmojiUrl } from '@/utils/emojiUtils';
 import { userDataService } from '@/services/userDataService';
 import { useUnifiedEmoji } from '@/services/unifiedEmojiService';
 import { roleService } from '@/services/RoleService';
 import { useServerChannelStore } from '@/stores/useServerChannel';
 import { useUndoRedo, type UndoState } from '@/composables/useUndoRedo';
+import { findEmojiByName } from '@/services/emojiShortcodeResolver';
 
 interface Props {
   modelValue: string;
@@ -80,9 +80,10 @@ const emit = defineEmits<Emits>();
 
 const editorRef = ref<HTMLDivElement>();
 const isFocused = ref(false);
-const emojiCache = useEmojiCacheStore();
 const serverChannelStore = useServerChannelStore();
-const { resolveEmoji, isNativePack, getSvgUrl, isLoaded: unifiedLoaded } = useUnifiedEmoji();
+// Only `unifiedLoaded` is consumed locally (watched for re-render).
+// Emoji resolution itself goes through emojiShortcodeResolver.findEmojiByName.
+const { isLoaded: unifiedLoaded } = useUnifiedEmoji();
 const isRendering = ref(false);
 const skipNextWatch = ref(false); // Flag to skip watch when manually rendering
 const undoRedo = useUndoRedo({ maxHistory: 100, groupingDelayMs: 300 });
@@ -124,56 +125,6 @@ const hasContent = computed(() => {
 const isSingleLine = computed(() => {
   return !props.modelValue.includes('\n');
 });
-
-// Find emoji by name in cache or unified emoji pack
-const findEmojiByName = (name: string) => {
-  try {
-    // First check server custom emojis via name index (fast path)
-    const nameIndexEntries = emojiCache.nameIndex.get(name);
-    if (nameIndexEntries && nameIndexEntries.length > 0) {
-      for (const entry of nameIndexEntries) {
-        if (entry.emoji && entry.emoji.url) {
-          return entry.emoji;
-        }
-      }
-    }
-    
-    // Fallback: iterate through server caches
-    const allServerIds = Array.from(emojiCache.serverCaches.keys());
-    for (const serverId of allServerIds) {
-      const serverEmojis = emojiCache.getServerEmojis(serverId);
-      if (serverEmojis && serverEmojis.length > 0) {
-        const emoji = serverEmojis.find(e => e.name === name);
-        if (emoji && emoji.url) {
-          return emoji;
-        }
-      }
-    }
-    
-    // Then check unified emoji pack (mutant or native)
-    if (unifiedLoaded.value) {
-      const resolved = resolveEmoji(name);
-      if (resolved.display.type === 'svg') {
-        return {
-          name: resolved.shortcode || name,
-          url: resolved.display.content
-        };
-      } else if (resolved.display.type === 'native' && resolved.unicode !== name) {
-        // Return native emoji (renderer will handle display)
-        return {
-          name: resolved.shortcode || name,
-          url: null,
-          native: resolved.unicode
-        };
-      }
-    }
-    
-    return null;
-  } catch (error) {
-    debug.warn('Error finding emoji by name:', error);
-    return null;
-  }
-};
 
 // Extract plain text from the editor (preserving markdown)
 const getPlainText = (): string => {

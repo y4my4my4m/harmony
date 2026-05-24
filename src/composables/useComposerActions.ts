@@ -10,6 +10,7 @@ import type { MediaAttachment, Post } from '@/types';
 import { useActivityPubStore } from '@/stores/useActivityPub';
 import type RichTextEditor from '@/components/RichTextEditor.vue';
 import { debug } from '@/utils/debug'
+import { getEmojiShortcodeForInsert } from '@/services/emojiShortcodeResolver'
 
 export interface ComposerActionsOptions {
   content: Ref<string>;
@@ -29,7 +30,7 @@ export function useComposerActions(options: ComposerActionsOptions) {
    */
   const insertEmoji = (emoji: any) => {
     const richEditor = options.richEditorRef.value;
-    const emojiText = `:${emoji.name}:`;
+    const emojiText = getEmojiShortcodeForInsert(emoji);
 
     if (!richEditor) {
       options.content.value += emojiText;

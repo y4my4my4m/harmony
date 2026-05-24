@@ -26,7 +26,7 @@ const PATTERNS = {
   italic: /\*([^*]+)\*/g,
   underline: /__((?:(?!__).)+?)__/g,
   strikethrough: /~~((?:(?!~~).)+?)~~/g,
-  emoji: /:([a-zA-Z0-9_+-]+):/g,
+  emoji: /:([a-zA-Z0-9_+~-]+):/g,
   newline: /\n/g
 };
 
@@ -238,7 +238,7 @@ function parseInlineChildren(content: string, parentType: string): MarkdownToken
   if (parentType !== 'underline') innerPatterns.underline = /__((?:(?!__).)+?)__/g;
   if (parentType !== 'strikethrough') innerPatterns.strikethrough = /~~((?:(?!~~).)+?)~~/g;
   innerPatterns.code = /`([^`\n]+)`/g;
-  innerPatterns.emoji = /:([a-zA-Z0-9_+-]+):/g;
+  innerPatterns.emoji = /:([a-zA-Z0-9_+~-]+):/g;
 
   interface InnerMatch {
     type: string;
