@@ -5,29 +5,14 @@
     :style="badgeStyle"
     :title="`${badge.tier_name} Supporter`"
   >
-    <template v-if="resolvedParts && resolvedParts.length > 0">
-      <template v-for="(part, i) in resolvedParts" :key="i">
-        <span v-if="part.type === 'text'">{{ part.text }}</span>
-        <img
-          v-else-if="part.type === 'emoji'"
-          class="badge-emoji"
-          :src="getEmojiUrl(part.emoji.url, 32)"
-          :alt="`:${part.emoji.name}:`"
-          :title="`:${part.emoji.name}:`"
-          draggable="false"
-        />
-      </template>
-    </template>
-    <template v-else>{{ badgeIcon }}</template>
+    <SupporterBadgeIcon :icon="badge.badge_icon" :size="32" />
   </span>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { fundingService, type SupporterBadge } from '@/services/FundingService'
-import { userDataService } from '@/services/userDataService'
-import { getEmojiUrl } from '@/utils/emojiUtils'
-import type { DisplayNamePart } from '@/types'
+import SupporterBadgeIcon from './SupporterBadgeIcon.vue'
 
 interface Props {
   userId: string
@@ -36,14 +21,6 @@ interface Props {
 const props = defineProps<Props>()
 
 const badge = ref<SupporterBadge | null>(null)
-
-const badgeIcon = computed(() => badge.value?.badge_icon || '⭐')
-
-const resolvedParts = computed<DisplayNamePart[] | undefined>(() => {
-  const icon = badge.value?.badge_icon
-  if (!icon) return undefined
-  return userDataService.resolveDisplayNameParts(icon)
-})
 
 const badgeStyle = computed(() => {
   if (!badge.value?.badge_color) return {}
@@ -74,12 +51,5 @@ onMounted(loadBadge)
   line-height: 1;
   vertical-align: middle;
   margin-left: 4px;
-}
-
-.badge-emoji {
-  height: 1em;
-  width: auto;
-  vertical-align: -0.1em;
-  object-fit: contain;
 }
 </style>

@@ -65,7 +65,7 @@
                         borderColor: tier.badge_color,
                         color: tier.badge_color
                       } : {}"
-                    >{{ tier.badge_icon || '⭐' }}</span>
+                    ><SupporterBadgeIcon :icon="tier.badge_icon" :size="28" /></span>
                   </div>
                   <div class="tier-details">
                     <span class="tier-name">{{ tier.name }}</span>
@@ -80,7 +80,9 @@
             <div v-if="myBadge" class="my-supporter-status">
               <h3>Your Support</h3>
               <div class="my-badge-row">
-                <span class="my-badge-icon" :style="badgeStyle">{{ myBadge.badge_icon || '⭐' }}</span>
+                <span class="my-badge-icon" :style="badgeStyle">
+                  <SupporterBadgeIcon :icon="myBadge.badge_icon" :size="32" />
+                </span>
                 <div class="my-badge-info">
                   <span class="my-badge-tier">{{ myBadge.tier_name }} Supporter</span>
                   <span class="my-badge-active">Active</span>
@@ -118,6 +120,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { fundingService, type FundingConfigWithProgress, type SupporterTier, type SupporterBadge, type DonationRecord } from '@/services/FundingService'
+import SupporterBadgeIcon from '@/components/common/SupporterBadgeIcon.vue'
 import { supabase } from '@/supabase'
 
 defineEmits<{ close: [] }>()
