@@ -54,6 +54,10 @@ export interface UserStats {
   followers_count: number
   following_count: number
   profile_views: number
+  /** Denormalized chat message count (profiles.message_count). */
+  message_count?: number
+  /** Denormalized voice minutes (profiles.voice_minutes). */
+  voice_minutes?: number
 }
 
 export class CoreProfileService {
@@ -353,7 +357,9 @@ export class CoreProfileService {
         .select(`
           posts_count,
           followers_count,
-          following_count
+          following_count,
+          message_count,
+          voice_minutes
         `)
         .eq('id', profileId)
         .single()
@@ -369,7 +375,9 @@ export class CoreProfileService {
         posts_count: profile.posts_count || 0,
         followers_count: profile.followers_count || 0,
         following_count: profile.following_count || 0,
-        profile_views: 0 // Placeholder for future implementation
+        profile_views: 0, // Placeholder for future implementation
+        message_count: Number(profile.message_count ?? 0),
+        voice_minutes: Number(profile.voice_minutes ?? 0),
       }
 
       debug.log(`✅ Core: User stats loaded successfully`)

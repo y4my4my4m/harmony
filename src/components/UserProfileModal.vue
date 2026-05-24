@@ -214,7 +214,7 @@
                 </div>
                 <div class="activity-info">
                   <span class="activity-title">Messages</span>
-                  <span class="activity-value">{{ getUserMessageCount(user) }}</span>
+                  <span class="activity-value">{{ isLoadingActivity ? '—' : getUserMessageCount(user) }}</span>
                 </div>
               </div>
               
@@ -224,7 +224,7 @@
                 </div>
                 <div class="activity-info">
                   <span class="activity-title">Voice Time</span>
-                  <span class="activity-value">{{ formatVoiceTime(getUserVoiceTime(user)) }}</span>
+                  <span class="activity-value">{{ isLoadingActivity ? '—' : formatVoiceTime(getUserVoiceTime(user)) }}</span>
                 </div>
               </div>
             </template>
@@ -449,6 +449,7 @@ const fetchedUserStats = ref<{ posts: number; following: number; followers: numb
 const fetchedCreatedAt = ref<string | null>(null)
 const fetchedActivity = ref<{ message_count: number; voice_minutes: number } | null>(null)
 const isLoadingUserStats = ref(false)
+const isLoadingActivity = ref(false)
 
 // Server roles for the user (from current server context)
 const fetchedUserRoles = ref<ServerRole[]>([])
@@ -474,9 +475,22 @@ const currentDomain = import.meta.env.VITE_DOMAIN as string
 /**
  * Fetch user stats and profile data via CoreProfileService
  */
+function applyActivityFromStats(stats: { message_count?: number; voice_minutes?: number } | null | undefined) {
+  if (stats == null) return
+  if (stats.message_count === undefined && stats.voice_minutes === undefined) return
+  fetchedActivity.value = {
+    message_count: Number(stats.message_count ?? 0),
+    voice_minutes: Number(stats.voice_minutes ?? 0),
+  }
+}
+
 async function loadUserStats(userId: string) {
-  if (isLoadingUserStats.value) return
-  
+  if (isLoadingUserStats.value) {
+    // Stats load already in flight — still fetch activity (cheap PK read).
+    void loadUserActivity(userId)
+    return
+  }
+
   isLoadingUserStats.value = true
   try {
     // Use CoreProfileService for proper stats fetching
@@ -487,9 +501,10 @@ async function loadUserStats(userId: string) {
         following: stats.following_count || 0,
         followers: stats.followers_count || 0
       }
+      applyActivityFromStats(stats)
       debug.log('👤 Loaded user stats:', fetchedUserStats.value)
     }
-    
+
     // Also fetch created_at if not on user object
     const { profileService } = await import('@/services/ProfileService')
     const profile = await profileService.fetchProfile(userId)
@@ -497,12 +512,12 @@ async function loadUserStats(userId: string) {
       fetchedCreatedAt.value = profile.created_at
       debug.log('👤 Loaded user created_at:', fetchedCreatedAt.value)
     }
-
-    await loadUserActivity(userId)
   } catch (error) {
     debug.error('Failed to load user stats:', error)
   } finally {
     isLoadingUserStats.value = false
+    // Always load activity even if social stats / created_at failed.
+    await loadUserActivity(userId)
   }
 }
 
@@ -514,6 +529,8 @@ async function loadUserStats(userId: string) {
  * caller already had post/follow counts.
  */
 async function loadUserActivity(userId: string) {
+  if (!userId) return
+  isLoadingActivity.value = true
   try {
     const { data, error } = await supabase
       .from('profiles')
@@ -521,7 +538,8 @@ async function loadUserActivity(userId: string) {
       .eq('id', userId)
       .maybeSingle()
     if (error) {
-      debug.warn('Failed to load user activity counters:', error)
+      // PGRST204 = column not in schema cache (migration not applied / not reloaded)
+      debug.error('Failed to load user activity counters:', error.code, error.message, error)
       return
     }
     if (data) {
@@ -529,9 +547,12 @@ async function loadUserActivity(userId: string) {
         message_count: Number(data.message_count ?? 0),
         voice_minutes: Number(data.voice_minutes ?? 0),
       }
+      debug.log('👤 Loaded user activity:', fetchedActivity.value)
     }
   } catch (err) {
-    debug.warn('Failed to load user activity counters:', err)
+    debug.error('Failed to load user activity counters:', err)
+  } finally {
+    isLoadingActivity.value = false
   }
 }
 
@@ -1226,6 +1247,7 @@ watch(() => ({ show: props.show, userId: props.user?.id }), async (newVal, oldVa
     fetchedUserStats.value = null
     fetchedCreatedAt.value = null
     fetchedActivity.value = null
+    isLoadingActivity.value = false
     fetchedUserRoles.value = []
   } else if (newVal.show && newVal.userId && (newVal.userId !== oldVal?.userId || !oldVal?.show)) {
     // Modal opened or user switched - ensure the dropdown isn't carried over.
@@ -1244,15 +1266,10 @@ watch(() => ({ show: props.show, userId: props.user?.id }), async (newVal, oldVa
     if (props.user) {
       const user = props.user as any
       const hasStats = user.posts_count !== undefined || user.following_count !== undefined
-      // Activity counters (`message_count` / `voice_minutes`) live on the
-      // profile row and are NEVER pre-populated on `props.user` from chat
-      // contexts — so we always need to load them, even when `hasStats` is
-      // already true from a federated stats blob. `loadUserStats` is the
-      // function that fetches them.
+      // Activity counters always need a profile-row fetch (never on chat user blobs).
+      void loadUserActivity(props.user.id)
       if (!hasStats) {
-        loadUserStats(props.user.id)
-      } else {
-        void loadUserActivity(props.user.id)
+        void loadUserStats(props.user.id)
       }
       
       // Load user roles for current server context
