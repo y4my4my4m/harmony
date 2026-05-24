@@ -874,48 +874,79 @@ class RoleService {
       const allowMask = permissionsToBitmask(allow)
       const denyMask = permissionsToBitmask(deny)
 
-      const payload = {
-        channel_id: channelId,
-        target_type: targetType,
-        role_id: targetType === 'role' ? targetId : null,
-        user_id: targetType === 'user' ? targetId : null,
-        // Postgres bigint accepts string (avoids JS precision loss for >32 bits).
-        allow_permissions: allowMask.toString(),
-        deny_permissions: denyMask.toString(),
-        updated_at: new Date().toISOString(),
-      }
+      // ---------------------------------------------------------------------
+      // Why this isn't an upsert (anymore):
+      //
+      // PostgreSQL's `ON CONFLICT (channel_id, role_id)` needs a NON-partial
+      // unique index covering exactly those columns. Our partial indexes
+      // `uniq_cpo_channel_role WHERE user_id IS NULL` and the analogous user
+      // one DO exist in the DB, but PostgREST's `on_conflict` query parameter
+      // can't pass the partial WHERE clause to Postgres — so the planner
+      // refuses with 42P10 "no unique or exclusion constraint matching the
+      // ON CONFLICT specification".
+      //
+      // The composite `UNIQUE(channel_id, role_id, user_id)` doesn't help
+      // because Postgres treats NULL as distinct, so role-only and user-only
+      // rows aren't actually unique-constrained.
+      //
+      // Cleanest fix without changing the schema: do a manual lookup +
+      // INSERT-or-UPDATE. Two roundtrips instead of one, but this is admin
+      // UI traffic — frequency is negligible.
+      // ---------------------------------------------------------------------
 
-      // PostgREST needs an `onConflict` that matches a real unique index. The
-      // table's composite UNIQUE(channel_id, role_id, user_id) doesn't enforce
-      // uniqueness when one of role_id/user_id is NULL (PG treats NULLs as
-      // distinct), which is why upserts used to fail with HTTP 400. We now
-      // have partial indexes `uniq_cpo_channel_role` / `uniq_cpo_channel_user`
-      // (see migrations/20260524_channel_overrides_fix.sql) and route the
-      // upsert to the correct one per target type.
-      const onConflict =
-        targetType === 'role' ? 'channel_id,role_id' : 'channel_id,user_id'
+      const baseQuery = supabase
+        .from('channel_permission_overrides')
+        .select('id')
+        .eq('channel_id', channelId)
+      const filteredQuery =
+        targetType === 'role'
+          ? baseQuery.eq('role_id', targetId).is('user_id', null)
+          : baseQuery.eq('user_id', targetId).is('role_id', null)
+      const { data: existing, error: lookupErr } = await filteredQuery.maybeSingle()
+      if (lookupErr) throw lookupErr
 
-      // If both allow and deny masks are zero, the row is meaningless
-      // ("inherit everything") — delete instead of writing a noisy 0/0 row.
+      // If both masks are zero, the row is meaningless ("inherit everything")
+      // — delete an existing row, or no-op if there's none. Avoids writing
+      // 0/0 noise rows.
       if (allowMask === BigInt(0) && denyMask === BigInt(0)) {
-        const delQuery = supabase
-          .from('channel_permission_overrides')
-          .delete()
-          .eq('channel_id', channelId)
-        const { error: delErr } =
-          targetType === 'role'
-            ? await delQuery.eq('role_id', targetId).is('user_id', null)
-            : await delQuery.eq('user_id', targetId).is('role_id', null)
-        if (delErr) throw delErr
+        if (existing?.id) {
+          const { error: delErr } = await supabase
+            .from('channel_permission_overrides')
+            .delete()
+            .eq('id', existing.id)
+          if (delErr) throw delErr
+        }
         this.permissionCache.clear()
         return true
       }
 
-      const { error } = await supabase
-        .from('channel_permission_overrides')
-        .upsert(payload, { onConflict })
+      // Postgres bigint accepts strings (avoids JS precision loss > 2^53).
+      const allowStr = allowMask.toString()
+      const denyStr = denyMask.toString()
 
-      if (error) throw error
+      if (existing?.id) {
+        const { error: updErr } = await supabase
+          .from('channel_permission_overrides')
+          .update({
+            allow_permissions: allowStr,
+            deny_permissions: denyStr,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', existing.id)
+        if (updErr) throw updErr
+      } else {
+        const { error: insErr } = await supabase
+          .from('channel_permission_overrides')
+          .insert({
+            channel_id: channelId,
+            target_type: targetType,
+            role_id: targetType === 'role' ? targetId : null,
+            user_id: targetType === 'user' ? targetId : null,
+            allow_permissions: allowStr,
+            deny_permissions: denyStr,
+          })
+        if (insErr) throw insErr
+      }
 
       this.permissionCache.clear()
       return true
