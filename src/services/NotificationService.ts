@@ -263,6 +263,42 @@ export class NotificationService {
   }
 
   /**
+   * Mark every notification for these `(profileId, post_id, type)` tuples
+   * as read. Used by the Mentions view to clear notifications as the user
+   * actually sees the corresponding posts come into view.
+   *
+   * Both `activitypub_mention` and `activitypub_reply` triggers store the
+   * referenced post's id at `data.post_id` (see 11_functions_triggers.sql).
+   * `.filter(...,'in','(a,b,c)')` is the PostgREST escape hatch for JSON
+   * path columns that `.in()` doesn't support directly. Post ids are UUIDs
+   * (regex-validated upstream), so no quoting is required.
+   */
+  async markMentionNotificationsForPostsAsRead(
+    profileId: string,
+    postIds: string[],
+    types: string[] = ['activitypub_mention', 'activitypub_reply'],
+  ): Promise<boolean> {
+    if (!postIds.length) return true
+    try {
+      const { error } = await supabase
+        .from('notifications')
+        .update({ is_read: true, read_at: new Date().toISOString() })
+        .eq('user_id', profileId)
+        .in('type', types)
+        .eq('is_read', false)
+        .filter('data->>post_id', 'in', `(${postIds.join(',')})`)
+
+      if (error) {
+        throw this.createError('UPDATE_FAILED', error.message, error)
+      }
+      return true
+    } catch (error) {
+      debug.error('❌ Failed to mark mention notifications as read:', error)
+      return false
+    }
+  }
+
+  /**
    * Delete every notification for the given profile id.
    * RLS already restricts to the caller's notifications, but we also scope
    * by `user_id` so an `eq('user_id', ...)` mismatch fails loudly instead

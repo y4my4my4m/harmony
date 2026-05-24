@@ -44,6 +44,7 @@
           :empty-action="viewType === ViewType.BOOKMARKS ? $t('activitypub.browseTimeline') : undefined"
           @load-more="$emit('load-more-special-data')"
           @empty-action="$emit('switch-feed', 'home')"
+          @posts-visible="$emit('posts-visible', $event)"
         />
       </div>
       
@@ -231,6 +232,10 @@ defineEmits<{
   'bookmark-post': [postId: string]
   'delete-post': [postId: string]
   'show-user-profile': [user: any]
+
+  // Visibility (used by MentionsView to clear notifications for posts the
+  // user actually scrolls past — see PostsContainer.posts-visible)
+  'posts-visible': [postIds: string[]]
 }>()
 
 // Navigation handlers

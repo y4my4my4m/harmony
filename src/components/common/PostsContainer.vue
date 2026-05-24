@@ -103,6 +103,12 @@ const emit = defineEmits<{
   'user-click': [user: any]
   'hashtag-click': [tag: string]
   'show-conversation': [postId: string]
+  // Fired whenever the set of *rendered* post ids changes. The virtualizer
+  // already renders only what's near the viewport (plus 8 rows of overscan),
+  // so this is a reasonable "in view" signal without a second
+  // IntersectionObserver chain. Consumers (e.g. MentionsView) use this to
+  // clear notifications as the user scrolls posts into view.
+  'posts-visible': [postIds: string[]]
 }>()
 
 const scrollContainer = ref<HTMLDivElement | null>(null)
@@ -185,6 +191,25 @@ watchEffect(() => {
     lastEmittedIndex.value = lastItem.index
     emit('load-more')
   }
+})
+
+// Emit visible post ids whenever the virtualizer's rendered window changes.
+// Keyed-dedup on the joined id string prevents redundant emits while the
+// user is mid-scroll between two adjacent overscan boundaries.
+let lastVisibleKey = ''
+watch(virtualRows, (rows) => {
+  if (!rows.length || !props.posts.length) return
+  const ids: string[] = []
+  for (const row of rows) {
+    if (row.index >= props.posts.length) continue
+    const id = props.posts[row.index]?.id
+    if (id) ids.push(id)
+  }
+  if (!ids.length) return
+  const key = ids.join('|')
+  if (key === lastVisibleKey) return
+  lastVisibleKey = key
+  emit('posts-visible', ids)
 })
 
 onMounted(() => {

@@ -39,6 +39,7 @@
 import { ref, onMounted, watch, nextTick, computed } from 'vue';
 import { debug } from '@/utils/debug'
 import { parseMarkdownWithMarkers, type MarkdownToken } from '@/utils/markdownParser';
+import { splitIntoBlockSegments } from '@/utils/chatBlockquotes';
 import { highlightSyntax } from '@/utils/syntaxHighlighter';
 import { getEmojiUrl } from '@/utils/emojiUtils';
 import { userDataService } from '@/services/userDataService';
@@ -156,6 +157,18 @@ const getPlainText = (): string => {
           // Fallback to element text content
           text += el.textContent || '';
         }
+      } else if (el.classList.contains('editor-blockquote')) {
+        const lineEls = el.querySelectorAll(':scope > .editor-blockquote-line');
+        lineEls.forEach((lineEl, index) => {
+          if (index > 0) text += '\n';
+          text += lineEl.getAttribute('data-prefix') || '';
+          const content = lineEl.querySelector('.editor-blockquote-content');
+          if (content) {
+            for (const child of Array.from(content.childNodes)) {
+              processNode(child);
+            }
+          }
+        });
       } else if (el.tagName === 'BR') {
         text += '\n';
       } else if (el.tagName === 'DIV' || el.tagName === 'P') {
@@ -532,6 +545,78 @@ const createMentionElementFromDisplay = (displayText: string, username: string, 
   return span;
 };
 
+const appendTextWithBlockquotes = (text: string, target: DocumentFragment | HTMLElement) => {
+  const segments = splitIntoBlockSegments(text);
+
+  segments.forEach((segment, segmentIndex) => {
+    if (segmentIndex > 0) {
+      target.appendChild(document.createElement('br'));
+    }
+
+    if (segment.type === 'text') {
+      appendFormattedText(segment.content, target);
+    } else if (target instanceof DocumentFragment) {
+      appendBlockquote(target, segment.lines, segment.multiLine);
+    } else {
+      const inner = document.createDocumentFragment();
+      appendBlockquote(inner, segment.lines, segment.multiLine);
+      target.appendChild(inner);
+    }
+  });
+};
+
+const appendFormattedText = (text: string, target: DocumentFragment | HTMLElement) => {
+  const tokens = parseMarkdownWithMarkers(text);
+  tokens.forEach((token) => {
+    if (token.type === 'text') {
+      const lines = token.content.split('\n');
+      lines.forEach((line, index) => {
+        if (line) {
+          target.appendChild(processMentionsInText(line));
+        }
+        if (index < lines.length - 1) {
+          target.appendChild(document.createElement('br'));
+        }
+      });
+    } else {
+      target.appendChild(createElementFromToken(token));
+    }
+  });
+};
+
+const appendBlockquote = (
+  target: DocumentFragment,
+  lines: string[],
+  multiLine = false,
+) => {
+  const block = document.createElement('div');
+  block.className = 'editor-blockquote';
+  block.setAttribute('data-quote-mode', multiLine ? 'multi' : 'single');
+
+  lines.forEach((line, index) => {
+    const lineEl = document.createElement('div');
+    lineEl.className = 'editor-blockquote-line';
+    const prefix = multiLine ? (index === 0 ? '>>> ' : '') : '> ';
+    lineEl.setAttribute('data-prefix', prefix);
+
+    if (prefix) {
+      const marker = document.createElement('span');
+      marker.className = 'editor-marker';
+      marker.textContent = prefix;
+      lineEl.appendChild(marker);
+    }
+
+    const contentWrap = document.createElement('span');
+    contentWrap.className = 'editor-blockquote-content';
+    appendFormattedText(line, contentWrap);
+
+    lineEl.appendChild(contentWrap);
+    block.appendChild(lineEl);
+  });
+
+  target.appendChild(block);
+};
+
 // Render content with Discord-like markdown styling
 const renderContent = (text: string, skipCursorRestore = false) => {
   debug.log('🔧 renderContent called with:', text, 'skipCursorRestore:', skipCursorRestore);
@@ -560,32 +645,12 @@ const renderContent = (text: string, skipCursorRestore = false) => {
     return;
   }
   
-  // Parse the entire text (not line-by-line to handle multiline tokens like code blocks)
-  const tokens = parseMarkdownWithMarkers(text);
+  // Split into blockquote / non-blockquote segments first so markdown tokens
+  // (bold, italic, etc.) inside `> ...` lines render inside the blockquote.
+  // Lines inside a fenced ``` block can't start with `>` followed by space at
+  // column 0 in practice; if they do the user can avoid quoting by using `\>`.
   const fragment = document.createDocumentFragment();
-  
-  // Process tokens and handle newlines properly
-  tokens.forEach(token => {
-    if (token.type === 'text') {
-      // Handle text with potential newlines and mentions
-      const lines = token.content.split('\n');
-      lines.forEach((line, index) => {
-        if (line) {
-          // Process mentions in this line
-          const processedFragment = processMentionsInText(line);
-          fragment.appendChild(processedFragment);
-        }
-        // Add line break for all newlines except the last one if it's empty
-        if (index < lines.length - 1) {
-          fragment.appendChild(document.createElement('br'));
-        }
-      });
-    } else {
-      // For formatted tokens, handle newlines within them too
-      const element = createElementFromToken(token);
-      fragment.appendChild(element);
-    }
-  });
+  appendTextWithBlockquotes(text, fragment);
   
   // Only append fragment if it has content
   // Don't add BR when empty - let CSS :empty:before show placeholder
@@ -1396,5 +1461,20 @@ onMounted(async () => {
 
 .rich-text-editor :deep(.editor-role-mention) {
   font-weight: 600;
+}
+
+.rich-text-editor :deep(.editor-blockquote) {
+  border-left: 4px solid var(--background-modifier-accent, #4f545c);
+  padding-left: 8px;
+  margin: 2px 0;
+  color: var(--text-secondary);
+}
+
+.rich-text-editor :deep(.editor-blockquote-line) {
+  display: block;
+}
+
+.rich-text-editor :deep(.editor-blockquote-content) {
+  color: var(--text-secondary);
 }
 </style>

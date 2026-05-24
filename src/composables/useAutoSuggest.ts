@@ -152,9 +152,17 @@ export function useAutoSuggest(
   const triggers: AutoSuggestTrigger[] = [];
   
   if (finalConfig.enableEmojis) {
+    // The `(?<=^|[^a-zA-Z0-9_+-])` lookbehind guarantees the `:` opens a NEW
+    // shortcode rather than CLOSING an existing one. Without it, typing the
+    // closing `:` of `:joy:` matched the regex with an empty capture group,
+    // which the suggestion code then treated as "show every emoji whose name
+    // contains the empty string" — i.e. every server custom emoji in the
+    // user's cache (`:xd:`, `:wtf:`, `:whoa:`, ...). Now `:joy:` produces no
+    // match, and `:joy` (cursor just after `joy`) still matches with query
+    // `joy` because the leading `:` is preceded by start-of-string.
     triggers.push({
       char: ':',
-      pattern: /:([a-zA-Z0-9_+-]*)$/,
+      pattern: /(?<=^|[^a-zA-Z0-9_+-]):([a-zA-Z0-9_+-]*)$/,
       type: 'emoji'
     });
   }

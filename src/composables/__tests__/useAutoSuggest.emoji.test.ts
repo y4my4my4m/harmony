@@ -209,6 +209,34 @@ describe('useAutoSuggest - emoji trigger for `:+1`', () => {
     expect(grinning).toBeDefined()
   })
 
+  // Regression: typing the CLOSING colon of a complete shortcode used to
+  // re-open the suggestion list with an empty query, because the regex
+  // matched the trailing `:` with an empty capture. That empty query then
+  // matched every server custom emoji's name (`name.includes('') === true`)
+  // and the user saw `:xd:`, `:wtf:`, `:whoa:`, etc. listed under `:joy:`.
+  // The lookbehind `(?<=^|[^a-zA-Z0-9_+-])` now requires the colon to OPEN
+  // a shortcode (preceded by start-of-string or non-identifier char), so a
+  // closing `:` no longer triggers autosuggest.
+  it('does NOT activate the trigger when typing the closing `:` of `:joy:`', () => {
+    const { auto } = setup()
+    auto.handleInput(':joy:', 5)
+    expect(auto.state.value.isActive).toBe(false)
+  })
+
+  it('still activates the trigger for a NEW shortcode after a complete one', () => {
+    const { auto } = setup()
+    auto.handleInput(':joy: :gr', 9)
+    expect(auto.state.value.isActive).toBe(true)
+    expect(auto.state.value.triggerType).toBe('emoji')
+    expect(auto.state.value.query).toBe('gr')
+  })
+
+  it('does NOT activate the trigger for a `:` glued onto a word like `text:j`', () => {
+    const { auto } = setup()
+    auto.handleInput('text:j', 6)
+    expect(auto.state.value.isActive).toBe(false)
+  })
+
   // Regression: MessageInput used to call `autoSuggest.handleInput(props.modelValue, ...)`
   // immediately after the editor emitted `update:modelValue`, but the v-model
   // round-trip is one tick slower than the synchronously-following

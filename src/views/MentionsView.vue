@@ -14,6 +14,7 @@
       @show-user-profile="handleShowUserProfile"
       @follow-user="handleFollow"
       @unfollow-user="handleUnfollow"
+      @posts-visible="handlePostsVisible"
     />
   </div>
 </template>
@@ -23,11 +24,29 @@ import { computed, onMounted } from 'vue'
 import { debug } from '@/utils/debug'
 import UnifiedContentArea from '@/components/common/UnifiedContentArea.vue'
 import { useActivityPubStore } from '@/stores/useActivityPub'
+import { useNotificationStore } from '@/stores/useNotification'
 import { usePostInteractions } from '@/composables/usePostInteractions'
 import type { TimelinePost, FederatedUser } from '@/types'
 
 const activityPubStore = useActivityPubStore()
+const notificationStore = useNotificationStore()
 const { toggleFavorite, toggleReblog } = usePostInteractions()
+
+// Track which post ids we've already asked the store to clear notifications
+// for, so a noisy `posts-visible` stream (re-fires on every overscan change
+// during scroll) doesn't spam the DB with redundant UPDATE statements.
+const handledPostIds = new Set<string>()
+
+const handlePostsVisible = (postIds: string[]) => {
+  const fresh = postIds.filter(id => !handledPostIds.has(id))
+  if (fresh.length === 0) return
+  fresh.forEach(id => handledPostIds.add(id))
+  notificationStore.markMentionNotificationsForPostsAsRead(fresh).catch(err => {
+    debug.warn('Failed to mark mention notifications as read for visible posts:', err)
+    // Allow retry on next visibility tick if the call fails.
+    fresh.forEach(id => handledPostIds.delete(id))
+  })
+}
 
 const isLoadingMentions = computed(() => activityPubStore.isLoadingFeed)
 

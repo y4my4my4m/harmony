@@ -1316,6 +1316,55 @@ export const useNotificationStore = defineStore('notification', {
     },  
 
     /**
+     * Mark mention/reply notifications matching the given post ids as read.
+     * Called by the Mentions view as posts enter the rendered viewport. The
+     * goal (per user request) is "only clear notifications for the mentions
+     * actually seen in view" — not blanket-clear every mention notification
+     * when the page opens.
+     *
+     * Strategy: do an optimistic local update for whatever the in-memory
+     * store knows about, then mirror to the DB so anything the store hasn't
+     * loaded yet (NotificationBell hasn't been opened, etc.) still gets
+     * persisted. The DB call is fire-and-forget; failures are logged but
+     * don't revert local state (revisiting will re-attempt next time the
+     * posts scroll into view).
+     */
+    async markMentionNotificationsForPostsAsRead(postIds: string[]) {
+      if (!postIds.length) return
+
+      const idSet = new Set(postIds.map(String))
+      const types = new Set(['activitypub_mention', 'activitypub_reply'])
+
+      const localToMark = this.notifications.filter(n => {
+        if (n.is_read) return false
+        if (!types.has(n.type)) return false
+        const refId = n.data?.post_id ?? n.data?.post?.id
+        return refId !== undefined && idSet.has(String(refId))
+      })
+
+      if (localToMark.length > 0) {
+        // Optimistic local update so the badge/unread count reacts immediately.
+        // No revert path here: if the DB write later fails the next view of
+        // these same posts will retry. Stale `read=true` for unread DB rows
+        // is preferable to a flicker on the badge while the user is reading.
+        localToMark.forEach(n => { n.is_read = true })
+        this.updateUnreadCount()
+      }
+
+      try {
+        const authStore = useAuthStore()
+        const authUserId = authStore.session?.user?.id
+        if (!authUserId) return
+        const profileId = await this.getProfileId(authUserId)
+        if (!profileId) return
+
+        await services.notifications.markMentionNotificationsForPostsAsRead(profileId, postIds)
+      } catch (error) {
+        debug.error('Failed to persist mention notifications as read:', error)
+      }
+    },
+
+    /**
      * Delete every notification for the current user. Optimistically clears
      * the in-memory list and reverts on failure so the panel doesn't strand
      * the user staring at an empty list after a network/RLS error.

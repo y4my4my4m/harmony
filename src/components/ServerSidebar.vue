@@ -362,18 +362,18 @@ const isMonyverseSelected = computed(() => {
   return isActivityPubRoute(route.name as string);
 });
 
-// The globe-icon badge should reflect what the user will *actually see* when
-// they click into the social area. The Social → @mentions view is the only
-// AP-scoped destination from this sidebar, and it lists posts where the
-// user is @mentioned or replied to (driven by activitypub_mention /
-// activitypub_reply notifications). Counting other AP types here (follows,
-// favorites, reblogs, etc.) produced a false-positive badge — the user
-// clicked through to @mentions, saw an empty list, and lost trust in the
-// indicator. Those other AP notifications remain visible (and individually
-// clickable) in the bell-icon notification popup.
+// The globe-icon badge should reflect what the user will *actually see and
+// be able to clear* by clicking through. /social/mentions is driven by
+// `activitypub_mention` notifications (see useActivityPub.loadMentionedPosts).
+// Counting any other AP type — follows, reblogs, favorites, even replies —
+// stranded the badge: the user clicked through, saw the post that came up
+// from the mention notification, but the reply/follow counts kept the badge
+// alive. Restrict to `activitypub_mention` so visiting the page (and
+// scrolling past the posts) consistently drives the badge back to zero.
+// Other AP notifications still surface in the bell-icon panel.
 const unreadCount = computed(() => {
   return notificationStore.notifications.filter(
-    n => !n.is_read && (n.type === 'activitypub_mention' || n.type === 'activitypub_reply')
+    n => !n.is_read && n.type === 'activitypub_mention'
   ).length;
 });
 
