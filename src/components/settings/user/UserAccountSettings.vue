@@ -173,24 +173,56 @@
       <h3 class="section-title">Support</h3>
       <p class="section-description">
         Supporting this instance helps keep it running and contributes to its development.
-        Supporters get a badge displayed next to their name.
+        Supporters get a badge displayed next to their name based on their cumulative
+        donations during the current cycle.
       </p>
+
       <div class="donor-handle-callout">
-        <p>
-          To get your supporter badge, include this <strong>exact handle</strong>
-          in your donation message:
+        <p class="donor-handle-callout-title">
+          <Icon name="info" :size="14" /> How to get your supporter badge
         </p>
-        <code class="donor-handle-token">@{{ currentUserHandleShort || 'username' }}@{{ supporterInstanceDomain }}</code>
-        <button
-          v-if="currentUserHandleShort"
-          type="button"
-          class="donor-copy-btn"
-          @click="copyCurrentSupportHandle"
-        >
-          <Icon name="copy" :size="12" /> Copy
-        </button>
+        <p>
+          When donating, include this handle <strong>anywhere</strong> in your message —
+          we'll match it automatically and assign the right tier:
+        </p>
+        <div class="donor-handle-row">
+          <code class="donor-handle-token">@{{ currentUserHandleShort || 'username' }}@{{ supporterInstanceDomain }}</code>
+          <button
+            v-if="currentUserHandleShort"
+            type="button"
+            class="donor-copy-btn"
+            @click="copyCurrentSupportHandle"
+          >
+            <Icon name="copy" :size="12" /> Copy
+          </button>
+        </div>
+
+        <details class="donor-examples">
+          <summary>See message examples</summary>
+          <ul class="donor-examples-list">
+            <li>
+              <code>@{{ currentUserHandleShort || 'alice' }}@{{ supporterInstanceDomain }}</code>
+              <span class="example-note">Just the handle — works fine.</span>
+            </li>
+            <li>
+              <code>thanks for the great instance! @{{ currentUserHandleShort || 'alice' }}@{{ supporterInstanceDomain }}</code>
+              <span class="example-note">Handle at the end — works.</span>
+            </li>
+            <li>
+              <code>@{{ currentUserHandleShort || 'alice' }}@{{ supporterInstanceDomain }} keep it up &lt;3</code>
+              <span class="example-note">Handle at the start with a note — works.</span>
+            </li>
+            <li>
+              <code>hey ping me @{{ currentUserHandleShort || 'alice' }}@{{ supporterInstanceDomain }} when the new feature ships</code>
+              <span class="example-note">Handle in the middle — works.</span>
+            </li>
+          </ul>
+        </details>
+
         <p class="donor-handle-hint">
-          Without this, your donation will be queued for manual review and the badge won't appear automatically.
+          If you forget the handle, your donation isn't lost — it's queued
+          for the admins to review and attribute manually. Auto-matching is
+          just faster.
         </p>
       </div>
 
@@ -987,18 +1019,38 @@ onMounted(async () => {
 }
 
 .donor-handle-callout {
-  padding: 12px 14px;
+  padding: 14px 16px;
   margin-bottom: 16px;
-  background: rgba(14, 165, 233, 0.08);
-  border: 1px solid rgba(14, 165, 233, 0.25);
-  border-radius: 8px;
+  background: rgba(14, 165, 233, 0.06);
+  border: 1px solid rgba(14, 165, 233, 0.22);
+  border-radius: 10px;
+}
+
+.donor-handle-callout-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--harmony-primary, #0EA5E9);
+  text-transform: none;
+  letter-spacing: 0;
 }
 
 .donor-handle-callout p {
   margin: 0 0 8px;
   font-size: 13px;
   color: var(--text-secondary);
-  line-height: 1.4;
+  line-height: 1.5;
+}
+
+.donor-handle-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 6px 0 10px;
+  flex-wrap: wrap;
 }
 
 .donor-handle-token {
@@ -1038,10 +1090,60 @@ onMounted(async () => {
 
 .donor-handle-hint {
   margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--text-tertiary, var(--text-secondary));
+  font-style: italic;
+  line-height: 1.5;
+}
+
+.donor-examples {
+  margin: 6px 0 10px;
+  font-size: 12px;
+}
+
+.donor-examples summary {
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-weight: 500;
+  padding: 4px 0;
+  user-select: none;
+  transition: color 0.15s;
+}
+
+.donor-examples summary:hover {
+  color: var(--text-primary);
+}
+
+.donor-examples-list {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.donor-examples-list li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  background: var(--background-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+}
+
+.donor-examples-list code {
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 12px;
+  color: var(--text-primary);
+  word-break: break-all;
+}
+
+.donor-examples-list .example-note {
   font-size: 11px;
   color: var(--text-tertiary, var(--text-secondary));
   font-style: italic;
-  line-height: 1.4;
 }
 
 .supporter-loading {

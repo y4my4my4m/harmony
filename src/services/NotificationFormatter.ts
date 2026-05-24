@@ -329,7 +329,28 @@ const MESSAGE_TEMPLATES = {
       return msg
     },
     shortTitle: () => 'Report update'
-  }
+  },
+
+  /**
+   * Sent to all admins + moderators when a webhook donation arrives that
+   * couldn't be auto-matched to a user (no handle in message, or no profile
+   * matched). Mirrors the reports notification pattern: action is admin-only.
+   */
+  admin_pending_donation: {
+    title: (data: any) => {
+      const platform = (data.platform || 'unknown').toString()
+      const platformLabel = platform.charAt(0).toUpperCase() + platform.slice(1)
+      return `New ${platformLabel} donation needs review`
+    },
+    message: (data: any) => {
+      const amount = data.amount != null ? Number(data.amount).toFixed(2) : '?'
+      const currency = data.currency || 'USD'
+      const donor = data.donor_name?.trim()
+      const donorPart = donor ? ` from ${donor}` : ''
+      return `${currency} ${amount}${donorPart} couldn't be matched to a user — open the admin panel to attribute it.`
+    },
+    shortTitle: () => 'Donation needs review',
+  },
 } as const
 
 export class NotificationFormatter {

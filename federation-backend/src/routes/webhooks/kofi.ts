@@ -165,20 +165,26 @@ async function loadFundingConfig(): Promise<FundingConfig | null> {
   return data as FundingConfig | null;
 }
 
-async function pickTierForAmount(amount: number): Promise<string | null> {
+/**
+ * Resolves the correct tier for a user by recomputing from their cumulative
+ * donations in the current cycle. Returns NULL when the total doesn't meet
+ * any tier's min_amount (and the badge will be hidden).
+ *
+ * Uses the recompute_supporter_tier SQL helper, which is SECURITY DEFINER
+ * so it works with both authenticated and service_role keys. The helper
+ * also UPDATES the supporters row in the same call, so callers that just
+ * want the tier_id for logging get it back as the return value.
+ */
+async function recomputeUserTier(userId: string): Promise<string | null> {
   const supabase = getSupabaseClient();
-  const { data, error } = await supabase
-    .from('instance_supporter_tiers')
-    .select('id, min_amount')
-    .lte('min_amount', amount)
-    .order('min_amount', { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  const { data, error } = await supabase.rpc('recompute_supporter_tier', {
+    p_user_id: userId,
+  });
   if (error) {
-    logger.error(`kofi: tier lookup failed: ${error.message}`);
+    logger.error(`kofi: tier recompute failed for ${userId}: ${error.message}`);
     return null;
   }
-  return data?.id ?? null;
+  return (data as string | null) ?? null;
 }
 
 interface DonationRecord {
@@ -200,18 +206,14 @@ async function recordMatchedDonation(
 ): Promise<void> {
   const supabase = getSupabaseClient();
 
-  let tierId: string | null = null;
-  if (cfg.kofi_auto_assign_tier) {
-    tierId = await pickTierForAmount(donation.amount);
-  }
-
-  // Upsert supporter row — required because donation_history.supporter_id is NOT NULL.
+  // Step 1: ensure supporter row exists. Tier is recomputed from cumulative
+  // cycle total in step 3 — don't guess from this single donation here.
   const { data: supporter, error: upsertErr } = await supabase
     .from('instance_supporters')
     .upsert(
       {
         user_id: matchedUser.id,
-        tier_id: tierId,
+        // tier_id intentionally left out: recompute below uses cycle total
         amount: donation.amount,
         platform: 'ko-fi',
         is_active: true,
@@ -227,6 +229,8 @@ async function recordMatchedDonation(
     throw upsertErr ?? new Error('Supporter upsert returned no row');
   }
 
+  // Step 2: insert the donation history row. The (platform, external_reference)
+  // unique index dedups webhook retries.
   const { error: histErr } = await supabase
     .from('instance_donation_history')
     .insert({
@@ -240,7 +244,6 @@ async function recordMatchedDonation(
     });
 
   if (histErr) {
-    // Duplicate key on (platform, external_reference) = webhook retry. Safe to ignore.
     if (histErr.code === '23505') {
       logger.info(`kofi: duplicate transaction ${donation.externalRef} ignored (already recorded)`);
       return;
@@ -249,10 +252,19 @@ async function recordMatchedDonation(
     throw histErr;
   }
 
+  // Step 3: recompute tier from the cumulative cycle total (now includes
+  // the just-inserted row). If amount < lowest tier, tier_id becomes NULL
+  // and the badge is hidden. When kofi_auto_assign_tier is off, leave the
+  // existing tier alone — admins manage it manually.
+  let resolvedTierId: string | null = null;
+  if (cfg.kofi_auto_assign_tier) {
+    resolvedTierId = await recomputeUserTier(matchedUser.id);
+  }
+
   const handle = `@${matchedUser.username}${matchedUser.domain ? '@' + matchedUser.domain : ''}`;
   logger.info(
     `kofi: recorded ${donation.currency} ${donation.amount} from ${handle} ` +
-    `(txn=${donation.externalRef}${tierId ? `, tier=${tierId}` : ''})`,
+    `(txn=${donation.externalRef}, tier=${resolvedTierId ?? 'none'})`,
   );
 }
 

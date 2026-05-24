@@ -359,6 +359,13 @@ class FundingService {
     await Promise.allSettled(uncached.map(id => this.getSupporterBadge(id)))
   }
 
+  /**
+   * Records a donation and snaps the user's supporter tier to match their
+   * new cumulative cycle total. The cumulative semantics (vs picking from
+   * the single donation amount) means small recurring donations correctly
+   * unlock tiers, and donations below any tier leave tier_id NULL so no
+   * badge displays. See migration 20260524_cumulative_tier_and_notifications.
+   */
   async addDonation(
     supporterId: string,
     userId: string,
@@ -382,10 +389,35 @@ class FundingService {
         })
 
       if (error) throw error
+
+      // Recompute tier from cumulative cycle total. Fire-and-log: even if
+      // this fails the donation row is already recorded, and the next call
+      // will snap things back into sync.
+      const { error: rpcErr } = await supabase.rpc('recompute_supporter_tier', { p_user_id: userId })
+      if (rpcErr) debug.warn('addDonation: tier recompute failed:', rpcErr)
+      badgeCache.delete(userId)
+
       return true
     } catch (error) {
       debug.error('Failed to add donation:', error)
       return false
+    }
+  }
+
+  /**
+   * Recompute a user's supporter tier from their cumulative cycle total.
+   * Public wrapper around the SQL helper — handy after manually editing or
+   * deleting donations so the badge stays consistent.
+   */
+  async recomputeSupporterTier(userId: string): Promise<string | null> {
+    try {
+      const { data, error } = await supabase.rpc('recompute_supporter_tier', { p_user_id: userId })
+      if (error) throw error
+      badgeCache.delete(userId)
+      return (data as string | null) ?? null
+    } catch (error) {
+      debug.error('Failed to recompute supporter tier:', error)
+      return null
     }
   }
 
@@ -407,12 +439,26 @@ class FundingService {
 
   async updateDonation(donationId: string, updates: { amount?: number; currency?: string; platform?: string | null; note?: string | null; donated_at?: string }): Promise<boolean> {
     try {
+      // Snapshot affected user_id first so we can recompute their tier after the edit.
+      const { data: existing } = await supabase
+        .from('instance_donation_history')
+        .select('user_id')
+        .eq('id', donationId)
+        .maybeSingle()
+
       const { error } = await supabase
         .from('instance_donation_history')
         .update(updates)
         .eq('id', donationId)
 
       if (error) throw error
+
+      if (existing?.user_id) {
+        const { error: rpcErr } = await supabase.rpc('recompute_supporter_tier', { p_user_id: existing.user_id })
+        if (rpcErr) debug.warn('updateDonation: tier recompute failed:', rpcErr)
+        badgeCache.delete(existing.user_id)
+      }
+
       return true
     } catch (error) {
       debug.error('Failed to update donation:', error)
@@ -422,12 +468,25 @@ class FundingService {
 
   async deleteDonation(donationId: string): Promise<boolean> {
     try {
+      const { data: existing } = await supabase
+        .from('instance_donation_history')
+        .select('user_id')
+        .eq('id', donationId)
+        .maybeSingle()
+
       const { error } = await supabase
         .from('instance_donation_history')
         .delete()
         .eq('id', donationId)
 
       if (error) throw error
+
+      if (existing?.user_id) {
+        const { error: rpcErr } = await supabase.rpc('recompute_supporter_tier', { p_user_id: existing.user_id })
+        if (rpcErr) debug.warn('deleteDonation: tier recompute failed:', rpcErr)
+        badgeCache.delete(existing.user_id)
+      }
+
       return true
     } catch (error) {
       debug.error('Failed to delete donation:', error)
@@ -485,11 +544,15 @@ class FundingService {
 
   /**
    * Resolves a pending donation by attributing it to a user. Creates the
-   * matching supporter + donation_history rows, then marks the pending row
-   * as resolved. Idempotent on retry via the (platform, external_reference)
-   * unique index.
+   * matching supporter + donation_history rows, then recomputes the user's
+   * tier from their cumulative cycle total (so multiple small donations
+   * correctly aggregate into a tier). Idempotent on retry via the
+   * (platform, external_reference) unique index.
+   *
+   * The `tierId` parameter is ignored — the cumulative recompute is
+   * authoritative. It's kept in the signature for API compatibility.
    */
-  async resolvePendingDonation(pendingId: string, userId: string, tierId?: string | null): Promise<boolean> {
+  async resolvePendingDonation(pendingId: string, userId: string, _tierId?: string | null): Promise<boolean> {
     try {
       const { data: pending, error: fetchErr } = await supabase
         .from('instance_pending_donations')
@@ -512,7 +575,8 @@ class FundingService {
         .upsert(
           {
             user_id: userId,
-            tier_id: tierId ?? null,
+            // tier_id intentionally omitted: recompute_supporter_tier below
+            // sets it from the cumulative cycle total.
             amount: pending.amount,
             platform: pending.platform,
             is_active: true,
@@ -550,6 +614,12 @@ class FundingService {
         .eq('id', pendingId)
 
       if (resolveErr) throw resolveErr
+
+      // Recompute tier from cumulative cycle total — this is what actually
+      // assigns the badge. If amount < lowest tier, tier_id becomes NULL
+      // and the user keeps a supporter row but no badge displays.
+      const { error: rpcErr } = await supabase.rpc('recompute_supporter_tier', { p_user_id: userId })
+      if (rpcErr) debug.warn('resolvePendingDonation: tier recompute failed:', rpcErr)
 
       badgeCache.delete(userId)
       return true

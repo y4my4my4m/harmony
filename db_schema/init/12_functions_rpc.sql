@@ -1343,7 +1343,9 @@ BEGIN
 END;
 $$;
 
--- Supporter badge RPC
+-- Supporter badge RPC. INNER JOIN on tier (not LEFT) so users without a
+-- qualifying tier_id get no badge at all (prevents the default-star bug
+-- where a small donation rendered a generic supporter icon).
 CREATE OR REPLACE FUNCTION public.get_supporter_badge(p_user_id uuid)
 RETURNS TABLE(
     tier_name text,
@@ -1359,9 +1361,10 @@ AS $$
         t.badge_color,
         s.is_active
     FROM public.instance_supporters s
-    LEFT JOIN public.instance_supporter_tiers t ON t.id = s.tier_id
+    JOIN public.instance_supporter_tiers t ON t.id = s.tier_id
     WHERE s.user_id = p_user_id
       AND s.is_active = true
+      AND s.tier_id IS NOT NULL
       AND (s.expires_at IS NULL OR s.expires_at > NOW())
     LIMIT 1;
 $$;

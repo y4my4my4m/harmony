@@ -1655,8 +1655,10 @@
               <span>Auto-assign supporter tier based on donation amount</span>
             </label>
             <p class="section-hint">
-              Donors must include their full handle (<code>@username@{{ instanceDomain }}</code>) in their Ko-fi message.
-              Unmatched donations land in the queue below for manual review.
+              Donors include their handle (<code>@username@{{ instanceDomain }}</code>) anywhere in their Ko-fi
+              message — the webhook auto-attributes it and recomputes their tier based on cumulative cycle
+              donations. Donations without a matched handle land in the <strong>Pending Donations</strong>
+              queue below, and you (and instance moderators) get a notification.
             </p>
           </div>
 
@@ -2929,11 +2931,9 @@ const onPendingResolveSearch = (pendingId: string) => {
 const resolvePending = async (pending: PendingDonation) => {
   const userId = pendingResolveUserId.value[pending.id]
   if (!userId) return
-  // Pick the highest tier <= amount, mirroring the webhook auto-assign logic.
-  const tier = [...supporterTiers.value]
-    .filter(t => t.min_amount <= pending.amount)
-    .sort((a, b) => b.min_amount - a.min_amount)[0]
-  const ok = await fundingService.resolvePendingDonation(pending.id, userId, tier?.id ?? null)
+  // Tier is resolved server-side from the user's cumulative cycle total
+  // (recompute_supporter_tier). No need to compute it here.
+  const ok = await fundingService.resolvePendingDonation(pending.id, userId)
   if (ok) {
     toast.success('Donation attributed')
     await adminService.logAdminAction({ action: 'pending_donation_resolve', targetType: 'pending_donation', targetId: pending.id, details: { userId } })

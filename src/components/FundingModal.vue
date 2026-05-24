@@ -44,23 +44,38 @@
               <div class="donor-instructions">
                 <Icon name="info" :size="16" class="donor-instructions-icon" />
                 <div class="donor-instructions-body">
-                  <p class="donor-instructions-title">To get your supporter badge automatically:</p>
+                  <p class="donor-instructions-title">Get your supporter badge automatically</p>
                   <p class="donor-instructions-text">
-                    Include your <strong>full handle</strong> in the donation message,
-                    written <strong>exactly</strong> as:
+                    Include this handle <strong>anywhere</strong> in your donation message —
+                    we'll match it automatically and assign the right tier based on your
+                    cumulative donations this cycle:
                   </p>
-                  <code class="donor-handle-example">@{{ currentUserHandle || 'username' }}@{{ instanceDomain }}</code>
-                  <button
-                    v-if="currentUserHandle"
-                    class="donor-copy-btn"
-                    type="button"
-                    @click="copyCurrentHandle"
-                    :title="'Copy your handle'"
-                  >
-                    <Icon name="copy" :size="12" /> Copy mine
-                  </button>
+                  <div class="donor-handle-row">
+                    <code class="donor-handle-example">@{{ currentUserHandle || 'username' }}@{{ instanceDomain }}</code>
+                    <button
+                      v-if="currentUserHandle"
+                      class="donor-copy-btn"
+                      type="button"
+                      @click="copyCurrentHandle"
+                      :title="'Copy your handle'"
+                    >
+                      <Icon name="copy" :size="12" /> Copy mine
+                    </button>
+                  </div>
+
+                  <details class="donor-examples">
+                    <summary>Message examples</summary>
+                    <ul class="donor-examples-list">
+                      <li><code>@{{ currentUserHandle || 'alice' }}@{{ instanceDomain }}</code></li>
+                      <li><code>thanks! @{{ currentUserHandle || 'alice' }}@{{ instanceDomain }}</code></li>
+                      <li><code>@{{ currentUserHandle || 'alice' }}@{{ instanceDomain }} love the new features</code></li>
+                      <li><code>cheers @{{ currentUserHandle || 'alice' }}@{{ instanceDomain }} keep it up</code></li>
+                    </ul>
+                  </details>
+
                   <p class="donor-instructions-hint">
-                    Without this, donations land in a manual-review queue and your badge won't appear automatically.
+                    Forget the handle? Your donation isn't lost — it'll be queued
+                    for the admins to attribute manually.
                   </p>
                 </div>
               </div>
@@ -487,6 +502,14 @@ onMounted(async () => {
   line-height: 1.4;
 }
 
+.donor-handle-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 4px 0 8px;
+}
+
 .donor-handle-example {
   display: inline-block;
   padding: 6px 10px;
@@ -498,6 +521,47 @@ onMounted(async () => {
   font-weight: 600;
   color: var(--harmony-primary, #0EA5E9);
   user-select: all;
+  word-break: break-all;
+}
+
+.donor-examples {
+  margin: 4px 0 8px;
+  font-size: 12px;
+}
+
+.donor-examples summary {
+  cursor: pointer;
+  color: var(--text-secondary);
+  padding: 4px 0;
+  user-select: none;
+  transition: color 0.15s;
+  font-weight: 500;
+}
+
+.donor-examples summary:hover {
+  color: var(--text-primary);
+}
+
+.donor-examples-list {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.donor-examples-list li {
+  padding: 6px 10px;
+  background: var(--background-primary, #1e1f22);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+}
+
+.donor-examples-list code {
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 11px;
+  color: var(--text-secondary);
   word-break: break-all;
 }
 
