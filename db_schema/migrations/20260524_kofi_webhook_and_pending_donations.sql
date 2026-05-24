@@ -225,10 +225,17 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_donation_history_external_unique
     WHERE external_reference IS NOT NULL;
 
 -- ---------------------------------------------------------------------------
--- 4. Service-role grant for webhook ingestion
+-- 4. Service-role grants for webhook ingestion
 -- ---------------------------------------------------------------------------
--- The federation-backend uses the service_role key to insert webhook
--- payloads. It needs explicit access to the new table.
+-- The federation-backend uses the Supabase service_role key for webhook
+-- processing. service_role bypasses RLS but still needs explicit table
+-- grants — the earlier funding migration only granted to `authenticated`,
+-- which caused "permission denied for table instance_funding" errors.
+GRANT SELECT ON public.instance_funding TO service_role;
+GRANT SELECT ON public.instance_supporter_tiers TO service_role;
+GRANT SELECT, INSERT, UPDATE ON public.instance_supporters TO service_role;
+GRANT SELECT, INSERT ON public.instance_donation_history TO service_role;
+GRANT SELECT ON public.profiles TO service_role;
 GRANT SELECT, INSERT, UPDATE, DELETE
     ON public.instance_pending_donations
     TO service_role;

@@ -171,7 +171,28 @@
     <!-- Support -->
     <div class="settings-section supporter-section">
       <h3 class="section-title">Support</h3>
-      <p class="section-description">Supporting this instance helps keep it running and contributes to its development.<br>Supporters get a badge displayed next to their name.<br><br>Donations are currently not automated, so please be sure to include your FULL username @username@domain.</p>
+      <p class="section-description">
+        Supporting this instance helps keep it running and contributes to its development.
+        Supporters get a badge displayed next to their name.
+      </p>
+      <div class="donor-handle-callout">
+        <p>
+          To get your supporter badge, include this <strong>exact handle</strong>
+          in your donation message:
+        </p>
+        <code class="donor-handle-token">@{{ currentUserHandleShort || 'username' }}@{{ supporterInstanceDomain }}</code>
+        <button
+          v-if="currentUserHandleShort"
+          type="button"
+          class="donor-copy-btn"
+          @click="copyCurrentSupportHandle"
+        >
+          <Icon name="copy" :size="12" /> Copy
+        </button>
+        <p class="donor-handle-hint">
+          Without this, your donation will be queued for manual review and the badge won't appear automatically.
+        </p>
+      </div>
 
       <div v-if="supporterLoading" class="supporter-loading">Loading...</div>
       <template v-else>
@@ -209,7 +230,10 @@
             target="_blank"
             rel="noopener noreferrer"
             class="supporter-link"
-          >{{ link.label || link.platform }}</a>
+          >
+            <PlatformIcon :platform="link.platform" :size="16" :use-brand-color="true" />
+            <span>{{ link.label || link.platform }}</span>
+          </a>
         </div>
       </template>
     </div>
@@ -251,6 +275,7 @@ import Icon from '@/components/common/Icon.vue'
 import AutoSuggest from '@/components/AutoSuggest.vue'
 import DisplayName from '@/components/DisplayName.vue'
 import SupporterBadgeIcon from '@/components/common/SupporterBadgeIcon.vue'
+import PlatformIcon from '@/components/common/PlatformIcon.vue'
 import { fundingService, type SupporterBadge, type DonationRecord, type FundingLink } from '@/services/FundingService'
 import { supabase } from '@/supabase'
 import { useAutoSuggest } from '@/composables/useAutoSuggest'
@@ -517,6 +542,25 @@ const supporterLoading = ref(true)
 const supporterBadge = ref<SupporterBadge | null>(null)
 const supporterDonations = ref<DonationRecord[]>([])
 const fundingLinks = ref<FundingLink[]>([])
+
+// Used by the donor-handle callout in the Support section. Pulls from the
+// loaded profile (already passed in via props) so the user sees their own
+// handle pre-filled and can copy with one click.
+const supporterInstanceDomain = computed(() =>
+  (import.meta.env.VITE_DOMAIN as string | undefined) ?? 'your-instance'
+)
+const currentUserHandleShort = computed(() => props.profile?.username ?? '')
+const copyCurrentSupportHandle = async () => {
+  if (!currentUserHandleShort.value) return
+  try {
+    await navigator.clipboard.writeText(
+      `@${currentUserHandleShort.value}@${supporterInstanceDomain.value}`,
+    )
+    toast.success('Handle copied')
+  } catch {
+    toast.error('Failed to copy')
+  }
+}
 
 onMounted(async () => {
   syncLocalProfile()
@@ -942,6 +986,64 @@ onMounted(async () => {
   line-height: 1.5;
 }
 
+.donor-handle-callout {
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  background: rgba(14, 165, 233, 0.08);
+  border: 1px solid rgba(14, 165, 233, 0.25);
+  border-radius: 8px;
+}
+
+.donor-handle-callout p {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.donor-handle-token {
+  display: inline-block;
+  padding: 6px 10px;
+  background: var(--background-primary);
+  border: 1px dashed var(--harmony-primary, #0EA5E9);
+  border-radius: 6px;
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--harmony-primary, #0EA5E9);
+  user-select: all;
+  word-break: break-all;
+}
+
+.donor-copy-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 8px;
+  padding: 4px 10px;
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.donor-copy-btn:hover {
+  border-color: var(--harmony-primary, #0EA5E9);
+  color: var(--harmony-primary, #0EA5E9);
+}
+
+.donor-handle-hint {
+  margin: 8px 0 0;
+  font-size: 11px;
+  color: var(--text-tertiary, var(--text-secondary));
+  font-style: italic;
+  line-height: 1.4;
+}
+
 .supporter-loading {
   color: var(--text-secondary);
   font-size: 13px;
@@ -1031,17 +1133,20 @@ onMounted(async () => {
 .supporter-link {
   display: inline-flex;
   align-items: center;
+  gap: 8px;
   padding: 8px 16px;
-  background: var(--harmony-primary, #0EA5E9);
+  background: var(--background-secondary);
+  border: 1px solid var(--border-color);
   color: var(--text-primary);
   border-radius: 6px;
   text-decoration: none;
   font-size: 13px;
   font-weight: 600;
-  transition: opacity 0.15s;
+  transition: border-color 0.15s, background 0.15s;
 }
 
 .supporter-link:hover {
-  opacity: 0.85;
+  border-color: var(--harmony-primary, #0EA5E9);
+  background: var(--background-modifier-hover, var(--background-secondary));
 }
 </style>

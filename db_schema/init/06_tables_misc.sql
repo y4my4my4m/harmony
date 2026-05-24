@@ -803,6 +803,26 @@ CREATE INDEX IF NOT EXISTS idx_pending_donations_unresolved
     WHERE resolved_at IS NULL;
 
 -- ---------------------------------------------------------------------------
+-- FUNDING TABLE GRANTS
+-- ---------------------------------------------------------------------------
+-- authenticated: admin UI + per-user supporter/donation queries (RLS gates access)
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.instance_funding TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.instance_supporter_tiers TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.instance_supporters TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.instance_donation_history TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.instance_pending_donations TO authenticated;
+
+-- service_role: federation backend webhook ingestion. Bypasses RLS but still
+-- needs explicit table grants.
+GRANT SELECT ON public.instance_funding TO service_role;
+GRANT SELECT ON public.instance_supporter_tiers TO service_role;
+GRANT SELECT, INSERT, UPDATE ON public.instance_supporters TO service_role;
+GRANT SELECT, INSERT ON public.instance_donation_history TO service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.instance_pending_donations TO service_role;
+-- profiles read access for handle matching (no writes — webhook never mutates profiles)
+GRANT SELECT ON public.profiles TO service_role;
+
+-- ---------------------------------------------------------------------------
 -- INSTANCE ANNOUNCEMENTS
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.instance_announcements (
