@@ -569,7 +569,9 @@
       "saveChanges": "Guardar cambios",
       "resetSettings": "Restablecer",
       "showCustomEmojisInDisplayNames": "Mostrar emojis en los nombres mostrados",
-      "showCustomEmojisInDisplayNamesDesc": "Cuando está habilitado, los nombres mostrados de otros usuarios muestran imágenes de emojis. Cuando está deshabilitado, los emojis y códigos cortos se ocultan completamente."
+      "showCustomEmojisInDisplayNamesDesc": "Cuando está habilitado, los nombres mostrados de otros usuarios muestran imágenes de emojis. Cuando está deshabilitado, los emojis y códigos cortos se ocultan completamente.",
+      "greentext": "Greentext",
+      "greentextDesc": "Render lines starting with > (no space) in green, 4chan-style. > text with a space is always a quote regardless of this setting."
     },
     "voice": {
       "title": "Voz y video",

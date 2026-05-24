@@ -35,6 +35,12 @@ export interface VisualThemeSettings {
   screenReaderSupport: boolean
   /** Show custom emojis in other users' display names. Instance must allow it too. */
   showCustomEmojisInDisplayNames?: boolean
+  /**
+   * Render `>foo` lines (no space after `>`) as 4chan-style greentext in
+   * chat/DM messages. `> foo` is always a blockquote regardless of this flag.
+   * Default: true (opt-out).
+   */
+  greentextEnabled?: boolean
 }
 
 export interface ThemePreset {
@@ -257,6 +263,7 @@ const settings = ref<VisualThemeSettings>({
   reduceMotion: false,
   screenReaderSupport: false,
   showCustomEmojisInDisplayNames: true,
+  greentextEnabled: true,
 })
 
 const isInitialized = ref(false)

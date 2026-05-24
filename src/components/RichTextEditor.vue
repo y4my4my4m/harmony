@@ -40,6 +40,7 @@ import { ref, onMounted, watch, nextTick, computed } from 'vue';
 import { debug } from '@/utils/debug'
 import { parseMarkdownWithMarkers, type MarkdownToken } from '@/utils/markdownParser';
 import { splitIntoBlockSegments } from '@/utils/chatBlockquotes';
+import { useVisualTheme } from '@/composables/useVisualTheme';
 import { highlightSyntax } from '@/utils/syntaxHighlighter';
 import { getEmojiUrl } from '@/utils/emojiUtils';
 import { userDataService } from '@/services/userDataService';
@@ -88,6 +89,7 @@ const { isLoaded: unifiedLoaded } = useUnifiedEmoji();
 const isRendering = ref(false);
 const skipNextWatch = ref(false); // Flag to skip watch when manually rendering
 const undoRedo = useUndoRedo({ maxHistory: 100, groupingDelayMs: 300 });
+const visualTheme = useVisualTheme();
 
 // Cache of role ID → { name, color } for displaying role mentions in the editor
 const roleDisplayCache = new Map<string, { name: string; color: string | null }>();
@@ -169,6 +171,11 @@ const getPlainText = (): string => {
             }
           }
         });
+      } else if (el.classList.contains('editor-greentext')) {
+        // Greentext lines are stored verbatim (leading `>` is preserved)
+        for (const child of Array.from(node.childNodes)) {
+          processNode(child);
+        }
       } else if (el.tagName === 'BR') {
         text += '\n';
       } else if (el.tagName === 'DIV' || el.tagName === 'P') {
@@ -546,7 +553,8 @@ const createMentionElementFromDisplay = (displayText: string, username: string, 
 };
 
 const appendTextWithBlockquotes = (text: string, target: DocumentFragment | HTMLElement) => {
-  const segments = splitIntoBlockSegments(text);
+  const greentextEnabled = visualTheme.currentSettings.value.greentextEnabled !== false;
+  const segments = splitIntoBlockSegments(text, { greentext: greentextEnabled });
 
   segments.forEach((segment, segmentIndex) => {
     if (segmentIndex > 0) {
@@ -555,6 +563,8 @@ const appendTextWithBlockquotes = (text: string, target: DocumentFragment | HTML
 
     if (segment.type === 'text') {
       appendFormattedText(segment.content, target);
+    } else if (segment.type === 'greentext') {
+      appendGreentext(target, segment.lines);
     } else if (target instanceof DocumentFragment) {
       appendBlockquote(target, segment.lines, segment.multiLine);
     } else {
@@ -562,6 +572,16 @@ const appendTextWithBlockquotes = (text: string, target: DocumentFragment | HTML
       appendBlockquote(inner, segment.lines, segment.multiLine);
       target.appendChild(inner);
     }
+  });
+};
+
+const appendGreentext = (target: DocumentFragment | HTMLElement, lines: string[]) => {
+  lines.forEach((line, index) => {
+    if (index > 0) target.appendChild(document.createElement('br'));
+    const span = document.createElement('span');
+    span.className = 'editor-greentext';
+    appendFormattedText(line, span);
+    target.appendChild(span);
   });
 };
 
@@ -1476,5 +1496,9 @@ onMounted(async () => {
 
 .rich-text-editor :deep(.editor-blockquote-content) {
   color: var(--text-secondary);
+}
+
+.rich-text-editor :deep(.editor-greentext) {
+  color: #789922;
 }
 </style>

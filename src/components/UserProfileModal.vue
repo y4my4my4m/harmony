@@ -897,12 +897,20 @@ const copyUserId = async () => {
 
 const sendDirectMessage = async () => {
   if (!props.user) return
-  
+
   if (isBlocked.value) {
     debug.warn('Cannot send DM to blocked user')
     return
   }
-  
+
+  // Capture user data BEFORE emit('close'). The parent sets
+  // `selectedUser = null` synchronously on close, which makes `props.user`
+  // null. Any subsequent `props.user.id` access after an `await` here would
+  // throw and get silently swallowed by the try/catch below — leaving the
+  // user staring at no navigation. (Symptom of the closed-prop access issue
+  // we hit in UnifiedProfileCard too.)
+  const targetUserId = props.user.id
+
   emit('close')
 
   try {
@@ -917,14 +925,14 @@ const sendDirectMessage = async () => {
     const dmStore = useDMStore()
 
     // Quick check: if conversations are already loaded, look for an existing one
-    const existing = dmStore.conversations.find(c => c.other_user?.id === props.user!.id)
+    const existing = dmStore.conversations.find(c => c.other_user?.id === targetUserId)
     if (existing) {
       router.push(`/dm/${existing.id}`)
       return
     }
 
     // RPC handles find-or-create; store now navigates first, refreshes in background
-    const conversationId = await dmStore.createOrGetConversation(currentProfileId, props.user.id)
+    const conversationId = await dmStore.createOrGetConversation(currentProfileId, targetUserId)
     if (conversationId) {
       router.push(`/dm/${conversationId}`)
     } else {
@@ -964,16 +972,33 @@ const mentionUser = () => {
   const username = props.user.username || getUser(props.user.id).value?.username
   if (!username) return
 
+  // Build the mention handle (with domain suffix for remote users)
+  let mentionHandle: string
   if (isFederatedUser(props.user)) {
     const handle = props.user.handle || `@${username}${props.user.domain ? '@' + props.user.domain : ''}`
-    const mentionText = handle.startsWith('@') ? handle : `@${handle}`
-    activityPubStore.openComposer({ content: `${mentionText} ` })
-    router.push('/social/home')
-    emit('close')
+    mentionHandle = handle.startsWith('@') ? handle : `@${handle}`
   } else {
-    activityPubStore.openComposer({ content: `@${username} ` })
-    router.push('/social/home')
+    mentionHandle = `@${username}`
+  }
+
+  // Context-aware behavior:
+  //   - In chat/DM/server view → just emit('mention') so the parent inserts
+  //     the mention into its message input. Don't touch the AP composer and
+  //     don't navigate away.
+  //   - In ActivityPub/social view (or anywhere else) → open the AP composer
+  //     with the mention prefilled and navigate to the social home.
+  const inChatContext = route.path.startsWith('/chat/') || route.path.startsWith('/dm')
+
+  if (inChatContext) {
+    emit('mention', mentionHandle.replace(/^@/, ''))
     emit('close')
+    return
+  }
+
+  activityPubStore.openComposer({ content: `${mentionHandle} ` })
+  router.push('/social/home')
+  emit('close')
+  if (!isFederatedUser(props.user)) {
     emit('mention', username)
   }
 }

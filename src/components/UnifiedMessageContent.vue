@@ -374,6 +374,7 @@ import { gifService } from '@/services/GifService';
 import { debug } from '@/utils/debug';
 import { escapeHtml, sanitizeUrl } from '@/utils/sanitize';
 import { renderTextWithBlockquotes } from '@/utils/chatBlockquotes';
+import { useVisualTheme } from '@/composables/useVisualTheme';
 
 export default defineComponent({
   name: 'UnifiedMessageContent',
@@ -451,6 +452,7 @@ export default defineComponent({
     const localEditableContent = ref(props.editableContent);
     const editRichEditorRef = ref<InstanceType<typeof RichTextEditor> | null>(null);
     const videoContainers = ref<HTMLElement[]>([]);
+    const visualTheme = useVisualTheme();
     const decrypting = ref(false);
     
     // GIF favorites state
@@ -798,14 +800,16 @@ export default defineComponent({
       // Underline: __text__ (alternative, not conflicting with bold)
       rendered = rendered.replace(/\+\+(.*?)\+\+/g, '<u class="md-underline">$1</u>');
       
-      // Discord-style blockquotes (`> line`, `>>> block`).
-      // `escapeHtml` above turned the user-typed `>` into `&gt;`; restore it only
-      // at line starts so the blockquote parser can find it. Other `&gt;` chars
-      // (e.g. inside text) stay escaped.
+      // Discord-style blockquotes (`> line`, `>>> block`) and 4chan-style
+      // greentext (`>line` with no space) — chat/DM only, ActivityPub uses its
+      // own renderer. `escapeHtml` above turned the user-typed `>` into `&gt;`,
+      // so restore it only at line starts so the parser can match. Other
+      // `&gt;` chars in body text stay escaped.
       rendered = rendered.replace(/(^|\n)((?:&gt;){1,3})/g, (_, lead, marker) =>
         lead + marker.replace(/&gt;/g, '>')
       );
-      rendered = renderTextWithBlockquotes(rendered, (line) => line);
+      const greentextEnabled = visualTheme.currentSettings.value.greentextEnabled !== false;
+      rendered = renderTextWithBlockquotes(rendered, (line) => line, { greentext: greentextEnabled });
       
       return { renderedText: rendered, codeBlocks };
     };
@@ -1184,6 +1188,10 @@ export default defineComponent({
 .text-content :deep(.md-blockquote + .md-blockquote),
 .text-content :deep(.md-blockquote br + .md-blockquote) {
   margin-top: 0;
+}
+
+.text-content :deep(.md-greentext) {
+  color: #789922;
 }
 
 /* Code blocks are now handled by the CodeBlock component */

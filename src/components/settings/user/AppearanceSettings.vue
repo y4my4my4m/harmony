@@ -417,6 +417,19 @@
           />
         </div>
       </div>
+
+      <div class="setting-item">
+        <div class="setting-info">
+          <h4 class="setting-label">{{ $t('settings.appearance.greentext') }}</h4>
+          <p class="setting-description">{{ $t('settings.appearance.greentextDesc') }}</p>
+        </div>
+        <div class="setting-control">
+          <ToggleSwitch
+            v-model="settings.greentextEnabled"
+            @change="onSettingChange"
+          />
+        </div>
+      </div>
     </div>
 
     <div class="settings-section">
@@ -585,6 +598,7 @@ const settings = ref({
   screenReaderSupport: false,
   emojiPack: currentPackId.value as 'twemoji' | 'mutant' | 'native',
   showCustomEmojisInDisplayNames: true,
+  greentextEnabled: true,
 })
 
 // Computed preview colors for custom theme
@@ -894,6 +908,7 @@ const saveSettings = () => {
     reduceMotion: settings.value.reduceMotion,
     screenReaderSupport: settings.value.screenReaderSupport,
     showCustomEmojisInDisplayNames: settings.value.showCustomEmojisInDisplayNames,
+    greentextEnabled: settings.value.greentextEnabled,
   })
 }
 
@@ -935,6 +950,7 @@ onMounted(async () => {
     screenReaderSupport: currentSettings.screenReaderSupport,
     emojiPack: currentPackId.value as 'mutant' | 'native',
     showCustomEmojisInDisplayNames: currentSettings.showCustomEmojisInDisplayNames !== false,
+    greentextEnabled: currentSettings.greentextEnabled !== false,
   }
   originalSettings.value = { ...settings.value }
 })
