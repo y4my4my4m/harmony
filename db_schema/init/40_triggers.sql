@@ -23,6 +23,75 @@ CREATE TRIGGER create_notification_preferences_trigger
     EXECUTE FUNCTION public.create_notification_preferences();
 
 -- ---------------------------------------------------------------------------
+-- ACTIVITY COUNTERS (profiles.message_count, profiles.voice_minutes)
+-- ---------------------------------------------------------------------------
+-- Function bodies live with the triggers themselves to keep this self-contained.
+CREATE OR REPLACE FUNCTION public.tg_profile_message_counter()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+    IF TG_OP = 'INSERT' THEN
+        IF NEW.user_id IS NOT NULL THEN
+            UPDATE public.profiles
+               SET message_count = message_count + 1
+             WHERE id = NEW.user_id;
+        END IF;
+        RETURN NEW;
+    ELSIF TG_OP = 'DELETE' THEN
+        IF OLD.user_id IS NOT NULL THEN
+            UPDATE public.profiles
+               SET message_count = GREATEST(message_count - 1, 0)
+             WHERE id = OLD.user_id;
+        END IF;
+        RETURN OLD;
+    END IF;
+    RETURN NULL;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_profile_message_counter_ins ON public.messages;
+DROP TRIGGER IF EXISTS trg_profile_message_counter_del ON public.messages;
+CREATE TRIGGER trg_profile_message_counter_ins
+    AFTER INSERT ON public.messages
+    FOR EACH ROW EXECUTE FUNCTION public.tg_profile_message_counter();
+CREATE TRIGGER trg_profile_message_counter_del
+    AFTER DELETE ON public.messages
+    FOR EACH ROW EXECUTE FUNCTION public.tg_profile_message_counter();
+
+CREATE OR REPLACE FUNCTION public.tg_profile_voice_counter()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+    minutes bigint;
+BEGIN
+    IF OLD.user_id IS NULL OR OLD.joined_at IS NULL THEN
+        RETURN OLD;
+    END IF;
+    minutes := GREATEST(
+        FLOOR(EXTRACT(EPOCH FROM (now() - OLD.joined_at)) / 60.0)::bigint,
+        0
+    );
+    IF minutes > 0 THEN
+        UPDATE public.profiles
+           SET voice_minutes = voice_minutes + minutes
+         WHERE id = OLD.user_id;
+    END IF;
+    RETURN OLD;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_profile_voice_counter_del ON public.voice_channel_participants;
+CREATE TRIGGER trg_profile_voice_counter_del
+    AFTER DELETE ON public.voice_channel_participants
+    FOR EACH ROW EXECUTE FUNCTION public.tg_profile_voice_counter();
+
+-- ---------------------------------------------------------------------------
 -- SERVER LIMIT ENFORCEMENT TRIGGERS
 -- ---------------------------------------------------------------------------
 

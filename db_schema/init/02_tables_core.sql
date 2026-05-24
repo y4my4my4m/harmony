@@ -65,7 +65,13 @@ CREATE TABLE IF NOT EXISTS public.profiles (
     profile_fields jsonb DEFAULT '[]'::jsonb,
     custom_status jsonb,
     last_status_update timestamp with time zone DEFAULT now(),
-    
+
+    -- Denormalized activity counters (kept up to date by triggers; see
+    -- 40_triggers.sql -> tg_profile_message_counter / tg_profile_voice_counter
+    -- and migrations/20260524_bot_grants_and_activity_counters.sql).
+    message_count bigint NOT NULL DEFAULT 0,
+    voice_minutes bigint NOT NULL DEFAULT 0,
+
     -- Federation settings
     federation_enabled boolean DEFAULT true,
     federation_discoverable boolean DEFAULT true,

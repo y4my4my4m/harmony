@@ -363,6 +363,9 @@ CREATE INDEX IF NOT EXISTS idx_bots_public ON public.bots(is_public) WHERE is_pu
 
 COMMENT ON TABLE public.bots IS 'Bot definitions';
 
+-- Owners interactively manage their own bots (RLS narrows to owner-only).
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.bots TO authenticated;
+
 -- ---------------------------------------------------------------------------
 -- BOT TOKENS
 -- ---------------------------------------------------------------------------
@@ -386,6 +389,8 @@ CREATE INDEX IF NOT EXISTS idx_bot_tokens_bot ON public.bot_tokens(bot_id);
 CREATE INDEX IF NOT EXISTS idx_bot_tokens_prefix ON public.bot_tokens(token_prefix);
 
 COMMENT ON TABLE public.bot_tokens IS 'Bot API tokens';
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.bot_tokens TO authenticated;
 
 -- ---------------------------------------------------------------------------
 -- BOT SERVER PERMISSIONS

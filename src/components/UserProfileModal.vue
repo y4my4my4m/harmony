@@ -447,6 +447,7 @@ const instanceInfo = ref<{ status: string; software?: string } | null>(null)
 const isLoadingInstanceInfo = ref(false)
 const fetchedUserStats = ref<{ posts: number; following: number; followers: number } | null>(null)
 const fetchedCreatedAt = ref<string | null>(null)
+const fetchedActivity = ref<{ message_count: number; voice_minutes: number } | null>(null)
 const isLoadingUserStats = ref(false)
 
 // Server roles for the user (from current server context)
@@ -495,6 +496,20 @@ async function loadUserStats(userId: string) {
     if (profile?.created_at) {
       fetchedCreatedAt.value = profile.created_at
       debug.log('👤 Loaded user created_at:', fetchedCreatedAt.value)
+    }
+
+    // Activity counters (denormalized on profiles, maintained by triggers).
+    // One tiny SELECT; no count(*) scans.
+    const { data: activity, error: activityErr } = await supabase
+      .from('profiles')
+      .select('message_count, voice_minutes')
+      .eq('id', userId)
+      .maybeSingle()
+    if (!activityErr && activity) {
+      fetchedActivity.value = {
+        message_count: Number(activity.message_count ?? 0),
+        voice_minutes: Number(activity.voice_minutes ?? 0),
+      }
     }
   } catch (error) {
     debug.error('Failed to load user stats:', error)
@@ -1099,11 +1114,24 @@ const getUserBio = (user: any) => {
 }
 
 const getUserMessageCount = (user: any) => {
-  return user?.message_count || user?.profile?.message_count || 0
+  return (
+    fetchedActivity.value?.message_count
+    ?? user?.message_count
+    ?? user?.profile?.message_count
+    ?? 0
+  )
 }
 
 const getUserVoiceTime = (user: any) => {
-  return user?.voice_time || user?.profile?.voice_time || 0
+  // DB stores minutes; older code used `voice_time` so we keep both as fallbacks.
+  return (
+    fetchedActivity.value?.voice_minutes
+    ?? user?.voice_minutes
+    ?? user?.voice_time
+    ?? user?.profile?.voice_minutes
+    ?? user?.profile?.voice_time
+    ?? 0
+  )
 }
 
 const getUserIsLocal = (user: any) => {
@@ -1180,6 +1208,7 @@ watch(() => ({ show: props.show, userId: props.user?.id }), async (newVal, oldVa
     instanceInfo.value = null
     fetchedUserStats.value = null
     fetchedCreatedAt.value = null
+    fetchedActivity.value = null
     fetchedUserRoles.value = []
   } else if (newVal.show && newVal.userId && (newVal.userId !== oldVal?.userId || !oldVal?.show)) {
     // Modal opened or user switched - ensure the dropdown isn't carried over.
