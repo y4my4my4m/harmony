@@ -98,6 +98,7 @@ ALTER TABLE public.hashtags ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.instance_announcements ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.instance_config ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.instance_donation_history ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.instance_pending_donations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.instance_funding ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.instance_supporter_tiers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.instance_supporters ENABLE ROW LEVEL SECURITY;

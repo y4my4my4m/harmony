@@ -1593,7 +1593,9 @@
                 <label style="font-size: 12px; color: var(--text-secondary); font-weight: 600; display: block; margin-bottom: 8px;">Donation Links</label>
                 <div v-if="fundingLinks.length > 0" class="funding-links-list">
                   <div v-for="(link, i) in fundingLinks" :key="i" class="funding-link-row">
-                    <input v-model="link.platform" class="cyber-input" placeholder="Platform" style="width: 110px;" />
+                    <select v-model="link.platform" class="cyber-select" style="width: 160px;">
+                      <option v-for="opt in FUNDING_PLATFORMS" :key="opt" :value="opt">{{ platformLabel(opt) }}</option>
+                    </select>
                     <input v-model="link.url" class="cyber-input" placeholder="https://..." style="flex: 1;" />
                     <input v-model="link.label" class="cyber-input" placeholder="Label (optional)" style="width: 140px;" />
                     <button class="mod-btn delete-btn" @click="fundingLinks.splice(i, 1)" title="Remove link">
@@ -1602,12 +1604,111 @@
                   </div>
                 </div>
                 <div class="funding-link-row" style="margin-top: 6px;">
-                  <input v-model="newLinkPlatform" class="cyber-input" placeholder="Platform (e.g. Patreon)" style="width: 110px;" />
-                  <input v-model="newLinkUrl" class="cyber-input" placeholder="https://patreon.com/..." style="flex: 1;" />
-                  <input v-model="newLinkLabel" class="cyber-input" placeholder="Label" style="width: 140px;" />
+                  <select v-model="newLinkPlatform" class="cyber-select" style="width: 160px;">
+                    <option value="" disabled>Platform…</option>
+                    <option v-for="opt in FUNDING_PLATFORMS" :key="opt" :value="opt">{{ platformLabel(opt) }}</option>
+                  </select>
+                  <input v-model="newLinkUrl" class="cyber-input" placeholder="https://..." style="flex: 1;" />
+                  <input v-model="newLinkLabel" class="cyber-input" placeholder="Label (optional)" style="width: 140px;" />
                   <button class="action-btn" @click="addFundingLink" :disabled="!newLinkPlatform || !newLinkUrl" style="white-space: nowrap;">
                     <Icon name="plus" :size="14" /> Add
                   </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Ko-fi Webhook (automation) -->
+          <div class="funding-section">
+            <h3>Ko-fi Webhook <span class="section-badge">Automation</span></h3>
+            <p class="section-description" style="margin-bottom: 12px;">
+              Auto-record donations from Ko-fi. Requires a Ko-fi Gold subscription.
+              Paste your verification token from
+              <a href="https://ko-fi.com/manage/webhooks" target="_blank" rel="noopener noreferrer">Ko-fi Settings → API</a>
+              and set the Webhook URL to:
+            </p>
+            <div class="webhook-url-display">
+              <code>{{ kofiWebhookUrl }}</code>
+              <button class="mod-btn" @click="copyKofiWebhookUrl" title="Copy URL">
+                <Icon name="copy" :size="14" />
+              </button>
+            </div>
+            <div class="funding-form-row" style="margin-top: 12px;">
+              <div class="funding-field" style="flex: 1;">
+                <label>Verification Token</label>
+                <input
+                  v-model="kofiWebhookToken"
+                  :type="showKofiToken ? 'text' : 'password'"
+                  class="cyber-input"
+                  placeholder="Paste from Ko-fi Settings → API"
+                  autocomplete="off"
+                />
+              </div>
+              <div class="funding-field" style="align-self: flex-end;">
+                <button class="mod-btn" type="button" @click="showKofiToken = !showKofiToken" :title="showKofiToken ? 'Hide' : 'Show'">
+                  <Icon :name="showKofiToken ? 'eye-off' : 'eye'" :size="14" />
+                </button>
+              </div>
+            </div>
+            <label class="funding-field" style="margin-top: 8px; display: flex; align-items: center; gap: 8px;">
+              <input type="checkbox" v-model="kofiAutoAssignTier" />
+              <span>Auto-assign supporter tier based on donation amount</span>
+            </label>
+            <p class="section-hint">
+              Donors must include their full handle (<code>@username@{{ instanceDomain }}</code>) in their Ko-fi message.
+              Unmatched donations land in the queue below for manual review.
+            </p>
+          </div>
+
+          <!-- Pending Donations -->
+          <div class="funding-section" v-if="pendingDonations.length > 0 || pendingDonationCount > 0">
+            <h3>
+              Pending Donations
+              <span v-if="pendingDonationCount > 0" class="pending-count-badge">{{ pendingDonationCount }}</span>
+            </h3>
+            <p class="section-description" style="margin-bottom: 12px;">
+              Webhook donations that couldn't be auto-matched to a user. Search for the recipient or dismiss.
+            </p>
+            <div v-if="pendingDonations.length > 0" class="pending-donations-list">
+              <div v-for="pending in pendingDonations" :key="pending.id" class="pending-donation-item">
+                <div class="pending-donation-header">
+                  <span class="pending-amount">{{ pending.currency }} {{ pending.amount.toFixed(2) }}</span>
+                  <span class="pending-platform">{{ pending.platform }}</span>
+                  <span class="pending-date">{{ formatDate(pending.received_at) }}</span>
+                </div>
+                <div class="pending-donation-meta">
+                  <span v-if="pending.donor_name"><strong>From:</strong> {{ pending.donor_name }}</span>
+                  <span v-if="pending.donor_email" class="pending-email">{{ pending.donor_email }}</span>
+                </div>
+                <div v-if="pending.donor_message" class="pending-message">
+                  &ldquo;{{ pending.donor_message }}&rdquo;
+                </div>
+                <div class="pending-resolve-row">
+                  <input
+                    v-model="pendingResolveSearch[pending.id]"
+                    class="cyber-input"
+                    placeholder="Search user by username..."
+                    @input="onPendingResolveSearch(pending.id)"
+                    style="flex: 1;"
+                  />
+                  <button class="report-action-btn resolve" :disabled="!pendingResolveUserId[pending.id]" @click="resolvePending(pending)">
+                    <Icon name="check" :size="14" /> Attribute
+                  </button>
+                  <button class="report-action-btn dismiss" @click="dismissPending(pending.id)">
+                    <Icon name="x" :size="14" /> Dismiss
+                  </button>
+                </div>
+                <div v-if="pendingResolveSuggestions[pending.id]?.length" class="pending-suggestions">
+                  <div
+                    v-for="user in pendingResolveSuggestions[pending.id]"
+                    :key="user.id"
+                    class="pending-suggestion"
+                    :class="{ active: pendingResolveUserId[pending.id] === user.id }"
+                    @click="pendingResolveUserId[pending.id] = user.id; pendingResolveSearch[pending.id] = user.handle"
+                  >
+                    <Avatar :src="user.avatar_url" :alt="user.username" size="xs" />
+                    <span>{{ user.handle }}</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1623,12 +1724,13 @@
                     <input v-model="editTierIcon" class="cyber-input" style="width: 60px;" />
                     <button
                       ref="editTierEmojiButtonRef"
+                      type="button"
                       class="mod-btn emoji-picker-btn"
                       @click.stop="showEditTierEmojiPicker = !showEditTierEmojiPicker"
                       title="Pick emoji"
                     >
                       <SupporterBadgeIcon v-if="editTierIcon" :icon="editTierIcon" />
-                      <template v-else>😀</template>
+                      <span v-else>😀</span>
                     </button>
                     <EmojiPopup
                       v-if="showEditTierEmojiPicker"
@@ -1671,12 +1773,13 @@
                 <input v-model="newTierIcon" class="cyber-input" placeholder="Icon" style="width: 60px;" />
                 <button
                   ref="newTierEmojiButtonRef"
+                  type="button"
                   class="mod-btn emoji-picker-btn"
                   @click.stop="showNewTierEmojiPicker = !showNewTierEmojiPicker"
                   title="Pick emoji"
                 >
                   <SupporterBadgeIcon v-if="newTierIcon" :icon="newTierIcon" />
-                  <template v-else>😀</template>
+                  <span v-else>😀</span>
                 </button>
                 <EmojiPopup
                   v-if="showNewTierEmojiPicker"
@@ -1715,7 +1818,9 @@
                 </div>
                 <div class="supporter-actions">
                   <button class="mod-btn" @click="startEditSupporter(supporter)" title="Edit supporter"><Icon name="edit" :size="14" /></button>
-                  <button class="mod-btn" @click="openRecordDonation(supporter)" title="Record donation"><Icon name="plus" :size="14" /></button>
+                  <button class="mod-btn" @click="openRecordDonation(supporter)" title="Record donation">
+                    <Icon name="dollar-sign" :size="14" />
+                  </button>
                   <button class="mod-btn delete-btn" @click="removeSupporter(supporter.user_id)" title="Remove supporter"><Icon name="delete" :size="14" /></button>
                 </div>
               </div>
@@ -1999,7 +2104,7 @@ import PerformanceMonitoring from '@/components/admin/PerformanceMonitoring.vue'
 import { supabase } from '@/supabase'
 import { adminService, type SystemStats, type SystemHealth, type AdminUser, type AdminActivity, type BlockedInstance, type FederatedInstance, type InstanceStats, type InstanceSearchResult, type FederationStats, type DeadEndpoint } from '@/services/AdminService'
 import { reportService, type ReportWithDetails } from '@/services/ReportService'
-import { fundingService, type SupporterTier, type Supporter, type DonationRecord } from '@/services/FundingService'
+import { fundingService, FUNDING_PLATFORMS, type FundingPlatformKey, type SupporterTier, type Supporter, type DonationRecord, type PendingDonation } from '@/services/FundingService'
 import { messageService } from '@/services/MessageService'
 import { trendingService } from '@/services/TrendingService'
 import { announcementService, type Announcement } from '@/services/AnnouncementService'
@@ -2076,6 +2181,29 @@ const fundingLinks = ref<{ platform: string; url: string; label: string }[]>([])
 const newLinkPlatform = ref('')
 const newLinkUrl = ref('')
 const newLinkLabel = ref('')
+
+// Ko-fi webhook config
+const kofiWebhookToken = ref('')
+const kofiAutoAssignTier = ref(true)
+const showKofiToken = ref(false)
+const kofiWebhookUrl = computed(() => {
+  // Federation backend exposes /webhooks/kofi. Prefer explicit federation URL,
+  // fall back to current origin.
+  const base = (import.meta.env.VITE_FEDERATION_URL as string | undefined)
+    || (typeof window !== 'undefined' ? window.location.origin : '')
+  return `${base.replace(/\/$/, '')}/webhooks/kofi`
+})
+const instanceDomain = computed(() =>
+  (import.meta.env.VITE_DOMAIN as string | undefined) || 'your-domain'
+)
+
+// Pending donations (webhooks awaiting admin resolution)
+const pendingDonations = ref<PendingDonation[]>([])
+const pendingDonationCount = ref(0)
+const pendingResolveSearch = ref<Record<string, string>>({})
+const pendingResolveUserId = ref<Record<string, string | null>>({})
+const pendingResolveSuggestions = ref<Record<string, Array<{ id: string; username: string; handle: string; avatar_url?: string }>>>({})
+const pendingResolveTimers: Record<string, ReturnType<typeof setTimeout>> = {}
 const supporterTiers = ref<SupporterTier[]>([])
 const supporters = ref<Supporter[]>([])
 const donationHistory = ref<DonationRecord[]>([])
@@ -2397,7 +2525,7 @@ watch(activeReportFilter, () => {
 
 // Watch for funding config changes
 watch(
-  [fundingEnabled, fundingShowInBar, fundingShowProgress, fundingGoalAmount, fundingCurrency, fundingCurrentAmount, fundingPeriod, fundingDescription, fundingThankYou, fundingLinks],
+  [fundingEnabled, fundingShowInBar, fundingShowProgress, fundingGoalAmount, fundingCurrency, fundingCurrentAmount, fundingPeriod, fundingDescription, fundingThankYou, fundingLinks, kofiWebhookToken, kofiAutoAssignTier],
   () => { fundingChanged.value = true },
   { deep: true }
 )
@@ -2741,13 +2869,94 @@ const loadFundingData = async () => {
     fundingDescription.value = config.goal_description || ''
     fundingThankYou.value = config.thank_you_message || ''
     fundingLinks.value = config.funding_links || []
+    kofiWebhookToken.value = config.kofi_webhook_token || ''
+    kofiAutoAssignTier.value = config.kofi_auto_assign_tier !== false
   }
   supporterTiers.value = await fundingService.getTiers()
   supporters.value = await fundingService.getSupporters()
   donationHistory.value = await fundingService.getDonationHistory()
   donationStats.value = await fundingService.getDonationStats()
+  pendingDonations.value = await fundingService.getPendingDonations()
+  pendingDonationCount.value = pendingDonations.value.filter(p => !p.resolved_at).length
   // Reset after populating to avoid false dirty state from watchers
   fundingChanged.value = false
+}
+
+const PLATFORM_LABELS: Record<FundingPlatformKey, string> = {
+  'ko-fi': 'Ko-fi',
+  'patreon': 'Patreon',
+  'github-sponsors': 'GitHub Sponsors',
+  'liberapay': 'Liberapay',
+  'open-collective': 'Open Collective',
+  'paypal': 'PayPal',
+  'buymeacoffee': 'Buy Me a Coffee',
+  'custom': 'Custom',
+}
+const platformLabel = (key: string): string => PLATFORM_LABELS[key as FundingPlatformKey] || key
+
+const copyKofiWebhookUrl = async () => {
+  try {
+    await navigator.clipboard.writeText(kofiWebhookUrl.value)
+    toast.success('Webhook URL copied')
+  } catch {
+    toast.error('Failed to copy')
+  }
+}
+
+// Pending donations: search for the right user to attribute to.
+const onPendingResolveSearch = (pendingId: string) => {
+  if (pendingResolveTimers[pendingId]) clearTimeout(pendingResolveTimers[pendingId])
+  pendingResolveTimers[pendingId] = setTimeout(async () => {
+    const query = (pendingResolveSearch.value[pendingId] || '').trim().replace(/^@+/, '')
+    if (query.length < 2) {
+      pendingResolveSuggestions.value[pendingId] = []
+      return
+    }
+    try {
+      const users = await activityPubService.searchUsers(query, 5)
+      pendingResolveSuggestions.value[pendingId] = users.map((u: any) => ({
+        id: u.id,
+        username: u.username,
+        handle: u.handle || (u.is_local ? `@${u.username}` : `@${u.username}@${u.domain}`),
+        avatar_url: u.avatar_url,
+      }))
+    } catch (e) {
+      debug.error('Pending donation user search failed:', e)
+    }
+  }, 250)
+}
+
+const resolvePending = async (pending: PendingDonation) => {
+  const userId = pendingResolveUserId.value[pending.id]
+  if (!userId) return
+  // Pick the highest tier <= amount, mirroring the webhook auto-assign logic.
+  const tier = [...supporterTiers.value]
+    .filter(t => t.min_amount <= pending.amount)
+    .sort((a, b) => b.min_amount - a.min_amount)[0]
+  const ok = await fundingService.resolvePendingDonation(pending.id, userId, tier?.id ?? null)
+  if (ok) {
+    toast.success('Donation attributed')
+    await adminService.logAdminAction({ action: 'pending_donation_resolve', targetType: 'pending_donation', targetId: pending.id, details: { userId } })
+    pendingDonations.value = pendingDonations.value.filter(p => p.id !== pending.id)
+    pendingDonationCount.value = pendingDonations.value.filter(p => !p.resolved_at).length
+    donationHistory.value = await fundingService.getDonationHistory()
+    supporters.value = await fundingService.getSupporters()
+  } else {
+    toast.error('Failed to attribute donation')
+  }
+}
+
+const dismissPending = async (pendingId: string) => {
+  if (!confirm('Dismiss this donation? It will not be attributed to any user.')) return
+  const ok = await fundingService.dismissPendingDonation(pendingId)
+  if (ok) {
+    toast.success('Donation dismissed')
+    await adminService.logAdminAction({ action: 'pending_donation_dismiss', targetType: 'pending_donation', targetId: pendingId })
+    pendingDonations.value = pendingDonations.value.filter(p => p.id !== pendingId)
+    pendingDonationCount.value = pendingDonations.value.filter(p => !p.resolved_at).length
+  } else {
+    toast.error('Failed to dismiss')
+  }
 }
 
 const addFundingLink = () => {
@@ -2774,6 +2983,8 @@ const saveFundingConfig = async () => {
     goal_description: fundingDescription.value || null,
     thank_you_message: fundingThankYou.value || null,
     funding_links: fundingLinks.value,
+    kofi_webhook_token: kofiWebhookToken.value.trim() || null,
+    kofi_auto_assign_tier: kofiAutoAssignTier.value,
   } as any)
   if (success) {
     fundingChanged.value = false
@@ -6427,6 +6638,171 @@ const handleAddInstance = () => {
   margin: 0 0 12px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.section-badge {
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: rgba(14, 165, 233, 0.15);
+  color: var(--harmony-primary);
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 600;
+}
+
+.section-description {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin: 0 0 8px;
+  line-height: 1.5;
+}
+
+.section-description a {
+  color: var(--harmony-primary);
+}
+
+.section-hint {
+  font-size: 12px;
+  color: var(--text-tertiary, var(--text-secondary));
+  margin: 8px 0 0;
+  line-height: 1.5;
+  font-style: italic;
+}
+
+.section-hint code {
+  background: var(--background-secondary);
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 11px;
+  font-style: normal;
+}
+
+.webhook-url-display {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--background-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 12px;
+}
+
+.webhook-url-display code {
+  flex: 1;
+  color: var(--text-primary);
+  word-break: break-all;
+}
+
+.pending-count-badge {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: var(--status-danger, #ed4245);
+  color: #fff;
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 700;
+}
+
+.pending-donations-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pending-donation-item {
+  padding: 12px;
+  background: var(--background-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pending-donation-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.pending-amount {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--harmony-primary);
+}
+
+.pending-platform {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-secondary);
+  text-transform: capitalize;
+}
+
+.pending-date {
+  font-size: 12px;
+  color: var(--text-tertiary, var(--text-secondary));
+  margin-left: auto;
+}
+
+.pending-donation-meta {
+  display: flex;
+  gap: 12px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.pending-email {
+  color: var(--text-tertiary, var(--text-secondary));
+}
+
+.pending-message {
+  padding: 8px 12px;
+  background: var(--background-tertiary);
+  border-left: 3px solid var(--harmony-primary);
+  border-radius: 4px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+.pending-resolve-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.pending-suggestions {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-top: 4px;
+}
+
+.pending-suggestion {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text-secondary);
+  transition: background 0.15s;
+}
+
+.pending-suggestion:hover,
+.pending-suggestion.active {
+  background: rgba(14, 165, 233, 0.15);
+  color: var(--text-primary);
 }
 
 .funding-fields {

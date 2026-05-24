@@ -668,6 +668,11 @@ DROP POLICY IF EXISTS "donation_history_modify_admin" ON public.instance_donatio
 CREATE POLICY "donation_history_modify_admin" ON public.instance_donation_history
     FOR ALL TO authenticated USING (public.is_current_user_admin());
 
+-- Pending donations: admin-only (webhooks insert via service_role bypass).
+DROP POLICY IF EXISTS "pending_donations_admin_all" ON public.instance_pending_donations;
+CREATE POLICY "pending_donations_admin_all" ON public.instance_pending_donations
+    FOR ALL TO authenticated USING (public.is_current_user_admin());
+
 -- ---------------------------------------------------------------------------
 -- AP ACTIVITIES (ActivityPub activity log)
 -- ---------------------------------------------------------------------------

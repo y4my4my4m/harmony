@@ -28,7 +28,7 @@
     <div v-else class="bans-list">
       <div v-for="ban in bans" :key="ban.id" class="ban-item">
         <div class="ban-user">
-          <img :src="ban.avatar_url || '/default_avatar.png'" :alt="ban.username" class="ban-avatar" />
+          <img :src="ban.avatar_url || '/default_avatar.webp'" :alt="ban.username" class="ban-avatar" />
           <div class="ban-info">
             <span class="ban-display-name">{{ ban.display_name || ban.username }}</span>
             <span class="ban-username">@{{ ban.username }}</span>

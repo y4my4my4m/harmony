@@ -45,9 +45,13 @@
                   target="_blank"
                   rel="noopener noreferrer"
                   class="funding-link"
+                  :class="`funding-link--${linkPlatformKey(link.platform)}`"
                 >
-                  <span class="link-platform">{{ link.platform }}</span>
-                  <span class="link-label">{{ link.label || link.url }}</span>
+                  <span class="link-icon" v-html="platformIcon(link.platform)"></span>
+                  <span class="link-text">
+                    <span class="link-platform">{{ platformLabel(link.platform) }}</span>
+                    <span v-if="link.label && link.label !== link.platform" class="link-label">{{ link.label }}</span>
+                  </span>
                 </a>
               </div>
             </div>
@@ -122,6 +126,60 @@ import { ref, computed, onMounted } from 'vue'
 import { fundingService, type FundingConfigWithProgress, type SupporterTier, type SupporterBadge, type DonationRecord } from '@/services/FundingService'
 import SupporterBadgeIcon from '@/components/common/SupporterBadgeIcon.vue'
 import { supabase } from '@/supabase'
+
+// Canonical platform → display label + branded SVG icon. Falls back to a
+// generic heart for unknown platforms.
+const PLATFORM_META: Record<string, { label: string; icon: string }> = {
+  'ko-fi': {
+    label: 'Ko-fi',
+    icon: '<svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M20.5 3H4.5C3.67 3 3 3.67 3 4.5v8c0 4.42 3.58 8 8 8h2c4.42 0 8-3.58 8-8v-8c0-.83-.67-1.5-1.5-1.5zm-5.5 9.5c0 .55-.45 1-1 1H8c-.55 0-1-.45-1-1v-5c0-.55.45-1 1-1h6c.55 0 1 .45 1 1v5z"/></svg>',
+  },
+  'patreon': {
+    label: 'Patreon',
+    icon: '<svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M15.385 1.604c-3.957 0-7.176 3.219-7.176 7.176 0 3.945 3.219 7.156 7.176 7.156 3.945 0 7.156-3.211 7.156-7.156 0-3.957-3.211-7.176-7.156-7.176M1.459 22.396V1.604h3.51v20.792"/></svg>',
+  },
+  'github-sponsors': {
+    label: 'GitHub Sponsors',
+    icon: '<svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>',
+  },
+  'liberapay': {
+    label: 'Liberapay',
+    icon: '<svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M5.07 21.66c-.43 0-.78-.04-1.05-.13-.26-.08-.46-.21-.6-.4-.13-.18-.22-.4-.27-.65-.04-.25-.06-.55-.06-.88V3.86h2.78v15.5c0 .35.07.6.21.74.14.14.32.21.55.21h.43V21.66H5.07zm9.7-7.36c0-.6-.09-1.1-.26-1.5-.18-.4-.42-.7-.73-.93-.31-.22-.68-.38-1.1-.46-.42-.08-.87-.12-1.36-.12H10.9v6.3h.48c.5 0 .96-.04 1.38-.12.42-.08.79-.23 1.1-.46.31-.23.55-.55.73-.96.18-.41.27-.93.27-1.55v-.2z"/></svg>',
+  },
+  'open-collective': {
+    label: 'Open Collective',
+    icon: '<svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2.5"/><path d="M12 6a6 6 0 0 0 0 12" fill="none" stroke="currentColor" stroke-width="2.5"/></svg>',
+  },
+  'paypal': {
+    label: 'PayPal',
+    icon: '<svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M7.076 21.337H2.47a.641.641 0 0 1-.633-.74L4.944 1.49A.78.78 0 0 1 5.715.835h6.66c2.16 0 3.853.469 4.825 1.39.972.921 1.197 2.235.835 3.881-.027.124-.058.246-.094.367-.36 1.221-.998 2.184-1.91 2.886-1.092.835-2.555 1.282-4.353 1.282H9.847a.806.806 0 0 0-.796.681l-.61 3.873-.43 2.726a.483.483 0 0 1-.478.41z"/></svg>',
+  },
+  'buymeacoffee': {
+    label: 'Buy Me a Coffee',
+    icon: '<svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M20.216 6.415l-.132-.666c-.119-.598-.388-1.163-1.001-1.379-.197-.069-.42-.098-.57-.241-.152-.143-.196-.366-.231-.572-.065-.378-.125-.756-.192-1.133-.057-.325-.102-.69-.25-.987-.195-.4-.597-.634-.996-.788a5.723 5.723 0 0 0-.626-.194c-1-.263-2.05-.36-3.077-.416a25.834 25.834 0 0 0-3.7.062c-.915.083-1.88.184-2.75.5-.318.116-.646.256-.888.501-.297.302-.393.77-.177 1.146.154.267.415.456.692.58.36.162.737.284 1.123.366 1.075.238 2.189.331 3.287.37 1.218.05 2.437.01 3.65-.118.299-.033.598-.073.896-.119.352-.054.578-.513.474-.834-.124-.383-.457-.531-.834-.473-.466.074-.96.108-1.382.146-1.177.08-2.358.082-3.536.006a22.228 22.228 0 0 1-1.157-.107c-.086-.01-.18-.025-.258-.036.029-.077.122-.092.21-.106.34-.045.682-.077 1.024-.103a25.422 25.422 0 0 1 3.327-.046c.484.03.967.07 1.448.124l.124.015c.7.094 1.398.21 2.084.36.448.098.78.36 1.075.788.27.397.41.857.493 1.32.083.466.124.946.171 1.418.05.486.099.971.149 1.457.07.684.149 1.367.224 2.05.062.57.117 1.141.146 1.713.044.83.085 1.662.085 2.494 0 .832-.041 1.664-.085 2.495-.029.572-.084 1.144-.146 1.713-.075.683-.155 1.366-.224 2.05-.05.486-.099.971-.149 1.457-.047.472-.088.952-.171 1.418-.083.463-.223.923-.493 1.32-.295.428-.627.69-1.075.788z"/></svg>',
+  },
+  'custom': {
+    label: 'Donate',
+    icon: '<svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>',
+  },
+}
+
+const GENERIC_ICON = '<svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>'
+
+const linkPlatformKey = (platform: string): string =>
+  platform?.toLowerCase().replace(/\s+/g, '-') in PLATFORM_META
+    ? platform.toLowerCase().replace(/\s+/g, '-')
+    : 'custom'
+
+const platformLabel = (platform: string): string => {
+  const key = platform?.toLowerCase().replace(/\s+/g, '-')
+  return PLATFORM_META[key]?.label ?? platform
+}
+
+const platformIcon = (platform: string): string => {
+  const key = platform?.toLowerCase().replace(/\s+/g, '-')
+  return PLATFORM_META[key]?.icon ?? GENERIC_ICON
+}
 
 defineEmits<{ close: [] }>()
 
@@ -319,28 +377,59 @@ onMounted(async () => {
 .funding-link {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   padding: 10px 14px;
   background: var(--background-secondary, #2b2d31);
   border: 1px solid var(--border-color);
   border-radius: 8px;
   color: var(--text-primary);
   text-decoration: none;
-  transition: border-color 0.15s;
+  transition: border-color 0.15s, transform 0.15s;
 }
 
 .funding-link:hover {
   border-color: var(--harmony-primary, #0EA5E9);
+  transform: translateY(-1px);
+}
+
+/* Brand colors per platform - matches each platform's identity. */
+.funding-link--ko-fi { color: #ff5e5b; }
+.funding-link--patreon { color: #ff424d; }
+.funding-link--github-sponsors { color: #ea4aaa; }
+.funding-link--liberapay { color: #f6c915; }
+.funding-link--open-collective { color: #297eff; }
+.funding-link--paypal { color: #0070ba; }
+.funding-link--buymeacoffee { color: #ffdd00; }
+
+.link-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+}
+
+.link-icon :deep(svg) {
+  width: 18px;
+  height: 18px;
+}
+
+.link-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
 }
 
 .link-platform {
   font-weight: 600;
-  font-size: 13px;
-  text-transform: capitalize;
+  font-size: 14px;
+  color: var(--text-primary);
 }
 
 .link-label {
-  font-size: 13px;
+  font-size: 12px;
   color: var(--text-secondary);
   overflow: hidden;
   text-overflow: ellipsis;

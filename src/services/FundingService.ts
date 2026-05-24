@@ -14,7 +14,24 @@ export interface FundingConfig {
   show_in_context_bar: boolean
   context_bar_style: string
   thank_you_message: string | null
+  /** Verification token from Ko-fi (Gold-tier required). Empty/null = disabled. */
+  kofi_webhook_token: string | null
+  /** When true, auto-assign supporter tier on webhook based on amount. */
+  kofi_auto_assign_tier: boolean
 }
+
+/** Canonical platform keys we render with branded icons in the UI. */
+export const FUNDING_PLATFORMS = [
+  'ko-fi',
+  'patreon',
+  'github-sponsors',
+  'liberapay',
+  'open-collective',
+  'paypal',
+  'buymeacoffee',
+  'custom',
+] as const
+export type FundingPlatformKey = typeof FUNDING_PLATFORMS[number]
 
 /** Config with current_amount computed from donation history (for progress display) */
 export interface FundingConfigWithProgress extends FundingConfig {
@@ -76,6 +93,26 @@ export interface DonationRecord {
     display_name: string
     avatar_url: string
   }
+}
+
+/**
+ * Donations received via webhook that couldn't be auto-matched to a profile.
+ * Admins resolve these manually via the funding admin panel.
+ */
+export interface PendingDonation {
+  id: string
+  received_at: string
+  platform: string
+  external_reference: string | null
+  amount: number
+  currency: string
+  donor_name: string | null
+  donor_email: string | null
+  donor_message: string | null
+  raw_payload: Record<string, unknown>
+  resolved_at: string | null
+  resolved_by: string | null
+  resolved_user_id: string | null
 }
 
 const BADGE_CACHE_TTL = 5 * 60 * 1000 // 5 minutes
@@ -418,6 +455,140 @@ class FundingService {
     } catch (error) {
       debug.error('Failed to get donation history:', error)
       return []
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // Pending donations (webhook integrations)
+  // -------------------------------------------------------------------------
+
+  /** Lists pending donations awaiting admin resolution. */
+  async getPendingDonations(includeResolved = false): Promise<PendingDonation[]> {
+    try {
+      let query = supabase
+        .from('instance_pending_donations')
+        .select('*')
+        .order('received_at', { ascending: false })
+
+      if (!includeResolved) {
+        query = query.is('resolved_at', null)
+      }
+
+      const { data, error } = await query
+      if (error) throw error
+      return (data || []) as PendingDonation[]
+    } catch (error) {
+      debug.error('Failed to get pending donations:', error)
+      return []
+    }
+  }
+
+  /**
+   * Resolves a pending donation by attributing it to a user. Creates the
+   * matching supporter + donation_history rows, then marks the pending row
+   * as resolved. Idempotent on retry via the (platform, external_reference)
+   * unique index.
+   */
+  async resolvePendingDonation(pendingId: string, userId: string, tierId?: string | null): Promise<boolean> {
+    try {
+      const { data: pending, error: fetchErr } = await supabase
+        .from('instance_pending_donations')
+        .select('*')
+        .eq('id', pendingId)
+        .maybeSingle()
+
+      if (fetchErr) throw fetchErr
+      if (!pending) {
+        debug.warn('resolvePendingDonation: pending row not found', pendingId)
+        return false
+      }
+      if (pending.resolved_at) {
+        debug.warn('resolvePendingDonation: already resolved', pendingId)
+        return true
+      }
+
+      const { data: supporter, error: upsertErr } = await supabase
+        .from('instance_supporters')
+        .upsert(
+          {
+            user_id: userId,
+            tier_id: tierId ?? null,
+            amount: pending.amount,
+            platform: pending.platform,
+            is_active: true,
+            started_at: new Date().toISOString(),
+          },
+          { onConflict: 'user_id' },
+        )
+        .select('id')
+        .single()
+
+      if (upsertErr || !supporter) throw upsertErr ?? new Error('Supporter upsert failed')
+
+      const { error: histErr } = await supabase
+        .from('instance_donation_history')
+        .insert({
+          supporter_id: supporter.id,
+          user_id: userId,
+          amount: pending.amount,
+          currency: pending.currency,
+          platform: pending.platform,
+          external_reference: pending.external_reference,
+          note: pending.donor_message,
+        })
+      // Tolerate duplicate-key — webhook may have already inserted via retry.
+      if (histErr && histErr.code !== '23505') throw histErr
+
+      const { data: { user } } = await supabase.auth.getUser()
+      const { error: resolveErr } = await supabase
+        .from('instance_pending_donations')
+        .update({
+          resolved_at: new Date().toISOString(),
+          resolved_by: user?.id ?? null,
+          resolved_user_id: userId,
+        })
+        .eq('id', pendingId)
+
+      if (resolveErr) throw resolveErr
+
+      badgeCache.delete(userId)
+      return true
+    } catch (error) {
+      debug.error('Failed to resolve pending donation:', error)
+      return false
+    }
+  }
+
+  /** Dismisses a pending donation without attributing it (still marks resolved). */
+  async dismissPendingDonation(pendingId: string): Promise<boolean> {
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      const { error } = await supabase
+        .from('instance_pending_donations')
+        .update({
+          resolved_at: new Date().toISOString(),
+          resolved_by: user?.id ?? null,
+        })
+        .eq('id', pendingId)
+      if (error) throw error
+      return true
+    } catch (error) {
+      debug.error('Failed to dismiss pending donation:', error)
+      return false
+    }
+  }
+
+  async getPendingDonationCount(): Promise<number> {
+    try {
+      const { count, error } = await supabase
+        .from('instance_pending_donations')
+        .select('id', { count: 'exact', head: true })
+        .is('resolved_at', null)
+      if (error) throw error
+      return count ?? 0
+    } catch (error) {
+      debug.error('Failed to count pending donations:', error)
+      return 0
     }
   }
 

@@ -709,6 +709,11 @@ CREATE TABLE IF NOT EXISTS public.instance_funding (
     show_in_context_bar boolean DEFAULT false,
     context_bar_style text DEFAULT 'mini-progress',
     thank_you_message text,
+    -- Ko-fi webhook integration (Gold-tier feature). Verification token comes
+    -- from Ko-fi Settings → API → Webhook URL. When set, the federation
+    -- backend accepts POSTs at /webhooks/kofi for automated donation tracking.
+    kofi_webhook_token text,
+    kofi_auto_assign_tier boolean DEFAULT true,
     updated_at timestamptz DEFAULT now()
 );
 
@@ -763,6 +768,39 @@ CREATE TABLE IF NOT EXISTS public.instance_donation_history (
 CREATE INDEX IF NOT EXISTS idx_donation_history_user ON public.instance_donation_history(user_id);
 CREATE INDEX IF NOT EXISTS idx_donation_history_supporter ON public.instance_donation_history(supporter_id);
 CREATE INDEX IF NOT EXISTS idx_donation_history_date ON public.instance_donation_history(donated_at);
+-- Dedup webhook retries: NULL external_reference (manual entries) always
+-- allowed; non-null values must be unique per platform.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_donation_history_external_unique
+    ON public.instance_donation_history (platform, external_reference)
+    WHERE external_reference IS NOT NULL;
+
+-- ---------------------------------------------------------------------------
+-- INSTANCE PENDING DONATIONS
+-- ---------------------------------------------------------------------------
+-- Donations received via webhook that could not be auto-matched to a profile.
+-- Admins review these manually and either link to an existing user (which
+-- promotes them to instance_donation_history) or dismiss.
+CREATE TABLE IF NOT EXISTS public.instance_pending_donations (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    received_at timestamptz DEFAULT now(),
+    platform text NOT NULL,
+    external_reference text,
+    amount numeric(10, 2) NOT NULL,
+    currency text DEFAULT 'USD',
+    donor_name text,
+    donor_email text,
+    donor_message text,
+    raw_payload jsonb NOT NULL,
+    resolved_at timestamptz,
+    resolved_by uuid REFERENCES public.profiles(id) ON DELETE SET NULL,
+    resolved_user_id uuid REFERENCES public.profiles(id) ON DELETE SET NULL,
+    CONSTRAINT instance_pending_donations_external_unique
+        UNIQUE (platform, external_reference)
+);
+
+CREATE INDEX IF NOT EXISTS idx_pending_donations_unresolved
+    ON public.instance_pending_donations (received_at DESC)
+    WHERE resolved_at IS NULL;
 
 -- ---------------------------------------------------------------------------
 -- INSTANCE ANNOUNCEMENTS

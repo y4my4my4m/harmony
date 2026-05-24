@@ -25,6 +25,7 @@ import pushRouter from './routes/push.js';
 import livekitRouter from './routes/livekit.js';
 import voiceRouter from './routes/voice.js';
 import realtimeRouter from './routes/realtime.js';
+import kofiWebhookRouter from './routes/webhooks/kofi.js';
 
 import webFingerRouter from './activitypub/WebFingerService.js';
 import actorRouter from './activitypub/ActorService.js';
@@ -89,6 +90,12 @@ export function createApp(): Application {
   app.use('/api/federation/voice', voiceRouter);
   app.use('/realtime', realtimeRouter);
   app.use('/api/federation/realtime', realtimeRouter);
+
+  // Donation webhooks — each provider handles its own body parser internally.
+  // Ko-fi posts application/x-www-form-urlencoded which the global json
+  // parser ignores.
+  app.use('/webhooks', kofiWebhookRouter);
+  app.use('/api/webhooks', kofiWebhookRouter);
 
   // Rate limiting is applied per-route inside each router (not at the mount level)
   // to prevent cascade bleeding - mounting `app.use('/', limiter, routerA)` causes

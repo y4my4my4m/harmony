@@ -136,3 +136,12 @@ export const discoveryLimiter = createRateLimiter({
   maxRequests: 30,
   message: 'Too many discovery requests, please try again later.',
 });
+
+// Donation webhooks (Ko-fi, etc.): cadence is naturally low (one webhook per
+// donation). 60/min is far more than any legitimate flow and prevents abuse
+// if the webhook URL leaks.
+export const webhookLimiter = createRateLimiter({
+  windowMs: 60 * 1000,
+  maxRequests: 60,
+  message: 'Too many webhook requests, please try again later.',
+});
