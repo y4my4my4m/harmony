@@ -760,72 +760,59 @@
 }
 
 /* ----------------------------------------------------------------------------
-   15. Icons - tactical glow + pixel-feel treatment
+   15. Icon-button containers - sharp tactical chips
    --------------------------------------------------------------------------
-   We don't ship a custom icon set with this skin (yet). Instead, every
-   inline SVG icon under the skin gets:
-     - a red drop-shadow so it reads as a glowing HUD element,
-     - a slight contrast bump so anti-aliased edges feel sharper / more
-       "pixel-art" without rendering pixelated,
-     - a `crispEdges` shape-rendering hint where browsers honour it,
-     - a circle-to-square transform on the icon-button containers.
-   When we ship a proper SDR-001 icon set in `public/assets/skins/sdr-001/icons/`
-   we can swap individual icons via CSS `mask-image` overrides without
-   touching this rule.
+   Convert the round Discord-style icon buttons into sharp 2px-square HUD
+   chips with hairline red borders. The actual icon glyph swap lives in
+   section 18 (pixel icon set under public/assets/skins/sdr-001/icons/).
    -------------------------------------------------------------------------- */
 
-[data-skin="sdr-001"] svg {
-  filter: drop-shadow(0 0 3px rgba(220, 20, 60, 0.45));
-  shape-rendering: crispEdges;
-}
-
-/* Don't apply the glow to image-like SVGs that carry their own colour
-   (avatars, custom emojis, server icons, empty-state illustrations). */
-[data-skin="sdr-001"] .avatar svg,
-[data-skin="sdr-001"] .user-avatar svg,
-[data-skin="sdr-001"] .emoji-image,
-[data-skin="sdr-001"] .twemoji,
-[data-skin="sdr-001"] .server-icon svg,
-[data-skin="sdr-001"] img,
-[data-skin="sdr-001"] .empty-state svg {
-  filter: none;
-  shape-rendering: auto;
-}
-
-/* Convert circular icon buttons into sharp 2px squares - matches the
-   tactical-HUD aesthetic and makes every hit target read as a button
-   slot. */
 [data-skin="sdr-001"] .icon-button,
 [data-skin="sdr-001"] button.btn-icon,
 [data-skin="sdr-001"] .control-btn,
 [data-skin="sdr-001"] .control-button,
-[data-skin="sdr-001"] .action-btn {
+[data-skin="sdr-001"] .action-btn,
+[data-skin="sdr-001"] .mini-control-btn {
   border-radius: 2px !important;
   border: 1px solid rgba(220, 20, 60, 0.55) !important;
   background: rgba(0, 0, 0, 0.4) !important;
+  background-image: none !important;
   transition: box-shadow 0.15s ease, background 0.15s ease;
 }
 [data-skin="sdr-001"] .icon-button:hover,
 [data-skin="sdr-001"] button.btn-icon:hover,
 [data-skin="sdr-001"] .control-btn:hover,
 [data-skin="sdr-001"] .control-button:hover,
-[data-skin="sdr-001"] .action-btn:hover {
+[data-skin="sdr-001"] .action-btn:hover,
+[data-skin="sdr-001"] .mini-control-btn:hover {
   background: rgba(220, 20, 60, 0.18) !important;
   box-shadow: 0 0 12px rgba(220, 20, 60, 0.5);
 }
 [data-skin="sdr-001"] .icon-button.active,
 [data-skin="sdr-001"] .icon-button.muted,
 [data-skin="sdr-001"] .control-btn.active,
-[data-skin="sdr-001"] .control-button.active {
-  background: rgba(220, 20, 60, 0.45) !important;
+[data-skin="sdr-001"] .control-button.active,
+[data-skin="sdr-001"] .control-btn.muted,
+[data-skin="sdr-001"] .control-btn.deafened,
+[data-skin="sdr-001"] .mini-control-btn.muted,
+[data-skin="sdr-001"] .mini-control-btn.deafened {
+  background: rgba(220, 20, 60, 0.4) !important;
+  background-image: none !important;
   box-shadow: inset 0 0 16px rgba(0, 0, 0, 0.4), 0 0 18px rgba(220, 20, 60, 0.55) !important;
 }
 
-/* Small bitmap images get a real pixel-rendering hint. */
-[data-skin="sdr-001"] .emoji-image,
-[data-skin="sdr-001"] .twemoji,
-[data-skin="sdr-001"] .server-icon img {
-  image-rendering: pixelated;
+/* Active / mute / deafen state colours overridden in solid red so the
+   green "speaking" + orange "deafened" lozenges from the default
+   palette don't bleed through. */
+[data-skin="sdr-001"] .control-btn.active,
+[data-skin="sdr-001"] .control-btn.muted,
+[data-skin="sdr-001"] .control-btn.deafened,
+[data-skin="sdr-001"] .control-btn.spatial-enabled,
+[data-skin="sdr-001"] .control-btn.ptt-active,
+[data-skin="sdr-001"] .mini-control-btn.muted,
+[data-skin="sdr-001"] .mini-control-btn.deafened,
+[data-skin="sdr-001"] .mini-control-btn.leave {
+  color: #fff !important;
 }
 
 /* ----------------------------------------------------------------------------
@@ -914,4 +901,315 @@
   font-size: 9px;
   letter-spacing: 0.14em;
   color: rgba(220, 20, 60, 0.5);
+}
+
+/* ----------------------------------------------------------------------------
+   18. Pixel-art icon swaps
+   --------------------------------------------------------------------------
+   Replace the default Lucide-style SVGs inside named buttons with proper
+   pixel-art glyphs from the bundled set under
+   `public/assets/skins/sdr-001/icons/` (Pixelarticons, MIT). The swap
+   uses CSS `mask-image` so the glyph is painted in `currentColor` and
+   tints with whatever red/white state the button is in.
+
+   We hide the original `<svg class="icon-component">` only inside named
+   button containers - everywhere else (chat input picker, message
+   reactions, settings sidebar) the original icons stay. This keeps the
+   skin focused on the high-visibility surfaces and avoids breaking
+   anything that doesn't have a corresponding pixel glyph.
+
+   Pixel icon set: Pixelarticons by Gerrit Halfmann, MIT-licensed
+   (https://pixelarticons.com/). A copy of the LICENSE text ships next
+   to the SVGs in `public/assets/skins/sdr-001/icons/LICENSE.txt`.
+   -------------------------------------------------------------------------- */
+
+[data-skin="sdr-001"] .control-btn > svg,
+[data-skin="sdr-001"] .mini-control-btn > svg,
+[data-skin="sdr-001"] .control-btn > .icon,
+[data-skin="sdr-001"] .control-btn .icon-component {
+  display: none !important;
+}
+
+[data-skin="sdr-001"] .control-btn::before,
+[data-skin="sdr-001"] .mini-control-btn::before {
+  content: '';
+  display: block;
+  width: 22px;
+  height: 22px;
+  background: currentColor;
+  -webkit-mask-repeat: no-repeat;
+          mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+          mask-position: center;
+  -webkit-mask-size: contain;
+          mask-size: contain;
+}
+
+[data-skin="sdr-001"] .control-btn.mic-btn::before,
+[data-skin="sdr-001"] .mini-control-btn:not(.deafened):not(.leave)::before {
+  -webkit-mask-image: url('/assets/skins/sdr-001/icons/mic.svg');
+          mask-image: url('/assets/skins/sdr-001/icons/mic.svg');
+}
+[data-skin="sdr-001"] .control-btn.mic-btn.muted::before,
+[data-skin="sdr-001"] .mini-control-btn.muted::before {
+  -webkit-mask-image: url('/assets/skins/sdr-001/icons/mic-off.svg');
+          mask-image: url('/assets/skins/sdr-001/icons/mic-off.svg');
+}
+
+[data-skin="sdr-001"] .control-btn.headphones-btn::before {
+  -webkit-mask-image: url('/assets/skins/sdr-001/icons/volume-3.svg');
+          mask-image: url('/assets/skins/sdr-001/icons/volume-3.svg');
+}
+[data-skin="sdr-001"] .control-btn.headphones-btn.deafened::before,
+[data-skin="sdr-001"] .mini-control-btn.deafened::before {
+  -webkit-mask-image: url('/assets/skins/sdr-001/icons/volume.svg');
+          mask-image: url('/assets/skins/sdr-001/icons/volume.svg');
+}
+
+[data-skin="sdr-001"] .control-btn.video-btn::before {
+  -webkit-mask-image: url('/assets/skins/sdr-001/icons/video.svg');
+          mask-image: url('/assets/skins/sdr-001/icons/video.svg');
+}
+
+[data-skin="sdr-001"] .control-btn.screen-btn::before {
+  -webkit-mask-image: url('/assets/skins/sdr-001/icons/share.svg');
+          mask-image: url('/assets/skins/sdr-001/icons/share.svg');
+}
+
+[data-skin="sdr-001"] .control-btn.spatial-btn::before {
+  -webkit-mask-image: url('/assets/skins/sdr-001/icons/grid-2x2-2.svg');
+          mask-image: url('/assets/skins/sdr-001/icons/grid-2x2-2.svg');
+}
+
+[data-skin="sdr-001"] .control-btn.settings-btn::before {
+  -webkit-mask-image: url('/assets/skins/sdr-001/icons/settings-2.svg');
+          mask-image: url('/assets/skins/sdr-001/icons/settings-2.svg');
+}
+
+[data-skin="sdr-001"] .control-btn.participants-btn::before {
+  -webkit-mask-image: url('/assets/skins/sdr-001/icons/users.svg');
+          mask-image: url('/assets/skins/sdr-001/icons/users.svg');
+}
+
+[data-skin="sdr-001"] .control-btn.expand-btn::before {
+  -webkit-mask-image: url('/assets/skins/sdr-001/icons/expand.svg');
+          mask-image: url('/assets/skins/sdr-001/icons/expand.svg');
+}
+
+[data-skin="sdr-001"] .control-btn.minimize-btn::before {
+  -webkit-mask-image: url('/assets/skins/sdr-001/icons/menu.svg');
+          mask-image: url('/assets/skins/sdr-001/icons/menu.svg');
+}
+
+[data-skin="sdr-001"] .control-btn.leave-btn::before,
+[data-skin="sdr-001"] .mini-control-btn.leave::before {
+  -webkit-mask-image: url('/assets/skins/sdr-001/icons/phone.svg');
+          mask-image: url('/assets/skins/sdr-001/icons/phone.svg');
+}
+
+/* User profile bar: NotificationBell + Mic + Headphones + Settings,
+   four .icon-button divs in fixed order. We can rely on :nth-of-type
+   here since the HTML structure is stable in `UserProfileComponent.vue`. */
+[data-skin="sdr-001"] .profile-bar-buttons .icon-button > svg,
+[data-skin="sdr-001"] .profile-bar-buttons .icon-button .icon-component,
+[data-skin="sdr-001"] .profile-bar-buttons .icon-button :deep(svg) {
+  display: none !important;
+}
+[data-skin="sdr-001"] .profile-bar-buttons .icon-button {
+  position: relative;
+}
+[data-skin="sdr-001"] .profile-bar-buttons .icon-button::before {
+  content: '';
+  display: block;
+  width: 18px;
+  height: 18px;
+  background: currentColor;
+  -webkit-mask: no-repeat center / contain;
+          mask: no-repeat center / contain;
+}
+[data-skin="sdr-001"] .profile-bar-buttons .icon-button:nth-child(1)::before {
+  -webkit-mask-image: url('/assets/skins/sdr-001/icons/bell.svg');
+          mask-image: url('/assets/skins/sdr-001/icons/bell.svg');
+}
+[data-skin="sdr-001"] .profile-bar-buttons .icon-button:nth-child(2)::before {
+  -webkit-mask-image: url('/assets/skins/sdr-001/icons/mic.svg');
+          mask-image: url('/assets/skins/sdr-001/icons/mic.svg');
+}
+[data-skin="sdr-001"] .profile-bar-buttons .icon-button:nth-child(2).muted::before {
+  -webkit-mask-image: url('/assets/skins/sdr-001/icons/mic-off.svg');
+          mask-image: url('/assets/skins/sdr-001/icons/mic-off.svg');
+}
+[data-skin="sdr-001"] .profile-bar-buttons .icon-button:nth-child(3)::before {
+  -webkit-mask-image: url('/assets/skins/sdr-001/icons/volume-3.svg');
+          mask-image: url('/assets/skins/sdr-001/icons/volume-3.svg');
+}
+[data-skin="sdr-001"] .profile-bar-buttons .icon-button:nth-child(3).muted::before {
+  -webkit-mask-image: url('/assets/skins/sdr-001/icons/volume.svg');
+          mask-image: url('/assets/skins/sdr-001/icons/volume.svg');
+}
+[data-skin="sdr-001"] .profile-bar-buttons .icon-button:nth-child(4)::before {
+  -webkit-mask-image: url('/assets/skins/sdr-001/icons/settings-2.svg');
+          mask-image: url('/assets/skins/sdr-001/icons/settings-2.svg');
+}
+
+/* ----------------------------------------------------------------------------
+   19. Voice dock - tactical strip redesign
+   --------------------------------------------------------------------------
+   Current default: floating glass pill with the user info on the left,
+   round controls in the middle. SDR-001 makes it a flush bottom HUD bar
+   with bigger square buttons + a STATS panel on the left showing
+   callsign / channel / fake transmission status.
+   -------------------------------------------------------------------------- */
+
+[data-skin="sdr-001"] .unified-voice-dock .dock-container {
+  display: flex !important;
+  align-items: stretch !important;
+  gap: 0 !important;
+  padding: 0 !important;
+  height: 56px;
+}
+
+/* Left "subject identity" panel inside the dock - everything before the
+   button cluster gets pulled into a flex item with a red right border. */
+[data-skin="sdr-001"] .unified-voice-dock .dock-container > *:first-child {
+  border-right: 1px solid rgba(220, 20, 60, 0.45);
+  padding: 0 14px;
+  display: flex;
+  align-items: center;
+  background: linear-gradient(180deg, rgba(220, 20, 60, 0.08), transparent);
+}
+
+/* Make button cluster a clean horizontal strip of square HUD chips. */
+[data-skin="sdr-001"] .unified-voice-dock .control-btn,
+[data-skin="sdr-001"] .unified-voice-dock .mini-control-btn {
+  width: 44px !important;
+  height: 44px !important;
+  margin: 6px 4px !important;
+}
+
+/* Voice channel name in the dock = uppercase + tracked-out callsign. */
+[data-skin="sdr-001"] .unified-voice-dock .channel-name {
+  font-family: 'NoRe Sans Pixel Pro', monospace !important;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: #fff !important;
+}
+[data-skin="sdr-001"] .unified-voice-dock .channel-name::before {
+  content: 'COMMS // ';
+  color: rgba(220, 20, 60, 0.85);
+}
+
+/* ----------------------------------------------------------------------------
+   20. Voice overlay - tactical comms console
+   --------------------------------------------------------------------------
+   The maximised voice chat panel. The default "voice chat • 1 participant"
+   header reads as a comms read-out, the participant card gets target
+   reticle marks at its corners (already in section 12), and the bottom
+   control bar becomes a HUD strip flush with the panel.
+   -------------------------------------------------------------------------- */
+
+/* Header treatment - the icon + title becomes a transmission read-out. */
+[data-skin="sdr-001"] .voice-overlay header,
+[data-skin="sdr-001"] .unified-voice-overlay header,
+[data-skin="sdr-001"] .voice-overlay .overlay-header,
+[data-skin="sdr-001"] .unified-voice-overlay .overlay-header {
+  border-bottom: 1px solid rgba(220, 20, 60, 0.55) !important;
+  background: linear-gradient(180deg, rgba(220, 20, 60, 0.08), transparent) !important;
+}
+[data-skin="sdr-001"] .voice-overlay header h1,
+[data-skin="sdr-001"] .voice-overlay header h2,
+[data-skin="sdr-001"] .voice-overlay header h3,
+[data-skin="sdr-001"] .unified-voice-overlay header h1,
+[data-skin="sdr-001"] .unified-voice-overlay header h2,
+[data-skin="sdr-001"] .unified-voice-overlay header h3 {
+  font-family: 'NoRe Sans Pixel Pro', monospace !important;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  text-shadow: 0 0 8px rgba(220, 20, 60, 0.45);
+}
+[data-skin="sdr-001"] .voice-overlay header h1::before,
+[data-skin="sdr-001"] .voice-overlay header h2::before,
+[data-skin="sdr-001"] .unified-voice-overlay header h1::before,
+[data-skin="sdr-001"] .unified-voice-overlay header h2::before {
+  content: '▶ TRANSMISSION // ';
+  color: rgba(220, 20, 60, 0.85);
+}
+
+/* Participant tile target reticle marks - sit at the four corners of
+   the card so it reads as a "subject locked" frame. */
+[data-skin="sdr-001"] .harmony-voice-card {
+  position: relative;
+}
+[data-skin="sdr-001"] .harmony-voice-card .avatar-frame::before,
+[data-skin="sdr-001"] .harmony-voice-card .avatar-frame::after {
+  content: '';
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(220, 20, 60, 0.85);
+  pointer-events: none;
+  filter: drop-shadow(0 0 4px rgba(220, 20, 60, 0.45));
+}
+[data-skin="sdr-001"] .harmony-voice-card .avatar-frame::before {
+  top: -8px; left: -8px; border-right: 0; border-bottom: 0;
+}
+[data-skin="sdr-001"] .harmony-voice-card .avatar-frame::after {
+  bottom: -8px; right: -8px; border-left: 0; border-top: 0;
+}
+
+/* ----------------------------------------------------------------------------
+   21. User profile - character status panel (game-UI feel)
+   --------------------------------------------------------------------------
+   The bottom-of-sidebar avatar+name+icons row. With section 17's panel
+   chrome already in place, this section restructures the inner layout
+   into a portrait + readout grid with a subtle "scanline" decoration
+   behind the avatar to feel like a CRT character readout.
+   -------------------------------------------------------------------------- */
+
+/* Avatar gets a hard portrait frame with scanlines behind. */
+[data-skin="sdr-001"] .user-profile .avatar-wrapper {
+  position: relative;
+  background: rgba(220, 20, 60, 0.08);
+}
+[data-skin="sdr-001"] .user-profile .avatar-wrapper::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(220, 20, 60, 0.18) 0px,
+    rgba(220, 20, 60, 0.18) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+  mix-blend-mode: screen;
+  border-radius: inherit;
+}
+
+/* Decorative HUD targeting brackets framing the avatar. */
+[data-skin="sdr-001"] .user-profile .avatar-wrapper::before {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  pointer-events: none;
+  border: 1px solid rgba(220, 20, 60, 0.55);
+  background:
+    linear-gradient(to right, rgba(220, 20, 60, 0.85) 0%, rgba(220, 20, 60, 0.85) 6px, transparent 6px) top left / 6px 1px no-repeat,
+    linear-gradient(to bottom, rgba(220, 20, 60, 0.85) 0%, rgba(220, 20, 60, 0.85) 6px, transparent 6px) top left / 1px 6px no-repeat,
+    linear-gradient(to left, rgba(220, 20, 60, 0.85) 0%, rgba(220, 20, 60, 0.85) 6px, transparent 6px) bottom right / 6px 1px no-repeat,
+    linear-gradient(to top, rgba(220, 20, 60, 0.85) 0%, rgba(220, 20, 60, 0.85) 6px, transparent 6px) bottom right / 1px 6px no-repeat;
+}
+
+/* Name reads bigger / heavier - it's the focal element of the panel. */
+[data-skin="sdr-001"] .user-profile .user-name {
+  font-size: 13px !important;
+  line-height: 1.1;
+  margin-bottom: 2px;
+}
+
+/* Drop the chevron next to the status - it visually clutters the panel.
+   The actual click target stays since we only hide the SVG. */
+[data-skin="sdr-001"] .user-profile .user-status-container .dropdown-arrow {
+  display: none !important;
 }
