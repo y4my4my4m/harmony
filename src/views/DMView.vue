@@ -339,34 +339,49 @@ const handleIncomingCall = (payload: { callerId: string, callType: 'voice' | 'vi
 
 const handleAcceptCall = async (acceptWithVideo: boolean) => {
   if (!incomingCall.value) return
-  
+
+  // Snapshot the call info BEFORE we clear it, so we still have the IDs
+  // to work with after dismissing the modal.
+  const acceptedCall = incomingCall.value
+
+  // Optimistically dismiss the incoming-call modal and surface the voice
+  // overlay immediately. `voiceStore.isConnecting` (which the overlay
+  // already reacts to) handles the loading affordance while the join
+  // round-trip happens in the background, so the UI no longer freezes
+  // on the old "Incoming call" sheet for several seconds.
+  showIncomingCallModal.value = false
+  incomingCall.value = null
+  voiceStore.isOverlayVisible = true
+
   try {
     const { authContextService } = await import('@/services/AuthContextService')
     const profileId = await authContextService.getCurrentProfileId()
-    if (!profileId) return
-    
+    if (!profileId) {
+      voiceStore.isOverlayVisible = false
+      toast.error('Authentication required')
+      return
+    }
+
     // Send accept signal (must use profile ID to match leaveCall)
-    await dmCallSignaling.acceptCall(incomingCall.value.conversationId, profileId)
-    
+    await dmCallSignaling.acceptCall(acceptedCall.conversationId, profileId)
+
     // Join the voice channel
-    const dmChannelId = `dm-${incomingCall.value.conversationId}`
+    const dmChannelId = `dm-${acceptedCall.conversationId}`
     const success = await voiceStore.joinVoiceChannel(dmChannelId, 'dm')
-    
+
     if (success) {
-      // Enable video if accepting with video
       if (acceptWithVideo) {
         await voiceStore.toggleVideo()
       }
-      
       toast.success('Joined call')
-      voiceStore.isOverlayVisible = true
+    } else {
+      voiceStore.isOverlayVisible = false
+      toast.error('Failed to join call')
     }
   } catch (error) {
     debug.error('Error accepting call:', error)
+    voiceStore.isOverlayVisible = false
     toast.error('Failed to join call')
-  } finally {
-    showIncomingCallModal.value = false
-    incomingCall.value = null
   }
 }
 

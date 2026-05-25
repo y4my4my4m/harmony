@@ -537,6 +537,22 @@ watch(() => props.section, (newSection) => {
   }
 }, { immediate: true })
 
+// Escape closes the settings view (matches mobile/desktop close-button
+// behavior). Bound to keydown so it fires regardless of which child input
+// currently has focus.
+const handleSettingsKeydown = (event: KeyboardEvent) => {
+  if (event.key !== 'Escape') return
+  // If an input/textarea/contenteditable currently has focus AND it has
+  // unsubmitted text, the user probably wanted to clear the field, not
+  // close the entire settings view. Browsers handle that case for us in
+  // <select> dropdowns; for free-text fields we still close because the
+  // user can re-open the settings, but we make sure we're not stealing
+  // Escape from a modal that has it open on top of us.
+  const target = event.target as HTMLElement | null
+  if (target?.closest('.modal-overlay')) return
+  closeSettings()
+}
+
 // Lifecycle
 onMounted(async () => {
   // Setup resize listener with SSR safety
@@ -548,6 +564,8 @@ onMounted(async () => {
     window.addEventListener('touchstart', onSettingsTouchStart, { passive: true })
     window.addEventListener('touchmove', onSettingsTouchMove, { passive: false })
     window.addEventListener('touchend', onSettingsTouchEnd, { passive: true })
+
+    document.addEventListener('keydown', handleSettingsKeydown)
   }
 
   // Validate and set initial section
@@ -581,6 +599,7 @@ onUnmounted(() => {
     window.removeEventListener('touchstart', onSettingsTouchStart)
     window.removeEventListener('touchmove', onSettingsTouchMove)
     window.removeEventListener('touchend', onSettingsTouchEnd)
+    document.removeEventListener('keydown', handleSettingsKeydown)
   }
 })
 </script>

@@ -840,13 +840,20 @@
             didAttemptSend = true;
             const sendOutcome = await sendChannelOrDMWithEncryptionPolicy(messageParts, replyMessageId)
 
-            // Only clear the input / draft / reply state if the message
-            // actually went through. On 'declined' (encryption cancel) or
+            // Only clear the draft / reply state if the message actually
+            // went through. On 'declined' (encryption cancel) or
             // 'no-context' (missing channel/conversation/user - rare race),
             // keep the text and the reply target so the user can retry.
+            //
+            // NOTE: we do NOT touch `messageContent.value` here. MessageInput
+            // already cleared the input synchronously when the user pressed
+            // Enter (via `update:modelValue`). Setting it to '' a second time
+            // _after_ the server roundtrip would wipe whatever the user has
+            // typed in the meantime - reported as a chat-input bug.
             if (sendOutcome === 'ok') {
-              messageContent.value = '';
-              if (draftKey.value) draftsStore.clearDraft(draftKey.value);
+              if (draftKey.value && !messageContent.value.trim()) {
+                draftsStore.clearDraft(draftKey.value);
+              }
               handleDontReply();
             }
           }
