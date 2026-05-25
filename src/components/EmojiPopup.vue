@@ -348,10 +348,17 @@ const isSectionCollapsed = (id: string) => {
 // --- Composables ---
 
 const triggerElementRef = computed(() => props.triggerElement || null);
+// `zIndex: 99999` here is the actual fix for the StatusPicker case: the
+// popup teleports to <body>, but so does StatusPicker's modal overlay
+// (z-index 1100). The composable used to inline `zIndex: 1050`, which
+// overrode our scoped CSS rule and put the popup behind the modal.
+// Passing it explicitly through the composable keeps it above every
+// modal in the app while leaving the default 1050 untouched for the
+// other consumers (MediaPickerPopup, GifComponent, AutoSuggest).
 const { positionStyle, updatePosition } = usePopupPositioning(
   triggerElementRef,
   { width: 320, height: 400 },
-  { position: props.position },
+  { position: props.position, zIndex: 99999 },
 );
 
 // --- Computed ---
@@ -984,7 +991,16 @@ watch(
   border: 1px solid var(--border-color);
   border-radius: 8px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
-  z-index: 1000;
+  /*
+   * The popup is teleported to <body>, so it doesn't compete with any
+   * in-page stacking context. Pick a value high enough to sit above
+   * every modal in the app:
+   *   - .status-modal-overlay (StatusPicker) is 1100
+   *   - .modal-overlay (UnifiedModal / BaseModal) is up to ~2000
+   * 99999 leaves headroom for future modals + any toasts (Vue
+   * Toastification's default is 9999) without touching this again.
+   */
+  z-index: 99999;
   display: flex;
   flex-direction: column;
   backdrop-filter: blur(10px);
