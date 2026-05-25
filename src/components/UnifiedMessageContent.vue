@@ -1181,6 +1181,10 @@ export default defineComponent({
 .text-content :deep(.md-blockquote) {
   border-left: 4px solid var(--background-modifier-accent, #4f545c);
   padding: 2px 0 2px 12px;
+  user-select: text;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
   margin: 2px 0;
   color: var(--text-secondary);
 }
@@ -1192,6 +1196,10 @@ export default defineComponent({
 
 .text-content :deep(.md-greentext) {
   color: #789922;
+  user-select: text;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
 }
 
 /* Code blocks are now handled by the CodeBlock component */

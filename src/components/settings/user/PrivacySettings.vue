@@ -290,117 +290,43 @@
     <!-- Privacy Settings -->
     <div class="settings-section">
       <h3 class="section-title">Direct Messages</h3>
-      
-      <div class="setting-item">
+
+      <div class="setting-item disabled-option">
         <div class="setting-info">
-          <h4 class="setting-label">Allow direct messages from server members</h4>
+          <h4 class="setting-label">
+            Allow direct messages from server members
+            <span class="coming-soon-badge">Coming soon</span>
+          </h4>
           <p class="setting-description">
-            This setting is applied to all servers. You can override this for individual servers.
+            When enabled, members of servers you share will be able to DM you. When this preference is wired up, you'll be able to override it per-server.
           </p>
         </div>
         <div class="setting-control">
-          <ToggleSwitch 
+          <ToggleSwitch
             v-model="settings.allowDMFromServerMembers"
-            @change="onSettingChange"
+            disabled
           />
         </div>
       </div>
 
-      <div class="setting-item">
+      <div class="setting-item disabled-option">
         <div class="setting-info">
-          <h4 class="setting-label">Allow direct messages from friends</h4>
+          <h4 class="setting-label">
+            Allow direct messages from people you follow
+            <span class="coming-soon-badge">Coming soon</span>
+          </h4>
           <p class="setting-description">
-            Allow friends to send you direct messages.
+            Restrict who can DM you to accounts you follow (locally or across the fediverse).
           </p>
         </div>
         <div class="setting-control">
-          <ToggleSwitch 
-            v-model="settings.allowDMFromFriends"
-            @change="onSettingChange"
+          <ToggleSwitch
+            v-model="settings.allowDMFromFollows"
+            disabled
           />
         </div>
       </div>
     </div>
-
-    <div class="settings-section">
-      <h3 class="section-title">Friend Requests</h3>
-      
-      <div class="setting-item">
-        <div class="setting-info">
-          <h4 class="setting-label">Allow friend requests</h4>
-          <p class="setting-description">
-            If disabled, no one will be able to send you friend requests.
-          </p>
-        </div>
-        <div class="setting-control">
-          <ToggleSwitch 
-            v-model="settings.allowFriendRequests"
-            @change="onSettingChange"
-          />
-        </div>
-      </div>
-
-      <div class="setting-item">
-        <div class="setting-info">
-          <h4 class="setting-label">Allow friend requests from server members</h4>
-          <p class="setting-description">
-            Allow members of servers you're in to send friend requests.
-          </p>
-        </div>
-        <div class="setting-control">
-          <ToggleSwitch 
-            v-model="settings.allowFriendRequestsFromServerMembers"
-            @change="onSettingChange"
-          />
-        </div>
-      </div>
-    </div>
-    <!-- Maybe someday we integrate friends. Should probably just be morphed into follow request rules config spot -->
-    <!-- <div class="settings-section">
-      <h3 class="section-title">Who Can Add You As A Friend</h3>
-      
-      <div class="radio-group">
-        <label class="radio-option">
-          <input
-            v-model="settings.friendRequestSetting"
-            type="radio"
-            value="everyone"
-            @change="onSettingChange"
-          />
-          <span class="radio-label">Everyone</span>
-        </label>
-        
-        <label class="radio-option">
-          <input
-            v-model="settings.friendRequestSetting"
-            type="radio"
-            value="friends-of-friends"
-            @change="onSettingChange"
-          />
-          <span class="radio-label">Friends of Friends</span>
-        </label>
-        
-        <label class="radio-option">
-          <input
-            v-model="settings.friendRequestSetting"
-            type="radio"
-            value="server-members"
-            @change="onSettingChange"
-          />
-          <span class="radio-label">Server Members</span>
-        </label>
-        
-        <label class="radio-option">
-          <input
-            v-model="settings.friendRequestSetting"
-            type="radio"
-            value="no-one"
-            @change="onSettingChange"
-          />
-          <span class="radio-label">No One</span>
-        </label>
-      </div>
-    </div> -->
 
     <div class="settings-section">
       <h3 class="section-title">Data & Privacy</h3>
@@ -413,9 +339,9 @@
           </p>
         </div>
         <div class="setting-control">
-          <ToggleSwitch 
+          <ToggleSwitch
             v-model="settings.stripUrlTrackers"
-            @change="onSettingChange"
+            @change="onUrlStripChange"
           />
         </div>
       </div>
@@ -644,12 +570,15 @@ const isDisable2FACodeValid = computed(() => {
 })
 
 // Privacy State
+//
+// `allowDMFromServerMembers` and `allowDMFromFollows` are visible in the UI
+// but currently flagged as "Coming soon" — there is no DB column for either
+// (the `notification_preferences` table does not store them) and no
+// server-side gate consumes them yet. Keep them in state so when we do
+// wire them up, persisting works straight away.
 const settings = ref({
   allowDMFromServerMembers: true,
-  allowDMFromFriends: true,
-  allowFriendRequests: true,
-  allowFriendRequestsFromServerMembers: true,
-  friendRequestSetting: 'everyone' as 'everyone' | 'friends-of-friends' | 'server-members' | 'no-one',
+  allowDMFromFollows: true,
   stripUrlTrackers: true, // Default ON
 })
 
@@ -668,6 +597,15 @@ const hasChanges = computed(() => {
 // Methods
 const onSettingChange = () => {
   // Settings changed, enable save button
+}
+
+// The URL-tracker toggle persists to localStorage and is read by the
+// message-send pipeline (`unifiedContentProcessing.ts`) on every send.
+// Apply it immediately on toggle so users see the effect on the very
+// next message, rather than only after pressing Save Changes.
+const onUrlStripChange = () => {
+  setUrlTrackingStrippingEnabled(settings.value.stripUrlTrackers)
+  originalSettings.value.stripUrlTrackers = settings.value.stripUrlTrackers
 }
 
 const saveSettings = () => {
@@ -1218,30 +1156,12 @@ onMounted(async () => {
     blocksMutesLastFetchedAt = Date.now()
   }
 
-  if (profileId) {
-    // Load notification preferences for privacy settings
-    try {
-      const { data: prefs } = await supabase
-        .from('notification_preferences')
-        .select('*')
-        .eq('user_id', profileId)
-        .single()
-
-      if (prefs) {
-        if (prefs.allow_dm_from_server_members !== undefined)
-          settings.value.allowDMFromServerMembers = prefs.allow_dm_from_server_members
-        if (prefs.allow_dm_from_friends !== undefined)
-          settings.value.allowDMFromFriends = prefs.allow_dm_from_friends
-        if (prefs.allow_friend_requests !== undefined)
-          settings.value.allowFriendRequests = prefs.allow_friend_requests
-      }
-    } catch (e) {
-      debug.error('Failed to load notification preferences:', e)
-    }
-  }
+  // The DM-from-server-members / DM-from-follows preferences will be loaded
+  // from `notification_preferences` once the columns are added; for now the
+  // toggles are disabled UI placeholders so we skip the read.
 
   originalSettings.value = { ...settings.value }
-  
+
   // Check 2FA status
   check2FAStatus()
 })
@@ -1309,6 +1229,25 @@ onMounted(async () => {
   font-weight: 500;
   color: var(--text-primary);
   margin: 0 0 4px 0;
+}
+
+.coming-soon-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
+  vertical-align: middle;
+  margin-left: 6px;
+}
+
+.setting-item.disabled-option .setting-label,
+.setting-item.disabled-option .setting-description {
+  opacity: 0.65;
 }
 
 .setting-description {

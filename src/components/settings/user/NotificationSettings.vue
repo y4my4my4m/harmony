@@ -400,23 +400,26 @@
 
     <!-- Email Notifications Section -->
     <div class="settings-section">
-      <h3 class="section-title">Email Notifications</h3>
+      <h3 class="section-title">
+        Email Notifications
+        <span class="coming-soon-badge">Coming soon</span>
+      </h3>
       <p class="section-description">Configure email digests and summaries</p>
-      
-      <div class="setting-item">
+
+      <div class="setting-item disabled-option">
         <div class="setting-info">
           <h4 class="setting-label">Email Notifications</h4>
           <p class="setting-description">Receive email summaries of activity</p>
         </div>
         <div class="setting-control">
-          <ToggleSwitch 
+          <ToggleSwitch
             v-model="preferences.email_notifications"
-            @change="updatePreferences"
+            disabled
           />
         </div>
       </div>
 
-      <div v-if="preferences.email_notifications" class="setting-item">
+      <div v-if="false" class="setting-item">
         <div class="setting-info">
           <h4 class="setting-label">Email Digest Frequency</h4>
           <p class="setting-description">How often to send email summaries</p>
@@ -966,8 +969,8 @@ const createTestNotificationData = (type: NotificationType) => {
       avatar: '/default_server.webp'
     },
     friend_request: {
-      title: 'Test Friend Request',
-      message: 'Someone sent you a friend request',
+      title: 'Test Follow Request',
+      message: 'Someone wants to follow you',
       avatar: userData.getUserAvatarUrlCurrent
     },
     server_update: {
@@ -1217,6 +1220,25 @@ watch(() => notificationStore.preferences, (newPreferences) => {
   align-items: center;
   justify-content: space-between;
   margin-bottom: 20px;
+}
+
+.coming-soon-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
+  vertical-align: middle;
+  margin-left: 6px;
+}
+
+.setting-item.disabled-option .setting-label,
+.setting-item.disabled-option .setting-description {
+  opacity: 0.65;
 }
 
 .section-title {

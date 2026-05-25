@@ -216,7 +216,59 @@ export const useReactionsStore = defineStore('reactions', () => {
   }
 
   /**
-   * Schedule a single reconcile (fetch real data + clear optimistic).
+   * Merge the latest server-side reaction data into the optimistic array
+   * for `messageId` IN PLACE. This is the key trick that makes the
+   * optimistic-to-real handover invisible: instead of replacing the
+   * array (which can run leave/enter animations on Vue's `<TransitionGroup>`
+   * if any key diverges between the optimistic and real shapes), we
+   * mutate the existing groups so the same DOM nodes stay mounted and
+   * only their inner counts/reactions arrays change.
+   *
+   * Returns true if the optimistic array was synced (and so the
+   * computed will keep returning optimistic), false if there was no
+   * optimistic state in the first place.
+   */
+  function getReactionGroupKey(g: ReactionGroup): string {
+    return (g as any).emoji_id || (g as any).emoji?.name || (g as any).emoji?.content || 'unknown'
+  }
+
+  function syncOptimisticToReal(messageId: string): boolean {
+    const optimistic = optimisticReactions.value.get(messageId)
+    if (!optimistic) return false
+    const real = reactionsByMessage.value.get(messageId) || []
+
+    const realByKey = new Map<string, ReactionGroup>()
+    for (const g of real) realByKey.set(getReactionGroupKey(g), g)
+
+    // 1. Drop optimistic groups that no longer exist on the server.
+    for (let i = optimistic.length - 1; i >= 0; i--) {
+      if (!realByKey.has(getReactionGroupKey(optimistic[i]))) {
+        optimistic.splice(i, 1)
+      }
+    }
+
+    // 2. Update existing optimistic groups in place + append new ones.
+    const optByKey = new Map<string, ReactionGroup>()
+    for (const g of optimistic) optByKey.set(getReactionGroupKey(g), g)
+
+    for (const realG of real) {
+      const key = getReactionGroupKey(realG)
+      const optG = optByKey.get(key)
+      if (optG) {
+        // Mutate: same object reference, same Vue-tracked identity.
+        ;(optG as any).count = (realG as any).count
+        ;(optG as any).reactions = (realG as any).reactions
+        ;(optG as any).emoji = (realG as any).emoji
+        ;(optG as any).emoji_id = (realG as any).emoji_id
+      } else {
+        optimistic.push(realG)
+      }
+    }
+    return true
+  }
+
+  /**
+   * Schedule a single reconcile (fetch real data + sync optimistic in place).
    * Deduplicates: if one is already pending for this message, skips.
    */
   function scheduleReconcile(messageId: string, delayMs: number): void {
@@ -226,7 +278,17 @@ export const useReactionsStore = defineStore('reactions', () => {
       pendingReconcileTimeouts.delete(messageId)
       lastFetched.value.delete(messageId)
       await fetchMessageReactions(messageId, true)
-      optimisticReactions.value.delete(messageId)
+      // Sync the latest server-side data INTO the existing optimistic
+      // array (mutating in place) instead of replacing the array. This
+      // keeps Vue's `<TransitionGroup>` from running leave→enter on
+      // chips that already exist, eliminating the brief "disappear,
+      // reappear" flicker users were seeing on every reaction toggle.
+      const synced = syncOptimisticToReal(messageId)
+      if (!synced) {
+        // Defensive: nothing was optimistic, but the fetch above already
+        // populated `reactionsByMessage`, so the computed already returns
+        // the latest data. Nothing else to do.
+      }
     }, delayMs)
 
     pendingReconcileTimeouts.set(messageId, timeoutId)

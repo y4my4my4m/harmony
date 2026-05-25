@@ -109,6 +109,7 @@
           @touchstart.passive="handleMessageTouchStart(item.message.id, $event)"
           @touchend.passive="handleMessageTouchEnd"
           @touchmove.passive="handleMessageTouchMove"
+          @contextmenu="handleMessageContextMenu(item.message, $event)"
         >
           <!-- Hide button for revealed blocked messages -->
           <div v-if="item.isRevealed && item.isFirstInRevealedGroup" class="revealed-blocked-banner">
@@ -2894,6 +2895,26 @@ const openContextMenu = (message: Message, event: MouseEvent) => {
     y: event.clientY
   };
   contextMenuVisible.value = true;
+};
+
+// Native right-click on a message row opens the same context menu the
+// "more" button does. We deliberately let the browser's native menu
+// take over for media (images, video, audio) and links so users can
+// still "Save image as", "Copy link address", etc. — that matches
+// Discord/Slack behaviour.
+const handleMessageContextMenu = (message: Message, event: MouseEvent) => {
+  const target = event.target as HTMLElement | null;
+  if (target?.closest('a, img, video, audio, [data-no-context-menu]')) {
+    return;
+  }
+  // Don't intercept right-clicks while a text selection is active —
+  // browsers expose the standard "Copy" menu for selected text and
+  // overriding it would hide that affordance.
+  const selection = window.getSelection?.();
+  if (selection && !selection.isCollapsed && selection.toString().length > 0) {
+    return;
+  }
+  openContextMenu(message, event);
 };
 
 const closeContextMenu = () => {

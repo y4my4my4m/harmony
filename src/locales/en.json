@@ -478,7 +478,7 @@
     "searchUsers": "Search users...",
     "searchUsersPlaceholder": "Search users or {'@'}user{'@'}domain.com",
     "noConversations": "No conversations yet",
-    "startOne": "Start chatting with friends",
+    "startOne": "Start chatting with someone",
     "startBySearching": "Start a conversation by searching for a user above",
     "loadingConversations": "Loading conversations...",
     "noUsersFound": "No users found",

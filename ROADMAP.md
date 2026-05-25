@@ -73,6 +73,16 @@ These ship before anything else. Most have a corresponding entry in `BUGS.md`.
 15. **Sender Keys for group encryption.**
     `SignalProtocolService.ts` uses a per-member encrypt path that does not scale. Sender Keys (Signal style) is the standard answer for group chat at scale.
 
+## Public-release follow-ups
+
+These were uncovered while preparing the public release and are in flight:
+
+- **Account self-deletion.** The Advanced Settings "Delete Account" button is currently disabled with a "Coming soon" badge. Implementing it requires an AAL2 step-up flow + a `delete_user_account` RPC that cascades through `profiles`, `messages`, encryption keys, and federation actor records.
+- **Hardware-acceleration override.** Currently disabled in the UI; the toggle exists but there is no read site. Wire it to the Tauri WebView HW-acceleration API (web has no equivalent) and persist via `userStorage`.
+- **Email digests / summaries.** UI is disabled with "Coming soon"; needs an email backend + the `email_*` columns on `notification_preferences` (already present) wired through `send_notification`.
+- **DM permission gates.** "Allow direct messages from server members" / "Allow direct messages from people you follow" toggles currently render as "Coming soon" placeholders. They need columns on `notification_preferences` + server-side enforcement in the DM-send path.
+- **Trusted-instance behavior.** `federated_instances.is_trusted` is currently a UI badge + a list filter. Federation-backend gating (queue priority, relaxed rate limits, lighter content sanitization) is documented as a roadmap goal but not yet implemented.
+
 ## Code-quality & technical debt
 
 - Prefer the structured `debug` logger over raw `console.*` in app code; periodic audits help.
