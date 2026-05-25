@@ -63,4 +63,10 @@ export interface VisualThemeSettings {
    * Set by `applySkin`, consumed by `clearSkin`. Do NOT edit by hand.
    */
   _preSkinSnapshot?: Partial<VisualThemeSettings>
+  /**
+   * Audio theme id captured when a skin with a linked sound pack is applied,
+   * so `clearSkin` can restore the user's prior selection. Persisted in
+   * `appearance_settings` alongside the skin. Do NOT edit by hand.
+   */
+  _preSkinAudioTheme?: string
 }

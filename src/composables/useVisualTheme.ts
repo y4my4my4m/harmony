@@ -15,8 +15,15 @@ import { useAuthStore } from '@/stores/auth'
 import { useProfileStore } from '@/stores/useProfile'
 import { debug } from '@/utils/debug'
 import { userStorage } from '@/utils/userScopedStorage'
+import { audioThemeService } from '@/services/AudioThemeService'
 import { BUILTIN_SKINS, type Skin } from './skins'
 import type { VisualThemeSettings } from './useVisualTheme.types'
+
+/** Visual skin id → built-in audio theme id (auto-switched with the skin). */
+const SKIN_LINKED_AUDIO_THEMES: Record<string, string> = {
+  'sdr-001': 'neokobe',
+}
+const AUDIO_THEME_WHEN_SKIN_CLEARED = 'harmony'
 
 export type { VisualThemeSettings } from './useVisualTheme.types'
 export { BUILTIN_SKINS, type Skin } from './skins'
@@ -737,6 +744,8 @@ export function useVisualTheme() {
       { deep: true, immediate: false }
     )
     
+    syncLinkedAudioOnInit(settings.value.activeSkinId)
+
     isInitialized.value = true
     debug.log('✅ Visual theme system initialized')
   }
@@ -813,6 +822,44 @@ export function useVisualTheme() {
   }
 
   /**
+   * Switch to the audio theme linked to a visual skin (if any). Snapshots the
+   * user's current audio theme once so `clearSkin` can restore it.
+   */
+  function applySkinLinkedAudioTheme(skinId: string): void {
+    const linkedThemeId = SKIN_LINKED_AUDIO_THEMES[skinId]
+    if (!linkedThemeId) return
+    if (!settings.value._preSkinAudioTheme) {
+      settings.value._preSkinAudioTheme =
+        audioThemeService.getSettings().selectedTheme
+    }
+    void audioThemeService.setTheme(linkedThemeId)
+  }
+
+  /**
+   * Restore the pre-skin audio theme after clearing a linked skin.
+   */
+  function restorePreSkinAudioTheme(): void {
+    const previous = settings.value._preSkinAudioTheme
+    settings.value._preSkinAudioTheme = undefined
+    void audioThemeService.setTheme(previous ?? AUDIO_THEME_WHEN_SKIN_CLEARED)
+  }
+
+  /**
+   * On reload, re-apply linked audio if a skin is active but audio drifted.
+   */
+  function syncLinkedAudioOnInit(activeSkinId: string | null | undefined): void {
+    if (!activeSkinId) return
+    const linkedThemeId = SKIN_LINKED_AUDIO_THEMES[activeSkinId]
+    if (!linkedThemeId) return
+    if (audioThemeService.getSettings().selectedTheme === linkedThemeId) return
+    if (!settings.value._preSkinAudioTheme) {
+      settings.value._preSkinAudioTheme =
+        audioThemeService.getSettings().selectedTheme
+    }
+    void audioThemeService.setTheme(linkedThemeId)
+  }
+
+  /**
    * Capture the values of every key a skin can mutate. Used to take a
    * snapshot before `applySkin` so `clearSkin` can restore them.
    */
@@ -868,6 +915,7 @@ export function useVisualTheme() {
     Object.assign(settings.value, skin.themeOverrides)
     settings.value.activeSkinId = skin.id
     settings.value.customSkinCss = skin.globalCss || ''
+    applySkinLinkedAudioTheme(skin.id)
   }
 
   /**
@@ -892,6 +940,7 @@ export function useVisualTheme() {
     settings.value._preSkinSnapshot = undefined
     settings.value.activeSkinId = null
     settings.value.customSkinCss = ''
+    restorePreSkinAudioTheme()
   }
   
   /**

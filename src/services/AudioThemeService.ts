@@ -271,6 +271,28 @@ export class AudioThemeService {
         // Note: Many sounds will fallback to default theme
       }
     })
+
+    // Neo Kobe — pairs with the SDR-001 visual skin. Partial pack: missing
+    // actions fall back to the default theme via resolveSoundPath().
+    this.registerTheme({
+      id: 'neokobe',
+      name: 'Neo Kobe',
+      description: 'Noir-cyberpunk UI sounds for the SDR-001 skin',
+      author: 'Harmony Team',
+      version: '1.0.0',
+      isBuiltIn: true,
+      preview: '/assets/sounds/neokobe/neokobe-preview.webp',
+      sounds: {
+        dm: '/assets/sounds/neokobe/dm.mp3',
+        reaction: '/assets/sounds/neokobe/reaction.mp3',
+        reply: '/assets/sounds/neokobe/reply.mp3',
+        server_invite: '/assets/sounds/neokobe/invite.mp3',
+        mic_off: '/assets/sounds/neokobe/mic_off.mp3',
+        camera_on: '/assets/sounds/neokobe/camera_on.mp3',
+        screenshare_on: '/assets/sounds/neokobe/screenshare_on.mp3',
+        screenshare_off: '/assets/sounds/neokobe/screenshare_off.mp3',
+      },
+    })
   }
 
   /**
