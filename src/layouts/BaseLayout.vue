@@ -78,8 +78,7 @@
       />
     </div>
 
-    <!-- User Profile at Bottom -->
-    <!-- TODO: fix for mobile -->
+    <!-- User Profile at Bottom (desktop only; mobile uses server rail above) -->
     <div v-if="!isMobile" class="user-profile-section">
       <UserProfileComponent />
     </div>
@@ -1093,16 +1092,10 @@ onBeforeUnmount(() => {
     background: rgba(0, 0, 0, 0.3);
     z-index: 9999;
     display: flex;
-    align-items: center;
+    align-items: flex-end;
     justify-content: center;
-  }
-  .mobile-profile-overlay .user-profile-section {
-    width: 100%;
-    height: auto;
-    padding: 10px;
-    left: 0px;
-    flex-direction: row;
-    justify-content: space-between;
+    padding-bottom: 10px;
+    box-sizing: border-box;
   }
   .user-profile-section {
     position: absolute;

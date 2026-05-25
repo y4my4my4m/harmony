@@ -837,45 +837,52 @@ onBeforeUnmount(() => {
   .mobile-profile-overlay .user-profile {
     position: fixed;
     width: calc(100% - 16px);
-    height: 64px;
+    max-width: calc(100% - 16px);
+    height: auto;
+    min-height: 64px;
     flex-direction: row;
     align-items: center;
-    justify-content: center;
+    justify-content: space-between;
     padding: 10px;
     left: 6px;
     bottom: 10px;
+    top: auto;
+    right: auto;
+    margin: 0;
   }
-  .mobile-profile-overlay .user-profile-section .user-info,
-  .mobile-profile-overlay .user-profile-section .buttons {
+  /* Overlay teleports to #app — profile is not under .user-profile-section */
+  .mobile-profile-overlay .user-info,
+  .mobile-profile-overlay .buttons {
     display: flex;
     align-items: center;
   }
-  .mobile-profile-overlay .user-profile-section .user-info {
+  .mobile-profile-overlay .user-info {
     flex-grow: 1;
     display: flex;
     flex-direction: column;
     justify-content: flex-start;
-    align-items: center;
+    align-items: flex-start;
   }
-  .mobile-profile-overlay .user-profile-section .buttons {
+  .mobile-profile-overlay .buttons {
     gap: 8px;
+    flex-shrink: 0;
   }
-  .mobile-profile-overlay .user-profile-section .buttons .icon-button {
+  .mobile-profile-overlay .buttons .icon-button {
     width: 32px;
     height: 32px;
   }
-  .mobile-profile-overlay .user-profile-section .user-status-container {
+  .mobile-profile-overlay .user-status-container {
     margin-right: 0;
   }
-  .mobile-profile-overlay .user-profile-section .user-name {
+  .mobile-profile-overlay .user-name {
     font-size: 1em;
     color: var(--text-primary);
     margin: 0;
     width: 100%;
     position: relative;
-    left: -12px;
+    left: 0;
   }
-  .mobile-profile-overlay .user-profile-section .status-dropdown {
+  .mobile-profile-overlay .status-dropdown {
     position: fixed;
     width: 95vw;
     bottom: 100px;
@@ -885,28 +892,29 @@ onBeforeUnmount(() => {
     animation: none;
     left: 10px;
   }
-  .mobile-profile-overlay .user-profile-section .status-option {
+  .mobile-profile-overlay .status-option {
     padding: 8px 12px;
     font-size: 0.875rem;
   }
-  .mobile-profile-overlay .user-profile-section .status-option .status-dot {
+  .mobile-profile-overlay .status-option .status-dot {
     width: 8px;
     height: 8px;
     margin-right: 8px;
   }
-  .mobile-profile-overlay .user-profile-section .status-option .status-text {
+  .mobile-profile-overlay .status-option .status-text {
     font-size: 0.875rem;
     flex-grow: 1;
   }
-  .mobile-profile-overlay .user-profile-section .status-option .checkmark {
+  .mobile-profile-overlay .status-option .checkmark {
     font-size: 0.8rem;
   }
-  .mobile-profile-overlay .user-profile-section .status-text {
+  .mobile-profile-overlay .status-text {
     font-size: 0.875rem;
     color: var(--text-secondary);
-    width: 92px;
+    width: auto;
+    max-width: 100%;
   }
-  .mobile-profile-overlay .user-profile-section .status-dot {
+  .mobile-profile-overlay .status-dot {
     width: 8px;
     height: 8px;
     border-radius: 50%;

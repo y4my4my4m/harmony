@@ -876,104 +876,278 @@
    readouts stacked on the right.
    -------------------------------------------------------------------------- */
 
-[data-skin="sdr-001"] .user-profile {
-  margin: 0 !important;
-  padding: 2px 8px 2px !important;
-  border-radius: 0 !important;
-  border-top: 1px solid var(--skin-accent-70);
-  background: linear-gradient(180deg, #0c0c12 0%, #04040a 100%) !important;
-  position: relative;
-  display: grid !important;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  grid-template-rows: 11px minmax(44px, auto) 11px;
-  align-items: center;
-  column-gap: 8px;
-  row-gap: 0;
-  width: 100% !important;
-  max-width: 100%;
-  height: auto !important;
-  min-height: 68px;
-  overflow: hidden;
-  box-sizing: border-box;
+/*
+ * Full ID-card profile: desktop bottom bar + mobile expand overlay only.
+ * Collapsed mobile rail stays 64px avatar chip (same behaviour as default skin).
+ */
+[data-skin="sdr-001"] .server-sidebar-container {
+  overflow: visible !important;
 }
 
-/* HUD chrome: full-width header/footer rows so flex children never
-   squeeze into vertical letter-stacks beside the avatar. */
-[data-skin="sdr-001"] .user-profile::before {
-  content: '── SUBJECT ID ──';
-  grid-column: 1 / -1;
-  grid-row: 1;
-  display: block;
-  margin: 0;
-  padding: 0;
-  font-family: 'NoRe Sans Pixel Pro', monospace;
-  font-size: 7px;
-  letter-spacing: 0.14em;
-  color: var(--skin-accent-55);
-  text-align: left;
-  line-height: 11px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  pointer-events: none;
+@media screen and (min-width: 769px) {
+  [data-skin="sdr-001"] .user-profile-section {
+    width: 345px !important;
+    max-width: min(345px, calc(100vw - 96px));
+    left: 8px !important;
+    z-index: 200;
+  }
 }
 
-[data-skin="sdr-001"] .user-profile::after {
-  content: 'LAT 18ms ¦ GRID 02 ¦ AAL2';
-  grid-column: 1 / -1;
-  grid-row: 3;
-  display: block;
-  margin: 0;
-  padding: 0;
-  font-family: 'NoRe Sans Pixel Pro', monospace;
-  font-size: 7px;
-  letter-spacing: 0.1em;
-  color: var(--skin-accent-50);
-  text-align: right;
-  line-height: 11px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  pointer-events: none;
+/* Mobile: collapsed chip in server rail — do not expand or show HUD chrome */
+@media screen and (max-width: 768px) {
+  [data-skin="sdr-001"] .server-sidebar-container .user-profile-section {
+    width: 64px !important;
+    max-width: 64px !important;
+    left: 6px !important;
+  }
+
+  [data-skin="sdr-001"] .server-sidebar-container .user-profile-section .user-profile {
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 64px !important;
+    height: 64px !important;
+    min-height: 0 !important;
+    border-radius: 12px !important;
+    border-top: none !important;
+    background: var(--background-quinary, #2f3136) !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 0 !important;
+    overflow: hidden !important;
+  }
+
+  [data-skin="sdr-001"] .server-sidebar-container .user-profile-section .user-profile::before,
+  [data-skin="sdr-001"] .server-sidebar-container .user-profile-section .user-profile::after {
+    display: none !important;
+    content: none !important;
+  }
 }
 
-[data-skin="sdr-001"] .user-profile .avatar-wrapper {
-  grid-column: 1;
-  grid-row: 2;
-  align-self: center;
-  flex-shrink: 0;
+/* Shared full ID-card panel (desktop bar + mobile overlay when tapped) */
+@media screen and (min-width: 769px) {
+  [data-skin="sdr-001"] .user-profile-section .user-profile,
+  [data-skin="sdr-001"] .mobile-profile-overlay .user-profile {
+    margin: 0 !important;
+    padding: 18px 10px 16px !important;
+    border-radius: 0 !important;
+    border-top: 1px solid var(--skin-accent-70);
+    background: linear-gradient(180deg, #0c0c12 0%, #04040a 100%) !important;
+    position: relative;
+    display: flex !important;
+    flex-wrap: nowrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 72px;
+    overflow: visible !important;
+    box-sizing: border-box;
+    flex-direction: row !important;
+  }
 }
 
-[data-skin="sdr-001"] .user-profile .user-info {
-  grid-column: 2;
-  grid-row: 2;
-  min-width: 0;
-  overflow: hidden;
-  margin-left: 0 !important;
-  margin-right: 0 !important;
+@media screen and (max-width: 768px) {
+  [data-skin="sdr-001"] .mobile-profile-overlay .user-profile {
+    margin: 0 !important;
+    padding: 18px 10px 16px !important;
+    border-radius: 0 !important;
+    border-top: 1px solid var(--skin-accent-70);
+    background: linear-gradient(180deg, #0c0c12 0%, #04040a 100%) !important;
+    /* Keep Harmony bottom-dock placement (component uses fixed + bottom) */
+    position: fixed !important;
+    bottom: 10px !important;
+    left: 6px !important;
+    right: auto !important;
+    display: flex !important;
+    flex-wrap: nowrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    width: calc(100% - 16px) !important;
+    max-width: calc(100% - 16px) !important;
+    height: auto !important;
+    min-height: 72px;
+    overflow: visible !important;
+    box-sizing: border-box;
+    flex-direction: row !important;
+  }
 }
 
-[data-skin="sdr-001"] .user-profile .user-name {
-  max-width: 100% !important;
+@media screen and (min-width: 769px) {
+  [data-skin="sdr-001"] .user-profile-section .user-profile::before,
+  [data-skin="sdr-001"] .mobile-profile-overlay .user-profile::before {
+    content: '── SUBJECT ID ──';
+    position: absolute;
+    top: 4px;
+    left: 10px;
+    right: 10px;
+    display: block;
+    margin: 0;
+    padding: 0;
+    font-family: 'NoRe Sans Pixel Pro', monospace;
+    font-size: 7px;
+    letter-spacing: 0.14em;
+    color: var(--skin-accent-55);
+    text-align: left;
+    line-height: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    pointer-events: none;
+  }
+
+  [data-skin="sdr-001"] .user-profile-section .user-profile::after,
+  [data-skin="sdr-001"] .mobile-profile-overlay .user-profile::after {
+    content: 'LAT 18ms ¦ GRID 02 ¦ AAL2';
+    position: absolute;
+    bottom: 4px;
+    left: 10px;
+    right: 10px;
+    display: block;
+    margin: 0;
+    padding: 0;
+    font-family: 'NoRe Sans Pixel Pro', monospace;
+    font-size: 7px;
+    letter-spacing: 0.1em;
+    color: var(--skin-accent-50);
+    text-align: right;
+    line-height: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    pointer-events: none;
+  }
 }
 
-[data-skin="sdr-001"] .user-profile .user-status-container {
-  max-width: 100%;
-  overflow: hidden;
-  margin-right: 0 !important;
+@media screen and (max-width: 768px) {
+  [data-skin="sdr-001"] .mobile-profile-overlay .user-profile::before {
+    content: '── SUBJECT ID ──';
+    position: absolute;
+    top: 4px;
+    left: 10px;
+    right: 10px;
+    display: block;
+    margin: 0;
+    padding: 0;
+    font-family: 'NoRe Sans Pixel Pro', monospace;
+    font-size: 7px;
+    letter-spacing: 0.14em;
+    color: var(--skin-accent-55);
+    text-align: left;
+    line-height: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    pointer-events: none;
+  }
+
+  [data-skin="sdr-001"] .mobile-profile-overlay .user-profile::after {
+    content: 'LAT 18ms ¦ GRID 02 ¦ AAL2';
+    position: absolute;
+    bottom: 4px;
+    left: 10px;
+    right: 10px;
+    display: block;
+    margin: 0;
+    padding: 0;
+    font-family: 'NoRe Sans Pixel Pro', monospace;
+    font-size: 7px;
+    letter-spacing: 0.1em;
+    color: var(--skin-accent-50);
+    text-align: right;
+    line-height: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    pointer-events: none;
+  }
 }
 
-[data-skin="sdr-001"] .user-profile .profile-bar-buttons,
-[data-skin="sdr-001"] .user-profile .buttons {
-  grid-column: 3;
-  grid-row: 2;
-  flex-shrink: 0;
-  gap: 4px !important;
+@media screen and (min-width: 769px) {
+  [data-skin="sdr-001"] .user-profile-section .user-profile .avatar-wrapper,
+  [data-skin="sdr-001"] .mobile-profile-overlay .user-profile .avatar-wrapper {
+    flex-shrink: 0;
+  }
+
+  [data-skin="sdr-001"] .user-profile-section .user-profile .user-info,
+  [data-skin="sdr-001"] .mobile-profile-overlay .user-profile .user-info {
+    display: flex !important;
+    flex-direction: column;
+    justify-content: center;
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+
+  [data-skin="sdr-001"] .user-profile-section .user-profile .user-name,
+  [data-skin="sdr-001"] .mobile-profile-overlay .user-profile .user-name {
+    max-width: 100% !important;
+  }
+
+  [data-skin="sdr-001"] .user-profile-section .user-profile .user-status-container,
+  [data-skin="sdr-001"] .mobile-profile-overlay .user-profile .user-status-container {
+    max-width: 100%;
+    overflow: hidden;
+    margin-right: 0 !important;
+    cursor: pointer;
+  }
+
+  [data-skin="sdr-001"] .user-profile-section .user-profile .profile-bar-buttons,
+  [data-skin="sdr-001"] .user-profile-section .user-profile .buttons,
+  [data-skin="sdr-001"] .mobile-profile-overlay .user-profile .profile-bar-buttons,
+  [data-skin="sdr-001"] .mobile-profile-overlay .user-profile .buttons {
+    display: flex !important;
+    flex-shrink: 0;
+    gap: 4px !important;
+  }
+
+  [data-skin="sdr-001"] .user-profile-section .user-profile .status-dropdown,
+  [data-skin="sdr-001"] .mobile-profile-overlay .user-profile .status-dropdown {
+    z-index: 1000;
+  }
 }
 
-[data-skin="sdr-001"] .user-profile .status-dropdown {
-  grid-column: 1 / -1;
-  z-index: 20;
+@media screen and (max-width: 768px) {
+  [data-skin="sdr-001"] .mobile-profile-overlay .user-profile .avatar-wrapper {
+    flex-shrink: 0;
+  }
+
+  [data-skin="sdr-001"] .mobile-profile-overlay .user-profile .user-info {
+    display: flex !important;
+    flex-direction: column;
+    justify-content: center;
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+
+  [data-skin="sdr-001"] .mobile-profile-overlay .user-profile .user-name {
+    max-width: 100% !important;
+  }
+
+  [data-skin="sdr-001"] .mobile-profile-overlay .user-profile .user-status-container {
+    max-width: 100%;
+    overflow: hidden;
+    margin-right: 0 !important;
+    cursor: pointer;
+  }
+
+  [data-skin="sdr-001"] .mobile-profile-overlay .user-profile .profile-bar-buttons,
+  [data-skin="sdr-001"] .mobile-profile-overlay .user-profile .buttons {
+    display: flex !important;
+    flex-shrink: 0;
+    gap: 4px !important;
+  }
+
+  [data-skin="sdr-001"] .mobile-profile-overlay .user-profile .status-dropdown {
+    z-index: 1000;
+  }
 }
 
 /* ----------------------------------------------------------------------------
