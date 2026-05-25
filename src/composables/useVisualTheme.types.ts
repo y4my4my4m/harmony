@@ -69,4 +69,12 @@ export interface VisualThemeSettings {
    * `appearance_settings` alongside the skin. Do NOT edit by hand.
    */
   _preSkinAudioTheme?: string
+  /**
+   * Per-skin user-toggleable option values. Shape:
+   * `{ [skinId]: { [optionId]: boolean } }`. When a skin is active, each
+   * stored value (or its declared default if absent) is written to
+   * `<html data-skin-<optionId>="on|off">` so skin CSS can gate rules
+   * declaratively. Persisted across devices via `appearance_settings`.
+   */
+  skinOptions?: Record<string, Record<string, boolean>>
 }

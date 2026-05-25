@@ -30,13 +30,14 @@
     </div>
 
     <div class="buttons profile-bar-buttons">
-      <div class="icon-button notification-bell-slot">
+      <div class="icon-button notification-bell-slot" data-action="bell">
         <NotificationBell />
       </div>
-      <div 
-        class="icon-button" 
-        @click="toggleMic" 
-        :class="{ 
+      <div
+        class="icon-button"
+        data-action="mic"
+        @click="toggleMic"
+        :class="{
           muted: !isMicActive,
           'voice-active': isInVoiceChannel
         }"
@@ -44,10 +45,11 @@
       >
         <Icon :name="isMicActive ? 'mic' : 'mic-off'" />
       </div>
-      <div 
-        class="icon-button" 
-        @click="toggleHeadphones" 
-        :class="{ 
+      <div
+        class="icon-button"
+        data-action="deafen"
+        @click="toggleHeadphones"
+        :class="{
           muted: !isHeadphonesActive,
           'voice-active': isInVoiceChannel
         }"
@@ -55,7 +57,7 @@
       >
         <HeadphonesIcon :isHeadphonesActive="isHeadphonesActive" />
       </div>
-      <div class="icon-button settings" @click="goToSettings" title="Settings"><SettingsIcon/></div>
+      <div class="icon-button settings" data-action="settings" @click="goToSettings" title="Settings"><SettingsIcon/></div>
     </div>
 
     <div class="status-dropdown" v-if="showStatusDropdown">

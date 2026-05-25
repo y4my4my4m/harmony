@@ -14,6 +14,6 @@
 import type { Skin } from './types'
 import { sdr001Skin } from './sdr-001'
 
-export type { Skin } from './types'
+export type { Skin, SkinOption } from './types'
 
 export const BUILTIN_SKINS: Skin[] = [sdr001Skin]

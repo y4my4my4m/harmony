@@ -347,6 +347,37 @@
           </div>
         </button>
       </div>
+
+      <!-- Per-skin decorative toggles. Only shows when the active skin
+           declared `options: SkinOption[]` in its manifest. Each toggle
+           flips a `data-skin-<optionId>="on|off"` attribute on `<html>`
+           which the skin's CSS gates decorative rules on. -->
+      <div
+        v-if="activeSkinOptions.length"
+        class="skin-active-options"
+      >
+        <h4 class="skin-active-options-title">
+          {{ activeSkin?.name }} — decorations
+        </h4>
+        <div
+          v-for="option in activeSkinOptions"
+          :key="option.id"
+          class="setting-item skin-option-item"
+        >
+          <div class="setting-info">
+            <h4 class="setting-label">{{ option.label }}</h4>
+            <p v-if="option.description" class="setting-description">
+              {{ option.description }}
+            </p>
+          </div>
+          <div class="setting-control">
+            <ToggleSwitch
+              :model-value="getActiveSkinOptionValue(option.id)"
+              @update:model-value="(v: boolean) => onSkinOptionToggle(option.id, v)"
+            />
+          </div>
+        </div>
+      </div>
     </div>
 
     <div class="settings-section">
@@ -995,6 +1026,34 @@ const onSkinChange = (skinId: string | null) => {
   settings.value.glassEffectsEnabled = live.glassEffectsEnabled !== false
 }
 
+// Active skin manifest (or undefined if "None"). Used to render the
+// per-skin decoration toggles directly under the picker.
+const activeSkin = computed(() =>
+  builtinSkins.find((s) => s.id === settings.value.activeSkinId)
+)
+const activeSkinOptions = computed(() => activeSkin.value?.options ?? [])
+
+/**
+ * Read the effective value of a decoration toggle: stored override if
+ * the user has flipped it, otherwise the option's declared default.
+ */
+const getActiveSkinOptionValue = (optionId: string): boolean => {
+  const skinId = settings.value.activeSkinId
+  if (!skinId) return false
+  const value = visualTheme.getSkinOption(skinId, optionId)
+  return value ?? false
+}
+
+/**
+ * Persist a decoration toggle. The `useVisualTheme` watcher reflects
+ * the change to `<html data-skin-<optionId>="on|off">` automatically.
+ */
+const onSkinOptionToggle = (optionId: string, value: boolean) => {
+  const skinId = settings.value.activeSkinId
+  if (!skinId) return
+  visualTheme.setSkinOption(skinId, optionId, value)
+}
+
 const adjustZoom = (delta: number) => {
   const newZoom = settings.value.zoomLevel + delta
   if (newZoom >= 50 && newZoom <= 200) {
@@ -1515,6 +1574,36 @@ onMounted(async () => {
   margin: 0;
   color: var(--text-secondary);
   line-height: 1.4;
+}
+
+/* Per-skin decoration toggles, rendered under the active skin card.
+   Visually a tighter version of the standard `.setting-item` rows
+   so it reads as an inline detail panel rather than a new section. */
+.skin-active-options {
+  margin-top: 18px;
+  padding: 14px 16px;
+  border: 1px solid var(--border-primary);
+  border-radius: 8px;
+  background: var(--h-chat-light);
+}
+
+.skin-active-options-title {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin: 0 0 8px 0;
+  color: var(--text-secondary);
+}
+
+.skin-option-item {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border-secondary);
+}
+
+.skin-option-item:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
 }
 
 /* Font family picker */

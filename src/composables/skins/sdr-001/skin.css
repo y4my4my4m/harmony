@@ -1,52 +1,44 @@
 /*
  * SDR-001 / NEO KOBE 1988
  * ============================================================================
- * Cyberpunk-noir skin. All rules are scoped under [data-skin="sdr-001"] on
- * `:root`, so picking a different skin (or "None") removes them cleanly via
- * the global `<style id="harmony-skin-styles">` swap in `useVisualTheme.ts`.
+ * Cyberpunk-noir skin. Every selector is scoped under
+ * `:root[data-skin="sdr-001"]` (specificity 0,2,0+) and this file is
+ * runtime-injected late via `<style id="harmony-skin-styles">` from
+ * useVisualTheme.ts, so the skin outranks Vue scoped styles without
+ * `!important`. The few `!important` rules below exist only where we
+ * genuinely fight an upstream `!important`.
  *
- * Design intent: dense, sharp, terminal-feel. Red blood-crimson primary,
- * pixel typography, scanline overlay, hairline corner brackets on panels,
- * monospace timestamps as log markers, status-glyph member list.
+ * ARCHITECTURE
+ *   1. Tokens & variable overrides (CSS custom properties only)
+ *   2. Component paint (color / border / shadow / font - NEVER layout)
+ *   3. Decorative layer (gated by `data-skin-<option>="on"` attributes
+ *      driven by the skin-options system in useVisualTheme.ts)
+ *   4. Icon-mask system (one plumbing rule + per-name `--skin-icon` map)
  *
- * Sections (scroll markers):
- *   1.  Tokens & ambient backdrop
- *   2.  Viewport overlays (scanlines + edge frame)
- *   3.  Sharp corners + dividers
- *   4.  Inputs & focus rings
- *   5.  Headers, buttons, hover glow
- *   6.  Selection / scrollbar / cursor
- *   7.  Reduce-motion-aware brand flicker
- *   8.  Channel + member list structural prefixes
- *   9.  Message rows + chat input
- *   10. Server sidebar + per-panel HUD frames
- *   11. User status bar ("subject ID card")
- *   12. Voice chat tactical-panel overrides
- *   13. Settings sidebar
- *   14. Misc surfaces (badges, code blocks, tooltips)
+ * The skin paints, never relayouts. Width / position / padding / display /
+ * media-query rules belong in the component, parameterised through tokens
+ * if a skin needs to influence them. Decorative add-ons (scanlines,
+ * viewport frame, HUD badge, tactical labels, icon flicker) gate behind
+ * `data-skin-<option>` so users can opt out via Appearance > Skins
+ * without forking the file.
  *
- * NOTE: this skin no longer force-disables `backdrop-filter`. The user's
- * `glassEffectsEnabled` preference is honoured independently — if they want
- * the frosted-glass look on modals while running SDR-001, they get it.
+ * COMPONENT-SIDE HOOKS THIS SKIN RELIES ON (skin-agnostic, semantic)
+ *   - `data-action="bell|mic|deafen|settings"` on the four user-profile
+ *     buttons in UserProfileComponent.vue. Replaces fragile :nth-child().
+ *   - `.nav-label` on the label span inside `.nav-item`
+ *     (AdaptiveChannelSidebar.vue). Lets us prefix only the label, never
+ *     the optional `.nav-badge` sibling.
  */
 
-/* ----------------------------------------------------------------------------
-   1. Tokens & ambient backdrop
-   -------------------------------------------------------------------------- */
-[data-skin="sdr-001"] {
-  --harmony-radius-sm: 0px;
-  --harmony-radius-md: 2px;
-  --harmony-radius-lg: 2px;
-  color-scheme: dark;
+/* ============================================================================
+   1. TOKENS & VARIABLE OVERRIDES
+   ============================================================================ */
 
-  /*
-   * The skin's accent is the user's `--harmony-primary` (set by the theme
-   * system, defaults to red via the skin's `themeOverrides`). All other
-   * red references in this file go through `--skin-accent` and the alpha
-   * tints below, so the entire SDR-001 chrome re-tints automatically when
-   * the user changes the primary color in Appearance > Theme.
-   */
-  --skin-accent: var(--harmony-primary, var(--skin-accent));
+:root[data-skin="sdr-001"] {
+  /* The skin's accent rides on the user-controlled `--harmony-primary` so
+     changing the primary in Appearance > Theme retints the whole chrome
+     automatically. Default red is set in the skin manifest's themeOverrides. */
+  --skin-accent: var(--harmony-primary, #DC143C);
   --skin-accent-04: color-mix(in srgb, var(--skin-accent) 4%, transparent);
   --skin-accent-06: color-mix(in srgb, var(--skin-accent) 6%, transparent);
   --skin-accent-08: color-mix(in srgb, var(--skin-accent) 8%, transparent);
@@ -62,139 +54,97 @@
   --skin-accent-70: color-mix(in srgb, var(--skin-accent) 70%, transparent);
   --skin-accent-85: color-mix(in srgb, var(--skin-accent) 85%, transparent);
 
+  /* Sharp 2px corners app-wide via the global radius tokens. */
+  --harmony-radius-sm: 0px;
+  --harmony-radius-md: 2px;
+  --harmony-radius-lg: 2px;
+
   --shadow-modal: 0 0 0 1px var(--skin-accent-55), 0 0 32px var(--skin-accent-22);
+
+  /* Tiny inline 1x1 transparent SVG, used as fallback mask source for
+     icons that don't have a pixel-art replacement. The icon-mask system
+     in section 4 falls back to this so unmapped icons paint nothing
+     (and their original Lucide SVG remains visible underneath). */
+  --skin-icon-empty: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1' height='1'/%3E");
+
+  color-scheme: dark;
 }
 
-[data-skin="sdr-001"] body {
-  background-color: #1c1c28 !important;
-  background-image:
-    radial-gradient(ellipse at center, transparent 80%, rgba(0, 0, 0, 0.18) 100%);
+:root[data-skin="sdr-001"] body {
+  background-color: #1c1c28;
+  background-image: radial-gradient(ellipse at center, transparent 80%, rgba(0, 0, 0, 0.18) 100%);
   background-attachment: fixed;
 }
 
-/* ----------------------------------------------------------------------------
-   2. Viewport overlays
-   -------------------------------------------------------------------------- */
+/* ============================================================================
+   2. COMPONENT PAINT
+   ============================================================================
+   Color / border / shadow / font only. Never width, position, padding,
+   display, flex-direction, or media-query layout overrides - those belong
+   in the component. */
 
-/* CRT scanlines, multiplied above all other paint passes. */
-[data-skin="sdr-001"] body::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 9999;
-  background: repeating-linear-gradient(
-    to bottom,
-    rgba(0, 0, 0, 0.16) 0px,
-    rgba(0, 0, 0, 0.16) 1px,
-    transparent 1px,
-    transparent 2px
-  );
-  mix-blend-mode: multiply;
+/* 2.1 Sharp corners on chrome surfaces. The list is intentionally narrow:
+   visible "container" elements that hardcode their own border-radius and
+   need to be flattened. Most components inherit `--harmony-radius-md`
+   (set to 2px in section 1) and don't need an explicit rule here. */
+:root[data-skin="sdr-001"] .modal-container,
+:root[data-skin="sdr-001"] .modal-content,
+:root[data-skin="sdr-001"] .settings-section,
+:root[data-skin="sdr-001"] .form-input,
+:root[data-skin="sdr-001"] .btn,
+:root[data-skin="sdr-001"] .card,
+:root[data-skin="sdr-001"] .channel-item,
+:root[data-skin="sdr-001"] .nav-item,
+:root[data-skin="sdr-001"] .public-servers-modal,
+:root[data-skin="sdr-001"] .create-server-modal,
+:root[data-skin="sdr-001"] .voice-dock,
+:root[data-skin="sdr-001"] .voice-dock-container,
+:root[data-skin="sdr-001"] .voice-overlay,
+:root[data-skin="sdr-001"] .context-menu,
+:root[data-skin="sdr-001"] .action-dropdown,
+:root[data-skin="sdr-001"] .notification-dropdown,
+:root[data-skin="sdr-001"] .toast,
+:root[data-skin="sdr-001"] .reaction,
+:root[data-skin="sdr-001"] .message-actions,
+:root[data-skin="sdr-001"] .channel-list-item,
+:root[data-skin="sdr-001"] .message-container {
+  border-radius: 2px;
 }
 
-/* Hairline red viewport frame. */
-[data-skin="sdr-001"] body::after {
-  content: '';
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 9998;
-  border: 1px solid var(--skin-accent-45);
-  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.4);
-}
-
-/* Compact HUD identifier pinned to the TOP-RIGHT corner of the viewport
-   (was bottom-left, where it overlapped the user status bar / Logout
-   button). Pointer-events off so it never blocks UI. */
-[data-skin="sdr-001"] .app-container::before,
-[data-skin="sdr-001"] #app::before {
-  content: 'SDR-001';
-  position: fixed;
-  top: 4px;
-  right: 8px;
-  z-index: 9997;
-  pointer-events: none;
-  font-family: 'NoRe Sans Pixel Pro', monospace;
-  font-size: 9px;
-  letter-spacing: 0.18em;
-  color: var(--skin-accent-70);
-  padding: 1px 5px;
-  border: 1px solid var(--skin-accent-45);
-  background: rgba(8, 8, 12, 0.55);
-}
-
-/* ----------------------------------------------------------------------------
-   3. Sharp corners + dividers
-   -------------------------------------------------------------------------- */
-
-[data-skin="sdr-001"] .modal-container,
-[data-skin="sdr-001"] .modal-content,
-[data-skin="sdr-001"] .settings-section,
-[data-skin="sdr-001"] .form-input,
-[data-skin="sdr-001"] .btn,
-[data-skin="sdr-001"] .card,
-[data-skin="sdr-001"] .message-input-wrapper,
-[data-skin="sdr-001"] .channel-item,
-[data-skin="sdr-001"] .nav-item,
-[data-skin="sdr-001"] .public-servers-modal,
-[data-skin="sdr-001"] .create-server-modal,
-[data-skin="sdr-001"] .voice-dock,
-[data-skin="sdr-001"] .voice-dock-container,
-[data-skin="sdr-001"] .voice-overlay,
-[data-skin="sdr-001"] .context-menu,
-[data-skin="sdr-001"] .action-dropdown,
-[data-skin="sdr-001"] .notification-dropdown,
-[data-skin="sdr-001"] .toast,
-[data-skin="sdr-001"] .reaction,
-[data-skin="sdr-001"] .message-actions,
-[data-skin="sdr-001"] .channel-list-item {
-  border-radius: 2px !important;
-}
-
-[data-skin="sdr-001"] hr,
-[data-skin="sdr-001"] .divider {
+/* 2.2 Dividers - red gradient hairline. */
+:root[data-skin="sdr-001"] hr,
+:root[data-skin="sdr-001"] .divider {
   border: 0;
   height: 1px;
-  background: linear-gradient(
-    to right,
-    transparent,
-    var(--skin-accent-55),
-    transparent
-  );
+  background: linear-gradient(to right, transparent, var(--skin-accent-55), transparent);
 }
 
-/* ----------------------------------------------------------------------------
-   4. Inputs & focus rings
-   -------------------------------------------------------------------------- */
-
-[data-skin="sdr-001"] input:focus,
-[data-skin="sdr-001"] textarea:focus,
-[data-skin="sdr-001"] select:focus,
-[data-skin="sdr-001"] [contenteditable="true"]:focus {
-  outline: 1px solid var(--skin-accent) !important;
+/* 2.3 Focus rings on form inputs. */
+:root[data-skin="sdr-001"] input:focus,
+:root[data-skin="sdr-001"] textarea:focus,
+:root[data-skin="sdr-001"] select:focus,
+:root[data-skin="sdr-001"] [contenteditable="true"]:focus {
+  outline: 1px solid var(--skin-accent);
   outline-offset: -1px;
   box-shadow:
     0 0 0 2px var(--skin-accent-22),
-    inset 0 0 16px var(--skin-accent-08) !important;
+    inset 0 0 16px var(--skin-accent-08);
 }
 
-/* ----------------------------------------------------------------------------
-   5. Headers, buttons, hover glow
-   -------------------------------------------------------------------------- */
-
-[data-skin="sdr-001"] .section-title,
-[data-skin="sdr-001"] .settings-title,
-[data-skin="sdr-001"] .modal-title,
-[data-skin="sdr-001"] .nav-section-title,
-[data-skin="sdr-001"] .channel-category-name,
-[data-skin="sdr-001"] .server-name {
-  letter-spacing: 0.08em !important;
-  text-transform: uppercase !important;
+/* 2.4 Headings - tracked-out uppercase with red glow. */
+:root[data-skin="sdr-001"] .section-title,
+:root[data-skin="sdr-001"] .settings-title,
+:root[data-skin="sdr-001"] .modal-title,
+:root[data-skin="sdr-001"] .nav-section-title,
+:root[data-skin="sdr-001"] .channel-category-name,
+:root[data-skin="sdr-001"] .server-name {
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
   text-shadow: 0 0 8px var(--skin-accent-35);
 }
 
-[data-skin="sdr-001"] .btn-primary {
+/* 2.5 Primary buttons. */
+:root[data-skin="sdr-001"] .btn-primary {
   letter-spacing: 0.06em;
   text-transform: uppercase;
   box-shadow:
@@ -202,267 +152,211 @@
     0 0 12px var(--skin-accent-22),
     inset 0 0 12px var(--skin-accent-12);
 }
-
-[data-skin="sdr-001"] .btn-primary:hover:not(:disabled) {
+:root[data-skin="sdr-001"] .btn-primary:hover:not(:disabled) {
   box-shadow:
     0 0 0 1px var(--skin-accent-85),
     0 0 18px var(--skin-accent-45),
     inset 0 0 16px var(--skin-accent-22);
 }
 
-[data-skin="sdr-001"] .btn:hover,
-[data-skin="sdr-001"] .nav-item:hover,
-[data-skin="sdr-001"] .channel-item:hover,
-[data-skin="sdr-001"] .message-item:hover {
+/* 2.6 Generic hover glow on interactive surfaces. */
+:root[data-skin="sdr-001"] .btn:hover,
+:root[data-skin="sdr-001"] .nav-item:hover,
+:root[data-skin="sdr-001"] .channel-item:hover,
+:root[data-skin="sdr-001"] .message-item:hover {
   box-shadow: 0 0 14px var(--skin-accent-18);
 }
 
-/* ----------------------------------------------------------------------------
-   6. Selection / scrollbar / cursor
-   -------------------------------------------------------------------------- */
-
-[data-skin="sdr-001"] ::selection {
+/* 2.7 Selection / scrollbar / cursor. */
+:root[data-skin="sdr-001"] ::selection {
   background: var(--skin-accent-55);
   color: #fff;
   text-shadow: none;
 }
-
-[data-skin="sdr-001"] ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-[data-skin="sdr-001"] ::-webkit-scrollbar-track {
-  background: var(--skin-accent-04);
-}
-[data-skin="sdr-001"] ::-webkit-scrollbar-thumb {
+:root[data-skin="sdr-001"] ::-webkit-scrollbar { width: 8px; height: 8px; }
+:root[data-skin="sdr-001"] ::-webkit-scrollbar-track { background: var(--skin-accent-04); }
+:root[data-skin="sdr-001"] ::-webkit-scrollbar-thumb {
   background: var(--skin-accent-45);
   border-radius: 0;
   box-shadow: 0 0 6px var(--skin-accent-45);
 }
-[data-skin="sdr-001"] ::-webkit-scrollbar-thumb:hover {
-  background: var(--skin-accent-85);
-}
-[data-skin="sdr-001"] {
-  scrollbar-color: var(--skin-accent-45) var(--skin-accent-04);
-}
+:root[data-skin="sdr-001"] ::-webkit-scrollbar-thumb:hover { background: var(--skin-accent-85); }
+:root[data-skin="sdr-001"] { scrollbar-color: var(--skin-accent-45) var(--skin-accent-04); }
 
-[data-skin="sdr-001"] .message-display,
-[data-skin="sdr-001"] [data-chat-messages] {
+:root[data-skin="sdr-001"] .message-display,
+:root[data-skin="sdr-001"] [data-chat-messages] {
   cursor: crosshair;
 }
 
-/* ----------------------------------------------------------------------------
-   7. Reduce-motion-aware brand flicker
-   -------------------------------------------------------------------------- */
-
-@keyframes harmony-sdr-flicker {
-  0%, 92%, 100% { opacity: 1; }
-  93% { opacity: 0.85; }
-  94% { opacity: 1; }
-  96% { opacity: 0.92; }
-  97% { opacity: 1; }
-}
-[data-skin="sdr-001"]:not([data-reduce-motion="true"]) .server-icon,
-[data-skin="sdr-001"]:not([data-reduce-motion="true"]) .app-logo,
-[data-skin="sdr-001"]:not([data-reduce-motion="true"]) .auth-logo {
-  animation: harmony-sdr-flicker 8s infinite ease-in-out;
-}
-@media (prefers-reduced-motion: reduce) {
-  [data-skin="sdr-001"] .server-icon,
-  [data-skin="sdr-001"] .app-logo,
-  [data-skin="sdr-001"] .auth-logo {
-    animation: none;
-  }
-}
-
-/* ----------------------------------------------------------------------------
-   8. Channel + member list structural prefixes
-   -------------------------------------------------------------------------- */
-
-[data-skin="sdr-001"] .channel-item .channel-name::before,
-[data-skin="sdr-001"] .channel-list-item .channel-name::before,
-[data-skin="sdr-001"] .nav-item > span::before {
+/* 2.8 Channel + nav list rows.
+   The `> ` chevron prefix only targets `.nav-label` (the dedicated label
+   span we added in AdaptiveChannelSidebar.vue), so it never accidentally
+   matches the `.nav-badge` sibling - fixes the "extra > on items with a
+   badge" bug from the previous skin. */
+:root[data-skin="sdr-001"] .channel-item .channel-name::before,
+:root[data-skin="sdr-001"] .channel-list-item .channel-name::before,
+:root[data-skin="sdr-001"] .nav-item .nav-label::before {
   content: '> ';
   color: var(--skin-accent-70);
   font-family: 'NoRe Sans Pixel Pro', monospace;
   margin-right: 4px;
 }
-[data-skin="sdr-001"] .channel-name,
-[data-skin="sdr-001"] .nav-item > span {
+:root[data-skin="sdr-001"] .channel-name,
+:root[data-skin="sdr-001"] .nav-item .nav-label {
   letter-spacing: 0.04em;
 }
 
-[data-skin="sdr-001"] .channel-category-name::before,
-[data-skin="sdr-001"] .nav-section-title::before { content: '[ '; color: var(--skin-accent-85); }
-[data-skin="sdr-001"] .channel-category-name::after,
-[data-skin="sdr-001"] .nav-section-title::after  { content: ' ]'; color: var(--skin-accent-85); }
-[data-skin="sdr-001"] .channel-category-name,
-[data-skin="sdr-001"] .nav-section-title {
-  letter-spacing: 0.12em !important;
-  font-size: 11px !important;
+:root[data-skin="sdr-001"] .channel-category-name::before,
+:root[data-skin="sdr-001"] .nav-section-title::before { content: '[ '; color: var(--skin-accent-85); }
+:root[data-skin="sdr-001"] .channel-category-name::after,
+:root[data-skin="sdr-001"] .nav-section-title::after { content: ' ]'; color: var(--skin-accent-85); }
+:root[data-skin="sdr-001"] .channel-category-name,
+:root[data-skin="sdr-001"] .nav-section-title {
+  letter-spacing: 0.12em;
+  font-size: 11px;
 }
 
-[data-skin="sdr-001"] .channel-item,
-[data-skin="sdr-001"] .channel-list-item,
-[data-skin="sdr-001"] .nav-item {
-  padding: 5px 10px !important;
-  border-radius: 0 !important;
+:root[data-skin="sdr-001"] .channel-item,
+:root[data-skin="sdr-001"] .channel-list-item,
+:root[data-skin="sdr-001"] .nav-item {
   border-bottom: 1px dashed var(--skin-accent-06);
 }
-
-[data-skin="sdr-001"] .channel-item.active,
-[data-skin="sdr-001"] .channel-item.selected,
-[data-skin="sdr-001"] .nav-item.active {
-  background: var(--skin-accent-12) !important;
+:root[data-skin="sdr-001"] .channel-item.active,
+:root[data-skin="sdr-001"] .channel-item.selected,
+:root[data-skin="sdr-001"] .nav-item.active {
+  background: var(--skin-accent-12);
   box-shadow: inset 3px 0 0 var(--skin-accent);
 }
 
-/* ----------------------------------------------------------------------------
-   9. Message rows + chat input
-   -------------------------------------------------------------------------- */
-
-[data-skin="sdr-001"] .message-item {
+/* 2.9 Message rows. */
+:root[data-skin="sdr-001"] .message-item {
   border-bottom: 1px solid var(--skin-accent-06);
-  padding-top: 6px !important;
-  padding-bottom: 4px;
 }
-[data-skin="sdr-001"] .message-meta { margin-bottom: 2px; }
-
-[data-skin="sdr-001"] .message-item .timestamp,
-[data-skin="sdr-001"] .timestamp,
-[data-skin="sdr-001"] .system-timestamp,
-[data-skin="sdr-001"] .message-content-only .message-gutter::before {
-  font-family: 'NoRe Sans Pixel Pro', monospace !important;
+:root[data-skin="sdr-001"] .message-item .timestamp,
+:root[data-skin="sdr-001"] .timestamp,
+:root[data-skin="sdr-001"] .system-timestamp,
+:root[data-skin="sdr-001"] .message-content-only .message-gutter::before {
+  font-family: 'NoRe Sans Pixel Pro', monospace;
   letter-spacing: 0.05em;
-  color: var(--skin-accent-65) !important;
+  color: var(--skin-accent-65);
 }
-
-[data-skin="sdr-001"] .message-meta .username,
-[data-skin="sdr-001"] .username-text {
+:root[data-skin="sdr-001"] .message-meta .username,
+:root[data-skin="sdr-001"] .username-text {
   text-transform: uppercase;
   letter-spacing: 0.08em;
   font-weight: 700;
 }
-
-/* Subtle red ring on chat avatars - just enough to read as "tagged"
-   without the heavy outer halo that the previous version had. */
-[data-skin="sdr-001"] .message-avatar img {
-  box-shadow:
-    0 0 0 1px var(--skin-accent-45);
+:root[data-skin="sdr-001"] .message-avatar img {
+  box-shadow: 0 0 0 1px var(--skin-accent-45);
 }
 
-[data-skin="sdr-001"] .message-input-wrapper,
-[data-skin="sdr-001"] .rich-text-editor {
-  border: 1px solid var(--skin-accent-45) !important;
-  background: rgba(0, 0, 0, 0.35) !important;
+/* 2.10 Chat input - red border on the OUTER bar (.message-container).
+   Bug fix: the previous skin put the border on `.rich-text-editor` (the
+   inner contenteditable, only as wide as the typing area) AND referenced
+   a non-existent `.message-input-wrapper` class. The actual bar uses
+   `.message-container` containing `.left-icons`, `.textarea-wrapper >
+   .rich-text-editor`, and `.right-icons`. */
+:root[data-skin="sdr-001"] .message-container {
+  border: 1px solid var(--skin-accent-45);
+  background: rgba(0, 0, 0, 0.35);
   box-shadow: inset 0 0 32px var(--skin-accent-06);
 }
 
-/* `>>>` command-line affordance on the chat input. */
-[data-skin="sdr-001"] .message-input-wrapper {
-  position: relative;
-  padding-left: 44px !important;
-}
-[data-skin="sdr-001"] .message-input-wrapper::before {
-  content: '>>>';
-  position: absolute;
-  left: 12px;
-  top: 50%;
-  transform: translateY(-50%);
-  font-family: 'NoRe Sans Pixel Pro', monospace;
-  font-size: 14px;
-  letter-spacing: 0.08em;
-  color: var(--skin-accent-85);
-  text-shadow: 0 0 6px var(--skin-accent-45);
-  pointer-events: none;
-}
+/* 2.11 Server rail - background + border, NO layout overrides.
+   Width and tile sizes stay at the component's defaults; the skin
+   only paints the chrome.
 
-/* ----------------------------------------------------------------------------
-   10. Server sidebar + chat header + per-panel HUD frames
-   -------------------------------------------------------------------------- */
-
-/* Narrow server rail with sharp 2px-square icons. */
-[data-skin="sdr-001"] .servers-sidebar,
-[data-skin="sdr-001"] .server-sidebar,
-[data-skin="sdr-001"] .ServerSidebar {
-  width: 56px !important;
-  padding: 8px 0 !important;
-  gap: 6px !important;
-  background: linear-gradient(to bottom, #0c0c12, #08080d) !important;
+   Bug fix: unify sharp 2px corners across ALL rail tiles - portal,
+   DM, monyverse, and server items, plus their inner images and the
+   selected-state of buttons. The default styles use `border-radius:
+   50%` for `.portal` / `.server-item` and `12px` for `.dm-button` /
+   `.monyverse-button`, plus toggle to 50% on selection. They all
+   collapse to 2px under SDR-001 so we don't get circular avatars
+   sitting in square boxes (or vice versa). */
+:root[data-skin="sdr-001"] .servers-sidebar,
+:root[data-skin="sdr-001"] .server-sidebar,
+:root[data-skin="sdr-001"] .ServerSidebar {
+  background: linear-gradient(to bottom, #0c0c12, #08080d);
   border-right: 1px solid var(--skin-accent-22);
 }
-[data-skin="sdr-001"] .servers-sidebar .server-item,
-[data-skin="sdr-001"] .server-sidebar .server-item {
-  width: 40px !important;
-  height: 40px !important;
-  border-radius: 2px !important;
+
+:root[data-skin="sdr-001"] .portal,
+:root[data-skin="sdr-001"] .portal-img,
+:root[data-skin="sdr-001"] .dm-button,
+:root[data-skin="sdr-001"] .dm-button.selected,
+:root[data-skin="sdr-001"] .monyverse-button,
+:root[data-skin="sdr-001"] .monyverse-button.selected,
+:root[data-skin="sdr-001"] .server-item,
+:root[data-skin="sdr-001"] .server-item img,
+:root[data-skin="sdr-001"] .servers-list .server-item img,
+:root[data-skin="sdr-001"] .server-item .avatar,
+:root[data-skin="sdr-001"] .server-item .avatar-image,
+:root[data-skin="sdr-001"] .server-icon {
+  border-radius: 2px;
 }
-[data-skin="sdr-001"] .server-icon,
-[data-skin="sdr-001"] .servers-list .server-item img {
-  border-radius: 2px !important;
-  filter: contrast(1.05) saturate(0.85);
-}
-[data-skin="sdr-001"] .servers-list .server-item:hover img {
+
+:root[data-skin="sdr-001"] .servers-list .server-item:hover img,
+:root[data-skin="sdr-001"] .server-item:hover img {
   box-shadow: 0 0 14px var(--skin-accent-55);
 }
 
-[data-skin="sdr-001"] .channel-sidebar,
-[data-skin="sdr-001"] .ChannelSidebar {
-  background: linear-gradient(180deg, #14141c, #0e0e16) !important;
+/* 2.12 Channel sidebar + chat header chrome. */
+:root[data-skin="sdr-001"] .channel-sidebar,
+:root[data-skin="sdr-001"] .ChannelSidebar {
+  background: linear-gradient(180deg, #14141c, #0e0e16);
   border-right: 1px solid var(--skin-accent-22);
 }
-
-/* HUD-style chat header. The previous version pinned a "TX/RX READY"
-   pseudo-element to the right side, which overlapped the search /
-   bell / pinned-messages icon buttons that already live there. Keep the
-   gradient background + red bottom border but drop the overflow text. */
-[data-skin="sdr-001"] .chat-header,
-[data-skin="sdr-001"] .ChatHeader {
-  background: linear-gradient(180deg, #14141c, #0e0e16) !important;
+:root[data-skin="sdr-001"] .chat-header,
+:root[data-skin="sdr-001"] .ChatHeader {
+  background: linear-gradient(180deg, #14141c, #0e0e16);
   border-bottom: 1px solid var(--skin-accent-35);
 }
 
-/* Per-panel corner brackets. */
-[data-skin="sdr-001"] .chat-component,
-[data-skin="sdr-001"] .ChatComponent,
-[data-skin="sdr-001"] .member-list,
-[data-skin="sdr-001"] .UserList {
+/* 2.13 HUD corner brackets on chat / member panels. Decorative only. */
+:root[data-skin="sdr-001"] .chat-component,
+:root[data-skin="sdr-001"] .ChatComponent,
+:root[data-skin="sdr-001"] .member-list,
+:root[data-skin="sdr-001"] .UserList {
   position: relative;
   border: 1px solid var(--skin-accent-18);
 }
-[data-skin="sdr-001"] .chat-component::before,
-[data-skin="sdr-001"] .ChatComponent::before,
-[data-skin="sdr-001"] .member-list::before,
-[data-skin="sdr-001"] .UserList::before {
+:root[data-skin="sdr-001"] .chat-component::before,
+:root[data-skin="sdr-001"] .ChatComponent::before,
+:root[data-skin="sdr-001"] .member-list::before,
+:root[data-skin="sdr-001"] .UserList::before,
+:root[data-skin="sdr-001"] .chat-component::after,
+:root[data-skin="sdr-001"] .ChatComponent::after,
+:root[data-skin="sdr-001"] .member-list::after,
+:root[data-skin="sdr-001"] .UserList::after {
   content: '';
   position: absolute;
+  width: 12px;
+  height: 12px;
+  pointer-events: none;
+}
+:root[data-skin="sdr-001"] .chat-component::before,
+:root[data-skin="sdr-001"] .ChatComponent::before,
+:root[data-skin="sdr-001"] .member-list::before,
+:root[data-skin="sdr-001"] .UserList::before {
   top: -1px;
   left: -1px;
-  width: 12px;
-  height: 12px;
   border-top: 2px solid var(--skin-accent-85);
   border-left: 2px solid var(--skin-accent-85);
-  pointer-events: none;
 }
-[data-skin="sdr-001"] .chat-component::after,
-[data-skin="sdr-001"] .ChatComponent::after,
-[data-skin="sdr-001"] .member-list::after,
-[data-skin="sdr-001"] .UserList::after {
-  content: '';
-  position: absolute;
+:root[data-skin="sdr-001"] .chat-component::after,
+:root[data-skin="sdr-001"] .ChatComponent::after,
+:root[data-skin="sdr-001"] .member-list::after,
+:root[data-skin="sdr-001"] .UserList::after {
   bottom: -1px;
   right: -1px;
-  width: 12px;
-  height: 12px;
   border-bottom: 2px solid var(--skin-accent-85);
   border-right: 2px solid var(--skin-accent-85);
-  pointer-events: none;
 }
 
-/* Modal corner bracket frames. */
-[data-skin="sdr-001"] .modal-container { position: relative; }
-[data-skin="sdr-001"] .modal-container::before,
-[data-skin="sdr-001"] .modal-container::after {
+/* Modal corner brackets. */
+:root[data-skin="sdr-001"] .modal-container { position: relative; }
+:root[data-skin="sdr-001"] .modal-container::before,
+:root[data-skin="sdr-001"] .modal-container::after {
   content: '';
   position: absolute;
   width: 18px;
@@ -471,77 +365,63 @@
   pointer-events: none;
   filter: drop-shadow(0 0 4px var(--skin-accent-45));
 }
-[data-skin="sdr-001"] .modal-container::before {
+:root[data-skin="sdr-001"] .modal-container::before {
   top: -1px; left: -1px; border-right: 0; border-bottom: 0;
 }
-[data-skin="sdr-001"] .modal-container::after {
+:root[data-skin="sdr-001"] .modal-container::after {
   bottom: -1px; right: -1px; border-left: 0; border-top: 0;
 }
 
-/* ----------------------------------------------------------------------------
-   11. User status bar - rendered as a "subject ID card" panel
-   --------------------------------------------------------------------------
-   The Discord-style avatar+name+status+icons row at the bottom of the
-   channel sidebar is `.user-profile`. Restyle as a tactical ID card with
-   sharp avatar, uppercase callsign, status as `[ ONLINE ]`, and red icon
-   button outlines instead of round mute toggles.
-   -------------------------------------------------------------------------- */
-
-/* See section 17 for the full ID-card layout. This block only handles
-   per-element styling (avatar / name / status / icon buttons). */
-
-[data-skin="sdr-001"] .user-profile .avatar-wrapper,
-[data-skin="sdr-001"] .user-profile .avatar {
-  border-radius: 2px !important;
-  border: 2px solid var(--skin-accent-70) !important;
+/* 2.14 User profile bar - paint only. The component handles all layout
+   (collapsed mobile chip in the rail, expanded overlay on tap, full
+   bottom bar on desktop). The skin contributes only the gradient
+   background, top-border, and avatar / name / status typography. */
+:root[data-skin="sdr-001"] .user-profile {
+  border-top: 1px solid var(--skin-accent-70);
+  background: linear-gradient(180deg, #0c0c12 0%, #04040a 100%);
+}
+:root[data-skin="sdr-001"] .user-profile .avatar-wrapper,
+:root[data-skin="sdr-001"] .user-profile .avatar {
+  border-radius: 2px;
+  border: 2px solid var(--skin-accent-70);
   box-shadow:
     0 0 0 1px #000,
     0 0 12px var(--skin-accent-45);
 }
-
-[data-skin="sdr-001"] .user-profile .user-name {
-  font-family: 'NoRe Sans Pixel Pro', monospace !important;
+:root[data-skin="sdr-001"] .user-profile .user-name {
+  font-family: 'NoRe Sans Pixel Pro', monospace;
   text-transform: uppercase;
   letter-spacing: 0.1em;
   font-weight: 700;
-  color: #fff !important;
+  color: #fff;
   text-shadow: 0 0 6px var(--skin-accent-45);
+  font-size: 13px;
+  line-height: 1.1;
 }
-
-[data-skin="sdr-001"] .user-profile .user-status-container {
-  font-family: 'NoRe Sans Pixel Pro', monospace !important;
+:root[data-skin="sdr-001"] .user-profile .user-status-container {
+  font-family: 'NoRe Sans Pixel Pro', monospace;
   letter-spacing: 0.08em;
-  color: var(--skin-accent-85) !important;
+  color: var(--skin-accent-85);
   text-transform: uppercase;
   font-size: 10px;
 }
-[data-skin="sdr-001"] .user-profile .user-status-container .status-text::before { content: '[ '; }
-[data-skin="sdr-001"] .user-profile .user-status-container .status-text::after  { content: ' ]'; }
+:root[data-skin="sdr-001"] .user-profile .user-status-container .status-text::before { content: '[ '; }
+:root[data-skin="sdr-001"] .user-profile .user-status-container .status-text::after { content: ' ]'; }
 
-/* ----------------------------------------------------------------------------
-   12. Voice chat - tactical command panel
-   --------------------------------------------------------------------------
-   The maximised voice overlay (`.voice-overlay` / `.unified-voice-overlay`)
-   and the per-participant card (`.harmony-voice-card`) get pushed hard:
-   sharp matte panels, hairline red frames, animated tracking sweep behind
-   the active speaker, red call control buttons.
-   -------------------------------------------------------------------------- */
-
-[data-skin="sdr-001"] .voice-overlay,
-[data-skin="sdr-001"] .unified-voice-overlay {
-  background: linear-gradient(180deg, rgba(8, 8, 12, 0.85), rgba(0, 0, 0, 0.95)) !important;
-  border: 1px solid var(--skin-accent-55) !important;
+/* 2.15 Voice overlay (maximised tactical comms console). */
+:root[data-skin="sdr-001"] .voice-overlay,
+:root[data-skin="sdr-001"] .unified-voice-overlay {
+  background: linear-gradient(180deg, rgba(8, 8, 12, 0.85), rgba(0, 0, 0, 0.95));
+  border: 1px solid var(--skin-accent-55);
   box-shadow:
     0 0 0 1px rgba(0, 0, 0, 0.6),
     0 0 32px var(--skin-accent-18);
   position: relative;
 }
-
-/* Voice-overlay corner brackets - matches the modal HUD frame. */
-[data-skin="sdr-001"] .voice-overlay::before,
-[data-skin="sdr-001"] .voice-overlay::after,
-[data-skin="sdr-001"] .unified-voice-overlay::before,
-[data-skin="sdr-001"] .unified-voice-overlay::after {
+:root[data-skin="sdr-001"] .voice-overlay::before,
+:root[data-skin="sdr-001"] .voice-overlay::after,
+:root[data-skin="sdr-001"] .unified-voice-overlay::before,
+:root[data-skin="sdr-001"] .unified-voice-overlay::after {
   content: '';
   position: absolute;
   width: 18px;
@@ -549,75 +429,88 @@
   border: 1px solid var(--skin-accent-85);
   pointer-events: none;
 }
-[data-skin="sdr-001"] .voice-overlay::before,
-[data-skin="sdr-001"] .unified-voice-overlay::before {
+:root[data-skin="sdr-001"] .voice-overlay::before,
+:root[data-skin="sdr-001"] .unified-voice-overlay::before {
   top: -1px; left: -1px; border-right: 0; border-bottom: 0;
 }
-[data-skin="sdr-001"] .voice-overlay::after,
-[data-skin="sdr-001"] .unified-voice-overlay::after {
+:root[data-skin="sdr-001"] .voice-overlay::after,
+:root[data-skin="sdr-001"] .unified-voice-overlay::after {
   bottom: -1px; right: -1px; border-left: 0; border-top: 0;
 }
 
-/* Participant card: matte panel, sharp red border, pixel callsign. */
-[data-skin="sdr-001"] .harmony-voice-card {
-  background: linear-gradient(180deg, #0c0c14, #06060a) !important;
-  border: 1px solid var(--skin-accent-50) !important;
-  border-radius: 2px !important;
+:root[data-skin="sdr-001"] .voice-overlay header,
+:root[data-skin="sdr-001"] .unified-voice-overlay header,
+:root[data-skin="sdr-001"] .voice-overlay .overlay-header,
+:root[data-skin="sdr-001"] .unified-voice-overlay .overlay-header {
+  border-bottom: 1px solid var(--skin-accent-55);
+  background: linear-gradient(180deg, var(--skin-accent-08), transparent);
+}
+:root[data-skin="sdr-001"] .voice-overlay header :is(h1, h2, h3),
+:root[data-skin="sdr-001"] .unified-voice-overlay header :is(h1, h2, h3) {
+  font-family: 'NoRe Sans Pixel Pro', monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  text-shadow: 0 0 8px var(--skin-accent-45);
+}
+
+/* Voice participant cards. */
+:root[data-skin="sdr-001"] .harmony-voice-card {
+  background: linear-gradient(180deg, #0c0c14, #06060a);
+  border: 1px solid var(--skin-accent-50);
+  border-radius: 2px;
   box-shadow:
     inset 0 0 24px var(--skin-accent-06),
     0 0 16px var(--skin-accent-18);
+  position: relative;
 }
-[data-skin="sdr-001"] .harmony-voice-card.self {
-  border-color: var(--skin-accent-85) !important;
+:root[data-skin="sdr-001"] .harmony-voice-card.self {
+  border-color: var(--skin-accent-85);
 }
-[data-skin="sdr-001"] .harmony-voice-card.speaking {
-  border-color: var(--skin-accent) !important;
+:root[data-skin="sdr-001"] .harmony-voice-card.speaking {
+  border-color: var(--skin-accent);
   box-shadow:
     0 0 0 1px var(--skin-accent-85),
     0 0 24px var(--skin-accent-55),
     inset 0 0 32px var(--skin-accent-18);
 }
-[data-skin="sdr-001"] .harmony-voice-card .username {
-  font-family: 'NoRe Sans Pixel Pro', monospace !important;
+:root[data-skin="sdr-001"] .harmony-voice-card .username {
+  font-family: 'NoRe Sans Pixel Pro', monospace;
   text-transform: uppercase;
   letter-spacing: 0.12em;
   text-shadow: 0 0 6px var(--skin-accent-45);
 }
-[data-skin="sdr-001"] .harmony-voice-card .avatar-frame {
-  background: var(--skin-accent-50) !important;
-  border: 2px solid var(--skin-accent-55) !important;
-  border-radius: 2px !important;
+:root[data-skin="sdr-001"] .harmony-voice-card .avatar-frame {
+  background: var(--skin-accent-50);
+  border: 2px solid var(--skin-accent-55);
+  border-radius: 2px;
 }
-[data-skin="sdr-001"] .harmony-voice-card .avatar-frame.speaking {
-  border-color: var(--skin-accent) !important;
+:root[data-skin="sdr-001"] .harmony-voice-card .avatar-frame.speaking {
+  border-color: var(--skin-accent);
   box-shadow: 0 0 16px var(--skin-accent-70);
 }
-[data-skin="sdr-001"] .harmony-voice-card .voice-ring-active {
-  stroke: var(--skin-accent) !important;
+:root[data-skin="sdr-001"] .harmony-voice-card .voice-ring-active {
+  stroke: var(--skin-accent);
   filter: drop-shadow(0 0 6px var(--skin-accent-85));
 }
-[data-skin="sdr-001"] .harmony-voice-card .voice-ring-bg {
-  stroke: var(--skin-accent-22) !important;
+:root[data-skin="sdr-001"] .harmony-voice-card .voice-ring-bg {
+  stroke: var(--skin-accent-22);
 }
-
-/* "IN VOICE" subtitle reads as a transmission status. */
-[data-skin="sdr-001"] .harmony-voice-card .user-avatar + div,
-[data-skin="sdr-001"] .harmony-voice-card .voice-status {
-  font-family: 'NoRe Sans Pixel Pro', monospace !important;
+:root[data-skin="sdr-001"] .harmony-voice-card .user-avatar + div,
+:root[data-skin="sdr-001"] .harmony-voice-card .voice-status {
+  font-family: 'NoRe Sans Pixel Pro', monospace;
   letter-spacing: 0.18em;
-  color: var(--skin-accent-70) !important;
+  color: var(--skin-accent-70);
   text-transform: uppercase;
 }
 
-/* Animated red tracking sweep behind the active speaker card - reads
-   as "subject locked." Honours reduce-motion. */
+/* Tracking-sweep on speaking participant (always respects reduced motion). */
 @keyframes harmony-sdr-sweep {
   0%   { transform: translateX(-100%); opacity: 0; }
   20%  { opacity: 1; }
   80%  { opacity: 1; }
   100% { transform: translateX(100%); opacity: 0; }
 }
-[data-skin="sdr-001"] .harmony-voice-card.speaking::before {
+:root[data-skin="sdr-001"] .harmony-voice-card.speaking::before {
   content: '';
   position: absolute;
   inset: 0;
@@ -634,228 +527,285 @@
   mix-blend-mode: screen;
 }
 @media (prefers-reduced-motion: reduce) {
-  [data-skin="sdr-001"] .harmony-voice-card.speaking::before { animation: none; }
+  :root[data-skin="sdr-001"] .harmony-voice-card.speaking::before { animation: none; }
 }
 
-/* Voice control buttons - drop the cyan/green Discord palette in favour
-   of red HUD chips. Mute / leave already use red elsewhere; here we
-   normalise the rest. */
-[data-skin="sdr-001"] .voice-overlay .control-button,
-[data-skin="sdr-001"] .voice-dock .control-button {
-  border-radius: 2px !important;
-  border: 1px solid var(--skin-accent-50);
-  background: rgba(0, 0, 0, 0.45);
+/* Voice-overlay leave button. */
+:root[data-skin="sdr-001"] .voice-overlay .leave-button,
+:root[data-skin="sdr-001"] .unified-voice-overlay .leave-button {
+  background: var(--skin-accent-32);
+  background-image: none;
+  border: 1px solid var(--skin-accent-70);
+  border-radius: 2px;
+  font-family: 'NoRe Sans Pixel Pro', monospace;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
   color: #fff;
-  transition: box-shadow 0.15s ease, background 0.15s ease;
+  box-shadow: 0 0 12px var(--skin-accent-35);
 }
-[data-skin="sdr-001"] .voice-overlay .control-button:hover,
-[data-skin="sdr-001"] .voice-dock .control-button:hover {
-  background: var(--skin-accent-18);
-  box-shadow: 0 0 12px var(--skin-accent-55);
-}
-[data-skin="sdr-001"] .voice-overlay .control-button.active,
-[data-skin="sdr-001"] .voice-dock .control-button.active {
-  background: var(--skin-accent-45);
-  box-shadow: inset 0 0 16px rgba(0, 0, 0, 0.4), 0 0 18px var(--skin-accent-55);
+:root[data-skin="sdr-001"] .voice-overlay .leave-button:hover,
+:root[data-skin="sdr-001"] .unified-voice-overlay .leave-button:hover {
+  background: var(--skin-accent-50);
+  box-shadow: 0 0 18px var(--skin-accent-55);
+  transform: none;
 }
 
-/* ----------------------------------------------------------------------------
-   13. Settings sidebar
-   -------------------------------------------------------------------------- */
+/* 2.16 Voice dock chrome. Layout (size, position, mini vs floating)
+   stays in the component. */
+:root[data-skin="sdr-001"] .unified-voice-dock .dock-container {
+  border-radius: 2px;
+  border: 1px solid var(--skin-accent-55);
+  background: linear-gradient(180deg, #0c0c14 0%, #06060a 100%);
+  box-shadow:
+    inset 0 1px 0 var(--skin-accent-35),
+    inset 0 0 32px var(--skin-accent-06),
+    0 -4px 12px rgba(0, 0, 0, 0.4);
+  position: relative;
+}
+:root[data-skin="sdr-001"] .unified-voice-dock.minimized-mode .dock-container {
+  border-top: 1px solid var(--skin-accent-45);
+}
+:root[data-skin="sdr-001"] .unified-voice-dock .channel-name {
+  font-family: 'NoRe Sans Pixel Pro', monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: #fff;
+}
 
-[data-skin="sdr-001"] .settings-sidebar,
-[data-skin="sdr-001"] .settings-nav {
-  background: linear-gradient(180deg, #14141c, #0e0e16) !important;
+/* 2.17 Settings sidebar. */
+:root[data-skin="sdr-001"] .settings-sidebar,
+:root[data-skin="sdr-001"] .settings-nav {
+  background: linear-gradient(180deg, #14141c, #0e0e16);
   border-right: 1px solid var(--skin-accent-22);
 }
-[data-skin="sdr-001"] .settings-nav .nav-item {
-  padding: 6px 12px !important;
-}
 
-/* ----------------------------------------------------------------------------
-   14. Misc surfaces (badges, code blocks, tooltips, member list)
-   -------------------------------------------------------------------------- */
-
-[data-skin="sdr-001"] .member-list-item,
-[data-skin="sdr-001"] .user-list-item {
-  background: transparent !important;
-  border-radius: 0 !important;
-  padding: 4px 10px !important;
+/* 2.18 Member list. */
+:root[data-skin="sdr-001"] .member-list-item,
+:root[data-skin="sdr-001"] .user-list-item {
+  background: transparent;
+  border-radius: 0;
   border-bottom: 1px dashed var(--skin-accent-06);
 }
-[data-skin="sdr-001"] .member-list-item .member-name::before,
-[data-skin="sdr-001"] .user-list-item .user-name::before {
+:root[data-skin="sdr-001"] .member-list-item .member-name::before,
+:root[data-skin="sdr-001"] .user-list-item .user-name::before {
   content: '● ';
   color: rgba(46, 204, 113, 0.85);
   margin-right: 4px;
   font-family: 'NoRe Sans Pixel Pro', monospace;
 }
-[data-skin="sdr-001"] .member-list-item.offline .member-name::before,
-[data-skin="sdr-001"] .user-list-item.offline .user-name::before {
+:root[data-skin="sdr-001"] .member-list-item.offline .member-name::before,
+:root[data-skin="sdr-001"] .user-list-item.offline .user-name::before {
   content: '○ ';
   color: rgba(180, 180, 180, 0.5);
 }
+:root[data-skin="sdr-001"] .member-section-header,
+:root[data-skin="sdr-001"] .user-list-section-header,
+:root[data-skin="sdr-001"] .role-group-name {
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-size: 10px;
+  color: var(--skin-accent-85);
+}
+:root[data-skin="sdr-001"] .member-section-header::before,
+:root[data-skin="sdr-001"] .user-list-section-header::before,
+:root[data-skin="sdr-001"] .role-group-name::before { content: '── '; letter-spacing: 0; }
+:root[data-skin="sdr-001"] .member-section-header::after,
+:root[data-skin="sdr-001"] .user-list-section-header::after,
+:root[data-skin="sdr-001"] .role-group-name::after { content: ' ──'; letter-spacing: 0; }
 
-[data-skin="sdr-001"] .member-section-header,
-[data-skin="sdr-001"] .user-list-section-header,
-[data-skin="sdr-001"] .role-group-name {
-  letter-spacing: 0.14em !important;
-  text-transform: uppercase !important;
-  font-size: 10px !important;
-  color: var(--skin-accent-85) !important;
-}
-[data-skin="sdr-001"] .member-section-header::before,
-[data-skin="sdr-001"] .user-list-section-header::before,
-[data-skin="sdr-001"] .role-group-name::before {
-  content: '── ';
-  letter-spacing: 0;
-}
-[data-skin="sdr-001"] .member-section-header::after,
-[data-skin="sdr-001"] .user-list-section-header::after,
-[data-skin="sdr-001"] .role-group-name::after {
-  content: ' ──';
-  letter-spacing: 0;
-}
-
-[data-skin="sdr-001"] .badge,
-[data-skin="sdr-001"] .notification-badge,
-[data-skin="sdr-001"] .unread-count {
-  background: var(--skin-accent) !important;
-  color: #fff !important;
-  border-radius: 0 !important;
-  font-family: 'NoRe Sans Pixel Pro', monospace !important;
-  letter-spacing: 0.06em !important;
+/* 2.19 Misc surfaces - badges, code, tooltips, reactions, emoji. */
+:root[data-skin="sdr-001"] .badge,
+:root[data-skin="sdr-001"] .notification-badge,
+:root[data-skin="sdr-001"] .unread-count {
+  background: var(--skin-accent);
+  color: #fff;
+  border-radius: 0;
+  font-family: 'NoRe Sans Pixel Pro', monospace;
+  letter-spacing: 0.06em;
   box-shadow: 0 0 8px var(--skin-accent-45);
-  min-width: 16px !important;
-  height: 16px !important;
-  font-size: 10px !important;
-  line-height: 16px !important;
+  min-width: 16px;
+  height: 16px;
+  font-size: 10px;
+  line-height: 16px;
 }
-
-[data-skin="sdr-001"] [role="tooltip"],
-[data-skin="sdr-001"] .tooltip {
-  background: #06060a !important;
-  border: 1px solid var(--skin-accent-55) !important;
-  font-family: 'NoRe Sans Pixel Pro', monospace !important;
+:root[data-skin="sdr-001"] [role="tooltip"],
+:root[data-skin="sdr-001"] .tooltip {
+  background: #06060a;
+  border: 1px solid var(--skin-accent-55);
+  font-family: 'NoRe Sans Pixel Pro', monospace;
   letter-spacing: 0.05em;
   text-transform: uppercase;
-  font-size: 11px !important;
+  font-size: 11px;
 }
-
-/* Code blocks in green-on-black 80s monitor style. */
-[data-skin="sdr-001"] pre,
-[data-skin="sdr-001"] code,
-[data-skin="sdr-001"] .code-block {
-  background: #04040a !important;
-  border: 1px solid var(--skin-accent-35) !important;
-  color: #2bff7a !important;
+:root[data-skin="sdr-001"] pre,
+:root[data-skin="sdr-001"] code,
+:root[data-skin="sdr-001"] .code-block {
+  background: #04040a;
+  border: 1px solid var(--skin-accent-35);
+  color: #2bff7a;
 }
-[data-skin="sdr-001"] pre *,
-[data-skin="sdr-001"] code *,
-[data-skin="sdr-001"] .code-block * {
-  color: inherit !important;
+:root[data-skin="sdr-001"] pre *,
+:root[data-skin="sdr-001"] code *,
+:root[data-skin="sdr-001"] .code-block * {
+  color: inherit;
 }
-
-[data-skin="sdr-001"] .reaction {
-  border: 1px solid var(--skin-accent-45) !important;
-  background: var(--skin-accent-06) !important;
+:root[data-skin="sdr-001"] .reaction {
+  border: 1px solid var(--skin-accent-45);
+  background: var(--skin-accent-06);
 }
-[data-skin="sdr-001"] .reaction.reacted {
-  background: var(--skin-accent-18) !important;
+:root[data-skin="sdr-001"] .reaction.reacted {
+  background: var(--skin-accent-18);
   box-shadow: 0 0 8px var(--skin-accent-32);
 }
-
-[data-skin="sdr-001"] .emoji-image,
-[data-skin="sdr-001"] .twemoji {
+:root[data-skin="sdr-001"] .emoji-image,
+:root[data-skin="sdr-001"] .twemoji {
   filter: contrast(1.1) saturate(0.92);
 }
 
-/* ----------------------------------------------------------------------------
-   15. Icon-button containers - flat HUD chips
-   --------------------------------------------------------------------------
-   The previous version put a 1px red border on every button which made
-   busy areas (voice dock, message actions, chat header) look like a wall
-   of red rectangles. Now: the panel-level frame carries the visual,
-   buttons are flat squares that only highlight on hover / active.
-   -------------------------------------------------------------------------- */
-
-[data-skin="sdr-001"] .icon-button,
-[data-skin="sdr-001"] button.btn-icon,
-[data-skin="sdr-001"] .control-btn,
-[data-skin="sdr-001"] .control-button,
-[data-skin="sdr-001"] .action-btn,
-[data-skin="sdr-001"] .mini-control-btn {
-  border-radius: 2px !important;
-  border: 1px solid transparent !important;
-  background: transparent !important;
-  background-image: none !important;
+/* 2.20 Icon-button containers - flat HUD chips. */
+:root[data-skin="sdr-001"] .icon-button,
+:root[data-skin="sdr-001"] button.btn-icon,
+:root[data-skin="sdr-001"] .control-btn,
+:root[data-skin="sdr-001"] .control-button,
+:root[data-skin="sdr-001"] .action-btn,
+:root[data-skin="sdr-001"] .mini-control-btn {
+  border-radius: 2px;
+  border: 1px solid transparent;
+  background: transparent;
+  background-image: none;
   transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 }
-[data-skin="sdr-001"] .icon-button:hover,
-[data-skin="sdr-001"] button.btn-icon:hover,
-[data-skin="sdr-001"] .control-btn:hover,
-[data-skin="sdr-001"] .control-button:hover,
-[data-skin="sdr-001"] .action-btn:hover,
-[data-skin="sdr-001"] .mini-control-btn:hover {
-  background: var(--skin-accent-12) !important;
-  border-color: var(--skin-accent-45) !important;
-  color: #fff !important;
+:root[data-skin="sdr-001"] .icon-button:hover,
+:root[data-skin="sdr-001"] button.btn-icon:hover,
+:root[data-skin="sdr-001"] .control-btn:hover,
+:root[data-skin="sdr-001"] .control-button:hover,
+:root[data-skin="sdr-001"] .action-btn:hover,
+:root[data-skin="sdr-001"] .mini-control-btn:hover {
+  background: var(--skin-accent-12);
+  border-color: var(--skin-accent-45);
+  color: #fff;
 }
-[data-skin="sdr-001"] .icon-button.active,
-[data-skin="sdr-001"] .icon-button.muted,
-[data-skin="sdr-001"] .control-btn.active,
-[data-skin="sdr-001"] .control-button.active,
-[data-skin="sdr-001"] .control-btn.muted,
-[data-skin="sdr-001"] .control-btn.deafened,
-[data-skin="sdr-001"] .control-button.muted,
-[data-skin="sdr-001"] .control-button.deafened,
-[data-skin="sdr-001"] .mini-control-btn.muted,
-[data-skin="sdr-001"] .mini-control-btn.deafened {
-  background: var(--skin-accent-32) !important;
-  background-image: none !important;
-  border-color: var(--skin-accent-70) !important;
-  color: #fff !important;
-}
-[data-skin="sdr-001"] .control-btn.spatial-enabled,
-[data-skin="sdr-001"] .control-btn.ptt-active,
-[data-skin="sdr-001"] .mini-control-btn.leave {
-  color: #fff !important;
+:root[data-skin="sdr-001"] .icon-button.active,
+:root[data-skin="sdr-001"] .icon-button.muted,
+:root[data-skin="sdr-001"] .control-btn.active,
+:root[data-skin="sdr-001"] .control-button.active,
+:root[data-skin="sdr-001"] .control-btn.muted,
+:root[data-skin="sdr-001"] .control-btn.deafened,
+:root[data-skin="sdr-001"] .control-button.muted,
+:root[data-skin="sdr-001"] .control-button.deafened,
+:root[data-skin="sdr-001"] .mini-control-btn.muted,
+:root[data-skin="sdr-001"] .mini-control-btn.deafened {
+  background: var(--skin-accent-32);
+  background-image: none;
+  border-color: var(--skin-accent-70);
+  color: #fff;
 }
 
-/* ----------------------------------------------------------------------------
-   16. Voice dock - full-bleed bottom strip ("game character bar")
-   --------------------------------------------------------------------------
-   Default Harmony floats the voice dock as a rounded glass pill. SDR-001
-   wraps it as a flush bottom strip with sharp corners, no horizontal
-   margin, and a labeled gradient panel on the left holding the avatar +
-   user name + channel name. Reads as a console status bar.
-   -------------------------------------------------------------------------- */
+/* ============================================================================
+   3. DECORATIVE LAYER (gated by `data-skin-<option>` attributes)
+   ============================================================================
+   `useVisualTheme.ts` reflects each skin option to a `data-skin-<id>=
+   "on" | "off"` attribute on `<html>`. Each rule below selects on the
+   `"on"` branch so toggling the option cleanly removes the decoration. */
 
-/*
- * Keep the dock's natural floating sizing. Forcing full viewport width
- * (previous attempt) made the floating dock overlap the rest of the UI
- * and the mini-dock blow up to the full window. Now we ONLY restyle
- * the dock-container chrome (border, background, shadow) - all the
- * positioning (left/right/width/transform) is left to the component's
- * own CSS, so the dock stays floating/centered/mini-sidebar-sized
- * exactly as the user expects.
- */
-[data-skin="sdr-001"] .unified-voice-dock .dock-container {
-  border-radius: 2px !important;
-  border: 1px solid var(--skin-accent-55) !important;
-  background: linear-gradient(180deg, #0c0c14 0%, #06060a 100%) !important;
-  box-shadow:
-    inset 0 1px 0 var(--skin-accent-35),
-    inset 0 0 32px var(--skin-accent-06),
-    0 -4px 12px rgba(0, 0, 0, 0.4) !important;
+/* 3.1 CRT scanline overlay - "scanline" toggle. */
+:root[data-skin="sdr-001"][data-skin-scanline="on"] body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0.16) 0px,
+    rgba(0, 0, 0, 0.16) 1px,
+    transparent 1px,
+    transparent 2px
+  );
+  mix-blend-mode: multiply;
+}
+
+/* 3.2 Hairline red viewport frame - "viewport-frame" toggle. */
+:root[data-skin="sdr-001"][data-skin-viewport-frame="on"] body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9998;
+  border: 1px solid var(--skin-accent-45);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.4);
+}
+
+/* 3.3 "SDR-001" HUD identifier badge - "hud-badge" toggle. */
+:root[data-skin="sdr-001"][data-skin-hud-badge="on"] .app-container::before,
+:root[data-skin="sdr-001"][data-skin-hud-badge="on"] #app::before {
+  content: 'SDR-001';
+  position: fixed;
+  top: 4px;
+  right: 8px;
+  z-index: 9997;
+  pointer-events: none;
+  font-family: 'NoRe Sans Pixel Pro', monospace;
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  color: var(--skin-accent-70);
+  padding: 1px 5px;
+  border: 1px solid var(--skin-accent-45);
+  background: rgba(8, 8, 12, 0.55);
+}
+
+/* 3.4 Tactical text labels - "tactical-labels" toggle.
+   Bundles: "── SUBJECT ID ──" / "LAT 18ms ¦ GRID 02 ¦ AAL2" on the user
+   profile, "COMMS // " prefix on the voice dock channel name, "▶
+   TRANSMISSION // " prefix on the voice overlay header, "TX/RX READY"
+   footer on the floating dock. */
+:root[data-skin="sdr-001"][data-skin-tactical-labels="on"] .user-profile {
   position: relative;
 }
-
-/*
- * TX/RX status read-out - only on the floating dock-mode bar (the wide
- * version that has room for it). Mini-mode and overlay-mode skip this.
- */
-[data-skin="sdr-001"] .unified-voice-dock.dock-mode .dock-container::after {
+:root[data-skin="sdr-001"][data-skin-tactical-labels="on"] .user-profile::before {
+  content: '── SUBJECT ID ──';
+  position: absolute;
+  top: 4px;
+  left: 10px;
+  right: 10px;
+  font-family: 'NoRe Sans Pixel Pro', monospace;
+  font-size: 7px;
+  letter-spacing: 0.14em;
+  color: var(--skin-accent-55);
+  text-align: left;
+  line-height: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+:root[data-skin="sdr-001"][data-skin-tactical-labels="on"] .user-profile::after {
+  content: 'LAT 18ms ¦ GRID 02 ¦ AAL2';
+  position: absolute;
+  bottom: 4px;
+  left: 10px;
+  right: 10px;
+  font-family: 'NoRe Sans Pixel Pro', monospace;
+  font-size: 7px;
+  letter-spacing: 0.1em;
+  color: var(--skin-accent-50);
+  text-align: right;
+  line-height: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+:root[data-skin="sdr-001"][data-skin-tactical-labels="on"] .unified-voice-dock .channel-name::before {
+  content: 'COMMS // ';
+  color: var(--skin-accent-85);
+}
+:root[data-skin="sdr-001"][data-skin-tactical-labels="on"] .voice-overlay header :is(h1, h2)::before,
+:root[data-skin="sdr-001"][data-skin-tactical-labels="on"] .unified-voice-overlay header :is(h1, h2)::before {
+  content: '▶ TRANSMISSION // ';
+  color: var(--skin-accent-85);
+}
+:root[data-skin="sdr-001"][data-skin-tactical-labels="on"] .unified-voice-dock.dock-mode .dock-container::after {
   content: 'TX/RX READY';
   position: absolute;
   right: 12px;
@@ -867,349 +817,70 @@
   pointer-events: none;
 }
 
-/* ----------------------------------------------------------------------------
-   17. User profile panel - "subject ID card" (neo-noir game stats)
-   --------------------------------------------------------------------------
-   Refines the section-11 treatment: zero outer margin, hard-aligned to
-   the bottom-left of the channel sidebar, structured like a game-UI
-   stat block with the avatar as a portrait card on the left and the
-   readouts stacked on the right.
-   -------------------------------------------------------------------------- */
-
-/*
- * Full ID-card profile: desktop bottom bar + mobile expand overlay only.
- * Collapsed mobile rail stays 64px avatar chip (same behaviour as default skin).
- */
-[data-skin="sdr-001"] .server-sidebar-container {
-  overflow: visible !important;
+/* 3.5 Server-icon brand flicker - "icon-flicker" toggle.
+   Always disabled when the OS prefers reduced motion, regardless of
+   the toggle value. */
+@keyframes harmony-sdr-flicker {
+  0%, 92%, 100% { opacity: 1; }
+  93% { opacity: 0.85; }
+  94% { opacity: 1; }
+  96% { opacity: 0.92; }
+  97% { opacity: 1; }
+}
+:root[data-skin="sdr-001"][data-skin-icon-flicker="on"]:not([data-reduce-motion="true"]) .server-icon,
+:root[data-skin="sdr-001"][data-skin-icon-flicker="on"]:not([data-reduce-motion="true"]) .app-logo,
+:root[data-skin="sdr-001"][data-skin-icon-flicker="on"]:not([data-reduce-motion="true"]) .auth-logo {
+  animation: harmony-sdr-flicker 8s infinite ease-in-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  :root[data-skin="sdr-001"] .server-icon,
+  :root[data-skin="sdr-001"] .app-logo,
+  :root[data-skin="sdr-001"] .auth-logo { animation: none; }
 }
 
-@media screen and (min-width: 769px) {
-  [data-skin="sdr-001"] .user-profile-section {
-    width: 345px !important;
-    max-width: min(345px, calc(100vw - 96px));
-    left: 8px !important;
-    z-index: 200;
-  }
-}
+/* ============================================================================
+   4. ICON-MASK SYSTEM
+   ============================================================================
+   `Icon.vue` renders `<svg class="icon icon-${name}">` everywhere. We hide
+   the original SVG for icons we've replaced and paint a pixel-art mask
+   in `currentColor` via `::after`.
 
-/* Mobile: collapsed chip in server rail — do not expand or show HUD chrome */
-@media screen and (max-width: 768px) {
-  [data-skin="sdr-001"] .server-sidebar-container .user-profile-section {
-    width: 64px !important;
-    max-width: 64px !important;
-    left: 6px !important;
-  }
+   The plumbing is universal (every `[class*="icon-"]` element gets
+   position:relative + an `::after` mask layer). Mapped icons override
+   `--skin-icon` to a real SVG URL; unmapped icons fall back to
+   `--skin-icon-empty` (a 1x1 transparent SVG defined in section 1) so
+   their `::after` paints nothing and the original Lucide SVG remains
+   visible underneath.
 
-  [data-skin="sdr-001"] .server-sidebar-container .user-profile-section .user-profile {
-    margin: 0 !important;
-    padding: 0 !important;
-    width: 64px !important;
-    height: 64px !important;
-    min-height: 0 !important;
-    border-radius: 12px !important;
-    border-top: none !important;
-    background: var(--background-quinary, #2f3136) !important;
-    flex-direction: column !important;
-    align-items: center !important;
-    justify-content: center !important;
-    gap: 0 !important;
-    overflow: hidden !important;
-  }
+   To swap a new icon: register it in the inventory `:is(...)` list
+   (so its original SVG gets hidden) and add a `--skin-icon: url(...)`
+   line below. Two short edits, both colocated. */
 
-  [data-skin="sdr-001"] .server-sidebar-container .user-profile-section .user-profile::before,
-  [data-skin="sdr-001"] .server-sidebar-container .user-profile-section .user-profile::after {
-    display: none !important;
-    content: none !important;
-  }
-}
-
-/* Shared full ID-card panel (desktop bar + mobile overlay when tapped) */
-@media screen and (min-width: 769px) {
-  [data-skin="sdr-001"] .user-profile-section .user-profile,
-  [data-skin="sdr-001"] .mobile-profile-overlay .user-profile {
-    margin: 0 !important;
-    padding: 18px 10px 16px !important;
-    border-radius: 0 !important;
-    border-top: 1px solid var(--skin-accent-70);
-    background: linear-gradient(180deg, #0c0c12 0%, #04040a 100%) !important;
-    position: relative;
-    display: flex !important;
-    flex-wrap: nowrap;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    width: 100% !important;
-    height: auto !important;
-    min-height: 72px;
-    overflow: visible !important;
-    box-sizing: border-box;
-    flex-direction: row !important;
-  }
-}
-
-@media screen and (max-width: 768px) {
-  [data-skin="sdr-001"] .mobile-profile-overlay .user-profile {
-    margin: 0 !important;
-    padding: 18px 10px 16px !important;
-    border-radius: 0 !important;
-    border-top: 1px solid var(--skin-accent-70);
-    background: linear-gradient(180deg, #0c0c12 0%, #04040a 100%) !important;
-    /* Keep Harmony bottom-dock placement (component uses fixed + bottom) */
-    position: fixed !important;
-    bottom: 10px !important;
-    left: 6px !important;
-    right: auto !important;
-    display: flex !important;
-    flex-wrap: nowrap;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    width: calc(100% - 16px) !important;
-    max-width: calc(100% - 16px) !important;
-    height: auto !important;
-    min-height: 72px;
-    overflow: visible !important;
-    box-sizing: border-box;
-    flex-direction: row !important;
-  }
-}
-
-@media screen and (min-width: 769px) {
-  [data-skin="sdr-001"] .user-profile-section .user-profile::before,
-  [data-skin="sdr-001"] .mobile-profile-overlay .user-profile::before {
-    content: '── SUBJECT ID ──';
-    position: absolute;
-    top: 4px;
-    left: 10px;
-    right: 10px;
-    display: block;
-    margin: 0;
-    padding: 0;
-    font-family: 'NoRe Sans Pixel Pro', monospace;
-    font-size: 7px;
-    letter-spacing: 0.14em;
-    color: var(--skin-accent-55);
-    text-align: left;
-    line-height: 1;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    pointer-events: none;
-  }
-
-  [data-skin="sdr-001"] .user-profile-section .user-profile::after,
-  [data-skin="sdr-001"] .mobile-profile-overlay .user-profile::after {
-    content: 'LAT 18ms ¦ GRID 02 ¦ AAL2';
-    position: absolute;
-    bottom: 4px;
-    left: 10px;
-    right: 10px;
-    display: block;
-    margin: 0;
-    padding: 0;
-    font-family: 'NoRe Sans Pixel Pro', monospace;
-    font-size: 7px;
-    letter-spacing: 0.1em;
-    color: var(--skin-accent-50);
-    text-align: right;
-    line-height: 1;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    pointer-events: none;
-  }
-}
-
-@media screen and (max-width: 768px) {
-  [data-skin="sdr-001"] .mobile-profile-overlay .user-profile::before {
-    content: '── SUBJECT ID ──';
-    position: absolute;
-    top: 4px;
-    left: 10px;
-    right: 10px;
-    display: block;
-    margin: 0;
-    padding: 0;
-    font-family: 'NoRe Sans Pixel Pro', monospace;
-    font-size: 7px;
-    letter-spacing: 0.14em;
-    color: var(--skin-accent-55);
-    text-align: left;
-    line-height: 1;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    pointer-events: none;
-  }
-
-  [data-skin="sdr-001"] .mobile-profile-overlay .user-profile::after {
-    content: 'LAT 18ms ¦ GRID 02 ¦ AAL2';
-    position: absolute;
-    bottom: 4px;
-    left: 10px;
-    right: 10px;
-    display: block;
-    margin: 0;
-    padding: 0;
-    font-family: 'NoRe Sans Pixel Pro', monospace;
-    font-size: 7px;
-    letter-spacing: 0.1em;
-    color: var(--skin-accent-50);
-    text-align: right;
-    line-height: 1;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    pointer-events: none;
-  }
-}
-
-@media screen and (min-width: 769px) {
-  [data-skin="sdr-001"] .user-profile-section .user-profile .avatar-wrapper,
-  [data-skin="sdr-001"] .mobile-profile-overlay .user-profile .avatar-wrapper {
-    flex-shrink: 0;
-  }
-
-  [data-skin="sdr-001"] .user-profile-section .user-profile .user-info,
-  [data-skin="sdr-001"] .mobile-profile-overlay .user-profile .user-info {
-    display: flex !important;
-    flex-direction: column;
-    justify-content: center;
-    flex: 1 1 auto;
-    min-width: 0;
-    overflow: hidden;
-    margin-left: 0 !important;
-    margin-right: 0 !important;
-  }
-
-  [data-skin="sdr-001"] .user-profile-section .user-profile .user-name,
-  [data-skin="sdr-001"] .mobile-profile-overlay .user-profile .user-name {
-    max-width: 100% !important;
-  }
-
-  [data-skin="sdr-001"] .user-profile-section .user-profile .user-status-container,
-  [data-skin="sdr-001"] .mobile-profile-overlay .user-profile .user-status-container {
-    max-width: 100%;
-    overflow: hidden;
-    margin-right: 0 !important;
-    cursor: pointer;
-  }
-
-  [data-skin="sdr-001"] .user-profile-section .user-profile .profile-bar-buttons,
-  [data-skin="sdr-001"] .user-profile-section .user-profile .buttons,
-  [data-skin="sdr-001"] .mobile-profile-overlay .user-profile .profile-bar-buttons,
-  [data-skin="sdr-001"] .mobile-profile-overlay .user-profile .buttons {
-    display: flex !important;
-    flex-shrink: 0;
-    gap: 4px !important;
-  }
-
-  [data-skin="sdr-001"] .user-profile-section .user-profile .status-dropdown,
-  [data-skin="sdr-001"] .mobile-profile-overlay .user-profile .status-dropdown {
-    z-index: 1000;
-  }
-}
-
-@media screen and (max-width: 768px) {
-  [data-skin="sdr-001"] .mobile-profile-overlay .user-profile .avatar-wrapper {
-    flex-shrink: 0;
-  }
-
-  [data-skin="sdr-001"] .mobile-profile-overlay .user-profile .user-info {
-    display: flex !important;
-    flex-direction: column;
-    justify-content: center;
-    flex: 1 1 auto;
-    min-width: 0;
-    overflow: hidden;
-    margin-left: 0 !important;
-    margin-right: 0 !important;
-  }
-
-  [data-skin="sdr-001"] .mobile-profile-overlay .user-profile .user-name {
-    max-width: 100% !important;
-  }
-
-  [data-skin="sdr-001"] .mobile-profile-overlay .user-profile .user-status-container {
-    max-width: 100%;
-    overflow: hidden;
-    margin-right: 0 !important;
-    cursor: pointer;
-  }
-
-  [data-skin="sdr-001"] .mobile-profile-overlay .user-profile .profile-bar-buttons,
-  [data-skin="sdr-001"] .mobile-profile-overlay .user-profile .buttons {
-    display: flex !important;
-    flex-shrink: 0;
-    gap: 4px !important;
-  }
-
-  [data-skin="sdr-001"] .mobile-profile-overlay .user-profile .status-dropdown {
-    z-index: 1000;
-  }
-}
-
-/* ----------------------------------------------------------------------------
-   18. Pixel-art icon swaps - global (Pixelarticons MIT)
-   --------------------------------------------------------------------------
-   `Icon.vue` (the unified icon wrapper) emits `<svg class="icon icon-${name}">`
-   for every icon usage, which gives us a stable hook to swap glyphs across
-   the entire app via a single `[data-skin="sdr-001"] .icon-<name>` pattern.
-
-   Mechanism: hide the original Lucide path with `* > svg` reset, paint a
-   pixel-art mask in `currentColor` via `::after` on the wrapping element.
-   We use `::after` (not `::before`) so the per-component-button `::before`
-   layouts in section 19/20 don't conflict.
-
-   Coverage: ~70 icons. Anything not listed keeps its original Lucide
-   look - intentional, since pixel art for low-traffic icons (calendar,
-   trending arrows, etc.) would just be visual noise. Add more swaps
-   when the screenshots show a Lucide icon you want changed.
-   -------------------------------------------------------------------------- */
-
-/*
- * Mechanism: only icons in the `:is(...)` list below get hidden + masked.
- * Anything not listed keeps its original Lucide rendering, so we never
- * end up with blank rectangles for unmapped names.
- *
- * The list is split into a base rule (positioning + hide original) and
- * a base ::after rule (the mask canvas), then each icon name has a
- * single dedicated `mask-image` rule below.
- */
-
-[data-skin="sdr-001"] :is(
-  .icon-bell, .icon-bell-off, .icon-search, .icon-settings, .icon-send,
-  .icon-headphones, .icon-mic, .icon-mic-off, .icon-phone, .icon-phone-off,
-  .icon-video, .icon-video-off, .icon-camera, .icon-camera-off, .icon-monitor,
-  .icon-screen-share, .icon-share, .icon-volume, .icon-volume-1, .icon-volume-2,
-  .icon-volume-x, .icon-volume-off, .icon-users, .icon-user, .icon-user-plus,
-  .icon-user-x, .icon-user-minus, .icon-follow, .icon-unfollow, .icon-close,
-  .icon-x, .icon-x-circle, .icon-check, .icon-check-circle, .icon-plus,
-  .icon-minus, .icon-expand, .icon-maximize, .icon-maximize-2, .icon-minimize,
-  .icon-minimize-2, .icon-grid, .icon-list, .icon-map, .icon-compass,
-  .icon-emoji, .icon-smile, .icon-message-circle, .icon-message-square,
-  .icon-message, .icon-thread, .icon-reply, .icon-edit, .icon-pencil,
-  .icon-delete, .icon-trash, .icon-trash-2, .icon-copy, .icon-save,
-  .icon-download, .icon-upload, .icon-link, .icon-external-link, .icon-eye,
-  .icon-eye-off, .icon-visibility, .icon-lock, .icon-unlock, .icon-shield,
-  .icon-shield-check, .icon-key, .icon-mail, .icon-globe, .icon-federation,
-  .icon-server, .icon-database, .icon-admin-terminal, .icon-flag, .icon-suspend,
-  .icon-ban, .icon-gavel, .icon-info, .icon-alert-circle, .icon-help-circle,
-  .icon-image, .icon-file, .icon-bookmark, .icon-bookmark-filled, .icon-heart,
-  .icon-heart-filled, .icon-star, .icon-hash, .icon-home, .icon-chevron-up,
-  .icon-chevron-down, .icon-chevron-up-down, .icon-chevron-left-right,
-  .icon-chevron-left, .icon-chevron-right, .icon-arrow-up, .icon-arrow-down,
-  .icon-arrow-left, .icon-arrow-right, .icon-play, .icon-more-horizontal,
-  .icon-dots-horizontal, .icon-dots-vertical, .icon-refresh, .icon-refresh-cw,
-  .icon-rotate-ccw, .icon-repeat, .icon-shuffle, .icon-reblog, .icon-sparkles,
-  .icon-log-in, .icon-log-out, .icon-door-open, .icon-pin, .icon-pin-off,
-  .icon-bug, .icon-clock, .icon-activity
-) {
+:root[data-skin="sdr-001"] [class*="icon-"] {
   position: relative;
-  color: transparent !important;
 }
-[data-skin="sdr-001"] :is(
+:root[data-skin="sdr-001"] [class*="icon-"]::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: currentColor;
+  pointer-events: none;
+  -webkit-mask-image: var(--skin-icon, var(--skin-icon-empty));
+          mask-image: var(--skin-icon, var(--skin-icon-empty));
+  -webkit-mask-repeat: no-repeat;
+          mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+          mask-position: center;
+  -webkit-mask-size: contain;
+          mask-size: contain;
+}
+
+/* Inventory: icons that have a `--skin-icon` mapping below. Their
+   original Lucide SVG is hidden so it doesn't paint underneath the
+   pixel-art ::after. The list MUST stay in sync with the per-name
+   mappings further down. Adding a new mapping = add the name here
+   AND add a `--skin-icon: url(...)` line below. */
+:root[data-skin="sdr-001"] :is(
   .icon-bell, .icon-bell-off, .icon-search, .icon-settings, .icon-send,
   .icon-headphones, .icon-mic, .icon-mic-off, .icon-phone, .icon-phone-off,
   .icon-video, .icon-video-off, .icon-camera, .icon-camera-off, .icon-monitor,
@@ -1239,39 +910,208 @@
 ) > * {
   visibility: hidden;
 }
-[data-skin="sdr-001"] :is(
-  .icon-bell, .icon-bell-off, .icon-search, .icon-settings, .icon-send,
-  .icon-headphones, .icon-mic, .icon-mic-off, .icon-phone, .icon-phone-off,
-  .icon-video, .icon-video-off, .icon-camera, .icon-camera-off, .icon-monitor,
-  .icon-screen-share, .icon-share, .icon-volume, .icon-volume-1, .icon-volume-2,
-  .icon-volume-x, .icon-volume-off, .icon-users, .icon-user, .icon-user-plus,
-  .icon-user-x, .icon-user-minus, .icon-follow, .icon-unfollow, .icon-close,
-  .icon-x, .icon-x-circle, .icon-check, .icon-check-circle, .icon-plus,
-  .icon-minus, .icon-expand, .icon-maximize, .icon-maximize-2, .icon-minimize,
-  .icon-minimize-2, .icon-grid, .icon-list, .icon-map, .icon-compass,
-  .icon-emoji, .icon-smile, .icon-message-circle, .icon-message-square,
-  .icon-message, .icon-thread, .icon-reply, .icon-edit, .icon-pencil,
-  .icon-delete, .icon-trash, .icon-trash-2, .icon-copy, .icon-save,
-  .icon-download, .icon-upload, .icon-link, .icon-external-link, .icon-eye,
-  .icon-eye-off, .icon-visibility, .icon-lock, .icon-unlock, .icon-shield,
-  .icon-shield-check, .icon-key, .icon-mail, .icon-globe, .icon-federation,
-  .icon-server, .icon-database, .icon-admin-terminal, .icon-flag, .icon-suspend,
-  .icon-ban, .icon-gavel, .icon-info, .icon-alert-circle, .icon-help-circle,
-  .icon-image, .icon-file, .icon-bookmark, .icon-bookmark-filled, .icon-heart,
-  .icon-heart-filled, .icon-star, .icon-hash, .icon-home, .icon-chevron-up,
-  .icon-chevron-down, .icon-chevron-up-down, .icon-chevron-left-right,
-  .icon-chevron-left, .icon-chevron-right, .icon-arrow-up, .icon-arrow-down,
-  .icon-arrow-left, .icon-arrow-right, .icon-play, .icon-more-horizontal,
-  .icon-dots-horizontal, .icon-dots-vertical, .icon-refresh, .icon-refresh-cw,
-  .icon-rotate-ccw, .icon-repeat, .icon-shuffle, .icon-reblog, .icon-sparkles,
-  .icon-log-in, .icon-log-out, .icon-door-open, .icon-pin, .icon-pin-off,
-  .icon-bug, .icon-clock, .icon-activity
+
+/* 4.1 Per-icon `--skin-icon` map. One line per swap. */
+:root[data-skin="sdr-001"] .icon-bell           { --skin-icon: url('/assets/skins/sdr-001/icons/bell.svg'); }
+:root[data-skin="sdr-001"] .icon-bell-off       { --skin-icon: url('/assets/skins/sdr-001/icons/bell-off.svg'); }
+:root[data-skin="sdr-001"] .icon-search         { --skin-icon: url('/assets/skins/sdr-001/icons/search.svg'); }
+:root[data-skin="sdr-001"] .icon-settings       { --skin-icon: url('/assets/skins/sdr-001/icons/settings-2.svg'); }
+:root[data-skin="sdr-001"] .icon-send           { --skin-icon: url('/assets/skins/sdr-001/icons/send.svg'); }
+:root[data-skin="sdr-001"] .icon-headphones     { --skin-icon: url('/assets/skins/sdr-001/icons/volume-3.svg'); }
+:root[data-skin="sdr-001"] .icon-mic            { --skin-icon: url('/assets/skins/sdr-001/icons/mic.svg'); }
+:root[data-skin="sdr-001"] .icon-mic-off        { --skin-icon: url('/assets/skins/sdr-001/icons/mic-off.svg'); }
+:root[data-skin="sdr-001"] .icon-phone          { --skin-icon: url('/assets/skins/sdr-001/icons/phone.svg'); }
+:root[data-skin="sdr-001"] .icon-phone-off      { --skin-icon: url('/assets/skins/sdr-001/icons/phone.svg'); }
+:root[data-skin="sdr-001"] .icon-video          { --skin-icon: url('/assets/skins/sdr-001/icons/video.svg'); }
+:root[data-skin="sdr-001"] .icon-video-off      { --skin-icon: url('/assets/skins/sdr-001/icons/video.svg'); }
+:root[data-skin="sdr-001"] .icon-camera         { --skin-icon: url('/assets/skins/sdr-001/icons/camera.svg'); }
+:root[data-skin="sdr-001"] .icon-camera-off     { --skin-icon: url('/assets/skins/sdr-001/icons/camera.svg'); }
+:root[data-skin="sdr-001"] .icon-monitor        { --skin-icon: url('/assets/skins/sdr-001/icons/monitor.svg'); }
+:root[data-skin="sdr-001"] .icon-screen-share   { --skin-icon: url('/assets/skins/sdr-001/icons/share.svg'); }
+:root[data-skin="sdr-001"] .icon-share          { --skin-icon: url('/assets/skins/sdr-001/icons/share.svg'); }
+:root[data-skin="sdr-001"] .icon-volume         { --skin-icon: url('/assets/skins/sdr-001/icons/volume-2.svg'); }
+:root[data-skin="sdr-001"] .icon-volume-1       { --skin-icon: url('/assets/skins/sdr-001/icons/volume-2.svg'); }
+:root[data-skin="sdr-001"] .icon-volume-2       { --skin-icon: url('/assets/skins/sdr-001/icons/volume-2.svg'); }
+:root[data-skin="sdr-001"] .icon-volume-x       { --skin-icon: url('/assets/skins/sdr-001/icons/volume.svg'); }
+:root[data-skin="sdr-001"] .icon-volume-off     { --skin-icon: url('/assets/skins/sdr-001/icons/volume.svg'); }
+:root[data-skin="sdr-001"] .icon-users          { --skin-icon: url('/assets/skins/sdr-001/icons/users.svg'); }
+:root[data-skin="sdr-001"] .icon-user           { --skin-icon: url('/assets/skins/sdr-001/icons/user.svg'); }
+:root[data-skin="sdr-001"] .icon-user-plus      { --skin-icon: url('/assets/skins/sdr-001/icons/user.svg'); }
+:root[data-skin="sdr-001"] .icon-follow         { --skin-icon: url('/assets/skins/sdr-001/icons/user.svg'); }
+:root[data-skin="sdr-001"] .icon-user-x         { --skin-icon: url('/assets/skins/sdr-001/icons/user.svg'); }
+:root[data-skin="sdr-001"] .icon-user-minus     { --skin-icon: url('/assets/skins/sdr-001/icons/user.svg'); }
+:root[data-skin="sdr-001"] .icon-unfollow       { --skin-icon: url('/assets/skins/sdr-001/icons/user.svg'); }
+:root[data-skin="sdr-001"] .icon-close          { --skin-icon: url('/assets/skins/sdr-001/icons/close.svg'); }
+:root[data-skin="sdr-001"] .icon-x              { --skin-icon: url('/assets/skins/sdr-001/icons/close.svg'); }
+:root[data-skin="sdr-001"] .icon-x-circle       { --skin-icon: url('/assets/skins/sdr-001/icons/close.svg'); }
+:root[data-skin="sdr-001"] .icon-check          { --skin-icon: url('/assets/skins/sdr-001/icons/check.svg'); }
+:root[data-skin="sdr-001"] .icon-check-circle   { --skin-icon: url('/assets/skins/sdr-001/icons/check.svg'); }
+:root[data-skin="sdr-001"] .icon-plus           { --skin-icon: url('/assets/skins/sdr-001/icons/plus.svg'); }
+:root[data-skin="sdr-001"] .icon-minus          { --skin-icon: url('/assets/skins/sdr-001/icons/minus.svg'); }
+:root[data-skin="sdr-001"] .icon-expand         { --skin-icon: url('/assets/skins/sdr-001/icons/expand.svg'); }
+:root[data-skin="sdr-001"] .icon-maximize       { --skin-icon: url('/assets/skins/sdr-001/icons/expand.svg'); }
+:root[data-skin="sdr-001"] .icon-maximize-2     { --skin-icon: url('/assets/skins/sdr-001/icons/expand.svg'); }
+:root[data-skin="sdr-001"] .icon-minimize       { --skin-icon: url('/assets/skins/sdr-001/icons/menu.svg'); }
+:root[data-skin="sdr-001"] .icon-minimize-2     { --skin-icon: url('/assets/skins/sdr-001/icons/menu.svg'); }
+:root[data-skin="sdr-001"] .icon-grid           { --skin-icon: url('/assets/skins/sdr-001/icons/grid-2x2-2.svg'); }
+:root[data-skin="sdr-001"] .icon-list           { --skin-icon: url('/assets/skins/sdr-001/icons/menu.svg'); }
+:root[data-skin="sdr-001"] .icon-map            { --skin-icon: url('/assets/skins/sdr-001/icons/map-pin.svg'); }
+:root[data-skin="sdr-001"] .icon-compass        { --skin-icon: url('/assets/skins/sdr-001/icons/map-pin.svg'); }
+:root[data-skin="sdr-001"] .icon-emoji          { --skin-icon: url('/assets/skins/sdr-001/icons/smile.svg'); }
+:root[data-skin="sdr-001"] .icon-smile          { --skin-icon: url('/assets/skins/sdr-001/icons/smile.svg'); }
+:root[data-skin="sdr-001"] .icon-message-circle { --skin-icon: url('/assets/skins/sdr-001/icons/message.svg'); }
+:root[data-skin="sdr-001"] .icon-message-square { --skin-icon: url('/assets/skins/sdr-001/icons/message.svg'); }
+:root[data-skin="sdr-001"] .icon-message        { --skin-icon: url('/assets/skins/sdr-001/icons/message.svg'); }
+:root[data-skin="sdr-001"] .icon-thread         { --skin-icon: url('/assets/skins/sdr-001/icons/message.svg'); }
+:root[data-skin="sdr-001"] .icon-reply          { --skin-icon: url('/assets/skins/sdr-001/icons/message.svg'); }
+:root[data-skin="sdr-001"] .icon-edit           { --skin-icon: url('/assets/skins/sdr-001/icons/edit.svg'); }
+:root[data-skin="sdr-001"] .icon-pencil         { --skin-icon: url('/assets/skins/sdr-001/icons/edit.svg'); }
+:root[data-skin="sdr-001"] .icon-delete         { --skin-icon: url('/assets/skins/sdr-001/icons/trash.svg'); }
+:root[data-skin="sdr-001"] .icon-trash          { --skin-icon: url('/assets/skins/sdr-001/icons/trash.svg'); }
+:root[data-skin="sdr-001"] .icon-trash-2        { --skin-icon: url('/assets/skins/sdr-001/icons/trash.svg'); }
+:root[data-skin="sdr-001"] .icon-copy           { --skin-icon: url('/assets/skins/sdr-001/icons/copy.svg'); }
+:root[data-skin="sdr-001"] .icon-save           { --skin-icon: url('/assets/skins/sdr-001/icons/download.svg'); }
+:root[data-skin="sdr-001"] .icon-download       { --skin-icon: url('/assets/skins/sdr-001/icons/download.svg'); }
+:root[data-skin="sdr-001"] .icon-upload         { --skin-icon: url('/assets/skins/sdr-001/icons/upload.svg'); }
+:root[data-skin="sdr-001"] .icon-link           { --skin-icon: url('/assets/skins/sdr-001/icons/link.svg'); }
+:root[data-skin="sdr-001"] .icon-external-link  { --skin-icon: url('/assets/skins/sdr-001/icons/link.svg'); }
+:root[data-skin="sdr-001"] .icon-eye            { --skin-icon: url('/assets/skins/sdr-001/icons/eye.svg'); }
+:root[data-skin="sdr-001"] .icon-eye-off        { --skin-icon: url('/assets/skins/sdr-001/icons/eye-off.svg'); }
+:root[data-skin="sdr-001"] .icon-visibility     { --skin-icon: url('/assets/skins/sdr-001/icons/eye-off.svg'); }
+:root[data-skin="sdr-001"] .icon-lock           { --skin-icon: url('/assets/skins/sdr-001/icons/lock.svg'); }
+:root[data-skin="sdr-001"] .icon-unlock         { --skin-icon: url('/assets/skins/sdr-001/icons/unlock.svg'); }
+:root[data-skin="sdr-001"] .icon-shield         { --skin-icon: url('/assets/skins/sdr-001/icons/shield.svg'); }
+:root[data-skin="sdr-001"] .icon-shield-check   { --skin-icon: url('/assets/skins/sdr-001/icons/shield.svg'); }
+:root[data-skin="sdr-001"] .icon-key            { --skin-icon: url('/assets/skins/sdr-001/icons/lock.svg'); }
+:root[data-skin="sdr-001"] .icon-mail           { --skin-icon: url('/assets/skins/sdr-001/icons/mail.svg'); }
+:root[data-skin="sdr-001"] .icon-globe          { --skin-icon: url('/assets/skins/sdr-001/icons/globe.svg'); }
+:root[data-skin="sdr-001"] .icon-federation     { --skin-icon: url('/assets/skins/sdr-001/icons/globe.svg'); }
+:root[data-skin="sdr-001"] .icon-server         { --skin-icon: url('/assets/skins/sdr-001/icons/server.svg'); }
+:root[data-skin="sdr-001"] .icon-database       { --skin-icon: url('/assets/skins/sdr-001/icons/database.svg'); }
+:root[data-skin="sdr-001"] .icon-admin-terminal { --skin-icon: url('/assets/skins/sdr-001/icons/terminal.svg'); }
+:root[data-skin="sdr-001"] .icon-flag           { --skin-icon: url('/assets/skins/sdr-001/icons/flag.svg'); }
+:root[data-skin="sdr-001"] .icon-suspend        { --skin-icon: url('/assets/skins/sdr-001/icons/flag.svg'); }
+:root[data-skin="sdr-001"] .icon-ban            { --skin-icon: url('/assets/skins/sdr-001/icons/flag.svg'); }
+:root[data-skin="sdr-001"] .icon-gavel          { --skin-icon: url('/assets/skins/sdr-001/icons/flag.svg'); }
+:root[data-skin="sdr-001"] .icon-info           { --skin-icon: url('/assets/skins/sdr-001/icons/bug.svg'); }
+:root[data-skin="sdr-001"] .icon-alert-circle   { --skin-icon: url('/assets/skins/sdr-001/icons/bug.svg'); }
+:root[data-skin="sdr-001"] .icon-help-circle    { --skin-icon: url('/assets/skins/sdr-001/icons/bug.svg'); }
+:root[data-skin="sdr-001"] .icon-image          { --skin-icon: url('/assets/skins/sdr-001/icons/image.svg'); }
+:root[data-skin="sdr-001"] .icon-file           { --skin-icon: url('/assets/skins/sdr-001/icons/file.svg'); }
+:root[data-skin="sdr-001"] .icon-bookmark       { --skin-icon: url('/assets/skins/sdr-001/icons/bookmark.svg'); }
+:root[data-skin="sdr-001"] .icon-bookmark-filled{ --skin-icon: url('/assets/skins/sdr-001/icons/bookmark.svg'); }
+:root[data-skin="sdr-001"] .icon-heart          { --skin-icon: url('/assets/skins/sdr-001/icons/heart.svg'); }
+:root[data-skin="sdr-001"] .icon-heart-filled   { --skin-icon: url('/assets/skins/sdr-001/icons/heart.svg'); }
+:root[data-skin="sdr-001"] .icon-star           { --skin-icon: url('/assets/skins/sdr-001/icons/star.svg'); }
+:root[data-skin="sdr-001"] .icon-hash           { --skin-icon: url('/assets/skins/sdr-001/icons/hash.svg'); }
+:root[data-skin="sdr-001"] .icon-home           { --skin-icon: url('/assets/skins/sdr-001/icons/home.svg'); }
+:root[data-skin="sdr-001"] .icon-chevron-up     { --skin-icon: url('/assets/skins/sdr-001/icons/chevron-up.svg'); }
+:root[data-skin="sdr-001"] .icon-chevron-down   { --skin-icon: url('/assets/skins/sdr-001/icons/chevron-down.svg'); }
+:root[data-skin="sdr-001"] .icon-chevron-up-down{ --skin-icon: url('/assets/skins/sdr-001/icons/chevron-down.svg'); }
+:root[data-skin="sdr-001"] .icon-chevron-left-right { --skin-icon: url('/assets/skins/sdr-001/icons/chevron-down.svg'); }
+:root[data-skin="sdr-001"] .icon-chevron-left   { --skin-icon: url('/assets/skins/sdr-001/icons/chevron-left.svg'); }
+:root[data-skin="sdr-001"] .icon-chevron-right  { --skin-icon: url('/assets/skins/sdr-001/icons/chevron-right.svg'); }
+:root[data-skin="sdr-001"] .icon-arrow-up       { --skin-icon: url('/assets/skins/sdr-001/icons/arrow-up.svg'); }
+:root[data-skin="sdr-001"] .icon-arrow-down     { --skin-icon: url('/assets/skins/sdr-001/icons/arrow-down.svg'); }
+:root[data-skin="sdr-001"] .icon-arrow-left     { --skin-icon: url('/assets/skins/sdr-001/icons/arrow-left.svg'); }
+:root[data-skin="sdr-001"] .icon-arrow-right    { --skin-icon: url('/assets/skins/sdr-001/icons/arrow-right.svg'); }
+:root[data-skin="sdr-001"] .icon-play           { --skin-icon: url('/assets/skins/sdr-001/icons/play.svg'); }
+:root[data-skin="sdr-001"] .icon-more-horizontal{ --skin-icon: url('/assets/skins/sdr-001/icons/more-horizontal.svg'); }
+:root[data-skin="sdr-001"] .icon-dots-horizontal{ --skin-icon: url('/assets/skins/sdr-001/icons/more-horizontal.svg'); }
+:root[data-skin="sdr-001"] .icon-dots-vertical  { --skin-icon: url('/assets/skins/sdr-001/icons/more-horizontal.svg'); }
+:root[data-skin="sdr-001"] .icon-refresh        { --skin-icon: url('/assets/skins/sdr-001/icons/reload.svg'); }
+:root[data-skin="sdr-001"] .icon-refresh-cw     { --skin-icon: url('/assets/skins/sdr-001/icons/reload.svg'); }
+:root[data-skin="sdr-001"] .icon-rotate-ccw     { --skin-icon: url('/assets/skins/sdr-001/icons/reload.svg'); }
+:root[data-skin="sdr-001"] .icon-repeat         { --skin-icon: url('/assets/skins/sdr-001/icons/reload.svg'); }
+:root[data-skin="sdr-001"] .icon-shuffle        { --skin-icon: url('/assets/skins/sdr-001/icons/reload.svg'); }
+:root[data-skin="sdr-001"] .icon-reblog         { --skin-icon: url('/assets/skins/sdr-001/icons/reload.svg'); }
+:root[data-skin="sdr-001"] .icon-sparkles       { --skin-icon: url('/assets/skins/sdr-001/icons/sparkles.svg'); }
+:root[data-skin="sdr-001"] .icon-log-in         { --skin-icon: url('/assets/skins/sdr-001/icons/arrow-right.svg'); }
+:root[data-skin="sdr-001"] .icon-log-out        { --skin-icon: url('/assets/skins/sdr-001/icons/arrow-left.svg'); }
+:root[data-skin="sdr-001"] .icon-door-open      { --skin-icon: url('/assets/skins/sdr-001/icons/arrow-left.svg'); }
+:root[data-skin="sdr-001"] .icon-pin            { --skin-icon: url('/assets/skins/sdr-001/icons/bookmark.svg'); }
+:root[data-skin="sdr-001"] .icon-pin-off        { --skin-icon: url('/assets/skins/sdr-001/icons/bookmark.svg'); }
+:root[data-skin="sdr-001"] .icon-bug            { --skin-icon: url('/assets/skins/sdr-001/icons/bug.svg'); }
+:root[data-skin="sdr-001"] .icon-clock          { --skin-icon: url('/assets/skins/sdr-001/icons/reload.svg'); }
+:root[data-skin="sdr-001"] .icon-activity       { --skin-icon: url('/assets/skins/sdr-001/icons/reload.svg'); }
+
+/* 4.2 Button-container mask system.
+   Some buttons render their icons via specific Vue components
+   (Mic.vue, Headphones.vue, NotificationBell, SettingsIcon, etc.) so
+   the `.icon-<name>` selector doesn't catch them. We mask the BUTTON
+   itself and size the `::after` to a centred 18-22px box.
+
+   - Voice control buttons (.control-btn.mic-btn / .headphones-btn / ...)
+   - Mini-mode dock control buttons (.mini-control-btn:nth-child... -
+     intentional positional selector here because the mini dock has
+     no per-button class hooks; replace if a future dock refactor adds them)
+   - Profile-bar buttons via data-action (UserProfileComponent.vue)
+   - Message-action buttons via [data-testid="msg-action-<x>"]
+*/
+:root[data-skin="sdr-001"] :is(
+  .control-btn.mic-btn,
+  .control-btn.headphones-btn,
+  .control-btn.video-btn,
+  .control-btn.screen-btn,
+  .control-btn.spatial-btn,
+  .control-btn.settings-btn,
+  .control-btn.participants-btn,
+  .control-btn.expand-btn,
+  .control-btn.minimize-btn,
+  .control-btn.leave-btn,
+  .mini-control-btn,
+  .profile-bar-buttons .icon-button[data-action],
+  .message-actions .action-btn,
+  .message-actions [data-testid^="msg-action-"]
+) {
+  position: relative;
+}
+
+:root[data-skin="sdr-001"] :is(
+  .control-btn.mic-btn,
+  .control-btn.headphones-btn,
+  .control-btn.video-btn,
+  .control-btn.screen-btn,
+  .control-btn.spatial-btn,
+  .control-btn.settings-btn,
+  .control-btn.participants-btn,
+  .control-btn.expand-btn,
+  .control-btn.minimize-btn,
+  .control-btn.leave-btn,
+  .mini-control-btn,
+  .profile-bar-buttons .icon-button[data-action],
+  .message-actions .action-btn,
+  .message-actions [data-testid^="msg-action-"]
+) > * {
+  visibility: hidden;
+}
+
+:root[data-skin="sdr-001"] :is(
+  .control-btn.mic-btn,
+  .control-btn.headphones-btn,
+  .control-btn.video-btn,
+  .control-btn.screen-btn,
+  .control-btn.spatial-btn,
+  .control-btn.settings-btn,
+  .control-btn.participants-btn,
+  .control-btn.expand-btn,
+  .control-btn.minimize-btn,
+  .control-btn.leave-btn,
+  .mini-control-btn,
+  .profile-bar-buttons .icon-button[data-action],
+  .message-actions .action-btn,
+  .message-actions [data-testid^="msg-action-"]
 )::after {
   content: '';
   position: absolute;
   inset: 0;
-  background-color: currentColor;
-  color: var(--text-primary);
+  margin: auto;
+  width: 20px;
+  height: 20px;
+  background: currentColor;
+  pointer-events: none;
+  -webkit-mask-image: var(--skin-icon, var(--skin-icon-empty));
+          mask-image: var(--skin-icon, var(--skin-icon-empty));
   -webkit-mask-repeat: no-repeat;
           mask-repeat: no-repeat;
   -webkit-mask-position: center;
@@ -1280,522 +1120,121 @@
           mask-size: contain;
 }
 
-/* The actual mask-image map - one rule per icon name we care about. */
-[data-skin="sdr-001"] .icon-bell::after        { -webkit-mask-image: url('/assets/skins/sdr-001/icons/bell.svg');         mask-image: url('/assets/skins/sdr-001/icons/bell.svg'); }
-[data-skin="sdr-001"] .icon-bell-off::after    { -webkit-mask-image: url('/assets/skins/sdr-001/icons/bell-off.svg');     mask-image: url('/assets/skins/sdr-001/icons/bell-off.svg'); }
-[data-skin="sdr-001"] .icon-search::after      { -webkit-mask-image: url('/assets/skins/sdr-001/icons/search.svg');       mask-image: url('/assets/skins/sdr-001/icons/search.svg'); }
-[data-skin="sdr-001"] .icon-settings::after    { -webkit-mask-image: url('/assets/skins/sdr-001/icons/settings-2.svg');   mask-image: url('/assets/skins/sdr-001/icons/settings-2.svg'); }
-[data-skin="sdr-001"] .icon-send::after        { -webkit-mask-image: url('/assets/skins/sdr-001/icons/send.svg');         mask-image: url('/assets/skins/sdr-001/icons/send.svg'); }
-[data-skin="sdr-001"] .icon-headphones::after  { -webkit-mask-image: url('/assets/skins/sdr-001/icons/volume-3.svg');     mask-image: url('/assets/skins/sdr-001/icons/volume-3.svg'); }
-[data-skin="sdr-001"] .icon-mic::after         { -webkit-mask-image: url('/assets/skins/sdr-001/icons/mic.svg');          mask-image: url('/assets/skins/sdr-001/icons/mic.svg'); }
-[data-skin="sdr-001"] .icon-mic-off::after     { -webkit-mask-image: url('/assets/skins/sdr-001/icons/mic-off.svg');      mask-image: url('/assets/skins/sdr-001/icons/mic-off.svg'); }
-[data-skin="sdr-001"] .icon-phone::after       { -webkit-mask-image: url('/assets/skins/sdr-001/icons/phone.svg');        mask-image: url('/assets/skins/sdr-001/icons/phone.svg'); }
-[data-skin="sdr-001"] .icon-phone-off::after   { -webkit-mask-image: url('/assets/skins/sdr-001/icons/phone.svg');        mask-image: url('/assets/skins/sdr-001/icons/phone.svg'); }
-[data-skin="sdr-001"] .icon-video::after       { -webkit-mask-image: url('/assets/skins/sdr-001/icons/video.svg');        mask-image: url('/assets/skins/sdr-001/icons/video.svg'); }
-[data-skin="sdr-001"] .icon-video-off::after   { -webkit-mask-image: url('/assets/skins/sdr-001/icons/video.svg');        mask-image: url('/assets/skins/sdr-001/icons/video.svg'); }
-[data-skin="sdr-001"] .icon-camera::after      { -webkit-mask-image: url('/assets/skins/sdr-001/icons/camera.svg');       mask-image: url('/assets/skins/sdr-001/icons/camera.svg'); }
-[data-skin="sdr-001"] .icon-camera-off::after  { -webkit-mask-image: url('/assets/skins/sdr-001/icons/camera.svg');       mask-image: url('/assets/skins/sdr-001/icons/camera.svg'); }
-[data-skin="sdr-001"] .icon-monitor::after     { -webkit-mask-image: url('/assets/skins/sdr-001/icons/monitor.svg');      mask-image: url('/assets/skins/sdr-001/icons/monitor.svg'); }
-[data-skin="sdr-001"] .icon-screen-share::after{ -webkit-mask-image: url('/assets/skins/sdr-001/icons/share.svg');        mask-image: url('/assets/skins/sdr-001/icons/share.svg'); }
-[data-skin="sdr-001"] .icon-share::after       { -webkit-mask-image: url('/assets/skins/sdr-001/icons/share.svg');        mask-image: url('/assets/skins/sdr-001/icons/share.svg'); }
-[data-skin="sdr-001"] .icon-volume::after,
-[data-skin="sdr-001"] .icon-volume-2::after,
-[data-skin="sdr-001"] .icon-volume-1::after    { -webkit-mask-image: url('/assets/skins/sdr-001/icons/volume-2.svg');     mask-image: url('/assets/skins/sdr-001/icons/volume-2.svg'); }
-[data-skin="sdr-001"] .icon-volume-x::after,
-[data-skin="sdr-001"] .icon-volume-off::after  { -webkit-mask-image: url('/assets/skins/sdr-001/icons/volume.svg');       mask-image: url('/assets/skins/sdr-001/icons/volume.svg'); }
-[data-skin="sdr-001"] .icon-users::after       { -webkit-mask-image: url('/assets/skins/sdr-001/icons/users.svg');        mask-image: url('/assets/skins/sdr-001/icons/users.svg'); }
-[data-skin="sdr-001"] .icon-user::after        { -webkit-mask-image: url('/assets/skins/sdr-001/icons/user.svg');         mask-image: url('/assets/skins/sdr-001/icons/user.svg'); }
-[data-skin="sdr-001"] .icon-user-plus::after,
-[data-skin="sdr-001"] .icon-follow::after      { -webkit-mask-image: url('/assets/skins/sdr-001/icons/user.svg');         mask-image: url('/assets/skins/sdr-001/icons/user.svg'); }
-[data-skin="sdr-001"] .icon-user-x::after,
-[data-skin="sdr-001"] .icon-user-minus::after,
-[data-skin="sdr-001"] .icon-unfollow::after    { -webkit-mask-image: url('/assets/skins/sdr-001/icons/user.svg');         mask-image: url('/assets/skins/sdr-001/icons/user.svg'); }
-[data-skin="sdr-001"] .icon-close::after,
-[data-skin="sdr-001"] .icon-x::after,
-[data-skin="sdr-001"] .icon-x-circle::after    { -webkit-mask-image: url('/assets/skins/sdr-001/icons/close.svg');        mask-image: url('/assets/skins/sdr-001/icons/close.svg'); }
-[data-skin="sdr-001"] .icon-check::after,
-[data-skin="sdr-001"] .icon-check-circle::after{ -webkit-mask-image: url('/assets/skins/sdr-001/icons/check.svg');        mask-image: url('/assets/skins/sdr-001/icons/check.svg'); }
-[data-skin="sdr-001"] .icon-plus::after        { -webkit-mask-image: url('/assets/skins/sdr-001/icons/plus.svg');         mask-image: url('/assets/skins/sdr-001/icons/plus.svg'); }
-[data-skin="sdr-001"] .icon-minus::after       { -webkit-mask-image: url('/assets/skins/sdr-001/icons/minus.svg');        mask-image: url('/assets/skins/sdr-001/icons/minus.svg'); }
-[data-skin="sdr-001"] .icon-expand::after,
-[data-skin="sdr-001"] .icon-maximize::after,
-[data-skin="sdr-001"] .icon-maximize-2::after  { -webkit-mask-image: url('/assets/skins/sdr-001/icons/expand.svg');       mask-image: url('/assets/skins/sdr-001/icons/expand.svg'); }
-[data-skin="sdr-001"] .icon-minimize::after,
-[data-skin="sdr-001"] .icon-minimize-2::after  { -webkit-mask-image: url('/assets/skins/sdr-001/icons/menu.svg');         mask-image: url('/assets/skins/sdr-001/icons/menu.svg'); }
-[data-skin="sdr-001"] .icon-grid::after        { -webkit-mask-image: url('/assets/skins/sdr-001/icons/grid-2x2-2.svg');   mask-image: url('/assets/skins/sdr-001/icons/grid-2x2-2.svg'); }
-[data-skin="sdr-001"] .icon-list::after        { -webkit-mask-image: url('/assets/skins/sdr-001/icons/menu.svg');         mask-image: url('/assets/skins/sdr-001/icons/menu.svg'); }
-[data-skin="sdr-001"] .icon-map::after,
-[data-skin="sdr-001"] .icon-compass::after     { -webkit-mask-image: url('/assets/skins/sdr-001/icons/map-pin.svg');      mask-image: url('/assets/skins/sdr-001/icons/map-pin.svg'); }
-[data-skin="sdr-001"] .icon-emoji::after,
-[data-skin="sdr-001"] .icon-smile::after       { -webkit-mask-image: url('/assets/skins/sdr-001/icons/smile.svg');        mask-image: url('/assets/skins/sdr-001/icons/smile.svg'); }
-[data-skin="sdr-001"] .icon-message-circle::after,
-[data-skin="sdr-001"] .icon-message-square::after,
-[data-skin="sdr-001"] .icon-message::after,
-[data-skin="sdr-001"] .icon-thread::after,
-[data-skin="sdr-001"] .icon-reply::after       { -webkit-mask-image: url('/assets/skins/sdr-001/icons/message.svg');      mask-image: url('/assets/skins/sdr-001/icons/message.svg'); }
-[data-skin="sdr-001"] .icon-edit::after,
-[data-skin="sdr-001"] .icon-pencil::after      { -webkit-mask-image: url('/assets/skins/sdr-001/icons/edit-box.svg'),
-                                                                     url('/assets/skins/sdr-001/icons/edit.svg');
-                                                          mask-image: url('/assets/skins/sdr-001/icons/edit.svg'); }
-[data-skin="sdr-001"] .icon-delete::after,
-[data-skin="sdr-001"] .icon-trash::after,
-[data-skin="sdr-001"] .icon-trash-2::after     { -webkit-mask-image: url('/assets/skins/sdr-001/icons/trash.svg');        mask-image: url('/assets/skins/sdr-001/icons/trash.svg'); }
-[data-skin="sdr-001"] .icon-copy::after        { -webkit-mask-image: url('/assets/skins/sdr-001/icons/copy.svg');         mask-image: url('/assets/skins/sdr-001/icons/copy.svg'); }
-[data-skin="sdr-001"] .icon-save::after        { -webkit-mask-image: url('/assets/skins/sdr-001/icons/download.svg');     mask-image: url('/assets/skins/sdr-001/icons/download.svg'); }
-[data-skin="sdr-001"] .icon-download::after    { -webkit-mask-image: url('/assets/skins/sdr-001/icons/download.svg');     mask-image: url('/assets/skins/sdr-001/icons/download.svg'); }
-[data-skin="sdr-001"] .icon-upload::after      { -webkit-mask-image: url('/assets/skins/sdr-001/icons/upload.svg');       mask-image: url('/assets/skins/sdr-001/icons/upload.svg'); }
-[data-skin="sdr-001"] .icon-link::after,
-[data-skin="sdr-001"] .icon-external-link::after { -webkit-mask-image: url('/assets/skins/sdr-001/icons/link.svg');       mask-image: url('/assets/skins/sdr-001/icons/link.svg'); }
-[data-skin="sdr-001"] .icon-eye::after         { -webkit-mask-image: url('/assets/skins/sdr-001/icons/eye.svg');          mask-image: url('/assets/skins/sdr-001/icons/eye.svg'); }
-[data-skin="sdr-001"] .icon-eye-off::after,
-[data-skin="sdr-001"] .icon-visibility::after  { -webkit-mask-image: url('/assets/skins/sdr-001/icons/eye-off.svg');      mask-image: url('/assets/skins/sdr-001/icons/eye-off.svg'); }
-[data-skin="sdr-001"] .icon-lock::after        { -webkit-mask-image: url('/assets/skins/sdr-001/icons/lock.svg');         mask-image: url('/assets/skins/sdr-001/icons/lock.svg'); }
-[data-skin="sdr-001"] .icon-unlock::after      { -webkit-mask-image: url('/assets/skins/sdr-001/icons/unlock.svg');       mask-image: url('/assets/skins/sdr-001/icons/unlock.svg'); }
-[data-skin="sdr-001"] .icon-shield::after,
-[data-skin="sdr-001"] .icon-shield-check::after { -webkit-mask-image: url('/assets/skins/sdr-001/icons/shield.svg');      mask-image: url('/assets/skins/sdr-001/icons/shield.svg'); }
-[data-skin="sdr-001"] .icon-key::after         { -webkit-mask-image: url('/assets/skins/sdr-001/icons/key.svg'),
-                                                                     url('/assets/skins/sdr-001/icons/lock.svg');
-                                                          mask-image: url('/assets/skins/sdr-001/icons/lock.svg'); }
-[data-skin="sdr-001"] .icon-mail::after,
-[data-skin="sdr-001"] .icon-message::after     { -webkit-mask-image: url('/assets/skins/sdr-001/icons/mail.svg');         mask-image: url('/assets/skins/sdr-001/icons/mail.svg'); }
-[data-skin="sdr-001"] .icon-globe::after,
-[data-skin="sdr-001"] .icon-federation::after  { -webkit-mask-image: url('/assets/skins/sdr-001/icons/globe.svg');        mask-image: url('/assets/skins/sdr-001/icons/globe.svg'); }
-[data-skin="sdr-001"] .icon-server::after      { -webkit-mask-image: url('/assets/skins/sdr-001/icons/server.svg');       mask-image: url('/assets/skins/sdr-001/icons/server.svg'); }
-[data-skin="sdr-001"] .icon-database::after    { -webkit-mask-image: url('/assets/skins/sdr-001/icons/database.svg');     mask-image: url('/assets/skins/sdr-001/icons/database.svg'); }
-[data-skin="sdr-001"] .icon-admin-terminal::after { -webkit-mask-image: url('/assets/skins/sdr-001/icons/terminal.svg');  mask-image: url('/assets/skins/sdr-001/icons/terminal.svg'); }
-[data-skin="sdr-001"] .icon-flag::after,
-[data-skin="sdr-001"] .icon-suspend::after,
-[data-skin="sdr-001"] .icon-ban::after,
-[data-skin="sdr-001"] .icon-gavel::after       { -webkit-mask-image: url('/assets/skins/sdr-001/icons/flag.svg');         mask-image: url('/assets/skins/sdr-001/icons/flag.svg'); }
-[data-skin="sdr-001"] .icon-info::after,
-[data-skin="sdr-001"] .icon-alert-circle::after,
-[data-skin="sdr-001"] .icon-help-circle::after { -webkit-mask-image: url('/assets/skins/sdr-001/icons/bug.svg');          mask-image: url('/assets/skins/sdr-001/icons/bug.svg'); }
-[data-skin="sdr-001"] .icon-image::after       { -webkit-mask-image: url('/assets/skins/sdr-001/icons/image.svg');        mask-image: url('/assets/skins/sdr-001/icons/image.svg'); }
-[data-skin="sdr-001"] .icon-file::after        { -webkit-mask-image: url('/assets/skins/sdr-001/icons/file.svg');         mask-image: url('/assets/skins/sdr-001/icons/file.svg'); }
-[data-skin="sdr-001"] .icon-bookmark::after,
-[data-skin="sdr-001"] .icon-bookmark-filled::after { -webkit-mask-image: url('/assets/skins/sdr-001/icons/bookmark.svg'); mask-image: url('/assets/skins/sdr-001/icons/bookmark.svg'); }
-[data-skin="sdr-001"] .icon-heart::after,
-[data-skin="sdr-001"] .icon-heart-filled::after { -webkit-mask-image: url('/assets/skins/sdr-001/icons/heart.svg');       mask-image: url('/assets/skins/sdr-001/icons/heart.svg'); }
-[data-skin="sdr-001"] .icon-star::after        { -webkit-mask-image: url('/assets/skins/sdr-001/icons/star.svg');         mask-image: url('/assets/skins/sdr-001/icons/star.svg'); }
-[data-skin="sdr-001"] .icon-hash::after        { -webkit-mask-image: url('/assets/skins/sdr-001/icons/hash.svg');         mask-image: url('/assets/skins/sdr-001/icons/hash.svg'); }
-[data-skin="sdr-001"] .icon-home::after        { -webkit-mask-image: url('/assets/skins/sdr-001/icons/home.svg');         mask-image: url('/assets/skins/sdr-001/icons/home.svg'); }
-[data-skin="sdr-001"] .icon-chevron-up::after  { -webkit-mask-image: url('/assets/skins/sdr-001/icons/chevron-up.svg');   mask-image: url('/assets/skins/sdr-001/icons/chevron-up.svg'); }
-[data-skin="sdr-001"] .icon-chevron-down::after,
-[data-skin="sdr-001"] .icon-chevron-up-down::after,
-[data-skin="sdr-001"] .icon-chevron-left-right::after { -webkit-mask-image: url('/assets/skins/sdr-001/icons/chevron-down.svg'); mask-image: url('/assets/skins/sdr-001/icons/chevron-down.svg'); }
-[data-skin="sdr-001"] .icon-chevron-left::after { -webkit-mask-image: url('/assets/skins/sdr-001/icons/chevron-left.svg'); mask-image: url('/assets/skins/sdr-001/icons/chevron-left.svg'); }
-[data-skin="sdr-001"] .icon-chevron-right::after { -webkit-mask-image: url('/assets/skins/sdr-001/icons/chevron-right.svg'); mask-image: url('/assets/skins/sdr-001/icons/chevron-right.svg'); }
-[data-skin="sdr-001"] .icon-arrow-up::after    { -webkit-mask-image: url('/assets/skins/sdr-001/icons/arrow-up.svg');     mask-image: url('/assets/skins/sdr-001/icons/arrow-up.svg'); }
-[data-skin="sdr-001"] .icon-arrow-down::after  { -webkit-mask-image: url('/assets/skins/sdr-001/icons/arrow-down.svg');   mask-image: url('/assets/skins/sdr-001/icons/arrow-down.svg'); }
-[data-skin="sdr-001"] .icon-arrow-left::after  { -webkit-mask-image: url('/assets/skins/sdr-001/icons/arrow-left.svg');   mask-image: url('/assets/skins/sdr-001/icons/arrow-left.svg'); }
-[data-skin="sdr-001"] .icon-arrow-right::after { -webkit-mask-image: url('/assets/skins/sdr-001/icons/arrow-right.svg');  mask-image: url('/assets/skins/sdr-001/icons/arrow-right.svg'); }
-[data-skin="sdr-001"] .icon-play::after        { -webkit-mask-image: url('/assets/skins/sdr-001/icons/play.svg');         mask-image: url('/assets/skins/sdr-001/icons/play.svg'); }
-[data-skin="sdr-001"] .icon-more-horizontal::after,
-[data-skin="sdr-001"] .icon-dots-horizontal::after,
-[data-skin="sdr-001"] .icon-dots-vertical::after { -webkit-mask-image: url('/assets/skins/sdr-001/icons/more-horizontal.svg'); mask-image: url('/assets/skins/sdr-001/icons/more-horizontal.svg'); }
-[data-skin="sdr-001"] .icon-refresh::after,
-[data-skin="sdr-001"] .icon-refresh-cw::after,
-[data-skin="sdr-001"] .icon-rotate-ccw::after,
-[data-skin="sdr-001"] .icon-repeat::after,
-[data-skin="sdr-001"] .icon-shuffle::after,
-[data-skin="sdr-001"] .icon-reblog::after      { -webkit-mask-image: url('/assets/skins/sdr-001/icons/reload.svg');       mask-image: url('/assets/skins/sdr-001/icons/reload.svg'); }
-[data-skin="sdr-001"] .icon-sparkles::after    { -webkit-mask-image: url('/assets/skins/sdr-001/icons/sparkles.svg');     mask-image: url('/assets/skins/sdr-001/icons/sparkles.svg'); }
-[data-skin="sdr-001"] .icon-log-in::after      { -webkit-mask-image: url('/assets/skins/sdr-001/icons/arrow-right.svg');  mask-image: url('/assets/skins/sdr-001/icons/arrow-right.svg'); }
-[data-skin="sdr-001"] .icon-log-out::after,
-[data-skin="sdr-001"] .icon-door-open::after   { -webkit-mask-image: url('/assets/skins/sdr-001/icons/arrow-left.svg');   mask-image: url('/assets/skins/sdr-001/icons/arrow-left.svg'); }
-[data-skin="sdr-001"] .icon-pin::after,
-[data-skin="sdr-001"] .icon-pin-off::after     { -webkit-mask-image: url('/assets/skins/sdr-001/icons/pin.svg'),
-                                                                     url('/assets/skins/sdr-001/icons/bookmark.svg');
-                                                          mask-image: url('/assets/skins/sdr-001/icons/bookmark.svg'); }
-[data-skin="sdr-001"] .icon-bug::after         { -webkit-mask-image: url('/assets/skins/sdr-001/icons/bug.svg');          mask-image: url('/assets/skins/sdr-001/icons/bug.svg'); }
-[data-skin="sdr-001"] .icon-clock::after,
-[data-skin="sdr-001"] .icon-activity::after    { -webkit-mask-image: url('/assets/skins/sdr-001/icons/reload.svg');       mask-image: url('/assets/skins/sdr-001/icons/reload.svg'); }
+/* Voice control buttons - per-button --skin-icon. */
+:root[data-skin="sdr-001"] .control-btn.mic-btn          { --skin-icon: url('/assets/skins/sdr-001/icons/mic.svg'); }
+:root[data-skin="sdr-001"] .control-btn.mic-btn.muted    { --skin-icon: url('/assets/skins/sdr-001/icons/mic-off.svg'); }
+:root[data-skin="sdr-001"] .control-btn.headphones-btn   { --skin-icon: url('/assets/skins/sdr-001/icons/volume-3.svg'); }
+:root[data-skin="sdr-001"] .control-btn.headphones-btn.deafened { --skin-icon: url('/assets/skins/sdr-001/icons/volume.svg'); }
+:root[data-skin="sdr-001"] .control-btn.video-btn        { --skin-icon: url('/assets/skins/sdr-001/icons/video.svg'); }
+:root[data-skin="sdr-001"] .control-btn.screen-btn       { --skin-icon: url('/assets/skins/sdr-001/icons/share.svg'); }
+:root[data-skin="sdr-001"] .control-btn.spatial-btn      { --skin-icon: url('/assets/skins/sdr-001/icons/grid-2x2-2.svg'); }
+:root[data-skin="sdr-001"] .control-btn.settings-btn     { --skin-icon: url('/assets/skins/sdr-001/icons/settings-2.svg'); }
+:root[data-skin="sdr-001"] .control-btn.participants-btn { --skin-icon: url('/assets/skins/sdr-001/icons/users.svg'); }
+:root[data-skin="sdr-001"] .control-btn.expand-btn       { --skin-icon: url('/assets/skins/sdr-001/icons/expand.svg'); }
+:root[data-skin="sdr-001"] .control-btn.minimize-btn     { --skin-icon: url('/assets/skins/sdr-001/icons/menu.svg'); }
+:root[data-skin="sdr-001"] .control-btn.leave-btn        { --skin-icon: url('/assets/skins/sdr-001/icons/phone.svg'); }
 
-/* Voice dock named buttons render their icons via per-icon Vue
-   components (Mic.vue, Headphones.vue, etc.), not via Icon.vue, so the
-   `.icon-${name}` swap above doesn't catch them. Map them by their
-   button container class as a fallback. */
-[data-skin="sdr-001"] .control-btn.mic-btn,
-[data-skin="sdr-001"] .control-btn.headphones-btn,
-[data-skin="sdr-001"] .control-btn.video-btn,
-[data-skin="sdr-001"] .control-btn.screen-btn,
-[data-skin="sdr-001"] .control-btn.spatial-btn,
-[data-skin="sdr-001"] .control-btn.settings-btn,
-[data-skin="sdr-001"] .control-btn.participants-btn,
-[data-skin="sdr-001"] .control-btn.expand-btn,
-[data-skin="sdr-001"] .control-btn.minimize-btn,
-[data-skin="sdr-001"] .control-btn.leave-btn,
-[data-skin="sdr-001"] .mini-control-btn {
-  position: relative;
-  color: transparent !important;
+/* Mini-dock buttons. The mini-dock renders mic / headphones / leave
+   in a fixed order without per-button class hooks, so we use
+   :nth-child positional selectors here. If the mini-dock template is
+   ever refactored to add `.mic` / `.headphones` / `.leave` classes,
+   replace these with class-based selectors. */
+:root[data-skin="sdr-001"] .minimized-controls .mini-control-btn:nth-child(1) {
+  --skin-icon: url('/assets/skins/sdr-001/icons/mic.svg');
 }
-[data-skin="sdr-001"] .control-btn > svg,
-[data-skin="sdr-001"] .control-btn .icon-component,
-[data-skin="sdr-001"] .mini-control-btn > svg,
-[data-skin="sdr-001"] .mini-control-btn .icon-component {
+:root[data-skin="sdr-001"] .minimized-controls .mini-control-btn:nth-child(1).muted {
+  --skin-icon: url('/assets/skins/sdr-001/icons/mic-off.svg');
+}
+:root[data-skin="sdr-001"] .minimized-controls .mini-control-btn:nth-child(2) {
+  --skin-icon: url('/assets/skins/sdr-001/icons/volume-3.svg');
+}
+:root[data-skin="sdr-001"] .minimized-controls .mini-control-btn:nth-child(2).deafened {
+  --skin-icon: url('/assets/skins/sdr-001/icons/volume.svg');
+}
+:root[data-skin="sdr-001"] .minimized-controls .mini-control-btn:nth-child(3),
+:root[data-skin="sdr-001"] .minimized-controls .mini-control-btn.leave {
+  --skin-icon: url('/assets/skins/sdr-001/icons/phone.svg');
+}
+
+/* Profile-bar buttons - addressed by the `data-action` attribute we
+   added to UserProfileComponent.vue (replaces the previous
+   :nth-child positional selectors). */
+:root[data-skin="sdr-001"] .profile-bar-buttons .icon-button[data-action="bell"] {
+  --skin-icon: url('/assets/skins/sdr-001/icons/bell.svg');
+}
+:root[data-skin="sdr-001"] .profile-bar-buttons .icon-button[data-action="mic"] {
+  --skin-icon: url('/assets/skins/sdr-001/icons/mic.svg');
+}
+:root[data-skin="sdr-001"] .profile-bar-buttons .icon-button[data-action="mic"].muted {
+  --skin-icon: url('/assets/skins/sdr-001/icons/mic-off.svg');
+}
+:root[data-skin="sdr-001"] .profile-bar-buttons .icon-button[data-action="deafen"] {
+  --skin-icon: url('/assets/skins/sdr-001/icons/volume-3.svg');
+}
+:root[data-skin="sdr-001"] .profile-bar-buttons .icon-button[data-action="deafen"].muted {
+  --skin-icon: url('/assets/skins/sdr-001/icons/volume.svg');
+}
+:root[data-skin="sdr-001"] .profile-bar-buttons .icon-button[data-action="settings"] {
+  --skin-icon: url('/assets/skins/sdr-001/icons/settings-2.svg');
+}
+
+/* Message hover-action buttons - addressed via the existing stable
+   `data-testid="msg-action-<id>"` hook on each button. */
+:root[data-skin="sdr-001"] .message-actions [data-testid="msg-action-react"],
+:root[data-skin="sdr-001"] .message-actions-floating [data-testid="msg-action-react"] {
+  --skin-icon: url('/assets/skins/sdr-001/icons/smile.svg');
+}
+:root[data-skin="sdr-001"] .message-actions [data-testid="msg-action-reply"],
+:root[data-skin="sdr-001"] .message-actions-floating [data-testid="msg-action-reply"] {
+  --skin-icon: url('/assets/skins/sdr-001/icons/message.svg');
+}
+:root[data-skin="sdr-001"] .message-actions [data-testid="msg-action-thread"],
+:root[data-skin="sdr-001"] .message-actions-floating [data-testid="msg-action-thread"] {
+  --skin-icon: url('/assets/skins/sdr-001/icons/notes.svg');
+}
+:root[data-skin="sdr-001"] .message-actions [data-testid="msg-action-edit"],
+:root[data-skin="sdr-001"] .message-actions-floating [data-testid="msg-action-edit"] {
+  --skin-icon: url('/assets/skins/sdr-001/icons/edit.svg');
+}
+:root[data-skin="sdr-001"] .message-actions [data-testid="msg-action-delete"],
+:root[data-skin="sdr-001"] .message-actions-floating [data-testid="msg-action-delete"] {
+  --skin-icon: url('/assets/skins/sdr-001/icons/trash.svg');
+}
+:root[data-skin="sdr-001"] .message-actions [data-testid="msg-action-more"],
+:root[data-skin="sdr-001"] .message-actions-floating [data-testid="msg-action-more"] {
+  --skin-icon: url('/assets/skins/sdr-001/icons/more-horizontal.svg');
+}
+
+/* Message-action delete-danger keeps its red color (existing behaviour). */
+:root[data-skin="sdr-001"] .message-actions [data-testid="msg-action-delete"].delete-danger,
+:root[data-skin="sdr-001"] .message-actions .action-btn.delete-danger {
+  color: var(--error, #f04747);
+}
+
+/* Message-actions floating panel needs to share the same masking. The
+   plumbing rules above only target `.message-actions [data-testid...]`,
+   so add a parallel rule for `.message-actions-floating`. */
+:root[data-skin="sdr-001"] .message-actions-floating [data-testid^="msg-action-"] {
+  position: relative;
+}
+:root[data-skin="sdr-001"] .message-actions-floating [data-testid^="msg-action-"] > * {
   visibility: hidden;
 }
-[data-skin="sdr-001"] .control-btn.mic-btn::after,
-[data-skin="sdr-001"] .control-btn.headphones-btn::after,
-[data-skin="sdr-001"] .control-btn.video-btn::after,
-[data-skin="sdr-001"] .control-btn.screen-btn::after,
-[data-skin="sdr-001"] .control-btn.spatial-btn::after,
-[data-skin="sdr-001"] .control-btn.settings-btn::after,
-[data-skin="sdr-001"] .control-btn.participants-btn::after,
-[data-skin="sdr-001"] .control-btn.expand-btn::after,
-[data-skin="sdr-001"] .control-btn.minimize-btn::after,
-[data-skin="sdr-001"] .control-btn.leave-btn::after,
-[data-skin="sdr-001"] .mini-control-btn::after {
+:root[data-skin="sdr-001"] .message-actions-floating [data-testid^="msg-action-"]::after {
   content: '';
   position: absolute;
   inset: 0;
   margin: auto;
-  width: 22px;
-  height: 22px;
-  background-color: var(--text-primary, #fff);
+  width: 20px;
+  height: 20px;
+  background: currentColor;
   pointer-events: none;
+  -webkit-mask-image: var(--skin-icon, var(--skin-icon-empty));
+          mask-image: var(--skin-icon, var(--skin-icon-empty));
   -webkit-mask-repeat: no-repeat;
           mask-repeat: no-repeat;
   -webkit-mask-position: center;
           mask-position: center;
   -webkit-mask-size: contain;
           mask-size: contain;
-}
-[data-skin="sdr-001"] .control-btn.mic-btn::after,
-[data-skin="sdr-001"] .minimized-controls .mini-control-btn:nth-child(1)::after {
-  -webkit-mask-image: url('/assets/skins/sdr-001/icons/mic.svg');
-          mask-image: url('/assets/skins/sdr-001/icons/mic.svg');
-}
-[data-skin="sdr-001"] .control-btn.mic-btn.muted::after,
-[data-skin="sdr-001"] .minimized-controls .mini-control-btn:nth-child(1).muted::after {
-  -webkit-mask-image: url('/assets/skins/sdr-001/icons/mic-off.svg');
-          mask-image: url('/assets/skins/sdr-001/icons/mic-off.svg');
-}
-[data-skin="sdr-001"] .control-btn.headphones-btn::after,
-[data-skin="sdr-001"] .minimized-controls .mini-control-btn:nth-child(2)::after {
-  -webkit-mask-image: url('/assets/skins/sdr-001/icons/volume-3.svg');
-          mask-image: url('/assets/skins/sdr-001/icons/volume-3.svg');
-}
-[data-skin="sdr-001"] .control-btn.headphones-btn.deafened::after,
-[data-skin="sdr-001"] .minimized-controls .mini-control-btn:nth-child(2).deafened::after {
-  -webkit-mask-image: url('/assets/skins/sdr-001/icons/volume.svg');
-          mask-image: url('/assets/skins/sdr-001/icons/volume.svg');
-}
-[data-skin="sdr-001"] .control-btn.video-btn::after             { -webkit-mask-image: url('/assets/skins/sdr-001/icons/video.svg');    mask-image: url('/assets/skins/sdr-001/icons/video.svg'); }
-[data-skin="sdr-001"] .control-btn.screen-btn::after            { -webkit-mask-image: url('/assets/skins/sdr-001/icons/share.svg');    mask-image: url('/assets/skins/sdr-001/icons/share.svg'); }
-[data-skin="sdr-001"] .control-btn.spatial-btn::after           { -webkit-mask-image: url('/assets/skins/sdr-001/icons/grid-2x2-2.svg'); mask-image: url('/assets/skins/sdr-001/icons/grid-2x2-2.svg'); }
-[data-skin="sdr-001"] .control-btn.settings-btn::after          { -webkit-mask-image: url('/assets/skins/sdr-001/icons/settings-2.svg'); mask-image: url('/assets/skins/sdr-001/icons/settings-2.svg'); }
-[data-skin="sdr-001"] .control-btn.participants-btn::after      { -webkit-mask-image: url('/assets/skins/sdr-001/icons/users.svg');    mask-image: url('/assets/skins/sdr-001/icons/users.svg'); }
-[data-skin="sdr-001"] .control-btn.expand-btn::after            { -webkit-mask-image: url('/assets/skins/sdr-001/icons/expand.svg');   mask-image: url('/assets/skins/sdr-001/icons/expand.svg'); }
-[data-skin="sdr-001"] .control-btn.minimize-btn::after          { -webkit-mask-image: url('/assets/skins/sdr-001/icons/menu.svg');     mask-image: url('/assets/skins/sdr-001/icons/menu.svg'); }
-[data-skin="sdr-001"] .control-btn.leave-btn::after,
-[data-skin="sdr-001"] .minimized-controls .mini-control-btn.leave::after,
-[data-skin="sdr-001"] .minimized-controls .mini-control-btn:nth-child(3)::after {
-  -webkit-mask-image: url('/assets/skins/sdr-001/icons/phone.svg');
-          mask-image: url('/assets/skins/sdr-001/icons/phone.svg');
-}
-
-/* Voice overlay leave button - was the one ROUND red gradient pill that
-   stuck out in screenshot 2. Match the rest of the overlay's tactical
-   chrome: sharp 2px square, hairline red border, pixel font label,
-   pixel phone-off glyph instead of the Lucide one. */
-[data-skin="sdr-001"] .voice-overlay .leave-button,
-[data-skin="sdr-001"] .unified-voice-overlay .leave-button {
-  background: var(--skin-accent-32) !important;
-  background-image: none !important;
-  border: 1px solid var(--skin-accent-70) !important;
-  border-radius: 2px !important;
-  font-family: 'NoRe Sans Pixel Pro', monospace !important;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: #fff !important;
-  box-shadow: 0 0 12px var(--skin-accent-35);
-}
-[data-skin="sdr-001"] .voice-overlay .leave-button:hover,
-[data-skin="sdr-001"] .unified-voice-overlay .leave-button:hover {
-  background: var(--skin-accent-50) !important;
-  box-shadow: 0 0 18px var(--skin-accent-55);
-  transform: none !important;
-}
-
-/* User profile bar: Bell / Mic / Headphones / Settings.
-   Mic+Settings use @click on `.icon-button`; Bell uses nested
-   `.notification-bell` (see `.notification-bell-slot` below). */
-[data-skin="sdr-001"] .profile-bar-buttons .icon-button:not(.notification-bell-slot) {
-  position: relative;
-  color: transparent !important;
-}
-[data-skin="sdr-001"] .profile-bar-buttons .icon-button:not(.notification-bell-slot) > * {
-  visibility: hidden;
-}
-[data-skin="sdr-001"] .profile-bar-buttons .icon-button:not(.notification-bell-slot)::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  margin: auto;
-  width: 18px;
-  height: 18px;
-  background-color: var(--text-primary, #fff);
-  pointer-events: none;
-  -webkit-mask-repeat: no-repeat;
-          mask-repeat: no-repeat;
-  -webkit-mask-position: center;
-          mask-position: center;
-  -webkit-mask-size: contain;
-          mask-size: contain;
-}
-/* Bell slot: full-size hit target + pixel mask on the real button. */
-[data-skin="sdr-001"] .profile-bar-buttons .notification-bell-slot .notification-bell-container {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-[data-skin="sdr-001"] .profile-bar-buttons .notification-bell-slot .notification-bell {
-  position: relative;
-  width: 100%;
-  height: 100%;
-  color: var(--text-secondary, #b3b3b3) !important;
-}
-[data-skin="sdr-001"] .profile-bar-buttons .notification-bell-slot .notification-bell:hover {
-  color: #fff !important;
-}
-[data-skin="sdr-001"] .profile-bar-buttons .notification-bell-slot .notification-bell .bell-icon {
-  visibility: hidden;
-}
-[data-skin="sdr-001"] .profile-bar-buttons .notification-bell-slot .notification-bell::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  margin: auto;
-  width: 18px;
-  height: 18px;
-  background-color: currentColor;
-  pointer-events: none;
-  -webkit-mask-repeat: no-repeat;
-          mask-repeat: no-repeat;
-  -webkit-mask-position: center;
-          mask-position: center;
-  -webkit-mask-size: contain;
-          mask-size: contain;
-  -webkit-mask-image: url('/assets/skins/sdr-001/icons/bell.svg');
-          mask-image: url('/assets/skins/sdr-001/icons/bell.svg');
-}
-[data-skin="sdr-001"] .profile-bar-buttons .icon-button:nth-child(2)::after {
-  -webkit-mask-image: url('/assets/skins/sdr-001/icons/mic.svg');
-          mask-image: url('/assets/skins/sdr-001/icons/mic.svg');
-}
-[data-skin="sdr-001"] .profile-bar-buttons .icon-button:nth-child(2).muted::after {
-  -webkit-mask-image: url('/assets/skins/sdr-001/icons/mic-off.svg');
-          mask-image: url('/assets/skins/sdr-001/icons/mic-off.svg');
-}
-[data-skin="sdr-001"] .profile-bar-buttons .icon-button:nth-child(3)::after {
-  -webkit-mask-image: url('/assets/skins/sdr-001/icons/volume-3.svg');
-          mask-image: url('/assets/skins/sdr-001/icons/volume-3.svg');
-}
-[data-skin="sdr-001"] .profile-bar-buttons .icon-button:nth-child(3).muted::after {
-  -webkit-mask-image: url('/assets/skins/sdr-001/icons/volume.svg');
-          mask-image: url('/assets/skins/sdr-001/icons/volume.svg');
-}
-[data-skin="sdr-001"] .profile-bar-buttons .icon-button:nth-child(4)::after {
-  -webkit-mask-image: url('/assets/skins/sdr-001/icons/settings-2.svg');
-          mask-image: url('/assets/skins/sdr-001/icons/settings-2.svg');
-}
-
-/* Message hover-action toolbar (react / reply / thread / edit / delete /
-   more). Lucide icons are hidden; pixel masks paint via ::after.
-   IMPORTANT: never use the `mask` shorthand here — it resets mask-image. */
-[data-skin="sdr-001"] .message-actions .action-btn,
-[data-skin="sdr-001"] .message-actions [data-testid^="msg-action-"] {
-  position: relative;
-  color: var(--text-secondary, #b3b3b3) !important;
-}
-[data-skin="sdr-001"] .message-actions .action-btn:hover,
-[data-skin="sdr-001"] .message-actions [data-testid^="msg-action-"]:hover {
-  color: #fff !important;
-}
-[data-skin="sdr-001"] .message-actions .action-btn.delete-danger,
-[data-skin="sdr-001"] .message-actions [data-testid="msg-action-delete"].delete-danger {
-  color: var(--error, #f04747) !important;
-}
-[data-skin="sdr-001"] .message-actions .action-btn svg,
-[data-skin="sdr-001"] .message-actions .action-btn .icon-component,
-[data-skin="sdr-001"] .message-actions [data-testid^="msg-action-"] > * {
-  visibility: hidden !important;
-  opacity: 0 !important;
-  pointer-events: none;
-}
-[data-skin="sdr-001"] .message-actions .action-btn::after,
-[data-skin="sdr-001"] .message-actions [data-testid^="msg-action-"]::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  margin: auto;
-  width: 18px;
-  height: 18px;
-  background-color: currentColor;
-  pointer-events: none;
-  -webkit-mask-repeat: no-repeat;
-          mask-repeat: no-repeat;
-  -webkit-mask-position: center;
-          mask-position: center;
-  -webkit-mask-size: contain;
-          mask-size: contain;
-}
-[data-skin="sdr-001"] .message-actions [data-testid="msg-action-react"]::after,
-[data-skin="sdr-001"] .message-actions-floating [data-testid="msg-action-react"]::after {
-  -webkit-mask-image: url('/assets/skins/sdr-001/icons/smile.svg');
-          mask-image: url('/assets/skins/sdr-001/icons/smile.svg');
-}
-[data-skin="sdr-001"] .message-actions [data-testid="msg-action-reply"]::after,
-[data-skin="sdr-001"] .message-actions-floating [data-testid="msg-action-reply"]::after {
-  -webkit-mask-image: url('/assets/skins/sdr-001/icons/message.svg');
-          mask-image: url('/assets/skins/sdr-001/icons/message.svg');
-}
-[data-skin="sdr-001"] .message-actions [data-testid="msg-action-thread"]::after,
-[data-skin="sdr-001"] .message-actions-floating [data-testid="msg-action-thread"]::after {
-  -webkit-mask-image: url('/assets/skins/sdr-001/icons/notes.svg');
-          mask-image: url('/assets/skins/sdr-001/icons/notes.svg');
-}
-[data-skin="sdr-001"] .message-actions [data-testid="msg-action-edit"]::after,
-[data-skin="sdr-001"] .message-actions-floating [data-testid="msg-action-edit"]::after {
-  -webkit-mask-image: url('/assets/skins/sdr-001/icons/edit.svg');
-          mask-image: url('/assets/skins/sdr-001/icons/edit.svg');
-}
-[data-skin="sdr-001"] .message-actions [data-testid="msg-action-delete"]::after,
-[data-skin="sdr-001"] .message-actions-floating [data-testid="msg-action-delete"]::after {
-  -webkit-mask-image: url('/assets/skins/sdr-001/icons/trash.svg');
-          mask-image: url('/assets/skins/sdr-001/icons/trash.svg');
-}
-[data-skin="sdr-001"] .message-actions [data-testid="msg-action-more"]::after,
-[data-skin="sdr-001"] .message-actions-floating [data-testid="msg-action-more"]::after {
-  -webkit-mask-image: url('/assets/skins/sdr-001/icons/more-horizontal.svg');
-          mask-image: url('/assets/skins/sdr-001/icons/more-horizontal.svg');
-}
-
-/* ----------------------------------------------------------------------------
-   19. Voice dock - tactical strip redesign
-   --------------------------------------------------------------------------
-   Current default: floating glass pill with the user info on the left,
-   round controls in the middle. SDR-001 makes it a flush bottom HUD bar
-   with bigger square buttons + a STATS panel on the left showing
-   callsign / channel / fake transmission status.
-   -------------------------------------------------------------------------- */
-
-/* Voice channel name in the dock - uppercase + tracked-out callsign,
-   with a `COMMS //` prefix so the dock reads as a comms strip. */
-[data-skin="sdr-001"] .unified-voice-dock .channel-name {
-  font-family: 'NoRe Sans Pixel Pro', monospace !important;
-  text-transform: uppercase;
-  letter-spacing: 0.14em;
-  color: #fff !important;
-}
-[data-skin="sdr-001"] .unified-voice-dock .channel-name::before {
-  content: 'COMMS // ';
-  color: var(--skin-accent-85);
-}
-
-/* Mini-mode dock (the small dock that lives in the channel sidebar)
-   gets a hairline red top border so it visibly separates from the
-   channel list above it. */
-[data-skin="sdr-001"] .unified-voice-dock.minimized-mode .minimized-container {
-  max-width: 100%;
-  overflow: hidden;
-  box-sizing: border-box;
-}
-[data-skin="sdr-001"] .unified-voice-dock.minimized-mode .minimized-content {
-  min-width: 0;
-  overflow: hidden;
-  gap: 8px !important;
-}
-[data-skin="sdr-001"] .unified-voice-dock.minimized-mode .minimized-info {
-  min-width: 0;
-  overflow: hidden;
-}
-[data-skin="sdr-001"] .unified-voice-dock.minimized-mode .minimized-info .channel-name {
-  min-width: 0;
-  flex: 1 1 auto;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-[data-skin="sdr-001"] .unified-voice-dock.minimized-mode .minimized-controls {
-  flex-shrink: 0;
-}
-[data-skin="sdr-001"] .unified-voice-dock.minimized-mode .dock-container {
-  border-top: 1px solid var(--skin-accent-45) !important;
-}
-
-/* ----------------------------------------------------------------------------
-   20. Voice overlay - tactical comms console
-   --------------------------------------------------------------------------
-   The maximised voice chat panel. The default "voice chat • 1 participant"
-   header reads as a comms read-out, the participant card gets target
-   reticle marks at its corners (already in section 12), and the bottom
-   control bar becomes a HUD strip flush with the panel.
-   -------------------------------------------------------------------------- */
-
-/* Header treatment - the icon + title becomes a transmission read-out. */
-[data-skin="sdr-001"] .voice-overlay header,
-[data-skin="sdr-001"] .unified-voice-overlay header,
-[data-skin="sdr-001"] .voice-overlay .overlay-header,
-[data-skin="sdr-001"] .unified-voice-overlay .overlay-header {
-  border-bottom: 1px solid var(--skin-accent-55) !important;
-  background: linear-gradient(180deg, var(--skin-accent-08), transparent) !important;
-}
-[data-skin="sdr-001"] .voice-overlay header h1,
-[data-skin="sdr-001"] .voice-overlay header h2,
-[data-skin="sdr-001"] .voice-overlay header h3,
-[data-skin="sdr-001"] .unified-voice-overlay header h1,
-[data-skin="sdr-001"] .unified-voice-overlay header h2,
-[data-skin="sdr-001"] .unified-voice-overlay header h3 {
-  font-family: 'NoRe Sans Pixel Pro', monospace !important;
-  text-transform: uppercase;
-  letter-spacing: 0.18em;
-  text-shadow: 0 0 8px var(--skin-accent-45);
-}
-[data-skin="sdr-001"] .voice-overlay header h1::before,
-[data-skin="sdr-001"] .voice-overlay header h2::before,
-[data-skin="sdr-001"] .unified-voice-overlay header h1::before,
-[data-skin="sdr-001"] .unified-voice-overlay header h2::before {
-  content: '▶ TRANSMISSION // ';
-  color: var(--skin-accent-85);
-}
-
-/* Participant tile target reticle marks - sit at the four corners of
-   the card so it reads as a "subject locked" frame. */
-[data-skin="sdr-001"] .harmony-voice-card {
-  position: relative;
-}
-[data-skin="sdr-001"] .harmony-voice-card .avatar-frame::before,
-[data-skin="sdr-001"] .harmony-voice-card .avatar-frame::after {
-  content: '';
-  position: absolute;
-  width: 14px;
-  height: 14px;
-  border: 2px solid var(--skin-accent-85);
-  pointer-events: none;
-  filter: drop-shadow(0 0 4px var(--skin-accent-45));
-}
-[data-skin="sdr-001"] .harmony-voice-card .avatar-frame::before {
-  top: -8px; left: -8px; border-right: 0; border-bottom: 0;
-}
-[data-skin="sdr-001"] .harmony-voice-card .avatar-frame::after {
-  bottom: -8px; right: -8px; border-left: 0; border-top: 0;
-}
-
-/* ----------------------------------------------------------------------------
-   21. User profile - character status panel (final tweaks)
-   --------------------------------------------------------------------------
-   The original version stacked a scanline overlay AND HUD corner brackets
-   on top of the avatar. Combined with the section-17 ID-card chrome
-   (`── SUBJECT ID ──` header + `LAT 18ms ¦ GRID 02 ¦ AAL2` footer + red
-   border), it read as "broken" rather than "tactical". Drop the avatar
-   overlays - the panel-level chrome is enough.
-   -------------------------------------------------------------------------- */
-
-[data-skin="sdr-001"] .user-profile .user-name {
-  font-size: 13px !important;
-  line-height: 1.1;
-  margin-bottom: 2px;
 }

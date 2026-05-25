@@ -19,11 +19,12 @@ import { audioThemeService } from '@/services/AudioThemeService'
 import { BUILTIN_SKINS, type Skin } from './skins'
 import type { VisualThemeSettings } from './useVisualTheme.types'
 
-/** Visual skin id → built-in audio theme id (auto-switched with the skin). */
-const SKIN_LINKED_AUDIO_THEMES: Record<string, string> = {
-  'sdr-001': 'neokobe',
-}
 const AUDIO_THEME_WHEN_SKIN_CLEARED = 'harmony'
+
+/** Look up a skin's `linkedAudioTheme` (declared on the skin manifest). */
+function getLinkedAudioTheme(skinId: string): string | undefined {
+  return BUILTIN_SKINS.find((s) => s.id === skinId)?.linkedAudioTheme
+}
 
 export type { VisualThemeSettings } from './useVisualTheme.types'
 export { BUILTIN_SKINS, type Skin } from './skins'
@@ -489,6 +490,28 @@ function applySettings(settings: VisualThemeSettings) {
     root.removeAttribute('data-skin')
   }
 
+  // Apply per-skin decorative option attributes (`data-skin-<optionId>=on|off`).
+  // For the active skin, every option declared in its manifest gets an
+  // attribute reflecting the user's stored value (falling back to the
+  // option's declared default). When no skin is active OR the skin has
+  // no options, all known option attrs are stripped so they never leak
+  // across skin switches.
+  const ALL_OPTION_IDS = new Set<string>()
+  for (const skin of BUILTIN_SKINS) {
+    for (const option of skin.options || []) ALL_OPTION_IDS.add(option.id)
+  }
+  for (const optionId of ALL_OPTION_IDS) {
+    root.removeAttribute(`data-skin-${optionId}`)
+  }
+  if (settings.activeSkinId) {
+    const skin = BUILTIN_SKINS.find((s) => s.id === settings.activeSkinId)
+    const stored = settings.skinOptions?.[settings.activeSkinId] || {}
+    for (const option of skin?.options || []) {
+      const value = stored[option.id] ?? option.default
+      root.setAttribute(`data-skin-${option.id}`, value ? 'on' : 'off')
+    }
+  }
+
   if (typeof document !== 'undefined') {
     let skinStyleEl = document.getElementById('harmony-skin-styles') as HTMLStyleElement | null
     if (settings.customSkinCss) {
@@ -826,7 +849,7 @@ export function useVisualTheme() {
    * user's current audio theme once so `clearSkin` can restore it.
    */
   function applySkinLinkedAudioTheme(skinId: string): void {
-    const linkedThemeId = SKIN_LINKED_AUDIO_THEMES[skinId]
+    const linkedThemeId = getLinkedAudioTheme(skinId)
     if (!linkedThemeId) return
     if (!settings.value._preSkinAudioTheme) {
       settings.value._preSkinAudioTheme =
@@ -849,7 +872,7 @@ export function useVisualTheme() {
    */
   function syncLinkedAudioOnInit(activeSkinId: string | null | undefined): void {
     if (!activeSkinId) return
-    const linkedThemeId = SKIN_LINKED_AUDIO_THEMES[activeSkinId]
+    const linkedThemeId = getLinkedAudioTheme(activeSkinId)
     if (!linkedThemeId) return
     if (audioThemeService.getSettings().selectedTheme === linkedThemeId) return
     if (!settings.value._preSkinAudioTheme) {
@@ -857,6 +880,30 @@ export function useVisualTheme() {
         audioThemeService.getSettings().selectedTheme
     }
     void audioThemeService.setTheme(linkedThemeId)
+  }
+
+  /**
+   * Set a per-skin decorative option (e.g. scanline on/off). Stored as
+   * `skinOptions[skinId][optionId]` and reflected to the DOM as
+   * `<html data-skin-<optionId>="on|off">` by `applySettings` below.
+   */
+  function setSkinOption(skinId: string, optionId: string, value: boolean): void {
+    if (!settings.value.skinOptions) settings.value.skinOptions = {}
+    if (!settings.value.skinOptions[skinId]) settings.value.skinOptions[skinId] = {}
+    settings.value.skinOptions[skinId][optionId] = value
+  }
+
+  /**
+   * Read a skin option's effective value: stored override if present,
+   * otherwise the option's declared `default`. Returns `undefined` for
+   * unknown skin/option ids.
+   */
+  function getSkinOption(skinId: string, optionId: string): boolean | undefined {
+    const skin = BUILTIN_SKINS.find((s) => s.id === skinId)
+    const option = skin?.options?.find((o) => o.id === optionId)
+    if (!option) return undefined
+    const stored = settings.value.skinOptions?.[skinId]?.[optionId]
+    return stored ?? option.default
   }
 
   /**
@@ -1287,6 +1334,8 @@ export function useVisualTheme() {
     setGlassEffectsEnabled,
     applySkin,
     clearSkin,
+    setSkinOption,
+    getSkinOption,
     toggleShowTimestamps,
     toggle24HourTime,
     toggleCompactMode,
