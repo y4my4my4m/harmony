@@ -53,7 +53,11 @@
             >
               <span class="drag-handle" v-if="!role.is_default" title="Drag to reorder">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M9 20c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm6-16c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zM9 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm6 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zM9 14c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm6 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
+                  <path d="
+                    M9 3a2 2 0 1 0 .001 0zm6 0a2 2 0 1 0 .001 0z
+                    M9 10a2 2 0 1 0 .001 0zm6 0a2 2 0 1 0 .001 0z
+                    M9 17a2 2 0 1 0 .001 0zm6 0a2 2 0 1 0 .001 0z
+                  "/>
                 </svg>
               </span>
               <span class="drag-handle-spacer" v-else></span>
