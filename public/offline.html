@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Harmony - Offline</title>
+  <link rel="icon" type="image/webp" href="/img/app_icon_square.webp">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #1e1f22 0%, #2b2d31 100%);
+      color: white;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .offline-container {
+      text-align: center;
+      max-width: 400px;
+      width: 100%;
+    }
+
+    .offline-icon {
+      width: 80px;
+      height: 80px;
+      margin: 0 auto 24px;
+      background: linear-gradient(45deg, #0EA5E9, #7c3aed);
+      border-radius: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 36px;
+      box-shadow: 0 8px 32px rgba(88, 101, 242, 0.3);
+      animation: pulse 2s infinite;
+    }
+
+    h1 {
+      font-size: 32px;
+      font-weight: 700;
+      margin-bottom: 12px;
+      background: linear-gradient(45deg, #0EA5E9, #7c3aed);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .subtitle {
+      font-size: 18px;
+      color: #b5bac1;
+      margin-bottom: 8px;
+      font-weight: 500;
+    }
+
+    .description {
+      color: #72767d;
+      line-height: 1.6;
+      margin-bottom: 32px;
+    }
+
+    .offline-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .btn {
+      padding: 16px 24px;
+      border: none;
+      border-radius: 12px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      text-decoration: none;
+      display: inline-block;
+      text-align: center;
+    }
+
+    .btn-primary {
+      background: linear-gradient(45deg, #0EA5E9, #7c3aed);
+      color: white;
+      box-shadow: 0 4px 16px rgba(88, 101, 242, 0.3);
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(88, 101, 242, 0.4);
+    }
+
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.1);
+      color: white;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.15);
+    }
+
+    .connection-status {
+      margin-top: 24px;
+      padding: 12px;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 8px;
+      font-size: 14px;
+      color: #b5bac1;
+    }
+
+    .status-indicator {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      display: inline-block;
+      margin-right: 8px;
+    }
+
+    .status-offline {
+      background: #ed4245;
+    }
+
+    .status-online {
+      background: #57f287;
+    }
+
+    @keyframes pulse {
+      0%, 100% { 
+        transform: scale(1);
+        box-shadow: 0 8px 32px rgba(88, 101, 242, 0.3);
+      }
+      50% { 
+        transform: scale(1.05);
+        box-shadow: 0 12px 40px rgba(88, 101, 242, 0.4);
+      }
+    }
+
+    @media (max-width: 480px) {
+      .offline-container {
+        padding: 0 16px;
+      }
+      
+      h1 {
+        font-size: 28px;
+      }
+      
+      .subtitle {
+        font-size: 16px;
+      }
+      
+      .offline-actions {
+        gap: 8px;
+      }
+      
+      .btn {
+        padding: 14px 20px;
+        font-size: 15px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="offline-container">
+    <div class="offline-icon">
+      📱
+    </div>
+    
+    <h1>You're Offline</h1>
+    <p class="subtitle">No internet connection</p>
+    <p class="description">
+      Check your internet connection and try again. Some features may not work offline.
+    </p>
+    
+    <div class="offline-actions">
+      <button onclick="checkConnection()" class="btn btn-primary">
+        Try Again
+      </button>
+      <a href="/" class="btn btn-secondary">
+        Go to Home
+      </a>
+    </div>
+    
+    <div class="connection-status">
+      <span class="status-indicator status-offline"></span>
+      <span id="status-text">Offline</span>
+    </div>
+  </div>
+
+  <script>
+    // Check connection status
+    function updateConnectionStatus() {
+      const statusIndicator = document.querySelector('.status-indicator');
+      const statusText = document.getElementById('status-text');
+      
+      if (navigator.onLine) {
+        statusIndicator.className = 'status-indicator status-online';
+        statusText.textContent = 'Connected - You can now use the app';
+      } else {
+        statusIndicator.className = 'status-indicator status-offline';
+        statusText.textContent = 'Offline';
+      }
+    }
+
+    function checkConnection() {
+      if (navigator.onLine) {
+        window.location.reload();
+      } else {
+        // Provide feedback that connection is still unavailable
+        const button = event.target;
+        const originalText = button.textContent;
+        button.textContent = 'Still Offline';
+        button.disabled = true;
+        
+        setTimeout(() => {
+          button.textContent = originalText;
+          button.disabled = false;
+        }, 2000);
+      }
+    }
+
+    // Listen for connection changes
+    window.addEventListener('online', updateConnectionStatus);
+    window.addEventListener('offline', updateConnectionStatus);
+    
+    // Initial check
+    updateConnectionStatus();
+    
+    // Auto-refresh when connection is restored
+    window.addEventListener('online', () => {
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
+    });
+  </script>
+</body>
+</html>

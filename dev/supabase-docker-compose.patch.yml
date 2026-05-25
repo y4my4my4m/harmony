@@ -1,0 +1,22 @@
+# Supabase docker-compose.yml patch for integration testing
+#
+# This shows the ONE change needed in your Supabase self-hosted
+# docker-compose.yml to enable direct PostgreSQL access for tests.
+#
+# In the `db` service, add the `ports` mapping:
+#
+#   db:
+#     container_name: supabase-db
+#     image: supabase/postgres:15.8.1.085
+#     restart: unless-stopped
+#     ports:                              # <-- ADD THIS
+#       - "54322:${POSTGRES_PORT}"        # <-- ADD THIS
+#     volumes:
+#       # ... rest unchanged ...
+#
+# This exposes PostgreSQL on localhost:54322, matching the Supabase CLI
+# convention. The integration tests in tests/integration/ connect here
+# for direct database function testing.
+#
+# After adding this, restart Supabase:
+#   docker compose down && docker compose up -d

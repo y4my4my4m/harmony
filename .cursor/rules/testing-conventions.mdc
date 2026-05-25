@@ -1,0 +1,40 @@
+---
+description: Testing conventions and test infrastructure for Harmony
+globs: tests/**/*.{ts,test.ts}
+alwaysApply: false
+---
+
+# Testing Conventions
+
+## Test Types
+
+| Type | Config | Command | Requires |
+|------|--------|---------|----------|
+| Unit | `vitest.config.ts` | `npm test` | Nothing (mocked) |
+| Integration | `vitest.integration.config.ts` | `npm run test:integration` | Local Supabase (`supabase start`) |
+| E2E | `playwright.config.ts` | `npm run test:e2e` | Running frontend + Supabase |
+
+## Integration Test Setup
+
+- Uses `service_role` key from `.env.test` (admin-level access, bypasses RLS)
+- Test helper: `tests/helpers/supabaseTestHelper.ts`
+- `createTestUser(admin, email, password, username)`: Creates auth user + waits for profile trigger
+- `cleanupTestUsers(admin, users)`: Comprehensive cascade delete of all related data
+- `_test_delete_owned_servers` RPC: Temporarily disables protected role triggers for cleanup
+
+## Test User Cleanup Order
+
+FK constraints require deleting in this order:
+1. `user_servers`, `user_roles` (server membership)
+2. Owned servers via `_test_delete_owned_servers` RPC
+3. `messages`, `conversation_participants`, `reactions`
+4. `user_blocks`, `notifications`, `notification_preferences`
+5. `user_view_contexts`
+6. `profiles`
+7. Auth user (`admin.auth.admin.deleteUser`)
+
+## Common Test Failures
+
+- "user already registered": Test cleanup failed previously - `createTestUser` handles this by cleaning up stale users
+- `queue_federation_job` errors: Function handles `insufficient_privilege` gracefully via fallback
+- RLS policy conflicts: Check for legacy permissive policies (`USING (true)`) that override restrictive ones

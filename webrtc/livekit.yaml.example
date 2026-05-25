@@ -1,0 +1,95 @@
+# =============================================================================
+# LiveKit Server Configuration for Harmony
+# =============================================================================
+# Documentation: https://docs.livekit.io/realtime/self-hosting/deployment/
+#
+# This is the LOCAL DEVELOPMENT configuration.
+# For production, you'll need to update:
+#   - keys (generate with: openssl rand -hex 32)
+#   - turn.domain (your public domain)
+#   - Add TLS configuration or use a reverse proxy
+# =============================================================================
+
+# Port for WebSocket and HTTP connections
+port: 7880
+
+# API keys for authentication
+# Format: key: secret
+# PRODUCTION: Generate secure keys with: openssl rand -hex 32
+keys:
+  YOUR_API_KEY: YOUR_API_SECRET
+
+# Logging
+log_level: info
+
+# =============================================================================
+# RTC (WebRTC) Settings
+# =============================================================================
+# UDP mux: all WebRTC media traffic goes through a single port (7882).
+# LiveKit demuxes by ICE session, not by port - one port can serve thousands
+# of participants. Scaling limits are CPU/bandwidth, not port count.
+# For multi-vCPU machines you can use a range (e.g. udp_port: 7882-7890).
+# See: https://docs.livekit.io/transport/self-hosting/ports-firewall/
+# =============================================================================
+rtc:
+  # Single UDP port for all media (UDP mux). Do NOT set port_range_start/end.
+  udp_port: 7882
+  
+  # TCP fallback port (when UDP is blocked by client's network)
+  tcp_port: 7881
+  
+  # ICE Lite mode (recommended for servers)
+  use_ice_lite: true
+  
+  # PRODUCTION: Set your server's public IP address
+  # This is REQUIRED when running in Docker so LiveKit advertises
+  # the correct IP for ICE candidates instead of internal Docker IPs.
+  # Options:
+  #   1. Set explicit IP: node_ip: 203.0.113.50
+  #   2. Auto-detect: use_external_ip: true (queries external service)
+  # node_ip: YOUR_PUBLIC_IP
+  use_external_ip: true
+
+# =============================================================================
+# TURN Server (NAT Traversal)
+# =============================================================================
+# TURN is essential for users behind restrictive NATs/firewalls.
+# LiveKit includes a built-in TURN server.
+turn:
+  enabled: true
+  # Development: localhost
+  # Production: your public domain (e.g., live.yourdomain.com)
+  domain: live.yourdomain.com
+  udp_port: 3478
+  # TLS port - only enable if providing certs directly to LiveKit
+  # If using nginx/caddy for SSL termination, leave this commented
+  # tls_port: 5349
+
+# =============================================================================
+# Room Settings
+# =============================================================================
+room:
+  # Seconds before empty room is closed
+  empty_timeout: 300
+  
+  # Seconds after last participant leaves before room is closed
+  departure_timeout: 20
+  
+  # Max participants per room (0 = unlimited)
+  # max_participants: 0
+
+# =============================================================================
+# Redis (Required for multi-node deployment)
+# =============================================================================
+redis:
+  address: harmony-redis:6379
+  # SECURITY: Set this to match REDIS_PASSWORD from docker-compose.prod.yml
+  password: YOUR_REDIS_PASSWORD_HERE
+
+# =============================================================================
+# Webhooks (Optional)
+# =============================================================================
+# webhook:
+#   urls:
+#     - https://your-backend.com/api/livekit/webhook
+#   api_key: devkey

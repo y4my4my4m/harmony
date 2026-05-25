@@ -1,0 +1,361 @@
+.provider-embed {
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
+  border-radius: 14px;
+  background: var(--background-quaternary, #14161c);
+  margin-top: 0.85rem;
+  overflow: hidden;
+  max-width: 480px;
+}
+
+.provider-embed.provider-harmony-post,
+.provider-embed.provider-fediverse-post {
+  overflow: visible;
+  max-width: 550px;
+  margin-bottom: 2px;
+}
+
+.provider-embed__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.65rem 0.85rem;
+  background: var(--background-tertiary-alpha, #1c1f26aa);
+  backdrop-filter: blur(10px);
+}
+
+.provider-embed__label {
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-secondary, #9ca3af);
+}
+
+.provider-embed__actions {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.embed-action {
+  font-size: 0.8rem;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 999px;
+  padding: 0.2rem 0.8rem;
+  background: transparent;
+  color: var(--text-primary, #fff);
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.embed-action:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+/* .provider-embed__content {
+  padding: 0.85rem;
+} */
+
+.provider-embed__media {
+  width: 100%;
+  /* border-radius: 10px; */
+  overflow: hidden;
+  background: #000;
+}
+
+.provider-embed__media iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+  display: block;
+}
+
+.provider-embed__media--video {
+  aspect-ratio: 16 / 9;
+}
+
+.provider-embed__media--spotify {
+  min-height: 152px;
+}
+
+.provider-embed__post {
+  max-width: 100%;
+  border-radius: 0 0 14px 14px;
+}
+
+.provider-embed__post .mony-post {
+  border-radius: 12px;
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
+  margin: 0;
+  max-width: 100%;
+}
+
+.provider-embed__post .media-gallery {
+  max-width: 100%;
+}
+
+/* Ensure grid layout for multiple images (timeline + embed) */
+.provider-embed__post .media-gallery.media-count-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+}
+.provider-embed__post .media-gallery.media-count-3 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 4px;
+}
+.provider-embed__post .media-gallery.media-count-3 .media-item:first-child {
+  grid-row: 1 / 3;
+}
+.provider-embed__post .media-gallery.media-count-4 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 4px;
+}
+
+/* Single media: preserve aspect ratio. Multi-media grid: keep height:100%+object-fit:cover for proper grid layout */
+.provider-embed__post .media-gallery.media-count-1 .media-image,
+.provider-embed__post .media-gallery.media-count-1 .media-video {
+  max-width: 100%;
+  height: auto;
+}
+
+.provider-embed__post .media-gallery.media-count-2 .media-image,
+.provider-embed__post .media-gallery.media-count-2 .media-video,
+.provider-embed__post .media-gallery.media-count-3 .media-image,
+.provider-embed__post .media-gallery.media-count-3 .media-video,
+.provider-embed__post .media-gallery.media-count-4 .media-image,
+.provider-embed__post .media-gallery.media-count-4 .media-video {
+  max-width: 100%;
+  /* height:100% + object-fit:cover from MonyPost - do not override for grid layout */
+}
+
+/* Bottom strip on fediverse embeds showing the source instance */
+.provider-embed__fediverse-wrap .mony-post {
+  border-radius: 12px 12px 0 0;
+  border-bottom: none;
+}
+
+.fedi-source-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 14px 8px;
+  font-size: 12px;
+  color: var(--text-secondary, #8b949e);
+  background: var(--background-tertiary-alpha, rgba(28, 31, 38, 0.65));
+  border-top: 1px solid var(--border-color, rgba(48, 54, 61, 0.5));
+  border-radius: 0 0 12px 12px;
+}
+
+.fedi-source-badge {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--text-secondary, #8b949e);
+}
+
+.fedi-badge-icon {
+  font-size: 12px;
+  line-height: 1;
+}
+
+.fedi-badge-label {
+  white-space: nowrap;
+}
+
+.fedi-source-link__right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  color: inherit;
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+.fedi-source-link__right:hover {
+  color: var(--harmony-primary, #58a6ff);
+}
+
+.provider-embed__skeleton {
+  padding: 1rem;
+  color: var(--text-secondary, #9ca3af);
+  font-size: 0.85rem;
+}
+
+.link-embed-card {
+  display: flex;
+  gap: 0.85rem;
+  align-items: flex-start;
+  padding: 0.85rem;
+}
+
+.link-embed-card__media {
+  flex: 0 0 120px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.link-embed-card__media img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.link-embed-card__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.link-embed-card__meta {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-bottom: 0.25rem;
+  color: var(--text-secondary, #9ca3af);
+  font-size: 0.8rem;
+}
+
+.link-embed-card__icon {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+}
+
+.link-embed-card__title {
+  font-size: 1rem;
+  margin: 0 0 0.25rem;
+  color: var(--text-primary, #fff);
+}
+
+.link-embed-card__description {
+  margin: 0;
+  color: var(--text-secondary, #9ca3af);
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
+@media (max-width: 640px) {
+  .link-embed-card {
+    flex-direction: column;
+  }
+
+  .link-embed-card__media {
+    width: 100%;
+  }
+}
+
+/* Mobile: MonyPost embeds in chat – prevent truncation and cramped layout */
+@media (max-width: 768px) {
+  .provider-embed__post,
+  .provider-embed__fediverse-wrap {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .provider-embed__post .mony-post,
+  .provider-embed__fediverse-wrap .mony-post {
+    min-width: 0;
+    overflow-wrap: break-word;
+  }
+
+  .provider-embed__post .author-details,
+  .provider-embed__fediverse-wrap .author-details {
+    min-width: 0;
+  }
+
+  .provider-embed__post .author-handle,
+  .provider-embed__fediverse-wrap .author-handle {
+    white-space: normal;
+    word-break: break-all;
+    overflow-wrap: break-word;
+  }
+
+  .provider-embed__post .post-header,
+  .provider-embed__fediverse-wrap .post-header {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .provider-embed__post .post-actions,
+  .provider-embed__fediverse-wrap .post-actions {
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 4px 0;
+  }
+
+  .provider-embed__post .action-button,
+  .provider-embed__fediverse-wrap .action-button {
+    flex-shrink: 0;
+    padding: 6px;
+    min-width: 32px;
+  }
+
+  .provider-embed__post .action-button span,
+  .provider-embed__fediverse-wrap .action-button span {
+    max-width: 40px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .provider-embed__post .reply-context-container,
+  .provider-embed__fediverse-wrap .reply-context-container {
+    min-width: 0;
+  }
+
+  .provider-embed__post .reply-parent-author-info,
+  .provider-embed__fediverse-wrap .reply-parent-author-info,
+  .provider-embed__post .reply-indicator-bar,
+  .provider-embed__fediverse-wrap .reply-indicator-bar {
+    flex-wrap: wrap;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  .provider-embed__post .reply-parent-handle,
+  .provider-embed__fediverse-wrap .reply-parent-handle {
+    word-break: break-all;
+    overflow-wrap: break-word;
+  }
+
+  .provider-embed__post .show-thread-btn,
+  .provider-embed__fediverse-wrap .show-thread-btn {
+    padding: 0.5rem 1rem;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .provider-embed__post .post-text a,
+  .provider-embed__fediverse-wrap .post-text a,
+  .provider-embed__post .post-text,
+  .provider-embed__fediverse-wrap .post-text {
+    word-break: break-all;
+    overflow-wrap: break-word;
+  }
+
+  .fedi-source-link {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 8px 12px;
+  }
+
+  .fedi-source-link__right {
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+
+  .provider-embed {
+    margin-left: 0;
+    margin-right: 0;
+    max-width: 100%;
+  }
+}
+

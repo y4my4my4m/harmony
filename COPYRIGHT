@@ -1,0 +1,53 @@
+Harmony — federated social application
+======================================
+
+Copyright (C) 2024–present  y4my4my4m  <https://github.com/y4my4my4m>
+                            and the Harmony contributors
+
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU Affero General Public License version 3 as published by
+the Free Software Foundation, with the additional terms described in
+LICENSE-ADDITIONAL-TERMS.md (Section 7 of the GNU AGPL v3).
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public License for more
+details.
+
+You should have received a copy of the GNU Affero General Public License along
+with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+--------------------------------------------------------------------------------
+
+The "Harmony" name and the polar-bear logo (🐻‍❄️ + iconography under
+`public/icon_3d.webp`, `public/favicon/`, and `src-tauri/icons/`) are NOT
+licensed under the AGPL and are not granted to you by this license. See
+TRADEMARK.md for the project's name and logo policy.
+
+--------------------------------------------------------------------------------
+
+Third-party assets bundled with this project, with their own licenses:
+
+  - Twemoji (default emoji set)            CC-BY 4.0
+    public/assets/emojis/twemoji/
+    https://github.com/twitter/twemoji
+
+  - Various web fonts under public/assets/fonts/  — see individual files
+    for their respective licenses.
+
+Optional, instance-side assets that are NOT shipped in this repository
+(operators must opt-in by placing them in the appropriate folder):
+
+  - Mutant Standard emoji                  CC-BY-NC-SA 4.0
+    https://mutant.tech
+    NOTE: NonCommercial. Not compatible with commercial / monetized
+    instances.  If you choose to install this pack on your instance, you
+    must (a) operate non-commercially and (b) display the required
+    attribution.
+
+--------------------------------------------------------------------------------
+
+Contributors are listed in the git commit history.  Substantial contributions
+are gratefully acknowledged; by submitting a pull request you agree that your
+contribution is licensed under the same terms as this project (AGPL v3 with
+the additional terms in LICENSE-ADDITIONAL-TERMS.md).

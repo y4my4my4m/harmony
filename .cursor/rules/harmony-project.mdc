@@ -1,0 +1,69 @@
+---
+description: Harmony project architecture, conventions, and critical patterns
+alwaysApply: true
+---
+
+# Harmony Project Rules
+
+## Architecture
+
+- **Frontend**: Vue 3 (Composition API + Options API), Pinia stores, Vue Router, TypeScript
+- **Backend**: Supabase (PostgreSQL, Auth, Realtime, Storage, RLS). No custom API server for core features.
+- **Federation**: ActivityPub via `federation-backend/` (Node.js). Triggers in DB queue federation jobs.
+- **Desktop**: Tauri (`src-tauri/`). Check `__TAURI__` for platform-specific code.
+- **Encryption**: Megolm-style E2EE (per-room session keys). See `src/services/encryption/`.
+
+## Database Schema
+
+- **Source of truth for fresh deploys**: `db_schema/init/` (numbered SQL files loaded by `init.sql`)
+- **Dev/prod changes**: `db_schema/migrations/` (idempotent SQL files run via Supabase SQL editor)
+- **Dev backup reference**: `db_schema/latest_dev_backup.sql` (full schema dump of production-like env)
+- **Permissions**: Stored as `bigint` bitmasks (NOT jsonb). See `permissionsService.ts` for bit positions.
+- **RLS**: Every table has RLS enabled (`98_enable_rls.sql`). All policies in `30_rls_policies.sql` / `31_rls_policies_extended.sql`.
+- When creating migration files, wrap in `BEGIN;`/`COMMIT;`, use `CREATE OR REPLACE` and `DROP POLICY IF EXISTS` for idempotency.
+
+## Key Services & Stores
+
+| Layer | Key files |
+|-------|-----------|
+| Message sending | `CoreMessageService.ts` → handles encryption decision + DB insert |
+| Message encryption | `MegolmMessageEncryptionService.ts` (singleton) → `MegolmService.ts` → `RecoveryKeyService.ts` |
+| Message decryption | `messageDecryption.ts` (processMessageDecryption) |
+| Key persistence | `SecureSessionKeyStore.ts` (IndexedDB, non-extractable CryptoKeys) |
+| Chat state | `useChat.ts` (server channels), `useDM.ts` (DMs/conversations) |
+| Auth | `auth.ts` store + `AuthContextService.ts` |
+| User data | `userDataService.ts` (cached profile lookups, NO direct DB calls in components) |
+| Roles/Perms | `RoleService.ts` + `permissionsService.ts` (bigint bitmasks) |
+| Realtime | `RealtimeConnectionManager.ts` (auto-reconnect wrapper) |
+
+## Critical Patterns
+
+### Encryption Flow
+1. User sets up encryption → `RecoveryKeySetupWizard.vue` → `completeSetupWithWords()` → derives keys → stores non-extractable CryptoKeys in IndexedDB
+2. Auto-unlock on page load → `tryAutoUnlock()` loads CryptoKeys from IndexedDB (NO mnemonic stored)
+3. Message send → `CoreMessageService` lazy-initializes encryption service → checks `isInitialized()` + `hasRecoveryKey()` + `isUnlocked()`
+4. Server encryption modes: `disabled` | `optional` (fallback to plaintext) | `required` (blocks send)
+5. Key sharing: `megolm_session_shares` table + realtime subscriptions for cross-device
+6. On key received: `megolm-key-received` CustomEvent → stores listen and reprocess encrypted messages
+
+### Database Functions
+- `SECURITY DEFINER` functions run as the function owner, bypassing RLS. Use sparingly.
+- `get_current_profile_id()` returns the profile ID for the current auth user (used in RLS policies).
+- `queue_federation_job()` has fallback for missing pgboss - handles `insufficient_privilege`.
+- `send_notification()` parameter names are prefixed with `p_` (e.g., `p_notification_type`).
+
+### Test Structure
+- **Unit tests**: `src/services/encryption/__tests__/` (Vitest, mock Supabase)
+- **Integration tests**: `tests/integration/` (Vitest, hits local Supabase - requires `supabase start`)
+- **E2E tests**: `tests/e2e/` (Playwright)
+- Test helper: `tests/helpers/supabaseTestHelper.ts` - uses `service_role` key for admin ops
+- Test cleanup: `_test_delete_owned_servers` RPC disables protected role triggers during teardown
+
+## Common Pitfalls
+
+- `user_mutes` table uses boolean flags (`hide_notifications`), NOT `mute_type` enum
+- `notification_preferences` has many columns (desktop_*, sound_*, dnd_*, activitypub_*) - check `06_tables_misc.sql`
+- `route_server_leave()` trigger must guard against cascade-deleted servers (check `IF EXISTS`)
+- Legacy permissive RLS policies (`USING (true)`) can override restrictive ones - always audit `pg_policies`
+- Dev environment may have `jsonb` permissions columns (legacy) - local/init uses `bigint`. Run `convert_permissions_to_bigint.sql` migration.
+- Thread messages (`ThreadService.ts`) bypass encryption - sent as plaintext directly

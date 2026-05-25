@@ -1,0 +1,83 @@
+services:
+  livekit:
+    image: livekit/livekit-server:latest
+    container_name: harmony-livekit
+    restart: unless-stopped
+    command: --config /etc/livekit.yaml
+    ports:
+      # WebSocket/HTTP port for client connections
+      - "7880:7880"
+      # RTC UDP ports for media
+      - "7881:7881/udp"
+      # TURN server UDP port (for NAT traversal)
+      - "3478:3478/udp"
+      # TURN server TCP port (fallback)
+      - "3478:3478/tcp"
+      # TURNS (TURN over TLS) - more reliable through corporate firewalls
+      - "5349:5349/tcp"
+      - "5349:5349/udp"
+      # RTC TCP port (fallback when UDP blocked)
+      - "7881:7881/tcp"
+      # UDP port range for WebRTC media
+      - "50000-50100:50000-50100/udp"
+    volumes:
+      - ./livekit.yaml:/etc/livekit.yaml:ro
+    networks:
+      - harmony-webrtc
+      - supabase_default # So federation-backend can reach LiveKit
+    depends_on:
+      - redis
+    healthcheck:
+      test:
+        ["CMD", "wget", "-q", "--spider", "http://localhost:7880/healthcheck"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  redis:
+    image: redis:7-alpine
+    container_name: harmony-livekit-redis
+    restart: unless-stopped
+    # SECURITY: Always set a strong password in production!
+    command: redis-server --requirepass YOUR_REDIS_PASSWORD_HERE
+    ports:
+      - "127.0.0.1:6379:6379"  # Only bind to localhost for security
+    volumes:
+      - redis-data:/data
+    networks:
+      - harmony-webrtc
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "YOUR_REDIS_PASSWORD_HERE", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Optional: Egress service for recording/streaming (stage events)
+  livekit-egress:
+    image: livekit/egress:latest
+    container_name: harmony-livekit-egress
+    restart: unless-stopped
+    environment:
+      - EGRESS_CONFIG_FILE=/etc/egress.yaml
+    volumes:
+      - ./egress.yaml:/etc/egress.yaml:ro
+      - egress-recordings:/recordings
+    networks:
+      - harmony-webrtc
+    depends_on:
+      - livekit
+    profiles:
+      - egress # Only starts with --profile egress
+
+networks:
+  harmony-webrtc:
+    driver: bridge
+  # Connect to supabase network so federation-backend can reach LiveKit
+  supabase_default:
+    external: true
+
+volumes:
+  redis-data:
+  egress-recordings:
+

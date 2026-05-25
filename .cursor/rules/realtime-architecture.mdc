@@ -1,0 +1,63 @@
+---
+description: Realtime channel architecture and broadcast patterns
+alwaysApply: true
+---
+
+# Realtime Channel Architecture
+
+## Core Broadcast Topics (DB → Frontend)
+
+All data change events flow through DB triggers calling `realtime.send()` into exactly **3 topics**:
+
+| Topic pattern | Event name | Scope | What belongs here |
+|---|---|---|---|
+| `user:{profile_id}` | `user_event` | Per-user | notifications, unreads, conversations, server join/leave, mutes, blocks |
+| `server-structure:{server_id}` | `server_event` | Per-server | channels, categories, roles, permissions, threads, settings, membership, server metadata |
+| `server-presence:{server_id}` | `presence_event` | Per-server | profile updates, member join/leave, custom emojis |
+
+Plus one **global** presence channel: `harmony-global-presence` (online/offline tracking).
+
+## Frontend Subscriptions
+
+**Core channels (1 per user + 2 per joined server):**
+- `UserEventChannel.ts` → subscribes to `user:{profileId}`, dispatches typed events
+- `useServerChannel.ts` → subscribes to `server-structure:{serverId}`, dispatches via `window.dispatchEvent`
+- `userDataService.ts` → subscribes to `server-presence:{serverId}`, handles profile/presence updates
+
+**Ephemeral channels (open only while feature is active):**
+- `typing:{context}` - typing indicators (presence-based, short-lived)
+- `harmony-voice-{channelId}` - WebRTC signaling (only during voice)
+- `voice-channels:{serverId}` - voice state broadcast
+- `dm-call:*` / `dm-calls:*` - call signaling
+- `view-context:{userId}` - which channel/conversation user is viewing
+
+## Rules for Adding New Events
+
+### DB side (triggers)
+1. Pick the correct topic - don't create new ones
+2. Use `realtime.send(payload, event_name, topic)` - never `INSERT INTO pgboss.job` for local broadcasts
+3. For **user-scoped** data (only the affected user needs it): send to `user:{profile_id}`
+4. For **server-wide structure** changes (all members need it): send to `server-structure:{server_id}`
+5. For **presence/profile** changes: send to `server-presence:{server_id}`
+6. Payload must include a `type` field: `'{entity}:{operation}'` (e.g. `'role:insert'`, `'notification:new'`)
+
+### Frontend side
+1. **Never** open a new `supabase.channel()` for data that belongs in an existing topic
+2. **Never** use `postgres_changes` (CDC) for new features - always use broadcast
+3. Add a `case` in the appropriate existing subscription handler
+4. Dispatch via typed `CustomEvent` on `window` for cross-component communication
+
+### Federation (DB → BullMQ → remote instances)
+Federation uses a **separate path**: DB triggers call `queue_federation_job()` which sends via `pg_notify` to the Node.js federation backend. This is **complementary** to `realtime.send()` - both fire from the same trigger when needed.
+
+## Remaining CDC (postgres_changes)
+
+The **only** legitimate CDC usage is in `RealtimeConnectionManager.ts` for **chat message delivery** (`useChat`, `useDM`, threads). Each subscription is filtered by `channel_id` or `conversation_id`, which is scoped and efficient. All other CDC has been eliminated.
+
+## Anti-patterns
+- ❌ Opening a new channel per table/feature
+- ❌ Using `postgres_changes` CDC subscriptions for new features - always use broadcast
+- ❌ Looping over users in SQL to send per-user broadcasts (use server-scoped topics, Supabase fans out)
+- ❌ Mixing up `user_event` vs `server_event` vs `presence_event` event names
+- ❌ Sending to `user:{id}` for server-wide changes (O(N) queries vs O(1) broadcast)
+- ❌ Unfiltered CDC subscriptions on entire tables (scalability disaster at volume)

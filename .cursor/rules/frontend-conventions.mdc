@@ -1,0 +1,43 @@
+---
+description: Frontend Vue/TypeScript conventions for Harmony
+globs: src/**/*.{vue,ts}
+alwaysApply: false
+---
+
+# Frontend Conventions
+
+## Component Patterns
+
+- Use `<script setup lang="ts">` for new components (Composition API)
+- Some older stores use Options API (`defineStore('name', { state, actions })`) - don't refactor unless asked
+- Use `debug.log()` / `debug.warn()` / `debug.error()` from `@/utils/debug` (NOT `console.log`)
+- Never call Supabase directly from components - go through services or stores
+
+## Store Conventions
+
+- `useChat.ts`: Server channel messages (Options API store)
+- `useDM.ts`: DM/conversation messages (Composition API store with `setup()`)
+- Both stores have `reprocessEncryptedMessages()` for re-decrypting after key arrival
+- Both stores listen for `megolm-key-received` CustomEvent via `setupEncryptionKeyListener()`
+- Use `userDataService` for profile lookups (cached, avoids N+1 queries)
+
+## Service Layer
+
+- `CoreMessageService.ts`: Pure local DB operations - no federation logic
+- `MessageService.ts`: Thin wrapper that delegates to CoreMessageService
+- Encryption service is lazy-loaded: `getEncryptionService()` in CoreMessageService auto-initializes from Supabase session
+- `AuthContextService`: Resolves auth user ID → profile ID (cached)
+
+## Encryption UI
+
+- `EncryptionSettings.vue`: Main settings panel (setup wizard, unlock, sync keys, backup)
+- `RecoveryKeySetupWizard.vue`: Multi-step wizard for initial encryption setup
+- `KeyRecoveryModal.vue`: Enter recovery phrase to unlock
+- After setup/recovery completes: auto-sync keys + reprocess encrypted messages
+- `MessageDisplay.vue` has click-to-decrypt handler: claims session shares → decrypts → dispatches `megolm-key-received`
+
+## Error Handling
+
+- Wrap service calls in try/catch
+- Surface encryption errors (`ENCRYPTION_REQUIRED`, `ENCRYPTION_LOCKED`) to user via status bar in `ChatComponent.vue`
+- Never swallow errors silently in user-facing flows - at minimum use `debug.warn()`

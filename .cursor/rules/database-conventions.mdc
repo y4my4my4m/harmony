@@ -1,0 +1,48 @@
+---
+description: Database schema and migration conventions for Harmony
+globs: db_schema/**/*.sql
+alwaysApply: false
+---
+
+# Database Conventions
+
+## Schema Organization (`db_schema/init/`)
+
+Files are loaded in numeric order by `init.sql`:
+- `00-09`: Extensions, types, table definitions
+- `10-13`: Functions (core, triggers, RPC, extended RPC)
+- `30-31`: RLS policies
+- `40`: Triggers
+- `50`: Realtime publication
+- `70-71`: Views
+- `90+`: Federation, LiveKit, seed data, storage, enable RLS
+
+## Migration Best Practices
+
+- Always wrap in `BEGIN;` / `COMMIT;`
+- Use `CREATE OR REPLACE FUNCTION` (idempotent)
+- Use `DROP POLICY IF EXISTS` before `CREATE POLICY` (idempotent)
+- End with `NOTIFY pgrst, 'reload schema';` so PostgREST picks up changes
+- Never modify `auth.*` tables directly - use Supabase Auth APIs
+- When adding columns, use `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`
+
+## Permissions
+
+Permissions use `bigint` bitmask columns on `server_roles`:
+- Bit 0: ADMINISTRATOR
+- Bit 21: MANAGE_MESSAGES
+- See `src/services/permissionsService.ts` for full bit map
+- `channel_permission_overrides` uses `allow_permissions` / `deny_permissions` (bigint)
+- Dev environment may still have legacy `jsonb` - use `convert_permissions_to_bigint.sql`
+
+## RLS Policy Naming
+
+- Format: `tablename_operation_scope` (e.g., `messages_select_member`, `posts_select_public`)
+- Every table MUST have RLS enabled (enforced by `98_enable_rls.sql`)
+- Use `public.get_current_profile_id()` to reference the logged-in user's profile ID
+- Use `public.is_blocked_by(user_id)` and `public.has_blocked(user_id)` for blocking checks
+
+## Function Parameter Naming
+
+- Prefix all function parameters with `p_` (e.g., `p_notification_type`, `p_user_id`)
+- This avoids ambiguity with column names in SQL queries (PostgreSQL error 42702)

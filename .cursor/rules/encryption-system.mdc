@@ -1,0 +1,43 @@
+---
+description: End-to-end encryption architecture and patterns
+globs: src/services/encryption/**/*.ts
+alwaysApply: false
+---
+
+# Encryption System
+
+## Architecture (Megolm-style)
+
+- One session key per room (channel or conversation), rotated every 100 messages or 7 days
+- Session keys stored in IndexedDB (`harmony_megolm_sessions_{userId}`), encrypted with user's recovery-derived key
+- Recovery key: 12-word BIP39 mnemonic → PBKDF2 → HKDF → 3 AES-256-GCM keys (encryption, backup, signing)
+
+## Key Files
+
+| File | Purpose |
+|------|---------|
+| `MegolmMessageEncryptionService.ts` | High-level: init, encrypt/decrypt messages, key sync |
+| `MegolmService.ts` | Low-level: session management, AES-GCM encrypt/decrypt |
+| `MegolmKeyBackupService.ts` | Server-side encrypted backup + realtime key request/fulfillment |
+| `RecoveryKeyService.ts` | Mnemonic generation, key derivation (PBKDF2 + HKDF) |
+| `SecureSessionKeyStore.ts` | IndexedDB store for non-extractable CryptoKeys (session persistence) |
+
+## Security Model
+
+- Recovery mnemonic is NEVER persisted - only shown once during setup
+- Derived CryptoKeys stored in IndexedDB as **non-extractable** (cannot be read via `exportKey()`)
+- XSS can use keys for encrypt/decrypt while page is open, but cannot exfiltrate key material
+- Keys cleared from IndexedDB on logout (`lockEncryption()`)
+- `recoveryKeyService.setDerivedKeys()` allows restoring from IndexedDB without mnemonic
+
+## Session Key Sharing
+
+- `megolm_session_shares` table: sender encrypts session key with recipient's public key
+- `user_key_pairs` table: ECDH identity keys per user
+- `claimPendingSessionShares()`: Fetches unclaimed shares, decrypts, imports as inbound sessions
+- Realtime: `megolm_key_requests` table watched for incoming requests and fulfillments
+- `megolm-key-received` CustomEvent: Dispatched when keys arrive → stores reprocess encrypted messages
+
+## Thread Messages
+
+Thread messages (`ThreadService.ts`) bypass `CoreMessageService` and are always sent as plaintext. This is a known limitation - threads don't participate in the encryption system.

@@ -1,0 +1,9 @@
+# Place your mkcert certificates here
+#
+# Generate them with:
+#   mkcert "har.mony.local" "live.mony.local" localhost 127.0.0.1
+#
+# This creates:
+#   - har.mony.local+3.pem
+#   - har.mony.local+3-key.pem
+
