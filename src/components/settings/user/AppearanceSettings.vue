@@ -300,8 +300,34 @@
     </div>
 
     <div class="settings-section">
-      <h3 class="section-title">{{ $t('settings.appearance.fontSize') }}</h3>
-      
+      <h3 class="section-title">Typography</h3>
+
+      <div class="setting-item">
+        <div class="setting-info">
+          <h4 class="setting-label">Font</h4>
+          <p class="setting-description">
+            Choose the typeface used across the entire app. Custom fonts are
+            lazy-loaded, so picking the default doesn't download any extras.
+          </p>
+        </div>
+        <div class="setting-control">
+          <div class="font-family-options">
+            <button
+              v-for="opt in fontFamilyOptions"
+              :key="opt.id"
+              type="button"
+              class="font-family-btn"
+              :class="{ active: settings.fontFamily === opt.id }"
+              :style="{ fontFamily: opt.preview }"
+              @click="onFontFamilyChange(opt.id)"
+            >
+              <span class="font-family-name">{{ opt.label }}</span>
+              <span class="font-family-sample">The quick brown fox 0123</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
       <div class="setting-item">
         <div class="setting-info">
           <h4 class="setting-label">{{ $t('settings.appearance.fontSize') }}</h4>
@@ -583,7 +609,20 @@ const settings = ref({
   emojiPack: currentPackId.value,
   showCustomEmojisInDisplayNames: true,
   greentextEnabled: true,
+  fontFamily: 'system' as 'system' | 'pixel',
 })
+
+// Font picker options. The `preview` font-stack is used inline on the
+// picker buttons so each card renders in its own typeface, even before
+// the user clicks it.
+const fontFamilyOptions: Array<{
+  id: 'system' | 'pixel'
+  label: string
+  preview: string
+}> = [
+  { id: 'system', label: 'Default (Figtree)', preview: `'Figtree', sans-serif` },
+  { id: 'pixel', label: 'NoRe Sans Pixel', preview: `'NoRe Sans Pixel Pro', monospace` },
+]
 
 // Computed preview colors for custom theme
 const customPreviewColors = computed(() => {
@@ -849,6 +888,11 @@ const onFontSizeChange = () => {
   visualTheme.setFontSize(settings.value.fontSize)
 }
 
+const onFontFamilyChange = (family: 'system' | 'pixel') => {
+  settings.value.fontFamily = family
+  visualTheme.setFontFamily(family)
+}
+
 const adjustZoom = (delta: number) => {
   const newZoom = settings.value.zoomLevel + delta
   if (newZoom >= 50 && newZoom <= 200) {
@@ -893,6 +937,7 @@ const saveSettings = () => {
     screenReaderSupport: settings.value.screenReaderSupport,
     showCustomEmojisInDisplayNames: settings.value.showCustomEmojisInDisplayNames,
     greentextEnabled: settings.value.greentextEnabled,
+    fontFamily: settings.value.fontFamily,
   })
 }
 
@@ -935,6 +980,7 @@ onMounted(async () => {
     emojiPack: currentPackId.value,
     showCustomEmojisInDisplayNames: currentSettings.showCustomEmojisInDisplayNames !== false,
     greentextEnabled: currentSettings.greentextEnabled !== false,
+    fontFamily: (currentSettings.fontFamily as 'system' | 'pixel') || 'system',
   }
   originalSettings.value = { ...settings.value }
 })
@@ -1259,6 +1305,51 @@ onMounted(async () => {
 .pack-preview-native {
   font-size: 32px;
   line-height: 1;
+}
+
+/* Font family picker */
+.font-family-options {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  max-width: 360px;
+}
+
+.font-family-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 12px 14px;
+  border: 2px solid var(--h-chat-light);
+  border-radius: 8px;
+  background-color: var(--h-chat);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: left;
+}
+
+.font-family-btn:hover {
+  border-color: var(--harmony-primary, #0EA5E9);
+  background-color: var(--h-chat-light);
+}
+
+.font-family-btn.active {
+  border-color: var(--harmony-primary, #0EA5E9);
+  background-color: rgba(14, 165, 233, 0.15);
+}
+
+.font-family-name {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.font-family-sample {
+  font-size: 13px;
+  color: var(--text-secondary);
+  letter-spacing: 0.02em;
 }
 
 .color-picker-section {

@@ -1218,7 +1218,7 @@ const removeServerFromFolder = async () => {
   font-size: 24px;
   font-weight: bold;
   color: var(--text-light);
-  font-family: 'Figtree', sans-serif;
+  font-family: var(--font-family);
 }
 
 .monyverse-button:hover {

@@ -1266,7 +1266,7 @@ onMounted(async () => {
   outline: none;
   font-size: 1rem;
   line-height: 1.375;
-  font-family: 'Figtree', 'Noto Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  font-family: var(--font-family);
   color: var(--text-secondary);
   overflow-wrap: break-word;
   word-wrap: break-word;

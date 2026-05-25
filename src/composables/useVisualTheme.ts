@@ -41,6 +41,23 @@ export interface VisualThemeSettings {
    * Default: true (opt-out).
    */
   greentextEnabled?: boolean
+  /**
+   * UI typeface. `'system'` uses Figtree + native fallbacks (the default
+   * Harmony look). `'pixel'` switches to NoRe Sans Pixel Pro v2, an original
+   * pixel-style Latin webfont. Persisted alongside the rest of the visual
+   * theme via the `appearance_settings` JSONB column on `profiles`, so the
+   * choice syncs across devices automatically.
+   */
+  fontFamily?: 'system' | 'pixel'
+}
+
+/**
+ * CSS font stacks for each `fontFamily` option. Update both this map and
+ * `applySettings` if you add a new option.
+ */
+export const FONT_STACKS: Record<NonNullable<VisualThemeSettings['fontFamily']>, string> = {
+  system: `'Figtree', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif`,
+  pixel: `'NoRe Sans Pixel Pro', 'Figtree', monospace`,
 }
 
 export interface ThemePreset {
@@ -264,6 +281,7 @@ const settings = ref<VisualThemeSettings>({
   screenReaderSupport: false,
   showCustomEmojisInDisplayNames: true,
   greentextEnabled: true,
+  fontFamily: 'system',
 })
 
 const isInitialized = ref(false)
@@ -463,6 +481,13 @@ function applySettings(settings: VisualThemeSettings) {
   
   // Apply font size
   root.style.setProperty('--message-font-size', `${settings.fontSize}px`)
+
+  // Apply UI font family (the picker in Appearance settings flips this).
+  // `--font-family` is consumed by `body` in design-system.css and by the
+  // `html, body` rule in App.vue; setting it on `:root` cascades to both.
+  const fontKey = settings.fontFamily || 'system'
+  const fontStack = FONT_STACKS[fontKey] || FONT_STACKS.system
+  root.style.setProperty('--font-family', fontStack)
   
   // Apply zoom level. `zoom` is a non-standard CSS property not present on
   // `CSSStyleDeclaration` in lib.dom, but every browser we target understands it.
@@ -745,6 +770,15 @@ export function useVisualTheme() {
   function setZoomLevel(zoom: number) {
     settings.value.zoomLevel = Math.max(50, Math.min(200, zoom))
   }
+
+  /**
+   * Update UI font family. Persists via the same `appearance_settings`
+   * sync flow as the rest of the theme.
+   */
+  function setFontFamily(family: NonNullable<VisualThemeSettings['fontFamily']>) {
+    if (!FONT_STACKS[family]) return
+    settings.value.fontFamily = family
+  }
   
   /**
    * Toggle settings
@@ -904,6 +938,7 @@ export function useVisualTheme() {
       reduceMotion: false,
       screenReaderSupport: false,
       showCustomEmojisInDisplayNames: true,
+      fontFamily: 'system',
     }
     // Apply default dark theme
     applyPresetTheme('dark')
@@ -932,6 +967,7 @@ export function useVisualTheme() {
       reduceMotion: false,
       screenReaderSupport: false,
       showCustomEmojisInDisplayNames: true,
+      fontFamily: 'system',
     }
   }
   
@@ -1078,6 +1114,7 @@ export function useVisualTheme() {
     setCustomBackgroundChroma,
     setFontSize,
     setZoomLevel,
+    setFontFamily,
     toggleShowTimestamps,
     toggle24HourTime,
     toggleCompactMode,

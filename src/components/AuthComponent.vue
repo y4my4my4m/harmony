@@ -931,7 +931,7 @@ onMounted(async () => {
   min-height: 100vh;
   width: 100%;
   display: flex;
-  font-family: 'Figtree', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: var(--font-family);
   background: var(--bg-image) center/cover no-repeat fixed;
   background-position: calc(50% + var(--bg-offset-x, 0px)) calc(50% + var(--bg-offset-y, 0px));
   position: relative;

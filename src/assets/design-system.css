@@ -247,6 +247,21 @@ body {
   transition: color 0.5s, background-color 0.5s;
 }
 
+/*
+ * Form elements don't inherit `font-family` from `body` by default (a long-
+ * standing browser quirk). Without this reset, the chat input, all
+ * `<button>`s, `<select>`s, etc. fall back to UA monospace/sans defaults
+ * and the Appearance > Font picker has no effect on them. Inheriting from
+ * the parent makes the picker actually swap the entire UI typeface.
+ */
+input,
+textarea,
+select,
+button,
+optgroup {
+  font-family: inherit;
+}
+
 /* Scrollbar */
 ::-webkit-scrollbar {
   width: 6px;

@@ -146,13 +146,66 @@ onMounted(() => {
     unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
   }
 
-  /* Global styles */
+  /* NoRe Sans Pixel Pro v2 — original pixel-style Latin webfont by @y4my4m.
+     Fonts are lazy-loaded via `font-display: swap`, so users on the default
+     "system" font don't pay any download cost for these. */
+  @font-face {
+    font-family: 'NoRe Sans Pixel Pro';
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url('/assets/fonts/nore-sans-pixel-pro-v2/fonts/NoReSansPixelPro-Regular.woff2') format('woff2'),
+         url('/assets/fonts/nore-sans-pixel-pro-v2/fonts/NoReSansPixelPro-Regular.ttf') format('truetype');
+  }
+  @font-face {
+    font-family: 'NoRe Sans Pixel Pro';
+    font-style: normal;
+    font-weight: 700;
+    font-display: swap;
+    src: url('/assets/fonts/nore-sans-pixel-pro-v2/fonts/NoReSansPixelPro-Bold.woff2') format('woff2'),
+         url('/assets/fonts/nore-sans-pixel-pro-v2/fonts/NoReSansPixelPro-Bold.ttf') format('truetype');
+  }
+  @font-face {
+    font-family: 'NoRe Sans Pixel Pro';
+    font-style: normal;
+    font-weight: 900;
+    font-display: swap;
+    src: url('/assets/fonts/nore-sans-pixel-pro-v2/fonts/NoReSansPixelPro-Black.woff2') format('woff2'),
+         url('/assets/fonts/nore-sans-pixel-pro-v2/fonts/NoReSansPixelPro-Black.ttf') format('truetype');
+  }
+  @font-face {
+    font-family: 'NoRe Sans Pixel Pro';
+    font-style: italic;
+    font-weight: 400;
+    font-display: swap;
+    src: url('/assets/fonts/nore-sans-pixel-pro-v2/fonts/NoReSansPixelPro-Italic.woff2') format('woff2'),
+         url('/assets/fonts/nore-sans-pixel-pro-v2/fonts/NoReSansPixelPro-Italic.ttf') format('truetype');
+  }
+  @font-face {
+    font-family: 'NoRe Sans Pixel Pro';
+    font-style: italic;
+    font-weight: 700;
+    font-display: swap;
+    src: url('/assets/fonts/nore-sans-pixel-pro-v2/fonts/NoReSansPixelPro-BoldItalic.woff2') format('woff2'),
+         url('/assets/fonts/nore-sans-pixel-pro-v2/fonts/NoReSansPixelPro-BoldItalic.ttf') format('truetype');
+  }
+  @font-face {
+    font-family: 'NoRe Sans Pixel Pro';
+    font-style: italic;
+    font-weight: 900;
+    font-display: swap;
+    src: url('/assets/fonts/nore-sans-pixel-pro-v2/fonts/NoReSansPixelPro-BlackItalic.woff2') format('woff2'),
+         url('/assets/fonts/nore-sans-pixel-pro-v2/fonts/NoReSansPixelPro-BlackItalic.ttf') format('truetype');
+  }
+
+  /* Global styles. font-family deliberately reads `--font-family` so the
+     Appearance settings font picker can swap the whole UI typeface live. */
   html, body {
     margin: 0;
     padding: 0;
     width: 100%;
     height: 100%;
-    font-family:  'Figtree', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-family: var(--font-family);
   }
 
   #app {

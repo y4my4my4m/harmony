@@ -4368,7 +4368,7 @@ const handleAddInstance = () => {
   background: var(--background-primary);
   min-height: 100vh;
   color: var(--text-primary);
-  font-family: 'Figtree', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: var(--font-family);
   overflow-y: auto;
 }
 
