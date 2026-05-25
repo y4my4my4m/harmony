@@ -262,6 +262,114 @@ optgroup {
   font-family: inherit;
 }
 
+/*
+ * "Disable glass blur" preference (Appearance > Effects). When the user
+ * opts out of blur (or the active skin disables it), neutralise every
+ * `backdrop-filter` declaration in the app at the root. The `*` selector
+ * is heavy but the rule fires only when the attribute is present, so
+ * for the default UI it's a no-op.
+ *
+ * Backdrop-filter alone isn't enough: most of those surfaces also use
+ * translucent backgrounds (`rgba(...)` or the `--*-alpha` CSS variables)
+ * that LOOK fine with blur but become unreadable see-through panes
+ * without it. Re-route every alpha background variable to its solid
+ * sibling so modals, popovers, the voice dock and the sidebar render
+ * fully opaque whenever blur is off.
+ */
+[data-disable-blur="true"],
+[data-disable-blur="true"] * {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+[data-disable-blur="true"] {
+  --h-chat-alpha: var(--h-chat);
+  --h-chat-alpha-light: var(--h-chat-light);
+  --h-sidebar-alpha: var(--h-sidebar);
+  --h-black-alpha: var(--h-black);
+  --background-primary-alpha: var(--background-primary);
+  --background-secondary-alpha: var(--background-secondary);
+  --background-tertiary-alpha: var(--background-tertiary);
+  --background-senary-alpha: var(--background-senary);
+}
+
+/*
+ * Many modal / popover / dropdown components hardcode their own translucent
+ * `rgba(...)` or `color-mix(...)` backgrounds and don't go through the
+ * alpha-variable system above. Without blur, those surfaces stay see-through
+ * and become unreadable. Force-opaque the most common offenders here so the
+ * "Disable blur" preference produces a usable flat UI everywhere, not just
+ * on the components that already use the variables.
+ *
+ * NOTE: this list is deliberately tactical — these are the specific class
+ * names that render translucent surfaces today. If a new component ships
+ * with the same pattern, add it here.
+ */
+[data-disable-blur="true"] .modal-container,
+[data-disable-blur="true"] .modal-content,
+[data-disable-blur="true"] .public-servers-modal,
+[data-disable-blur="true"] .create-server-modal,
+[data-disable-blur="true"] .profile-creation-card,
+[data-disable-blur="true"] .auth-card,
+[data-disable-blur="true"] .context-menu,
+[data-disable-blur="true"] .action-dropdown,
+[data-disable-blur="true"] .notification-dropdown,
+[data-disable-blur="true"] .notification-content,
+[data-disable-blur="true"] .floating-actions,
+[data-disable-blur="true"] .message-actions,
+[data-disable-blur="true"] .message-floating-actions,
+[data-disable-blur="true"] .channel-context-menu,
+[data-disable-blur="true"] .category-context-menu,
+[data-disable-blur="true"] .message-context-menu,
+[data-disable-blur="true"] .file-upload-menu,
+[data-disable-blur="true"] .media-picker-popup,
+[data-disable-blur="true"] .gif-component,
+[data-disable-blur="true"] .emoji-popup,
+[data-disable-blur="true"] .pinned-messages-popup,
+[data-disable-blur="true"] .message-search-modal,
+[data-disable-blur="true"] .threads-modal,
+[data-disable-blur="true"] .voice-dock,
+[data-disable-blur="true"] .voice-dock-container,
+[data-disable-blur="true"] .device-selector-popup,
+[data-disable-blur="true"] .voice-settings-panel,
+[data-disable-blur="true"] .spatial-audio-panel,
+[data-disable-blur="true"] .incoming-call-modal,
+[data-disable-blur="true"] .audio-theme-manager,
+[data-disable-blur="true"] .funding-modal,
+[data-disable-blur="true"] .report-modal,
+[data-disable-blur="true"] .key-setup-wizard,
+[data-disable-blur="true"] .announcement-popup,
+[data-disable-blur="true"] .run-on-login-modal,
+[data-disable-blur="true"] .toast,
+[data-disable-blur="true"] .Vue-Toastification__toast {
+  background: var(--background-secondary) !important;
+  background-image: none !important;
+}
+
+/*
+ * The voice overlay (maximised voice chat panel) deliberately drops its
+ * own background when blur is disabled - the panel rides directly over
+ * the chat behind it instead of forcing a flat dark slab over half the
+ * viewport. The participant tiles and control bar inside still have
+ * their own backgrounds for legibility.
+ */
+[data-disable-blur="true"] .voice-overlay,
+[data-disable-blur="true"] .unified-voice-overlay {
+  background: transparent !important;
+  background-image: none !important;
+  box-shadow: none !important;
+}
+
+/*
+ * Modal *overlays* (the dim layer behind a modal) intentionally stay
+ * translucent so the user can still see context behind the modal — but
+ * we drop blur and bump opacity slightly so they read as a clean dim
+ * pass instead of a smeared see-through panel.
+ */
+[data-disable-blur="true"] .modal-overlay {
+  background: rgba(0, 0, 0, 0.7) !important;
+}
+
 /* Scrollbar */
 ::-webkit-scrollbar {
   width: 6px;

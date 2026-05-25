@@ -8,6 +8,56 @@
     </div>
 
     <div class="settings-section">
+      <h3 class="section-title">
+        Skins
+        <span class="beta-badge">Beta</span>
+      </h3>
+      <p class="section-description">
+        Skins go beyond colour switching — they bundle a theme, a font, and a
+        set of CSS rules that change borders, corners, decorative overlays and
+        more. Picking one overrides the matching settings below; you can still
+        tweak colours afterwards. Pick "None" to clear the skin layer.
+      </p>
+
+      <div class="skin-options">
+        <button
+          type="button"
+          class="skin-card"
+          :class="{ active: !settings.activeSkinId }"
+          @click="onSkinChange(null)"
+        >
+          <div class="skin-card-preview skin-card-preview-none">
+            <span class="skin-card-none-label">None</span>
+          </div>
+          <div class="skin-card-info">
+            <h4 class="skin-card-name">None</h4>
+            <p class="skin-card-description">Use the raw theme + font you've set below.</p>
+          </div>
+        </button>
+
+        <button
+          v-for="skin in builtinSkins"
+          :key="skin.id"
+          type="button"
+          class="skin-card"
+          :class="{ active: settings.activeSkinId === skin.id }"
+          @click="onSkinChange(skin.id)"
+        >
+          <div class="skin-card-preview">
+            <img v-if="skin.preview" :src="skin.preview" :alt="skin.name" />
+          </div>
+          <div class="skin-card-info">
+            <h4 class="skin-card-name">
+              {{ skin.name }}
+              <span v-if="skin.isBeta" class="beta-badge beta-badge-inline">Beta</span>
+            </h4>
+            <p class="skin-card-description">{{ skin.description }}</p>
+          </div>
+        </button>
+      </div>
+    </div>
+
+    <div class="settings-section">
       <h3 class="section-title">{{ $t('settings.appearance.theme') }}</h3>
       
       <div class="theme-options">
@@ -490,8 +540,30 @@
     </div>
 
     <div class="settings-section">
+      <h3 class="section-title">Effects</h3>
+
+      <div class="setting-item">
+        <div class="setting-info">
+          <h4 class="setting-label">Disable blur &amp; glass effects</h4>
+          <p class="setting-description">
+            Many surfaces (modals, popovers, the voice dock, the sidebar) use
+            <code>backdrop-filter: blur</code> for a frosted-glass look. Turn
+            this on for a flat / sharper UI, or if your device struggles with
+            blur in voice / video calls.
+          </p>
+        </div>
+        <div class="setting-control">
+          <ToggleSwitch
+            v-model="settings.disableGlassBlur"
+            @change="onDisableBlurChange"
+          />
+        </div>
+      </div>
+    </div>
+
+    <div class="settings-section">
       <h3 class="section-title">{{ $t('settings.appearance.highContrast') }}</h3>
-      
+
       <div class="setting-item">
         <div class="setting-info">
           <h4 class="setting-label">{{ $t('settings.appearance.highContrast') }}</h4>
@@ -610,6 +682,8 @@ const settings = ref({
   showCustomEmojisInDisplayNames: true,
   greentextEnabled: true,
   fontFamily: 'system' as 'system' | 'pixel',
+  disableGlassBlur: false,
+  activeSkinId: null as string | null,
 })
 
 // Font picker options. The `preview` font-stack is used inline on the
@@ -729,8 +803,9 @@ function applySavedTheme(id: string) {
 }
 
 // Import community presets and theme helpers
-import { COMMUNITY_PRESETS, type ThemePreset } from '@/composables/useVisualTheme'
+import { COMMUNITY_PRESETS, BUILTIN_SKINS, type ThemePreset } from '@/composables/useVisualTheme'
 const communityPresets = COMMUNITY_PRESETS
+const builtinSkins = BUILTIN_SKINS
 const themableVariables = visualTheme.getThemableVariables()
 
 const applyPresetTheme = (preset: ThemePreset) => {
@@ -893,6 +968,33 @@ const onFontFamilyChange = (family: 'system' | 'pixel') => {
   visualTheme.setFontFamily(family)
 }
 
+const onDisableBlurChange = () => {
+  visualTheme.setDisableGlassBlur(settings.value.disableGlassBlur)
+}
+
+const onSkinChange = (skinId: string | null) => {
+  // Apply the skin to the live theme system, then mirror the resulting
+  // settings into our local form state so the rest of the form (theme
+  // cards, font picker, blur toggle, custom colour pickers) reflects what
+  // the skin just applied. The user can still tweak any of these
+  // afterwards - the skin is a one-shot bulk apply, not a lock.
+  visualTheme.applySkin(skinId)
+  const live = visualTheme.currentSettings.value
+  settings.value.activeSkinId = live.activeSkinId ?? null
+  settings.value.theme = live.theme
+  settings.value.customThemeMode = live.customThemeMode || 'dark'
+  if (live.customPrimaryColor) settings.value.customPrimaryColor = live.customPrimaryColor
+  if (live.customAccentColor) settings.value.customAccentColor = live.customAccentColor
+  if (live.customBackgroundColor) settings.value.customBackgroundColor = live.customBackgroundColor
+  if (typeof live.customBackgroundLightness === 'number')
+    settings.value.customBackgroundLightness = live.customBackgroundLightness
+  if (typeof live.customBackgroundChroma === 'number')
+    settings.value.customBackgroundChroma = live.customBackgroundChroma
+  settings.value.customCssOverrides = live.customCssOverrides ? { ...live.customCssOverrides } : {}
+  settings.value.fontFamily = (live.fontFamily as 'system' | 'pixel') || 'system'
+  settings.value.disableGlassBlur = !!live.disableGlassBlur
+}
+
 const adjustZoom = (delta: number) => {
   const newZoom = settings.value.zoomLevel + delta
   if (newZoom >= 50 && newZoom <= 200) {
@@ -938,6 +1040,8 @@ const saveSettings = () => {
     showCustomEmojisInDisplayNames: settings.value.showCustomEmojisInDisplayNames,
     greentextEnabled: settings.value.greentextEnabled,
     fontFamily: settings.value.fontFamily,
+    disableGlassBlur: settings.value.disableGlassBlur,
+    activeSkinId: settings.value.activeSkinId,
   })
 }
 
@@ -981,6 +1085,8 @@ onMounted(async () => {
     showCustomEmojisInDisplayNames: currentSettings.showCustomEmojisInDisplayNames !== false,
     greentextEnabled: currentSettings.greentextEnabled !== false,
     fontFamily: (currentSettings.fontFamily as 'system' | 'pixel') || 'system',
+    disableGlassBlur: !!currentSettings.disableGlassBlur,
+    activeSkinId: currentSettings.activeSkinId ?? null,
   }
   originalSettings.value = { ...settings.value }
 })
@@ -1305,6 +1411,110 @@ onMounted(async () => {
 .pack-preview-native {
   font-size: 32px;
   line-height: 1;
+}
+
+/* Skin picker (Beta) */
+.beta-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
+  vertical-align: middle;
+  margin-left: 8px;
+}
+
+.beta-badge-inline {
+  font-size: 9px;
+  padding: 1px 5px;
+}
+
+.skin-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 14px;
+  margin-top: 12px;
+}
+
+.skin-card {
+  display: flex;
+  flex-direction: column;
+  border: 2px solid var(--h-chat-light);
+  border-radius: 10px;
+  background: var(--h-chat);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  text-align: left;
+  overflow: hidden;
+  padding: 0;
+}
+
+.skin-card:hover {
+  border-color: var(--harmony-primary, #0EA5E9);
+  transform: translateY(-1px);
+}
+
+.skin-card.active {
+  border-color: var(--harmony-primary, #0EA5E9);
+  box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.3);
+}
+
+.skin-card-preview {
+  width: 100%;
+  height: 140px;
+  background: linear-gradient(135deg, #0d0d10, #1a1a20);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.skin-card-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.skin-card-preview-none {
+  background: repeating-linear-gradient(
+    45deg,
+    var(--h-chat-darker),
+    var(--h-chat-darker) 10px,
+    var(--h-chat) 10px,
+    var(--h-chat) 20px
+  );
+}
+
+.skin-card-none-label {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+}
+
+.skin-card-info {
+  padding: 12px 14px 14px;
+}
+
+.skin-card-name {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0 0 6px 0;
+  color: var(--text-primary);
+}
+
+.skin-card-description {
+  font-size: 12px;
+  margin: 0;
+  color: var(--text-secondary);
+  line-height: 1.4;
 }
 
 /* Font family picker */
