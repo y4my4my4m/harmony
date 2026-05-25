@@ -878,32 +878,102 @@
 
 [data-skin="sdr-001"] .user-profile {
   margin: 0 !important;
-  padding: 8px 10px 10px !important;
+  padding: 2px 8px 2px !important;
   border-radius: 0 !important;
   border-top: 1px solid var(--skin-accent-70);
   background: linear-gradient(180deg, #0c0c12 0%, #04040a 100%) !important;
   position: relative;
+  display: grid !important;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-rows: 11px minmax(44px, auto) 11px;
+  align-items: center;
+  column-gap: 8px;
+  row-gap: 0;
+  width: 100% !important;
+  max-width: 100%;
+  height: auto !important;
+  min-height: 68px;
+  overflow: hidden;
+  box-sizing: border-box;
 }
 
+/* HUD chrome: full-width header/footer rows so flex children never
+   squeeze into vertical letter-stacks beside the avatar. */
 [data-skin="sdr-001"] .user-profile::before {
   content: '── SUBJECT ID ──';
+  grid-column: 1 / -1;
+  grid-row: 1;
   display: block;
+  margin: 0;
+  padding: 0;
   font-family: 'NoRe Sans Pixel Pro', monospace;
-  font-size: 8px;
-  letter-spacing: 0.22em;
+  font-size: 7px;
+  letter-spacing: 0.14em;
   color: var(--skin-accent-55);
   text-align: left;
-  margin-bottom: 4px;
+  line-height: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
 }
 
 [data-skin="sdr-001"] .user-profile::after {
   content: 'LAT 18ms ¦ GRID 02 ¦ AAL2';
+  grid-column: 1 / -1;
+  grid-row: 3;
   display: block;
-  margin-top: 6px;
+  margin: 0;
+  padding: 0;
   font-family: 'NoRe Sans Pixel Pro', monospace;
-  font-size: 9px;
-  letter-spacing: 0.14em;
+  font-size: 7px;
+  letter-spacing: 0.1em;
   color: var(--skin-accent-50);
+  text-align: right;
+  line-height: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+
+[data-skin="sdr-001"] .user-profile .avatar-wrapper {
+  grid-column: 1;
+  grid-row: 2;
+  align-self: center;
+  flex-shrink: 0;
+}
+
+[data-skin="sdr-001"] .user-profile .user-info {
+  grid-column: 2;
+  grid-row: 2;
+  min-width: 0;
+  overflow: hidden;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+}
+
+[data-skin="sdr-001"] .user-profile .user-name {
+  max-width: 100% !important;
+}
+
+[data-skin="sdr-001"] .user-profile .user-status-container {
+  max-width: 100%;
+  overflow: hidden;
+  margin-right: 0 !important;
+}
+
+[data-skin="sdr-001"] .user-profile .profile-bar-buttons,
+[data-skin="sdr-001"] .user-profile .buttons {
+  grid-column: 3;
+  grid-row: 2;
+  flex-shrink: 0;
+  gap: 4px !important;
+}
+
+[data-skin="sdr-001"] .user-profile .status-dropdown {
+  grid-column: 1 / -1;
+  z-index: 20;
 }
 
 /* ----------------------------------------------------------------------------
@@ -1209,22 +1279,34 @@
   width: 22px;
   height: 22px;
   background-color: var(--text-primary, #fff);
-  -webkit-mask: no-repeat center / contain;
-          mask: no-repeat center / contain;
+  pointer-events: none;
+  -webkit-mask-repeat: no-repeat;
+          mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+          mask-position: center;
+  -webkit-mask-size: contain;
+          mask-size: contain;
 }
 [data-skin="sdr-001"] .control-btn.mic-btn::after,
-[data-skin="sdr-001"] .mini-control-btn:not(.deafened):not(.leave)::after {
+[data-skin="sdr-001"] .minimized-controls .mini-control-btn:nth-child(1)::after {
   -webkit-mask-image: url('/assets/skins/sdr-001/icons/mic.svg');
           mask-image: url('/assets/skins/sdr-001/icons/mic.svg');
 }
 [data-skin="sdr-001"] .control-btn.mic-btn.muted::after,
-[data-skin="sdr-001"] .mini-control-btn.muted::after {
+[data-skin="sdr-001"] .minimized-controls .mini-control-btn:nth-child(1).muted::after {
   -webkit-mask-image: url('/assets/skins/sdr-001/icons/mic-off.svg');
           mask-image: url('/assets/skins/sdr-001/icons/mic-off.svg');
 }
-[data-skin="sdr-001"] .control-btn.headphones-btn::after        { -webkit-mask-image: url('/assets/skins/sdr-001/icons/volume-3.svg'); mask-image: url('/assets/skins/sdr-001/icons/volume-3.svg'); }
+[data-skin="sdr-001"] .control-btn.headphones-btn::after,
+[data-skin="sdr-001"] .minimized-controls .mini-control-btn:nth-child(2)::after {
+  -webkit-mask-image: url('/assets/skins/sdr-001/icons/volume-3.svg');
+          mask-image: url('/assets/skins/sdr-001/icons/volume-3.svg');
+}
 [data-skin="sdr-001"] .control-btn.headphones-btn.deafened::after,
-[data-skin="sdr-001"] .mini-control-btn.deafened::after         { -webkit-mask-image: url('/assets/skins/sdr-001/icons/volume.svg');   mask-image: url('/assets/skins/sdr-001/icons/volume.svg'); }
+[data-skin="sdr-001"] .minimized-controls .mini-control-btn:nth-child(2).deafened::after {
+  -webkit-mask-image: url('/assets/skins/sdr-001/icons/volume.svg');
+          mask-image: url('/assets/skins/sdr-001/icons/volume.svg');
+}
 [data-skin="sdr-001"] .control-btn.video-btn::after             { -webkit-mask-image: url('/assets/skins/sdr-001/icons/video.svg');    mask-image: url('/assets/skins/sdr-001/icons/video.svg'); }
 [data-skin="sdr-001"] .control-btn.screen-btn::after            { -webkit-mask-image: url('/assets/skins/sdr-001/icons/share.svg');    mask-image: url('/assets/skins/sdr-001/icons/share.svg'); }
 [data-skin="sdr-001"] .control-btn.spatial-btn::after           { -webkit-mask-image: url('/assets/skins/sdr-001/icons/grid-2x2-2.svg'); mask-image: url('/assets/skins/sdr-001/icons/grid-2x2-2.svg'); }
@@ -1233,7 +1315,11 @@
 [data-skin="sdr-001"] .control-btn.expand-btn::after            { -webkit-mask-image: url('/assets/skins/sdr-001/icons/expand.svg');   mask-image: url('/assets/skins/sdr-001/icons/expand.svg'); }
 [data-skin="sdr-001"] .control-btn.minimize-btn::after          { -webkit-mask-image: url('/assets/skins/sdr-001/icons/menu.svg');     mask-image: url('/assets/skins/sdr-001/icons/menu.svg'); }
 [data-skin="sdr-001"] .control-btn.leave-btn::after,
-[data-skin="sdr-001"] .mini-control-btn.leave::after            { -webkit-mask-image: url('/assets/skins/sdr-001/icons/phone.svg');    mask-image: url('/assets/skins/sdr-001/icons/phone.svg'); }
+[data-skin="sdr-001"] .minimized-controls .mini-control-btn.leave::after,
+[data-skin="sdr-001"] .minimized-controls .mini-control-btn:nth-child(3)::after {
+  -webkit-mask-image: url('/assets/skins/sdr-001/icons/phone.svg');
+          mask-image: url('/assets/skins/sdr-001/icons/phone.svg');
+}
 
 /* Voice overlay leave button - was the one ROUND red gradient pill that
    stuck out in screenshot 2. Match the rest of the overlay's tactical
@@ -1258,17 +1344,17 @@
   transform: none !important;
 }
 
-/* User profile bar: 4 .icon-button divs in fixed order
-   (Bell / Mic / Headphones / Settings). Hide the inner SVG and paint
-   a pixel mask in its place. */
-[data-skin="sdr-001"] .profile-bar-buttons .icon-button {
+/* User profile bar: Bell / Mic / Headphones / Settings.
+   Mic+Settings use @click on `.icon-button`; Bell uses nested
+   `.notification-bell` (see `.notification-bell-slot` below). */
+[data-skin="sdr-001"] .profile-bar-buttons .icon-button:not(.notification-bell-slot) {
   position: relative;
   color: transparent !important;
 }
-[data-skin="sdr-001"] .profile-bar-buttons .icon-button > * {
+[data-skin="sdr-001"] .profile-bar-buttons .icon-button:not(.notification-bell-slot) > * {
   visibility: hidden;
 }
-[data-skin="sdr-001"] .profile-bar-buttons .icon-button::after {
+[data-skin="sdr-001"] .profile-bar-buttons .icon-button:not(.notification-bell-slot)::after {
   content: '';
   position: absolute;
   inset: 0;
@@ -1276,10 +1362,49 @@
   width: 18px;
   height: 18px;
   background-color: var(--text-primary, #fff);
-  -webkit-mask: no-repeat center / contain;
-          mask: no-repeat center / contain;
+  pointer-events: none;
+  -webkit-mask-repeat: no-repeat;
+          mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+          mask-position: center;
+  -webkit-mask-size: contain;
+          mask-size: contain;
 }
-[data-skin="sdr-001"] .profile-bar-buttons .icon-button:nth-child(1)::after {
+/* Bell slot: full-size hit target + pixel mask on the real button. */
+[data-skin="sdr-001"] .profile-bar-buttons .notification-bell-slot .notification-bell-container {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+[data-skin="sdr-001"] .profile-bar-buttons .notification-bell-slot .notification-bell {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  color: var(--text-secondary, #b3b3b3) !important;
+}
+[data-skin="sdr-001"] .profile-bar-buttons .notification-bell-slot .notification-bell:hover {
+  color: #fff !important;
+}
+[data-skin="sdr-001"] .profile-bar-buttons .notification-bell-slot .notification-bell .bell-icon {
+  visibility: hidden;
+}
+[data-skin="sdr-001"] .profile-bar-buttons .notification-bell-slot .notification-bell::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 18px;
+  height: 18px;
+  background-color: currentColor;
+  pointer-events: none;
+  -webkit-mask-repeat: no-repeat;
+          mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+          mask-position: center;
+  -webkit-mask-size: contain;
+          mask-size: contain;
   -webkit-mask-image: url('/assets/skins/sdr-001/icons/bell.svg');
           mask-image: url('/assets/skins/sdr-001/icons/bell.svg');
 }
@@ -1305,15 +1430,29 @@
 }
 
 /* Message hover-action toolbar (react / reply / thread / edit / delete /
-   more) - the icons are mounted via per-icon components, so use the
-   stable `data-testid` hooks already on the buttons. */
+   more). Lucide icons are hidden; pixel masks paint via ::after.
+   IMPORTANT: never use the `mask` shorthand here — it resets mask-image. */
+[data-skin="sdr-001"] .message-actions .action-btn,
 [data-skin="sdr-001"] .message-actions [data-testid^="msg-action-"] {
   position: relative;
-  color: transparent !important;
+  color: var(--text-secondary, #b3b3b3) !important;
 }
+[data-skin="sdr-001"] .message-actions .action-btn:hover,
+[data-skin="sdr-001"] .message-actions [data-testid^="msg-action-"]:hover {
+  color: #fff !important;
+}
+[data-skin="sdr-001"] .message-actions .action-btn.delete-danger,
+[data-skin="sdr-001"] .message-actions [data-testid="msg-action-delete"].delete-danger {
+  color: var(--error, #f04747) !important;
+}
+[data-skin="sdr-001"] .message-actions .action-btn svg,
+[data-skin="sdr-001"] .message-actions .action-btn .icon-component,
 [data-skin="sdr-001"] .message-actions [data-testid^="msg-action-"] > * {
-  visibility: hidden;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none;
 }
+[data-skin="sdr-001"] .message-actions .action-btn::after,
 [data-skin="sdr-001"] .message-actions [data-testid^="msg-action-"]::after {
   content: '';
   position: absolute;
@@ -1321,16 +1460,45 @@
   margin: auto;
   width: 18px;
   height: 18px;
-  background-color: var(--text-primary, #fff);
-  -webkit-mask: no-repeat center / contain;
-          mask: no-repeat center / contain;
+  background-color: currentColor;
+  pointer-events: none;
+  -webkit-mask-repeat: no-repeat;
+          mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+          mask-position: center;
+  -webkit-mask-size: contain;
+          mask-size: contain;
 }
-[data-skin="sdr-001"] [data-testid="msg-action-react"]::after  { -webkit-mask-image: url('/assets/skins/sdr-001/icons/smile.svg');   mask-image: url('/assets/skins/sdr-001/icons/smile.svg'); }
-[data-skin="sdr-001"] [data-testid="msg-action-reply"]::after  { -webkit-mask-image: url('/assets/skins/sdr-001/icons/message.svg'); mask-image: url('/assets/skins/sdr-001/icons/message.svg'); }
-[data-skin="sdr-001"] [data-testid="msg-action-thread"]::after { -webkit-mask-image: url('/assets/skins/sdr-001/icons/notes.svg');   mask-image: url('/assets/skins/sdr-001/icons/notes.svg'); }
-[data-skin="sdr-001"] [data-testid="msg-action-edit"]::after   { -webkit-mask-image: url('/assets/skins/sdr-001/icons/edit.svg');    mask-image: url('/assets/skins/sdr-001/icons/edit.svg'); }
-[data-skin="sdr-001"] [data-testid="msg-action-delete"]::after { -webkit-mask-image: url('/assets/skins/sdr-001/icons/trash.svg');   mask-image: url('/assets/skins/sdr-001/icons/trash.svg'); }
-[data-skin="sdr-001"] [data-testid="msg-action-more"]::after   { -webkit-mask-image: url('/assets/skins/sdr-001/icons/more-horizontal.svg'); mask-image: url('/assets/skins/sdr-001/icons/more-horizontal.svg'); }
+[data-skin="sdr-001"] .message-actions [data-testid="msg-action-react"]::after,
+[data-skin="sdr-001"] .message-actions-floating [data-testid="msg-action-react"]::after {
+  -webkit-mask-image: url('/assets/skins/sdr-001/icons/smile.svg');
+          mask-image: url('/assets/skins/sdr-001/icons/smile.svg');
+}
+[data-skin="sdr-001"] .message-actions [data-testid="msg-action-reply"]::after,
+[data-skin="sdr-001"] .message-actions-floating [data-testid="msg-action-reply"]::after {
+  -webkit-mask-image: url('/assets/skins/sdr-001/icons/message.svg');
+          mask-image: url('/assets/skins/sdr-001/icons/message.svg');
+}
+[data-skin="sdr-001"] .message-actions [data-testid="msg-action-thread"]::after,
+[data-skin="sdr-001"] .message-actions-floating [data-testid="msg-action-thread"]::after {
+  -webkit-mask-image: url('/assets/skins/sdr-001/icons/notes.svg');
+          mask-image: url('/assets/skins/sdr-001/icons/notes.svg');
+}
+[data-skin="sdr-001"] .message-actions [data-testid="msg-action-edit"]::after,
+[data-skin="sdr-001"] .message-actions-floating [data-testid="msg-action-edit"]::after {
+  -webkit-mask-image: url('/assets/skins/sdr-001/icons/edit.svg');
+          mask-image: url('/assets/skins/sdr-001/icons/edit.svg');
+}
+[data-skin="sdr-001"] .message-actions [data-testid="msg-action-delete"]::after,
+[data-skin="sdr-001"] .message-actions-floating [data-testid="msg-action-delete"]::after {
+  -webkit-mask-image: url('/assets/skins/sdr-001/icons/trash.svg');
+          mask-image: url('/assets/skins/sdr-001/icons/trash.svg');
+}
+[data-skin="sdr-001"] .message-actions [data-testid="msg-action-more"]::after,
+[data-skin="sdr-001"] .message-actions-floating [data-testid="msg-action-more"]::after {
+  -webkit-mask-image: url('/assets/skins/sdr-001/icons/more-horizontal.svg');
+          mask-image: url('/assets/skins/sdr-001/icons/more-horizontal.svg');
+}
 
 /* ----------------------------------------------------------------------------
    19. Voice dock - tactical strip redesign
@@ -1357,6 +1525,29 @@
 /* Mini-mode dock (the small dock that lives in the channel sidebar)
    gets a hairline red top border so it visibly separates from the
    channel list above it. */
+[data-skin="sdr-001"] .unified-voice-dock.minimized-mode .minimized-container {
+  max-width: 100%;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+[data-skin="sdr-001"] .unified-voice-dock.minimized-mode .minimized-content {
+  min-width: 0;
+  overflow: hidden;
+  gap: 8px !important;
+}
+[data-skin="sdr-001"] .unified-voice-dock.minimized-mode .minimized-info {
+  min-width: 0;
+  overflow: hidden;
+}
+[data-skin="sdr-001"] .unified-voice-dock.minimized-mode .minimized-info .channel-name {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+[data-skin="sdr-001"] .unified-voice-dock.minimized-mode .minimized-controls {
+  flex-shrink: 0;
+}
 [data-skin="sdr-001"] .unified-voice-dock.minimized-mode .dock-container {
   border-top: 1px solid var(--skin-accent-45) !important;
 }

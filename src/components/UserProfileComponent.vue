@@ -30,7 +30,7 @@
     </div>
 
     <div class="buttons profile-bar-buttons">
-      <div class="icon-button">
+      <div class="icon-button notification-bell-slot">
         <NotificationBell />
       </div>
       <div 

@@ -234,9 +234,22 @@ const activeFilter = computed({
   set: (value) => notificationStore.setFilter(value)
 })
 
+// Suppress the document click listener for the same pointer event that
+// opened the panel. With SDR-001 the decorative mask can make the click
+// target the `.icon-button` wrapper instead of `.notification-bell-container`,
+// which would otherwise open then instantly close.
+let suppressOutsideClose = false
+
 // Methods
 const togglePanel = async () => {
+  const opening = !isOpen.value
   isOpen.value = !isOpen.value
+  if (opening) {
+    suppressOutsideClose = true
+    queueMicrotask(() => {
+      suppressOutsideClose = false
+    })
+  }
   if (isOpen.value) {
     closeMobileSidebars()
     document.body.style.overflow = 'hidden'
@@ -348,10 +361,18 @@ const loadMoreNotifications = async () => {
 
 // Click outside handler
 const handleClickOutside = (event: Event) => {
+  if (!isOpen.value || suppressOutsideClose) return
+
   const target = event.target as HTMLElement
-  if (!target.closest('.notification-bell-container')) {
-    closePanel()
+  if (
+    target.closest('.notification-bell-container') ||
+    target.closest('[data-testid="notification-bell"]') ||
+    target.closest('.notification-bell-slot')
+  ) {
+    return
   }
+
+  closePanel()
 }
 
 // Keyboard navigation

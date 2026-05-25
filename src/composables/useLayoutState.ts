@@ -158,6 +158,7 @@ export function useLayoutState() {
   }
 
   const closeMobileSidebars = () => {
+    if (!isMobile.value) return
     leftSidebarOpen.value = false
     rightSidebarOpen.value = false
     mobileProfileOpen.value = false
