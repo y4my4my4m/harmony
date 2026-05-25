@@ -72,8 +72,8 @@ cd harmony
 npm install
 
 # Setup environment
-cp .env.example .env.local
-# Edit .env.local with your Supabase credentials
+cp .env.example .env
+# Edit .env with your Supabase credentials
 
 # Start development server
 npm run dev

@@ -3,7 +3,7 @@
 ## Prerequisites
 
 - **Node.js** 18+ (20 recommended)
-- **npm** or **Bun** package manager
+- **npm** (Bun also works as a drop-in if you prefer; the repo standardises on npm scripts)
 - **Git**
 - A **Supabase** project (cloud or self-hosted)
 

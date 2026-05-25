@@ -4,14 +4,14 @@ Get Harmony running in 5 minutes.
 
 ## Choose Your Path
 
-### Fastest: Supabase Cloud + static host
+### Fastest: Supabase Cloud + your own host
 
 1. Create a [Supabase](https://supabase.com) project
 2. Run the schema from `db_schema/init/` (see `db_schema/init/README.md` in the repo; use `init.sql` or run numbered files in order)
-3. Build the frontend (`npm install && npm run build-only`) and deploy the `dist/` output to any static host (Vercel, Netlify, S3, etc.)
-4. Set `VITE_*` environment variables in the host’s dashboard to match your Supabase project
+3. Build the frontend (`npm install && npm run build-only`) and serve the `dist/` output yourself (Nginx/Caddy/S3+CloudFront, etc.). For a turnkey path, use the Docker Compose flow below.
+4. Set the `VITE_*` environment variables (`.env`) to match your Supabase project before building
 
-For a full production stack (Docker, federation, voice), use [HOW_TO_SELF_HOST.md](./HOW_TO_SELF_HOST.md).
+For a full production stack (Docker, federation, voice), use [HOW_TO_SELF_HOST.md](./HOW_TO_SELF_HOST.md). For desktop builds, see `npm run tauri:build`.
 
 ### Recommended: Docker Compose
 

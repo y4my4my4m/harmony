@@ -209,16 +209,18 @@ npm run build-only
 
 ### Customizing instance assets (optional)
 
-The repository ships a small **default** set of background images and a single
-default emoji pack (Twemoji). You can add your own without modifying source:
+The repository ships a small **default** set of background images and uses
+**Twemoji + native** emoji by default. You can add your own without
+modifying source:
 
-**Background images** (`public/backgrounds/login/`, `404/`, `offline/`)
+**Background images** (`public/backgrounds/login/`, `public/backgrounds/404/`, `public/backgrounds/offline/`)
 
-Drop additional `.webp` images into the relevant folder before running
-`npm run build-only`. The `scripts/build-background-manifest.mjs` step (run
-automatically as part of `build-only`) will detect them and add them to
-`public/backgrounds/manifest.json`. The frontend then rotates through every
-file present in the folder.
+The repo ships **5 default `login`** images and **2 each** for `404/` and
+`offline/`. Drop additional `.webp` images into the relevant folder before
+running `npm run build-only`. The `scripts/build-background-manifest.mjs`
+step (run automatically as part of `build-only`) detects every `.webp` in
+each folder and writes `public/backgrounds/manifest.json`. The frontend
+then rotates through every file present in the folder.
 
 ```bash
 # Example: add 30 personal login images
@@ -226,17 +228,29 @@ cp ~/my-wallpapers/*.webp public/backgrounds/login/
 npm run build-only
 ```
 
-These extra images are gitignored, so a `git pull` will not delete them.
+Any extra images you drop in are gitignored, so a `git pull` will not
+delete them.
 
 **Emoji packs** (`public/assets/emojis/<pack>/`)
 
-Drop a folder of SVG/PNG emojis into `public/assets/emojis/`. The default
-Twemoji pack is shipped; additional packs are picked up at build time.
+Harmony ships **Twemoji + native** as the default emoji set; both work out
+of the box with no extra configuration. Additional packs are opt-in,
+instance-side, and gitignored. The most common opt-in is **Mutant
+Standard**: drop the SVGs into `public/assets/emojis/mutant_emojis_svg/`
+before running `npm run build-only` and the build picks them up
+automatically.
 
-> ⚠️ Licensing reminder: if you install a NonCommercial-only emoji pack such
-> as Mutant Standard (CC-BY-NC-SA 4.0), your instance must be operated
-> non-commercially (no ads, no paid tiers, no commercial sponsorship), and
-> you must display the required attribution somewhere in the UI.
+```bash
+# Example: opt in to the Mutant Standard pack
+mkdir -p public/assets/emojis/mutant_emojis_svg
+cp /path/to/mutant_standard/*.svg public/assets/emojis/mutant_emojis_svg/
+npm run build-only
+```
+
+> ⚠️ Licensing reminder: Mutant Standard is **CC-BY-NC-SA 4.0**
+> (NonCommercial). If you ship it on your instance, you must operate
+> non-commercially (no ads, no paid tiers, no commercial sponsorship) and
+> display the required attribution somewhere in the UI.
 
 ## 5. Set Up LiveKit
 

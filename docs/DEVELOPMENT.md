@@ -8,10 +8,12 @@ Welcome to the Harmony development guide! This document provides everything you 
 
 ### Prerequisites
 
-- **Node.js**: Version 18 or higher
-- **Bun**: Latest version (preferred package manager)
+- **Node.js**: Version 18 or higher (20 recommended)
+- **npm**: Bundled with Node (project standardised on npm scripts)
 - **Git**: For version control
 - **VS Code**: Recommended editor with suggested extensions
+
+> Bun works as a drop-in if you prefer (`bun install`, `bun run dev`, etc.); the scripts are written for npm, so use whichever you have installed.
 
 ### Installation
 
@@ -21,13 +23,13 @@ git clone https://github.com/y4my4my4m/harmony.git
 cd harmony
 
 # Install dependencies
-bun install
+npm install
 
 # Copy environment variables
 cp .env.example .env
 
 # Start development server
-bun dev
+npm run dev
 ```
 
 ### Environment Variables
@@ -49,12 +51,12 @@ VITE_DEBUG_VOICE=true
 
 ```bash
 harmony/
-├── src/                    # Source code
-│   ├── components/         # Vue components
+├── src/                    # Vue 3 application source
+│   ├── components/         # Vue components organized by feature
 │   │   ├── common/        # Shared components
 │   │   ├── chat/          # Chat-specific components
 │   │   ├── voice/         # Voice/video components
-│   │   └── federation/    # ActivityPub components
+│   │   └── activitypub/   # Social / federation UI
 │   ├── layouts/           # Application layouts
 │   ├── views/             # Route-level components
 │   ├── stores/            # Pinia state stores
@@ -63,31 +65,36 @@ harmony/
 │   ├── utils/             # Utility functions
 │   ├── types/             # TypeScript type definitions
 │   └── assets/            # Static assets and styles
-├── docs/                  # Documentation
-├── db_schema/            # Database schema and migrations
-├── supabase/             # Supabase edge functions
-├── src-tauri/            # Tauri desktop app configuration
-├── public/               # Public assets
-└── tests/                # Test files
+├── docs/                  # VitePress site + generated API/component docs
+├── docs-source/           # Source for guide pages (edit these)
+├── db_schema/             # Database schema and migrations (init/ + migrations/)
+├── federation-backend/    # Node.js ActivityPub backend (server + worker)
+├── bot-gateway/           # Bot API gateway
+├── bot-plugins/           # Bot plugin implementations (e.g. discord-bridge)
+├── src-tauri/             # Tauri desktop app configuration (Rust)
+├── public/                # Public assets (backgrounds, emoji packs, icons)
+└── tests/                 # Integration and E2E tests
 ```
 
 ## 🛠️ Development Workflow
 
 ### Branch Strategy
 
-We use a simplified Git flow:
+We use a simple, master-as-trunk flow:
 
-- **`main`**: Production-ready code
-- **`develop`**: Integration branch for features
+- **`master`**: Production / default branch. PRs target this directly.
 - **`feature/*`**: Individual feature branches
-- **`hotfix/*`**: Critical bug fixes
+- **`bugfix/*`**: Bug fixes
+- **`security/*`**: Security-related fixes (please coordinate via [SECURITY.md](../SECURITY.md))
+
+See [ROADMAP.md](../ROADMAP.md) for what we want to ship next and [BUGS.md](../BUGS.md) for currently tracked defects.
 
 ### Development Process
 
 1. **Create Feature Branch**
    ```bash
-   git checkout develop
-   git pull origin develop
+   git checkout master
+   git pull origin master
    git checkout -b feature/your-feature-name
    ```
 
@@ -99,16 +106,16 @@ We use a simplified Git flow:
 3. **Test Changes**
    ```bash
    # Run linting
-   bun lint
-   
+   npm run lint
+
    # Run type checking
-   bun type-check
-   
+   npm run type-check
+
    # Run tests
-   bun test
-   
+   npm run test
+
    # Build project
-   bun build
+   npm run build
    ```
 
 4. **Commit Changes**
@@ -120,7 +127,7 @@ We use a simplified Git flow:
 5. **Push and Create PR**
    ```bash
    git push origin feature/your-feature-name
-   # Create pull request on GitHub
+   # Open a pull request against master on GitHub
    ```
 
 ### Commit Message Convention
@@ -331,17 +338,26 @@ We use a comprehensive testing approach:
 ### Setting Up Tests
 
 ```bash
-# Install testing dependencies
-bun add -D vitest @vue/test-utils jsdom
+# Testing dependencies are installed by `npm install`
+# (vitest, @vue/test-utils, happy-dom, fake-indexeddb, msw, etc.)
 
-# Run tests
-bun test
+# Run unit tests
+npm run test
 
-# Run tests in watch mode
-bun test --watch
+# Watch mode
+npm run test:watch
 
-# Run tests with coverage
-bun test --coverage
+# With coverage
+npm run test:coverage
+
+# Vitest UI
+npm run test:ui
+
+# Integration tests (requires `supabase start`)
+npm run test:integration
+
+# E2E tests (Playwright)
+npm run test:e2e
 ```
 
 ### Writing Component Tests
@@ -568,14 +584,17 @@ async sendMessage(
 Generate API documentation using TypeDoc:
 
 ```bash
-# Generate documentation
-bun docs:generate
+# Generate everything (guides + components + API + sync + typedoc + static build)
+npm run docs:generate-all
 
-# Serve documentation locally
-bun docs:serve
+# Or just the typedoc bundle
+npm run docs:generate
 
-# Generate and serve with hot reload
-bun docs:dev
+# Live-reload VitePress site (port 3001)
+npm run docs:dev
+
+# Serve the typedoc bundle on port 8080
+npm run docs:serve
 ```
 
 ### Writing Markdown Documentation
@@ -593,61 +612,58 @@ Follow these guidelines for Markdown documentation:
 ### Development Build
 
 ```bash
-# Start development server
-bun dev
-
-# Build for development
-bun build:dev
+# Start development server (Vite, port 5173)
+npm run dev
 
 # Preview production build
-bun preview
+npm run preview
 ```
 
 ### Production Build
 
 ```bash
-# Build for production
-bun build
+# Build for production (writes to ./dist)
+npm run build
 
 # Type check
-bun type-check
+npm run type-check
 
 # Lint code
-bun lint
-
-# Run all checks
-bun ci
+npm run lint
 ```
 
 ### Desktop App Build
 
 ```bash
 # Start desktop development
-bun tauri dev
+npm run tauri:dev
 
 # Build desktop app
-bun tauri build
+npm run tauri:build
 
-# Build for specific platform
-bun tauri build --target x86_64-pc-windows-msvc
+# Build for Windows (cross-compile)
+npm run tauri:build:windows
 ```
 
 ### Deployment Process
 
-1. **Staging Deployment**
-   ```bash
-   git push origin develop
-   # Triggers staging deployment
-   ```
+There is no separate `develop` branch. Releases are cut from `master`:
 
-2. **Production Deployment**
-   ```bash
-   git checkout main
-   git merge develop
-   git tag v1.0.0
-   git push origin main --tags
-   # Triggers production deployment
-   ```
+```bash
+# Land your PR on master via the normal review flow,
+# then tag a release from a clean master:
+
+git checkout master
+git pull origin master
+git tag v1.0.0
+git push origin master --tags
+```
+
+For self-hosters, the production deployment path lives in
+[HOW_TO_SELF_HOST.md](./HOW_TO_SELF_HOST.md) and the supplied
+`docker-compose.prod.yml` / `docker-compose.full.yml`. There is no Vercel
+build target — Harmony ships as a static SPA + federation-backend stack,
+with optional Tauri desktop builds.
 
 ## 🔐 Security Guidelines
 
@@ -754,15 +770,22 @@ const largeData = shallowRef({})
 2. **Code Review**: At least one approval required
 3. **Testing**: Manual testing for UI changes
 4. **Documentation**: Documentation must be updated
-5. **Merge**: Squash and merge to main
+5. **Merge**: Squash and merge to `master`
 
 ### Getting Help
 
-- **Discord**: Join our development Discord
 - **GitHub Issues**: Report bugs and feature requests
-- **Discussions**: Use GitHub Discussions for questions
+- **GitHub Discussions**: General questions and ideas
+- **Harmony chat**: Real-time chat at <https://har.mony.lol>
 - **Documentation**: Check existing documentation first
 
 ## 📝 License
 
-This project is licensed under **GNU AGPL-3.0**. See the `LICENSE` file in the repository root.
+Harmony is under **GNU AGPL-3.0** with additional terms under AGPL §7
+(attribution + trademark). Forks must rename and keep the "Powered by
+Harmony" link to the original repository visible. See:
+
+- [`LICENSE`](../LICENSE) — AGPL v3 text
+- [`LICENSE-ADDITIONAL-TERMS.md`](../LICENSE-ADDITIONAL-TERMS.md) — required attribution
+- [`COPYRIGHT`](../COPYRIGHT) — copyright statement and bundled-asset notices
+- [`TRADEMARK.md`](../TRADEMARK.md) — name and logo policy
