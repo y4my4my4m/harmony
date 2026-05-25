@@ -8,56 +8,6 @@
     </div>
 
     <div class="settings-section">
-      <h3 class="section-title">
-        Skins
-        <span class="beta-badge">Beta</span>
-      </h3>
-      <p class="section-description">
-        Skins go beyond colour switching — they bundle a theme, a font, and a
-        set of CSS rules that change borders, corners, decorative overlays and
-        more. Picking one overrides the matching settings below; you can still
-        tweak colours afterwards. Pick "None" to clear the skin layer.
-      </p>
-
-      <div class="skin-options">
-        <button
-          type="button"
-          class="skin-card"
-          :class="{ active: !settings.activeSkinId }"
-          @click="onSkinChange(null)"
-        >
-          <div class="skin-card-preview skin-card-preview-none">
-            <span class="skin-card-none-label">None</span>
-          </div>
-          <div class="skin-card-info">
-            <h4 class="skin-card-name">None</h4>
-            <p class="skin-card-description">Use the raw theme + font you've set below.</p>
-          </div>
-        </button>
-
-        <button
-          v-for="skin in builtinSkins"
-          :key="skin.id"
-          type="button"
-          class="skin-card"
-          :class="{ active: settings.activeSkinId === skin.id }"
-          @click="onSkinChange(skin.id)"
-        >
-          <div class="skin-card-preview">
-            <img v-if="skin.preview" :src="skin.preview" :alt="skin.name" />
-          </div>
-          <div class="skin-card-info">
-            <h4 class="skin-card-name">
-              {{ skin.name }}
-              <span v-if="skin.isBeta" class="beta-badge beta-badge-inline">Beta</span>
-            </h4>
-            <p class="skin-card-description">{{ skin.description }}</p>
-          </div>
-        </button>
-      </div>
-    </div>
-
-    <div class="settings-section">
       <h3 class="section-title">{{ $t('settings.appearance.theme') }}</h3>
       
       <div class="theme-options">
@@ -346,6 +296,56 @@
             </div>
           </div>
         </div>
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <h3 class="section-title">
+        Skins
+        <span class="beta-badge">Beta</span>
+      </h3>
+      <p class="section-description">
+        Skins go beyond colour switching — they bundle a theme, a font, and a
+        set of CSS rules that change borders, corners, decorative overlays and
+        more. Picking one overrides the matching settings above; you can still
+        tweak colours afterwards. Pick "None" to clear the skin layer.
+      </p>
+
+      <div class="skin-options">
+        <button
+          type="button"
+          class="skin-card"
+          :class="{ active: !settings.activeSkinId }"
+          @click="onSkinChange(null)"
+        >
+          <div class="skin-card-preview skin-card-preview-none">
+            <span class="skin-card-none-label">None</span>
+          </div>
+          <div class="skin-card-info">
+            <h4 class="skin-card-name">None</h4>
+            <p class="skin-card-description">Use the raw theme + font you've set above.</p>
+          </div>
+        </button>
+
+        <button
+          v-for="skin in builtinSkins"
+          :key="skin.id"
+          type="button"
+          class="skin-card"
+          :class="{ active: settings.activeSkinId === skin.id }"
+          @click="onSkinChange(skin.id)"
+        >
+          <div class="skin-card-preview">
+            <img v-if="skin.preview" :src="skin.preview" :alt="skin.name" />
+          </div>
+          <div class="skin-card-info">
+            <h4 class="skin-card-name">
+              {{ skin.name }}
+              <span v-if="skin.isBeta" class="beta-badge beta-badge-inline">Beta</span>
+            </h4>
+            <p class="skin-card-description">{{ skin.description }}</p>
+          </div>
+        </button>
       </div>
     </div>
 
