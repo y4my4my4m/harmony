@@ -149,6 +149,6 @@ harmony/
 ## 🔗 External Links
 
 - [Live Application](https://har.mony.lol)
-- [GitHub Repository](https://github.com/y4my4m/harmony)
+- [GitHub Repository](https://github.com/y4my4my4m/harmony)
 - [Supabase Dashboard](https://supabase.com/dashboard)
 - [Tauri Documentation](https://tauri.app/)

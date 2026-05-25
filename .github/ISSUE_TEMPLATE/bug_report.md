@@ -31,10 +31,10 @@ If applicable, add screenshots to help explain your problem.
 
 ## Environment
 
-- **Deployment Type**: [Vercel / Docker / Manual]
-- **Browser**: [e.g. Chrome 120, Firefox 115]
+- **Deployment Type**: [Docker / Manual / Tauri desktop / Other]
+- **Browser**: [e.g. Chrome 120, Firefox 115] (if web)
 - **OS**: [e.g. Windows 11, macOS 14, Linux]
-- **Harmony Version**: [e.g. 1.0.0]
+- **Harmony Version / commit**: [e.g. 0.1.0 or git SHA]
 - **Node Version**: [e.g. 20.10.0]
 
 ## Console Errors

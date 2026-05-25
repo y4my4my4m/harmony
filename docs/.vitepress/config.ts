@@ -681,7 +681,7 @@ export default withMermaid(defineConfig({
     ],
     
     editLink: {
-      pattern: 'https://github.com/y4my4my4m/harmony/edit/main/docs/:path',
+      pattern: 'https://github.com/y4my4my4m/harmony/edit/master/docs/:path',
       text: 'Edit this page on GitHub'
     },
     

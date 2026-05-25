@@ -19,15 +19,14 @@ Provide any context that might help us answer your question.
 Have you checked the documentation or searched existing issues?
 
 - [ ] I've read the README
-- [ ] I've read the INSTALLATION guide
-- [ ] I've read the ARCHITECTURE docs
+- [ ] I've read [docs/HOW_TO_SELF_HOST.md](../../docs/HOW_TO_SELF_HOST.md)
 - [ ] I've searched existing issues
 - [ ] I've checked the discussions
 
 ## Environment (if relevant)
 
-- **Deployment Type**: [Vercel / Docker / Manual]
-- **Harmony Version**: [e.g. 1.0.0]
+- **Deployment Type**: [Docker / Manual / Tauri desktop / Other]
+- **Harmony Version / commit**: [e.g. 0.1.0 or git SHA]
 
 ## Additional Information
 

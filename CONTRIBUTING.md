@@ -1,28 +1,8 @@
 # Contributing to Harmony
 
-Thank you for your interest in contributing to Harmony! This document provides guidelines and instructions for contributing.
+Thank you for your interest in contributing to Harmony! This document covers everything you need to get a working dev environment, find something useful to work on, and get changes merged.
 
-## Code of Conduct
-
-### Our Pledge
-
-We are committed to providing a welcoming and inspiring community for all. Please be respectful and constructive in all interactions.
-
-### Expected Behavior
-
-- Be respectful and inclusive
-- Welcome newcomers and help them get started
-- Give and accept constructive feedback gracefully
-- Focus on what is best for the community
-- Show empathy towards other community members
-
-### Unacceptable Behavior
-
-- Harassment, discrimination, or offensive comments
-- Trolling, insulting/derogatory comments, and personal attacks
-- Public or private harassment
-- Publishing others' private information
-- Other conduct which could reasonably be considered inappropriate
+The project lives at <https://mony.lol>; the canonical instance is <https://har.mony.lol>. Drop in there for real-time chat with maintainers and other contributors.
 
 ## Getting Started
 
@@ -76,20 +56,19 @@ We are committed to providing a welcoming and inspiring community for all. Pleas
    - Federation backend: http://localhost:3001
    - Health check: http://localhost:3001/health
 
-## Roadmap & technical debt
+## Roadmap & known issues
 
-- **[TODO_latest.md](./TODO_latest.md)** - current priorities and known issues (canonical).
-- **[TODO.md](./TODO.md)** - older notes and completed work; see the pointer at the top of that file.
+- **[ROADMAP.md](./ROADMAP.md)** — what we want to ship next, in priority order.
+- **[BUGS.md](./BUGS.md)** — known defects (incl. security findings) on `master`.
 
 ## Development Workflow
 
 ### Branch Strategy
 
-- `main` - Production-ready code
-- `develop` - Integration branch for features
+- `master` - Production / default branch. PRs target this directly.
 - `feature/*` - New features
 - `bugfix/*` - Bug fixes
-- `hotfix/*` - Urgent production fixes
+- `security/*` - Security-related fixes (please coordinate via SECURITY.md before disclosing publicly)
 
 ### Making Changes
 
@@ -106,15 +85,15 @@ We are committed to providing a welcoming and inspiring community for all. Pleas
 
 3. **Test Your Changes**
    ```bash
-   # Frontend
+   # Frontend / app
    npm run lint
    npm run type-check
-   
-   # Backend
-   cd backend
-   npm run lint
-   npm run type-check
-   npm test  # When tests are set up
+   npm run test           # Unit tests (Vitest)
+   npm run test:integration  # Optional, requires `supabase start`
+
+   # Federation backend
+   cd federation-backend
+   npx vitest run
    ```
 
 4. **Commit Your Changes**
@@ -127,7 +106,7 @@ We are committed to providing a welcoming and inspiring community for all. Pleas
    ```bash
    git push origin feature/your-feature-name
    ```
-   Then create a Pull Request on GitHub.
+   Then open a Pull Request against `master` on GitHub.
 
 ### Commit Message Convention
 
@@ -285,7 +264,7 @@ describe('POST /api/messages', () => {
 
 - Update README.md for user-facing changes
 - Add examples for new features
-- Update ARCHITECTURE.md for structural changes
+- Update guides under `docs-source/guide/` for structural changes
 - Create guides for complex features
 
 ## Pull Request Process
@@ -293,8 +272,8 @@ describe('POST /api/messages', () => {
 1. **Before Submitting**
    - Ensure all tests pass
    - Update documentation
-   - Add changelog entry if needed
-   - Rebase on latest `develop`
+   - Add a `CHANGELOG.md` entry if user-facing
+   - Rebase on latest `master`
 
 2. **PR Description**
    - Describe what changed and why
@@ -337,28 +316,25 @@ Look for issues labeled `good first issue`:
 - Get consensus on approach
 - Consider backward compatibility
 
+## Reporting Security Issues
+
+Please **do not** open a public GitHub issue for security vulnerabilities. See [SECURITY.md](./SECURITY.md) for the reporting process.
+
 ## Community
 
 ### Communication Channels
 
 - GitHub Issues - Bug reports and feature requests
 - GitHub Discussions - General questions and ideas
-- Harmony - Join our own Harmony instance for real-time chat (link in README)
+- Harmony - Real-time chat with the project at <https://har.mony.lol>
+- Project home: <https://mony.lol>
 
 ### Getting Help
 
-- Check existing documentation
+- Check existing documentation (`docs/`)
 - Search closed issues
 - Ask in GitHub Discussions
-- Join our Harmony instance for quick questions
-
-## Recognition
-
-Contributors will be:
-- Listed in CONTRIBUTORS.md
-- Credited in release notes
-- Given credit in commit history
-- Appreciated in the community!
+- Join the Harmony instance above for quick questions
 
 ## License
 

@@ -1,14 +1,21 @@
 # 🐻‍❄️ Harmony
 
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](LICENSE)
+[![CI](https://github.com/y4my4my4m/harmony/actions/workflows/ci.yml/badge.svg)](https://github.com/y4my4my4m/harmony/actions/workflows/ci.yml)
+
 Harmony is a federated social app: Discord-style servers and chat with ActivityPub, built on Vue 3 and Supabase.
 
-**Docs:** `npm run docs:dev` (see [docs/README.md](docs/README.md)).
+- **Project home:** <https://mony.lol>
+- **Live instance:** <https://har.mony.lol>
+- **Docs:** `npm run docs:dev` (see [docs/README.md](docs/README.md))
 
 ## What it does
 
 - Servers, channels, DMs, threads, voice/video (LiveKit where configured)
 - ActivityPub timelines, follows, and federation with other instances
 - Multi-instance servers (members from different Harmony domains in one server)
+- End-to-end encryption (Megolm-style) for chat, with cross-device key sharing
+- Tauri desktop app and web app from the same codebase
 
 ## Stack
 
@@ -46,9 +53,17 @@ App: http://localhost:5173 - With federation running, health is http://localhost
 | Topic | Link |
 |--------|------|
 | Self-hosting / Docker / Redis / federation-server & worker | [docs/HOW_TO_SELF_HOST.md](docs/HOW_TO_SELF_HOST.md) |
-| Roadmap & tech debt | [TODO_latest.md](TODO_latest.md) (older notes: [TODO.md](TODO.md)) |
+| Roadmap | [ROADMAP.md](ROADMAP.md) |
 | DB init | [db_schema/init/README.md](db_schema/init/README.md) |
 | Contributing | [CONTRIBUTING.md](CONTRIBUTING.md) |
+| Security policy | [SECURITY.md](SECURITY.md) |
+| Changelog | [CHANGELOG.md](CHANGELOG.md) |
+
+## Community
+
+- Real-time chat: join the canonical instance at <https://har.mony.lol>
+- Bugs / features: [GitHub Issues](https://github.com/y4my4my4m/harmony/issues)
+- Security vulns: see [SECURITY.md](SECURITY.md) — please do not file public issues
 
 ## License
 

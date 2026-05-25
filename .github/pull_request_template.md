@@ -24,7 +24,7 @@ Please describe the tests that you ran to verify your changes.
 - [ ] Test B
 
 **Test Configuration**:
-- Deployment type: [Vercel / Docker / Manual]
+- Deployment type: [Docker / Manual / Tauri desktop / Other]
 - Node version:
 - Browser (if frontend):
 
@@ -43,7 +43,7 @@ Add screenshots to show visual changes.
 - [ ] New and existing unit tests pass locally with my changes
 - [ ] Any dependent changes have been merged and published
 - [ ] I have checked my code and corrected any misspellings
-- [ ] I have updated the CHANGELOG (if applicable)
+- [ ] I have updated `CHANGELOG.md` (if user-facing)
 
 ## Breaking Changes
 
