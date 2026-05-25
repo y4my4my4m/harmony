@@ -544,18 +544,18 @@
 
       <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label">Disable blur &amp; glass effects</h4>
+          <h4 class="setting-label">Enable blur &amp; glass effects</h4>
           <p class="setting-description">
             Many surfaces (modals, popovers, the voice dock, the sidebar) use
             <code>backdrop-filter: blur</code> for a frosted-glass look. Turn
-            this on for a flat / sharper UI, or if your device struggles with
+            off for a flat / sharper UI, or if your device struggles with
             blur in voice / video calls.
           </p>
         </div>
         <div class="setting-control">
           <ToggleSwitch
-            v-model="settings.disableGlassBlur"
-            @change="onDisableBlurChange"
+            v-model="settings.glassEffectsEnabled"
+            @change="onGlassEffectsChange"
           />
         </div>
       </div>
@@ -682,7 +682,7 @@ const settings = ref({
   showCustomEmojisInDisplayNames: true,
   greentextEnabled: true,
   fontFamily: 'system' as 'system' | 'pixel',
-  disableGlassBlur: false,
+  glassEffectsEnabled: true,
   activeSkinId: null as string | null,
 })
 
@@ -968,8 +968,8 @@ const onFontFamilyChange = (family: 'system' | 'pixel') => {
   visualTheme.setFontFamily(family)
 }
 
-const onDisableBlurChange = () => {
-  visualTheme.setDisableGlassBlur(settings.value.disableGlassBlur)
+const onGlassEffectsChange = () => {
+  visualTheme.setGlassEffectsEnabled(settings.value.glassEffectsEnabled)
 }
 
 const onSkinChange = (skinId: string | null) => {
@@ -992,7 +992,7 @@ const onSkinChange = (skinId: string | null) => {
     settings.value.customBackgroundChroma = live.customBackgroundChroma
   settings.value.customCssOverrides = live.customCssOverrides ? { ...live.customCssOverrides } : {}
   settings.value.fontFamily = (live.fontFamily as 'system' | 'pixel') || 'system'
-  settings.value.disableGlassBlur = !!live.disableGlassBlur
+  settings.value.glassEffectsEnabled = live.glassEffectsEnabled !== false
 }
 
 const adjustZoom = (delta: number) => {
@@ -1040,7 +1040,7 @@ const saveSettings = () => {
     showCustomEmojisInDisplayNames: settings.value.showCustomEmojisInDisplayNames,
     greentextEnabled: settings.value.greentextEnabled,
     fontFamily: settings.value.fontFamily,
-    disableGlassBlur: settings.value.disableGlassBlur,
+    glassEffectsEnabled: settings.value.glassEffectsEnabled,
     activeSkinId: settings.value.activeSkinId,
   })
 }
@@ -1085,7 +1085,7 @@ onMounted(async () => {
     showCustomEmojisInDisplayNames: currentSettings.showCustomEmojisInDisplayNames !== false,
     greentextEnabled: currentSettings.greentextEnabled !== false,
     fontFamily: (currentSettings.fontFamily as 'system' | 'pixel') || 'system',
-    disableGlassBlur: !!currentSettings.disableGlassBlur,
+    glassEffectsEnabled: currentSettings.glassEffectsEnabled !== false,
     activeSkinId: currentSettings.activeSkinId ?? null,
   }
   originalSettings.value = { ...settings.value }

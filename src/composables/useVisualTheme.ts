@@ -253,7 +253,7 @@ const settings = ref<VisualThemeSettings>({
   showCustomEmojisInDisplayNames: true,
   greentextEnabled: true,
   fontFamily: 'system',
-  disableGlassBlur: false,
+  glassEffectsEnabled: true,
   activeSkinId: null,
   customSkinCss: '',
 })
@@ -463,9 +463,11 @@ function applySettings(settings: VisualThemeSettings) {
   const fontStack = FONT_STACKS[fontKey] || FONT_STACKS.system
   root.style.setProperty('--font-family', fontStack)
 
-  // Apply "disable glass blur" preference. The matching global rule lives
-  // in design-system.css under `[data-disable-blur="true"]`.
-  if (settings.disableGlassBlur) {
+  // Apply glass effects preference. The setting itself uses positive
+  // framing (`glassEffectsEnabled`), but the CSS hook stays
+  // `data-disable-blur` because that's what the global rule in
+  // `design-system.css` keys off — internal implementation detail.
+  if (!settings.glassEffectsEnabled) {
     root.setAttribute('data-disable-blur', 'true')
   } else {
     root.removeAttribute('data-disable-blur')
@@ -533,6 +535,20 @@ function applySettings(settings: VisualThemeSettings) {
     root.setAttribute('data-screen-reader', 'true')
   } else {
     root.removeAttribute('data-screen-reader')
+  }
+}
+
+/**
+ * Backwards-compat: convert legacy `disableGlassBlur` (negative framing)
+ * to the new `glassEffectsEnabled` (positive framing). Existing profiles'
+ * `appearance_settings` JSONB and old localStorage payloads will have
+ * the legacy field; this rewrites it in-place so the rest of the system
+ * only ever sees the new shape.
+ */
+function migrateLegacyBlurSetting(loaded: Partial<VisualThemeSettings> & { disableGlassBlur?: boolean }) {
+  if ('disableGlassBlur' in loaded && loaded.glassEffectsEnabled === undefined) {
+    loaded.glassEffectsEnabled = !loaded.disableGlassBlur
+    delete loaded.disableGlassBlur
   }
 }
 
@@ -681,6 +697,7 @@ export function useVisualTheme() {
     const localSettings = loadFromLocalStorage()
     let appliedFromLocal = false
     if (localSettings) {
+      migrateLegacyBlurSetting(localSettings)
       Object.assign(settings.value, localSettings)
       applySettings(settings.value)
       appliedFromLocal = true
@@ -689,6 +706,7 @@ export function useVisualTheme() {
     // Then load from Supabase and override if different
     const supabaseSettings = await loadFromSupabase()
     if (supabaseSettings) {
+      migrateLegacyBlurSetting(supabaseSettings)
       // Only re-apply if settings are actually different from localStorage
       const needsUpdate = !appliedFromLocal || 
         supabaseSettings.theme !== localSettings?.theme ||
@@ -788,10 +806,10 @@ export function useVisualTheme() {
   }
 
   /**
-   * Toggle the "disable glass blur" preference.
+   * Toggle the glass effects (blur / translucency) preference.
    */
-  function setDisableGlassBlur(disabled: boolean) {
-    settings.value.disableGlassBlur = !!disabled
+  function setGlassEffectsEnabled(enabled: boolean) {
+    settings.value.glassEffectsEnabled = !!enabled
   }
 
   /**
@@ -824,7 +842,7 @@ export function useVisualTheme() {
    * `clearSkin` can faithfully revert font / theme / colours even after
    * a fresh page load with a persisted active skin.
    *
-   * The skin deliberately does NOT touch the user's `disableGlassBlur`
+   * The skin deliberately does NOT touch the user's `glassEffectsEnabled`
    * preference - any "this skin needs blur off" requirements are
    * enforced by the skin's own scoped CSS (`[data-skin="..."] *
    * { backdrop-filter: none }`) so the user's separate opt-out toggle
@@ -1035,7 +1053,7 @@ export function useVisualTheme() {
       screenReaderSupport: false,
       showCustomEmojisInDisplayNames: true,
       fontFamily: 'system',
-      disableGlassBlur: false,
+      glassEffectsEnabled: true,
       activeSkinId: null,
       customSkinCss: '',
     }
@@ -1067,7 +1085,7 @@ export function useVisualTheme() {
       screenReaderSupport: false,
       showCustomEmojisInDisplayNames: true,
       fontFamily: 'system',
-      disableGlassBlur: false,
+      glassEffectsEnabled: true,
       activeSkinId: null,
       customSkinCss: '',
     }
@@ -1217,7 +1235,7 @@ export function useVisualTheme() {
     setFontSize,
     setZoomLevel,
     setFontFamily,
-    setDisableGlassBlur,
+    setGlassEffectsEnabled,
     applySkin,
     clearSkin,
     toggleShowTimestamps,

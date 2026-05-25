@@ -39,12 +39,14 @@ export interface VisualThemeSettings {
    */
   fontFamily?: 'system' | 'pixel'
   /**
-   * Disable backdrop-filter blur and glass-like translucency across the UI.
-   * When `true`, sets `data-disable-blur` on `:root` which a global rule in
-   * `design-system.css` uses to neutralise every `backdrop-filter` /
-   * `-webkit-backdrop-filter` declaration.
+   * Enable backdrop-filter blur and glass-like translucency across the UI.
+   * When `false`, sets `data-disable-blur` on `:root` (the CSS hook keeps
+   * its negative name as an internal implementation detail — see
+   * `design-system.css`) which a global rule uses to neutralise every
+   * `backdrop-filter` / `-webkit-backdrop-filter` declaration.
+   * Default is `true` (effects enabled).
    */
-  disableGlassBlur?: boolean
+  glassEffectsEnabled?: boolean
   /**
    * Active skin id. Skins are bundles of theme overrides + CSS that go
    * beyond simple colour switching. `null` (default) means "no skin".
