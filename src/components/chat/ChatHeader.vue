@@ -418,6 +418,13 @@ const handleToggleMute = async () => {
       return
     }
 
+    // Notify other components (notably ChannelSidebar) so the muted styling
+    // and the suppression of unread indicators happen instantly without
+    // waiting for a server-switch / remount to refetch `notification_channels`.
+    window.dispatchEvent(new CustomEvent('channel-mute-changed', {
+      detail: { channelId: props.channel.id, muted: newMuted },
+    }))
+
     debug.log(`✅ Channel ${newMuted ? 'muted' : 'unmuted'}:`, props.channel.name)
   } catch (error) {
     debug.error('Failed to toggle channel mute:', error)

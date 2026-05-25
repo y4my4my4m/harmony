@@ -1215,14 +1215,31 @@ const setupThreadsSubscription = () => {
   window.addEventListener('server-structure:thread-change', threadChangeHandler);
 };
 
+// Local update for channel mute toggles so the sidebar reflects the change
+// immediately. The full refetch via `loadMutedChannels()` is reserved for
+// server switches and component mount.
+const channelMuteChangedHandler = (event: Event) => {
+  const detail = (event as CustomEvent).detail as { channelId?: string; muted?: boolean } | undefined;
+  if (!detail?.channelId) return;
+  const next = new Set(mutedChannelIds.value);
+  if (detail.muted) {
+    next.add(detail.channelId);
+  } else {
+    next.delete(detail.channelId);
+  }
+  mutedChannelIds.value = next;
+};
+
 onMounted(() => {
   document.addEventListener('click', closeContextMenus);
   setupThreadsSubscription();
+  window.addEventListener('channel-mute-changed', channelMuteChangedHandler);
 });
 
 onUnmounted(() => {
   document.removeEventListener('click', closeContextMenus);
   window.removeEventListener('server-structure:thread-change', threadChangeHandler);
+  window.removeEventListener('channel-mute-changed', channelMuteChangedHandler);
 });
 
 // Re-setup subscription when server changes
@@ -1318,12 +1335,25 @@ watch(() => props.currentServer?.id, () => {
   background-color: rgba(87, 242, 135, 0.15);
 }
 
-.channel-item.muted {
+/* Muted channels: dim the name + icon, but keep the bell-off indicator and
+   the mention badge at full opacity. Mentions still cut through mute, and
+   the bell-off icon is the visual cue that the channel IS muted. */
+.channel-item.muted .channel-content {
   opacity: 0.5;
 }
 
-.channel-item.muted:hover {
+.channel-item.muted:hover .channel-content {
   opacity: 0.75;
+}
+
+/* The unread "channel-unread" bold/white styling shouldn't fire on muted
+   channels even if some other store thinks there are unread messages. */
+.channel-item.muted.channel-unread {
+  color: var(--text-secondary, #949BA4);
+}
+
+.channel-item.muted.channel-unread .channel-name {
+  font-weight: 400;
 }
 
 .muted-icon {
