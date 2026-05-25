@@ -503,10 +503,17 @@
     :channel-id="props.channelId"
     :conversation-id="props.conversationId"
     :current-user-id="props.currentUserId"
+    :hide-thread-actions="props.hideThreadActions"
+    :can-edit="contextMenuMessage ? canEditMessage(contextMenuMessage) : false"
+    :can-delete="contextMenuMessage ? canDeleteMessage(contextMenuMessage) : false"
     @close="closeContextMenu"
     @add-reaction="handleContextMenuReaction"
     @open-emoji-picker="handleContextMenuEmojiPicker"
     @report="handleReportMessage"
+    @reply="replyTo"
+    @edit="startEdit"
+    @thread="createThread"
+    @delete="deleteMessage"
   />
 
   <!-- Report Modal -->

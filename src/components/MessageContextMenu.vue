@@ -34,49 +34,85 @@
     
     <div class="context-menu-divider"></div>
 
+    <!-- Primary actions: full-fidelity emoji picker, reply, edit, thread.
+         These mirror what the floating message-actions toolbar exposes,
+         so right-clicking a message gives the same affordances as
+         hovering it - just always discoverable. -->
+    <div class="context-menu-item" @click="openEmojiPicker">
+      <ReactionIcon />
+      <span>Add Reaction</span>
+    </div>
+
+    <div v-if="canReply" class="context-menu-item" @click="reply">
+      <ReplyIcon />
+      <span>Reply</span>
+    </div>
+
+    <div v-if="canEdit" class="context-menu-item" @click="edit">
+      <EditIcon />
+      <span>Edit Message</span>
+    </div>
+
+    <div v-if="canCreateThread" class="context-menu-item" @click="createThread">
+      <ThreadIcon />
+      <span>Create Thread</span>
+    </div>
+
+    <div class="context-menu-divider"></div>
+
     <div v-if="hasTextContent" class="context-menu-item" @click="copyText">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
-        <rect x="8" y="2" width="8" height="4" rx="1" ry="1"/>
-      </svg>
+      <Icon name="copy" size="sm" />
       <span>Copy Text</span>
     </div>
 
-    <div class="context-menu-item" @click="copyMessageURL">
-      <svg width="16" height="16" viewBox="0 0 24 24">
-        <path fill="currentColor" d="M3.9,12C3.9,10.29 5.29,8.9 7,8.9H11V7H7A5,5 0 0,0 2,12A5,5 0 0,0 7,17H11V15.1H7C5.29,15.1 3.9,13.71 3.9,12M8,13H16V11H8V13M17,7H13V8.9H17C18.71,8.9 20.1,10.29 20.1,12C20.1,13.71 18.71,15.1 17,15.1H13V17H17A5,5 0 0,0 22,12A5,5 0 0,0 17,7Z" />
-      </svg>
-      <span>Copy Message URL</span>
-    </div>
+    <!-- Image-specific actions. When the message has multiple image
+         attachments we operate on the first one - that's the same image
+         the chat preview shows largest, and matches Discord's behaviour
+         when right-clicking the message body (vs right-clicking a
+         specific image, which is a separate per-image menu). -->
+    <template v-if="firstImageAttachment">
+      <div class="context-menu-item" @click="copyImage">
+        <Icon name="copy" size="sm" />
+        <span>Copy Image</span>
+      </div>
+
+      <div class="context-menu-item" @click="saveImage">
+        <Icon name="download" size="sm" />
+        <span>Save Image</span>
+      </div>
+    </template>
 
     <template v-if="hasMediaURL">
       <div class="context-menu-item" @click="copyLinkURL">
-        <svg width="16" height="16" viewBox="0 0 24 24">
-          <path fill="currentColor" d="M16,6H13V7.9H16C18.26,7.9 20.1,9.73 20.1,12A4.1,4.1 0 0,1 16,16.1H13V18H16A6,6 0 0,0 22,12C22,8.68 19.31,6 16,6M3.9,12C3.9,9.73 5.74,7.9 8,7.9H11V6H8A6,6 0 0,0 2,12A6,6 0 0,0 8,18H11V16.1H8C5.74,16.1 3.9,14.26 3.9,12M8,13H16V11H8V13Z" />
-        </svg>
+        <Icon name="link" size="sm" />
         <span>{{ mediaUrlLabel }}</span>
       </div>
     </template>
-    
+
+    <div class="context-menu-item" @click="copyMessageURL">
+      <Icon name="link" size="sm" />
+      <span>Copy Message URL</span>
+    </div>
+
     <template v-if="canPin">
-      <div class="context-menu-divider"></div>
-      
       <div class="context-menu-item" @click="togglePin">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M12,2L15.09,8.26L22,9.27L17,14.14L18.18,21.02L12,17.77L5.82,21.02L7,14.14L2,9.27L8.91,8.26L12,2Z"/>
-        </svg>
+        <Icon :name="isPinned ? 'pin-off' : 'pin'" size="sm" />
         <span>{{ isPinned ? 'Unpin Message' : 'Pin Message' }}</span>
       </div>
     </template>
 
-    <template v-if="canReport">
+    <!-- Destructive actions, grouped in their own section so they're
+         visually separated from the safe ones above. -->
+    <template v-if="canDelete || canReport">
       <div class="context-menu-divider"></div>
-      
-      <div class="context-menu-item report-item" @click="reportMessage">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/>
-          <line x1="4" y1="22" x2="4" y2="15"/>
-        </svg>
+
+      <div v-if="canDelete" class="context-menu-item destructive-item" @click="deleteMessage">
+        <DeleteIcon />
+        <span>Delete Message</span>
+      </div>
+
+      <div v-if="canReport" class="context-menu-item destructive-item" @click="reportMessage">
+        <Icon name="flag" size="sm" />
         <span>Report Message</span>
       </div>
     </template>
@@ -85,10 +121,7 @@
       <div class="context-menu-divider"></div>
       
       <div class="context-menu-item" @click="copyRawData">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
-          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
-        </svg>
+        <Icon name="copy" size="sm" />
         <span>{{ $t('settings.advanced.copyRawData') }}</span>
       </div>
     </template>
@@ -106,6 +139,12 @@ import { messageService } from '@/services';
 import { getEmojiUrl } from '@/utils/emojiUtils';
 import { messagePartsToPlainText } from '@/utils/messageContentUtils';
 import type { Message, Emoji } from '@/types';
+import Icon from '@/components/common/Icon.vue';
+import ReactionIcon from '@/components/icons/Reaction.vue';
+import ReplyIcon from '@/components/icons/Reply.vue';
+import ThreadIcon from '@/components/icons/Thread.vue';
+import EditIcon from '@/components/icons/Edit.vue';
+import DeleteIcon from '@/components/icons/Delete.vue';
 
 interface Props {
   isVisible: boolean;
@@ -114,21 +153,40 @@ interface Props {
   channelId?: string;
   conversationId?: string;
   currentUserId?: string;
+  /** When true, hide the "Create Thread" item (e.g. inside a thread view). */
+  hideThreadActions?: boolean;
+  /** Caller-supplied permission flags. The toolbar already has the same
+      checks via canEditMessage / canDeleteMessage in MessageDisplay; passing
+      them through keeps the menu consistent without duplicating the
+      permission logic. */
+  canEdit?: boolean;
+  canDelete?: boolean;
 }
 
 const menuRef = ref<HTMLElement | null>(null)
 const adjustedPosition = ref({ x: 0, y: 0 })
 
-interface Emits {
-  (e: 'close'): void;
-  (e: 'add-reaction', emoji: { native?: string; name: string; id?: string }): void;
-  (e: 'open-emoji-picker', position: { x: number; y: number }): void;
-  (e: 'pin-changed'): void;
-  (e: 'report', message: Message): void;
-}
+const props = withDefaults(defineProps<Props>(), {
+  hideThreadActions: false,
+  canEdit: false,
+  canDelete: false,
+});
 
-const props = defineProps<Props>();
-const emit = defineEmits<Emits>();
+// Tuple-based defineEmits is the modern Vue 3 syntax and plays better
+// with vue-tsc's `(...args: any[]) => any` listener-prop type than the
+// older call-signature interface form, which produces contravariance
+// errors at the parent's `@reply="..."` etc. binding sites.
+const emit = defineEmits<{
+  close: []
+  'add-reaction': [emoji: { native?: string; name: string; id?: string }]
+  'open-emoji-picker': [position: { x: number; y: number }]
+  'pin-changed': []
+  report: [message: Message]
+  reply: [message: Message]
+  edit: [message: Message]
+  thread: [message: Message]
+  delete: [messageId: string, event: MouseEvent]
+}>();
 
 const { topEmojisForContextMenu, hasFrequentEmojis, recordEmojiUsage } = useFrequentEmojis();
 const { triggerReaction } = useHapticSettings();
@@ -141,6 +199,36 @@ const canReport = computed(() => {
   if (!props.message) return false;
   const authorId = props.message.user_id || (props.message as any).author_id;
   return authorId !== props.currentUserId;
+});
+// Keep action availability aligned with MessageFloatingActions:
+// - System messages: no reply/thread/edit rows
+// - Thread button: hidden when hideThreadActions is true
+const canReply = computed(() => !!props.message && !props.message.is_system);
+const canCreateThread = computed(
+  () => !!props.message && !props.message.is_system && !props.hideThreadActions
+);
+
+/**
+ * First image attachment in the message, if any. Used to gate the
+ * "Copy Image" / "Save Image" items and to source the image URL for
+ * those actions. Multi-image messages still target this first one -
+ * the right-click on the message body is a "message" context menu,
+ * not a per-image one.
+ */
+const firstImageAttachment = computed(() => {
+  if (!props.message || !Array.isArray(props.message.content)) return null;
+  for (const part of props.message.content) {
+    if (
+      part &&
+      typeof part === 'object' &&
+      part.type === 'file' &&
+      (part as any).fileType === 'image' &&
+      (part as any).url
+    ) {
+      return part as { type: 'file'; fileType: string; url: string; name?: string };
+    }
+  }
+  return null;
 });
 
 // Calculate menu position with boundary checking
@@ -354,6 +442,125 @@ const reportMessage = () => {
   emit('close');
 };
 
+const reply = () => {
+  if (!props.message) return;
+  emit('reply', props.message);
+  emit('close');
+};
+
+const edit = () => {
+  if (!props.message) return;
+  emit('edit', props.message);
+  emit('close');
+};
+
+const createThread = () => {
+  if (!props.message) return;
+  emit('thread', props.message);
+  emit('close');
+};
+
+const deleteMessage = (event: MouseEvent) => {
+  if (!props.message) return;
+  // Pass the event through so MessageDisplay can honour shift-to-skip-confirm
+  // (shift-click delete is the same affordance as the floating toolbar).
+  emit('delete', props.message.id, event);
+  emit('close');
+};
+
+/**
+ * Fetch the first image attachment as a Blob and write it to the
+ * clipboard via the async clipboard API. Falls back gracefully if the
+ * environment doesn't support `ClipboardItem` (older Safari, Tauri
+ * webviews on some platforms) by copying the URL instead so the user
+ * always gets *something* useful from the action.
+ */
+const copyImage = async () => {
+  const attachment = firstImageAttachment.value;
+  if (!attachment) {
+    emit('close');
+    return;
+  }
+  try {
+    if (typeof window !== 'undefined' && 'ClipboardItem' in window) {
+      const response = await fetch(attachment.url);
+      const blob = await response.blob();
+      // ClipboardItem accepts most image MIME types; coerce non-png to
+      // png so paste targets that only accept image/png still work.
+      const targetType = blob.type && blob.type.startsWith('image/') ? blob.type : 'image/png';
+      const item = new (window as any).ClipboardItem({ [targetType]: blob });
+      await (navigator.clipboard as any).write([item]);
+      debug.log('Image copied to clipboard');
+    } else {
+      await navigator.clipboard.writeText(attachment.url);
+      debug.log('Image URL copied to clipboard (no ClipboardItem support)');
+    }
+  } catch (error) {
+    debug.error('Failed to copy image:', error);
+    // Last-resort fallback: copy the URL.
+    try {
+      await navigator.clipboard.writeText(attachment.url);
+    } catch {
+      // give up silently
+    }
+  }
+  emit('close');
+};
+
+/**
+ * Trigger a download of the first image attachment. Uses an in-memory
+ * object URL when possible so the download respects the original
+ * filename; falls back to the raw URL with `download` attribute when
+ * fetching fails (e.g. CORS issues on a federated CDN).
+ */
+const saveImage = async () => {
+  const attachment = firstImageAttachment.value;
+  if (!attachment) {
+    emit('close');
+    return;
+  }
+  // Derive a sensible filename: prefer the part's `name` if present,
+  // otherwise fall back to the URL's last path segment.
+  const fallbackName = (() => {
+    try {
+      const u = new URL(attachment.url, window.location.origin);
+      const last = u.pathname.split('/').filter(Boolean).pop();
+      return last || 'image';
+    } catch {
+      return 'image';
+    }
+  })();
+  const filename = (attachment as any).name || fallbackName;
+
+  try {
+    const response = await fetch(attachment.url);
+    const blob = await response.blob();
+    const objectUrl = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = objectUrl;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+    debug.log('Image saved');
+  } catch (error) {
+    debug.error('Failed to save image (likely CORS); falling back to direct anchor', error);
+    // Fallback: same-origin direct anchor download. Browsers may still
+    // open the image in a new tab if the server doesn't send a
+    // Content-Disposition header, but it's better than nothing.
+    const a = document.createElement('a');
+    a.href = attachment.url;
+    a.download = filename;
+    a.target = '_blank';
+    a.rel = 'noopener';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  }
+  emit('close');
+};
+
 const copyRawData = async () => {
   if (!props.message) return;
 
@@ -436,6 +643,16 @@ const copyRawData = async () => {
   transition: background-color 0.1s ease;
 }
 
+/* Shared icons used in context rows should always inherit the row color
+   (normal, hover, destructive), rather than hardcoding their own icon token.
+   This keeps menu rows visually consistent across all skins/themes. */
+.context-menu-item :deep(.icon-component),
+.context-menu-item :deep(.icon-wrap),
+.context-menu-item :deep(.icon) {
+  color: inherit !important;
+  cursor: inherit;
+}
+
 .context-menu-item:hover {
   background-color: var(--harmony-primary);
   color: var(--text-primary);
@@ -447,8 +664,15 @@ const copyRawData = async () => {
   margin: 4px 8px;
 }
 
-.context-menu-item.report-item:hover {
+/* Destructive items (Delete, Report) read in red and switch to a
+   solid-red hover so the user gets a clear "this is dangerous" cue. */
+.context-menu-item.destructive-item {
+  color: var(--error, #ed4245);
+}
+
+.context-menu-item.destructive-item:hover {
   background-color: #ed4245;
+  color: #fff;
 }
 </style>
 
