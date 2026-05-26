@@ -1,4 +1,10 @@
 <template>
+  <!-- Teleport to body so the menu is never clipped by an ancestor's
+       overflow/transform context, and so it sits ABOVE other portaled
+       UI like the mobile floating message-actions toolbar (which is
+       also teleported to body and would otherwise paint over us by
+       virtue of appearing later in the DOM). -->
+  <Teleport to="body">
   <div 
     v-if="isVisible" 
     ref="menuRef"
@@ -126,6 +132,7 @@
       </div>
     </template>
   </div>
+  </Teleport>
 </template>
 
 <script setup lang="ts">
@@ -585,7 +592,10 @@ const copyRawData = async () => {
   padding: 6px 0;
   min-width: 200px;
   box-shadow: 0 8px 16px rgba(0, 0, 0, 0.24);
-  z-index: 1000;
+  /* Must out-stack the mobile floating message-actions toolbar
+     (.message-actions-floating, z-index 1000) — both are portaled to
+     body, so DOM order alone isn't enough to guarantee we paint on top. */
+  z-index: 1100;
 }
 
 .quick-reactions-row {

@@ -2895,7 +2895,17 @@ const openContextMenu = (message: Message, event: MouseEvent) => {
   
   // Haptic feedback for context menu
   triggerInteraction();
-  
+
+  // On mobile the (...) button in the floating toolbar opens this menu.
+  // The toolbar itself remains pinned ~48px above the original tap point,
+  // which visually clashes (and z-stacks) with the menu we're about to
+  // render. Dismiss the toolbar so the user sees exactly one surface —
+  // the menu — rooted at the tap.
+  if (isMobile.value) {
+    hoveredMessageId.value = null;
+    mobileActionTapPosition.value = null;
+  }
+
   contextMenuMessage.value = message;
   contextMenuPosition.value = {
     x: event.clientX,
@@ -2910,6 +2920,16 @@ const openContextMenu = (message: Message, event: MouseEvent) => {
 // still "Save image as", "Copy link address", etc. — that matches
 // Discord/Slack behaviour.
 const handleMessageContextMenu = (message: Message, event: MouseEvent) => {
+  // On mobile the OS fires a synthetic `contextmenu` event after a
+  // long-press. We already handle long-press explicitly via the
+  // touchstart timer (which shows the floating message-actions toolbar),
+  // so opening the full context menu on top of it produces two competing
+  // surfaces. Swallow the synthetic event so only the toolbar shows;
+  // the user can then tap the (...) button to get the full menu.
+  if (isMobile.value) {
+    event.preventDefault();
+    return;
+  }
   const target = event.target as HTMLElement | null;
   if (target?.closest('a, img, video, audio, [data-no-context-menu]')) {
     return;

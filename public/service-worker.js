@@ -1,5 +1,8 @@
 // Enhanced Service Worker for Discord-like Notifications and PWA Features
-// Version: 3.2 - Mobile optimized to prevent aggressive reloading
+// Version: 3.3 - Durable quick-reply queue (IndexedDB) so typed replies
+//                survive "no client open" / "client just booted" / postMessage
+//                races. Drained by ServiceWorkerManager via the real
+//                messageService (encryption + optimistic UI preserved).
 
 const CACHE_NAME = 'harmony-v4-mobile'
 const NOTIFICATION_CACHE = 'harmony-notifications-v2'
@@ -220,7 +223,7 @@ self.addEventListener('message', (event) => {
     case 'GET_VERSION':
       // Handle version requests
       event.ports[0]?.postMessage({
-        version: '3.2',
+        version: '3.3',
         updated: new Date().toISOString()
       })
       break
@@ -345,24 +348,95 @@ async function storeNotification(data) {
   }
 }
 
-async function handleQuickReply(data, replyText) {
-  try {
-    if (replyText) {
-      const clients = await self.clients.matchAll({ type: 'window' })
-      const focusedClient = clients.find(c => c.focused) || clients[0]
+// ============================================================================
+// Quick-reply queue (IndexedDB)
+// ----------------------------------------------------------------------------
+// Replies typed into a notification text input must NEVER be lost. The legacy
+// flow tried to postMessage() to a focused client and fell back to "open a
+// window" without persisting the typed text, so a user who replied to a
+// notification with no app window open got their message silently dropped.
+// We now durably queue every reply here, then have the frontend
+// (ServiceWorkerManager.drainQuickReplyQueue) flush them via the real
+// messageService - which preserves encryption, optimistic UI, and federation
+// handling. The "open the window" step is just to give the frontend a chance
+// to run; the queue is the source of truth.
+// ============================================================================
 
-      if (focusedClient) {
-        focusedClient.postMessage({
-          type: 'QUICK_REPLY',
-          data: data,
-          replyText: replyText
-        })
-        return focusedClient.focus()
+const QUICK_REPLY_DB_NAME = 'harmony-sw'
+const QUICK_REPLY_DB_VERSION = 1
+const QUICK_REPLY_STORE = 'pending-quick-replies'
+
+function openQuickReplyDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(QUICK_REPLY_DB_NAME, QUICK_REPLY_DB_VERSION)
+    req.onupgradeneeded = () => {
+      const db = req.result
+      if (!db.objectStoreNames.contains(QUICK_REPLY_STORE)) {
+        db.createObjectStore(QUICK_REPLY_STORE, { keyPath: 'id', autoIncrement: true })
       }
     }
+    req.onsuccess = () => resolve(req.result)
+    req.onerror = () => reject(req.error)
+  })
+}
 
-    const url = getNavigationUrl(data)
-    return self.clients.openWindow(url)
+async function enqueueQuickReply(entry) {
+  try {
+    const db = await openQuickReplyDB()
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction(QUICK_REPLY_STORE, 'readwrite')
+      tx.objectStore(QUICK_REPLY_STORE).add(entry)
+      tx.oncomplete = resolve
+      tx.onerror = () => reject(tx.error)
+      tx.onabort = () => reject(tx.error)
+    })
+    db.close()
+  } catch (error) {
+    console.error('❌ Service Worker: Failed to enqueue quick reply:', error)
+  }
+}
+
+async function handleQuickReply(data, replyText) {
+  try {
+    // Without typed text there's nothing to send - just navigate to the
+    // conversation as if the user had clicked the notification body.
+    if (!replyText || !replyText.trim()) {
+      const url = getNavigationUrl(data)
+      return self.clients.openWindow(url)
+    }
+
+    // Persist FIRST so we never lose the user's typed text, even if every
+    // subsequent step (postMessage / focus / openWindow) fails.
+    await enqueueQuickReply({
+      replyText,
+      data,
+      navigationUrl: getNavigationUrl(data),
+      queuedAt: Date.now(),
+    })
+
+    // Best-effort: nudge a live client so it drains immediately instead of
+    // waiting for its next page load. Whether or not this succeeds, the
+    // queued entry will be processed by ServiceWorkerManager on app boot.
+    const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+    const focusedClient = clients.find(c => c.focused) || clients[0]
+
+    if (focusedClient) {
+      try {
+        focusedClient.postMessage({ type: 'QUICK_REPLY_QUEUED' })
+      } catch (e) {
+        // postMessage shouldn't throw, but defend against it anyway -
+        // the queue is durable and will be drained later regardless.
+      }
+      // Don't navigate the focused client - the user might be in another
+      // conversation and we shouldn't yank them out of context. Just
+      // surface the window so the toast/state update is visible.
+      return focusedClient.focus()
+    }
+
+    // No live client: open a window so the frontend boots and drains the
+    // queue. We deliberately point at the conversation/channel so the
+    // reply lands in a useful context if the user wants to follow up.
+    return self.clients.openWindow(getNavigationUrl(data))
   } catch (error) {
     console.error('❌ Service Worker: Error handling quick reply:', error)
   }
