@@ -510,12 +510,32 @@
         setTimeout(() => { sendError.value = null }, 6000)
       };
 
+      /**
+       * Cross-component mention insertion. UserSidebar (and any other
+       * surface that doesn't have a direct emit path into ChatComponent —
+       * e.g. context menus living outside the chat subtree) fires
+       * `harmony-insert-mention` with a `{ handle, username }` payload.
+       * We just append it to the active draft, same way as the existing
+       * `@mentionUser` listener handles mentions clicked from inside
+       * MessageDisplay.
+       */
+      const handleInsertMention = (e: Event) => {
+        const detail = (e as CustomEvent).detail || {};
+        const handle: string | undefined = detail.handle || detail.username;
+        if (!handle) return;
+        // Match the format used by the existing `@mentionUser` handler
+        // above (single leading `@`, trailing space) so MessageInput
+        // parses it identically.
+        messageContent.value += `@${handle} `;
+      };
+
       onMounted(() => {
         window.addEventListener('beforeunload', handleBeforeUnload);
         window.addEventListener('harmony-command', handleSlashCommand);
         window.addEventListener('encryption-fallback', handleEncryptionFallback);
         window.addEventListener('dm-encryption-toggled', handleDMEncryptionToggled);
         window.addEventListener('server-structure:settings-change', handleServerSettingsChange);
+        window.addEventListener('harmony-insert-mention', handleInsertMention);
       });
 
       onUnmounted(() => {
@@ -524,6 +544,7 @@
         window.removeEventListener('encryption-fallback', handleEncryptionFallback);
         window.removeEventListener('dm-encryption-toggled', handleDMEncryptionToggled);
         window.removeEventListener('server-structure:settings-change', handleServerSettingsChange);
+        window.removeEventListener('harmony-insert-mention', handleInsertMention);
       });
 
       const replyingTo = (messageId: string, displayName: string, userId?: string) => {

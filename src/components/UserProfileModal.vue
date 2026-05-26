@@ -15,11 +15,12 @@
             @click.stop="showActionsMenu = !showActionsMenu"
             class="action-button"
             :class="{ active: showActionsMenu }"
+            aria-label="More actions"
           >
-            <Icon name="dots-vertical" class="action-icon" />
+            <Icon name="dots-vertical" :size="16" class="action-icon" />
           </button>
-          <button @click="$emit('close')" class="close-button">
-            <Icon name="close" class="close-icon" />
+          <button @click="$emit('close')" class="close-button" aria-label="Close">
+            <Icon name="close" :size="16" class="close-icon" />
           </button>
         </div>
       </div>
@@ -254,7 +255,13 @@
           </div>
         </div>
 
-        <!-- Note Section (for current user to add notes about this user) -->
+        <!--
+          Note Section temporarily hidden — the localStorage-based note flow
+          isn't wired up to anything yet (no sync, no surfacing elsewhere) so
+          we don't want to expose a half-finished feature. Keep the markup
+          around so we can flip it back on once notes are persisted server-
+          side and shown in the right places.
+
         <div v-if="!isCurrentUser" class="note-section">
           <h3 class="section-title">Note</h3>
           <div class="note-input-container">
@@ -269,6 +276,8 @@
             <div class="note-counter">{{ userNote.length }}/256</div>
           </div>
         </div>
+        -->
+
 
         <!-- Action Buttons -->
         <div class="profile-actions">
@@ -1372,14 +1381,22 @@ onMounted(() => {
   top: 16px;
   right: 16px;
   display: flex;
+  align-items: center;
   gap: 8px;
   z-index: 10;
 }
 
 .action-button,
 .close-button {
+  /* `flex: 0 0 32px` keeps both buttons exact 32px squares even when the
+     icon inside happens to come in slightly larger/smaller — that's what
+     was making the two buttons render at noticeably different widths and
+     heights, since the parent flex container would otherwise size each
+     button to its own content. */
+  flex: 0 0 32px;
   width: 32px;
   height: 32px;
+  padding: 0;
   background: rgba(0, 0, 0, 0.5);
   backdrop-filter: blur(8px);
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -1390,6 +1407,7 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   transition: all 0.2s ease;
+  box-sizing: border-box;
 }
 
 .action-button:hover,
@@ -1406,8 +1424,17 @@ onMounted(() => {
 
 .action-icon,
 .close-icon {
-  width: 16px;
-  height: 16px;
+  /* The Icon component is given `:size="16"` explicitly so the inner SVG
+     is already exactly 16x16 — these rules just guarantee the wrapper
+     span doesn't grow/shrink from inherited skin or icon-size classes
+     (e.g. .icon-md from Icon.vue's scoped styles) and end up
+     visually off-centre. Keep them in sync with the :size prop above. */
+  width: 16px !important;
+  height: 16px !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
 }
 
 .actions-dropdown {

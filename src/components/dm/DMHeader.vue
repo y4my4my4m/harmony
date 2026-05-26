@@ -648,12 +648,35 @@ const unsubscribeFromCallSignals = () => {
   }
 }
 
+/**
+ * External "start call" trigger. UserSidebar's context menu offers
+ * "Start a Call" but the actual call setup (permissions / signaling /
+ * voice join) lives here in DMHeader. Sidebar routes the user to the
+ * DM first and then fires `harmony-dm-start-call` once the conversation
+ * is open — we only act when the event targets *this* conversation so
+ * stale events from a previous DM don't cause a cross-call.
+ */
+const handleStartCallRequest = (e: Event) => {
+  const detail = (e as CustomEvent).detail || {}
+  const targetConversationId: string | undefined = detail.conversationId
+  const callType: 'voice' | 'video' = detail.callType || 'voice'
+  if (!targetConversationId || targetConversationId !== props.conversation.id) return
+  // Don't fight an existing call.
+  if (isInVoiceCall.value || voiceStore.isConnected) return
+  if (callType === 'video') {
+    void toggleVideoCall()
+  } else {
+    void toggleVoiceCall()
+  }
+}
+
 // Initialize presence tracking when component loads
 onMounted(() => {
   initializePresenceTracking()
   subscribeToCallSignals()
   loadEncryptionStatus()
   loadConversationMuteState()
+  window.addEventListener('harmony-dm-start-call', handleStartCallRequest)
 })
 
 // Watch for conversation changes to update presence tracking and encryption
@@ -703,6 +726,7 @@ onUnmounted(() => {
   cleanupPresenceTracking()
   unsubscribeFromCallSignals()
   stopCallerRinging()
+  window.removeEventListener('harmony-dm-start-call', handleStartCallRequest)
 })
 
 // Computed

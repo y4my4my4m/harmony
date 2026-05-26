@@ -105,7 +105,12 @@
               v-else
               class="user-item"
               :class="{ 'offline-user': item.isOffline }"
-              @click="showUserProfile(item.user!)"
+              @click="handleUserItemClick(item.user!)"
+              @contextmenu="handleUserContextMenu(item.user!, $event)"
+              @touchstart.passive="handleUserTouchStart(item.user!, $event)"
+              @touchend.passive="handleUserTouchEnd"
+              @touchmove.passive="handleUserTouchMove"
+              @touchcancel.passive="handleUserTouchEnd"
             >
               <Avatar
                 :src="getUserAvatarUrl(item.user!.id).value"
@@ -185,22 +190,61 @@
       :server-data="currentServerData || undefined"
       @close="closeInviteModal"
     />
+
+    <!-- Discord-style context menu (right-click on desktop, long-press on mobile) -->
+    <UserContextMenu
+      :visible="contextMenuVisible"
+      :user="contextMenuUser"
+      :position="contextMenuPosition"
+      @close="closeContextMenu"
+      @action="handleContextAction"
+    />
+
+    <!--
+      Kick/Ban modal opened directly from the context menu. UserProfileModal
+      mounts its own copy of this modal too, so we keep them as separate
+      instances driven by separate state — that way opening the profile
+      modal while a kick/ban is in flight (or vice versa) doesn't clobber
+      either flow.
+    -->
+    <KickBanModal
+      v-if="kickBanUser && serverChannelStore.currentServerId"
+      :show="showKickBanModal"
+      :mode="kickBanMode"
+      :user="{
+        id: kickBanUser.id,
+        username: kickBanUser.username || '',
+        display_name: (kickBanUser as any).display_name || kickBanUser.username || '',
+        avatar_url: (kickBanUser as any).avatar_url || null,
+      }"
+      :server-id="serverChannelStore.currentServerId"
+      @close="showKickBanModal = false"
+      @done="handleKickBanDone"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, onUnmounted } from 'vue';
 import { useVirtualizer } from '@tanstack/vue-virtual';
+import { useRouter } from 'vue-router';
 import { debug } from '@/utils/debug'
 import type { User } from '@/types';
 import UserProfileModal from '@/components/UserProfileModal.vue';
+import UserContextMenu from '@/components/UserContextMenu.vue';
+import KickBanModal from '@/components/moderation/KickBanModal.vue';
 import InviteModal from './InviteModal.vue';
 import Avatar from '@/components/common/Avatar.vue';
 import DisplayName from '@/components/DisplayName.vue';
 import { useServerChannelStore } from '@/stores/useServerChannel';
+import { useActivityPubStore } from '@/stores/useActivityPub';
+import { useDMStore } from '@/stores/useDM';
+import { authContextService } from '@/services/AuthContextService';
 import { getUserIdsForServer} from '@/services/usersService';
 import { UserStatus } from '@/types';
 import { useUserData } from '@/composables/useUserData';
+import { useLayoutState } from '@/composables/useLayoutState';
+import { useHapticSettings } from '@/composables/useHapticSettings';
 import { roleService, type ServerRole } from '@/services/RoleService';
 import { formatCustomStatusDisplay } from '@/utils/customStatusDisplay';
 import { getEmojiUrl } from '@/utils/emojiUtils';
@@ -216,6 +260,10 @@ const props = withDefaults(defineProps<Props>(), {
 })
 
 const serverChannelStore = useServerChannelStore();
+const activityPubStore = useActivityPubStore();
+const router = useRouter();
+const { isMobile } = useLayoutState();
+const { triggerInteraction } = useHapticSettings();
 
 // Debug: Track duplicate calls
 let fetchCallCounter = 0;
@@ -265,6 +313,314 @@ const showInviteModal = ref(false);
 const searchQuery = ref('');
 const isLoadingUsers = ref(false);
 const lastFetchedServerId = ref<string | null>(null);
+
+// --- USER CONTEXT MENU (right-click on desktop, long-press on mobile) ---
+const contextMenuVisible = ref(false);
+const contextMenuUser = ref<User | null>(null);
+const contextMenuPosition = ref({ x: 0, y: 0 });
+
+// Kick/Ban modal (opened directly from the context menu so moderators
+// don't have to detour through the full profile modal first).
+const showKickBanModal = ref(false);
+const kickBanMode = ref<'kick' | 'ban'>('kick');
+const kickBanUser = ref<User | null>(null);
+
+// Long-press tracking — mobile-only. We start a 500ms timer on
+// touchstart and open the context menu when it fires. `longPressFired`
+// suppresses the trailing synthetic `click` so we don't *also* open
+// the profile modal underneath the menu.
+const LONG_PRESS_DURATION = 500;
+const LONG_PRESS_MOVE_TOLERANCE = 10; // pixels — finger jitter before we cancel
+let longPressTimer: ReturnType<typeof setTimeout> | null = null;
+let longPressFired = false;
+let longPressStartPos: { x: number; y: number } | null = null;
+
+function clearLongPressTimer() {
+  if (longPressTimer) {
+    clearTimeout(longPressTimer);
+    longPressTimer = null;
+  }
+  longPressStartPos = null;
+}
+
+function openContextMenu(user: User, x: number, y: number) {
+  contextMenuUser.value = user;
+  contextMenuPosition.value = { x, y };
+  contextMenuVisible.value = true;
+}
+
+function closeContextMenu() {
+  contextMenuVisible.value = false;
+  contextMenuUser.value = null;
+}
+
+function handleUserItemClick(user: User) {
+  // Suppress click immediately after a long-press fired on mobile —
+  // otherwise we'd open the profile modal under the context menu.
+  if (longPressFired) {
+    longPressFired = false;
+    return;
+  }
+  showUserProfile(user);
+}
+
+function handleUserContextMenu(user: User, event: MouseEvent) {
+  // On mobile, the browser may synthesize a contextmenu after a
+  // long-press. We already handle long-press explicitly via the
+  // touchstart timer, so swallow this synthetic event to avoid
+  // opening two menus / fighting with text-selection callouts.
+  event.preventDefault();
+  if (isMobile.value) return;
+  openContextMenu(user, event.clientX, event.clientY);
+}
+
+function handleUserTouchStart(user: User, event: TouchEvent) {
+  if (!isMobile.value) return;
+  const touch = event.touches[0];
+  if (!touch) return;
+  longPressStartPos = { x: touch.clientX, y: touch.clientY };
+  longPressFired = false;
+  clearLongPressTimer();
+  longPressTimer = setTimeout(() => {
+    longPressFired = true;
+    triggerInteraction();
+    openContextMenu(user, longPressStartPos!.x, longPressStartPos!.y);
+    longPressTimer = null;
+  }, LONG_PRESS_DURATION);
+}
+
+function handleUserTouchMove(event: TouchEvent) {
+  if (!longPressTimer || !longPressStartPos) return;
+  const touch = event.touches[0];
+  if (!touch) return;
+  const dx = Math.abs(touch.clientX - longPressStartPos.x);
+  const dy = Math.abs(touch.clientY - longPressStartPos.y);
+  // Cancel only on real drags; small finger jitter shouldn't kill the
+  // long-press (otherwise resting fingers on phones never fires).
+  if (dx > LONG_PRESS_MOVE_TOLERANCE || dy > LONG_PRESS_MOVE_TOLERANCE) {
+    clearLongPressTimer();
+  }
+}
+
+function handleUserTouchEnd() {
+  clearLongPressTimer();
+}
+
+// --- CONTEXT MENU ACTIONS ---
+// Each branch maps a context-menu emit to the same backing flow that
+// UserProfileModal uses, so behaviour stays consistent whether the
+// action is triggered from the profile or the context menu.
+async function handleContextAction(action: string, user: User) {
+  if (!user) return;
+
+  switch (action) {
+    case 'profile':
+      await showUserProfile(user);
+      break;
+    case 'mention':
+      dispatchMentionInsert(user);
+      break;
+    case 'message':
+      await sendDirectMessage(user);
+      break;
+    case 'call':
+      await startCallWithUser(user);
+      break;
+    case 'add-note':
+      // The note input lives inside the profile modal — open it so the
+      // user can type their note there.
+      await showUserProfile(user);
+      break;
+    case 'change-nickname':
+      // Server-nickname editing isn't a standalone modal yet; route to
+      // the existing user settings page where profile fields live.
+      router.push('/settings/profile');
+      break;
+    case 'invite':
+      await openInviteForUser(user);
+      break;
+    case 'toggle-mute':
+      await toggleMuteUser(user);
+      break;
+    case 'toggle-block':
+      await toggleBlockUser(user);
+      break;
+    case 'kick':
+      openKickBanModal(user, 'kick');
+      break;
+    case 'ban':
+      openKickBanModal(user, 'ban');
+      break;
+    case 'copy-id':
+      await copyUserId(user);
+      break;
+  }
+}
+
+/**
+ * Dispatch a window-level event that ChatComponent listens for to
+ * insert a mention into the current message input. UserSidebar is
+ * rendered as a sibling of ChatComponent inside ChatLayout, so a
+ * direct emit/prop chain would have to traverse two layout layers —
+ * a CustomEvent keeps the wiring shallow and matches the existing
+ * cross-component pattern used elsewhere in the app.
+ */
+function dispatchMentionInsert(user: User) {
+  const username = user.username;
+  if (!username) return;
+
+  // Build a remote-aware handle so federated users get the proper
+  // `@user@domain` form when inserted.
+  const u: any = user;
+  const isRemote = u.is_local === false || (u.domain && u.domain !== (import.meta.env.VITE_DOMAIN as string));
+  const handle = isRemote && u.domain
+    ? `${username}@${u.domain}`
+    : username;
+
+  window.dispatchEvent(new CustomEvent('harmony-insert-mention', {
+    detail: { username, handle, userId: user.id },
+  }));
+}
+
+async function sendDirectMessage(user: User) {
+  // Mirrors UserProfileModal.sendDirectMessage so behaviour and edge
+  // cases (find-existing-conversation, async profile lookup, etc.)
+  // stay in lockstep.
+  try {
+    if (activityPubStore.isBlocked(user.id)) {
+      debug.warn('Cannot send DM to blocked user');
+      return;
+    }
+
+    const currentProfileId = await authContextService.getCurrentProfileId();
+    if (!currentProfileId) {
+      debug.error('Cannot send DM: no profile ID');
+      return;
+    }
+
+    const dmStore = useDMStore();
+    const existing = dmStore.conversations.find(c => c.other_user?.id === user.id);
+    if (existing) {
+      router.push(`/dm/${existing.id}`);
+      return;
+    }
+
+    const conversationId = await dmStore.createOrGetConversation(currentProfileId, user.id);
+    if (conversationId) {
+      router.push(`/dm/${conversationId}`);
+    } else {
+      debug.error('Failed to create DM conversation');
+    }
+  } catch (err) {
+    debug.error('Failed to open DM:', err);
+  }
+}
+
+/**
+ * Route to a DM and ask DMHeader to start a call. The actual call
+ * setup (permissions check, signaling, voice join) lives in DMHeader
+ * to avoid duplicating WebRTC / federation logic here — we just open
+ * the DM and broadcast a `harmony-dm-start-call` event that DMHeader
+ * listens for once the conversation is active.
+ */
+async function startCallWithUser(user: User) {
+  try {
+    if (activityPubStore.isBlocked(user.id)) return;
+
+    const currentProfileId = await authContextService.getCurrentProfileId();
+    if (!currentProfileId) return;
+
+    const dmStore = useDMStore();
+    let conversationId: string | null = null;
+    const existing = dmStore.conversations.find(c => c.other_user?.id === user.id);
+    if (existing) {
+      conversationId = existing.id;
+    } else {
+      conversationId = await dmStore.createOrGetConversation(currentProfileId, user.id);
+    }
+
+    if (!conversationId) {
+      debug.error('Failed to resolve DM conversation for call');
+      return;
+    }
+
+    router.push(`/dm/${conversationId}`);
+    // Defer the call-start dispatch until DMHeader has had a chance
+    // to mount and subscribe to the event.
+    setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('harmony-dm-start-call', {
+        detail: { conversationId, callType: 'voice' as const },
+      }));
+    }, 350);
+  } catch (err) {
+    debug.error('Failed to start call:', err);
+  }
+}
+
+async function openInviteForUser(user: User) {
+  // InviteModal generates server invites — it doesn't take a target
+  // user (the invite link can be sent to anyone), so we just open it
+  // for the current server. When opened from the user sidebar we're
+  // always inside a server context, but fall back to the profile
+  // modal's server-picker UI just in case the menu is somehow
+  // surfaced outside one.
+  if (serverChannelStore.currentServerId) {
+    showInviteModal.value = true;
+  } else {
+    await showUserProfile(user);
+  }
+}
+
+async function toggleMuteUser(user: User) {
+  try {
+    if (activityPubStore.isMuted(user.id)) {
+      await activityPubStore.unmuteUser(user.id);
+    } else {
+      await activityPubStore.muteUser(user.id);
+    }
+  } catch (err) {
+    debug.error('Failed to toggle mute:', err);
+  }
+}
+
+async function toggleBlockUser(user: User) {
+  try {
+    if (activityPubStore.isBlocked(user.id)) {
+      await activityPubStore.unblockUser(user.id);
+    } else {
+      await activityPubStore.blockUser(user.id);
+    }
+  } catch (err) {
+    debug.error('Failed to toggle block:', err);
+  }
+}
+
+function openKickBanModal(user: User, mode: 'kick' | 'ban') {
+  kickBanUser.value = user;
+  kickBanMode.value = mode;
+  showKickBanModal.value = true;
+}
+
+function handleKickBanDone() {
+  showKickBanModal.value = false;
+  kickBanUser.value = null;
+}
+
+async function copyUserId(user: User) {
+  try {
+    await navigator.clipboard.writeText(user.id);
+    debug.log('User ID copied to clipboard:', user.id);
+  } catch (err) {
+    debug.error('Failed to copy user ID:', err);
+  }
+}
+
+// Clean up any in-flight long-press timer when the component goes
+// away (e.g. on server switch / route change) so we don't fire after
+// the user list has unmounted.
+onUnmounted(() => {
+  clearLongPressTimer();
+});
 
 // Role-based member grouping (hoist feature)
 const serverRoles = ref<ServerRole[]>([]);
@@ -1021,6 +1377,14 @@ const closeInviteModal = () => {
   cursor: pointer;
   transition: background-color 0.15s ease;
   min-height: 42px;
+  /* Long-press on mobile triggers our own context menu — suppress the
+     native iOS callout/selection bubble that would otherwise compete
+     with it. Touch action stays `manipulation` so quick taps still
+     register and short scrolls in the list still work. */
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: manipulation;
 }
 
 .user-item:hover {
