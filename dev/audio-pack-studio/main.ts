@@ -102,6 +102,23 @@ function setSlotFile(id: AudioActionId, file: File | null): void {
   render()
 }
 
+function firstAudioFromDataTransfer(dt: DataTransfer): File | null {
+  return Array.from(dt.files).find(isAudioFile) ?? null
+}
+
+function assignAudioToSlot(slotId: AudioActionId, file: File): void {
+  if (!isAudioFile(file)) {
+    statusMessage = `Not an audio file: ${file.name}`
+    statusError = true
+    render()
+    return
+  }
+  assignSlotFile(slotId, file)
+  statusMessage = `Assigned ${file.name} → ${slotId}`
+  statusError = false
+  render()
+}
+
 function setBanner(file: File | null): void {
   clearBanner()
   if (file) {
@@ -336,7 +353,7 @@ function renderSlots(): string {
             ${file ? `<div class="filename">${escapeHtml(file.name)} (${formatBytes(file.size)})</div>` : ''}
           </div>
           <div class="slot-actions">
-            <label class="file-btn">File<input type="file" class="hidden-input" accept="audio/*,.mp3,.ogg,.wav,.webm,.m4a" data-slot-file="${slot.id}" /></label>
+            <label class="file-btn slot-drop" data-slot-drop="${slot.id}" title="Choose or drop an audio file">File<input type="file" class="hidden-input" accept="audio/*,.mp3,.ogg,.wav,.webm,.m4a" data-slot-file="${slot.id}" /></label>
             <button type="button" data-play="${slot.id}" ${mapped ? '' : 'disabled'}>▶</button>
             <button type="button" data-clear="${slot.id}" ${mapped ? '' : 'disabled'}>Clear</button>
           </div>
@@ -443,8 +460,41 @@ function bindEvents(): void {
     input.addEventListener('change', () => {
       const id = input.dataset.slotFile as AudioActionId
       const file = input.files?.[0]
-      if (file) setSlotFile(id, file)
+      if (file) assignAudioToSlot(id, file)
       input.value = ''
+    })
+  }
+
+  for (const dropTarget of document.querySelectorAll<HTMLElement>('[data-slot-drop]')) {
+    const slotId = dropTarget.dataset.slotDrop as AudioActionId
+
+    dropTarget.addEventListener('dragenter', (e) => {
+      e.preventDefault()
+      dropTarget.classList.add('dragover')
+    })
+    dropTarget.addEventListener('dragover', (e) => {
+      e.preventDefault()
+      if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy'
+      dropTarget.classList.add('dragover')
+    })
+    dropTarget.addEventListener('dragleave', (e) => {
+      if (e.currentTarget === dropTarget && !dropTarget.contains(e.relatedTarget as Node)) {
+        dropTarget.classList.remove('dragover')
+      }
+    })
+    dropTarget.addEventListener('drop', (e) => {
+      e.preventDefault()
+      e.stopPropagation()
+      dropTarget.classList.remove('dragover')
+      const dt = e.dataTransfer
+      if (!dt) return
+      const file = firstAudioFromDataTransfer(dt)
+      if (file) assignAudioToSlot(slotId, file)
+      else {
+        statusMessage = 'Drop an audio file (.mp3, .ogg, .wav, …)'
+        statusError = true
+        render()
+      }
     })
   }
 

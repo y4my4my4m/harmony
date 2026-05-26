@@ -235,8 +235,9 @@ export class AudioThemeService {
       }
     })
 
-    // Neo Kobe — pairs with the SDR-001 visual skin. Partial pack: missing
-    // actions fall back to the default theme via resolveSoundPath().
+    // Neo Kobe — pairs with the SDR-001 visual skin (`public/assets/sounds/neokobe/`).
+    // Unmapped actions fall back to the default theme via resolveSoundPath().
+    const neoKobeBase = '/assets/sounds/neokobe'
     this.registerTheme({
       id: 'neokobe',
       name: 'Neo Kobe',
@@ -244,16 +245,30 @@ export class AudioThemeService {
       author: 'Harmony Team',
       version: '1.0.0',
       isBuiltIn: true,
-      preview: '/assets/sounds/neokobe/neokobe-preview.webp',
+      preview: `${neoKobeBase}/banner.webp`,
       sounds: {
-        dm: '/assets/sounds/neokobe/dm.mp3',
-        reaction: '/assets/sounds/neokobe/reaction.mp3',
-        reply: '/assets/sounds/neokobe/reply.mp3',
-        server_invite: '/assets/sounds/neokobe/invite.mp3',
-        mic_off: '/assets/sounds/neokobe/mic_off.mp3',
-        camera_on: '/assets/sounds/neokobe/camera_on.mp3',
-        screenshare_on: '/assets/sounds/neokobe/screenshare_on.mp3',
-        screenshare_off: '/assets/sounds/neokobe/screenshare_off.mp3',
+        mention: `${neoKobeBase}/mention.mp3`,
+        dm: `${neoKobeBase}/dm.mp3`,
+        reaction: `${neoKobeBase}/reaction.mp3`,
+        reply: `${neoKobeBase}/reply.mp3`,
+        server_invite: `${neoKobeBase}/server_invite.mp3`,
+        voice_channel_activity: `${neoKobeBase}/voice_channel_activity.mp3`,
+        voice_connect: `${neoKobeBase}/voice_connect.mp3`,
+        voice_disconnect: `${neoKobeBase}/voice_disconnect.mp3`,
+        call_incoming: `${neoKobeBase}/call_incoming.mp3`,
+        call_outgoing: `${neoKobeBase}/call_outgoing.mp3`,
+        call_ended: `${neoKobeBase}/call_ended.mp3`,
+        mic_on: `${neoKobeBase}/mic_on.mp3`,
+        mic_off: `${neoKobeBase}/mic_off.mp3`,
+        deafen_on: `${neoKobeBase}/deafen_on.mp3`,
+        deafen_off: `${neoKobeBase}/deafen_off.mp3`,
+        camera_on: `${neoKobeBase}/camera_on.mp3`,
+        camera_off: `${neoKobeBase}/camera_off.mp3`,
+        screenshare_on: `${neoKobeBase}/screenshare_on.mp3`,
+        screenshare_off: `${neoKobeBase}/screenshare_off.mp3`,
+        ui_click: `${neoKobeBase}/ui_click.mp3`,
+        ui_success: `${neoKobeBase}/ui_success.mp3`,
+        ui_error: `${neoKobeBase}/ui_error.mp3`,
       },
     })
   }

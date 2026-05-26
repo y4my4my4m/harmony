@@ -124,6 +124,12 @@ button:hover,
   border-color: var(--accent);
 }
 
+.file-btn.slot-drop.dragover {
+  border-color: var(--accent);
+  background: rgba(124, 108, 240, 0.15);
+  box-shadow: 0 0 0 2px rgba(124, 108, 240, 0.35);
+}
+
 button.primary {
   background: var(--accent);
   border-color: var(--accent-dim);
