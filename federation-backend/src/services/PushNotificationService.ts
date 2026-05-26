@@ -8,7 +8,18 @@
 import webPush, { PushSubscription } from 'web-push';
 import { getSupabaseClient } from '../config/supabase.js';
 import { logger } from '../utils/logger.js';
+import { getFullAvatarUrl } from '../utils/urlUtils.js';
 import config from '../config/index.js';
+
+/**
+ * Custom emojis (e.g. `:xp:`) cannot be rendered as images inside a Web Push
+ * notification title/body — the OS only paints plain text. Strip shortcodes
+ * so the username reads "Poring" instead of "Poring :xp:".
+ */
+function stripEmojiShortcodes(text: string | null | undefined): string {
+  if (!text) return '';
+  return text.replace(/:[a-zA-Z0-9_+-]+(?:@[a-zA-Z0-9.-]+)?:/g, '').replace(/\s+/g, ' ').trim();
+}
 
 // Get admin client instance
 const supabaseAdmin = getSupabaseClient();
@@ -617,12 +628,20 @@ class PushNotificationServiceClass {
   }): PushPayload {
     const data = notification.data || {};
     const sender = data.sender || {};
-    const senderName = sender.display_name || sender.username || 'Someone';
+    const rawSenderName = sender.display_name || sender.username || 'Someone';
+    const senderName = stripEmojiShortcodes(rawSenderName) || sender.username || 'Someone';
     const senderDomain = sender.domain && !sender.is_local ? `@${sender.domain}` : '';
-    
+
     let title = notification.title || 'Harmony';
     let message = '';
-    let icon = data.sender?.avatar_url || '/img/app_icon_square.webp';
+    // Resolve the sender's avatar to a full https URL. Stored avatar_url may be
+    // a relative storage path (e.g. `<uuid>/avatar.webp`) which Chrome/Android
+    // would treat as same-origin and 404 on, falling back to a generated
+    // initial-letter circle. Use a full URL so the OS shows the real avatar
+    // for every user-originated notification (DM, mention, reply, reaction,
+    // follow, ActivityPub, etc.).
+    const resolvedAvatar = getFullAvatarUrl(sender.avatar_url) || sender.avatar_url;
+    let icon = resolvedAvatar || '/img/app_icon_square.webp';
 
     switch (notification.type) {
       case 'mention':
@@ -716,7 +735,8 @@ class PushNotificationServiceClass {
       data: {
         notification_id: notification.id,
         user_id: notification.user_id,
-        ...data
+        ...data,
+        avatar_url: resolvedAvatar || undefined,
       }
     };
   }
