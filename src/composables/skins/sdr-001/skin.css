@@ -240,12 +240,6 @@
   letter-spacing: 0.05em;
   color: var(--skin-accent-65);
 }
-:root[data-skin="sdr-001"] .message-meta .username,
-:root[data-skin="sdr-001"] .username-text {
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  font-weight: 700;
-}
 :root[data-skin="sdr-001"] .message-avatar img {
   box-shadow: 0 0 0 1px var(--skin-accent-45);
 }
@@ -577,6 +571,13 @@
 :root[data-skin="sdr-001"] .settings-nav {
   background: linear-gradient(180deg, #14141c, #0e0e16);
   border-right: 1px solid var(--skin-accent-22);
+}
+
+/* User-settings rail: only reduce RIGHT padding so content doesn't feel
+   too far from the skin's right border line. Keep all original spacing/
+   sizing elsewhere (section gaps, item heights, title rhythm). */
+:root[data-skin="sdr-001"] .user-settings .settings-sidebar-content {
+  padding-right: 8px;
 }
 
 /* 2.18 Member list. */
@@ -1060,7 +1061,7 @@
   .control-btn.minimize-btn,
   .control-btn.leave-btn,
   .mini-control-btn,
-  .profile-bar-buttons .icon-button[data-action],
+  .profile-bar-buttons .icon-button[data-action]:not([data-action="bell"]),
   .message-actions .action-btn,
   .message-actions [data-testid^="msg-action-"]
 ) {
@@ -1079,7 +1080,7 @@
   .control-btn.minimize-btn,
   .control-btn.leave-btn,
   .mini-control-btn,
-  .profile-bar-buttons .icon-button[data-action],
+  .profile-bar-buttons .icon-button[data-action]:not([data-action="bell"]):not(.notification-bell-slot),
   .message-actions .action-btn,
   .message-actions [data-testid^="msg-action-"]
 ) > * {
@@ -1098,7 +1099,7 @@
   .control-btn.minimize-btn,
   .control-btn.leave-btn,
   .mini-control-btn,
-  .profile-bar-buttons .icon-button[data-action],
+  .profile-bar-buttons .icon-button[data-action]:not([data-action="bell"]),
   .message-actions .action-btn,
   .message-actions [data-testid^="msg-action-"]
 )::after {
@@ -1159,9 +1160,6 @@
 /* Profile-bar buttons - addressed by the `data-action` attribute we
    added to UserProfileComponent.vue (replaces the previous
    :nth-child positional selectors). */
-:root[data-skin="sdr-001"] .profile-bar-buttons .icon-button[data-action="bell"] {
-  --skin-icon: url('/assets/skins/sdr-001/icons/bell.svg');
-}
 :root[data-skin="sdr-001"] .profile-bar-buttons .icon-button[data-action="mic"] {
   --skin-icon: url('/assets/skins/sdr-001/icons/mic.svg');
 }
