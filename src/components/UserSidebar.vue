@@ -208,15 +208,10 @@
       either flow.
     -->
     <KickBanModal
-      v-if="kickBanUser && serverChannelStore.currentServerId"
+      v-if="kickBanMember && serverChannelStore.currentServerId"
       :show="showKickBanModal"
       :mode="kickBanMode"
-      :user="{
-        id: kickBanUser.id,
-        username: kickBanUser.username || '',
-        display_name: (kickBanUser as any).display_name || kickBanUser.username || '',
-        avatar_url: (kickBanUser as any).avatar_url || null,
-      }"
+      :user="kickBanMember"
       :server-id="serverChannelStore.currentServerId"
       @close="showKickBanModal = false"
       @done="handleKickBanDone"
@@ -323,7 +318,13 @@ const contextMenuPosition = ref({ x: 0, y: 0 });
 // don't have to detour through the full profile modal first).
 const showKickBanModal = ref(false);
 const kickBanMode = ref<'kick' | 'ban'>('kick');
-const kickBanUser = ref<User | null>(null);
+/** Resolved member row for KickBanModal (snake_case fields the modal expects). */
+const kickBanMember = ref<{
+  id: string;
+  username: string;
+  display_name: string;
+  avatar_url: string | null;
+} | null>(null);
 
 // Long-press tracking — mobile-only. We start a 500ms timer on
 // touchstart and open the context menu when it fires. `longPressFired`
@@ -596,14 +597,25 @@ async function toggleBlockUser(user: User) {
 }
 
 function openKickBanModal(user: User, mode: 'kick' | 'ban') {
-  kickBanUser.value = user;
+  const u = user as User & { displayName?: string; avatarUrl?: string };
+  kickBanMember.value = {
+    id: user.id,
+    username: user.username || getUserProfile(user.id).value?.username || '',
+    display_name:
+      getUserDisplayName(user.id).value
+      || u.display_name
+      || u.displayName
+      || user.username
+      || '',
+    avatar_url: getUserAvatarUrl(user.id).value || u.avatar_url || u.avatarUrl || null,
+  };
   kickBanMode.value = mode;
   showKickBanModal.value = true;
 }
 
 function handleKickBanDone() {
   showKickBanModal.value = false;
-  kickBanUser.value = null;
+  kickBanMember.value = null;
 }
 
 async function copyUserId(user: User) {
@@ -648,8 +660,15 @@ const users = computed(() => {
   
   // ✅ SMART CACHING: Only log when context changes significantly (not on every presence update)
   if (contextUsers.length > 0) {
-    // Use cached context data immediately - no logging spam during presence updates
-    return contextUsers;
+    // userDataService stores camelCase (displayName, avatarUrl); normalize to the
+    // legacy User shape so kick/ban modals and other snake_case consumers work.
+    return contextUsers.map(userData => ({
+      id: userData.id,
+      username: userData.username,
+      display_name: userData.displayName,
+      avatar_url: userData.avatarUrl,
+      status: userData.status,
+    }));
   }
   
   // Only show loading state if we're actively loading and have no cached data

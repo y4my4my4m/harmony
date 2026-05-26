@@ -93,14 +93,14 @@
         <span class="menu-item-label">Invite to Server</span>
       </button>
 
-      <!-- Mute / Unmute (Ignore in Discord) -->
+      <!-- Mute / Unmute -->
       <button
         v-if="!isSelf"
         class="menu-item"
         role="menuitem"
         @click="emitAction('toggle-mute')"
       >
-        <span class="menu-item-label">{{ isMuted ? 'Unignore' : 'Ignore' }}</span>
+        <span class="menu-item-label">{{ isMuted ? 'Unmute User' : 'Mute User' }}</span>
       </button>
 
       <!-- Block / Unblock -->
