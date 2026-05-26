@@ -334,9 +334,67 @@ const handleGlobalCallDecline = async () => {
   }
 }
 
+// ---------------------------------------------------------------------------
+// PWA cold-boot resilience
+// ---------------------------------------------------------------------------
+// When Chrome launches the PWA on OS boot, the network often isn't fully up
+// yet. The initial `initializeApp()` call can succeed at auth (Supabase reads
+// session from localStorage synchronously) but fail at the server-list fetch,
+// leaving us authenticated with no servers loaded. Without these retry
+// helpers, that state is sticky: the auth watcher only fires on null→set,
+// so nothing ever re-triggers initialization. We retry on the most likely
+// recovery signals (network coming back online, tab regaining focus) and as
+// a one-shot fallback timer in case neither fires (navigator.onLine can be
+// true the whole time even when individual requests fail).
+let initInFlight = false
+let initRetryTimer: ReturnType<typeof setTimeout> | null = null
+
+const cancelInitRetryTimer = () => {
+  if (initRetryTimer) {
+    clearTimeout(initRetryTimer)
+    initRetryTimer = null
+  }
+}
+
+const retryInitializationIfNeeded = async (reason: string) => {
+  if (initInFlight) return
+  // Only retry when we're authenticated but the server-list fetch never
+  // completed. This keeps us a no-op for the success path and the
+  // genuinely-logged-out path.
+  if (!authStore.session?.user?.id) return
+  if (serverChannelStore.hasInitialized) return
+  debug.log(`🔁 BaseLayout: retrying app initialization (${reason})`)
+  await initializeApp()
+}
+
+const scheduleInitRetry = (reason: string) => {
+  cancelInitRetryTimer()
+  initRetryTimer = setTimeout(() => {
+    initRetryTimer = null
+    void retryInitializationIfNeeded(reason)
+  }, 2000)
+}
+
+const handleOnlineRetry = () => {
+  void retryInitializationIfNeeded('window.online')
+}
+
+const handleVisibilityRetry = () => {
+  if (typeof document === 'undefined') return
+  if (document.visibilityState === 'visible') {
+    void retryInitializationIfNeeded('visibilitychange')
+  }
+}
+
 // ⚡ OPTIMIZED: Route-Aware App Initialization
 // Only loads what's needed for the current route instead of everything
 const initializeApp = async () => {
+  if (initInFlight) {
+    debug.log('⏭️ BaseLayout: initializeApp already running, skipping duplicate call')
+    return
+  }
+  initInFlight = true
+  cancelInitRetryTimer()
   try {
     // Auth is already initialized in main.ts before mount, so session should be ready
     // But add a small safety delay in case of race conditions
@@ -463,8 +521,25 @@ const initializeApp = async () => {
     
   } catch (error) {
     debug.error('❌ Failed to initialize app:', error)
+    // PWA cold-boot race: when the OS launches the PWA before the network
+    // is fully up, `initializeUserEnvironment` can throw and leave us with
+    // a valid session but an empty server list. If we mark the app as
+    // ready here, ChatLayout renders the false "join a server / create
+    // a community" splash even though the user has servers. Instead,
+    // keep the loading screen up and lean on the retry handlers below
+    // (online / visibilitychange / one-shot timer) to re-attempt init
+    // once the network is actually available. Only fall through to the
+    // legacy "mark ready" behavior when there's no session to load for
+    // (e.g. the user is genuinely logged out) so the router can take
+    // over and send them to the login screen.
+    if (authStore.session?.user?.id && !serverChannelStore.hasInitialized) {
+      scheduleInitRetry('initial-failure')
+      return
+    }
     isAppInitialized.value = true
     hasServersLoaded.value = true
+  } finally {
+    initInFlight = false
   }
 }
 
@@ -943,6 +1018,13 @@ onMounted(() => {
     window.addEventListener('touchstart', wrappedTouchStart, { passive: true })
     window.addEventListener('touchmove', wrappedTouchMove, { passive: false }) // Changed to false to allow preventDefault
     window.addEventListener('touchend', wrappedTouchEnd, { passive: true })
+    // PWA cold-boot recovery: retry app initialization when the network
+    // comes back online or when the user brings the tab back into focus.
+    // These are no-ops in the normal success path.
+    window.addEventListener('online', handleOnlineRetry)
+  }
+  if (typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', handleVisibilityRetry)
   }
   
   initializeApp()
@@ -953,7 +1035,12 @@ onBeforeUnmount(() => {
     window.removeEventListener('touchstart', wrappedTouchStart)
     window.removeEventListener('touchmove', wrappedTouchMove)
     window.removeEventListener('touchend', wrappedTouchEnd)
+    window.removeEventListener('online', handleOnlineRetry)
   }
+  if (typeof document !== 'undefined') {
+    document.removeEventListener('visibilitychange', handleVisibilityRetry)
+  }
+  cancelInitRetryTimer()
   
   // Cleanup global call listener
   globalDMCallListener.cleanup()

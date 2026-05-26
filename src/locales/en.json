@@ -499,7 +499,8 @@
   "announcements": {
     "title": "Announcements",
     "markRead": "Mark as read",
-    "markAllRead": "Mark all as read"
+    "markAllRead": "Mark all as read",
+    "viewPast": "View past announcements"
   },
   "user": {
     "profile": "Profile",
@@ -636,6 +637,30 @@
       "enableDMs": "Notify on Direct Messages",
       "muteAll": "Mute All",
       "muteDuration": "Mute Duration"
+    },
+    "announcements": {
+      "title": "Announcements",
+      "description": "Read past and current announcements from this instance's admins.",
+      "loading": "Loading announcements…",
+      "loadError": "Couldn't load announcements. Please try again.",
+      "endsAt": "ends {date}",
+      "filters": {
+        "unread": "Unread",
+        "all": "All",
+        "pinned": "Pinned"
+      },
+      "empty": {
+        "unread": "You're all caught up — no unread announcements.",
+        "all": "No announcements have been posted yet.",
+        "pinned": "No pinned announcements right now."
+      },
+      "badges": {
+        "unread": "New",
+        "pinned": "Pinned",
+        "inactive": "Inactive",
+        "expired": "Expired",
+        "scheduled": "Scheduled"
+      }
     },
     "language": {
       "title": "Language",

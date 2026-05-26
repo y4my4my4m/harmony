@@ -58,6 +58,13 @@
               >
                 <component :is="section.icon" class="nav-icon" />
                 {{ $t(section.label) }}
+                <span
+                  v-if="section.id === 'announcements' && announcementUnreadCount > 0"
+                  class="nav-badge"
+                  :aria-label="`${announcementUnreadCount} unread announcement${announcementUnreadCount === 1 ? '' : 's'}`"
+                >
+                  {{ announcementUnreadCount > 99 ? '99+' : announcementUnreadCount }}
+                </span>
               </button>
             </div>
 
@@ -143,6 +150,12 @@
             @update-notifications="handleNotificationsUpdate"
           />
 
+          <!-- Instance Announcements Archive -->
+          <AnnouncementsSettings
+            v-else-if="activeSection === 'announcements'"
+            :loading="loading"
+          />
+
           <!-- Voice & Video Section -->
           <VoiceVideoSettings 
             v-else-if="activeSection === 'voice'"
@@ -213,6 +226,8 @@ import LanguageSettings from '@/components/settings/user/LanguageSettings.vue'
 import AdvancedSettings from '@/components/settings/user/AdvancedSettings.vue'
 import EncryptionSettings from '@/components/encryption/EncryptionSettings.vue'
 import UserBotsManagement from '@/components/settings/user/UserBotsManagement.vue'
+import AnnouncementsSettings from '@/components/settings/user/AnnouncementsSettings.vue'
+import { useAnnouncementUnreadCount } from '@/composables/useAnnouncementUnreadCount'
 
 // Icons
 import UserIcon from '@/components/icons/User.vue'
@@ -220,6 +235,7 @@ import ShieldIcon from '@/components/icons/Shield.vue'
 import PaletteIcon from '@/components/icons/Palette.vue'
 import VoiceIcon from '@/components/icons/VoiceIcon.vue'
 import BellIcon from '@/components/icons/Bell.vue'
+import MegaphoneIcon from '@/components/icons/Megaphone.vue'
 import MicIcon from '@/components/icons/Mic.vue'
 import KeyboardIcon from '@/components/icons/Keyboard.vue'
 import GlobeIcon from '@/components/icons/Globe.vue'
@@ -273,6 +289,7 @@ const userSections = computed(() => [
 
 const appSections = computed(() => [
   { id: 'notifications', label: 'settings.notifications.title', icon: BellIcon },
+  { id: 'announcements', label: 'settings.announcements.title', icon: MegaphoneIcon },
   { id: 'appearance', label: 'settings.appearance.title', icon: PaletteIcon },
   { id: 'voice', label: 'settings.voice.title', icon: MicIcon },
   { id: 'keybinds', label: 'settings.keybinds.title', icon: KeyboardIcon },
@@ -280,6 +297,14 @@ const appSections = computed(() => [
   { id: 'language', label: 'settings.language.title', icon: GlobeIcon },
   { id: 'advanced', label: 'settings.advanced.title', icon: CogIcon },
 ])
+
+// Reactive unread-announcement count for the sidebar badge. The composable
+// is module-level so this stays in sync with any other consumer (e.g. the
+// "View past announcements" link in the AnnouncementPopup footer) without
+// extra plumbing. `autoRefresh` triggers an initial fetch on mount.
+const {
+  unreadCount: announcementUnreadCount,
+} = useAnnouncementUnreadCount({ autoRefresh: true })
 
 const adminSections = computed(() => {
   // Check if user has admin permissions
@@ -795,6 +820,32 @@ onUnmounted(() => {
   width: 20px;
   height: 20px;
   flex-shrink: 0;
+}
+
+.nav-badge {
+  /* Pushes itself to the right edge of the nav item without affecting
+     other items (which don't render a badge). Sized small enough that it
+     doesn't fight the label visually but still readable for "99+". */
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 9px;
+  background: var(--harmony-primary, #0EA5E9);
+  color: var(--text-primary, #ffffff);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.nav-item.active .nav-badge {
+  /* Already inside a primary-colored active nav item; flip to a neutral
+     pill so the badge stays visible against the accent background. */
+  background: rgba(255, 255, 255, 0.22);
+  color: var(--text-on-primary, #ffffff);
 }
 
 .logout-btn {

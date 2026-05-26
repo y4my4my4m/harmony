@@ -51,9 +51,22 @@
           </div>
         </div>
 
-        <div class="popup-footer" v-if="announcements.length > 1">
-          <button @click="markAllRead" class="mark-all-btn" data-testid="announcement-mark-all-read">
+        <div class="popup-footer">
+          <button
+            v-if="announcements.length > 1"
+            @click="markAllRead"
+            class="mark-all-btn"
+            data-testid="announcement-mark-all-read"
+          >
             {{ $t('announcements.markAllRead', 'Mark all as read') }}
+          </button>
+          <button
+            type="button"
+            class="view-past-btn"
+            data-testid="announcement-view-past"
+            @click="viewPastAnnouncements"
+          >
+            {{ $t('announcements.viewPast', 'View past announcements') }}
           </button>
         </div>
       </div>
@@ -63,10 +76,13 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import DOMPurify from 'dompurify'
 import { announcementService, type Announcement } from '@/services/AnnouncementService'
 import { userDataService } from '@/services/userDataService'
 import DisplayName from '@/components/DisplayName.vue'
+
+const router = useRouter()
 
 const announcements = ref<Announcement[]>([])
 
@@ -108,6 +124,14 @@ const markAllRead = async () => {
 
 const dismiss = () => {
   announcements.value = []
+}
+
+const viewPastAnnouncements = () => {
+  // Dismiss the popup (we don't auto-mark-read here — the archive page
+  // is where the user explicitly opts in to that). Then navigate to the
+  // dedicated Settings section that owns the full archive.
+  dismiss()
+  router.push('/settings/announcements').catch(() => {})
 }
 
 onMounted(async () => {
@@ -292,7 +316,10 @@ onMounted(async () => {
   padding: 16px 24px;
   border-top: 1px solid var(--border-color, #2b2d31);
   display: flex;
-  justify-content: center;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 .mark-all-btn {
@@ -307,5 +334,25 @@ onMounted(async () => {
 
 .mark-all-btn:hover {
   opacity: 0.9;
+}
+
+.view-past-btn {
+  /* Margin-left:auto so this button always sits on the right edge of the
+     footer regardless of whether the mark-all button is visible (it's only
+     rendered when there are multiple unread announcements). */
+  margin-left: auto;
+  background: transparent;
+  color: var(--text-secondary, #b5bac1);
+  border: 1px solid var(--border-color, #3f4147);
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-weight: 500;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.view-past-btn:hover {
+  background: var(--background-hover, #35373c);
+  color: var(--text-primary, #f2f3f5);
 }
 </style>
