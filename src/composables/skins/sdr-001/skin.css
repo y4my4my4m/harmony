@@ -99,7 +99,7 @@
 :root[data-skin="sdr-001"] .create-server-modal,
 :root[data-skin="sdr-001"] .voice-dock,
 :root[data-skin="sdr-001"] .voice-dock-container,
-:root[data-skin="sdr-001"] .voice-overlay,
+:root[data-skin="sdr-001"] .voice-container,
 :root[data-skin="sdr-001"] .context-menu,
 :root[data-skin="sdr-001"] .action-dropdown,
 :root[data-skin="sdr-001"] .notification-dropdown,
@@ -402,20 +402,30 @@
 :root[data-skin="sdr-001"] .user-profile .user-status-container .status-text::before { content: '[ '; }
 :root[data-skin="sdr-001"] .user-profile .user-status-container .status-text::after { content: ' ]'; }
 
-/* 2.15 Voice overlay (maximised tactical comms console). */
-:root[data-skin="sdr-001"] .voice-overlay,
-:root[data-skin="sdr-001"] .unified-voice-overlay {
+/* 2.15 Voice overlay (maximised tactical comms console).
+ *
+ * IMPORTANT: target `.voice-container` (the visible console box) and NOT
+ * `.voice-overlay` (the full-viewport fixed backdrop modal). The earlier
+ * version of this rule applied the console look + `position: relative` to
+ * `.voice-overlay`, which clobbered the base component's `position: fixed`
+ * and dropped the teleported overlay into normal document flow at the
+ * bottom of the body — appearing under the rest of the UI instead of on
+ * top of everything. The descendant selectors below (header / overlay-
+ * header / leave-button / tactical-labels) still match through the overlay
+ * → container chain, so they stay scoped to `.voice-overlay` and don't
+ * need to change. */
+:root[data-skin="sdr-001"] .voice-container {
   background: linear-gradient(180deg, rgba(8, 8, 12, 0.85), rgba(0, 0, 0, 0.95));
   border: 1px solid var(--skin-accent-55);
   box-shadow:
     0 0 0 1px rgba(0, 0, 0, 0.6),
     0 0 32px var(--skin-accent-18);
-  position: relative;
+  /* `.voice-container` already declares `position: relative` in the base
+     component, so the corner-bracket pseudo-elements below anchor correctly
+     without us re-declaring it here. */
 }
-:root[data-skin="sdr-001"] .voice-overlay::before,
-:root[data-skin="sdr-001"] .voice-overlay::after,
-:root[data-skin="sdr-001"] .unified-voice-overlay::before,
-:root[data-skin="sdr-001"] .unified-voice-overlay::after {
+:root[data-skin="sdr-001"] .voice-container::before,
+:root[data-skin="sdr-001"] .voice-container::after {
   content: '';
   position: absolute;
   width: 18px;
@@ -423,12 +433,10 @@
   border: 1px solid var(--skin-accent-85);
   pointer-events: none;
 }
-:root[data-skin="sdr-001"] .voice-overlay::before,
-:root[data-skin="sdr-001"] .unified-voice-overlay::before {
+:root[data-skin="sdr-001"] .voice-container::before {
   top: -1px; left: -1px; border-right: 0; border-bottom: 0;
 }
-:root[data-skin="sdr-001"] .voice-overlay::after,
-:root[data-skin="sdr-001"] .unified-voice-overlay::after {
+:root[data-skin="sdr-001"] .voice-container::after {
   bottom: -1px; right: -1px; border-left: 0; border-top: 0;
 }
 
