@@ -939,6 +939,27 @@
             <label>Image URL (optional)</label>
             <input v-model="announcementForm.image_url" class="cyber-input" type="url" placeholder="https://..." />
           </div>
+          <div class="form-row two-col">
+            <div>
+              <label>Starts at (optional)</label>
+              <input
+                v-model="announcementForm.starts_at"
+                class="cyber-input"
+                type="datetime-local"
+              />
+              <p class="form-hint">Leave empty to publish immediately. Times are interpreted in your local timezone.</p>
+            </div>
+            <div>
+              <label>Ends at (optional)</label>
+              <input
+                v-model="announcementForm.ends_at"
+                class="cyber-input"
+                type="datetime-local"
+                :min="announcementForm.starts_at || undefined"
+              />
+              <p class="form-hint">Leave empty for no expiration. After this time the announcement is hidden from users automatically.</p>
+            </div>
+          </div>
           <div class="form-row checks">
             <label class="toggle-label">
               <input type="checkbox" v-model="announcementForm.is_pinned" />
@@ -2318,7 +2339,39 @@ const announcementForm = ref({
   is_pinned: false,
   show_popup: true,
   is_active: true,
+  // datetime-local strings ("YYYY-MM-DDTHH:mm" in the admin's local TZ).
+  // Empty string means "use the DB default" (now() for starts_at, NULL /
+  // never-expires for ends_at). Converted to ISO at save time via
+  // `localInputToIso` so PostgreSQL stores UTC.
+  starts_at: '',
+  ends_at: '',
 })
+
+// ---------------------------------------------------------------------------
+// datetime-local <-> ISO helpers
+// ---------------------------------------------------------------------------
+// HTML's `datetime-local` input gives us a naive local timestamp without a
+// timezone (e.g. "2026-05-26T21:00"). We convert in both directions so the
+// admin sees their own timezone but the DB stores UTC ISO strings.
+//
+// Both helpers are intentionally null-safe and treat an empty input as "no
+// value" rather than as the Unix epoch.
+function localInputToIso(local: string): string | undefined {
+  if (!local) return undefined
+  const d = new Date(local)
+  if (Number.isNaN(d.getTime())) return undefined
+  return d.toISOString()
+}
+
+function isoToLocalInput(iso: string | null | undefined): string {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  // Shift by the local TZ offset so `toISOString().slice(0, 16)` formats
+  // as the admin's wall-clock time rather than as UTC.
+  const tzOffsetMs = d.getTimezoneOffset() * 60_000
+  return new Date(d.getTime() - tzOffsetMs).toISOString().slice(0, 16)
+}
 
 // Featured communities
 const featuredServersList = ref<Array<{
@@ -2616,6 +2669,25 @@ const getAnnouncementIcon = (icon: string | undefined) => {
 
 const saveAnnouncement = async () => {
   if (!announcementForm.value.title || !announcementForm.value.content) return
+
+  // Asymmetric handling for the two timestamps:
+  //   * `starts_at`: an empty input means "use the DB default (now()) on
+  //     create" / "leave the existing value alone on update". Sending
+  //     undefined makes the Supabase client omit the key entirely.
+  //   * `ends_at`:   an empty input means "no expiration" — admins clearing
+  //     the field must be able to explicitly drop the value back to NULL,
+  //     otherwise an existing expiry would be impossible to remove. We
+  //     send `null` rather than undefined so the column is overwritten.
+  // Cross-field validation: end-before-start would silently produce an
+  // announcement that's already expired the moment it's published.
+  const startsIso = localInputToIso(announcementForm.value.starts_at)
+  const endsIsoOrNull = announcementForm.value.ends_at
+    ? localInputToIso(announcementForm.value.ends_at) ?? null
+    : null
+  if (startsIso && endsIsoOrNull && new Date(endsIsoOrNull) <= new Date(startsIso)) {
+    toast.error('"Ends at" must be after "Starts at"')
+    return
+  }
   try {
     if (editingAnnouncementId.value) {
       await announcementService.updateAnnouncement(editingAnnouncementId.value, {
@@ -2626,6 +2698,8 @@ const saveAnnouncement = async () => {
         is_pinned: announcementForm.value.is_pinned,
         show_popup: announcementForm.value.show_popup,
         is_active: announcementForm.value.is_active,
+        starts_at: startsIso,
+        ends_at: endsIsoOrNull,
       })
       toast.success('Announcement updated')
     } else {
@@ -2636,6 +2710,8 @@ const saveAnnouncement = async () => {
         image_url: announcementForm.value.image_url || undefined,
         is_pinned: announcementForm.value.is_pinned,
         show_popup: announcementForm.value.show_popup,
+        starts_at: startsIso,
+        ends_at: endsIsoOrNull,
       })
       toast.success('Announcement created')
     }
@@ -2658,6 +2734,8 @@ const cancelAnnouncementForm = () => {
     is_pinned: false,
     show_popup: true,
     is_active: true,
+    starts_at: '',
+    ends_at: '',
   }
 }
 
@@ -2671,6 +2749,11 @@ const editAnnouncement = (a: Announcement) => {
     is_pinned: a.is_pinned ?? false,
     show_popup: a.show_popup ?? true,
     is_active: (a as any).is_active ?? true,
+    // Convert the DB-stored UTC ISO back to the admin's local "YYYY-MM-DDTHH:mm"
+    // so the datetime-local inputs render the wall-clock time they originally
+    // entered, not UTC. Empty when unset.
+    starts_at: isoToLocalInput((a as any).starts_at),
+    ends_at: isoToLocalInput(a.ends_at),
   }
   showAnnouncementForm.value = true
 }
@@ -5769,6 +5852,24 @@ const handleAddInstance = () => {
 .announcement-form .form-row { margin-bottom: 12px; }
 .announcement-form .form-row label { display: block; font-size: 13px; margin-bottom: 4px; color: var(--text-secondary); }
 .announcement-form .form-row.checks { display: flex; gap: 16px; flex-wrap: wrap; }
+.announcement-form .form-row.two-col {
+  /* Two-up layout for the scheduling inputs so the form doesn't get
+     unnecessarily tall. Collapses to a stack on narrow viewports. */
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+@media (max-width: 640px) {
+  .announcement-form .form-row.two-col { grid-template-columns: 1fr; }
+}
+.announcement-form .form-row.two-col > div { display: flex; flex-direction: column; }
+.announcement-form .form-row.two-col label { margin-bottom: 4px; }
+.announcement-form .form-hint {
+  margin: 4px 0 0 0;
+  font-size: 11px;
+  color: var(--text-muted, #949ba4);
+  line-height: 1.35;
+}
 .announcement-form .form-actions { display: flex; gap: 8px; margin-top: 16px; }
 .announcements-list { padding: 0 24px 24px; }
 .announcement-item {

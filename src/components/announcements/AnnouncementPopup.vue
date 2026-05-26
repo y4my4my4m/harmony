@@ -135,7 +135,15 @@ const viewPastAnnouncements = () => {
 }
 
 onMounted(async () => {
-  announcements.value = await announcementService.getUnreadAnnouncements()
+  // `popupOnly: true` makes the RPC respect the admin's `show_popup` flag
+  // and skip any announcement that started before the current user signed
+  // up — so newly-registered users don't get a wall of historical modals
+  // they have no context for. The Settings archive still surfaces the
+  // full set (via the default no-arg call), so nothing is hidden, only
+  // de-prioritised at boot.
+  announcements.value = await announcementService.getUnreadAnnouncements({
+    popupOnly: true,
+  })
   // Prime user cache so DisplayName can resolve custom emojis for authors
   for (const a of announcements.value) {
     if (a.author_id) {
