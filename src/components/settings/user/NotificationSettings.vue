@@ -1493,6 +1493,7 @@ font-size: 12px;
   width: 40px;
   height: 40px;
   min-width: 40px;
+  min-height: 40px;
   border-radius: 50%;
   display: flex;
   align-items: center;
