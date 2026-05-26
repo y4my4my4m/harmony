@@ -80,6 +80,22 @@ export interface Category {
  * For ActivityPub/federation contexts, use Profile instead.
  * For auth context, use Supabase User from auth.getUser().
  */
+/**
+ * Profile field (ActivityPub PropertyValue attachment).
+ *
+ * Backed by the `profiles.profile_fields` jsonb column. Federated out via
+ * `toActivityPub.ts` as PropertyValue attachments on the actor; federated in
+ * via `fromActivityPub.ts` from the same. `value` is HTML (typically a
+ * sanitized `<a>` wrapper for URL-shaped values, plain text otherwise) — the
+ * display side runs it through DOMPurify before injecting via v-html.
+ */
+export interface ProfileField {
+  name: string;
+  value: string;
+  /** Mastodon-style link verification timestamp; we don't currently set this. */
+  verified_at?: string | null;
+}
+
 export interface User {
   id: string;
   username?: string;
@@ -102,6 +118,8 @@ export interface User {
   followers_count?: number;
   following_count?: number;
   posts_count?: number;
+  /** Custom name/value link rows shown in the profile view. */
+  profile_fields?: ProfileField[];
   // Server activity fields shown in profile cards.
   message_count?: number;
   voice_time?: number;
@@ -137,6 +155,8 @@ export interface Profile {
   followers_count?: number;
   following_count?: number;
   posts_count?: number;
+  /** Custom name/value link rows. See ProfileField. */
+  profile_fields?: ProfileField[];
   is_local?: boolean;
   created_at?: string;
   updated_at?: string;

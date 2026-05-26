@@ -14,7 +14,7 @@ import { supabase } from '@/supabase'
 import { userDataService } from './userDataService'
 import { authContextService } from './AuthContextService'
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings'
-import type { Profile } from '@/types'
+import type { Profile, ProfileField } from '@/types'
 import { debug } from '@/utils/debug'
 
 export interface ProfileData {
@@ -24,6 +24,13 @@ export interface ProfileData {
   banner_url?: string
   bio?: string
   color?: string
+  /**
+   * Custom profile fields (name/value link rows). Persisted to the
+   * `profiles.profile_fields` jsonb column; federated outbound as
+   * PropertyValue attachments on the actor (see toActivityPub.ts).
+   * Pass an empty array to clear all fields.
+   */
+  profile_fields?: ProfileField[]
 }
 
 export interface ProfileServiceError {

@@ -154,6 +154,69 @@
       </div>
     </div>
 
+    <!--
+      Profile fields editor (name/value link rows shown on the profile
+      page; e.g. "EMISSARY → https://emissary.dev"). Backed by the
+      `profiles.profile_fields` jsonb column and federated to remote
+      instances as ActivityPub PropertyValue attachments (see
+      toActivityPub.ts:191). Capped at PROFILE_FIELDS_MAX rows so the
+      profile UI stays readable and to match Mastodon/Misskey conventions.
+    -->
+    <div class="settings-section">
+      <h3 class="section-title">Profile fields</h3>
+      <p class="section-description">
+        Add up to {{ PROFILE_FIELDS_MAX }} short links or labels to your profile — websites, social handles, anything you want others to find you on. Visible on your profile page and federated to other ActivityPub instances.
+      </p>
+
+      <div class="profile-fields-editor" v-if="localProfileFields.length > 0">
+        <div
+          v-for="(field, index) in localProfileFields"
+          :key="index"
+          class="profile-field-row"
+        >
+          <div class="profile-field-inputs">
+            <input
+              v-model="field.name"
+              type="text"
+              class="form-input profile-field-name"
+              placeholder="Label (e.g. Website)"
+              :maxlength="PROFILE_FIELD_NAME_MAX"
+              @input="onProfileChange"
+            />
+            <input
+              v-model="field.value"
+              type="text"
+              class="form-input profile-field-value"
+              placeholder="Value (e.g. https://example.com)"
+              :maxlength="PROFILE_FIELD_VALUE_MAX"
+              @input="onProfileChange"
+            />
+          </div>
+          <button
+            type="button"
+            class="profile-field-remove"
+            :title="'Remove this field'"
+            :aria-label="'Remove field'"
+            @click="removeProfileField(index)"
+          >
+            <Icon name="x" :size="14" />
+          </button>
+        </div>
+      </div>
+      <p v-else class="profile-fields-empty">No fields yet. Add one below.</p>
+
+      <button
+        type="button"
+        class="profile-field-add"
+        :disabled="localProfileFields.length >= PROFILE_FIELDS_MAX"
+        @click="addProfileField"
+      >
+        <Icon name="plus" :size="14" />
+        Add field
+        <span class="profile-field-count">{{ localProfileFields.length }} / {{ PROFILE_FIELDS_MAX }}</span>
+      </button>
+    </div>
+
     <div class="settings-section">
       <h3 class="section-title">{{ $t('user.profile') }}</h3>
       
@@ -342,6 +405,71 @@ const localProfile = ref<Partial<User>>({})
 const showColorPicker = ref(false)
 const bannerKey = ref(0) // For forcing banner reload
 
+// ---------------------------------------------------------------------------
+// Profile fields editor state
+// ---------------------------------------------------------------------------
+// Editable mirror of `profile_fields`. We DECODE the stored HTML on load
+// (extracting the bare URL out of any `<a href="…">…</a>` wrapper) so the
+// user sees the plain value they originally typed, and ENCODE on save
+// (wrapping URL-shaped values in an <a> tag) so federated instances render
+// them as clickable links. This matches Mastodon's storage format and keeps
+// the editing UX as "type a URL, hit save" without exposing HTML to the user.
+const PROFILE_FIELDS_MAX = 4
+const PROFILE_FIELD_NAME_MAX = 255
+const PROFILE_FIELD_VALUE_MAX = 255
+
+interface EditableField { name: string; value: string }
+const localProfileFields = ref<EditableField[]>([])
+
+const URL_REGEX = /^https?:\/\/[^\s<>]+$/i
+const URL_HREF_REGEX = /^<a [^>]*\bhref=["']([^"']+)["'][^>]*>[\s\S]*<\/a>$/i
+
+function escapeHtmlAttribute(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+function encodeFieldValueForStorage(value: string): string {
+  const trimmed = value.trim()
+  if (!trimmed) return ''
+  if (URL_REGEX.test(trimmed)) {
+    const safe = escapeHtmlAttribute(trimmed)
+    // `rel="me"` is the Mastodon convention for link verification (rel=me
+    // back from the destination would mark the field as verified). We keep
+    // noopener/noreferrer/nofollow so the link follows the same security
+    // posture as the rest of our outbound profile links.
+    return `<a href="${safe}" target="_blank" rel="me nofollow noopener noreferrer">${safe}</a>`
+  }
+  // Plain text value: HTML-escape so the v-html-based display layer
+  // doesn't accidentally execute or render it as markup.
+  return escapeHtmlAttribute(trimmed)
+}
+
+function decodeFieldValueForEditing(value: string): string {
+  if (!value) return ''
+  // Strip a single outer <a> wrapper around a URL — the most common shape,
+  // and what we write back in encodeFieldValueForStorage. Anything more
+  // complex (mixed HTML / multiple anchors) falls through unchanged; the
+  // user can still edit it as raw text if they want.
+  const match = value.match(URL_HREF_REGEX)
+  if (match) return match[1]
+  return value
+}
+
+function addProfileField() {
+  if (localProfileFields.value.length >= PROFILE_FIELDS_MAX) return
+  localProfileFields.value.push({ name: '', value: '' })
+}
+
+function removeProfileField(index: number) {
+  localProfileFields.value.splice(index, 1)
+  onProfileChange()
+}
+
 // Refs
 const colorPickerRef = ref<InstanceType<typeof ColorPicker>>()
 const colorPreviewRef = ref<HTMLElement | null>(null)
@@ -366,14 +494,25 @@ const displayNameAutoSuggest = useAutoSuggest(
 // Computed
 const userEmail = computed(() => authStore.session?.user?.email)
 
+// Snapshot of the editable fields as they were when the form was last
+// synced from props. Used purely for the dirty check; we compare the
+// JSON-stringified form because the array shape is small and a deep-equal
+// dependency isn't worth pulling in for this one place.
+const initialProfileFieldsJson = ref('[]')
+
 const hasChanges = computed(() => {
   if (!props.profile) return false
-  
-  return (
+
+  const baseChanged =
     localProfile.value.display_name !== props.profile.display_name ||
     localProfile.value.bio !== props.profile.bio ||
     localProfile.value.color !== props.profile.color
-  )
+  if (baseChanged) return true
+
+  // Compare the editable mirror against the snapshot taken at sync time
+  // so adding an empty row OR clearing an existing field both register as
+  // dirty (and so re-saving without changes correctly disables the button).
+  return JSON.stringify(localProfileFields.value) !== initialProfileFieldsJson.value
   // Note: username is excluded from changes - it cannot be edited until federation is fixed
 })
 
@@ -442,6 +581,14 @@ const syncLocalProfile = () => {
       bio: props.profile.bio || '',
       color: props.profile.color || '#0EA5E9'
     }
+    // Decode any stored HTML wrappers (e.g. `<a href="...">URL</a>`) back
+    // to bare plain text so the user edits what they originally typed.
+    const incoming = ((props.profile as any).profile_fields ?? []) as Array<{ name: string; value: string }>
+    localProfileFields.value = incoming.map((f) => ({
+      name: f.name ?? '',
+      value: decodeFieldValueForEditing(f.value ?? ''),
+    }))
+    initialProfileFieldsJson.value = JSON.stringify(localProfileFields.value)
   }
 }
 
@@ -528,7 +675,33 @@ const saveChanges = () => {
     toast.error('Custom emojis in display names are disabled on this instance. Please remove emoji shortcodes (e.g. :name:) from your display name.')
     return
   }
-  emit('update-profile', localProfile.value)
+
+  // Build the persistable profile_fields array:
+  //   - drop completely-empty rows (both name and value blank) so the user
+  //     can leave an unused row visible without it being persisted;
+  //   - reject rows that have only one of (name, value) — partial rows
+  //     wouldn't render anything useful on the profile page;
+  //   - encode URL-shaped values into <a> wrappers so federated renderers
+  //     produce clickable links.
+  const cleanedFields: Array<{ name: string; value: string }> = []
+  for (const row of localProfileFields.value) {
+    const name = row.name.trim()
+    const value = row.value.trim()
+    if (!name && !value) continue
+    if (!name || !value) {
+      toast.error('Each profile field needs both a label and a value.')
+      return
+    }
+    cleanedFields.push({
+      name,
+      value: encodeFieldValueForStorage(value),
+    })
+  }
+
+  emit('update-profile', {
+    ...localProfile.value,
+    profile_fields: cleanedFields,
+  } as Partial<User>)
 }
 
 const resetChanges = () => {
@@ -1009,6 +1182,114 @@ onMounted(async () => {
 .supporter-section {
   border-top: 1px solid var(--border-color);
   padding-top: 24px;
+}
+
+/* ===== Profile fields editor =====
+   Renders one row per name/value pair with a remove button, plus an "Add
+   field" button beneath the list. Layout uses CSS grid for the inputs so
+   the label column stays narrow on desktop and stacks vertically on mobile. */
+.profile-fields-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.profile-field-row {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.profile-field-inputs {
+  flex: 1;
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) minmax(0, 2fr);
+  gap: 8px;
+}
+
+.profile-field-name {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.profile-field-value {
+  font-size: 13px;
+}
+
+.profile-field-remove {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  background: transparent;
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
+  border-radius: 6px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.profile-field-remove:hover {
+  background: rgba(237, 66, 69, 0.12);
+  color: #ed4245;
+  border-color: rgba(237, 66, 69, 0.35);
+}
+
+.profile-fields-empty {
+  margin: 0 0 12px;
+  padding: 12px;
+  font-size: 13px;
+  color: var(--text-muted, #949ba4);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px dashed var(--border-color, rgba(255, 255, 255, 0.08));
+  border-radius: 6px;
+  text-align: center;
+}
+
+.profile-field-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: transparent;
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.12));
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.profile-field-add:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: var(--harmony-primary, #0EA5E9);
+}
+
+.profile-field-add:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.profile-field-count {
+  margin-left: 4px;
+  font-size: 11px;
+  color: var(--text-muted, #949ba4);
+  font-weight: 400;
+}
+
+/* On narrow viewports stack label-on-top-of-value so the inputs aren't
+   crammed side-by-side. The remove button stays vertically centered to
+   the right of the stacked pair. */
+@media (max-width: 540px) {
+  .profile-field-inputs {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
 }
 
 .section-description {
