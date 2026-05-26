@@ -22,7 +22,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version-file: '.nvmrc'
           cache: npm
 
       - run: npm ci
@@ -42,7 +42,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version-file: '.nvmrc'
           cache: npm
           cache-dependency-path: federation-backend/package-lock.json
 
@@ -65,7 +65,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version-file: '.nvmrc'
           cache: npm
 
       - run: npm ci
@@ -84,7 +84,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version-file: '.nvmrc'
           cache: npm
 
       - run: npm ci
@@ -95,19 +95,27 @@ jobs:
           VITE_SUPABASE_ANON_KEY: placeholder-key
 
   # ----------------------------------------------------------------
-  # E2E tests (runs on PRs to main only to save resources)
+  # E2E tests (PRs to master only; needs a real Supabase backend)
+  #
+  # Configure repo secrets (Settings → Secrets → Actions):
+  #   TEST_SUPABASE_URL, TEST_SUPABASE_ANON_KEY, TEST_SUPABASE_SERVICE_ROLE_KEY
+  # Point them at a dedicated CI/staging instance (not production).
+  # Skipped when secrets are unset (e.g. forks or before setup).
   # ----------------------------------------------------------------
   e2e-tests:
     name: E2E Tests
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' && github.base_ref == 'master'
+    if: >-
+      github.event_name == 'pull_request'
+      && github.base_ref == 'master'
+      && secrets.TEST_SUPABASE_URL != ''
     needs: [build]
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version-file: '.nvmrc'
           cache: npm
 
       - run: npm ci
@@ -117,5 +125,8 @@ jobs:
       - run: npx playwright test --project=chromium
         env:
           CI: true
-          VITE_SUPABASE_URL: https://placeholder.supabase.co
-          VITE_SUPABASE_ANON_KEY: placeholder-key
+          TEST_SUPABASE_URL: ${{ secrets.TEST_SUPABASE_URL }}
+          TEST_SUPABASE_ANON_KEY: ${{ secrets.TEST_SUPABASE_ANON_KEY }}
+          TEST_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.TEST_SUPABASE_SERVICE_ROLE_KEY }}
+          VITE_SUPABASE_URL: ${{ secrets.TEST_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.TEST_SUPABASE_ANON_KEY }}
