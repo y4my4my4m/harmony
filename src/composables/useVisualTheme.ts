@@ -19,7 +19,7 @@ import { audioThemeService } from '@/services/AudioThemeService'
 import { BUILTIN_SKINS, type Skin } from './skins'
 import type { VisualThemeSettings } from './useVisualTheme.types'
 
-const AUDIO_THEME_WHEN_SKIN_CLEARED = 'harmony'
+const AUDIO_THEME_WHEN_SKIN_CLEARED = 'default'
 
 /** Look up a skin's `linkedAudioTheme` (declared on the skin manifest). */
 function getLinkedAudioTheme(skinId: string): string | undefined {

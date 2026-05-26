@@ -21,6 +21,7 @@
     "test:db": "vitest run --config vitest.db.config.ts",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:e2e": "npx playwright test",
+    "dev:audio-pack": "vite --config dev/audio-pack-studio/vite.config.ts",
     "test:federation": "cd federation-backend && npx vitest run",
     "test:all": "vitest run && vitest run --config vitest.db.config.ts && vitest run --config vitest.integration.config.ts && cd federation-backend && npx vitest run",
     "tauri": "tauri",

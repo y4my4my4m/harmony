@@ -4,11 +4,11 @@ import { setActivePinia, createPinia } from 'pinia'
 vi.mock('@/services/AudioThemeService', () => ({
   audioThemeService: {
     getThemes: vi.fn(() => [
-      { id: 'harmony', name: 'Harmony', isBuiltIn: true },
-      { id: 'retro', name: 'Retro', isBuiltIn: true },
+      { id: 'default', name: 'Default', isBuiltIn: true },
+      { id: 'futuristic', name: 'Futuristic', isBuiltIn: true },
       { id: 'custom1', name: 'My Theme', isBuiltIn: false },
     ]),
-    getCurrentTheme: vi.fn(() => ({ id: 'harmony', name: 'Harmony' })),
+    getCurrentTheme: vi.fn(() => ({ id: 'default', name: 'Default' })),
     getVolume: vi.fn(() => 0.7),
     setTheme: vi.fn().mockResolvedValue(true),
     setVolume: vi.fn(),
@@ -36,7 +36,7 @@ describe('useThemeStore', () => {
 
   it('initializes with default state', () => {
     const store = useThemeStore()
-    expect(store.currentAudioTheme).toBe('harmony')
+    expect(store.currentAudioTheme).toBe('default')
     expect(store.audioVolume).toBe(0.7)
     expect(store.isInitialized).toBe(false)
     expect(store.isLoading).toBe(false)
@@ -123,7 +123,7 @@ describe('useThemeStore', () => {
     it('exportPreferences returns current state', () => {
       const store = useThemeStore()
       const prefs = store.exportPreferences()
-      expect(prefs.audio.selectedTheme).toBe('harmony')
+      expect(prefs.audio.selectedTheme).toBe('default')
       expect(prefs.audio.volume).toBe(0.7)
     })
   })

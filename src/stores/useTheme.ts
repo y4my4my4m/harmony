@@ -37,7 +37,7 @@ export const useThemeStore = defineStore('theme', {
   state: (): ThemeState => ({
     // Audio themes
     audioThemes: [],
-    currentAudioTheme: 'harmony',
+    currentAudioTheme: 'default',
     audioVolume: 0.7,
     
     // State management
@@ -122,7 +122,7 @@ export const useThemeStore = defineStore('theme', {
         
         // Get current settings
         const currentTheme = audioThemeService.getCurrentTheme()
-        this.currentAudioTheme = currentTheme?.id || 'harmony'
+        this.currentAudioTheme = currentTheme?.id || 'default'
         this.audioVolume = audioThemeService.getVolume()
         
         // Setup event listeners
@@ -371,7 +371,7 @@ export const useThemeStore = defineStore('theme', {
      */
     async resetToDefaults(): Promise<void> {
       try {
-        await this.setAudioTheme('harmony')
+        await this.setAudioTheme('default')
         this.setAudioVolume(0.7)
         this.clearError()
         debug.log('✅ Theme settings reset to defaults')

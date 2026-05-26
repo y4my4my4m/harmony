@@ -7,6 +7,14 @@ import { savePackBlob, getPackBlob, getAllPackBlobs, deletePackBlobs } from '@/u
 const PACK_MAX_BYTES = 10 * 1024 * 1024 // 10MB
 const PACK_FORMAT = 'harmony-audio-pack'
 const PACK_VERSION = 1
+/** Removed built-in theme; migrate stored selections to default. */
+const LEGACY_AUDIO_THEME_HARMONY = 'harmony'
+const DEFAULT_AUDIO_THEME_ID = 'default'
+
+function normalizeAudioThemeId(themeId: string | undefined | null): string {
+  if (!themeId || themeId === LEGACY_AUDIO_THEME_HARMONY) return DEFAULT_AUDIO_THEME_ID
+  return themeId
+}
 
 /**
  * Professional Audio Theme Service
@@ -26,7 +34,7 @@ export class AudioThemeService {
   private audioCache = new Map<string, HTMLAudioElement>()
   private audioQueue = new Map<string, Promise<void>>()
   private settings: AudioThemeSettings = {
-    selectedTheme: 'harmony',
+    selectedTheme: DEFAULT_AUDIO_THEME_ID,
     volume: 0.7,
     lastUpdated: new Date().toISOString()
   }
@@ -188,51 +196,6 @@ export class AudioThemeService {
       }
     })
 
-    // Harmony theme - Modern and melodic
-    this.registerTheme({
-      id: 'harmony',
-      name: 'Harmony',
-      description: 'Modern and melodic sounds designed for creative focus',
-      author: 'Harmony Team',
-      version: '1.2.0',
-      isBuiltIn: true,
-      preview: '/assets/sounds/harmony/harmony-preview.webp',
-      sounds: {
-        // Notifications with unique harmony sounds
-        mention: '/assets/sounds/harmony/mention.mp3',
-        dm: '/assets/sounds/harmony/dm.mp3',
-        reaction: '/assets/sounds/harmony/reaction.mp3',
-        reply: '/assets/sounds/harmony/reply.mp3',
-        server_invite: '/assets/sounds/harmony/invite.mp3',
-        friend_request: '/assets/sounds/harmony/request.mp3',
-        server_update: '/assets/sounds/harmony/update.mp3',
-        emoji_added: '/assets/sounds/harmony/emoji.mp3',
-        voice_channel_activity: '/assets/sounds/harmony/voice_activity.mp3',
-        
-        // Voice actions with harmony signature sounds
-        voice_connect: '/assets/sounds/harmony/voice_connect.mp3',
-        voice_disconnect: '/assets/sounds/harmony/voice_disconnect.mp3',
-        call_incoming: '/assets/sounds/harmony/call_incoming.mp3',
-        call_outgoing: '/assets/sounds/harmony/call_incoming.mp3',
-        call_ended: '/assets/sounds/harmony/voice_disconnect.mp3',
-        mic_on: '/assets/sounds/harmony/mic_on.mp3',
-        mic_off: '/assets/sounds/harmony/mic_off.mp3',
-        deafen_on: '/assets/sounds/harmony/deafen_on.mp3',
-        deafen_off: '/assets/sounds/harmony/deafen_off.mp3',
-        camera_on: '/assets/sounds/harmony/camera_on.mp3',
-        camera_off: '/assets/sounds/harmony/camera_off.mp3',
-        screenshare_on: '/assets/sounds/harmony/screenshare_on.mp3',
-        screenshare_off: '/assets/sounds/harmony/screenshare_off.mp3',
-        
-        // UI sounds with melodic tones
-        ui_click: '/assets/sounds/harmony/click.mp3',
-        ui_hover: '/assets/sounds/harmony/hover.mp3',
-        ui_success: '/assets/sounds/harmony/success.mp3',
-        ui_error: '/assets/sounds/harmony/error.mp3',
-        ui_notification: '/assets/sounds/harmony/notification.mp3'
-      }
-    })
-
     // Futuristic theme - Subtle and refined
     this.registerTheme({
       id: 'futuristic',
@@ -266,7 +229,7 @@ export class AudioThemeService {
         
         // Minimal UI sounds
         ui_click: '/assets/sounds/default/click.mp3',
-        ui_success: '/assets/sounds/default/success.mp3',
+        ui_success: '/assets/sounds/futuristic/success.mp3',
         ui_error: '/assets/sounds/default/error.mp3'
         // Note: Many sounds will fallback to default theme
       }
@@ -467,7 +430,8 @@ export class AudioThemeService {
    * Get current active theme
    */
   public getCurrentTheme(): AudioTheme | null {
-    return this.themes.get(this.settings.selectedTheme) || null
+    const themeId = normalizeAudioThemeId(this.settings.selectedTheme)
+    return this.themes.get(themeId) || null
   }
 
   /**
@@ -485,6 +449,7 @@ export class AudioThemeService {
    * Set active theme with hot swapping
    */
   public async setTheme(themeId: string): Promise<boolean> {
+    themeId = normalizeAudioThemeId(themeId)
     const theme = this.themes.get(themeId)
     if (!theme) {
       debug.warn(`Theme '${themeId}' not found`)
@@ -786,9 +751,12 @@ export class AudioThemeService {
       if (stored) {
         const settings = JSON.parse(stored)
         this.settings = {
-          selectedTheme: settings.selectedTheme || 'harmony',
+          selectedTheme: normalizeAudioThemeId(settings.selectedTheme),
           volume: typeof settings.volume === 'number' ? settings.volume : 0.7,
           lastUpdated: settings.lastUpdated || new Date().toISOString()
+        }
+        if (settings.selectedTheme === LEGACY_AUDIO_THEME_HARMONY) {
+          this.saveSettings()
         }
       }
     } catch (error) {
