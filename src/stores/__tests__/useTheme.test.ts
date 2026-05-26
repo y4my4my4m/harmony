@@ -19,6 +19,11 @@ vi.mock('@/services/AudioThemeService', () => ({
     clearCache: vi.fn(),
     getCacheInfo: vi.fn(() => ({ size: 0 })),
     on: vi.fn(),
+    // Added when the store gained IndexedDB-backed custom packs - the
+    // store's `initialize()` awaits this before calling `getThemes()`,
+    // so it must exist or every initialize-dependent test throws
+    // "audioThemeService.ensureCustomPacksLoaded is not a function".
+    ensureCustomPacksLoaded: vi.fn().mockResolvedValue(undefined),
   },
 }))
 

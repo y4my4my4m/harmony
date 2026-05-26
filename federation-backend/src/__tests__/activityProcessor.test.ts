@@ -1,5 +1,33 @@
-import { describe, it, expect } from 'vitest'
-import { determineVisibility, extractMessageId } from '../activitypub/ActivityProcessor.js'
+import { describe, it, expect, vi } from 'vitest'
+
+// ActivityProcessor.ts imports `../config/index.js` at module-load time,
+// which calls `parseEnv()` and `process.exit(1)` if SUPABASE_URL et al
+// aren't set. CI doesn't supply those env vars (federation-backend has no
+// .env in the GitHub Actions sandbox), so importing ActivityProcessor
+// without a config mock kills the entire test process before any tests
+// register. Stub config to a benign shape - these tests only exercise
+// pure helpers (determineVisibility, extractMessageId) that don't touch
+// the config, but tree-shaking can't prove that from a side-effecting
+// top-level import.
+vi.mock('../config/index.js', () => ({
+  default: {
+    INSTANCE_DOMAIN: 'harmony.test',
+    PORT: 3001,
+    NODE_ENV: 'test',
+    SUPABASE_URL: 'http://localhost:54321',
+    SUPABASE_ANON_KEY: 'test-key',
+    SUPABASE_SERVICE_ROLE_KEY: 'test-service-key',
+    PUBLIC_SUPABASE_URL: 'http://localhost:54321',
+    USE_BULLMQ_QUEUE: false,
+    CORS_ORIGIN: 'http://localhost:5173',
+    REQUIRE_VALID_SIGNATURES: true,
+    ALLOW_FEDERATED_VOICE: true,
+    WEBRTC_MODE: 'hybrid',
+    FEDERATION_MODE: 'unified',
+  },
+}))
+
+const { determineVisibility, extractMessageId } = await import('../activitypub/ActivityProcessor.js')
 
 describe('determineVisibility (ActivityPub audience targeting)', () => {
   const PUBLIC = 'https://www.w3.org/ns/activitystreams#Public'

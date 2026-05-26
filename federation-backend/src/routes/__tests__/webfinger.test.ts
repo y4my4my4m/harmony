@@ -30,15 +30,23 @@ vi.mock('../../middleware/errorHandler.js', () => ({
 import { default as supertest } from 'supertest'
 
 function setupMockUser(username: string | null) {
+  // WebFingerService chains:
+  //   .from('profiles').select(...).ilike('username', X).eq('is_local', true).maybeSingle()
+  // The previous mock used `.eq().eq().single()` which (a) doesn't expose
+  // the `ilike` step the route calls and (b) terminates with `.single()`
+  // instead of `.maybeSingle()` - both produce `undefined.method()` at
+  // runtime, which the route's asyncHandler turns into a 500 response and
+  // every assertion of 200/404 fails. Mirror the actual chain shape.
+  const result = Promise.resolve(
+    username
+      ? { data: { username, domain: 'harmony.test' }, error: null }
+      : { data: null, error: null },
+  )
   mockSupabase.from.mockReturnValue({
     select: vi.fn().mockReturnValue({
-      eq: vi.fn().mockReturnValue({
+      ilike: vi.fn().mockReturnValue({
         eq: vi.fn().mockReturnValue({
-          single: vi.fn().mockResolvedValue(
-            username
-              ? { data: { username, domain: 'harmony.test' }, error: null }
-              : { data: null, error: { code: 'PGRST116' } }
-          ),
+          maybeSingle: vi.fn().mockReturnValue(result),
         }),
       }),
     }),

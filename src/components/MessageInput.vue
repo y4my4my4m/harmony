@@ -200,20 +200,24 @@ interface VoiceMessageData {
   mimeType: string
 }
 
-interface Emits {
-  (e: 'update:modelValue', value: string): void;
-  (e: 'sendMessage', content: string, files: FilePreviewData[], replyMessageId?: string): void;
-  (e: 'sendVoiceMessage', data: VoiceMessageData): void;
-  (e: 'toggleGiphy'): void;
-  (e: 'toggleEmojiList', isReaction: boolean, message?: Message): void;
-  (e: 'update:replyMessageId', value: string): void;
-  (e: 'files-attached', files: FilePreviewData[]): void;
-  (e: 'upload-status-changed', uploading: boolean): void;
-  (e: 'edit-last-message'): void;
-  (e: 'sendGif', gif: Gif): void;
-}
-
-const emit = defineEmits<Emits>();
+// Tuple-based defineEmits is the modern Vue 3 syntax and plays better
+// with vue-tsc's `(...args: any[]) => any` listener-prop type than the
+// older call-signature interface form, which produced contravariance
+// errors at every parent's `@sendMessage="..."` / `@toggleEmojiList="..."`
+// binding site (TS2322: "Target requires N element(s) but source may have
+// fewer"). See the matching note in MessageContextMenu.vue.
+const emit = defineEmits<{
+  'update:modelValue': [value: string]
+  sendMessage: [content: string, files: FilePreviewData[], replyMessageId?: string]
+  sendVoiceMessage: [data: VoiceMessageData]
+  toggleGiphy: []
+  toggleEmojiList: [isReaction: boolean, message?: Message, triggerElement?: HTMLElement]
+  'update:replyMessageId': [value: string]
+  'files-attached': [files: FilePreviewData[]]
+  'upload-status-changed': [uploading: boolean]
+  'edit-last-message': []
+  sendGif: [gif: Gif]
+}>();
 
 const authStore = useAuthStore();
 const { triggerMessage } = useHapticSettings();

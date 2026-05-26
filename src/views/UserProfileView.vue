@@ -208,16 +208,20 @@
           <div v-else-if="activeTab === 'posts'" class="posts-tab">
             <!-- Pinned Posts -->
             <div v-if="pinnedPosts.length > 0" class="pinned-posts-section">
+              <!-- MonyPost emits `delete`/`edit` as bare ids and doesn't
+                   emit favorite/reblog/bookmark at all (handled internally).
+                   Our handlers want the full post (so they can update the
+                   local list), so adapt via the loop variable here. -->
               <MonyPost
                 v-for="post in pinnedPosts"
                 :key="post.id"
                 :post="post"
                 show-pinned-header
                 @reply="replyToPost"
-                @favorite="handleFavorite"
-                @reblog="handleReblog"
-                @bookmark="handleBookmark"
-                @delete="handleDelete"
+                @favorite="handleFavorite(post)"
+                @reblog="handleReblog(post)"
+                @bookmark="handleBookmark(post)"
+                @delete="handleDelete(post)"
                 @user-click="showUserProfile"
                 @hashtag-click="navigateToHashtag"
                 @show-conversation="showConversation"
@@ -1082,34 +1086,38 @@ const replyToPost = (post: TimelinePost) => {
   router.push('/social/home');
 };
 
-const handleFavorite = async (postId: string) => {
+// Handlers receive the full TimelinePost (PostsContainer forwards
+// `posts[index]` for these chains, since MonyPost handles favorite/reblog/
+// bookmark internally and only fires these as a pass-through hook for
+// consumers that need the post object).
+const handleFavorite = async (post: TimelinePost) => {
   try {
-    await activityPubStore.toggleFavorite(postId);
+    await activityPubStore.toggleFavorite(post.id);
   } catch (error) {
     debug.error('Failed to toggle favorite:', error);
   }
 };
 
-const handleReblog = async (postId: string) => {
+const handleReblog = async (post: TimelinePost) => {
   try {
-    await activityPubStore.toggleReblog(postId);
+    await activityPubStore.toggleReblog(post.id);
   } catch (error) {
     debug.error('Failed to toggle reblog:', error);
   }
 };
 
-const handleBookmark = async (postId: string) => {
+const handleBookmark = async (post: TimelinePost) => {
   try {
-    await activityPubStore.toggleBookmark(postId);
+    await activityPubStore.toggleBookmark(post.id);
   } catch (error) {
     debug.error('Failed to toggle bookmark:', error);
   }
 };
 
-const handleDelete = async (postId: string) => {
+const handleDelete = async (post: TimelinePost) => {
   try {
-    await activityPubStore.deletePost(postId);
-    userPosts.value = userPosts.value.filter(p => p.id !== postId);
+    await activityPubStore.deletePost(post.id);
+    userPosts.value = userPosts.value.filter(p => p.id !== post.id);
   } catch (error) {
     debug.error('Failed to delete post:', error);
   }

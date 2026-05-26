@@ -124,6 +124,20 @@ beforeEach(() => {
     if (table === 'user_servers') return userServerBuilder()
     throw new Error(`Unhandled table: ${table}`)
   })
+
+  // After the 20260520 RLS hardening, `acceptInvite` reads invites through
+  // the `lookup_invite_by_code` SECURITY DEFINER RPC (direct SELECT on
+  // `invites` is blocked for non-owners). The test must mock that RPC the
+  // same way it mocks `from('invites')`, or the lookup returns `undefined`
+  // and every test path collapses into the "Invalid invite code" branch.
+  ;(supabase.rpc as any).mockImplementation((fn: string, params: { p_code?: string } = {}) => {
+    if (fn === 'lookup_invite_by_code') {
+      const row = invites.find(i => i.code === params.p_code) || null
+      // The DB function returns a SETOF row (array); we mirror that shape.
+      return Promise.resolve({ data: row ? [row] : [], error: null })
+    }
+    throw new Error(`Unhandled rpc: ${fn}`)
+  })
 })
 
 describe('inviteService.generateInviteUrl', () => {
