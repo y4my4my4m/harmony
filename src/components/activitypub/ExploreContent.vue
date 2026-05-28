@@ -717,6 +717,17 @@ watch(() => props.currentView, async (newTab) => {
   }
 }, { immediate: true });
 
+// Always load the instance list so the "Filter by instance" dropdown is
+// populated regardless of which trending tab the user is on. The
+// instances tab itself still calls `loadInstances()` directly so this is
+// a no-op extra fetch when the user lands on that tab — small payload,
+// no UX impact.
+watch(() => props.currentView, (newTab) => {
+  if (newTab !== 'instances' && knownInstances.value.length === 0) {
+    void loadInstances();
+  }
+}, { immediate: true });
+
 // Watch for filter changes
 watch([selectedContentType, selectedInstance, selectedTimeRange], async () => {
   await refreshContent();

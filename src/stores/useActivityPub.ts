@@ -975,27 +975,43 @@ export const useActivityPubStore = defineStore('activitypub', {
      */
     handleRealtimePostUpdate(post: any) {
       debug.log('📝 Post updated:', post);
-      
+
       // Check for soft delete (is_deleted = true) - remove from feeds
       if (post.is_deleted) {
         debug.log('🗑️ Post soft-deleted, removing from feeds:', post.id);
         this.removePostFromAllFeeds(post.id);
         return;
       }
-      
-      // Ignore updates that are likely just count changes from interaction triggers
-      // These updates have updated_at very close to now and no content changes
-      const now = new Date();
-      const updatedAt = new Date(post.updated_at);
-      const timeDiff = now.getTime() - updatedAt.getTime();
-      
-      // If updated less than 3 seconds ago, likely a trigger update - ignore it
-      if (timeDiff < 3000) {
-        debug.log('🚫 Ignoring likely count-only post update');
-        return;
+
+      // Visibility downgrade: a post that was public but is now private
+      // (unlisted / followers / direct) must disappear from the public and
+      // local timelines that viewers are currently subscribed to. We keep
+      // it on the home feed because the author's followers may still be
+      // entitled to see it.
+      if (post.visibility && post.visibility !== 'public') {
+        const beforePublic = this.publicFeed.posts.length;
+        const beforeLocal = this.localFeed.posts.length;
+        this.publicFeed.posts = this.publicFeed.posts.filter(p => p.id !== post.id);
+        this.localFeed.posts = this.localFeed.posts.filter(p => p.id !== post.id);
+        if (beforePublic !== this.publicFeed.posts.length || beforeLocal !== this.localFeed.posts.length) {
+          debug.log(`👁️ Post ${post.id} visibility -> ${post.visibility}; pruned from public/local`);
+        }
       }
-      
-      // Post is already in timeline format
+
+      // Ignore updates that are likely just count changes from interaction
+      // triggers. Skip when `updated_at` is missing (broadcast payload from
+      // `broadcast_post_event` doesn't include it — those are real edits).
+      if (post.updated_at) {
+        const now = new Date();
+        const updatedAt = new Date(post.updated_at);
+        const timeDiff = now.getTime() - updatedAt.getTime();
+
+        if (timeDiff < 3000) {
+          debug.log('🚫 Ignoring likely count-only post update');
+          return;
+        }
+      }
+
       this.updatePostInAllFeeds(post);
     },
 

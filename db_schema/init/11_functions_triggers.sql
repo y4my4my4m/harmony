@@ -428,6 +428,52 @@ BEGIN
 END;
 $$;
 
+-- Maintain denormalized followers_count / following_count on profiles.
+-- Only follows with status = 'accepted' contribute (Mastodon / Pleroma /
+-- GoToSocial all do this).
+CREATE OR REPLACE FUNCTION public.update_follow_counts()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_was_accepted boolean := false;
+  v_is_accepted  boolean := false;
+BEGIN
+  IF TG_OP = 'INSERT' THEN
+    v_is_accepted  := (NEW.status = 'accepted');
+  ELSIF TG_OP = 'UPDATE' THEN
+    v_was_accepted := (OLD.status = 'accepted');
+    v_is_accepted  := (NEW.status = 'accepted');
+  ELSE
+    v_was_accepted := (OLD.status = 'accepted');
+  END IF;
+
+  IF v_was_accepted = v_is_accepted THEN
+    RETURN COALESCE(NEW, OLD);
+  END IF;
+
+  IF v_is_accepted THEN
+    UPDATE public.profiles
+       SET following_count = COALESCE(following_count, 0) + 1
+     WHERE id = NEW.follower_id;
+    UPDATE public.profiles
+       SET followers_count = COALESCE(followers_count, 0) + 1
+     WHERE id = NEW.following_id;
+  ELSE
+    UPDATE public.profiles
+       SET following_count = GREATEST(COALESCE(following_count, 0) - 1, 0)
+     WHERE id = COALESCE(NEW.follower_id, OLD.follower_id);
+    UPDATE public.profiles
+       SET followers_count = GREATEST(COALESCE(followers_count, 0) - 1, 0)
+     WHERE id = COALESCE(NEW.following_id, OLD.following_id);
+  END IF;
+
+  RETURN COALESCE(NEW, OLD);
+END;
+$$;
+
 -- ---------------------------------------------------------------------------
 -- POST TRIGGERS
 -- ---------------------------------------------------------------------------
@@ -3653,9 +3699,12 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
-  v_event   text;
-  v_row     record;
-  v_payload jsonb;
+  v_event          text;
+  v_row            record;
+  v_payload        jsonb;
+  v_publish_public boolean := false;
+  v_publish_local  boolean := false;
+  v_tag            text;
 BEGIN
   IF TG_OP = 'DELETE' THEN
     v_event := 'post:deleted';
@@ -3685,13 +3734,43 @@ BEGIN
     true
   );
 
-  IF TG_OP = 'INSERT'
-     AND COALESCE(v_row.is_deleted, false) = false
-     AND v_row.visibility = 'public' THEN
+  PERFORM realtime.send(
+    v_payload,
+    'feed_event',
+    'feed:user:' || v_row.author_id::text,
+    true
+  );
+
+  IF TG_OP = 'INSERT' THEN
+    v_publish_public := (NEW.visibility = 'public' AND COALESCE(NEW.is_deleted, false) = false);
+    v_publish_local  := v_publish_public AND COALESCE(NEW.is_local, false);
+  ELSIF TG_OP = 'UPDATE' THEN
+    v_publish_public := (NEW.visibility = 'public' OR OLD.visibility = 'public');
+    v_publish_local  := v_publish_public
+                       AND (COALESCE(NEW.is_local, false) OR COALESCE(OLD.is_local, false));
+  ELSIF TG_OP = 'DELETE' THEN
+    v_publish_public := (OLD.visibility = 'public');
+    v_publish_local  := v_publish_public AND COALESCE(OLD.is_local, false);
+  END IF;
+
+  IF v_publish_public THEN
     PERFORM realtime.send(v_payload, 'feed_event', 'feed:public', true);
-    IF COALESCE(v_row.is_local, false) THEN
-      PERFORM realtime.send(v_payload, 'feed_event', 'feed:local', true);
-    END IF;
+  END IF;
+  IF v_publish_local THEN
+    PERFORM realtime.send(v_payload, 'feed_event', 'feed:local', true);
+  END IF;
+
+  IF TG_OP = 'INSERT'
+     AND NEW.visibility = 'public'
+     AND COALESCE(NEW.is_deleted, false) = false THEN
+    FOR v_tag IN
+      SELECT h.normalized_tag
+      FROM public.post_hashtags ph
+      JOIN public.hashtags h ON h.id = ph.hashtag_id
+      WHERE ph.post_id = NEW.id
+    LOOP
+      PERFORM realtime.send(v_payload, 'feed_event', 'feed:hashtag:' || v_tag, true);
+    END LOOP;
   END IF;
 
   RETURN COALESCE(NEW, OLD);

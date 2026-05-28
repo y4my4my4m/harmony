@@ -13,6 +13,36 @@ import { discoveryLimiter } from '../middleware/rateLimit.js';
 
 const router = Router();
 
+// ============================================================================
+// Remote-reaction fetch coalescing
+// ----------------------------------------------------------------------------
+// `fetchRemotePostReactions` does up to TWO outbound HTTP calls per post
+// (post object → likes collection). To avoid hammering remote instances when
+// many users browse the same profile or a single user refreshes rapidly:
+//
+//   * TTL cache: if `posts.metadata.remote_reactions_fetched_at` is fresher
+//     than REACTIONS_TTL_MS, callers skip the fetch entirely and read the
+//     already-aggregated `remote_reactions` straight from the DB row they
+//     already SELECTed.
+//   * In-flight dedup: concurrent fetches for the same `post_ap_id` share
+//     a single Promise, so two users opening the same profile at once
+//     produce one outbound burst, not two.
+//
+// 30s is chosen so that new likes arriving via federation push (/inbox →
+// post_interactions trigger → broadcast) keep showing in real time on the
+// hot path; the cache only governs the "open a stale profile" path. Tune
+// in one place if needed.
+// ============================================================================
+const REACTIONS_TTL_MS = 30_000;
+const inFlightReactionFetches = new Map<string, Promise<any[]>>();
+
+function isReactionsCacheFresh(metadata: any): boolean {
+  const fetchedAt = metadata?.remote_reactions_fetched_at;
+  if (!fetchedAt) return false;
+  const t = Date.parse(fetchedAt);
+  return Number.isFinite(t) && Date.now() - t < REACTIONS_TTL_MS;
+}
+
 /**
  * Lookup remote user via WebFinger
  * POST /lookup-user (proxied via /api/federation/lookup-user)
@@ -566,6 +596,23 @@ router.post(
     const supabase = getSupabaseClient();
     const results: Record<string, any> = {};
 
+    // Single round-trip metadata lookup for every entry that gave us a
+    // post_id. Used for the TTL cache hit-check below AND for the counts
+    // we return — avoids the original per-post SELECT roundtrip.
+    const idsToLookup = batch
+      .map((e: any) => e.post_id)
+      .filter((id: any): id is string => typeof id === 'string' && id.length > 0);
+    const postRowsById = new Map<string, any>();
+    if (idsToLookup.length > 0) {
+      const { data } = await supabase
+        .from('posts')
+        .select('id, metadata, favorites_count, replies_count, reblogs_count')
+        .in('id', idsToLookup);
+      for (const row of data || []) {
+        postRowsById.set(row.id, row);
+      }
+    }
+
     await Promise.allSettled(
       batch.map(async (entry: { post_ap_id: string; post_id?: string }) => {
         if (!entry.post_ap_id) return;
@@ -578,6 +625,24 @@ router.post(
           }
         } catch { /* invalid URL, proceed */ }
 
+        const cachedRow = entry.post_id ? postRowsById.get(entry.post_id) : null;
+
+        // TTL cache hit — skip all outbound HTTP. The aggregated
+        // `remote_reactions` is already on the row we just SELECTed.
+        if (cachedRow && isReactionsCacheFresh(cachedRow.metadata)) {
+          results[entry.post_ap_id] = {
+            success: true,
+            reactions: [],
+            count: 0,
+            remote_reactions: cachedRow.metadata?.remote_reactions || null,
+            favorites_count: cachedRow.favorites_count || 0,
+            replies_count: cachedRow.replies_count || 0,
+            reblogs_count: cachedRow.reblogs_count || 0,
+            cached: true,
+          };
+          return;
+        }
+
         try {
           const reactions = await fetchRemotePostReactions(entry.post_ap_id, entry.post_id, supabase);
 
@@ -585,6 +650,10 @@ router.post(
           let updatedPost: any = null;
 
           if (entry.post_id) {
+            // Re-read AFTER the fetch — metadata may have been updated by
+            // `fetchRemotePostReactions` itself (Misskey path writes
+            // remote_reactions in-line; standard AP path writes only the
+            // raw `reactions` and lets us aggregate below).
             const { data } = await supabase
               .from('posts')
               .select('metadata, favorites_count, replies_count, reblogs_count')
@@ -675,11 +744,35 @@ router.post(
       }
     } catch { /* invalid URL, proceed */ }
 
-    logger.info(`📬 Fetching reactions for remote post: ${post_ap_id}`);
-
     try {
+      // TTL cache: skip the outbound HTTP if the row was refreshed within
+      // REACTIONS_TTL_MS. Read first; if cached, return without touching
+      // the network (the aggregated `remote_reactions` is right here).
+      if (post_id) {
+        const { data: cached } = await supabase
+          .from('posts')
+          .select('metadata, favorites_count, replies_count, reblogs_count')
+          .eq('id', post_id)
+          .maybeSingle();
+        if (cached && isReactionsCacheFresh(cached.metadata)) {
+          logger.debug(`📬 fetch-reactions cache HIT for ${post_ap_id}`);
+          return res.json({
+            success: true,
+            reactions: [],
+            count: 0,
+            remote_reactions: cached.metadata?.remote_reactions || null,
+            favorites_count: cached.favorites_count || 0,
+            replies_count: cached.replies_count || 0,
+            reblogs_count: cached.reblogs_count || 0,
+            cached: true,
+          });
+        }
+      }
+
+      logger.info(`📬 Fetching reactions for remote post: ${post_ap_id}`);
+
       const reactions = await fetchRemotePostReactions(post_ap_id, post_id, supabase);
-      
+
       // Fetch the updated post with metadata and counts to return to the frontend
       let remote_reactions: Record<string, { count: number; url?: string; reactors?: any[] }> | null = null;
       let favorites_count = 0;
@@ -1121,9 +1214,40 @@ async function fetchMisskeyReactions(
 }
 
 /**
- * Fetch reactions from a remote post's likes collection
+ * Fetch reactions from a remote post's likes collection.
+ *
+ * Concurrent calls for the same `postApId` are coalesced via
+ * `inFlightReactionFetches` so a profile viewed by 5 users in the same
+ * second produces ONE outbound burst, not five. The TTL cache itself
+ * lives in the route handlers (they already SELECT the post row, so
+ * checking the cache adds zero DB round-trips there).
  */
 async function fetchRemotePostReactions(
+  postApId: string,
+  postId: string | undefined,
+  supabase: any
+): Promise<any[]> {
+  // Skip local posts up-front so dedup map never traps a same-host key.
+  try {
+    if (new URL(postApId).hostname === config.INSTANCE_DOMAIN) return [];
+  } catch { /* invalid URL — fall through, _impl handles the failure */ }
+
+  const existing = inFlightReactionFetches.get(postApId);
+  if (existing) {
+    logger.debug(`📬 In-flight dedup HIT for ${postApId}`);
+    return existing;
+  }
+
+  const promise = _fetchRemotePostReactionsImpl(postApId, postId, supabase);
+  inFlightReactionFetches.set(postApId, promise);
+  try {
+    return await promise;
+  } finally {
+    inFlightReactionFetches.delete(postApId);
+  }
+}
+
+async function _fetchRemotePostReactionsImpl(
   postApId: string,
   postId: string | undefined,
   supabase: any
@@ -1152,84 +1276,106 @@ async function fetchRemotePostReactions(
       }
     }
 
-    // Standard ActivityPub approach
-    // First, fetch the post object to get the likes collection URL.
-    // BUGS.md H15: postApId is attacker-influenced (from inbox / remote feed).
-    const postResponse = await safeFetch(postApId, {
-      headers: {
-        'Accept': 'application/activity+json, application/ld+json',
-        'User-Agent': `Harmony/${config.INSTANCE_DOMAIN}`
-      },
+    // Standard ActivityPub approach.
+    //
+    // Mastodon, Pleroma, Akkoma, GoToSocial, Friendica, Pixelfed and Harmony
+    // all serialize a Note's likes collection at `${ap_id}/likes`. We try that
+    // URL first to skip the post-object roundtrip. Only if it 404s (or some
+    // other non-OK response) do we fall back to the legacy "fetch the post,
+    // read its `likes` property" path, which protects compatibility with
+    // non-conventional AP implementations.
+    //
+    // BUGS.md H15: postApId is attacker-influenced (from inbox / remote feed),
+    // so every outbound call is wrapped by safeFetch which enforces SSRF
+    // protection.
+    const apHeaders = {
+      'Accept': 'application/activity+json, application/ld+json',
+      'User-Agent': `Harmony/${config.INSTANCE_DOMAIN}`,
+    } as const;
+
+    let likesCollection: any = null;
+    let likesCollectionUrl = `${postApId}/likes`;
+
+    const shortcutResponse = await safeFetch(likesCollectionUrl, {
+      headers: apHeaders,
       timeoutMs: 10000,
     });
 
-    if (!postResponse.ok) {
-      logger.warn(`Failed to fetch post: ${postResponse.status}`);
-      return [];
-    }
+    if (shortcutResponse.ok) {
+      likesCollection = await shortcutResponse.json();
+    } else {
+      logger.debug(
+        `📬 /likes shortcut returned ${shortcutResponse.status} for ${postApId}; discovering URL via post object`
+      );
 
-    const post = await postResponse.json();
-    
-    // Log the post structure for debugging
-    logger.info(`📬 Post structure keys: ${Object.keys(post).join(', ')}`);
-    
-    // Extract counts from the post object itself if available
-    // Mastodon style: favouritesCount, repliesCount, sharesCount
-    // Misskey style: _misskey_reaction, _misskey_votes
-    const counts = {
-      likes: post.likes?.totalItems || post.favouritesCount || post._misskey_likes || 0,
-      replies: post.replies?.totalItems || post.repliesCount || 0,
-      shares: post.shares?.totalItems || post.sharesCount || 0,
-    };
-    
-    // Update the local post with these counts if we have a post_id
-    if (postId && (counts.likes > 0 || counts.replies > 0 || counts.shares > 0)) {
-      logger.info(`📬 Updating post counts: likes=${counts.likes}, replies=${counts.replies}, shares=${counts.shares}`);
-      await supabase
-        .from('posts')
-        .update({
-          favorites_count: counts.likes,
-          replies_count: counts.replies,
-          reblogs_count: counts.shares,
-        })
-        .eq('id', postId);
-    }
-    
-    // Get likes collection URL - check multiple possible locations
-    const likesUrl = post.likes || post.reactions || post._misskey_likes;
-    if (!likesUrl) {
-      logger.info(`📬 No likes collection found for post (available: ${Object.keys(post).filter(k => k.includes('like') || k.includes('reaction')).join(', ') || 'none'})`);
-      // Return with counts even if no likes collection
-      return [];
-    }
+      const postResponse = await safeFetch(postApId, {
+        headers: apHeaders,
+        timeoutMs: 10000,
+      });
 
-    // Fetch the likes collection
-    const likesCollectionUrl = typeof likesUrl === 'string' ? likesUrl : likesUrl.id;
-
-    // Skip if the likes URL points back to our own instance
-    try {
-      if (new URL(likesCollectionUrl).hostname === config.INSTANCE_DOMAIN) {
-        logger.info(`📬 Skipping self-fetch for likes: ${likesCollectionUrl}`);
+      if (!postResponse.ok) {
+        logger.warn(`Failed to fetch post: ${postResponse.status}`);
         return [];
       }
-    } catch { /* invalid URL, proceed */ }
 
-    logger.info(`📬 Fetching likes from: ${likesCollectionUrl}`);
+      const post = await postResponse.json();
 
-    const likesResponse = await safeFetch(likesCollectionUrl, {
-      headers: {
-        'Accept': 'application/activity+json, application/ld+json',
-        'User-Agent': `Harmony/${config.INSTANCE_DOMAIN}`
-      },
-      timeoutMs: 10000,
-    });
+      // Self-healing counts on the fallback path: when we already paid for
+      // the post object, salvage favourites/replies/shares counts from it.
+      // Hot-path callers (shortcut succeeded) rely on counts staying current
+      // via inbound /inbox events instead.
+      const counts = {
+        likes: post.likes?.totalItems || post.favouritesCount || post._misskey_likes || 0,
+        replies: post.replies?.totalItems || post.repliesCount || 0,
+        shares: post.shares?.totalItems || post.sharesCount || 0,
+      };
+      if (postId && (counts.likes > 0 || counts.replies > 0 || counts.shares > 0)) {
+        await supabase
+          .from('posts')
+          .update({
+            favorites_count: counts.likes,
+            replies_count: counts.replies,
+            reblogs_count: counts.shares,
+          })
+          .eq('id', postId);
+      }
 
-    if (!likesResponse.ok) {
-      logger.warn(`Failed to fetch likes collection: ${likesResponse.status}`);
-      return [];
+      const likesUrl = post.likes || post.reactions || post._misskey_likes;
+      if (!likesUrl) {
+        logger.info(
+          `📬 No likes collection found for post (available: ${Object.keys(post).filter(k => k.includes('like') || k.includes('reaction')).join(', ') || 'none'})`
+        );
+        return [];
+      }
+      likesCollectionUrl = typeof likesUrl === 'string' ? likesUrl : likesUrl.id;
+
+      try {
+        if (new URL(likesCollectionUrl).hostname === config.INSTANCE_DOMAIN) {
+          logger.info(`📬 Skipping self-fetch for likes: ${likesCollectionUrl}`);
+          return [];
+        }
+      } catch { /* invalid URL, proceed */ }
+
+      const likesResponse = await safeFetch(likesCollectionUrl, {
+        headers: apHeaders,
+        timeoutMs: 10000,
+      });
+      if (!likesResponse.ok) {
+        logger.warn(`Failed to fetch likes collection: ${likesResponse.status}`);
+        return [];
+      }
+      likesCollection = await likesResponse.json();
     }
 
-    const likesCollection = await likesResponse.json();
+    // Self-healing of favorites_count from the likes collection itself —
+    // works on both the shortcut and fallback paths and is a single column
+    // write, much cheaper than the full counts update above.
+    if (postId && typeof likesCollection?.totalItems === 'number') {
+      await supabase
+        .from('posts')
+        .update({ favorites_count: likesCollection.totalItems })
+        .eq('id', postId);
+    }
     
     // Extract likes/reactions
     let items: any[] = [];

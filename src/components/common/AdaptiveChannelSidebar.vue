@@ -265,7 +265,10 @@ const navigationItems = computed(() => [
   { id: 'profile', label: t('activitypub.profile'), path: getUserProfilePath(), icon: 'user' },
   { id: 'mentions', label: t('activitypub.mentions'), path: '/social/mentions', icon: 'at-sign', badge: notificationStore.unreadMentions },
   { id: 'bookmarks', label: t('activitypub.bookmarks'), path: '/social/bookmarks', icon: 'bookmark' },
-  { id: 'lists', label: t('activitypub.lists'), path: '/social/lists', icon: 'list' },
+  // Lists nav entry hidden until the feature has list-member management
+  // and a working list timeline. The route + view stay in place so the
+  // path still resolves for anyone with a direct link or bookmark.
+  // { id: 'lists', label: t('activitypub.lists'), path: '/social/lists', icon: 'list' },
   { id: 'settings', label: t('navigation.settings'), path: '/settings', icon: 'settings' }
 ]);
 

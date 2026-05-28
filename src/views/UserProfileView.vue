@@ -318,6 +318,7 @@ import { useAuthStore } from '@/stores/auth';
 import { useProfileStore } from '@/stores/useProfile';
 import { useLayoutState } from '@/composables/useLayoutState'
 import { useUserData } from '@/composables/useUserData'
+import { useFeedRealtime, type FeedKind } from '@/composables/useFeedRealtime'
 
 const { t } = useI18n(); 
 
@@ -441,6 +442,42 @@ const hasMorePostsRef = ref(false);
 const remoteOutboxUrl = ref<string | null>(null); // For remote user pagination
 const oldestRemotePostId = ref<string | null>(null); // Track oldest post for pagination
 const isLoadingMoreRemote = ref(false);
+
+// Realtime — anyone viewing this profile (including the author on another
+// tab) gets prepends/edits/deletes via `feed:user:{profile_id}`. The DB
+// trigger publishes every post event for this author there; the kind ref
+// changes when the route param changes so navigation cleanly re-subscribes.
+const feedKind = computed<FeedKind>(
+  () => (user.value?.id ? `user:${user.value.id}` as const : 'home')
+)
+useFeedRealtime(feedKind, {
+  onCreate: async (event) => {
+    if (event.author_id !== user.value?.id) return
+    if (userPosts.value.some(p => p.id === event.id)) return
+    const fullPost = await activityPubService.loadPostWithAuthor(event.id)
+    if (!fullPost) return
+    userPosts.value = [fullPost as TimelinePost, ...userPosts.value]
+    if (user.value) user.value.posts_count = (user.value.posts_count ?? 0) + 1
+  },
+  onUpdate: (event) => {
+    if (event.author_id !== user.value?.id) return
+    // We don't get content in the broadcast payload, just metadata —
+    // visibility downgrades remove the post; content edits are reflected
+    // via the per-post component refetch already in place. Skip noisy
+    // count-update echoes here too.
+    if (event.visibility === 'direct' || event.visibility === 'private') {
+      userPosts.value = userPosts.value.filter(p => p.id !== event.id)
+    }
+  },
+  onDelete: (event) => {
+    if (event.author_id !== user.value?.id) return
+    const before = userPosts.value.length
+    userPosts.value = userPosts.value.filter(p => p.id !== event.id)
+    if (user.value && before !== userPosts.value.length) {
+      user.value.posts_count = Math.max(0, (user.value.posts_count ?? 1) - 1)
+    }
+  },
+})
 
 // Social connections
 const followingUsers = ref<FederatedUser[]>([]);

@@ -276,6 +276,15 @@ export const useAuthStore = defineStore('auth', {
           debug.error('ActivityPub initialize on session restore failed:', err);
         });
 
+        // Funding bar — load once at session restore and start the slow
+        // background refresh. Layouts now read this store instead of
+        // refetching per-view.
+        import('@/stores/useFunding').then(({ useFundingStore }) => {
+          const fundingStore = useFundingStore();
+          void fundingStore.load();
+          fundingStore.startAutoRefresh();
+        }).catch((err) => debug.warn('Funding store init failed:', err));
+
         // LAZY: Don't initialize encryption on load - only when needed
         // Encryption will be initialized when:
         // 1. User opens encryption settings
