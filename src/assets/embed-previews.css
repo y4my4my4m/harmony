@@ -243,6 +243,53 @@
   line-height: 1.4;
 }
 
+/* Default card with a thumbnail: stay horizontal and clamp title +
+   description to a single line each so the preview stays compact and
+   the image column stays visually balanced (Mastodon / Misskey style). */
+.link-embed-card--has-image {
+  align-items: center;
+}
+
+.link-embed-card--has-image .link-embed-card__media {
+  flex: 0 0 100px;
+  width: 100px;
+  aspect-ratio: 1 / 1;
+  height: auto;
+}
+
+.link-embed-card--has-image .link-embed-card__body {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+}
+
+.link-embed-card--has-image .link-embed-card__meta {
+  margin-bottom: 0.1rem;
+  font-size: 0.72rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.link-embed-card--has-image .link-embed-card__title {
+  font-size: 0.92rem;
+  font-weight: 600;
+  line-height: 1.3;
+  margin: 0 0 0.12rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.link-embed-card--has-image .link-embed-card__description {
+  font-size: 0.78rem;
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* Compact variant: low-visual-weight caption used beneath an inline rich
    embed (e.g. a YouTube iframe). Drops the thumbnail entirely, tightens
    spacing, shrinks the title to body size, and clamps the description to
@@ -348,33 +395,18 @@ a:hover > .link-embed-card--thumbnail,
   font-weight: 600;
   line-height: 1.3;
   margin: 0 0 0.12rem;
-  /* Misskey-style 2-line clamp: let the text wrap naturally then clamp
-     at two lines with an ellipsis. The previous `white-space: nowrap`
-     truncation cut words mid-character. */
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  line-clamp: 2;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .link-embed-card--thumbnail .link-embed-card__description {
   font-size: 0.78rem;
   margin: 0;
   line-height: 1.35;
-  /* Same 2-line clamp pattern as the title - wrap then clamp instead of
-     cutting words mid-character. */
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  line-clamp: 2;
   overflow: hidden;
   text-overflow: ellipsis;
-  /* Reserve one line of height even when the OG payload had no
-     description so cards with and without one share a similar
-     baseline height. */
-  min-height: 1em;
+  white-space: nowrap;
 }
 
 @media (max-width: 640px) {
@@ -386,28 +418,28 @@ a:hover > .link-embed-card--thumbnail,
     width: 100%;
   }
 
-  /* The compact variant is already a single column; keep it tight on
-     small viewports rather than inheriting the full-card column gap. */
-  .link-embed-card--compact {
-    padding: 0.5rem 0.65rem;
-  }
-
-  /* The thumbnail variant intentionally STAYS horizontal on mobile - that's
-     the whole point of it (no full-width image stacking on top). */
+  /* Cards with a side thumbnail stay horizontal on mobile — stacking the
+     image on top makes the card tall and breaks single-line truncation. */
+  .link-embed-card--has-image,
   .link-embed-card--thumbnail {
     flex-direction: row;
   }
+
+  .link-embed-card--has-image .link-embed-card__media,
   .link-embed-card--thumbnail .link-embed-card__media {
     width: 80px;
     flex: 0 0 80px;
   }
-  /* Flex children have `min-width: auto` by default, which prevents the
-     body from shrinking below its intrinsic text size — that breaks
-     `text-overflow: ellipsis` on the title/description inside the
-     mobile narrow column. Restate `min-width: 0` here so the parent
-     `.link-embed-card` column override (above) doesn't silently undo it. */
+
+  .link-embed-card--has-image .link-embed-card__body,
   .link-embed-card--thumbnail .link-embed-card__body {
     min-width: 0;
+  }
+
+  /* The compact variant is already a single column; keep it tight on
+     small viewports rather than inheriting the full-card column gap. */
+  .link-embed-card--compact {
+    padding: 0.5rem 0.65rem;
   }
 }
 
