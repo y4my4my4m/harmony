@@ -42,7 +42,7 @@ function resolveStorageUrl(
 }
 
 function escapeHtml(str: string): string {
-  return str
+  return String(str ?? '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
@@ -51,7 +51,39 @@ function escapeHtml(str: string): string {
 }
 
 function stripHtml(html: string): string {
-  return html.replace(/<[^>]*>/g, '').trim();
+  return String(html ?? '').replace(/<[^>]*>/g, '').trim();
+}
+
+/**
+ * URL schemes safe to embed in `href` / `src` attributes inside the
+ * server-rendered post HTML. Everything else (notably `javascript:` and
+ * `data:`) is rejected by `safeAttrUrl` below. Mirrors the frontend's
+ * `sanitizeUrl` allowlist in `src/utils/sanitize.ts`.
+ */
+const SAFE_URL_SCHEMES = new Set(['http:', 'https:', 'mailto:', 'tel:']);
+
+/**
+ * Return an attribute-safe absolute URL, or `''` if the URL uses an
+ * unsafe scheme. Strips ASCII control characters first — browsers ignore
+ * tabs/newlines inside URL schemes, which is a well-known XSS bypass
+ * (`java\tscript:`).
+ *
+ * The returned value still needs to be passed through `escapeHtml` when
+ * inlined into an HTML attribute. Pattern:
+ *   `<a href="${escapeHtml(safeAttrUrl(url))}">`
+ */
+function safeAttrUrl(url: string | null | undefined): string {
+  if (url == null) return '';
+  const cleaned = String(url).replace(/[\x00-\x1F\x7F]/g, '').trim();
+  if (!cleaned) return '';
+  const schemeMatch = /^([a-z][a-z0-9+.\-]*):/i.exec(cleaned);
+  if (!schemeMatch) {
+    // Scheme-less: relative path / protocol-relative / fragment. Allowed.
+    return cleaned;
+  }
+  const scheme = schemeMatch[1].toLowerCase() + ':';
+  if (!SAFE_URL_SCHEMES.has(scheme)) return '';
+  return cleaned;
 }
 
 function extractPlainText(content: any): string {
@@ -73,7 +105,16 @@ function extractPlainText(content: any): string {
 }
 
 function extractContentHtml(content: any): string {
-  if (typeof content === 'string') return content;
+  // Defensive: the DB constraint `posts_content_is_array` should make
+  // this path unreachable, but if a string ever slipped through (e.g.
+  // an early migration / federation import) we MUST escape it before
+  // inlining into the post page — returning it raw would let a stored
+  // `<style>` / `<img onerror>` etc. execute when crawlers / browsers
+  // hit `/posts/:id`. Escape and turn newlines into `<br>` so the
+  // shape matches a single text part.
+  if (typeof content === 'string') {
+    return escapeHtml(content).replace(/\n/g, '<br>');
+  }
   if (!Array.isArray(content)) return '';
 
   return content
@@ -84,9 +125,12 @@ function extractContentHtml(content: any): string {
         return text;
       }
       if (item.type === 'mention') {
+        // `username` / `domain` here come from a (possibly federated)
+        // MessagePart, so we MUST escape both before splicing them into
+        // the URL string AND into the visible label.
         const domain = item.domain || config.INSTANCE_DOMAIN;
         const username = item.username || 'unknown';
-        const href = `https://${domain}/users/${username}`;
+        const href = safeAttrUrl(`https://${domain}/users/${username}`);
         const display = item.isLocal ? `@${username}` : `@${username}@${domain}`;
         return `<a href="${escapeHtml(href)}" class="mention">${escapeHtml(display)}</a>`;
       }
@@ -94,9 +138,17 @@ function extractContentHtml(content: any): string {
         return `<span class="hashtag">#${escapeHtml(item.name)}</span>`;
       }
       if (item.type === 'link') {
-        const url = item.url || '#';
+        // Scheme-validate the URL before inlining as `href` — a federated
+        // payload could send `{ type: 'link', url: 'javascript:alert(1)' }`
+        // and the link would execute on click otherwise.
+        const safeUrl = safeAttrUrl(item.url);
         const label = item.text || item.url || 'link';
-        return `<a href="${escapeHtml(url)}" rel="nofollow noopener" target="_blank">${escapeHtml(label)}</a>`;
+        if (!safeUrl) {
+          // Render as inert text so the user still sees what was sent
+          // but the URL can't execute on click.
+          return `<span class="url-link url-link--unsafe">${escapeHtml(label)}</span>`;
+        }
+        return `<a href="${escapeHtml(safeUrl)}" rel="nofollow noopener" target="_blank">${escapeHtml(label)}</a>`;
       }
       return '';
     })

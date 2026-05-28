@@ -1,6 +1,71 @@
 import type { MessagePart, MentionContent } from '@/types';
 
 /**
+ * Absolute hard ceiling on the number of text characters in a single
+ * message or post — enforced by a CHECK constraint on `messages.content`
+ * / `posts.content`. This is purely a safety net: the user-facing limit
+ * is the admin's `instance_config.max_message_length` (or
+ * `max_post_length`), which the DB-side `enforce_message_length` /
+ * `enforce_post_length` triggers also enforce at the storage boundary
+ * by reading the live config row. The CHECK ceiling here only kicks in
+ * if (a) the admin sets a wildly unreasonable value, or (b) the trigger
+ * is somehow disabled. Keep in sync with the CHECK constraint value in
+ * `db_schema/init/10_functions_core.sql`.
+ */
+export const MESSAGE_TEXT_HARD_CEILING = 50000;
+
+/**
+ * Default soft limit on message text length, used as the fallback before
+ * `instance_config.max_message_length` has been loaded. The admin config
+ * value (loaded by `useInstanceSettings`) is the authoritative soft cap
+ * once available. This default matches the seed value shipped in
+ * `db_schema/init/96_seed_data.sql`.
+ */
+export const DEFAULT_MAX_MESSAGE_TEXT_LENGTH = 2000;
+
+/**
+ * Default soft limit on ActivityPub post text length. Same semantics as
+ * `DEFAULT_MAX_MESSAGE_TEXT_LENGTH`; mirrors the seed value of
+ * `instance_config.max_post_length`.
+ */
+export const DEFAULT_MAX_POST_TEXT_LENGTH = 500;
+
+/**
+ * Sum the length of all `text` parts in a message. Non-text parts
+ * (mentions, emojis, files, urls, embeds) are not counted because their
+ * payload is structurally bounded by other validation (file count limit,
+ * URL parsing, mention resolution, …).
+ */
+export function messageTextLength(parts: MessagePart[]): number {
+  if (!Array.isArray(parts)) return 0;
+  let total = 0;
+  for (const part of parts) {
+    if (part && typeof part === 'object' && part.type === 'text') {
+      total += (part.text || '').length;
+    }
+  }
+  return total;
+}
+
+/**
+ * Throw a user-readable error if message text exceeds `limit`.
+ * Pass the admin-configured `instance_config.max_message_length` value
+ * here; the function itself doesn't know about the config, so it can be
+ * reused for posts (`max_post_length`) too.
+ */
+export function assertMessageTextWithinLimit(
+  parts: MessagePart[],
+  limit: number,
+): void {
+  const len = messageTextLength(parts);
+  if (len > limit) {
+    throw new Error(
+      `Message is too long (${len.toLocaleString()} / ${limit.toLocaleString()} characters).`,
+    );
+  }
+}
+
+/**
  * Convert MessagePart[] to markdown text for rendering with MarkdownContent
  */
 export function messagePartsToMarkdown(parts: MessagePart[]): string {

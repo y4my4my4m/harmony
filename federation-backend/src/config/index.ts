@@ -9,6 +9,10 @@ const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   PORT: z.string().transform(Number).default('3001'),
   API_BASE_URL: z.string().url().default('http://localhost:3001'),
+
+  // Software version, surfaced via NodeInfo, /health, and the federation User-Agent.
+  // Bump this on each release (single source of truth for the federation backend).
+  VERSION: z.string().default('1.1.0'),
   
   // Supabase
   SUPABASE_URL: z.string().url(),

@@ -9,6 +9,7 @@
       loading="lazy"
       @click="handleClick"
       @error="onImgError"
+      @load="onImgLoad"
     />
 
     <!-- Loading State -->
@@ -46,8 +47,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onUnmounted } from 'vue'
 import { getServerIconUrl } from '../../utils/serverUtils'
+import { debug } from '@/utils/debug'
 import CameraIcon from '@/components/icons/Camera.vue'
 
 // Types
@@ -109,23 +111,75 @@ const fallbackImage = '/default_server.webp'
 
 // Use a local ref for the img src to allow error handling
 const imgSrc = ref<string>(fallbackImage)
+// The "real" URL we last computed from props; needed so retries can restore
+// the real URL after we temporarily swapped in the fallback on @error.
+const realImgSrc = ref<string>(fallbackImage)
+
+// Transient network failures (imgproxy/R2 latency) should not permanently
+// pin the icon to the fallback. Retry a few times with backoff before giving up.
+const MAX_RETRIES = 3
+const RETRY_DELAYS_MS = [400, 1200, 3000]
+const retryCount = ref(0)
+let retryTimer: ReturnType<typeof setTimeout> | null = null
+
+const clearRetryTimer = () => {
+  if (retryTimer) {
+    clearTimeout(retryTimer)
+    retryTimer = null
+  }
+}
+
+const scheduleRetry = () => {
+  clearRetryTimer()
+  if (retryCount.value >= MAX_RETRIES) return
+  if (realImgSrc.value === fallbackImage) return
+  const delay = RETRY_DELAYS_MS[retryCount.value] ?? 3000
+  retryTimer = setTimeout(() => {
+    retryTimer = null
+    retryCount.value++
+    // Swap back to the real URL; if the network was momentarily flaky, this
+    // re-issues the request through the same <img> tag and may succeed.
+    imgSrc.value = realImgSrc.value
+  }, delay)
+}
 
 // Update imgSrc when props change
 watch(
   () => [props.src, props.size],
   () => {
     const pixelSize = sizeMap[props.size] || 48
-    imgSrc.value = getServerIconUrl(props.src, pixelSize) || fallbackImage
+    const resolved = getServerIconUrl(props.src, pixelSize) || fallbackImage
+    realImgSrc.value = resolved
+    imgSrc.value = resolved
+    retryCount.value = 0
+    clearRetryTimer()
   },
   { immediate: true }
 )
 
 // Error handler for <img>
 const onImgError = () => {
-  if (imgSrc.value !== fallbackImage) {
-    imgSrc.value = fallbackImage
+  // If we're already on the fallback, the fallback itself failed — don't loop.
+  if (imgSrc.value === fallbackImage) {
+    debug.warn('Server icon fallback image failed to load')
+    clearRetryTimer()
+    return
+  }
+  imgSrc.value = fallbackImage
+  scheduleRetry()
+}
+
+const onImgLoad = () => {
+  // Successful load of the real URL: forgive past failures.
+  if (imgSrc.value !== fallbackImage && retryCount.value > 0) {
+    retryCount.value = 0
+    clearRetryTimer()
   }
 }
+
+onUnmounted(() => {
+  clearRetryTimer()
+})
 
 // Methods
 const handleClick = () => {

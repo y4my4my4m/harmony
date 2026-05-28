@@ -156,7 +156,7 @@ Harmony servers are represented as ActivityPub Groups:
 
 - **HTTP Signatures**: All outbound requests are signed; inbound signatures are verified
 - **Instance blocking**: Blocked instances (via admin panel) are rejected at the inbox
-- **Instance trust**: Trusted instances get priority delivery
+- **Instance trust**: Admin-only flag on `federated_instances.is_trusted`. Currently surfaces as a UI badge and a filter on instance/trending lists; delivery priority and inbox-rate-limit gating are on the roadmap, not yet implemented in the federation backend.
 - **Rate limiting**: Configurable per-endpoint rate limits
 - **Content sanitization**: Inbound content is sanitized before storage
 

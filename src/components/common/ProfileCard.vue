@@ -82,10 +82,10 @@
         class="action-btn follow-btn"
         :class="{ following: isFollowing, loading: isFollowLoading }"
       >
-        <Icon v-if="isFollowLoading" name="loader" class="spinning" />
-        <Icon v-else-if="isFollowing" name="user-check" />
-        <Icon v-else name="user-plus" />
-        <span>{{ followButtonText }}</span>
+        <Icon v-if="isFollowLoading" name="loader" class="spinning" :size="actionIconSize" />
+        <Icon v-else-if="isFollowing" name="user-check" :size="actionIconSize" />
+        <Icon v-else name="user-plus" :size="actionIconSize" />
+        <span class="action-label">{{ followButtonText }}</span>
       </button>
 
       <!-- Message (local users only) -->
@@ -95,8 +95,8 @@
         title="Message"
         class="action-btn message-btn"
       >
-        <Icon name="message-circle" />
-        <span>Message</span>
+        <Icon name="message-circle" :size="actionIconSize" />
+        <span class="action-label">Message</span>
       </button>
 
       <!-- Mention (federated users only) -->
@@ -106,8 +106,8 @@
         title="Mention"
         class="action-btn mention-btn"
       >
-        <Icon name="at-sign" />
-        <span>Mention</span>
+        <Icon name="at-sign" :size="actionIconSize" />
+        <span class="action-label">Mention</span>
       </button>
 
       <!-- More Actions Menu -->
@@ -116,8 +116,9 @@
           @click.stop="showActionsMenu = !showActionsMenu"
           class="action-btn more-btn"
           :class="{ active: showActionsMenu }"
+          title="More actions"
         >
-          <Icon name="more-horizontal" />
+          <Icon name="more-horizontal" :size="actionIconSize" />
         </button>
         
         <div v-if="showActionsMenu" class="actions-menu" v-click-outside="closeActionsMenu">
@@ -213,8 +214,11 @@ const followInProgress = ref(false)
 
 // ===== TYPE GUARDS =====
 const isFederatedUser = computed(() => {
-  return 'handle' in props.user
+  const handle = (props.user as FederatedUser).handle
+  return typeof handle === 'string' && handle.length > 0
 })
+
+const actionIconSize = computed(() => (props.isCompact ? 'sm' : 'md'))
 
 // ===== COMPUTED PROPERTIES =====
 const isCurrentUser = computed(() => {
@@ -513,9 +517,12 @@ const vClickOutside = {
 }
 
 .compact .actions-section {
-  justify-content: center;
-  flex-wrap: wrap;
-  gap: var(--space-2);
+  justify-content: stretch;
+  flex-wrap: nowrap;
+  gap: var(--space-1);
+  width: 100%;
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--border-color);
 }
 
 .profile-card.no-actions .actions-section {
@@ -691,17 +698,28 @@ const vClickOutside = {
 }
 
 .compact .action-btn {
+  flex: 1 1 0;
+  min-width: 0;
   padding: var(--space-1) var(--space-2);
   font-size: var(--font-size-xs);
-  gap: var(--space-1);
+  gap: 4px;
 }
 
-.compact .action-btn span {
-  display: none;
+.compact .action-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.compact .action-btn[title] {
-  position: relative;
+.compact .more-actions {
+  flex: 0 0 auto;
+}
+
+.compact .more-actions .more-btn {
+  flex: 0 0 auto;
+  min-width: 32px;
+  width: 32px;
+  padding: var(--space-1);
 }
 
 .action-btn:hover {
@@ -713,6 +731,19 @@ const vClickOutside = {
   background: var(--harmony-primary);
   border-color: var(--harmony-primary);
   color: var(--text-primary);
+}
+
+/* Keep primary follow styling when pixel-art skin flattens .action-btn */
+.profile-card.compact .action-btn.follow-btn {
+  background: var(--harmony-primary);
+  border-color: var(--harmony-primary);
+  color: var(--text-primary);
+}
+
+.profile-card.compact .action-btn.follow-btn.following {
+  background: var(--background-secondary);
+  border-color: var(--border-color);
+  color: var(--text-secondary);
 }
 
 .follow-btn:hover {

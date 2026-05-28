@@ -71,7 +71,7 @@ async function backfillContent() {
   let totalFailed = 0;
 
   while (true) {
-    let query = supabase
+    const query = supabase
       .from('posts')
       .select('id, ap_id, content, metadata')
       .eq('is_local', false)

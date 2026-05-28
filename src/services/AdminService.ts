@@ -811,8 +811,8 @@ class AdminService {
       let maxCustomEmojisPerServer = 0
       let customEmojiTransformQuality = 80
       let allowCustomEmojisInDisplayNames = true
-      let enableOutbound = true
-      let enableInbound = true
+      const enableOutbound = true
+      const enableInbound = true
 
       try {
         const { data: configData } = await supabase

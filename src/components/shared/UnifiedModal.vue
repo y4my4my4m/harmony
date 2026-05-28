@@ -221,7 +221,20 @@ watch(() => props.modelValue, (isOpen) => {
 // Handle keyboard navigation for accessibility
 const handleKeydown = (event: KeyboardEvent) => {
   if (!props.modelValue) return
-  
+
+  // Escape closes the modal regardless of focus location. The
+  // `@keydown.esc` handler on the overlay only fires when the overlay
+  // itself has focus, which often isn't the case after the user
+  // interacts with form fields inside the modal. The document-level
+  // listener registered below makes Escape work reliably.
+  if (event.key === 'Escape') {
+    if (props.closeOnEscape && !props.persistent) {
+      event.preventDefault()
+      handleClose()
+    }
+    return
+  }
+
   // Trap focus within modal
   if (event.key === 'Tab') {
     const focusableElements = containerRef.value?.querySelectorAll(

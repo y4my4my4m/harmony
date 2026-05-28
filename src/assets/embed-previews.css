@@ -243,6 +243,45 @@
   line-height: 1.4;
 }
 
+/* Compact variant: low-visual-weight caption used beneath an inline rich
+   embed (e.g. a YouTube iframe). Drops the thumbnail entirely, tightens
+   spacing, shrinks the title to body size, and clamps the description to
+   a single line so multi-paragraph OG descriptions don't bloat the card.
+   The effect mirrors Mastodon's "small caption under the video" layout
+   instead of doubling the same preview as a separate big card. */
+.link-embed-card--compact {
+  gap: 0;
+  padding: 0.5rem 0.75rem;
+  flex-direction: column;
+}
+
+.link-embed-card--compact .link-embed-card__meta {
+  margin-bottom: 0.15rem;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.link-embed-card--compact .link-embed-card__title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  margin: 0 0 0.15rem;
+  /* Clamp to two lines so very long titles still fit predictably. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.link-embed-card--compact .link-embed-card__description {
+  font-size: 0.78rem;
+  /* Single-line clamp; the full text is still available by opening the link. */
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
 @media (max-width: 640px) {
   .link-embed-card {
     flex-direction: column;
@@ -250,6 +289,12 @@
 
   .link-embed-card__media {
     width: 100%;
+  }
+
+  /* The compact variant is already a single column; keep it tight on
+     small viewports rather than inheriting the full-card column gap. */
+  .link-embed-card--compact {
+    padding: 0.5rem 0.65rem;
   }
 }
 

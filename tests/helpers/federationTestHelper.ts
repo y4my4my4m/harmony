@@ -18,7 +18,7 @@ export function createMockConfig(overrides: Record<string, any> = {}) {
     SUPABASE_SERVICE_ROLE_KEY: 'test-service-role-key',
     PUBLIC_SUPABASE_URL: 'http://localhost:54321',
     DATABASE_URL: 'postgresql://postgres:postgres@localhost:54322/postgres',
-    USE_PGBOSS_QUEUE: false,
+    USE_BULLMQ_QUEUE: false,
     CORS_ORIGIN: 'http://localhost:5173',
     ...overrides,
   }

@@ -15,13 +15,12 @@
     >
       <!-- Bell Icon with Glow Effect -->
       <div class="bell-icon-wrapper">
-        <svg class="bell-icon" width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/>
-        </svg>
-        
-        <!-- Animated Glow Ring for Unread -->
-        <!-- <div v-if="hasUnread" class="notification-glow"></div> -->
-        
+        <span class="icon-wrap icon icon-bell icon-md">
+          <svg class="bell-icon icon-md" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/>
+          </svg>
+        </span>
+
         <!-- Pulsing Dot Animation -->
         <div v-if="hasUnread" class="notification-pulse"></div>
       </div>
@@ -234,9 +233,22 @@ const activeFilter = computed({
   set: (value) => notificationStore.setFilter(value)
 })
 
+// Suppress the document click listener for the same pointer event that
+// opened the panel. With SDR-001 the decorative mask can make the click
+// target the `.icon-button` wrapper instead of `.notification-bell-container`,
+// which would otherwise open then instantly close.
+let suppressOutsideClose = false
+
 // Methods
 const togglePanel = async () => {
+  const opening = !isOpen.value
   isOpen.value = !isOpen.value
+  if (opening) {
+    suppressOutsideClose = true
+    queueMicrotask(() => {
+      suppressOutsideClose = false
+    })
+  }
   if (isOpen.value) {
     closeMobileSidebars()
     document.body.style.overflow = 'hidden'
@@ -348,10 +360,18 @@ const loadMoreNotifications = async () => {
 
 // Click outside handler
 const handleClickOutside = (event: Event) => {
+  if (!isOpen.value || suppressOutsideClose) return
+
   const target = event.target as HTMLElement
-  if (!target.closest('.notification-bell-container')) {
-    closePanel()
+  if (
+    target.closest('.notification-bell-container') ||
+    target.closest('[data-testid="notification-bell"]') ||
+    target.closest('.notification-bell-slot')
+  ) {
+    return
   }
+
+  closePanel()
 }
 
 // Keyboard navigation

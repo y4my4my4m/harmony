@@ -111,7 +111,7 @@ router.post(
         method: 'GET',
         headers: {
           'Accept': 'application/json',
-          'User-Agent': `Harmony/${config.VERSION || '1.0.0'} (+https://${config.INSTANCE_DOMAIN})`,
+          'User-Agent': `Harmony/${config.VERSION} (+https://${config.INSTANCE_DOMAIN})`,
         },
       });
 
@@ -617,7 +617,7 @@ router.get(
       // Fetch from remote channel messages endpoint
       // Use /messages?page=1 format as that's what GroupService returns
       const channelMessagesUrl = `${channel.ap_id}/messages`;
-      let fetchUrl = `${channelMessagesUrl}?page=1`;
+      const fetchUrl = `${channelMessagesUrl}?page=1`;
 
       logger.info(`📨 Fetching messages from remote channel: ${fetchUrl}`);
 
@@ -625,7 +625,7 @@ router.get(
       const response = await safeFetch(fetchUrl, {
         headers: {
           'Accept': 'application/activity+json, application/json',
-          'User-Agent': `Harmony/${config.VERSION || '1.0.0'} (+https://${config.INSTANCE_DOMAIN})`,
+          'User-Agent': `Harmony/${config.VERSION} (+https://${config.INSTANCE_DOMAIN})`,
         },
       });
 
@@ -1371,7 +1371,7 @@ export class ServerDiscoveryService {
       const response = await safeFetch(membersUrl + '?page=1', {
         headers: {
           'Accept': 'application/activity+json, application/json',
-          'User-Agent': `Harmony/${config.VERSION || '1.0.0'} (+https://${config.INSTANCE_DOMAIN})`,
+          'User-Agent': `Harmony/${config.VERSION} (+https://${config.INSTANCE_DOMAIN})`,
         },
       });
       

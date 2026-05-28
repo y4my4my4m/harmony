@@ -25,9 +25,9 @@ export function useAudioThemeCommon() {
   // Theme icon mapping (emojis for text display, e.g. AudioThemePicker)
   const getThemeIcon = (themeId: string): string => {
     const icons: Record<string, string> = {
-      'harmony': '🎵',
-      'professional': '💼',
-      'default': '🔊'
+      default: '🔊',
+      futuristic: '🚀',
+      neokobe: '🌃',
     }
     return icons[themeId] || '🎧'
   }
@@ -35,9 +35,9 @@ export function useAudioThemeCommon() {
   // Theme icon names for Icon component (use with <Icon :name="getThemeIconName(id)" />)
   const getThemeIconName = (themeId: string): string => {
     const iconNames: Record<string, string> = {
-      'harmony': 'music',
-      'professional': 'activity',
-      'default': 'volume-2'
+      default: 'volume-2',
+      futuristic: 'zap',
+      neokobe: 'moon',
     }
     return iconNames[themeId] || 'headphones'
   }

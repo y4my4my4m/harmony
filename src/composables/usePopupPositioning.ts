@@ -26,6 +26,14 @@ export interface UsePopupPositioningOptions {
   viewport?: {
     padding: number;
   };
+  /**
+   * Inline `z-index` written into the popup's positioning style. Defaults
+   * to 1050. Override when the popup needs to sit above modals - e.g.
+   * EmojiPopup opened from inside a modal teleports to body alongside the
+   * modal overlay, so its scoped CSS z-index is overridden by this inline
+   * value unless we bump it here too.
+   */
+  zIndex?: number;
   fallbackPositions?: PopupPositionKey[];
 }
 
@@ -137,6 +145,8 @@ export function usePopupPositioning(
     );
   };
 
+  const zIndex = options.zIndex ?? 1050;
+
   const positionStyle = computed(() => {
     if (!positionResult.value) {
       return {
@@ -144,7 +154,7 @@ export function usePopupPositioning(
         left: '50%',
         top: '50%',
         transform: 'translate(-50%, -50%)',
-        zIndex: 1050,
+        zIndex,
         visibility: 'hidden' as const
       };
     }
@@ -153,7 +163,7 @@ export function usePopupPositioning(
       position: 'fixed' as const,
       left: `${positionResult.value.x}px`,
       top: `${positionResult.value.y}px`,
-      zIndex: 1050,
+      zIndex,
       visibility: 'visible' as const
     };
   });

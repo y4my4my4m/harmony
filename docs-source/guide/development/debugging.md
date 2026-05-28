@@ -54,7 +54,7 @@ This returns per-channel status, connection state, and reconnection history.
 
 1. Check the federation backend health: `GET /health`
 2. Verify nginx proxies are routing correctly (WebFinger, actor endpoints)
-3. Check pg-boss queue for stuck jobs (if `USE_PGBOSS_QUEUE=true`)
+3. Check the BullMQ queue for stuck jobs (if `USE_BULLMQ_QUEUE=true`, the default). Open the Bull Board dashboard (`bull-board/`) or inspect Redis directly
 4. Enable `VITE_DEBUG_FEDERATION=true` for frontend federation logging
 5. Check federation backend logs in `logs/combined.log`
 

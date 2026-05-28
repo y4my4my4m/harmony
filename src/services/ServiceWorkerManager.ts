@@ -4,10 +4,97 @@
  */
 
 import { debug } from '@/utils/debug'
+
+// ============================================================================
+// Quick-reply queue (IndexedDB) - shared schema with public/service-worker.js.
+// The SW persists notification-input replies here so they survive
+// "no client open" / "client just booted" / postMessage races, and the
+// frontend drains them via the real messageService below.
+// ============================================================================
+
+const QUICK_REPLY_DB_NAME = 'harmony-sw'
+const QUICK_REPLY_DB_VERSION = 1
+const QUICK_REPLY_STORE = 'pending-quick-replies'
+
+interface QuickReplyEntry {
+  /** Auto-incremented IndexedDB key. Optional when enqueueing. */
+  id?: number
+  replyText: string
+  /** Notification data payload (conversation_id, server_id, channel_id, ...) */
+  data: any
+  navigationUrl?: string | null
+  queuedAt: number
+}
+
+function openQuickReplyDB(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(QUICK_REPLY_DB_NAME, QUICK_REPLY_DB_VERSION)
+    req.onupgradeneeded = () => {
+      const db = req.result
+      if (!db.objectStoreNames.contains(QUICK_REPLY_STORE)) {
+        db.createObjectStore(QUICK_REPLY_STORE, { keyPath: 'id', autoIncrement: true })
+      }
+    }
+    req.onsuccess = () => resolve(req.result)
+    req.onerror = () => reject(req.error)
+  })
+}
+
+async function peekAllQuickReplies(): Promise<Required<QuickReplyEntry>[]> {
+  try {
+    const db = await openQuickReplyDB()
+    const entries = await new Promise<Required<QuickReplyEntry>[]>((resolve, reject) => {
+      const tx = db.transaction(QUICK_REPLY_STORE, 'readonly')
+      const store = tx.objectStore(QUICK_REPLY_STORE)
+      const req = store.getAll()
+      req.onsuccess = () => resolve((req.result as Required<QuickReplyEntry>[]) || [])
+      req.onerror = () => reject(req.error)
+    })
+    db.close()
+    return entries
+  } catch (err) {
+    debug.error('❌ Quick reply queue: peek failed:', err)
+    return []
+  }
+}
+
+async function removeQuickReply(id: number): Promise<void> {
+  try {
+    const db = await openQuickReplyDB()
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(QUICK_REPLY_STORE, 'readwrite')
+      tx.objectStore(QUICK_REPLY_STORE).delete(id)
+      tx.oncomplete = () => resolve()
+      tx.onerror = () => reject(tx.error)
+      tx.onabort = () => reject(tx.error)
+    })
+    db.close()
+  } catch (err) {
+    debug.error('❌ Quick reply queue: delete failed:', err)
+  }
+}
+
+async function enqueueQuickReply(entry: QuickReplyEntry): Promise<void> {
+  try {
+    const db = await openQuickReplyDB()
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(QUICK_REPLY_STORE, 'readwrite')
+      tx.objectStore(QUICK_REPLY_STORE).add(entry)
+      tx.oncomplete = () => resolve()
+      tx.onerror = () => reject(tx.error)
+      tx.onabort = () => reject(tx.error)
+    })
+    db.close()
+  } catch (err) {
+    debug.error('❌ Quick reply queue: enqueue failed:', err)
+  }
+}
+
 export class ServiceWorkerManager {
   private static instance: ServiceWorkerManager
   private registration: ServiceWorkerRegistration | null = null
   private isRegistered = false
+  private isDrainingQuickReplies = false
 
   public static getInstance(): ServiceWorkerManager {
     if (!ServiceWorkerManager.instance) {
@@ -68,6 +155,12 @@ export class ServiceWorkerManager {
       this.prefetchCriticalResources().catch(err => {
         debug.warn('⚠️ ServiceWorker: Prefetch failed:', err)
       })
+
+      // Drain any quick replies persisted by the SW while the app was
+      // closed / unfocused / mid-boot. Defer slightly so the auth store
+      // has a chance to hydrate before the drain checks isLoggedIn -
+      // otherwise the very first attempt always no-ops on cold start.
+      this.scheduleQuickReplyDrainOnAuthReady()
 
       this.isRegistered = true
       return true
@@ -183,7 +276,16 @@ export class ServiceWorkerManager {
         this.handleMarkNotificationRead(event.data.data)
         break
       case 'QUICK_REPLY':
-        this.handleQuickReply(event.data)
+        // Legacy in-flight message (pre-queue SW). Forward through the same
+        // drain path so encryption/optimistic flows still apply.
+        this.handleLegacyQuickReply(event.data)
+        break
+      case 'QUICK_REPLY_QUEUED':
+        // SW just enqueued a reply - drain immediately rather than waiting
+        // for the next visibility/route event.
+        this.drainQuickReplyQueue().catch(err => {
+          debug.error('❌ ServiceWorker: drainQuickReplyQueue after QUICK_REPLY_QUEUED failed:', err)
+        })
         break
       default:
         debug.log('⚠️ Unknown ServiceWorker message type:', event.data.type)
@@ -222,47 +324,155 @@ export class ServiceWorkerManager {
   }
 
   /**
-   * Handle quick reply from service worker notification action
+   * Drain queued quick replies once auth is ready. The auth store may not
+   * have hydrated yet when the SW manager initializes, so we attach a
+   * one-shot listener that fires on the first auth-state event (or
+   * immediately if we're already logged in) and then keeps a low-frequency
+   * retry so transient failures (offline, encryption setup pending) recover
+   * on the next state change.
    */
-  private async handleQuickReply(data: any): Promise<void> {
-    try {
-      const replyText = data.replyText
-      const notifData = data.data
+  private scheduleQuickReplyDrainOnAuthReady(): void {
+    const attemptDrain = () => {
+      this.drainQuickReplyQueue().catch(err => {
+        debug.error('❌ ServiceWorker: scheduled quick reply drain failed:', err)
+      })
+    }
 
+    // Best-effort immediate attempt - cheap if the queue is empty.
+    setTimeout(attemptDrain, 500)
+
+    // Also drain on every auth state change. drainQuickReplyQueue is a
+    // no-op when not logged in or when the queue is empty, so subscribing
+    // here is safe and cheap.
+    import('@/supabase').then(({ supabase }) => {
+      supabase.auth.onAuthStateChange((_event, session) => {
+        if (session) attemptDrain()
+      })
+    }).catch(err => {
+      debug.warn('⚠️ ServiceWorker: failed to attach quick reply drain listener:', err)
+    })
+
+    // Drain when the tab regains focus - covers the "user typed reply,
+    // app was already running but tab unfocused, OS delivered postMessage
+    // late" race.
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') attemptDrain()
+      })
+    }
+  }
+
+  /**
+   * Legacy entry point - the SW used to postMessage replies directly. New SWs
+   * persist to IndexedDB and ping QUICK_REPLY_QUEUED instead; for forward
+   * compatibility with stale SW versions, treat a direct QUICK_REPLY as an
+   * enqueue + drain request.
+   */
+  private async handleLegacyQuickReply(data: any): Promise<void> {
+    try {
+      const replyText = data?.replyText
+      const notifData = data?.data
       if (!replyText || !notifData) {
         await this.handleNavigateToNotification(data)
         return
       }
+      await enqueueQuickReply({
+        replyText,
+        data: notifData,
+        navigationUrl: data?.url ?? null,
+        queuedAt: Date.now(),
+      })
+      await this.drainQuickReplyQueue()
+    } catch (error) {
+      debug.error('❌ Error handling legacy quick reply:', error)
+    }
+  }
 
-      const { supabase } = await import('@/supabase')
+  /**
+   * Drain queued quick replies (written by the service worker when the user
+   * types into a notification's reply input). Idempotent and re-entrant-safe.
+   *
+   * Each entry is sent through the real `messageService` so we keep
+   * encryption, optimistic UI, and federation triggers identical to a
+   * regular send. Entries are only removed from the queue after a successful
+   * send - failures keep them queued so the next drain (next app boot,
+   * route change, or QUICK_REPLY_QUEUED ping) can retry.
+   */
+  async drainQuickReplyQueue(): Promise<void> {
+    if (this.isDrainingQuickReplies) {
+      // A concurrent drain is in flight - it will pick up everything we
+      // care about, so just return.
+      return
+    }
+    this.isDrainingQuickReplies = true
+    try {
+      const pending = await peekAllQuickReplies()
+      if (pending.length === 0) return
+
       const { useAuthStore } = await import('@/stores/auth')
       const authStore = useAuthStore()
-      const profileId = (authStore as any).currentProfile?.id
-
-      if (!profileId) {
-        debug.error('❌ Quick reply: no active profile')
+      if (!authStore.isLoggedIn) {
+        debug.log(`⏸️ Quick reply drain: not logged in, deferring ${pending.length} entries`)
         return
       }
 
-      if (notifData.conversation_id) {
-        await supabase.from('messages').insert({
-          conversation_id: notifData.conversation_id,
-          profile_id: profileId,
-          content: replyText
-        })
-      } else if (notifData.server_id && notifData.channel_id) {
-        await supabase.from('messages').insert({
-          channel_id: notifData.channel_id,
-          profile_id: profileId,
-          content: replyText
-        })
+      // Lazy-import services so the SW manager can boot before stores
+      // exist (it's initialized very early in app startup).
+      const [{ messageService }, { authContextService }] = await Promise.all([
+        import('@/services'),
+        import('@/services/AuthContextService'),
+      ])
+
+      // Validate that we have a resolvable profile before doing any work.
+      // If the auth context can't yet resolve, defer - we'll retry on the
+      // next event.
+      try {
+        await authContextService.getCurrentProfileId()
+      } catch {
+        debug.log('⏸️ Quick reply drain: no profile resolved yet, deferring')
+        return
       }
 
-      await this.handleMarkNotificationRead(notifData)
-      debug.log('✅ Quick reply sent successfully')
-    } catch (error) {
-      debug.error('❌ Error handling quick reply:', error)
-      await this.handleNavigateToNotification(data)
+      for (const entry of pending) {
+        const replyText = (entry.replyText || '').trim()
+        const notifData = entry.data || {}
+        if (!replyText) {
+          await removeQuickReply(entry.id)
+          continue
+        }
+
+        const content = [{ type: 'text' as const, text: replyText }]
+        try {
+          if (notifData.conversation_id) {
+            await messageService.sendDMMessage(
+              notifData.conversation_id,
+              content as any,
+              notifData.message_id || undefined,
+            )
+          } else if (notifData.server_id && notifData.channel_id) {
+            await messageService.sendChannelMessage(
+              notifData.server_id,
+              notifData.channel_id,
+              content as any,
+              notifData.message_id || undefined,
+            )
+          } else {
+            // Unaddressable entry - drop it so we don't keep retrying forever.
+            debug.warn('⚠️ Quick reply drain: entry has no conversation/channel target, dropping', entry)
+            await removeQuickReply(entry.id)
+            continue
+          }
+          await removeQuickReply(entry.id)
+          await this.handleMarkNotificationRead(notifData)
+          debug.log('✅ Quick reply flushed from queue')
+        } catch (err) {
+          // Leave the entry in the queue for a future retry. We log loudly
+          // so flaky sends are visible during dev/QA.
+          debug.error('❌ Quick reply drain failed for entry, will retry later:', err, entry)
+        }
+      }
+    } finally {
+      this.isDrainingQuickReplies = false
     }
   }
 

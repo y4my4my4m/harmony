@@ -37,7 +37,7 @@ Federation controls are a major part of the admin panel:
 | Action | Effect |
 |--------|--------|
 | **Refresh** | Re-fetch instance metadata and stats |
-| **Trust** | Mark as trusted (higher delivery priority) |
+| **Trust** | Mark as trusted. Today this surfaces as a UI badge plus a filter for trending/instance lists; per-instance delivery priority and rate-limit relaxation aren't yet wired in the federation backend. |
 | **Block** | Block all federation with this instance |
 | **Unblock** | Resume federation |
 

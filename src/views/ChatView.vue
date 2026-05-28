@@ -352,11 +352,35 @@ const highlightSearchText = (messageElement: HTMLElement, query: string) => {
         if (regex.test(text)) {
           const parent = textNode.parentNode
           if (parent && parent.nodeName !== 'MARK') {
-            const highlighted = text.replace(regex, '<mark class="search-highlight">$1</mark>')
+            // Build the highlight wrapper using DOM APIs rather than
+            // `innerHTML = text.replace(...)`. `textNode.textContent` is the
+            // DECODED text — if the message renderer escaped `<style>foo`
+            // into `&lt;style&gt;foo`, the DOM has `<style>foo` as text
+            // content here, and assigning that back via innerHTML would
+            // re-parse it as a real <style> tag and re-introduce the XSS
+            // that the message renderer just defended against.
             const wrapper = document.createElement('span')
-            wrapper.innerHTML = highlighted
+            let lastIndex = 0
+            let match: RegExpExecArray | null
+            regex.lastIndex = 0
+            while ((match = regex.exec(text)) !== null) {
+              if (match.index > lastIndex) {
+                wrapper.appendChild(
+                  document.createTextNode(text.slice(lastIndex, match.index)),
+                )
+              }
+              const mark = document.createElement('mark')
+              mark.className = 'search-highlight'
+              mark.textContent = match[0]
+              wrapper.appendChild(mark)
+              lastIndex = match.index + match[0].length
+              if (regex.lastIndex === match.index) regex.lastIndex++
+            }
+            if (lastIndex < text.length) {
+              wrapper.appendChild(document.createTextNode(text.slice(lastIndex)))
+            }
             parent.replaceChild(wrapper, textNode)
-            
+
             // Remove highlight after 5 seconds
             setTimeout(() => {
               const marks = wrapper.querySelectorAll('mark.search-highlight')

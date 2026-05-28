@@ -170,6 +170,8 @@ CREATE TABLE IF NOT EXISTS public.messages (
         (user_id IS NOT NULL AND bot_id IS NULL) OR  -- User message
         (user_id IS NULL AND bot_id IS NOT NULL)  -- Bot message
     )
+    -- NOTE: per-message text length is enforced by `messages_text_length_check`
+    -- added in `10_functions_core.sql` after the helper function is defined.
 );
 
 ALTER TABLE public.messages REPLICA IDENTITY FULL;
@@ -279,6 +281,7 @@ CREATE TABLE IF NOT EXISTS public.emojis (
     
     usage_count integer DEFAULT 0,
     last_used timestamp with time zone,
+    file_size integer,
     
     domain text
 );

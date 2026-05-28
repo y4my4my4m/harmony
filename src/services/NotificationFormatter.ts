@@ -165,9 +165,9 @@ const MESSAGE_TEMPLATES = {
   },
   
   friend_request: {
-    title: (data: any) => `${data.sender.username} sent you a friend request`,
+    title: (data: any) => `${data.sender.username} wants to follow you`,
     message: (data: any) => data.message || 'Click to accept or decline',
-    shortTitle: (data: any) => `Friend request`
+    shortTitle: (data: any) => `Follow request`
   },
   
   voice_channel_activity: {

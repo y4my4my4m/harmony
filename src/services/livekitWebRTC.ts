@@ -1009,16 +1009,27 @@ export class LiveKitWebRTCService {
       this.broadcastMediaState();
       this.emit('local-state-changed', this.localMediaState);
       this.emit('local-stream-changed', this.getLocalStream());
-      
+
       return this.localMediaState.isScreenSharing;
     } catch (error) {
+      // BUGS.md #8 - when the user dismisses the screen-share picker,
+      // `setScreenShareEnabled` throws but spatial-audio listeners had
+      // already started flipping audio routing in anticipation of the
+      // share. Without this notification, the consumer was leaving both
+      // the spatial (wet) graph AND the traditional `<audio>` (dry)
+      // playback enabled simultaneously, producing a "two streams at
+      // once" effect after a cancel. Emit a state change so listeners
+      // can re-derive the correct audio routing.
       debug.error('❌ [LiveKit] Failed to toggle screen share:', error);
       this.localMediaState.isScreenSharing = false;
+      this.broadcastMediaState();
+      this.emit('local-state-changed', this.localMediaState);
+      this.emit('local-stream-changed', this.getLocalStream());
       this.emit('error', error);
       return false;
     }
   }
-  
+
   /**
    * Toggle mute on/off
    */

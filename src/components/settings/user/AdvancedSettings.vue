@@ -38,29 +38,32 @@
 
     <div class="settings-section">
       <h3 class="section-title">Developer Settings</h3>
-      
+
       <div class="setting-item">
         <div class="setting-info">
           <h4 class="setting-label">{{ $t('settings.advanced.developerMode') }}</h4>
           <p class="setting-description">{{ $t('settings.advanced.developerModeDescription') }}</p>
         </div>
         <div class="setting-control">
-          <ToggleSwitch 
+          <ToggleSwitch
             v-model="settings.developerMode"
             @change="onSettingChange"
           />
         </div>
       </div>
 
-      <div class="setting-item">
+      <div class="setting-item disabled-option">
         <div class="setting-info">
-          <h4 class="setting-label">{{ $t('settings.advanced.hardwareAcceleration') }}</h4>
-          <p class="setting-description">Use hardware acceleration when available.</p>
+          <h4 class="setting-label">
+            {{ $t('settings.advanced.hardwareAcceleration') }}
+            <span class="coming-soon-badge">Coming soon</span>
+          </h4>
+          <p class="setting-description">Toggle GPU-accelerated rendering. Currently controlled by your browser/OS — an in-app override is being wired up for the Tauri desktop builds.</p>
         </div>
         <div class="setting-control">
-          <ToggleSwitch 
+          <ToggleSwitch
             v-model="settings.hardwareAcceleration"
-            @change="onSettingChange"
+            disabled
           />
         </div>
       </div>
@@ -68,23 +71,29 @@
 
     <div class="settings-section">
       <h3 class="section-title">Data Management</h3>
-      
+
       <div class="setting-item">
         <div class="setting-info">
           <h4 class="setting-label">{{ $t('common.clear') }} Cache</h4>
-          <p class="setting-description">Clear stored cache data to free up space.</p>
+          <p class="setting-description">
+            Clears the service-worker caches, the in-memory emoji cache, and the locally cached background-image manifest. Your messages, identity keys and settings are preserved.
+          </p>
         </div>
         <div class="setting-control">
-          <button class="btn btn-secondary" @click="clearCache">
-            {{ $t('common.clear') }} Cache
+          <button class="btn btn-secondary" @click="clearCache" :disabled="clearingCache">
+            <span v-if="!clearingCache">{{ $t('common.clear') }} Cache</span>
+            <span v-else>Clearing…</span>
           </button>
         </div>
       </div>
 
-      <div class="setting-item">
+      <div class="setting-item disabled-option">
         <div class="setting-info">
-          <h4 class="setting-label disabled">{{ $t('common.download') }} Data</h4>
-          <p class="setting-description disabled">Export your user data for backup purposes. (Coming Soon)</p>
+          <h4 class="setting-label">
+            {{ $t('common.download') }} Data
+            <span class="coming-soon-badge">Coming soon</span>
+          </h4>
+          <p class="setting-description">Export your user data for backup purposes.</p>
         </div>
         <div class="setting-control">
           <button class="btn btn-secondary" disabled @click="exportData">
@@ -117,33 +126,25 @@
 
     <div class="settings-section danger-zone">
       <h3 class="section-title danger">Danger Zone</h3>
-      
-      <div class="setting-item">
+
+      <div class="setting-item disabled-option">
         <div class="setting-info">
-          <h4 class="setting-label danger">{{ $t('common.delete') }} Account</h4>
-          <p class="setting-description">Permanently delete your account and all associated data.</p>
+          <h4 class="setting-label danger">
+            {{ $t('common.delete') }} Account
+            <span class="coming-soon-badge">Coming soon</span>
+          </h4>
+          <p class="setting-description">
+            Self-service account deletion (with MFA step-up + cascading
+            cleanup of profiles, messages, encryption keys and federation
+            data) is being wired up. In the meantime, contact the
+            instance operator on
+            <a href="https://har.mony.lol" target="_blank" rel="noopener noreferrer">har.mony.lol</a>
+            to request deletion.
+          </p>
         </div>
         <div class="setting-control">
-          <button class="btn btn-danger" @click="showDeleteConfirmation">
+          <button class="btn btn-danger" disabled>
             {{ $t('common.delete') }} Account
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Delete Confirmation Modal -->
-    <div v-if="showDeleteModal" class="modal-overlay" @click="hideDeleteConfirmation">
-      <div class="modal-content" @click.stop>
-        <h3 class="modal-title">Delete Account</h3>
-        <p class="modal-text">
-          Are you sure you want to delete your account? This action cannot be undone.
-        </p>
-        <div class="modal-actions">
-          <button class="btn btn-secondary" @click="hideDeleteConfirmation">
-            Cancel
-          </button>
-          <button class="btn btn-danger" @click="deleteAccount">
-            Delete Account
           </button>
         </div>
       </div>
@@ -154,6 +155,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { debug } from '@/utils/debug'
+import { useToast } from 'vue-toastification'
 import ToggleSwitch from '@/components/common/ToggleSwitch.vue'
 import PWAInstallPrompt from '@/components/PWAInstallPrompt.vue'
 import RunOnLoginInstructionsModal from '@/components/RunOnLoginInstructionsModal.vue'
@@ -175,6 +177,7 @@ const emit = defineEmits<{
   'update-advanced': [settings: any]
 }>()
 
+const toast = useToast()
 const { developerToolsEnabled, setDeveloperToolsEnabled } = useDeveloperTools()
 
 const reportBugUrl = 'https://github.com/y4my4my4m/harmony/issues/'
@@ -184,7 +187,7 @@ const settings = ref({
   hardwareAcceleration: true,
 })
 
-const showDeleteModal = ref(false)
+const clearingCache = ref(false)
 const originalSettings = ref({ ...settings.value })
 
 const showRunOnLoginModal = ref(false)
@@ -217,28 +220,59 @@ const onSettingChange = () => {
   emit('update-advanced', settings.value)
 }
 
-const clearCache = () => {
-  // Clear cache logic
-  debug.log('Clearing cache...')
+/**
+ * Clear ephemeral browser caches without touching identity / encryption
+ * material or persisted user settings.
+ *
+ * Drops:
+ *   - Service-worker `CacheStorage` entries (HTTP response cache)
+ *   - The cached background-image manifest (will be re-fetched at next build/load)
+ *   - The in-memory emoji cache (Pinia store; will refetch on demand)
+ *
+ * Preserves:
+ *   - IndexedDB megolm/recovery key store, prekey bundles, signed prekeys
+ *   - Supabase auth session (`localStorage`)
+ *   - User-scoped settings (visual theme, voice device prefs, etc.)
+ */
+const clearCache = async () => {
+  if (clearingCache.value) return
+  clearingCache.value = true
+  let cleared = 0
+  try {
+    if (typeof window !== 'undefined' && 'caches' in window) {
+      const keys = await caches.keys()
+      await Promise.all(keys.map((k) => caches.delete(k)))
+      cleared += keys.length
+    }
+    try {
+      localStorage.removeItem('harmony-backgrounds-manifest')
+      sessionStorage.removeItem('harmony-backgrounds-manifest')
+    } catch (e) {
+      debug.warn('Failed to clear backgrounds manifest cache:', e)
+    }
+    try {
+      const { useEmojiCacheStore } = await import('@/stores/useEmojiCache')
+      const store = useEmojiCacheStore()
+      if (typeof (store as any).clearCache === 'function') {
+        ;(store as any).clearCache()
+      } else if (typeof (store as any).$reset === 'function') {
+        ;(store as any).$reset()
+      }
+    } catch (e) {
+      debug.warn('Failed to clear emoji cache store:', e)
+    }
+    toast.success(`Cleared ${cleared} cache${cleared === 1 ? '' : 's'} + reset emoji cache`)
+  } catch (e) {
+    debug.error('Failed to clear cache:', e)
+    toast.error('Failed to clear cache')
+  } finally {
+    clearingCache.value = false
+  }
 }
 
 const exportData = () => {
-  // Export data logic
-  debug.log('Exporting data...')
-}
-
-const showDeleteConfirmation = () => {
-  showDeleteModal.value = true
-}
-
-const hideDeleteConfirmation = () => {
-  showDeleteModal.value = false
-}
-
-const deleteAccount = () => {
-  // Delete account logic
-  debug.log('Deleting account...')
-  showDeleteModal.value = false
+  // Placeholder - data export is on the roadmap.
+  debug.log('Exporting data... (not yet implemented)')
 }
 </script>
 
@@ -325,6 +359,29 @@ const deleteAccount = () => {
 
 .setting-label.danger {
   color: #ed4245;
+}
+
+.coming-soon-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
+  vertical-align: middle;
+  margin-left: 6px;
+}
+
+.setting-item.disabled-option .setting-label,
+.setting-item.disabled-option .setting-description {
+  opacity: 0.65;
+}
+
+.setting-description a {
+  color: var(--harmony-primary, #0EA5E9);
 }
 
 .setting-description {

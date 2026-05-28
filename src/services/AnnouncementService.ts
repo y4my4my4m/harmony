@@ -31,18 +31,32 @@ export interface CreateAnnouncementParams {
   show_popup?: boolean
   silence?: boolean
   starts_at?: string
-  ends_at?: string
+  // `null` lets admins explicitly clear an existing expiry (i.e. "never
+  // expires") on update; `undefined` keeps the current DB value.
+  ends_at?: string | null
   display_order?: number
 }
 
 class AnnouncementService {
-  async getUnreadAnnouncements(): Promise<Announcement[]> {
+  /**
+   * Fetch the current user's unread announcements.
+   *
+   * Pass `{ popupOnly: true }` for the AnnouncementPopup path — this asks
+   * the RPC to additionally filter on `show_popup = true` and to skip any
+   * announcement that started before the user signed up, with a hard cap
+   * of 10 rows. The default (no options) returns the full unread set and
+   * is what the Settings archive + sidebar unread badge use.
+   */
+  async getUnreadAnnouncements(
+    options: { popupOnly?: boolean } = {}
+  ): Promise<Announcement[]> {
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return []
 
       const { data, error } = await supabase.rpc('get_unread_announcements', {
-        p_user_id: user.id
+        p_user_id: user.id,
+        p_popup_only: options.popupOnly ?? false,
       })
 
       if (error) throw error

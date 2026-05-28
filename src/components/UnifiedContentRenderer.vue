@@ -208,7 +208,7 @@ import { useContentRenderer, type ContentRenderOptions } from '@/composables/use
 import { getEmojiUrl } from '@/utils/emojiUtils';
 import { useUnifiedEmoji } from '@/services/unifiedEmojiService';
 import { debug } from '@/utils/debug';
-import { escapeHtml } from '@/utils/sanitize';
+import { escapeHtml, sanitizeMessageHtml } from '@/utils/sanitize';
 import DisplayName from '@/components/DisplayName.vue';
 
 interface Props {
@@ -490,52 +490,50 @@ const getNativeEmojiChar = (emoji: any): string => {
 
 const renderTextWithMarkdown = (text: string | undefined): string => {
   if (!text) return '';
-  
-  let rendered = text;
+
   const isSingle = renderer.isSingleEmoji.value;
-  
-  // For mutant/twemoji pack: Replace unicode emojis with SVG images
-  // For native pack: Leave unicode as-is (browser renders them)
+
+  // ESCAPE the raw user text FIRST. Every transform below operates on
+  // already-escaped text, so it can safely splice in trusted tags without
+  // letting user-supplied HTML (e.g. `<style>`, `<img onerror=…>`) survive.
+  // The previous implementation "protected" user HTML tags from the escape
+  // pass which let arbitrary tags through verbatim — see the XSS audit issue.
+  let rendered = escapeHtml(text);
+
+  // Now splice in our own emoji <img>/<span> markup using sources we own.
   if (!isNativePack.value && emojiServiceLoaded.value) {
-    // Unicode emoji regex - matches flags (Regional Indicators), ZWJ sequences, and standard emojis
     const emojiRegex = /[\u{1F1E6}-\u{1F1FF}]{2}|(\p{Emoji_Presentation}|\p{Emoji}\uFE0F)(\u200D(\p{Emoji_Presentation}|\p{Emoji}\uFE0F))*/gu;
     rendered = rendered.replace(emojiRegex, (match) => {
       const resolved = resolveEmoji(match);
       if (resolved.display.type === 'svg') {
         const sizeClass = isSingle ? 'inline-emoji single' : 'inline-emoji';
-        return `<img class="${sizeClass}" src="${resolved.display.content}" alt="${resolved.shortcode || match}" draggable="false" />`;
+        const altRaw = resolved.shortcode || match;
+        return `<img class="${sizeClass}" src="${escapeHtml(resolved.display.content)}" alt="${escapeHtml(altRaw)}" draggable="false" />`;
       }
-      return match; // Fallback to native if no SVG
+      return match;
     });
   } else if (isSingle) {
-    // Native pack with single emoji - wrap in span for bigger styling
     const emojiRegex = /[\u{1F1E6}-\u{1F1FF}]{2}|(\p{Emoji_Presentation}|\p{Emoji}\uFE0F)(\u200D(\p{Emoji_Presentation}|\p{Emoji}\uFE0F))*/gu;
     rendered = rendered.replace(emojiRegex, (match) => {
       return `<span class="native-emoji single">${match}</span>`;
     });
   }
-  
-  // Escape HTML entities before markdown to prevent XSS.
-  // Preserve safe HTML already inserted by emoji replacements above.
-  const htmlTagPlaceholders: string[] = [];
-  rendered = rendered.replace(/<[^>]+>/g, (tag) => {
-    const idx = htmlTagPlaceholders.length;
-    htmlTagPlaceholders.push(tag);
-    return `\uE010${idx}\uE011`;
-  });
-  rendered = escapeHtml(rendered);
-  rendered = rendered.replace(/\uE010(\d+)\uE011/g, (_, idx) => htmlTagPlaceholders[Number(idx)]);
 
-  if (!props.enableMarkdown) return rendered;
-  
+  if (!props.enableMarkdown) {
+    // Even with markdown disabled, run DOMPurify so any malformed input that
+    // sneaks past our escape (e.g. via emoji SVG content) is stripped.
+    return sanitizeMessageHtml(rendered);
+  }
+
   rendered = rendered.replace(/\n/g, '<br>');
   rendered = rendered.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
   rendered = rendered.replace(/\*(.*?)\*/g, '<em>$1</em>');
   rendered = rendered.replace(/`(.*?)`/g, '<code>$1</code>');
-  
+
   rendered = rendered.replace(/(?<![&\w])#(\w+)/g, '<span class="hashtag" data-tag="$1">#$1</span>');
-  
-  return rendered;
+
+  // Final defense-in-depth pass: strip any tag not on the message allowlist.
+  return sanitizeMessageHtml(rendered);
 };
 
 const formatFileSize = (bytes: number): string => {

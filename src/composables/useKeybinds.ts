@@ -188,7 +188,7 @@ const inputMode = ref<'voice_activity' | 'push_to_talk'>('voice_activity')
 const releaseDelay = ref(200) // ms
 
 // Debounce timer for hold release
-let releaseTimers: Map<KeybindAction, ReturnType<typeof setTimeout>> = new Map()
+const releaseTimers: Map<KeybindAction, ReturnType<typeof setTimeout>> = new Map()
 
 // =============================================================================
 // HELPERS

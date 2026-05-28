@@ -19,6 +19,11 @@ import type { Message, MessagePart } from '@/types'
 import { userDataService } from '@/services/userDataService'
 import { authContextService } from '@/services/AuthContextService'
 import { debug } from '@/utils/debug'
+import {
+  DEFAULT_MAX_MESSAGE_TEXT_LENGTH,
+  MESSAGE_TEXT_HARD_CEILING,
+  messageTextLength,
+} from '@/utils/messageContentUtils'
 
 // Lazy load and auto-initialize Megolm encryption service
 let megolmEncryptionService: any = null
@@ -94,6 +99,57 @@ export class CoreMessageService {
   // =====================================================
 
   /**
+   * Fetch the admin-configured max message length from `instance_config`.
+   * Falls back to `DEFAULT_MAX_MESSAGE_TEXT_LENGTH` if the row is missing
+   * or unparseable. Always clamped to `[1, MESSAGE_TEXT_HARD_CEILING]` so a
+   * misconfigured admin can't either disable the limit (0) or push it
+   * past the DB-side hard ceiling (which would then reject the insert
+   * with a less informative error).
+   */
+  private async getMaxMessageLength(): Promise<number> {
+    const { data } = await supabase
+      .from('instance_config')
+      .select('config_value')
+      .eq('config_key', 'max_message_length')
+      .maybeSingle()
+    const raw = data?.config_value
+    const parsed =
+      typeof raw === 'number'
+        ? raw
+        : typeof raw === 'string'
+          ? parseInt(raw, 10)
+          : NaN
+    const value = !Number.isNaN(parsed) && parsed >= 1
+      ? parsed
+      : DEFAULT_MAX_MESSAGE_TEXT_LENGTH
+    return Math.min(value, MESSAGE_TEXT_HARD_CEILING)
+  }
+
+  /**
+   * Reject message payloads whose combined text length exceeds the admin
+   * soft limit (`instance_config.max_message_length`). Mirrors the
+   * client-side check in `MessageInput.vue` so the same number is the
+   * authoritative limit at every layer.
+   *
+   * The check runs on the *plaintext* content, before any encryption
+   * step, so an attacker who modifies the client cannot bypass it by
+   * re-encrypting the over-limit payload locally. The DB-side CHECK
+   * constraint provides an absolute upper bound at `MESSAGE_TEXT_HARD_CEILING`
+   * for cases where this code path is skipped (direct PostgREST insert,
+   * bot gateway, federation backend).
+   */
+  private async assertContentWithinLimit(content: MessagePart[]): Promise<void> {
+    const limit = await this.getMaxMessageLength()
+    const len = messageTextLength(content)
+    if (len > limit) {
+      throw this.createError(
+        'MESSAGE_TOO_LONG',
+        `Message is too long (${len.toLocaleString()} / ${limit.toLocaleString()} characters).`,
+      )
+    }
+  }
+
+  /**
    * Fetch max media attachments limit from instance config (default 20)
    */
   private async getMaxMediaAttachments(): Promise<number> {
@@ -129,6 +185,11 @@ export class CoreMessageService {
     options?: SendOptions
   ): Promise<Message> {
     try {
+      // Enforce max message length BEFORE encryption so the error message
+      // points to the actual problem ("too long") rather than a downstream
+      // ciphertext-size failure.
+      await this.assertContentWithinLimit(content)
+
       // Enforce max media attachments per message (instance config, default 20)
       const fileParts = content.filter((p: any) => p?.type === 'file')
       const maxMedia = await this.getMaxMediaAttachments()
@@ -317,6 +378,11 @@ export class CoreMessageService {
       const isSystem = options?.isSystem ?? false
       const allowFallback = options?.allowPlaintextFallback === true
       if (!isSystem) {
+        // Enforce max message length for user-authored DMs. System messages
+        // (group_created etc.) are server-generated and tightly bounded, so
+        // we don't need to validate them.
+        await this.assertContentWithinLimit(content)
+
         const fileParts = content.filter((p: any) => p?.type === 'file')
         const maxMedia = await this.getMaxMediaAttachments()
         if (fileParts.length > maxMedia) {
@@ -469,6 +535,10 @@ export class CoreMessageService {
    */
   async editMessage(messageId: string, newContent: MessagePart[]): Promise<Message> {
     try {
+      // Enforce max length on edits too — otherwise a user could send a
+      // tiny message and grow it past the limit via subsequent edits.
+      await this.assertContentWithinLimit(newContent)
+
       // Enforce max media attachments per message (instance config, default 20)
       const fileParts = newContent.filter((p: any) => p?.type === 'file')
       const maxMedia = await this.getMaxMediaAttachments()

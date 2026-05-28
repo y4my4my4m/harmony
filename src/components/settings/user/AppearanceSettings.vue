@@ -300,8 +300,115 @@
     </div>
 
     <div class="settings-section">
-      <h3 class="section-title">{{ $t('settings.appearance.fontSize') }}</h3>
-      
+      <h3 class="section-title">
+        Skins
+        <span class="beta-badge">Beta</span>
+      </h3>
+      <p class="section-description">
+        Skins go beyond colour switching — they bundle a theme, a font, and a
+        set of CSS rules that change borders, corners, decorative overlays and
+        more. Picking one overrides the matching settings above; you can still
+        tweak colours afterwards. Pick "None" to clear the skin layer.
+      </p>
+
+      <div class="skin-options">
+        <button
+          type="button"
+          class="skin-card"
+          :class="{ active: !settings.activeSkinId }"
+          @click="onSkinChange(null)"
+        >
+          <div class="skin-card-preview skin-card-preview-none">
+            <span class="skin-card-none-label">None</span>
+          </div>
+          <div class="skin-card-info">
+            <h4 class="skin-card-name">None</h4>
+            <p class="skin-card-description">Use the raw theme + font you've set above.</p>
+          </div>
+        </button>
+
+        <button
+          v-for="skin in builtinSkins"
+          :key="skin.id"
+          type="button"
+          class="skin-card"
+          :class="{ active: settings.activeSkinId === skin.id }"
+          @click="onSkinChange(skin.id)"
+        >
+          <div class="skin-card-preview">
+            <img v-if="skin.preview" :src="skin.preview" :alt="skin.name" />
+          </div>
+          <div class="skin-card-info">
+            <h4 class="skin-card-name">
+              {{ skin.name }}
+              <span v-if="skin.isBeta" class="beta-badge beta-badge-inline">Beta</span>
+            </h4>
+            <p class="skin-card-description">{{ skin.description }}</p>
+          </div>
+        </button>
+      </div>
+
+      <!-- Per-skin decorative toggles. Only shows when the active skin
+           declared `options: SkinOption[]` in its manifest. Each toggle
+           flips a `data-skin-<optionId>="on|off"` attribute on `<html>`
+           which the skin's CSS gates decorative rules on. -->
+      <div
+        v-if="activeSkinOptions.length"
+        class="skin-active-options"
+      >
+        <h4 class="skin-active-options-title">
+          {{ activeSkin?.name }} — decorations
+        </h4>
+        <div
+          v-for="option in activeSkinOptions"
+          :key="option.id"
+          class="setting-item skin-option-item"
+        >
+          <div class="setting-info">
+            <h4 class="setting-label">{{ option.label }}</h4>
+            <p v-if="option.description" class="setting-description">
+              {{ option.description }}
+            </p>
+          </div>
+          <div class="setting-control">
+            <ToggleSwitch
+              :model-value="getActiveSkinOptionValue(option.id)"
+              @update:model-value="(v: boolean) => onSkinOptionToggle(option.id, v)"
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <h3 class="section-title">Typography</h3>
+
+      <div class="setting-item">
+        <div class="setting-info">
+          <h4 class="setting-label">Font</h4>
+          <p class="setting-description">
+            Choose the typeface used across the entire app. Custom fonts are
+            lazy-loaded, so picking the default doesn't download any extras.
+          </p>
+        </div>
+        <div class="setting-control">
+          <div class="font-family-options">
+            <button
+              v-for="opt in fontFamilyOptions"
+              :key="opt.id"
+              type="button"
+              class="font-family-btn"
+              :class="{ active: settings.fontFamily === opt.id }"
+              :style="{ fontFamily: opt.preview }"
+              @click="onFontFamilyChange(opt.id)"
+            >
+              <span class="font-family-name">{{ opt.label }}</span>
+              <span class="font-family-sample">The quick brown fox 0123</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
       <div class="setting-item">
         <div class="setting-info">
           <h4 class="setting-label">{{ $t('settings.appearance.fontSize') }}</h4>
@@ -443,36 +550,20 @@
         <div class="setting-control">
           <div class="emoji-pack-options">
             <button
+              v-for="pack in packs"
+              :key="pack.id"
               class="emoji-pack-btn"
-              :class="{ active: settings.emojiPack === 'twemoji' }"
-              @click="settings.emojiPack = 'twemoji'; onEmojiPackChange()"
+              :class="{ active: settings.emojiPack === pack.id }"
+              @click="settings.emojiPack = pack.id; onEmojiPackChange()"
             >
-              <img 
-                src="/assets/emojis/twemoji/1f600.svg" 
-                alt="Twemoji" 
+              <img
+                v-if="pack.previewImage"
+                :src="pack.previewImage"
+                :alt="pack.name"
                 class="pack-preview"
               />
-              <span>Twemoji</span>
-            </button>
-            <button
-              class="emoji-pack-btn"
-              :class="{ active: settings.emojiPack === 'mutant' }"
-              @click="settings.emojiPack = 'mutant'; onEmojiPackChange()"
-            >
-              <img 
-                src="/assets/emojis/mutant_emojis_svg/expressions/smileys/typical/grinning.svg" 
-                alt="Mutant" 
-                class="pack-preview"
-              />
-              <span>Mutant Standard</span>
-            </button>
-            <button
-              class="emoji-pack-btn"
-              :class="{ active: settings.emojiPack === 'native' }"
-              @click="settings.emojiPack = 'native'; onEmojiPackChange()"
-            >
-              <span class="pack-preview-native">😀</span>
-              <span>System</span>
+              <span v-else class="pack-preview-native">😀</span>
+              <span>{{ pack.name }}</span>
             </button>
           </div>
         </div>
@@ -480,8 +571,30 @@
     </div>
 
     <div class="settings-section">
+      <h3 class="section-title">Effects</h3>
+
+      <div class="setting-item">
+        <div class="setting-info">
+          <h4 class="setting-label">Enable blur &amp; glass effects</h4>
+          <p class="setting-description">
+            Many surfaces (modals, popovers, the voice dock, the sidebar) use
+            <code>backdrop-filter: blur</code> for a frosted-glass look. Turn
+            off for a flat / sharper UI, or if your device struggles with
+            blur in voice / video calls.
+          </p>
+        </div>
+        <div class="setting-control">
+          <ToggleSwitch
+            v-model="settings.glassEffectsEnabled"
+            @change="onGlassEffectsChange"
+          />
+        </div>
+      </div>
+    </div>
+
+    <div class="settings-section">
       <h3 class="section-title">{{ $t('settings.appearance.highContrast') }}</h3>
-      
+
       <div class="setting-item">
         <div class="setting-info">
           <h4 class="setting-label">{{ $t('settings.appearance.highContrast') }}</h4>
@@ -596,10 +709,25 @@ const settings = ref({
   highContrast: false,
   reduceMotion: false,
   screenReaderSupport: false,
-  emojiPack: currentPackId.value as 'twemoji' | 'mutant' | 'native',
+  emojiPack: currentPackId.value,
   showCustomEmojisInDisplayNames: true,
   greentextEnabled: true,
+  fontFamily: 'system' as 'system' | 'pixel',
+  glassEffectsEnabled: true,
+  activeSkinId: null as string | null,
 })
+
+// Font picker options. The `preview` font-stack is used inline on the
+// picker buttons so each card renders in its own typeface, even before
+// the user clicks it.
+const fontFamilyOptions: Array<{
+  id: 'system' | 'pixel'
+  label: string
+  preview: string
+}> = [
+  { id: 'system', label: 'Default (Figtree)', preview: `'Figtree', sans-serif` },
+  { id: 'pixel', label: 'NoRe Sans Pixel', preview: `'NoRe Sans Pixel Pro', monospace` },
+]
 
 // Computed preview colors for custom theme
 const customPreviewColors = computed(() => {
@@ -706,8 +834,9 @@ function applySavedTheme(id: string) {
 }
 
 // Import community presets and theme helpers
-import { COMMUNITY_PRESETS, type ThemePreset } from '@/composables/useVisualTheme'
+import { COMMUNITY_PRESETS, BUILTIN_SKINS, type ThemePreset } from '@/composables/useVisualTheme'
 const communityPresets = COMMUNITY_PRESETS
+const builtinSkins = BUILTIN_SKINS
 const themableVariables = visualTheme.getThemableVariables()
 
 const applyPresetTheme = (preset: ThemePreset) => {
@@ -865,6 +994,66 @@ const onFontSizeChange = () => {
   visualTheme.setFontSize(settings.value.fontSize)
 }
 
+const onFontFamilyChange = (family: 'system' | 'pixel') => {
+  settings.value.fontFamily = family
+  visualTheme.setFontFamily(family)
+}
+
+const onGlassEffectsChange = () => {
+  visualTheme.setGlassEffectsEnabled(settings.value.glassEffectsEnabled)
+}
+
+const onSkinChange = (skinId: string | null) => {
+  // Apply the skin to the live theme system, then mirror the resulting
+  // settings into our local form state so the rest of the form (theme
+  // cards, font picker, blur toggle, custom colour pickers) reflects what
+  // the skin just applied. The user can still tweak any of these
+  // afterwards - the skin is a one-shot bulk apply, not a lock.
+  visualTheme.applySkin(skinId)
+  const live = visualTheme.currentSettings.value
+  settings.value.activeSkinId = live.activeSkinId ?? null
+  settings.value.theme = live.theme
+  settings.value.customThemeMode = live.customThemeMode || 'dark'
+  if (live.customPrimaryColor) settings.value.customPrimaryColor = live.customPrimaryColor
+  if (live.customAccentColor) settings.value.customAccentColor = live.customAccentColor
+  if (live.customBackgroundColor) settings.value.customBackgroundColor = live.customBackgroundColor
+  if (typeof live.customBackgroundLightness === 'number')
+    settings.value.customBackgroundLightness = live.customBackgroundLightness
+  if (typeof live.customBackgroundChroma === 'number')
+    settings.value.customBackgroundChroma = live.customBackgroundChroma
+  settings.value.customCssOverrides = live.customCssOverrides ? { ...live.customCssOverrides } : {}
+  settings.value.fontFamily = (live.fontFamily as 'system' | 'pixel') || 'system'
+  settings.value.glassEffectsEnabled = live.glassEffectsEnabled !== false
+}
+
+// Active skin manifest (or undefined if "None"). Used to render the
+// per-skin decoration toggles directly under the picker.
+const activeSkin = computed(() =>
+  builtinSkins.find((s) => s.id === settings.value.activeSkinId)
+)
+const activeSkinOptions = computed(() => activeSkin.value?.options ?? [])
+
+/**
+ * Read the effective value of a decoration toggle: stored override if
+ * the user has flipped it, otherwise the option's declared default.
+ */
+const getActiveSkinOptionValue = (optionId: string): boolean => {
+  const skinId = settings.value.activeSkinId
+  if (!skinId) return false
+  const value = visualTheme.getSkinOption(skinId, optionId)
+  return value ?? false
+}
+
+/**
+ * Persist a decoration toggle. The `useVisualTheme` watcher reflects
+ * the change to `<html data-skin-<optionId>="on|off">` automatically.
+ */
+const onSkinOptionToggle = (optionId: string, value: boolean) => {
+  const skinId = settings.value.activeSkinId
+  if (!skinId) return
+  visualTheme.setSkinOption(skinId, optionId, value)
+}
+
 const adjustZoom = (delta: number) => {
   const newZoom = settings.value.zoomLevel + delta
   if (newZoom >= 50 && newZoom <= 200) {
@@ -909,6 +1098,9 @@ const saveSettings = () => {
     screenReaderSupport: settings.value.screenReaderSupport,
     showCustomEmojisInDisplayNames: settings.value.showCustomEmojisInDisplayNames,
     greentextEnabled: settings.value.greentextEnabled,
+    fontFamily: settings.value.fontFamily,
+    glassEffectsEnabled: settings.value.glassEffectsEnabled,
+    activeSkinId: settings.value.activeSkinId,
   })
 }
 
@@ -948,9 +1140,12 @@ onMounted(async () => {
     highContrast: currentSettings.highContrast,
     reduceMotion: currentSettings.reduceMotion,
     screenReaderSupport: currentSettings.screenReaderSupport,
-    emojiPack: currentPackId.value as 'mutant' | 'native',
+    emojiPack: currentPackId.value,
     showCustomEmojisInDisplayNames: currentSettings.showCustomEmojisInDisplayNames !== false,
     greentextEnabled: currentSettings.greentextEnabled !== false,
+    fontFamily: (currentSettings.fontFamily as 'system' | 'pixel') || 'system',
+    glassEffectsEnabled: currentSettings.glassEffectsEnabled !== false,
+    activeSkinId: currentSettings.activeSkinId ?? null,
   }
   originalSettings.value = { ...settings.value }
 })
@@ -1275,6 +1470,185 @@ onMounted(async () => {
 .pack-preview-native {
   font-size: 32px;
   line-height: 1;
+}
+
+/* Skin picker (Beta) */
+.beta-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
+  vertical-align: middle;
+  margin-left: 8px;
+}
+
+.beta-badge-inline {
+  font-size: 9px;
+  padding: 1px 5px;
+}
+
+.skin-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 14px;
+  margin-top: 12px;
+}
+
+.skin-card {
+  display: flex;
+  flex-direction: column;
+  border: 2px solid var(--h-chat-light);
+  border-radius: 10px;
+  background: var(--h-chat);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  text-align: left;
+  overflow: hidden;
+  padding: 0;
+}
+
+.skin-card:hover {
+  border-color: var(--harmony-primary, #0EA5E9);
+  transform: translateY(-1px);
+}
+
+.skin-card.active {
+  border-color: var(--harmony-primary, #0EA5E9);
+  box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.3);
+}
+
+.skin-card-preview {
+  width: 100%;
+  height: 140px;
+  background: linear-gradient(135deg, #0d0d10, #1a1a20);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.skin-card-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.skin-card-preview-none {
+  background: repeating-linear-gradient(
+    45deg,
+    var(--h-chat-darker),
+    var(--h-chat-darker) 10px,
+    var(--h-chat) 10px,
+    var(--h-chat) 20px
+  );
+}
+
+.skin-card-none-label {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+}
+
+.skin-card-info {
+  padding: 12px 14px 14px;
+}
+
+.skin-card-name {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0 0 6px 0;
+  color: var(--text-primary);
+}
+
+.skin-card-description {
+  font-size: 12px;
+  margin: 0;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+/* Per-skin decoration toggles, rendered under the active skin card.
+   Visually a tighter version of the standard `.setting-item` rows
+   so it reads as an inline detail panel rather than a new section. */
+.skin-active-options {
+  margin-top: 18px;
+  padding: 14px 16px;
+  border: 1px solid var(--border-primary);
+  border-radius: 8px;
+  background: var(--h-chat-light);
+}
+
+.skin-active-options-title {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin: 0 0 8px 0;
+  color: var(--text-secondary);
+}
+
+.skin-option-item {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border-secondary);
+}
+
+.skin-option-item:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+/* Font family picker */
+.font-family-options {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  max-width: 360px;
+}
+
+.font-family-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 12px 14px;
+  border: 2px solid var(--h-chat-light);
+  border-radius: 8px;
+  background-color: var(--h-chat);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: left;
+}
+
+.font-family-btn:hover {
+  border-color: var(--harmony-primary, #0EA5E9);
+  background-color: var(--h-chat-light);
+}
+
+.font-family-btn.active {
+  border-color: var(--harmony-primary, #0EA5E9);
+  background-color: rgba(14, 165, 233, 0.15);
+}
+
+.font-family-name {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.font-family-sample {
+  font-size: 13px;
+  color: var(--text-secondary);
+  letter-spacing: 0.02em;
 }
 
 .color-picker-section {

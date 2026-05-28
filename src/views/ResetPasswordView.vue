@@ -675,7 +675,7 @@ const toggleRecoveryCode = () => {
   background-size: cover;
   background-attachment: fixed;
   position: relative;
-  font-family: 'Figtree', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: var(--font-family);
 }
 
 .bg-overlay {

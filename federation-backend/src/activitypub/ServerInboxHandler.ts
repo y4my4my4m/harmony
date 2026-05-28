@@ -1323,7 +1323,7 @@ async function processReactionActivity(
 
   const isCustomEmoji = !!(emojiUrl && emojiName);
 
-  let reactionData: any = {
+  const reactionData: any = {
     message_id: message.id,
     user_id: user.id,
     metadata: { federated: true, ap_id: activity.id },
@@ -1746,7 +1746,7 @@ async function sendRejectActivity(
  * Strip HTML tags from content
  */
 function stripHtml(html: string): string {
-  let text = html
+  const text = html
     .replace(/<br\s*\/?>/gi, '\n')
     .replace(/<\/(?:p|div|li|blockquote|h[1-6])>/gi, '\n')
     .replace(/<[^>]*>/g, ' ')

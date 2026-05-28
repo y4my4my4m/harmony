@@ -36,6 +36,7 @@ import { vHaptic } from './utils/hapticFeedback';
 import { debug } from '@/utils/debug'
 import { webrtcManager } from '@/services/webrtcManager';
 import { livekitWebRTC } from '@/services/livekitWebRTC';
+import { detectAvailablePacks } from '@/services/emojiPackService';
 
 // Expose for debugging in browser console
 if (typeof window !== 'undefined') {
@@ -121,6 +122,12 @@ async function initializeApp() {
     } catch (err) {
       debug.error('❌ reactionCacheManager.startCleanup failed:', err)
     }
+
+    // Probe optional emoji packs after mount; the picker UI will react when
+    // unavailable packs are removed from the pack list.
+    detectAvailablePacks().catch((err) => {
+      debug.warn('⚠️ Emoji pack detection failed:', err)
+    })
   } catch (error) {
     debug.error('❌ Error initializing app:', error)
     // Still mount the app even if initialization fails (no-op if already mounted)

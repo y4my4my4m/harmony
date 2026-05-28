@@ -6,7 +6,8 @@ The federation backend enables ActivityPub interoperability with Mastodon, Plero
 
 ```mermaid
 graph LR
-    DB[(PostgreSQL)] -->|trigger| Queue[pg-boss Queue]
+    DB[(PostgreSQL)] -->|trigger + LISTEN/NOTIFY| Bridge[NotificationListener]
+    Bridge --> Queue[BullMQ Queue<br/>Redis-backed]
     Queue --> FedBackend[Federation Backend]
     FedBackend -->|HTTP POST| Remote[Remote Instances]
     Remote -->|HTTP POST| Nginx
@@ -39,8 +40,9 @@ For reliable delivery (recommended):
 
 | Variable | Description |
 |----------|-------------|
-| `DATABASE_URL` | Direct PostgreSQL connection string |
-| `USE_PGBOSS_QUEUE` | Set to `true` |
+| `DATABASE_URL` | Direct PostgreSQL connection string (for `LISTEN/NOTIFY` bridge) |
+| `REDIS_URL` | Redis connection string (BullMQ job persistence) |
+| `USE_BULLMQ_QUEUE` | Set to `true` (default). Backward compat: `USE_PGBOSS_QUEUE` is accepted as an alias |
 
 ### 2. Nginx Configuration
 
@@ -107,16 +109,18 @@ Test WebFinger discovery:
 curl "https://your-domain.com/.well-known/webfinger?resource=acct:username@your-domain.com"
 ```
 
-## Job Queue (pg-boss)
+## Job Queue (BullMQ)
 
-When `USE_PGBOSS_QUEUE=true`, federation activities are processed through a PostgreSQL-based job queue:
+When `USE_BULLMQ_QUEUE=true` (the default), federation activities are processed through a Redis-backed BullMQ job queue:
 
-- Activities are queued by database triggers via `queue_federation_job()`
-- The federation backend's `QueueManager` consumes jobs
-- Failed deliveries are retried with backoff
-- The queue function has a fallback for environments where pg-boss tables don't exist yet (`insufficient_privilege` handling)
+- Database triggers call `queue_federation_job()`, which uses `pg_notify` to publish a `federation_job` channel event
+- The federation backend's `NotificationListener` subscribes via PostgreSQL `LISTEN/NOTIFY` and bridges each event into a typed BullMQ job
+- `BullMQManager` consumes jobs with retries, exponential backoff, and persistence in Redis
+- The Bull Board dashboard (`bull-board/`) provides a web UI for queue monitoring
 
-Without pg-boss (`USE_PGBOSS_QUEUE=false`), federation events are processed synchronously through database listeners, which is simpler but less reliable.
+> **Note**: pg-boss was the legacy backend and is no longer used. The `USE_PGBOSS_QUEUE` env var is still accepted as a backward-compatibility alias for `USE_BULLMQ_QUEUE`, but the pgboss schema is dropped on fresh deployments.
+
+Without BullMQ (`USE_BULLMQ_QUEUE=false`), federation events are processed synchronously through `DatabaseListener` using Supabase Realtime CDC — simpler but less reliable, with no retries or job persistence.
 
 ## Federation Features
 
@@ -133,7 +137,7 @@ Without pg-boss (`USE_PGBOSS_QUEUE=false`), federation events are processed sync
 |---------|-------------|
 | `REQUIRE_VALID_SIGNATURES` | Enforce HTTP signature verification on incoming activities |
 | Instance blocking | Admin panel can block specific instances |
-| Instance trust | Trusted instances get higher delivery priority |
+| Instance trust | Admin-only flag (`federated_instances.is_trusted`). Currently a UI badge + filter for trending/instance lists; delivery-priority gating in the federation backend is on the roadmap, not yet shipped. |
 | Rate limiting | `RATE_LIMIT_WINDOW_MS` and `RATE_LIMIT_MAX_REQUESTS` |
 
 ---

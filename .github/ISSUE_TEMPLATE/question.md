@@ -19,7 +19,7 @@ Provide any context that might help us answer your question.
 Have you checked the documentation or searched existing issues?
 
 - [ ] I've read the README
-- [ ] I've read [docs/HOW_TO_SELF_HOST.md](../../docs/HOW_TO_SELF_HOST.md)
+- [ ] I've read the [self-hosting guide](../../docs/self-hosting.md)
 - [ ] I've searched existing issues
 - [ ] I've checked the discussions
 

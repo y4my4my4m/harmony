@@ -82,14 +82,30 @@ export const QUICK_REACTION_EMOJIS = [
 ] as const;
 
 /**
- * Emoji pack types
+ * Emoji pack identifier.
+ *
+ * Built-in packs are 'twemoji' (default), 'mutant' (Mutant Standard,
+ * optional), and 'native' (system Unicode). Instance operators may
+ * register additional packs at runtime via
+ * `emojiPackService.registerEmojiPack(...)`, in which case `EmojiPack`
+ * carries the operator's chosen id, so the underlying type is `string`.
+ *
+ * The `KNOWN_EMOJI_PACKS` constant below lists the built-in ids for
+ * IntelliSense and documentation purposes.
  */
-export type EmojiPack = 'twemoji' | 'mutant' | 'native';
+export type EmojiPack = string;
+
+/**
+ * Built-in emoji pack ids that ship (or can ship) with Harmony itself.
+ * Custom packs registered by an instance operator are not listed here.
+ */
+export const KNOWN_EMOJI_PACKS = ['twemoji', 'mutant', 'native'] as const;
+export type KnownEmojiPack = (typeof KNOWN_EMOJI_PACKS)[number];
 
 /**
  * Default emoji pack
  */
-export const DEFAULT_EMOJI_PACK: EmojiPack = 'twemoji';
+export const DEFAULT_EMOJI_PACK: KnownEmojiPack = 'twemoji';
 
 /**
  * Twemoji base URL for SVGs

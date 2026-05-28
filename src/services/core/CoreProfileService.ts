@@ -198,7 +198,7 @@ export class CoreProfileService {
         throw this.createError('ABORTED', 'Search was aborted')
       }
 
-      let queryBuilder = supabase
+      const queryBuilder = supabase
         .from('profiles')
         .select(`
           id,
@@ -432,11 +432,20 @@ export class CoreProfileService {
       throw this.createError('INVALID_INPUT', `Username must be ${this.MAX_USERNAME_LENGTH} characters or less`)
     }
 
-    if (data.display_name && data.display_name.length > this.MAX_DISPLAY_NAME_LENGTH) {
-      throw this.createError('INVALID_INPUT', `Display name must be ${this.MAX_DISPLAY_NAME_LENGTH} characters or less`)
-    }
-
-    if (data.display_name) {
+    // `display_name` is OPTIONAL on update (omitting it leaves the
+    // existing value untouched) — but if it's present in the payload it
+    // must be a non-empty, non-whitespace string. Previously a user could
+    // PATCH their profile with `display_name: ""` and the row would
+    // accept it, leaving the user nameless everywhere they were rendered.
+    // The display-side fallbacks (`getUserDisplayName`) cover the
+    // historical bad data; this check prevents new bad data.
+    if (data.display_name !== undefined) {
+      if (typeof data.display_name !== 'string' || data.display_name.trim().length === 0) {
+        throw this.createError('INVALID_INPUT', 'Display name cannot be empty')
+      }
+      if (data.display_name.length > this.MAX_DISPLAY_NAME_LENGTH) {
+        throw this.createError('INVALID_INPUT', `Display name must be ${this.MAX_DISPLAY_NAME_LENGTH} characters or less`)
+      }
       const emojiMatches = data.display_name.match(/:([a-zA-Z0-9_+-]+):/g)
       if (emojiMatches && emojiMatches.length > this.MAX_DISPLAY_NAME_EMOJIS) {
         throw this.createError('INVALID_INPUT', `Display name can have at most ${this.MAX_DISPLAY_NAME_EMOJIS} custom emojis`)

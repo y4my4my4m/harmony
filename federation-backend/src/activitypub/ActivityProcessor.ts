@@ -1352,7 +1352,7 @@ export class ActivityProcessor {
     // Handle message (DM) reaction
     if (message) {
       const isCustomEmoji = !!(emojiUrl && emojiName);
-      let reactionData: any = {
+      const reactionData: any = {
         message_id: message.id,
         user_id: user.id,
         metadata: { federated: true, from_domain: new URL(actorUrl).hostname },

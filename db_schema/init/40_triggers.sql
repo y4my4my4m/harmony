@@ -61,6 +61,10 @@ CREATE TRIGGER trg_profile_message_counter_del
     AFTER DELETE ON public.messages
     FOR EACH ROW EXECUTE FUNCTION public.tg_profile_message_counter();
 
+-- (Message and post content length limits are enforced via CHECK constraints
+--  defined in `02_tables_core.sql` / `04_tables_servers.sql`. See
+--  `public.jsonb_text_content_length` for the IMMUTABLE helper used by both.)
+
 CREATE OR REPLACE FUNCTION public.tg_profile_voice_counter()
 RETURNS trigger
 LANGUAGE plpgsql

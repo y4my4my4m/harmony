@@ -76,7 +76,7 @@ sudo certbot certonly --standalone -d your-domain.com -d docs.your-domain.com
 - **Port**: 3001
 - **Health check**: `GET /health` every 30 seconds
 - **Required env**: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `INSTANCE_DOMAIN`, `CORS_ORIGIN`
-- **Recommended**: Set `DATABASE_URL` and `USE_PGBOSS_QUEUE=true` for reliable federation delivery
+- **Recommended**: Set `DATABASE_URL`, `REDIS_URL`, and `USE_BULLMQ_QUEUE=true` for reliable federation delivery (BullMQ-backed queue with retries)
 
 ### Bot Gateway (Optional)
 
@@ -142,7 +142,7 @@ docker compose -f docker-compose.prod.yml up -d --build
 
 - Check logs: `docker logs harmony-federation`
 - Verify `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are correct
-- Ensure the database is reachable (for pg-boss: check `DATABASE_URL`)
+- Ensure the database is reachable (for the BullMQ LISTEN/NOTIFY bridge: check `DATABASE_URL`) and Redis is reachable (check `REDIS_URL`)
 
 ### Nginx returns 502
 

@@ -451,9 +451,49 @@ export function createUpdateActivity(profile: any): any {
  * Helper: Extract HTML content from JSONB content (MessagePart[])
  * Converts to ActivityPub-compatible HTML with mentions, hashtags, and emojis
  */
+/**
+ * Full HTML attribute / text escape. Covers the five characters that
+ * have special meaning in HTML (`& < > " '`). Anything we splice into
+ * outbound ActivityPub `content` HTML — including mention `href`,
+ * displayed labels, hashtag names, and URL anchors — runs through this.
+ */
+function escapeHtmlAttr(str: string): string {
+  return String(str ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/**
+ * Safe-scheme URL allowlist for outbound federation. Same list as the
+ * frontend `sanitizeUrl` in `src/utils/sanitize.ts`. `javascript:`,
+ * `data:`, `vbscript:`, etc. all reject.
+ */
+const SAFE_URL_SCHEMES_OUTBOUND = new Set(['http:', 'https:', 'mailto:', 'tel:']);
+
+function safeAttrUrlOutbound(url: string | null | undefined): string {
+  if (url == null) return '';
+  const cleaned = String(url).replace(/[\x00-\x1F\x7F]/g, '').trim();
+  if (!cleaned) return '';
+  const schemeMatch = /^([a-z][a-z0-9+.\-]*):/i.exec(cleaned);
+  if (!schemeMatch) return cleaned;
+  const scheme = schemeMatch[1].toLowerCase() + ':';
+  if (!SAFE_URL_SCHEMES_OUTBOUND.has(scheme)) return '';
+  return cleaned;
+}
+
 function extractContentAsHtml(content: any): string {
+  // Defensive: the DB constraint `posts_content_is_array` /
+  // `messages_content_is_array` makes this path unreachable, but if a
+  // raw string ever slipped through (an early migration, an unconverted
+  // federation import, …) we'd be shipping it straight to Mastodon /
+  // Misskey / etc. as our outbound HTML. Receiving servers run their
+  // own sanitizers but we shouldn't rely on theirs — escape so user
+  // content can never go out as live HTML markup.
   if (typeof content === 'string') {
-    return content;
+    return escapeHtmlAttr(content);
   }
 
   if (!Array.isArray(content)) {
@@ -469,29 +509,39 @@ function extractContentAsHtml(content: any): string {
         text = text.replace(/</g, '&lt;');
         text = text.replace(/>/g, '&gt;');
         return text;
-      } 
+      }
       else if (item.type === 'mention') {
-        // MessagePart format has username and domain
+        // `username` / `domain` originate in a (possibly federated)
+        // MessagePart, so escape both before splicing them into the URL
+        // and the visible label. Receiving servers do further sanitisation,
+        // but we shouldn't emit broken HTML in the first place.
         const domain = item.domain || config.INSTANCE_DOMAIN;
         const username = item.username || 'unknown';
-        const href = `https://${domain}/users/${username}`;
+        const href = safeAttrUrlOutbound(`https://${domain}/users/${username}`);
         const displayName = item.isLocal ? `@${username}` : `@${username}@${domain}`;
-        // Match SQL: simple <a> tag without h-card wrapper
-        return `<a href="${href}" class="mention">${displayName}</a>`;
+        return `<a href="${escapeHtmlAttr(href)}" class="mention">${escapeHtmlAttr(displayName)}</a>`;
       }
       else if (item.type === 'hashtag') {
-        const href = `https://${config.INSTANCE_DOMAIN}/tags/${item.name}`;
-        return `<a href="${href}" class="mention hashtag" rel="tag">#${item.name}</a>`;
+        const name = item.name || '';
+        const href = safeAttrUrlOutbound(`https://${config.INSTANCE_DOMAIN}/tags/${name}`);
+        return `<a href="${escapeHtmlAttr(href)}" class="mention hashtag" rel="tag">#${escapeHtmlAttr(name)}</a>`;
       }
       else if (item.type === 'emoji') {
-        // Custom emoji - use :name: syntax, actual emoji data in tags
-        return `:${item.emoji?.name || 'emoji'}:`;
+        // Custom emoji - use :name: syntax, actual emoji data in tags.
+        // The name is plain text here (no HTML context), but receiving
+        // parsers might still treat it as inline content, so escape.
+        return escapeHtmlAttr(`:${item.emoji?.name || 'emoji'}:`);
       }
       else if (item.type === 'url') {
-        const url = item.url || '';
-        // Escape URL
-        const escapedUrl = url.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-        return `<a href="${escapedUrl}" rel="noopener noreferrer" target="_blank">${escapedUrl}</a>`;
+        // Scheme-validate first; only http(s)/mailto/tel get a live
+        // anchor. Anything else (`javascript:`, `data:`, …) renders as
+        // escaped text so a malicious payload can't propagate through
+        // federation as a clickable XSS link.
+        const safeUrl = safeAttrUrlOutbound(item.url || '');
+        if (!safeUrl) {
+          return escapeHtmlAttr(item.url || '');
+        }
+        return `<a href="${escapeHtmlAttr(safeUrl)}" rel="noopener noreferrer" target="_blank">${escapeHtmlAttr(safeUrl)}</a>`;
       }
       return '';
     })

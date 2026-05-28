@@ -178,7 +178,7 @@ export const useEmojiCacheStore = defineStore('emojiCache', {
       try {
         // --- Phase 1: Hydrate from IndexedDB (instant, no network) ---
         const allRequestedIds = [...priorityServerIds, ...backgroundServerIds];
-        let hydratedServerIds: string[] = [];
+        const hydratedServerIds: string[] = [];
 
         try {
           const cachedServers = await getAllCachedServerEmojis();
@@ -634,7 +634,7 @@ export const useEmojiCacheStore = defineStore('emojiCache', {
       const now = new Date();
       let cleanedServers = 0;
       // TODO: track how many emojis are removed
-      let cleanedEmojis = 0;
+      const cleanedEmojis = 0;
 
       // Remove expired server caches
       for (const [serverId, cache] of this.serverCaches) {

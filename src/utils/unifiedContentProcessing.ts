@@ -556,6 +556,43 @@ export function trimTrailingWhitespace(parts: MessagePart[]): MessagePart[] {
   return result;
 }
 
+/** Strip trailing punctuation often captured by the URL matcher (\S+). */
+function trimUrlTrailingDelimiter(url: string): { url: string; trimmedChars: number } {
+  let trimmedChars = 0;
+  let cleaned = url;
+  while (cleaned.length > 0 && /[.,;:!?)>\]}]$/.test(cleaned)) {
+    cleaned = cleaned.slice(0, -1);
+    trimmedChars++;
+  }
+  return { url: cleaned, trimmedChars };
+}
+
+/**
+ * Discord-style: URLs wrapped in angle brackets (<https://…>) are linked but
+ * do not generate embeds/previews. Brackets are omitted from stored content.
+ */
+function parseUrlMatchContext(
+  text: string,
+  matchIndex: number,
+  rawLength: number
+): { url: string; preview: boolean; segmentStart: number; segmentEnd: number } {
+  const suppressed = matchIndex > 0 && text[matchIndex - 1] === '<';
+  let segmentStart = matchIndex;
+  let segmentEnd = matchIndex + rawLength;
+
+  const { url: trimmedUrl, trimmedChars } = trimUrlTrailingDelimiter(text.slice(matchIndex, segmentEnd));
+  segmentEnd -= trimmedChars;
+
+  if (suppressed) {
+    segmentStart -= 1;
+    if (segmentEnd < text.length && text[segmentEnd] === '>') {
+      segmentEnd += 1;
+    }
+  }
+
+  return { url: trimmedUrl, preview: !suppressed, segmentStart, segmentEnd };
+}
+
 /**
  * Parse text for URLs and emojis
  * URL tracking parameter stripping is handled here to cover the entire app (ActivityPub, DMs, chat, etc.)
@@ -572,22 +609,24 @@ async function parseTextForUrls(text: string, emojiDataMap: Record<string, any> 
   const shouldStripTrackers = isUrlTrackingStrippingEnabled();
   
   while ((match = URL_MATCH_REGEX.exec(text)) !== null) {
-    // Add text before URL
-    if (match.index > lastIndex) {
-      const textBefore = text.substring(lastIndex, match.index);
+    const { url: rawUrl, preview, segmentStart, segmentEnd } = parseUrlMatchContext(
+      text,
+      match.index,
+      match[0].length
+    );
+
+    if (segmentStart > lastIndex) {
+      const textBefore = text.substring(lastIndex, segmentStart);
       parts.push(...await parseTextForEmojis(textBefore, emojiDataMap));
     }
-    
-    // Strip tracking parameters if enabled (respects user privacy setting)
-    let url = match[0];
+
+    let url = rawUrl;
     if (shouldStripTrackers) {
       url = stripTrackingParameters(url);
     }
-    
-    // Add URL (cleaned if setting enabled)
-    parts.push({ type: 'url', url, preview: true });
-    // Use original match length for index calculation (we're parsing original text)
-    lastIndex = match.index + match[0].length;
+
+    parts.push({ type: 'url', url, preview });
+    lastIndex = segmentEnd;
   }
   
   // Add remaining text

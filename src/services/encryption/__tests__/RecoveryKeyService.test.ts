@@ -98,10 +98,22 @@ describe('RecoveryKeyService', () => {
 
     it('rejects tampered phrases', async () => {
       const words = await service.generateMnemonic(12)
-      const tampered = [...words]
-      // Replace last word with a wordlist word that differs.
-      tampered[11] = tampered[11] === 'abandon' ? 'ability' : 'abandon'
-      expect(await service.validateMnemonicStrict(tampered)).toBe(false)
+      // The original phrase must validate.
+      expect(await service.validateMnemonicStrict(words)).toBe(true)
+
+      // Tampering the last word is unreliable on its own: word 12 carries the
+      // 4 checksum bits, so for any 11-word prefix roughly 1/16 of the 2048
+      // wordlist entries still produce a valid checksum. Instead, try tampering
+      // multiple words and require that at least one tampering is rejected.
+      // (In practice virtually all of them will be.)
+      let rejected = 0
+      for (let pos = 0; pos < 12; pos++) {
+        const tampered = [...words]
+        tampered[pos] = tampered[pos] === 'abandon' ? 'ability' : 'abandon'
+        if (tampered[pos] === words[pos]) continue
+        if (!(await service.validateMnemonicStrict(tampered))) rejected++
+      }
+      expect(rejected).toBeGreaterThan(0)
     })
   })
 

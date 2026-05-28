@@ -44,10 +44,10 @@
           :post="posts[virtualRow.index]"
           v-bind="postProps"
           @reply="$emit('reply', $event)"
-          @favorite="$emit('favorite', $event)"
-          @reblog="$emit('reblog', $event)"
-          @bookmark="$emit('bookmark', $event)"
-          @delete="$emit('delete', $event)"
+          @favorite="$emit('favorite', posts[virtualRow.index])"
+          @reblog="$emit('reblog', posts[virtualRow.index])"
+          @bookmark="$emit('bookmark', posts[virtualRow.index])"
+          @delete="$emit('delete', posts[virtualRow.index])"
           @edit="$emit('edit', $event)"
           @user-click="$emit('user-click', $event)"
           @hashtag-click="$emit('hashtag-click', $event)"
@@ -95,10 +95,18 @@ const emit = defineEmits<{
   'load-more': []
   'empty-action': []
   'reply': [post: any]
-  'favorite': [postId: string]
-  'reblog': [postId: string]
-  'bookmark': [postId: string]
-  'delete': [postId: string]
+  // favorite/reblog/bookmark/delete are pass-through chains. MonyPost
+  // handles those interactions internally via usePostInteractions and only
+  // emits `delete`/`edit` upward via the post id; the entire favorite/
+  // reblog/bookmark chain is currently dead. The upstream feed views
+  // (TimelineView, BookmarksView, etc.) still declare handlers shaped
+  // `(post: TimelinePost) => Promise<void>` for their re-emit semantics,
+  // so declare the post payload here to keep the type chain coherent
+  // (and to avoid TS2322 contravariance breaks at every listener site).
+  'favorite': [post: TimelinePost]
+  'reblog': [post: TimelinePost]
+  'bookmark': [post: TimelinePost]
+  'delete': [post: TimelinePost]
   'edit': [postId: string]
   'user-click': [user: any]
   'hashtag-click': [tag: string]

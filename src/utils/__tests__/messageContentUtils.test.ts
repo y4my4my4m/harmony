@@ -1,8 +1,13 @@
 import { describe, it, expect } from 'vitest'
 import {
+  DEFAULT_MAX_MESSAGE_TEXT_LENGTH,
+  DEFAULT_MAX_POST_TEXT_LENGTH,
+  MESSAGE_TEXT_HARD_CEILING,
+  assertMessageTextWithinLimit,
+  isSingleEmojiMessage,
   messagePartsToMarkdown,
   messagePartsToPlainText,
-  isSingleEmojiMessage,
+  messageTextLength,
 } from '@/utils/messageContentUtils'
 
 describe('messageContentUtils', () => {
@@ -104,6 +109,71 @@ describe('messageContentUtils', () => {
 
     it('returns false for non-array', () => {
       expect(isSingleEmojiMessage(null as any)).toBe(false)
+    })
+  })
+
+  describe('messageTextLength', () => {
+    it('sums text from text parts only', () => {
+      const parts = [
+        { type: 'text', text: 'hello' },
+        { type: 'mention', userId: 'x', username: 'alice' },
+        { type: 'text', text: ' world' },
+        { type: 'emoji', emoji: { name: 'smile' } },
+        { type: 'file', url: 'x', fileType: 'image' },
+      ]
+      // 'hello' (5) + ' world' (6) = 11
+      expect(messageTextLength(parts as any)).toBe(11)
+    })
+
+    it('returns 0 for missing or non-array input', () => {
+      expect(messageTextLength(null as any)).toBe(0)
+      expect(messageTextLength(undefined as any)).toBe(0)
+      expect(messageTextLength('not an array' as any)).toBe(0)
+    })
+
+    it('counts unicode characters not UTF-16 code units', () => {
+      // 5 visible characters even though astral chars take 2 code units
+      const parts = [{ type: 'text', text: 'a😀b😀c' }]
+      // JavaScript .length is UTF-16 code units = 7 for "a😀b😀c"; we
+      // accept that limit because the DB-side function uses char_length
+      // which is also code-point-aware but PostgreSQL's char_length is on
+      // characters, not code points. Keeping client+server in agreement
+      // (both UTF-16 code units / characters resp.) is acceptable for the
+      // anti-DoS use case here.
+      expect(messageTextLength(parts as any)).toBe(7)
+    })
+  })
+
+  describe('assertMessageTextWithinLimit', () => {
+    it('passes for content within an explicit limit', () => {
+      const parts = [{ type: 'text', text: 'a'.repeat(2000) }]
+      expect(() => assertMessageTextWithinLimit(parts as any, 2000)).not.toThrow()
+    })
+
+    it('throws for content over an explicit limit', () => {
+      const parts = [{ type: 'text', text: 'a'.repeat(2001) }]
+      expect(() => assertMessageTextWithinLimit(parts as any, 2000)).toThrow(/too long/i)
+    })
+
+    it('default soft limit constants match the seeded instance_config values', () => {
+      // The values seeded in `db_schema/init/96_seed_data.sql`:
+      //   max_message_length = 2000
+      //   max_post_length    = 500
+      // Anything else here means the client and DB seed will disagree on
+      // what the fallback (pre-`useInstanceSettings` load) is.
+      expect(DEFAULT_MAX_MESSAGE_TEXT_LENGTH).toBe(2000)
+      expect(DEFAULT_MAX_POST_TEXT_LENGTH).toBe(500)
+    })
+
+    it('hard ceiling matches the DB CHECK constraint value', () => {
+      // The CHECK constraint is now a far-off safety net (50000 chars)
+      // — the user-facing limit is enforced by a trigger that reads the
+      // live admin config (`instance_config.max_message_length`). The
+      // CHECK only ever fires if the admin sets an unreasonable value
+      // or the trigger is disabled. Mirrors the value in
+      // `db_schema/init/10_functions_core.sql` and the migration in
+      // `db_schema/migrations/20260528_message_length_limit.sql`.
+      expect(MESSAGE_TEXT_HARD_CEILING).toBe(50000)
     })
   })
 })

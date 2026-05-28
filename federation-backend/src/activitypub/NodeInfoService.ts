@@ -88,7 +88,7 @@ router.get(
       version: '2.0',
       software: {
         name: 'harmony',
-        version: '1.0.0',
+        version: config.VERSION,
       },
       protocols: ['activitypub'],
       services: {
@@ -151,7 +151,7 @@ router.get(
       version: '2.1',
       software: {
         name: 'harmony',
-        version: '1.0.0',
+        version: config.VERSION,
         repository: 'https://github.com/y4my4my4m/harmony',
       },
       protocols: ['activitypub'],

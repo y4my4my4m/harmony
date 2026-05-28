@@ -45,7 +45,7 @@ export function noteToContent(note: any): any[] {
   cleanText = cleanText.trim();
   
   // Build combined tags array (includes both standard AP tags and Misskey-style emojis)
-  let allTags = note.tag && Array.isArray(note.tag) ? [...note.tag] : [];
+  const allTags = note.tag && Array.isArray(note.tag) ? [...note.tag] : [];
   
   // Handle Misskey-style emojis object: { emojiName: url, ... }
   // This is common in outbox items where emoji definitions aren't in the tag array

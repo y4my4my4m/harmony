@@ -33,7 +33,7 @@ router.get('/', async (req: Request, res: Response) => {
 
     sendSuccess(res, {
       status: 'healthy',
-      version: '1.0.0',
+      version: config.VERSION,
       environment: config.NODE_ENV,
       instance: {
         name: config.INSTANCE_NAME,

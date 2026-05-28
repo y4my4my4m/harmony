@@ -823,7 +823,7 @@ async function fetchMisskeyReactions(
     // 2. Third-party emojis (e.g., :suteki2@fedibird.com:) - included in note's reactionEmojis
     
     let thirdPartyEmojis: Record<string, string> = {};  // Emojis from other instances (via reactionEmojis)
-    let originInstanceEmojis: Record<string, string> = {};  // Emojis native to the origin instance
+    const originInstanceEmojis: Record<string, string> = {};  // Emojis native to the origin instance
     
     try {
       const noteResponse = await safeFetch(`https://${domain}/api/notes/show`, {

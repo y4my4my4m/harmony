@@ -28,7 +28,12 @@ const TEST_PASSWORD = 'e2e-test-password-12345'
 
 function requireEnv(key: string): string {
   const val = process.env[key]
-  if (!val) throw new Error(`Missing ${key} in .env.test`)
+  if (!val) {
+    throw new Error(
+      `Missing ${key}. Copy .env.test.example → .env.test for local runs, ` +
+        `or set ${key} in the environment (GitHub Actions: repo secrets TEST_SUPABASE_*).`,
+    )
+  }
   return val
 }
 

@@ -1473,7 +1473,7 @@ export const useDMStore = defineStore('dm', () => {
       // Note: Messages from CoreMessageService are already decrypted, preserve the decrypted flag!
       // `user_id` is `string | undefined` on the source rows; cast the mapped
       // array to `Message[]` to bridge the optional/required mismatch.
-      let formattedMessages: Message[] = (orderedMessages.map(msg => ({
+      const formattedMessages: Message[] = (orderedMessages.map(msg => ({
         id: msg.id,
         user_id: msg.user_id,
         content: msg.content,
@@ -1743,6 +1743,19 @@ export const useDMStore = defineStore('dm', () => {
         code.includes('ENCRYPTION_UNAVAILABLE') ||
         code.includes('ENCRYPTION_FAILED_NO_FALLBACK')
       if (isEncryptionPolicyError) {
+        removeMessageFromCache(tempId)
+        throw error
+      }
+
+      // Length-limit / structural validation errors are not transient —
+      // drop the optimistic and surface immediately so the UI can show
+      // "message too long" instead of doomed retries.
+      const isPermanentValidationError =
+        code.includes('MESSAGE_TOO_LONG') ||
+        code.includes('TOO_MANY_ATTACHMENTS') ||
+        code.includes('messages_text_length_check') ||
+        (code.includes('check constraint') && code.includes('messages_'))
+      if (isPermanentValidationError) {
         removeMessageFromCache(tempId)
         throw error
       }
@@ -2319,7 +2332,43 @@ export const useDMStore = defineStore('dm', () => {
       }
     })
 
-    _globalBroadcastUnsubs = [unsubNew, unsubUpdated]
+    // BUGS.md #4 - DM sidebar wasn't picking up new messages in
+    // conversations the user wasn't currently viewing. The DB already
+    // broadcasts `unread:change` on `user:{profileId}` whenever an
+    // `unread_messages_view` row changes, but `useDM` never listened for
+    // it (only `useUnreadCounts` did, and that store isn't used by the
+    // DM sidebar). Patch the matching conversation's `unread_count` and
+    // bump `last_activity` so the sort order reflects the new message
+    // without needing a full refetch / page refresh.
+    const unsubUnread = userEventChannel.on('unread:change', (data: any) => {
+      const payload = data?.count || data
+      const conversationId = payload?.conversation_id
+      if (!conversationId) return
+      const conv = conversations.value.find(c => c.id === conversationId)
+      if (!conv) {
+        // Brand-new conversation we don't have locally - refetch the list
+        // so it shows up. This complements `conversation:new` which also
+        // triggers a refetch but only fires for genuinely new
+        // conversations, not for the first message in an existing one.
+        fetchUserConversations(userId).catch(err => debug.warn('unread:change refetch failed:', err))
+        return
+      }
+      const unread = typeof payload.unread_messages === 'number'
+        ? payload.unread_messages
+        : (conv.unread_count || 0)
+      conv.unread_count = unread
+      conv.last_activity = new Date().toISOString()
+    })
+
+    // When the broadcast channel reconnects after a tab sleep / network
+    // drop, the conversation list and unread counts may be stale. Refetch
+    // both so the sidebar resyncs without requiring a page refresh.
+    const unsubReconnect = userEventChannel.on('_reconnected', () => {
+      debug.log('🔄 UserEventChannel reconnected - resyncing conversation list')
+      fetchUserConversations(userId).catch(err => debug.warn('reconnect refetch failed:', err))
+    })
+
+    _globalBroadcastUnsubs = [unsubNew, unsubUpdated, unsubUnread, unsubReconnect]
     _globalBroadcastRegistered = true
     debug.log('✅ Global conversation broadcast handlers registered')
   }

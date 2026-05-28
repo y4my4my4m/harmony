@@ -952,7 +952,7 @@ generate_federation_env() {
     fi
 
     local cors_origin
-    local pgboss_enabled="false"
+    local bullmq_enabled="false"
     local api_base_url="http://localhost:3001"
 
     if [[ "$MODE" == "production" ]]; then
@@ -962,7 +962,7 @@ generate_federation_env() {
     fi
 
     if [[ -n "$DATABASE_URL" ]]; then
-        pgboss_enabled="true"
+        bullmq_enabled="true"
     fi
 
     local lk_url=""
@@ -1010,7 +1010,7 @@ LIVEKIT_PUBLIC_URL=$lk_public_url
 WEBRTC_MODE=hybrid
 ALLOW_FEDERATED_VOICE=true
 
-USE_PGBOSS_QUEUE=$pgboss_enabled
+USE_BULLMQ_QUEUE=$bullmq_enabled
 REDIS_URL=redis://:${REDIS_PASSWORD:-}@harmony-redis:6379
 
 RATE_LIMIT_WINDOW_MS=900000
@@ -1370,7 +1370,7 @@ generate_docker_compose() {
       - supabase_default"
             fed_env_base+="
       - SUPABASE_URL=http://supabase-kong:8000
-      - USE_PGBOSS_QUEUE=true
+      - USE_BULLMQ_QUEUE=true
       - DATABASE_URL=postgresql://postgres:${SUPABASE_PG_PASSWORD}@supabase-db:5432/postgres
       - DATABASE_POOL_URL=postgresql://postgres:${SUPABASE_PG_PASSWORD}@supabase-pooler:6543/postgres
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379"
@@ -2147,7 +2147,7 @@ show_summary() {
         echo ""
     fi
 
-    printf "  ${DIM}For the full manual guide: docs/HOW_TO_SELF_HOST.md${RESET}\n"
+    printf "  ${DIM}For the full manual guide: docs/self-hosting.md (https://docs.mony.lol/self-hosting)${RESET}\n"
     echo ""
 
     if [[ "$MODE" == "production" ]]; then

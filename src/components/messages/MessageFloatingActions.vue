@@ -5,17 +5,17 @@
       :style="style"
     >
       <template v-if="message.is_system">
-        <div class="action-btn" @click="emit('react', message, $event)"><ReactionIcon/></div>
-        <div class="action-btn" :class="{ 'delete-danger': isShiftHeld }" v-if="canDelete" @click="emit('delete', message.id, $event)"><DeleteIcon/></div>
-        <div class="action-btn" @click="emit('context-menu', message, $event)"><MoreIcon/></div>
+        <div class="action-btn" data-testid="msg-action-react" @click="emit('react', message, $event)"><ReactionIcon/></div>
+        <div class="action-btn" data-testid="msg-action-delete" :class="{ 'delete-danger': isShiftHeld }" v-if="canDelete" @click="emit('delete', message.id, $event)"><DeleteIcon/></div>
+        <div class="action-btn" data-testid="msg-action-more" @click="emit('context-menu', message, $event)"><MoreIcon/></div>
       </template>
       <template v-else>
-        <div class="action-btn" @click="emit('react', message, $event)"><ReactionIcon/></div>
-        <div class="action-btn" @click="emit('reply', message)"><ReplyIcon/></div>
-        <div class="action-btn thread-btn" v-if="!hideThreadActions" @click="emit('thread', message)" title="Create Thread"><ThreadIcon/></div>
-        <div class="action-btn" v-if="canEdit" @click="emit('edit', message)"><EditIcon/></div>
-        <div class="action-btn" :class="{ 'delete-danger': isShiftHeld }" v-if="canDelete" @click="emit('delete', message.id, $event)"><DeleteIcon/></div>
-        <div class="action-btn" @click="emit('context-menu', message, $event)"><MoreIcon/></div>
+        <div class="action-btn" data-testid="msg-action-react" @click="emit('react', message, $event)"><ReactionIcon/></div>
+        <div class="action-btn" data-testid="msg-action-reply" @click="emit('reply', message)"><ReplyIcon/></div>
+        <div class="action-btn thread-btn" data-testid="msg-action-thread" v-if="!hideThreadActions" @click="emit('thread', message)" title="Create Thread"><ThreadIcon/></div>
+        <div class="action-btn" data-testid="msg-action-edit" v-if="canEdit" @click="emit('edit', message)"><EditIcon/></div>
+        <div class="action-btn" data-testid="msg-action-delete" :class="{ 'delete-danger': isShiftHeld }" v-if="canDelete" @click="emit('delete', message.id, $event)"><DeleteIcon/></div>
+        <div class="action-btn" data-testid="msg-action-more" @click="emit('context-menu', message, $event)"><MoreIcon/></div>
       </template>
     </div>
   </Teleport>

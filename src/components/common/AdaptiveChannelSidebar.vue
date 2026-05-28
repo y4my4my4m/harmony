@@ -80,7 +80,7 @@
               @click="handleNavItemClick(navItem)"
             >
               <Icon :name="navItem.icon" />
-              <span>{{ navItem.label }}</span>
+              <span class="nav-label">{{ navItem.label }}</span>
               <span v-if="navItem.badge" class="nav-badge">{{ navItem.badge > 99 ? '99+' : navItem.badge }}</span>
             </button>
           </div>

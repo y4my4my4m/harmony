@@ -68,10 +68,7 @@ class UserDataService extends EventTarget {
   // Cache settings
   private readonly CACHE_TTL = 5 * 60 * 1000 // 5 minutes
   private readonly HEARTBEAT_INTERVAL = 60 * 1000 // 60 seconds
-  
-  // Presence sync debouncing
-  private presenceSyncTimeouts = new Map<string, NodeJS.Timeout>()
-  private readonly PRESENCE_SYNC_DEBOUNCE = 200 // 200ms debounce for presence sync
+
   private heartbeatTimer: NodeJS.Timeout | null = null
   private heartbeatFailures = 0
   private readonly MAX_HEARTBEAT_FAILURES = 3
@@ -750,22 +747,52 @@ class UserDataService extends EventTarget {
       }
       return
     }
-    
+
+    const nextUsername = presence.username || existing?.username || 'Unknown'
+    const nextDisplayName = presence.display_name || presence.username || existing?.displayName || 'Unknown'
+    // Cache/DB wins — presence can be stale (tracked before avatar upload)
+    const nextAvatar = existing?.avatarUrl || presence.avatar_url
+    const nextColor = presence.color || existing?.color
+    const nextCustomStatus = presence.custom_status || existing?.customStatus
+    const nextMobile = presence.is_mobile || existing?.isMobile || false
+
+    // Fast-path: if nothing user-visible changed and the user is already online,
+    // only bump bookkeeping fields (no reactive write, no event emit). Without
+    // this, Supabase Realtime Presence sync events (fired on every join/leave/
+    // track from any peer) cause every Avatar/DisplayName/Status component to
+    // re-render, which can remount <img> elements and force a fresh fetch
+    // through R2/imgproxy — visible as avatar flicker under network latency.
+    if (
+      existing &&
+      existing.isOnline === true &&
+      existing.username === nextUsername &&
+      existing.displayName === nextDisplayName &&
+      existing.avatarUrl === nextAvatar &&
+      existing.color === nextColor &&
+      existing.status === userStatus &&
+      existing.isMobile === nextMobile &&
+      JSON.stringify(existing.customStatus) === JSON.stringify(nextCustomStatus)
+    ) {
+      existing.lastSeen = presence.online_at || new Date().toISOString()
+      existing.lastHeartbeat = existing.lastSeen
+      return
+    }
+
     const userData: UserData = {
       ...existing,
       id: userId,
-      username: presence.username || existing?.username || 'Unknown',
-      displayName: presence.display_name || presence.username || existing?.displayName || 'Unknown',
-      avatarUrl: presence.avatar_url || existing?.avatarUrl,
+      username: nextUsername,
+      displayName: nextDisplayName,
+      avatarUrl: nextAvatar,
       bannerUrl: existing?.bannerUrl,
       bio: existing?.bio,
-      color: presence.color || existing?.color,
+      color: nextColor,
       domain: existing?.domain,
       isLocal: existing?.isLocal ?? true,
       status: userStatus,
-      customStatus: presence.custom_status || existing?.customStatus,
+      customStatus: nextCustomStatus,
       isOnline: true,
-      isMobile: presence.is_mobile || existing?.isMobile || false,
+      isMobile: nextMobile,
       lastSeen: presence.online_at || new Date().toISOString(),
       lastHeartbeat: presence.online_at || new Date().toISOString(),
       lastCacheUpdate: new Date().toISOString(),
@@ -780,62 +807,11 @@ class UserDataService extends EventTarget {
     this.emitEvent('global-presence-updated', { userId, isOnline: true })
   }
   
-  // Global presence sync handlers removed - we now only track context-specific users
-  
-  /**
-   * Update user data from presence
-   */
-  private updateUserFromPresence(userId: string, presence: any): void {
-    const existing = this.users.get(userId)
-    const userStatus = presence.status ?? existing?.status ?? UserStatus.Online
-    
-    // 🎯 PROFESSIONAL INVISIBLE IMPLEMENTATION  
-    // If user has status set to Offline (invisible), don't show them as online
-    // This should never happen due to untrackFromAllPresenceChannels() calls, but handle it as safety net
-    if (userStatus === UserStatus.Offline) {
-      debug.log(`👻 User ${userId} has offline status in context presence - skipping update (they should be invisible)`)
-      // If they exist in our cache, mark them as offline
-      if (existing) {
-        existing.isOnline = false
-        existing.lastSeen = presence.online_at || new Date().toISOString()
-        this.emitEvent('user-updated', { userId })
-      }
-      return
-    }
-    
-    const userData: UserData = {
-      ...existing,
-      id: userId,
-      username: presence.username || existing?.username || 'Unknown',
-      displayName: presence.display_name || presence.username || existing?.displayName || 'Unknown',
-      avatarUrl: presence.avatar_url || existing?.avatarUrl,
-      bannerUrl: presence.banner_url || existing?.bannerUrl,
-      bio: existing?.bio,
-      color: presence.color || existing?.color,
-      domain: existing?.domain || import.meta.env.VITE_DOMAIN as string,
-      isLocal: existing?.isLocal ?? true,
-      isAdmin: existing?.isAdmin ?? false,
-      isModerator: existing?.isModerator ?? false,
-      status: userStatus,
-      customStatus: presence.custom_status || existing?.customStatus,
-      isOnline: true,
-      isMobile: presence.is_mobile || existing?.isMobile || false,
-      lastSeen: presence.online_at || new Date().toISOString(),
-      lastHeartbeat: presence.online_at || new Date().toISOString(),
-      lastCacheUpdate: new Date().toISOString(),
-      createdAt: existing?.createdAt || new Date().toISOString(),
-      source: 'presence'
-    }
-    
-    this.users.set(userId, userData)
-    
-    // If we have no prior DB data, backfill from database so roles are populated
-    if (!existing) {
-      this.loadUsersData([userId]).catch(() => {})
-    }
-    
-    this.emitEvent('user-updated', { userId })
-  }
+  // updateUserFromPresence removed — it was the helper for per-server
+  // Supabase Presence handlers that were also removed (see big comment in
+  // the server presence block). All presence-based user data now flows
+  // through `updateUserFromGlobalPresence` above.
+
   
   /**
    * Start heartbeat for both internal tracking and Redis presence.
@@ -938,24 +914,33 @@ class UserDataService extends EventTarget {
   }
   
   /**
-   * Setup server-specific presence channel.
+   * Setup server broadcast channel.
    *
-   * BUGS.md C14: previously a `CHANNEL_ERROR` would `setTimeout` another
-   * `setupServerPresence()` call **without** removing the failed channel
-   * and **without** debouncing concurrent retries. Each error therefore
-   * added another live Supabase channel; only the latest was reachable via
-   * `context.channel`, but the orphans kept running and counted against the
-   * realtime quota. This method now:
+   * This channel is BROADCAST-ONLY. It receives:
+   *   - profile_update broadcasts from peers
+   *   - presence_event broadcasts from DB triggers (member join/leave,
+   *     profile updates, emoji changes)
    *
-   *  1. Removes any prior channel attached to the context before subscribing.
-   *  2. Stores any pending retry timer on the context so we can cancel it
-   *     (e.g. when the context is torn down).
-   *  3. Bails out of the retry if the context disappears before the timer
-   *     fires (user left the server, logged out, etc.).
+   * It used to ALSO use Supabase Presence (`.track()` + `.on('presence', ...)`)
+   * to track who was "online in this server". That was the wrong model:
+   *   - Switching servers unsubscribes the user from this channel, which
+   *     fires `presence:leave` on every peer subscribed to the same channel,
+   *     making the user appear OFFLINE to other members of the server they
+   *     just left (despite still being logged in).
+   *   - `handleServerSync` would actively force-mark every member who isn't
+   *     in the per-server presence state as offline, even when global
+   *     presence still showed them online.
+   *
+   * Discord/Slack/Mastodon all model presence as GLOBAL (one user → one
+   * online/offline state visible to everyone who needs to see them), so we
+   * now do the same: `harmony-global-presence` is the single source of truth
+   * for online/offline. Per-server channels are pure pub/sub.
+   *
+   * BUGS.md C14 retry behaviour for `CHANNEL_ERROR` is preserved.
    */
   private async setupServerPresence(serverId: string, userIds: string[]): Promise<void> {
     const channelName = `server-presence:${serverId}`
-    debug.log('🔄 Setting up presence for server:', serverId, 'with', userIds.length, 'users')
+    debug.log('🔄 Subscribing to server broadcast channel:', serverId, 'with', userIds.length, 'users')
 
     // Tear down any prior channel + retry timer on this context before
     // subscribing a new one. This is what prevents accumulating duplicates.
@@ -972,20 +957,8 @@ class UserDataService extends EventTarget {
       clearTimeout((existingContext as any)._presenceRetryTimer)
       ;(existingContext as any)._presenceRetryTimer = null
     }
-    
+
     const channel = supabase.channel(channelName, { config: { private: true } })
-      .on('presence', { event: 'sync' }, () => {
-        debug.log('🔄 Presence sync for server:', serverId)
-        this.handleServerSync(serverId)
-      })
-      .on('presence', { event: 'join' }, ({ newPresences }: { newPresences: any[] }) => {
-        // debug.log('👋 User(s) joined presence in server:', serverId, newPresences)
-        this.handleServerUserJoin(serverId, newPresences)
-      })
-      .on('presence', { event: 'leave' }, ({ leftPresences }: { leftPresences: any[] }) => {
-        // debug.log('👋 User(s) left presence in server:', serverId, leftPresences)
-        this.handleServerUserLeave(serverId, leftPresences)
-      })
       // 🔥 Listen for profile update broadcasts (the correct way for real-time profile changes)
       .on('broadcast', { event: 'profile_update' }, (payload) => this.handleProfileUpdateBroadcast(serverId, payload))
       .on('broadcast', { event: 'presence_event' }, (payload) => {
@@ -1005,9 +978,8 @@ class UserDataService extends EventTarget {
       .subscribe(async (status: string) => {
         if (status === 'SUBSCRIBED') {
           console.log(`[Realtime] server-presence:${serverId} → SUBSCRIBED`)
-          if (this.currentUserId && userIds.includes(this.currentUserId)) {
-            await this.trackCurrentUserInServer(channel, serverId)
-          }
+          // No .track() call: this channel does not participate in presence
+          // tracking. Online/offline is owned by `harmony-global-presence`.
         } else if (status === 'CHANNEL_ERROR') {
           console.error(`[Realtime] server-presence:${serverId} → CHANNEL_ERROR`)
           // Store the timer on the context so it can be cancelled if the
@@ -1033,143 +1005,32 @@ class UserDataService extends EventTarget {
           console.log(`[Realtime] server-presence:${serverId} →`, status)
         }
       })
-    
+
     const context = this.contexts.get(serverId)
     if (context) {
       context.channel = channel
     }
   }
   
-  /**
-   * Track current user in server presence
-   */
-  private async trackCurrentUserInServer(channel: RealtimeChannel, serverId: string): Promise<void> {
-    if (!this.currentUserId) return
-    
-    const userData = this.users.get(this.currentUserId)
-    if (!userData) return
-    
-    // 🎯 PROFESSIONAL INVISIBLE IMPLEMENTATION
-    // If user has set status to Offline (0), they should be invisible to others
-    // Don't track presence at all - this is the cleanest approach
-    if (userData.status === UserStatus.Offline) {
-      debug.log(`👻 User ${this.currentUserId} is invisible (status: Offline) - not tracking presence in server ${serverId}`)
-      return
-    }
-    
-    // 👻 INVISIBLE STATUS: Don't track presence if user is invisible
-    if (userData.status === UserStatus.Invisible) {
-      debug.log(`👻 User ${this.currentUserId} is Invisible - not tracking in server ${serverId}`)
-      await channel.untrack()
-      return
-    }
-    
-    await channel.track({
-      user_id: this.currentUserId,
-      username: userData.username,
-      display_name: userData.displayName,
-      avatar_url: userData.avatarUrl,
-      banner_url: userData.bannerUrl,
-      color: userData.color,
-      status: userData.status,
-      custom_status: userData.customStatus,
-      is_mobile: userData.isMobile,
-      server_id: serverId,
-      online_at: new Date().toISOString()
-    })
-    
-    debug.log(`✅ User ${this.currentUserId} presence tracked in server ${serverId} with status: ${UserStatus[userData.status]}${userData.isMobile ? ' (mobile)' : ''}`)
-  }
-  
-  /**
-   * Handle server presence sync with debouncing to prevent excessive syncs
-   */
-  private handleServerSync(serverId: string): void {
-    // ✅ PERFORMANCE FIX: Debounce presence sync to prevent double syncs
-    const existingTimeout = this.presenceSyncTimeouts.get(serverId)
-    if (existingTimeout) {
-      clearTimeout(existingTimeout)
-    }
-    
-    this.presenceSyncTimeouts.set(serverId, setTimeout(() => {
-      this.executeServerSync(serverId)
-      this.presenceSyncTimeouts.delete(serverId)
-    }, this.PRESENCE_SYNC_DEBOUNCE))
-  }
-  
-  /**
-   * Execute the actual server sync (separated for debouncing)
-   */
-  private executeServerSync(serverId: string): void {
-    const context = this.contexts.get(serverId)
-    if (!context?.channel) {
-      debug.warn('⚠️ No context or channel found for server sync:', serverId)
-      return
-    }
-    
-    const state = context.channel.presenceState()
-    debug.log(`📡 Server ${serverId} presence sync:`, Object.keys(state).length, 'presence keys')
-    debug.log('📊 Full presence state:', state)
-    
-    // Track which users are online based on presence
-    const onlineUserIds = new Set<string>()
-    
-    Object.entries(state).forEach(([presenceKey, presences]) => {
-      debug.log(`👤 Presence key ${presenceKey}:`, presences)
-      if (Array.isArray(presences) && presences.length > 0) {
-        const presence = presences[0] as any
-        if (presence.user_id) {
-          onlineUserIds.add(presence.user_id)
-          this.updateUserFromPresence(presence.user_id, presence)
-        }
-      }
-    })
-    
-    // Mark users as offline if they're not in presence
-    const contextUsers = Array.from(context.userIds)
-    contextUsers.forEach(userId => {
-      if (!onlineUserIds.has(userId)) {
-        const userData = this.users.get(userId)
-        if (userData && userData.isOnline) {
-          debug.log(`🔴 Marking user ${userId} as offline (not in presence)`)
-          userData.isOnline = false
-          userData.status = UserStatus.Offline
-          userData.lastSeen = new Date().toISOString()
-          userData.lastCacheUpdate = new Date().toISOString()
-          this.emitEvent('user-updated', { userId })
-        }
-      }
-    })
-    
-    debug.log(`✅ Sync complete: ${onlineUserIds.size} online, ${contextUsers.length - onlineUserIds.size} offline`)
-  }
-  
-  /**
-   * Handle server user join
-   */
-  private handleServerUserJoin(serverId: string, newPresences: any[]): void {
-    newPresences.forEach(presence => {
-      this.updateUserFromPresence(presence.user_id, presence)
-      debug.log(`👋 User joined server ${serverId}:`, presence.display_name || presence.username)
-    })
-  }
-  
-  /**
-   * Handle server user leave
-   */
-  private handleServerUserLeave(serverId: string, leftPresences: any[]): void {
-    leftPresences.forEach(presence => {
-      const userData = this.users.get(presence.user_id)
-      if (userData) {
-        userData.isOnline = false
-        userData.lastSeen = new Date().toISOString()
-        userData.lastCacheUpdate = new Date().toISOString()
-        userData.status = 0 // Set to Offline
-        this.emitEvent('user-updated', { userId: presence.user_id })
-      }
-      debug.log(`👋 User left server ${serverId}:`, presence.display_name || presence.username)
-    })
-  }
+  // ---------------------------------------------------------------------
+  // REMOVED: trackCurrentUserInServer / handleServerSync / executeServerSync
+  //          / handleServerUserJoin / handleServerUserLeave
+  //
+  // These all coupled per-server Supabase Presence to online/offline state.
+  // That coupling caused user-visible bugs:
+  //   - Switching servers triggered `presence:leave` on the old server's
+  //     channel, marking the user OFFLINE for every peer there even though
+  //     they were still logged in (visible in their own per-server user
+  //     list, but offline to everyone else in the server they just left).
+  //   - `executeServerSync` force-set every member who wasn't in the
+  //     per-server presence to offline, regardless of global presence.
+  //
+  // Per the architecture rule in .cursor/rules/realtime-architecture.mdc,
+  // `server-presence:{serverId}` is a BROADCAST topic for profile/member/
+  // emoji events. Online/offline lives entirely on
+  // `harmony-global-presence` (one global "who's online" stream, mirroring
+  // Discord/Slack/Mastodon).
+  // ---------------------------------------------------------------------
 
   /**
    * Handle real-time server membership join
@@ -1192,26 +1053,23 @@ class UserDataService extends EventTarget {
   }
 
   /**
-   * Handle real-time server membership leave  
+   * Handle real-time server membership leave (DB user_servers row deleted —
+   * the user actually left this server, not just switched away from viewing it).
    */
   private async handleServerMemberLeave(serverId: string, payload: any): Promise<void> {
     const leftUserId = payload.old.user_id
     debug.log(`👋 Member left server ${serverId}:`, leftUserId)
-    
+
     const context = this.contexts.get(serverId)
     if (context) {
-      // Remove user from context
+      // Remove user from this server's member list. We deliberately DO NOT
+      // touch `userData.isOnline` — leaving one server doesn't make a user
+      // offline globally. They might still be in other servers, in DMs with
+      // us, or on our friends list, and global presence is the single
+      // source of truth for online/offline status now.
       context.userIds.delete(leftUserId)
-      
-      // Mark user as offline for this context
-      const userData = this.users.get(leftUserId)
-      if (userData) {
-        userData.isOnline = false
-        userData.lastSeen = new Date().toISOString()
-        userData.lastCacheUpdate = new Date().toISOString()
-      }
-      
-      // Emit context update
+
+      // Emit context update so the UI removes them from this server's list
       this.emitEvent('context-updated', { contextId: serverId, type: 'member-leave', userId: leftUserId })
     }
   }
@@ -1244,6 +1102,10 @@ class UserDataService extends EventTarget {
         userData.displayName = updatedProfile.display_name
         userData.displayNameParts = this.resolveDisplayNameParts(updatedProfile.display_name, userData.displayNameEmojis)
       }
+      const avatarChanged = updatedProfile.avatar_url !== undefined &&
+        updatedProfile.avatar_url !== userData.avatarUrl
+      const bannerChanged = updatedProfile.banner_url !== undefined &&
+        updatedProfile.banner_url !== userData.bannerUrl
       if (updatedProfile.avatar_url !== undefined) {
         userData.avatarUrl = updatedProfile.avatar_url
       }
@@ -1267,6 +1129,10 @@ class UserDataService extends EventTarget {
       userData.source = 'database'
       
       this.emitEvent('user-updated', { userId })
+
+      if (userId === this.currentUserId && (avatarChanged || bannerChanged)) {
+        await this.refreshPresenceMediaFields()
+      }
       
       debug.log(`✅ Updated user data for ${userData.displayName} in server ${serverId}`)
     } else {
@@ -1812,10 +1678,10 @@ class UserDataService extends EventTarget {
     try {
       // Broadcast profile changes to relevant contexts only (context-aware)
       await this.broadcastProfileToContexts(profileData)
-      
-      // Note: We don't re-track globally here anymore
-      // The initial track is sufficient, and re-tracking causes churn
-      // Profile broadcasts handle the update propagation
+
+      if (profileData.avatarUrl !== undefined || profileData.bannerUrl !== undefined) {
+        await this.refreshPresenceMediaFields()
+      }
       
       this.emitEvent('user-updated', { userId: this.currentUserId })
       debug.log('✅ Profile updated and broadcast to relevant contexts')
@@ -2085,13 +1951,7 @@ class UserDataService extends EventTarget {
     }
     realtimeApiService.goOffline().catch(() => {})
     realtimeApiService.cleanup()
-    
-    // Clear any pending presence sync timeouts
-    for (const timeout of this.presenceSyncTimeouts.values()) {
-      clearTimeout(timeout)
-    }
-    this.presenceSyncTimeouts.clear()
-    
+
     if (this.customStatusExpiryTimer) {
       clearTimeout(this.customStatusExpiryTimer)
       this.customStatusExpiryTimer = null
@@ -2201,20 +2061,11 @@ class UserDataService extends EventTarget {
   /**
    * Manually trigger presence sync for a server context (useful for debugging or forcing updates)
    */
-  async triggerPresenceSync(contextId: string): Promise<void> {
-    debug.log('🔄 Manually triggering presence sync for context:', contextId)
-    
-    const context = this.contexts.get(contextId)
-    if (!context?.channel) {
-      debug.warn('⚠️ No context or channel found for manual sync:', contextId)
-      return
-    }
-    
-    // Force a presence sync
-    this.handleServerSync(contextId)
-    
-    debug.log('✅ Manual presence sync completed for:', contextId)
-  }
+  // triggerPresenceSync removed — there's no per-server presence state to
+  // sync anymore. If a caller needs to force-refresh user data for a
+  // context, they should call `refresh()` (which re-loads from DB) or
+  // `refreshGlobalPresence()` (which re-syncs the global presence state).
+
   
   /**
    * Get current online status for all users in a context
@@ -2236,12 +2087,25 @@ class UserDataService extends EventTarget {
   }
   
   /**
-   * Untrack current user from all presence channels (for invisible status)
+   * Re-track presence after avatar/banner changes so other clients don't keep
+   * seeing stale media from an old track payload.
+   *
+   * Only the global presence channel needs re-tracking now; per-server
+   * channels are broadcast-only and don't carry our presence payload.
+   */
+  private async refreshPresenceMediaFields(): Promise<void> {
+    await this.trackCurrentUserGlobally()
+  }
+
+  /**
+   * Untrack current user from presence (for invisible status).
+   *
+   * Only the global channel carries our presence payload now; per-server
+   * channels are broadcast-only and have nothing to untrack.
    */
   private async untrackFromAllPresenceChannels(): Promise<void> {
     if (!this.currentUserId) return
-    
-    // Untrack from global presence
+
     if (this.globalChannel) {
       try {
         await this.globalChannel.untrack()
@@ -2250,19 +2114,7 @@ class UserDataService extends EventTarget {
         debug.warn('⚠️ Failed to untrack from global presence:', error)
       }
     }
-    
-    // Untrack from all context channels
-    for (const context of this.contexts.values()) {
-      if (context.channel) {
-        try {
-          await context.channel.untrack()
-          debug.log(`👻 Untracked from ${context.type} context: ${context.id}`)
-        } catch (error) {
-          debug.warn(`⚠️ Failed to untrack from ${context.type} context ${context.id}:`, error)
-        }
-      }
-    }
-    
+
     debug.log('👻 User is now invisible to all other users')
   }
 }

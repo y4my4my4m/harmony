@@ -199,7 +199,7 @@
             <div v-else class="emoji-name">:{{ emoji.name }}:</div>
             
             <div class="emoji-meta">
-              <span>{{ formatFileSize((emoji as any).file_size || 0) }}</span>
+              <span v-if="emoji.file_size">{{ formatFileSize(emoji.file_size) }}</span>
               <span>{{ formatDate((emoji.created_at ?? '') as any) }}</span>
             </div>
           </div>

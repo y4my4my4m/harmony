@@ -49,7 +49,7 @@ export async function handleReportJob(data: FederationJobData): Promise<void> {
     const reporterActorUrl = `${baseUrl}/users/${reporter.username}`;
 
     // Build report content
-    let reportObjects: string[] = [reportedUser.federated_id || reportedUser.ap_id];
+    const reportObjects: string[] = [reportedUser.federated_id || reportedUser.ap_id];
 
     // If there's a reported post, include it
     if (reported_post_id) {
@@ -76,7 +76,7 @@ export async function handleReportJob(data: FederationJobData): Promise<void> {
 
     // Get the shared inbox for the reported user's instance
     // First try to get instance's shared inbox, fall back to user inbox
-    let targetInbox = reportedUser.shared_inbox_url || reportedUser.inbox_url;
+    const targetInbox = reportedUser.shared_inbox_url || reportedUser.inbox_url;
 
     if (targetInbox) {
       await DeliveryQueue.sendToInbox(targetInbox, flagActivity, reporter.id);

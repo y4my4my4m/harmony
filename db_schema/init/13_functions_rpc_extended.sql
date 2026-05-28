@@ -4420,7 +4420,19 @@ $$;
 -- ---------------------------------------------------------------------------
 -- Announcements RPC
 -- ---------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION public.get_unread_announcements(p_user_id uuid)
+-- Two-arg signature: `p_popup_only` lets callers (the AnnouncementPopup)
+-- ask for the strictly popup-eligible subset. When true:
+--   * `show_popup = true` is required (admin opt-out for popup display)
+--   * `starts_at >= profiles.created_at` is required so brand-new users
+--     don't get spammed with the entire historical backlog
+--   * the result set is capped at 10 rows to protect long-absent users
+-- When false (default), behaviour matches the original one-arg shape so
+-- the Settings archive unread set and the sidebar unread count are
+-- unaffected. See migration 20260526_announcements_popup_filter.sql.
+CREATE OR REPLACE FUNCTION public.get_unread_announcements(
+    p_user_id uuid,
+    p_popup_only boolean DEFAULT false
+)
 RETURNS TABLE(
     id uuid,
     title text,
@@ -4437,7 +4449,14 @@ RETURNS TABLE(
     author_avatar_url text
 )
 LANGUAGE sql STABLE SECURITY DEFINER
+SET search_path = public, pg_temp
 AS $$
+    WITH joined AS (
+        SELECT COALESCE(
+            (SELECT created_at FROM public.profiles WHERE id = p_user_id),
+            'epoch'::timestamptz
+        ) AS user_created_at
+    )
     SELECT
         a.id, a.title, a.content, a.image_url, a.icon,
         a.is_pinned, a.show_popup, a.silence, a.created_at,
@@ -4446,12 +4465,22 @@ AS $$
         p.avatar_url AS author_avatar_url
     FROM public.instance_announcements a
     LEFT JOIN public.profiles p ON p.id = a.author_id
-    LEFT JOIN public.announcement_reads ar ON ar.announcement_id = a.id AND ar.user_id = p_user_id
+    LEFT JOIN public.announcement_reads ar
+        ON ar.announcement_id = a.id AND ar.user_id = p_user_id
+    CROSS JOIN joined j
     WHERE a.is_active = true
       AND a.starts_at <= NOW()
       AND (a.ends_at IS NULL OR a.ends_at > NOW())
       AND ar.id IS NULL
-    ORDER BY a.is_pinned DESC, a.display_order ASC, a.created_at DESC;
+      AND (
+          NOT p_popup_only
+          OR (
+              a.show_popup = true
+              AND a.starts_at >= j.user_created_at
+          )
+      )
+    ORDER BY a.is_pinned DESC, a.display_order ASC, a.created_at DESC
+    LIMIT CASE WHEN p_popup_only THEN 10 ELSE 1000 END;
 $$;
 
 -- ---------------------------------------------------------------------------
@@ -4584,7 +4613,7 @@ GRANT EXECUTE ON FUNCTION public.get_db_connection_count() TO authenticated;
 GRANT EXECUTE ON FUNCTION public.get_db_size() TO authenticated;
 GRANT EXECUTE ON FUNCTION public.get_admin_user_counts(uuid[]) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.get_server_member_counts(uuid[]) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.get_unread_announcements(uuid) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.get_unread_announcements(uuid, boolean) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.insert_ap_activity_outbound(text, text, uuid, text, jsonb, text, text, text[], text[], text) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.insert_ap_activity_outbound(text, text, uuid, text, jsonb, text, text, text[], text[], text) TO service_role;
 

@@ -18,6 +18,11 @@ import { supabase } from '@/supabase'
 import type { Post, TimelinePost, MessagePart } from '@/types'
 import { debug } from '@/utils/debug'
 import { authContextService } from '@/services/AuthContextService'
+import {
+  DEFAULT_MAX_POST_TEXT_LENGTH,
+  MESSAGE_TEXT_HARD_CEILING,
+  messageTextLength,
+} from '@/utils/messageContentUtils'
 
 export interface CreatePostData {
   content: MessagePart[]
@@ -85,6 +90,20 @@ export class CorePostService {
         if (!part || typeof part !== 'object' || !part.type) {
           throw this.createError('INVALID_MESSAGE_PART', 'Each content part must be a valid MessagePart object')
         }
+      }
+
+      // Enforce per-post text length using the admin-configurable soft
+      // limit (`instance_config.max_post_length`). The DB CHECK constraint
+      // on `posts.content` enforces the absolute hard ceiling
+      // (`MESSAGE_TEXT_HARD_CEILING`) — this check fires first so the
+      // user sees a friendly error.
+      const maxPostLength = await this.getMaxPostLength()
+      const textLen = messageTextLength(data.content)
+      if (textLen > maxPostLength) {
+        throw this.createError(
+          'POST_TOO_LONG',
+          `Post is too long (${textLen.toLocaleString()} / ${maxPostLength.toLocaleString()} characters).`,
+        )
       }
 
       debug.log('✅ Core: Content validation passed')
@@ -164,6 +183,20 @@ export class CorePostService {
 
       if (existingPost?.author_id !== profileId) {
         throw this.createError('UNAUTHORIZED', 'Cannot edit post you do not own')
+      }
+
+      // Enforce post length on edits too — otherwise edits could push a
+      // tiny post past the limit. Only check when content is actually
+      // changing.
+      if (updates.content) {
+        const maxPostLength = await this.getMaxPostLength()
+        const textLen = messageTextLength(updates.content)
+        if (textLen > maxPostLength) {
+          throw this.createError(
+            'POST_TOO_LONG',
+            `Post is too long (${textLen.toLocaleString()} / ${maxPostLength.toLocaleString()} characters).`,
+          )
+        }
       }
 
       const updateData = {
@@ -855,6 +888,32 @@ export class CorePostService {
 
   private createError(code: string, message: string, details?: any): CorePostServiceError {
     return { code, message, details }
+  }
+
+  /**
+   * Fetch the admin-configured max post length from `instance_config`.
+   * Falls back to `DEFAULT_MAX_POST_TEXT_LENGTH` if the row is missing
+   * or unparseable, and clamps to the DB-side hard ceiling so a
+   * misconfigured admin value can't push a row into a state the CHECK
+   * constraint will reject.
+   */
+  private async getMaxPostLength(): Promise<number> {
+    const { data } = await supabase
+      .from('instance_config')
+      .select('config_value')
+      .eq('config_key', 'max_post_length')
+      .maybeSingle()
+    const raw = data?.config_value
+    const parsed =
+      typeof raw === 'number'
+        ? raw
+        : typeof raw === 'string'
+          ? parseInt(raw, 10)
+          : NaN
+    const value = !Number.isNaN(parsed) && parsed >= 1
+      ? parsed
+      : DEFAULT_MAX_POST_TEXT_LENGTH
+    return Math.min(value, MESSAGE_TEXT_HARD_CEILING)
   }
 }
 

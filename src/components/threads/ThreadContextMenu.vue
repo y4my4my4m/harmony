@@ -112,20 +112,23 @@ interface Props {
   serverId?: string
 }
 
-interface Emits {
-  (e: 'close'): void
-  (e: 'leave'): void
-  (e: 'edit', thread: ThreadWithDetails): void
-  (e: 'open-split-view', thread: ThreadWithDetails): void
-  (e: 'close-thread', thread: ThreadWithDetails): void
-  (e: 'reopen', thread: ThreadWithDetails): void
-  (e: 'lock', thread: ThreadWithDetails): void
-  (e: 'unlock', thread: ThreadWithDetails): void
-  (e: 'delete', thread: ThreadWithDetails): void
-}
-
 const props = defineProps<Props>()
-const emit = defineEmits<Emits>()
+
+// Tuple-based defineEmits is the modern Vue 3 syntax and plays better
+// with vue-tsc's `(...args: any[]) => any` listener-prop type than the
+// older call-signature interface form, which produces contravariance
+// errors at the parent's `@edit="..."` etc. binding sites.
+const emit = defineEmits<{
+  close: []
+  leave: []
+  edit: [thread: ThreadWithDetails]
+  'open-split-view': [thread: ThreadWithDetails]
+  'close-thread': [thread: ThreadWithDetails]
+  reopen: [thread: ThreadWithDetails]
+  lock: [thread: ThreadWithDetails]
+  unlock: [thread: ThreadWithDetails]
+  delete: [thread: ThreadWithDetails]
+}>()
 
 const { canManageChannels } = useServerPermissions()
 

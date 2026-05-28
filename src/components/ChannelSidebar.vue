@@ -504,8 +504,12 @@ const dragGroup = computed(() => ({
 
 // Pass the raw server row through - InviteModal normalizes `icon`/`banner`
 // via serverUtils and fetches the live member count itself.
+//
+// Returns `undefined` (not `null`) when there's no server, because that's
+// what InviteModal's optional `server-data` prop type accepts; returning
+// `null` produces a TS2322 error since the prop signature is `T | undefined`.
 const currentServerData = computed(() => {
-  if (!props.currentServer) return null;
+  if (!props.currentServer) return undefined;
   return {
     id: props.currentServer.id,
     name: props.currentServer.name,

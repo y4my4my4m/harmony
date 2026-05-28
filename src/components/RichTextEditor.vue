@@ -49,6 +49,7 @@ import { roleService } from '@/services/RoleService';
 import { useServerChannelStore } from '@/stores/useServerChannel';
 import { useUndoRedo, type UndoState } from '@/composables/useUndoRedo';
 import { findEmojiByName } from '@/services/emojiShortcodeResolver';
+import { applyInlineFormatToggle, type InlineFormatKind } from '@/utils/richTextFormatting';
 
 interface Props {
   modelValue: string;
@@ -212,196 +213,196 @@ const getPlainText = (): string => {
   return text;
 };
 
-// Get cursor position as text offset
-const getCursorPosition = (): number => {
-  if (!editorRef.value) return 0;
-  
-  const selection = window.getSelection();
-  if (!selection || selection.rangeCount === 0) return 0;
-  
-  const range = selection.getRangeAt(0);
-  let position = 0;
-  
-  const walker = document.createTreeWalker(
-    editorRef.value,
+const createPlainTextWalker = (root: HTMLElement) =>
+  document.createTreeWalker(
+    root,
     NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT,
     {
       acceptNode: (node) => {
-        // Skip nodes inside contenteditable="false" elements (emoji/mention spans)
-        // to match setCursorPosition behavior and avoid double-counting
         let parent = node.parentElement;
-        while (parent && parent !== editorRef.value) {
+        while (parent && parent !== root) {
           if (parent.getAttribute('contenteditable') === 'false') {
             return NodeFilter.FILTER_SKIP;
           }
           parent = parent.parentElement;
         }
-        
+
         if (node.nodeType === Node.TEXT_NODE) {
           return NodeFilter.FILTER_ACCEPT;
-        } else if (node.nodeType === Node.ELEMENT_NODE) {
+        }
+        if (node.nodeType === Node.ELEMENT_NODE) {
           const el = node as HTMLElement;
-          if (el.classList.contains('editor-emoji') || 
-              el.classList.contains('editor-mention') || 
-              el.tagName === 'BR') {
+          if (
+            el.classList.contains('editor-emoji') ||
+            el.classList.contains('editor-mention') ||
+            el.tagName === 'BR'
+          ) {
             return NodeFilter.FILTER_ACCEPT;
           }
         }
         return NodeFilter.FILTER_SKIP;
-      }
-    }
+      },
+    },
   );
-  
+
+const getNodePlainTextLength = (node: Node): number => {
+  if (node.nodeType === Node.TEXT_NODE) {
+    return (node.textContent || '').length;
+  }
+  if (node.nodeType === Node.ELEMENT_NODE) {
+    const el = node as HTMLElement;
+    if (el.classList.contains('editor-emoji')) {
+      const emojiName = el.getAttribute('data-emoji');
+      return emojiName ? `:${emojiName}:`.length : 0;
+    }
+    if (el.classList.contains('editor-mention')) {
+      const displayText = el.getAttribute('data-display-text');
+      return displayText?.length ?? 0;
+    }
+    if (el.tagName === 'BR') {
+      return 1;
+    }
+  }
+  return 0;
+};
+
+const getPlainTextOffsetForPoint = (
+  root: HTMLElement,
+  targetContainer: Node,
+  targetOffset: number,
+): number => {
+  let position = 0;
+  const walker = createPlainTextWalker(root);
   let node = walker.nextNode();
+
   while (node) {
-    if (node === range.startContainer) {
+    if (node === targetContainer) {
       if (node.nodeType === Node.TEXT_NODE) {
-        position += range.startOffset;
+        position += targetOffset;
       }
       break;
-    } else if (range.startContainer.nodeType === Node.ELEMENT_NODE && 
-               range.startContainer.contains(node)) {
-      const nodesBeforeCursor = Array.from(range.startContainer.childNodes).slice(0, range.startOffset);
-      if (!nodesBeforeCursor.some(n => n === node || n.contains(node as Node))) {
+    }
+    if (
+      targetContainer.nodeType === Node.ELEMENT_NODE &&
+      targetContainer.contains(node)
+    ) {
+      const nodesBefore = Array.from(targetContainer.childNodes).slice(0, targetOffset);
+      if (!nodesBefore.some((n) => n === node || n.contains(node as Node))) {
         break;
       }
     }
-    
-    // Count this node
-    if (node.nodeType === Node.TEXT_NODE) {
-      position += (node.textContent || '').length;
-    } else if (node.nodeType === Node.ELEMENT_NODE) {
-      const el = node as HTMLElement;
-      if (el.classList.contains('editor-emoji')) {
-        const emojiName = el.getAttribute('data-emoji');
-        if (emojiName) {
-          position += `:${emojiName}:`.length;
-        }
-      } else if (el.classList.contains('editor-mention')) {
-        const displayText = el.getAttribute('data-display-text');
-        if (displayText) {
-          position += displayText.length;
-        }
-      } else if (el.tagName === 'BR') {
-        position += 1;
-      }
-    }
-    
+
+    position += getNodePlainTextLength(node);
     node = walker.nextNode();
   }
-  
+
   return position;
+};
+
+const findDomPointAtPlainTextOffset = (
+  root: HTMLElement,
+  targetPosition: number,
+): { node: Node; offset: number } | null => {
+  let currentPos = 0;
+  const walker = createPlainTextWalker(root);
+  let node = walker.nextNode();
+
+  while (node) {
+    const nodeLength = getNodePlainTextLength(node);
+    if (currentPos + nodeLength >= targetPosition) {
+      if (node.nodeType === Node.TEXT_NODE) {
+        return { node, offset: targetPosition - currentPos };
+      }
+      const parent = node.parentNode;
+      if (!parent) return null;
+      return {
+        node: parent,
+        offset: Array.from(parent.childNodes).indexOf(node as ChildNode) + 1,
+      };
+    }
+    currentPos += nodeLength;
+    node = walker.nextNode();
+  }
+
+  return null;
+};
+
+const getSelectionOffsets = (): { start: number; end: number } => {
+  if (!editorRef.value) return { start: 0, end: 0 };
+
+  const selection = window.getSelection();
+  if (!selection || selection.rangeCount === 0) return { start: 0, end: 0 };
+
+  const range = selection.getRangeAt(0);
+  const start = getPlainTextOffsetForPoint(
+    editorRef.value,
+    range.startContainer,
+    range.startOffset,
+  );
+  const end = getPlainTextOffsetForPoint(
+    editorRef.value,
+    range.endContainer,
+    range.endOffset,
+  );
+  return { start, end: Math.max(start, end) };
+};
+
+const setSelectionOffsets = (selStart: number, selEnd: number) => {
+  if (!editorRef.value) return;
+
+  const selection = window.getSelection();
+  if (!selection) return;
+
+  const startPoint = findDomPointAtPlainTextOffset(editorRef.value, selStart);
+  const endPoint = findDomPointAtPlainTextOffset(editorRef.value, selEnd);
+  if (!startPoint || !endPoint) return;
+
+  try {
+    const range = document.createRange();
+    if (startPoint.node.nodeType === Node.TEXT_NODE) {
+      range.setStart(
+        startPoint.node,
+        Math.min(startPoint.offset, startPoint.node.textContent?.length || 0),
+      );
+    } else {
+      range.setStart(startPoint.node, Math.min(startPoint.offset, startPoint.node.childNodes.length));
+    }
+    if (endPoint.node.nodeType === Node.TEXT_NODE) {
+      range.setEnd(
+        endPoint.node,
+        Math.min(endPoint.offset, endPoint.node.textContent?.length || 0),
+      );
+    } else {
+      range.setEnd(endPoint.node, Math.min(endPoint.offset, endPoint.node.childNodes.length));
+    }
+    selection.removeAllRanges();
+    selection.addRange(range);
+  } catch (e) {
+    debug.warn('Error setting selection offsets:', e);
+  }
+};
+
+// Get cursor position as text offset
+const getCursorPosition = (): number => {
+  if (!editorRef.value) return 0;
+
+  const selection = window.getSelection();
+  if (!selection || selection.rangeCount === 0) return 0;
+
+  const range = selection.getRangeAt(0);
+  return getPlainTextOffsetForPoint(
+    editorRef.value,
+    range.startContainer,
+    range.startOffset,
+  );
 };
 
 // Set cursor position from text offset
 const setCursorPosition = (targetPosition: number) => {
   if (!editorRef.value) return;
-  
+
   debug.log('🔧 setCursorPosition called with:', targetPosition);
-  
-  const selection = window.getSelection();
-  if (!selection) return;
-  
-  let currentPos = 0;
-  let targetNode: Node | null = null;
-  let targetOffset = 0;
-  
-  const walker = document.createTreeWalker(
-    editorRef.value,
-    NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT,
-    {
-      acceptNode: (node) => {
-        // Skip nodes inside contenteditable=false elements (like mention spans)
-        let parent = node.parentElement;
-        while (parent && parent !== editorRef.value) {
-          if (parent.getAttribute('contenteditable') === 'false') {
-            return NodeFilter.FILTER_SKIP;
-          }
-          parent = parent.parentElement;
-        }
-        
-        if (node.nodeType === Node.TEXT_NODE) {
-          return NodeFilter.FILTER_ACCEPT;
-        } else if (node.nodeType === Node.ELEMENT_NODE) {
-          const el = node as HTMLElement;
-          if (el.classList.contains('editor-emoji') || 
-              el.classList.contains('editor-mention') || 
-              el.tagName === 'BR') {
-            return NodeFilter.FILTER_ACCEPT;
-          }
-        }
-        return NodeFilter.FILTER_SKIP;
-      }
-    }
-  );
-  
-  let node = walker.nextNode();
-  while (node) {
-    if (node.nodeType === Node.TEXT_NODE) {
-      const nodeLength = (node.textContent || '').length;
-      debug.log('🔧 Processing text node:', { text: JSON.stringify(node.textContent), length: nodeLength, currentPos, targetPosition });
-      if (currentPos + nodeLength >= targetPosition) {
-        targetNode = node;
-        targetOffset = targetPosition - currentPos;
-        debug.log('🔧 Found target in text node:', { targetOffset, text: JSON.stringify(node.textContent) });
-        break;
-      }
-      currentPos += nodeLength;
-    } else if (node.nodeType === Node.ELEMENT_NODE) {
-      const el = node as HTMLElement;
-      let nodeLength = 0;
-      
-      if (el.classList.contains('editor-emoji')) {
-        const emojiName = el.getAttribute('data-emoji');
-        if (emojiName) {
-          nodeLength = `:${emojiName}:`.length;
-        }
-      } else if (el.classList.contains('editor-mention')) {
-        const displayText = el.getAttribute('data-display-text');
-        if (displayText) {
-          nodeLength = displayText.length; // Count the display text length (@username or @username@domain)
-        }
-        debug.log('🔧 Processing mention element:', { displayText, length: nodeLength, currentPos, targetPosition });
-      } else if (el.tagName === 'BR') {
-        nodeLength = 1;
-      }
-      
-      if (currentPos + nodeLength >= targetPosition) {
-        // Position cursor after this element
-        targetNode = el.parentNode;
-        targetOffset = Array.from(el.parentNode?.childNodes || []).indexOf(el) + 1;
-        debug.log('🔧 Found target after element:', { element: el.tagName, targetOffset });
-        break;
-      }
-      currentPos += nodeLength;
-    }
-    node = walker.nextNode();
-  }
-  
-  if (targetNode) {
-    try {
-      debug.log('🔧 Setting range:', { 
-        nodeType: targetNode.nodeType, 
-        nodeName: targetNode.nodeName, 
-        targetOffset,
-        nodeContent: targetNode.nodeType === Node.TEXT_NODE ? JSON.stringify(targetNode.textContent) : 'N/A'
-      });
-      const range = document.createRange();
-      if (targetNode.nodeType === Node.TEXT_NODE) {
-        range.setStart(targetNode, Math.min(targetOffset, targetNode.textContent?.length || 0));
-      } else {
-        range.setStart(targetNode, Math.min(targetOffset, targetNode.childNodes.length));
-      }
-      range.collapse(true);
-      selection.removeAllRanges();
-      selection.addRange(range);
-      debug.log('🔧 Cursor position set successfully');
-    } catch (e) {
-      debug.warn('Error setting cursor position:', e);
-    }
-  } else {
-    debug.warn('🔧 Could not find target node for position:', targetPosition);
-  }
+  setSelectionOffsets(targetPosition, targetPosition);
 };
 
 // Process mentions in text and create visual elements
@@ -943,24 +944,49 @@ const applyUndoState = (state: UndoState) => {
   });
 };
 
+// Returns true if `text` likely contains markdown formatting that the
+// editor renders with extra DOM (bold, italic, underline, strikethrough,
+// inline code, blockquotes, greentext, fenced code, role mentions). We use
+// this as a guard so we only pay the renderContent cost on input events
+// that actually need to change the DOM, keeping fast typing of plain text
+// snappy. The rendered editor includes marker spans (e.g. `**` kept
+// visible), so even partial markers like a single `*` trigger a re-render.
+const hasFormattableMarkers = (text: string): boolean => {
+  if (!text) return false;
+  if (/[*_~`]/.test(text)) return true;
+  if (/^\s*>/m.test(text)) return true;
+  if (/```/.test(text)) return true;
+  if (/@role:[a-f0-9-]+/i.test(text)) return true;
+  return false;
+};
+
 // Handle input events
 const handleInput = (event?: Event) => {
   if (isRendering.value) return; // Prevent recursion
-  
+
   const text = getPlainText();
   emit('update:modelValue', text);
   if (event) emit('input', event);
-  
+
   // Emit cursor position for auto-suggest
   const cursorPos = getCursorPosition();
   emit('cursor-position-changed', cursorPos);
-  
+
   // Track state for undo/redo
   undoRedo.pushState(text, cursorPos);
-  
-  // DO NOT re-render on input to avoid infinite loops
-  // Rendering will happen when modelValue changes externally
-  
+
+  // Re-render to apply markdown / blockquote / greentext styling. The
+  // watcher used to be the only call site for `renderContent`, but it
+  // short-circuits when the new value equals the editor's plain text —
+  // which is always the case immediately after the user types, so live
+  // formatting never appeared during input. We now drive the render
+  // directly from input events, gated on `hasFormattableMarkers` so plain
+  // text typing doesn't pay the rebuild cost. Cursor restore inside
+  // `renderContent` keeps the caret stable across the rebuild.
+  if (hasFormattableMarkers(text)) {
+    renderContent(text, false);
+  }
+
   // Ensure editor is empty when text is removed (for placeholder to show)
   // Clear stray <br> that browsers leave when user deletes all content
   const hasNoContent = !text || text.trim().length === 0;
@@ -974,9 +1000,34 @@ const handleInput = (event?: Event) => {
       }
     });
   }
-  
+
   // Auto-expand editor
   autoExpand();
+};
+
+const applyEditorTextChange = (newText: string, selStart: number, selEnd: number) => {
+  skipNextWatch.value = true;
+  emit('update:modelValue', newText);
+  renderContent(newText, true);
+  nextTick(() => {
+    setSelectionOffsets(selStart, selEnd);
+    undoRedo.pushState(newText, selStart);
+    autoExpand();
+  });
+};
+
+const toggleInlineFormat = (kind: InlineFormatKind) => {
+  if (!editorRef.value) return;
+
+  const text = getPlainText();
+  const { start, end } = getSelectionOffsets();
+  const { text: newText, selectionStart, selectionEnd } = applyInlineFormatToggle(
+    text,
+    start,
+    end,
+    kind,
+  );
+  applyEditorTextChange(newText, selectionStart, selectionEnd);
 };
 
 // Handle keyboard events
@@ -993,6 +1044,17 @@ const handleKeyDown = (event: KeyboardEvent) => {
       event.preventDefault();
       const state = undoRedo.redo();
       if (state) applyUndoState(state);
+      return;
+    }
+    const formatKey = event.key.toLowerCase();
+    if (formatKey === 'b') {
+      event.preventDefault();
+      toggleInlineFormat('bold');
+      return;
+    }
+    if (formatKey === 'i') {
+      event.preventDefault();
+      toggleInlineFormat('italic');
       return;
     }
   }
@@ -1266,7 +1328,7 @@ onMounted(async () => {
   outline: none;
   font-size: 1rem;
   line-height: 1.375;
-  font-family: 'Figtree', 'Noto Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  font-family: var(--font-family);
   color: var(--text-secondary);
   overflow-wrap: break-word;
   word-wrap: break-word;

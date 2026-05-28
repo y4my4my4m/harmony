@@ -307,13 +307,13 @@ watch(() => props.message.id, (newMessageId, oldMessageId) => {
 .reaction-count {
   font-size: 0.8125rem;
   font-weight: 500;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--text-muted);
   min-width: 9px;
   text-align: center;
 }
 
 .reaction.reacted .reaction-count {
-  color: hsl(0, 0%, 100%);
+  color: var(--text-primary);
 }
 
 .reaction-emoji-broken {

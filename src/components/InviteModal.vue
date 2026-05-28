@@ -2,8 +2,8 @@
   <BaseModal 
     :show="show" 
     @close="$emit('close')"
-    title="Invite Friends"
-    subtitle="Share this server with your friends"
+    title="Invite People"
+    subtitle="Share this server with anyone you'd like to bring in"
     :icon="InviteIcon"
     :compact="false"
   >
@@ -13,7 +13,7 @@
         <div class="section-header">
           <h3 class="section-title">Server Invite Link</h3>
           <p class="section-description">
-            Send this link to friends to invite them to your server
+            Send this link to anyone you'd like to invite to your server
           </p>
         </div>
 

@@ -7,6 +7,7 @@ import { supabase } from '@/supabase';
 import type { UserData, FederatedUser } from '@/types';
 import { debug } from '@/utils/debug'
 import { getEmojiUrl } from '@/utils/emojiUtils';
+import { sanitizeInlineHtml } from '@/utils/sanitize';
 
 export interface MentionMatch {
   full: string;          // "@tester004@mastodon.social"
@@ -25,31 +26,39 @@ export interface ResolvedMention {
 
 /**
  * Parse display_name or bio that may be plain string, JSON (Misskey MFM), or MessagePart[]
- * Returns safe HTML string for v-html rendering
+ * Returns safe HTML string for v-html rendering.
+ *
+ * Every branch HTML-escapes the underlying user text before generating any
+ * markup, and the final result is run through `sanitizeInlineHtml` as
+ * defense-in-depth — if a future change to `parseMfmOrMessagePartsToHtml`
+ * accidentally splices unescaped content, the sanitizer still strips
+ * `<style>`, `<script>`, inline event handlers, and `<a>` (bios/display
+ * names should never contain links injected by the user; legitimate URLs
+ * are surfaced via separate profile-fields / PropertyValue rendering).
  */
 export function parseDisplayNameOrBioForDisplay(raw: any, fallback: string = ''): string {
-  if (raw == null || raw === '') return escapeHtml(fallback);
-  if (typeof raw === 'string' && !raw.trim()) return escapeHtml(fallback);
+  if (raw == null || raw === '') return sanitizeInlineHtml(escapeHtml(fallback));
+  if (typeof raw === 'string' && !raw.trim()) return sanitizeInlineHtml(escapeHtml(fallback));
 
-  // Plain string - use as-is (escaped)
+  let html: string;
   if (typeof raw === 'string') {
     try {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) {
-        return parseMfmOrMessagePartsToHtml(parsed);
+        html = parseMfmOrMessagePartsToHtml(parsed);
+      } else {
+        html = escapeHtml(raw);
       }
     } catch {
-      return escapeHtml(raw);
+      html = escapeHtml(raw);
     }
-    return escapeHtml(raw);
+  } else if (Array.isArray(raw)) {
+    html = parseMfmOrMessagePartsToHtml(raw);
+  } else {
+    html = escapeHtml(String(raw));
   }
 
-  // Already array (MFM / MessagePart-like)
-  if (Array.isArray(raw)) {
-    return parseMfmOrMessagePartsToHtml(raw);
-  }
-
-  return escapeHtml(String(raw));
+  return sanitizeInlineHtml(html);
 }
 
 function escapeHtml(text: string): string {
@@ -70,7 +79,13 @@ function parseMfmOrMessagePartsToHtml(parts: any[]): string {
       const rawUrl = p.emoji?.url ?? p.url;
       const url = rawUrl ? getEmojiUrl(rawUrl, 48) : rawUrl;
       const name = p.emoji?.name ?? p.name ?? 'emoji';
-      html.push(`<img class="inline-emoji" src="${escapeHtml(url)}" alt=":${escapeHtml(name)}:" title=":${escapeHtml(name)}:" onerror="this.style.display='none';var s=document.createElement('span');s.className='inline-emoji emoji-fallback';s.title=':${escapeHtml(name)}:';s.innerHTML='<svg viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;currentColor&quot; stroke-width=&quot;2&quot;><line x1=&quot;2&quot; y1=&quot;2&quot; x2=&quot;22&quot; y2=&quot;22&quot;/><path d=&quot;M10.41 10.41a2 2 0 1 1-2.83-2.83&quot;/><path d=&quot;M21 15V5a2 2 0 0 0-2-2H9&quot;/><path d=&quot;M3.59 3.59A1.99 1.99 0 0 0 3 5v14a2 2 0 0 0 2 2h14c.55 0 1.052-.22 1.41-.59&quot;/></svg>';this.parentNode.insertBefore(s,this)" />`);
+      // The fallback handler was previously inlined as an `onerror` attribute
+      // that spliced the (user-controlled) emoji `name` into a JavaScript
+      // string — a JS-context injection vector. The DOMPurify sanitizer
+      // applied at the consumer (display-name / bio v-html bindings) now
+      // strips `onerror`; if the image fails to load the browser shows the
+      // alt text, which is sufficient.
+      html.push(`<img class="inline-emoji" src="${escapeHtml(url)}" alt=":${escapeHtml(name)}:" title=":${escapeHtml(name)}:" />`);
     } else if (p.type === 'emoji' && p.name && !p.url) {
       html.push(escapeHtml(`:${p.name}:`));
     }

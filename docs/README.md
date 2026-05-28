@@ -41,7 +41,7 @@ Full pipeline (guides + API + components + sync + typedoc + static build): `npm 
 - [Bot API](./BOT_API.md)
 - [Plugin System](./PLUGIN_SYSTEM.md)
 - [ActivityPub Extensions](./ACTIVITYPUB_EXTENSIONS.md)
-- [Self-Hosting Guide](./HOW_TO_SELF_HOST.md)
+- [Self-Hosting Guide](./self-hosting.md)
 - [Push Notifications](./PUSH_NOTIFICATIONS.md)
 - [OpenStatus Setup](./OPENSTATUS_SETUP.md)
 

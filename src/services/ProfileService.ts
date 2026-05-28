@@ -14,7 +14,7 @@ import { supabase } from '@/supabase'
 import { userDataService } from './userDataService'
 import { authContextService } from './AuthContextService'
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings'
-import type { Profile } from '@/types'
+import type { Profile, ProfileField } from '@/types'
 import { debug } from '@/utils/debug'
 
 export interface ProfileData {
@@ -24,6 +24,13 @@ export interface ProfileData {
   banner_url?: string
   bio?: string
   color?: string
+  /**
+   * Custom profile fields (name/value link rows). Persisted to the
+   * `profiles.profile_fields` jsonb column; federated outbound as
+   * PropertyValue attachments on the actor (see toActivityPub.ts).
+   * Pass an empty array to clear all fields.
+   */
+  profile_fields?: ProfileField[]
 }
 
 export interface ProfileServiceError {
@@ -178,6 +185,17 @@ export class ProfileService {
       if (error || !profile) {
         throw this.createError('CREATE_FAILED', 'Failed to create profile', error)
       }
+
+      // CRITICAL: Clear AuthContextService cache. Some earlier call (e.g.
+      // `activityPubStore.loadBlockingData()` from auth.ts SIGNED_IN /
+      // initializeAuth) may have resolved getCurrentContext BEFORE the
+      // profile existed. With the Fix A guard the loader no longer caches
+      // the unauthenticated state, but if anything else cached it (e.g. an
+      // in-flight `getCurrentContext` from a prior tick) we need a hard
+      // invalidation so the very next call - typically the avatar/banner
+      // `updateProfile` immediately after this returns - re-fetches and
+      // finds the freshly-inserted row.
+      authContextService.clearCache()
 
       // Ensure userDataService has the new profile in cache
       try {

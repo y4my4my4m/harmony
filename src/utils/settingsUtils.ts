@@ -9,6 +9,7 @@ export type SettingsSection =
   | 'privacy' 
   | 'appearance' 
   | 'notifications' 
+  | 'announcements'
   | 'activitypub'
   | 'voice' 
   | 'keybinds' 
@@ -41,6 +42,7 @@ export function isValidSettingsSection(section: string): section is SettingsSect
     'privacy', 
     'appearance',
     'notifications',
+    'announcements',
     'voice',
     'keybinds',
     'language',

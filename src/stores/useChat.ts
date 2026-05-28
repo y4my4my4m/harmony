@@ -729,6 +729,22 @@ export const useChatStore = defineStore('chat', {
           throw error;
         }
 
+        // Length-limit and structural validation errors are also not
+        // transient — retrying with the same payload will fail the same
+        // way. Drop the optimistic message and surface the error so the
+        // UI can show "message too long" instead of two doomed retries.
+        const isPermanentValidationError =
+          code.includes('MESSAGE_TOO_LONG') ||
+          code.includes('TOO_MANY_ATTACHMENTS') ||
+          // PostgreSQL CHECK constraint violation (messages_text_length_check)
+          code.includes('messages_text_length_check') ||
+          // Generic CHECK constraint failure on messages.content
+          (code.includes('check constraint') && code.includes('messages_'))
+        if (isPermanentValidationError) {
+          this.removeMessageFromCache(tempId);
+          throw error;
+        }
+
         // If offline, mark failed immediately - no point retrying
         if (!navigator.onLine) {
           debug.log('📴 Offline - marking message as failed, will retry when user clicks Retry');

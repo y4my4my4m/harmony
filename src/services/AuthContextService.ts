@@ -84,14 +84,28 @@ export class AuthContextService {
 
       if (profileError && profileError.code !== 'PGRST116') {
         debug.error('Error loading profile:', profileError)
-        this.cachedContext = this.createUnauthenticatedContext()
-        return this.cachedContext
+        // Transient DB error - don't cache. The next call should retry.
+        return this.createUnauthenticatedContext()
       }
 
       if (!profile) {
-        debug.warn('Auth user found but no profile exists:', user.id)
-        this.cachedContext = this.createUnauthenticatedContext()
-        return this.cachedContext
+        // The auth user exists but the profile row doesn't yet (e.g. brand-new
+        // signup that hasn't completed the NewProfile.vue flow, or a refresh
+        // landing on /new-profile). This is a TRANSIENT state - the profile
+        // will be created moments later when the user submits the form.
+        //
+        // We must NOT cache `unauthenticated` here, because any code that
+        // races and populates the cache before profile creation (e.g.
+        // `activityPubStore.loadBlockingData()` called from auth.ts SIGNED_IN
+        // / initializeAuth) would poison the cache. The next call after
+        // profile creation would then return the stale `unauthenticated`
+        // state, causing `ProfileService.updateCurrentProfile` to throw
+        // AUTH_REQUIRED. Result: avatar upload succeeds (file lands in R2)
+        // but the avatar_url UPDATE never runs, so profiles.avatar_url stays
+        // at its DB DEFAULT (`/default_avatar.webp`). See investigation
+        // around 2026-05-27.
+        debug.warn('Auth user found but no profile exists (transient, not caching):', user.id)
+        return this.createUnauthenticatedContext()
       }
 
       this.cachedContext = {
@@ -105,8 +119,8 @@ export class AuthContextService {
 
     } catch (error) {
       debug.error('❌ Failed to resolve auth context:', error)
-      this.cachedContext = this.createUnauthenticatedContext()
-      return this.cachedContext
+      // Don't cache on unexpected failure - let the next call retry.
+      return this.createUnauthenticatedContext()
     } finally {
       this.isLoading = false
     }

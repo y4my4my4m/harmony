@@ -373,7 +373,7 @@ import { useUnifiedEmoji } from '@/services/unifiedEmojiService';
 import { gifService } from '@/services/GifService';
 import { debug } from '@/utils/debug';
 import { escapeHtml, sanitizeUrl } from '@/utils/sanitize';
-import { renderTextWithBlockquotes } from '@/utils/chatBlockquotes';
+import { renderChatMessageText } from '@/utils/chatMessageTextRenderer';
 import { useVisualTheme } from '@/composables/useVisualTheme';
 
 export default defineComponent({
@@ -630,6 +630,10 @@ export default defineComponent({
     };
 
     const resolveEmbedPayload = (part: MessagePart): EmbedPayload | null => {
+      if (part && typeof part === 'object' && part.type === 'url' && part.preview === false) {
+        return null;
+      }
+
       const embeds = props.embedPayloads;
 
       if (embeds && part && typeof part === 'object') {
@@ -721,98 +725,18 @@ export default defineComponent({
       }
     };
 
-    // Simple markdown-style text rendering with extracted code blocks
-    const renderTextContent = (text: string): { renderedText: string; codeBlocks: Array<{id: string; code: string; language: string}> } => {
-      if (!text) return { renderedText: '', codeBlocks: [] };
-      
-      let rendered = text;
-      const codeBlocks: Array<{id: string; code: string; language: string}> = [];
-      
-      // Extract code blocks first and replace with placeholders
-      // Updated regex to handle code blocks with or without newlines and with optional language
-      rendered = rendered.replace(/```(\w+)?(?:\n)?([\s\S]*?)```/g, (match, language, code) => {
-        const lang = language || 'text';
-        const blockId = `\uE000CODEBLOCK_${codeBlocks.length}\uE001`;
-        // Clean up the code content more thoroughly
-        const cleanCode = code.replace(/^\n+/, '').replace(/\n+$/, '');
-        codeBlocks.push({
-          id: blockId,
-          code: cleanCode,
-          language: lang
-        });
-        return blockId;
+    // Wrapper around the pure renderer in `chatMessageTextRenderer.ts`.
+    // The actual XSS-relevant logic lives there so it can be tested in
+    // isolation; this just plumbs in the component's reactive emoji /
+    // theme state.
+    const renderTextContent = (text: string) =>
+      renderChatMessageText(text, {
+        isNativePack: isNativePack.value,
+        emojiServiceLoaded: emojiServiceLoaded.value,
+        resolveEmoji,
+        isSingleEmoji: props.isSingleEmoji,
+        greentextEnabled: visualTheme.currentSettings.value.greentextEnabled !== false,
       });
-      
-      // For mutant/twemoji pack: Replace unicode emojis with SVG images
-      // For native pack: Leave unicode as-is (browser renders them)
-      // OPTIMIZED: Only resolve emojis if data is already loaded (prevents 823KB load on initial render)
-      if (!isNativePack.value && emojiServiceLoaded.value) {
-        // Unicode emoji regex - matches flags (Regional Indicators), ZWJ sequences, and standard emojis
-        const emojiRegex = /[\u{1F1E6}-\u{1F1FF}]{2}|(\p{Emoji_Presentation}|\p{Emoji}\uFE0F)(\u200D(\p{Emoji_Presentation}|\p{Emoji}\uFE0F))*/gu;
-        rendered = rendered.replace(emojiRegex, (match) => {
-          // Only resolve if emoji data is loaded - don't trigger lazy load here
-          // If data not loaded, emoji will render as native unicode (browser default)
-          if (emojiServiceLoaded.value) {
-            const resolved = resolveEmoji(match);
-            if (resolved.display.type === 'svg') {
-              const sizeClass = props.isSingleEmoji ? 'inline-emoji single' : 'inline-emoji';
-              return `<img class="${sizeClass}" src="${resolved.display.content}" alt="${resolved.shortcode || match}" draggable="false" />`;
-            }
-          }
-          return match; // Fallback to native unicode if no SVG or data not loaded
-        });
-      } else if (props.isSingleEmoji) {
-        // Native pack with single emoji - wrap for bigger styling
-        const emojiRegex = /[\u{1F1E6}-\u{1F1FF}]{2}|(\p{Emoji_Presentation}|\p{Emoji}\uFE0F)(\u200D(\p{Emoji_Presentation}|\p{Emoji}\uFE0F))*/gu;
-        rendered = rendered.replace(emojiRegex, (match) => {
-          return `<span class="native-emoji single">${match}</span>`;
-        });
-      }
-      
-      // Escape HTML entities before applying markdown to prevent XSS.
-      // Emoji replacements above produce safe HTML (controlled <img>/<span> tags),
-      // and code block placeholders use private-use unicode chars, so both survive escaping.
-      // We need to preserve the emoji/codeblock HTML that was already inserted.
-      // Strategy: protect existing HTML tags from emoji replacements, escape the rest.
-      const htmlTagPlaceholders: string[] = [];
-      rendered = rendered.replace(/<[^>]+>/g, (tag) => {
-        const idx = htmlTagPlaceholders.length;
-        htmlTagPlaceholders.push(tag);
-        return `\uE010${idx}\uE011`;
-      });
-      rendered = escapeHtml(rendered);
-      rendered = rendered.replace(/\uE010(\d+)\uE011/g, (_, idx) => htmlTagPlaceholders[Number(idx)]);
-
-      // Inline code: `text`
-      rendered = rendered.replace(/`([^`]+)`/g, '<code class="md-code">$1</code>');
-      
-      // Bold: **text** or __text__
-      rendered = rendered.replace(/\*\*(.*?)\*\*/g, '<strong class="md-bold">$1</strong>');
-      rendered = rendered.replace(/__(.*?)__/g, '<u class="md-underline">$1</u>');
-      
-      // Italic: *text* or _text_ (but not in URLs or other contexts)
-      rendered = rendered.replace(/(?<![\w/:])_([^_]+)_(?![\w])/g, '<em class="md-italic">$1</em>');
-      rendered = rendered.replace(/(?<![\w*])\*([^*]+)\*(?![\w*])/g, '<em class="md-italic">$1</em>');
-      
-      // Strikethrough: ~~text~~
-      rendered = rendered.replace(/~~(.*?)~~/g, '<del class="md-strikethrough">$1</del>');
-      
-      // Underline: __text__ (alternative, not conflicting with bold)
-      rendered = rendered.replace(/\+\+(.*?)\+\+/g, '<u class="md-underline">$1</u>');
-      
-      // Discord-style blockquotes (`> line`, `>>> block`) and imageboard-style
-      // greentext (`>line` with no space) — chat/DM only, ActivityPub uses its
-      // own renderer. `escapeHtml` above turned the user-typed `>` into `&gt;`,
-      // so restore it only at line starts so the parser can match. Other
-      // `&gt;` chars in body text stay escaped.
-      rendered = rendered.replace(/(^|\n)((?:&gt;){1,3})/g, (_, lead, marker) =>
-        lead + marker.replace(/&gt;/g, '>')
-      );
-      const greentextEnabled = visualTheme.currentSettings.value.greentextEnabled !== false;
-      rendered = renderTextWithBlockquotes(rendered, (line) => line, { greentext: greentextEnabled });
-      
-      return { renderedText: rendered, codeBlocks };
-    };
 
     // Function to render text content with code blocks as components
     const renderTextSegments = (text: string) => {
@@ -1181,6 +1105,10 @@ export default defineComponent({
 .text-content :deep(.md-blockquote) {
   border-left: 4px solid var(--background-modifier-accent, #4f545c);
   padding: 2px 0 2px 12px;
+  user-select: text;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
   margin: 2px 0;
   color: var(--text-secondary);
 }
@@ -1192,6 +1120,10 @@ export default defineComponent({
 
 .text-content :deep(.md-greentext) {
   color: #789922;
+  user-select: text;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
 }
 
 /* Code blocks are now handled by the CodeBlock component */

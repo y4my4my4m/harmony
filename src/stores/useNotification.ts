@@ -187,7 +187,7 @@ export const useNotificationStore = defineStore('notification', {
      * counts in one frame share a single full scan.
      */
     notificationCounts(): NotificationCounts {
-      let total = this.notifications.length
+      const total = this.notifications.length
       let unread = 0
       let unreadMentions = 0          // activitypub_mention only (matches legacy `unreadMentions` getter)
       let unreadDMs = 0

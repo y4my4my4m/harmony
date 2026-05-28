@@ -102,19 +102,33 @@ export function useUserData() {
   }
 
   /**
-   * Get user display name (plain text, shortcodes stripped when emojis disabled)
+   * Get user display name (plain text, shortcodes stripped when emojis disabled).
+   *
+   * Fallback chain: trimmed `displayName` → trimmed `username` → `'Unknown User'`.
+   * Each level rejects whitespace-only / empty strings so that bad data
+   * stored before the display-name-empty validation landed (`PROFILES_DISPLAY_NAME_NOT_BLANK`
+   * CHECK constraint + `UserAccountSettings.vue` UI guard) doesn't leak a
+   * blank row into the UI.
    */
   const getUserDisplayName = (userId: string | null | undefined) => computed(() => {
     forceUpdate.value // Force reactivity
     if (!userId) return 'Unknown User'
     const user = userDataService.getUser(userId)
-    let name = user?.displayName || user?.username || 'Unknown User'
+    const trimmedDisplay = (user?.displayName || '').trim()
+    const trimmedUsername = (user?.username || '').trim()
+    let name = trimmedDisplay || trimmedUsername || 'Unknown User'
     const instanceSettings = useInstanceSettingsStore()
     const theme = useVisualTheme()
     const hideEmojis = !instanceSettings.settings.allowCustomEmojisInDisplayNames ||
       theme.currentSettings.value?.showCustomEmojisInDisplayNames === false
     if (hideEmojis && name) name = stripEmojiShortcodes(name)
-    return name || user?.username || 'Unknown User'
+    // If stripping shortcodes produced an empty string (e.g. the display
+    // name was nothing but custom emojis and the user disabled them), fall
+    // back the same way again rather than rendering a blank pill.
+    if (!name || !name.trim()) {
+      return trimmedUsername || 'Unknown User'
+    }
+    return name
   })
 
   /**

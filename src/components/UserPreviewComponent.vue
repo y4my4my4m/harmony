@@ -82,7 +82,7 @@ export default defineComponent({
   outline:none;
   border:0;
   color:#999;
-  font-family: Arial, sans-serif;
+  font-family: var(--font-family);
 }
 
 hr {

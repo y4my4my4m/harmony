@@ -5,6 +5,56 @@
 -- =============================================================================
 
 -- ---------------------------------------------------------------------------
+-- CONTENT LENGTH HELPERS
+-- ---------------------------------------------------------------------------
+
+-- Sum the character length of every `text` part in a MessagePart-shape jsonb
+-- array (the format used by `messages.content` and `posts.content`). Walks
+-- the array with `->`/`->>` (both IMMUTABLE) so the function itself can be
+-- marked IMMUTABLE and referenced from CHECK constraints.
+--
+-- Non-text parts (mentions, emojis, files, urls, embeds) are skipped because
+-- their payloads are structurally bounded by separate validation (file
+-- count limits, URL parsing, mention resolution, …).
+--
+-- Returns 0 for NULL / non-array input so the CHECK constraint never raises
+-- on malformed content — that case is handled by the
+-- `messages_content_is_array` / `posts_content_is_array` constraints which
+-- are checked first.
+CREATE OR REPLACE FUNCTION public.jsonb_text_content_length(content jsonb)
+RETURNS integer
+LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE
+AS $$
+DECLARE
+    total integer := 0;
+    n integer;
+    i integer;
+    part jsonb;
+BEGIN
+    IF content IS NULL OR jsonb_typeof(content) <> 'array' THEN
+        RETURN 0;
+    END IF;
+
+    n := jsonb_array_length(content);
+    IF n = 0 THEN
+        RETURN 0;
+    END IF;
+
+    FOR i IN 0..(n - 1) LOOP
+        part := content -> i;
+        IF jsonb_typeof(part) = 'object' AND (part ->> 'type') = 'text' THEN
+            total := total + COALESCE(char_length(part ->> 'text'), 0);
+        END IF;
+    END LOOP;
+
+    RETURN total;
+END;
+$$;
+
+COMMENT ON FUNCTION public.jsonb_text_content_length(jsonb) IS
+'Total character count across all text parts of a MessagePart[] jsonb. IMMUTABLE so it can be used from CHECK constraints. Keep MAX_MESSAGE_TEXT_LENGTH / MAX_POST_TEXT_LENGTH in src/utils/messageContentUtils.ts in sync with the constraint limits.';
+
+-- ---------------------------------------------------------------------------
 -- PROFILE HELPERS
 -- ---------------------------------------------------------------------------
 
@@ -972,6 +1022,213 @@ EXCEPTION
         END IF;
 END;
 $$;
+
+-- ---------------------------------------------------------------------------
+-- CONTENT LENGTH ENFORCEMENT (admin config + absolute backstop)
+-- ---------------------------------------------------------------------------
+-- Length enforcement has TWO layers, both at the storage boundary so a
+-- direct PostgREST POST (bypassing the application) can't slip through:
+--
+--   1. BEFORE INSERT/UPDATE triggers that read the LIVE admin config
+--      (`instance_config.max_message_length` / `max_post_length`) and
+--      reject if exceeded. This is the actual user-facing limit — the
+--      same number the admin sees in the dashboard.
+--
+--   2. CHECK constraints that enforce a very large absolute ceiling
+--      (50000 chars). Pure safety net for two cases:
+--        a) the admin sets a wildly unreasonable value;
+--        b) the trigger gets disabled by an operator.
+--
+-- A CHECK constraint cannot reference a config row (CHECKs must use
+-- IMMUTABLE expressions), so the trigger is required to enforce the
+-- admin-configured limit at the storage layer. The trigger is the
+-- canonical limit; the CHECK is the seatbelt.
+--
+-- Encrypted messages are exempt from the plaintext char-length cap
+-- because their `text` parts hold base64 ciphertext. A separate
+-- byte-size cap on the whole row is enforced via the trigger so
+-- encrypted rows can't grow unboundedly either.
+
+-- Helper: read the admin config value, with a sensible default + clamp.
+-- Falls back to `p_default` when the row is missing / unparseable, and
+-- clamps to `[1, p_max_ceiling]` so a misconfigured admin value can't
+-- silently disable enforcement.
+CREATE OR REPLACE FUNCTION public.get_instance_config_int(
+    p_key text,
+    p_default integer,
+    p_max_ceiling integer
+)
+RETURNS integer
+LANGUAGE plpgsql STABLE
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+    raw_value jsonb;
+    parsed integer;
+BEGIN
+    SELECT config_value INTO raw_value
+    FROM public.instance_config
+    WHERE config_key = p_key;
+
+    IF raw_value IS NULL THEN
+        RETURN LEAST(p_default, p_max_ceiling);
+    END IF;
+
+    -- `config_value` is jsonb; values are stored as a number or string.
+    BEGIN
+        IF jsonb_typeof(raw_value) = 'number' THEN
+            parsed := (raw_value::text)::integer;
+        ELSIF jsonb_typeof(raw_value) = 'string' THEN
+            parsed := (raw_value #>> '{}')::integer;
+        ELSE
+            parsed := NULL;
+        END IF;
+    EXCEPTION WHEN OTHERS THEN
+        parsed := NULL;
+    END;
+
+    IF parsed IS NULL OR parsed < 1 THEN
+        RETURN LEAST(p_default, p_max_ceiling);
+    END IF;
+
+    RETURN LEAST(parsed, p_max_ceiling);
+END;
+$$;
+
+COMMENT ON FUNCTION public.get_instance_config_int(text, integer, integer) IS
+'Read a numeric value out of `instance_config`, with a fallback default and a hard ceiling. Used by message/post length triggers to enforce the admin-configured limit at the storage layer.';
+
+-- Trigger: enforce the admin-configured `max_message_length` on
+-- `messages.content`. Plaintext char count for non-encrypted messages;
+-- byte-size cap on the whole row for encrypted ones (the plaintext is
+-- not visible here). System messages are exempt.
+CREATE OR REPLACE FUNCTION public.enforce_message_length()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+    soft_limit integer;
+    text_len integer;
+    encrypted_byte_limit constant integer := 50000;
+BEGIN
+    -- System messages are server-generated and tightly bounded.
+    IF NEW.is_system IS TRUE THEN
+        RETURN NEW;
+    END IF;
+
+    IF NEW.encrypted IS TRUE THEN
+        -- Plaintext char count is invisible here; cap the on-disk
+        -- ciphertext bytes so flipping `encrypted=true` from a direct
+        -- POST can't be used to store an unbounded payload.
+        IF octet_length(NEW.content::text) > encrypted_byte_limit THEN
+            RAISE EXCEPTION 'Encrypted message payload exceeds maximum size of % bytes', encrypted_byte_limit
+                USING ERRCODE = 'check_violation',
+                      HINT = 'Send shorter messages — the plaintext limit is enforced by the client before encryption.';
+        END IF;
+        RETURN NEW;
+    END IF;
+
+    -- Read the admin's `max_message_length`, defaulting to 2000 and
+    -- clamping to the absolute ceiling so a misconfigured admin value
+    -- still leaves the CHECK constraint as a backstop.
+    soft_limit := public.get_instance_config_int('max_message_length', 2000, 50000);
+
+    text_len := public.jsonb_text_content_length(NEW.content);
+    IF text_len > soft_limit THEN
+        RAISE EXCEPTION 'Message text exceeds the instance limit of % characters (got %)', soft_limit, text_len
+            USING ERRCODE = 'check_violation',
+                  HINT = 'Trim the message or ask an instance admin to raise max_message_length in Chat Settings.';
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
+-- Same idea for posts: enforce `max_post_length` from instance_config.
+CREATE OR REPLACE FUNCTION public.enforce_post_length()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+    soft_limit integer;
+    text_len integer;
+BEGIN
+    soft_limit := public.get_instance_config_int('max_post_length', 500, 50000);
+
+    text_len := public.jsonb_text_content_length(NEW.content);
+    IF text_len > soft_limit THEN
+        RAISE EXCEPTION 'Post text exceeds the instance limit of % characters (got %)', soft_limit, text_len
+            USING ERRCODE = 'check_violation',
+                  HINT = 'Trim the post or ask an instance admin to raise max_post_length.';
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
+-- Apply the triggers + the backstop CHECK constraints.
+DO $$
+BEGIN
+    -- Drop any earlier CHECK constraint that used the (now obsolete)
+    -- 5000 / 10000 ceilings so we can re-create with the new 50000
+    -- absolute safety net. Stripping whitespace before matching
+    -- normalises PostgreSQL's canonical formatting.
+    IF EXISTS (
+        SELECT 1 FROM pg_constraint c
+        JOIN pg_class r ON r.oid = c.conrelid
+        WHERE c.conname = 'messages_text_length_check'
+          AND r.relname = 'messages'
+          AND regexp_replace(pg_get_constraintdef(c.oid), '\s+', '', 'g') ~ '<=\s*(?:5000|10000)\)'
+    ) THEN
+        ALTER TABLE public.messages DROP CONSTRAINT messages_text_length_check;
+    END IF;
+
+    IF EXISTS (
+        SELECT 1 FROM pg_constraint c
+        JOIN pg_class r ON r.oid = c.conrelid
+        WHERE c.conname = 'posts_text_length_check'
+          AND r.relname = 'posts'
+          AND regexp_replace(pg_get_constraintdef(c.oid), '\s+', '', 'g') ~ '<=\s*(?:5000|10000)\)'
+    ) THEN
+        ALTER TABLE public.posts DROP CONSTRAINT posts_text_length_check;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'messages_text_length_check' AND conrelid = 'public.messages'::regclass
+    ) THEN
+        ALTER TABLE public.messages
+            ADD CONSTRAINT messages_text_length_check
+            CHECK (
+                encrypted IS TRUE
+                OR is_system IS TRUE
+                OR public.jsonb_text_content_length(content) <= 50000
+            );
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'posts_text_length_check' AND conrelid = 'public.posts'::regclass
+    ) THEN
+        ALTER TABLE public.posts
+            ADD CONSTRAINT posts_text_length_check
+            CHECK (public.jsonb_text_content_length(content) <= 50000);
+    END IF;
+END $$;
+
+DROP TRIGGER IF EXISTS trg_enforce_message_length ON public.messages;
+CREATE TRIGGER trg_enforce_message_length
+    BEFORE INSERT OR UPDATE OF content, encrypted, is_system ON public.messages
+    FOR EACH ROW
+    EXECUTE FUNCTION public.enforce_message_length();
+
+DROP TRIGGER IF EXISTS trg_enforce_post_length ON public.posts;
+CREATE TRIGGER trg_enforce_post_length
+    BEFORE INSERT OR UPDATE OF content ON public.posts
+    FOR EACH ROW
+    EXECUTE FUNCTION public.enforce_post_length();
 
 DO $$
 BEGIN

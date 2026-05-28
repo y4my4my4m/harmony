@@ -202,21 +202,25 @@ const handleReply = (post: TimelinePost) => {
   })
 }
 
-const handleFavorite = async (postId: string) => {
-  await toggleFavorite(postId)
+// Handlers receive the full TimelinePost (PostsContainer forwards
+// `posts[index]` for these chains, since MonyPost handles favorite/reblog/
+// bookmark internally and only fires these as a pass-through hook for
+// consumers that need the post object).
+const handleFavorite = async (post: TimelinePost) => {
+  await toggleFavorite(post.id)
 }
 
-const handleReblog = async (postId: string) => {
-  await toggleReblog(postId)
+const handleReblog = async (post: TimelinePost) => {
+  await toggleReblog(post.id)
 }
 
-const handleBookmark = async (postId: string) => {
-  await toggleBookmark(postId)
+const handleBookmark = async (post: TimelinePost) => {
+  await toggleBookmark(post.id)
 }
 
-const handleDelete = async (postId: string) => {
-  await activityPubStore.deletePost(postId)
-  posts.value = posts.value.filter(p => p.id !== postId)
+const handleDelete = async (post: TimelinePost) => {
+  await activityPubStore.deletePost(post.id)
+  posts.value = posts.value.filter(p => p.id !== post.id)
 }
 
 const handleUserClick = (user: any) => {

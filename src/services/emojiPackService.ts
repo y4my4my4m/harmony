@@ -45,6 +45,15 @@ export interface EmojiPack {
   categories: EmojiPackCategory[]
   emojis: EmojiPackItem[]
   isBuiltIn: boolean      // True for native Unicode
+  /** Path to a single representative emoji image used in pack pickers. */
+  previewImage?: string
+  /**
+   * Path to a probe asset (relative to basePath) the service can fetch to
+   * verify the pack is actually installed on this instance. When present,
+   * `detectAvailablePacks()` will only register packs whose probe responds 2xx.
+   * If omitted, the pack is assumed to be available (e.g. native / built-in).
+   */
+  probePath?: string
 }
 
 const STORAGE_KEY = 'harmony-emoji-pack'
@@ -69,7 +78,9 @@ const twemojiPack: EmojiPack = {
     order: cat.order
   })),
   emojis: [], // Loaded from unicode-emoji-data.json
-  isBuiltIn: false
+  isBuiltIn: false,
+  previewImage: `${TWEMOJI_BASE_URL}/1f600.svg`,
+  probePath: '1f600.svg',
 }
 
 // Native Unicode emoji pack (built-in)
@@ -108,7 +119,9 @@ const mutantStandardPack: EmojiPack = {
     { id: 'extra', name: 'Extra', icon: '✨', order: 8, subcategories: ['cyber', 'occult_magic', 'weapons', 'symbols'] },
   ],
   emojis: [], // Will be populated by the index generator
-  isBuiltIn: false
+  isBuiltIn: false,
+  previewImage: `${MUTANT_BASE_URL}/expressions/smileys/typical/grinning.svg`,
+  probePath: 'expressions/smileys/typical/grinning.svg',
 }
 
 /**
@@ -154,21 +167,68 @@ function savePackPreference(): void {
 }
 
 /**
- * Initialize the emoji pack service
+ * Synchronous initialization: register all known packs optimistically.
+ *
+ * The picker UI may render before `detectAvailablePacks()` has finished,
+ * so we register every pack here. `detectAvailablePacks()` will then prune
+ * any pack whose probe asset returns 404 — useful when an instance ships
+ * without an optional pack like Mutant Standard.
  */
 export function initializeEmojiPacks(): void {
   if (isInitialized.value) return
-  
-  // Register built-in packs (order matters for UI display)
+
+  // Register all candidate packs (order matters for UI display).
   availablePacks.value.set('twemoji', twemojiPack)
   availablePacks.value.set('mutant', mutantStandardPack)
   availablePacks.value.set('native', nativeUnicodePack)
-  
-  // Load user preference
+
   loadPackPreference()
-  
+
   isInitialized.value = true
   debug.log('📦 Emoji packs initialized. Current pack:', currentPackId.value)
+}
+
+/**
+ * Probe each registered pack to confirm its assets are actually served by
+ * this instance. Removes packs whose `probePath` 404s. If the user's
+ * currently-selected pack disappears, falls back to the default pack.
+ *
+ * Call this once on app startup (after `initializeEmojiPacks`).
+ */
+export async function detectAvailablePacks(): Promise<void> {
+  initializeEmojiPacks()
+
+  const checks = Array.from(availablePacks.value.values()).map(async (pack) => {
+    if (pack.isBuiltIn || !pack.probePath) return { pack, ok: true }
+    try {
+      const url = `${pack.basePath}/${pack.probePath}`
+      const res = await fetch(url, { method: 'HEAD', cache: 'no-cache' })
+      return { pack, ok: res.ok }
+    } catch (err) {
+      debug.warn(`Emoji pack probe failed for "${pack.id}":`, err)
+      return { pack, ok: false }
+    }
+  })
+
+  const results = await Promise.all(checks)
+  for (const { pack, ok } of results) {
+    if (!ok) {
+      availablePacks.value.delete(pack.id)
+      debug.log(`📦 Emoji pack not installed on this instance, hiding: ${pack.id}`)
+    }
+  }
+
+  // If the previously-selected pack is no longer available, fall back.
+  if (!availablePacks.value.has(currentPackId.value)) {
+    const fallback = availablePacks.value.has(DEFAULT_PACK_ID)
+      ? DEFAULT_PACK_ID
+      : (availablePacks.value.keys().next().value as string)
+    debug.warn(
+      `📦 Selected emoji pack "${currentPackId.value}" not available; falling back to "${fallback}"`,
+    )
+    currentPackId.value = fallback
+    savePackPreference()
+  }
 }
 
 /**

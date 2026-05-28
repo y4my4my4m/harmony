@@ -57,7 +57,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onUnmounted } from 'vue'
 import { debug } from '@/utils/debug'
 import { getAvatarUrl } from '@/utils/avatarUtils'
 import CameraIcon from '@/components/icons/Camera.vue'
@@ -158,19 +158,69 @@ const handleFileSelect = (event: Event) => {
   target.value = ''
 }
 
+// Transient network failures (imgproxy/R2 latency) should not permanently
+// show the default avatar. We retry a few times with backoff before giving up.
+// IMPORTANT: only reset retry state on successful load of the REAL image, and
+// never schedule a retry when the fallback itself just failed — otherwise we'd
+// flip-flop between broken-real and broken-fallback forever.
+const MAX_RETRIES = 3
+const RETRY_DELAYS_MS = [400, 1200, 3000]
+const retryCount = ref(0)
+let retryTimer: ReturnType<typeof setTimeout> | null = null
+
+const clearRetryTimer = () => {
+  if (retryTimer) {
+    clearTimeout(retryTimer)
+    retryTimer = null
+  }
+}
+
+const scheduleRetry = () => {
+  clearRetryTimer()
+  if (retryCount.value >= MAX_RETRIES) return
+  const delay = RETRY_DELAYS_MS[retryCount.value] ?? 3000
+  retryTimer = setTimeout(() => {
+    retryTimer = null
+    retryCount.value++
+    // Flipping imageError back to false makes the computed return the real URL
+    // again, which re-issues the network request through the same <img> tag.
+    imageError.value = false
+  }, delay)
+}
+
 const handleImageError = () => {
-  debug.log('Avatar image error for URL:', avatarUrl.value)
+  // If imageError was already true, this @error is from the fallback default
+  // image itself failing — don't loop, just stay on the broken-image state.
+  if (imageError.value) {
+    debug.warn('Avatar fallback image failed to load:', avatarUrl.value)
+    clearRetryTimer()
+    return
+  }
+  debug.log(`Avatar image error for URL: ${avatarUrl.value} (retry ${retryCount.value}/${MAX_RETRIES})`)
   imageError.value = true
+  scheduleRetry()
 }
 
 const handleImageLoad = () => {
   // Do NOT reset imageError here - the fallback image loading successfully
   // would re-trigger the broken src, causing an infinite loop.
+  // Only "forgive" past failures when the REAL image loads (imageError is
+  // false at this point because the computed returned the real URL).
+  if (!imageError.value && retryCount.value > 0) {
+    retryCount.value = 0
+    clearRetryTimer()
+  }
 }
 
 // Reset error state only when the src prop actually changes
 watch(() => props.src, () => {
   imageError.value = false
+  retryCount.value = 0
+  clearRetryTimer()
+})
+
+onUnmounted(() => {
+  clearRetryTimer()
 })
 </script>
 

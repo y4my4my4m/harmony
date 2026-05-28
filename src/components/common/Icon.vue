@@ -1,4 +1,18 @@
 <template>
+  <!--
+    The wrapper `<span>` is what carries the `icon icon-${name}` class. We
+    can't put those classes on the SVG itself because pseudo-elements
+    (::after, ::before) don't render on SVG root elements, which means
+    theme skins like SDR-001 can't paint a mask-image overlay to swap the
+    icon's appearance globally without this wrapper. The SVG stays as a
+    child and renders normally; the skin's CSS hides it with
+    `visibility: hidden` and paints a pixel-art mask on the wrapper.
+
+    `display: inline-flex; line-height: 0` keeps the box flush around the
+    SVG so this wrapper introduces zero layout shift in the default
+    (no-skin) rendering.
+  -->
+  <span :class="['icon-wrap', ...wrapperClass]" :style="wrapperStyle">
   <component
     v-if="lucideIcon && !useFilledSvg"
     :is="lucideIcon"
@@ -107,6 +121,7 @@
       <circle cx="12" cy="5" r="1" fill="currentColor"></circle>
     </template>
   </svg>
+  </span>
 </template>
 
 <script lang="ts">
@@ -391,12 +406,50 @@ export default defineComponent({
       return classes;
     });
 
-    return { iconSize, computedStrokeWidth: effectiveStrokeWidth, lucideIcon, extraAttrs, useFilledSvg, filledSvgPath, isFilledIcon, componentClass, svgClass };
+    // The wrapper span carries the addressable classes (`icon icon-${name}`)
+    // and is sized to match the SVG below. Theme skins target the wrapper
+    // via `[data-skin="..."] .icon-${name}` so their `::after` mask layer
+    // can render properly (pseudo-elements don't render on SVG elements).
+    const wrapperClass = computed(() => {
+      const classes = ['icon', `icon-${props.name}`];
+      if (typeof props.size === 'string') classes.push(`icon-${props.size}`);
+      return classes;
+    });
+
+    const wrapperStyle = computed(() => {
+      // Numeric / px sizes need to be reflected on the wrapper so skin
+      // masks render at the right dimensions. String sizes (xs/sm/md/...) are
+      // already handled by the `icon-${size}` class rules below.
+      if (typeof props.size === 'number') {
+        return { width: `${props.size}px`, height: `${props.size}px` };
+      }
+      const parsed = parseInt(props.size as string, 10);
+      if (!isNaN(parsed) && String(parsed) === props.size) {
+        return { width: `${parsed}px`, height: `${parsed}px` };
+      }
+      return {};
+    });
+
+    return { iconSize, computedStrokeWidth: effectiveStrokeWidth, lucideIcon, extraAttrs, useFilledSvg, filledSvgPath, isFilledIcon, componentClass, svgClass, wrapperClass, wrapperStyle };
   }
 });
 </script>
 
 <style scoped>
+.icon-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
+  line-height: 0;
+  /* Make pseudo-elements positionable for theme skins. */
+  position: relative;
+}
+
+.icon-wrap > :deep(.icon) {
+  display: block;
+}
+
 .icon {
   display: inline-block;
   vertical-align: middle;

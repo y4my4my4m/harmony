@@ -141,6 +141,19 @@ const STALE_CONNECTION_THRESHOLD = 5 * 60 * 1000  // 5 minutes - very conservati
 // RealtimeConnectionManager Service
 // ============================================================================
 
+/**
+ * Threshold above which a returning-to-foreground tab is presumed to have a
+ * silently-dead WebSocket. Mobile browsers/OSes commonly freeze background
+ * tabs after ~30 seconds (Chrome on Android), and carrier NATs / sleep
+ * states sever idle TCP connections without sending a FIN, so the channel
+ * reports `SUBSCRIBED` long after delivery has actually stopped. Anything
+ * past one minute hidden is almost guaranteed to need a fresh connection.
+ *
+ * Kept slightly conservative (60s rather than the 30s freeze-floor) to
+ * avoid churn when the user briefly alt-tabs.
+ */
+const HIDDEN_FOR_STALE_MS = 60 * 1000
+
 class RealtimeConnectionManagerService {
   private subscriptions = new Map<string, ManagedSubscription>()
   private globalStatus: ConnectionStatus = 'disconnected'
@@ -152,6 +165,13 @@ class RealtimeConnectionManagerService {
   private onlineHandler: (() => void) | null = null
   private offlineHandler: (() => void) | null = null
   private visibilityHandler: (() => void) | null = null
+  /**
+   * Timestamp (ms epoch) when the tab last went to `hidden`. Cleared the
+   * moment we go visible again. Used to decide whether a visibility-change
+   * event should trigger a full reconnect (long absences = presume dead
+   * sockets) versus a cheap status sweep (short alt-tab).
+   */
+  private hiddenAt: number | null = null
 
   // ============================================================================
   // Lifecycle Methods
@@ -187,10 +207,54 @@ class RealtimeConnectionManagerService {
       this.notifyStatusListeners()
     }
     this.visibilityHandler = () => {
-      if (document.visibilityState === 'visible' && navigator.onLine) {
-        debug.log('👁️ RealtimeManager: Tab visible again, checking connections')
-        this.performHealthCheck()
+      if (document.visibilityState === 'hidden') {
+        // Remember when we went away so the next 'visible' event can decide
+        // how aggressively to reconnect. We DON'T tear down subscriptions
+        // here - the user may flip back instantly.
+        this.hiddenAt = Date.now()
+        return
       }
+
+      if (document.visibilityState !== 'visible' || !navigator.onLine) {
+        return
+      }
+
+      const hiddenFor = this.hiddenAt ? Date.now() - this.hiddenAt : 0
+      this.hiddenAt = null
+
+      // Long absences (mobile OS tab freeze, laptop sleep, carrier NAT
+      // timeout) almost always mean the WebSocket was killed without our
+      // socket-state observer seeing a CLOSE - the channel still reports
+      // SUBSCRIBED but no payloads will ever arrive. The classic symptom is
+      // "I had a DM open, walked away, got the push notification, but the
+      // message never showed up until I refreshed". Force a global reconnect
+      // here so every managed channel re-handshakes (and onReconnected
+      // gap-fill fires to pull anything we missed).
+      //
+      // Also force-reconnect when the underlying Supabase WS itself reports
+      // disconnected, regardless of how long we were hidden - some browsers
+      // (Safari iOS) freeze tabs <1s in and silently kill the socket.
+      const rtClient = (supabase as any).realtime
+      const wsDead = rtClient && typeof rtClient.isConnected === 'function' && !rtClient.isConnected()
+
+      if (hiddenFor >= HIDDEN_FOR_STALE_MS || wsDead) {
+        debug.log(
+          `👁️ RealtimeManager: Tab visible after ${Math.round(hiddenFor / 1000)}s (wsDead=${wsDead}) - forcing per-channel reconnect to flush stale sockets`,
+        )
+        // Use per-channel reconnect (not the global path) because
+        // forceReconnect() explicitly tears down + rebuilds each channel,
+        // which routes through handleSubscriptionStatus and sets
+        // `pendingGapFill` so the SUBSCRIBED handler fires `onReconnected`
+        // (the hook DM/channel stores use to pull messages we missed
+        // while the WS was dead). The global path only bounces the
+        // underlying socket and may not surface a CLOSED status to each
+        // managed sub, so gap-fill could silently skip.
+        this.forceReconnectAll()
+        return
+      }
+
+      debug.log('👁️ RealtimeManager: Tab visible again, checking connections')
+      this.performHealthCheck()
     }
 
     window.addEventListener('online', this.onlineHandler)
@@ -941,7 +1005,25 @@ class RealtimeConnectionManagerService {
 
   private performHealthCheck(): void {
     const now = new Date()
-    
+
+    // First, the cheap global check: if the underlying Supabase WS is
+    // disconnected, every "connected" channel above us is lying about its
+    // state and won't deliver anything. Force per-channel reconnect so
+    // each subscription's pendingGapFill flag gets set and onReconnected
+    // fires when we re-handshake. This catches the case where a managed
+    // sub never observed a CLOSED status (e.g. the socket was killed
+    // without a FIN, common on mobile carrier NATs / OS-level sleep).
+    const rtClient = (supabase as any).realtime
+    const wsDead = rtClient && typeof rtClient.isConnected === 'function' && !rtClient.isConnected()
+    if (wsDead && this.subscriptions.size > 0) {
+      const anyClaimingConnected = Array.from(this.subscriptions.values()).some(s => s.status === 'connected')
+      if (anyClaimingConnected) {
+        debug.warn('⚠️ RealtimeManager: WS is disconnected but channels claim connected - reconnecting all')
+        this.forceReconnectAll()
+        return
+      }
+    }
+
     for (const [channelName, sub] of this.subscriptions) {
       // Fix stuck error states
       if (sub.status === 'error' && sub.lastErrorAt) {

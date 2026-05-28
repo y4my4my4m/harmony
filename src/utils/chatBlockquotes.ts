@@ -24,39 +24,57 @@ export type BlockSegment =
   | { type: 'greentext'; lines: string[] }
   | { type: 'blockquote'; lines: string[]; multiLine?: boolean };
 
-// `> ` or `>` alone on a line. `>foo` (no space) is intentionally excluded.
-const SINGLE_QUOTE_LINE = /^> (.*)$/;
+// `> ` followed by NON-EMPTY content. The full `> ` (space, no content)
+// and bare `>` (no space) are NOT blockquotes — they're incomplete
+// markers the user is still typing. Promoting them eagerly rewrites
+// the editor DOM into a styled scaffold mid-keystroke, strands the
+// cursor inside a zero-width content span, and the next keystroke can
+// end up inside the marker rather than the content, dropping input.
+const SINGLE_QUOTE_LINE = /^> (.+)$/;
 
 export function isSingleQuoteLine(line: string): boolean {
   if (isMultiQuoteStart(line)) return false;
-  return line === '>' || SINGLE_QUOTE_LINE.test(line);
+  return SINGLE_QUOTE_LINE.test(line);
 }
 
 export function stripSingleQuotePrefix(line: string): string {
-  if (line === '>') return '';
   const match = line.match(SINGLE_QUOTE_LINE);
   return match ? match[1] : line;
 }
 
 export function isMultiQuoteStart(line: string): boolean {
-  // Match `>>>` alone or `>>> something` (space required, mirrors Discord)
-  return line === '>>>' || line.startsWith('>>> ');
+  // Match `>>> something` with at least one trailing non-space char.
+  // A bare `>>>` or `>>> ` with no content is incomplete — see the
+  // rationale on `isSingleQuoteLine` above for why we don't promote
+  // it eagerly.
+  return /^>>> .+/.test(line);
 }
 
 export function stripMultiQuotePrefix(line: string): string {
-  if (line === '>>>') return '';
   return line.slice(4);
 }
 
-// Imageboard-style greentext: `>foo` at the start of a line, but NOT `> foo` (which
-// is a blockquote) and NOT `>>>` (a multi-line blockquote marker). `>>foo` is
-// allowed because it's commonly used for post replies on imageboards.
+// Imageboard-style greentext: EXACTLY ONE `>` followed by a non-space,
+// non-`>` character at the start of a line.
+//
+// `>>foo` / `>>>foo` (and longer) are NOT greentext — those are reply
+// chains (`>>123` is the imageboard reply syntax) or partially-typed
+// multi-line blockquote markers (`>>> body`). Promoting them to greentext
+// would (a) confuse anyone used to imageboard conventions and (b) cause a
+// visible green flash as the user types `>>>` toward a multi-line quote.
+//
+// Also explicitly excluded: `> foo` (single-`>` followed by SPACE — that's
+// a blockquote, handled separately), bare `>` / `>>>` (incomplete markers
+// the user is still typing), `>>> foo` (multi-line blockquote start),
+// and any text where the line doesn't START with `>` (so the `>` in
+// `<https://example.com>foo` doesn't get interpreted because the line
+// starts with `<`).
+const GREENTEXT_LINE = /^>[^>\s]/;
+
 export function isGreentextLine(line: string): boolean {
   if (!line.startsWith('>')) return false;
-  if (line.startsWith('> ')) return false;
-  if (line === '>') return false;
   if (isMultiQuoteStart(line)) return false;
-  return true;
+  return GREENTEXT_LINE.test(line);
 }
 
 const FENCE_LINE = /^```/;

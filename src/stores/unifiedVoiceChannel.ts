@@ -1908,7 +1908,20 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       if (!spatialStore.settings.enabled) {
         return;
       }
-      
+
+      // BUGS.md #8 - if spatial audio was supposed to be active but the
+      // traditional `<audio>` (dry) playback got turned back on by some
+      // screen-share lifecycle path (e.g. the user dismissed the
+      // browser's screen-share picker mid-flight), we end up hearing the
+      // user through both the spatial graph AND the dry audio element
+      // simultaneously. Re-assert the dry-mute right before adding the
+      // user back into the spatial graph so the two never overlap.
+      try {
+        webrtcManager.setTraditionalAudioEnabled(false);
+      } catch (e) {
+        debug.warn('Failed to mute traditional audio before re-adding spatial user:', e);
+      }
+
       // Check if user is screensharing - if so, skip spatial audio
       // Screenshare audio plays through its own separate audio element
       const userState = this.allUsers.find(u => u.userId === userId);

@@ -247,7 +247,8 @@ async function uploadEmoji(serverId: string, userId: string, file: File): Promis
             name: uniqueName,
             url: data.publicUrl,
             server_id: serverId,
-            uploader: userId
+            uploader: userId,
+            file_size: file.size,
         };
 
         const { data: emojiData, error: fetchError } = await supabase

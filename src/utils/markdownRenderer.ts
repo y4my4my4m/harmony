@@ -1,6 +1,7 @@
 import { parseMarkdownWithMarkers, type MarkdownToken } from './markdownParser';
 import { highlightSyntax } from './syntaxHighlighter';
 import { getEmojiUrl } from './emojiUtils';
+import { sanitizeMessageHtml } from './sanitize';
 
 export interface RenderOptions {
   showMarkers?: boolean; // Whether to show markdown markers
@@ -41,7 +42,11 @@ export function renderMarkdownToHTML(text: string, options: RenderOptions = {}):
     html += renderTokenToHTML(token, { showMarkers, allowImages, allowVideos, emojiResolver });
   }
 
-  return html;
+  // Defense-in-depth: this renderer escapes user text in every branch (see
+  // `escapeHtml` calls in `renderTokenToHTML`), but a regression in any
+  // branch — or a parser bug emitting unescaped content — could re-introduce
+  // XSS. The sanitizer is a cheap last line of defense.
+  return sanitizeMessageHtml(html);
 }
 
 function renderTokenToHTML(token: MarkdownToken, options: RenderOptions): string {
@@ -139,7 +144,15 @@ function renderTokenToHTML(token: MarkdownToken, options: RenderOptions): string
       if (emojiResolver) {
         const emoji = emojiResolver(token.content);
         if (emoji) {
-          return `<img class="md-emoji" src="${getEmojiUrl(emoji.url, 48)}" alt=":${token.content}:" title=":${token.content}:" draggable="false" onerror="this.style.display='none';var s=document.createElement('span');s.className='md-emoji emoji-fallback';s.title=':${token.content}:';s.innerHTML='<svg viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;currentColor&quot; stroke-width=&quot;2&quot;><line x1=&quot;2&quot; y1=&quot;2&quot; x2=&quot;22&quot; y2=&quot;22&quot;/><path d=&quot;M10.41 10.41a2 2 0 1 1-2.83-2.83&quot;/><path d=&quot;M21 15V5a2 2 0 0 0-2-2H9&quot;/><path d=&quot;M3.59 3.59A1.99 1.99 0 0 0 3 5v14a2 2 0 0 0 2 2h14c.55 0 1.052-.22 1.41-.59&quot;/></svg>';this.parentNode.insertBefore(s,this)">`;
+          // Always escape `token.content` (user-controlled emoji shortcode)
+          // and `emoji.url` before splicing into attributes. The previous
+          // implementation inlined `token.content` into an `onerror`
+          // JavaScript string which was a JS-context injection vector
+          // (sanitizeMessageHtml now also strips the handler). Custom error
+          // fallback is handled by the consumer via @error in Vue templates.
+          const safeName = escapeHtml(token.content);
+          const safeUrl = escapeHtml(getEmojiUrl(emoji.url, 48));
+          return `<img class="md-emoji" src="${safeUrl}" alt=":${safeName}:" title=":${safeName}:" draggable="false">`;
         }
       }
       return `:${escapeHtml(token.content)}:`;

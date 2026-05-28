@@ -847,5 +847,11 @@ Connect to other platforms (Discord, Matrix, IRC).
 
 ## 📄 License
 
-GNU **AGPL-3.0** - same as the main Harmony repository; see the root `LICENSE` file.
+GNU **AGPL-3.0** with additional terms under AGPL §7 — same as the main
+Harmony repository. See the repo root for:
+
+- [`LICENSE`](https://github.com/y4my4my4m/harmony/blob/master/LICENSE) — AGPL v3 text
+- [`LICENSE-ADDITIONAL-TERMS.md`](https://github.com/y4my4my4m/harmony/blob/master/LICENSE-ADDITIONAL-TERMS.md) — required attribution
+- [`COPYRIGHT`](https://github.com/y4my4my4m/harmony/blob/master/COPYRIGHT) — copyright statement and bundled-asset notices
+- [`TRADEMARK.md`](https://github.com/y4my4my4m/harmony/blob/master/TRADEMARK.md) — name and logo policy
 

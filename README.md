@@ -46,13 +46,13 @@ npm run dev
 
 App: http://localhost:5173 - With federation running, health is http://localhost:3001/health.
 
-**Installer:** `bash scripts/install.sh` - Full production-style steps: [docs/HOW_TO_SELF_HOST.md](docs/HOW_TO_SELF_HOST.md).
+**Installer:** `bash scripts/install.sh` - Full production-style steps: [docs/self-hosting.md](docs/self-hosting.md).
 
 ## Documentation
 
 | Topic | Link |
 |--------|------|
-| Self-hosting / Docker / Redis / federation-server & worker | [docs/HOW_TO_SELF_HOST.md](docs/HOW_TO_SELF_HOST.md) |
+| Self-hosting / Docker / Redis / federation-server & worker | [docs/self-hosting.md](docs/self-hosting.md) |
 | Roadmap | [ROADMAP.md](ROADMAP.md) |
 | DB init | [db_schema/init/README.md](db_schema/init/README.md) |
 | Contributing | [CONTRIBUTING.md](CONTRIBUTING.md) |
@@ -67,4 +67,14 @@ App: http://localhost:5173 - With federation running, health is http://localhost
 
 ## License
 
-[GNU Affero General Public License v3.0](https://www.gnu.org/licenses/agpl-3.0.html) - see [LICENSE](LICENSE).
+[GNU Affero General Public License v3.0](https://www.gnu.org/licenses/agpl-3.0.html) **with additional terms** under AGPL §7 (attribution + trademark) — see:
+
+- [`LICENSE`](LICENSE) — AGPL v3 text
+- [`LICENSE-ADDITIONAL-TERMS.md`](LICENSE-ADDITIONAL-TERMS.md) — required attribution
+- [`COPYRIGHT`](COPYRIGHT) — copyright statement and bundled-asset notices
+- [`TRADEMARK.md`](TRADEMARK.md) — name and logo policy
+
+You are free to fork, modify, and self-host. Forks must rename and keep the
+"Powered by Harmony" link to the original repository visible. See
+[`LICENSE-ADDITIONAL-TERMS.md`](LICENSE-ADDITIONAL-TERMS.md) for the short
+plain-language version.

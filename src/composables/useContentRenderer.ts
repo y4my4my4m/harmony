@@ -18,7 +18,7 @@ import { getEmojiUrl } from '@/utils/emojiUtils';
 import { convertActivityPubHTMLToMessageParts } from '@/utils/unifiedContentProcessing';
 import { useUnifiedEmoji } from '@/services/unifiedEmojiService';
 import { isYouTubeUrl, buildYouTubeEmbedUrl, parseEmbedUrl } from '@/utils/embedDetection';
-import { escapeHtml, sanitizeUrl } from '@/utils/sanitize';
+import { escapeHtml, sanitizeFormattedHtml, sanitizeUrl } from '@/utils/sanitize';
 import { findEmojiByName as resolveEmojiByShortcode } from '@/services/emojiShortcodeResolver';
 
 export interface ContentRenderOptions {
@@ -399,12 +399,14 @@ export function useContentRenderer(
         }
         
         case 'hashtag': {
-          const tagName = part.name || '';
-          const dataAttrs = renderOptions.enableClickHandlers 
-            ? `data-tag="${tagName}"` 
+          // `part.name` is user-controlled. Escape on both the data attribute
+          // (HTML attribute context) and the visible text.
+          const safeTag = escapeHtml(String(part.name || ''));
+          const dataAttrs = renderOptions.enableClickHandlers
+            ? `data-tag="${safeTag}"`
             : '';
-          
-          return `<span class="hashtag" ${dataAttrs}>#${tagName}</span>`;
+
+          return `<span class="hashtag" ${dataAttrs}>#${safeTag}</span>`;
         }
         
         case 'emoji': {
@@ -425,7 +427,15 @@ export function useContentRenderer(
           
           if (hasCustomUrl) {
             const url = getEmojiUrl(emoji.url, 96);
-            return `<img src="${url}" alt=":${emoji.name}:" title=":${emoji.name}:" class="emoji-icon ${sizeClass}" draggable="false" onerror="this.style.display='none';var s=document.createElement('span');s.className='emoji-icon emoji-fallback ${sizeClass}';s.title=':${emoji.name}:';s.innerHTML='<svg viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;currentColor&quot; stroke-width=&quot;2&quot;><line x1=&quot;2&quot; y1=&quot;2&quot; x2=&quot;22&quot; y2=&quot;22&quot;/><path d=&quot;M10.41 10.41a2 2 0 1 1-2.83-2.83&quot;/><path d=&quot;M21 15V5a2 2 0 0 0-2-2H9&quot;/><path d=&quot;M3.59 3.59A1.99 1.99 0 0 0 3 5v14a2 2 0 0 0 2 2h14c.55 0 1.052-.22 1.41-.59&quot;/></svg>';this.parentNode.insertBefore(s,this)" />`;
+            // `emoji.name` is user/federated-server-controlled. Inlining it
+            // into attributes requires HTML-escaping, and into the previously
+            // present `onerror` JavaScript also required JS-string escaping —
+            // we now just rely on browser-native alt fallback for broken
+            // images. `sanitizeFormattedHtml` (applied to this output) also
+            // strips inline event handlers as defense-in-depth.
+            const safeName = escapeHtml(String(emoji.name ?? ''));
+            const safeUrl = escapeHtml(url);
+            return `<img src="${safeUrl}" alt=":${safeName}:" title=":${safeName}:" class="emoji-icon ${sizeClass}" draggable="false" />`;
           }
           
           // Native/unified emoji - check pack preference.
@@ -433,36 +443,40 @@ export function useContentRenderer(
           // Emoji type; cast through any so legacy data still works.
           const emojiAny = emoji as any;
           const unicode = emojiAny.native || emojiAny.unicode;
+          // Both `emoji.name` (federated-server-controlled) and `unicode`
+          // (resolved by the pack but ultimately seeded from user input)
+          // need HTML-escaping when spliced into attributes / text.
+          const safeName = escapeHtml(String(emoji.name ?? ''));
+          const safeUnicode = escapeHtml(String(unicode ?? ''));
           if (unicode) {
             if (isNativePack.value) {
-              // Native pack - render unicode
-              return isSingleEmoji.value 
-                ? `<span class="native-emoji single">${unicode}</span>`
-                : unicode;
+              return isSingleEmoji.value
+                ? `<span class="native-emoji single">${safeUnicode}</span>`
+                : safeUnicode;
             } else if (emojiServiceLoaded.value) {
-              // Mutant pack - try to get SVG
               const resolved = resolveEmoji(unicode);
               if (resolved.display.type === 'svg') {
-                return `<img src="${resolved.display.content}" alt=":${emoji.name}:" title=":${emoji.name}:" class="emoji-icon ${sizeClass}" draggable="false" />`;
+                const safeSvgUrl = escapeHtml(resolved.display.content);
+                return `<img src="${safeSvgUrl}" alt=":${safeName}:" title=":${safeName}:" class="emoji-icon ${sizeClass}" draggable="false" />`;
               }
             }
-            // Fallback to unicode
-            return unicode;
+            return safeUnicode;
           }
-          
-          // Try to resolve by name
+
           if (emoji.name && emojiServiceLoaded.value) {
             const resolved = resolveEmoji(emoji.name);
             if (resolved.display.type === 'svg' && !isNativePack.value) {
-              return `<img src="${resolved.display.content}" alt=":${emoji.name}:" title=":${emoji.name}:" class="emoji-icon ${sizeClass}" draggable="false" />`;
+              const safeSvgUrl = escapeHtml(resolved.display.content);
+              return `<img src="${safeSvgUrl}" alt=":${safeName}:" title=":${safeName}:" class="emoji-icon ${sizeClass}" draggable="false" />`;
             } else if (resolved.unicode) {
-              return isSingleEmoji.value 
-                ? `<span class="native-emoji single">${resolved.unicode}</span>`
-                : resolved.unicode;
+              const safeResolved = escapeHtml(resolved.unicode);
+              return isSingleEmoji.value
+                ? `<span class="native-emoji single">${safeResolved}</span>`
+                : safeResolved;
             }
           }
-          
-          return `:${emoji.name || 'emoji'}:`;
+
+          return `:${safeName || 'emoji'}:`;
         }
         
         case 'url': {
@@ -591,7 +605,12 @@ export function useContentRenderer(
         i++;
       }
     }
-    return chunks.join('');
+    // Final defense-in-depth pass: even though every text part is HTML-escaped
+    // at the boundary in `renderPart`, run the joined output through
+    // DOMPurify so a future regression here cannot reintroduce arbitrary HTML.
+    // Uses the wider allowlist (includes `iframe` for YouTube embeds, `video`
+    // and `audio` for inline media, etc.).
+    return sanitizeFormattedHtml(chunks.join(''));
   });
 
   // Event handlers

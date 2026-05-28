@@ -51,7 +51,9 @@
       <span>{{ readOnlyPlaceholder }}</span>
     </div>
 
-    <div v-else class="message-container"
+    <div v-else
+         class="message-container"
+         :class="{ 'buzz-over-limit': overLimitBuzz, 'has-over-limit': messageTooLong }"
          @dragenter.prevent="handleDragEnter"
          @dragover.prevent="handleDragOver"
          @dragleave.prevent="handleDragLeave"
@@ -95,6 +97,19 @@
           />
         </div>
         <div class="right-icons">
+          <!--
+            Character count: only shown when approaching / over the limit
+            so it doesn't clutter the input for short messages. Red when
+            over the limit; the send button is disabled separately via
+            `hasContent`.
+          -->
+          <span
+            v-if="showCharCount"
+            class="message-char-count"
+            :class="{ 'over-limit': messageTooLong }"
+            :aria-live="messageTooLong ? 'assertive' : 'polite'"
+            :title="messageTooLong ? `Message too long (${characterCount} / ${maxMessageLength})` : `${characterCount} / ${maxMessageLength}`"
+          >{{ maxMessageLength - characterCount }}</span>
           <VoiceRecorder
             :disabled="hasContent"
             @recording-started="isVoiceRecording = true"
@@ -154,6 +169,11 @@ import InlineGifPicker from '@/components/InlineGifPicker.vue';
 import type { FilePreviewData } from '@/components/FilePreview.vue';
 import type { SuggestionItem } from '@/components/AutoSuggest.vue';
 import type { Message, Gif } from '@/types';
+import { useToast } from 'vue-toastification';
+import {
+  DEFAULT_MAX_MESSAGE_TEXT_LENGTH,
+  MESSAGE_TEXT_HARD_CEILING,
+} from '@/utils/messageContentUtils';
 import { backgroundUploadManager } from '@/services/fileService';
 import type { VoiceRecordingResult } from '@/services/voiceRecordingService';
 import { supabase } from '@/supabase';
@@ -200,22 +220,27 @@ interface VoiceMessageData {
   mimeType: string
 }
 
-interface Emits {
-  (e: 'update:modelValue', value: string): void;
-  (e: 'sendMessage', content: string, files: FilePreviewData[], replyMessageId?: string): void;
-  (e: 'sendVoiceMessage', data: VoiceMessageData): void;
-  (e: 'toggleGiphy'): void;
-  (e: 'toggleEmojiList', isReaction: boolean, message?: Message): void;
-  (e: 'update:replyMessageId', value: string): void;
-  (e: 'files-attached', files: FilePreviewData[]): void;
-  (e: 'upload-status-changed', uploading: boolean): void;
-  (e: 'edit-last-message'): void;
-  (e: 'sendGif', gif: Gif): void;
-}
-
-const emit = defineEmits<Emits>();
+// Tuple-based defineEmits is the modern Vue 3 syntax and plays better
+// with vue-tsc's `(...args: any[]) => any` listener-prop type than the
+// older call-signature interface form, which produced contravariance
+// errors at every parent's `@sendMessage="..."` / `@toggleEmojiList="..."`
+// binding site (TS2322: "Target requires N element(s) but source may have
+// fewer"). See the matching note in MessageContextMenu.vue.
+const emit = defineEmits<{
+  'update:modelValue': [value: string]
+  sendMessage: [content: string, files: FilePreviewData[], replyMessageId?: string]
+  sendVoiceMessage: [data: VoiceMessageData]
+  toggleGiphy: []
+  toggleEmojiList: [isReaction: boolean, message?: Message, triggerElement?: HTMLElement]
+  'update:replyMessageId': [value: string]
+  'files-attached': [files: FilePreviewData[]]
+  'upload-status-changed': [uploading: boolean]
+  'edit-last-message': []
+  sendGif: [gif: Gif]
+}>();
 
 const authStore = useAuthStore();
+const toast = useToast();
 const { triggerMessage } = useHapticSettings();
 const showUploadMenu = ref(false);
 const attachedFiles = ref<FilePreviewData[]>([]);
@@ -226,6 +251,10 @@ const gifTriggerRef = ref<HTMLElement | null>(null);
 const emojiTriggerRef = ref<HTMLElement | null>(null);
 const isVoiceRecording = ref(false);
 const voiceUploading = ref(false);
+// Flips for ~400ms whenever the user tries to send an over-limit message —
+// drives the .buzz CSS animation on the container so the user sees the
+// message wasn't sent, without losing their draft.
+const overLimitBuzz = ref(false);
 
 // Get store for channel ID (more reliable than props on direct page load)
 const serverChannelStore = useServerChannelStore()
@@ -318,7 +347,35 @@ const checkMobile = () => {
   isMobile.value = hasSmallScreen || isTouchOnlyDevice;
 };
 
-// Check if there's content to send
+// Character count of the raw editor text. Used to surface a counter when
+// the user is close to / over the limit. We count the raw editor string
+// (which includes markdown markers like `**`); the backend counts the
+// parsed text part lengths and is the authoritative limit, but the two
+// values are close enough that this is a useful UX guide.
+const characterCount = computed(() => (props.modelValue || '').length);
+
+// Authoritative soft limit. Comes from the admin's
+// `instance_config.max_message_length` (loaded by `useInstanceSettings`).
+// We fall back to the default for the brief period before the settings
+// store has loaded, and clamp to the DB-side hard ceiling so a
+// misconfigured admin can't push the soft limit past what the DB will
+// accept. The store is already instantiated below for the
+// `allowCustomEmojisInDisplayNames` / `maxMediaAttachmentsPerPost` reads.
+const instanceSettingsStore = useInstanceSettingsStore();
+const maxMessageLength = computed(() => {
+  const v = instanceSettingsStore.settings.maxMessageLength;
+  if (typeof v !== 'number' || v < 1) return DEFAULT_MAX_MESSAGE_TEXT_LENGTH;
+  return Math.min(v, MESSAGE_TEXT_HARD_CEILING);
+});
+const messageTooLong = computed(() => characterCount.value > maxMessageLength.value);
+const showCharCount = computed(
+  () => characterCount.value > maxMessageLength.value * 0.85,
+);
+
+// Check if there's content to send. Over-limit messages STILL count as
+// "having content" so the send button stays enabled — clicking it (or
+// pressing Enter) routes through `send()` which buzzes the input and
+// toasts an error, instead of silently dropping the user's draft.
 const hasContent = computed(() => {
   return (props.modelValue?.trim().length ?? 0) > 0 || attachedFiles.value.length > 0;
 });
@@ -543,17 +600,38 @@ const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText);
       // Stop typing indicator when sending
       stopTyping()
       hasStartedTyping = false
-      
+
       // Clear typing reset timeout
       if (typingResetTimeout) {
         clearTimeout(typingResetTimeout)
         typingResetTimeout = null
       }
-      
+
       // Close auto-suggest and active command when sending
       autoSuggest.closeSuggestions();
       autoSuggest.dismissActiveCommand();
-      
+
+      // Hard refuse over-limit sends: do NOT emit, do NOT clear the editor,
+      // shake the input, surface a toast, and refocus so the user can
+      // trim and retry. Previously the over-limit message was emitted,
+      // bounced from the backend, and the optimistic-removal path wiped
+      // the user's draft — which is terrible UX if they actually wrote
+      // 4000+ characters.
+      if (messageTooLong.value) {
+        overLimitBuzz.value = false;
+        // Toggle next frame so re-presses re-trigger the animation even
+        // if the previous one is still running.
+        nextTick(() => {
+          overLimitBuzz.value = true;
+          window.setTimeout(() => { overLimitBuzz.value = false; }, 450);
+        });
+        toast.error(
+          `Message too long (${characterCount.value.toLocaleString()} / ${maxMessageLength.value.toLocaleString()}). Trim it and try again.`,
+        );
+        if (richEditorRef.value?.focus) richEditorRef.value.focus();
+        return;
+      }
+
       if (props.modelValue?.trim() || attachedFiles.value.length > 0) {
         const content = props.modelValue || '';
         // URL tracking parameter stripping is handled in unifiedContentProcessing.ts
@@ -563,12 +641,12 @@ const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText);
         // Haptic feedback on message send
         triggerMessage();
         emit('update:modelValue', '');
-        
+
         // Clear the rich text editor
         if (richEditorRef.value?.clear) {
           richEditorRef.value.clear();
         }
-        
+
         // Clear files after sending
         attachedFiles.value.forEach(file => {
           if (file.preview) {
@@ -1002,6 +1080,20 @@ const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText);
     padding-right: 10px;
   }
 
+  .message-char-count {
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+    color: var(--text-muted, #72767d);
+    padding: 0 6px;
+    user-select: none;
+    pointer-events: auto;
+  }
+
+  .message-char-count.over-limit {
+    color: var(--color-danger, #ed4245);
+    font-weight: 600;
+  }
+
   .plus-icon-container {
     position: relative;
     background-color: #aaaaaa29;
@@ -1027,6 +1119,35 @@ const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText);
     border: none;
     background-color: var(--background-quaternary);
     transition: .2s;
+  }
+
+  /* Over-limit visual cue: red outline whenever the draft exceeds the
+   * character cap so the user sees they're over before they try to send. */
+  .message-container.has-over-limit {
+    outline: 1px solid var(--color-danger, #ed4245);
+    outline-offset: 0;
+  }
+
+  /* "Buzz" animation fired when the user tries to send an over-limit
+   * draft. Quick horizontal shake — visible, dismissable, doesn't move
+   * adjacent UI (transform-only). The toast carries the explanation;
+   * this is just kinetic feedback that the click was acknowledged. */
+  .message-container.buzz-over-limit {
+    animation: message-input-buzz 0.4s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+  }
+
+  @keyframes message-input-buzz {
+    10%, 90% { transform: translate3d(-1px, 0, 0); }
+    20%, 80% { transform: translate3d(2px, 0, 0); }
+    30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+    40%, 60% { transform: translate3d(4px, 0, 0); }
+  }
+
+  /* Respect prefers-reduced-motion: skip the shake, keep the outline. */
+  @media (prefers-reduced-motion: reduce) {
+    .message-container.buzz-over-limit {
+      animation: none;
+    }
   }
 
   .textarea-wrapper {

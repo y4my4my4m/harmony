@@ -79,6 +79,14 @@ CREATE TABLE IF NOT EXISTS public.profiles (
     manually_approves_followers boolean DEFAULT false,
 
     CONSTRAINT profiles_username_check CHECK (username ~* '^[a-zA-Z0-9_]+$'),
+    -- `display_name` is optional (some federated profiles may legitimately
+    -- omit it), but if present it must contain at least one non-whitespace
+    -- character. A blank display name makes the user appear as
+    -- `Unknown User` everywhere via the `getUserDisplayName` fallback,
+    -- which is confusing UX and a passive impersonation surface.
+    CONSTRAINT profiles_display_name_not_blank CHECK (
+        display_name IS NULL OR length(btrim(display_name)) > 0
+    ),
     CONSTRAINT profiles_username_domain_key UNIQUE (username, domain)
 );
 

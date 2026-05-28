@@ -15,33 +15,29 @@ import { useAuthStore } from '@/stores/auth'
 import { useProfileStore } from '@/stores/useProfile'
 import { debug } from '@/utils/debug'
 import { userStorage } from '@/utils/userScopedStorage'
+import { audioThemeService } from '@/services/AudioThemeService'
+import { BUILTIN_SKINS, type Skin } from './skins'
+import type { VisualThemeSettings } from './useVisualTheme.types'
 
-export interface VisualThemeSettings {
-  theme: 'dark' | 'light' | 'midnight' | 'custom'
-  customThemeMode?: 'dark' | 'light'
-  customPrimaryColor?: string
-  customAccentColor?: string
-  customBackgroundColor?: string
-  customBackgroundLightness?: number // -50 to +50
-  customBackgroundChroma?: number // -30 to +30
-  customCssOverrides?: Record<string, string>
-  fontSize: number
-  zoomLevel: number
-  showTimestamps: boolean
-  use24HourTime: boolean
-  compactMode: boolean
-  highContrast: boolean
-  reduceMotion: boolean
-  screenReaderSupport: boolean
-  /** Show custom emojis in other users' display names. Instance must allow it too. */
-  showCustomEmojisInDisplayNames?: boolean
-  /**
-   * Render `>foo` lines (no space after `>`) as imageboard-style greentext in
-   * chat/DM messages. `> foo` is always a blockquote regardless of this flag.
-   * Default: true (opt-out).
-   */
-  greentextEnabled?: boolean
+const AUDIO_THEME_WHEN_SKIN_CLEARED = 'default'
+
+/** Look up a skin's `linkedAudioTheme` (declared on the skin manifest). */
+function getLinkedAudioTheme(skinId: string): string | undefined {
+  return BUILTIN_SKINS.find((s) => s.id === skinId)?.linkedAudioTheme
 }
+
+export type { VisualThemeSettings } from './useVisualTheme.types'
+export { BUILTIN_SKINS, type Skin } from './skins'
+
+/**
+ * CSS font stacks for each `fontFamily` option. Update both this map and
+ * `applySettings` if you add a new option.
+ */
+export const FONT_STACKS: Record<NonNullable<VisualThemeSettings['fontFamily']>, string> = {
+  system: `'Figtree', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif`,
+  pixel: `'NoRe Sans Pixel Pro', 'Figtree', monospace`,
+}
+
 
 export interface ThemePreset {
   name: string
@@ -264,6 +260,10 @@ const settings = ref<VisualThemeSettings>({
   screenReaderSupport: false,
   showCustomEmojisInDisplayNames: true,
   greentextEnabled: true,
+  fontFamily: 'system',
+  glassEffectsEnabled: true,
+  activeSkinId: null,
+  customSkinCss: '',
 })
 
 const isInitialized = ref(false)
@@ -463,6 +463,70 @@ function applySettings(settings: VisualThemeSettings) {
   
   // Apply font size
   root.style.setProperty('--message-font-size', `${settings.fontSize}px`)
+
+  // Apply UI font family (the picker in Appearance settings flips this).
+  // `--font-family` is consumed by `body` in design-system.css and by the
+  // `html, body` rule in App.vue; setting it on `:root` cascades to both.
+  const fontKey = settings.fontFamily || 'system'
+  const fontStack = FONT_STACKS[fontKey] || FONT_STACKS.system
+  root.style.setProperty('--font-family', fontStack)
+
+  // Apply glass effects preference. The setting itself uses positive
+  // framing (`glassEffectsEnabled`), but the CSS hook stays
+  // `data-disable-blur` because that's what the global rule in
+  // `design-system.css` keys off — internal implementation detail.
+  if (!settings.glassEffectsEnabled) {
+    root.setAttribute('data-disable-blur', 'true')
+  } else {
+    root.removeAttribute('data-disable-blur')
+  }
+
+  // Apply active skin id (data attribute used by skin-scoped CSS rules)
+  // and inject the skin's global CSS into a dedicated <style> tag so we
+  // can swap skins cleanly without leaking rules.
+  if (settings.activeSkinId) {
+    root.setAttribute('data-skin', settings.activeSkinId)
+  } else {
+    root.removeAttribute('data-skin')
+  }
+
+  // Apply per-skin decorative option attributes (`data-skin-<optionId>=on|off`).
+  // For the active skin, every option declared in its manifest gets an
+  // attribute reflecting the user's stored value (falling back to the
+  // option's declared default). When no skin is active OR the skin has
+  // no options, all known option attrs are stripped so they never leak
+  // across skin switches.
+  const ALL_OPTION_IDS = new Set<string>()
+  for (const skin of BUILTIN_SKINS) {
+    for (const option of skin.options || []) ALL_OPTION_IDS.add(option.id)
+  }
+  for (const optionId of ALL_OPTION_IDS) {
+    root.removeAttribute(`data-skin-${optionId}`)
+  }
+  if (settings.activeSkinId) {
+    const skin = BUILTIN_SKINS.find((s) => s.id === settings.activeSkinId)
+    const stored = settings.skinOptions?.[settings.activeSkinId] || {}
+    for (const option of skin?.options || []) {
+      const value = stored[option.id] ?? option.default
+      root.setAttribute(`data-skin-${option.id}`, value ? 'on' : 'off')
+    }
+  }
+
+  if (typeof document !== 'undefined') {
+    let skinStyleEl = document.getElementById('harmony-skin-styles') as HTMLStyleElement | null
+    if (settings.customSkinCss) {
+      if (!skinStyleEl) {
+        skinStyleEl = document.createElement('style')
+        skinStyleEl.id = 'harmony-skin-styles'
+        document.head.appendChild(skinStyleEl)
+      }
+      if (skinStyleEl.textContent !== settings.customSkinCss) {
+        skinStyleEl.textContent = settings.customSkinCss
+      }
+    } else if (skinStyleEl) {
+      skinStyleEl.remove()
+    }
+  }
   
   // Apply zoom level. `zoom` is a non-standard CSS property not present on
   // `CSSStyleDeclaration` in lib.dom, but every browser we target understands it.
@@ -501,6 +565,20 @@ function applySettings(settings: VisualThemeSettings) {
     root.setAttribute('data-screen-reader', 'true')
   } else {
     root.removeAttribute('data-screen-reader')
+  }
+}
+
+/**
+ * Backwards-compat: convert legacy `disableGlassBlur` (negative framing)
+ * to the new `glassEffectsEnabled` (positive framing). Existing profiles'
+ * `appearance_settings` JSONB and old localStorage payloads will have
+ * the legacy field; this rewrites it in-place so the rest of the system
+ * only ever sees the new shape.
+ */
+function migrateLegacyBlurSetting(loaded: Partial<VisualThemeSettings> & { disableGlassBlur?: boolean }) {
+  if ('disableGlassBlur' in loaded && loaded.glassEffectsEnabled === undefined) {
+    loaded.glassEffectsEnabled = !loaded.disableGlassBlur
+    delete loaded.disableGlassBlur
   }
 }
 
@@ -649,6 +727,7 @@ export function useVisualTheme() {
     const localSettings = loadFromLocalStorage()
     let appliedFromLocal = false
     if (localSettings) {
+      migrateLegacyBlurSetting(localSettings)
       Object.assign(settings.value, localSettings)
       applySettings(settings.value)
       appliedFromLocal = true
@@ -657,6 +736,7 @@ export function useVisualTheme() {
     // Then load from Supabase and override if different
     const supabaseSettings = await loadFromSupabase()
     if (supabaseSettings) {
+      migrateLegacyBlurSetting(supabaseSettings)
       // Only re-apply if settings are actually different from localStorage
       const needsUpdate = !appliedFromLocal || 
         supabaseSettings.theme !== localSettings?.theme ||
@@ -687,6 +767,8 @@ export function useVisualTheme() {
       { deep: true, immediate: false }
     )
     
+    syncLinkedAudioOnInit(settings.value.activeSkinId)
+
     isInitialized.value = true
     debug.log('✅ Visual theme system initialized')
   }
@@ -744,6 +826,168 @@ export function useVisualTheme() {
    */
   function setZoomLevel(zoom: number) {
     settings.value.zoomLevel = Math.max(50, Math.min(200, zoom))
+  }
+
+  /**
+   * Update UI font family. Persists via the same `appearance_settings`
+   * sync flow as the rest of the theme.
+   */
+  function setFontFamily(family: NonNullable<VisualThemeSettings['fontFamily']>) {
+    if (!FONT_STACKS[family]) return
+    settings.value.fontFamily = family
+  }
+
+  /**
+   * Toggle the glass effects (blur / translucency) preference.
+   */
+  function setGlassEffectsEnabled(enabled: boolean) {
+    settings.value.glassEffectsEnabled = !!enabled
+  }
+
+  /**
+   * Switch to the audio theme linked to a visual skin (if any). Snapshots the
+   * user's current audio theme once so `clearSkin` can restore it.
+   */
+  function applySkinLinkedAudioTheme(skinId: string): void {
+    const linkedThemeId = getLinkedAudioTheme(skinId)
+    if (!linkedThemeId) return
+    if (!settings.value._preSkinAudioTheme) {
+      settings.value._preSkinAudioTheme =
+        audioThemeService.getSettings().selectedTheme
+    }
+    void audioThemeService.setTheme(linkedThemeId)
+  }
+
+  /**
+   * Restore the pre-skin audio theme after clearing a linked skin.
+   */
+  function restorePreSkinAudioTheme(): void {
+    const previous = settings.value._preSkinAudioTheme
+    settings.value._preSkinAudioTheme = undefined
+    void audioThemeService.setTheme(previous ?? AUDIO_THEME_WHEN_SKIN_CLEARED)
+  }
+
+  /**
+   * On reload, re-apply linked audio if a skin is active but audio drifted.
+   */
+  function syncLinkedAudioOnInit(activeSkinId: string | null | undefined): void {
+    if (!activeSkinId) return
+    const linkedThemeId = getLinkedAudioTheme(activeSkinId)
+    if (!linkedThemeId) return
+    if (audioThemeService.getSettings().selectedTheme === linkedThemeId) return
+    if (!settings.value._preSkinAudioTheme) {
+      settings.value._preSkinAudioTheme =
+        audioThemeService.getSettings().selectedTheme
+    }
+    void audioThemeService.setTheme(linkedThemeId)
+  }
+
+  /**
+   * Set a per-skin decorative option (e.g. scanline on/off). Stored as
+   * `skinOptions[skinId][optionId]` and reflected to the DOM as
+   * `<html data-skin-<optionId>="on|off">` by `applySettings` below.
+   */
+  function setSkinOption(skinId: string, optionId: string, value: boolean): void {
+    if (!settings.value.skinOptions) settings.value.skinOptions = {}
+    if (!settings.value.skinOptions[skinId]) settings.value.skinOptions[skinId] = {}
+    settings.value.skinOptions[skinId][optionId] = value
+  }
+
+  /**
+   * Read a skin option's effective value: stored override if present,
+   * otherwise the option's declared `default`. Returns `undefined` for
+   * unknown skin/option ids.
+   */
+  function getSkinOption(skinId: string, optionId: string): boolean | undefined {
+    const skin = BUILTIN_SKINS.find((s) => s.id === skinId)
+    const option = skin?.options?.find((o) => o.id === optionId)
+    if (!option) return undefined
+    const stored = settings.value.skinOptions?.[skinId]?.[optionId]
+    return stored ?? option.default
+  }
+
+  /**
+   * Capture the values of every key a skin can mutate. Used to take a
+   * snapshot before `applySkin` so `clearSkin` can restore them.
+   */
+  function snapshotSkinTargets(s: VisualThemeSettings): Partial<VisualThemeSettings> {
+    return {
+      theme: s.theme,
+      customThemeMode: s.customThemeMode,
+      customPrimaryColor: s.customPrimaryColor,
+      customAccentColor: s.customAccentColor,
+      customBackgroundColor: s.customBackgroundColor,
+      customBackgroundLightness: s.customBackgroundLightness,
+      customBackgroundChroma: s.customBackgroundChroma,
+      customCssOverrides: s.customCssOverrides ? { ...s.customCssOverrides } : {},
+      fontFamily: s.fontFamily,
+    }
+  }
+
+  /**
+   * Apply a skin by id. Merges the skin's `themeOverrides` into the live
+   * settings, sets `activeSkinId`, and stashes the skin's `globalCss` in
+   * `customSkinCss` so it round-trips through the `appearance_settings`
+   * sync flow without needing the skin registry on the receiving device.
+   *
+   * The pre-skin snapshot is stored alongside the rest of settings in
+   * `_preSkinSnapshot`, so it persists through reloads and across
+   * devices via the `appearance_settings` JSONB column. This means
+   * `clearSkin` can faithfully revert font / theme / colours even after
+   * a fresh page load with a persisted active skin.
+   *
+   * The skin deliberately does NOT touch the user's `glassEffectsEnabled`
+   * preference - any "this skin needs blur off" requirements are
+   * enforced by the skin's own scoped CSS (`[data-skin="..."] *
+   * { backdrop-filter: none }`) so the user's separate opt-out toggle
+   * is preserved when they go back to "None".
+   */
+  function applySkin(skinId: string | null) {
+    if (!skinId) {
+      clearSkin()
+      return
+    }
+    const skin = BUILTIN_SKINS.find((s) => s.id === skinId)
+    if (!skin) {
+      debug.warn(`applySkin: unknown skin id "${skinId}", clearing`)
+      clearSkin()
+      return
+    }
+    // Capture the pre-skin state once, only if no skin is currently
+    // active. `apply A → apply B → clear` restores the state from
+    // before A, not the half-skin state from between A and B.
+    if (!settings.value.activeSkinId && !settings.value._preSkinSnapshot) {
+      settings.value._preSkinSnapshot = snapshotSkinTargets(settings.value)
+    }
+    Object.assign(settings.value, skin.themeOverrides)
+    settings.value.activeSkinId = skin.id
+    settings.value.customSkinCss = skin.globalCss || ''
+    applySkinLinkedAudioTheme(skin.id)
+  }
+
+  /**
+   * Remove the active skin's contribution AND restore the pre-skin
+   * snapshot. The snapshot is stored on `settings._preSkinSnapshot`
+   * so it survives page reloads / cross-device sync.
+   *
+   * If no snapshot exists (e.g. a skin somehow ended up active without
+   * one), fall back to the static defaults for the skin-affected keys
+   * so the user still gets a clean revert.
+   */
+  function clearSkin() {
+    const snapshot = settings.value._preSkinSnapshot
+    if (snapshot) {
+      Object.assign(settings.value, snapshot)
+    } else if (settings.value.activeSkinId) {
+      // Snapshot missing - return the skin-mutated keys to defaults.
+      settings.value.theme = 'dark'
+      settings.value.customCssOverrides = {}
+      settings.value.fontFamily = 'system'
+    }
+    settings.value._preSkinSnapshot = undefined
+    settings.value.activeSkinId = null
+    settings.value.customSkinCss = ''
+    restorePreSkinAudioTheme()
   }
   
   /**
@@ -904,6 +1148,10 @@ export function useVisualTheme() {
       reduceMotion: false,
       screenReaderSupport: false,
       showCustomEmojisInDisplayNames: true,
+      fontFamily: 'system',
+      glassEffectsEnabled: true,
+      activeSkinId: null,
+      customSkinCss: '',
     }
     // Apply default dark theme
     applyPresetTheme('dark')
@@ -932,6 +1180,10 @@ export function useVisualTheme() {
       reduceMotion: false,
       screenReaderSupport: false,
       showCustomEmojisInDisplayNames: true,
+      fontFamily: 'system',
+      glassEffectsEnabled: true,
+      activeSkinId: null,
+      customSkinCss: '',
     }
   }
   
@@ -1078,6 +1330,12 @@ export function useVisualTheme() {
     setCustomBackgroundChroma,
     setFontSize,
     setZoomLevel,
+    setFontFamily,
+    setGlassEffectsEnabled,
+    applySkin,
+    clearSkin,
+    setSkinOption,
+    getSkinOption,
     toggleShowTimestamps,
     toggle24HourTime,
     toggleCompactMode,

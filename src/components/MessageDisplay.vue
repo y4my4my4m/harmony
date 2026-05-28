@@ -109,6 +109,7 @@
           @touchstart.passive="handleMessageTouchStart(item.message.id, $event)"
           @touchend.passive="handleMessageTouchEnd"
           @touchmove.passive="handleMessageTouchMove"
+          @contextmenu="handleMessageContextMenu(item.message, $event)"
         >
           <!-- Hide button for revealed blocked messages -->
           <div v-if="item.isRevealed && item.isFirstInRevealedGroup" class="revealed-blocked-banner">
@@ -502,10 +503,17 @@
     :channel-id="props.channelId"
     :conversation-id="props.conversationId"
     :current-user-id="props.currentUserId"
+    :hide-thread-actions="props.hideThreadActions"
+    :can-edit="contextMenuMessage ? canEditMessage(contextMenuMessage) : false"
+    :can-delete="contextMenuMessage ? canDeleteMessage(contextMenuMessage) : false"
     @close="closeContextMenu"
     @add-reaction="handleContextMenuReaction"
     @open-emoji-picker="handleContextMenuEmojiPicker"
     @report="handleReportMessage"
+    @reply="replyTo"
+    @edit="startEdit"
+    @thread="createThread"
+    @delete="deleteMessage"
   />
 
   <!-- Report Modal -->
@@ -2887,13 +2895,53 @@ const openContextMenu = (message: Message, event: MouseEvent) => {
   
   // Haptic feedback for context menu
   triggerInteraction();
-  
+
+  // On mobile the (...) button in the floating toolbar opens this menu.
+  // The toolbar itself remains pinned ~48px above the original tap point,
+  // which visually clashes (and z-stacks) with the menu we're about to
+  // render. Dismiss the toolbar so the user sees exactly one surface —
+  // the menu — rooted at the tap.
+  if (isMobile.value) {
+    hoveredMessageId.value = null;
+    mobileActionTapPosition.value = null;
+  }
+
   contextMenuMessage.value = message;
   contextMenuPosition.value = {
     x: event.clientX,
     y: event.clientY
   };
   contextMenuVisible.value = true;
+};
+
+// Native right-click on a message row opens the same context menu the
+// "more" button does. We deliberately let the browser's native menu
+// take over for media (images, video, audio) and links so users can
+// still "Save image as", "Copy link address", etc. — that matches
+// Discord/Slack behaviour.
+const handleMessageContextMenu = (message: Message, event: MouseEvent) => {
+  // On mobile the OS fires a synthetic `contextmenu` event after a
+  // long-press. We already handle long-press explicitly via the
+  // touchstart timer (which shows the floating message-actions toolbar),
+  // so opening the full context menu on top of it produces two competing
+  // surfaces. Swallow the synthetic event so only the toolbar shows;
+  // the user can then tap the (...) button to get the full menu.
+  if (isMobile.value) {
+    event.preventDefault();
+    return;
+  }
+  const target = event.target as HTMLElement | null;
+  if (target?.closest('a, img, video, audio, [data-no-context-menu]')) {
+    return;
+  }
+  // Don't intercept right-clicks while a text selection is active —
+  // browsers expose the standard "Copy" menu for selected text and
+  // overriding it would hide that affordance.
+  const selection = window.getSelection?.();
+  if (selection && !selection.isCollapsed && selection.toString().length > 0) {
+    return;
+  }
+  openContextMenu(message, event);
 };
 
 const closeContextMenu = () => {

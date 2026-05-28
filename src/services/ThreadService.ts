@@ -3,6 +3,11 @@ import { debug } from '@/utils/debug'
 import type { Thread, ThreadMember, Message } from '@/types'
 import { authContextService } from '@/services/AuthContextService'
 import { ensureMessageEmbeds } from '@/utils/messageEmbedUtils'
+import {
+  DEFAULT_MAX_MESSAGE_TEXT_LENGTH,
+  MESSAGE_TEXT_HARD_CEILING,
+  messageTextLength,
+} from '@/utils/messageContentUtils'
 
 // =============================================
 // Thread Types
@@ -835,6 +840,31 @@ class ThreadService {
   }
 
   /**
+   * Fetch the admin-configured max message length from `instance_config`.
+   * Same semantics as `CoreMessageService.getMaxMessageLength` (clamped to
+   * the DB-side hard ceiling so a misconfigured admin value can't push a
+   * row into a state the CHECK constraint will reject).
+   */
+  private async getMaxMessageLength(): Promise<number> {
+    const { data } = await supabase
+      .from('instance_config')
+      .select('config_value')
+      .eq('config_key', 'max_message_length')
+      .maybeSingle()
+    const raw = data?.config_value
+    const parsed =
+      typeof raw === 'number'
+        ? raw
+        : typeof raw === 'string'
+          ? parseInt(raw, 10)
+          : NaN
+    const value = !Number.isNaN(parsed) && parsed >= 1
+      ? parsed
+      : DEFAULT_MAX_MESSAGE_TEXT_LENGTH
+    return Math.min(value, MESSAGE_TEXT_HARD_CEILING)
+  }
+
+  /**
    * Send a message to a thread.
    *
    * Threads live inside a channel, so the channel's server encryption policy
@@ -854,6 +884,20 @@ class ThreadService {
     extraMetadata?: Record<string, any>,
     options?: { allowPlaintextFallback?: boolean }
   ): Promise<Message | null> {
+    // Enforce max message length BEFORE encryption / DB roundtrip so the
+    // error surfaces cleanly. The limit is admin-configurable via
+    // `instance_config.max_message_length`; fall back to the default and
+    // clamp at the DB-side hard ceiling.
+    const maxLength = await this.getMaxMessageLength()
+    const textLen = messageTextLength(content as any)
+    if (textLen > maxLength) {
+      const err: any = new Error(
+        `Message is too long (${textLen.toLocaleString()} / ${maxLength.toLocaleString()} characters).`,
+      )
+      err.code = 'MESSAGE_TOO_LONG'
+      throw err
+    }
+
     // Enforce max media attachments per message (instance config, default 20)
     const fileParts = content.filter((p: any) => p?.type === 'file')
     const maxMedia = await this.getMaxMediaAttachments()
@@ -884,7 +928,7 @@ class ThreadService {
     let finalContent: any[] = content
     let encrypted = false
     let encryptionMetadata: any = null
-    let extra: Record<string, any> = { ...(extraMetadata || {}) }
+    const extra: Record<string, any> = { ...(extraMetadata || {}) }
     const allowFallback = options?.allowPlaintextFallback === true
 
     let encryptionMode: 'disabled' | 'optional' | 'required' = 'disabled'

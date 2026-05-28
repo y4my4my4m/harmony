@@ -24,6 +24,7 @@ export default withMermaid(defineConfig({
     
     nav: [
       { text: 'Guide', link: '/guide/' },
+      { text: 'Self-Hosting', link: '/self-hosting' },
       { text: 'Bot API', link: '/bot-api' },
       { text: 'Plugins', link: '/plugins/' },
       { text: 'API Reference', link: '/api/' },
@@ -39,6 +40,7 @@ export default withMermaid(defineConfig({
           items: [
             { text: 'Introduction', link: '/guide/' },
             { text: 'Installation', link: '/guide/installation' },
+            { text: 'Self-Hosting', link: '/self-hosting' },
             { text: 'Configuration', link: '/guide/configuration' },
             { text: 'Environment Setup', link: '/guide/environment' }
           ]

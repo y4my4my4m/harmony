@@ -176,7 +176,7 @@
         
         <!-- Pure Reblog or Regular Post: Show content normally -->
         <div v-else>
-          <!-- Text Content -->
+          <!-- Text Content (includes inline YouTube iframe etc. via UnifiedContentRenderer's HTML mode) -->
           <div class="post-text">
             <MonyContent
               :content="contentForMonyContent"
@@ -186,6 +186,26 @@
             />
           </div>
 
+          <!--
+            Compact captions for URLs that the content renderer ALREADY
+            iframes inline (currently YouTube). Sits right under the
+            content so it visually attaches to the iframe above, gives
+            users the title/channel context they'd otherwise need to
+            click into the iframe to see, but at a fraction of the
+            visual weight of a full link card. Suppresses the big
+            duplicate card that used to appear below the media gallery.
+          -->
+          <a
+            v-for="embed in inlineRichEmbeds"
+            :key="`inline-${embed.url}`"
+            :href="embed.url"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="post-link-preview post-link-preview--compact"
+          >
+            <LinkEmbedCard :payload="(embed as any)" variant="compact" />
+          </a>
+
           <!-- Media Attachments (grid + lightbox) -->
           <MonyMediaGallery
             v-if="displayMediaAttachments?.length > 0"
@@ -193,9 +213,9 @@
             :is-sensitive="displayIsSensitive"
           />
 
-          <!-- Link Preview Cards -->
+          <!-- Full Link Preview Cards (everything that isn't already represented inline) -->
           <a
-            v-for="embed in postEmbeds"
+            v-for="embed in cardEmbeds"
             :key="embed.url"
             :href="embed.url"
             target="_blank"
@@ -593,6 +613,7 @@ import type { TimelinePost } from '@/types';
 // Components
 import MonyContent from './MonyContent.vue';
 import LinkEmbedCard from '@/components/embeds/LinkEmbedCard.vue';
+import { parseEmbedUrl, isYouTubeUrl } from '@/utils/embedDetection';
 import Icon from '@/components/common/Icon.vue';
 import Avatar from '../common/Avatar.vue';
 import Composer from './Composer.vue';
@@ -923,6 +944,39 @@ const postEmbeds = computed<Array<{ url: string; title?: string; description?: s
   if (!embeds || typeof embeds !== 'object') return [];
   return Object.values(embeds).filter((e: any) => e && e.title) as Array<{ url: string; title?: string; description?: string; image?: string; provider?: string }>;
 });
+
+// ---------------------------------------------------------------------------
+// Embed de-duplication: keep "the most of everything" without doubling up.
+// ---------------------------------------------------------------------------
+// `useContentRenderer.formattedHTML` auto-injects an inline iframe whenever
+// it sees a YouTube URL in the post text (see useContentRenderer.ts:507).
+// Without splitting `postEmbeds` we'd ALSO render a big LinkEmbedCard with
+// the same YouTube thumbnail / title / channel below — three vertical
+// surfaces showing the same video (iframe, optional uploaded media, link
+// card). The fix: split the embed list by whether the URL is already
+// represented as an inline rich embed.
+//
+//   * `inlineRichEmbeds`  → URLs the content renderer already iframes.
+//                            Rendered as a *compact caption* directly
+//                            beneath the content so the user still gets
+//                            the title/channel context Mastodon shows,
+//                            without doubling the visual weight.
+//   * `cardEmbeds`        → everything else (Wikipedia, news, Spotify
+//                            pages with no inline iframe support, etc.).
+//                            Render the full LinkEmbedCard like before.
+//
+// Provider detection: prefer the federation-set `provider` field, fall
+// back to URL parsing so this still works for older / partial payloads
+// that didn't tag the provider.
+const isInlineRichEmbed = (embed: { url: string; provider?: string }): boolean => {
+  if (!embed?.url) return false;
+  if (embed.provider === 'youtube') return true;
+  const parsed = parseEmbedUrl(embed.url);
+  return !!parsed && isYouTubeUrl(parsed);
+};
+
+const inlineRichEmbeds = computed(() => postEmbeds.value.filter(isInlineRichEmbed));
+const cardEmbeds = computed(() => postEmbeds.value.filter((e) => !isInlineRichEmbed(e)));
 
 // Content for MonyContent: when we have media_attachments, exclude file/image parts from content
 // so they're only shown once in MonyMediaGallery (which has the lightbox). Federated posts often
@@ -2378,6 +2432,20 @@ const closeLightbox = () => {
 
 .post-link-preview:hover {
   border-color: var(--primary);
+}
+
+/* Compact caption variant — used right beneath an inline rich embed
+   (e.g. a YouTube iframe). Tighter margins so it visually reads as part
+   of the same "video unit" rather than a separate card, smaller radius
+   to match the slimmer chrome, and a subtler hover so the caption
+   doesn't compete for attention with the iframe above it. */
+.post-link-preview--compact {
+  margin-top: 0.25rem;
+  border-radius: 8px;
+}
+
+.post-link-preview--compact:hover {
+  border-color: var(--border-color-strong, rgba(255, 255, 255, 0.2));
 }
 
 .post-text :deep(*) {

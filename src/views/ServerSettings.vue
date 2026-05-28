@@ -433,12 +433,22 @@ const handleBeforeUnload = (e: BeforeUnloadEvent) => {
   }
 }
 
+// Escape closes the server settings view (matches the close-button
+// behavior). Skipped if a modal-overlay is currently open above us.
+const handleSettingsKeydown = (event: KeyboardEvent) => {
+  if (event.key !== 'Escape') return
+  const target = event.target as HTMLElement | null
+  if (target?.closest('.modal-overlay')) return
+  back()
+}
+
 // Lifecycle
 onMounted(async () => {
   // Setup resize listener with SSR safety
   if (typeof window !== 'undefined') {
     window.addEventListener('resize', handleResize)
     handleResize() // Set initial width
+    document.addEventListener('keydown', handleSettingsKeydown)
   }
 
   await Promise.all([fetchServer(), fetchEmojis()])
@@ -448,6 +458,7 @@ onUnmounted(() => {
   if (typeof window !== 'undefined') {
     window.removeEventListener('resize', handleResize)
     window.removeEventListener('beforeunload', handleBeforeUnload)
+    document.removeEventListener('keydown', handleSettingsKeydown)
   }
 })
 

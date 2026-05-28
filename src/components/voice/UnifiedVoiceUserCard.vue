@@ -303,7 +303,17 @@ const isSpeaking = computed(() => {
 });
 
 const voiceIntensity = computed(() => {
-  return Math.min(props.userState.audioLevel / 100, 1);
+  // `audioLevel` is the average of a 0..255 byte-frequency array. In
+  // practice human speech almost never fills the whole spectrum to 255,
+  // so the average tops out around ~50-70 even when shouting. Mapping
+  // it linearly to [0..100] meant the ring would only ever fill to ~50%.
+  // Remap so that the speaking-detection threshold (20) reads as 0% and
+  // a realistic loud-speech peak (~65) reads as 100%.
+  const SPEAKING_FLOOR = 20;
+  const SPEAKING_PEAK = 65;
+  const level = props.userState.audioLevel;
+  if (level <= SPEAKING_FLOOR) return 0;
+  return Math.min((level - SPEAKING_FLOOR) / (SPEAKING_PEAK - SPEAKING_FLOOR), 1);
 });
 
 // Get user state directly from store for reactivity
@@ -633,7 +643,11 @@ watch(
   padding: 16px;
   border: 2px solid transparent;
   transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
-  overflow: hidden;
+  /* `overflow: hidden` clips the speaking glow on the avatar (which lives
+     inside the card and emits a soft box-shadow). The video container
+     below sets its own `overflow: hidden` + border-radius for clipping
+     the actual stream, so we don't need it on the card itself. */
+  overflow: visible;
   min-height: 200px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3), 0 1px 4px rgba(0, 0, 0, 0.2),
     inset 0 1px 0 rgba(255, 255, 255, 0.05);

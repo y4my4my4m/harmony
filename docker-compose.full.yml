@@ -26,8 +26,8 @@ services:
   # ---------------------------------------------------------------------------
   # Federation Backend (split: server + worker)
   # ---------------------------------------------------------------------------
-  # Separate containers for process isolation. The worker handles pg-boss
-  # queues and delivery without blocking the HTTP server.
+  # Separate containers for process isolation. The worker handles BullMQ
+  # (Redis-backed) queues and delivery without blocking the HTTP server.
   #
   # For simple single-container mode: docker compose --profile simple up -d
   # ---------------------------------------------------------------------------
@@ -46,7 +46,7 @@ services:
       - PORT=3001
       - FEDERATION_MODE=server
       - SUPABASE_URL=http://supabase-kong:8000
-      - USE_PGBOSS_QUEUE=true
+      - USE_BULLMQ_QUEUE=true
       - DATABASE_URL=postgresql://supabase_admin:${POSTGRES_PASSWORD:-your-super-secret-and-long-postgres-password}@supabase-db:5432/postgres
       - DATABASE_POOL_URL=postgresql://supabase_admin:${POSTGRES_PASSWORD:-your-super-secret-and-long-postgres-password}@supabase-pooler:6543/postgres
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
@@ -81,7 +81,7 @@ services:
       - NODE_ENV=production
       - FEDERATION_MODE=worker
       - SUPABASE_URL=http://supabase-kong:8000
-      - USE_PGBOSS_QUEUE=true
+      - USE_BULLMQ_QUEUE=true
       - DATABASE_URL=postgresql://supabase_admin:${POSTGRES_PASSWORD:-your-super-secret-and-long-postgres-password}@supabase-db:5432/postgres
       - DATABASE_POOL_URL=postgresql://supabase_admin:${POSTGRES_PASSWORD:-your-super-secret-and-long-postgres-password}@supabase-pooler:6543/postgres
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
@@ -109,7 +109,7 @@ services:
       - PORT=3001
       - FEDERATION_MODE=unified
       - SUPABASE_URL=http://supabase-kong:8000
-      - USE_PGBOSS_QUEUE=true
+      - USE_BULLMQ_QUEUE=true
       - DATABASE_URL=postgresql://supabase_admin:${POSTGRES_PASSWORD:-your-super-secret-and-long-postgres-password}@supabase-db:5432/postgres
       - DATABASE_POOL_URL=postgresql://supabase_admin:${POSTGRES_PASSWORD:-your-super-secret-and-long-postgres-password}@supabase-pooler:6543/postgres
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
