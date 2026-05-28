@@ -21,7 +21,7 @@ export function useUndoRedo(opts?: UseUndoRedoOptions) {
   const canUndo = computed(() => pointer.value > 0);
   const canRedo = computed(() => pointer.value < history.value.length - 1);
 
-  const isWordBoundary = (ch: string) => /[\s.,;:!?()[\]{}"'\/\\-]/.test(ch);
+  const isWordBoundary = (ch: string) => /[\s.,;:!?()[\]{}"'/\\-]/.test(ch);
 
   function findChangedChar(oldText: string, newText: string): string | null {
     if (newText.length > oldText.length) {

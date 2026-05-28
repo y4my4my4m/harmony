@@ -9,14 +9,14 @@
  */
 
 import { ref, computed, watch } from 'vue'
-import { generateThemePalette, applyThemePalette, type ThemePalette } from '@/utils/colorUtils'
+import { generateThemePalette, applyThemePalette } from '@/utils/colorUtils'
 import { supabase } from '@/supabase'
 import { useAuthStore } from '@/stores/auth'
 import { useProfileStore } from '@/stores/useProfile'
 import { debug } from '@/utils/debug'
 import { userStorage } from '@/utils/userScopedStorage'
 import { audioThemeService } from '@/services/AudioThemeService'
-import { BUILTIN_SKINS, type Skin } from './skins'
+import { BUILTIN_SKINS } from './skins'
 import type { VisualThemeSettings } from './useVisualTheme.types'
 
 const AUDIO_THEME_WHEN_SKIN_CLEARED = 'default'

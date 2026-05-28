@@ -18,7 +18,6 @@ import { recoveryKeyService } from './RecoveryKeyService'
 import { megolmKeyBackupService } from './MegolmKeyBackupService'
 import { secureSessionKeyStore, identityKeyStore, signingKeyStore } from './SecureSessionKeyStore'
 import {
-  canonicalizeForSigning as _canonicalizeForSigning,
   hashCiphertextB64,
   generateSigningKeyPair,
   exportPublicSigningKey,

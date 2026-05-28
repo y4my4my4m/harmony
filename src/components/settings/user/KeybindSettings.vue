@@ -209,7 +209,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { useKeybinds, type KeybindAction, type KeybindModifiers } from '@/composables/useKeybinds'
 import Icon from '@/components/common/Icon.vue'
 

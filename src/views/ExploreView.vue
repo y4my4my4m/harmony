@@ -38,7 +38,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted, watch } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { debug } from '@/utils/debug'
 import { useRoute, useRouter } from 'vue-router'
 import ExploreContent from '@/components/activitypub/ExploreContent.vue'

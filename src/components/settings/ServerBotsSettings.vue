@@ -204,7 +204,6 @@ import { ref, computed, onMounted } from 'vue'
 import { debug } from '@/utils/debug'
 import { supabase } from '@/supabase'
 import { formatDistanceToNow } from 'date-fns'
-import Avatar from '@/components/common/Avatar.vue'
 import BotAvatar from '@/components/common/BotAvatar.vue'
 
 interface Props {

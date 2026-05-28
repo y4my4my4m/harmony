@@ -113,9 +113,9 @@ function shouldExclude(relativePath) {
   return EXCLUDED_PATHS.some(excluded => relativePath.includes(excluded));
 }
 
-/**
- * Preferred color variant suffix - y2 is the standard yellow/emoji color
- */
+// Preferred color variant suffix (_y2 = standard yellow/emoji color).
+// Kept for reference; selection logic currently filters elsewhere.
+// eslint-disable-next-line no-unused-vars
 const PREFERRED_COLOR_SUFFIX = '_y2';
 
 /**

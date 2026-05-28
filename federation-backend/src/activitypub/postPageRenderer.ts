@@ -75,9 +75,10 @@ const SAFE_URL_SCHEMES = new Set(['http:', 'https:', 'mailto:', 'tel:']);
  */
 function safeAttrUrl(url: string | null | undefined): string {
   if (url == null) return '';
+  // eslint-disable-next-line no-control-regex
   const cleaned = String(url).replace(/[\x00-\x1F\x7F]/g, '').trim();
   if (!cleaned) return '';
-  const schemeMatch = /^([a-z][a-z0-9+.\-]*):/i.exec(cleaned);
+  const schemeMatch = /^([a-z][a-z0-9+.-]*):/i.exec(cleaned);
   if (!schemeMatch) {
     // Scheme-less: relative path / protocol-relative / fragment. Allowed.
     return cleaned;

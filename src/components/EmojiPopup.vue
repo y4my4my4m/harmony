@@ -245,7 +245,7 @@ import { useUnifiedEmoji, type EmojiEntry } from '@/services/unifiedEmojiService
 import { emojiFavoriteService, type EmojiFavorite } from '@/services/EmojiFavoriteService';
 import type { Emoji, ResolvedEmoji } from '@/types';
 import { getEmojiUrl } from '@/utils/emojiUtils';
-import { EMOJI_CATEGORIES, CATEGORY_ORDER } from '@/utils/emojiConstants';
+import { EMOJI_CATEGORIES } from '@/utils/emojiConstants';
 import { debug } from '@/utils/debug';
 import LazyEmojiSection from '@/components/LazyEmojiSection.vue';
 import ServerIcon from '@/components/common/ServerIcon.vue';

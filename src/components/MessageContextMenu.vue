@@ -145,7 +145,7 @@ import { useDeveloperTools } from '@/composables/useDeveloperTools';
 import { messageService } from '@/services';
 import { getEmojiUrl } from '@/utils/emojiUtils';
 import { messagePartsToPlainText } from '@/utils/messageContentUtils';
-import type { Message, Emoji } from '@/types';
+import type { Message } from '@/types';
 import Icon from '@/components/common/Icon.vue';
 import ReactionIcon from '@/components/icons/Reaction.vue';
 import ReplyIcon from '@/components/icons/Reply.vue';

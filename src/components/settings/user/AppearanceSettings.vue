@@ -656,7 +656,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useToast } from 'vue-toastification'
 import { debug } from '@/utils/debug'
 import type { User } from '@/types'

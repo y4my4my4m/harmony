@@ -20,10 +20,8 @@ import type {
   PostComposerState, 
   MonyFeed,
   FederatedUser,
-  Notification,
   ConversationThread,
   ConversationContext,
-  ReplyContext,
   PostWithContext,
   PostContextOptions,
   MessagePart

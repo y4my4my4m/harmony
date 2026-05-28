@@ -101,7 +101,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted, onUnmounted } from 'vue'
+import { computed, onMounted, onUnmounted } from 'vue'
 import { useServerPermissions } from '@/composables/useServerPermissions'
 import type { ThreadWithDetails } from '@/services/ThreadService'
 

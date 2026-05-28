@@ -302,7 +302,7 @@ export async function handleThreadActivity(
           creatorId = creatorByFedId.id;
           logger.info(`📋 Creator resolved via federated_id: ${creatorId}`);
         } else {
-          const usernameMatch = threadObject.attributedTo?.match(/\/users\/([^\/]+)$/i);
+          const usernameMatch = threadObject.attributedTo?.match(/\/users\/([^/]+)$/i);
           if (usernameMatch) {
             const { data: creatorByUsername } = await supabase
               .from('profiles')

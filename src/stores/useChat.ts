@@ -813,7 +813,7 @@ export const useChatStore = defineStore('chat', {
         encryption_metadata: message.encryption_metadata
       };
 
-      try { ensureMessageEmbeds(realMessage); } catch {}
+      try { ensureMessageEmbeds(realMessage); } catch { /* embeds are best-effort */ }
 
       this.messages.splice(tempIndex, 1, realMessage as any);
       debug.log('✅ Replaced temp message with real message:', { tempId, realId: message.id });

@@ -475,9 +475,10 @@ const SAFE_URL_SCHEMES_OUTBOUND = new Set(['http:', 'https:', 'mailto:', 'tel:']
 
 function safeAttrUrlOutbound(url: string | null | undefined): string {
   if (url == null) return '';
+  // eslint-disable-next-line no-control-regex
   const cleaned = String(url).replace(/[\x00-\x1F\x7F]/g, '').trim();
   if (!cleaned) return '';
-  const schemeMatch = /^([a-z][a-z0-9+.\-]*):/i.exec(cleaned);
+  const schemeMatch = /^([a-z][a-z0-9+.-]*):/i.exec(cleaned);
   if (!schemeMatch) return cleaned;
   const scheme = schemeMatch[1].toLowerCase() + ':';
   if (!SAFE_URL_SCHEMES_OUTBOUND.has(scheme)) return '';

@@ -131,7 +131,7 @@ import { useActivityPubStore } from '@/stores/useActivityPub';
 import { useProfileStore } from '@/stores/useProfile';
 import { useAuthStore } from '@/stores/auth';
 import { useNotificationStore } from '@/stores/useNotification';
-import type { Server, Channel, Category, User } from '@/types';
+import type { Server, Channel, Category } from '@/types';
 
 // I18n
 const { t } = useI18n();

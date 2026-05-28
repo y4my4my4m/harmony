@@ -15,7 +15,6 @@
 import { computed, type Ref } from 'vue';
 import type { MessagePart } from '@/types';
 import { getEmojiUrl } from '@/utils/emojiUtils';
-import { convertActivityPubHTMLToMessageParts } from '@/utils/unifiedContentProcessing';
 import { useUnifiedEmoji } from '@/services/unifiedEmojiService';
 import { isYouTubeUrl, buildYouTubeEmbedUrl, parseEmbedUrl } from '@/utils/embedDetection';
 import { escapeHtml, sanitizeFormattedHtml, sanitizeUrl } from '@/utils/sanitize';

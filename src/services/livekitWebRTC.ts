@@ -20,14 +20,10 @@ import {
   TrackPublication,
   ConnectionState,
   ParticipantEvent,
-  LocalTrack,
   LocalAudioTrack,
-  LocalVideoTrack,
   RemoteTrack,
   RemoteAudioTrack,
-  RemoteVideoTrack,
   VideoPresets,
-  AudioPresets,
   createLocalAudioTrack,
   createLocalVideoTrack,
   setLogLevel,
@@ -358,11 +354,11 @@ export class LiveKitWebRTCService {
         return VideoPresets.h1080.resolution as { width: number; height: number; frameRate: number };
       case -1: // Source/Native - use 1080p as max
         return VideoPresets.h1080.resolution as { width: number; height: number; frameRate: number };
-      default:
-        // For any other value, calculate 16:9 dimensions
+      default: {
         const height = resolution;
         const width = Math.round(height * 16 / 9);
         return { width, height, frameRate: 30 };
+      }
     }
   }
   

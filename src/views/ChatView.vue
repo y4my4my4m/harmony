@@ -342,7 +342,7 @@ const highlightSearchText = (messageElement: HTMLElement, query: string) => {
       
       const textNodes: Text[] = []
       let node
-      while (node = walker.nextNode()) {
+      while ((node = walker.nextNode())) {
         textNodes.push(node as Text)
       }
       

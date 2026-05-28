@@ -13,10 +13,8 @@ import type {
   ActivityPubActivityType,
   ActivityPubObjectType,
   ConversationContext,
-  ConversationThread,
   PostContextOptions,
-  PostWithContext,
-  ThreadInfo
+  PostWithContext
 } from '@/types';
 import { debug } from '@/utils/debug'
 

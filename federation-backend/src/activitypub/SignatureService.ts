@@ -109,11 +109,13 @@ export class SignatureService {
     }
 
     // Get user's private key from user_private_keys table
-    let { data: keyData, error: keyError } = await supabase
+    const initialKeyLookup = await supabase
       .from('user_private_keys')
       .select('private_key')
       .eq('user_id', userId)
       .single();
+    const keyError = initialKeyLookup.error;
+    let keyData = initialKeyLookup.data;
 
     // If no keys exist, generate them on-demand (lazy generation)
     if (keyError || !keyData || !keyData.private_key) {

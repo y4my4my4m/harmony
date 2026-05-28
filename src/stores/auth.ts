@@ -2,7 +2,6 @@ import { defineStore } from 'pinia';
 import { supabase } from '@/supabase';
 import type { Session } from '@supabase/supabase-js';
 import { updateUserStatus } from '@/services/ProfileService';
-import { useChatStore } from '@/stores/useChat';
 import { useActivityPubStore } from '@/stores/useActivityPub';
 import { UserStatus } from '@/types';
 import { debug } from '@/utils/debug';

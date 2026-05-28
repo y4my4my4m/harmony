@@ -341,7 +341,7 @@ import { supabase } from '@/supabase'
 import { roleService } from '@/services/RoleService'
 import ToggleSwitch from '@/components/common/ToggleSwitch.vue'
 import Avatar from '@/components/common/Avatar.vue'
-import type { ServerRole, Permission } from '@/services/RoleService'
+import type { ServerRole } from '@/services/RoleService'
 
 interface Props {
   serverId: string

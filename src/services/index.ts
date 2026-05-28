@@ -10,15 +10,15 @@
  */
 
 // Import service instances first
-import { postService, PostService } from './PostService'
-import { messageService, MessageService } from './MessageService'
-import { interactionService, InteractionService } from './InteractionService'
-import { profileService, ProfileService } from './ProfileService'
-import { notificationService, NotificationService } from './NotificationService'
-import { activityPubService, ActivityPubService } from './activityPubService'
+import { postService } from './PostService'
+import { messageService } from './MessageService'
+import { interactionService } from './InteractionService'
+import { profileService } from './ProfileService'
+import { notificationService } from './NotificationService'
+import { activityPubService } from './activityPubService'
 import { roleService } from './RoleService'
 import { threadService } from './ThreadService'
-import { loggingService, log } from './LoggingService'
+import { loggingService } from './LoggingService'
 import { gifService } from './GifService'
 import { debug } from '@/utils/debug'
 

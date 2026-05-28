@@ -108,6 +108,7 @@
     "concurrently": "^8.2.2",
     "dotenv": "^17.3.1",
     "eslint": "^8.49.0",
+    "eslint-plugin-unused-imports": "^4.4.1",
     "eslint-plugin-vue": "^9.17.0",
     "fake-indexeddb": "^6.2.5",
     "gemoji": "^8.1.0",

@@ -207,7 +207,6 @@ import type { MessagePart } from '@/types';
 import { useContentRenderer, type ContentRenderOptions } from '@/composables/useContentRenderer';
 import { getEmojiUrl } from '@/utils/emojiUtils';
 import { useUnifiedEmoji } from '@/services/unifiedEmojiService';
-import { debug } from '@/utils/debug';
 import { escapeHtml, sanitizeMessageHtml } from '@/utils/sanitize';
 import DisplayName from '@/components/DisplayName.vue';
 

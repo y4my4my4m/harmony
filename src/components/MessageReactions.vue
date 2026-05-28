@@ -65,7 +65,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch, TransitionGroup } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { debug } from '@/utils/debug'
 import { useReactionsStore } from '@/stores/useReactions';
 import { useAuthStore } from '@/stores/auth';

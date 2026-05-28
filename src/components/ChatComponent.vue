@@ -153,13 +153,11 @@
   import ThreadView from '@/components/threads/ThreadView.vue';
   import type { FilePreviewData } from '@/components/FilePreview.vue';
   import { parseContentToMessageParts, resolveMentionsUserData, resolveEmojisData, resolveRoleMentionsData } from '@/utils/unifiedContentProcessing';
-  import { useEmojiCacheStore } from '@/stores/useEmojiCache';
   import { threadService } from '@/services/ThreadService';
   import { coreMessageService } from '@/services/core/CoreMessageService';
   import { useEncryptionFallbackPrompt } from '@/composables/useEncryptionFallbackPrompt';
   import { supabase } from '@/supabase';
   import { debug } from '@/utils/debug';
-  import { useUserData } from '@/composables/useUserData';
   import { useServerPermissions } from '@/composables/useServerPermissions';
   import { useI18n } from 'vue-i18n';
 

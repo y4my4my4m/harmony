@@ -190,7 +190,6 @@ import { useActivityPubStore } from '@/stores/useActivityPub'
 import { trendingService } from '@/services/TrendingService'
 import { useViewContextTracking } from '@/composables/useViewContext'
 import { useLayoutState } from '@/composables/useLayoutState'
-import { supabase } from '@/supabase'
 import { getOriginalPost } from '@/utils/postReblog'
 import type { FederatedUser, TimelinePost } from '@/types'
 

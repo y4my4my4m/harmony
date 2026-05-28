@@ -979,7 +979,7 @@ async function toggleReaction(messageId: string, emoji: string) {
 \`\`\`typescript
 // Auto-complete mentions
 function extractMentions(content: string): string[] {
-  const mentionRegex = /@(\w+)/g
+  const mentionRegex = /@(\\w+)/g
   const mentions: string[] = []
   let match
   
@@ -993,7 +993,7 @@ function extractMentions(content: string): string[] {
 // Render mentions in messages
 function renderContent(content: string): string {
   return content.replace(
-    /@(\w+)/g,
+    /@(\\w+)/g,
     '<span class="mention">@$1</span>'
   )
 }
@@ -1730,7 +1730,7 @@ http {
             try_files $uri $uri/ /index.html;
             
             # Cache static assets
-            location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2)$ {
+            location ~* \\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2)$ {
                 expires 1y;
                 add_header Cache-Control "public, immutable";
             }

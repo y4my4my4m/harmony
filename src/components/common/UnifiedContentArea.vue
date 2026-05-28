@@ -102,13 +102,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { ref, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import ChatComponent from '@/components/ChatComponent.vue'
 import Composer from '@/components/activitypub/Composer.vue'
 import ExploreContent from '@/components/activitypub/ExploreContent.vue'
-import PostDetailDisplay from './PostDetailDisplay.vue'
 import PostsContainer from './PostsContainer.vue'
 import ViewHeader from './ViewHeader.vue'
 import type { Message, TimelinePost, FederatedUser } from '@/types'

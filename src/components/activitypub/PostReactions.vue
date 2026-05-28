@@ -52,7 +52,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, TransitionGroup } from 'vue';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { debug } from '@/utils/debug'
 import { useAuthStore } from '@/stores/auth';
 import { useThemeStore } from '@/stores/useTheme';

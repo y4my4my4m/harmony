@@ -278,7 +278,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { debug } from '@/utils/debug'
 import { useI18n } from 'vue-i18n';

@@ -181,22 +181,23 @@ class GlobalDMCallListenerService {
         await this.handleIncomingCall(signal.conversationId, signal)
         break
         
-      case 'accept':
-        debug.log('✅ Call accepted by other party')
+      case 'accept': {
+        debug.log('Call accepted by other party')
         dmCallSignaling.handleRemoteSignal(signal)
-        // Clear timeout since call was answered
         const activeCall = dmCallSignaling.getActiveCall(signal.conversationId)
         if (activeCall?.timeoutTimer) {
-          debug.log('⏰ Clearing timeout timer - call was accepted')
+          debug.log('Clearing timeout timer - call was accepted')
           clearTimeout(activeCall.timeoutTimer)
           activeCall.timeoutTimer = undefined
         }
         break
-        
-      case 'decline':
+      }
+
+      case 'decline': {
         const declineMsg = dmCallPermissions.getDeclineReasonMessage(signal.reason)
         toast.info(declineMsg)
         break
+      }
         
       case 'busy':
         toast.info('User is busy')

@@ -372,7 +372,7 @@ import { parseEmbedUrl, isHarmonyInviteUrl } from '@/utils/embedDetection';
 import { useUnifiedEmoji } from '@/services/unifiedEmojiService';
 import { gifService } from '@/services/GifService';
 import { debug } from '@/utils/debug';
-import { escapeHtml, sanitizeUrl } from '@/utils/sanitize';
+import { sanitizeUrl } from '@/utils/sanitize';
 import { renderChatMessageText } from '@/utils/chatMessageTextRenderer';
 import { useVisualTheme } from '@/composables/useVisualTheme';
 

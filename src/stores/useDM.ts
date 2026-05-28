@@ -1831,7 +1831,7 @@ export const useDMStore = defineStore('dm', () => {
       encryption_metadata: message.encryption_metadata
     }
 
-    try { ensureMessageEmbeds(realMessage) } catch {}
+    try { ensureMessageEmbeds(realMessage) } catch { /* embeds are best-effort */ }
 
     currentDMMessages.value.splice(tempIndex, 1, realMessage)
     debug.log('✅ Replaced temp DM message with real message:', { tempId, realId: message.id })

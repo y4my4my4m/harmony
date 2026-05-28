@@ -5,7 +5,7 @@
  * Designed to be easily internationalized by replacing message templates.
  */
 
-import type { Notification, NotificationType } from '@/types'
+import type { Notification } from '@/types'
 import { getAvatarUrl as utilGetAvatarUrl } from '@/utils/avatarUtils'
 import { debug } from '@/utils/debug'
 

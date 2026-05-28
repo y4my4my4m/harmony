@@ -7,7 +7,6 @@
 import { Router, Request, Response } from 'express';
 import { getSupabaseClient, getSupabaseClientWithAuth } from '../config/supabase.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
-import { SignatureService } from '../activitypub/SignatureService.js';
 import { logger } from '../utils/logger.js';
 import config from '../config/index.js';
 import { validateExternalHostname, safeFetch } from '../utils/ssrfProtection.js';

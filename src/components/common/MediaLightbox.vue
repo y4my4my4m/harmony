@@ -104,17 +104,16 @@ export type LightboxItem = string | { src: string; type: 'video'; poster?: strin
 interface Props {
   visible: boolean;
   imgs: LightboxItem[];
-  index?: number;
 }
 
-const props = withDefaults(defineProps<Props>(), {
-  index: 0
-});
+const props = defineProps<Props>();
 
 const emit = defineEmits<{
   hide: [];
 }>();
 
+// `index` is exposed as a v-model so the parent can drive which item is shown;
+// `defineModel` creates the prop+emit pair, so it's not in the Props interface.
 const index = defineModel<number>('index', { default: 0 });
 
 function isVideo(item: LightboxItem): boolean {

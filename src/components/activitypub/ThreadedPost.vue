@@ -109,12 +109,7 @@ const handleReply = (post: ActivityPubPost) => {
 };
 
 const handleReplyCreated = (newReply: ActivityPubPost) => {
-  // Add the new reply to this post's replies
-  if (!props.post.replies) {
-    props.post.replies = [];
-  }
-  props.post.replies.push(newReply);
-  
+  // Bubble up to parent; parent owns the replies array and re-renders.
   emit('post-created', newReply);
 };
 

@@ -50,7 +50,7 @@
           transform: `translateY(${virtualRow.start}px)`
         }"
       >
-      <template v-for="item in [displayItems[virtualRow.index]]" :key="0">
+      <template v-for="item in [displayItems[virtualRow.index]]" :key="item.id ?? virtualRow.index">
       <!-- Blocked Group Placeholder -->
       <div v-if="item.type === 'blocked-group'" class="blocked-message-group">
         <div class="blocked-group-content">
@@ -542,7 +542,7 @@
 
 <script setup lang="ts">
 defineOptions({ inheritAttrs: false })
-import { computed, ref, watch, nextTick, onMounted, onUnmounted, reactive } from 'vue';
+import { computed, ref, watch, nextTick, onMounted, onUnmounted } from 'vue';
 import { debug } from '@/utils/debug'
 import type { PropType, Ref, ComputedRef } from 'vue';
 import type { Message, MessagePart, User, Emoji, Reaction } from '@/types';

@@ -161,7 +161,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, watch, onMounted, onUnmounted } from 'vue'
 import type { Channel, Server } from '@/types'
 import Icon from '@/components/common/Icon.vue'
 import { messageService } from '@/services'

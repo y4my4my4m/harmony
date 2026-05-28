@@ -38,15 +38,12 @@ import {
   createLikeActivity,
   createAnnounceActivity,
   createDeleteActivity,
-  createUpdateActivity,
 } from '../activitypub/converters/toActivityPub.js'
 import {
   noteToContent,
   actorToProfile,
   extractFollowData,
   extractLikeData,
-  extractAnnounceData,
-  extractDeleteData,
   normalizeObject,
   normalizeActor,
 } from '../activitypub/converters/fromActivityPub.js'

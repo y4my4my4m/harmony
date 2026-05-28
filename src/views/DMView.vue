@@ -89,7 +89,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted, watch, nextTick } from 'vue'
+import { computed, ref, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useToast } from 'vue-toastification'
 import UnifiedContentArea from '@/components/common/UnifiedContentArea.vue'
@@ -508,7 +508,7 @@ const highlightSearchText = (messageElement: HTMLElement, query: string) => {
       
       const textNodes: Text[] = []
       let node
-      while (node = walker.nextNode()) {
+      while ((node = walker.nextNode())) {
         textNodes.push(node as Text)
       }
       

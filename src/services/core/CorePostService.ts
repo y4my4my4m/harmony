@@ -15,7 +15,7 @@
  */
 
 import { supabase } from '@/supabase'
-import type { Post, TimelinePost, MessagePart } from '@/types'
+import type { TimelinePost, MessagePart } from '@/types'
 import { debug } from '@/utils/debug'
 import { authContextService } from '@/services/AuthContextService'
 import {

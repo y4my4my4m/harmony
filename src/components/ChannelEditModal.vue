@@ -189,7 +189,6 @@ import {
   Permission,
   bitmaskToPermissions,
   type ServerRole,
-  type ChannelPermissionOverride,
 } from '@/services/RoleService'
 import type { Channel } from '@/types'
 

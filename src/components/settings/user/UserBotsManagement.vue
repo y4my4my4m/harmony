@@ -326,7 +326,6 @@ import { supabase } from '@/supabase'
 import { useToast } from 'vue-toastification'
 import { formatDistanceToNow } from 'date-fns'
 import { generateBotToken, hashBotToken } from '@/utils/botUtils'
-import Avatar from '@/components/common/Avatar.vue'
 import BotAvatar from '@/components/common/BotAvatar.vue'
 
 defineProps<{ loading: boolean }>()

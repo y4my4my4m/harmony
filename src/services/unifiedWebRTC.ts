@@ -182,10 +182,10 @@ export class UnifiedWebRTCService {
         return { width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: frameRate } };
       case -1: // Source/Native - use max available
         return { width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: frameRate } };
-      default:
-        // For any other value, calculate 16:9 dimensions
+      default: {
         const width = Math.round(resolution * 16 / 9);
         return { width: { ideal: width }, height: { ideal: resolution }, frameRate: { ideal: frameRate } };
+      }
     }
   }
 

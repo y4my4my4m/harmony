@@ -3,11 +3,9 @@ import { supabase } from '@/supabase';
 import type { Emoji, ResolvedEmoji } from '@/types';
 import { debug } from '@/utils/debug'
 import {
-  getCachedServerEmojis,
   getAllCachedServerEmojis,
   setCachedServerEmojis,
   removeCachedServerEmojis,
-  type CachedServerEmojiData,
 } from '@/services/emojiIndexedDBCache'
 
 interface EmojiCacheEntry {
