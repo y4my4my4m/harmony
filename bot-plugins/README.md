@@ -92,7 +92,7 @@ Cross-platform bridge connecting Discord and Harmony servers.
 ## Documentation
 
 - [Plugin System Guide](../docs/PLUGIN_SYSTEM.md) - Architecture and patterns
-- [Bot API Reference](../docs/BOT_API.md) - API documentation
+- [Bot API Reference](../docs/bot-api.md) - API documentation
 - [E2EE Implementation](../docs/E2EE_IMPLEMENTATION.md) - Encryption details
 
 ## Resources

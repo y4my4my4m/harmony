@@ -340,7 +340,7 @@ CALL add_bot_to_server(
 
 ## Related Documentation
 
-- [Bot API Reference](./BOT_API.md)
+- [Bot API Reference](./bot-api.md)
 - [Plugin System](./PLUGIN_SYSTEM.md)
 - [Bot Gateway Setup](./BOT_GATEWAY_SETUP.md)
 - [E2EE Implementation](./E2EE_IMPLEMENTATION.md)
