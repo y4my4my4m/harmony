@@ -264,11 +264,10 @@ const { triggerInteraction } = useHapticSettings();
 let fetchCallCounter = 0;
 
 // Use new clean user data system - ONE source of truth
-const { 
+const {
   getUserAvatarUrl,
   getUserDisplayName,
   getUserColor,
-  getAllUsers,
   getUsersInContext,
   subscribeToContext,
   unsubscribeFromContext,
@@ -306,7 +305,11 @@ const selectedUser = ref<User | null>(null);
 const showProfileModal = ref(false);
 const showInviteModal = ref(false);
 const searchQuery = ref('');
-const isLoadingUsers = ref(false);
+// Start in "loading" until the server-presence subscription has populated
+// the per-server context. Otherwise the initial render falls through the
+// `users` computed and (previously) hit the getAllUsers fallback, leaking
+// users from other servers / DMs into the member list for a frame.
+const isLoadingUsers = ref(true);
 const lastFetchedServerId = ref<string | null>(null);
 
 // --- USER CONTEXT MENU (right-click on desktop, long-press on mobile) ---
@@ -648,50 +651,30 @@ const collapsedGroups = ref<Record<string, boolean>>({
   offline: false // Start with offline collapsed
 });
 
-// Smart cached user data - shows cached data immediately, updates in background
+// Members are the user IDs that the server-presence subscription has
+// reported for the currently selected server. We deliberately do NOT
+// fall back to `getAllUsers` here — that map contains every profile the
+// client has cached for any reason (DM partners, mention authors,
+// recently-viewed profiles), so falling back would leak unrelated users
+// into the member sidebar (e.g. a DM partner appearing in a server they
+// were never in).
 const users = computed(() => {
   const serverId = serverChannelStore.currentServerId;
-  if (!serverId) {
-    return [];
-  }
-  
-  // Get users from context first (this is our cached data)
+  if (!serverId) return [];
+
   const contextUsers = getUsersInContext(serverId).value;
-  
-  // SMART CACHING: Only log when context changes significantly (not on every presence update)
-  if (contextUsers.length > 0) {
-    // userDataService stores camelCase (displayName, avatarUrl); normalize to the
-    // legacy User shape so kick/ban modals and other snake_case consumers work.
-    return contextUsers.map(userData => ({
-      id: userData.id,
-      username: userData.username,
-      display_name: userData.displayName,
-      avatar_url: userData.avatarUrl,
-      status: userData.status,
-    }));
-  }
-  
-  // Only show loading state if we're actively loading and have no cached data
-  if (isLoadingUsers.value) {
-    return []; // Show loading spinner
-  }
-  
-  // Fallback only if we have no context data and aren't loading
-  const allUsers = getAllUsers.value;
-  if (allUsers.length > 0) {
-    debug.log(`🔄 UserSidebar: Using fallback data for server ${serverId}: ${allUsers.length} users`);
-    
-    // Convert to legacy format for compatibility
-    return allUsers.map(userData => ({
-      id: userData.id,
-      username: userData.username,
-      display_name: userData.displayName,
-      avatar_url: userData.avatarUrl,
-      status: userData.status
-    }));
-  }
-  
-  return [];
+  if (contextUsers.length === 0) return [];
+
+  // userDataService stores camelCase (displayName, avatarUrl); normalize
+  // to the legacy User shape so kick/ban modals and other snake_case
+  // consumers keep working.
+  return contextUsers.map(userData => ({
+    id: userData.id,
+    username: userData.username,
+    display_name: userData.displayName,
+    avatar_url: userData.avatarUrl,
+    status: userData.status,
+  }));
 });
 
 // Filter users based on search query
