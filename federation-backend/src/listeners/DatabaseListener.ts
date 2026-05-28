@@ -12,7 +12,6 @@ import crypto from 'crypto';
 import { getSupabaseClient } from '../config/supabase.js';
 import config from '../config/index.js';
 import { DeliveryQueue } from '../activitypub/DeliveryQueue.js';
-import { createPostActivity, createReblogActivity } from './FederationHandlers.js';
 import { createLikeActivity } from '../activitypub/converters/toActivityPub.js';
 import { resolveOutboundEmoji } from '../utils/emojiResolvers.js';
 import { logger } from '../utils/logger.js';
@@ -58,32 +57,16 @@ export async function startDatabaseListener(): Promise<void> {
     );
   }
 
+  // NOTE: Post create/update/delete/pin federation runs exclusively through
+  // BullMQ (`federate-post` job → `postHandler.handlePostJob`). The DB
+  // trigger `trigger_queue_post_federation` queues the job via pg_notify on
+  // every INSERT/UPDATE/soft-delete/pin change, so we don't need a
+  // postgres_changes subscription on `posts` here. The previous CDC-based
+  // path used to handle these events but was unreliable (Supabase Realtime
+  // doesn't fire consistently for every row) and racy against the BullMQ
+  // path — `enrichPostLinkPreviews` and the home-feed realtime push now
+  // both live inside `handlePostJob`.
   channel = channel
-    // Listen to posts
-    .on(
-      'postgres_changes',
-      {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'posts',
-      },
-      async (payload) => {
-        logger.info('📬 REALTIME: Post INSERT received:', {
-          id: payload.new.id,
-          is_local: payload.new.is_local,
-          visibility: payload.new.visibility,
-          author_id: payload.new.author_id
-        });
-        
-        // Process local posts for federation (all visibility levels)
-        if (payload.new.is_local) {
-          logger.info('📝 Processing post for federation:', payload.new.id);
-          await handleNewPost(payload.new);
-        } else {
-          logger.debug(`Skipping remote post: is_local=${payload.new.is_local}`);
-        }
-      }
-    )
     .on(
       'postgres_changes',
       {
@@ -140,36 +123,6 @@ export async function startDatabaseListener(): Promise<void> {
       async (payload) => {
         logger.info('📝 Profile update detected:', payload.new.id);
         await handleProfileUpdate(payload.old, payload.new);
-      }
-    )
-    // Listen for post updates (deletions, pins, and edits)
-    .on(
-      'postgres_changes',
-      {
-        event: 'UPDATE',
-        schema: 'public',
-        table: 'posts',
-      },
-      async (payload) => {
-        // Handle deletion events (is_deleted changed from false to true)
-        if (payload.new.is_deleted && !payload.old?.is_deleted) {
-          logger.info('🗑️ Post deletion detected:', payload.new.id);
-          await handlePostDeletion(payload.new, payload.old);
-        }
-        // Pin/unpin is handled by the federate-post queue job (type: pin_change)
-        // triggered by handle_post_federation() in the DB, so skip here to avoid duplicates.
-        else if (payload.new.is_pinned !== payload.old?.is_pinned) {
-          logger.info(`📌 Post ${payload.new.is_pinned ? 'pinned' : 'unpinned'}: ${payload.new.id} (handled by queue job)`);
-        }
-        // Handle post edits (content or content_warning changed)
-        else if (
-          payload.new.updated_at !== payload.old?.updated_at &&
-          (JSON.stringify(payload.new.content) !== JSON.stringify(payload.old?.content) ||
-           payload.new.content_warning !== payload.old?.content_warning)
-        ) {
-          logger.info('✏️ Post edit detected:', payload.new.id);
-          await handlePostEdit(payload.new, payload.old);
-        }
       }
     )
     // Listen for new blocks
@@ -484,132 +437,6 @@ export async function startDatabaseListener(): Promise<void> {
 }
 
 /**
- * Handle new post creation. Exported for direct test invocation; runtime
- * callers go through the `posts INSERT` realtime subscription above.
- */
-export async function handleNewPost(postEvent: any): Promise<void> {
-  try {
-    // Check if post should be federated
-    if (!postEvent.is_local || !['public', 'unlisted'].includes(postEvent.visibility)) {
-      logger.debug(`Skipping federation for post ${postEvent.id}: not public or local`);
-      return;
-    }
-
-    logger.info(`🌐 Federating new post: ${postEvent.id}`);
-
-    // Get full post data (realtime events might not include all columns)
-    const supabase = getSupabaseClient();
-    const { data: post } = await supabase
-      .from('posts')
-      .select('*')
-      .eq('id', postEvent.id)
-      .single();
-
-    if (!post) {
-      logger.error(`Post not found: ${postEvent.id}`);
-      return;
-    }
-
-    // Get author profile
-    const { data: author } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', post.author_id)
-      .single();
-
-    if (!author) {
-      logger.error(`Author not found for post ${post.id}`);
-      return;
-    }
-
-    // Determine the type of post:
-    // 1. Quote post: has metadata.is_quote AND metadata.reblog_of → Create Note with quoteUrl
-    // 2. Pure reblog: has ap_type='Announce' or metadata.reblog_of but NOT is_quote → Announce
-    // 3. Regular post: everything else → Create Note
-    const isQuotePost = post.metadata?.is_quote && post.metadata?.reblog_of;
-    const isPureReblog = !isQuotePost && (post.ap_type === 'Announce' || post.metadata?.reblog_of);
-    
-    let activity;
-    
-    if (isQuotePost) {
-      // Quote post - create a Note with quoteUrl (handled in createPostActivity)
-      logger.info(`📝 Detected quote post, creating Note with quoteUrl`);
-      activity = await createPostActivity(post, author);
-    } else if (isPureReblog) {
-      // Pure reblog - create an Announce activity
-      logger.info(`📢 Detected reblog post, creating Announce activity`);
-      
-      try {
-        activity = await createReblogActivity(author, post);
-        logger.info(`📢 Created Announce activity for reblog of ${post.metadata?.reblog_of}`);
-      } catch (reblogError) {
-        logger.error('Failed to create reblog activity:', reblogError);
-        return;
-      }
-    } else {
-      // Regular post - create a Create activity with Note
-      activity = await createPostActivity(post, author);
-    }
-
-    // Set ap_id on local post so federation echo dedup works
-    const noteId = activity?.object?.id;
-    if (noteId && !post.ap_id) {
-      await supabase
-        .from('posts')
-        .update({ ap_id: noteId })
-        .eq('id', post.id);
-      logger.info(`📌 Set ap_id on local post ${post.id}: ${noteId}`);
-    }
-
-    // Broadcast to followers
-    await DeliveryQueue.broadcastToFollowers(author.id, activity);
-
-    // Enrich external link previews for non-reblog posts. The DB-side
-    // `process_local_link_previews` trigger only handles URLs whose host
-    // matches our own instance domain (so Harmony post embeds get filled
-    // in synchronously); external sites (arstechnica, youtube, etc.) need
-    // an HTTP fetch and were previously only enriched for federated /
-    // backfilled posts. We deliberately fire-and-forget AFTER the
-    // federation broadcast so a slow link-preview HTTP fetch can't delay
-    // the Create activity going out. Reblogs reference another post's
-    // content and don't carry URL-preview semantics of their own, so
-    // skip them; quote posts have real content and DO enrich here.
-    if (!isPureReblog) {
-      enrichPostLinkPreviews(post).catch((err) =>
-        logger.warn(`Link preview enrichment failed for local post ${post.id}:`, err)
-      );
-    }
-
-    // Also deliver to mentioned users (they might not be followers) - for posts and quote posts
-    if (!isPureReblog && Array.isArray(post.content)) {
-      const mentions = post.content.filter((part: any) => part.type === 'mention');
-      
-      for (const mention of mentions) {
-        if (!mention.isLocal && mention.domain) {
-          // Get mentioned user's inbox
-          const { data: mentionedUser } = await supabase
-            .from('profiles')
-            .select('inbox_url')
-            .eq('username', mention.username)
-            .eq('domain', mention.domain)
-            .single();
-          
-          if (mentionedUser?.inbox_url) {
-            logger.info(`📧 Delivering to mentioned user: ${mention.username}@${mention.domain}`);
-            await DeliveryQueue.sendToInbox(mentionedUser.inbox_url, activity, author.id);
-          }
-        }
-      }
-    }
-
-    const postType = isQuotePost ? 'Quote post' : isPureReblog ? 'Reblog' : 'Post';
-    logger.info(`✅ ${postType} ${post.id} queued for federation`);
-  } catch (error) {
-    logger.error('Failed to handle new post:', error);
-  }
-}
-
-/**
  * Handle new reaction
  */
 async function handleNewReaction(interaction: any): Promise<void> {
@@ -798,76 +625,6 @@ async function handleProfileUpdate(oldProfile: any, newProfile: any): Promise<vo
     logger.info(`✅ Profile update for ${profile.username} queued for federation`);
   } catch (error) {
     logger.error('Failed to handle profile update:', error);
-  }
-}
-
-/**
- * Handle post deletion - send Delete or Undo Announce activity
- */
-async function handlePostDeletion(deletedPost: any, _oldPost: any): Promise<void> {
-  try {
-    const supabase = getSupabaseClient();
-
-    // Get full post data (realtime events may not include all fields)
-    const { data: post } = await supabase
-      .from('posts')
-      .select('*')
-      .eq('id', deletedPost.id)
-      .single();
-
-    if (!post) {
-      logger.error(`Post not found for deletion: ${deletedPost.id}`);
-      return;
-    }
-
-    // Only federate deletions for local posts
-    if (!post.is_local) {
-      logger.debug('Deletion of remote post, skipping federation');
-      return;
-    }
-
-    // Get author profile
-    const { data: author } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', post.author_id)
-      .single();
-
-    if (!author) {
-      logger.error(`Author not found for post deletion: ${post.author_id}`);
-      return;
-    }
-
-    const { createDeleteActivity, createUndoAnnounceActivity } = await import('./FederationHandlers.js');
-    
-    // Determine post type:
-    // - Quote posts: have metadata.is_quote AND are federated as Notes → send Delete
-    // - Pure reblogs: have ap_type='Announce' but NOT is_quote → send Undo Announce
-    // - Regular posts: everything else → send Delete
-    const isQuotePost = post.metadata?.is_quote;
-    const isPureReblog = !isQuotePost && (post.ap_type === 'Announce' || post.metadata?.reblog_of);
-    
-    let activity;
-    let activityType: string;
-    
-    if (isPureReblog) {
-      // This is an unreblog - send Undo Announce
-      logger.info(`📢 Detected reblog deletion, creating Undo Announce activity`);
-      activity = await createUndoAnnounceActivity(author, post);
-      activityType = 'Undo Announce';
-    } else {
-      // Quote post or regular post deletion - send Delete
-      logger.info(`🗑️ Federating ${isQuotePost ? 'quote post' : 'post'} deletion: ${post.id}`);
-      activity = createDeleteActivity(author, post);
-      activityType = 'Delete';
-    }
-
-    // Broadcast to followers
-    await DeliveryQueue.broadcastToFollowers(author.id, activity);
-
-    logger.info(`✅ ${activityType} activity for ${post.id} queued for federation`);
-  } catch (error) {
-    logger.error('Failed to handle post deletion:', error);
   }
 }
 
@@ -1159,94 +916,6 @@ async function handleUnblock(block: any): Promise<void> {
     }
   } catch (error) {
     logger.error('Failed to handle unblock:', error);
-  }
-}
-
-/**
- * Handle post edit - send Update activity. Exported for direct test
- * invocation; runtime callers go through the `posts UPDATE` realtime
- * subscription above.
- */
-export async function handlePostEdit(editedPost: any, oldPost: any): Promise<void> {
-  try {
-    const supabase = getSupabaseClient();
-
-    // Get full post data
-    const { data: post } = await supabase
-      .from('posts')
-      .select('*')
-      .eq('id', editedPost.id)
-      .single();
-
-    if (!post || !post.is_local) {
-      logger.debug('Cannot federate edit for non-local post');
-      return;
-    }
-
-    // Only federate public/unlisted posts
-    if (!['public', 'unlisted'].includes(post.visibility)) {
-      logger.debug('Skipping edit federation for private post');
-      return;
-    }
-
-    // Get author
-    const { data: author } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', post.author_id)
-      .single();
-
-    if (!author || !author.is_local) {
-      return;
-    }
-
-    const { createPostUpdateActivity } = await import('./FederationHandlers.js');
-    const activity = await createPostUpdateActivity(post, author);
-
-    logger.info(`✏️ Federating post edit: ${post.id}`);
-
-    // Get followers to notify
-    const { data: followers } = await supabase
-      .from('follows')
-      .select('follower:profiles!follows_follower_id_fkey(id, inbox_url, is_local, shared_inbox_url)')
-      .eq('following_id', author.id)
-      .eq('status', 'accepted');
-
-    if (!followers || followers.length === 0) {
-      logger.debug('No followers to notify about post edit');
-      return;
-    }
-
-    // Collect unique inboxes
-    const inboxes = new Set<string>();
-    for (const follow of followers) {
-      const follower = follow.follower as any;
-      if (!follower?.is_local && follower?.inbox_url) {
-        inboxes.add(follower.shared_inbox_url || follower.inbox_url);
-      }
-    }
-
-    await Promise.allSettled(
-      [...inboxes].map(inbox => DeliveryQueue.sendToInbox(inbox, activity, author.id))
-    );
-
-    logger.info(`✏️ Post edit federated to ${inboxes.size} inboxes`);
-
-    // Re-enrich link previews when the edit actually changed `content`
-    // (a user might have added a URL to an existing post). Skip the
-    // content-warning-only path — the URL set hasn't changed, so the
-    // cached embeds in `metadata.embeds` are still correct and re-running
-    // `enrichPostLinkPreviews` would just hit the cache for no benefit.
-    // Same fire-and-forget pattern as the create path above so the
-    // federation Update isn't gated on an HTTP fetch.
-    const contentChanged = JSON.stringify(oldPost?.content) !== JSON.stringify(post.content);
-    if (contentChanged) {
-      enrichPostLinkPreviews(post).catch((err) =>
-        logger.warn(`Link preview re-enrichment failed for edited post ${post.id}:`, err)
-      );
-    }
-  } catch (error) {
-    logger.error('Failed to handle post edit:', error);
   }
 }
 
@@ -2223,7 +1892,17 @@ export async function enrichMessageLinkPreviews(message: any): Promise<void> {
 
 /**
  * Detect external URLs in a post's content and fetch previews via LinkPreviewService.
- * Same as enrichMessageLinkPreviews but for the posts table.
+ * Same shape as enrichMessageLinkPreviews but for the posts table.
+ *
+ * Called from:
+ *   - postHandler.handlePostJob (BullMQ create/update branches) — the
+ *     primary runtime path; reliable retries via BullMQ.
+ *   - ActivityProcessor (federated/refetched remote posts).
+ *   - federation-backend/backfill-posts.ts (--link-previews-only manual run).
+ *
+ * Idempotent: the `existingEmbeds[part.url]` filter below makes a re-run on
+ * an unchanged URL set a cheap no-op, which is why the update branch can
+ * call this unconditionally without checking what actually changed.
  */
 export async function enrichPostLinkPreviews(post: any): Promise<void> {
   const content = post.content;

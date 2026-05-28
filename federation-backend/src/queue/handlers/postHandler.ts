@@ -8,6 +8,7 @@
 import { getSupabaseClient } from '../../config/supabase.js';
 import { DeliveryQueue } from '../../activitypub/DeliveryQueue.js';
 import { createPostActivity, createDeleteActivity, createPostUpdateActivity, createAddToFeaturedActivity, createRemoveFromFeaturedActivity } from '../../listeners/FederationHandlers.js';
+import { enrichPostLinkPreviews } from '../../listeners/DatabaseListener.js';
 import config from '../../config/index.js';
 import { logger } from '../../utils/logger.js';
 import type { FederationJobData } from '../BullMQManager.js';
@@ -90,6 +91,34 @@ export async function handlePostJob(data: FederationJobData): Promise<void> {
             await deliverToMentionedUsers(post, activity, author, supabase);
           }
         }
+
+        // Out-of-band enrichment + home-feed realtime push. These used to
+        // live in `DatabaseListener.handleNewPost` (postgres_changes path)
+        // which fires unreliably and on a single Supabase channel; running
+        // them here means every successful BullMQ post job also gets the
+        // link card and the home-timeline broadcast. We `Promise.allSettled`
+        // so a slow LinkPreview HTTP fetch can't gate the realtime push and
+        // a failed broadcast can't poison the (already-completed) federation
+        // status.
+        {
+          // Pure reblogs (Announce, no quote) reference another post's
+          // content and don't carry their own URL preview semantics — skip
+          // them for link enrichment but still broadcast so the reblog
+          // appears on followers' home timelines.
+          const isQuotePost = post.metadata?.is_quote && post.metadata?.reblog_of;
+          const isPureReblog = !isQuotePost && (post.ap_type === 'Announce' || post.metadata?.reblog_of);
+
+          await Promise.allSettled([
+            isPureReblog
+              ? Promise.resolve()
+              : enrichPostLinkPreviews(post).catch((err) =>
+                  logger.warn(`Link preview enrichment failed for local post ${post.id}:`, err)
+                ),
+            broadcastHomeFeed(supabase, post).catch((err) =>
+              logger.warn(`Home feed broadcast failed for post ${post.id}:`, err)
+            ),
+          ]);
+        }
         break;
 
       case 'update':
@@ -98,6 +127,16 @@ export async function handlePostJob(data: FederationJobData): Promise<void> {
         
         // Broadcast update to followers
         await DeliveryQueue.broadcastToFollowers(author.id, activity);
+
+        // Re-enrich link previews on every edit. `enrichPostLinkPreviews`
+        // dedupes via the `existingEmbeds[url]` check so re-running on an
+        // unchanged URL set is a cheap no-op; this avoids needing the job
+        // payload to carry an explicit "content changed" flag.
+        try {
+          await enrichPostLinkPreviews(post);
+        } catch (err) {
+          logger.warn(`Link preview re-enrichment failed for edited post ${post.id}:`, err);
+        }
         break;
 
       case 'delete':
@@ -178,5 +217,76 @@ async function updateFederationStatus(
     .from(table)
     .update({ federation_status: status })
     .eq('id', id);
+}
+
+/**
+ * Push a `home_feed:new_post` event to every recipient who should see this
+ * post on their home timeline. Runs out-of-band on a BullMQ worker (NOT in
+ * the post INSERT transaction) so a large follower fan-out can't slow post
+ * commits and a transient realtime/HTTP hiccup can't block the post.
+ *
+ * Recipients: the author themselves + every accepted local follower of the
+ * author (plus pending followers for `public` posts, matching the rules
+ * used by `create_comprehensive_timeline_entries`). `direct` / `private`
+ * posts never surface on home timelines and are filtered out at the top.
+ *
+ * Reuses the existing `user:{profile_id}` broadcast topic + `user_event`
+ * event name via the `broadcast_user_event(p_user_id, p_payload)` RPC
+ * added in `20260528_broadcast_user_event_rpc.sql`, so no new Supabase
+ * channel is opened per-user-per-author.
+ */
+async function broadcastHomeFeed(supabase: any, post: any): Promise<void> {
+  if (post.visibility !== 'public' && post.visibility !== 'unlisted' && post.visibility !== 'followers') {
+    return;
+  }
+
+  // Status filter mirrors `create_comprehensive_timeline_entries()`:
+  //   public         → accepted OR pending
+  //   unlisted/follo → accepted only
+  const followStatusFilter = post.visibility === 'public'
+    ? ['accepted', 'pending']
+    : ['accepted'];
+
+  const { data: followerRows, error: followerErr } = await supabase
+    .from('follows')
+    .select('follower_id, profiles!follows_follower_id_fkey(is_local)')
+    .eq('following_id', post.author_id)
+    .in('status', followStatusFilter);
+
+  if (followerErr) {
+    logger.warn(`broadcastHomeFeed: failed to load followers for post ${post.id}:`, followerErr);
+    return;
+  }
+
+  // Author always gets the broadcast so their own home timeline prepends
+  // without a manual refresh (matches Twitter/Mastodon UX).
+  const recipients = new Set<string>([post.author_id]);
+  for (const row of followerRows ?? []) {
+    if (row?.profiles?.is_local) {
+      recipients.add(row.follower_id);
+    }
+  }
+
+  const payload = {
+    type: 'home_feed:new_post',
+    post_id: post.id,
+    author_id: post.author_id,
+    created_at: post.created_at,
+    visibility: post.visibility,
+    source: 'bullmq:postHandler',
+  };
+
+  const results = await Promise.allSettled(
+    Array.from(recipients).map((uid) =>
+      supabase.rpc('broadcast_user_event', { p_user_id: uid, p_payload: payload })
+    )
+  );
+
+  const failures = results.filter((r) => r.status === 'rejected').length;
+  if (failures > 0) {
+    logger.warn(`broadcastHomeFeed: ${failures}/${results.length} recipient broadcasts failed for post ${post.id}`);
+  } else {
+    logger.info(`📡 Home feed broadcast: post ${post.id} pushed to ${results.length} recipient(s)`);
+  }
 }
 

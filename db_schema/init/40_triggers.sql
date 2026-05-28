@@ -177,16 +177,6 @@ CREATE TRIGGER create_comprehensive_timeline_entries_trigger
     FOR EACH ROW
     EXECUTE FUNCTION public.create_comprehensive_timeline_entries();
 
--- Realtime: notify each home-timeline recipient when an entry is created so
--- the home feed UI prepends the post (and plays the new-post sound) without
--- requiring a manual refresh. Fires AFTER the entry is committed so the
--- realtime push and the queryable row stay in step.
-DROP TRIGGER IF EXISTS trg_broadcast_home_feed_entry ON public.timeline_entries;
-CREATE TRIGGER trg_broadcast_home_feed_entry
-    AFTER INSERT ON public.timeline_entries
-    FOR EACH ROW
-    EXECUTE FUNCTION public.broadcast_home_feed_entry();
-
 -- Add existing posts to new follower timeline
 DROP TRIGGER IF EXISTS add_posts_to_new_follower_timeline ON public.follows;
 CREATE TRIGGER add_posts_to_new_follower_timeline

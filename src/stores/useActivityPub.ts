@@ -117,6 +117,14 @@ interface ActivityPubState {
   realtimeSubscriptions: Map<string, any>;
   _broadcastUnsubs: Array<() => void>;
 
+  // Post IDs that handleRealtimePostCreate is currently fetching via
+  // loadPostWithAuthor(). Two concurrent realtime events (e.g. `post:new`
+  // and `home_feed:new_post` both delivered to the author's user channel
+  // when they create a post) race past the dedup-by-id check before either
+  // call finishes its async fetch + unshift — the in-flight Set bridges
+  // that window so the second handler call bails immediately.
+  _inFlightPostIds: Set<string>;
+
   // Notification integration
   lastNotificationCheck: Date | null;
   unreadCount: number;
@@ -215,6 +223,7 @@ export const useActivityPubStore = defineStore('activitypub', {
     // Realtime subscriptions
     realtimeSubscriptions: new Map(),
     _broadcastUnsubs: [] as Array<() => void>,
+    _inFlightPostIds: new Set<string>(),
 
     // Notification integration
     lastNotificationCheck: null,
@@ -819,18 +828,36 @@ export const useActivityPubStore = defineStore('activitypub', {
         is_local: post.is_local,
         visibility: post.visibility
       });
-      
+
+      if (!post?.id) {
+        return;
+      }
+
+      // Two realtime events can race to handle the same post: `post:new`
+      // (always fires on the author's channel) and `home_feed:new_post`
+      // (fires on the author + every local follower). For the author the
+      // checks below would run twice in parallel, both pass the
+      // exists-in-feed dedup (because neither call has unshifted yet),
+      // both await loadPostWithAuthor, and both unshift → two copies of
+      // the same post in every feed. Reserve the id BEFORE the async
+      // fetch so the second handler invocation bails immediately.
+      if (this._inFlightPostIds.has(post.id)) {
+        debug.log('⚠️ Post create already in-flight, skipping concurrent duplicate:', post.id);
+        return;
+      }
+      this._inFlightPostIds.add(post.id);
+
       try {
         // Check if post already exists in any feed to prevent duplicates
         const existsInPublic = this.publicFeed.posts.some(p => p.id === post.id);
         const existsInLocal = this.localFeed.posts.some(p => p.id === post.id);
         const existsInHome = this.homeFeed.posts.some(p => p.id === post.id);
-        
+
         if (existsInPublic || existsInLocal || existsInHome) {
           debug.log('⚠️ Post already exists in feeds, skipping duplicate:', post.id);
           return;
         }
-        
+
         // Realtime data NEVER has author joins, always fetch complete data
         debug.log('🔄 Fetching complete post data with author information...');
         const completePost = await activityPubService.loadPostWithAuthor(post.id);
@@ -916,6 +943,8 @@ export const useActivityPubStore = defineStore('activitypub', {
           this.homeFeed.posts.unshift(post);
           this.unreadCount++;
         }
+      } finally {
+        this._inFlightPostIds.delete(post.id);
       }
     },
 
