@@ -271,7 +271,11 @@ export const useAuthStore = defineStore('auth', {
         // This must happen BEFORE any chat components render
         const activityPubStore = useActivityPubStore();
         await activityPubStore.loadBlockingData();
-        
+        // Home-timeline realtime + followedUsers must be ready before social UI mounts.
+        void activityPubStore.initialize().catch((err) => {
+          debug.error('ActivityPub initialize on session restore failed:', err);
+        });
+
         // LAZY: Don't initialize encryption on load - only when needed
         // Encryption will be initialized when:
         // 1. User opens encryption settings

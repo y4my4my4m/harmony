@@ -363,18 +363,9 @@ const clearError = () => {
   (activityPubStore as any).clearError?.();
 };
 
-// Lifecycle
-onMounted(async () => {
-  // Initialize real-time subscriptions
-  await (activityPubStore as any).initializeRealtime?.();
-
-  // Note: Feed loading is now handled by parent components (TimelineView/SocialLayout)
-  // This prevents redundant API calls
-});
-
-onUnmounted(() => {
-  // Cleanup real-time subscriptions
-  (activityPubStore as any).cleanupRealtime?.();
+// Lifecycle — realtime is app-scoped (see SocialLayout / auth); do not tear down on unmount.
+onMounted(() => {
+  void activityPubStore.ensureRealtimeSubscriptions();
 });
 
 // Auto-refresh on focus - only refresh current view if it has data
