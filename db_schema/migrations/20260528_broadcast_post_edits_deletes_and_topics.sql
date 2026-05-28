@@ -79,12 +79,26 @@ BEGIN
   -- (2) Author's profile timeline ephemeral topic. Anyone currently viewing
   -- that profile (subscribed via useFeedRealtime with kind 'user:<id>')
   -- receives the create / update / delete and reconciles their view.
-  PERFORM realtime.send(
-    v_payload,
-    'feed_event',
-    'feed:user:' || v_row.author_id::text,
-    true
-  );
+  --
+  -- IMPORTANT: gated on the post being (or having been) public. Direct,
+  -- followers-only and private posts must NOT broadcast their metadata
+  -- on this topic because realtime authorization is `USING (true)` for
+  -- all authenticated users, so the topic name alone is the only access
+  -- check (it's not a secret — it's literally derived from a public
+  -- profile id). The author themselves still receives every event via
+  -- their private `user:{author_id}` channel, so this restriction does
+  -- not break the "author's other tabs see their own posts in realtime"
+  -- use case.
+  IF (TG_OP = 'INSERT' AND NEW.visibility = 'public')
+     OR (TG_OP = 'UPDATE' AND (NEW.visibility = 'public' OR OLD.visibility = 'public'))
+     OR (TG_OP = 'DELETE' AND OLD.visibility = 'public') THEN
+    PERFORM realtime.send(
+      v_payload,
+      'feed_event',
+      'feed:user:' || v_row.author_id::text,
+      true
+    );
+  END IF;
 
   -- (3) Public / local view-bound topics. Publishing rules:
   --     INSERT: visibility = 'public' and not deleted

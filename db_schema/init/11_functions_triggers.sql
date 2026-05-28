@@ -3734,12 +3734,20 @@ BEGIN
     true
   );
 
-  PERFORM realtime.send(
-    v_payload,
-    'feed_event',
-    'feed:user:' || v_row.author_id::text,
-    true
-  );
+  -- Profile timeline topic — gated on public visibility because realtime
+  -- authorization is USING (true), so the topic name is the only access
+  -- check. Author's own tabs still receive every event via the private
+  -- user:{author_id} channel above.
+  IF (TG_OP = 'INSERT' AND NEW.visibility = 'public')
+     OR (TG_OP = 'UPDATE' AND (NEW.visibility = 'public' OR OLD.visibility = 'public'))
+     OR (TG_OP = 'DELETE' AND OLD.visibility = 'public') THEN
+    PERFORM realtime.send(
+      v_payload,
+      'feed_event',
+      'feed:user:' || v_row.author_id::text,
+      true
+    );
+  END IF;
 
   IF TG_OP = 'INSERT' THEN
     v_publish_public := (NEW.visibility = 'public' AND COALESCE(NEW.is_deleted, false) = false);

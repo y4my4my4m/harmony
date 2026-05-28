@@ -44,6 +44,38 @@ function isReactionsCacheFresh(metadata: any): boolean {
 }
 
 /**
+ * Mark a post as "we tried to fetch reactions and got nothing useful" so
+ * the TTL cache short-circuits the next call. This is what stops deleted
+ * remote posts (404 on every outbound request) from being re-tried on
+ * every feed refresh. Stores ONLY the timestamp; existing
+ * `remote_reactions` (if any) is preserved.
+ */
+async function markRemoteReactionsAttempted(
+  postId: string | undefined,
+  supabase: any
+): Promise<void> {
+  if (!postId) return;
+  try {
+    const { data } = await supabase
+      .from('posts')
+      .select('metadata')
+      .eq('id', postId)
+      .maybeSingle();
+    await supabase
+      .from('posts')
+      .update({
+        metadata: {
+          ...(data?.metadata || {}),
+          remote_reactions_fetched_at: new Date().toISOString(),
+        },
+      })
+      .eq('id', postId);
+  } catch (err) {
+    logger.debug(`📬 markRemoteReactionsAttempted failed (non-fatal): ${err}`);
+  }
+}
+
+/**
  * Lookup remote user via WebFinger
  * POST /lookup-user (proxied via /api/federation/lookup-user)
  * Body: { handle: "username@domain" }
@@ -692,6 +724,11 @@ router.post(
                 })
                 .eq('id', entry.post_id);
             }
+          } else if (!remote_reactions && reactions.length === 0 && entry.post_id) {
+            // Successful fetch but zero reactions - still mark the TTL
+            // cache so we don't re-hit the origin for an empty post on
+            // every refresh.
+            await markRemoteReactionsAttempted(entry.post_id, supabase);
           }
 
           results[entry.post_ap_id] = {
@@ -705,6 +742,10 @@ router.post(
           };
         } catch (error: any) {
           logger.error(`Batch fetch-reactions failed for ${entry.post_ap_id}:`, error.message);
+          // TTL-cache the failure so a broken remote (HTML 404 disguised
+          // as 200, malformed JSON, etc.) doesn't get re-tried on every
+          // refresh.
+          await markRemoteReactionsAttempted(entry.post_id, supabase);
           results[entry.post_ap_id] = { success: false, error: error.message };
         }
       })
@@ -827,8 +868,12 @@ router.post(
             })
             .eq('id', post_id);
         }
+      } else if (!remote_reactions && reactions.length === 0 && post_id) {
+        // Successful fetch returning zero reactions - TTL-cache the
+        // attempt to avoid re-hitting the origin on every refresh.
+        await markRemoteReactionsAttempted(post_id, supabase);
       }
-      
+
       return res.json({
         success: true,
         reactions,
@@ -840,6 +885,9 @@ router.post(
       });
     } catch (error: any) {
       logger.error('Failed to fetch reactions:', error);
+      // Same rationale as the batch handler: TTL-cache the failure to
+      // stop a broken remote from being re-hit on every refresh.
+      await markRemoteReactionsAttempted(post_id, supabase);
       return res.status(500).json({ error: 'Failed to fetch reactions' });
     }
   })
@@ -1315,6 +1363,10 @@ async function _fetchRemotePostReactionsImpl(
 
       if (!postResponse.ok) {
         logger.warn(`Failed to fetch post: ${postResponse.status}`);
+        // 404 / 410 / unauthorized on a remote post is sticky for the TTL
+        // window — mark it attempted so the next feed refresh doesn't
+        // re-hit the origin for a known-dead post.
+        await markRemoteReactionsAttempted(postId, supabase);
         return [];
       }
 
@@ -1345,6 +1397,7 @@ async function _fetchRemotePostReactionsImpl(
         logger.info(
           `📬 No likes collection found for post (available: ${Object.keys(post).filter(k => k.includes('like') || k.includes('reaction')).join(', ') || 'none'})`
         );
+        await markRemoteReactionsAttempted(postId, supabase);
         return [];
       }
       likesCollectionUrl = typeof likesUrl === 'string' ? likesUrl : likesUrl.id;
@@ -1352,6 +1405,7 @@ async function _fetchRemotePostReactionsImpl(
       try {
         if (new URL(likesCollectionUrl).hostname === config.INSTANCE_DOMAIN) {
           logger.info(`📬 Skipping self-fetch for likes: ${likesCollectionUrl}`);
+          await markRemoteReactionsAttempted(postId, supabase);
           return [];
         }
       } catch { /* invalid URL, proceed */ }
@@ -1362,6 +1416,7 @@ async function _fetchRemotePostReactionsImpl(
       });
       if (!likesResponse.ok) {
         logger.warn(`Failed to fetch likes collection: ${likesResponse.status}`);
+        await markRemoteReactionsAttempted(postId, supabase);
         return [];
       }
       likesCollection = await likesResponse.json();
