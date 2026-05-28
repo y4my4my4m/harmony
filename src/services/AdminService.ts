@@ -1886,11 +1886,11 @@ class AdminService {
       const updatedInfo = await this.discoverInstance(instance.domain);
       
       if (updatedInfo) {
-        // Count known remote actors from this instance's domain
-        const { count: actorCount } = await supabase
-          .from('ap_actor_cache')
-          .select('*', { count: 'exact', head: true })
-          .eq('domain', instance.domain);
+        const { data: connectionRows } = await supabase.rpc(
+          'get_federated_instance_connection_counts',
+          { p_domains: [instance.domain] }
+        );
+        const connectionCount = Number(connectionRows?.[0]?.connection_count) || 0;
 
         const { data, error } = await supabase
           .from('federated_instances')
@@ -1901,7 +1901,7 @@ class AdminService {
             admin_contact: updatedInfo.admin_contact || instance.admin_contact,
             user_count: updatedInfo.user_count || instance.user_count,
             status_count: updatedInfo.status_count || instance.status_count,
-            connection_count: actorCount || 0,
+            connection_count: connectionCount,
             last_seen_at: new Date().toISOString(),
             metadata: {
               ...instance.metadata,

@@ -187,6 +187,41 @@ END;
 $$;
 
 -- Update federation health function
+CREATE OR REPLACE FUNCTION public.touch_federated_instance(p_domain text)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_domain text;
+BEGIN
+  v_domain := lower(btrim(p_domain));
+  IF v_domain IS NULL OR v_domain = '' THEN
+    RETURN;
+  END IF;
+
+  INSERT INTO public.federated_instances (
+    domain,
+    last_seen_at,
+    updated_at
+  )
+  VALUES (
+    v_domain,
+    now(),
+    now()
+  )
+  ON CONFLICT (domain) DO UPDATE
+  SET last_seen_at = now(),
+      updated_at = now();
+END;
+$$;
+
+COMMENT ON FUNCTION public.touch_federated_instance(text)
+IS 'Bump federated_instances.last_seen_at when federation traffic is observed. Auto-registers unknown domains.';
+
+GRANT EXECUTE ON FUNCTION public.touch_federated_instance(text) TO service_role;
+
 CREATE OR REPLACE FUNCTION public.update_federation_health(
     p_instance_domain text,
     p_success boolean,
@@ -198,7 +233,14 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
 AS $$
+DECLARE
+  v_domain text;
 BEGIN
+    v_domain := lower(btrim(p_instance_domain));
+    IF v_domain IS NULL OR v_domain = '' THEN
+        RETURN;
+    END IF;
+
     -- Upsert federation health by instance_domain (UNIQUE constraint)
     INSERT INTO public.federation_health (
         instance_domain,
@@ -210,7 +252,7 @@ BEGIN
         avg_latency_ms,
         last_error
     ) VALUES (
-        p_instance_domain,
+        v_domain,
         CASE WHEN p_success THEN 'healthy' ELSE 'unhealthy' END,
         CASE WHEN p_success THEN now() ELSE NULL END,
         CASE WHEN NOT p_success THEN now() ELSE NULL END,
@@ -221,24 +263,30 @@ BEGIN
     )
     ON CONFLICT (instance_domain) DO UPDATE SET
         timestamp = now(),
-        status = CASE 
-            WHEN p_success AND federation_health.failure_count = 0 THEN 'healthy'
-            WHEN p_success THEN 'degraded'
+        status = CASE
+            WHEN p_success THEN 'healthy'
             ELSE 'unhealthy'
         END,
         last_success_at = CASE WHEN p_success THEN now() ELSE federation_health.last_success_at END,
         last_failure_at = CASE WHEN NOT p_success THEN now() ELSE federation_health.last_failure_at END,
         success_count = federation_health.success_count + CASE WHEN p_success THEN 1 ELSE 0 END,
-        failure_count = CASE 
+        failure_count = CASE
             WHEN p_success THEN 0
             ELSE federation_health.failure_count + 1
         END,
-        avg_latency_ms = CASE 
-            WHEN p_latency_ms IS NOT NULL AND federation_health.avg_latency_ms IS NOT NULL 
+        avg_latency_ms = CASE
+            WHEN p_latency_ms IS NOT NULL AND federation_health.avg_latency_ms IS NOT NULL
             THEN (federation_health.avg_latency_ms + p_latency_ms) / 2
             ELSE COALESCE(p_latency_ms, federation_health.avg_latency_ms)
         END,
-        last_error = COALESCE(p_error, federation_health.last_error);
+        last_error = CASE
+            WHEN p_success THEN NULL
+            ELSE COALESCE(p_error, federation_health.last_error)
+        END;
+
+    IF p_success THEN
+        PERFORM public.touch_federated_instance(v_domain);
+    END IF;
 END;
 $$;
 

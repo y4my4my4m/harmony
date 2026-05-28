@@ -481,12 +481,13 @@ class TrendingService {
   } = {}): Promise<any[]> {
     try {
       const { limit = 20, filter = 'active', search } = options;
+      const fetchLimit = Math.min(limit * 3, 150);
 
       let query = supabase
         .from('federated_instances')
         .select('*')
         .order('last_seen_at', { ascending: false })
-        .limit(limit);
+        .limit(fetchLimit);
 
       switch (filter) {
         case 'active':
@@ -507,7 +508,45 @@ class TrendingService {
       const { data, error } = await query;
       if (error) throw error;
 
-      return (data || []).map(instance => ({
+      const instances = data || [];
+      const domains = instances.map((instance) => instance.domain).filter(Boolean);
+      const healthByDomain = new Map<string, string>();
+      const connectionsByDomain = new Map<string, number>();
+
+      if (domains.length > 0) {
+        const [{ data: healthRows }, { data: connectionRows }] = await Promise.all([
+          supabase
+            .from('federation_health')
+            .select('instance_domain, last_success_at')
+            .in('instance_domain', domains),
+          supabase.rpc('get_federated_instance_connection_counts', {
+            p_domains: domains,
+          }),
+        ]);
+
+        for (const row of healthRows || []) {
+          if (row.last_success_at) {
+            healthByDomain.set(row.instance_domain.toLowerCase(), row.last_success_at);
+          }
+        }
+
+        for (const row of connectionRows || []) {
+          if (row.domain) {
+            connectionsByDomain.set(row.domain.toLowerCase(), Number(row.connection_count) || 0);
+          }
+        }
+      }
+
+      return instances
+        .map(instance => {
+        const domainKey = instance.domain ? instance.domain.toLowerCase() : '';
+        const healthLastSeen = domainKey ? healthByDomain.get(domainKey) : undefined;
+        const effectiveLastSeen = this.maxTimestamp(instance.last_seen_at, healthLastSeen);
+        const connectionCount = domainKey
+          ? (connectionsByDomain.get(domainKey) ?? instance.connection_count ?? 0)
+          : (instance.connection_count ?? 0);
+
+        return {
         id: instance.id,
         domain: instance.domain,
         software: instance.software || 'Unknown',
@@ -516,13 +555,19 @@ class TrendingService {
         admin_contact: instance.admin_contact,
         is_blocked: instance.is_blocked,
         is_trusted: instance.is_trusted,
-        last_seen_at: instance.last_seen_at,
+        last_seen_at: effectiveLastSeen,
         user_count: instance.user_count || 0,
         status_count: instance.status_count || 0,
-        connection_count: instance.connection_count || 0,
+        connection_count: connectionCount,
         metadata: instance.metadata || {},
-        status: this.getInstanceStatus(instance)
-      }));
+        status: this.getInstanceStatus({ last_seen_at: effectiveLastSeen })
+      };
+      })
+        .sort(
+          (a, b) =>
+            new Date(b.last_seen_at || 0).getTime() - new Date(a.last_seen_at || 0).getTime()
+        )
+        .slice(0, limit);
     } catch (error) {
       debug.error('Failed to get federated instances:', error);
       return [];
@@ -702,6 +747,13 @@ class TrendingService {
     // Beyond a week without federation activity - we don't actually know;
     // the instance may be fine, we just haven't exchanged data recently.
     return 'unknown';
+  }
+
+  private maxTimestamp(a?: string | null, b?: string | null): string | null {
+    if (!a && !b) return null;
+    if (!a) return b ?? null;
+    if (!b) return a;
+    return new Date(a) >= new Date(b) ? a : b;
   }
 
   private async getInstancePostCount(domain: string): Promise<number> {
