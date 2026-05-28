@@ -141,7 +141,7 @@ export async function handlePostJob(data: FederationJobData): Promise<void> {
 
       case 'delete':
         // Create Delete activity
-        activity = await createDeleteActivity(post, author);
+        activity = createDeleteActivity(author, post);
         
         // Broadcast deletion to followers
         await DeliveryQueue.broadcastToFollowers(author.id, activity);
