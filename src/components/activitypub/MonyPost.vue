@@ -976,7 +976,28 @@ const isInlineRichEmbed = (embed: { url: string; provider?: string }): boolean =
 };
 
 const inlineRichEmbeds = computed(() => postEmbeds.value.filter(isInlineRichEmbed));
-const cardEmbeds = computed(() => postEmbeds.value.filter((e) => !isInlineRichEmbed(e)));
+
+// Embeds that need a full link card. We additionally strip `image` from any
+// embed whose preview image is already shown as a media attachment - this
+// stops a federated post from rendering the same hero image twice (once as
+// a MonyMediaGallery tile, once as the card's big thumbnail), which on
+// mobile looked like a visually doubled embed. Site name / title / link
+// still render via the now-thumbnail-less card so users keep that context.
+const cardEmbeds = computed(() => {
+  const cards = postEmbeds.value.filter((e) => !isInlineRichEmbed(e));
+  const attachmentUrls = new Set<string>();
+  for (const m of displayMediaAttachments.value as any[]) {
+    const u = m?.url || m?.remote_url || m?.href;
+    if (typeof u === 'string' && u) attachmentUrls.add(u);
+  }
+  if (attachmentUrls.size === 0) return cards;
+  return cards.map((embed) => {
+    if (embed.image && attachmentUrls.has(embed.image)) {
+      return { ...embed, image: undefined } as typeof embed;
+    }
+    return embed;
+  });
+});
 
 // Content for MonyContent: when we have media_attachments, exclude file/image parts from content
 // so they're only shown once in MonyMediaGallery (which has the lightbox). Federated posts often
