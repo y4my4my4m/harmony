@@ -228,6 +228,7 @@ const props = withDefaults(defineProps<Props>(), {
 })
 
 // Emits
+// eslint-disable-next-line unused-imports/no-unused-vars
 const emit = defineEmits<{
   toggleLeftSidebar: []
   toggleRightSidebar: []
@@ -237,8 +238,6 @@ const emit = defineEmits<{
 
 // Stores
 const serverChannelStore = useServerChannelStore()
-const chatStore = useChatStore()
-const dmStore = useDMStore()
 const router = useRouter()
 const route = useRoute()
 
@@ -246,7 +245,7 @@ const route = useRoute()
 const { SIDEBAR_WIDTH } = useLayoutState()
 
 // User data
-const { getCurrentUser } = useUserData()
+useUserData();
 
 // State
 const showCreateChannelForm = ref(false)
@@ -320,6 +319,7 @@ const rightSidebarStyle = computed(() => {
     // Right sidebar slides in from right
     const progress = props.rightSidebarDragOffset / SIDEBAR_WIDTH
     const closedPosition = 100 // Hidden off screen (percentage)
+    // eslint-disable-next-line unused-imports/no-unused-vars
     const openPosition = 0 // Fully visible
     const currentPosition = closedPosition - (closedPosition * progress)
     

@@ -221,6 +221,7 @@ const {
   getUserDisplayName, 
   getUserAvatarUrl, 
   getCurrentUser,
+  // eslint-disable-next-line unused-imports/no-unused-vars
   subscribeToDMPresence,
   getPresenceAwareStatus
 } = useUserData()

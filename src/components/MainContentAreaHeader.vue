@@ -50,6 +50,7 @@ const mainFeedTabs = computed(() =>
   )
 );
 
+// eslint-disable-next-line unused-imports/no-unused-vars
 const props = defineProps<{
   mode: ViewMode;
   currentView: string;

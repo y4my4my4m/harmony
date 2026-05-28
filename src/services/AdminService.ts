@@ -1314,7 +1314,7 @@ class AdminService {
   /**
    * Delete instance
    */
-  async deleteInstance(instanceId: string, adminId: string): Promise<void> {
+  async deleteInstance(instanceId: string, _adminId: string): Promise<void> {
     try {
       const { error } = await supabase
         .from('federated_instances')

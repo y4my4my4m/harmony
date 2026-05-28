@@ -1745,6 +1745,7 @@ async function sendRejectActivity(
 /**
  * Strip HTML tags from content
  */
+// eslint-disable-next-line unused-imports/no-unused-vars
 function stripHtml(html: string): string {
   const text = html
     .replace(/<br\s*\/?>/gi, '\n')

@@ -1771,6 +1771,7 @@ export class ActivityPubService {
     options: TimelineOptions = {}
   ): Promise<TimelineResult> {
     const limit = options.limit || 20;
+    // eslint-disable-next-line unused-imports/no-unused-vars
     const max_id = options.max_id || null;
 
     // Build query based on timeline type.

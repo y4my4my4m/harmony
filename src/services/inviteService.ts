@@ -84,7 +84,7 @@ async function generateInviteUrl(
     // max_uses: 0 (unlimited) maps to NULL so the DB column is nullable
     // semantics-aligned with "no cap"; positive values are persisted as-is
     // and enforced at accept time.
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from('invites')
       .insert([{
         code,

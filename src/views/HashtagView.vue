@@ -60,7 +60,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
+import { useRouter } from 'vue-router'
 import { debug } from '@/utils/debug'
 import { trendingService } from '@/services/TrendingService'
 import { usePostInteractions } from '@/composables/usePostInteractions'
@@ -93,7 +93,6 @@ const { isMobile } = useLayoutState()
 
 // Router
 const router = useRouter()
-const route = useRoute()
 
 // Store
 const activityPubStore = useActivityPubStore()

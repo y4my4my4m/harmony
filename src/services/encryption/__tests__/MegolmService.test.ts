@@ -187,7 +187,9 @@ describe('MegolmService', () => {
       expect(shareData).not.toBeNull()
 
       // Simulate user B receiving the session key
+      // eslint-disable-next-line unused-imports/no-unused-vars
       const userBId = 'bbbb-user-b-id'
+      // eslint-disable-next-line unused-imports/no-unused-vars
       const serviceB = MegolmService.getInstance()
       // (serviceB is the same singleton, but the inbound session import simulates user B)
       await service.importInboundSession(

@@ -233,7 +233,7 @@ const copyThreadId = async () => {
 }
 
 // Close menu on click outside
-const handleClickOutside = (e: MouseEvent) => {
+const handleClickOutside = (_e: MouseEvent) => {
   emit('close')
 }
 

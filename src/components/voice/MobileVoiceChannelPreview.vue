@@ -99,6 +99,7 @@ interface Emits {
   (e: 'open-chat'): void
 }
 
+// eslint-disable-next-line unused-imports/no-unused-vars
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 

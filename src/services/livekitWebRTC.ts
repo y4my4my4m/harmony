@@ -1898,7 +1898,7 @@ export class LiveKitWebRTCService {
     });
     
     // LOCAL track unpublished (fires when Chrome's "Stop Sharing" is clicked or track ends)
-    this.room.on(RoomEvent.LocalTrackUnpublished, (publication: TrackPublication, participant: LocalParticipant) => {
+    this.room.on(RoomEvent.LocalTrackUnpublished, (publication: TrackPublication, _participant: LocalParticipant) => {
       debug.log('📺 [LiveKit] Local track unpublished:', publication.kind, 'source:', publication.source);
       
       // Update local media state based on what was unpublished
@@ -2051,6 +2051,7 @@ export class LiveKitWebRTCService {
    */
   private loadAudioSettings(): void {
     try {
+      // eslint-disable-next-line unused-imports/no-unused-vars
       const settings = VoiceSettingsService.getAll();
       const devices = VoiceSettingsService.getDevices();
       const constraints = VoiceSettingsService.getAudioConstraints();

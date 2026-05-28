@@ -896,7 +896,7 @@ const toggleGiphy = () => {
   }
 }
 
-const toggleEmojiListForInput = (isReaction: boolean, message?: Message) => {
+const toggleEmojiListForInput = (isReaction: boolean, _message?: Message) => {
   if (!isReaction) {
     // Regular emoji input - use unified media picker
     mediaPickerInitialTab.value = 'emoji'

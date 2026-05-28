@@ -177,7 +177,6 @@ export const useReactionsStore = defineStore('reactions', () => {
       // 1. INSTANT UI UPDATE - Create optimistic version
       const currentReactions = reactionsByMessage.value.get(messageId) || []
       const currentlyHasReaction = hasUserReacted.value(messageId, emojiId, userId)
-      const emojiCache = useEmojiCacheStore()
       
       const optimisticVersion = createOptimisticReactions(
         currentReactions, 

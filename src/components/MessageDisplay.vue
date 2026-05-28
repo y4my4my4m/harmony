@@ -50,7 +50,7 @@
           transform: `translateY(${virtualRow.start}px)`
         }"
       >
-      <template v-for="item in [displayItems[virtualRow.index]]" :key="item.id ?? virtualRow.index">
+      <template v-for="item in [displayItems[virtualRow.index]]" :key="item.key ?? virtualRow.index">
       <!-- Blocked Group Placeholder -->
       <div v-if="item.type === 'blocked-group'" class="blocked-message-group">
         <div class="blocked-group-content">
@@ -670,7 +670,7 @@ const blockCheckVersion = ref(0);
 const blockedUsersCount = computed(() => activityPubStore.blockedUsers.size);
 
 // Watch for changes to blocked users count and force re-evaluation
-watch(blockedUsersCount, (newCount, oldCount) => {
+watch(blockedUsersCount, (newCount, _oldCount) => {
   blockCheckVersion.value++;
   debug.log('🔄 Blocked users changed, forcing re-render. Count:', newCount);
 });
@@ -720,6 +720,7 @@ interface ProcessedMessage {
   index: number;
 }
 
+// eslint-disable-next-line unused-imports/no-unused-vars
 const processedMessages = computed((): ProcessedMessage[] => {
   // Force reactivity
   blockCheckVersion.value;
@@ -777,6 +778,7 @@ const processedMessages = computed((): ProcessedMessage[] => {
 });
 
 // Check if a blocked group has been revealed
+// eslint-disable-next-line unused-imports/no-unused-vars
 const isBlockedGroupRevealed = (firstMessageId: string): boolean => {
   return revealedBlockedGroups.value.has(firstMessageId);
 };
@@ -796,20 +798,24 @@ const hideBlockedGroup = (firstMessageId: string) => {
 };
 
 // Get messages in a revealed blocked group
+// eslint-disable-next-line unused-imports/no-unused-vars
 const getRevealedBlockedMessages = (messageIds: string[]): Message[] => {
   return props.messages.filter(m => messageIds.includes(m.id));
 };
 
 // Legacy functions for backwards compatibility
+// eslint-disable-next-line unused-imports/no-unused-vars
 const isBlockedMessageRevealed = (messageId: string): boolean => {
   return revealedBlockedGroups.value.has(messageId);
 };
 
+// eslint-disable-next-line unused-imports/no-unused-vars
 const revealBlockedMessage = (messageId: string) => {
   revealedBlockedGroups.value.add(messageId);
   blockCheckVersion.value++;
 };
 
+// eslint-disable-next-line unused-imports/no-unused-vars
 const hideBlockedMessage = (messageId: string) => {
   revealedBlockedGroups.value.delete(messageId);
   blockCheckVersion.value++;
@@ -1094,6 +1100,7 @@ const hasDiscordUserMetadata = (message: Message): boolean => {
 };
 
 // Helper function to get Discord user info from metadata
+// eslint-disable-next-line unused-imports/no-unused-vars
 const getDiscordUserInfo = (message: Message): { username: string; display_name: string; avatar_url: string } | null => {
   return message.metadata?.discord_user || null;
 };
@@ -1110,6 +1117,7 @@ const getInstanceBadge = (message: Message): ComputedRef<'admin' | 'mod' | null>
 };
 
 // Helper functions for bot display
+// eslint-disable-next-line unused-imports/no-unused-vars
 const getBotDisplayName = (botId: string): ComputedRef<string> => {
   return computed(() => {
     // Trigger fetch if not cached
@@ -1122,6 +1130,7 @@ const getBotDisplayName = (botId: string): ComputedRef<string> => {
   });
 };
 
+// eslint-disable-next-line unused-imports/no-unused-vars
 const getBotAvatarUrl = (botId: string): ComputedRef<string> => {
   return computed(() => {
     const bot = botDataCache.value.get(botId);
@@ -1129,7 +1138,8 @@ const getBotAvatarUrl = (botId: string): ComputedRef<string> => {
   });
 };
 
-const getBotColor = (botId: string): ComputedRef<string> => {
+// eslint-disable-next-line unused-imports/no-unused-vars
+const getBotColor = (_botId: string): ComputedRef<string> => {
   return computed(() => '#0EA5E9'); // Discord bot color
 };
 

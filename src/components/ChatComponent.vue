@@ -219,7 +219,7 @@
     }
   }
 
-  function handleKickBanDone(result: { success: boolean }) {
+  function handleKickBanDone(_result: { success: boolean }) {
     showKickBanModal.value = false;
   }
   
@@ -607,7 +607,7 @@
       };
       
       // Handle when a thread is created from ThreadView (on first message)
-      const handleThreadCreated = async (thread: any, parentMessage: Message) => {
+      const handleThreadCreated = async (thread: any, _parentMessage: Message) => {
         selectedThreadId.value = thread.id;
         selectedThread.value = thread;
         draftParentMessage.value = null;
@@ -856,6 +856,7 @@
 
           // Send the message with all parts
           if (messageParts.length > 0) {
+            // eslint-disable-next-line unused-imports/no-unused-vars
             didAttemptSend = true;
             const sendOutcome = await sendChannelOrDMWithEncryptionPolicy(messageParts, replyMessageId)
 

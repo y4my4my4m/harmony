@@ -220,7 +220,7 @@ import { useInstanceSettingsStore } from '@/stores/useInstanceSettings'
 import { supabase } from '@/supabase'
 import { useI18n } from 'vue-i18n'
 
-const { t } = useI18n()
+useI18n();
 const instanceSettings = useInstanceSettingsStore()
 const instanceFederationEnabled = instanceSettings.isFederationEnabled
 

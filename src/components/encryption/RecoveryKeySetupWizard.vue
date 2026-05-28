@@ -230,6 +230,7 @@ import { debug } from '@/utils/debug'
 import { useToast } from 'vue-toastification'
 
 const toast = useToast()
+// eslint-disable-next-line unused-imports/no-unused-vars
 const emit = defineEmits(['close', 'complete'])
 
 // Wizard state

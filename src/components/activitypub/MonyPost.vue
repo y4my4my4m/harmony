@@ -873,6 +873,7 @@ const reblogReferenceUrl = computed(() => {
          null;
 });
 
+// eslint-disable-next-line unused-imports/no-unused-vars
 const isVideoMediaUrl = (url: string): boolean => {
   if (!url) return false;
   return /\.(mp4|webm|ogg|avi|mov|wmv|flv|m4v)(\?.*)?$/i.test(url);
@@ -1499,6 +1500,7 @@ const formatDomain = (domain: string | undefined): string => {
  * Render a display name with custom emojis as HTML
  * Replaces :emoji: patterns with <img> tags
  */
+// eslint-disable-next-line unused-imports/no-unused-vars
 const renderDisplayNameWithEmojis = (displayName: string, emojis?: Array<{name: string, url: string}>): string => {
   if (!displayName) return '';
   if (!emojis || emojis.length === 0) return escapeHtml(displayName);

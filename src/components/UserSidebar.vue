@@ -792,6 +792,7 @@ const groupedUsers = computed(() => {
 });
 
 // Get the role info for a group key
+// eslint-disable-next-line unused-imports/no-unused-vars
 const getRoleForGroup = (groupKey: string): ServerRole | null => {
   if (!groupKey.startsWith('role:')) return null;
   const roleId = groupKey.replace('role:', '');

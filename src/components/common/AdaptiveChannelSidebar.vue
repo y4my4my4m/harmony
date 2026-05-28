@@ -171,6 +171,7 @@ const props = withDefaults(defineProps<Props>(), {
   instancePostCount: 0
 });
 
+// eslint-disable-next-line unused-imports/no-unused-vars
 const emit = defineEmits<{
   // Chat mode events
   'channel-selected': [channelId: string];
@@ -250,6 +251,7 @@ const getUserProfilePath = () => {
   return `/social/profile/${handle}`;
 };
 
+// eslint-disable-next-line unused-imports/no-unused-vars
 const getProfileUrl = (handle: string) => {
   return `/social/profile/${handle}`;
 };
@@ -353,6 +355,7 @@ const handleNavItemClick = (navItem: { id: string; path: string }) => {
 };
 
 // Format numbers for display (e.g., 1000 -> 1K)
+// eslint-disable-next-line unused-imports/no-unused-vars
 const formatNumber = (num: number): string => {
   if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
   if (num >= 1000) return (num / 1000).toFixed(1) + 'K';

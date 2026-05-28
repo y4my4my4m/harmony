@@ -161,7 +161,7 @@ const youtubeIframe = ref<HTMLIFrameElement | null>(null);
 const isPlaying = ref(false);
 const embedLoaded = ref(false);
 
-const { registerVideo, returnToOriginalPosition, hasFloatingVideo, getFloatingVideoMessageId } = useFloatingVideo();
+const { registerVideo, returnToOriginalPosition, getFloatingVideoMessageId } = useFloatingVideo();
 
 // Detect server invite links (e.g., https://har.mony.lol/invite/ABC123)
 const isServerInvite = computed(() => {

@@ -260,7 +260,7 @@ const toast = useToast()
 const { t } = useI18n()
 const settingsNav = createSettingsNavigator(router)
 const { updateCurrentUserProfile } = useUserData()
-const { handleTouchStart, handleTouchMove, handleTouchEnd, touchState } = useMobileGestures()
+const { handleTouchStart, handleTouchMove, handleTouchEnd } = useMobileGestures()
 
 // Reactive state
 const loading = ref(false)

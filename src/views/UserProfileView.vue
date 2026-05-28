@@ -1045,6 +1045,7 @@ const showUserProfile = (clickedUser: import('@/types').User | FederatedUser) =>
   debug.log(`👤 Showing profile modal for: ${(clickedUser as FederatedUser).handle}`);
 };
 
+// eslint-disable-next-line unused-imports/no-unused-vars
 const navigateToProfile = (clickedUser: FederatedUser) => {
   // Close modal first
   showProfileModal.value = false;

@@ -208,7 +208,7 @@ export class ActivityProcessor {
     }
 
     // Create follow relationship (auto-accept)
-    const { data: followResult, error: followError } = await supabase.from('follows').upsert({
+    const { error: followError } = await supabase.from('follows').upsert({
       follower_id: follower.id,
       following_id: following.id,
       status: 'accepted',
@@ -1809,7 +1809,7 @@ export class ActivityProcessor {
   /**
    * Process Undo for Like/EmojiReaction (supports both posts and messages/DMs)
    */
-  private static async processUndoReaction(object: any, actorUrl: string): Promise<void> {
+  private static async processUndoReaction(object: any, _actorUrl: string): Promise<void> {
     const supabase = getSupabaseClient();
     const { actorUrl: likeActorUrl, objectUrl } = extractLikeData(object);
     
@@ -2327,6 +2327,7 @@ export class ActivityProcessor {
    */
   private static async processAdd(activity: any): Promise<void> {
     const supabase = getSupabaseClient();
+    // eslint-disable-next-line unused-imports/no-unused-vars
     const actorUrl = normalizeActor(activity.actor);
     const targetUrl = typeof activity.target === 'string' ? activity.target : activity.target?.id;
     const objectUrl = typeof activity.object === 'string' ? activity.object : activity.object?.id;

@@ -677,6 +677,7 @@ interface Props {
   loading: boolean
 }
 
+// eslint-disable-next-line unused-imports/no-unused-vars
 const props = defineProps<Props>()
 
 // Emits
@@ -740,6 +741,7 @@ const customPreviewColors = computed(() => {
 })
 
 const originalSettings = ref({ ...settings.value })
+// eslint-disable-next-line unused-imports/no-unused-vars
 const showColorPicker = ref(false)
 const showAdvancedCss = ref(false)
 const savedThemeName = ref('')

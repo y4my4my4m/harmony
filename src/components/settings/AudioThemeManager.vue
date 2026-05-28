@@ -279,6 +279,7 @@ const {
   localVolume,
   isTesting,
   themes,
+  // eslint-disable-next-line unused-imports/no-unused-vars
   getThemeIcon,
   getThemeIconName,
   selectTheme: baseSelectTheme,

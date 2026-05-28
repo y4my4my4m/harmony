@@ -369,7 +369,7 @@ export class FederationActivityService {
     emojiData: any
     operation: 'add' | 'remove'
   }) {
-    const { activityId, activityType, actor, messageData, emojiData, operation } = params
+    const { activityId, actor, messageData, emojiData, operation } = params
     const instanceDomain = await this.getInstanceDomain()
     const isNative = !emojiData.url
     // Misskey expects `:name:` for custom emojis (no @domain); native emojis
@@ -438,7 +438,7 @@ export class FederationActivityService {
     emojiData: any
     operation: 'add' | 'remove'
   }) {
-    const { activityId, activityType, actor, postData, emojiData, operation } = params
+    const { activityId, actor, postData, emojiData, operation } = params
     const instanceDomain = await this.getInstanceDomain()
     const isNative = !emojiData.url
     const emojiContent = isNative
@@ -550,7 +550,7 @@ export class FederationActivityService {
     target: any
     operation: string
   }) {
-    const { activityId, activityType, actor, target, operation } = params
+    const { activityId, actor, target, operation } = params
 
     if (operation === 'follow') {
       return {

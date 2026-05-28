@@ -393,7 +393,7 @@ const confirmImport = async () => {
   }
 };
 
-const handleImageError = (event: Event, emoji: RemoteEmoji) => {
+const handleImageError = (event: Event, _emoji: RemoteEmoji) => {
   const img = event.target as HTMLImageElement;
   img.src = '/emoji-placeholder.png'; // Fallback image
 };

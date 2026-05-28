@@ -159,7 +159,7 @@ export class MessageEncryptionService {
     const registrationId = await signalProtocolService.generateRegistrationId()
 
     // Save to database
-    const { data, error } = await supabase
+    const { error } = await supabase
       .rpc('initialize_user_encryption', {
         p_user_id: this.currentUserId,
         p_identity_public_key: identityKeyPair.publicKey,
@@ -580,9 +580,9 @@ export class MessageEncryptionService {
    * Decrypt a group message using hybrid encryption
    */
   async decryptGroupMessage(
-    encryptedContent: MessagePart[],
-    senderId: string,
-    groupId: string
+    _encryptedContent: MessagePart[],
+    _senderId: string,
+    _groupId: string
   ): Promise<MessagePart[]> {
     // Not used - handled by regular decryptMessage
     throw new Error('Use decryptMessage instead')

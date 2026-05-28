@@ -110,7 +110,6 @@ import { ref, computed, watch, nextTick } from 'vue'
 import { moderationService, DELETE_MESSAGE_OPTIONS, type DeleteMessageDuration } from '@/services/ModerationService'
 import { userDataService } from '@/services/userDataService'
 import { getUserIdsForServer, getProfiles } from '@/services/usersService'
-import { useServerChannelStore } from '@/stores/useServerChannel'
 import { useAuthStore } from '@/stores/auth'
 import Avatar from '@/components/common/Avatar.vue'
 
@@ -133,7 +132,6 @@ const emit = defineEmits<{
   done: [result: { success: boolean; messagesDeleted?: number }]
 }>()
 
-const serverChannelStore = useServerChannelStore()
 const authStore = useAuthStore()
 const reason = ref('')
 const deleteSeconds = ref<DeleteMessageDuration>(0)

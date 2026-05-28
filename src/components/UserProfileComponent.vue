@@ -128,7 +128,6 @@
 import { ref, onMounted, onBeforeUnmount, computed, nextTick } from 'vue'
 import { debug } from '@/utils/debug'
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel'
-import { useThemeStore } from '@/stores/useTheme'
 import { useNotificationStore } from '@/stores/useNotification'
 import { useRouter } from 'vue-router'
 import { UserStatus, type UserData } from '@/types'
@@ -146,7 +145,6 @@ import { formatCustomStatusDisplay } from '@/utils/customStatusDisplay'
 import { getEmojiUrl } from '@/utils/emojiUtils'
 
 const voiceChannelStore = useUnifiedVoiceChannelStore()
-const themeStore = useThemeStore()
 const notificationStore = useNotificationStore()
 const router = useRouter()
 
@@ -171,6 +169,7 @@ const {
   setCustomStatus,
   clearCustomStatus: clearCustomStatusFn,
   getCustomStatus,
+  // eslint-disable-next-line unused-imports/no-unused-vars
   getStats
 } = useUserData()
 
@@ -317,6 +316,7 @@ const selectStatus = async (status: UserStatus) => {
 }
 
 // Custom status functions
+// eslint-disable-next-line unused-imports/no-unused-vars
 const saveCustomStatus = async () => {
   if (!customStatusText.value.trim()) return
   

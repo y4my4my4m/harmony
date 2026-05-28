@@ -124,7 +124,6 @@
 <script setup lang="ts">
 import { onMounted, ref, watch, computed } from 'vue';
 import { debug } from '@/utils/debug'
-import { useActivityPubStore } from '@/stores/useActivityPub';
 import { services } from '@/services';
 import { activityPubService } from '@/services/activityPubService';
 import { getOriginalPost } from '@/utils/postReblog';
@@ -154,7 +153,6 @@ defineEmits<{
 }>();
 
 // Store
-const activityPubStore = useActivityPubStore();
 
 // State
 const post = ref<TimelinePost | null>(null);

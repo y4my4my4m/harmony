@@ -116,6 +116,7 @@ function shouldExclude(relativePath) {
 // Preferred color variant suffix (_y2 = standard yellow/emoji color).
 // Kept for reference; selection logic currently filters elsewhere.
 // eslint-disable-next-line no-unused-vars
+// eslint-disable-next-line unused-imports/no-unused-vars
 const PREFERRED_COLOR_SUFFIX = '_y2';
 
 /**

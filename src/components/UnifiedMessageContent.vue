@@ -466,7 +466,7 @@ export default defineComponent({
     const imageLoadedState = reactive<Record<string, boolean>>({ ...props.imageLoaded });
     
     // Floating video
-    const { registerVideo, returnToOriginalPosition, hasFloatingVideo, getFloatingVideoMessageId } = useFloatingVideo();
+    const { registerVideo, returnToOriginalPosition, getFloatingVideoMessageId } = useFloatingVideo();
     
     // Watch for prop changes and merge with internal state
     watch(() => props.imageLoaded, (newValue) => {

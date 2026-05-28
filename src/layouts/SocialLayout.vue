@@ -242,6 +242,7 @@ const props = withDefaults(defineProps<Props>(), {
 })
 
 // Emits
+// eslint-disable-next-line unused-imports/no-unused-vars
 const emit = defineEmits<{
   toggleLeftSidebar: []
   toggleRightSidebar: []
@@ -285,6 +286,7 @@ const rightSidebarStyle = computed(() => {
     // Right sidebar slides in from right
     const progress = props.rightSidebarDragOffset / SIDEBAR_WIDTH
     const closedPosition = 100 // Hidden off screen (percentage)
+    // eslint-disable-next-line unused-imports/no-unused-vars
     const openPosition = 0 // Fully visible
     const currentPosition = closedPosition - (closedPosition * progress)
     
@@ -366,6 +368,7 @@ const viewType = computed(() => {
   return routeBasedProps.value.viewType
 })
 
+// eslint-disable-next-line unused-imports/no-unused-vars
 const currentViewData = computed(() => {
   if (viewType.value === 'timeline') {
     return props.posts

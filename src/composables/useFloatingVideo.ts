@@ -271,7 +271,7 @@ export function useFloatingVideo() {
 
     // Vue's ref unwrapping types HTMLElement props as a complex unwrapped shape;
     // cast back to HTMLElement so DOM APIs accept these values.
-    const { element, originalParent, placeholder, type } = currentFloatingVideo.value as unknown as VideoElement
+    const { element, placeholder, type } = currentFloatingVideo.value as unknown as VideoElement
 
     // Pause the video before returning
     if (type === 'video') {
@@ -416,6 +416,7 @@ export function useFloatingVideo() {
     let startY = 0
     let initialX = 0
     let initialY = 0
+    // eslint-disable-next-line unused-imports/no-unused-vars
     let hasMoved = false
 
     // Create a drag handle bar across the entire top
@@ -506,7 +507,7 @@ export function useFloatingVideo() {
       element.style.top = `${floatingPosition.value.y}px`
     }
 
-    const onMouseUp = (e: MouseEvent) => {
+    const onMouseUp = (_e: MouseEvent) => {
       document.removeEventListener('mousemove', onMouseMove)
       document.removeEventListener('mouseup', onMouseUp)
       

@@ -40,7 +40,7 @@
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue'
 import { debug } from '@/utils/debug'
-import { useRoute, useRouter } from 'vue-router'
+import { useRouter } from 'vue-router'
 import ExploreContent from '@/components/activitypub/ExploreContent.vue'
 import MonyHeader from '@/components/activitypub/MonyHeader.vue'
 import { useLayoutState } from '@/composables/useLayoutState'
@@ -74,7 +74,6 @@ const emit = defineEmits<{
 // Store and composables
 const activityPubStore = useActivityPubStore()
 const { followUser, unfollowUser, toggleFavorite, toggleReblog, toggleBookmark } = usePostInteractions()
-const route = useRoute()
 const router = useRouter()
 
 // Refs

@@ -108,6 +108,7 @@ const handleReply = (post: ActivityPubPost) => {
   emit('reply', post);
 };
 
+// eslint-disable-next-line unused-imports/no-unused-vars
 const handleReplyCreated = (newReply: ActivityPubPost) => {
   // Bubble up to parent; parent owns the replies array and re-renders.
   emit('post-created', newReply);

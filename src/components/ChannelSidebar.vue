@@ -660,7 +660,7 @@ const onChannelAddedToOrphans = async (evt: any) => {
   }
 };
 
-const onChannelRemovedFromCategory = (evt: any) => {
+const onChannelRemovedFromCategory = (_evt: any) => {
   // This handles when a channel is removed from a category during drag operations
   // The actual move logic is handled by the corresponding @add event handler
   // This is mainly for cleanup or visual feedback if needed
@@ -953,7 +953,8 @@ const joinVoiceChannel = async (channelId: string): Promise<boolean> => {
   return success;
 };
 
-const leaveVoiceChannel = async (channelId: string) => {
+// eslint-disable-next-line unused-imports/no-unused-vars
+const leaveVoiceChannel = async (_channelId: string) => {
   if (await voiceChannelStore.leaveVoiceChannel()) {
     themeStore.playAudio('voice_disconnect');
     // Haptic feedback for voice disconnect
@@ -1163,8 +1164,8 @@ const closeChannelEditModal = () => showChannelEditModal.value = false;
 const closeCategoryEditModal = () => showCategoryEditModal.value = false;
 const closeThreadEditModal = () => showThreadEditModal.value = false;
 const closeConfirmationModal = () => showConfirmationModal.value = false;
-const handleChannelUpdated = (updatedChannel: Channel) => {}; // Store handles updates
-const handleCategoryUpdated = (updatedCategory: Category) => {}; // Store handles updates
+const handleChannelUpdated = (_updatedChannel: Channel) => {}; // Store handles updates
+const handleCategoryUpdated = (_updatedCategory: Category) => {}; // Store handles updates
 const handleThreadUpdated = () => {
   // Refresh threads list after editing
   loadActiveThreads(true); // Force refresh after mutation

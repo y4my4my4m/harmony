@@ -320,7 +320,9 @@ const sidebarTooltip = ref<{
 const tooltipTimer = ref<ReturnType<typeof setTimeout> | null>(null);
 
 // Legacy refs for backwards compatibility
+// eslint-disable-next-line unused-imports/no-unused-vars
 const draggingServerId = computed(() => draggingItemType.value === 'server' ? draggingItemId.value : null);
+// eslint-disable-next-line unused-imports/no-unused-vars
 const dragOverServerId = computed(() => dropPosition.value === 'into' ? dragOverItemId.value : null);
 
 // Context menu state
@@ -832,7 +834,7 @@ const handleServerDroppedOnFolder = (serverId: string, folderId: string) => {
   serverChannelStore.moveServerToFolder(serverId, folderId);
 };
 
-const handleServerRemovedFromFolder = (serverId: string) => {
+const handleServerRemovedFromFolder = (_serverId: string) => {
   // Server was removed from folder via context menu - already handled in ServerFolder
 };
 
@@ -946,7 +948,7 @@ const closeFolderModal = () => {
   editingFolder.value = null;
 };
 
-const handleFolderSaved = (folder: ServerFolderType) => {
+const handleFolderSaved = (_folder: ServerFolderType) => {
   // Folder saved - state is updated in store
 };
 

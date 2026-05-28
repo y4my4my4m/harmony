@@ -2015,7 +2015,6 @@ export const useDMStore = defineStore('dm', () => {
       userDataService.addEventListener('user-updated', userUpdatedHandler)
       
       // Get reactions store for handling real-time updates
-      const reactionsStore = useReactionsStore()
 
       // Global conversation:new / conversation:updated handlers are registered
       // separately via registerGlobalBroadcastHandlers() (called from BaseLayout)
@@ -2271,6 +2270,7 @@ export const useDMStore = defineStore('dm', () => {
   }
   
   // Connection status tracking (managed by RealtimeConnectionManager)
+  // eslint-disable-next-line unused-imports/no-unused-vars
   const connectionStatus = ref<ConnectionStatus>('disconnected')
 
   // Helper function to update conversation from a new message
@@ -2587,7 +2587,7 @@ export const useDMStore = defineStore('dm', () => {
     
     try {
       // Check if conversation_participants table exists
-      const { data: participantData, error: participantError } = await supabase
+      const { error: participantError } = await supabase
         .from('conversation_participants')
         .select('id')
         .limit(1)
@@ -2601,7 +2601,7 @@ export const useDMStore = defineStore('dm', () => {
       }
       
       // Check if conversations table has the new columns
-      const { data: convData, error: convError } = await supabase
+      const { error: convError } = await supabase
         .from('conversations')
         .select('id, type, created_by')
         .limit(1)

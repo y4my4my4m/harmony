@@ -682,7 +682,7 @@ export const useAuthStore = defineStore('auth', {
           setTimeout(() => reject(new Error('MFA verification timed out. Please try logging in again.')), 30000),
         );
 
-        const { data: verifyData, error: verifyError } = await Promise.race([
+        const { error: verifyError } = await Promise.race([
           verifyPromise,
           timeoutPromise,
         ]);

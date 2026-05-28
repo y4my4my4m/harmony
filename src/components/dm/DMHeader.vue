@@ -787,7 +787,7 @@ const handleSearchClick = () => {
   showSearchModal.value = true
 }
 
-const handleSearchMessageClick = (message: any) => {
+const handleSearchMessageClick = (_message: any) => {
   // Message click is handled by the modal, just close it
   // The message will be scrolled to in the conversation view
   showSearchModal.value = false

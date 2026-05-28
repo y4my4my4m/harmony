@@ -22,6 +22,7 @@ import { inboxLimiter } from '../middleware/rateLimit.js';
 const router = Router();
 
 // Channel type constants (matches DB schema: 0 = text, 1 = voice, 2 = category)
+// eslint-disable-next-line unused-imports/no-unused-vars
 const CHANNEL_TYPE_TEXT = 0;
 const CHANNEL_TYPE_VOICE = 1;
 const CHANNEL_TYPE_CATEGORY = 2;

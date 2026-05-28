@@ -156,7 +156,7 @@ export class RouteAwareInitialization {
   /**
    * Get what data should be loaded in Phase 3 (Background Loading - after UI is interactive)
    */
-  getBackgroundLoadingData(strategy: LoadingStrategy): string[] {
+  getBackgroundLoadingData(_strategy: LoadingStrategy): string[] {
     return [
       'notification-unread-count',
       'other-servers-metadata'

@@ -709,7 +709,7 @@ export const useNotificationStore = defineStore('notification', {
           }
         })
 
-        _unsubBulkRead = userEventChannel.on('notification:bulk_read', (data) => {
+        _unsubBulkRead = userEventChannel.on('notification:bulk_read', (_data) => {
           debug.log('📡 Bulk read event received, marking all notifications as read locally')
           this.notifications.forEach(n => { n.is_read = true })
           this.updateUnreadCount()
@@ -1698,6 +1698,7 @@ export const useNotificationStore = defineStore('notification', {
 })
 
 // Utility function
+// eslint-disable-next-line unused-imports/no-unused-vars
 function timeStringToMinutes(timeString: string): number {
   const [hours, minutes] = timeString.split(':').map(Number)
   return hours * 60 + minutes

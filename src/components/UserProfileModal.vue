@@ -385,7 +385,6 @@ import DOMPurify from 'dompurify'
 import { useI18n } from 'vue-i18n'
 import { useRouter, useRoute } from 'vue-router'
 import { supabase } from '@/supabase'
-import { useAuthStore } from '../stores/auth'
 import { useActivityPubStore } from '../stores/useActivityPub'
 import { useServerChannelStore } from '../stores/useServerChannel'
 import { useUserData } from '@/composables/useUserData'
@@ -414,7 +413,6 @@ const emit = defineEmits(['close', 'invite', 'follow', 'unfollow', 'mention'])
 
 const router = useRouter()
 const route = useRoute()
-const authStore = useAuthStore()
 const activityPubStore = useActivityPubStore()
 const serverChannelStore = useServerChannelStore()
 const { closeMobileSidebars, isMobile } = useLayoutState()
@@ -1186,6 +1184,7 @@ async function loadModerationPermissions() {
   }
 }
 
+// eslint-disable-next-line unused-imports/no-unused-vars
 const debouncedSaveNote = (() => {
   let timeout: any
   return () => {
@@ -1259,7 +1258,7 @@ const isFollowingUser = computed(() => {
 })
 
 // Keep helper for backwards compatibility with template
-const getUserIsFollowing = (user: any) => {
+const getUserIsFollowing = (_user: any) => {
   return isFollowingUser.value
 }
 

@@ -399,6 +399,7 @@ const hasRichContent = computed(() => {
 })
 
 // Check if this notification should show reaction display
+// eslint-disable-next-line unused-imports/no-unused-vars
 const shouldShowReactionDisplay = computed(() => {
   return props.notification.type === 'reaction' || props.notification.type === 'activitypub_reaction'
 })

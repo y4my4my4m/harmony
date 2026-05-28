@@ -655,6 +655,7 @@ class UserDataService extends EventTarget {
     if (!this.globalChannel) return
     
     const state = this.globalChannel.presenceState()
+    // eslint-disable-next-line unused-imports/no-unused-vars
     const userCount = Object.keys(state).length
     
     // Track which users are globally online
@@ -1911,7 +1912,7 @@ class UserDataService extends EventTarget {
    */
   reResolveAllDisplayNames(): void {
     let changed = false
-    for (const [userId, userData] of this.users) {
+    for (const [_userId, userData] of this.users) {
       const newParts = this.resolveDisplayNameParts(userData.displayName, userData.displayNameEmojis)
       const hadParts = !!userData.displayNameParts
       const hasParts = !!newParts

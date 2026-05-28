@@ -341,7 +341,6 @@ export const useChatStore = defineStore('chat', {
         }
         
         // Get reactions store instance
-        const reactionsStore = useReactionsStore();
         
         // Extract unique user IDs from messages and pre-load profiles
         // Service already loads user profiles, but we pre-load for consistency

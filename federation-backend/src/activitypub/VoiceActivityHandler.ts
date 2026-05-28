@@ -771,7 +771,7 @@ export class VoiceActivityHandler {
     channelApId: string,
     channelName: string,
     serverApId: string,
-    serverName: string
+    _serverName: string
   ): VoiceChannelJoin {
     return {
       '@context': [
@@ -884,7 +884,7 @@ export class VoiceActivityHandler {
   static async federateVoiceChannelJoin(
     userId: string,
     channelId: string,
-    serverId: string
+    _serverId: string
   ): Promise<void> {
     const supabase = getSupabaseClient();
     const hostDomain = config.INSTANCE_DOMAIN;
@@ -951,7 +951,7 @@ export class VoiceActivityHandler {
   static async federateVoiceChannelLeave(
     userId: string,
     channelId: string,
-    serverId: string
+    _serverId: string
   ): Promise<void> {
     const supabase = getSupabaseClient();
     const hostDomain = config.INSTANCE_DOMAIN;

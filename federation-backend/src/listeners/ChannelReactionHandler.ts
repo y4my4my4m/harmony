@@ -39,7 +39,7 @@ export async function handleChannelReactionFederation(
   payload: ReactionPayload
 ): Promise<void> {
   try {
-    const { reaction_id, message_id, user_id, emoji_id } = payload;
+    const { reaction_id, message_id } = payload;
     const supabase = getSupabaseClient();
     const hostDomain = config.INSTANCE_DOMAIN;
 
@@ -107,6 +107,7 @@ export async function handleChannelReactionFederation(
       `https://${hostDomain}/users/${reaction.user.username}`;
     const messageApId = message.metadata?.ap_id || 
       `https://${hostDomain}/messages/${message_id}`;
+    // eslint-disable-next-line unused-imports/no-unused-vars
     const serverUrl = `https://${hostDomain}/servers/${server.id}`;
 
     const { content: emojiContent, emojiData } = formatEmojiForFederation(

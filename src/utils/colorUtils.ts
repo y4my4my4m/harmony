@@ -54,6 +54,7 @@ function linearToSrgb(c: number): number {
 /**
  * Convert RGB to XYZ (D65 illuminant)
  */
+// eslint-disable-next-line unused-imports/no-unused-vars
 function rgbToXyz(r: number, g: number, b: number): { x: number; y: number; z: number } {
   // Convert to 0-1 range
   r = r / 255
@@ -76,6 +77,7 @@ function rgbToXyz(r: number, g: number, b: number): { x: number; y: number; z: n
 /**
  * Convert XYZ to RGB
  */
+// eslint-disable-next-line unused-imports/no-unused-vars
 function xyzToRgb(x: number, y: number, z: number): { r: number; g: number; b: number } {
   // Convert from XYZ to linear RGB
   let r = x * 3.2404542 + y * -1.5371385 + z * -0.4985314

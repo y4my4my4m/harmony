@@ -142,6 +142,7 @@ const selectedOutputDevice = ref<string | null>(null);
 const selectedVideoDevice = ref<string | null>(null);
 
 // Computed
+// eslint-disable-next-line unused-imports/no-unused-vars
 const triggerIcon = computed(() => {
   switch (props.type) {
     case 'input': return 'mic';

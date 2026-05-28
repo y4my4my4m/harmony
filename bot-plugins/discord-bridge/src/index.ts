@@ -1517,6 +1517,7 @@ async function handleBridgeCommand(command: ChatInputCommandInteraction) {
 
 async function runBridgeStatus(command: ChatInputCommandInteraction) {
   const mappings = mapper.getAllMappings()
+  // eslint-disable-next-line unused-imports/no-unused-vars
   const guildId = command.guildId!
   const lines: string[] = []
   lines.push(`**Bridge status** — ${mappings.length} mapping${mappings.length === 1 ? '' : 's'}`)

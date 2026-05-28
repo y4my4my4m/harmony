@@ -375,7 +375,7 @@ export class MegolmService {
    */
   findInboundSessionBySessionId(roomId: string, sessionId: string): MegolmInboundSession | undefined {
     // Look for any inbound session with matching roomId and sessionId
-    for (const [key, session] of this.inboundSessions) {
+    for (const [_key, session] of this.inboundSessions) {
       if (session.roomId === roomId && session.sessionId === sessionId) {
         return session
       }

@@ -208,7 +208,7 @@ export class GifService {
   /**
    * Legacy method: Remove favorite by Tenor ID (now removes by URL)
    */
-  async removeFavorite(tenorId: string): Promise<{ success: boolean; error?: string }> {
+  async removeFavorite(_tenorId: string): Promise<{ success: boolean; error?: string }> {
     // This method is kept for backwards compatibility but should use removeFavoriteByUrl
     debug.warn('removeFavorite(tenorId) is deprecated, use removeFavoriteByUrl(gifUrl)')
     // We can't easily map tenorId to URL, so this will need to be updated at call sites

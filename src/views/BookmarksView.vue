@@ -32,6 +32,7 @@ interface Props {
   viewType: string
 }
 
+// eslint-disable-next-line unused-imports/no-unused-vars
 const props = defineProps<Props>()
 
 // Emits

@@ -595,6 +595,7 @@ const hasChanges = computed(() => {
 })
 
 // Methods
+// eslint-disable-next-line unused-imports/no-unused-vars
 const onSettingChange = () => {
   // Settings changed, enable save button
 }

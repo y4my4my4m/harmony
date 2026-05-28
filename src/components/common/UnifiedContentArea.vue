@@ -112,7 +112,6 @@ import PostsContainer from './PostsContainer.vue'
 import ViewHeader from './ViewHeader.vue'
 import type { Message, TimelinePost, FederatedUser } from '@/types'
 import { ViewMode, ViewType } from '@/types/viewTypes'
-import { usePostInteractions } from '@/composables/usePostInteractions'
 
 const router = useRouter()
 
@@ -261,7 +260,6 @@ const handleEditPost = (postId: string) => {
 }
 
 // Use the post interactions composable for all post-related actions
-const postInteractions = usePostInteractions()
 const { t } = useI18n()
 
 // Helper functions for timeline states

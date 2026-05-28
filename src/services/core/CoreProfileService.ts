@@ -177,7 +177,7 @@ export class CoreProfileService {
     options: ProfileSearchOptions = {}
   ): Promise<Profile[]> {
     try {
-      const { limit = 20, includePrivate = false, signal } = options
+      const { limit = 20, signal } = options
 
       // Security validation
       if (!query || typeof query !== 'string') {

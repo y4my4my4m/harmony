@@ -184,12 +184,6 @@ function handleKeydown(e: KeyboardEvent) {
   else if (e.key === 'ArrowRight') next();
 }
 
-watch(
-  () => props.index,
-  (v) => { index.value = v; },
-  { immediate: true }
-);
-
 onMounted(() => {
   document.addEventListener('keydown', handleKeydown);
   if (props.visible) document.body.style.overflow = 'hidden';

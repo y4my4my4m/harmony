@@ -2293,6 +2293,7 @@ const purgingEndpointIds = ref<Set<string>>(new Set())
 const federatedInstances = ref<FederatedInstance[]>([])
 const discoveredInstances = ref<{ domain: string; user_count: number; interaction_count: number }[]>([])
 const discoveryResult = ref<InstanceSearchResult | null>(null)
+// eslint-disable-next-line unused-imports/no-unused-vars
 const showAddInstanceModal = ref(false)
 const instanceFilter = ref<'all' | 'blocked' | 'trusted' | 'active'>('all')
 const instanceSearch = ref('')
@@ -2503,6 +2504,7 @@ const systemStatus = computed(() => {
   return { class: 'healthy', text: 'All Systems Operational' }
 })
 
+// eslint-disable-next-line unused-imports/no-unused-vars
 const federationStatus = computed(() => {
   const pending = systemHealth.value.federation.pending
   if (pending > 100) {
@@ -3616,6 +3618,7 @@ const exportLogs = () => {
   debug.log('Exporting logs...')
 }
 
+// eslint-disable-next-line unused-imports/no-unused-vars
 const blockInstance = async () => {
   if (newBlockDomain.value && newBlockReason.value) {
     try {
@@ -3643,6 +3646,7 @@ const blockInstance = async () => {
   }
 }
 
+// eslint-disable-next-line unused-imports/no-unused-vars
 const unblockInstance = async (domain: string) => {
   try {
     await adminService.moderateInstance(

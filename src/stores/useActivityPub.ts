@@ -384,7 +384,6 @@ export const useActivityPubStore = defineStore('activitypub', {
         debug.log('🌐 Initializing ActivityPub store...');
         
         // Initialize post reactions store for batch loading
-        const postReactionsStore = usePostReactionsStore();
         
         // Load user relationships and counts (run in parallel for efficiency)
         // Note: loadBlockingData handles getting userId from auth store internally
@@ -1466,7 +1465,7 @@ export const useActivityPubStore = defineStore('activitypub', {
      * Clean up realtime subscriptions
      */
     cleanupRealtimeSubscriptions() {
-      this.realtimeSubscriptions.forEach((channel, key) => {
+      this.realtimeSubscriptions.forEach((channel, _key) => {
         supabase.removeChannel(channel);
       });
       this.realtimeSubscriptions.clear();
@@ -3097,6 +3096,7 @@ export const useActivityPubStore = defineStore('activitypub', {
           // Federation is handled automatically by database triggers
         } else {
           // Use service method for reblog (which creates both interaction and reblog post)
+          // eslint-disable-next-line unused-imports/no-unused-vars
           const result = await activityPubService.toggleReblog(postId);
           
           // Update UI immediately

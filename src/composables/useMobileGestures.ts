@@ -61,6 +61,7 @@ export function useMobileGestures() {
   })
 
   // Calculate instantaneous velocity (px/ms)
+  // eslint-disable-next-line unused-imports/no-unused-vars
   const getVelocity = () => {
     const now = Date.now()
     const timeDelta = now - touchState.value.lastMoveTime
@@ -188,6 +189,7 @@ export function useMobileGestures() {
       // Enhanced swipe detection - works from edge zone OR with fast velocity from anywhere
       const absVelocity = Math.abs(velocity)
       const isFastSwipe = absVelocity > config.velocityThreshold * 1.5 // Higher velocity threshold for anywhere swipes
+      // eslint-disable-next-line unused-imports/no-unused-vars
       const isFromEdge = touchState.value.startX <= config.edgeZone || 
                          (typeof window !== 'undefined' && touchState.value.startX >= window.innerWidth - config.edgeZone)
       

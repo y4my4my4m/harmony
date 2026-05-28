@@ -99,7 +99,6 @@ import FollowersList from '@/components/dm/FollowersList.vue'
 import GroupChatInviteModal from '@/components/dm/GroupChatInviteModal.vue'
 import IncomingCallModal from '@/components/dm/IncomingCallModal.vue'
 import { useDMStore } from '@/stores/useDM'
-import { useAuthStore } from '@/stores/auth'
 import { useLayoutState } from '@/composables/useLayoutState'
 import { useUserData } from '@/composables/useUserData'
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel'
@@ -118,9 +117,11 @@ interface Props {
   conversationId?: string
 }
 
+// eslint-disable-next-line unused-imports/no-unused-vars
 const props = defineProps<Props>()
 
 // Emits
+// eslint-disable-next-line unused-imports/no-unused-vars
 const emit = defineEmits<{
   toggleLeftSidebar: []
   toggleVoicePanel: []
@@ -128,7 +129,6 @@ const emit = defineEmits<{
 
 // Stores
 const dmStore = useDMStore()
-const authStore = useAuthStore()
 const voiceStore = useUnifiedVoiceChannelStore()
 const route = useRoute()
 const router = useRouter()
@@ -298,7 +298,7 @@ const fetchMoreMessages = async () => {
 
 // Group chat methods
 
-const handleUsersAdded = async (conversationId: string, userIds: string[]) => {
+const handleUsersAdded = async (conversationId: string, _userIds: string[]) => {
   // Refresh conversation data to show new participants
   const currentUser = getCurrentUser.value
   if (currentUser?.id) {

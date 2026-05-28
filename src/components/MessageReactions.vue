@@ -105,7 +105,7 @@ const authStore = useAuthStore();
 const themeStore = useThemeStore();
 const { triggerReaction } = useHapticSettings();
 const { recordEmojiUsage } = useFrequentEmojis();
-const { resolveEmoji, isNativePack } = useUnifiedEmoji();
+const { resolveEmoji } = useUnifiedEmoji();
 
 // ✅ UNIFIED ARCHITECTURE: Always use reactions store (populated by CoreMessageService)
 const reactions = computed(() => {

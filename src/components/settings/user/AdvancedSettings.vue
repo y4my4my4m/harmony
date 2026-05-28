@@ -171,6 +171,7 @@ interface Props {
   loading: boolean
 }
 
+// eslint-disable-next-line unused-imports/no-unused-vars
 const props = defineProps<Props>()
 
 const emit = defineEmits<{
@@ -202,6 +203,7 @@ const onRunOnLoginEnabled = () => {
   runOnLoginEnabled.value = true
 }
 
+// eslint-disable-next-line unused-imports/no-unused-vars
 const hasChanges = computed(() => {
   return JSON.stringify(settings.value) !== JSON.stringify(originalSettings.value)
 })
