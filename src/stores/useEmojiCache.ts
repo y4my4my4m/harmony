@@ -595,6 +595,17 @@ export const useEmojiCacheStore = defineStore('emojiCache', {
         }
 
         this.rebuildResolvedEmojis();
+
+        const remainingEmojis = Array.from(cache.emojis.values()).map(e => e.emoji);
+        await setCachedServerEmojis({
+          serverId,
+          serverName: cache.serverName,
+          serverIcon: cache.serverIcon,
+          allowCrossServer: cache.allowCrossServer,
+          emojis: remainingEmojis,
+          lastFetched: Date.now(),
+        });
+
         debug.log('➖ Removed emoji from cache:', emoji.name);
       }
     },

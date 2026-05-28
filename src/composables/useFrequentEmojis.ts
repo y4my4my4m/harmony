@@ -108,7 +108,7 @@ function recordEmojiUsage(emoji: { id?: string; native?: string; name: string; u
 /**
  * Remove an emoji from the frequently used list
  */
-function removeFrequentEmoji(emojiId: string): void {
+export function removeFrequentEmoji(emojiId: string): void {
   loadFrequentEmojis()
   const idx = frequentEmojis.value.findIndex(e => e.id === emojiId || e.native === emojiId)
   if (idx >= 0) {

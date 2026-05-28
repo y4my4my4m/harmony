@@ -3943,6 +3943,26 @@ EXCEPTION WHEN OTHERS THEN
 END;
 $$;
 
+-- Snapshot reaction display key before emoji delete (FK handles emoji_id → NULL)
+CREATE OR REPLACE FUNCTION public.prepare_emoji_deletion()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  UPDATE public.post_interactions pi
+  SET custom_emoji_content = CASE
+      WHEN OLD.url IS NOT NULL THEN ':' || OLD.name || ':'
+      ELSE OLD.name
+    END
+  WHERE pi.emoji_id = OLD.id
+    AND pi.custom_emoji_content IS NULL;
+
+  RETURN OLD;
+END;
+$$;
+
 -- Emoji changes → server-presence:{server_id}
 CREATE OR REPLACE FUNCTION public.broadcast_emoji_change()
 RETURNS trigger
