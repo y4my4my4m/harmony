@@ -23,6 +23,12 @@ type UserEventType =
   | 'server:joined' | 'server:left' | 'server:updated'
   | 'preferences:updated'
   | 'post:new' | 'post:updated' | 'post:deleted' | 'post:interaction'
+  // Home-timeline fan-out. `post:new` only fires on the AUTHOR's user
+  // channel (see `broadcast_post_event`); this event additionally fires
+  // on every home-timeline RECIPIENT's user channel so followers see the
+  // post prepended in real time. Triggered by `broadcast_home_feed_entry`
+  // on `timeline_entries` INSERT (timeline_type = 'home').
+  | 'home_feed:new_post'
   | 'follow:change'
   | 'encryption:key_request' | 'encryption:key_fulfilled'
   | 'mute:insert' | 'mute:delete'

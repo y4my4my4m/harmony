@@ -725,6 +725,21 @@ export const useActivityPubStore = defineStore('activitypub', {
         this.handleRealtimePostCreate({ id: data.post_id, author_id: data.author_id, visibility: data.visibility, ap_type: data.ap_type });
       }));
 
+      // Home-timeline broadcast: fan-out from `broadcast_home_feed_entry`
+      // on `timeline_entries` INSERT. Reuses the same handler as `post:new`
+      // because the handler is already idempotent via dedup-by-id on the
+      // four feeds. The author also receives this event (their own home
+      // timeline_entry insert fires it), but the existing `post:new`
+      // arrives first on their channel — the dedup check in
+      // handleRealtimePostCreate makes the second arrival a no-op.
+      unsubs.push(userEventChannel.on('home_feed:new_post', (data) => {
+        this.handleRealtimePostCreate({
+          id: data.post_id,
+          author_id: data.author_id,
+          visibility: data.visibility,
+        });
+      }));
+
       unsubs.push(userEventChannel.on('post:updated', (data) => {
         this.handleRealtimePostUpdate({ id: data.post_id, author_id: data.author_id, is_deleted: data.is_deleted, visibility: data.visibility });
       }));
