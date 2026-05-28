@@ -78,6 +78,14 @@ CREATE TABLE IF NOT EXISTS public.profiles (
     federation_followers_only boolean DEFAULT false,
     manually_approves_followers boolean DEFAULT false,
 
+    web_handle text GENERATED ALWAYS AS (
+        CASE
+            WHEN COALESCE(is_local, true) THEN '@' || username
+            WHEN domain IS NOT NULL AND domain <> '' THEN '@' || username || '@' || domain
+            ELSE '@' || username
+        END
+    ) STORED,
+
     CONSTRAINT profiles_username_check CHECK (username ~* '^[a-zA-Z0-9_]+$'),
     -- `display_name` is optional (some federated profiles may legitimately
     -- omit it), but if present it must contain at least one non-whitespace
@@ -112,6 +120,7 @@ COMMENT ON TABLE public.profiles IS 'User profiles - both local and federated us
 COMMENT ON COLUMN public.profiles.domain IS 'Instance domain (e.g., harmony.example.com)';
 COMMENT ON COLUMN public.profiles.federated_id IS 'Full ActivityPub actor URL';
 COMMENT ON COLUMN public.profiles.is_local IS 'True if user is from this instance';
+COMMENT ON COLUMN public.profiles.web_handle IS 'Precomputed @handle for UI (local @user, remote @user@domain)';
 
 -- ---------------------------------------------------------------------------
 -- INSTANCE CONFIG - Server-wide configuration

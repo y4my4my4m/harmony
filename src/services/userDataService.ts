@@ -356,7 +356,7 @@ class UserDataService extends EventTarget {
         debug.log('🔄 Loading user profile from database...')
         const { data: profileData } = await supabase
           .from('profiles')
-          .select('id, username, display_name, avatar_url, banner_url, bio, color, status, domain, is_local, updated_at, created_at, custom_status, is_admin, is_moderator, federation_metadata')
+          .select('id, username, web_handle, display_name, avatar_url, banner_url, bio, color, status, domain, is_local, updated_at, created_at, custom_status, is_admin, is_moderator, federation_metadata')
           .eq('id', userId)
           .single()
         profile = profileData
@@ -486,6 +486,7 @@ class UserDataService extends EventTarget {
         const userData: UserData = {
           id: profile.id,
           username: profile.username || username,
+          handle: profile.web_handle ?? undefined,
           displayName: currentDisplayName,
           displayNameEmojis: dnEmojis,
           displayNameParts: this.resolveDisplayNameParts(currentDisplayName, dnEmojis),
@@ -1257,7 +1258,7 @@ class UserDataService extends EventTarget {
     try {
       const { data: profiles } = await supabase
         .from('profiles')
-        .select('id, username, display_name, avatar_url, banner_url, bio, color, status, domain, updated_at, created_at, is_local, custom_status, is_admin, is_moderator, federation_metadata')
+        .select('id, username, web_handle, display_name, avatar_url, banner_url, bio, color, status, domain, updated_at, created_at, is_local, custom_status, is_admin, is_moderator, federation_metadata')
         .in('id', missingUserIds)
       
       if (profiles) {
@@ -1268,6 +1269,7 @@ class UserDataService extends EventTarget {
           const userData: UserData = {
             id: profile.id,
             username: profile.username || 'Unknown',
+            handle: profile.web_handle ?? undefined,
             displayName: dn,
             displayNameEmojis: dnEmojis,
             displayNameParts: this.resolveDisplayNameParts(dn, dnEmojis),

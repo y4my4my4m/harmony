@@ -3713,13 +3713,13 @@ BEGIN
             notification_data := jsonb_build_object(
                 'type', 'activitypub_follow',
                 'follower_id', NEW.follower_id,
-                'follower', jsonb_build_object(
-                    'id', follower_profile.id,
-                    'username', follower_profile.username,
-                    'display_name', follower_profile.display_name,
-                    'avatar_url', follower_profile.avatar_url,
-                    'domain', follower_profile.domain,
-                    'is_local', follower_profile.is_local
+                'follower', notification_actor_json(
+                    follower_profile.id,
+                    follower_profile.username,
+                    follower_profile.display_name,
+                    follower_profile.avatar_url,
+                    follower_profile.domain,
+                    follower_profile.is_local
                 )
             );
 
@@ -3774,13 +3774,13 @@ BEGIN
                     'custom_emoji_content', NEW.custom_emoji_content
                 ),
                 'sender', CASE WHEN reactor_profile.id IS NOT NULL THEN
-                    jsonb_build_object(
-                        'id', reactor_profile.id,
-                        'username', reactor_profile.username,
-                        'display_name', reactor_profile.display_name,
-                        'avatar_url', reactor_profile.avatar_url,
-                        'domain', reactor_profile.domain,
-                        'is_local', reactor_profile.is_local
+                    notification_actor_json(
+                        reactor_profile.id,
+                        reactor_profile.username,
+                        reactor_profile.display_name,
+                        reactor_profile.avatar_url,
+                        reactor_profile.domain,
+                        reactor_profile.is_local
                     )
                 ELSE NULL END
             );
@@ -3843,13 +3843,13 @@ BEGIN
                         'custom_emoji_content', NEW.custom_emoji_content
                     ),
                     'sender', CASE WHEN reactor_profile.id IS NOT NULL THEN
-                        jsonb_build_object(
-                            'id', reactor_profile.id,
-                            'username', reactor_profile.username,
-                            'display_name', reactor_profile.display_name,
-                            'avatar_url', reactor_profile.avatar_url,
-                            'domain', reactor_profile.domain,
-                            'is_local', reactor_profile.is_local
+                        notification_actor_json(
+                            reactor_profile.id,
+                            reactor_profile.username,
+                            reactor_profile.display_name,
+                            reactor_profile.avatar_url,
+                            reactor_profile.domain,
+                            reactor_profile.is_local
                         )
                     ELSE NULL END
                 );

@@ -1784,6 +1784,60 @@ BEGIN
 END;
 $$;
 
+-- Canonical web handle and notification actor payload (includes handle field).
+CREATE OR REPLACE FUNCTION public.profile_web_handle(
+  p_username text,
+  p_domain text,
+  p_is_local boolean
+) RETURNS text
+LANGUAGE sql
+STABLE
+SET search_path = public
+AS $$
+  SELECT CASE
+    WHEN COALESCE(p_is_local, true) THEN '@' || p_username
+    ELSE '@' || p_username || '@' || COALESCE(
+      NULLIF(p_domain, ''),
+      NULLIF(current_setting('app.domain', true), '')
+    )
+  END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.notification_actor_json(
+  p_id uuid,
+  p_username text,
+  p_display_name text,
+  p_avatar_url text,
+  p_domain text,
+  p_is_local boolean
+) RETURNS jsonb
+LANGUAGE sql
+STABLE
+SET search_path = public
+AS $$
+  SELECT jsonb_build_object(
+    'id', p_id,
+    'user_id', p_id,
+    'username', p_username,
+    'display_name', COALESCE(p_display_name, p_username),
+    'avatar_url', p_avatar_url,
+    'domain', p_domain,
+    'is_local', COALESCE(p_is_local, true),
+    'handle', public.profile_web_handle(p_username, p_domain, p_is_local)
+  );
+$$;
+
+CREATE OR REPLACE FUNCTION public.notification_actor_json(p public.profiles)
+RETURNS jsonb
+LANGUAGE sql
+STABLE
+SET search_path = public
+AS $$
+  SELECT public.notification_actor_json(
+    p.id, p.username, p.display_name, p.avatar_url, p.domain, p.is_local
+  );
+$$;
+
 -- Handle message federation - sends DM/group-chat/mention notifications
 CREATE OR REPLACE FUNCTION public.handle_message_federation()
 RETURNS trigger
@@ -1859,12 +1913,7 @@ BEGIN
                             'mention',
                             mentioned_user_id,
                             jsonb_build_object(
-                                'sender', jsonb_build_object(
-                                    'user_id', v_sender_profile.id,
-                                    'username', v_sender_profile.username,
-                                    'display_name', v_sender_profile.display_name,
-                                    'avatar_url', v_sender_profile.avatar_url
-                                ),
+                                'sender', notification_actor_json(v_sender_profile),
                                 'message', jsonb_build_object(
                                     'id', NEW.id,
                                     'content_preview', content_preview
@@ -1912,12 +1961,7 @@ BEGIN
                     AND p.is_local = true
                 ),
                 jsonb_build_object(
-                    'sender', jsonb_build_object(
-                        'user_id', v_sender_profile.id,
-                        'username', v_sender_profile.username,
-                        'display_name', v_sender_profile.display_name,
-                        'avatar_url', v_sender_profile.avatar_url
-                    ),
+                    'sender', notification_actor_json(v_sender_profile),
                     'message', jsonb_build_object(
                         'id', NEW.id,
                         'content_preview', content_preview
@@ -1947,12 +1991,7 @@ BEGIN
                     AND p.is_local = true
                 ),
                 jsonb_build_object(
-                    'sender', jsonb_build_object(
-                        'user_id', v_sender_profile.id,
-                        'username', v_sender_profile.username,
-                        'display_name', v_sender_profile.display_name,
-                        'avatar_url', v_sender_profile.avatar_url
-                    ),
+                    'sender', notification_actor_json(v_sender_profile),
                     'message', jsonb_build_object(
                         'id', NEW.id,
                         'content_preview', content_preview
@@ -1982,12 +2021,7 @@ BEGIN
                     AND p.is_local = true
                 ),
                 jsonb_build_object(
-                    'sender', jsonb_build_object(
-                        'user_id', v_sender_profile.id,
-                        'username', v_sender_profile.username,
-                        'display_name', v_sender_profile.display_name,
-                        'avatar_url', v_sender_profile.avatar_url
-                    ),
+                    'sender', notification_actor_json(v_sender_profile),
                     'message', jsonb_build_object(
                         'id', NEW.id,
                         'content_preview', content_preview
@@ -2199,13 +2233,13 @@ BEGIN
                                 'activitypub_mention',
                                 mentioned_user_id,
                                 jsonb_build_object(
-                                    'actor', jsonb_build_object(
-                                        'id', author_profile.id,
-                                        'username', author_profile.username,
-                                        'display_name', author_profile.display_name,
-                                        'avatar_url', author_profile.avatar_url,
-                                        'domain', author_profile.domain,
-                                        'is_local', author_profile.is_local
+                                    'actor', notification_actor_json(
+                                        author_profile.id,
+                                        author_profile.username,
+                                        author_profile.display_name,
+                                        author_profile.avatar_url,
+                                        author_profile.domain,
+                                        author_profile.is_local
                                     ),
                                     'post', jsonb_build_object(
                                         'id', NEW.id,
@@ -2290,13 +2324,13 @@ BEGIN
                                     'activitypub_mention',
                                     mentioned_user_id,
                                     jsonb_build_object(
-                                        'actor', jsonb_build_object(
-                                            'id', author_profile.id,
-                                            'username', author_profile.username,
-                                            'display_name', author_profile.display_name,
-                                            'avatar_url', author_profile.avatar_url,
-                                            'domain', author_profile.domain,
-                                            'is_local', author_profile.is_local
+                                        'actor', notification_actor_json(
+                                            author_profile.id,
+                                            author_profile.username,
+                                            author_profile.display_name,
+                                            author_profile.avatar_url,
+                                            author_profile.domain,
+                                            author_profile.is_local
                                         ),
                                         'post', jsonb_build_object(
                                             'id', NEW.id,
@@ -2376,13 +2410,13 @@ BEGIN
         'activitypub_reply',
         parent_post.author_id,
         jsonb_build_object(
-            'actor', jsonb_build_object(
-                'id', replier_profile.id,
-                'username', replier_profile.username,
-                'display_name', replier_profile.display_name,
-                'avatar_url', replier_profile.avatar_url,
-                'domain', replier_profile.domain,
-                'is_local', replier_profile.is_local
+            'actor', notification_actor_json(
+                replier_profile.id,
+                replier_profile.username,
+                replier_profile.display_name,
+                replier_profile.avatar_url,
+                replier_profile.domain,
+                replier_profile.is_local
             ),
             'post', jsonb_build_object(
                 'id', NEW.id,
