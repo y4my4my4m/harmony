@@ -20,6 +20,7 @@ import { useUnifiedEmoji } from '@/services/unifiedEmojiService';
 import { isYouTubeUrl, buildYouTubeEmbedUrl, parseEmbedUrl } from '@/utils/embedDetection';
 import { escapeHtml, sanitizeFormattedHtml, sanitizeUrl } from '@/utils/sanitize';
 import { findEmojiByName as resolveEmojiByShortcode } from '@/services/emojiShortcodeResolver';
+import { stripTrackingParameters, isUrlTrackingStrippingEnabled } from '@/utils/urlTrackerStripper';
 
 export interface ContentRenderOptions {
   mode?: 'display' | 'preview' | 'edit';
@@ -480,14 +481,24 @@ export function useContentRenderer(
         }
         
         case 'url': {
-          const url = part.url || '';
+          // Strip tracking params at render time so:
+          //  * federated posts (parsed server-side, bypassing the composer's
+          //    `parseTextForUrls` strip) display cleanly
+          //  * old posts saved before the strip feature existed still display
+          //    cleanly without a DB migration
+          //  * the displayed text matches the live href the user clicks
+          // The original URL stays in `part.url` (i.e. in the DB), so peers
+          // see what the sender wrote.
+          const rawUrl = part.url || '';
+          const url = isUrlTrackingStrippingEnabled() ? stripTrackingParameters(rawUrl) : rawUrl;
           // sanitizeUrl rejects javascript:/data:/etc.; escapeHtml prevents
           // attribute-context HTML injection.
           const cleanUrl = sanitizeUrl(url);
           const safeUrl = escapeHtml(cleanUrl);
-          // Display text uses the raw (escaped) URL so the user sees what they typed
-          // even if the scheme is unsafe - we just don't make it a live link.
-          const safeDisplayText = escapeHtml(url);
+          // Display text uses the (escaped) cleaned URL so the user sees the
+          // stripped form. If sanitizeUrl rejected the scheme, fall back to
+          // the raw URL so the inert text doesn't go blank.
+          const safeDisplayText = escapeHtml(cleanUrl || url);
 
           // If the URL was rejected by sanitizeUrl, render it as inert text instead
           // of a clickable anchor (a `href=""` link would navigate to the current page).
