@@ -213,7 +213,10 @@
             :is-sensitive="displayIsSensitive"
           />
 
-          <!-- Full Link Preview Cards (everything that isn't already represented inline) -->
+          <!-- Link preview cards. Variant is `thumbnail` (small horizontal
+               card) when the post also has a media attachment, so we don't
+               visually double the dominant image. Otherwise `default` (big
+               hero card). -->
           <a
             v-for="embed in cardEmbeds"
             :key="embed.url"
@@ -222,7 +225,7 @@
             rel="noopener noreferrer"
             class="post-link-preview"
           >
-            <LinkEmbedCard :payload="(embed as any)" />
+            <LinkEmbedCard :payload="(embed as any)" :variant="cardEmbedVariant" />
           </a>
         </div>
       </div>
@@ -976,45 +979,18 @@ const isInlineRichEmbed = (embed: { url: string; provider?: string }): boolean =
 };
 
 const inlineRichEmbeds = computed(() => postEmbeds.value.filter(isInlineRichEmbed));
+const cardEmbeds = computed(() => postEmbeds.value.filter((e) => !isInlineRichEmbed(e)));
 
-// Embeds that need a full link card. We strip `image` from any embed whose
-// preview image visually duplicates something already shown by
-// MonyMediaGallery, so a federated post doesn't render the same hero image
-// twice (once as a gallery tile, once as the card's big thumbnail).
-//
-// Two cases get the strip:
-//  1. Exact URL match — a Harmony post or an instance that serves the og:image
-//     directly without a media cache.
-//  2. The "link share" shape — exactly one media attachment AND exactly one
-//     card embed. This is the most common federated-from-Mastodon case: the
-//     remote serializer puts the cached preview image into `attachment[0]`
-//     (so it lands in `media_attachments`) AND we generate our own link
-//     preview from the URL in content (which lands in `metadata.embeds`).
-//     The two URLs are different (mastodon-media-cache vs the origin host's
-//     CDN) so exact-match never catches this; the shape heuristic does.
-// When stripped, the card still renders site name + title + description, so
-// users keep that context — they just don't see the same image twice.
-const cardEmbeds = computed(() => {
-  const cards = postEmbeds.value.filter((e) => !isInlineRichEmbed(e));
-  const attachments = displayMediaAttachments.value as any[];
-  if (attachments.length === 0) return cards;
-
-  const attachmentUrls = new Set<string>();
-  for (const m of attachments) {
-    const u = m?.url || m?.remote_url || m?.href;
-    if (typeof u === 'string' && u) attachmentUrls.add(u);
-  }
-
-  const isLinkShareShape = attachments.length === 1 && cards.length === 1;
-
-  return cards.map((embed) => {
-    const exactMatch = embed.image && attachmentUrls.has(embed.image);
-    if (exactMatch || isLinkShareShape) {
-      return { ...embed, image: undefined } as typeof embed;
-    }
-    return embed;
-  });
-});
+// When the post also has a media attachment, render link cards in the
+// `thumbnail` variant: a fixed-size horizontal card with a small image on
+// the left and one-line title + one-line description on the right. The
+// attachment is already the dominant visual; the card just adds the
+// site / title context without doubling the picture's footprint - same
+// pattern Mastodon and Misskey use. With no attachment present, fall back
+// to the full default card (image on top, full body).
+const cardEmbedVariant = computed<'default' | 'thumbnail'>(() =>
+  (displayMediaAttachments.value as any[]).length > 0 ? 'thumbnail' : 'default'
+);
 
 // Content for MonyContent: when we have media_attachments, exclude file/image parts from content
 // so they're only shown once in MonyMediaGallery (which has the lightbox). Federated posts often
