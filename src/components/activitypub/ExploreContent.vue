@@ -88,7 +88,7 @@
         <!-- Individual Sections (when any has content or when showing empty with hints) -->
         <div class="trending-sections">
           <!-- Trending Posts -->
-          <div class="section trending-section trending-posts">
+          <div v-if="showTrendingPosts" class="section trending-section trending-posts">
             <h3 class="section-title">
               <Icon name="trending-up" />
               {{ $t('activitypub.trendingPosts') }}
@@ -115,7 +115,7 @@
           </div>
 
           <!-- Trending Hashtags -->
-          <div class="section trending-section trending-hashtags">
+          <div v-if="showTrendingHashtags" class="section trending-section trending-hashtags">
             <h3 class="section-title">
               <Icon name="hash" />
               {{ $t('activitypub.trendingHashtags') }}
@@ -148,7 +148,7 @@
           </div>
 
           <!-- Suggested Users -->
-          <div class="section trending-section suggested-users">
+          <div v-if="showSuggestedUsers" class="section trending-section suggested-users">
             <h3 class="section-title">
               <Icon name="user-plus" />
               {{ $t('activitypub.suggestedUsers') }}
@@ -418,35 +418,78 @@ const currentTabData = computed(() => {
 });
 
 // Methods
-const getTimeRangeDays = (): number => {
-  switch (selectedTimeRange.value) {
-    case '1h': return 1;
-    case '6h': return 1;
-    case '24h': return 1;
+const trendingFilters = () => ({
+  contentType: selectedContentType.value as 'all' | 'posts' | 'media' | 'users',
+  timeRange: selectedTimeRange.value as '1h' | '6h' | '24h' | '7d' | '30d',
+  instance: selectedInstance.value === 'all' ? undefined : selectedInstance.value,
+});
+
+const showTrendingPosts = computed(() => {
+  const type = selectedContentType.value;
+  return type === 'all' || type === 'posts' || type === 'media';
+});
+
+const showTrendingHashtags = computed(() => {
+  const type = selectedContentType.value;
+  return type === 'all' || type === 'posts' || type === 'media';
+});
+
+const showSuggestedUsers = computed(() => {
+  const type = selectedContentType.value;
+  return type === 'all' || type === 'users';
+});
+
+const daysForTimeRange = (timeRange: string): number => {
+  switch (timeRange) {
     case '7d': return 7;
     case '30d': return 30;
     default: return 1;
   }
 };
 
+const filterTrendingPostsByInstance = (posts: any[], instance?: string) => {
+  if (!instance) return posts;
+  return posts.filter((item) => {
+    const post = item.post ?? item;
+    const domain = post.author?.domain
+      ?? (post.ap_id ? (() => { try { return new URL(post.ap_id).hostname; } catch { return null; } })() : null);
+    return domain === instance;
+  });
+};
+
 const loadTrendingContent = async () => {
   try {
     isLoading.value = true;
-    const days = getTimeRangeDays();
-    
+    const filters = trendingFilters();
+    const contentType = filters.contentType;
+
     const [hashtags, posts, users] = await Promise.all([
-      trendingService.getTrendingHashtags({ limit: 10, days }),
-      trendingService.getTrendingPosts({ 
-        limit: 20, 
-        timeframe: 'daily',
-        includeLocal: true,
-        includeFederated: true 
-      }),
-      trendingService.getTrendingUsers({ limit: 6 })
+      showTrendingHashtags.value
+        ? trendingService.getTrendingHashtags({
+            limit: 10,
+            days: daysForTimeRange(filters.timeRange),
+          })
+        : Promise.resolve([]),
+      showTrendingPosts.value
+        ? trendingService.getTrendingPosts({
+            limit: 20,
+            timeRange: filters.timeRange,
+            instance: filters.instance,
+            mediaOnly: contentType === 'media',
+            includeLocal: true,
+            includeFederated: true,
+          })
+        : Promise.resolve([]),
+      showSuggestedUsers.value
+        ? trendingService.getTrendingUsers({
+            limit: 6,
+            instance: filters.instance,
+          })
+        : Promise.resolve([]),
     ]);
 
     trendingHashtags.value = hashtags;
-    trendingPosts.value = posts;
+    trendingPosts.value = filterTrendingPostsByInstance(posts, filters.instance);
     suggestedUsers.value = users;
   } catch (error) {
     debug.error('Failed to load trending content:', error);

@@ -57,6 +57,9 @@ export interface TrendingOptions {
   includeLocal?: boolean;
   includeFederated?: boolean;
   minEngagement?: number;
+  instance?: string;
+  timeRange?: ExploreFilters['timeRange'];
+  mediaOnly?: boolean;
 }
 
 export interface ExploreFilters {
@@ -177,10 +180,13 @@ class TrendingService {
     try {
       const { 
         limit = 20, 
-        timeframe = 'daily',
+        timeframe = options.timeRange ? this.getPeriodTypeForTimeRange(options.timeRange) : 'daily',
         includeLocal = true,
         includeFederated = true,
-        minEngagement = 1
+        minEngagement = 1,
+        instance,
+        timeRange,
+        mediaOnly = false,
       } = options;
 
       // Build the query
@@ -203,6 +209,18 @@ class TrendingService {
         query = query.eq('post.is_local', includeLocal);
       }
 
+      if (timeRange) {
+        query = query.gte('post.created_at', this.getTimeThreshold(timeRange));
+      }
+
+      if (instance && instance !== 'all') {
+        query = query.eq('post.author.domain', instance);
+      }
+
+      if (mediaOnly) {
+        query = query.not('post.media_attachments', 'eq', '[]');
+      }
+
       const { data, error } = await query;
       if (error) throw error;
 
@@ -218,6 +236,22 @@ class TrendingService {
       });
     } catch (error) {
       debug.error('Failed to get trending posts:', error);
+      // Fall back to the explore query when the trending materialized
+      // table is empty or filters aren't representable there.
+      if (options.timeRange || options.instance || options.mediaOnly) {
+        const posts = await this.getExplorePosts({
+          contentType: options.mediaOnly ? 'media' : 'posts',
+          timeRange: options.timeRange,
+          instance: options.instance,
+        });
+        return posts.map((post, index) => ({
+          post,
+          trending_score: 0,
+          engagement_score: 0,
+          trending_rank: index + 1,
+          engagement_velocity: 0,
+        }));
+      }
       return [];
     }
   }
@@ -338,15 +372,13 @@ class TrendingService {
    */
   async getTrendingUsers(options: TrendingOptions = {}): Promise<TrendingUser[]> {
     try {
-      const { limit = 10 } = options;
+      const { limit = 10, instance } = options;
 
       // Get current user id to exclude from trending users
       const { authContextService } = await import('@/services/AuthContextService');
       const context = await authContextService.getCurrentContext();
       const currentUserId = context.authUser?.id;
 
-      // For now, get users with recent activity and good engagement
-      // TODO: Implement proper trending_users table usage when that's populated
       let query = supabase
         .from('profiles')
         .select(`
@@ -363,9 +395,16 @@ class TrendingService {
           following_count,
           posts_count
         `)
-        .eq('domain', import.meta.env.VITE_DOMAIN as string) // Local users for now
-        .eq('is_suspended', false) // Exclude suspended users
-        .order('created_at', { ascending: false });
+        .eq('is_suspended', false);
+
+      if (instance && instance !== 'all') {
+        query = query.eq('domain', instance);
+      } else {
+        // Default: local users when no instance filter is selected
+        query = query.eq('domain', import.meta.env.VITE_DOMAIN as string);
+      }
+
+      query = query.order('followers_count', { ascending: false });
 
       if (currentUserId) {
         query = query.neq('id', currentUserId);
@@ -536,10 +575,17 @@ class TrendingService {
     instances: any[];
   }> {
     try {
+      const timeRange = filters.timeRange ?? '24h';
       const [posts, hashtags, users, instances] = await Promise.all([
         this.getExplorePosts(filters),
-        this.getTrendingHashtags({ limit: 10 }),
-        this.getTrendingUsers({ limit: 6 }),
+        this.getTrendingHashtags({
+          limit: 10,
+          days: this.getDaysForTimeRange(timeRange),
+        }),
+        this.getTrendingUsers({
+          limit: 6,
+          instance: filters.instance,
+        }),
         this.getFederatedInstances({ limit: 8, filter: 'active' })
       ]);
 
@@ -699,6 +745,38 @@ class TrendingService {
         return new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
       default:
         return new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
+    }
+  }
+
+  private getPeriodTypeForTimeRange(
+    timeRange: ExploreFilters['timeRange']
+  ): 'hourly' | 'daily' | 'weekly' {
+    switch (timeRange) {
+      case '1h':
+      case '6h':
+        return 'hourly';
+      case '7d':
+      case '30d':
+        return 'weekly';
+      case '24h':
+      default:
+        return 'daily';
+    }
+  }
+
+  private getDaysForTimeRange(timeRange: ExploreFilters['timeRange'] = '24h'): number {
+    switch (timeRange) {
+      case '1h':
+      case '6h':
+        return 1;
+      case '24h':
+        return 1;
+      case '7d':
+        return 7;
+      case '30d':
+        return 30;
+      default:
+        return 1;
     }
   }
 

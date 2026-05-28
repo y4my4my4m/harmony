@@ -76,7 +76,23 @@
           </div>
         </div>
       </div>
-      <div class="context-right"></div>
+      <div class="context-right">
+        <div
+          v-if="fundingConfig && fundingConfig.enabled && fundingConfig.show_in_context_bar && fundingConfig.goal_amount"
+          class="funding-indicator"
+          @click="$emit('open-funding')"
+          :title="fundingTooltip"
+        >
+          <div class="funding-progress-track">
+            <div class="funding-progress-fill" :style="{ width: fundingPercent + '%' }"></div>
+          </div>
+          <span class="funding-text">
+            {{ formatCurrency(fundingConfig.displayed_amount ?? fundingConfig.current_amount, fundingConfig.goal_currency) }}
+            /
+            {{ formatCurrency(fundingConfig.goal_amount, fundingConfig.goal_currency) }}
+          </span>
+        </div>
+      </div>
     </div>
   </div>
 </template>
