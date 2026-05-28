@@ -10,6 +10,7 @@ import { ref, onMounted, type Ref } from 'vue'
 import { debug } from '@/utils/debug'
 import { activityPubService } from '@/services/activityPubService'
 import { getOriginalApId, getOriginalPostId } from '@/utils/postReblog'
+import { useActivityPubStore } from '@/stores/useActivityPub'
 import type { TimelinePost } from '@/types'
 
 export const fetchedReactionsThisSession = new Set<string>()
@@ -84,6 +85,10 @@ export function useRemotePostSync(
 
   if (options.autoFetchReactions !== false) {
     onMounted(() => {
+      const activityPubStore = useActivityPubStore()
+      if (activityPubStore.deferPerPostRemoteReactions) {
+        return
+      }
       const p = getPost()
       if (getIsRemote() && !fetchedReactionsThisSession.has(p.id)) {
         fetchedReactionsThisSession.add(p.id)
