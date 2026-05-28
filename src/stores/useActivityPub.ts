@@ -1623,6 +1623,13 @@ export const useActivityPubStore = defineStore('activitypub', {
       // Map from target ap_id back to timeline post for result lookup
       const apIdToPost = new Map<string, TimelinePost>();
 
+      // Optimistic dedup: mark IDs as in-flight BEFORE the HTTP fires so
+      // MonyPost.onMounted (which checks the same Set) doesn't race the
+      // batch and fire a parallel per-post `/fetch-reactions` for the same
+      // posts. On a 503 / network error we roll back so the per-post
+      // fallback path can still run.
+      for (const p of remotePosts) fetchedReactionsThisSession.add(p.id);
+
       try {
         const batchPayload = remotePosts.map(p => {
           const targetApId = getTargetApId(p)!;
@@ -1642,12 +1649,9 @@ export const useActivityPubStore = defineStore('activitypub', {
           debug.warn(
             `batchFetchRemoteReactions: ${response.status} from fetch-reactions-batch — per-post fallback allowed`
           );
+          for (const p of remotePosts) fetchedReactionsThisSession.delete(p.id);
           return;
         }
-
-        // Only mark after a successful batch so a 503/unhealthy federation backend
-        // does not permanently suppress MonyPost's per-post fetch-reactions path.
-        for (const p of remotePosts) fetchedReactionsThisSession.add(p.id);
 
         const { results } = await response.json();
         if (!results) return;
@@ -1674,6 +1678,7 @@ export const useActivityPubStore = defineStore('activitypub', {
         debug.log(`📬 Batch-fetched remote reactions for ${remotePosts.length} posts`);
       } catch (error) {
         debug.warn('Batch remote reactions fetch failed (non-blocking):', error);
+        for (const p of remotePosts) fetchedReactionsThisSession.delete(p.id);
       }
     },
 
@@ -1687,6 +1692,12 @@ export const useActivityPubStore = defineStore('activitypub', {
         if (hasCachedPosts) {
           debug.log('📋 Showing cached timeline, fetching fresh in background...');
           void this.ensureAuthorProfilesCached(this.homeFeed.posts);
+          // Fire the batch up-front so MonyPost mounts find their IDs
+          // already in `fetchedReactionsThisSession` and don't fall
+          // through to per-post `/fetch-reactions` calls. Without this,
+          // the cached-feed render path was producing N parallel per-post
+          // calls per refresh.
+          void this.batchFetchRemoteReactions(this.homeFeed.posts);
           void this.refreshHomeFeedInBackground();
           return;
         }
@@ -1752,9 +1763,11 @@ export const useActivityPubStore = defineStore('activitypub', {
         }
 
         const processedPosts = await this.batchFetchReblogInteractions(posts);
-        for (const p of processedPosts) {
-          if (!p.is_local && p.ap_id) fetchedReactionsThisSession.delete(p.id);
-        }
+        // No longer clearing `fetchedReactionsThisSession` here — the
+        // backend's 30s TTL on `posts.metadata.remote_reactions_fetched_at`
+        // already handles refresh frequency, and re-opening the session
+        // dedup window every background refresh just lets MonyPost mounts
+        // race the next batch and double-fetch.
         await Promise.all([
           this.ensureAuthorProfilesCached(processedPosts),
           this.batchFetchRemoteReactions(processedPosts),
