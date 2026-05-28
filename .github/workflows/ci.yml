@@ -1,0 +1,142 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ----------------------------------------------------------------
+  # Unit tests (fast, no external dependencies)
+  # ----------------------------------------------------------------
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run test
+        env:
+          CI: true
+
+  # ----------------------------------------------------------------
+  # Federation backend tests
+  # ----------------------------------------------------------------
+  federation-tests:
+    name: Federation Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: npm
+          cache-dependency-path: federation-backend/package-lock.json
+
+      - run: npm ci
+        working-directory: federation-backend
+
+      - run: npx vitest run
+        working-directory: federation-backend
+        env:
+          CI: true
+
+  # ----------------------------------------------------------------
+  # Type checking
+  # ----------------------------------------------------------------
+  type-check:
+    name: Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: npm
+
+      - run: npm ci
+
+      - run: npx vue-tsc --build --force
+
+  # ----------------------------------------------------------------
+  # Build verification
+  # ----------------------------------------------------------------
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs: [unit-tests, type-check]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run build
+        env:
+          VITE_SUPABASE_URL: https://placeholder.supabase.co
+          VITE_SUPABASE_ANON_KEY: placeholder-key
+
+  # ----------------------------------------------------------------
+  # E2E tests (PRs to master only; needs a real Supabase backend)
+  #
+  # Configure repo secrets (Settings → Secrets → Actions):
+  #   TEST_SUPABASE_URL, TEST_SUPABASE_ANON_KEY, TEST_SUPABASE_SERVICE_ROLE_KEY
+  # Point them at a dedicated CI/staging instance (not production).
+  # Skipped when secrets are unset (e.g. forks or before setup).
+  # ----------------------------------------------------------------
+  e2e-tests:
+    name: E2E Tests
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' && github.base_ref == 'master'
+    needs: [build]
+    env:
+      # Hoist secret presence into env so step-level `if` can read it.
+      # (The `secrets` context is not reliably available in `if` expressions.)
+      HAS_TEST_SUPABASE: ${{ secrets.TEST_SUPABASE_URL != '' }}
+    steps:
+      - name: Skip notice
+        if: env.HAS_TEST_SUPABASE != 'true'
+        run: echo "TEST_SUPABASE_* secrets not configured - skipping E2E tests."
+
+      - uses: actions/checkout@v4
+        if: env.HAS_TEST_SUPABASE == 'true'
+
+      - uses: actions/setup-node@v4
+        if: env.HAS_TEST_SUPABASE == 'true'
+        with:
+          node-version-file: '.nvmrc'
+          cache: npm
+
+      - run: npm ci
+        if: env.HAS_TEST_SUPABASE == 'true'
+
+      - run: npx playwright install --with-deps chromium
+        if: env.HAS_TEST_SUPABASE == 'true'
+
+      - run: npx playwright test --project=chromium
+        if: env.HAS_TEST_SUPABASE == 'true'
+        env:
+          CI: true
+          TEST_SUPABASE_URL: ${{ secrets.TEST_SUPABASE_URL }}
+          TEST_SUPABASE_ANON_KEY: ${{ secrets.TEST_SUPABASE_ANON_KEY }}
+          TEST_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.TEST_SUPABASE_SERVICE_ROLE_KEY }}
+          VITE_SUPABASE_URL: ${{ secrets.TEST_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.TEST_SUPABASE_ANON_KEY }}

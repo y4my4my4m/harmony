@@ -1,0 +1,60 @@
+# =============================================================================
+# HARMONY LOCAL DEVELOPMENT - CADDY CONFIGURATION
+# =============================================================================
+#
+# Provides HTTPS for local development using mkcert certificates
+#
+# Domains:
+# - har.mony.local      -> Vite dev server (frontend)
+# - har.mony.local/api  -> Federation backend
+# - live.mony.local     -> LiveKit WebSocket
+#
+# =============================================================================
+
+# Global options
+{
+	# Use local mkcert certificates
+	local_certs
+	
+	# Don't automatically get ACME certs (we're using mkcert)
+	auto_https off
+}
+
+# =============================================================================
+# MAIN APP - har.mony.local
+# =============================================================================
+har.mony.local {
+	tls /etc/certs/har.mony.local+3.pem /etc/certs/har.mony.local+3-key.pem
+
+	# API routes -> Federation backend (running in Docker)
+	handle /api/* {
+		reverse_proxy harmony-dev-backend:3001
+	}
+	
+	# WebSocket for Vite HMR
+	handle /__vite_hmr {
+		reverse_proxy host.docker.internal:5173
+	}
+	
+	# Everything else -> Vite dev server
+	handle {
+		reverse_proxy host.docker.internal:5173
+	}
+}
+
+# =============================================================================
+# LIVEKIT - live.mony.local
+# =============================================================================
+live.mony.local {
+	tls /etc/certs/har.mony.local+3.pem /etc/certs/har.mony.local+3-key.pem
+
+	# LiveKit WebSocket and HTTP
+	reverse_proxy harmony-livekit:7880
+}
+
+# =============================================================================
+# HTTP -> HTTPS REDIRECT
+# =============================================================================
+http://har.mony.local, http://live.mony.local {
+	redir https://{host}{uri} permanent
+}

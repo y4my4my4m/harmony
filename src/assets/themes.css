@@ -1,0 +1,322 @@
+/**
+ * Theme System CSS
+ * 
+ * Provides styling for different visual theme modes including:
+ * - Message display modes (cozy/compact)
+ * - High contrast mode
+ * - Reduced motion mode
+ * - Font size adjustments
+ * - Timestamp visibility
+ */
+
+/* ===== MESSAGE FONT SIZE ===== */
+:root {
+  --message-font-size: 14px;
+  --background-senary-alpha: #0a0b0dc7;
+}
+
+.message-content,
+.chat-message,
+.message-text,
+.unified-message-content {
+  font-size: var(--message-font-size);
+}
+
+/* ===== COMPACT MODE (GLOBAL) ===== */
+[data-compact-mode="true"] {
+  --gutter: 12px;
+  --avatar-size: 32px;
+  --reply-spacing: 2px;
+}
+
+[data-compact-mode="true"] .settings-section,
+[data-compact-mode="true"] .modal-content,
+[data-compact-mode="true"] .sidebar-section {
+  padding: 16px;
+}
+
+[data-compact-mode="true"] .btn,
+[data-compact-mode="true"] .button {
+  padding: 6px 12px;
+  font-size: 13px;
+}
+
+/* Channel list (text rows) gets tighter padding in compact mode. NOTE:
+   `.server-item` was previously included here, but it's a fixed-dimension
+   48x48 square avatar container in the server rail (see ServerSidebar.vue
+   `.server-item { width: 48px; height: 48px }`) — not a text row. Inheriting
+   asymmetric padding here squished the icon into a non-square box, so it's
+   intentionally excluded. If you need a denser server rail in compact mode,
+   adjust the icon size / wrapper margin in ServerSidebar.vue instead. */
+[data-compact-mode="true"] .channel-item {
+  padding: 6px 12px;
+  margin-bottom: 2px;
+}
+
+/* ===== HIGH CONTRAST MODE ===== */
+[data-high-contrast="true"] {
+  /* Increase text contrast */
+  --text-primary: #ffffff;
+  --text-secondary: #e0e0e0;
+  --text-tertiary: #c0c0c0;
+  
+  /* Stronger borders */
+  --border-primary: rgba(255, 255, 255, 0.20);
+  --border-secondary: rgba(255, 255, 255, 0.15);
+  
+  /* Higher contrast backgrounds */
+  --h-chat: #1a1a1a;
+  --h-chat-light: #252525;
+  --h-sidebar: #101010;
+  --h-sidebar-light: #1a1a1a;
+}
+
+[data-high-contrast="true"] .message-content {
+  color: #ffffff;
+}
+
+[data-high-contrast="true"] .message-author {
+  font-weight: 600;
+}
+
+[data-high-contrast="true"] .btn,
+[data-high-contrast="true"] button {
+  border-width: 2px;
+  font-weight: 600;
+}
+
+[data-high-contrast="true"] .channel-item:hover,
+[data-high-contrast="true"] .server-item:hover {
+  background-color: rgba(255, 255, 255, 0.15);
+}
+
+[data-high-contrast="true"] input,
+[data-high-contrast="true"] textarea,
+[data-high-contrast="true"] select {
+  border: 2px solid var(--border-primary);
+}
+
+[data-high-contrast="true"] input:focus,
+[data-high-contrast="true"] textarea:focus,
+[data-high-contrast="true"] select:focus {
+  border-color: var(--harmony-primary);
+  box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.3);
+}
+
+/* ===== REDUCED MOTION MODE ===== */
+[data-reduce-motion="true"],
+[data-reduce-motion="true"] * {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
+
+[data-reduce-motion="true"] .modal-overlay,
+[data-reduce-motion="true"] .modal-content {
+  animation: none !important;
+  transition: none !important;
+}
+
+[data-reduce-motion="true"] .loading-spinner,
+[data-reduce-motion="true"] .spinner {
+  animation: none !important;
+  opacity: 0.5;
+}
+
+[data-reduce-motion="true"] .fade-enter-active,
+[data-reduce-motion="true"] .fade-leave-active,
+[data-reduce-motion="true"] .slide-enter-active,
+[data-reduce-motion="true"] .slide-leave-active {
+  transition: none !important;
+}
+
+/* Respect system preferences for reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ===== TIMESTAMP VISIBILITY ===== */
+[data-show-timestamps="false"] .message-timestamp,
+[data-show-timestamps="false"] .timestamp {
+  display: none !important;
+}
+
+/* Show timestamps on hover when hidden */
+[data-show-timestamps="false"] .message-item:hover .message-timestamp,
+[data-show-timestamps="false"] .chat-message-container:hover .timestamp {
+  display: inline-block !important;
+  opacity: 0.7;
+}
+
+/* ===== SCREEN READER SUPPORT ===== */
+[data-screen-reader="true"] {
+  /* Enhanced focus indicators */
+}
+
+[data-screen-reader="true"] *:focus {
+  outline: 3px solid var(--harmony-primary);
+  outline-offset: 2px;
+}
+
+[data-screen-reader="true"] .sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/* Ensure all interactive elements are keyboard accessible */
+[data-screen-reader="true"] button:focus,
+[data-screen-reader="true"] a:focus,
+[data-screen-reader="true"] input:focus,
+[data-screen-reader="true"] textarea:focus,
+[data-screen-reader="true"] select:focus {
+  outline: 3px solid var(--harmony-primary);
+  outline-offset: 2px;
+  z-index: 10;
+}
+
+/* ===== FLOATING VIDEO ENHANCEMENTS ===== */
+.floating-video {
+  cursor: grab;
+  transition: box-shadow 0.2s ease;
+  user-select: none;
+}
+
+.floating-video:hover {
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.8) !important;
+}
+
+.floating-video.dragging {
+  cursor: grabbing;
+}
+
+.floating-video-close {
+  opacity: 0;
+  transition: opacity 0.2s ease, background-color 0.2s ease;
+}
+
+.floating-video:hover .floating-video-close {
+  opacity: 1;
+}
+
+/* Floating video indicator */
+.video-will-float-indicator {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: rgba(14, 165, 233, 0.9);
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  pointer-events: none;
+  animation: pulse 1.5s ease-in-out infinite;
+  z-index: 10;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+/* Don't animate pulse in reduced motion mode */
+[data-reduce-motion="true"] .video-will-float-indicator {
+  animation: none;
+}
+
+/* Floating video placeholder (skeleton) */
+.floating-video-placeholder {
+  margin: 4px 0 8px 0;
+}
+
+@keyframes skeleton-shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+/* Don't animate skeleton in reduced motion mode */
+[data-reduce-motion="true"] .floating-video-placeholder {
+  animation: none;
+}
+
+/* Resize handles */
+.floating-video .resize-handle {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.floating-video .resize-handle:hover {
+  transform: scale(1.2);
+}
+
+/* ===== RESPONSIVE ADJUSTMENTS ===== */
+@media (max-width: 768px) {
+  /* Make compact mode even more compact on mobile */
+  [data-compact-mode="true"] .message-item,
+  [data-compact-mode="true"] .chat-message-container {
+    padding: 2px 8px;
+  }
+  
+  [data-compact-mode="true"] .sidebar-section {
+    padding: 12px;
+  }
+  
+  /* Adjust floating video size for mobile */
+  .floating-video {
+    max-width: 90vw !important;
+    max-height: 50vh !important;
+  }
+}
+
+/* ===== THEME TRANSITIONS ===== */
+:root {
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* But not in reduced motion mode */
+[data-reduce-motion="true"]:root {
+  transition: none;
+}
+
+/* ===== UTILITY CLASSES ===== */
+.cozy-spacing {
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.compact-spacing {
+  padding: 8px;
+  margin-bottom: 4px;
+}
+
+.high-contrast-text {
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.high-contrast-border {
+  border: 2px solid rgba(255, 255, 255, 0.2);
+}
+

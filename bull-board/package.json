@@ -1,0 +1,16 @@
+{
+  "name": "harmony-bull-board",
+  "version": "1.1.0",
+  "private": true,
+  "license": "AGPL-3.0",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "@bull-board/api": "^6.20.5",
+    "@bull-board/express": "^6.20.5",
+    "bullmq": "^5.71.0",
+    "express": "^4.21.0"
+  }
+}

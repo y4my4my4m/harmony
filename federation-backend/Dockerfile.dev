@@ -1,0 +1,25 @@
+# Development Dockerfile for Harmony Federation Backend
+# Uses tsx watch for hot-reload
+
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Install dependencies
+COPY package*.json ./
+RUN npm ci
+
+# Copy tsconfig for TypeScript
+COPY tsconfig.json ./
+
+# Source is mounted as volume for hot-reload
+# COPY src ./src
+
+# Create logs directory
+RUN mkdir -p logs
+
+# Expose port
+EXPOSE 3001
+
+# Start with tsx watch for hot-reload
+CMD ["npm", "run", "dev"]

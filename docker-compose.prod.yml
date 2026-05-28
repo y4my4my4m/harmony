@@ -1,0 +1,210 @@
+# =============================================================================
+# Harmony Production Docker Compose (with Supabase Cloud)
+# =============================================================================
+# For use with Supabase Cloud or external Supabase instance
+#
+# Prerequisites:
+#   1. Build frontend: npm run build-only
+#   2. Copy env.example to .env and configure
+#   3. Copy federation-backend/env.template to federation-backend/.env
+#      - Set SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
+#      - For reliable federation: Set DATABASE_URL, REDIS_URL, and USE_BULLMQ_QUEUE=true
+#        (Get DATABASE_URL from Supabase Dashboard → Project Settings → Database)
+#      - For simple setup: Leave DATABASE_URL empty and USE_BULLMQ_QUEUE=false
+#      - (USE_PGBOSS_QUEUE is accepted as a backward-compat alias)
+#
+# Usage:
+#   docker compose -f docker-compose.prod.yml up -d
+#
+# Services:
+#   - federation-backend: ActivityPub federation, link previews
+#   - bot-gateway: Bot plugin system (optional)
+#   - nginx: Reverse proxy with SSL
+  #   - redis: BullMQ job persistence, caching, presence, rate limiting
+# =============================================================================
+
+version: "3.8"
+
+services:
+  # ---------------------------------------------------------------------------
+  # Federation Backend (split: server + worker)
+  # ---------------------------------------------------------------------------
+  # The HTTP server and queue worker run as separate containers for process
+  # isolation. A heavy delivery batch in the worker cannot block incoming
+  # ActivityPub requests on the server.
+  #
+  # Required in .env file:
+  #   - SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
+  #   - INSTANCE_DOMAIN
+  #   - DATABASE_URL, REDIS_URL, USE_BULLMQ_QUEUE=true
+  #
+  # For simple single-container mode instead, use --profile simple:
+  #   docker compose -f docker-compose.prod.yml --profile simple up -d
+  # ---------------------------------------------------------------------------
+  federation-server:
+    build:
+      context: ./federation-backend
+      dockerfile: Dockerfile
+    container_name: harmony-federation-server
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    env_file:
+      - ./federation-backend/.env
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      - FEDERATION_MODE=server
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3001/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - harmony
+
+  federation-worker:
+    build:
+      context: ./federation-backend
+      dockerfile: Dockerfile
+    container_name: harmony-federation-worker
+    restart: unless-stopped
+    env_file:
+      - ./federation-backend/.env
+    environment:
+      - NODE_ENV=production
+      - FEDERATION_MODE=worker
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - harmony
+
+  # Single-container mode (simple deployments / development)
+  # Activate with: docker compose --profile simple up -d
+  federation-backend:
+    build:
+      context: ./federation-backend
+      dockerfile: Dockerfile
+    container_name: harmony-federation
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    env_file:
+      - ./federation-backend/.env
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      - FEDERATION_MODE=unified
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3001/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - harmony
+    profiles:
+      - simple
+
+  # ---------------------------------------------------------------------------
+  # Bot Gateway (Optional)
+  # ---------------------------------------------------------------------------
+  bot-gateway:
+    build:
+      context: ./bot-gateway
+      dockerfile: Dockerfile
+    container_name: harmony-bot-gateway
+    restart: unless-stopped
+    ports:
+      - "3002:3002"
+    env_file:
+      - ./bot-gateway/.env
+    environment:
+      - NODE_ENV=production
+      - PORT=3002
+    networks:
+      - harmony
+    profiles:
+      - bots
+
+  # ---------------------------------------------------------------------------
+  # Redis (shared by LiveKit, federation-backend, and app caching)
+  # ---------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: harmony-redis
+    restart: unless-stopped
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - harmony
+
+  # ---------------------------------------------------------------------------
+  # Bull Board - Queue Monitoring Dashboard (Optional)
+  # ---------------------------------------------------------------------------
+  # Activate with: docker compose --profile monitoring up -d
+  # Access at http://your-server:3003 with HTTP basic auth credentials
+  # ---------------------------------------------------------------------------
+  bull-board:
+    build: ./bull-board
+    container_name: harmony-bull-board
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3003:3003"
+    environment:
+      - REDIS_URL=${REDIS_URL:-redis://localhost:6379}
+      - BULL_BOARD_USER=${BULL_BOARD_USER:-admin}
+      - BULL_BOARD_PASSWORD=${BULL_BOARD_PASSWORD:?Set BULL_BOARD_PASSWORD in .env}
+      - BULL_BOARD_BASE_PATH=${BULL_BOARD_BASE_PATH:-}
+      - PORT=3003
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - harmony
+    profiles:
+      - monitoring
+
+  # ---------------------------------------------------------------------------
+  # Nginx Reverse Proxy
+  # ---------------------------------------------------------------------------
+  # Serves static frontend and proxies to backend services
+  # Expects SSL certificates in /etc/letsencrypt
+  nginx:
+    image: nginx:alpine
+    container_name: harmony-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      # Frontend static files
+      - ./dist:/usr/share/nginx/html:ro
+      # Documentation site (VitePress build output)
+      - ./docs/.vitepress/dist:/usr/share/nginx/docs:ro
+      # Nginx configuration
+      - ./dev/nginx-harmony.conf:/etc/nginx/conf.d/harmony.conf:ro
+      - ./dev/nginx-docs.conf:/etc/nginx/conf.d/docs.conf:ro
+      # SSL certificates (from Let's Encrypt)
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+    networks:
+      - harmony
+    depends_on:
+      federation-server:
+        condition: service_started
+
+networks:
+  harmony:
+    driver: bridge
+
+volumes:
+  redis-data:
+

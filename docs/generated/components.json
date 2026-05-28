@@ -1,0 +1,1722 @@
+[
+  {
+    "name": "AcceptIcon",
+    "path": "icons/accepticon.md",
+    "relativePath": "icons/AcceptIcon.vue",
+    "props": 2,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "AdaptiveChannelSidebar",
+    "path": "common/adaptivechannelsidebar.md",
+    "relativePath": "common/AdaptiveChannelSidebar.vue",
+    "props": 12,
+    "events": 6,
+    "slots": 0
+  },
+  {
+    "name": "AdvancedSettings",
+    "path": "settings/user/advancedsettings.md",
+    "relativePath": "settings/user/AdvancedSettings.vue",
+    "props": 1,
+    "events": 1,
+    "slots": 0
+  },
+  {
+    "name": "AllThreadsModal",
+    "path": "threads/allthreadsmodal.md",
+    "relativePath": "threads/AllThreadsModal.vue",
+    "props": 3,
+    "events": 2,
+    "slots": 0
+  },
+  {
+    "name": "AppearanceSettings",
+    "path": "settings/user/appearancesettings.md",
+    "relativePath": "settings/user/AppearanceSettings.vue",
+    "props": 2,
+    "events": 1,
+    "slots": 0
+  },
+  {
+    "name": "ArrowDown",
+    "path": "icons/arrowdown.md",
+    "relativePath": "icons/ArrowDown.vue",
+    "props": 0,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "AudioThemeManager",
+    "path": "settings/audiothememanager.md",
+    "relativePath": "settings/AudioThemeManager.vue",
+    "props": 7,
+    "events": 3,
+    "slots": 0
+  },
+  {
+    "name": "AudioThemePicker",
+    "path": "settings/audiothemepicker.md",
+    "relativePath": "settings/AudioThemePicker.vue",
+    "props": 3,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "AudioThemeSettings",
+    "path": "settings/user/audiothemesettings.md",
+    "relativePath": "settings/user/AudioThemeSettings.vue",
+    "props": 0,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "AudioThemeShowcase",
+    "path": "demo/audiothemeshowcase.md",
+    "relativePath": "demo/AudioThemeShowcase.vue",
+    "props": 0,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "AuthComponent",
+    "path": "authcomponent.md",
+    "relativePath": "AuthComponent.vue",
+    "props": 1,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "AutoSuggest",
+    "path": "autosuggest.md",
+    "relativePath": "AutoSuggest.vue",
+    "props": 6,
+    "events": 2,
+    "slots": 1
+  },
+  {
+    "name": "Avatar",
+    "path": "common/avatar.md",
+    "relativePath": "common/Avatar.vue",
+    "props": 8,
+    "events": 3,
+    "slots": 0
+  },
+  {
+    "name": "BaseModal",
+    "path": "common/basemodal.md",
+    "relativePath": "common/BaseModal.vue",
+    "props": 8,
+    "events": 1,
+    "slots": 2
+  },
+  {
+    "name": "Bell",
+    "path": "icons/bell.md",
+    "relativePath": "icons/Bell.vue",
+    "props": 0,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "BotManagement",
+    "path": "admin/botmanagement.md",
+    "relativePath": "admin/BotManagement.vue",
+    "props": 0,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "Camera",
+    "path": "icons/camera.md",
+    "relativePath": "icons/Camera.vue",
+    "props": 0,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "CategoryContextMenu",
+    "path": "categorycontextmenu.md",
+    "relativePath": "CategoryContextMenu.vue",
+    "props": 3,
+    "events": 4,
+    "slots": 0
+  },
+  {
+    "name": "CategoryCreator",
+    "path": "categorycreator.md",
+    "relativePath": "CategoryCreator.vue",
+    "props": 0,
+    "events": 2,
+    "slots": 0
+  },
+  {
+    "name": "CategoryEditModal",
+    "path": "categoryeditmodal.md",
+    "relativePath": "CategoryEditModal.vue",
+    "props": 2,
+    "events": 2,
+    "slots": 0
+  },
+  {
+    "name": "ChannelContextMenu",
+    "path": "channelcontextmenu.md",
+    "relativePath": "ChannelContextMenu.vue",
+    "props": 3,
+    "events": 4,
+    "slots": 0
+  },
+  {
+    "name": "ChannelEditModal",
+    "path": "channeleditmodal.md",
+    "relativePath": "ChannelEditModal.vue",
+    "props": 2,
+    "events": 2,
+    "slots": 0
+  },
+  {
+    "name": "ChannelSidebar",
+    "path": "channelsidebar.md",
+    "relativePath": "ChannelSidebar.vue",
+    "props": 5,
+    "events": 2,
+    "slots": 0
+  },
+  {
+    "name": "ChatBubble",
+    "path": "icons/chatbubble.md",
+    "relativePath": "icons/ChatBubble.vue",
+    "props": 0,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "ChatComponent",
+    "path": "chatcomponent.md",
+    "relativePath": "ChatComponent.vue",
+    "props": 8,
+    "events": 3,
+    "slots": 0
+  },
+  {
+    "name": "ChatHeader",
+    "path": "chat/chatheader.md",
+    "relativePath": "chat/ChatHeader.vue",
+    "props": 4,
+    "events": 5,
+    "slots": 0
+  },
+  {
+    "name": "Check",
+    "path": "icons/check.md",
+    "relativePath": "icons/Check.vue",
+    "props": 0,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "ChevronDown",
+    "path": "icons/chevrondown.md",
+    "relativePath": "icons/ChevronDown.vue",
+    "props": 0,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "Close",
+    "path": "icons/close.md",
+    "relativePath": "icons/Close.vue",
+    "props": 0,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "CodeBlock",
+    "path": "common/codeblock.md",
+    "relativePath": "common/CodeBlock.vue",
+    "props": 2,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "Cog",
+    "path": "icons/cog.md",
+    "relativePath": "icons/Cog.vue",
+    "props": 0,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "ColorPicker",
+    "path": "common/colorpicker.md",
+    "relativePath": "common/ColorPicker.vue",
+    "props": 1,
+    "events": 2,
+    "slots": 0
+  },
+  {
+    "name": "Composer",
+    "path": "activitypub/composer.md",
+    "relativePath": "activitypub/Composer.vue",
+    "props": 7,
+    "events": 2,
+    "slots": 0
+  },
+  {
+    "name": "ConfettiEffect",
+    "path": "easteregg/confettieffect.md",
+    "relativePath": "easteregg/ConfettiEffect.vue",
+    "props": 2,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "ConfirmationModal",
+    "path": "confirmationmodal.md",
+    "relativePath": "ConfirmationModal.vue",
+    "props": 7,
+    "events": 3,
+    "slots": 0
+  },
+  {
+    "name": "ContentFilterSettings",
+    "path": "settings/contentfiltersettings.md",
+    "relativePath": "settings/ContentFilterSettings.vue",
+    "props": 0,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "Copy",
+    "path": "icons/copy.md",
+    "relativePath": "icons/Copy.vue",
+    "props": 0,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "CreateChannel",
+    "path": "createchannel.md",
+    "relativePath": "CreateChannel.vue",
+    "props": 3,
+    "events": 2,
+    "slots": 0
+  },
+  {
+    "name": "CreateServer",
+    "path": "createserver.md",
+    "relativePath": "CreateServer.vue",
+    "props": 0,
+    "events": 1,
+    "slots": 0
+  },
+  {
+    "name": "DeclineIcon",
+    "path": "icons/declineicon.md",
+    "relativePath": "icons/DeclineIcon.vue",
+    "props": 2,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "Delete",
+    "path": "icons/delete.md",
+    "relativePath": "icons/Delete.vue",
+    "props": 0,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "DeviceSelector",
+    "path": "voice/deviceselector.md",
+    "relativePath": "voice/DeviceSelector.vue",
+    "props": 1,
+    "events": 1,
+    "slots": 0
+  },
+  {
+    "name": "DismissIcon",
+    "path": "icons/dismissicon.md",
+    "relativePath": "icons/DismissIcon.vue",
+    "props": 2,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "DMHeader",
+    "path": "dm/dmheader.md",
+    "relativePath": "dm/DMHeader.vue",
+    "props": 2,
+    "events": 5,
+    "slots": 0
+  },
+  {
+    "name": "DMIcon",
+    "path": "icons/dmicon.md",
+    "relativePath": "icons/DMIcon.vue",
+    "props": 2,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "DMSidebar",
+    "path": "dmsidebar.md",
+    "relativePath": "DMSidebar.vue",
+    "props": 0,
+    "events": 1,
+    "slots": 0
+  },
+  {
+    "name": "Edit",
+    "path": "icons/edit.md",
+    "relativePath": "icons/Edit.vue",
+    "props": 0,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "EmojiIcon",
+    "path": "icons/emojiicon.md",
+    "relativePath": "icons/EmojiIcon.vue",
+    "props": 2,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "EmojiImporter",
+    "path": "admin/emojiimporter.md",
+    "relativePath": "admin/EmojiImporter.vue",
+    "props": 0,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "EmojiPicker",
+    "path": "activitypub/emojipicker.md",
+    "relativePath": "activitypub/EmojiPicker.vue",
+    "props": 1,
+    "events": 2,
+    "slots": 0
+  },
+  {
+    "name": "EmojiPickerContent",
+    "path": "emojipickercontent.md",
+    "relativePath": "EmojiPickerContent.vue",
+    "props": 0,
+    "events": 1,
+    "slots": 0
+  },
+  {
+    "name": "EmojiPopup",
+    "path": "emojipopup.md",
+    "relativePath": "EmojiPopup.vue",
+    "props": 5,
+    "events": 2,
+    "slots": 0
+  },
+  {
+    "name": "EmojiUI",
+    "path": "emojiui.md",
+    "relativePath": "EmojiUI.vue",
+    "props": 0,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "EncryptionIndicator",
+    "path": "encryption/encryptionindicator.md",
+    "relativePath": "encryption/EncryptionIndicator.vue",
+    "props": 4,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "EncryptionSettings",
+    "path": "encryption/encryptionsettings.md",
+    "relativePath": "encryption/EncryptionSettings.vue",
+    "props": 0,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "ExploreContent",
+    "path": "activitypub/explorecontent.md",
+    "relativePath": "activitypub/ExploreContent.vue",
+    "props": 1,
+    "events": 11,
+    "slots": 0
+  },
+  {
+    "name": "Eye",
+    "path": "icons/eye.md",
+    "relativePath": "icons/Eye.vue",
+    "props": 0,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "EyeOff",
+    "path": "icons/eyeoff.md",
+    "relativePath": "icons/EyeOff.vue",
+    "props": 0,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "FilePreview",
+    "path": "filepreview.md",
+    "relativePath": "FilePreview.vue",
+    "props": 1,
+    "events": 1,
+    "slots": 0
+  },
+  {
+    "name": "FileUploadMenu",
+    "path": "fileuploadmenu.md",
+    "relativePath": "FileUploadMenu.vue",
+    "props": 1,
+    "events": 2,
+    "slots": 0
+  },
+  {
+    "name": "FollowersList",
+    "path": "dm/followerslist.md",
+    "relativePath": "dm/FollowersList.vue",
+    "props": 0,
+    "events": 1,
+    "slots": 0
+  },
+  {
+    "name": "Gif",
+    "path": "icons/gif.md",
+    "relativePath": "icons/Gif.vue",
+    "props": 0,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "GifComponent",
+    "path": "gifcomponent.md",
+    "relativePath": "GifComponent.vue",
+    "props": 5,
+    "events": 3,
+    "slots": 0
+  },
+  {
+    "name": "GifPickerContent",
+    "path": "gifpickercontent.md",
+    "relativePath": "GifPickerContent.vue",
+    "props": 1,
+    "events": 2,
+    "slots": 0
+  },
+  {
+    "name": "Globe",
+    "path": "icons/globe.md",
+    "relativePath": "icons/Globe.vue",
+    "props": 0,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "GroupChatInviteModal",
+    "path": "dm/groupchatinvitemodal.md",
+    "relativePath": "dm/GroupChatInviteModal.vue",
+    "props": 3,
+    "events": 3,
+    "slots": 0
+  },
+  {
+    "name": "GroupIcon",
+    "path": "common/groupicon.md",
+    "relativePath": "common/GroupIcon.vue",
+    "props": 8,
+    "events": 3,
+    "slots": 0
+  },
+  {
+    "name": "GroupSettingsModal",
+    "path": "dm/groupsettingsmodal.md",
+    "relativePath": "dm/GroupSettingsModal.vue",
+    "props": 4,
+    "events": 2,
+    "slots": 0
+  },
+  {
+    "name": "HashTag",
+    "path": "icons/hashtag.md",
+    "relativePath": "icons/HashTag.vue",
+    "props": 0,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "Headphones",
+    "path": "icons/headphones.md",
+    "relativePath": "icons/Headphones.vue",
+    "props": 1,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "Icon",
+    "path": "common/icon.md",
+    "relativePath": "common/Icon.vue",
+    "props": 2,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "IncomingCallModal",
+    "path": "dm/incomingcallmodal.md",
+    "relativePath": "dm/IncomingCallModal.vue",
+    "props": 6,
+    "events": 2,
+    "slots": 0
+  },
+  {
+    "name": "InstanceDetailModal",
+    "path": "activitypub/instancedetailmodal.md",
+    "relativePath": "activitypub/InstanceDetailModal.vue",
+    "props": 1,
+    "events": 2,
+    "slots": 0
+  },
+  {
+    "name": "InviteAccept",
+    "path": "inviteaccept.md",
+    "relativePath": "InviteAccept.vue",
+    "props": 0,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "InviteManagement",
+    "path": "settings/server/invitemanagement.md",
+    "relativePath": "settings/server/InviteManagement.vue",
+    "props": 1,
+    "events": 1,
+    "slots": 0
+  },
+  {
+    "name": "InviteModal",
+    "path": "invitemodal.md",
+    "relativePath": "InviteModal.vue",
+    "props": 3,
+    "events": 1,
+    "slots": 0
+  },
+  {
+    "name": "InviteSettings",
+    "path": "settings/server/invitesettings.md",
+    "relativePath": "settings/server/InviteSettings.vue",
+    "props": 1,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "JoinFederatedServer",
+    "path": "joinfederatedserver.md",
+    "relativePath": "JoinFederatedServer.vue",
+    "props": 0,
+    "events": 2,
+    "slots": 0
+  },
+  {
+    "name": "JumpIcon",
+    "path": "icons/jumpicon.md",
+    "relativePath": "icons/JumpIcon.vue",
+    "props": 2,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "KeybindSettings",
+    "path": "settings/user/keybindsettings.md",
+    "relativePath": "settings/user/KeybindSettings.vue",
+    "props": 1,
+    "events": 1,
+    "slots": 0
+  },
+  {
+    "name": "Keyboard",
+    "path": "icons/keyboard.md",
+    "relativePath": "icons/Keyboard.vue",
+    "props": 0,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "KeyRecoveryModal",
+    "path": "encryption/keyrecoverymodal.md",
+    "relativePath": "encryption/KeyRecoveryModal.vue",
+    "props": 0,
+    "events": 2,
+    "slots": 0
+  },
+  {
+    "name": "KeySetupWizard",
+    "path": "encryption/keysetupwizard.md",
+    "relativePath": "encryption/KeySetupWizard.vue",
+    "props": 0,
+    "events": 2,
+    "slots": 0
+  },
+  {
+    "name": "LanguageSettings",
+    "path": "settings/user/languagesettings.md",
+    "relativePath": "settings/user/LanguageSettings.vue",
+    "props": 1,
+    "events": 1,
+    "slots": 0
+  },
+  {
+    "name": "LazyEmojiSection",
+    "path": "lazyemojisection.md",
+    "relativePath": "LazyEmojiSection.vue",
+    "props": 2,
+    "events": 0,
+    "slots": 2
+  },
+  {
+    "name": "LinkEmbedCard",
+    "path": "embeds/linkembedcard.md",
+    "relativePath": "embeds/LinkEmbedCard.vue",
+    "props": 1,
+    "events": 1,
+    "slots": 0
+  },
+  {
+    "name": "Lock",
+    "path": "icons/lock.md",
+    "relativePath": "icons/Lock.vue",
+    "props": 0,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "Logout",
+    "path": "icons/logout.md",
+    "relativePath": "icons/Logout.vue",
+    "props": 0,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "MainContentAreaHeader",
+    "path": "maincontentareaheader.md",
+    "relativePath": "MainContentAreaHeader.vue",
+    "props": 5,
+    "events": 1,
+    "slots": 0
+  },
+  {
+    "name": "MainNavigation",
+    "path": "mainnavigation.md",
+    "relativePath": "MainNavigation.vue",
+    "props": 2,
+    "events": 2,
+    "slots": 0
+  },
+  {
+    "name": "MarkdownContent",
+    "path": "markdowncontent.md",
+    "relativePath": "MarkdownContent.vue",
+    "props": 4,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "MarkReadIcon",
+    "path": "icons/markreadicon.md",
+    "relativePath": "icons/MarkReadIcon.vue",
+    "props": 2,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "MediaPickerPopup",
+    "path": "mediapickerpopup.md",
+    "relativePath": "MediaPickerPopup.vue",
+    "props": 4,
+    "events": 2,
+    "slots": 0
+  },
+  {
+    "name": "MentionIcon",
+    "path": "icons/mentionicon.md",
+    "relativePath": "icons/MentionIcon.vue",
+    "props": 2,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "MessageContent",
+    "path": "messagecontent.md",
+    "relativePath": "MessageContent.vue",
+    "props": 10,
+    "events": 6,
+    "slots": 0
+  },
+  {
+    "name": "MessageContextMenu",
+    "path": "messagecontextmenu.md",
+    "relativePath": "MessageContextMenu.vue",
+    "props": 5,
+    "events": 4,
+    "slots": 0
+  },
+  {
+    "name": "MessageDisplay",
+    "path": "messagedisplay.md",
+    "relativePath": "MessageDisplay.vue",
+    "props": 8,
+    "events": 8,
+    "slots": 0
+  },
+  {
+    "name": "MessageInput",
+    "path": "messageinput.md",
+    "relativePath": "MessageInput.vue",
+    "props": 10,
+    "events": 7,
+    "slots": 0
+  },
+  {
+    "name": "MessageReactions",
+    "path": "messagereactions.md",
+    "relativePath": "MessageReactions.vue",
+    "props": 2,
+    "events": 4,
+    "slots": 0
+  },
+  {
+    "name": "MessageReply",
+    "path": "messagereply.md",
+    "relativePath": "MessageReply.vue",
+    "props": 2,
+    "events": 1,
+    "slots": 0
+  },
+  {
+    "name": "MessageSearchModal",
+    "path": "search/messagesearchmodal.md",
+    "relativePath": "search/MessageSearchModal.vue",
+    "props": 5,
+    "events": 2,
+    "slots": 0
+  },
+  {
+    "name": "Mic",
+    "path": "icons/mic.md",
+    "relativePath": "icons/Mic.vue",
+    "props": 0,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "MicMuted",
+    "path": "icons/micmuted.md",
+    "relativePath": "icons/MicMuted.vue",
+    "props": 0,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "MobileVoiceChannelPreview",
+    "path": "voice/mobilevoicechannelpreview.md",
+    "relativePath": "voice/MobileVoiceChannelPreview.vue",
+    "props": 4,
+    "events": 3,
+    "slots": 0
+  },
+  {
+    "name": "ModernButton",
+    "path": "common/modernbutton.md",
+    "relativePath": "common/ModernButton.vue",
+    "props": 11,
+    "events": 1,
+    "slots": 1
+  },
+  {
+    "name": "ModernInput",
+    "path": "common/moderninput.md",
+    "relativePath": "common/ModernInput.vue",
+    "props": 13,
+    "events": 5,
+    "slots": 0
+  },
+  {
+    "name": "MonyContent",
+    "path": "activitypub/monycontent.md",
+    "relativePath": "activitypub/MonyContent.vue",
+    "props": 3,
+    "events": 3,
+    "slots": 0
+  },
+  {
+    "name": "MonyFeed",
+    "path": "activitypub/monyfeed.md",
+    "relativePath": "activitypub/MonyFeed.vue",
+    "props": 0,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "MonyHeader",
+    "path": "activitypub/monyheader.md",
+    "relativePath": "activitypub/MonyHeader.vue",
+    "props": 3,
+    "events": 6,
+    "slots": 0
+  },
+  {
+    "name": "MonyMediaGallery",
+    "path": "activitypub/monymediagallery.md",
+    "relativePath": "activitypub/MonyMediaGallery.vue",
+    "props": 2,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "MonyMediaUpload",
+    "path": "activitypub/monymediaupload.md",
+    "relativePath": "activitypub/MonyMediaUpload.vue",
+    "props": 1,
+    "events": 2,
+    "slots": 0
+  },
+  {
+    "name": "MonyPost",
+    "path": "activitypub/monypost.md",
+    "relativePath": "activitypub/MonyPost.vue",
+    "props": 3,
+    "events": 9,
+    "slots": 0
+  },
+  {
+    "name": "More",
+    "path": "icons/more.md",
+    "relativePath": "icons/More.vue",
+    "props": 0,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "NoServersSplash",
+    "path": "noserverssplash.md",
+    "relativePath": "NoServersSplash.vue",
+    "props": 0,
+    "events": 1,
+    "slots": 0
+  },
+  {
+    "name": "NotFound404",
+    "path": "error/notfound404.md",
+    "relativePath": "error/NotFound404.vue",
+    "props": 4,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "NotificationBell",
+    "path": "notificationbell.md",
+    "relativePath": "NotificationBell.vue",
+    "props": 0,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "NotificationItem",
+    "path": "notificationitem.md",
+    "relativePath": "NotificationItem.vue",
+    "props": 1,
+    "events": 3,
+    "slots": 0
+  },
+  {
+    "name": "NotificationSettings",
+    "path": "settings/user/notificationsettings.md",
+    "relativePath": "settings/user/NotificationSettings.vue",
+    "props": 0,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "NotificationToast",
+    "path": "notificationtoast.md",
+    "relativePath": "NotificationToast.vue",
+    "props": 0,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "Palette",
+    "path": "icons/palette.md",
+    "relativePath": "icons/Palette.vue",
+    "props": 0,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "PerformanceMonitoring",
+    "path": "admin/performancemonitoring.md",
+    "relativePath": "admin/PerformanceMonitoring.vue",
+    "props": 0,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "PersistentVoiceConnection",
+    "path": "persistentvoiceconnection.md",
+    "relativePath": "PersistentVoiceConnection.vue",
+    "props": 0,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "PinnedMessagesPopup",
+    "path": "pinnedmessagespopup.md",
+    "relativePath": "PinnedMessagesPopup.vue",
+    "props": 3,
+    "events": 2,
+    "slots": 0
+  },
+  {
+    "name": "Plus",
+    "path": "icons/plus.md",
+    "relativePath": "icons/Plus.vue",
+    "props": 0,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "PostDetailDisplay",
+    "path": "common/postdetaildisplay.md",
+    "relativePath": "common/PostDetailDisplay.vue",
+    "props": 1,
+    "events": 7,
+    "slots": 0
+  },
+  {
+    "name": "PostReactions",
+    "path": "activitypub/postreactions.md",
+    "relativePath": "activitypub/PostReactions.vue",
+    "props": 2,
+    "events": 2,
+    "slots": 0
+  },
+  {
+    "name": "PostsContainer",
+    "path": "common/postscontainer.md",
+    "relativePath": "common/PostsContainer.vue",
+    "props": 9,
+    "events": 10,
+    "slots": 0
+  },
+  {
+    "name": "PrivacySettings",
+    "path": "settings/user/privacysettings.md",
+    "relativePath": "settings/user/PrivacySettings.vue",
+    "props": 2,
+    "events": 1,
+    "slots": 0
+  },
+  {
+    "name": "ProfileCard",
+    "path": "common/profilecard.md",
+    "relativePath": "common/ProfileCard.vue",
+    "props": 9,
+    "events": 9,
+    "slots": 0
+  },
+  {
+    "name": "ProviderEmbedSwitch",
+    "path": "embeds/providerembedswitch.md",
+    "relativePath": "embeds/ProviderEmbedSwitch.vue",
+    "props": 2,
+    "events": 1,
+    "slots": 0
+  },
+  {
+    "name": "PublicServers",
+    "path": "publicservers.md",
+    "relativePath": "PublicServers.vue",
+    "props": 1,
+    "events": 1,
+    "slots": 0
+  },
+  {
+    "name": "PublicServersContent",
+    "path": "publicservers/publicserverscontent.md",
+    "relativePath": "PublicServers/PublicServersContent.vue",
+    "props": 9,
+    "events": 4,
+    "slots": 0
+  },
+  {
+    "name": "PublicServersFooter",
+    "path": "publicservers/publicserversfooter.md",
+    "relativePath": "PublicServers/PublicServersFooter.vue",
+    "props": 0,
+    "events": 2,
+    "slots": 0
+  },
+  {
+    "name": "PublicServersHeader",
+    "path": "publicservers/publicserversheader.md",
+    "relativePath": "PublicServers/PublicServersHeader.vue",
+    "props": 0,
+    "events": 1,
+    "slots": 0
+  },
+  {
+    "name": "PublicServersSearch",
+    "path": "publicservers/publicserverssearch.md",
+    "relativePath": "PublicServers/PublicServersSearch.vue",
+    "props": 6,
+    "events": 2,
+    "slots": 0
+  },
+  {
+    "name": "PushNotificationPrompt",
+    "path": "pushnotificationprompt.md",
+    "relativePath": "PushNotificationPrompt.vue",
+    "props": 0,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "PWAInstallBanner",
+    "path": "pwainstallbanner.md",
+    "relativePath": "PWAInstallBanner.vue",
+    "props": 0,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "PWAInstallPrompt",
+    "path": "pwainstallprompt.md",
+    "relativePath": "PWAInstallPrompt.vue",
+    "props": 2,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "PWAUpdateNotification",
+    "path": "pwaupdatenotification.md",
+    "relativePath": "PWAUpdateNotification.vue",
+    "props": 0,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "Reaction",
+    "path": "icons/reaction.md",
+    "relativePath": "icons/Reaction.vue",
+    "props": 0,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "ReactionIcon",
+    "path": "icons/reactionicon.md",
+    "relativePath": "icons/ReactionIcon.vue",
+    "props": 2,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "RecentSpeakers",
+    "path": "voice/recentspeakers.md",
+    "relativePath": "voice/RecentSpeakers.vue",
+    "props": 1,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "RecoveryKeySetupWizard",
+    "path": "encryption/recoverykeysetupwizard.md",
+    "relativePath": "encryption/RecoveryKeySetupWizard.vue",
+    "props": 0,
+    "events": 2,
+    "slots": 0
+  },
+  {
+    "name": "Reply",
+    "path": "icons/reply.md",
+    "relativePath": "icons/Reply.vue",
+    "props": 0,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "RichTextDemo",
+    "path": "demo/richtextdemo.md",
+    "relativePath": "demo/RichTextDemo.vue",
+    "props": 0,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "RichTextEditor",
+    "path": "richtexteditor.md",
+    "relativePath": "RichTextEditor.vue",
+    "props": 4,
+    "events": 7,
+    "slots": 0
+  },
+  {
+    "name": "Robot",
+    "path": "icons/robot.md",
+    "relativePath": "icons/Robot.vue",
+    "props": 0,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "RoleManagement",
+    "path": "settings/rolemanagement.md",
+    "relativePath": "settings/RoleManagement.vue",
+    "props": 1,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "ScreensharePIP",
+    "path": "voice/screensharepip.md",
+    "relativePath": "voice/ScreensharePIP.vue",
+    "props": 0,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "SearchInput",
+    "path": "common/searchinput.md",
+    "relativePath": "common/SearchInput.vue",
+    "props": 5,
+    "events": 3,
+    "slots": 0
+  },
+  {
+    "name": "ServerAdvancedSettings",
+    "path": "settings/serveradvancedsettings.md",
+    "relativePath": "settings/ServerAdvancedSettings.vue",
+    "props": 5,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "ServerBasicInfo",
+    "path": "settings/serverbasicinfo.md",
+    "relativePath": "settings/ServerBasicInfo.vue",
+    "props": 5,
+    "events": 3,
+    "slots": 0
+  },
+  {
+    "name": "ServerBotsSettings",
+    "path": "settings/serverbotssettings.md",
+    "relativePath": "settings/ServerBotsSettings.vue",
+    "props": 1,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "ServerCard",
+    "path": "common/servercard.md",
+    "relativePath": "common/ServerCard.vue",
+    "props": 3,
+    "events": 3,
+    "slots": 0
+  },
+  {
+    "name": "ServerCardSkeleton",
+    "path": "common/servercardskeleton.md",
+    "relativePath": "common/ServerCardSkeleton.vue",
+    "props": 1,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "ServerDropdown",
+    "path": "serverdropdown.md",
+    "relativePath": "ServerDropdown.vue",
+    "props": 2,
+    "events": 5,
+    "slots": 0
+  },
+  {
+    "name": "ServerEmojiManagement",
+    "path": "settings/serveremojimanagement.md",
+    "relativePath": "settings/ServerEmojiManagement.vue",
+    "props": 6,
+    "events": 4,
+    "slots": 0
+  },
+  {
+    "name": "ServerEncryptionSettings",
+    "path": "settings/serverencryptionsettings.md",
+    "relativePath": "settings/ServerEncryptionSettings.vue",
+    "props": 1,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "ServerFolder",
+    "path": "serverfolder.md",
+    "relativePath": "ServerFolder.vue",
+    "props": 3,
+    "events": 7,
+    "slots": 0
+  },
+  {
+    "name": "ServerFolderContextMenu",
+    "path": "serverfoldercontextmenu.md",
+    "relativePath": "ServerFolderContextMenu.vue",
+    "props": 4,
+    "events": 5,
+    "slots": 0
+  },
+  {
+    "name": "ServerFolderSettingsModal",
+    "path": "serverfoldersettingsmodal.md",
+    "relativePath": "ServerFolderSettingsModal.vue",
+    "props": 2,
+    "events": 2,
+    "slots": 0
+  },
+  {
+    "name": "ServerIcon",
+    "path": "common/servericon.md",
+    "relativePath": "common/ServerIcon.vue",
+    "props": 11,
+    "events": 3,
+    "slots": 0
+  },
+  {
+    "name": "ServerInviteCard",
+    "path": "embeds/serverinvitecard.md",
+    "relativePath": "embeds/ServerInviteCard.vue",
+    "props": 2,
+    "events": 1,
+    "slots": 0
+  },
+  {
+    "name": "ServerInviteIcon",
+    "path": "icons/serverinviteicon.md",
+    "relativePath": "icons/ServerInviteIcon.vue",
+    "props": 2,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "ServerNotFound",
+    "path": "error/servernotfound.md",
+    "relativePath": "error/ServerNotFound.vue",
+    "props": 0,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "ServerPrivacySettings",
+    "path": "settings/serverprivacysettings.md",
+    "relativePath": "settings/ServerPrivacySettings.vue",
+    "props": 4,
+    "events": 2,
+    "slots": 0
+  },
+  {
+    "name": "ServerSidebar",
+    "path": "serversidebar.md",
+    "relativePath": "ServerSidebar.vue",
+    "props": 1,
+    "events": 3,
+    "slots": 0
+  },
+  {
+    "name": "Settings",
+    "path": "icons/settings.md",
+    "relativePath": "icons/Settings.vue",
+    "props": 0,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "Shield",
+    "path": "icons/shield.md",
+    "relativePath": "icons/Shield.vue",
+    "props": 0,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "SidebarComponent",
+    "path": "sidebarcomponent.md",
+    "relativePath": "SidebarComponent.vue",
+    "props": 0,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "SpaceTimeGrid",
+    "path": "spacetimegrid.md",
+    "relativePath": "SpaceTimeGrid.vue",
+    "props": 3,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "SpatialAudioPanel",
+    "path": "voice/spatialaudiopanel.md",
+    "relativePath": "voice/SpatialAudioPanel.vue",
+    "props": 2,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "Speaker",
+    "path": "icons/speaker.md",
+    "relativePath": "icons/Speaker.vue",
+    "props": 0,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "StatusPicker",
+    "path": "statuspicker.md",
+    "relativePath": "StatusPicker.vue",
+    "props": 2,
+    "events": 2,
+    "slots": 0
+  },
+  {
+    "name": "Thread",
+    "path": "icons/thread.md",
+    "relativePath": "icons/Thread.vue",
+    "props": 0,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "ThreadContextMenu",
+    "path": "threads/threadcontextmenu.md",
+    "relativePath": "threads/ThreadContextMenu.vue",
+    "props": 4,
+    "events": 9,
+    "slots": 0
+  },
+  {
+    "name": "ThreadEditModal",
+    "path": "threadeditmodal.md",
+    "relativePath": "ThreadEditModal.vue",
+    "props": 2,
+    "events": 2,
+    "slots": 0
+  },
+  {
+    "name": "ThreadedPost",
+    "path": "activitypub/threadedpost.md",
+    "relativePath": "activitypub/ThreadedPost.vue",
+    "props": 6,
+    "events": 9,
+    "slots": 0
+  },
+  {
+    "name": "ThreadIndicator",
+    "path": "threads/threadindicator.md",
+    "relativePath": "threads/ThreadIndicator.vue",
+    "props": 1,
+    "events": 1,
+    "slots": 0
+  },
+  {
+    "name": "ThreadSidebar",
+    "path": "threads/threadsidebar.md",
+    "relativePath": "threads/ThreadSidebar.vue",
+    "props": 2,
+    "events": 1,
+    "slots": 0
+  },
+  {
+    "name": "ThreadView",
+    "path": "threads/threadview.md",
+    "relativePath": "threads/ThreadView.vue",
+    "props": 5,
+    "events": 3,
+    "slots": 0
+  },
+  {
+    "name": "ToggleSwitch",
+    "path": "common/toggleswitch.md",
+    "relativePath": "common/ToggleSwitch.vue",
+    "props": 2,
+    "events": 2,
+    "slots": 0
+  },
+  {
+    "name": "Trash",
+    "path": "icons/trash.md",
+    "relativePath": "icons/Trash.vue",
+    "props": 0,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "TypingIndicator",
+    "path": "typingindicator.md",
+    "relativePath": "TypingIndicator.vue",
+    "props": 1,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "UnifiedButton",
+    "path": "shared/unifiedbutton.md",
+    "relativePath": "shared/UnifiedButton.vue",
+    "props": 19,
+    "events": 1,
+    "slots": 1
+  },
+  {
+    "name": "UnifiedConfirmationModal",
+    "path": "shared/unifiedconfirmationmodal.md",
+    "relativePath": "shared/UnifiedConfirmationModal.vue",
+    "props": 9,
+    "events": 3,
+    "slots": 0
+  },
+  {
+    "name": "UnifiedContentArea",
+    "path": "common/unifiedcontentarea.md",
+    "relativePath": "common/UnifiedContentArea.vue",
+    "props": 18,
+    "events": 16,
+    "slots": 0
+  },
+  {
+    "name": "UnifiedContentRenderer",
+    "path": "unifiedcontentrenderer.md",
+    "relativePath": "UnifiedContentRenderer.vue",
+    "props": 11,
+    "events": 5,
+    "slots": 0
+  },
+  {
+    "name": "UnifiedContextBar",
+    "path": "common/unifiedcontextbar.md",
+    "relativePath": "common/UnifiedContextBar.vue",
+    "props": 10,
+    "events": 1,
+    "slots": 0
+  },
+  {
+    "name": "UnifiedInput",
+    "path": "shared/unifiedinput.md",
+    "relativePath": "shared/UnifiedInput.vue",
+    "props": 27,
+    "events": 9,
+    "slots": 2
+  },
+  {
+    "name": "UnifiedMessageContent",
+    "path": "unifiedmessagecontent.md",
+    "relativePath": "UnifiedMessageContent.vue",
+    "props": 11,
+    "events": 9,
+    "slots": 0
+  },
+  {
+    "name": "UnifiedModal",
+    "path": "shared/unifiedmodal.md",
+    "relativePath": "shared/UnifiedModal.vue",
+    "props": 16,
+    "events": 4,
+    "slots": 5
+  },
+  {
+    "name": "UnifiedProfileCard",
+    "path": "common/unifiedprofilecard.md",
+    "relativePath": "common/UnifiedProfileCard.vue",
+    "props": 10,
+    "events": 9,
+    "slots": 0
+  },
+  {
+    "name": "UnifiedVoiceDock",
+    "path": "voice/unifiedvoicedock.md",
+    "relativePath": "voice/UnifiedVoiceDock.vue",
+    "props": 0,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "UnifiedVoiceOverlay",
+    "path": "voice/unifiedvoiceoverlay.md",
+    "relativePath": "voice/UnifiedVoiceOverlay.vue",
+    "props": 1,
+    "events": 2,
+    "slots": 0
+  },
+  {
+    "name": "UnifiedVoiceUserCard",
+    "path": "voice/unifiedvoiceusercard.md",
+    "relativePath": "voice/UnifiedVoiceUserCard.vue",
+    "props": 1,
+    "events": 2,
+    "slots": 0
+  },
+  {
+    "name": "UnreadIcon",
+    "path": "icons/unreadicon.md",
+    "relativePath": "icons/UnreadIcon.vue",
+    "props": 2,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "User",
+    "path": "icons/user.md",
+    "relativePath": "icons/User.vue",
+    "props": 0,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "UserAccountSettings",
+    "path": "settings/user/useraccountsettings.md",
+    "relativePath": "settings/user/UserAccountSettings.vue",
+    "props": 2,
+    "events": 3,
+    "slots": 0
+  },
+  {
+    "name": "UserBotsManagement",
+    "path": "settings/user/userbotsmanagement.md",
+    "relativePath": "settings/user/UserBotsManagement.vue",
+    "props": 1,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "UserCard",
+    "path": "activitypub/usercard.md",
+    "relativePath": "activitypub/UserCard.vue",
+    "props": 6,
+    "events": 9,
+    "slots": 0
+  },
+  {
+    "name": "UserDataDebugPanel",
+    "path": "debug/userdatadebugpanel.md",
+    "relativePath": "debug/UserDataDebugPanel.vue",
+    "props": 0,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "UserPreviewComponent",
+    "path": "userpreviewcomponent.md",
+    "relativePath": "UserPreviewComponent.vue",
+    "props": 2,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "UserProfileComponent",
+    "path": "userprofilecomponent.md",
+    "relativePath": "UserProfileComponent.vue",
+    "props": 1,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "UserProfileModal",
+    "path": "userprofilemodal.md",
+    "relativePath": "UserProfileModal.vue",
+    "props": 2,
+    "events": 5,
+    "slots": 0
+  },
+  {
+    "name": "UserSearchModal",
+    "path": "activitypub/usersearchmodal.md",
+    "relativePath": "activitypub/UserSearchModal.vue",
+    "props": 0,
+    "events": 2,
+    "slots": 0
+  },
+  {
+    "name": "UserSidebar",
+    "path": "usersidebar.md",
+    "relativePath": "UserSidebar.vue",
+    "props": 1,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "ViewHeader",
+    "path": "common/viewheader.md",
+    "relativePath": "common/ViewHeader.vue",
+    "props": 2,
+    "events": 1,
+    "slots": 0
+  },
+  {
+    "name": "VoiceChannelParticipants",
+    "path": "voice/voicechannelparticipants.md",
+    "relativePath": "voice/VoiceChannelParticipants.vue",
+    "props": 2,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "VoiceChannelUserList",
+    "path": "voice/voicechanneluserlist.md",
+    "relativePath": "voice/VoiceChannelUserList.vue",
+    "props": 2,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "VoiceIcon",
+    "path": "icons/voiceicon.md",
+    "relativePath": "icons/VoiceIcon.vue",
+    "props": 2,
+    "events": 0,
+    "slots": 0
+  },
+  {
+    "name": "VoiceSettingsInline",
+    "path": "settings/user/voicesettingsinline.md",
+    "relativePath": "settings/user/VoiceSettingsInline.vue",
+    "props": 1,
+    "events": 1,
+    "slots": 0
+  },
+  {
+    "name": "VoiceSettingsPanel",
+    "path": "voice/voicesettingspanel.md",
+    "relativePath": "voice/VoiceSettingsPanel.vue",
+    "props": 0,
+    "events": 2,
+    "slots": 0
+  },
+  {
+    "name": "VoiceUserContextMenu",
+    "path": "voice/voiceusercontextmenu.md",
+    "relativePath": "voice/VoiceUserContextMenu.vue",
+    "props": 4,
+    "events": 1,
+    "slots": 0
+  },
+  {
+    "name": "VoiceVideoSettings",
+    "path": "settings/user/voicevideosettings.md",
+    "relativePath": "settings/user/VoiceVideoSettings.vue",
+    "props": 1,
+    "events": 1,
+    "slots": 0
+  }
+]

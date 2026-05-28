@@ -1,0 +1,99 @@
+version: "3.8"
+
+# =============================================================================
+# HARMONY LOCAL DEVELOPMENT ENVIRONMENT
+# =============================================================================
+# 
+# This docker-compose provides:
+# - Caddy reverse proxy with HTTPS (using mkcert certificates)
+# - Federation backend (in Docker to access PostgreSQL for the BullMQ LISTEN/NOTIFY bridge)
+# - Vite dev server proxied to https://har.mony.local
+# - LiveKit proxied to wss://live.mony.local
+#
+# SETUP:
+# 1. Install mkcert: https://github.com/FiloSottile/mkcert
+#    - brew install mkcert (macOS)
+#    - sudo pacman -S mkcert (Arch/Manjaro)
+#    - sudo apt install mkcert (Debian/Ubuntu with backports)
+#
+# 2. Install the local CA:
+#    mkcert -install
+#
+# 3. Generate certificates:
+#    cd dev/certs
+#    mkcert "har.mony.local" "live.mony.local" localhost 127.0.0.1
+#
+# 4. Add to /etc/hosts:
+#    127.0.0.1 har.mony.local live.mony.local
+#
+# 5. Start the stack:
+#    cd dev && docker compose up -d
+#
+# 6. Run Vite dev server (in another terminal):
+#    npm run dev -- --host 0.0.0.0
+#
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # CADDY - Reverse Proxy with HTTPS
+  # ---------------------------------------------------------------------------
+  caddy:
+    image: caddy:2-alpine
+    container_name: harmony-dev-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./certs:/etc/certs:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    networks:
+      - harmony-dev
+      - supabase_default
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - federation-backend
+
+  # ---------------------------------------------------------------------------
+  # FEDERATION BACKEND
+  # Must run in Docker to access PostgreSQL (BullMQ LISTEN/NOTIFY bridge) on supabase_default network
+  # ---------------------------------------------------------------------------
+  federation-backend:
+    build:
+      context: ../federation-backend
+      dockerfile: Dockerfile.dev
+    container_name: harmony-dev-backend
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    env_file:
+      - ../federation-backend/.env
+    environment:
+      # Override for Docker networking
+      - SUPABASE_URL=http://supabase-kong:8000
+      - DATABASE_URL=postgresql://supabase_admin:${POSTGRES_PASSWORD:-your-super-secret-and-long-postgres-password}@supabase-db:5432/postgres
+      - LIVEKIT_URL=ws://harmony-livekit:7880
+      - CORS_ORIGIN=https://har.mony.local
+    volumes:
+      # Mount source for hot-reload with tsx watch
+      - ../federation-backend/src:/app/src
+      - ../federation-backend/tsconfig.json:/app/tsconfig.json:ro
+    networks:
+      - harmony-dev
+      - supabase_default
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+networks:
+  harmony-dev:
+    driver: bridge
+  supabase_default:
+    external: true
+
+volumes:
+  caddy-data:
+  caddy-config:

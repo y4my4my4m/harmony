@@ -1,0 +1,83 @@
+{
+  "entryPoints": ["./src/main.ts"],
+  "out": "./docs/api",
+  "theme": "default",
+  "name": "Harmony API Documentation",
+  "includeVersion": true,
+  "excludePrivate": true,
+  "excludeProtected": false,
+  "excludeExternals": true,
+  "readme": "./docs/README.md",
+  "categorizeByGroup": true,
+  "categoryOrder": [
+    "Authentication",
+    "Chat System",
+    "Voice & Video",
+    "Federation",
+    "User Management",
+    "Services",
+    "Utilities",
+    "*"
+  ],
+  "groupOrder": [
+    "Stores",
+    "Services",
+    "Components",
+    "Composables",
+    "Types",
+    "Utilities"
+  ],
+  "sort": ["source-order"],
+  "kindSortOrder": [
+    "Module",
+    "Namespace",
+    "Enum",
+    "Class",
+    "Interface",
+    "TypeAlias",
+    "Constructor",
+    "Property",
+    "Method",
+    "Function",
+    "Variable"
+  ],
+  "navigation": {
+    "includeCategories": true,
+    "includeGroups": true
+  },
+  "plugin": [
+    "typedoc-plugin-vue",
+    "typedoc-plugin-mermaid"
+  ],
+  "commentStyle": "jsdoc",
+  "treatWarningsAsErrors": false,
+  "validation": {
+    "notExported": true,
+    "invalidLink": true,
+    "notDocumented": false
+  },
+  "searchInComments": true,
+  "exclude": [
+    "**/node_modules/**",
+    "**/dist/**",
+    "**/*.test.ts",
+    "**/*.spec.ts"
+  ],
+  "externalPattern": [
+    "**/node_modules/**"
+  ],
+  "excludeInternal": true,
+  "cleanOutputDir": true,
+  "logLevel": "Info",
+  "pretty": true,
+  "gitRevision": "main",
+  "hideGenerator": false,
+  "customCss": "./docs/assets/custom.css",
+  "gaID": "",
+  "visibilityFilters": {
+    "protected": false,
+    "private": false,
+    "inherited": true,
+    "external": false
+  }
+}
