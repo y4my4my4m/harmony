@@ -1,95 +1,124 @@
-/**
- * Utility functions to strip tracking parameters from URLs
- * Supports: YouTube, X/Twitter, TikTok, Instagram, Facebook
- */
+// Strip tracking / analytics parameters from URLs without changing the
+// destination resource. Two layers:
+//
+//   1. `UNIVERSAL_TRACKING_PARAMS` / `UNIVERSAL_TRACKING_PREFIXES` apply to
+//      every URL regardless of host. These are limited to params that are
+//      strictly attribution/analytics (utm_*, fbclid, gclid, etc.) and have
+//      no functional effect on the destination page.
+//   2. `DOMAIN_TRACKING_PARAMS` adds host-specific extras for cases the
+//      universal list shouldn't touch (e.g. Twitter's `s` and `t`, YouTube's
+//      `feature`, TikTok's share metadata).
+//
+// The cleaned URL is what we render to the user. The original URL stays in
+// the message body / database so federation peers see what the sender wrote.
 
-/**
- * Known tracking parameters for each platform
- */
-const TRACKING_PARAMS: Record<string, string[]> = {
-  // YouTube (youtu.be and youtube.com)
-  'youtube.com': ['si', 'feature', 'utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term', 'gclid', 'fbclid'],
-  'youtu.be': ['si', 'feature', 'utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term', 'gclid', 'fbclid'],
-  
-  // X/Twitter
-  'twitter.com': ['s', 't', 'ref_src', 'ref_url', 'utm_source', 'utm_medium', 'utm_campaign'],
-  'x.com': ['s', 't', 'ref_src', 'ref_url', 'utm_source', 'utm_medium', 'utm_campaign'],
-  
-  // TikTok
-  'tiktok.com': ['is_from_webapp', 'is_copy_url', 'sender_device', 'sender_web_id', 'share_id', 'share_app_id', 'share_link_id', 'share_item_id', 'share_channel'],
-  
-  // Instagram
-  'instagram.com': ['igshid', 'igsh', 'utm_source', 'utm_medium', 'utm_campaign'],
-  
-  // Facebook
-  'facebook.com': ['fbclid', 'ref', 'refsrc', 'utm_source', 'utm_medium', 'utm_campaign'],
-  'fb.com': ['fbclid', 'ref', 'refsrc', 'utm_source', 'utm_medium', 'utm_campaign'],
-  'm.facebook.com': ['fbclid', 'ref', 'refsrc', 'utm_source', 'utm_medium', 'utm_campaign'],
+// Always-stripped exact param names. Sourced from the analytics suites of
+// the major ad/email networks. Any params here are inert for the resource
+// they're attached to.
+const UNIVERSAL_TRACKING_PARAMS = new Set<string>([
+  // Click identifiers (ad network attribution)
+  'fbclid', 'gclid', 'gbraid', 'wbraid', 'dclid',
+  'msclkid', 'yclid', 'twclid', 'ttclid', 'scid',
+  'igshid', 'igsh', 'mibextid',
+
+  // Email / CRM tracking
+  'mc_eid', 'mc_cid',
+  '_hsenc', '_hsmi', '_hsfp',
+  'vero_id', 'vero_conv',
+  'mkt_tok',
+  'sc_cid', 'sc_clid',
+  's_cid',
+  'oly_anon_id', 'oly_enc_id',
+
+  // Misc social / shorteners
+  'epik',                  // Pinterest
+  'spm',                   // Alibaba
+  'algo_pvid',             // Aliexpress
+  '__twitter_impression',  // Twitter web app embed flag
+  'wt_zmc',                // Zalando
+  'cmpid', 'cm_mmc',       // generic campaign ids
+])
+
+// Param-name prefixes that are always stripped (catches every Google /
+// publisher utm_* variant including utm_brand, utm_social-type, utm_id, etc.
+// and Matomo's pk_* style).
+const UNIVERSAL_TRACKING_PREFIXES = [
+  'utm_',
+  'pk_',   // Matomo / Piwik
+  'mtm_',  // Matomo newer
+  'hsa_',  // HubSpot ads
+]
+
+// Host-specific extras that are NOT safe to apply universally (might break
+// legit functional params on other domains). Keys are domain (no `www.`).
+const DOMAIN_TRACKING_PARAMS: Record<string, string[]> = {
+  // YouTube share-link extras
+  'youtube.com': ['si', 'feature'],
+  'youtu.be':    ['si', 'feature'],
+
+  // X / Twitter share-link extras (`s` and `t` are post-share signature
+  // tokens, dropping them still loads the tweet).
+  'twitter.com': ['s', 't', 'ref_src', 'ref_url'],
+  'x.com':       ['s', 't', 'ref_src', 'ref_url'],
+
+  // TikTok share metadata
+  'tiktok.com': [
+    'is_from_webapp', 'is_copy_url', 'sender_device', 'sender_web_id',
+    'share_id', 'share_app_id', 'share_link_id', 'share_item_id', 'share_channel',
+  ],
+
+  // Facebook referrers (`ref` and `refsrc` are FB-internal navigation flags;
+  // links still load without them).
+  'facebook.com':   ['ref', 'refsrc'],
+  'fb.com':         ['ref', 'refsrc'],
+  'm.facebook.com': ['ref', 'refsrc'],
 }
 
-/**
- * Get the domain from a URL
- */
-function getDomain(url: string): string | null {
-  try {
-    const urlObj = new URL(url)
-    return urlObj.hostname.replace('www.', '')
-  } catch {
-    return null
+function shouldStripParam(name: string, hostExtras: ReadonlyArray<string>): boolean {
+  if (UNIVERSAL_TRACKING_PARAMS.has(name)) return true
+  for (const prefix of UNIVERSAL_TRACKING_PREFIXES) {
+    if (name.startsWith(prefix)) return true
   }
+  return hostExtras.includes(name)
 }
 
-/**
- * Strip tracking parameters from a URL
- * @param url The URL to clean
- * @returns The cleaned URL without tracking parameters
- */
+// Strip tracking parameters from a URL. Returns the original string if the
+// input doesn't parse as a URL.
 export function stripTrackingParameters(url: string): string {
+  let urlObj: URL
   try {
-    const urlObj = new URL(url)
-    const domain = urlObj.hostname.replace('www.', '')
-    
-    // Find matching domain in tracking params
-    const trackingParams = TRACKING_PARAMS[domain] || []
-    
-    if (trackingParams.length === 0) {
-      // No tracking params defined for this domain
-      return url
-    }
-    
-    // Remove tracking parameters
-    trackingParams.forEach(param => {
-      urlObj.searchParams.delete(param)
-    })
-    
-    // Reconstruct URL
-    const cleanedUrl = urlObj.toString()
-    
-    // Remove trailing ? if no params remain
-    return cleanedUrl.endsWith('?') ? cleanedUrl.slice(0, -1) : cleanedUrl
-  } catch (error) {
-    // If URL parsing fails, return original
+    urlObj = new URL(url)
+  } catch {
     return url
   }
+
+  const domain = urlObj.hostname.replace(/^www\./i, '')
+  const hostExtras = DOMAIN_TRACKING_PARAMS[domain] ?? []
+
+  // Collect-then-delete so we don't mutate while iterating.
+  const toDelete: string[] = []
+  for (const name of urlObj.searchParams.keys()) {
+    if (shouldStripParam(name, hostExtras)) toDelete.push(name)
+  }
+  if (toDelete.length === 0) return url
+
+  for (const name of toDelete) urlObj.searchParams.delete(name)
+
+  const cleaned = urlObj.toString()
+  return cleaned.endsWith('?') ? cleaned.slice(0, -1) : cleaned
 }
 
-/**
- * Check if URL stripping is enabled for the current user
- */
+// Does the current user want URLs stripped before display? Defaults to true
+// when there's no localStorage entry (privacy-friendly default).
 export function isUrlTrackingStrippingEnabled(): boolean {
   try {
     const setting = localStorage.getItem('harmony-privacy-strip-url-trackers')
-    // Default to true if not set
     return setting === null ? true : setting === 'true'
   } catch {
-    // If localStorage fails, default to enabled
     return true
   }
 }
 
-/**
- * Set URL tracking stripping preference
- */
 export function setUrlTrackingStrippingEnabled(enabled: boolean): void {
   try {
     localStorage.setItem('harmony-privacy-strip-url-trackers', enabled ? 'true' : 'false')
@@ -98,23 +127,14 @@ export function setUrlTrackingStrippingEnabled(enabled: boolean): void {
   }
 }
 
-// Hoisted to module scope so it isn't recompiled every call. `.replace` with
-// a /g regex does not require a `lastIndex` reset.
+// Module-scope so we don't recompile on every call. /g + .replace doesn't
+// need a lastIndex reset.
 const URL_IN_TEXT_REGEX = /(\bhttps?:\/\/\S+)/g
 
-/**
- * Strip tracking parameters from all URLs in a text string
- * This is used before parsing message content to clean URLs in the raw text
- * @param text The text content that may contain URLs
- * @returns The text with all URLs cleaned
- */
+// Strip tracking parameters from every URL found in a text blob. Used by
+// the content processor before rendering messages / posts so the cleaned
+// URLs are what the user sees, while the raw text persists in the DB.
 export function stripUrlsInText(text: string): string {
-  if (!text || !isUrlTrackingStrippingEnabled()) {
-    return text
-  }
-  
-  return text.replace(URL_IN_TEXT_REGEX, (match) => {
-    return stripTrackingParameters(match)
-  })
+  if (!text || !isUrlTrackingStrippingEnabled()) return text
+  return text.replace(URL_IN_TEXT_REGEX, (match) => stripTrackingParameters(match))
 }
-
