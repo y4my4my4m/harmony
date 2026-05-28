@@ -165,7 +165,7 @@
     <div class="settings-section">
       <h3 class="section-title">Profile fields</h3>
       <p class="section-description">
-        Add up to {{ PROFILE_FIELDS_MAX }} short links or labels to your profile — websites, social handles, anything you want others to find you on. Visible on your profile page and federated to other ActivityPub instances.
+        Add up to {{ PROFILE_FIELDS_MAX }} short links or labels to your profile - websites, social handles, anything you want others to find you on. Visible on your profile page and federated to other ActivityPub instances.
       </p>
 
       <div class="profile-fields-editor" v-if="localProfileFields.length > 0">
@@ -245,7 +245,7 @@
           <Icon name="info" :size="14" /> How to get your supporter badge
         </p>
         <p>
-          When donating, include this handle <strong>anywhere</strong> in your message —
+          When donating, include this handle <strong>anywhere</strong> in your message -
           we'll match it automatically and assign the right tier:
         </p>
         <div class="donor-handle-row">
@@ -265,25 +265,25 @@
           <ul class="donor-examples-list">
             <li>
               <code>@{{ currentUserHandleShort || 'alice' }}@{{ supporterInstanceDomain }}</code>
-              <span class="example-note">Just the handle — works fine.</span>
+              <span class="example-note">Just the handle - works fine.</span>
             </li>
             <li>
               <code>thanks for the great instance! @{{ currentUserHandleShort || 'alice' }}@{{ supporterInstanceDomain }}</code>
-              <span class="example-note">Handle at the end — works.</span>
+              <span class="example-note">Handle at the end - works.</span>
             </li>
             <li>
               <code>@{{ currentUserHandleShort || 'alice' }}@{{ supporterInstanceDomain }} keep it up &lt;3</code>
-              <span class="example-note">Handle at the start with a note — works.</span>
+              <span class="example-note">Handle at the start with a note - works.</span>
             </li>
             <li>
               <code>hey ping me @{{ currentUserHandleShort || 'alice' }}@{{ supporterInstanceDomain }} when the new feature ships</code>
-              <span class="example-note">Handle in the middle — works.</span>
+              <span class="example-note">Handle in the middle - works.</span>
             </li>
           </ul>
         </details>
 
         <p class="donor-handle-hint">
-          If you forget the handle, your donation isn't lost — it's queued
+          If you forget the handle, your donation isn't lost - it's queued
           for the admins to review and attribute manually. Auto-matching is
           just faster.
         </p>
@@ -409,7 +409,7 @@ const bannerKey = ref(0) // For forcing banner reload
 // Profile fields editor state
 // ---------------------------------------------------------------------------
 // Editable mirror of `profile_fields`. We DECODE the stored HTML on load
-// (extracting the bare URL out of any `<a href="…">…</a>` wrapper) so the
+// (extracting the bare URL out of any `<a href="...">...</a>` wrapper) so the
 // user sees the plain value they originally typed, and ENCODE on save
 // (wrapping URL-shaped values in an <a> tag) so federated instances render
 // them as clickable links. This matches Mastodon's storage format and keeps
@@ -451,7 +451,7 @@ function encodeFieldValueForStorage(value: string): string {
 
 function decodeFieldValueForEditing(value: string): string {
   if (!value) return ''
-  // Strip a single outer <a> wrapper around a URL — the most common shape,
+  // Strip a single outer <a> wrapper around a URL - the most common shape,
   // and what we write back in encodeFieldValueForStorage. Anything more
   // complex (mixed HTML / multiple anchors) falls through unchanged; the
   // user can still edit it as raw text if they want.
@@ -673,7 +673,7 @@ const saveChanges = () => {
   if (!hasChanges.value) return
 
   // Require a non-empty display name. Otherwise the user shows up as
-  // `Unknown User` everywhere via the `getUserDisplayName` fallback — bad
+  // `Unknown User` everywhere via the `getUserDisplayName` fallback - bad
   // UX and a confusing impersonation surface. Both the service-layer
   // validation (`CoreProfileService.validateProfileData`) and the DB
   // CHECK constraint (`profiles_display_name_not_blank`) also enforce
@@ -696,7 +696,7 @@ const saveChanges = () => {
   // Build the persistable profile_fields array:
   //   - drop completely-empty rows (both name and value blank) so the user
   //     can leave an unused row visible without it being persisted;
-  //   - reject rows that have only one of (name, value) — partial rows
+  //   - reject rows that have only one of (name, value) - partial rows
   //     wouldn't render anything useful on the profile page;
   //   - encode URL-shaped values into <a> wrappers so federated renderers
   //     produce clickable links.

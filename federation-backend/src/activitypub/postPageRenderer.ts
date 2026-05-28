@@ -65,7 +65,7 @@ const SAFE_URL_SCHEMES = new Set(['http:', 'https:', 'mailto:', 'tel:']);
 
 /**
  * Return an attribute-safe absolute URL, or `''` if the URL uses an
- * unsafe scheme. Strips ASCII control characters first — browsers ignore
+ * unsafe scheme. Strips ASCII control characters first - browsers ignore
  * tabs/newlines inside URL schemes, which is a well-known XSS bypass
  * (`java\tscript:`).
  *
@@ -75,9 +75,10 @@ const SAFE_URL_SCHEMES = new Set(['http:', 'https:', 'mailto:', 'tel:']);
  */
 function safeAttrUrl(url: string | null | undefined): string {
   if (url == null) return '';
+  // eslint-disable-next-line no-control-regex
   const cleaned = String(url).replace(/[\x00-\x1F\x7F]/g, '').trim();
   if (!cleaned) return '';
-  const schemeMatch = /^([a-z][a-z0-9+.\-]*):/i.exec(cleaned);
+  const schemeMatch = /^([a-z][a-z0-9+.-]*):/i.exec(cleaned);
   if (!schemeMatch) {
     // Scheme-less: relative path / protocol-relative / fragment. Allowed.
     return cleaned;
@@ -136,7 +137,7 @@ function extractContentHtml(content: any): string {
   // Defensive: the DB constraint `posts_content_is_array` should make
   // this path unreachable, but if a string ever slipped through (e.g.
   // an early migration / federation import) we MUST escape it before
-  // inlining into the post page — returning it raw would let a stored
+  // inlining into the post page - returning it raw would let a stored
   // `<style>` / `<img onerror>` etc. execute when crawlers / browsers
   // hit `/posts/:id`. Escape and turn newlines into `<br>` so the
   // shape matches a single text part.
@@ -166,7 +167,7 @@ function extractContentHtml(content: any): string {
         return `<span class="hashtag">#${escapeHtml(item.name)}</span>`;
       }
       if (item.type === 'link') {
-        // Scheme-validate the URL before inlining as `href` — a federated
+        // Scheme-validate the URL before inlining as `href` - a federated
         // payload could send `{ type: 'link', url: 'javascript:alert(1)' }`
         // and the link would execute on click otherwise.
         const safeUrl = safeAttrUrl(item.url);

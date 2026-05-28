@@ -195,11 +195,11 @@ const onThemeChanged = (themeId: string): void => {
   updateCacheInfo()
 }
 
-const onVolumeChanged = (volume: number): void => {
+const onVolumeChanged = (_volume: number): void => {
   // showToast('info', `Volume set to ${Math.round(volume * 100)}%`)
 }
 
-const onThemeTested = (themeId: string): void => {
+const onThemeTested = (_themeId: string): void => {
   // showToast('info', `Tested ${themeId} theme`)
 }
 

@@ -107,7 +107,9 @@ export function useLocalMessageSearch(
     minQueryLength = 2,
     debounceMs = 150,
     caseSensitive = false,
+    // eslint-disable-next-line unused-imports/no-unused-vars
     searchMentions = true,
+    // eslint-disable-next-line unused-imports/no-unused-vars
     searchUrls = true
   } = options
 

@@ -294,7 +294,6 @@ import { useToast } from 'vue-toastification'
 import { dmCallSignaling, type CallSignal } from '@/services/DMCallSignaling'
 import { dmCallPermissions } from '@/services/DMCallPermissions'
 import { authContextService } from '@/services/AuthContextService'
-import { userDataService } from '@/services/userDataService'
 import { supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
 
@@ -539,9 +538,9 @@ const handleCallSignal = async (signal: CallSignal) => {
   // meant:
   //   - `signal.callerId === currentUserId` never matched our own outgoing
   //     signals, so self-suppression was broken,
-  //   - `canReceiveCall(callerId, currentUserId, …)` queried the wrong
+  //   - `canReceiveCall(callerId, currentUserId, ...)` queried the wrong
   //     row, breaking block/DND/mute auto-decline,
-  //   - `declineCall(..., currentUserId, …)` recorded the wrong actor.
+  //   - `declineCall(..., currentUserId, ...)` recorded the wrong actor.
   let currentUserId: string
   try {
     const { authContextService } = await import('@/services/AuthContextService')
@@ -556,17 +555,15 @@ const handleCallSignal = async (signal: CallSignal) => {
   if (signal.callerId === currentUserId && signal.type !== 'timeout') return
   
   switch (signal.type) {
-    case 'initiate':
-      // Check permissions before showing incoming call modal
+    case 'initiate': {
       const permissionCheck = await dmCallPermissions.canReceiveCall(
         signal.callerId,
         currentUserId,
         signal.conversationId
       )
-      
+
       if (!permissionCheck.allowed) {
-        // Auto-decline with reason
-        debug.log('🚫 Auto-declining call:', permissionCheck.reason)
+        debug.log('Auto-declining call:', permissionCheck.reason)
         await dmCallSignaling.declineCall(
           signal.conversationId,
           currentUserId,
@@ -574,14 +571,14 @@ const handleCallSignal = async (signal: CallSignal) => {
         )
         return
       }
-      
-      // Show incoming call modal
+
       emit('incoming-call', {
         callerId: signal.callerId,
         callType: signal.callType,
         conversationId: signal.conversationId
       })
       break
+    }
       
     case 'join':
     case 'accept':
@@ -606,11 +603,12 @@ const handleCallSignal = async (signal: CallSignal) => {
       activeCallParticipantCount.value = 0
       break
       
-    case 'decline':
+    case 'decline': {
       stopCallerRinging()
       const declineMsg = dmCallPermissions.getDeclineReasonMessage(signal.reason)
       toast.info(declineMsg)
       break
+    }
       
     case 'busy':
       stopCallerRinging()
@@ -653,7 +651,7 @@ const unsubscribeFromCallSignals = () => {
  * "Start a Call" but the actual call setup (permissions / signaling /
  * voice join) lives here in DMHeader. Sidebar routes the user to the
  * DM first and then fires `harmony-dm-start-call` once the conversation
- * is open — we only act when the event targets *this* conversation so
+ * is open - we only act when the event targets *this* conversation so
  * stale events from a previous DM don't cause a cross-call.
  */
 const handleStartCallRequest = (e: Event) => {
@@ -789,7 +787,7 @@ const handleSearchClick = () => {
   showSearchModal.value = true
 }
 
-const handleSearchMessageClick = (message: any) => {
+const handleSearchMessageClick = (_message: any) => {
   // Message click is handled by the modal, just close it
   // The message will be scrolled to in the conversation view
   showSearchModal.value = false

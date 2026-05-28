@@ -4,7 +4,6 @@ import { useServerChannelStore } from '@/stores/useServerChannel'
 import { useUserData } from '@/composables/useUserData'
 import { authContextService } from '@/services/AuthContextService'
 import { roleService, Permission, type ServerRole } from '@/services/RoleService'
-import type { Server } from '@/types'
 import { debug } from '@/utils/debug'
 
 // Re-export Permission enum as ServerPermission for backwards compatibility

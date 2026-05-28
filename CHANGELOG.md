@@ -14,7 +14,7 @@ polish, federation backend cleanup, and getting the documentation site
 honest about the BullMQ migration.
 
 ### Added
-- **SDR-001 skin** — a noir-cyberpunk visual theme with its own pixel-art
+- **SDR-001 skin** - a noir-cyberpunk visual theme with its own pixel-art
   icon set (MIT-licensed), CRT scanline / HUD-badge decorative toggles,
   dynamic accent-color system, and matching **Neo Kobe** audio theme
   (8 new sound assets: `camera_on`, `dm`, `invite`, `mic_off`, `reaction`,
@@ -25,12 +25,12 @@ honest about the BullMQ migration.
 - **NoRe Sans Pixel Pro v2** font family and specimen.
 - **File size** for custom emojis: new `emojis.file_size` column, captured
   during upload, displayed conditionally in `ServerEmojiManagement`.
-- **Quick reply queue** in the service worker — replies typed into push
+- **Quick reply queue** in the service worker - replies typed into push
   notifications are now persisted to IndexedDB and drained on auth /
   visibility, so they survive `postMessage` races and closed-tab scenarios.
 - Inline formatting toggles (bold, italic) in the rich text editor.
 - Image-specific context-menu actions (copy / save image).
-- `COPYRIGHT`, `LICENSE-ADDITIONAL-TERMS.md`, `TRADEMARK.md` — explicit
+- `COPYRIGHT`, `LICENSE-ADDITIONAL-TERMS.md`, `TRADEMARK.md` - explicit
   copyright statement, AGPL §7 attribution requirement, and common-law
   trademark policy for the "Harmony" name and polar-bear logo.
 - Self-hosting documentation for instance-customizable assets
@@ -72,7 +72,7 @@ honest about the BullMQ migration.
   to reflect that **BullMQ (Redis-backed)** has been the actual job
   backend since the March 2026 migration. The `USE_PGBOSS_QUEUE`
   environment variable is still accepted as a backward-compat alias
-  for `USE_BULLMQ_QUEUE` — old `.env` files continue to work.
+  for `USE_BULLMQ_QUEUE` - old `.env` files continue to work.
 - Service worker bumped to v3.3.
 
 ### Fixed
@@ -87,7 +87,7 @@ honest about the BullMQ migration.
 - **Docs build no longer fails on dead links**: `docs/BOT_API.md` and
   `docs/DEVELOPMENT.md` referenced `../LICENSE`, `../COPYRIGHT`,
   `../TRADEMARK.md`, `../SECURITY.md`, `../ROADMAP.md`, `../BUGS.md`
-  via VitePress relative links — VitePress can't render files outside
+  via VitePress relative links - VitePress can't render files outside
   `docs/`. Replaced with absolute GitHub URLs. (Without this fix,
   `npm run docs:build` exited non-zero and the docs site could not be
   redeployed.)

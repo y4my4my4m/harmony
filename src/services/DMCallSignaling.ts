@@ -865,7 +865,7 @@ class DMCallSignalingService {
    */
   async endFederatedCall(
     conversationId: string,
-    userId: string
+    _userId: string
   ): Promise<void> {
     debug.log('📞 [Federated] Ending federated call')
     
@@ -957,7 +957,7 @@ class DMCallSignalingService {
       .on('broadcast', { event: 'call-accepted' }, (payload) => {
         debug.log('📞 [Federated] Call accepted:', payload.payload)
         // Update active call state
-        const { callId, livekitUrl, roomName } = payload.payload
+        const { callId } = payload.payload
         const call = this.activeCalls.get(callId)
         if (call && call.timeoutTimer) {
           clearTimeout(call.timeoutTimer)

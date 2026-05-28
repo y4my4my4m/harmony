@@ -138,7 +138,7 @@ import { storeToRefs } from 'pinia';
 import { useRouter } from 'vue-router';
 import { useActivityPubStore } from '@/stores/useActivityPub';
 import { usePostInteractions } from '@/composables/usePostInteractions';
-import type { Post, TimelinePost } from '@/types';
+import type { TimelinePost } from '@/types';
 
 const { t } = useI18n();
 

@@ -43,7 +43,7 @@
       </button>
     </div>
     <!-- Read-only state: user lacks SEND_MESSAGES on this channel.
-         Backend RLS / triggers still enforce — this is UX, not security. -->
+         Backend RLS / triggers still enforce - this is UX, not security. -->
     <div v-if="!canSendMessages" class="message-readonly-banner" role="status">
       <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true">
         <path d="M12 1a4.5 4.5 0 0 0-4.5 4.5V9H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V11a2 2 0 0 0-2-2h-1.5V5.5A4.5 4.5 0 0 0 12 1zm-2.5 4.5a2.5 2.5 0 0 1 5 0V9h-5V5.5z"/>
@@ -251,7 +251,7 @@ const gifTriggerRef = ref<HTMLElement | null>(null);
 const emojiTriggerRef = ref<HTMLElement | null>(null);
 const isVoiceRecording = ref(false);
 const voiceUploading = ref(false);
-// Flips for ~400ms whenever the user tries to send an over-limit message —
+// Flips for ~400ms whenever the user tries to send an over-limit message -
 // drives the .buzz CSS animation on the container so the user sees the
 // message wasn't sent, without losing their draft.
 const overLimitBuzz = ref(false);
@@ -262,7 +262,7 @@ const serverChannelStore = useServerChannelStore()
 // =========================================================================
 // Send permission gating (channel-level role permissions)
 // =========================================================================
-// IMPORTANT: must be declared AFTER `authStore` / `serverChannelStore` above
+// must be declared AFTER `authStore` / `serverChannelStore` above
 // because the immediate-watch resolves synchronously and would otherwise hit a
 // temporal-dead-zone (`Cannot access 'authStore' before initialization`).
 const canSendMessages = ref(true); // optimistic until first resolution
@@ -303,7 +303,7 @@ watch(
 );
 
 const readOnlyPlaceholder = computed(() => {
-  if (isResolvingPermissions.value) return 'Checking permissions…';
+  if (isResolvingPermissions.value) return 'Checking permissions...';
   return 'You do not have permission to send messages in this channel.';
 });
 
@@ -373,7 +373,7 @@ const showCharCount = computed(
 );
 
 // Check if there's content to send. Over-limit messages STILL count as
-// "having content" so the send button stays enabled — clicking it (or
+// "having content" so the send button stays enabled - clicking it (or
 // pressing Enter) routes through `send()` which buzzes the input and
 // toasts an error, instead of silently dropping the user's draft.
 const hasContent = computed(() => {
@@ -463,7 +463,7 @@ const updateText = (newText: string, cursorPosition?: number) => {
         richEditorRef.value.renderContent(newText, true); // Skip cursor restore
       }
       
-      // IMPORTANT: Focus FIRST, then set cursor position
+      // Focus FIRST, then set cursor position
       nextTick(() => {
         if (richEditorRef.value) {
           debug.log('🔧 Focusing editor FIRST');
@@ -615,7 +615,7 @@ const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText);
       // shake the input, surface a toast, and refocus so the user can
       // trim and retry. Previously the over-limit message was emitted,
       // bounced from the backend, and the optimistic-removal path wiped
-      // the user's draft — which is terrible UX if they actually wrote
+      // the user's draft - which is terrible UX if they actually wrote
       // 4000+ characters.
       if (messageTooLong.value) {
         overLimitBuzz.value = false;
@@ -1129,7 +1129,7 @@ const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText);
   }
 
   /* "Buzz" animation fired when the user tries to send an over-limit
-   * draft. Quick horizontal shake — visible, dismissable, doesn't move
+   * draft. Quick horizontal shake - visible, dismissable, doesn't move
    * adjacent UI (transform-only). The toast carries the explanation;
    * this is just kinetic feedback that the click was acknowledged. */
   .message-container.buzz-over-limit {

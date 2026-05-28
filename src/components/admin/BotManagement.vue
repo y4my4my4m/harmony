@@ -149,7 +149,6 @@ import { supabase } from '@/supabase'
 import { useAuthStore } from '@/stores/auth'
 import { useToast } from 'vue-toastification'
 import { generateBotToken, hashBotToken } from '@/utils/botUtils'
-import Avatar from '@/components/common/Avatar.vue'
 import BotAvatar from '@/components/common/BotAvatar.vue'
 
 const toast = useToast()

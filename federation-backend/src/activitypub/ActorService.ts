@@ -1304,6 +1304,7 @@ async function fetchRemotePostReactions(
         if (item.tag && Array.isArray(item.tag)) {
           const emojiTag = item.tag.find((t: any) => t.type === 'Emoji');
           if (emojiTag?.icon) {
+            // eslint-disable-next-line unused-imports/no-unused-vars
             emojiUrl = typeof emojiTag.icon === 'string' ? emojiTag.icon : emojiTag.icon?.url;
           }
         }

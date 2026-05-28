@@ -552,7 +552,7 @@ class AdminService {
 
         for (const entry of entries) {
           if (entry.target_type === 'user' && entry.target_id) {
-            (entry as any).target_username = idToUsername.get(entry.target_id) || `user:${entry.target_id.slice(0, 8)}…`;
+            (entry as any).target_username = idToUsername.get(entry.target_id) || `user:${entry.target_id.slice(0, 8)}...`;
           }
         }
       }
@@ -1314,7 +1314,7 @@ class AdminService {
   /**
    * Delete instance
    */
-  async deleteInstance(instanceId: string, adminId: string): Promise<void> {
+  async deleteInstance(instanceId: string, _adminId: string): Promise<void> {
     try {
       const { error } = await supabase
         .from('federated_instances')

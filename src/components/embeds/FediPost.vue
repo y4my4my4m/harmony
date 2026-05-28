@@ -341,7 +341,7 @@ const platformIcon = computed(() => {
 }
 
 .fedi-post__content :deep(.ellipsis)::after {
-  content: '…';
+  content: '...';
 }
 
 .fedi-post__media {

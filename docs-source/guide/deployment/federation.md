@@ -120,7 +120,7 @@ When `USE_BULLMQ_QUEUE=true` (the default), federation activities are processed 
 
 > **Note**: pg-boss was the legacy backend and is no longer used. The `USE_PGBOSS_QUEUE` env var is still accepted as a backward-compatibility alias for `USE_BULLMQ_QUEUE`, but the pgboss schema is dropped on fresh deployments.
 
-Without BullMQ (`USE_BULLMQ_QUEUE=false`), federation events are processed synchronously through `DatabaseListener` using Supabase Realtime CDC — simpler but less reliable, with no retries or job persistence.
+Without BullMQ (`USE_BULLMQ_QUEUE=false`), federation events are processed synchronously through `DatabaseListener` using Supabase Realtime CDC - simpler but less reliable, with no retries or job persistence.
 
 ## Federation Features
 

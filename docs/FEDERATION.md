@@ -1,10 +1,10 @@
 # Federation Documentation
 
-## 📋 Overview
+## Overview
 
 Harmony implements ActivityPub federation, enabling cross-platform communication with other federated platforms like Mastodon, Pleroma, and other ActivityPub-compatible services. This document covers the federation architecture, implementation details, and developer guidelines.
 
-## 🌐 ActivityPub Implementation
+## ActivityPub Implementation
 
 ```mermaid
 graph TB
@@ -50,7 +50,7 @@ graph TB
     OUTBOX <--> OTHER
 ```
 
-## 🏗️ Federation Architecture
+## Federation Architecture
 
 ### Core Components
 
@@ -117,7 +117,7 @@ type SupportedObjectTypes =
   | 'Question'  // Polls and questions
 ```
 
-## 🔧 Edge Functions Implementation
+## Edge Functions Implementation
 
 ### WebFinger Endpoint (`/webfinger`)
 **Purpose**: Actor discovery and verification
@@ -334,7 +334,7 @@ export default async function nodeinfo(req: Request): Promise<Response> {
 }
 ```
 
-## 🔐 HTTP Signature Verification
+## HTTP Signature Verification
 
 ### Signature Generation
 ```typescript
@@ -395,7 +395,7 @@ async function verifyHTTPSignature(request: Request, body: any): Promise<boolean
 }
 ```
 
-## 🔄 Activity Processing
+## Activity Processing
 
 ### Create Activity Handler
 ```typescript
@@ -474,7 +474,7 @@ async function handleLikeActivity(activity: LikeActivity): Promise<void> {
 }
 ```
 
-## 🚀 Delivery System
+## Delivery System
 
 ### Activity Delivery
 ```typescript
@@ -527,7 +527,7 @@ class ActivityDeliveryService {
 }
 ```
 
-## 📊 Federation Statistics
+## Federation Statistics
 
 ### Instance Statistics
 ```typescript
@@ -576,7 +576,7 @@ async function getInstanceStats(): Promise<FederationStats> {
 }
 ```
 
-## 🛡️ Security Considerations
+## Security Considerations
 
 ### 1. Input Validation
 ```typescript
@@ -665,7 +665,7 @@ async function filterContent(content: string, actor: string): Promise<string> {
 }
 ```
 
-## 🔧 Administration Tools
+## Administration Tools
 
 ### Instance Management
 ```typescript
@@ -705,7 +705,7 @@ interface ModerationTools {
 }
 ```
 
-## 📈 Future Enhancements
+## Future Enhancements
 
 ### Planned Features
 1. **Server-to-Server Messaging**: Direct server communication
@@ -713,8 +713,8 @@ interface ModerationTools {
 3. **Improved Discovery**: Better instance and user discovery
 4. **Performance Optimizations**: Caching, batch processing
 5. **Enhanced Security**: Advanced spam detection, security monitoring
-6. **Federated E2EE — Phase 1 (Harmony ↔ Harmony)**: Extend Harmony's existing Megolm-style encryption to work across Harmony instances. Adds device-key publishing on AP Actors, an `EncryptedMessage` activity type, Olm-style pairwise key sharing between remote devices, and cross-user verification UX. Doesn't depend on any external standard. See [`E2EE_IMPLEMENTATION.md` → Roadmap: Federated E2EE](./E2EE_IMPLEMENTATION.md#roadmap-federated-e2ee).
-7. **Federated E2EE — Phase 2 (Harmony ↔ other AP clients)**: Either implement the [MLS-on-ActivityPub draft](https://swicg.github.io/activitypub-e2ee/mls) for interop with Sup and future MLS-AP clients, or publish Harmony's Phase-1 protocol as a [FEP](https://codeberg.org/fediverse/fep) for ecosystem adoption. Phase 1 is the prerequisite either way.
+6. **Federated E2EE - Phase 1 (Harmony ↔ Harmony)**: Extend Harmony's existing Megolm-style encryption to work across Harmony instances. Adds device-key publishing on AP Actors, an `EncryptedMessage` activity type, Olm-style pairwise key sharing between remote devices, and cross-user verification UX. Doesn't depend on any external standard. See [`E2EE_IMPLEMENTATION.md` → Roadmap: Federated E2EE](./E2EE_IMPLEMENTATION.md#roadmap-federated-e2ee).
+7. **Federated E2EE - Phase 2 (Harmony ↔ other AP clients)**: Either implement the [MLS-on-ActivityPub draft](https://swicg.github.io/activitypub-e2ee/mls) for interop with Sup and future MLS-AP clients, or publish Harmony's Phase-1 protocol as a [FEP](https://codeberg.org/fediverse/fep) for ecosystem adoption. Phase 1 is the prerequisite either way.
 
 ### Experimental Features
 1. **Nostr Protocol Support**: Dual-protocol support
@@ -723,4 +723,4 @@ interface ModerationTools {
 4. **AI-Powered Moderation**: Automated content moderation
 
 ### Already Shipped
-- **Cross-Instance Voice**: federated voice channels via LiveKit (`allow_federated_voice` setting, `federated_voice_calls` table) — see `federation-backend/src/services/LiveKitService.ts`.
+- **Cross-Instance Voice**: federated voice channels via LiveKit (`allow_federated_voice` setting, `federated_voice_calls` table) - see `federation-backend/src/services/LiveKitService.ts`.

@@ -956,7 +956,7 @@ class RealtimeConnectionManagerService {
       clearTimeout(managedSub.retryTimeoutId)
     }
     
-    // IMPORTANT: Remove from map BEFORE calling removeChannel
+    // Remove from map BEFORE calling removeChannel
     // This prevents the CLOSED callback from triggering a reconnect
     const channel = managedSub.channel
     this.subscriptions.delete(channelName)

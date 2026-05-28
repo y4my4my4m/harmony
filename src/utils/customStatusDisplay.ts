@@ -15,7 +15,7 @@ const ACTIVITY_LABELS: Record<NonNullable<CustomUserStatus['type']>, string> = {
   streaming: 'Streaming',
 }
 
-/** Prefix when we have custom text – results in "Playing: myCustomStatus", etc. */
+/** Prefix when we have custom text - results in "Playing: myCustomStatus", etc. */
 const ACTIVITY_PREFIXES_WITH_TEXT: Record<NonNullable<CustomUserStatus['type']>, string> = {
   custom: '',
   playing: 'Playing: ',

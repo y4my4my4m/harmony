@@ -105,7 +105,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { debug } from '@/utils/debug'
 import { useActivityPubStore, type UserListMember } from '@/stores/useActivityPub'

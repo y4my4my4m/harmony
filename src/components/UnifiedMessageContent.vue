@@ -372,7 +372,7 @@ import { parseEmbedUrl, isHarmonyInviteUrl } from '@/utils/embedDetection';
 import { useUnifiedEmoji } from '@/services/unifiedEmojiService';
 import { gifService } from '@/services/GifService';
 import { debug } from '@/utils/debug';
-import { escapeHtml, sanitizeUrl } from '@/utils/sanitize';
+import { sanitizeUrl } from '@/utils/sanitize';
 import { renderChatMessageText } from '@/utils/chatMessageTextRenderer';
 import { useVisualTheme } from '@/composables/useVisualTheme';
 
@@ -466,7 +466,7 @@ export default defineComponent({
     const imageLoadedState = reactive<Record<string, boolean>>({ ...props.imageLoaded });
     
     // Floating video
-    const { registerVideo, returnToOriginalPosition, hasFloatingVideo, getFloatingVideoMessageId } = useFloatingVideo();
+    const { registerVideo, returnToOriginalPosition, getFloatingVideoMessageId } = useFloatingVideo();
     
     // Watch for prop changes and merge with internal state
     watch(() => props.imageLoaded, (newValue) => {

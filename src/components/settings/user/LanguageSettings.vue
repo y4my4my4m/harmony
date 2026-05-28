@@ -41,6 +41,7 @@ interface Props {
   loading: boolean
 }
 
+// eslint-disable-next-line unused-imports/no-unused-vars
 const props = defineProps<Props>()
 
 const emit = defineEmits<{

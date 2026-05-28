@@ -62,7 +62,7 @@ class StatePersistenceService {
   private isLoaded = false
   private loadingPromise: Promise<void> | null = null
   
-  // ✅ PERFORMANCE FIX: Debounce localStorage writes to reduce overhead
+  // PERFORMANCE FIX: Debounce localStorage writes to reduce overhead
   private saveTimeout: NodeJS.Timeout | null = null
   private pendingSave = false
 

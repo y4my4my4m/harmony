@@ -95,7 +95,7 @@ const handleReblogPost = async (post: TimelinePost) => {
   }
 }
 
-const handleShowUserProfile = (user: FederatedUser) => {
+const handleShowUserProfile = (_user: FederatedUser) => {
   // Handled by parent layout
 }
 

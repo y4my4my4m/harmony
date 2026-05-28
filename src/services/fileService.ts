@@ -57,7 +57,7 @@ async function handleFileUploadWithProgress(
         }, 200);
 
         // Upload the file
-        const { error, data: uploadData } = await supabase.storage
+        const { error } = await supabase.storage
             .from('user_media')
             .upload(filePath, file);
 

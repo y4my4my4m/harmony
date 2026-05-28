@@ -2,7 +2,7 @@ import type { MessagePart, MentionContent } from '@/types';
 
 /**
  * Absolute hard ceiling on the number of text characters in a single
- * message or post — enforced by a CHECK constraint on `messages.content`
+ * message or post - enforced by a CHECK constraint on `messages.content`
  * / `posts.content`. This is purely a safety net: the user-facing limit
  * is the admin's `instance_config.max_message_length` (or
  * `max_post_length`), which the DB-side `enforce_message_length` /
@@ -34,7 +34,7 @@ export const DEFAULT_MAX_POST_TEXT_LENGTH = 500;
  * Sum the length of all `text` parts in a message. Non-text parts
  * (mentions, emojis, files, urls, embeds) are not counted because their
  * payload is structurally bounded by other validation (file count limit,
- * URL parsing, mention resolution, …).
+ * URL parsing, mention resolution, ...).
  */
 export function messageTextLength(parts: MessagePart[]): number {
   if (!Array.isArray(parts)) return 0;

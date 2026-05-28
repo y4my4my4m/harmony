@@ -131,11 +131,11 @@ export function getManualInstallInstructions(): string {
   if (/android/.test(ua)) {
     return 'Use Chrome menu (⋮) → Install app, or Add to Home screen.'
   }
-  return 'Use the install icon in the address bar, or Chrome menu → "Install Harmony…".'
+  return 'Use the install icon in the address bar, or Chrome menu → "Install Harmony...".'
 }
 
 /**
- * Chromium-based desktop browser (Chrome, Edge, Opera, Brave, Vivaldi…).
+ * Chromium-based desktop browser (Chrome, Edge, Opera, Brave, Vivaldi...).
  *
  * Used to gate the "Run on OS Login" suggestion - that feature is currently
  * only exposed by Chromium browsers via `about://apps` (Chrome 91+ / Edge 91+).

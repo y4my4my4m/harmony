@@ -89,7 +89,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted, watch, nextTick } from 'vue'
+import { computed, ref, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useToast } from 'vue-toastification'
 import UnifiedContentArea from '@/components/common/UnifiedContentArea.vue'
@@ -99,7 +99,6 @@ import FollowersList from '@/components/dm/FollowersList.vue'
 import GroupChatInviteModal from '@/components/dm/GroupChatInviteModal.vue'
 import IncomingCallModal from '@/components/dm/IncomingCallModal.vue'
 import { useDMStore } from '@/stores/useDM'
-import { useAuthStore } from '@/stores/auth'
 import { useLayoutState } from '@/composables/useLayoutState'
 import { useUserData } from '@/composables/useUserData'
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel'
@@ -118,9 +117,11 @@ interface Props {
   conversationId?: string
 }
 
+// eslint-disable-next-line unused-imports/no-unused-vars
 const props = defineProps<Props>()
 
 // Emits
+// eslint-disable-next-line unused-imports/no-unused-vars
 const emit = defineEmits<{
   toggleLeftSidebar: []
   toggleVoicePanel: []
@@ -128,7 +129,6 @@ const emit = defineEmits<{
 
 // Stores
 const dmStore = useDMStore()
-const authStore = useAuthStore()
 const voiceStore = useUnifiedVoiceChannelStore()
 const route = useRoute()
 const router = useRouter()
@@ -273,7 +273,7 @@ const loadMessages = async () => {
     await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
     try {
       if (currentUser?.id) {
-        // IMPORTANT: Wait for conversation and user data to be loaded before proceeding
+        // Wait for conversation and user data to be loaded before proceeding
         // This ensures the DMHeader has user data available when it renders
         const conversation = await dmStore.initializeDMEnvironmentForDirectAccess(currentUser.id, conversationId)
         
@@ -298,7 +298,7 @@ const fetchMoreMessages = async () => {
 
 // Group chat methods
 
-const handleUsersAdded = async (conversationId: string, userIds: string[]) => {
+const handleUsersAdded = async (conversationId: string, _userIds: string[]) => {
   // Refresh conversation data to show new participants
   const currentUser = getCurrentUser.value
   if (currentUser?.id) {
@@ -508,7 +508,7 @@ const highlightSearchText = (messageElement: HTMLElement, query: string) => {
       
       const textNodes: Text[] = []
       let node
-      while (node = walker.nextNode()) {
+      while ((node = walker.nextNode())) {
         textNodes.push(node as Text)
       }
       
@@ -520,7 +520,7 @@ const highlightSearchText = (messageElement: HTMLElement, query: string) => {
           if (parent && parent.nodeName !== 'MARK') {
             // Build the highlight wrapper using DOM APIs rather than
             // `innerHTML = text.replace(...)`. `textNode.textContent` is the
-            // DECODED text — if a DM contained `<style>foo</style>`, the
+            // DECODED text - if a DM contained `<style>foo</style>`, the
             // message renderer escaped it to `&lt;style&gt;foo&lt;/style&gt;`,
             // which has `<style>foo</style>` as textContent here. Assigning
             // that back via innerHTML would re-parse it as a real <style>

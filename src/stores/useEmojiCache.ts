@@ -3,11 +3,9 @@ import { supabase } from '@/supabase';
 import type { Emoji, ResolvedEmoji } from '@/types';
 import { debug } from '@/utils/debug'
 import {
-  getCachedServerEmojis,
   getAllCachedServerEmojis,
   setCachedServerEmojis,
   removeCachedServerEmojis,
-  type CachedServerEmojiData,
 } from '@/services/emojiIndexedDBCache'
 
 interface EmojiCacheEntry {
@@ -167,7 +165,7 @@ export const useEmojiCacheStore = defineStore('emojiCache', {
       }
     },
 
-    // ⚡ OPTIMIZED: Initialize with selective server loading
+    // Initialize with selective server loading
     // Hydrates from IndexedDB first for instant display, then validates against network.
     async initializeSelective(priorityServerIds: string[] = [], backgroundServerIds: string[] = []) {
       if (this.isInitialized) return;

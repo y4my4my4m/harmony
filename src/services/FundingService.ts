@@ -406,7 +406,7 @@ class FundingService {
 
   /**
    * Recompute a user's supporter tier from their cumulative cycle total.
-   * Public wrapper around the SQL helper — handy after manually editing or
+   * Public wrapper around the SQL helper - handy after manually editing or
    * deleting donations so the badge stays consistent.
    */
   async recomputeSupporterTier(userId: string): Promise<string | null> {
@@ -549,7 +549,7 @@ class FundingService {
    * correctly aggregate into a tier). Idempotent on retry via the
    * (platform, external_reference) unique index.
    *
-   * The `tierId` parameter is ignored — the cumulative recompute is
+   * The `tierId` parameter is ignored - the cumulative recompute is
    * authoritative. It's kept in the signature for API compatibility.
    */
   async resolvePendingDonation(pendingId: string, userId: string, _tierId?: string | null): Promise<boolean> {
@@ -600,7 +600,7 @@ class FundingService {
           external_reference: pending.external_reference,
           note: pending.donor_message,
         })
-      // Tolerate duplicate-key — webhook may have already inserted via retry.
+      // Tolerate duplicate-key - webhook may have already inserted via retry.
       if (histErr && histErr.code !== '23505') throw histErr
 
       const { data: { user } } = await supabase.auth.getUser()
@@ -615,7 +615,7 @@ class FundingService {
 
       if (resolveErr) throw resolveErr
 
-      // Recompute tier from cumulative cycle total — this is what actually
+      // Recompute tier from cumulative cycle total - this is what actually
       // assigns the badge. If amount < lowest tier, tier_id becomes NULL
       // and the user keeps a supporter row but no badge displays.
       const { error: rpcErr } = await supabase.rpc('recompute_supporter_tier', { p_user_id: userId })

@@ -3,8 +3,8 @@
  *
  * This is the canonical implementation used by `UnifiedMessageContent.vue`'s
  * `renderTextContent`. It lives here rather than inline in the component so
- * the XSS-relevant logic is testable in isolation — every `<style>`,
- * `<script>`, `<img onerror=…>` payload that ever appeared in the audit
+ * the XSS-relevant logic is testable in isolation - every `<style>`,
+ * `<script>`, `<img onerror=...>` payload that ever appeared in the audit
  * (`messages_rows_xss_issue.json`) has a corresponding regression test
  * against this function.
  *
@@ -12,7 +12,7 @@
  *
  *   1. Carve out fenced code blocks (` ``` `) and replace them with a
  *      private-use unicode placeholder. They re-appear later as
- *      `<CodeBlock>` components — none of their inner text is rendered as
+ *      `<CodeBlock>` components - none of their inner text is rendered as
  *      HTML.
  *   2. **HTML-escape the entire remaining string.** Every character that
  *      arrives here is potentially user input (or worse: federated server
@@ -33,13 +33,13 @@
  *      while `&gt;` in body text stays escaped.
  *   6. Final pass: run the result through DOMPurify (`sanitizeMessageHtml`)
  *      to strip anything that doesn't match our message allowlist. This
- *      is defense-in-depth — earlier escaping should already have made
- *      this a no-op — but it guarantees a future regression in steps
+ *      is defense-in-depth - earlier escaping should already have made
+ *      this a no-op - but it guarantees a future regression in steps
  *      3-5 cannot turn into XSS.
  *
  * The historic bug this replaces was the "protect HTML tags from
  * escaping" pattern, which carved out user-supplied `<style>` /
- * `<img onerror=…>` tags BEFORE escaping and re-spliced them AFTER, so
+ * `<img onerror=...>` tags BEFORE escaping and re-spliced them AFTER, so
  * arbitrary HTML round-tripped intact.
  */
 

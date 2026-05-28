@@ -127,7 +127,7 @@ const dismiss = () => {
 }
 
 const viewPastAnnouncements = () => {
-  // Dismiss the popup (we don't auto-mark-read here — the archive page
+  // Dismiss the popup (we don't auto-mark-read here - the archive page
   // is where the user explicitly opts in to that). Then navigate to the
   // dedicated Settings section that owns the full archive.
   dismiss()
@@ -137,7 +137,7 @@ const viewPastAnnouncements = () => {
 onMounted(async () => {
   // `popupOnly: true` makes the RPC respect the admin's `show_popup` flag
   // and skip any announcement that started before the current user signed
-  // up — so newly-registered users don't get a wall of historical modals
+  // up - so newly-registered users don't get a wall of historical modals
   // they have no context for. The Settings archive still surfaces the
   // full set (via the default no-arg call), so nothing is hidden, only
   // de-prioritised at boot.

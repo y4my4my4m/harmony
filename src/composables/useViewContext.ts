@@ -17,6 +17,7 @@ import { viewContextTracker } from '@/services/ViewContextTracker'
 import { sessionHeartbeat } from '@/services/SessionHeartbeat'
 
 let viewContextChannel: ReturnType<typeof supabase.channel> | null = null
+// eslint-disable-next-line unused-imports/no-unused-vars
 let currentUserId: string | null = null
 
 /**

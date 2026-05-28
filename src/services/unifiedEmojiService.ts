@@ -507,7 +507,7 @@ export interface ResolvedEmoji {
  * LAZY: Triggers background load if not already loaded (non-blocking)
  */
 function resolveEmoji(input: string): ResolvedEmoji {
-  // OPTIMIZED: Don't auto-trigger lazy load here - let callers decide when to load
+  // Don't auto-trigger lazy load here - let callers decide when to load
   // This prevents 823KB from loading during initial message rendering
   // Emoji data should only load when:
   // - User opens emoji picker

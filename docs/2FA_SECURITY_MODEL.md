@@ -83,10 +83,10 @@ if (session) {
 5. Only re-login if they manually log out
 
 ### Benefits
-- ✅ **Security:** 2FA required at login (can't bypass)
-- ✅ **Convenience:** Don't need to re-enter 2FA daily
-- ✅ **Industry Standard:** How Discord, GitHub, Google, etc. work
-- ✅ **Long Sessions:** Like Reddit - login once, stay logged in
+- **Security:** 2FA required at login (can't bypass)
+- **Convenience:** Don't need to re-enter 2FA daily
+- **Industry Standard:** How Discord, GitHub, Google, etc. work
+- **Long Sessions:** Like Reddit - login once, stay logged in
 
 ## Technical Details
 
@@ -169,21 +169,21 @@ Users get 10 recovery codes when enabling 2FA:
 ## Comparison with Other Apps
 
 ### Discord
-- ✅ 2FA required at login
-- ✅ Stay logged in indefinitely
-- ✅ Same as our implementation
+- 2FA required at login
+- Stay logged in indefinitely
+- Same as our implementation
 
 ### GitHub
-- ✅ 2FA required at login
-- ✅ Stay logged in for weeks
-- ✅ Optional: "Step up" to 2FA for sensitive operations
-- ⚠️ We don't have "step up" yet (future enhancement)
+- 2FA required at login
+- Stay logged in for weeks
+- Optional: "Step up" to 2FA for sensitive operations
+- We don't have "step up" yet (future enhancement)
 
 ### Google
-- ✅ 2FA required at login
-- ✅ Stay logged in until you log out
-- ✅ "Remember this device" option
-- ⚠️ We don't have device memory yet (future enhancement)
+- 2FA required at login
+- Stay logged in until you log out
+- "Remember this device" option
+- We don't have device memory yet (future enhancement)
 
 ## Future Enhancements
 
@@ -279,10 +279,10 @@ CREATE TABLE mfa_recovery_codes (
 ## Summary
 
 **The Perfect Balance:**
-- 🔒 **Secure:** 2FA is REQUIRED at login (can't bypass)
-- 😊 **Convenient:** Stay logged in for weeks (no daily 2FA prompts)
-- ✅ **Industry Standard:** How all major apps work
-- 🎯 **User-Friendly:** Login once, use the app
+- **Secure:** 2FA is REQUIRED at login (can't bypass)
+- **Convenient:** Stay logged in for weeks (no daily 2FA prompts)
+- **Industry Standard:** How all major apps work
+- **User-Friendly:** Login once, use the app
 
 **Key Takeaway:** 2FA protects your **login**, not your **session**. Once you're in, you stay in until you log out or your refresh token expires (60 days default).
 

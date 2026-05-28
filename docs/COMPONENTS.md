@@ -1,10 +1,10 @@
 # Component Documentation
 
-## 📋 Component Hierarchy
+## Component Hierarchy
 
 This document provides a comprehensive overview of Harmony's component architecture, organized by feature domain and reusability.
 
-## 🏗️ Component Architecture
+## Component Architecture
 
 ```mermaid
 graph TD
@@ -69,7 +69,7 @@ graph TD
     VOICE_DOCK --> VOICE_SETTINGS
 ```
 
-## 📁 Component Categories
+## Component Categories
 
 ### 1. Layout Components (`/src/layouts/`)
 
@@ -214,7 +214,7 @@ interface ChatComponentProps {
 - Visibility settings
 - Character counting
 
-## 🔄 Component Communication Patterns
+## Component Communication Patterns
 
 ### 1. Props Down, Events Up
 ```typescript
@@ -239,7 +239,7 @@ eventBus.emit('voice-state-changed', { muted: true })
 eventBus.on('voice-state-changed', handleVoiceStateChange)
 ```
 
-## 🎨 Styling Conventions
+## Styling Conventions
 
 ### 1. CSS Module Pattern
 ```vue
@@ -266,7 +266,7 @@ interface ButtonProps {
 }
 ```
 
-## 🧪 Testing Strategies
+## Testing Strategies
 
 ### 1. Unit Tests
 ```typescript
@@ -295,7 +295,7 @@ const wrapper = mount(ChatComponent, {
 })
 ```
 
-## 📊 Performance Optimizations
+## Performance Optimizations
 
 ### 1. Lazy Loading
 ```typescript
@@ -321,7 +321,7 @@ const processedMessages = computed(() => {
 })
 ```
 
-## 🔧 Development Guidelines
+## Development Guidelines
 
 ### 1. Component Naming
 - Use PascalCase for component files
@@ -357,7 +357,7 @@ const emit = defineEmits<ComponentEmits>()
 const { loading, error, fetchData } = useAsyncData()
 ```
 
-## 🚀 Future Component Additions
+## Future Component Additions
 
 ### Planned Components
 - **RichTextEditor**: Advanced text editing with formatting

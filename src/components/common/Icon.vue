@@ -352,6 +352,7 @@ export default defineComponent({
       return sizes[props.size] ?? 20;
     });
 
+    // eslint-disable-next-line unused-imports/no-unused-vars
     const computedStrokeWidth = computed(() => props.strokeWidth ?? 2);
 
     const baseName = computed(() => {

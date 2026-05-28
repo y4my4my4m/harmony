@@ -210,6 +210,7 @@ const loadFavorites = async () => {
 const toggleFavorite = async (gif: Gif) => {
   const gifUrl = gif.media_formats.gif.url;
   const previewUrl = gif.media_formats.gifpreview.url;
+  // eslint-disable-next-line unused-imports/no-unused-vars
   const wasAlreadyFavorite = isFavorited(gifUrl);
   
   const result = await gifService.toggleFavoriteByUrl(

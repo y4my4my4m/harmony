@@ -407,7 +407,7 @@ const connectionStats = computed(() => voiceStore.connectionStats);
     // Exit fullscreen when the user stops sharing their screen or disables video
     watch(
       () => fullscreenParticipant.value,
-      (participant, oldParticipant) => {
+      (participant, _oldParticipant) => {
         if (!participant) {
           // Fullscreen participant left or not found - exit fullscreen immediately
           if (voiceStore.viewMode === 'fullscreen' && voiceStore.fullscreenUserId) {

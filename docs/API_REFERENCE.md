@@ -1,10 +1,10 @@
 # API Reference
 
-## 📋 Overview
+## Overview
 
 This document provides comprehensive API documentation for Harmony's internal APIs, service interfaces, and integration points. The APIs are organized by domain and follow REST and GraphQL conventions where applicable.
 
-## 🏗️ API Architecture
+## API Architecture
 
 ```mermaid
 graph TB
@@ -62,7 +62,7 @@ graph TB
     CORE_APIs --> NOTIFICATION
 ```
 
-## 🔐 Authentication API
+## Authentication API
 
 ### Base URL
 ```
@@ -135,7 +135,7 @@ Content-Type: application/json
 }
 ```
 
-## 👥 User API
+## User API
 
 ### Base URL
 ```
@@ -224,7 +224,7 @@ interface UserSearchResponse {
 }
 ```
 
-## 🏢 Server API
+## Server API
 
 ### Base URL
 ```
@@ -404,7 +404,7 @@ POST /servers/{serverId}/leave
 Authorization: Bearer {access_token}
 ```
 
-## 💬 Chat API
+## Chat API
 
 ### Base URL
 ```
@@ -528,7 +528,7 @@ interface FileUploadResponse {
 }
 ```
 
-## 🎵 Voice API
+## Voice API
 
 ### Base URL
 ```
@@ -607,7 +607,7 @@ interface VoiceParticipant {
 }
 ```
 
-## 🌐 ActivityPub Federation API
+## ActivityPub Federation API
 
 ### Base URL
 ```
@@ -748,7 +748,7 @@ GET /accounts/{accountId}/following?limit={limit}
 Authorization: Bearer {access_token}
 ```
 
-## 🔔 Notification API
+## Notification API
 
 ### Base URL
 ```
@@ -833,7 +833,7 @@ Content-Type: application/json
 }
 ```
 
-## 📱 WebSocket API
+## WebSocket API
 
 ### Connection
 ```javascript
@@ -899,7 +899,7 @@ interface VoiceStateUpdate {
 }
 ```
 
-## 🛡️ Error Handling
+## Error Handling
 
 ### Standard Error Response
 ```typescript
@@ -956,7 +956,7 @@ X-RateLimit-Reset: 1640995200
 Retry-After: 3600
 ```
 
-## 🧪 API Testing
+## API Testing
 
 ### Environment Setup
 ```bash
@@ -1007,7 +1007,7 @@ describe('Chat API', () => {
 })
 ```
 
-## 📚 SDK and Libraries
+## SDK and Libraries
 
 ### JavaScript/TypeScript SDK
 ```typescript
@@ -1045,7 +1045,7 @@ message = harmony.chat.send_message('channel-id', content='Hello from Python!')
 posts = harmony.activitypub.get_timeline('home', limit=20)
 ```
 
-## 🔐 Security Considerations
+## Security Considerations
 
 ### Authentication
 - All API endpoints require valid authentication tokens

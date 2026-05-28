@@ -84,7 +84,7 @@ const PLATFORM_ICONS: Record<string, typeof siKofi> = {
 const props = withDefaults(defineProps<{
   /** Platform key (e.g. "ko-fi", "patreon"). Case-insensitive. */
   platform?: string | null
-  /** Pixel size — defaults to 1em-ish via inherited font size. */
+  /** Pixel size - defaults to 1em-ish via inherited font size. */
   size?: number | string
   /** When true, uses the official brand color instead of currentColor. */
   useBrandColor?: boolean

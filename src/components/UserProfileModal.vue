@@ -215,7 +215,7 @@
                 </div>
                 <div class="activity-info">
                   <span class="activity-title">Messages</span>
-                  <span class="activity-value">{{ isLoadingActivity ? '—' : getUserMessageCount(user) }}</span>
+                  <span class="activity-value">{{ isLoadingActivity ? '-' : getUserMessageCount(user) }}</span>
                 </div>
               </div>
               
@@ -225,7 +225,7 @@
                 </div>
                 <div class="activity-info">
                   <span class="activity-title">Voice Time</span>
-                  <span class="activity-value">{{ isLoadingActivity ? '—' : formatVoiceTime(getUserVoiceTime(user)) }}</span>
+                  <span class="activity-value">{{ isLoadingActivity ? '-' : formatVoiceTime(getUserVoiceTime(user)) }}</span>
                 </div>
               </div>
             </template>
@@ -256,7 +256,7 @@
         </div>
 
         <!--
-          Note Section temporarily hidden — the localStorage-based note flow
+          Note Section temporarily hidden - the localStorage-based note flow
           isn't wired up to anything yet (no sync, no surfacing elsewhere) so
           we don't want to expose a half-finished feature. Keep the markup
           around so we can flip it back on once notes are persisted server-
@@ -385,7 +385,6 @@ import DOMPurify from 'dompurify'
 import { useI18n } from 'vue-i18n'
 import { useRouter, useRoute } from 'vue-router'
 import { supabase } from '@/supabase'
-import { useAuthStore } from '../stores/auth'
 import { useActivityPubStore } from '../stores/useActivityPub'
 import { useServerChannelStore } from '../stores/useServerChannel'
 import { useUserData } from '@/composables/useUserData'
@@ -414,7 +413,6 @@ const emit = defineEmits(['close', 'invite', 'follow', 'unfollow', 'mention'])
 
 const router = useRouter()
 const route = useRoute()
-const authStore = useAuthStore()
 const activityPubStore = useActivityPubStore()
 const serverChannelStore = useServerChannelStore()
 const { closeMobileSidebars, isMobile } = useLayoutState()
@@ -498,7 +496,7 @@ function applyActivityFromStats(stats: { message_count?: number; voice_minutes?:
 
 async function loadUserStats(userId: string) {
   if (isLoadingUserStats.value) {
-    // Stats load already in flight — still fetch activity (cheap PK read).
+    // Stats load already in flight - still fetch activity (cheap PK read).
     void loadUserActivity(userId)
     return
   }
@@ -535,7 +533,7 @@ async function loadUserStats(userId: string) {
 
 /**
  * Activity counters (denormalized columns on `profiles`, maintained by
- * triggers — see migrations/20260524_bot_grants_and_activity_counters.sql).
+ * triggers - see migrations/20260524_bot_grants_and_activity_counters.sql).
  * One tiny SELECT on PK; no count(*) scans. Separate function so we can
  * also call it when the rest of `loadUserStats` is skipped because the
  * caller already had post/follow counts.
@@ -888,7 +886,7 @@ const formatLastSeen = (dateString: string) => {
 
 const formatFieldValue = (value: any) => {
   // Profile fields can come from a federated server (ActivityPub
-  // `PropertyValue`) as HTML (e.g. `<a href="…" rel="me">…</a>`), or
+  // `PropertyValue`) as HTML (e.g. `<a href="..." rel="me">...</a>`), or
   // from a local profile as a plain string. We run BOTH cases through
   // DOMPurify with the same allowlist as `UserProfileView.vue` so the
   // profile modal and the standalone profile page render identically,
@@ -935,7 +933,7 @@ const sendDirectMessage = async () => {
   // Capture user data BEFORE emit('close'). The parent sets
   // `selectedUser = null` synchronously on close, which makes `props.user`
   // null. Any subsequent `props.user.id` access after an `await` here would
-  // throw and get silently swallowed by the try/catch below — leaving the
+  // throw and get silently swallowed by the try/catch below - leaving the
   // user staring at no navigation. (Symptom of the closed-prop access issue
   // we hit in UnifiedProfileCard too.)
   const targetUserId = props.user.id
@@ -1186,6 +1184,7 @@ async function loadModerationPermissions() {
   }
 }
 
+// eslint-disable-next-line unused-imports/no-unused-vars
 const debouncedSaveNote = (() => {
   let timeout: any
   return () => {
@@ -1259,7 +1258,7 @@ const isFollowingUser = computed(() => {
 })
 
 // Keep helper for backwards compatibility with template
-const getUserIsFollowing = (user: any) => {
+const getUserIsFollowing = (_user: any) => {
   return isFollowingUser.value
 }
 
@@ -1409,7 +1408,7 @@ onMounted(() => {
 .action-button,
 .close-button {
   /* `flex: 0 0 32px` keeps both buttons exact 32px squares even when the
-     icon inside happens to come in slightly larger/smaller — that's what
+     icon inside happens to come in slightly larger/smaller - that's what
      was making the two buttons render at noticeably different widths and
      heights, since the parent flex container would otherwise size each
      button to its own content. */
@@ -1445,7 +1444,7 @@ onMounted(() => {
 .action-icon,
 .close-icon {
   /* The Icon component is given `:size="16"` explicitly so the inner SVG
-     is already exactly 16x16 — these rules just guarantee the wrapper
+     is already exactly 16x16 - these rules just guarantee the wrapper
      span doesn't grow/shrink from inherited skin or icon-size classes
      (e.g. .icon-md from Icon.vue's scoped styles) and end up
      visually off-centre. Keep them in sync with the :size prop above. */

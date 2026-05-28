@@ -1,0 +1,30 @@
+# Build output
+dist/
+dist-ssr/
+coverage/
+**/dist/
+
+# Rust / Tauri
+src-tauri/target/
+
+# VitePress
+docs/.vitepress/dist/
+docs/.vitepress/cache/
+
+# Generated documentation
+docs/generated/
+docs/api/
+docs/components/
+
+# Type-check build info
+*.tsbuildinfo
+
+# Vendor-ish / nested project nodes
+**/node_modules/
+
+# Test output
+playwright-report/
+test-results/
+
+# Local scratch
+tmp/

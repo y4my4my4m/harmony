@@ -25,7 +25,7 @@ export default defineComponent({
     const reactionsStore = useReactionsStore();
     const authStore = useAuthStore();
 
-    // ✅ UNIFIED ARCHITECTURE: Always use reactions store (populated by CoreMessageService)
+    // UNIFIED ARCHITECTURE: Always use reactions store (populated by CoreMessageService)
     const reactions = computed(() => 
       reactionsStore.getMessageReactions(props.message.id)
     );
@@ -71,7 +71,7 @@ export default defineComponent({
       emit('hide-reaction-tooltip');
     };
 
-    // ✅ UNIFIED ARCHITECTURE: Store is pre-populated by CoreMessageService
+    // UNIFIED ARCHITECTURE: Store is pre-populated by CoreMessageService
     // Safe to request reactions - will use cached data, no N+1 queries
     onMounted(() => {
       if (!reactionsStore.isLoadingReactions(props.message.id)) {

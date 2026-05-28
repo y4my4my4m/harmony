@@ -669,7 +669,7 @@
             class="pagination-btn"
           >Previous</button>
           <span class="pagination-info">
-            {{ userPagination.offset + 1 }}–{{ Math.min(userPagination.offset + userPagination.limit, userPagination.total) }}
+            {{ userPagination.offset + 1 }}-{{ Math.min(userPagination.offset + userPagination.limit, userPagination.total) }}
             of {{ userPagination.total }}
           </span>
           <button
@@ -1163,7 +1163,7 @@
                 max="100"
               />
               <span class="setting-hint">
-                JPEG/WebP quality (20–100) for resized custom emoji images from storage. Default 80. Lower values reduce bandwidth at the cost of artifacts.
+                JPEG/WebP quality (20-100) for resized custom emoji images from storage. Default 80. Lower values reduce bandwidth at the cost of artifacts.
               </span>
             </div>
             <div class="setting-group">
@@ -1626,7 +1626,7 @@
                 </div>
                 <div class="funding-link-row" style="margin-top: 6px;">
                   <select v-model="newLinkPlatform" class="cyber-select" style="width: 160px;">
-                    <option value="" disabled>Platform…</option>
+                    <option value="" disabled>Platform...</option>
                     <option v-for="opt in FUNDING_PLATFORMS" :key="opt" :value="opt">{{ platformLabel(opt) }}</option>
                   </select>
                   <input v-model="newLinkUrl" class="cyber-input" placeholder="https://..." style="flex: 1;" />
@@ -1677,7 +1677,7 @@
             </label>
             <p class="section-hint">
               Donors include their handle (<code>@username@{{ instanceDomain }}</code>) anywhere in their Ko-fi
-              message — the webhook auto-attributes it and recomputes their tier based on cumulative cycle
+              message - the webhook auto-attributes it and recomputes their tier based on cumulative cycle
               donations. Donations without a matched handle land in the <strong>Pending Donations</strong>
               queue below, and you (and instance moderators) get a notification.
             </p>
@@ -2125,7 +2125,7 @@ import DisplayName from '@/components/DisplayName.vue'
 import EmojiImporter from '@/components/admin/EmojiImporter.vue'
 import PerformanceMonitoring from '@/components/admin/PerformanceMonitoring.vue'
 import { supabase } from '@/supabase'
-import { adminService, type SystemStats, type SystemHealth, type AdminUser, type AdminActivity, type BlockedInstance, type FederatedInstance, type InstanceStats, type InstanceSearchResult, type FederationStats, type DeadEndpoint } from '@/services/AdminService'
+import { adminService, type AdminUser, type AdminActivity, type FederatedInstance, type InstanceStats, type InstanceSearchResult, type FederationStats, type DeadEndpoint } from '@/services/AdminService'
 import { reportService, type ReportWithDetails } from '@/services/ReportService'
 import { fundingService, FUNDING_PLATFORMS, type FundingPlatformKey, type SupporterTier, type Supporter, type DonationRecord, type PendingDonation } from '@/services/FundingService'
 import { messageService } from '@/services/MessageService'
@@ -2293,6 +2293,7 @@ const purgingEndpointIds = ref<Set<string>>(new Set())
 const federatedInstances = ref<FederatedInstance[]>([])
 const discoveredInstances = ref<{ domain: string; user_count: number; interaction_count: number }[]>([])
 const discoveryResult = ref<InstanceSearchResult | null>(null)
+// eslint-disable-next-line unused-imports/no-unused-vars
 const showAddInstanceModal = ref(false)
 const instanceFilter = ref<'all' | 'blocked' | 'trusted' | 'active'>('all')
 const instanceSearch = ref('')
@@ -2503,6 +2504,7 @@ const systemStatus = computed(() => {
   return { class: 'healthy', text: 'All Systems Operational' }
 })
 
+// eslint-disable-next-line unused-imports/no-unused-vars
 const federationStatus = computed(() => {
   const pending = systemHealth.value.federation.pending
   if (pending > 100) {
@@ -2674,7 +2676,7 @@ const saveAnnouncement = async () => {
   //   * `starts_at`: an empty input means "use the DB default (now()) on
   //     create" / "leave the existing value alone on update". Sending
   //     undefined makes the Supabase client omit the key entirely.
-  //   * `ends_at`:   an empty input means "no expiration" — admins clearing
+  //   * `ends_at`:   an empty input means "no expiration" - admins clearing
   //     the field must be able to explicitly drop the value back to NULL,
   //     otherwise an existing expiry would be impossible to remove. We
   //     send `null` rather than undefined so the column is overwritten.
@@ -3616,6 +3618,7 @@ const exportLogs = () => {
   debug.log('Exporting logs...')
 }
 
+// eslint-disable-next-line unused-imports/no-unused-vars
 const blockInstance = async () => {
   if (newBlockDomain.value && newBlockReason.value) {
     try {
@@ -3643,6 +3646,7 @@ const blockInstance = async () => {
   }
 }
 
+// eslint-disable-next-line unused-imports/no-unused-vars
 const unblockInstance = async (domain: string) => {
   try {
     await adminService.moderateInstance(
@@ -4092,7 +4096,7 @@ const formatActivityMessage = (event: { type: string; message: string | object; 
 
     // User moderation with target
     if ((event.type?.startsWith('user_') || obj.action === 'suspend' || obj.action === 'delete' || obj.action === 'unsuspend') && (targetUser || obj.user_id)) {
-      const who = targetUser ? `@${targetUser}` : (obj.user_id ? `user ${String(obj.user_id).slice(0, 8)}…` : '')
+      const who = targetUser ? `@${targetUser}` : (obj.user_id ? `user ${String(obj.user_id).slice(0, 8)}...` : '')
       const reason = obj.reason ? ` - ${obj.reason}` : ''
       const verb = event.type === 'user_suspend' ? 'Suspended' : event.type === 'user_delete' ? 'Deleted' : event.type === 'user_unsuspend' ? 'Unsuspended' : ''
       return `${verb || 'Moderated'} ${who}${reason}`.trim()

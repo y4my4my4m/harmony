@@ -127,6 +127,7 @@ const emit = defineEmits<{
 }>();
 
 // Methods
+// eslint-disable-next-line unused-imports/no-unused-vars
 const updateDescription = (index: number, description: string) => {
   emit('update-description', index, description);
 };

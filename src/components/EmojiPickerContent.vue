@@ -543,6 +543,7 @@ function selectFavoriteEmoji(fav: EmojiFavorite) {
   } as Emoji);
 }
 
+// eslint-disable-next-line unused-imports/no-unused-vars
 async function removeFavoriteEmoji(emojiId: string) {
   await emojiFavoriteService.removeFavorite(emojiId);
   favoriteEmojis.value = favoriteEmojis.value.filter(f => f.emoji_id !== emojiId);
@@ -557,6 +558,7 @@ function showFavToast(msg: string) {
   favToastTimer = setTimeout(() => { favToast.value = null; }, 1500);
 }
 
+// eslint-disable-next-line unused-imports/no-unused-vars
 async function toggleFavoriteUnified(emoji: EmojiEntry) {
   try {
     const result = await emojiFavoriteService.toggleFavorite(emoji.unicode, emoji.shortcode, null, null);
@@ -567,6 +569,7 @@ async function toggleFavoriteUnified(emoji: EmojiEntry) {
   }
 }
 
+// eslint-disable-next-line unused-imports/no-unused-vars
 async function toggleFavoriteServer(emoji: ResolvedEmoji) {
   try {
     const url = emoji.url ? getEmojiUrl(emoji.url, 42) : null;
@@ -578,6 +581,7 @@ async function toggleFavoriteServer(emoji: ResolvedEmoji) {
   }
 }
 
+// eslint-disable-next-line unused-imports/no-unused-vars
 async function toggleFavoriteFrequent(emoji: { id: string; native?: string; name: string; url?: string }) {
   try {
     const emojiId = emoji.native || emoji.id;

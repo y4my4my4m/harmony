@@ -4,7 +4,7 @@
 
 Harmony uses **Megolm-style group encryption** for end-to-end encrypted messages, inspired by [Matrix.org's Megolm](https://gitlab.matrix.org/matrix-org/olm/-/blob/master/docs/megolm.md). Each channel/conversation has a Megolm-style session key shared among participants. The Signal Protocol is used separately for WebRTC voice/video encryption.
 
-> **Provenance:** Harmony's implementation is an **independent clean-room build** on top of the browser WebCrypto API (AES-GCM + HKDF). It is not a port of libolm/vodozemac/matrix-js-sdk and bundles no Matrix code. Wire format and ratchet construction are Harmony-specific and intentionally not wire-compatible with Matrix's Megolm — see `MegolmService.ts`. Licensed under AGPL-3.0 with the rest of Harmony.
+> **Provenance:** Harmony's implementation is an **independent clean-room build** on top of the browser WebCrypto API (AES-GCM + HKDF). It is not a port of libolm/vodozemac/matrix-js-sdk and bundles no Matrix code. Wire format and ratchet construction are Harmony-specific and intentionally not wire-compatible with Matrix's Megolm - see `MegolmService.ts`. Licensed under AGPL-3.0 with the rest of Harmony.
 
 **Key Features:**
 - Zero-knowledge architecture (servers cannot decrypt messages)
@@ -202,9 +202,9 @@ Federated messages are **currently** always sent as plaintext via ActivityPub. T
 
 ### Roadmap: Federated E2EE
 
-Megolm doesn't care about transport — the same scheme that works inside one Harmony instance can run across federation if we add device-key discovery and inter-instance Olm-style key shares. Two scopes, with very different cost/payoff profiles:
+Megolm doesn't care about transport - the same scheme that works inside one Harmony instance can run across federation if we add device-key discovery and inter-instance Olm-style key shares. Two scopes, with very different cost/payoff profiles:
 
-#### Phase 1 — Harmony ↔ Harmony federated E2EE *(achievable, controlled scope)*
+#### Phase 1 - Harmony ↔ Harmony federated E2EE *(achievable, controlled scope)*
 
 Goal: a user on `mony.lol` can E2EE-chat with a user on `another-harmony.example` without trusting either server.
 
@@ -220,19 +220,19 @@ Required pieces:
 | **Membership re-keying** | When a remote user joins/leaves a federated channel, rotate the Megolm session and re-distribute via Olm |
 | **Cross-user verification** | SAS/emoji-based out-of-band verification UI for confirming device fingerprints across instances |
 
-Because both sides run Harmony, the wire format is whatever Harmony agrees on with itself — no external standard ratification needed.
+Because both sides run Harmony, the wire format is whatever Harmony agrees on with itself - no external standard ratification needed.
 
-#### Phase 2 — Harmony ↔ other ActivityPub clients *(ecosystem-dependent)*
+#### Phase 2 - Harmony ↔ other ActivityPub clients *(ecosystem-dependent)*
 
 Goal: E2EE DMs between Harmony and Mastodon/Pleroma/Pixelfed/Sup users.
 
 This **cannot work unilaterally**. Two realistic paths:
 
-1. **Implement [MLS-on-ActivityPub](https://swicg.github.io/activitypub-e2ee/mls)** — W3C Social CG draft co-authored by Evan Prodromou, designed to layer [RFC 9420 MLS](https://www.rfc-editor.org/rfc/rfc9420.html) over AP. Status: **draft, no other implementers shipping yet**. Adopting this means betting on a spec that hasn't been ratified, but if it succeeds Harmony would be interoperable with Sup (Pixelfed) and any other client that adopts it.
+1. **Implement [MLS-on-ActivityPub](https://swicg.github.io/activitypub-e2ee/mls)** - W3C Social CG draft co-authored by Evan Prodromou, designed to layer [RFC 9420 MLS](https://www.rfc-editor.org/rfc/rfc9420.html) over AP. Status: **draft, no other implementers shipping yet**. Adopting this means betting on a spec that hasn't been ratified, but if it succeeds Harmony would be interoperable with Sup (Pixelfed) and any other client that adopts it.
 
 2. **Publish Harmony's Phase-1 protocol as a FEP** ([Fediverse Enhancement Proposal](https://codeberg.org/fediverse/fep)) and lobby for adoption. Cheaper engineering-wise; ecosystem buy-in is the hard part.
 
-Either path requires the device-key infrastructure from Phase 1, so **Phase 1 is the prerequisite either way** — and Phase 1 ships value on day one without depending on anyone else's roadmap.
+Either path requires the device-key infrastructure from Phase 1, so **Phase 1 is the prerequisite either way** - and Phase 1 ships value on day one without depending on anyone else's roadmap.
 
 #### Why not bridge to Matrix?
 

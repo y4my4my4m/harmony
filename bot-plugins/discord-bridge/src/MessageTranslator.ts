@@ -443,7 +443,7 @@ export class MessageTranslator {
   async discordEmojiToHarmonyId(
     discordEmojiId: string | null,
     discordEmojiName: string | null,
-    isAnimated: boolean = false
+    _isAnimated: boolean = false
   ): Promise<string | null> {
     // For Unicode emojis, just return the emoji character as-is
     if (!discordEmojiId && discordEmojiName) {

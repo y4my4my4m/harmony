@@ -423,7 +423,7 @@ export class HarmonyClient extends EventEmitter {
   }
 
   
-  async removeReaction(channelId: string, messageId: string, emoji: string, userId?: string): Promise<any> {
+  async removeReaction(channelId: string, messageId: string, emoji: string, _userId?: string): Promise<any> {
     // Note: Bot API doesn't need channelId or userId - bot removes its own reaction
     const url = `${this.apiUrl}/api/v1/messages/${messageId}/reactions/${encodeURIComponent(emoji)}`
     

@@ -257,7 +257,7 @@ function sanitizeHtml(raw: string): string {
     ALLOWED_ATTR: INSTANCE_DESCRIPTION_ALLOWED_ATTRS,
     ALLOW_DATA_ATTR: false,
     ADD_ATTR: ['target', 'rel'],
-    // Restrict href schemes — DOMPurify's default allows quite a few
+    // Restrict href schemes - DOMPurify's default allows quite a few
     // (tel:, mailto:, callto:, sms:, etc). For instance descriptions we
     // only want http(s) links since this is shown in an admin / discovery
     // context.

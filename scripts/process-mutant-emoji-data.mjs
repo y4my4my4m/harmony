@@ -57,7 +57,7 @@ function codepointsToEmoji(codepoints) {
 /**
  * Check if an emoji should be excluded
  */
-function shouldExclude(emoji, allEmojis) {
+function shouldExclude(emoji, _allEmojis) {
   // Check category
   if (EXCLUDED_CATEGORIES.includes(emoji.cat)) {
     return true;

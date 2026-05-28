@@ -224,7 +224,6 @@ import VoiceVideoSettings from '@/components/settings/user/VoiceVideoSettings.vu
 import KeybindSettings from '@/components/settings/user/KeybindSettings.vue'
 import LanguageSettings from '@/components/settings/user/LanguageSettings.vue'
 import AdvancedSettings from '@/components/settings/user/AdvancedSettings.vue'
-import EncryptionSettings from '@/components/encryption/EncryptionSettings.vue'
 import UserBotsManagement from '@/components/settings/user/UserBotsManagement.vue'
 import AnnouncementsSettings from '@/components/settings/user/AnnouncementsSettings.vue'
 import { useAnnouncementUnreadCount } from '@/composables/useAnnouncementUnreadCount'
@@ -261,7 +260,7 @@ const toast = useToast()
 const { t } = useI18n()
 const settingsNav = createSettingsNavigator(router)
 const { updateCurrentUserProfile } = useUserData()
-const { handleTouchStart, handleTouchMove, handleTouchEnd, touchState } = useMobileGestures()
+const { handleTouchStart, handleTouchMove, handleTouchEnd } = useMobileGestures()
 
 // Reactive state
 const loading = ref(false)

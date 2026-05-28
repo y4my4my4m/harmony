@@ -83,6 +83,7 @@ export async function processMessageDecryption(messages: Message[]): Promise<Mes
 
   // Separate encrypted and non-encrypted messages
   const encryptedMessages = messages.filter(m => m.encrypted && m.encryption_metadata)
+  // eslint-disable-next-line unused-imports/no-unused-vars
   const nonEncryptedMessages = messages.filter(m => !m.encrypted || !m.encryption_metadata)
 
   if (encryptedMessages.length === 0) {

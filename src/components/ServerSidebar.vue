@@ -320,7 +320,9 @@ const sidebarTooltip = ref<{
 const tooltipTimer = ref<ReturnType<typeof setTimeout> | null>(null);
 
 // Legacy refs for backwards compatibility
+// eslint-disable-next-line unused-imports/no-unused-vars
 const draggingServerId = computed(() => draggingItemType.value === 'server' ? draggingItemId.value : null);
+// eslint-disable-next-line unused-imports/no-unused-vars
 const dragOverServerId = computed(() => dropPosition.value === 'into' ? dragOverItemId.value : null);
 
 // Context menu state
@@ -365,7 +367,7 @@ const isMonyverseSelected = computed(() => {
 // The globe-icon badge should reflect what the user will *actually see and
 // be able to clear* by clicking through. /social/mentions is driven by
 // `activitypub_mention` notifications (see useActivityPub.loadMentionedPosts).
-// Counting any other AP type — follows, reblogs, favorites, even replies —
+// Counting any other AP type - follows, reblogs, favorites, even replies -
 // stranded the badge: the user clicked through, saw the post that came up
 // from the mention notification, but the reply/follow counts kept the badge
 // alive. Restrict to `activitypub_mention` so visiting the page (and
@@ -832,7 +834,7 @@ const handleServerDroppedOnFolder = (serverId: string, folderId: string) => {
   serverChannelStore.moveServerToFolder(serverId, folderId);
 };
 
-const handleServerRemovedFromFolder = (serverId: string) => {
+const handleServerRemovedFromFolder = (_serverId: string) => {
   // Server was removed from folder via context menu - already handled in ServerFolder
 };
 
@@ -946,7 +948,7 @@ const closeFolderModal = () => {
   editingFolder.value = null;
 };
 
-const handleFolderSaved = (folder: ServerFolderType) => {
+const handleFolderSaved = (_folder: ServerFolderType) => {
   // Folder saved - state is updated in store
 };
 

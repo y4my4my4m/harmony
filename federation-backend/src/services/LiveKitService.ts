@@ -1,4 +1,4 @@
-import { AccessToken, RoomServiceClient, VideoGrant, TrackSource } from 'livekit-server-sdk';
+import { AccessToken, RoomServiceClient, VideoGrant } from 'livekit-server-sdk';
 import config from '../config/index.js';
 import { getSupabaseClient } from '../config/supabase.js';
 import { logger } from '../utils/logger.js';

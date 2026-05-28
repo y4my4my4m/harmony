@@ -135,11 +135,9 @@ import Avatar from '@/components/common/Avatar.vue';
 import ReportModal from '@/components/moderation/ReportModal.vue';
 import SupporterBadge from '@/components/common/SupporterBadge.vue';
 import DisplayName from '@/components/DisplayName.vue';
-import { useRouter } from 'vue-router';
 import { parseDisplayNameOrBioForDisplay } from '@/utils/mentionUtils';
 
 const { t } = useI18n();
-const router = useRouter();
 // Props
 interface Props {
   user: FederatedUser;

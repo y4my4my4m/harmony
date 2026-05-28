@@ -291,7 +291,7 @@ class RoleService {
   private userRolesCache = new Map<string, ServerRole[]>() // `${userId}-${serverId}` -> roles (FIXED: store full roles, not just IDs)
   private permissionCache = new Map<string, Record<Permission, boolean>>() // `${userId}-${serverId}-${channelId?}` -> permissions
   
-  // OPTIMIZED: Request deduplication maps
+  // Request deduplication maps
   private pendingUserRolesRequests = new Map<string, Promise<ServerRole[]>>()
   private pendingPermissionsRequests = new Map<string, Promise<Record<Permission, boolean>>>()
 
@@ -881,7 +881,7 @@ class RoleService {
       // unique index covering exactly those columns. Our partial indexes
       // `uniq_cpo_channel_role WHERE user_id IS NULL` and the analogous user
       // one DO exist in the DB, but PostgREST's `on_conflict` query parameter
-      // can't pass the partial WHERE clause to Postgres — so the planner
+      // can't pass the partial WHERE clause to Postgres - so the planner
       // refuses with 42P10 "no unique or exclusion constraint matching the
       // ON CONFLICT specification".
       //
@@ -891,7 +891,7 @@ class RoleService {
       //
       // Cleanest fix without changing the schema: do a manual lookup +
       // INSERT-or-UPDATE. Two roundtrips instead of one, but this is admin
-      // UI traffic — frequency is negligible.
+      // UI traffic - frequency is negligible.
       // ---------------------------------------------------------------------
 
       const baseQuery = supabase
@@ -906,7 +906,7 @@ class RoleService {
       if (lookupErr) throw lookupErr
 
       // If both masks are zero, the row is meaningless ("inherit everything")
-      // — delete an existing row, or no-op if there's none. Avoids writing
+      // - delete an existing row, or no-op if there's none. Avoids writing
       // 0/0 noise rows.
       if (allowMask === BigInt(0) && denyMask === BigInt(0)) {
         if (existing?.id) {

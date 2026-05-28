@@ -1,10 +1,10 @@
 # System Flow Documentation
 
-## 📋 Overview
+## Overview
 
 This document provides a comprehensive view of how data flows through the Harmony system, from user interactions to database updates, real-time synchronization, and federation with external services.
 
-## 🔄 Core Application Flows
+## Core Application Flows
 
 ### 1. User Authentication Flow
 
@@ -145,7 +145,7 @@ sequenceDiagram
     end
 ```
 
-## 🏗️ Data Architecture Flow
+## Data Architecture Flow
 
 ### Database Interaction Pattern
 
@@ -224,7 +224,7 @@ graph LR
     POSTGRES_DB --> STORE_B
 ```
 
-## 🔄 Component Communication Patterns
+## Component Communication Patterns
 
 ### Parent-Child Communication
 
@@ -278,7 +278,7 @@ graph TB
     VOICE_STORE -.-> USER_STORE
 ```
 
-## 📱 PWA and Desktop App Flow
+## PWA and Desktop App Flow
 
 ### Service Worker Integration
 
@@ -354,7 +354,7 @@ graph TB
     VUE <--> RUST
 ```
 
-## 🌐 Federation Network Flow
+## Federation Network Flow
 
 ### ActivityPub Protocol Flow
 
@@ -431,7 +431,7 @@ sequenceDiagram
     MastodonServer-->>MastodonUser: Like notification
 ```
 
-## 🔧 Error Handling Flow
+## Error Handling Flow
 
 ### Global Error Management
 
@@ -473,7 +473,7 @@ graph TB
     NOTIFICATION --> RETRY
 ```
 
-## 📊 Performance Optimization Flow
+## Performance Optimization Flow
 
 ### Caching Strategy
 
@@ -547,7 +547,7 @@ graph LR
     SETTINGS_CHUNK -.->|Lazy| ADMIN_CHUNK
 ```
 
-## 🔄 State Persistence Flow
+## State Persistence Flow
 
 ### Application State Lifecycle
 

@@ -17,7 +17,7 @@ import type { FederationJobData } from '../BullMQManager.js';
  */
 export async function handleChannelMessageJob(data: FederationJobData): Promise<void> {
   const supabase = getSupabaseClient();
-  const { type, message_id, channel_id, user_id } = data;
+  const { type, message_id } = data;
 
   logger.info(`📨 Processing channel message job: ${type} for message ${message_id}`);
 
@@ -83,7 +83,7 @@ export async function handleChannelMessageJob(data: FederationJobData): Promise<
  */
 export async function handleChannelMessageEditJob(data: FederationJobData): Promise<void> {
   const supabase = getSupabaseClient();
-  const { message_id, channel_id } = data;
+  const { message_id } = data;
 
   logger.info(`✏️ Processing channel message edit job for message ${message_id}`);
 

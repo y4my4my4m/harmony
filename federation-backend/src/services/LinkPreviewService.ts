@@ -637,7 +637,7 @@ class LinkPreviewService {
             Accept: 'text/html,application/xhtml+xml',
           },
           signal: controller.signal,
-          // HTML link-preview path commonly traverses 4–5 hops (t.co →
+          // HTML link-preview path commonly traverses 4-5 hops (t.co →
           // publisher → www → canonical → cookie consent). The default
           // of 3 is sufficient for AP-content but cuts off legitimate
           // tracker chains here, so allow 5 specifically on this site.

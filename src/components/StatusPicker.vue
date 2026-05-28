@@ -76,7 +76,7 @@
               @resetEmojiIconClicked="() => {}"
             />
 
-            <!-- Activity: Custom = plain text/emoji only; others add a prefix (e.g. "Playing: …") -->
+            <!-- Activity: Custom = plain text/emoji only; others add a prefix (e.g. "Playing: ...") -->
             <div class="input-row activity-row">
               <label class="input-label">ACTIVITY</label>
               <div class="activity-selector">

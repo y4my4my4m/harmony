@@ -82,7 +82,7 @@ class UserDataService extends EventTarget {
     
     debug.log('🚀 Initializing User Data Service for:', username)
     
-    // IMPORTANT: Await cleanup to prevent race conditions with subscriptions
+    // Await cleanup to prevent race conditions with subscriptions
     await this.cleanup()
     this.currentUserId = userId
 
@@ -348,7 +348,7 @@ class UserDataService extends EventTarget {
    */
   private async initializeCurrentUser(userId: string, username: string, avatarUrl?: string, existingProfile?: any): Promise<void> {
     try {
-      // ✅ PERFORMANCE FIX: Use existing profile if provided to avoid duplicate database query
+      // PERFORMANCE FIX: Use existing profile if provided to avoid duplicate database query
       let profile = existingProfile
       
       if (!profile) {
@@ -366,7 +366,7 @@ class UserDataService extends EventTarget {
       
       if (profile) {
         // Professional status handling: database is truth, localStorage is backup
-        // IMPORTANT: Active users should be Online by default, not Offline
+        // Active users should be Online by default, not Offline
         let finalStatus = UserStatus.Online // Always default to Online for active users
         
         // Restore manual status flag from localStorage (survives tab close)
@@ -567,7 +567,7 @@ class UserDataService extends EventTarget {
     // a tab close (or a fast initial-session restore + close cycle) would
     // hit `auth.ts.setupOfflineHandlers`' `__harmonyPresenceCleanup?.()`
     // before the function existed. The cleanup closure only captures
-    // `this`, so it's safe to install pre-subscribe - `untrackFromAll…`
+    // `this`, so it's safe to install pre-subscribe - `untrackFromAll...`
     // checks `this.globalChannel` / context channels and no-ops when no
     // channels have been opened yet.
     if (typeof window !== 'undefined') {
@@ -581,7 +581,7 @@ class UserDataService extends EventTarget {
       }
     }
 
-    // 🌐 GLOBAL PRESENCE SYSTEM - Keep it simple
+    // GLOBAL PRESENCE SYSTEM - Keep it simple
     this.globalChannel = supabase.channel('harmony-global-presence')
       .on('presence', { event: 'sync' }, () => {
         // Just update our local state, don't log spam
@@ -655,6 +655,7 @@ class UserDataService extends EventTarget {
     if (!this.globalChannel) return
     
     const state = this.globalChannel.presenceState()
+    // eslint-disable-next-line unused-imports/no-unused-vars
     const userCount = Object.keys(state).length
     
     // Track which users are globally online
@@ -733,7 +734,7 @@ class UserDataService extends EventTarget {
     const existing = this.users.get(userId)
     const userStatus = presence.status ?? existing?.status ?? UserStatus.Online
     
-    // 🎯 PROFESSIONAL INVISIBLE IMPLEMENTATION  
+    // PROFESSIONAL INVISIBLE IMPLEMENTATION
     // If user has status set to Offline (invisible), don't show them as online
     // This should never happen due to trackCurrentUserGlobally() checks, but handle it as safety net
     if (userStatus === UserStatus.Offline) {
@@ -750,7 +751,7 @@ class UserDataService extends EventTarget {
 
     const nextUsername = presence.username || existing?.username || 'Unknown'
     const nextDisplayName = presence.display_name || presence.username || existing?.displayName || 'Unknown'
-    // Cache/DB wins — presence can be stale (tracked before avatar upload)
+    // Cache/DB wins - presence can be stale (tracked before avatar upload)
     const nextAvatar = existing?.avatarUrl || presence.avatar_url
     const nextColor = presence.color || existing?.color
     const nextCustomStatus = presence.custom_status || existing?.customStatus
@@ -761,7 +762,7 @@ class UserDataService extends EventTarget {
     // this, Supabase Realtime Presence sync events (fired on every join/leave/
     // track from any peer) cause every Avatar/DisplayName/Status component to
     // re-render, which can remount <img> elements and force a fresh fetch
-    // through R2/imgproxy — visible as avatar flicker under network latency.
+    // through R2/imgproxy - visible as avatar flicker under network latency.
     if (
       existing &&
       existing.isOnline === true &&
@@ -807,7 +808,7 @@ class UserDataService extends EventTarget {
     this.emitEvent('global-presence-updated', { userId, isOnline: true })
   }
   
-  // updateUserFromPresence removed — it was the helper for per-server
+  // updateUserFromPresence removed - it was the helper for per-server
   // Supabase Presence handlers that were also removed (see big comment in
   // the server presence block). All presence-based user data now flows
   // through `updateUserFromGlobalPresence` above.
@@ -959,7 +960,7 @@ class UserDataService extends EventTarget {
     }
 
     const channel = supabase.channel(channelName, { config: { private: true } })
-      // 🔥 Listen for profile update broadcasts (the correct way for real-time profile changes)
+      // Listen for profile update broadcasts (the correct way for real-time profile changes)
       .on('broadcast', { event: 'profile_update' }, (payload) => this.handleProfileUpdateBroadcast(serverId, payload))
       .on('broadcast', { event: 'presence_event' }, (payload) => {
         const data = payload.payload ?? payload
@@ -1053,7 +1054,7 @@ class UserDataService extends EventTarget {
   }
 
   /**
-   * Handle real-time server membership leave (DB user_servers row deleted —
+   * Handle real-time server membership leave (DB user_servers row deleted -
    * the user actually left this server, not just switched away from viewing it).
    */
   private async handleServerMemberLeave(serverId: string, payload: any): Promise<void> {
@@ -1063,7 +1064,7 @@ class UserDataService extends EventTarget {
     const context = this.contexts.get(serverId)
     if (context) {
       // Remove user from this server's member list. We deliberately DO NOT
-      // touch `userData.isOnline` — leaving one server doesn't make a user
+      // touch `userData.isOnline` - leaving one server doesn't make a user
       // offline globally. They might still be in other servers, in DMs with
       // us, or on our friends list, and global presence is the single
       // source of truth for online/offline status now.
@@ -1846,7 +1847,7 @@ class UserDataService extends EventTarget {
     let lastIndex = 0
     let match: RegExpExecArray | null
 
-    // Fresh regex per call — never share `g`-flag regexes with `.exec()` loops
+    // Fresh regex per call - never share `g`-flag regexes with `.exec()` loops
     // (see emojiShortcodeResolver.createShortcodeRegex for rationale).
     const matcher = createShortcodeRegex()
     while ((match = matcher.exec(displayName)) !== null) {
@@ -1877,7 +1878,7 @@ class UserDataService extends EventTarget {
         parts.push({ type: 'emoji', emoji: emojiPart })
       } else {
         parts.push({ type: 'text', text: match[0] })
-        // Only enqueue tokens we haven't already proven absent — prevents
+        // Only enqueue tokens we haven't already proven absent - prevents
         // ensureCustomEmojisResolved → reResolveAllDisplayNames loops.
         if (!parsed.isUuid && !isDbMissCached(parsed.token)) {
           pendingDbTokens.push(parsed.token)
@@ -1911,7 +1912,7 @@ class UserDataService extends EventTarget {
    */
   reResolveAllDisplayNames(): void {
     let changed = false
-    for (const [userId, userData] of this.users) {
+    for (const [_userId, userData] of this.users) {
       const newParts = this.resolveDisplayNameParts(userData.displayName, userData.displayNameEmojis)
       const hadParts = !!userData.displayNameParts
       const hasParts = !!newParts
@@ -2061,7 +2062,7 @@ class UserDataService extends EventTarget {
   /**
    * Manually trigger presence sync for a server context (useful for debugging or forcing updates)
    */
-  // triggerPresenceSync removed — there's no per-server presence state to
+  // triggerPresenceSync removed - there's no per-server presence state to
   // sync anymore. If a caller needs to force-refresh user data for a
   // context, they should call `refresh()` (which re-loads from DB) or
   // `refreshGlobalPresence()` (which re-syncs the global presence state).

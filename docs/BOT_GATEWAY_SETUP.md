@@ -1,6 +1,6 @@
 # Bot Gateway Setup Guide
 
-## 🏠 Local Development (No Nginx!)
+## Local Development (No Nginx!)
 
 For local development, everything runs on separate ports with **direct connections**:
 
@@ -48,7 +48,7 @@ channelMappings:
 
 ---
 
-## 🚀 Production Setup
+## Production Setup
 
 ### 1. Nginx Configuration
 
@@ -157,7 +157,7 @@ services:
 
 ---
 
-## 🔧 Environment Variables
+## Environment Variables
 
 ### Bot Gateway (.env)
 
@@ -186,7 +186,7 @@ NODE_ENV=production
 
 ---
 
-## 📝 Testing Local Setup
+## Testing Local Setup
 
 ### 1. Start Bot Gateway
 ```bash
@@ -241,7 +241,7 @@ Bot should connect and show:
 
 ---
 
-## 🎯 Architecture Summary
+## Architecture Summary
 
 ### Local (Development)
 ```
@@ -265,7 +265,7 @@ User Bots ──> wss://har.mony.lol/bot-gateway/gateway
 
 ---
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
 ### Bot Can't Connect Locally
 
@@ -294,7 +294,7 @@ User Bots ──> wss://har.mony.lol/bot-gateway/gateway
 
 ---
 
-## ✅ Checklist
+## Checklist
 
 ### Local Development
 - [ ] Bot gateway runs on port 3002

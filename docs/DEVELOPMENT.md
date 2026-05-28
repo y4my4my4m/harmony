@@ -1,10 +1,10 @@
 # Development Guide
 
-## 📋 Overview
+## Overview
 
 Welcome to the Harmony development guide! This document provides everything you need to know to contribute to Harmony, from setting up your development environment to understanding our coding standards and deployment processes.
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
 
@@ -47,7 +47,7 @@ VITE_DEBUG_FEDERATION=true
 VITE_DEBUG_VOICE=true
 ```
 
-## 🏗️ Project Structure
+## Project Structure
 
 ```bash
 harmony/
@@ -76,7 +76,7 @@ harmony/
 └── tests/                 # Integration and E2E tests
 ```
 
-## 🛠️ Development Workflow
+## Development Workflow
 
 ### Branch Strategy
 
@@ -159,7 +159,7 @@ docs(api): update authentication documentation
 refactor(stores): simplify user data management
 ```
 
-## 🧩 Component Development
+## Component Development
 
 ### Component Structure
 
@@ -252,7 +252,7 @@ const props = withDefaults(defineProps<ButtonProps>(), {
 })
 ```
 
-## 🗄️ State Management
+## State Management
 
 ### Creating Stores
 
@@ -325,7 +325,7 @@ export const useExampleStore = defineStore('example', () => {
 4. **Error Handling**: Always handle errors in actions
 5. **TypeScript**: Define proper types for all state
 
-## 🧪 Testing
+## Testing
 
 ### Testing Strategy
 
@@ -436,7 +436,7 @@ describe('Example Store', () => {
 })
 ```
 
-## 🎨 Styling Guidelines
+## Styling Guidelines
 
 ### CSS Architecture
 
@@ -473,7 +473,7 @@ We use a component-based CSS architecture:
 4. **Performance**: Minimize CSS bundle size
 5. **Accessibility**: Ensure sufficient color contrast
 
-## 🔧 Service Development
+## Service Development
 
 ### Creating Services
 
@@ -548,7 +548,7 @@ export const exampleService = new ExampleService()
 4. **Testing**: Write comprehensive tests for services
 5. **Documentation**: Document all public methods
 
-## 📚 Documentation
+## Documentation
 
 ### Code Documentation
 
@@ -607,7 +607,7 @@ Follow these guidelines for Markdown documentation:
 4. **Links**: Link to related documentation
 5. **Keep Updated**: Update docs with code changes
 
-## 🚀 Building and Deployment
+## Building and Deployment
 
 ### Development Build
 
@@ -662,10 +662,10 @@ git push origin master --tags
 For self-hosters, the production deployment path lives in
 [self-hosting guide](./self-hosting.md) and the supplied
 `docker-compose.prod.yml` / `docker-compose.full.yml`. There is no Vercel
-build target — Harmony ships as a static SPA + federation-backend stack,
+build target - Harmony ships as a static SPA + federation-backend stack,
 with optional Tauri desktop builds.
 
-## 🔐 Security Guidelines
+## Security Guidelines
 
 ### Code Security
 
@@ -683,7 +683,7 @@ with optional Tauri desktop builds.
 4. **CSP**: Implement Content Security Policy
 5. **Rate Limiting**: Implement rate limiting
 
-## 🐛 Debugging
+## Debugging
 
 ### Development Tools
 
@@ -716,7 +716,7 @@ export default defineConfig({
 })
 ```
 
-## 📊 Performance Guidelines
+## Performance Guidelines
 
 ### Frontend Performance
 
@@ -753,7 +753,7 @@ const largeData = shallowRef({})
 </script>
 ```
 
-## 🤝 Contributing Guidelines
+## Contributing Guidelines
 
 ### Pull Request Process
 
@@ -779,13 +779,13 @@ const largeData = shallowRef({})
 - **Harmony chat**: Real-time chat at <https://har.mony.lol>
 - **Documentation**: Check existing documentation first
 
-## 📝 License
+## License
 
 Harmony is under **GNU AGPL-3.0** with additional terms under AGPL §7
 (attribution + trademark). Forks must rename and keep the "Powered by
 Harmony" link to the original repository visible. See:
 
-- [`LICENSE`](https://github.com/y4my4my4m/harmony/blob/master/LICENSE) — AGPL v3 text
-- [`LICENSE-ADDITIONAL-TERMS.md`](https://github.com/y4my4my4m/harmony/blob/master/LICENSE-ADDITIONAL-TERMS.md) — required attribution
-- [`COPYRIGHT`](https://github.com/y4my4my4m/harmony/blob/master/COPYRIGHT) — copyright statement and bundled-asset notices
-- [`TRADEMARK.md`](https://github.com/y4my4my4m/harmony/blob/master/TRADEMARK.md) — name and logo policy
+- [`LICENSE`](https://github.com/y4my4my4m/harmony/blob/master/LICENSE) - AGPL v3 text
+- [`LICENSE-ADDITIONAL-TERMS.md`](https://github.com/y4my4my4m/harmony/blob/master/LICENSE-ADDITIONAL-TERMS.md) - required attribution
+- [`COPYRIGHT`](https://github.com/y4my4my4m/harmony/blob/master/COPYRIGHT) - copyright statement and bundled-asset notices
+- [`TRADEMARK.md`](https://github.com/y4my4my4m/harmony/blob/master/TRADEMARK.md) - name and logo policy

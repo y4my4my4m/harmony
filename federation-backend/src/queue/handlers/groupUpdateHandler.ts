@@ -18,7 +18,7 @@ export async function handleGroupUpdateJob(data: {
 }): Promise<void> {
   const supabase = getSupabaseClient();
   const domain = config.INSTANCE_DOMAIN;
-  const { conversation_id, updater_id, update_type, new_value } = data;
+  const { conversation_id, updater_id, update_type } = data;
 
   logger.info(`📝 Processing federate-group-update: ${update_type} for conversation ${conversation_id}`);
 

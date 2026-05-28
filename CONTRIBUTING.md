@@ -58,8 +58,8 @@ The project lives at <https://mony.lol>; the canonical instance is <https://har.
 
 ## Roadmap & known issues
 
-- **[ROADMAP.md](./ROADMAP.md)** — what we want to ship next, in priority order.
-- **[BUGS.md](./BUGS.md)** — known defects (incl. security findings) on `master`.
+- **[ROADMAP.md](./ROADMAP.md)** - what we want to ship next, in priority order.
+- **[BUGS.md](./BUGS.md)** - known defects (incl. security findings) on `master`.
 
 ## Development Workflow
 

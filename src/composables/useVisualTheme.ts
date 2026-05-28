@@ -9,14 +9,14 @@
  */
 
 import { ref, computed, watch } from 'vue'
-import { generateThemePalette, applyThemePalette, type ThemePalette } from '@/utils/colorUtils'
+import { generateThemePalette, applyThemePalette } from '@/utils/colorUtils'
 import { supabase } from '@/supabase'
 import { useAuthStore } from '@/stores/auth'
 import { useProfileStore } from '@/stores/useProfile'
 import { debug } from '@/utils/debug'
 import { userStorage } from '@/utils/userScopedStorage'
 import { audioThemeService } from '@/services/AudioThemeService'
-import { BUILTIN_SKINS, type Skin } from './skins'
+import { BUILTIN_SKINS } from './skins'
 import type { VisualThemeSettings } from './useVisualTheme.types'
 
 const AUDIO_THEME_WHEN_SKIN_CLEARED = 'default'
@@ -474,7 +474,7 @@ function applySettings(settings: VisualThemeSettings) {
   // Apply glass effects preference. The setting itself uses positive
   // framing (`glassEffectsEnabled`), but the CSS hook stays
   // `data-disable-blur` because that's what the global rule in
-  // `design-system.css` keys off — internal implementation detail.
+  // `design-system.css` keys off - internal implementation detail.
   if (!settings.glassEffectsEnabled) {
     root.setAttribute('data-disable-blur', 'true')
   } else {
@@ -676,7 +676,7 @@ async function loadFromSupabase(): Promise<Partial<VisualThemeSettings> | null> 
   if (!userId) return null
   
   try {
-    // OPTIMIZATION: Check if profile is already loaded in the store
+    // Check if profile is already loaded in the store
     if (profileStore.profile?.appearance_settings) {
       debug.log('✅ Using cached appearance_settings from profile store')
       return profileStore.profile.appearance_settings as Partial<VisualThemeSettings>

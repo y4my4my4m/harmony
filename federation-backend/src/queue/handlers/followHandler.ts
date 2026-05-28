@@ -12,7 +12,7 @@ import type { FederationJobData } from '../BullMQManager.js';
 
 export async function handleFollowJob(data: FederationJobData): Promise<void> {
   const supabase = getSupabaseClient();
-  const { type, follow_id, follower_id, following_id, status } = data;
+  const { type, follow_id, follower_id, following_id } = data;
 
   logger.info(`👥 Processing follow job: ${type} for follow ${follow_id}`);
 

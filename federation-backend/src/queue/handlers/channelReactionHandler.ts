@@ -12,7 +12,7 @@ import type { FederationJobData } from '../BullMQManager.js';
 
 export async function handleChannelReactionJob(data: FederationJobData): Promise<void> {
   const supabase = getSupabaseClient();
-  const { type, reaction_id, message_id, user_id, emoji_id, custom_emoji_content } = data;
+  const { type, reaction_id, message_id, user_id, emoji_id } = data;
 
   logger.info(`💬⭐ Processing channel reaction job: ${type} for reaction ${reaction_id || 'deleted'}`);
 

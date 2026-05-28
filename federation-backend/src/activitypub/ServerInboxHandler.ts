@@ -1654,8 +1654,7 @@ async function processUndoActivity(
       break;
 
     case 'Like':
-    case 'EmojiReaction':
-      // Remove reaction
+    case 'EmojiReaction': {
       const actorUrl = typeof activity.actor === 'string' ? activity.actor : activity.actor.id;
       const targetUrl = typeof object.object === 'string' ? object.object : object.object?.id;
 
@@ -1673,11 +1672,12 @@ async function processUndoActivity(
             .delete()
             .eq('message_id', messageIdMatch[1])
             .eq('user_id', user.id);
-          
-          logger.info(`↩️ Removed reaction from message ${messageIdMatch[1]}`);
+
+          logger.info(`Removed reaction from message ${messageIdMatch[1]}`);
         }
       }
       break;
+    }
 
     default:
       logger.info(`Unhandled Undo object type: ${objectType}`);
@@ -1745,6 +1745,7 @@ async function sendRejectActivity(
 /**
  * Strip HTML tags from content
  */
+// eslint-disable-next-line unused-imports/no-unused-vars
 function stripHtml(html: string): string {
   const text = html
     .replace(/<br\s*\/?>/gi, '\n')

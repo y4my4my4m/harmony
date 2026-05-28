@@ -228,7 +228,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRouter } from 'vue-router'
 import { threadService } from '@/services/ThreadService'
 import { supabase } from '@/supabase'
 import { useUserData } from '@/composables/useUserData'
@@ -259,7 +259,6 @@ interface Props {
 }
 
 const props = defineProps<Props>()
-const route = useRoute()
 const router = useRouter()
 
 const { 
@@ -713,7 +712,7 @@ const toggleGiphy = () => {
   }
 }
 
-const toggleEmojiListForInput = (isReaction: boolean, message?: Message) => {
+const toggleEmojiListForInput = (isReaction: boolean, _message?: Message) => {
   if (!isReaction) {
     // Regular emoji input - use unified media picker
     mediaPickerInitialTab.value = 'emoji'

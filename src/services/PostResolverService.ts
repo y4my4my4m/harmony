@@ -81,7 +81,7 @@ async function loadPostFromDb(postId: string): Promise<TimelinePost | null> {
       post.is_bookmarked = types.has('bookmark')
     }
   } catch {
-    // User not logged in – keep defaults
+    // User not logged in - keep defaults
   }
 
   return post

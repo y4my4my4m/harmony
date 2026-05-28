@@ -3,7 +3,7 @@
     Teleport the popup to <body> so it escapes any ancestor that creates a
     new positioning containing block. In particular:
       - `transform: translateY(...)` on a parent (e.g. .admin-module:hover)
-        traps `position: fixed` children — they position relative to the
+        traps `position: fixed` children - they position relative to the
         transformed ancestor instead of the viewport. The popup then renders
         inside the box and gets clipped by `overflow: hidden` on the module.
       - Same trap is triggered by `filter`, `perspective`, `will-change`,
@@ -245,7 +245,7 @@ import { useUnifiedEmoji, type EmojiEntry } from '@/services/unifiedEmojiService
 import { emojiFavoriteService, type EmojiFavorite } from '@/services/EmojiFavoriteService';
 import type { Emoji, ResolvedEmoji } from '@/types';
 import { getEmojiUrl } from '@/utils/emojiUtils';
-import { EMOJI_CATEGORIES, CATEGORY_ORDER } from '@/utils/emojiConstants';
+import { EMOJI_CATEGORIES } from '@/utils/emojiConstants';
 import { debug } from '@/utils/debug';
 import LazyEmojiSection from '@/components/LazyEmojiSection.vue';
 import ServerIcon from '@/components/common/ServerIcon.vue';
@@ -309,14 +309,17 @@ const { triggerReaction } = useHapticSettings();
 const { 
   isNativePack, 
   isTwemojiPack,
+  // eslint-disable-next-line unused-imports/no-unused-vars
   currentPack,
   isLoaded: unifiedLoaded,
   isLoading: unifiedLoading,
   getAllEmojis,
   getCategories,
+  // eslint-disable-next-line unused-imports/no-unused-vars
   searchEmojis,
   resolveEmoji,
   getTwemojiUrl,
+  // eslint-disable-next-line unused-imports/no-unused-vars
   getMutantSvgUrl
 } = useUnifiedEmoji();
 
@@ -688,6 +691,7 @@ function getFavoriteSvgUrl(fav: EmojiFavorite): string | null {
   return resolved.display.type === 'svg' ? resolved.display.content : null;
 }
 
+// eslint-disable-next-line unused-imports/no-unused-vars
 async function removeFavoriteEmoji(emojiId: string) {
   await emojiFavoriteService.removeFavorite(emojiId);
   favoriteEmojis.value = favoriteEmojis.value.filter(f => f.emoji_id !== emojiId);
@@ -716,6 +720,7 @@ function showFavToast(msg: string) {
   favToastTimer = setTimeout(() => { favToast.value = null; }, 1500);
 }
 
+// eslint-disable-next-line unused-imports/no-unused-vars
 async function toggleFavoriteUnified(emoji: EmojiEntry) {
   try {
     const result = await emojiFavoriteService.toggleFavorite(emoji.unicode, emoji.shortcode, null, null);
@@ -726,6 +731,7 @@ async function toggleFavoriteUnified(emoji: EmojiEntry) {
   }
 }
 
+// eslint-disable-next-line unused-imports/no-unused-vars
 async function toggleFavoriteServer(emoji: ResolvedEmoji) {
   try {
     const url = emoji.url ? getEmojiUrl(emoji.url, 42) : null;
@@ -737,6 +743,7 @@ async function toggleFavoriteServer(emoji: ResolvedEmoji) {
   }
 }
 
+// eslint-disable-next-line unused-imports/no-unused-vars
 async function toggleFavoriteFrequent(emoji: { id: string; native?: string; name: string; url?: string }) {
   try {
     const emojiId = emoji.native || emoji.id;
@@ -922,7 +929,7 @@ function ctxRemoveFrequent() {
 
 // Lazy load emoji data when popup is mounted (user opened emoji picker)
 onMounted(async () => {
-  // ✅ Show popup immediately, load emojis in background (non-blocking)
+  // Show popup immediately, load emojis in background (non-blocking)
   // This ensures the popup opens instantly and emojis load progressively
   
   // Trigger emoji data loading in background (non-blocking)

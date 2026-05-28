@@ -1,7 +1,7 @@
 import { supabase } from '@/supabase';
 import type { Profile } from '@/types';
 
-// OPTIMIZED: Cache for server member IDs with TTL
+// Cache for server member IDs with TTL
 const serverMemberCache = new Map<string, { userIds: string[], timestamp: number }>()
 const pendingServerMemberRequests = new Map<string, Promise<string[]>>()
 const MEMBER_CACHE_TTL = 2 * 60 * 1000 // 2 minutes

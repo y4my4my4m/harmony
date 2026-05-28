@@ -757,6 +757,7 @@ async function handleInteractionRemoval(deletedInteraction: any): Promise<void> 
 /**
  * Handle pin/unpin changes - send Add/Remove activity
  */
+// eslint-disable-next-line unused-imports/no-unused-vars
 async function handlePinChange(post: any, oldPost: any): Promise<void> {
   try {
     const supabase = getSupabaseClient();
@@ -1064,7 +1065,7 @@ export async function handleChannelCreated(channel: any): Promise<void> {
 /**
  * Handle channel update - federate to remote server members
  */
-export async function handleChannelUpdated(channel: any, oldChannel: any): Promise<void> {
+export async function handleChannelUpdated(channel: any, _oldChannel: any): Promise<void> {
   try {
     const supabase = getSupabaseClient();
     const hostDomain = config.INSTANCE_DOMAIN;
@@ -1193,8 +1194,9 @@ export async function handleChannelDeleted(channel: any): Promise<void> {
 /**
  * Handle server update - federate to remote members
  */
-export async function handleServerUpdated(server: any, oldServer: any): Promise<void> {
+export async function handleServerUpdated(server: any, _oldServer: any): Promise<void> {
   try {
+    // eslint-disable-next-line unused-imports/no-unused-vars
     const supabase = getSupabaseClient();
     const hostDomain = config.INSTANCE_DOMAIN;
     

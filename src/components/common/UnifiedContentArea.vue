@@ -102,18 +102,16 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { ref, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import ChatComponent from '@/components/ChatComponent.vue'
 import Composer from '@/components/activitypub/Composer.vue'
 import ExploreContent from '@/components/activitypub/ExploreContent.vue'
-import PostDetailDisplay from './PostDetailDisplay.vue'
 import PostsContainer from './PostsContainer.vue'
 import ViewHeader from './ViewHeader.vue'
 import type { Message, TimelinePost, FederatedUser } from '@/types'
 import { ViewMode, ViewType } from '@/types/viewTypes'
-import { usePostInteractions } from '@/composables/usePostInteractions'
 
 const router = useRouter()
 
@@ -226,7 +224,7 @@ defineEmits<{
   'back-to-timeline': []
   
   // Post interaction events. See PostsContainer for why these forward
-  // `post: TimelinePost` rather than a bare id — the upstream feed views
+  // `post: TimelinePost` rather than a bare id - the upstream feed views
   // (TimelineView/BookmarksView/MentionsView/NotificationsView) declare
   // handlers `(post: TimelinePost) => Promise<void>` and re-emit the
   // full post, so keeping the payload as a post here avoids a TS2322
@@ -239,7 +237,7 @@ defineEmits<{
   'show-user-profile': [user: any]
 
   // Visibility (used by MentionsView to clear notifications for posts the
-  // user actually scrolls past — see PostsContainer.posts-visible)
+  // user actually scrolls past - see PostsContainer.posts-visible)
   'posts-visible': [postIds: string[]]
 }>()
 
@@ -262,7 +260,6 @@ const handleEditPost = (postId: string) => {
 }
 
 // Use the post interactions composable for all post-related actions
-const postInteractions = usePostInteractions()
 const { t } = useI18n()
 
 // Helper functions for timeline states

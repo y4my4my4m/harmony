@@ -408,7 +408,7 @@ export class VoiceActivityHandler {
       }
       
       // Broadcast to local subscribers for UI update
-      // IMPORTANT: Frontend listens on `voice-channels:${serverId}`, not `voice:${channelId}`
+      // Frontend listens on `voice-channels:${serverId}`, not `voice:${channelId}`
       await supabase
         .channel(`voice-channels:${channel.server_id}`)
         .send({
@@ -488,7 +488,7 @@ export class VoiceActivityHandler {
     }
 
     // Broadcast to channel subscribers
-    // IMPORTANT: Frontend listens on `voice-channels:${serverId}`, not `voice:${channelId}`
+    // Frontend listens on `voice-channels:${serverId}`, not `voice:${channelId}`
     await supabase
       .channel(`voice-channels:${channel.server_id}`)
       .send({
@@ -706,7 +706,7 @@ export class VoiceActivityHandler {
     }
 
     // Broadcast leave event
-    // IMPORTANT: Frontend listens on `voice-channels:${serverId}`, not `voice:${channelId}`
+    // Frontend listens on `voice-channels:${serverId}`, not `voice:${channelId}`
     await supabase
       .channel(`voice-channels:${channel.server_id}`)
       .send({
@@ -771,7 +771,7 @@ export class VoiceActivityHandler {
     channelApId: string,
     channelName: string,
     serverApId: string,
-    serverName: string
+    _serverName: string
   ): VoiceChannelJoin {
     return {
       '@context': [
@@ -884,7 +884,7 @@ export class VoiceActivityHandler {
   static async federateVoiceChannelJoin(
     userId: string,
     channelId: string,
-    serverId: string
+    _serverId: string
   ): Promise<void> {
     const supabase = getSupabaseClient();
     const hostDomain = config.INSTANCE_DOMAIN;
@@ -951,7 +951,7 @@ export class VoiceActivityHandler {
   static async federateVoiceChannelLeave(
     userId: string,
     channelId: string,
-    serverId: string
+    _serverId: string
   ): Promise<void> {
     const supabase = getSupabaseClient();
     const hostDomain = config.INSTANCE_DOMAIN;

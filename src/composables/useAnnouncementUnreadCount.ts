@@ -15,7 +15,7 @@
  *   - `reset()` zeros the count (used when the popup's "mark all read"
  *     button fires, since we know the unread set is empty afterwards).
  *
- * No realtime subscription is wired up here — `instance_announcements` is
+ * No realtime subscription is wired up here - `instance_announcements` is
  * a low-volume admin surface and the existing popup-on-load + manual refresh
  * are enough. If we later want push-style updates we can plug them in here
  * without touching consumers.

@@ -240,7 +240,7 @@ class TrendingService {
       let hashtagError: any = null;
 
       // First try normalized_tag
-      const { data: data1, error: error1 } = await supabase
+      const { data: data1 } = await supabase
         .from('hashtags')
         .select('id')
         .eq('normalized_tag', normalizedTag)
@@ -257,6 +257,7 @@ class TrendingService {
           .maybeSingle();
         
         hashtagData = data2;
+        // eslint-disable-next-line unused-imports/no-unused-vars
         hashtagError = error2;
       }
 
@@ -337,7 +338,7 @@ class TrendingService {
    */
   async getTrendingUsers(options: TrendingOptions = {}): Promise<TrendingUser[]> {
     try {
-      const { limit = 10, timeframe = 'daily' } = options;
+      const { limit = 10 } = options;
 
       // Get current user id to exclude from trending users
       const { authContextService } = await import('@/services/AuthContextService');
@@ -558,6 +559,7 @@ class TrendingService {
         contentType = 'all',
         timeRange = '24h',
         instance,
+        // eslint-disable-next-line unused-imports/no-unused-vars
         minScore = 0
       } = filters;
 
@@ -658,7 +660,7 @@ class TrendingService {
 
   private async getInstancePostCount(domain: string): Promise<number> {
     try {
-      const { count, error } = await supabase
+      const { count } = await supabase
         .from('posts')
         .select('*, author:profiles!inner(domain)', { count: 'exact', head: true })
         .eq('author.domain', domain);
@@ -671,7 +673,7 @@ class TrendingService {
 
   private async getInstanceUserCount(domain: string): Promise<number> {
     try {
-      const { count, error } = await supabase
+      const { count } = await supabase
         .from('profiles')
         .select('*', { count: 'exact', head: true })
         .eq('domain', domain);

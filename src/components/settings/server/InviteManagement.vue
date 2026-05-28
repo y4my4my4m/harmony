@@ -297,6 +297,7 @@ interface Props {
 }
 
 const props = defineProps<Props>()
+// eslint-disable-next-line unused-imports/no-unused-vars
 const emit = defineEmits<{
   'create-invite': []
 }>()

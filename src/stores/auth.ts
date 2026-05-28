@@ -2,7 +2,6 @@ import { defineStore } from 'pinia';
 import { supabase } from '@/supabase';
 import type { Session } from '@supabase/supabase-js';
 import { updateUserStatus } from '@/services/ProfileService';
-import { useChatStore } from '@/stores/useChat';
 import { useActivityPubStore } from '@/stores/useActivityPub';
 import { UserStatus } from '@/types';
 import { debug } from '@/utils/debug';
@@ -162,7 +161,7 @@ export const useAuthStore = defineStore('auth', {
       }
     },
     async initializeAuth() {
-      // ✅ PERFORMANCE: Check if we recently fetched session to avoid duplicate calls
+      // PERFORMANCE: Check if we recently fetched session to avoid duplicate calls
       const now = Date.now()
       if (this._sessionCacheTimestamp && (now - this._sessionCacheTimestamp) < this._sessionCacheTimeout) {
         debug.log('⚡ Using cached session (avoiding duplicate getSession call)')
@@ -235,7 +234,7 @@ export const useAuthStore = defineStore('auth', {
           this._pendingMFAVerification = true;
           this.session = null;
         } else if (session) {
-          // 🚨 CRITICAL SECURITY: Check AAL2 on session restoration
+          // Check AAL2 on session restoration
           // This prevents MFA bypass when another tab creates an AAL1 session
           // and this tab picks it up from localStorage on refresh
           const isValid = await this.validateSessionForMFA(session);
@@ -243,7 +242,7 @@ export const useAuthStore = defineStore('auth', {
           if (isValid) {
             this.session = session;
             this._sessionCacheTimestamp = Date.now()
-            // ✅ PERFORMANCE: Remember we validated this session to avoid redundant validation
+            // PERFORMANCE: Remember we validated this session to avoid redundant validation
             // on INITIAL_SESSION event that fires immediately after
             this._mfaValidatedForSession = session.access_token;
             // Set user-scoped storage for the current user
@@ -268,7 +267,7 @@ export const useAuthStore = defineStore('auth', {
         // Note: Notification system is now initialized by RouteAwareInitialization
         // to only load unread count initially (full list loads on-demand)
         
-        // ✅ CRITICAL: Load blocking/muting data on session restoration (page refresh)
+        // Load blocking/muting data on session restoration (page refresh)
         // This must happen BEFORE any chat components render
         const activityPubStore = useActivityPubStore();
         await activityPubStore.loadBlockingData();
@@ -286,7 +285,7 @@ export const useAuthStore = defineStore('auth', {
         const newUserId = session?.user?.id;
         
         // =====================================================================
-        // CRITICAL: If already logged in with same user, IGNORE most events
+        // If already logged in with same user, IGNORE most events
         // This prevents re-validation on tab visibility changes, token refresh, etc.
         // Supabase fires SIGNED_IN when tab becomes visible - we must ignore it
         // =====================================================================
@@ -387,11 +386,11 @@ export const useAuthStore = defineStore('auth', {
             userStorage.setCurrentUser(session.user.id);
             this.setupOfflineHandlers(session.user.id);
             
-            // ✅ CRITICAL: Re-initialize user settings after login
+            // Re-initialize user settings after login
             // This ensures theme and other settings load for the new user
             this.initializeUserSettings(session.user.id);
             
-            // ✅ Load blocking/muting data immediately after login
+            // Load blocking/muting data immediately after login
             // This ensures blocked users are hidden in all views
             const activityPubStore = useActivityPubStore();
             activityPubStore.loadBlockingData();
@@ -435,7 +434,7 @@ export const useAuthStore = defineStore('auth', {
               userStorage.setCurrentUser(session.user.id);
               this.setupOfflineHandlers(session.user.id);
               
-              // ✅ Load blocking/muting data on app startup
+              // Load blocking/muting data on app startup
               // This ensures blocked users are hidden in all views
               const activityPubStore = useActivityPubStore();
               activityPubStore.loadBlockingData();
@@ -683,7 +682,7 @@ export const useAuthStore = defineStore('auth', {
           setTimeout(() => reject(new Error('MFA verification timed out. Please try logging in again.')), 30000),
         );
 
-        const { data: verifyData, error: verifyError } = await Promise.race([
+        const { error: verifyError } = await Promise.race([
           verifyPromise,
           timeoutPromise,
         ]);
@@ -1008,7 +1007,7 @@ export const useAuthStore = defineStore('auth', {
       try {
         debug.log('🔄 Initializing user settings for:', userId);
         
-        // ✅ PERFORMANCE: Initialize theme from localStorage FIRST (instant, synchronous)
+        // PERFORMANCE: Initialize theme from localStorage FIRST (instant, synchronous)
         // This gives immediate visual feedback while profile loads in background
         const { useVisualTheme } = await import('@/composables/useVisualTheme');
         const visualTheme = useVisualTheme();

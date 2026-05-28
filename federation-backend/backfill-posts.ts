@@ -70,6 +70,7 @@ async function backfillContent() {
   let totalUpdated = 0;
   let totalFailed = 0;
 
+  // eslint-disable-next-line no-constant-condition
   while (true) {
     const query = supabase
       .from('posts')
@@ -149,6 +150,7 @@ async function backfillLinkPreviews() {
   let totalProcessed = 0;
   let totalEnriched = 0;
 
+  // eslint-disable-next-line no-constant-condition
   while (true) {
     // Find posts that have url parts in content but no embeds in metadata
     const { data: posts, error } = await supabase

@@ -1,10 +1,10 @@
 # Service Layer Documentation
 
-## 📋 Overview
+## Overview
 
 The service layer in Harmony encapsulates business logic, external API interactions, and complex operations. Services are designed to be stateless, reusable, and testable, following professional software engineering principles.
 
-## 🏗️ Service Architecture
+## Service Architecture
 
 ```mermaid
 graph TB
@@ -63,7 +63,7 @@ graph TB
     STATE_PERSIST --> CACHE_SVC
 ```
 
-## 🔐 Authentication Services
+## Authentication Services
 
 ### AuthenticationService
 **Purpose**: Handles user authentication and session management
@@ -157,7 +157,7 @@ class ProfileService {
 }
 ```
 
-## 💬 Communication Services
+## Communication Services
 
 ### ChatService
 **Purpose**: Handles chat message operations and channel management
@@ -271,7 +271,7 @@ class VoiceChannelService {
 }
 ```
 
-## 🌐 Federation Services
+## Federation Services
 
 ### ActivityPubService
 **Purpose**: Handles ActivityPub protocol implementation
@@ -365,7 +365,7 @@ class FederationService {
 }
 ```
 
-## 🔧 Infrastructure Services
+## Infrastructure Services
 
 ### PWAManager
 **Purpose**: Progressive Web App features and native app behaviors
@@ -483,7 +483,7 @@ class AudioThemeService extends EventEmitter {
 }
 ```
 
-## 📊 Data Services
+## Data Services
 
 ### UserDataService
 **Purpose**: Unified user data management and caching
@@ -572,7 +572,7 @@ class StatePersistenceService {
 }
 ```
 
-## 🚀 Service Usage Patterns
+## Service Usage Patterns
 
 ### 1. Dependency Injection
 ```typescript
@@ -645,7 +645,7 @@ class ServiceCache<T> {
 }
 ```
 
-## 🧪 Service Testing
+## Service Testing
 
 ### Unit Testing
 ```typescript
@@ -710,7 +710,7 @@ describe('Service Integration', () => {
 })
 ```
 
-## 📈 Performance Monitoring
+## Performance Monitoring
 
 ### Service Metrics
 ```typescript
@@ -751,7 +751,7 @@ class ServiceMetrics {
 }
 ```
 
-## 🔐 Security Considerations
+## Security Considerations
 
 ### Input Validation
 ```typescript

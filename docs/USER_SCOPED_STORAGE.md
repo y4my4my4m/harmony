@@ -29,13 +29,13 @@ userStorage.clearCurrentUser()
 
 ## Migration Status
 
-### ✅ Migrated Services
+### Migrated Services
 - **Auth Store** - Sets/clears user storage on login/logout
 - **UserDataService** - User status and custom status
 - **StatePersistence** - App state persistence
 - **useVisualTheme** - Theme settings
 
-### ⚠️ Services Still Using Direct localStorage
+### Services Still Using Direct localStorage
 These services still use direct `localStorage` and should be migrated:
 - `VoiceSettingsService.ts` - Voice settings
 - `unifiedWebRTC.ts` - Stream quality settings

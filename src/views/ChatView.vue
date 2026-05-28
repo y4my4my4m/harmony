@@ -342,7 +342,7 @@ const highlightSearchText = (messageElement: HTMLElement, query: string) => {
       
       const textNodes: Text[] = []
       let node
-      while (node = walker.nextNode()) {
+      while ((node = walker.nextNode())) {
         textNodes.push(node as Text)
       }
       
@@ -354,7 +354,7 @@ const highlightSearchText = (messageElement: HTMLElement, query: string) => {
           if (parent && parent.nodeName !== 'MARK') {
             // Build the highlight wrapper using DOM APIs rather than
             // `innerHTML = text.replace(...)`. `textNode.textContent` is the
-            // DECODED text — if the message renderer escaped `<style>foo`
+            // DECODED text - if the message renderer escaped `<style>foo`
             // into `&lt;style&gt;foo`, the DOM has `<style>foo` as text
             // content here, and assigning that back via innerHTML would
             // re-parse it as a real <style> tag and re-introduce the XSS

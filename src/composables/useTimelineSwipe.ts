@@ -1,4 +1,4 @@
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 
 const TIMELINE_ORDER = ['home', 'local', 'public', 'trending', 'instances'] as const

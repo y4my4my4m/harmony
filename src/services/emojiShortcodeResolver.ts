@@ -12,14 +12,14 @@ import type { Emoji } from '@/types'
 /**
  * Characters allowed inside :shortcode: (includes ~ for cross-server disambiguation).
  *
- * NOTE: Stateful `g`-flag regex objects MUST NOT be shared across modules — `lastIndex`
+ * NOTE: Stateful `g`-flag regex objects MUST NOT be shared across modules - `lastIndex`
  * mutation by one consumer corrupts ongoing iteration in another. Each consumer
  * should construct its own RegExp from this pattern via `createShortcodeRegex()`.
  */
 export const EMOJI_SHORTCODE_INNER = '[a-zA-Z0-9_+~-]+'
 export const EMOJI_SHORTCODE_FULL_REGEX = new RegExp(`^:(${EMOJI_SHORTCODE_INNER}):$`)
 
-/** Each call returns a fresh global regex — safe for concurrent `.exec()` loops. */
+/** Each call returns a fresh global regex - safe for concurrent `.exec()` loops. */
 export function createShortcodeRegex(): RegExp {
   return new RegExp(`:(${EMOJI_SHORTCODE_INNER}):`, 'g')
 }
@@ -235,7 +235,7 @@ export async function findCustomEmojiByToken(tokenOrShortcode: string): Promise<
         if (emoji.id) dbEmojiCache.set(emoji.id, emoji)
       } else {
         // Negative cache (size-capped) so we don't refetch missing emojis
-        // every render — important because resolveDisplayNameParts triggers
+        // every render - important because resolveDisplayNameParts triggers
         // ensureCustomEmojisResolved → reResolveAllDisplayNames cycles.
         if (dbEmojiMissCache.size >= DB_MISS_CACHE_MAX) {
           const first = dbEmojiMissCache.values().next().value

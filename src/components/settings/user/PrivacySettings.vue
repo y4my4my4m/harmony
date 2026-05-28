@@ -572,7 +572,7 @@ const isDisable2FACodeValid = computed(() => {
 // Privacy State
 //
 // `allowDMFromServerMembers` and `allowDMFromFollows` are visible in the UI
-// but currently flagged as "Coming soon" — there is no DB column for either
+// but currently flagged as "Coming soon" - there is no DB column for either
 // (the `notification_preferences` table does not store them) and no
 // server-side gate consumes them yet. Keep them in state so when we do
 // wire them up, persisting works straight away.
@@ -595,6 +595,7 @@ const hasChanges = computed(() => {
 })
 
 // Methods
+// eslint-disable-next-line unused-imports/no-unused-vars
 const onSettingChange = () => {
   // Settings changed, enable save button
 }

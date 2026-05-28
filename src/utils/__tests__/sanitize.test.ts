@@ -5,7 +5,7 @@
  *  2. Users sending `<img src=x onerror=alert(1)>` to run JS.
  *  3. Users sending `<script>` directly (Vue's `v-html` skips script
  *     execution but other vectors still apply).
- *  4. Inline event handlers (`onerror`, `onclick`, …) on otherwise-allowed
+ *  4. Inline event handlers (`onerror`, `onclick`, ...) on otherwise-allowed
  *     tags.
  *
  * If anything in this file regresses, the chat XSS issue from the audit
@@ -95,7 +95,7 @@ describe('sanitizeMessageHtml', () => {
 
   it('preserves the markdown classes our renderers produce', () => {
     // These are the tags / classes that `renderTextContent` in
-    // `UnifiedMessageContent.vue` emits — if the sanitizer strips them,
+    // `UnifiedMessageContent.vue` emits - if the sanitizer strips them,
     // every message in the app renders as plain text.
     const trusted =
       '<strong class="md-bold">b</strong>' +
@@ -201,7 +201,7 @@ describe('sanitizeUrl', () => {
   });
 
   it('strips control characters used to bypass scheme detection', () => {
-    // `java\tscript:` — browsers normalize and execute.
+    // `java\tscript:` - browsers normalize and execute.
     expect(sanitizeUrl('java\tscript:alert(1)')).toBe('');
     expect(sanitizeUrl('java\nscript:alert(1)')).toBe('');
   });

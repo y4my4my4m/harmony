@@ -41,7 +41,7 @@ export interface VisualThemeSettings {
   /**
    * Enable backdrop-filter blur and glass-like translucency across the UI.
    * When `false`, sets `data-disable-blur` on `:root` (the CSS hook keeps
-   * its negative name as an internal implementation detail — see
+   * its negative name as an internal implementation detail - see
    * `design-system.css`) which a global rule uses to neutralise every
    * `backdrop-filter` / `-webkit-backdrop-filter` declaration.
    * Default is `true` (effects enabled).

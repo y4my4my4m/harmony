@@ -99,7 +99,7 @@ export const useServerStore = defineStore('server', {
       const toast = useToast();
       
       try {
-        const { data, error } = await supabase
+        const { error } = await supabase
           .from('user_servers')
           .insert([{ server_id: serverId, user_id: userId }]);
 

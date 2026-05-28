@@ -1,4 +1,4 @@
-# Harmony — Trademark Policy
+# Harmony - Trademark Policy
 
 The name **"Harmony"** and the project's **polar-bear logo** (🐻‍❄️ and the
 icon files under `public/icon_3d.webp`, `public/favicon/`, and
@@ -16,9 +16,9 @@ original.
 You may, **without asking us**:
 
 - Run an unmodified Harmony instance using the original name and logo.
-- Use the name "Harmony" to refer to this project — e.g. in blog posts,
+- Use the name "Harmony" to refer to this project - e.g. in blog posts,
   tutorials, talks, comparisons, hosting offerings, package descriptions
-  ("our Mastodon and Harmony bridge…").
+  ("our Mastodon and Harmony bridge...").
 - Describe your fork or related project as **"based on Harmony"**, **"a
   Harmony fork"**, or **"Harmony-compatible"**, provided your project's
   *primary* name is something different.
@@ -31,12 +31,12 @@ You may **not**, without explicit written permission:
 
 - Distribute a modified version of Harmony under the name "Harmony", or
   any name confusingly similar (e.g. "Harmony+", "Harmony Pro",
-  "Harmony Plus", "Harmoni"…).
+  "Harmony Plus", "Harmoni"...).
 - Use the polar-bear logo as the primary brand mark of a fork or
   competing product.
 - Imply official endorsement by y4my4my4m or the Harmony project.
 - Register a domain name, package name (npm, pypi, crates.io, Docker
-  Hub, …), or social media handle that uses "Harmony" as the central
+  Hub, ...), or social media handle that uses "Harmony" as the central
   identifier for a fork or commercial offering.
 
 If you are unsure whether your use is okay, please ask:
@@ -70,4 +70,4 @@ projects.
 ## Acknowledgements
 
 If you have a question or want to use the brand for an event, sponsorship,
-or collaboration, please reach out — most reasonable requests are granted.
+or collaboration, please reach out - most reasonable requests are granted.

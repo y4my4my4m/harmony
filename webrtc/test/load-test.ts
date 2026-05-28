@@ -89,7 +89,18 @@ async function createParticipant(
   
   const startTime = Date.now();
   
-  return new Promise(async (resolve, reject) => {
+  return new Promise<Room>((resolve, reject) => {
+    const connectAndPublish = async () => {
+      try {
+        const token = await generateToken(identity, canPublish);
+        await room.connect(config.wsUrl, token);
+      } catch (error) {
+        metrics.connectionErrors++;
+        console.error(`${identity} connection failed:`, error);
+        reject(error);
+      }
+    };
+
     room.on(RoomEvent.Connected, async () => {
       const connectTime = Date.now() - startTime;
       metrics.connectTimes.push(connectTime);
@@ -128,17 +139,10 @@ async function createParticipant(
     });
     
     room.on(RoomEvent.MediaDevicesError, (error) => {
-      console.warn(`⚠️ ${identity} media device error:`, error);
+      console.warn(`${identity} media device error:`, error);
     });
-    
-    try {
-      const token = await generateToken(identity, canPublish);
-      await room.connect(config.wsUrl, token);
-    } catch (error) {
-      metrics.connectionErrors++;
-      console.error(`❌ ${identity} connection failed:`, error);
-      reject(error);
-    }
+
+    void connectAndPublish();
   });
 }
 

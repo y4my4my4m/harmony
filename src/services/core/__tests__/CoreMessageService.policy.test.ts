@@ -45,7 +45,7 @@ vi.mock('@/services/encryption/MegolmMessageEncryptionService', () => ({
     initialize: vi.fn().mockResolvedValue(undefined),
     hasRecoveryKey: vi.fn(async () => encState.hasRecoveryKey),
     isUnlocked: () => encState.isUnlocked,
-    encryptMessage: vi.fn(async (content: any) => {
+    encryptMessage: vi.fn(async (_content: any) => {
       if (encState.throwOnEncrypt) throw new Error('synthetic encrypt failure')
       return {
         encrypted: true,

@@ -228,9 +228,9 @@ export class EncryptionKeyStore implements StorageType {
   }
 
   async isTrustedIdentity(
-    identifier: string,
-    identityKey: ArrayBuffer,
-    direction: Direction
+    _identifier: string,
+    _identityKey: ArrayBuffer,
+    _direction: Direction
   ): Promise<boolean> {
     // For now, trust all identities
     // In production, implement proper trust verification
@@ -240,7 +240,7 @@ export class EncryptionKeyStore implements StorageType {
   async saveIdentity(
     encodedAddress: string,
     publicKey: ArrayBuffer,
-    nonblockingApproval?: boolean
+    _nonblockingApproval?: boolean
   ): Promise<boolean> {
     // Store the public key for this address
     await this.putInStore(STORES.METADATA, {

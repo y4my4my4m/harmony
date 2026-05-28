@@ -46,7 +46,7 @@
                 <div class="donor-instructions-body">
                   <p class="donor-instructions-title">Get your supporter badge automatically</p>
                   <p class="donor-instructions-text">
-                    Include this handle <strong>anywhere</strong> in your donation message —
+                    Include this handle <strong>anywhere</strong> in your donation message -
                     we'll match it automatically and assign the right tier based on your
                     cumulative donations this cycle:
                   </p>
@@ -74,7 +74,7 @@
                   </details>
 
                   <p class="donor-instructions-hint">
-                    Forget the handle? Your donation isn't lost — it'll be queued
+                    Forget the handle? Your donation isn't lost - it'll be queued
                     for the admins to attribute manually.
                   </p>
                 </div>
@@ -211,7 +211,7 @@ const copyCurrentHandle = async () => {
   try {
     await navigator.clipboard.writeText(`@${currentUserHandle.value}@${instanceDomain.value}`)
   } catch {
-    /* ignore — clipboard may be unavailable */
+    /* ignore - clipboard may be unavailable */
   }
 }
 

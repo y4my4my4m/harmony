@@ -44,7 +44,7 @@ export class GifService {
   private favoriteUrls: Set<string> = new Set()
   private cacheInitialized = false
   
-  // OPTIMIZED: Full favorites cache with TTL
+  // Full favorites cache with TTL
   private favoritesCache: FavoriteGif[] | null = null
   private favoritesCacheTime = 0
   private pendingFavoritesRequest: Promise<FavoriteGif[]> | null = null
@@ -208,7 +208,7 @@ export class GifService {
   /**
    * Legacy method: Remove favorite by Tenor ID (now removes by URL)
    */
-  async removeFavorite(tenorId: string): Promise<{ success: boolean; error?: string }> {
+  async removeFavorite(_tenorId: string): Promise<{ success: boolean; error?: string }> {
     // This method is kept for backwards compatibility but should use removeFavoriteByUrl
     debug.warn('removeFavorite(tenorId) is deprecated, use removeFavoriteByUrl(gifUrl)')
     // We can't easily map tenorId to URL, so this will need to be updated at call sites

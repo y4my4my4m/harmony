@@ -1,6 +1,6 @@
 # Harmony System Architecture & Interconnection Flow
 
-## 🏗️ High-Level System Architecture
+## High-Level System Architecture
 
 ```mermaid
 graph TB
@@ -64,7 +64,7 @@ graph TB
     PWA --> PUSH
 ```
 
-## 🔄 Core Data Flow
+## Core Data Flow
 
 ### 1. Authentication Flow
 
@@ -121,7 +121,7 @@ sequenceDiagram
     EdgeFunction->>ActivityPubStore: update status
 ```
 
-## 📁 Component Interconnection Map
+## Component Interconnection Map
 
 ### Layout System Architecture
 ```mermaid
@@ -258,7 +258,7 @@ graph TB
     WEBRTC_SVC --> AUDIO_SVC
 ```
 
-## 🔌 Real-time Subscription Architecture
+## Real-time Subscription Architecture
 
 ```mermaid
 graph TB
@@ -298,7 +298,7 @@ graph TB
     BROADCAST --> MEMBER_SUB
 ```
 
-## 🎯 Feature Integration Map
+## Feature Integration Map
 
 ### Unified Interface System
 ```mermaid
@@ -356,7 +356,7 @@ graph LR
     ALL --> SETTINGS
 ```
 
-## 📊 Data Storage Architecture
+## Data Storage Architecture
 
 ```mermaid
 erDiagram

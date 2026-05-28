@@ -17,10 +17,7 @@ import {
   KeyHelper,
   SignalProtocolAddress,
   SessionBuilder,
-  SessionCipher,
-  type SignedPublicPreKeyType,
-  type PreKeyType,
-  type MessageType
+  SessionCipher
 } from '@privacyresearch/libsignal-protocol-typescript'
 
 export interface KeyPair {

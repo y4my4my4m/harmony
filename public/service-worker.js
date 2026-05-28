@@ -65,7 +65,7 @@ self.addEventListener('activate', (event) => {
 // Note: Caching strategies are implemented later in the file with enhanced versions
 
 // Enhanced notification handling with proper Discord-like behavior
-// IMPORTANT: event.waitUntil() must be called synchronously (before any await)
+// event.waitUntil() must be called synchronously (before any await)
 // or the browser may terminate the service worker before the notification is shown.
 self.addEventListener('push', (event) => {
   console.log('🔔 Service Worker: Push event received', event)
@@ -571,7 +571,7 @@ self.addEventListener('fetch', (event) => {
   const isCSSRequest = url.pathname.endsWith('.css')
   const isJSRequest = url.pathname.endsWith('.js') || url.pathname.endsWith('.ts')
   
-  // ✅ FIX: Skip all JS module requests to prevent caching HTML responses as JS
+  // FIX: Skip all JS module requests to prevent caching HTML responses as JS
   // Dynamic imports from Vite code splitting are in /assets/ and should be handled by browser
   // This prevents the issue where 404 JS files return index.html, which gets cached as JS
   const isViteModule = url.pathname.startsWith('/assets/') && isJSRequest
@@ -581,7 +581,7 @@ self.addEventListener('fetch', (event) => {
                           event.request.headers.get('accept')?.includes('application/javascript') ||
                           event.request.headers.get('accept')?.includes('text/javascript')
   
-  // ✅ PERFORMANCE: Skip modulepreload requests to prevent duplicate fetches
+  // PERFORMANCE: Skip modulepreload requests to prevent duplicate fetches
   // The browser handles these efficiently, and intercepting causes duplicates
   const isModulePreload = event.request.headers.get('purpose') === 'modulepreload' ||
                           event.request.headers.get('X-Purpose') === 'modulepreload'
@@ -663,7 +663,7 @@ async function staleWhileRevalidate(request, cacheName) {
   
   // Always fetch in background to update cache
   const fetchPromise = fetch(request).then(response => {
-    // ✅ FIX: Validate response MIME type before caching
+    // FIX: Validate response MIME type before caching
     // Only cache if response is actually the expected type (not HTML from 404s)
     const contentType = response.headers.get('content-type') || ''
     const isExpectedType = 

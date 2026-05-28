@@ -191,7 +191,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
     },
 
     setCurrentServer(serverId: string): void {
-      // ✅ SMART CACHING: Prevent setting the same server twice
+      // SMART CACHING: Prevent setting the same server twice
       if (this.currentServerId === serverId) {
         debug.log(`💾 Server ${serverId} already selected, skipping duplicate set`);
         return;
@@ -1544,7 +1544,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
       });
 
       // If this was the current channel, navigate to another channel
-      // IMPORTANT: Use router.push to ensure the URL changes and ChatView reloads
+      // Use router.push to ensure the URL changes and ChatView reloads
       if (this.currentChannelId === channelId) {
         const defaultChannel = this.getDefaultChannel();
         if (defaultChannel && this.currentServerId) {
@@ -2081,7 +2081,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
       }
       
       // If this was the current channel, navigate to another
-      // IMPORTANT: Use router.push to ensure the URL changes and ChatView reloads
+      // Use router.push to ensure the URL changes and ChatView reloads
       if (this.currentChannelId === deletedChannel.id) {
         const defaultChannel = this.getDefaultChannel();
         if (defaultChannel && this.currentServerId) {

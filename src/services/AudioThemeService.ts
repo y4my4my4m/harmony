@@ -97,7 +97,7 @@ export class AudioThemeService {
       try {
         const blobs = await getAllPackBlobs(meta.id, Object.keys(meta.soundsMap))
         const sounds: Partial<Record<AudioAction, string>> = {}
-        for (const [action, filename] of Object.entries(meta.soundsMap)) {
+        for (const [action, _filename] of Object.entries(meta.soundsMap)) {
           const blob = blobs[action]
           if (blob) sounds[action as AudioAction] = URL.createObjectURL(blob)
         }
@@ -235,7 +235,7 @@ export class AudioThemeService {
       }
     })
 
-    // Neo Kobe — pairs with the SDR-001 visual skin (`public/assets/sounds/neokobe/`).
+    // Neo Kobe - pairs with the SDR-001 visual skin (`public/assets/sounds/neokobe/`).
     // Unmapped actions fall back to the default theme via resolveSoundPath().
     const neoKobeBase = '/assets/sounds/neokobe'
     this.registerTheme({

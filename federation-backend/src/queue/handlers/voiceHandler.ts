@@ -18,7 +18,7 @@ import type { FederationJobData } from '../BullMQManager.js';
 
 export async function handleVoiceJoinJob(data: FederationJobData): Promise<void> {
   const supabase = getSupabaseClient();
-  const { channel_id, server_id, user_id } = data;
+  const { channel_id, user_id } = data;
   const hostDomain = config.INSTANCE_DOMAIN;
 
   logger.info(`🎤 Processing voice join federation: user ${user_id} -> channel ${channel_id}`);

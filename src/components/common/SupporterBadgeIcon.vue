@@ -22,7 +22,7 @@ const { parts, displayText } = useSupporterBadgeIcon(iconRef)
 </script>
 
 <style scoped>
-/* Sized down from DisplayName's defaults — badges live in tight pills. */
+/* Sized down from DisplayName's defaults - badges live in tight pills. */
 .supporter-badge-icon :deep(.display-name-emoji) {
   height: 1em;
   vertical-align: -0.1em;

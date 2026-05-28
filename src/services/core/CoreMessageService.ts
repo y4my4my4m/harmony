@@ -535,7 +535,7 @@ export class CoreMessageService {
    */
   async editMessage(messageId: string, newContent: MessagePart[]): Promise<Message> {
     try {
-      // Enforce max length on edits too — otherwise a user could send a
+      // Enforce max length on edits too - otherwise a user could send a
       // tiny message and grow it past the limit via subsequent edits.
       await this.assertContentWithinLimit(newContent)
 
@@ -1031,7 +1031,7 @@ export class CoreMessageService {
           message.reactions = reactionsByMessage[message.id] || []
         })
         
-        // ✅ ARCHITECTURE FIX: Populate reactions store cache with batch-loaded data
+        // ARCHITECTURE FIX: Populate reactions store cache with batch-loaded data
         // This ensures components can use reactionsStore.getMessageReactions() seamlessly
         await this.populateReactionsStoreCache(reactionsByMessage)
       }
@@ -1359,7 +1359,7 @@ export class CoreMessageService {
           message.reactions = reactionsByMessage[message.id] || []
         })
         
-        // ✅ ARCHITECTURE FIX: Populate reactions store cache with batch-loaded data
+        // ARCHITECTURE FIX: Populate reactions store cache with batch-loaded data
         // This ensures components can use reactionsStore.getMessageReactions() seamlessly  
         await this.populateReactionsStoreCache(reactionsByMessage)
       }

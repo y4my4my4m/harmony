@@ -30,7 +30,7 @@ export interface ResolvedMention {
  *
  * Every branch HTML-escapes the underlying user text before generating any
  * markup, and the final result is run through `sanitizeInlineHtml` as
- * defense-in-depth — if a future change to `parseMfmOrMessagePartsToHtml`
+ * defense-in-depth - if a future change to `parseMfmOrMessagePartsToHtml`
  * accidentally splices unescaped content, the sanitizer still strips
  * `<style>`, `<script>`, inline event handlers, and `<a>` (bios/display
  * names should never contain links injected by the user; legitimate URLs
@@ -81,7 +81,7 @@ function parseMfmOrMessagePartsToHtml(parts: any[]): string {
       const name = p.emoji?.name ?? p.name ?? 'emoji';
       // The fallback handler was previously inlined as an `onerror` attribute
       // that spliced the (user-controlled) emoji `name` into a JavaScript
-      // string — a JS-context injection vector. The DOMPurify sanitizer
+      // string - a JS-context injection vector. The DOMPurify sanitizer
       // applied at the consumer (display-name / bio v-html bindings) now
       // strips `onerror`; if the image fails to load the browser shows the
       // alt text, which is sufficient.

@@ -2,11 +2,11 @@
  * Discord-style blockquote parsing for chat/DM messages.
  *
  * Supports:
- * - `> quoted line` — requires a space after `>` (Discord behavior). `>foo`
+ * - `> quoted line` - requires a space after `>` (Discord behavior). `>foo`
  *   without a space is NOT a quote; it's left as plain text (or greentext if
  *   the user has the option enabled).
  * - consecutive `> ` lines grouped into one blockquote
- * - `>>> multi-line block` — quotes that line (after prefix) and all following
+ * - `>>> multi-line block` - quotes that line (after prefix) and all following
  *   lines. Requires a space after `>>>` for the same reason.
  */
 
@@ -25,7 +25,7 @@ export type BlockSegment =
   | { type: 'blockquote'; lines: string[]; multiLine?: boolean };
 
 // `> ` followed by NON-EMPTY content. The full `> ` (space, no content)
-// and bare `>` (no space) are NOT blockquotes — they're incomplete
+// and bare `>` (no space) are NOT blockquotes - they're incomplete
 // markers the user is still typing. Promoting them eagerly rewrites
 // the editor DOM into a styled scaffold mid-keystroke, strands the
 // cursor inside a zero-width content span, and the next keystroke can
@@ -44,7 +44,7 @@ export function stripSingleQuotePrefix(line: string): string {
 
 export function isMultiQuoteStart(line: string): boolean {
   // Match `>>> something` with at least one trailing non-space char.
-  // A bare `>>>` or `>>> ` with no content is incomplete — see the
+  // A bare `>>>` or `>>> ` with no content is incomplete - see the
   // rationale on `isSingleQuoteLine` above for why we don't promote
   // it eagerly.
   return /^>>> .+/.test(line);
@@ -57,13 +57,13 @@ export function stripMultiQuotePrefix(line: string): string {
 // Imageboard-style greentext: EXACTLY ONE `>` followed by a non-space,
 // non-`>` character at the start of a line.
 //
-// `>>foo` / `>>>foo` (and longer) are NOT greentext — those are reply
+// `>>foo` / `>>>foo` (and longer) are NOT greentext - those are reply
 // chains (`>>123` is the imageboard reply syntax) or partially-typed
 // multi-line blockquote markers (`>>> body`). Promoting them to greentext
 // would (a) confuse anyone used to imageboard conventions and (b) cause a
 // visible green flash as the user types `>>>` toward a multi-line quote.
 //
-// Also explicitly excluded: `> foo` (single-`>` followed by SPACE — that's
+// Also explicitly excluded: `> foo` (single-`>` followed by SPACE - that's
 // a blockquote, handled separately), bare `>` / `>>>` (incomplete markers
 // the user is still typing), `>>> foo` (multi-line blockquote start),
 // and any text where the line doesn't START with `>` (so the `>` in

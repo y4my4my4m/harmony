@@ -454,8 +454,8 @@ export function createUpdateActivity(profile: any): any {
 /**
  * Full HTML attribute / text escape. Covers the five characters that
  * have special meaning in HTML (`& < > " '`). Anything we splice into
- * outbound ActivityPub `content` HTML — including mention `href`,
- * displayed labels, hashtag names, and URL anchors — runs through this.
+ * outbound ActivityPub `content` HTML - including mention `href`,
+ * displayed labels, hashtag names, and URL anchors - runs through this.
  */
 function escapeHtmlAttr(str: string): string {
   return String(str ?? '')
@@ -475,9 +475,10 @@ const SAFE_URL_SCHEMES_OUTBOUND = new Set(['http:', 'https:', 'mailto:', 'tel:']
 
 function safeAttrUrlOutbound(url: string | null | undefined): string {
   if (url == null) return '';
+  // eslint-disable-next-line no-control-regex
   const cleaned = String(url).replace(/[\x00-\x1F\x7F]/g, '').trim();
   if (!cleaned) return '';
-  const schemeMatch = /^([a-z][a-z0-9+.\-]*):/i.exec(cleaned);
+  const schemeMatch = /^([a-z][a-z0-9+.-]*):/i.exec(cleaned);
   if (!schemeMatch) return cleaned;
   const scheme = schemeMatch[1].toLowerCase() + ':';
   if (!SAFE_URL_SCHEMES_OUTBOUND.has(scheme)) return '';
@@ -488,9 +489,9 @@ function extractContentAsHtml(content: any): string {
   // Defensive: the DB constraint `posts_content_is_array` /
   // `messages_content_is_array` makes this path unreachable, but if a
   // raw string ever slipped through (an early migration, an unconverted
-  // federation import, …) we'd be shipping it straight to Mastodon /
+  // federation import, ...) we'd be shipping it straight to Mastodon /
   // Misskey / etc. as our outbound HTML. Receiving servers run their
-  // own sanitizers but we shouldn't rely on theirs — escape so user
+  // own sanitizers but we shouldn't rely on theirs - escape so user
   // content can never go out as live HTML markup.
   if (typeof content === 'string') {
     return escapeHtmlAttr(content);
@@ -534,7 +535,7 @@ function extractContentAsHtml(content: any): string {
       }
       else if (item.type === 'url') {
         // Scheme-validate first; only http(s)/mailto/tel get a live
-        // anchor. Anything else (`javascript:`, `data:`, …) renders as
+        // anchor. Anything else (`javascript:`, `data:`, ...) renders as
         // escaped text so a malicious payload can't propagate through
         // federation as a clickable XSS link.
         const safeUrl = safeAttrUrlOutbound(item.url || '');

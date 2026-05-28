@@ -112,12 +112,9 @@ async function processDirectory(sourceDir, category, suffix, fileList) {
         const relativeDir = path.dirname(relativePath)
         const isNested = relativeDir !== '.'
         
-        // Determine the output directory
-        let outputCategory = category
         let outputSubDir = ''
         if (isNested) {
           outputSubDir = relativeDir.replace(/\\/g, '/')
-          // Ensure nested output directory exists
           await fs.mkdir(path.join(DOCS_API_DIR, category, outputSubDir), { recursive: true })
         }
         
@@ -166,7 +163,6 @@ async function generateApiMarkdown(content, fileName, filePath, suffix, subDir) 
   const interfaces = extractInterfaces(content)
   const types = extractTypes(content)
   const constants = extractConstants(content)
-  const jsdocComments = extractJSDocComments(content)
   const vueComponent = filePath.endsWith('.vue') ? extractVueComponent(content) : null
   
   // Deduplicate exports for mermaid diagram
@@ -613,18 +609,6 @@ function extractConstants(content) {
   }
   
   return constants
-}
-
-function extractJSDocComments(content) {
-  const jsdocRegex = /\/\*\*\s*\n([^*]*(?:\*[^/][^*]*)*)\*\//g
-  const comments = []
-  let match
-  
-  while ((match = jsdocRegex.exec(content)) !== null) {
-    comments.push(match[1].replace(/^\s*\*\s?/gm, '').trim())
-  }
-  
-  return comments
 }
 
 function extractVueComponent(content) {

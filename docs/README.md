@@ -1,16 +1,12 @@
-# 📚 Harmony Documentation System
+# Harmony documentation
 
-## Quick Start - VitePress Documentation
-
-Your modern documentation system is now ready! 
+The user-facing docs are a VitePress site rooted at `docs/`. To preview locally:
 
 ```bash
 npm run docs:dev
 ```
 
-Visit: `http://localhost:3001` (set in `docs/.vitepress/config.ts`; do not run at the same time as `federation-backend`, which also uses port 3001 unless you change one of the ports).
-
----
+The dev server listens on port 3001 - same port as `federation-backend`, so don't run both at once unless you change one.
 
 ## How documentation is built
 
@@ -24,11 +20,9 @@ Visit: `http://localhost:3001` (set in `docs/.vitepress/config.ts`; do not run a
 
 Full pipeline (guides + API + components + sync + typedoc + static build): `npm run docs:generate-all`. Setup details: [VITEPRESS_SETUP.md](./VITEPRESS_SETUP.md).
 
-**Do not edit `docs/guide/` by hand** - change `docs-source/guide/` and run `docs:generate-guide`.
+**Do not edit `docs/guide/` by hand** - change `docs-source/guide/` and run `docs:generate-guide`. `docs/guide/`, `docs/api/`, `docs/components/`, and `docs/generated/` are all `.gitignore`d and regenerated on demand.
 
----
-
-## Documentation Index
+## Documentation index
 
 - [Architecture Overview](./ARCHITECTURE.md)
 - [Development Guide](./DEVELOPMENT.md)
@@ -38,117 +32,59 @@ Full pipeline (guides + API + components + sync + typedoc + static build): `npm 
 - [State Management](./STATE_MANAGEMENT.md)
 - [Service Layer](./SERVICES.md)
 - [E2EE Implementation](./E2EE_IMPLEMENTATION.md)
-- [Bot API](./BOT_API.md)
+- [Bot API](./bot-api.md)
 - [Plugin System](./PLUGIN_SYSTEM.md)
 - [ActivityPub Extensions](./ACTIVITYPUB_EXTENSIONS.md)
 - [Self-Hosting Guide](./self-hosting.md)
 - [Push Notifications](./PUSH_NOTIFICATIONS.md)
 - [OpenStatus Setup](./OPENSTATUS_SETUP.md)
 
-## 🏗️ Quick Architecture Overview
-
-Harmony is a Discord-like chat application with ActivityPub federation support, built with modern web technologies:
-
-```mermaid
-graph TB
-    subgraph "Frontend Layer"
-        VUE[Vue 3 + TypeScript]
-        PINIA[Pinia State Management]
-        ROUTER[Vue Router]
-        PWA[PWA Features]
-    end
-    
-    subgraph "Service Layer"
-        AUTH[Authentication Service]
-        CHAT[Chat Service]
-        VOICE[Voice/Video Service]
-        FED[Federation Service]
-        NOTIF[Notification Service]
-    end
-    
-    subgraph "Backend Infrastructure"
-        SUPA[Supabase]
-        FEDB[Federation Backend]
-        STORAGE[Storage Buckets]
-        REALTIME[Realtime Subscriptions]
-    end
-    
-    subgraph "Desktop App"
-        TAURI[Tauri Desktop Wrapper]
-    end
-    
-    VUE --> PINIA
-    VUE --> ROUTER
-    VUE --> PWA
-    PINIA --> AUTH
-    PINIA --> CHAT
-    PINIA --> VOICE
-    PINIA --> FED
-    PINIA --> NOTIF
-    AUTH --> SUPA
-    CHAT --> SUPA
-    VOICE --> SUPA
-    FED --> FEDB
-    NOTIF --> SUPA
-    SUPA --> STORAGE
-    SUPA --> REALTIME
-    VUE --> TAURI
-```
-
-## 🚀 Quick Start (app)
+## Quick start (app)
 
 ```bash
-# Install dependencies
 npm install
-
-# Start development server
 npm run dev
+```
 
-# Build for production
+Production:
+
+```bash
 npm run build
+```
 
-# Desktop app (Tauri)
+Desktop (Tauri):
+
+```bash
 npm run tauri:dev
 ```
 
-You can use **Bun** instead of npm if you prefer (`bun install`, `bun run dev`, etc.); the repo’s scripts are written for npm.
+`bun` works too if you prefer it (`bun install`, `bun run dev`); the scripts are written for npm but Bun runs them fine.
 
-## 📁 Project Structure
+## Project layout
 
 ```
 harmony/
 ├── src/
 │   ├── components/        # Vue components organized by feature
-│   ├── layouts/          # Application layout components
-│   ├── views/            # Route-level components
-│   ├── stores/           # Pinia state stores
-│   ├── services/         # Business logic services
-│   ├── composables/      # Vue composition functions
-│   ├── utils/            # Utility functions
-│   ├── types/            # TypeScript type definitions
-│   └── assets/           # Static assets and styles
-├── docs/                 # VitePress site + generated API/component docs
-├── docs-source/          # Source for guide pages (see “How documentation is built” above)
-├── db_schema/           # Database schema and migrations
-├── federation-backend/  # Node.js ActivityPub backend
-├── bot-gateway/         # Bot API gateway
-├── src-tauri/           # Tauri desktop app configuration
-└── public/              # Public assets
+│   ├── layouts/           # Application layout components
+│   ├── views/             # Route-level components
+│   ├── stores/            # Pinia state stores
+│   ├── services/          # Business-logic services
+│   ├── composables/       # Vue composition functions
+│   ├── utils/             # Utility functions
+│   ├── types/             # TypeScript type definitions
+│   └── assets/            # Static assets and styles
+├── docs/                  # VitePress site + generated API/component docs
+├── docs-source/           # Source for guide pages (see "How documentation is built" above)
+├── db_schema/             # Database schema and migrations
+├── federation-backend/    # Node.js ActivityPub backend
+├── bot-gateway/           # Bot API gateway
+├── src-tauri/             # Tauri desktop app configuration
+└── public/                # Public assets
 ```
 
-## 🎯 Core Features
+## External links
 
-- **Real-time Chat**: Discord-like servers, channels, and DMs
-- **Voice & Video**: WebRTC-based communication with spatial audio
-- **ActivityPub Federation**: Cross-platform social networking
-- **Progressive Web App**: Mobile-first design with offline support
-- **Desktop App**: Cross-platform desktop application via Tauri
-- **Rich Media**: File uploads, emojis, reactions, and embeds
-- **Advanced UI**: Dark/light themes, audio themes, haptic feedback
-
-## 🔗 External Links
-
-- [Live Application](https://har.mony.lol)
-- [GitHub Repository](https://github.com/y4my4my4m/harmony)
-- [Supabase Dashboard](https://supabase.com/dashboard)
-- [Tauri Documentation](https://tauri.app/)
+- [Live application](https://har.mony.lol)
+- [GitHub repository](https://github.com/y4my4my4m/harmony)
+- [Tauri documentation](https://tauri.app/)

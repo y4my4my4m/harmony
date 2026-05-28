@@ -160,8 +160,8 @@ const handleFileSelect = (event: Event) => {
 
 // Transient network failures (imgproxy/R2 latency) should not permanently
 // show the default avatar. We retry a few times with backoff before giving up.
-// IMPORTANT: only reset retry state on successful load of the REAL image, and
-// never schedule a retry when the fallback itself just failed — otherwise we'd
+// only reset retry state on successful load of the REAL image, and
+// never schedule a retry when the fallback itself just failed - otherwise we'd
 // flip-flop between broken-real and broken-fallback forever.
 const MAX_RETRIES = 3
 const RETRY_DELAYS_MS = [400, 1200, 3000]
@@ -190,7 +190,7 @@ const scheduleRetry = () => {
 
 const handleImageError = () => {
   // If imageError was already true, this @error is from the fallback default
-  // image itself failing — don't loop, just stay on the broken-image state.
+  // image itself failing - don't loop, just stay on the broken-image state.
   if (imageError.value) {
     debug.warn('Avatar fallback image failed to load:', avatarUrl.value)
     clearRetryTimer()

@@ -56,7 +56,6 @@ import type { TimelinePost, FederatedUser } from '@/types'
 interface Props {
   currentView: string
   posts?: TimelinePost[]
-  isLoadingFeed?: boolean
   hasMorePosts?: boolean
   viewType?: string
   rightSidebarOpen?: boolean
@@ -64,7 +63,6 @@ interface Props {
 
 const props = withDefaults(defineProps<Props>(), {
   posts: () => [],
-  isLoadingFeed: false,
   hasMorePosts: false,
   viewType: 'timeline',
   rightSidebarOpen: false

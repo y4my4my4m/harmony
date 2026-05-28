@@ -23,12 +23,12 @@
   </div>
 </template>
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import HashTagIcon from '@/components/icons/HashTag.vue';
 import Icon from '@/components/common/Icon.vue';
 import type { Channel } from '@/types';
-import { ViewMode, ViewType, CurrentView, VIEW_CONFIGS } from '@/types/viewTypes';
+import { ViewMode, ViewType, CurrentView } from '@/types/viewTypes';
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings';
 
 const { t } = useI18n();
@@ -50,6 +50,7 @@ const mainFeedTabs = computed(() =>
   )
 );
 
+// eslint-disable-next-line unused-imports/no-unused-vars
 const props = defineProps<{
   mode: ViewMode;
   currentView: string;

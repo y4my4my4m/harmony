@@ -167,7 +167,7 @@ describe('messageContentUtils', () => {
 
     it('hard ceiling matches the DB CHECK constraint value', () => {
       // The CHECK constraint is now a far-off safety net (50000 chars)
-      // — the user-facing limit is enforced by a trigger that reads the
+      // - the user-facing limit is enforced by a trigger that reads the
       // live admin config (`instance_config.max_message_length`). The
       // CHECK only ever fires if the admin sets an unreasonable value
       // or the trigger is disabled. Mirrors the value in

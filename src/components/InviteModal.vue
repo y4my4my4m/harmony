@@ -283,6 +283,7 @@ interface Props {
 // Invite interface is now imported from the service
 
 const props = defineProps<Props>()
+// eslint-disable-next-line unused-imports/no-unused-vars
 const emit = defineEmits<{
   close: []
 }>()

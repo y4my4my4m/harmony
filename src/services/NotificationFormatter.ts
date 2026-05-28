@@ -5,7 +5,7 @@
  * Designed to be easily internationalized by replacing message templates.
  */
 
-import type { Notification, NotificationType } from '@/types'
+import type { Notification } from '@/types'
 import { getAvatarUrl as utilGetAvatarUrl } from '@/utils/avatarUtils'
 import { debug } from '@/utils/debug'
 
@@ -161,31 +161,31 @@ const MESSAGE_TEMPLATES = {
   server_invite: {
     title: (data: any) => `${data.inviter.username} invited you to join ${data.server.name}`,
     message: (data: any) => data.message || 'Click to accept or decline',
-    shortTitle: (data: any) => `Server invite`
+    shortTitle: (_data: any) => `Server invite`
   },
   
   friend_request: {
     title: (data: any) => `${data.sender.username} wants to follow you`,
     message: (data: any) => data.message || 'Click to accept or decline',
-    shortTitle: (data: any) => `Follow request`
+    shortTitle: (_data: any) => `Follow request`
   },
   
   voice_channel_activity: {
     title: (data: any) => `Voice activity in ${data.location.channel_name}`,
     message: (data: any) => data.message || 'Someone joined the voice channel',
-    shortTitle: (data: any) => `Voice activity`
+    shortTitle: (_data: any) => `Voice activity`
   },
   
   server_update: {
     title: (data: any) => data.title || 'Server update',
     message: (data: any) => data.message || 'Server has been updated',
-    shortTitle: (data: any) => `Server update`
+    shortTitle: (_data: any) => `Server update`
   },
   
   emoji_added: {
     title: (data: any) => `New emoji added: ${data.emoji.name}`,
     message: (data: any) => `${data.emoji.name} is now available in ${data.location.server_name}`,
-    shortTitle: (data: any) => `New emoji`
+    shortTitle: (_data: any) => `New emoji`
   },
 
   // ActivityPub notification templates
@@ -199,7 +199,7 @@ const MESSAGE_TEMPLATES = {
       const handle = data.follower.handle || `@${data.follower.username}${!data.follower.is_local ? '@' + data.follower.domain : ''}`
       return `${handle} is now following you`
     },
-    shortTitle: (data: any) => `New follower`
+    shortTitle: (_data: any) => `New follower`
   },
 
   activitypub_favorite: {
@@ -286,7 +286,7 @@ const MESSAGE_TEMPLATES = {
   activitypub_follow_request: {
     title: (data: any) => `${data.follower.display_name || data.follower.username} wants to follow you`,
     message: (data: any) => `${data.follower.handle || '@' + data.follower.username} sent you a follow request`,
-    shortTitle: (data: any) => `Follow request`
+    shortTitle: (_data: any) => `Follow request`
   },
 
   thread_reply: {
@@ -347,7 +347,7 @@ const MESSAGE_TEMPLATES = {
       const currency = data.currency || 'USD'
       const donor = data.donor_name?.trim()
       const donorPart = donor ? ` from ${donor}` : ''
-      return `${currency} ${amount}${donorPart} couldn't be matched to a user — open the admin panel to attribute it.`
+      return `${currency} ${amount}${donorPart} couldn't be matched to a user - open the admin panel to attribute it.`
     },
     shortTitle: () => 'Donation needs review',
   },

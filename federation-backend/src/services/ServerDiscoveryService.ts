@@ -7,7 +7,6 @@
 import { Router, Request, Response } from 'express';
 import { getSupabaseClient, getSupabaseClientWithAuth } from '../config/supabase.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
-import { SignatureService } from '../activitypub/SignatureService.js';
 import { logger } from '../utils/logger.js';
 import config from '../config/index.js';
 import { validateExternalHostname, safeFetch } from '../utils/ssrfProtection.js';
@@ -654,7 +653,7 @@ router.get(
       // Parse ActivityPub collection response
       const items = data.orderedItems || data.items || [];
       
-      // OPTIMIZATION: Deduplicate author URLs to avoid fetching the same user multiple times
+      // Deduplicate author URLs to avoid fetching the same user multiple times
       const uniqueAuthorUrls = new Set<string>();
       for (const item of items) {
         const activity = item.type === 'Create' ? item : { object: item };

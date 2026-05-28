@@ -86,7 +86,7 @@ export interface Category {
  * Backed by the `profiles.profile_fields` jsonb column. Federated out via
  * `toActivityPub.ts` as PropertyValue attachments on the actor; federated in
  * via `fromActivityPub.ts` from the same. `value` is HTML (typically a
- * sanitized `<a>` wrapper for URL-shaped values, plain text otherwise) — the
+ * sanitized `<a>` wrapper for URL-shaped values, plain text otherwise) - the
  * display side runs it through DOMPurify before injecting via v-html.
  */
 export interface ProfileField {

@@ -36,7 +36,7 @@ export class ChannelMapper extends EventEmitter {
   private configPath: string
   private watcher: FSWatcher | null = null
   private reloadTimer: NodeJS.Timeout | null = null
-  /** True only while we are saving ourselves — used to suppress the
+  /** True only while we are saving ourselves - used to suppress the
    *  fs-watch callback that would otherwise re-load the same file we
    *  just wrote and emit a spurious `configReloaded`. */
   private savingSelf = false
@@ -82,7 +82,7 @@ export class ChannelMapper extends EventEmitter {
       this.watcher = fsWatch(this.configPath, (eventType) => {
         if (eventType !== 'change') return
         if (this.savingSelf) return
-        // Debounce — editors typically fire two `change` events per save.
+        // Debounce - editors typically fire two `change` events per save.
         if (this.reloadTimer) clearTimeout(this.reloadTimer)
         this.reloadTimer = setTimeout(() => this.reloadFromDisk(), 250)
       })

@@ -138,7 +138,7 @@ function filesByBasename(files: File[]): Map<string, File> {
 
 /**
  * @param replace When true (folder import), clear existing sounds/banner first so only
- *                files from this import remain — autofill defaults won't stick around.
+ *                files from this import remain - autofill defaults won't stick around.
  */
 async function importFromFileList(
   files: FileList | File[],
@@ -288,7 +288,7 @@ async function handleImportZip(file: File): Promise<void> {
   statusMessage = ''
   try {
     applyDraftToUi(await importPack(await file.arrayBuffer()))
-    statusMessage = `Loaded pack “${draft.meta.name}” (${draft.meta.id})`
+    statusMessage = `Loaded pack "${draft.meta.name}" (${draft.meta.id})`
     statusError = false
   } catch (e) {
     statusMessage = e instanceof Error ? e.message : 'Import failed'
@@ -491,7 +491,7 @@ function bindEvents(): void {
       const file = firstAudioFromDataTransfer(dt)
       if (file) assignAudioToSlot(slotId, file)
       else {
-        statusMessage = 'Drop an audio file (.mp3, .ogg, .wav, …)'
+        statusMessage = 'Drop an audio file (.mp3, .ogg, .wav, ...)'
         statusError = true
         render()
       }
@@ -568,7 +568,7 @@ function bindEvents(): void {
   })
 
   document.querySelector('[data-fill-missing]')?.addEventListener('click', async () => {
-    statusMessage = 'Loading built-in default sounds for empty slots…'
+    statusMessage = 'Loading built-in default sounds for empty slots...'
     statusError = false
     render()
 

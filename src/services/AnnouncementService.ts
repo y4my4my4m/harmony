@@ -41,7 +41,7 @@ class AnnouncementService {
   /**
    * Fetch the current user's unread announcements.
    *
-   * Pass `{ popupOnly: true }` for the AnnouncementPopup path — this asks
+   * Pass `{ popupOnly: true }` for the AnnouncementPopup path - this asks
    * the RPC to additionally filter on `show_popup = true` and to skip any
    * announcement that started before the user signed up, with a hard cap
    * of 10 rows. The default (no options) returns the full unread set and

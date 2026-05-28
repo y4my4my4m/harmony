@@ -19,6 +19,7 @@ let outsider: TestUser
 
 let serverId: string
 let publicChannelId: string
+// eslint-disable-next-line unused-imports/no-unused-vars
 let privateChannelId: string
 
 beforeAll(async () => {

@@ -28,7 +28,7 @@
         </div>
         <div v-else class="provider-embed__skeleton">
           <span v-if="harmonyError">{{ harmonyError }}</span>
-          <span v-else>Loading Harmony post…</span>
+          <span v-else>Loading Harmony post...</span>
         </div>
       </template>
       <template v-else-if="isFediverse">
@@ -53,7 +53,7 @@
             <span>{{ fediverseError }}</span>
           </div>
           <div v-else class="provider-embed__skeleton">
-            <span>Loading fediverse post…</span>
+            <span>Loading fediverse post...</span>
           </div>
         </template>
         <LinkEmbedCard v-else :payload="payload" @load="handleEmbedLoad" />
@@ -161,7 +161,7 @@ const youtubeIframe = ref<HTMLIFrameElement | null>(null);
 const isPlaying = ref(false);
 const embedLoaded = ref(false);
 
-const { registerVideo, returnToOriginalPosition, hasFloatingVideo, getFloatingVideoMessageId } = useFloatingVideo();
+const { registerVideo, returnToOriginalPosition, getFloatingVideoMessageId } = useFloatingVideo();
 
 // Detect server invite links (e.g., https://har.mony.lol/invite/ABC123)
 const isServerInvite = computed(() => {

@@ -441,7 +441,7 @@ const processMentionsInText = (text: string): DocumentFragment => {
     }
     
     if (match[1]) {
-      // Role mention – show @RoleName visually, keep @role:UUID for extraction
+      // Role mention - show @RoleName visually, keep @role:UUID for extraction
       const roleId = match[2];
       const cached = getCachedRoleDisplay(roleId);
       const rawName = cached?.name || 'loading...';
@@ -977,7 +977,7 @@ const handleInput = (event?: Event) => {
 
   // Re-render to apply markdown / blockquote / greentext styling. The
   // watcher used to be the only call site for `renderContent`, but it
-  // short-circuits when the new value equals the editor's plain text —
+  // short-circuits when the new value equals the editor's plain text -
   // which is always the case immediately after the user types, so live
   // formatting never appeared during input. We now drive the render
   // directly from input events, gated on `hasFormattableMarkers` so plain

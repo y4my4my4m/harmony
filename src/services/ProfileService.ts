@@ -186,7 +186,7 @@ export class ProfileService {
         throw this.createError('CREATE_FAILED', 'Failed to create profile', error)
       }
 
-      // CRITICAL: Clear AuthContextService cache. Some earlier call (e.g.
+      // Clear AuthContextService cache. Some earlier call (e.g.
       // `activityPubStore.loadBlockingData()` from auth.ts SIGNED_IN /
       // initializeAuth) may have resolved getCurrentContext BEFORE the
       // profile existed. With the Fix A guard the loader no longer caches

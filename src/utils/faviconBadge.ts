@@ -4,6 +4,7 @@ const BADGE_COLOR = '#ED4245'
 const BADGE_TEXT_COLOR = '#FFFFFF'
 
 let originalFaviconHref: string | null = null
+// eslint-disable-next-line unused-imports/no-unused-vars
 let originalFaviconElement: HTMLLinkElement | null = null
 let cachedImage: HTMLImageElement | null = null
 let currentCount = 0

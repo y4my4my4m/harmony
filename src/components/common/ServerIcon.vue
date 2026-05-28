@@ -159,7 +159,7 @@ watch(
 
 // Error handler for <img>
 const onImgError = () => {
-  // If we're already on the fallback, the fallback itself failed — don't loop.
+  // If we're already on the fallback, the fallback itself failed - don't loop.
   if (imgSrc.value === fallbackImage) {
     debug.warn('Server icon fallback image failed to load')
     clearRetryTimer()

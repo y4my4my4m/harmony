@@ -740,7 +740,7 @@ harmonyClient.on('messageCreate', async (msg: any) => {
     // context. Webhooks can't post real "Replying to X" UI blocks via
     // discord.js, so we use the standard `> @user message snippet` form
     // (https://discord.com/developers/docs/resources/message#message-object
-    //  — webhooks don't support `message_reference`).
+    //  - webhooks don't support `message_reference`).
     let finalContent = contentText
     if (msg.reply_to) {
       const parentDiscordId = harmonyToDiscordMessages.get(msg.reply_to)
@@ -755,7 +755,7 @@ harmonyClient.on('messageCreate', async (msg: any) => {
             const replyAuthor = parentMsg.author?.username
               ? `**@${parentMsg.author.username}**`
               : 'message'
-            finalContent = `> ${replyAuthor}: ${snippet}${parentMsg.content && parentMsg.content.length > 80 ? '…' : ''}\n${contentText}`
+            finalContent = `> ${replyAuthor}: ${snippet}${parentMsg.content && parentMsg.content.length > 80 ? '...' : ''}\n${contentText}`
           } else {
             finalContent = `> *replying to an earlier message*\n${contentText}`
           }
@@ -763,7 +763,7 @@ harmonyClient.on('messageCreate', async (msg: any) => {
           finalContent = `> *replying to an earlier message*\n${contentText}`
         }
       } catch {
-        // Ignore — fall back to unprefixed content.
+        // Ignore - fall back to unprefixed content.
       }
     }
 
@@ -939,14 +939,14 @@ harmonyClient.on('messageDelete', async (msg: any) => {
 // don't have a stable Discord counterpart unless that exact emoji was
 // previously created on the Discord server. We attempt a best-effort name
 // match for custom emojis (search guild emojis by name) and silently no-op
-// if there's no match — cross-platform custom-emoji parity is a deliberate
+// if there's no match - cross-platform custom-emoji parity is a deliberate
 // follow-up, not in scope here.
 async function resolveDiscordEmojiForReaction(
   channel: TextChannel,
   emojiName: string,
 ): Promise<string | null> {
   // Unicode emoji: the name itself IS the identifier Discord wants.
-  // Rough check — if it's a single non-ASCII grapheme, treat as unicode.
+  // Rough check - if it's a single non-ASCII grapheme, treat as unicode.
   if (!/^[a-zA-Z0-9_+\-~]+$/.test(emojiName)) {
     return emojiName
   }
@@ -1207,7 +1207,7 @@ async function registerSlashCommands(guildId: string) {
     .addSubcommand(sub =>
       sub
         .setName('clone-server')
-        .setDescription('Mirror every Discord channel into Harmony (additive — never overwrites)')
+        .setDescription('Mirror every Discord channel into Harmony (additive - never overwrites)')
         .addBooleanOption(opt =>
           opt
             .setName('dry_run')
@@ -1466,7 +1466,7 @@ async function handleBridgeCommand(command: ChatInputCommandInteraction) {
 
   // Harmony side: we only know our configured serverId. Verify the invoker
   // is its owner by looking up the Harmony user that this Discord user is
-  // mapped to (via puppeted user metadata) — for now, require the Harmony
+  // mapped to (via puppeted user metadata) - for now, require the Harmony
   // server owner to also be the one configuring it from Discord. We compare
   // against the configured `harmony.serverId` and its owner via the bot API.
   if (!config.harmony.serverId) {
@@ -1483,7 +1483,7 @@ async function handleBridgeCommand(command: ChatInputCommandInteraction) {
   // bot's `manage_channels` permission on the Harmony side (granted by the
   // Harmony server owner at install time) is the Harmony-side gate. If the
   // bot lacks that perm, every clone/link call below will hard-fail with 403
-  // — which is exactly what we want.
+  // - which is exactly what we want.
 
   const sub = command.options.getSubcommand(true)
 
@@ -1517,9 +1517,10 @@ async function handleBridgeCommand(command: ChatInputCommandInteraction) {
 
 async function runBridgeStatus(command: ChatInputCommandInteraction) {
   const mappings = mapper.getAllMappings()
+  // eslint-disable-next-line unused-imports/no-unused-vars
   const guildId = command.guildId!
   const lines: string[] = []
-  lines.push(`**Bridge status** — ${mappings.length} mapping${mappings.length === 1 ? '' : 's'}`)
+  lines.push(`**Bridge status** - ${mappings.length} mapping${mappings.length === 1 ? '' : 's'}`)
   lines.push(`Harmony server: \`${config.harmony.serverId || '(not set)'}\``)
   lines.push('')
 
@@ -1529,10 +1530,10 @@ async function runBridgeStatus(command: ChatInputCommandInteraction) {
     const inGuild = mappings.slice(0, 25) // cap, message length safety
     for (const m of inGuild) {
       const dir = m.bidirectional === false ? 'Discord → Harmony only' : 'bidirectional'
-      lines.push(`• <#${m.discord}> ↔ \`${m.harmony.slice(0, 8)}…\` _(${dir})_`)
+      lines.push(`• <#${m.discord}> ↔ \`${m.harmony.slice(0, 8)}...\` _(${dir})_`)
     }
     if (mappings.length > 25) {
-      lines.push(`_…and ${mappings.length - 25} more_`)
+      lines.push(`_...and ${mappings.length - 25} more_`)
     }
   }
 
@@ -1548,7 +1549,7 @@ async function runBridgeLink(command: ChatInputCommandInteraction) {
   const existingHarmony = mapper.getHarmonyChannel(discordChannelId)
   if (existingHarmony) {
     await command.reply({
-      content: `❌ This Discord channel is already bridged to \`${existingHarmony.slice(0, 8)}…\`. Run \`/bridge unlink\` first.`,
+      content: `❌ This Discord channel is already bridged to \`${existingHarmony.slice(0, 8)}...\`. Run \`/bridge unlink\` first.`,
       ephemeral: true,
     })
     return
@@ -1576,7 +1577,7 @@ async function runBridgeLink(command: ChatInputCommandInteraction) {
   try {
     mapper.addMapping(discordChannelId, harmonyChannelId, bidirectional)
     await command.reply({
-      content: `✅ Linked <#${discordChannelId}> ↔ Harmony \`${harmonyChannelId.slice(0, 8)}…\` (${bidirectional ? 'bidirectional' : 'Discord → Harmony only'}).`,
+      content: `✅ Linked <#${discordChannelId}> ↔ Harmony \`${harmonyChannelId.slice(0, 8)}...\` (${bidirectional ? 'bidirectional' : 'Discord → Harmony only'}).`,
       ephemeral: true,
     })
   } catch (err: any) {
@@ -1604,7 +1605,7 @@ async function runBridgeUnlink(command: ChatInputCommandInteraction) {
 }
 
 /**
- * `/bridge clone-server` — mirror every (text/voice) Discord channel under
+ * `/bridge clone-server` - mirror every (text/voice) Discord channel under
  * its respective category into Harmony, then add bridge mappings. Always
  * additive: existing mappings are preserved and matching Harmony channels
  * are reused when possible (by name).
@@ -1653,13 +1654,13 @@ async function runBridgeCloneServer(command: ChatInputCommandInteraction) {
     })
   }
 
-  // Filter out anything already mapped — clone-server is strictly additive.
+  // Filter out anything already mapped - clone-server is strictly additive.
   const alreadyMapped = new Set(mapper.getAllMappings().map(m => m.discord))
   const toCreate = planned.filter(p => !alreadyMapped.has(p.discordId))
 
   if (toCreate.length === 0) {
     await command.editReply({
-      content: '✅ Nothing to do — every Discord channel already has a mapping.',
+      content: '✅ Nothing to do - every Discord channel already has a mapping.',
     })
     return
   }
@@ -1676,11 +1677,11 @@ async function runBridgeCloneServer(command: ChatInputCommandInteraction) {
 
   // Dry-run report
   if (dryRun) {
-    const lines: string[] = ['**Dry run** — these actions would be taken:']
+    const lines: string[] = ['**Dry run** - these actions would be taken:']
     const categoriesNeeded = new Set<string>()
     for (const p of toCreate) {
       const reuse = harmonyChannelByName.get(p.discordName)
-      const action = reuse ? `reuse Harmony \`${reuse.id.slice(0, 8)}…\`` : 'create Harmony channel'
+      const action = reuse ? `reuse Harmony \`${reuse.id.slice(0, 8)}...\`` : 'create Harmony channel'
       const cat = p.discordCategoryName ? `under category **${p.discordCategoryName}**` : ''
       if (p.discordCategoryName && !categoryIdByName.has(p.discordCategoryName)) {
         categoriesNeeded.add(p.discordCategoryName)
@@ -1693,7 +1694,7 @@ async function runBridgeCloneServer(command: ChatInputCommandInteraction) {
     if (lines.length > 30) {
       // truncate to keep under Discord's 2000-char message limit
       const truncated = lines.slice(0, 30)
-      truncated.push(`_…and ${lines.length - 30} more_`)
+      truncated.push(`_...and ${lines.length - 30} more_`)
       await command.editReply({ content: truncated.join('\n') })
     } else {
       await command.editReply({ content: lines.join('\n') })
@@ -1773,7 +1774,7 @@ async function runBridgeCloneServer(command: ChatInputCommandInteraction) {
     summary.push('')
     summary.push(`⚠️ ${failures.length} failure(s):`)
     summary.push(...failures.slice(0, 10).map(f => `  • ${f}`))
-    if (failures.length > 10) summary.push(`  • _…and ${failures.length - 10} more_`)
+    if (failures.length > 10) summary.push(`  • _...and ${failures.length - 10} more_`)
   }
 
   await command.editReply({ content: summary.join('\n') })

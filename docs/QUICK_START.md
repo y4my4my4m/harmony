@@ -106,5 +106,5 @@ curl http://localhost:5173/.well-known/nodeinfo
 3. Follow federated users
 4. Create posts!
 
-See the [installation guide](./guide/installation.md) and [self-hosting guide](./self-hosting.md) for more detail.
+See the [self-hosting guide](./self-hosting.md) for installation and deployment detail.
 

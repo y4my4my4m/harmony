@@ -54,6 +54,7 @@ function linearToSrgb(c: number): number {
 /**
  * Convert RGB to XYZ (D65 illuminant)
  */
+// eslint-disable-next-line unused-imports/no-unused-vars
 function rgbToXyz(r: number, g: number, b: number): { x: number; y: number; z: number } {
   // Convert to 0-1 range
   r = r / 255
@@ -76,6 +77,7 @@ function rgbToXyz(r: number, g: number, b: number): { x: number; y: number; z: n
 /**
  * Convert XYZ to RGB
  */
+// eslint-disable-next-line unused-imports/no-unused-vars
 function xyzToRgb(x: number, y: number, z: number): { r: number; g: number; b: number } {
   // Convert from XYZ to linear RGB
   let r = x * 3.2404542 + y * -1.5371385 + z * -0.4985314
@@ -566,7 +568,7 @@ export function applyThemePalette(palette: ThemePalette): void {
     root.style.setProperty('--background-tertiary-alpha', oklchToStringAlpha(bgTertiaryOklch.l, bgTertiaryOklch.c, bgTertiaryOklch.h, 0.67))
   }
 
-  // Senary: darkest layer (picker tabs, emoji/gif popup header, overlays) – always set with theme hue when we have any background
+  // Senary: darkest layer (picker tabs, emoji/gif popup header, overlays) - always set with theme hue when we have any background
   const senarySource = bgTertiaryOklch ?? bgPrimaryOklch ?? bgSecondaryOklch
   if (senarySource) {
     const senaryL = palette.isLightTheme
