@@ -1,15 +1,28 @@
 import { getSupabaseClient } from '../config/supabase.js';
 import { SignatureService } from './SignatureService.js';
 import { BlockedInstancesCache } from '../services/BlockedInstancesCache.js';
+import { performanceMonitor } from '../services/PerformanceMonitor.js';
 import { logger } from '../utils/logger.js';
 import { validateExternalUrl, safeFetch } from '../utils/ssrfProtection.js';
 
 const MAX_CONCURRENT_DOMAINS = 10;
 
+function parseInboxDomain(inboxUrl: string): string | null {
+  try {
+    return new URL(inboxUrl).hostname.toLowerCase();
+  } catch {
+    return null;
+  }
+}
+
 async function runWithConcurrencyLimit<T>(
   tasks: (() => Promise<T>)[],
   limit: number
 ): Promise<PromiseSettledResult<T>[]> {
+  if (tasks.length === 0) {
+    return [];
+  }
+
   const results: PromiseSettledResult<T>[] = [];
   let idx = 0;
 
@@ -25,7 +38,8 @@ async function runWithConcurrencyLimit<T>(
     }
   }
 
-  const workers = Array.from({ length: Math.min(limit, tasks.length) }, () => next());
+  const workerCount = Math.max(1, Math.min(limit, tasks.length));
+  const workers = Array.from({ length: workerCount }, () => next());
   await Promise.all(workers);
   return results;
 }
@@ -72,9 +86,12 @@ export class DeliveryQueue {
     
     // Immediate delivery failed - queue it for retry
     const supabase = getSupabaseClient();
-    
-    // Extract domain from inbox URL
-    const targetDomain = new URL(targetInbox).hostname;
+
+    const targetDomain = parseInboxDomain(targetInbox);
+    if (!targetDomain) {
+      logger.warn(`Invalid inbox URL, cannot queue for retry: ${targetInbox}`);
+      return;
+    }
 
     const { error } = await supabase.from('federation_delivery_queue').insert({
       activity_data: activityData,
@@ -144,7 +161,8 @@ export class DeliveryQueue {
     let failed = 0;
 
     // Each task delivers all items for one domain sequentially
-    const domainTasks = Array.from(byDomain.entries()).map(
+    const domainEntries = Array.from(byDomain.entries());
+    const domainTasks = domainEntries.map(
       ([_domain, domainItems]) => async () => {
         let s = 0;
         let f = 0;
@@ -159,10 +177,15 @@ export class DeliveryQueue {
 
     const results = await runWithConcurrencyLimit(domainTasks, MAX_CONCURRENT_DOMAINS);
 
-    for (const r of results) {
+    for (let i = 0; i < results.length; i++) {
+      const r = results[i];
+      const itemCount = domainEntries[i][1].length;
       if (r.status === 'fulfilled') {
         succeeded += r.value.s;
         failed += r.value.f;
+      } else {
+        failed += itemCount;
+        logger.error(`Domain delivery batch failed (${domainEntries[i][0]}):`, r.reason);
       }
     }
 
@@ -245,6 +268,50 @@ export class DeliveryQueue {
   }
 
   /**
+   * Update federation_health (and last_seen via SQL) for instance-level tracking.
+   */
+  private static async updateFederationHealth(
+    domain: string,
+    success: boolean,
+    latencyMs?: number,
+    error?: string
+  ): Promise<void> {
+    const normalized = domain.toLowerCase();
+    const supabase = getSupabaseClient();
+    const { error: rpcError } = await supabase.rpc('update_federation_health', {
+      p_instance_domain: normalized,
+      p_success: success,
+      p_latency_ms: latencyMs ?? null,
+      p_error: error ?? null,
+    });
+
+    if (rpcError) {
+      logger.warn(`Failed to update federation health for ${normalized}:`, rpcError);
+    }
+  }
+
+  /**
+   * Record delivery metrics and update federation_health (includes last_seen on success).
+   */
+  private static recordDeliveryOutcome(
+    targetDomain: string,
+    success: boolean,
+    durationMs: number,
+    activityData?: any,
+    error?: string
+  ): void {
+    const activityType = typeof activityData?.type === 'string' ? activityData.type : undefined;
+    performanceMonitor.recordMetric('federation_delivery', targetDomain, durationMs, 'ms', {
+      labels: {
+        target_domain: targetDomain,
+        success,
+        activity_type: activityType,
+      },
+    });
+    void this.updateFederationHealth(targetDomain, success, durationMs, error);
+  }
+
+  /**
    * Deliver directly without queue management (for immediate delivery)
    */
   private static async deliverActivityDirect(
@@ -252,7 +319,11 @@ export class DeliveryQueue {
     targetInbox: string,
     senderId: string
   ): Promise<boolean> {
-    const targetDomain = new URL(targetInbox).hostname;
+    const targetDomain = parseInboxDomain(targetInbox);
+    if (!targetDomain) {
+      logger.warn(`Invalid inbox URL, skipping delivery: ${targetInbox}`);
+      return false;
+    }
 
     // Check if target instance is blocked
     if (BlockedInstancesCache.isBlocked(targetDomain)) {
@@ -274,6 +345,8 @@ export class DeliveryQueue {
       logger.warn(`🚫 SSRF: Blocked delivery to unsafe inbox URL: ${targetInbox} - ${err.message}`);
       return false;
     }
+
+    const startedAt = process.hrtime.bigint();
 
     try {
       // Sign the request
@@ -298,11 +371,14 @@ export class DeliveryQueue {
       });
 
       if (response.ok || response.status === 202) {
+        const durationMs = Number(process.hrtime.bigint() - startedAt) / 1_000_000;
         // Update health tracking on success
         await this.updateEndpointHealth(targetInbox, targetDomain, true, response.status);
+        this.recordDeliveryOutcome(targetDomain, true, durationMs, activityData);
         logger.info(`✅ Delivered to ${targetInbox} (${response.status})`);
         return true;
       } else {
+        const durationMs = Number(process.hrtime.bigint() - startedAt) / 1_000_000;
         // Update health tracking on failure
         await this.updateEndpointHealth(
           targetInbox,
@@ -311,13 +387,22 @@ export class DeliveryQueue {
           response.status,
           `HTTP ${response.status}`
         );
+        this.recordDeliveryOutcome(
+          targetDomain,
+          false,
+          durationMs,
+          activityData,
+          `HTTP ${response.status}`
+        );
         logger.warn(`❌ Failed to deliver to ${targetInbox}: ${response.status}`);
         return false;
       }
     } catch (error) {
+      const durationMs = Number(process.hrtime.bigint() - startedAt) / 1_000_000;
       // Update health tracking on network error
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       await this.updateEndpointHealth(targetInbox, targetDomain, false, undefined, errorMessage);
+      this.recordDeliveryOutcome(targetDomain, false, durationMs, activityData, errorMessage);
       logger.error(`❌ Delivery error to ${targetInbox}:`, error);
       return false;
     }
@@ -328,7 +413,19 @@ export class DeliveryQueue {
    */
   private static async deliverActivity(item: QueueItem): Promise<boolean> {
     const supabase = getSupabaseClient();
-    const targetDomain = new URL(item.target_inbox_url).hostname;
+
+    const targetDomain = parseInboxDomain(item.target_inbox_url);
+    if (!targetDomain) {
+      await supabase
+        .from('federation_delivery_queue')
+        .update({
+          status: 'failed',
+          last_attempt_at: new Date().toISOString(),
+          error_message: 'Invalid target inbox URL',
+        })
+        .eq('id', item.id);
+      return false;
+    }
 
     // Check if target instance is blocked
     if (BlockedInstancesCache.isBlocked(targetDomain)) {
@@ -399,6 +496,7 @@ export class DeliveryQueue {
       }
 
       // Sign the request
+      const startedAt = process.hrtime.bigint();
       const { headers } = await SignatureService.signRequest(
         item.target_inbox_url,
         'POST',
@@ -435,6 +533,9 @@ export class DeliveryQueue {
           response.status
         );
 
+        const durationMs = Number(process.hrtime.bigint() - startedAt) / 1_000_000;
+        this.recordDeliveryOutcome(targetDomain, true, durationMs, item.activity_data);
+
         logger.info(`✅ Delivered to ${item.target_inbox_url} (${response.status})`);
         return true;
       } else {
@@ -444,6 +545,14 @@ export class DeliveryQueue {
           targetDomain,
           false,
           response.status,
+          `HTTP ${response.status}`
+        );
+        const durationMs = Number(process.hrtime.bigint() - startedAt) / 1_000_000;
+        this.recordDeliveryOutcome(
+          targetDomain,
+          false,
+          durationMs,
+          item.activity_data,
           `HTTP ${response.status}`
         );
         await this.handleDeliveryFailure(item, `HTTP ${response.status}`, response.status);
@@ -460,6 +569,7 @@ export class DeliveryQueue {
         undefined,
         errorMessage
       );
+      this.recordDeliveryOutcome(targetDomain, false, 0, item.activity_data, errorMessage);
       await this.handleDeliveryFailure(item, errorMessage);
       logger.error(`❌ Delivery error to ${item.target_inbox_url}:`, error);
       return false;
@@ -492,8 +602,8 @@ export class DeliveryQueue {
 
       logger.warn(`Max attempts reached for delivery to ${item.target_inbox_url}`);
     } else {
-      // Schedule retry with exponential backoff
-      const backoffMinutes = Math.pow(2, newAttempts) * 5; // 5, 10, 20, 40, 80 minutes
+      // Schedule retry with exponential backoff (5, 10, 20, 40, 80 minutes after first queued attempt)
+      const backoffMinutes = Math.pow(2, newAttempts - 1) * 5;
       const nextRetry = new Date();
       nextRetry.setMinutes(nextRetry.getMinutes() + backoffMinutes);
 

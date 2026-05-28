@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS public.federated_instances (
     id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone DEFAULT now(),
-    domain text NOT NULL UNIQUE,
+    domain text NOT NULL UNIQUE CHECK (domain = lower(domain)),
     
     -- Instance info
     software text,

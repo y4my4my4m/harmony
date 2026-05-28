@@ -565,6 +565,52 @@ END;
 $$;
 
 -- =============================================================================
+-- Federated instance connection counts (known remote actors per domain)
+-- =============================================================================
+CREATE OR REPLACE FUNCTION public.get_federated_instance_connection_counts(p_domains text[])
+RETURNS TABLE(domain text, connection_count bigint)
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  WITH normalized AS (
+    SELECT lower(btrim(d)) AS domain
+    FROM unnest(p_domains) AS d
+    WHERE d IS NOT NULL AND btrim(d) <> ''
+  ),
+  profile_counts AS (
+    SELECT lower(p.domain) AS domain, COUNT(*)::bigint AS cnt
+    FROM public.profiles p
+    INNER JOIN normalized n ON lower(p.domain) = n.domain
+    WHERE p.is_local = false
+      AND p.domain IS NOT NULL
+      AND p.domain <> ''
+    GROUP BY lower(p.domain)
+  ),
+  actor_counts AS (
+    SELECT lower(a.domain) AS domain, COUNT(*)::bigint AS cnt
+    FROM public.ap_actor_cache a
+    INNER JOIN normalized n ON lower(a.domain) = n.domain
+    WHERE a.domain IS NOT NULL
+      AND a.domain <> ''
+    GROUP BY lower(a.domain)
+  )
+  SELECT
+    n.domain,
+    GREATEST(COALESCE(pc.cnt, 0), COALESCE(ac.cnt, 0)) AS connection_count
+  FROM normalized n
+  LEFT JOIN profile_counts pc ON pc.domain = n.domain
+  LEFT JOIN actor_counts ac ON ac.domain = n.domain;
+$$;
+
+COMMENT ON FUNCTION public.get_federated_instance_connection_counts(text[])
+IS 'Count known remote actors per instance domain (max of profiles and ap_actor_cache).';
+
+GRANT EXECUTE ON FUNCTION public.get_federated_instance_connection_counts(text[]) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.get_federated_instance_connection_counts(text[]) TO service_role;
+
+-- =============================================================================
 DO $$
 BEGIN
     RAISE NOTICE 'Federation helper functions created successfully';

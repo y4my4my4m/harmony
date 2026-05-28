@@ -3,6 +3,7 @@ import { getSupabaseClient } from '../config/supabase.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { SignatureService } from './SignatureService.js';
 import { ActivityProcessor } from './ActivityProcessor.js';
+import { FederatedInstanceService } from '../services/FederatedInstanceService.js';
 import { logger } from '../utils/logger.js';
 import config from '../config/index.js';
 import { inboxLimiter } from '../middleware/rateLimit.js';
@@ -326,6 +327,10 @@ async function handleInbox(
     }
   }
 
+  if (actorUrl) {
+    FederatedInstanceService.touchFromUrl(actorUrl);
+  }
+
   // If username specified, verify activity is addressed to them
   if (username) {
     const supabase = getSupabaseClient();
@@ -382,7 +387,12 @@ async function handleInbox(
   // Store activity in database (idempotent)
   const supabase = getSupabaseClient();
   // actorUrl already extracted above during signature verification
-  const originDomain = actorUrl ? new URL(actorUrl).hostname : null;
+  let originDomain: string | null = null;
+  try {
+    originDomain = actorUrl ? new URL(actorUrl).hostname.toLowerCase() : null;
+  } catch {
+    originDomain = null;
+  }
 
   // Normalize activity type for database storage
   // Some instances send "EmojiReact" but our constraint expects "EmojiReaction"
