@@ -249,7 +249,7 @@ export class MessageEncryptionService {
     }
 
     // Save signed prekey to database with upsert
-    // IMPORTANT: Must explicitly set is_one_time: false to prevent it being returned as a one-time prekey!
+    // Must explicitly set is_one_time: false to prevent it being returned as a one-time prekey!
     const { error: signedKeyError } = await supabase.from('prekeys').upsert({
       user_id: this.currentUserId,
       device_id: 'default',
@@ -496,7 +496,7 @@ export class MessageEncryptionService {
         symmetricKeyBase64 = encryptedKeyData.key
       } else {
         // Regular Signal Protocol decryption for other users
-        // IMPORTANT: This requires the user's encryption key to be loaded to access prekeys
+        // This requires the user's encryption key to be loaded to access prekeys
         debug.log(`  - Using Signal Protocol decryption`)
         debug.log(`  - Encrypted key data:`, JSON.stringify(encryptedKeyData).substring(0, 100) + '...')
         debug.log(`  - Has encryption key loaded: ${this.keyStore?.hasEncryptionKeyLoaded()}`)

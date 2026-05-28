@@ -203,7 +203,7 @@
     <!--
       Kick/Ban modal opened directly from the context menu. UserProfileModal
       mounts its own copy of this modal too, so we keep them as separate
-      instances driven by separate state — that way opening the profile
+      instances driven by separate state - that way opening the profile
       modal while a kick/ban is in flight (or vice versa) doesn't clobber
       either flow.
     -->
@@ -326,12 +326,12 @@ const kickBanMember = ref<{
   avatar_url: string | null;
 } | null>(null);
 
-// Long-press tracking — mobile-only. We start a 500ms timer on
+// Long-press tracking - mobile-only. We start a 500ms timer on
 // touchstart and open the context menu when it fires. `longPressFired`
 // suppresses the trailing synthetic `click` so we don't *also* open
 // the profile modal underneath the menu.
 const LONG_PRESS_DURATION = 500;
-const LONG_PRESS_MOVE_TOLERANCE = 10; // pixels — finger jitter before we cancel
+const LONG_PRESS_MOVE_TOLERANCE = 10; // pixels - finger jitter before we cancel
 let longPressTimer: ReturnType<typeof setTimeout> | null = null;
 let longPressFired = false;
 let longPressStartPos: { x: number; y: number } | null = null;
@@ -356,7 +356,7 @@ function closeContextMenu() {
 }
 
 function handleUserItemClick(user: User) {
-  // Suppress click immediately after a long-press fired on mobile —
+  // Suppress click immediately after a long-press fired on mobile -
   // otherwise we'd open the profile modal under the context menu.
   if (longPressFired) {
     longPressFired = false;
@@ -428,7 +428,7 @@ async function handleContextAction(action: string, user: User) {
       await startCallWithUser(user);
       break;
     case 'add-note':
-      // The note input lives inside the profile modal — open it so the
+      // The note input lives inside the profile modal - open it so the
       // user can type their note there.
       await showUserProfile(user);
       break;
@@ -462,7 +462,7 @@ async function handleContextAction(action: string, user: User) {
  * Dispatch a window-level event that ChatComponent listens for to
  * insert a mention into the current message input. UserSidebar is
  * rendered as a sibling of ChatComponent inside ChatLayout, so a
- * direct emit/prop chain would have to traverse two layout layers —
+ * direct emit/prop chain would have to traverse two layout layers -
  * a CustomEvent keeps the wiring shallow and matches the existing
  * cross-component pattern used elsewhere in the app.
  */
@@ -520,7 +520,7 @@ async function sendDirectMessage(user: User) {
 /**
  * Route to a DM and ask DMHeader to start a call. The actual call
  * setup (permissions check, signaling, voice join) lives in DMHeader
- * to avoid duplicating WebRTC / federation logic here — we just open
+ * to avoid duplicating WebRTC / federation logic here - we just open
  * the DM and broadcast a `harmony-dm-start-call` event that DMHeader
  * listens for once the conversation is active.
  */
@@ -559,7 +559,7 @@ async function startCallWithUser(user: User) {
 }
 
 async function openInviteForUser(user: User) {
-  // InviteModal generates server invites — it doesn't take a target
+  // InviteModal generates server invites - it doesn't take a target
   // user (the invite link can be sent to anyone), so we just open it
   // for the current server. When opened from the user sidebar we're
   // always inside a server context, but fall back to the profile
@@ -658,7 +658,7 @@ const users = computed(() => {
   // Get users from context first (this is our cached data)
   const contextUsers = getUsersInContext(serverId).value;
   
-  // ✅ SMART CACHING: Only log when context changes significantly (not on every presence update)
+  // SMART CACHING: Only log when context changes significantly (not on every presence update)
   if (contextUsers.length > 0) {
     // userDataService stores camelCase (displayName, avatarUrl); normalize to the
     // legacy User shape so kick/ban modals and other snake_case consumers work.
@@ -943,7 +943,7 @@ const fetchAndSetUsers = async (serverId: string | null) => {
   debug.log(`🔍 UserSidebar fetchAndSetUsers called (${fetchCallCounter} times) for server:`, serverId);
   
   if (serverId) {
-    // ✅ DEBOUNCE: Prevent duplicate calls for the same server
+    // DEBOUNCE: Prevent duplicate calls for the same server
     if (lastFetchedServerId.value === serverId && isLoadingUsers.value) {
       debug.log(`⏭️ UserSidebar: Already loading server ${serverId}, skipping duplicate call`);
       return;
@@ -951,7 +951,7 @@ const fetchAndSetUsers = async (serverId: string | null) => {
     
     lastFetchedServerId.value = serverId;
     
-    // ✅ SMART CACHING: Check if we already have users for this server
+    // SMART CACHING: Check if we already have users for this server
     let users = getUsersInContext(serverId).value;
     
     if (users.length > 0) {
@@ -999,14 +999,14 @@ const fetchAndSetUsers = async (serverId: string | null) => {
 
 // Smart watcher for server changes - only triggers on actual server changes
 watch(() => serverChannelStore.currentServerId, async (newServerId, oldServerId) => {
-  // ✅ SMART CACHING: Only act on actual server changes
+  // SMART CACHING: Only act on actual server changes
   if (newServerId === oldServerId) {
     return; // No change, skip
   }
   
   debug.log(`🔄 UserSidebar: Server changed from ${oldServerId} to ${newServerId}`);
   
-  // ✅ INSTANT FEEDBACK: Clear loading state immediately if new server has cached data
+  // INSTANT FEEDBACK: Clear loading state immediately if new server has cached data
   if (newServerId) {
     const cachedUsers = getUsersInContext(newServerId).value;
     if (cachedUsers.length > 0) {
@@ -1397,7 +1397,7 @@ const closeInviteModal = () => {
   cursor: pointer;
   transition: background-color 0.15s ease;
   min-height: 42px;
-  /* Long-press on mobile triggers our own context menu — suppress the
+  /* Long-press on mobile triggers our own context menu - suppress the
      native iOS callout/selection bubble that would otherwise compete
      with it. Touch action stays `manipulation` so quick taps still
      register and short scrolls in the list still work. */

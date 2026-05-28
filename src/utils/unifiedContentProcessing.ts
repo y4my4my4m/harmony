@@ -568,7 +568,7 @@ function trimUrlTrailingDelimiter(url: string): { url: string; trimmedChars: num
 }
 
 /**
- * Discord-style: URLs wrapped in angle brackets (<https://…>) are linked but
+ * Discord-style: URLs wrapped in angle brackets (<https://...>) are linked but
  * do not generate embeds/previews. Brackets are omitted from stored content.
  */
 function parseUrlMatchContext(

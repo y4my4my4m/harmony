@@ -538,9 +538,9 @@ const handleCallSignal = async (signal: CallSignal) => {
   // meant:
   //   - `signal.callerId === currentUserId` never matched our own outgoing
   //     signals, so self-suppression was broken,
-  //   - `canReceiveCall(callerId, currentUserId, …)` queried the wrong
+  //   - `canReceiveCall(callerId, currentUserId, ...)` queried the wrong
   //     row, breaking block/DND/mute auto-decline,
-  //   - `declineCall(..., currentUserId, …)` recorded the wrong actor.
+  //   - `declineCall(..., currentUserId, ...)` recorded the wrong actor.
   let currentUserId: string
   try {
     const { authContextService } = await import('@/services/AuthContextService')
@@ -651,7 +651,7 @@ const unsubscribeFromCallSignals = () => {
  * "Start a Call" but the actual call setup (permissions / signaling /
  * voice join) lives here in DMHeader. Sidebar routes the user to the
  * DM first and then fires `harmony-dm-start-call` once the conversation
- * is open — we only act when the event targets *this* conversation so
+ * is open - we only act when the event targets *this* conversation so
  * stale events from a previous DM don't cause a cross-call.
  */
 const handleStartCallRequest = (e: Event) => {

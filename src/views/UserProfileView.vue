@@ -733,7 +733,7 @@ const loadUserProfile = async (handle: string, forceRefresh: boolean = false) =>
         following: user.value.following_count,
         followers: user.value.followers_count
       });
-      // OPTIMIZED: Load posts, pinned posts, following, and followers in parallel
+      // Load posts, pinned posts, following, and followers in parallel
       await Promise.all([
         loadUserPosts(),
         loadPinnedPosts(),
@@ -1146,7 +1146,7 @@ const currentHandle = computed(() => {
   }
 });
 
-// OPTIMIZATION: Track current loading handle to prevent duplicate loads
+// Track current loading handle to prevent duplicate loads
 let currentLoadingHandle: string | null = null;
 
 // Single consolidated watcher for handle changes

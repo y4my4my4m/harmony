@@ -542,7 +542,7 @@ export const useDMStore = defineStore('dm', () => {
     }
   }
 
-  // ⚡ OPTIMIZED: Fetch only conversation metadata (no message content, configurable user profile loading)
+  // Fetch only conversation metadata (no message content, configurable user profile loading)
   // For faster initial load when user isn't actively viewing DMs
   const fetchUserConversationsMetadata = async (userId: string, loadStrategy: 'lazy' | 'partial' | 'immediate' = 'partial') => {
     // REQUEST DEDUPLICATION: If already fetching, wait for that request
@@ -665,7 +665,7 @@ export const useDMStore = defineStore('dm', () => {
           last_activity: lastMessage?.created_at || conversation.updated_at,
           unread_count: 0, // Will be calculated separately if needed
           participant_count: otherParticipants.length + 1, // +1 for current user
-          // OPTIMIZED: Include last message for preview without loading full message history
+          // Include last message for preview without loading full message history
           last_message: lastMessage ? {
             id: '', // Don't need full message ID for preview
             content: lastMessage.content,
@@ -673,7 +673,7 @@ export const useDMStore = defineStore('dm', () => {
             user_id: lastMessage.user_id,
             conversation_id: lastMessage.conversation_id
           } : undefined,
-          // OPTIMIZED: No user profile data loaded - just placeholders.
+          // No user profile data loaded - just placeholders.
           // Real user data will be loaded lazily when conversation is viewed/hovered.
           // Cast to `any` because `_isPlaceholder` is a runtime hint not on `DMUser`.
           other_user: (primaryOtherUserId ? {
@@ -727,7 +727,7 @@ export const useDMStore = defineStore('dm', () => {
         }
       }
 
-      // OPTIMIZATION: Different loading strategies for user profiles
+      // Different loading strategies for user profiles
       const needsProfileLoad = (conv: DMConversation) =>
         conv.type === 'direct' && (!conv.other_user || conv.other_user._isPlaceholder)
 
@@ -770,7 +770,7 @@ export const useDMStore = defineStore('dm', () => {
   }
 
   // Add method to fetch conversation details using participant system
-  // OPTIMIZED: Reduced from 3 queries to 2 queries
+  // Reduced from 3 queries to 2 queries
   const fetchConversationDetails = async (conversationId: string, currentUserId: string) => {
       // First check if we already have this conversation with full data
       const existingConv = conversations.value.find(c => c.id === conversationId)
@@ -904,7 +904,7 @@ export const useDMStore = defineStore('dm', () => {
   }
 
   // Enhanced initialization for direct DM access
-  // OPTIMIZED: When loading directly from URL, only fetch the specific conversation
+  // When loading directly from URL, only fetch the specific conversation
   // Other conversations load in the background for sidebar
   const initializeDMEnvironmentForDirectAccess = async (userId: string, conversationId?: string) => {
     // Only set initializing if we have NO conversations yet
@@ -1039,7 +1039,7 @@ export const useDMStore = defineStore('dm', () => {
   }
 
   // Helper: Service-like method to fetch raw conversation data using participant system
-  // OPTIMIZED: Batch queries instead of N+1 pattern
+  // Batch queries instead of N+1 pattern
   const _fetchRawConversations = async (userId: string) => {
     try {
       // Step 1: Get user's conversations with metadata in a single query
@@ -1495,7 +1495,7 @@ export const useDMStore = defineStore('dm', () => {
         debug.warn('Failed to prepare DM embeds:', error)
       }
 
-      // 🔐 Note: Decryption already happens in CoreMessageService.loadConversationMessages
+      // Note: Decryption already happens in CoreMessageService.loadConversationMessages
       // Just log stats for debugging
       const decryptedCount = formattedMessages.filter(m => m.decrypted).length
       const encryptedCount = formattedMessages.filter(m => m.encrypted).length
@@ -1747,7 +1747,7 @@ export const useDMStore = defineStore('dm', () => {
         throw error
       }
 
-      // Length-limit / structural validation errors are not transient —
+      // Length-limit / structural validation errors are not transient -
       // drop the optimistic and surface immediately so the UI can show
       // "message too long" instead of doomed retries.
       const isPermanentValidationError =

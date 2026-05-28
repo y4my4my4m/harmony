@@ -31,7 +31,7 @@
         @click="handleMarkAllRead"
       >
         <span v-if="!isMarkingAll">{{ $t('announcements.markAllRead') }}</span>
-        <span v-else>…</span>
+        <span v-else>...</span>
       </button>
     </div>
 

@@ -408,7 +408,7 @@ export class VoiceActivityHandler {
       }
       
       // Broadcast to local subscribers for UI update
-      // IMPORTANT: Frontend listens on `voice-channels:${serverId}`, not `voice:${channelId}`
+      // Frontend listens on `voice-channels:${serverId}`, not `voice:${channelId}`
       await supabase
         .channel(`voice-channels:${channel.server_id}`)
         .send({
@@ -488,7 +488,7 @@ export class VoiceActivityHandler {
     }
 
     // Broadcast to channel subscribers
-    // IMPORTANT: Frontend listens on `voice-channels:${serverId}`, not `voice:${channelId}`
+    // Frontend listens on `voice-channels:${serverId}`, not `voice:${channelId}`
     await supabase
       .channel(`voice-channels:${channel.server_id}`)
       .send({
@@ -706,7 +706,7 @@ export class VoiceActivityHandler {
     }
 
     // Broadcast leave event
-    // IMPORTANT: Frontend listens on `voice-channels:${serverId}`, not `voice:${channelId}`
+    // Frontend listens on `voice-channels:${serverId}`, not `voice:${channelId}`
     await supabase
       .channel(`voice-channels:${channel.server_id}`)
       .send({

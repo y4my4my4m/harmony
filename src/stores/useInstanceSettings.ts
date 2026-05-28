@@ -43,7 +43,7 @@ interface InstanceSettings {
   maxServerSize: number
   maxCustomEmojisPerServer: number
   maxMediaAttachmentsPerPost: number
-  /** imgproxy JPEG/WebP quality (1–100) for custom emoji storage transforms */
+  /** imgproxy JPEG/WebP quality (1-100) for custom emoji storage transforms */
   customEmojiTransformQuality: number
 
   // Display names

@@ -278,7 +278,7 @@ const shouldShowNoServersSplash = computed(() => {
   // Only treat an empty server list as "user has no servers" once we've
   // confirmed the fetch actually completed. Without this guard, a failed
   // initial fetch (network slow during PWA cold-boot, etc.) would render
-  // the onboarding splash even though the user has servers — they'd just
+  // the onboarding splash even though the user has servers - they'd just
   // see "join a server / create a community" while half-logged-in.
   // `hasInitialized` is set to true only in the success path of
   // `initializeUserEnvironment`, so it reliably distinguishes the

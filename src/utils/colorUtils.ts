@@ -568,7 +568,7 @@ export function applyThemePalette(palette: ThemePalette): void {
     root.style.setProperty('--background-tertiary-alpha', oklchToStringAlpha(bgTertiaryOklch.l, bgTertiaryOklch.c, bgTertiaryOklch.h, 0.67))
   }
 
-  // Senary: darkest layer (picker tabs, emoji/gif popup header, overlays) – always set with theme hue when we have any background
+  // Senary: darkest layer (picker tabs, emoji/gif popup header, overlays) - always set with theme hue when we have any background
   const senarySource = bgTertiaryOklch ?? bgPrimaryOklch ?? bgSecondaryOklch
   if (senarySource) {
     const senaryL = palette.isLightTheme

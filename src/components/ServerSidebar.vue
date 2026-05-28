@@ -367,7 +367,7 @@ const isMonyverseSelected = computed(() => {
 // The globe-icon badge should reflect what the user will *actually see and
 // be able to clear* by clicking through. /social/mentions is driven by
 // `activitypub_mention` notifications (see useActivityPub.loadMentionedPosts).
-// Counting any other AP type — follows, reblogs, favorites, even replies —
+// Counting any other AP type - follows, reblogs, favorites, even replies -
 // stranded the badge: the user clicked through, saw the post that came up
 // from the mention notification, but the reply/follow counts kept the badge
 // alive. Restrict to `activitypub_mention` so visiting the page (and

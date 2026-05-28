@@ -305,7 +305,7 @@
         <span class="beta-badge">Beta</span>
       </h3>
       <p class="section-description">
-        Skins go beyond colour switching — they bundle a theme, a font, and a
+        Skins go beyond colour switching - they bundle a theme, a font, and a
         set of CSS rules that change borders, corners, decorative overlays and
         more. Picking one overrides the matching settings above; you can still
         tweak colours afterwards. Pick "None" to clear the skin layer.
@@ -357,7 +357,7 @@
         class="skin-active-options"
       >
         <h4 class="skin-active-options-title">
-          {{ activeSkin?.name }} — decorations
+          {{ activeSkin?.name }} - decorations
         </h4>
         <div
           v-for="option in activeSkinOptions"

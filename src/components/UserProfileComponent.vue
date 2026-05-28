@@ -852,7 +852,7 @@ onBeforeUnmount(() => {
     right: auto;
     margin: 0;
   }
-  /* Overlay teleports to #app — profile is not under .user-profile-section */
+  /* Overlay teleports to #app - profile is not under .user-profile-section */
   .mobile-profile-overlay .user-info,
   .mobile-profile-overlay .buttons {
     display: flex;

@@ -68,7 +68,7 @@ export class CorePostService {
     try {
       debug.log('🚀 Core: createPost starting...')
       
-      // OPTIMIZED: Use AuthContextService for auth check (cached)
+      // Use AuthContextService for auth check (cached)
       const authUser = await authContextService.getCurrentAuthUser()
       if (!authUser) throw this.createError('AUTH_REQUIRED', 'User not authenticated')
       debug.log('✅ Core: Auth user verified')
@@ -95,7 +95,7 @@ export class CorePostService {
       // Enforce per-post text length using the admin-configurable soft
       // limit (`instance_config.max_post_length`). The DB CHECK constraint
       // on `posts.content` enforces the absolute hard ceiling
-      // (`MESSAGE_TEXT_HARD_CEILING`) — this check fires first so the
+      // (`MESSAGE_TEXT_HARD_CEILING`) - this check fires first so the
       // user sees a friendly error.
       const maxPostLength = await this.getMaxPostLength()
       const textLen = messageTextLength(data.content)
@@ -185,7 +185,7 @@ export class CorePostService {
         throw this.createError('UNAUTHORIZED', 'Cannot edit post you do not own')
       }
 
-      // Enforce post length on edits too — otherwise edits could push a
+      // Enforce post length on edits too - otherwise edits could push a
       // tiny post past the limit. Only check when content is actually
       // changing.
       if (updates.content) {
@@ -816,7 +816,7 @@ export class CorePostService {
           formatted.is_bookmarked = types.has('bookmark')
         }
       } catch {
-        // User not logged in or profile not found – keep defaults
+        // User not logged in or profile not found - keep defaults
       }
 
       debug.log(`✅ Core: Loaded post: ${postId}`)
@@ -835,7 +835,7 @@ export class CorePostService {
     try {
       debug.log('🔍 Core: Getting current user profile ID...')
       
-      // OPTIMIZED: Use cached profile ID from AuthContextService
+      // Use cached profile ID from AuthContextService
       const profileId = await authContextService.getCurrentProfileId()
       
       if (!profileId) {

@@ -745,7 +745,7 @@ export class MegolmMessageEncryptionService {
    *                         when the sender has no signing key on file.
    *
    * Behavior on signature mismatch (v2 only):
-   *   - Throws `Sender signature invalid …`. The message is NOT decrypted.
+   *   - Throws `Sender signature invalid ...`. The message is NOT decrypted.
    *     This is the core "reattribution attack" defense - without it, a
    *     malicious DB writer could swap sender_user_id and have clients
    *     happily display Bob's content as if from Alice.

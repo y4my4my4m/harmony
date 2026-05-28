@@ -552,7 +552,7 @@ class AdminService {
 
         for (const entry of entries) {
           if (entry.target_type === 'user' && entry.target_id) {
-            (entry as any).target_username = idToUsername.get(entry.target_id) || `user:${entry.target_id.slice(0, 8)}…`;
+            (entry as any).target_username = idToUsername.get(entry.target_id) || `user:${entry.target_id.slice(0, 8)}...`;
           }
         }
       }

@@ -955,7 +955,7 @@ const postEmbeds = computed<Array<{ url: string; title?: string; description?: s
 // `useContentRenderer.formattedHTML` auto-injects an inline iframe whenever
 // it sees a YouTube URL in the post text (see useContentRenderer.ts:507).
 // Without splitting `postEmbeds` we'd ALSO render a big LinkEmbedCard with
-// the same YouTube thumbnail / title / channel below — three vertical
+// the same YouTube thumbnail / title / channel below - three vertical
 // surfaces showing the same video (iframe, optional uploaded media, link
 // card). The fix: split the embed list by whether the URL is already
 // represented as an inline rich embed.
@@ -1146,7 +1146,7 @@ const originalPostInteractions = ref<{
 const loadOriginalPostInteractions = async () => {
   if (!isReblog.value || !props.post.reblog?.id) return;
   
-  // OPTIMIZATION: Check if interactions were pre-loaded by the store
+  // Check if interactions were pre-loaded by the store
   // This prevents N+1 queries when the parent already batch-fetched interactions
   const reblog = props.post.reblog;
   if (reblog.is_favorited !== undefined || reblog.is_reblogged !== undefined || reblog.is_bookmarked !== undefined) {
@@ -2450,7 +2450,7 @@ const closeLightbox = () => {
   border-color: var(--primary);
 }
 
-/* Compact caption variant — used right beneath an inline rich embed
+/* Compact caption variant - used right beneath an inline rich embed
    (e.g. a YouTube iframe). Tighter margins so it visually reads as part
    of the same "video unit" rather than a separate card, smaller radius
    to match the slimmer chrome, and a subtler hover so the caption

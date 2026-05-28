@@ -1144,7 +1144,7 @@ const getBotColor = (_botId: string): ComputedRef<string> => {
 };
 
 // Unified helper functions that work for users, bots, and Discord users
-// IMPORTANT: All checks must be INSIDE computed() for reactivity
+// All checks must be INSIDE computed() for reactivity
 const getAuthorDisplayName = (message: Message): ComputedRef<string> => {
   return computed(() => {
     // Check for Discord user metadata first (puppeting)
@@ -1690,7 +1690,7 @@ watch(() => props.messages, (newMessages) => {
           } else if (isAppend && !userWasAtBottom.value) {
             shouldBeAtBottom.value = false;
           }
-          // Load older messages (prepend) — pin viewport by scroll-height delta.
+          // Load older messages (prepend) - pin viewport by scroll-height delta.
           //
           // The previous approach called `scrollToIndex(targetIndex, 'start')`
           // + a sub-item offset correction on each of 5 RAFs. That visibly jumped
@@ -1704,7 +1704,7 @@ watch(() => props.messages, (newMessages) => {
           // under the user's eye. No jumps, no scrollToIndex thrash.
           else if (!isAppend) {
             shouldBeAtBottom.value = false;
-            // Re-read the ref locally with a null guard — match the defensive
+            // Re-read the ref locally with a null guard - match the defensive
             // style used throughout this watcher (lines 1435, 1440, 1646, 1680).
             // The outer `if (messageDisplayContainer.value)` at the top of the
             // nextTick is enough at runtime today, but binding `container` once
@@ -1758,7 +1758,7 @@ watch(isLoadingOlderMessages, (loading, wasLoading) => {
       if (!messageDisplayContainer.value) return;
       const { scrollHeight, clientHeight } = messageDisplayContainer.value;
       if (scrollHeight <= clientHeight + 5) {
-        debug.log('📜 Still no scrollbar after loading — auto-loading more');
+        debug.log('📜 Still no scrollbar after loading - auto-loading more');
         props.loadMoreMessages?.();
       }
     }, 300);
@@ -1773,7 +1773,7 @@ watch(() => props.messages.map(msg => msg.reactions?.length), () => {
 }, { deep: true });
 
 // IntersectionObserver to clear unread counts when messages are scrolled into view
-// OPTIMIZED: Debounced to prevent 45+ API calls per page load
+// Debounced to prevent 45+ API calls per page load
 let intersectionObserver: IntersectionObserver | null = null;
 const observedMessages = new Set<string>();
 let pendingUnreadUpdate: { messageId: string; timestamp: Date } | null = null;
@@ -2007,7 +2007,7 @@ const setupTopSentinelObserver = () => {
     (entries) => {
       const entry = entries[0];
       if (entry?.isIntersecting && hasInitiallyScrolled && !isAllMessagesLoaded.value && !isLoadingOlderMessages.value && props.loadMoreMessages) {
-        debug.log('📜 Top sentinel visible (prefetch zone) — auto-loading older messages');
+        debug.log('📜 Top sentinel visible (prefetch zone) - auto-loading older messages');
         props.loadMoreMessages?.();
       }
     },
@@ -2129,7 +2129,7 @@ const showTooltip = async (event: MouseEvent, reaction: Reaction) => {
       };
     }
     
-    // Regular Harmony user — use role color where available, like the
+    // Regular Harmony user - use role color where available, like the
     // username in the message header. Keeps the reaction tooltip consistent
     // with the rest of the chat.
     return {
@@ -2733,7 +2733,7 @@ const correctScrollAfterResize = (callback: () => void) => {
         if (updatedAnchor) {
           delta = updatedAnchor.start - anchorStartBefore;
         } else {
-          // Anchor no longer in virtual items — fall back to total size delta
+          // Anchor no longer in virtual items - fall back to total size delta
           delta = rowVirtualizer.value.getTotalSize() - totalSizeBefore;
         }
       } else {
@@ -2849,7 +2849,7 @@ const handleDecryptMessage = async (message: Message) => {
       // NOTE: previous code called `resolveMentionsUserData(decryptedContent)`
       // and assigned its return value to `content`, but-
       // `resolveMentionsUserData` returns a Record<string, {userId, isLocal}>
-      // lookup map (not MessagePart[]). That was a latent bug — assigning the
+      // lookup map (not MessagePart[]). That was a latent bug - assigning the
       // lookup map to `content` would render nothing. The decrypted content
       // is already a parsed `MessagePart[]` from
       // `megolmMessageEncryptionService.decryptMessage`, so we use it directly.
@@ -2887,7 +2887,7 @@ const handleOpenLightbox = (url: string) => {
     indexRef.value = index;
     activeLightboxImages.value = lightboxImages.value;
   } else {
-    // Image from an embed not in the pre-computed list — show standalone
+    // Image from an embed not in the pre-computed list - show standalone
     activeLightboxImages.value = [url];
     indexRef.value = 0;
   }
@@ -2909,8 +2909,8 @@ const openContextMenu = (message: Message, event: MouseEvent) => {
   // On mobile the (...) button in the floating toolbar opens this menu.
   // The toolbar itself remains pinned ~48px above the original tap point,
   // which visually clashes (and z-stacks) with the menu we're about to
-  // render. Dismiss the toolbar so the user sees exactly one surface —
-  // the menu — rooted at the tap.
+  // render. Dismiss the toolbar so the user sees exactly one surface -
+  // the menu - rooted at the tap.
   if (isMobile.value) {
     hoveredMessageId.value = null;
     mobileActionTapPosition.value = null;
@@ -2927,7 +2927,7 @@ const openContextMenu = (message: Message, event: MouseEvent) => {
 // Native right-click on a message row opens the same context menu the
 // "more" button does. We deliberately let the browser's native menu
 // take over for media (images, video, audio) and links so users can
-// still "Save image as", "Copy link address", etc. — that matches
+// still "Save image as", "Copy link address", etc. - that matches
 // Discord/Slack behaviour.
 const handleMessageContextMenu = (message: Message, event: MouseEvent) => {
   // On mobile the OS fires a synthetic `contextmenu` event after a
@@ -2944,7 +2944,7 @@ const handleMessageContextMenu = (message: Message, event: MouseEvent) => {
   if (target?.closest('a, img, video, audio, [data-no-context-menu]')) {
     return;
   }
-  // Don't intercept right-clicks while a text selection is active —
+  // Don't intercept right-clicks while a text selection is active -
   // browsers expose the standard "Copy" menu for selected text and
   // overriding it would hide that affordance.
   const selection = window.getSelection?.();
@@ -3892,7 +3892,7 @@ defineExpose({ editLastOwnMessage });
   animation: spin-loader 0.8s linear infinite;
   /* `display: bl-ck` would still flex-align correctly, but inline-block lets
      the flex item participate as a baseline-positioned token alongside the
-     text glyphs — visually identical centering without descender drift. */
+     text glyphs - visually identical centering without descender drift. */
   flex-shrink: 0;
 }
 

@@ -44,7 +44,7 @@ export class GifService {
   private favoriteUrls: Set<string> = new Set()
   private cacheInitialized = false
   
-  // OPTIMIZED: Full favorites cache with TTL
+  // Full favorites cache with TTL
   private favoritesCache: FavoriteGif[] | null = null
   private favoritesCacheTime = 0
   private pendingFavoritesRequest: Promise<FavoriteGif[]> | null = null

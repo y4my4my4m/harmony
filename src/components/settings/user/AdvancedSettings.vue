@@ -58,7 +58,7 @@
             {{ $t('settings.advanced.hardwareAcceleration') }}
             <span class="coming-soon-badge">Coming soon</span>
           </h4>
-          <p class="setting-description">Toggle GPU-accelerated rendering. Currently controlled by your browser/OS — an in-app override is being wired up for the Tauri desktop builds.</p>
+          <p class="setting-description">Toggle GPU-accelerated rendering. Currently controlled by your browser/OS - an in-app override is being wired up for the Tauri desktop builds.</p>
         </div>
         <div class="setting-control">
           <ToggleSwitch
@@ -82,7 +82,7 @@
         <div class="setting-control">
           <button class="btn btn-secondary" @click="clearCache" :disabled="clearingCache">
             <span v-if="!clearingCache">{{ $t('common.clear') }} Cache</span>
-            <span v-else>Clearing…</span>
+            <span v-else>Clearing...</span>
           </button>
         </div>
       </div>

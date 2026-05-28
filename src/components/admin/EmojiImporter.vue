@@ -129,7 +129,7 @@
     <!-- Pagination -->
     <div v-if="emojiTotal > emojiPageSize" class="emoji-pagination">
       <button @click="loadPrevEmojiPage" :disabled="emojiOffset === 0" class="page-btn">Previous</button>
-      <span class="page-info">{{ emojiOffset + 1 }}–{{ Math.min(emojiOffset + emojiPageSize, emojiTotal) }} of {{ emojiTotal }}</span>
+      <span class="page-info">{{ emojiOffset + 1 }}-{{ Math.min(emojiOffset + emojiPageSize, emojiTotal) }} of {{ emojiTotal }}</span>
       <button @click="loadNextEmojiPage" :disabled="emojiOffset + emojiPageSize >= emojiTotal" class="page-btn">Next</button>
     </div>
 

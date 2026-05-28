@@ -1,4 +1,4 @@
-/** Mirrors `AudioAction` in src/types.ts — keep in sync when adding sounds. */
+/** Mirrors `AudioAction` in src/types.ts - keep in sync when adding sounds. */
 
 export type AudioActionId =
   | 'mention'

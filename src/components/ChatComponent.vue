@@ -94,7 +94,7 @@
 
     <!-- Emoji Popup for message reactions.
          EmojiPopup teleports itself to <body>, so no outer Teleport wrapper
-         needed — that avoids transform/overflow containment from virtual
+         needed - that avoids transform/overflow containment from virtual
          scroll ancestors automatically. See EmojiPopup.vue template. -->
     <EmojiPopup
       v-if="reactionEmojiOpen"
@@ -510,7 +510,7 @@
 
       /**
        * Cross-component mention insertion. UserSidebar (and any other
-       * surface that doesn't have a direct emit path into ChatComponent —
+       * surface that doesn't have a direct emit path into ChatComponent -
        * e.g. context menus living outside the chat subtree) fires
        * `harmony-insert-mention` with a `{ handle, username }` payload.
        * We just append it to the active draft, same way as the existing

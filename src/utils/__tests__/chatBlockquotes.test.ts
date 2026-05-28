@@ -25,7 +25,7 @@ describe('chatBlockquotes', () => {
       // blockquote with a zero-width content span, the cursor would
       // land at the end of the styled marker, and the next keystroke
       // would go into the marker (which is read back via the
-      // `data-prefix` attribute, ignoring any user edits) — effectively
+      // `data-prefix` attribute, ignoring any user edits) - effectively
       // dropping the character.
       expect(isSingleQuoteLine('> ')).toBe(false)
     })
@@ -51,12 +51,12 @@ describe('chatBlockquotes', () => {
       expect(isGreentextLine('> hello')).toBe(false)
     })
 
-    it('does NOT match `>>foo` (double `>` — imageboard reply syntax, not greentext)', () => {
+    it('does NOT match `>>foo` (double `>` - imageboard reply syntax, not greentext)', () => {
       expect(isGreentextLine('>>hello')).toBe(false)
       expect(isGreentextLine('>>12345')).toBe(false)
     })
 
-    it('does NOT match `>>>foo` (triple `>` — partially-typed multi-line blockquote)', () => {
+    it('does NOT match `>>>foo` (triple `>` - partially-typed multi-line blockquote)', () => {
       // Promoting `>>>foo` to greentext caused a green flash while the
       // user was typing `>>>` + ` ` + content toward a multi-line
       // blockquote. Multiple `>`s are deliberately not greentext.
@@ -77,7 +77,7 @@ describe('chatBlockquotes', () => {
 
     it('does NOT match a line that does not START with `>`', () => {
       // The `>` after the URL is not at column 0, so the line as a whole
-      // is plain text. (Discord-style URLs wrapped in `<…>` are a common
+      // is plain text. (Discord-style URLs wrapped in `<...>` are a common
       // way users sneak a `>` into the middle of a message.)
       expect(isGreentextLine('<https://example.com>check this out')).toBe(false)
       expect(isGreentextLine('hello >world')).toBe(false)
@@ -89,7 +89,7 @@ describe('chatBlockquotes', () => {
       expect(stripSingleQuotePrefix('> hello')).toBe('hello')
     })
 
-    it('leaves a bare `>` alone (not a quote — see isSingleQuoteLine)', () => {
+    it('leaves a bare `>` alone (not a quote - see isSingleQuoteLine)', () => {
       expect(stripSingleQuotePrefix('>')).toBe('>')
     })
   })
@@ -143,7 +143,7 @@ describe('chatBlockquotes', () => {
       ])
     })
 
-    it('treats a lone `>` as plain text — even with greentext enabled', () => {
+    it('treats a lone `>` as plain text - even with greentext enabled', () => {
       // Regression: the editor used to promote `>` to a blockquote the
       // moment the user typed it, which rewrote the DOM mid-keystroke and
       // stranded the cursor inside a styled zero-width content span,
@@ -163,7 +163,7 @@ describe('chatBlockquotes', () => {
       ])
     })
 
-    it('treats a lone `>>>` as plain text — even with greentext enabled', () => {
+    it('treats a lone `>>>` as plain text - even with greentext enabled', () => {
       expect(splitIntoBlockSegments('>>>', { greentext: true })).toEqual([
         { type: 'text', content: '>>>' },
       ])
@@ -178,8 +178,8 @@ describe('chatBlockquotes', () => {
     it('promotes `>` to a blockquote only once the user adds a space + content', () => {
       // The space-after-`>` plus at least one content character is the
       // user's commit signal that they meant a quote. Matches Discord's
-      // behaviour and — combined with the incomplete-marker rules above
-      // — avoids the editor-cursor-trap that prompted the fix.
+      // behaviour and - combined with the incomplete-marker rules above
+      // - avoids the editor-cursor-trap that prompted the fix.
       expect(splitIntoBlockSegments('> hi', { greentext: true })).toEqual([
         { type: 'blockquote', lines: ['hi'] },
       ])

@@ -7,7 +7,7 @@
  * ----------------------
  * Independent clean-room implementation inspired by Matrix.org's Megolm
  * design (specification: https://gitlab.matrix.org/matrix-org/olm/-/blob/master/docs/megolm.md).
- * This is NOT a port of libolm/vodozemac/matrix-js-sdk — no Matrix code or
+ * This is NOT a port of libolm/vodozemac/matrix-js-sdk - no Matrix code or
  * libraries are bundled. Crypto primitives come from the browser's WebCrypto
  * API (AES-GCM + HKDF). Licensed under AGPL-3.0 with the rest of Harmony.
  *
@@ -285,7 +285,7 @@ export class MegolmService {
     debug.log(`💾 Attempting to save session to IndexedDB... (db=${!!this.db}, key=${!!this.encryptionKey})`)
     await this.saveOutboundSession(session)
     
-    // CRITICAL: Also store as inbound session (for decrypting our own messages later)
+    // Also store as inbound session (for decrypting our own messages later)
     // This is how Matrix/Element works - all sessions are stored as inbound for lookup by sessionId
     if (this.userId) {
       await this.importInboundSession(

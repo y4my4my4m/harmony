@@ -601,7 +601,7 @@ onUnmounted(() => {
   position: relative;
 }
 
-/* Mobile styles: two rows – name on first row, description on second */
+/* Mobile styles: two rows - name on first row, description on second */
 @media (max-width: 768px) {
   .mobile-menu-btn {
     display: flex;

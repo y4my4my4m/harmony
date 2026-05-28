@@ -91,7 +91,7 @@ export function createApp(): Application {
   app.use('/realtime', realtimeRouter);
   app.use('/api/federation/realtime', realtimeRouter);
 
-  // Donation webhooks — each provider handles its own body parser internally.
+  // Donation webhooks - each provider handles its own body parser internally.
   // Ko-fi posts application/x-www-form-urlencoded which the global json
   // parser ignores.
   app.use('/webhooks', kofiWebhookRouter);

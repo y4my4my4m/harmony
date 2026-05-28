@@ -1319,7 +1319,7 @@ export const useNotificationStore = defineStore('notification', {
      * Mark mention/reply notifications matching the given post ids as read.
      * Called by the Mentions view as posts enter the rendered viewport. The
      * goal (per user request) is "only clear notifications for the mentions
-     * actually seen in view" — not blanket-clear every mention notification
+     * actually seen in view" - not blanket-clear every mention notification
      * when the page opens.
      *
      * Strategy: do an optimistic local update for whatever the in-memory
@@ -1569,7 +1569,7 @@ export const useNotificationStore = defineStore('notification', {
               debug.log('⚠️ No navigation data for notification type:', (navData as any).type)
           }
         } else {
-          // ✅ FIX: Fallback navigation for notifications without proper navData
+          // FIX: Fallback navigation for notifications without proper navData
           debug.warn('⚠️ No navigation data extracted for notification:', notification.type)
           
           // Try to provide sensible defaults based on notification type
@@ -1658,7 +1658,7 @@ export const useNotificationStore = defineStore('notification', {
     },
 
     // Helper function to get profile ID from auth user ID with caching
-    // OPTIMIZED: Uses AuthContextService for centralized caching
+    // Uses AuthContextService for centralized caching
     async getProfileId(authUserId: string): Promise<string> {
       // Return cached value if available and auth user hasn't changed
       if (this.cachedProfileId && this.cachedAuthUserId === authUserId) {

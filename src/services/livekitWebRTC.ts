@@ -886,7 +886,7 @@ export class LiveKitWebRTCService {
         // Capture options for screenshare
         const captureOptions = {
           audio: {
-            // IMPORTANT: Disable all audio processing for screenshare audio
+            // Disable all audio processing for screenshare audio
             // We want RAW audio from the shared tab/window - no normalization
             echoCancellation: false,
             noiseSuppression: false,
@@ -1706,7 +1706,7 @@ export class LiveKitWebRTCService {
               debug.log('🔊 [LiveKit] Also storing screenshare audio by userId:', userId);
             }
             
-            // IMPORTANT: Screenshare audio should bypass ALL audio processing
+            // Screenshare audio should bypass ALL audio processing
             // No echo cancellation, no noise suppression, no auto gain control
             // This gives us raw, unprocessed audio from the shared screen/tab
             audioElement.setAttribute('data-screenshare-audio', 'true');
@@ -1762,7 +1762,7 @@ export class LiveKitWebRTCService {
       }
       
       // Emit events to update UI - ALWAYS emit when we have a valid UUID
-      // IMPORTANT: Spread to create a NEW object reference so Vue's reactivity detects the change
+      // Spread to create a NEW object reference so Vue's reactivity detects the change
       if (userId) {
         debug.log('📺 [LiveKit] Emitting state change for:', userId, 'screenSharing:', state.isScreenSharing, 'videoEnabled:', state.isVideoEnabled);
         const stream = this.getUserStream(userId);
@@ -1820,7 +1820,7 @@ export class LiveKitWebRTCService {
       }
       
       // Only emit events if we have a valid UUID
-      // IMPORTANT: Spread to create a NEW object reference so Vue's reactivity detects the change
+      // Spread to create a NEW object reference so Vue's reactivity detects the change
       if (userId && state) {
         const stream = this.getUserStream(userId);
         this.emit('user-stream-changed', { userId, stream });

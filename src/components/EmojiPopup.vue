@@ -3,7 +3,7 @@
     Teleport the popup to <body> so it escapes any ancestor that creates a
     new positioning containing block. In particular:
       - `transform: translateY(...)` on a parent (e.g. .admin-module:hover)
-        traps `position: fixed` children — they position relative to the
+        traps `position: fixed` children - they position relative to the
         transformed ancestor instead of the viewport. The popup then renders
         inside the box and gets clipped by `overflow: hidden` on the module.
       - Same trap is triggered by `filter`, `perspective`, `will-change`,
@@ -929,7 +929,7 @@ function ctxRemoveFrequent() {
 
 // Lazy load emoji data when popup is mounted (user opened emoji picker)
 onMounted(async () => {
-  // ✅ Show popup immediately, load emojis in background (non-blocking)
+  // Show popup immediately, load emojis in background (non-blocking)
   // This ensures the popup opens instantly and emojis load progressively
   
   // Trigger emoji data loading in background (non-blocking)

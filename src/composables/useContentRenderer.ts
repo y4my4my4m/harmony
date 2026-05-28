@@ -429,7 +429,7 @@ export function useContentRenderer(
             const url = getEmojiUrl(emoji.url, 96);
             // `emoji.name` is user/federated-server-controlled. Inlining it
             // into attributes requires HTML-escaping, and into the previously
-            // present `onerror` JavaScript also required JS-string escaping —
+            // present `onerror` JavaScript also required JS-string escaping -
             // we now just rely on browser-native alt fallback for broken
             // images. `sanitizeFormattedHtml` (applied to this output) also
             // strips inline event handlers as defense-in-depth.

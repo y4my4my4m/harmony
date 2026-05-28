@@ -693,7 +693,7 @@ onMounted(() => {
 }
 
 /* =========================================================================
-   Modal — wider, breathable, scrollable permission list
+   Modal - wider, breathable, scrollable permission list
    ======================================================================= */
 .modal-overlay {
   position: fixed;

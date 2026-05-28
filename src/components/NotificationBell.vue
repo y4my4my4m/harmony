@@ -253,7 +253,7 @@ const togglePanel = async () => {
     closeMobileSidebars()
     document.body.style.overflow = 'hidden'
     
-    // ⚡ OPTIMIZED: Load full notification list only when panel is opened
+    // Load full notification list only when panel is opened
     if (authStore.session?.user?.id && notifications.value.length === 0) {
       debug.log('📝 Loading full notification list on panel open...')
       await notificationStore.loadFullNotificationList(authStore.session.user.id)
@@ -381,7 +381,7 @@ const handleKeydown = (event: KeyboardEvent) => {
   }
 }
 
-// ✅ CLEAN ARCHITECTURE: NotificationBell is pure reactive display component
+// CLEAN ARCHITECTURE: NotificationBell is pure reactive display component
 // BaseLayout handles ALL notification initialization - we just display current state
 onMounted(() => {
   debug.log('🔔 NotificationBell: Mounted as reactive display component')

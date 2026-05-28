@@ -165,7 +165,7 @@ export const useEmojiCacheStore = defineStore('emojiCache', {
       }
     },
 
-    // ⚡ OPTIMIZED: Initialize with selective server loading
+    // Initialize with selective server loading
     // Hydrates from IndexedDB first for instant display, then validates against network.
     async initializeSelective(priorityServerIds: string[] = [], backgroundServerIds: string[] = []) {
       if (this.isInitialized) return;

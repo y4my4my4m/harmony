@@ -29,8 +29,8 @@ const SAFE_URL_SCHEMES = new Set(['http:', 'https:', 'mailto:', 'tel:', 'blob:']
  * lets a remote user repaint or break out of the app UI even though Vue's
  * `v-html` strips inline `<script>` execution.
  *
- * `<img>` is allowed for inline emojis only — DOMPurify will still strip
- * dangerous attributes (`onerror`, `onload`, …) via `FORBID_ATTR` below.
+ * `<img>` is allowed for inline emojis only - DOMPurify will still strip
+ * dangerous attributes (`onerror`, `onload`, ...) via `FORBID_ATTR` below.
  */
 const MESSAGE_ALLOWED_TAGS = [
   'a',
@@ -75,7 +75,7 @@ const MESSAGE_ALLOWED_ATTR = [
  *
  * Use this on the FINAL HTML string immediately before passing it to
  * `v-html`. Do NOT use it on partial fragments that will later be
- * concatenated with untrusted text — concatenation after sanitization
+ * concatenated with untrusted text - concatenation after sanitization
  * re-introduces injection risk.
  */
 export function sanitizeMessageHtml(html: string): string {
@@ -120,7 +120,7 @@ export function sanitizeMessageHtml(html: string): string {
 /**
  * Sanitizer for the structural HTML built by `useContentRenderer`'s
  * `formattedHTML` (HTML-mode) path. This output is our own renderer output,
- * not raw user HTML — but it inlines user-supplied text into the markup
+ * not raw user HTML - but it inlines user-supplied text into the markup
  * (mentions, hashtags, URLs, emoji shortcodes), so a regression in any of
  * those branches could reintroduce XSS.
  *
@@ -191,7 +191,7 @@ export function sanitizeFormattedHtml(html: string): string {
 
 /**
  * Strict bio/display-name sanitizer. Same allowlist as the message
- * sanitizer but with `<a>` blocked — display names and bios should never
+ * sanitizer but with `<a>` blocked - display names and bios should never
  * contain interactive links injected by the user; if we want clickable
  * URLs there we should render them through the structured MessagePart
  * pipeline.

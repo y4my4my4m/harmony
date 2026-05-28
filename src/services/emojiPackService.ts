@@ -171,7 +171,7 @@ function savePackPreference(): void {
  *
  * The picker UI may render before `detectAvailablePacks()` has finished,
  * so we register every pack here. `detectAvailablePacks()` will then prune
- * any pack whose probe asset returns 404 — useful when an instance ships
+ * any pack whose probe asset returns 404 - useful when an instance ships
  * without an optional pack like Mutant Standard.
  */
 export function initializeEmojiPacks(): void {

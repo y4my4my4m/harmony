@@ -235,7 +235,7 @@ export class AudioThemeService {
       }
     })
 
-    // Neo Kobe — pairs with the SDR-001 visual skin (`public/assets/sounds/neokobe/`).
+    // Neo Kobe - pairs with the SDR-001 visual skin (`public/assets/sounds/neokobe/`).
     // Unmapped actions fall back to the default theme via resolveSoundPath().
     const neoKobeBase = '/assets/sounds/neokobe'
     this.registerTheme({

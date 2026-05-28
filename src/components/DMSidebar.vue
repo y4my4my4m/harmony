@@ -424,7 +424,7 @@ const getMessagePreviewText = (message: Message): string => {
   return 'Message'
 }
 
-// ⚡ OPTIMIZATION: Lazy user profile loading
+// Lazy user profile loading
 const hoveredConversations = ref(new Set<string>())
 
 const handleConversationHover = async (conversationId: string) => {
@@ -455,7 +455,7 @@ const handleConversationHover = async (conversationId: string) => {
 onMounted(async () => {
   const currentUser = getCurrentUser.value
   if (currentUser?.id) {
-    // OPTIMIZED: Don't initialize DM environment again - BaseLayout already handles it
+    // Don't initialize DM environment again - BaseLayout already handles it
     // Just wait for conversations to be available if they're being loaded
     if (dmStore.loadingConversations) {
       debug.log('⏳ DMSidebar: Waiting for DM conversations to load...')
@@ -477,7 +477,7 @@ onMounted(async () => {
     
     debug.log('✅ DMSidebar: Ready with optimized loading')
     
-    // OPTIMIZED: Don't load all user presence immediately
+    // Don't load all user presence immediately
     // User profiles and presence will be loaded on-demand when conversations are hovered
   }
 })
@@ -488,7 +488,7 @@ onUnmounted(() => {
   }
 })
 
-// OPTIMIZED: Removed automatic presence updates - now handled on-demand during hover
+// Removed automatic presence updates - now handled on-demand during hover
 </script>
 
 <style scoped>

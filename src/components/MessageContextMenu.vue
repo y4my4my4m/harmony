@@ -593,7 +593,7 @@ const copyRawData = async () => {
   min-width: 200px;
   box-shadow: 0 8px 16px rgba(0, 0, 0, 0.24);
   /* Must out-stack the mobile floating message-actions toolbar
-     (.message-actions-floating, z-index 1000) — both are portaled to
+     (.message-actions-floating, z-index 1000) - both are portaled to
      body, so DOM order alone isn't enough to guarantee we paint on top. */
   z-index: 1100;
 }

@@ -653,7 +653,7 @@ router.get(
       // Parse ActivityPub collection response
       const items = data.orderedItems || data.items || [];
       
-      // OPTIMIZATION: Deduplicate author URLs to avoid fetching the same user multiple times
+      // Deduplicate author URLs to avoid fetching the same user multiple times
       const uniqueAuthorUrls = new Set<string>();
       for (const item of items) {
         const activity = item.type === 'Create' ? item : { object: item };

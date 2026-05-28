@@ -224,7 +224,7 @@ defineEmits<{
   'back-to-timeline': []
   
   // Post interaction events. See PostsContainer for why these forward
-  // `post: TimelinePost` rather than a bare id — the upstream feed views
+  // `post: TimelinePost` rather than a bare id - the upstream feed views
   // (TimelineView/BookmarksView/MentionsView/NotificationsView) declare
   // handlers `(post: TimelinePost) => Promise<void>` and re-emit the
   // full post, so keeping the payload as a post here avoids a TS2322
@@ -237,7 +237,7 @@ defineEmits<{
   'show-user-profile': [user: any]
 
   // Visibility (used by MentionsView to clear notifications for posts the
-  // user actually scrolls past — see PostsContainer.posts-visible)
+  // user actually scrolls past - see PostsContainer.posts-visible)
   'posts-visible': [postIds: string[]]
 }>()
 

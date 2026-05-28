@@ -28,7 +28,7 @@
         </div>
         <div v-else class="provider-embed__skeleton">
           <span v-if="harmonyError">{{ harmonyError }}</span>
-          <span v-else>Loading Harmony post…</span>
+          <span v-else>Loading Harmony post...</span>
         </div>
       </template>
       <template v-else-if="isFediverse">
@@ -53,7 +53,7 @@
             <span>{{ fediverseError }}</span>
           </div>
           <div v-else class="provider-embed__skeleton">
-            <span>Loading fediverse post…</span>
+            <span>Loading fediverse post...</span>
           </div>
         </template>
         <LinkEmbedCard v-else :payload="payload" @load="handleEmbedLoad" />

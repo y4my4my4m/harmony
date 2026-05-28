@@ -183,7 +183,7 @@
                     :disabled="uploadingAvatar"
                     @click="botAvatarInput?.click()"
                   >
-                    {{ uploadingAvatar ? 'Uploading…' : 'Change Avatar' }}
+                    {{ uploadingAvatar ? 'Uploading...' : 'Change Avatar' }}
                   </button>
                   <button
                     v-if="editBotForm.avatar_url"
@@ -624,7 +624,7 @@ async function handleBotAvatarUpload(event: Event) {
 
     const { data: pub } = supabase.storage.from('avatars').getPublicUrl(path)
     editBotForm.value.avatar_url = pub.publicUrl
-    toast.success('Avatar updated — remember to save.')
+    toast.success('Avatar updated - remember to save.')
   } catch (err: any) {
     debug.error('Failed to upload bot avatar:', err)
     toast.error(err?.message || 'Failed to upload avatar.')
@@ -643,7 +643,7 @@ async function saveEditBot() {
   savingEdit.value = true
 
   try {
-    // Username is immutable here — never include it in the update payload.
+    // Username is immutable here - never include it in the update payload.
     const { error } = await supabase
       .from('bots')
       .update({

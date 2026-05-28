@@ -35,7 +35,7 @@ import { webhookLimiter } from '../../middleware/rateLimit.js';
 
 const router = Router();
 
-// Ko-fi sends application/x-www-form-urlencoded — the global express.json
+// Ko-fi sends application/x-www-form-urlencoded - the global express.json
 // parser ignores this content-type. Apply urlencoded parsing scoped to this
 // router only.
 router.use(express.urlencoded({ extended: false, limit: '64kb' }));
@@ -83,7 +83,7 @@ function extractHandle(...sources: (string | null | undefined)[]): ParsedHandle 
     HANDLE_RE.lastIndex = 0;
     let match: RegExpExecArray | null;
     while ((match = HANDLE_RE.exec(source)) !== null) {
-      // Require either an explicit @ prefix OR a domain part — otherwise
+      // Require either an explicit @ prefix OR a domain part - otherwise
       // any random word in the message would match.
       const hasAtPrefix = source[match.index] === '@';
       if (!hasAtPrefix && !match[2]) continue;
@@ -125,7 +125,7 @@ async function findUserByHandle(handle: ParsedHandle, localDomain: string): Prom
     return data ? { id: data.id, username: data.username, domain: data.domain } : null;
   }
 
-  // No domain — prefer local match.
+  // No domain - prefer local match.
   const { data: local } = await supabase
     .from('profiles')
     .select('id, username, domain')
@@ -207,7 +207,7 @@ async function recordMatchedDonation(
   const supabase = getSupabaseClient();
 
   // Step 1: ensure supporter row exists. Tier is recomputed from cumulative
-  // cycle total in step 3 — don't guess from this single donation here.
+  // cycle total in step 3 - don't guess from this single donation here.
   const { data: supporter, error: upsertErr } = await supabase
     .from('instance_supporters')
     .upsert(
@@ -255,7 +255,7 @@ async function recordMatchedDonation(
   // Step 3: recompute tier from the cumulative cycle total (now includes
   // the just-inserted row). If amount < lowest tier, tier_id becomes NULL
   // and the badge is hidden. When kofi_auto_assign_tier is off, leave the
-  // existing tier alone — admins manage it manually.
+  // existing tier alone - admins manage it manually.
   let resolvedTierId: string | null = null;
   if (cfg.kofi_auto_assign_tier) {
     resolvedTierId = await recomputeUserTier(matchedUser.id);

@@ -4,8 +4,8 @@
  * The renderer ships the `/posts/:id` HTML page served to browsers and
  * crawlers (Mastodon, Discord, Slack, Twitter, etc. when they preview a
  * Harmony post URL). The page's CSP allows `'unsafe-inline'` for both
- * scripts and styles — required for the inline auth-redirect snippet and
- * the inline `<style>` block — so anything that smuggles a `<style>` /
+ * scripts and styles - required for the inline auth-redirect snippet and
+ * the inline `<style>` block - so anything that smuggles a `<style>` /
  * `<script>` / `<img onerror>` into the rendered HTML would execute.
  *
  * These tests assert the renderer escapes user-supplied content before
@@ -51,9 +51,9 @@ function basePost(content: any) {
 /**
  * Slice the user-content island out of the rendered page. We don't want
  * to count the inline `<style>` block in <head>, the inline auth-redirect
- * `<script>`, or our own structural tags — only the part that holds
+ * `<script>`, or our own structural tags - only the part that holds
  * user-controlled data. The renderer wraps user content in
- * `<div class="content">…</div>`.
+ * `<div class="content">...</div>`.
  */
 function userContent(html: string): string {
   const m = /<div class="content">([\s\S]*?)<\/div>\s*(?:<div class="media-grid|<div class="stats-bar|<div class="meta)/i.exec(html);
@@ -159,7 +159,7 @@ function assertNoExecutableUserContent(html: string) {
   });
 }
 
-describe('renderPostPage — XSS regression', () => {
+describe('renderPostPage - XSS regression', () => {
   it('escapes <style> in a text part', () => {
     const html = renderPostPage(
       basePost([{ type: 'text', text: '<style>body{display:none}</style> hi' }]),
@@ -189,7 +189,7 @@ describe('renderPostPage — XSS regression', () => {
 
   it('escapes hostile mention username (federated source)', () => {
     // A federated MessagePart can carry an attacker-controlled
-    // `username` — we must escape both in the URL and the label.
+    // `username` - we must escape both in the URL and the label.
     const html = renderPostPage(
       basePost([
         {
@@ -235,11 +235,11 @@ describe('renderPostPage — XSS regression', () => {
     assertNoExecutableUserContent(html);
   });
 
-  it('escapes a string content fallback (defensive — DB constraint blocks this)', () => {
+  it('escapes a string content fallback (defensive - DB constraint blocks this)', () => {
     // The `posts_content_is_array` CHECK constraint makes this path
     // unreachable in production, but if a row ever slipped through with
     // string content (legacy import, migration glitch) we MUST escape
-    // it. The previous implementation returned the string verbatim —
+    // it. The previous implementation returned the string verbatim -
     // direct stored XSS.
     const html = renderPostPage(
       basePost('<style>body{display:none}</style><script>alert(1)</script>'),

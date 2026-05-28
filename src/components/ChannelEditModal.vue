@@ -94,7 +94,7 @@
 
               <!-- Permission editor (right) -->
               <section class="perm-editor">
-                <div v-if="rolesLoading" class="perm-loading">Loading roles…</div>
+                <div v-if="rolesLoading" class="perm-loading">Loading roles...</div>
                 <template v-else-if="selectedRole">
                   <header class="perm-editor-head">
                     <div class="perm-editor-title">
@@ -202,7 +202,7 @@ const TRISTATE_OPTIONS: Array<{ value: TriState; label: string; icon: string }> 
 
 // Permissions are grouped Discord-style so the modal doesn't read as one
 // flat wall of toggles. Editing OTHER people's messages is intentionally
-// not exposed here — it's owner/admin-only and lives outside the
+// not exposed here - it's owner/admin-only and lives outside the
 // channel-override surface. MANAGE_MESSAGES is delete+pin only.
 const PERMISSION_GROUPS: Array<{
   id: string
@@ -778,7 +778,7 @@ watch(() => props.show, (visible) => {
 }
 
 /* =========================================================================
-   Permissions tab — Discord-style rail + editor layout
+   Permissions tab - Discord-style rail + editor layout
    ======================================================================= */
 .perm-layout {
   display: grid;
@@ -959,7 +959,7 @@ watch(() => props.show, (visible) => {
   color: var(--text-secondary);
 }
 
-/* Tri-state allow/inherit/deny toggle — Discord-style three-button group */
+/* Tri-state allow/inherit/deny toggle - Discord-style three-button group */
 .perm-tristate {
   display: inline-flex;
   background: var(--background-primary);

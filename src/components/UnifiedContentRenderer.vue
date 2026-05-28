@@ -325,7 +325,7 @@ const handleMentionClick = (mention: MessagePart) => {
     emit('user-mention-click', mention.userId, new Event('click'));
     return;
   }
-  // Federated user we haven't resolved locally — pass the handle so the parent
+  // Federated user we haven't resolved locally - pass the handle so the parent
   // can fetch via activityPubService.getUserByHandle.
   if (mention.username) {
     const handle = mention.domain
@@ -437,7 +437,7 @@ const shouldRenderNativeEmoji = (emoji: any): boolean => {
     }
   }
   
-  // CRITICAL: If emoji has native/unicode and NO valid URL, always show native
+  // If emoji has native/unicode and NO valid URL, always show native
   // This handles the case where emoji comes from unified content parsing
   if ((emoji.native || emoji.unicode) && !emoji.url) {
     return true;
@@ -494,9 +494,9 @@ const renderTextWithMarkdown = (text: string | undefined): string => {
 
   // ESCAPE the raw user text FIRST. Every transform below operates on
   // already-escaped text, so it can safely splice in trusted tags without
-  // letting user-supplied HTML (e.g. `<style>`, `<img onerror=…>`) survive.
+  // letting user-supplied HTML (e.g. `<style>`, `<img onerror=...>`) survive.
   // The previous implementation "protected" user HTML tags from the escape
-  // pass which let arbitrary tags through verbatim — see the XSS audit issue.
+  // pass which let arbitrary tags through verbatim - see the XSS audit issue.
   let rendered = escapeHtml(text);
 
   // Now splice in our own emoji <img>/<span> markup using sources we own.

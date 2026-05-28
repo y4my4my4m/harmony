@@ -23,7 +23,7 @@ export function getAvatarUrl(avatarUrl: string | null | undefined, size: number 
     // Check if this is a Supabase storage URL for avatars
     const pathMatch = avatarUrl.match(/\/storage\/v1\/object\/public\/avatars\/(.+)$/)
     if (pathMatch) {
-      // ✅ CRITICAL: Check if this is a REMOTE URL (federated user from another instance)
+      // Check if this is a REMOTE URL (federated user from another instance)
       // If the URL domain doesn't match our local Supabase URL, it's a remote user
       // We should NOT transform it - return as-is (or add size params if not present)
       const urlObj = new URL(avatarUrl)

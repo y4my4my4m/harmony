@@ -386,7 +386,7 @@ const handleVisibilityRetry = () => {
   }
 }
 
-// ⚡ OPTIMIZED: Route-Aware App Initialization
+// Route-Aware App Initialization
 // Only loads what's needed for the current route instead of everything
 const initializeApp = async () => {
   if (initInFlight) {
@@ -415,13 +415,13 @@ const initializeApp = async () => {
     // Determine what to load based on current route
     const loadingStrategy = routeAwareInitialization.getLoadingStrategy(route)
     
-    // ✅ PERFORMANCE: Load minimum data needed to show UI, then mark as ready
+    // PERFORMANCE: Load minimum data needed to show UI, then mark as ready
     // This allows the UI to appear immediately while other data loads in background
     
     // Load user environment (servers list) - CRITICAL for navigation
     await serverChannelStore.initializeUserEnvironment(userId)
     
-    // ✅ CRITICAL: Load profile FIRST, then initialize userData with full profile data
+    // Load profile FIRST, then initialize userData with full profile data
     // This ensures avatar, color, banner, and status are all available immediately
     await profileStore.fetchProfileByAuthUserId(userId).catch(err => {
       debug.warn('⚠️ Profile fetch failed:', err)
@@ -543,7 +543,7 @@ const initializeApp = async () => {
   }
 }
 
-// 🎯 OPTIMIZED: Initialize only route-specific data and stores
+// Initialize only route-specific data and stores
 const initializeRouteSpecificData = async (userId: string, strategy: any, userData: any) => {
   try {
     if (strategy.routeType === 'server-channel') {
@@ -668,14 +668,14 @@ const initializeRouteSpecificData = async (userId: string, strategy: any, userDa
     }
     
     // BASELINE GLOBAL PRESENCE: Load users for cross-context online status
-    // OPTIMIZED: For single DM views, only load current conversation participant(s)
+    // For single DM views, only load current conversation participant(s)
     const baselineUserIds = new Set<string>()
     
     // For DM routes with a specific conversation, only load that conversation's participants initially
     const isSingleDMView = strategy.routeType === 'dm' && strategy.currentConversationId
     
     if (isSingleDMView) {
-      // OPTIMIZED: Only load current conversation participant for single DM view
+      // Only load current conversation participant for single DM view
       try {
         const { data: participants } = await supabase
           .from('conversation_participants')
@@ -842,7 +842,7 @@ watch(() => authStore.session, async (newSession, oldSession) => {
       debug.error('Failed to cleanup user data:', error)
     }
     
-    // ✅ PERFORMANCE FIX: Cleanup state persistence
+    // PERFORMANCE FIX: Cleanup state persistence
     try {
       const { statePersistence } = await import('@/services/StatePersistence')
       await statePersistence.cleanup()
@@ -872,7 +872,7 @@ watch(() => authStore.session, async (newSession, oldSession) => {
   }
 })
 
-// 🔥 CRITICAL FIX: Watch for route changes and refresh global presence
+// Watch for route changes and refresh global presence
 // This ensures users remain visible globally when navigating between different contexts
 // Debounced to prevent excessive calls during rapid navigation
 let presenceRefreshTimeout: ReturnType<typeof setTimeout> | null = null

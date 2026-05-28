@@ -929,14 +929,14 @@ export class SpatialAudioService {
     // Stop spatial update loop
     this.stopSpatialUpdates();
     
-    // IMPORTANT: Disconnect ALL spatial audio nodes to prevent hearing WET signal
+    // Disconnect ALL spatial audio nodes to prevent hearing WET signal
     // When disabled, we want ONLY the DRY signal from HTMLAudioElement
     this.spatialNodes.forEach((node, userId) => {
       try {
         debug.log(`🔇 Disconnecting spatial audio chain for user: ${userId}`);
         
         // Disconnect the entire audio chain IN REVERSE ORDER
-        // CRITICAL: Disconnect outputGain first - this cuts off audio to destination!
+        // Disconnect outputGain first - this cuts off audio to destination!
         if (node.outputGain) {
           node.outputGain.disconnect();
         }

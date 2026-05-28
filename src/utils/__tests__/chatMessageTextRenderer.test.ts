@@ -2,7 +2,7 @@
  * XSS regression tests for the chat / DM message renderer.
  *
  * Every payload below was taken verbatim from the security audit dump
- * (`messages_rows_xss_issue.json`) — the database rows that demonstrated
+ * (`messages_rows_xss_issue.json`) - the database rows that demonstrated
  * users could repaint or break the host app by stuffing `<style>`, `<img>`,
  * or `<script>` tags inside a message's `text` part. If any of these tests
  * regresses, the audited XSS is back.
@@ -32,7 +32,7 @@ const defaultOptions: ChatMessageRendererOptions = {
  * Mount the rendered HTML into a DOM and assert there is NO
  * `HTMLStyleElement`, `HTMLScriptElement`, `HTMLIFrameElement`,
  * `HTMLObjectElement`, `HTMLEmbedElement`, or `HTMLLinkElement` in the
- * resulting tree. This is the actual security invariant we care about —
+ * resulting tree. This is the actual security invariant we care about -
  * "the malicious string round-trips intact in the HTML stream but the
  * browser parses it as text". Substring matching can miss bypasses;
  * parsing the DOM cannot.
@@ -51,7 +51,7 @@ function assertNoExecutableHtml(html: string) {
       .join(', ')}`,
   ).toBe(0);
 
-  // Inline event handlers — even on otherwise-allowed tags — must be stripped.
+  // Inline event handlers - even on otherwise-allowed tags - must be stripped.
   const allElements = container.querySelectorAll('*');
   for (const el of Array.from(allElements)) {
     for (const attr of Array.from(el.attributes)) {
@@ -141,15 +141,15 @@ describe('renderChatMessageText - XSS regression suite', () => {
       '<style>.display-name{color:lime;font-size:16px;font-weight: 900;font-style: italic;}</style> All the italics',
     ],
     [
-      'raw `<test>` tag — never escaped to text in the original bug (idx 11)',
+      'raw `<test>` tag - never escaped to text in the original bug (idx 11)',
       '<test>',
     ],
     [
-      '`<img test="x">` — bare tag, no event handler but tests <img> stripping (idx 74)',
+      '`<img test="x">` - bare tag, no event handler but tests <img> stripping (idx 74)',
       '<img test="x">',
     ],
     [
-      '`<b>bold?</b>` — would have rendered as bold pre-fix (idx 68)',
+      '`<b>bold?</b>` - would have rendered as bold pre-fix (idx 68)',
       '<b>bold?</b>',
     ],
   ];
@@ -241,10 +241,10 @@ describe('renderChatMessageText - XSS regression suite', () => {
       '**bold text** <style>evil</style> *italic*',
       defaultOptions,
     );
-    // Markdown should still render…
+    // Markdown should still render...
     expect(renderedText).toContain('md-bold');
     expect(renderedText).toContain('md-italic');
-    // …but the style tag should not.
+    // ...but the style tag should not.
     const container = document.createElement('div');
     container.innerHTML = renderedText;
     expect(container.querySelectorAll('style').length).toBe(0);
@@ -255,9 +255,9 @@ describe('renderChatMessageText - XSS regression suite', () => {
       '<style>x</style>',
       defaultOptions,
     );
-    // The escaped form appears in the HTML stream …
+    // The escaped form appears in the HTML stream ...
     expect(renderedText).toContain('&lt;style&gt;');
-    // … and the rendered DOM has the angle brackets as text content, not
+    // ... and the rendered DOM has the angle brackets as text content, not
     // as a parsed element.
     const container = document.createElement('div');
     container.innerHTML = renderedText;
@@ -268,7 +268,7 @@ describe('renderChatMessageText - XSS regression suite', () => {
   it('treats backtick-escape ` style>...</style ` (the audit idx-0 case) as text', () => {
     // The original audit message described the attack as
     //   `style>body{display:block}</style`
-    // (note: NO leading `<`, no trailing `>` — the user wrapped a partial
+    // (note: NO leading `<`, no trailing `>` - the user wrapped a partial
     // tag in backticks, hoping the backtick parsing would strip the
     // backticks and the surrounding HTML would close an earlier tag).
     // Our pipeline parses backticks AFTER escaping, so the embedded `<`
@@ -282,7 +282,7 @@ describe('renderChatMessageText - XSS regression suite', () => {
 
   it('does not let DOMPurify re-introduce <style> via mXSS', () => {
     // Polyglot designed to exercise the historical DOMPurify mXSS
-    // class — the embedded tags get parsed differently depending on
+    // class - the embedded tags get parsed differently depending on
     // whether they're inside an `<svg>` or `<math>` foreign-content
     // context. Even though we don't allow `<svg>` in the message
     // allowlist, this guarantees regressions in DOMPurify's escaping

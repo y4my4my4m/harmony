@@ -44,7 +44,7 @@ export function renderMarkdownToHTML(text: string, options: RenderOptions = {}):
 
   // Defense-in-depth: this renderer escapes user text in every branch (see
   // `escapeHtml` calls in `renderTokenToHTML`), but a regression in any
-  // branch — or a parser bug emitting unescaped content — could re-introduce
+  // branch - or a parser bug emitting unescaped content - could re-introduce
   // XSS. The sanitizer is a cheap last line of defense.
   return sanitizeMessageHtml(html);
 }

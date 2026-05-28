@@ -1173,7 +1173,7 @@ export const useActivityPubStore = defineStore('activitypub', {
      * active user feeds.
      *
      * Replaces a pattern where each callsite ran `feed.posts.find(...)`
-     * 4–N times PLUS a separate per-realtime-event DB roundtrip even when
+     * 4-N times PLUS a separate per-realtime-event DB roundtrip even when
      * the post wasn't currently visible (BUGS.md PC4). Callers now check
      * the returned list - if empty, the post isn't in any UI surface and
      * an expensive server resync can be skipped entirely.
@@ -1270,7 +1270,7 @@ export const useActivityPubStore = defineStore('activitypub', {
         return;
       }
 
-      // OPTIMIZED: Use cached auth context
+      // Use cached auth context
       const context = await authContextService.getCurrentContext();
       const isCurrentUser = context.isAuthenticated && context.authUser?.id === userId;
 
@@ -1360,7 +1360,7 @@ export const useActivityPubStore = defineStore('activitypub', {
       feeds.forEach(feed => {
         const index = feed.posts.findIndex(p => p.id === post.id);
         if (index !== -1) {
-          // CRITICAL: Merge updates with existing post to preserve author and other joined data
+          // Merge updates with existing post to preserve author and other joined data
           // Realtime events don't include joined relations like author
           const existingPost = feed.posts[index];
           feed.posts[index] = {
@@ -1709,7 +1709,7 @@ export const useActivityPubStore = defineStore('activitypub', {
      */
     async refreshHomeFeedInBackground() {
       try {
-        // OPTIMIZED: Use cached auth context
+        // Use cached auth context
         const context = await authContextService.getCurrentContext();
         if (!context.isAuthenticated) return;
 
@@ -2307,7 +2307,7 @@ export const useActivityPubStore = defineStore('activitypub', {
       debug.log(`🔍 DEBUG: toggleFavorite called for post ${postId}`);
       
       try {
-        // OPTIMIZED: Use cached auth context
+        // Use cached auth context
         const authUser = await authContextService.getCurrentAuthUser();
 
         debug.log(`🔍 DEBUG: User authenticated: ${authUser.id}`);

@@ -273,7 +273,7 @@ const loadMessages = async () => {
     await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
     try {
       if (currentUser?.id) {
-        // IMPORTANT: Wait for conversation and user data to be loaded before proceeding
+        // Wait for conversation and user data to be loaded before proceeding
         // This ensures the DMHeader has user data available when it renders
         const conversation = await dmStore.initializeDMEnvironmentForDirectAccess(currentUser.id, conversationId)
         
@@ -520,7 +520,7 @@ const highlightSearchText = (messageElement: HTMLElement, query: string) => {
           if (parent && parent.nodeName !== 'MARK') {
             // Build the highlight wrapper using DOM APIs rather than
             // `innerHTML = text.replace(...)`. `textNode.textContent` is the
-            // DECODED text — if a DM contained `<style>foo</style>`, the
+            // DECODED text - if a DM contained `<style>foo</style>`, the
             // message renderer escaped it to `&lt;style&gt;foo&lt;/style&gt;`,
             // which has `<style>foo</style>` as textContent here. Assigning
             // that back via innerHTML would re-parse it as a real <style>

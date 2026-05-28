@@ -454,8 +454,8 @@ export function createUpdateActivity(profile: any): any {
 /**
  * Full HTML attribute / text escape. Covers the five characters that
  * have special meaning in HTML (`& < > " '`). Anything we splice into
- * outbound ActivityPub `content` HTML — including mention `href`,
- * displayed labels, hashtag names, and URL anchors — runs through this.
+ * outbound ActivityPub `content` HTML - including mention `href`,
+ * displayed labels, hashtag names, and URL anchors - runs through this.
  */
 function escapeHtmlAttr(str: string): string {
   return String(str ?? '')
@@ -489,9 +489,9 @@ function extractContentAsHtml(content: any): string {
   // Defensive: the DB constraint `posts_content_is_array` /
   // `messages_content_is_array` makes this path unreachable, but if a
   // raw string ever slipped through (an early migration, an unconverted
-  // federation import, …) we'd be shipping it straight to Mastodon /
+  // federation import, ...) we'd be shipping it straight to Mastodon /
   // Misskey / etc. as our outbound HTML. Receiving servers run their
-  // own sanitizers but we shouldn't rely on theirs — escape so user
+  // own sanitizers but we shouldn't rely on theirs - escape so user
   // content can never go out as live HTML markup.
   if (typeof content === 'string') {
     return escapeHtmlAttr(content);
@@ -535,7 +535,7 @@ function extractContentAsHtml(content: any): string {
       }
       else if (item.type === 'url') {
         // Scheme-validate first; only http(s)/mailto/tel get a live
-        // anchor. Anything else (`javascript:`, `data:`, …) renders as
+        // anchor. Anything else (`javascript:`, `data:`, ...) renders as
         // escaped text so a malicious payload can't propagate through
         // federation as a clickable XSS link.
         const safeUrl = safeAttrUrlOutbound(item.url || '');

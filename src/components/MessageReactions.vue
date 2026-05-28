@@ -107,7 +107,7 @@ const { triggerReaction } = useHapticSettings();
 const { recordEmojiUsage } = useFrequentEmojis();
 const { resolveEmoji } = useUnifiedEmoji();
 
-// ✅ UNIFIED ARCHITECTURE: Always use reactions store (populated by CoreMessageService)
+// UNIFIED ARCHITECTURE: Always use reactions store (populated by CoreMessageService)
 const reactions = computed(() => {
   try {
     return reactionsStore.getMessageReactions(props.message.id);
@@ -200,7 +200,7 @@ const handleAddReactionClick = (event: MouseEvent) => {
   emit('open-emoji-picker', props.message.id, event);
 };
 
-// ✅ UNIFIED ARCHITECTURE: Reactions store is pre-populated by batch loading in MessageDisplay
+// UNIFIED ARCHITECTURE: Reactions store is pre-populated by batch loading in MessageDisplay
 // Individual components should only fetch if data is missing (batch loading handles most cases)
 onMounted(() => {
   // Skip fetching for optimistic/temp messages

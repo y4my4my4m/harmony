@@ -474,7 +474,7 @@ function applySettings(settings: VisualThemeSettings) {
   // Apply glass effects preference. The setting itself uses positive
   // framing (`glassEffectsEnabled`), but the CSS hook stays
   // `data-disable-blur` because that's what the global rule in
-  // `design-system.css` keys off — internal implementation detail.
+  // `design-system.css` keys off - internal implementation detail.
   if (!settings.glassEffectsEnabled) {
     root.setAttribute('data-disable-blur', 'true')
   } else {
@@ -676,7 +676,7 @@ async function loadFromSupabase(): Promise<Partial<VisualThemeSettings> | null> 
   if (!userId) return null
   
   try {
-    // OPTIMIZATION: Check if profile is already loaded in the store
+    // Check if profile is already loaded in the store
     if (profileStore.profile?.appearance_settings) {
       debug.log('✅ Using cached appearance_settings from profile store')
       return profileStore.profile.appearance_settings as Partial<VisualThemeSettings>
