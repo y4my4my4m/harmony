@@ -1,8 +1,8 @@
 # Architecture Overview
 
-## 🏗️ System Architecture
+## System Architecture
 
-Harmony follows a modern, scalable architecture pattern with clear separation of concerns:
+Harmony separates client, state, services, and data into the layers below:
 
 ```mermaid
 graph TB
@@ -65,7 +65,7 @@ graph TB
     FEDB --> SUPABASE
 ```
 
-## 📋 Core Architectural Principles
+## Core Architectural Principles
 
 ### 1. **Layered Architecture**
 - **Presentation Layer**: Vue 3 components with TypeScript
@@ -88,7 +88,7 @@ graph TB
 - Loose coupling between domains
 - Clear interfaces and contracts
 
-## 🎯 Key Components Flow
+## Key Components Flow
 
 ### Authentication Flow
 ```mermaid
@@ -148,7 +148,7 @@ sequenceDiagram
     ActivityPubStore-->>HarmonyUser: post federated
 ```
 
-## 🗂️ Directory Structure & Responsibilities
+## Directory Structure & Responsibilities
 
 ### `/src/components/`
 Organized by feature and reusability:
@@ -202,7 +202,7 @@ Reusable composition functions:
 - **`useProfessionalPresence.ts`**: Presence system interface
 - **`useApplicationState.ts`**: App initialization state
 
-## 🔄 Data Flow Patterns
+## Data Flow Patterns
 
 ### 1. **Reactive State Pattern**
 ```typescript
@@ -240,7 +240,7 @@ supabase
   .subscribe()
 ```
 
-## 🏛️ Technology Stack
+## Technology Stack
 
 ### Frontend
 - **Vue 3**: Composition API, TypeScript support
@@ -265,7 +265,7 @@ supabase
 - **Web App Manifest**: Installation and app-like behavior
 - **IndexedDB**: Client-side caching
 
-## 🚀 Performance Considerations
+## Performance Considerations
 
 ### 1. **Lazy Loading**
 - Route-based code splitting
@@ -298,7 +298,7 @@ supabase
 - Dynamic imports for conditional features
 - Optimized asset loading
 
-## 🔐 Security Architecture
+## Security Architecture
 
 ### 1. **Authentication & Authorization**
 - JWT-based session management
@@ -315,7 +315,7 @@ supabase
 - Actor verification
 - Rate limiting and spam protection
 
-## 📈 Scalability Design
+## Scalability Design
 
 ### 1. **Horizontal Scaling**
 - Stateless service design - federation workers scale by adding containers

@@ -18,12 +18,12 @@ Added proper support for bot messages by:
    - Same changes for `reactions` table
    
 2. **Code Changes** - Already applied to `bot-gateway/src/api/BotRestAPI.ts`
-   - ✅ `sendMessage`: Use `bot_id` instead of `user_id`
-   - ✅ `getMessages`: Join with both `profiles` and `bots` tables
-   - ✅ `editMessage`: Check `bot_id` instead of `user_id`
-   - ✅ `deleteMessage`: Check `bot_id` instead of `user_id`
-   - ✅ `addReaction`: Use `bot_id` instead of `user_id`
-   - ✅ `formatMessage`: Handle both user and bot authors
+   - `sendMessage`: Use `bot_id` instead of `user_id`
+   - `getMessages`: Join with both `profiles` and `bots` tables
+   - `editMessage`: Check `bot_id` instead of `user_id`
+   - `deleteMessage`: Check `bot_id` instead of `user_id`
+   - `addReaction`: Use `bot_id` instead of `user_id`
+   - `formatMessage`: Handle both user and bot authors
 
 ## How to Apply
 

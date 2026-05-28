@@ -1,6 +1,6 @@
 # Harmony Plugin System
 
-## 🔌 Overview
+## Overview
 
 The Harmony Plugin System allows developers to create bridges, integrations, and extensions that connect Harmony to other platforms and services.
 
@@ -10,7 +10,7 @@ The Harmony Plugin System allows developers to create bridges, integrations, and
 - Follow a standard architecture pattern
 - Can be deployed separately from Harmony
 
-## 🌉 Bridge Pattern
+## Bridge Pattern
 
 The **Discord Bridge** serves as the reference implementation for all plugins.
 
@@ -49,7 +49,7 @@ The **Discord Bridge** serves as the reference implementation for all plugins.
    - Configuration management
    - Bidirectional control
 
-## 🏗️ Creating a Plugin
+## Creating a Plugin
 
 ### Step 1: Project Structure
 
@@ -166,7 +166,7 @@ channelMappings:
     bidirectional: true
 ```
 
-## 🔀 Bridge Types
+## Bridge Types
 
 ### 1. Real-time Chat Bridges
 
@@ -226,7 +226,7 @@ channelMappings:
 - Command parser
 - Action handlers
 
-## 📝 Plugin Template
+## Plugin Template
 
 ### package.json
 
@@ -288,7 +288,7 @@ await Promise.all([
 console.log('🌉 Bridge is running!')
 ```
 
-## 🛡️ Best Practices
+## Best Practices
 
 ### 1. Loop Prevention
 
@@ -370,7 +370,7 @@ async function shutdown() {
 }
 ```
 
-## 📦 Distribution
+## Distribution
 
 ### NPM Package
 
@@ -407,7 +407,7 @@ services:
     restart: unless-stopped
 ```
 
-## 🎨 UI Plugins (Future)
+## UI Plugins (Future)
 
 While current plugins are backend services, future support for UI plugins:
 
@@ -421,7 +421,7 @@ HarmonyPluginManager.register({
 })
 ```
 
-## 🔗 Existing Bridges
+## Existing Bridges
 
 ### Discord Bridge
 
@@ -464,7 +464,7 @@ Want to contribute a plugin?
 2. Add a README with setup instructions
 3. Submit a PR to the repository
 
-## 🎉 Plugin Ideas
+## Plugin Ideas
 
 - **IRC Bridge** - Connect to IRC networks
 - **Matrix Bridge** - Full Matrix federation
@@ -477,7 +477,7 @@ Want to contribute a plugin?
 - **Translation Bot** - Auto-translate messages
 - **Games Bot** - Mini-games and fun
 
-## 🤝 Contributing
+## Contributing
 
 We welcome plugin contributions!
 

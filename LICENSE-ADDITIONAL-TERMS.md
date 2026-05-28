@@ -52,7 +52,7 @@ that term shall be severed and the remainder shall remain in effect.
 ## How to comply (TL;DR)
 
 If you are running Harmony as an unmodified instance, you are already
-compliant — the attribution link is in the default UI and you have not
+compliant - the attribution link is in the default UI and you have not
 touched the trademarks.
 
 If you are forking:
@@ -61,7 +61,7 @@ If you are forking:
 2. Keep the "Powered by Harmony" link pointing to the original repo
    (you may add your own credit alongside it).
 3. Keep `COPYRIGHT`, `LICENSE`, and this file in your repository.
-4. State your changes (AGPL §5(b)) — typically a `CHANGELOG.md` entry or
+4. State your changes (AGPL §5(b)) - typically a `CHANGELOG.md` entry or
    commit history is sufficient.
 5. Make your modified source code available to your users (AGPL §13).
 

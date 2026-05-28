@@ -9,15 +9,15 @@ Cross-platform bridge connecting Discord and Harmony servers with bi-directional
 
 ## Features
 
-- ✅ Bi-directional message sync
-- ✅ User mention translation
-- ✅ Custom emoji translation (Discord emojis auto-sync to Harmony as federated emojis)
-- ✅ Attachment support
-- ✅ Reaction syncing
-- ✅ Message editing sync
-- ✅ Message deletion sync
-- ✅ Loop prevention
-- ✅ Configurable channel mappings
+- Bi-directional message sync
+- User mention translation
+- Custom emoji translation (Discord emojis auto-sync to Harmony as federated emojis)
+- Attachment support
+- Reaction syncing
+- Message editing sync
+- Message deletion sync
+- Loop prevention
+- Configurable channel mappings
 
 ## Prerequisites
 

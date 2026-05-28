@@ -21,6 +21,13 @@ src-tauri/target/
 # VitePress build output (cache is below)
 docs/.vitepress/dist/
 
+# Generated docs (npm run docs:generate-*).
+# Run docs:generate-all to (re)build before docs:dev / docs:build.
+docs/api/
+docs/components/
+docs/generated/
+docs/guide/
+
 /cypress/videos/
 /cypress/screenshots/
 

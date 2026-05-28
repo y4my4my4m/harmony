@@ -1,6 +1,6 @@
 # Bot & Encryption Settings - Where Everything Is Located
 
-## 🤖 Bot Settings - Three Different Places
+## Bot Settings - Three Different Places
 
 ### 1. **Instance Admin Panel** (For Admins Only)
 **Location:** `/admin` or Admin Panel view  
@@ -16,7 +16,7 @@
 - View bot statistics
 
 ### 2. **User Settings** (For Bot Owners)
-**Location:** `/settings` → “My Bots” tab  
+**Location:** `/settings` → "My Bots" tab  
 **Component:** `UserBotsManagement.vue` ✅  
 **Purpose:** Manage bots YOU created  
 **Who:** Any user who has created bots
@@ -42,7 +42,7 @@
 
 ---
 
-## 🔐 Encryption Settings - Two Places
+## Encryption Settings - Two Places
 
 ### 1. **Server Settings** (For Server Owners)
 **Location:** `/server/:id/settings` → Encryption tab  
@@ -57,7 +57,7 @@
 - View member coverage statistics
 
 ### 2. **User Settings** (For Users)
-**Location:** `/settings` → “Privacy & Safety” tab  
+**Location:** `/settings` → "Privacy & Safety" tab  
 **Component:** `EncryptionSettings.vue` ✅  
 **Purpose:** Set up YOUR encryption keys  
 **Who:** All users
@@ -71,7 +71,7 @@
 
 ---
 
-## 📍 Complete Navigation Map
+## Complete Navigation Map
 
 ```
 Harmony App
@@ -113,7 +113,7 @@ Harmony App
 
 ---
 
-## ✅ What I Just Fixed
+## What I Just Fixed
 
 ### 1. Server Settings - Bots Tab
 **Status:** ✅ **NOW AVAILABLE**
@@ -139,11 +139,11 @@ Users can now manage their own bots directly from settings.
 ### 4. User Settings - Encryption
 **Status:** ✅ **NOW AVAILABLE**
 
-Full E2EE setup workflow lives under “Privacy & Safety”.
+Full E2EE setup workflow lives under "Privacy & Safety".
 
 ---
 
-## 🎯 Quick Integration Guide
+## Quick Integration Guide
 
 ### To Add User Bot Management:
 
@@ -165,16 +165,16 @@ Full E2EE setup workflow lives under “Privacy & Safety”.
 
 ---
 
-## 📝 Summary
+## Summary
 
-### ✅ Working Now:
+### Working Now:
 - Server Settings → Bots tab
 - Server Settings → Encryption tab
 - User Settings → My Bots
 - User Settings → Security (Encryption)
 - Admin Panel → Bot Management
 
-### 🎯 User Flow Example:
+### User Flow Example:
 
 **Creating and Using a Bot:**
 1. User goes to User Settings → My Bots (TODO)

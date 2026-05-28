@@ -4,7 +4,7 @@ This document explains **what our current benchmark scripts actually measure**, 
 
 ---
 
-## 1. Why “can we handle 100k users?” needs a definition
+## 1. Why "can we handle 100k users?" needs a definition
 
 **Concurrent usage is not one number.** Before benchmarking, define scenarios in concrete terms:
 
@@ -22,7 +22,7 @@ This document explains **what our current benchmark scripts actually measure**, 
 - *S4 - Federation:* Inbound/outbound ActivityPub rate and Bull queue depth / worker throughput.
 - *S5 - Voice/video:* Concurrent LiveKit participants (see LiveKit docs + `scripts/benchmark-voice.sh`).
 
-Until scenarios are defined, **no single script can prove “100k users.”**
+Until scenarios are defined, **no single script can prove "100k users."**
 
 ---
 
@@ -32,10 +32,10 @@ Until scenarios are defined, **no single script can prove “100k users.”**
 
 | Mode | Behavior | Useful for |
 |------|-----------|------------|
-| **`--mode quick`** | `curl` latency probes against a few PostgREST `GET`s (+ optional federation `/health`, WebFinger, NodeInfo). | Smoke tests, regressions, “is the API up and roughly fast?” |
+| **`--mode quick`** | `curl` latency probes against a few PostgREST `GET`s (+ optional federation `/health`, WebFinger, NodeInfo). | Smoke tests, regressions, "is the API up and roughly fast?" |
 | **`--mode full`** | **k6** with many virtual users (VUs) looping **HTTP GET**s: servers, channels, messages, profiles, federation health. | **Anonymous read** throughput and latency on PostgREST + a simple federation check. |
 
-**Credentials:** Uses the **anon** key (`Authorization: Bearer <anon>` + `apikey`). That is the same **PostgreSQL `anon` role** as a logged-out app visitor-not “no auth.” Whether rows return empty or 200 with data is determined by **RLS policies**.
+**Credentials:** Uses the **anon** key (`Authorization: Bearer <anon>` + `apikey`). That is the same **PostgreSQL `anon` role** as a logged-out app visitor-not "no auth." Whether rows return empty or 200 with data is determined by **RLS policies**.
 
 **Not covered by this script:**
 
@@ -45,11 +45,11 @@ Until scenarios are defined, **no single script can prove “100k users.”**
 - **BullMQ** (jobs only appear when code paths enqueue work-plain reads do not).
 - **LiveKit** (use the voice benchmark script instead).
 
-**Implication:** A passing run means “under this synthetic **read** pattern, these endpoints behaved within thresholds.” It does **not** mean “the product supports 100k concurrent real users.”
+**Implication:** A passing run means "under this synthetic **read** pattern, these endpoints behaved within thresholds." It does **not** mean "the product supports 100k concurrent real users."
 
 ### 2.2 `scripts/benchmark-voice.sh`
 
-Wraps LiveKit’s official **`lk load-test`** CLI (see [LiveKit benchmarking](https://docs.livekit.io/transport/self-hosting/benchmark/)). Tests **media SFU** capacity (audio/video publishers and subscribers), not the Harmony app server or database.
+Wraps LiveKit's official **`lk load-test`** CLI (see [LiveKit benchmarking](https://docs.livekit.io/transport/self-hosting/benchmark/)). Tests **media SFU** capacity (audio/video publishers and subscribers), not the Harmony app server or database.
 
 **Also see:** `webrtc/TESTING.md`.
 
@@ -63,7 +63,7 @@ Uses browser-oriented SDK patterns; **not** suitable as a headless Node load gen
 
 - **k6 VU** = one concurrent loop executing your script (HTTP/WebSocket steps + think time).
 - **100 VUs** with a short sleep can generate **more requests per second** than 100 casual humans-or fewer, depending on sleeps and scenario.
-- **100k concurrent “users”** in production usually implies **100k long-lived connections** (especially Realtime), **regional distribution**, and **horizontal scaling**. That requires **distributed load generators** and infra limits (file descriptors, connection counts, pooler mode, etc.), not a single laptop.
+- **100k concurrent "users"** in production usually implies **100k long-lived connections** (especially Realtime), **regional distribution**, and **horizontal scaling**. That requires **distributed load generators** and infra limits (file descriptors, connection counts, pooler mode, etc.), not a single laptop.
 
 ---
 
@@ -96,11 +96,11 @@ Use a **layered** approach: prove each tier, then combine representative **mix s
 1. **Anon reads** - current `benchmark-api.sh` (optional: tune k6 thresholds to match your SLOs; high concurrency often exceeds naive p95 targets).
 2. **Authenticated reads/writes** - extend k6 to use **`SUPABASE_USER_JWT`** (or per-VU tokens) so RLS matches real users.
 3. **Write scenarios** - rate-limited inserts to a **dedicated test channel** or via RPC; measure latency, errors, and **side effects** (triggers, notifications, federation).
-4. **Service role** - only in isolated envs; never in client-facing benchmarks; documents “upper bound” of DB/PostgREST, not user security.
+4. **Service role** - only in isolated envs; never in client-facing benchmarks; documents "upper bound" of DB/PostgREST, not user security.
 
 ### Phase D - Layer 2: Realtime (WebSockets)
 
-1. Use **k6 WebSocket** (or Supabase’s documented approaches) to open **long-lived** connections.
+1. Use **k6 WebSocket** (or Supabase's documented approaches) to open **long-lived** connections.
 2. Subscribe to realistic topics: `postgres_changes` on messages, broadcast channels, presence if applicable.
 3. Measure **connection success rate**, **reconnect storms**, **message latency**, and **server resource usage** under N concurrent sockets.
 4. Scale with **distributed k6** (multiple agents) when approaching thousands+ of connections.
@@ -116,7 +116,7 @@ Use a **layered** approach: prove each tier, then combine representative **mix s
 1. Use **`lk load-test`** via `scripts/benchmark-voice.sh`.
 2. Run the load generator on **separate** machines from the SFU when possible; raise `ulimit -n` only when simulating very many participants on the generator host.
 
-### Phase G - Mix scenarios (“soak” and “peak”)
+### Phase G - Mix scenarios ("soak" and "peak")
 
 1. **Peak:** short burst combining REST + Realtime + a slice of writes.
 2. **Soak:** moderate load for hours/days to find leaks, connection churn issues, and slow disk growth.
@@ -125,7 +125,7 @@ Use a **layered** approach: prove each tier, then combine representative **mix s
 ### Phase H - Reporting
 
 1. Store **k6 summary** + **Grafana/dashboard screenshots** + **git SHA** + **env spec**.
-2. Record **pass/fail against SLOs**, not just “no errors.”
+2. Record **pass/fail against SLOs**, not just "no errors."
 3. Re-run on **release candidates** or after schema/migration changes that touch hot paths.
 
 ---
@@ -152,8 +152,8 @@ Environment variables are documented in `./scripts/benchmark-api.sh --help` and 
 | Question | Answer |
 |----------|--------|
 | Does `benchmark-api.sh` simulate 100k real users? | **No.** It stresses a **subset of anonymous HTTP reads** (and optional federation health). |
-| Is it useless? | **No** - it’s useful for **smoke tests** and **read-heavy PostgREST** regression checks. |
-| What’s needed for “professional” capacity confidence? | **Defined scenarios**, **layered tests** (HTTP + Realtime + writes + queues + LiveKit), **observability**, **staging**, and often **distributed** load generation for very large N. |
+| Is it useless? | **No** - it's useful for **smoke tests** and **read-heavy PostgREST** regression checks. |
+| What's needed for "professional" capacity confidence? | **Defined scenarios**, **layered tests** (HTTP + Realtime + writes + queues + LiveKit), **observability**, **staging**, and often **distributed** load generation for very large N. |
 
 ---
 

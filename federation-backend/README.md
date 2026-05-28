@@ -5,10 +5,10 @@
 ## Purpose
 
 This backend handles ONLY ActivityPub federation. It does NOT handle:
-- ❌ Creating messages (frontend → Supabase)
-- ❌ Creating posts (frontend → Supabase)
-- ❌ User authentication (Supabase handles this)
-- ❌ CRUD operations (frontend → Supabase)
+- Creating messages (frontend → Supabase)
+- Creating posts (frontend → Supabase)
+- User authentication (Supabase handles this)
+- CRUD operations (frontend → Supabase)
 
 ## What It DOES Handle
 

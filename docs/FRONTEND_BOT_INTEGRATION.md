@@ -1,6 +1,6 @@
 # Frontend Bot Integration Guide
 
-## 🎯 Overview
+## Overview
 
 There are **TWO** ways to interact with bots in the frontend:
 
@@ -126,7 +126,7 @@ Server owners can now:
 
 ---
 
-## 📝 Complete Integration Checklist
+## Complete Integration Checklist
 
 ### Admin Panel Integration
 
@@ -162,7 +162,7 @@ Server owners can now:
 
 ---
 
-## 🎬 User Flow Examples
+## User Flow Examples
 
 ### Example 1: Admin Creates a Moderation Bot
 
@@ -214,7 +214,7 @@ Server owners can now:
 
 ---
 
-## 🔑 Key Components
+## Key Components
 
 ### Components Created
 
@@ -236,7 +236,7 @@ Server owners can now:
 
 ---
 
-## 🎨 UI/UX Notes
+## UI/UX Notes
 
 ### Admin Panel
 - **Location**: `/admin` or Admin Panel view
@@ -252,7 +252,7 @@ Server owners can now:
 
 ---
 
-## 🧪 Testing
+## Testing
 
 ### Test Admin Bot Creation
 
@@ -283,7 +283,7 @@ Server owners can now:
 
 ---
 
-## 🔗 Database Queries Used
+## Database Queries Used
 
 ### Load Available Bots
 ```sql
@@ -315,7 +315,7 @@ CALL add_bot_to_server(
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Minimum Integration (5 minutes)
 
@@ -338,7 +338,7 @@ CALL add_bot_to_server(
 
 ---
 
-## 📚 Related Documentation
+## Related Documentation
 
 - [Bot API Reference](./BOT_API.md)
 - [Plugin System](./PLUGIN_SYSTEM.md)

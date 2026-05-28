@@ -1,10 +1,10 @@
 # Harmony Bot Plugins
 
-## 🎉 Welcome!
+## Welcome!
 
 This directory contains official and community-created bot plugins for Harmony.
 
-## 📁 Directory Structure
+## Directory Structure
 
 ```
 bot-plugins/
@@ -14,7 +14,7 @@ bot-plugins/
 └── examples/            # Example bots
 ```
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Using an Existing Plugin
 
@@ -51,7 +51,7 @@ cd my-bridge/
 
 3. Read [Plugin System Guide](../docs/PLUGIN_SYSTEM.md)
 
-## 📦 Official Plugins
+## Official Plugins
 
 ### Discord Bridge
 
@@ -70,7 +70,7 @@ Cross-platform bridge connecting Discord and Harmony servers.
 
 **Documentation:** [Discord Bridge README](discord-bridge/README.md)
 
-## 🌟 Community Plugins
+## Community Plugins
 
 ### How to Contribute
 
@@ -81,42 +81,42 @@ Cross-platform bridge connecting Discord and Harmony servers.
 
 ### Submission Requirements
 
-- ✅ Complete README with setup instructions
-- ✅ Example configuration file
-- ✅ Error handling and logging
-- ✅ Graceful shutdown
-- ✅ TypeScript or well-typed JavaScript
-- ✅ No hardcoded credentials
-- ✅ License file (must be compatible with how you distribute the plugin; Harmony core is **AGPL-3.0**)
+- Complete README with setup instructions
+- Example configuration file
+- Error handling and logging
+- Graceful shutdown
+- TypeScript or well-typed JavaScript
+- No hardcoded credentials
+- License file (must be compatible with how you distribute the plugin; Harmony core is **AGPL-3.0**)
 
-## 📖 Documentation
+## Documentation
 
 - [Plugin System Guide](../docs/PLUGIN_SYSTEM.md) - Architecture and patterns
 - [Bot API Reference](../docs/BOT_API.md) - API documentation
 - [E2EE Implementation](../docs/E2EE_IMPLEMENTATION.md) - Encryption details
 
-## 🔗 Resources
+## Resources
 
 - **Harmony Bot API:** http://localhost:3001/api/v1
 - **WebSocket Gateway:** ws://localhost:3001/gateway
 - **Documentation:** https://docs.harmonyapp.dev
 
-## 💡 Plugin Ideas
+## Plugin Ideas
 
 Looking for inspiration? Try building:
 
-- 🔔 **RSS Feed Bot** - Post updates from RSS feeds
-- 🐙 **GitHub Bot** - Repository notifications
-- 📊 **Stats Bot** - Server analytics and insights
-- 🎮 **Game Bot** - Mini-games and entertainment
-- 🌐 **Translation Bot** - Auto-translate messages
-- 🎵 **Music Bot** - Voice channel music player
-- 🛡️ **Moderation Bot** - Advanced auto-moderation
-- 📺 **Twitch Bot** - Stream notifications
-- 🔍 **Search Bot** - Advanced message search
-- 🤖 **AI Bot** - ChatGPT integration
+- **RSS Feed Bot** - Post updates from RSS feeds
+- **GitHub Bot** - Repository notifications
+- **Stats Bot** - Server analytics and insights
+- **Game Bot** - Mini-games and entertainment
+- **Translation Bot** - Auto-translate messages
+- **Music Bot** - Voice channel music player
+- **Moderation Bot** - Advanced auto-moderation
+- **Twitch Bot** - Stream notifications
+- **Search Bot** - Advanced message search
+- **AI Bot** - ChatGPT integration
 
-## 🧪 Testing
+## Testing
 
 ### Local Testing Setup
 
@@ -151,7 +151,7 @@ npm run dev
 - [ ] Logs are helpful
 - [ ] No sensitive data in logs
 
-## 🐛 Debugging
+## Debugging
 
 ### Enable Debug Logging
 
@@ -183,7 +183,7 @@ process.env.DEBUG = 'harmony:*'
 - Verify gateway URL in config
 - Check firewall/network settings
 
-## 📞 Support
+## Support
 
 ### Getting Help
 
@@ -200,7 +200,7 @@ Include:
 - Steps to reproduce
 - Configuration (without tokens!)
 
-## 🏆 Featured Plugins
+## Featured Plugins
 
 Have a great plugin? We'll feature it here!
 
@@ -210,7 +210,7 @@ Submit via PR with:
 - Example configuration
 - Demo video/screenshots (optional)
 
-## 📄 License
+## License
 
 Each plugin may document its own terms. The Discord bridge in this repo follows the root **AGPL-3.0** `LICENSE`.
 

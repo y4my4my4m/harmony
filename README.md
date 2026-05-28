@@ -1,4 +1,4 @@
-# 🐻‍❄️ Harmony
+# Harmony
 
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](LICENSE)
 [![CI](https://github.com/y4my4my4m/harmony/actions/workflows/ci.yml/badge.svg)](https://github.com/y4my4my4m/harmony/actions/workflows/ci.yml)
@@ -63,16 +63,16 @@ App: http://localhost:5173 - With federation running, health is http://localhost
 
 - Real-time chat: join the canonical instance at <https://har.mony.lol>
 - Bugs / features: [GitHub Issues](https://github.com/y4my4my4m/harmony/issues)
-- Security vulns: see [SECURITY.md](SECURITY.md) — please do not file public issues
+- Security vulns: see [SECURITY.md](SECURITY.md) - please do not file public issues
 
 ## License
 
-[GNU Affero General Public License v3.0](https://www.gnu.org/licenses/agpl-3.0.html) **with additional terms** under AGPL §7 (attribution + trademark) — see:
+[GNU Affero General Public License v3.0](https://www.gnu.org/licenses/agpl-3.0.html) **with additional terms** under AGPL §7 (attribution + trademark) - see:
 
-- [`LICENSE`](LICENSE) — AGPL v3 text
-- [`LICENSE-ADDITIONAL-TERMS.md`](LICENSE-ADDITIONAL-TERMS.md) — required attribution
-- [`COPYRIGHT`](COPYRIGHT) — copyright statement and bundled-asset notices
-- [`TRADEMARK.md`](TRADEMARK.md) — name and logo policy
+- [`LICENSE`](LICENSE) - AGPL v3 text
+- [`LICENSE-ADDITIONAL-TERMS.md`](LICENSE-ADDITIONAL-TERMS.md) - required attribution
+- [`COPYRIGHT`](COPYRIGHT) - copyright statement and bundled-asset notices
+- [`TRADEMARK.md`](TRADEMARK.md) - name and logo policy
 
 You are free to fork, modify, and self-host. Forks must rename and keep the
 "Powered by Harmony" link to the original repository visible. See

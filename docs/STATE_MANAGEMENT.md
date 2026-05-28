@@ -1,10 +1,10 @@
 # State Management Documentation
 
-## 📋 Overview
+## Overview
 
 Harmony uses Pinia for state management, providing a modern, TypeScript-friendly approach to managing application state. The state is organized by domain boundaries with clear separation of concerns.
 
-## 🏗️ Store Architecture
+## Store Architecture
 
 ```mermaid
 graph TB
@@ -54,7 +54,7 @@ graph TB
     THEME --> PERSISTENCE
 ```
 
-## 🗂️ Store Definitions
+## Store Definitions
 
 ### Authentication Stores
 
@@ -299,7 +299,7 @@ interface NotificationActions {
 }
 ```
 
-## 🔄 State Flow Patterns
+## State Flow Patterns
 
 ### 1. Action → Mutation → State Update
 
@@ -361,7 +361,7 @@ export const useServerChannelStore = defineStore('serverChannel', () => {
 })
 ```
 
-## 🗄️ Data Persistence
+## Data Persistence
 
 ### State Persistence Service
 
@@ -398,7 +398,7 @@ const messageCache = new Map<string, {
 }>()
 ```
 
-## 🚀 Performance Optimizations
+## Performance Optimizations
 
 ### 1. Computed Properties for Derived State
 
@@ -437,7 +437,7 @@ const chatStore = useChatStore()
 await chatStore.initializeChatEnvironment()
 ```
 
-## 🧪 Testing Stores
+## Testing Stores
 
 ### Unit Testing with Pinia Testing
 
@@ -485,7 +485,7 @@ describe('Store Integration', () => {
 })
 ```
 
-## 📊 State Debugging
+## State Debugging
 
 ### Vue DevTools Integration
 
@@ -515,7 +515,7 @@ if (import.meta.env.DEV) {
 }
 ```
 
-## 🔐 Security Considerations
+## Security Considerations
 
 ### 1. Sensitive Data Handling
 
