@@ -13,6 +13,10 @@ vi.mock('@/stores/useActivityPub', () => ({
     fetchBlockedUsers: vi.fn(),
     fetchMutedUsers: vi.fn(),
     loadBlockingData: vi.fn(),
+    initialize: vi.fn().mockResolvedValue(undefined),
+    cleanupRealtimeSubscriptions: vi.fn(),
+    clearTimelineCache: vi.fn(),
+    resetUserRelationshipState: vi.fn(),
   })),
 }))
 vi.mock('@/utils/userScopedStorage', () => ({

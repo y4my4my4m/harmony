@@ -257,11 +257,7 @@ const getProfileUrl = (handle: string) => {
 };
 
 
-const postsCount = computed(() => {
-  return activityPubStore.homeFeed.posts.filter(post => 
-    post.author_id === currentUser.value?.id
-  ).length;
-});
+const postsCount = computed(() => (currentUser.value as any)?.posts_count ?? 0);
 
 const navigationItems = computed(() => [
   { id: 'explore', label: t('activitypub.explore'), path: '/explore', icon: 'compass' },
@@ -302,6 +298,9 @@ const refreshStats = async () => {
   refreshingStats.value = true;
   try {
     await activityPubStore.initialize();
+    if (authStore.session?.user?.id) {
+      await profileStore.fetchProfileByAuthUserId(authStore.session.user.id);
+    }
   } catch (e) {
     debug.error('Failed to refresh stats:', e);
   } finally {

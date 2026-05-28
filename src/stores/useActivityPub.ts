@@ -13,7 +13,6 @@ import { usePostReactionsStore } from '@/stores/postReactions';
 import { debug } from '@/utils/debug';
 import { userStorage } from '@/utils/userScopedStorage';
 import { userDataService } from '@/services/userDataService';
-import { fundingService } from '@/services/FundingService';
 import { fetchedReactionsThisSession } from '@/composables/useRemotePostSync';
 // InteractionService removed - using direct database operations
 import type { 
@@ -82,7 +81,7 @@ interface ActivityPubState {
   // Count tracking for realtime updates
   followingCount: number;
   followersCount: number;
-  
+
   // Instance state
   knownInstances: any[];
   blockedInstances: Set<string>;
@@ -147,15 +146,6 @@ interface ActivityPubState {
   // Cache flags for preventing duplicate queries
   followsLoaded: boolean;
   followCountsLoaded: boolean;
-
-  /** True after `initialize()` has loaded follows + registered realtime handlers. */
-  _activityPubInitialized: boolean;
-
-  /**
-   * While true, MonyPost must not fire per-post fetch-reactions — the feed
-   * loader is batching remote reactions for the whole timeline.
-   */
-  deferPerPostRemoteReactions: boolean;
 }
 
 export const useActivityPubStore = defineStore('activitypub', {
@@ -190,6 +180,7 @@ export const useActivityPubStore = defineStore('activitypub', {
     // Count tracking
     followingCount: 0,
     followersCount: 0,
+
     
     // Instance state
     knownInstances: [],
@@ -260,8 +251,6 @@ export const useActivityPubStore = defineStore('activitypub', {
     // Cache flags for preventing duplicate queries
     followsLoaded: false,
     followCountsLoaded: false,
-    _activityPubInitialized: false,
-    deferPerPostRemoteReactions: false,
   }),
 
   getters: {
@@ -390,62 +379,33 @@ export const useActivityPubStore = defineStore('activitypub', {
     },
     
     /**
-     * Initialize the ActivityPub store with enhanced realtime
+     * Initialize the ActivityPub store. Idempotent: safe to call after
+     * session restore, after manual refresh, or repeatedly during dev HMR.
+     * Resolves profileId via authContextService, so does NOT depend on
+     * userDataService being initialized.
      */
     async initialize() {
       try {
-        if (this._activityPubInitialized) {
-          await this.ensureRealtimeSubscriptions();
+        let profileId: string;
+        try {
+          profileId = await authContextService.getCurrentProfileId();
+        } catch {
+          debug.warn('⚠️ ActivityPub initialize: no profile id (not authenticated)');
           return;
         }
 
-        debug.log('🌐 Initializing ActivityPub store...');
-
+        debug.log('🌐 Initializing ActivityPub store for profile', profileId);
+        await this.loadBlockingData();
         await Promise.all([
-          this.loadFollowedUsers(),
-          this.loadBlockingData(),
-          this.loadFollowCounts(),
+          this.loadFollowCounts(true, profileId),
+          this.loadFollowedUsers(true, profileId),
+          this.setupRealtimeSubscriptions(profileId),
         ]);
-
-        await this.ensureRealtimeSubscriptions();
-        this._activityPubInitialized = true;
-
-        debug.log('✅ ActivityPub store initialized successfully');
         debug.log(`📊 Relationships loaded: ${this.followedUsers.size} following, ${this.blockedUsers.size} blocked, ${this.mutedUsers.size} muted`);
       } catch (error) {
         debug.error('❌ Failed to initialize ActivityPub store:', error);
         throw error;
       }
-    },
-
-    async resolveCurrentProfileId(): Promise<string | null> {
-      const fromUserData = userDataService.getCurrentUser()?.id;
-      if (fromUserData) return fromUserData;
-      try {
-        return await authContextService.getCurrentProfileId();
-      } catch {
-        return null;
-      }
-    },
-
-    /**
-     * Wire `user:{id}` broadcast handlers. Safe to call multiple times — reuses
-     * handlers when already registered and only reconnects the channel.
-     */
-    async ensureRealtimeSubscriptions() {
-      const profileId = await this.resolveCurrentProfileId();
-      if (!profileId) {
-        debug.warn('⚠️ ensureRealtimeSubscriptions: no profile id yet (userData/auth not ready)');
-        return;
-      }
-
-      if (this._broadcastUnsubs.length > 0) {
-        const { userEventChannel } = await import('@/services/UserEventChannel');
-        userEventChannel.connect(profileId);
-        return;
-      }
-
-      await this.setupEnhancedRealtimeSubscriptions();
     },
 
     /**
@@ -646,7 +606,6 @@ export const useActivityPubStore = defineStore('activitypub', {
       this.blockedInstances.clear();
       this.followsLoaded = false;
       this.followCountsLoaded = false;
-      this._activityPubInitialized = false;
       this.followingCount = 0;
       this.followersCount = 0;
 
@@ -715,32 +674,30 @@ export const useActivityPubStore = defineStore('activitypub', {
      * Load follow counts for the current user
      * OPTIMIZED: Only loads if not already loaded to prevent duplicate queries
      */
-    async loadFollowCounts(force = false) {
-      // Skip if already loaded unless forced
-      if (this.followCountsLoaded && !force) {
-        debug.log('📊 Follow counts already loaded, skipping');
-        return;
-      }
+    async loadFollowCounts(force = false, profileIdOverride?: string) {
+      if (this.followCountsLoaded && !force) return;
 
       try {
-        // Get current user PROFILE ID (not auth.uid!)
-        const { userDataService } = await import('@/services/userDataService');
-        const currentUser = userDataService.getCurrentUser();
-        if (!currentUser?.id) return;
+        const profileId = profileIdOverride
+          ?? userDataService.getCurrentUser()?.id
+          ?? await authContextService.getCurrentProfileId().catch(() => null);
+        if (!profileId) {
+          debug.warn('📊 loadFollowCounts: profile id not ready yet');
+          return;
+        }
 
-        // Get following count
-        const { count: followingCount } = await supabase
-          .from('follows')
-          .select('*', { count: 'exact', head: true })
-          .eq('follower_id', currentUser.id)
-          .eq('status', 'accepted');
-
-        // Get followers count
-        const { count: followersCount } = await supabase
-          .from('follows')
-          .select('*', { count: 'exact', head: true })
-          .eq('following_id', currentUser.id)
-          .eq('status', 'accepted');
+        const [{ count: followingCount }, { count: followersCount }] = await Promise.all([
+          supabase
+            .from('follows')
+            .select('*', { count: 'exact', head: true })
+            .eq('follower_id', profileId)
+            .eq('status', 'accepted'),
+          supabase
+            .from('follows')
+            .select('*', { count: 'exact', head: true })
+            .eq('following_id', profileId)
+            .eq('status', 'accepted'),
+        ]);
 
         this.followingCount = followingCount || 0;
         this.followersCount = followersCount || 0;
@@ -753,21 +710,21 @@ export const useActivityPubStore = defineStore('activitypub', {
     },
 
 
-    /**
-     * Setup enhanced realtime subscriptions for ActivityPub.
-     * Uses the consolidated user:{id} broadcast channel instead of
-     * three separate global CDC subscriptions.
-     */
-    async setupEnhancedRealtimeSubscriptions() {
-      const isAuthenticated = await authContextService.isAuthenticated();
-      if (!isAuthenticated) return;
-
-      this.cleanupRealtimeSubscriptions();
+    async setupRealtimeSubscriptions(profileIdOverride?: string) {
+      const profileId = profileIdOverride
+        ?? userDataService.getCurrentUser()?.id
+        ?? await authContextService.getCurrentProfileId().catch(() => null);
+      if (!profileId) {
+        debug.warn('⚠️ setupRealtimeSubscriptions: no profile id — skipping');
+        return;
+      }
 
       const { userEventChannel } = await import('@/services/UserEventChannel');
-      const profileId = await this.resolveCurrentProfileId();
-      if (!profileId) {
-        debug.warn('⚠️ setupEnhancedRealtimeSubscriptions: no profile id — skipping');
+
+      // Idempotent: if handlers are already registered, just reconnect the
+      // channel (handles profile id change too).
+      if (this._broadcastUnsubs.length > 0) {
+        userEventChannel.connect(profileId);
         return;
       }
 
@@ -856,8 +813,28 @@ export const useActivityPubStore = defineStore('activitypub', {
         }
       }));
 
+      unsubs.push(userEventChannel.on('post:embeds_ready', (data) => {
+        if (data.post_id) {
+          this.handlePostEmbedsReady(data.post_id);
+        }
+      }));
+
       this._broadcastUnsubs = unsubs;
       debug.log('🔔 ActivityPub realtime established via user:{id} broadcast');
+    },
+
+    async handlePostEmbedsReady(postId: string) {
+      try {
+        const { data, error } = await supabase
+          .from('posts')
+          .select('metadata')
+          .eq('id', postId)
+          .single();
+        if (error || !data) return;
+        this.updatePostFieldInAllFeeds(postId, 'metadata', data.metadata);
+      } catch (error) {
+        debug.warn('handlePostEmbedsReady failed:', error);
+      }
     },
 
 
@@ -1526,7 +1503,13 @@ export const useActivityPubStore = defineStore('activitypub', {
       debug.log('🧹 Realtime subscriptions cleaned up');
     },
 
-    collectTimelineAuthorIds(posts: TimelinePost[]): string[] {
+    /**
+     * One batched profile fetch keeps DisplayName from firing N per-post
+     * profile RPCs as the virtualizer mounts MonyPost rows. Supporter
+     * badges are now embedded in the post.author payload from the
+     * timeline query, so no badge prefetch is needed.
+     */
+    async ensureAuthorProfilesCached(posts: TimelinePost[]) {
       const authorIds = new Set<string>();
       for (const post of posts) {
         if (post.author_id) authorIds.add(post.author_id);
@@ -1534,24 +1517,8 @@ export const useActivityPubStore = defineStore('activitypub', {
         if ((post as any).reblog_author_id) authorIds.add((post as any).reblog_author_id);
         if (post.reblog?.author_id) authorIds.add(post.reblog.author_id);
       }
-      return Array.from(authorIds);
-    },
-
-    /**
-     * Batch-load author profiles + supporter badges before MonyPost mounts,
-     * so DisplayName / SupporterBadge do not each fire their own queries.
-     */
-    async prefetchTimelineAuthors(posts: TimelinePost[]) {
-      const authorIds = this.collectTimelineAuthorIds(posts);
-      if (authorIds.length === 0) return;
-      await Promise.all([
-        userDataService.ensureUsersLoaded(authorIds),
-        fundingService.prefetchBadges(authorIds),
-      ]);
-    },
-
-    ensureAuthorProfilesCached(posts: TimelinePost[]) {
-      void this.prefetchTimelineAuthors(posts);
+      if (authorIds.size === 0) return;
+      await userDataService.ensureUsersLoaded(Array.from(authorIds));
     },
 
     /**
@@ -1616,19 +1583,6 @@ export const useActivityPubStore = defineStore('activitypub', {
       } catch (error) {
         debug.error('Failed to batch fetch reblog interactions:', error);
         return posts;
-      }
-    },
-
-    /**
-     * Batch-fetch remote reactions for all remote posts in a single request,
-     * preventing the N+1 per-post fetch-reactions calls.
-     */
-    async withTimelineReactionBatch<T>(work: () => Promise<T>): Promise<T> {
-      this.deferPerPostRemoteReactions = true;
-      try {
-        return await work();
-      } finally {
-        this.deferPerPostRemoteReactions = false;
       }
     },
 
@@ -1716,49 +1670,45 @@ export const useActivityPubStore = defineStore('activitypub', {
         const hasCachedPosts = this.loadTimelineFromCache();
         if (hasCachedPosts) {
           debug.log('📋 Showing cached timeline, fetching fresh in background...');
-          this.deferPerPostRemoteReactions = true;
-          void this.prefetchTimelineAuthors(this.homeFeed.posts);
-          void this.refreshHomeFeedInBackground().finally(() => {
-            this.deferPerPostRemoteReactions = false;
-          });
+          void this.ensureAuthorProfilesCached(this.homeFeed.posts);
+          void this.refreshHomeFeedInBackground();
           return;
         }
       }
-      
+
       this.isLoadingFeed = true;
       try {
-        await this.withTimelineReactionBatch(async () => {
-          const authUser = await authContextService.getCurrentAuthUser();
+        const authUser = await authContextService.getCurrentAuthUser();
 
-          const { posts, fullPage } = await activityPubService.getUserTimeline(
-            authUser.id,
-            'home',
-            { limit: 20, before }
-          );
+        const { posts, fullPage } = await activityPubService.getUserTimeline(
+          authUser.id,
+          'home',
+          { limit: 20, before }
+        );
 
-          if (posts.length > 0) {
-            const postReactionsStore = usePostReactionsStore();
-            const postIds = posts.map((p) => p.id);
-            debug.log(`🔄 Batch loading reactions for ${postIds.length} home timeline posts`);
-            await postReactionsStore.fetchMultiplePostReactions(postIds, true);
-          }
+        if (posts.length > 0) {
+          const postReactionsStore = usePostReactionsStore();
+          const postIds = posts.map((p) => p.id);
+          await postReactionsStore.fetchMultiplePostReactions(postIds, true);
+        }
 
-          const processedPosts = await this.batchFetchReblogInteractions(posts);
-          await this.prefetchTimelineAuthors(processedPosts);
-          await this.batchFetchRemoteReactions(processedPosts);
+        const processedPosts = await this.batchFetchReblogInteractions(posts);
+        await Promise.all([
+          this.ensureAuthorProfilesCached(processedPosts),
+          this.batchFetchRemoteReactions(processedPosts),
+        ]);
 
-          if (before) {
-            this.homeFeed.posts.push(...processedPosts);
-          } else {
-            this.homeFeed.posts = processedPosts;
-            this.unreadCount = 0;
-            this.saveTimelineToCache();
-          }
+        if (before) {
+          this.homeFeed.posts.push(...processedPosts);
+        } else {
+          this.homeFeed.posts = processedPosts;
+          this.unreadCount = 0;
+          this.saveTimelineToCache();
+        }
 
-          this.homeFeed.has_more = fullPage;
-          this.homeFeed.cursor = posts[posts.length - 1]?.created_at;
-          this.hasEverLoadedTimeline = true;
-        });
+        this.homeFeed.has_more = fullPage;
+        this.homeFeed.cursor = posts[posts.length - 1]?.created_at;
+        this.hasEverLoadedTimeline = true;
       } catch (error) {
         debug.error('Failed to load home feed:', error);
       } finally {
@@ -1771,36 +1721,35 @@ export const useActivityPubStore = defineStore('activitypub', {
      */
     async refreshHomeFeedInBackground() {
       try {
-        await this.withTimelineReactionBatch(async () => {
-          const context = await authContextService.getCurrentContext();
-          if (!context.isAuthenticated) return;
+        const context = await authContextService.getCurrentContext();
+        if (!context.isAuthenticated) return;
 
-          const { posts, fullPage } = await activityPubService.getUserTimeline(
-            context.authUser.id,
-            'home',
-            { limit: 20 }
-          );
+        const { posts, fullPage } = await activityPubService.getUserTimeline(
+          context.authUser.id,
+          'home',
+          { limit: 20 }
+        );
 
-          if (posts.length > 0) {
-            const postReactionsStore = usePostReactionsStore();
-            await postReactionsStore.fetchMultiplePostReactions(posts.map((p) => p.id), true);
-          }
+        if (posts.length > 0) {
+          const postReactionsStore = usePostReactionsStore();
+          await postReactionsStore.fetchMultiplePostReactions(posts.map((p) => p.id), true);
+        }
 
-          const processedPosts = await this.batchFetchReblogInteractions(posts);
-          await this.prefetchTimelineAuthors(processedPosts);
+        const processedPosts = await this.batchFetchReblogInteractions(posts);
+        for (const p of processedPosts) {
+          if (!p.is_local && p.ap_id) fetchedReactionsThisSession.delete(p.id);
+        }
+        await Promise.all([
+          this.ensureAuthorProfilesCached(processedPosts),
+          this.batchFetchRemoteReactions(processedPosts),
+        ]);
 
-          for (const p of processedPosts) {
-            if (!p.is_local && p.ap_id) fetchedReactionsThisSession.delete(p.id);
-          }
-          await this.batchFetchRemoteReactions(processedPosts);
-
-          this.homeFeed.posts = processedPosts;
-          this.homeFeed.has_more = fullPage;
-          this.homeFeed.cursor = posts[posts.length - 1]?.created_at;
-          this.unreadCount = 0;
-          this.saveTimelineToCache();
-          debug.log('✅ Background refresh complete');
-        });
+        this.homeFeed.posts = processedPosts;
+        this.homeFeed.has_more = fullPage;
+        this.homeFeed.cursor = posts[posts.length - 1]?.created_at;
+        this.unreadCount = 0;
+        this.saveTimelineToCache();
+        debug.log('✅ Background refresh complete');
       } catch (error) {
         debug.warn('Background refresh failed (cached data still shown):', error);
       }
@@ -1813,38 +1762,36 @@ export const useActivityPubStore = defineStore('activitypub', {
       if (this.isLoadingFeed) return
       this.isLoadingFeed = true;
       try {
-        await this.withTimelineReactionBatch(async () => {
-          const { posts, fullPage } = await activityPubService.getEnhancedPublicTimeline({
-            limit: 20,
-            before,
-          });
-
-          if (posts.length > 0) {
-            const postReactionsStore = usePostReactionsStore();
-            const postIds = posts.map((p) => p.id);
-            debug.log(`🔄 Batch loading reactions for ${postIds.length} public timeline posts`);
-            await postReactionsStore.fetchMultiplePostReactions(postIds, true);
-          }
-
-          const processedPosts = await this.batchFetchReblogInteractions(posts);
-          await this.prefetchTimelineAuthors(processedPosts);
-          await this.batchFetchRemoteReactions(processedPosts);
-
-          if (before) {
-            this.publicFeed.posts.push(...processedPosts);
-          } else {
-            this.publicFeed.posts = processedPosts;
-          }
-
-          this.publicFeed.has_more = fullPage;
-          this.publicFeed.cursor = posts[posts.length - 1]?.created_at;
-
-          const localCount = posts.filter((p) => p.is_local).length;
-          const federatedCount = posts.filter((p) => !p.is_local).length;
-          debug.log(
-            `🌐 Public feed updated: ${localCount} local + ${federatedCount} federated = ${posts.length} total posts`
-          );
+        const { posts, fullPage } = await activityPubService.getEnhancedPublicTimeline({
+          limit: 20,
+          before,
         });
+
+        if (posts.length > 0) {
+          const postReactionsStore = usePostReactionsStore();
+          await postReactionsStore.fetchMultiplePostReactions(posts.map((p) => p.id), true);
+        }
+
+        const processedPosts = await this.batchFetchReblogInteractions(posts);
+        await Promise.all([
+          this.ensureAuthorProfilesCached(processedPosts),
+          this.batchFetchRemoteReactions(processedPosts),
+        ]);
+
+        if (before) {
+          this.publicFeed.posts.push(...processedPosts);
+        } else {
+          this.publicFeed.posts = processedPosts;
+        }
+
+        this.publicFeed.has_more = fullPage;
+        this.publicFeed.cursor = posts[posts.length - 1]?.created_at;
+
+        const localCount = posts.filter((p) => p.is_local).length;
+        const federatedCount = posts.filter((p) => !p.is_local).length;
+        debug.log(
+          `🌐 Public feed updated: ${localCount} local + ${federatedCount} federated = ${posts.length} total posts`
+        );
       } catch (error) {
         debug.error('Failed to load public feed:', error);
       } finally {
@@ -1859,35 +1806,33 @@ export const useActivityPubStore = defineStore('activitypub', {
       if (this.isLoadingFeed) return
       this.isLoadingFeed = true;
       try {
-        await this.withTimelineReactionBatch(async () => {
-          const authUser = await authContextService.getCurrentAuthUser();
-          const { posts, fullPage } = await activityPubService.getUserTimeline(
-            authUser.id,
-            'local',
-            { limit: 20, before }
-          );
+        const authUser = await authContextService.getCurrentAuthUser();
+        const { posts, fullPage } = await activityPubService.getUserTimeline(
+          authUser.id,
+          'local',
+          { limit: 20, before }
+        );
 
-          if (posts.length > 0) {
-            const postReactionsStore = usePostReactionsStore();
-            const postIds = posts.map((p) => p.id);
-            debug.log(`🔄 Batch loading reactions for ${postIds.length} local timeline posts`);
-            await postReactionsStore.fetchMultiplePostReactions(postIds, true);
-          }
+        if (posts.length > 0) {
+          const postReactionsStore = usePostReactionsStore();
+          await postReactionsStore.fetchMultiplePostReactions(posts.map((p) => p.id), true);
+        }
 
-          const processedPosts = await this.batchFetchReblogInteractions(posts);
-          await this.prefetchTimelineAuthors(processedPosts);
-          await this.batchFetchRemoteReactions(processedPosts);
+        const processedPosts = await this.batchFetchReblogInteractions(posts);
+        await Promise.all([
+          this.ensureAuthorProfilesCached(processedPosts),
+          this.batchFetchRemoteReactions(processedPosts),
+        ]);
 
-          if (before) {
-            this.localFeed.posts.push(...processedPosts);
-          } else {
-            this.localFeed.posts = processedPosts;
-          }
+        if (before) {
+          this.localFeed.posts.push(...processedPosts);
+        } else {
+          this.localFeed.posts = processedPosts;
+        }
 
-          this.localFeed.has_more = fullPage;
-          this.localFeed.cursor = posts[posts.length - 1]?.created_at;
-          debug.log(`📍 Local feed loaded: ${posts.length} posts`);
-        });
+        this.localFeed.has_more = fullPage;
+        this.localFeed.cursor = posts[posts.length - 1]?.created_at;
+        debug.log(`📍 Local feed loaded: ${posts.length} posts`);
       } catch (error) {
         debug.error('Failed to load local feed:', error);
       } finally {
@@ -3226,7 +3171,7 @@ export const useActivityPubStore = defineStore('activitypub', {
       * Load users that the current user follows
       * OPTIMIZED: Only loads if not already loaded to prevent duplicate queries
       */
-     async loadFollowedUsers(force = false) {
+     async loadFollowedUsers(force = false, profileIdOverride?: string) {
        // Skip if already loaded unless forced
        if (this.followsLoaded && !force) {
          debug.log('📋 Followed users already loaded, skipping');
@@ -3235,19 +3180,18 @@ export const useActivityPubStore = defineStore('activitypub', {
 
        try {
          debug.log('🔄 Loading followed users via InteractionService');
-         
-         // Get current user PROFILE ID (not auth_user_id!)
-        const { userDataService } = await import('@/services/userDataService');
-        const currentUser = userDataService.getCurrentUser();
-        if (!currentUser?.id) {
-          debug.log('ℹ️ No current user available, skipping followed users loading');
+
+        const profileId = profileIdOverride
+          ?? userDataService.getCurrentUser()?.id
+          ?? await authContextService.getCurrentProfileId().catch(() => null);
+        if (!profileId) {
+          debug.log('ℹ️ No profile id yet, skipping followed users loading');
           return;
         }
-        
-        debug.log('🔄 Current user PROFILE ID for loading followed users:', currentUser.id);
-         
-         // Use InteractionService with PROFILE ID
-        const result = await services.interactions.getFollowing(currentUser.id);
+
+        debug.log('🔄 Current user PROFILE ID for loading followed users:', profileId);
+
+        const result = await services.interactions.getFollowing(profileId);
          debug.log('🔄 Service result:', result);
          
          // Result returns { following, hasMore, total } not { users }
@@ -3276,15 +3220,14 @@ export const useActivityPubStore = defineStore('activitypub', {
       * Fallback method for loading followed users
       */
     async _loadFollowedUsersFallback() {
-      // Get current user PROFILE ID
-      const { userDataService } = await import('@/services/userDataService');
-      const currentUser = userDataService.getCurrentUser();
-      if (!currentUser?.id) return;
+      const profileId = userDataService.getCurrentUser()?.id
+        ?? await authContextService.getCurrentProfileId().catch(() => null);
+      if (!profileId) return;
 
       const { data, error } = await supabase
         .from('follows')
         .select('following_id')
-        .eq('follower_id', currentUser.id)
+        .eq('follower_id', profileId)
         .eq('status', 'accepted');
 
       if (error) throw error;

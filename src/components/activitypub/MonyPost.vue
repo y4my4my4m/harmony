@@ -55,7 +55,7 @@
                 <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
                 MOD
               </span>
-              <SupporterBadge v-if="displayAuthor.id" :user-id="displayAuthor.id" />
+              <SupporterBadge v-if="displayAuthor.id" :user-id="displayAuthor.id" :badge="authorSupporterBadge" />
             </div>
             <div class="author-handle">
               <span>{{ displayAuthor.username }}</span>
@@ -625,6 +625,7 @@ import MonyMediaGallery from './MonyMediaGallery.vue';
 import ConfirmationModal from '../ConfirmationModal.vue';
 import ReportModal from '@/components/moderation/ReportModal.vue';
 import SupporterBadge from '@/components/common/SupporterBadge.vue';
+import { badgeFromMembership } from '@/services/FundingService';
 import { adminService } from '@/services/AdminService';
 import EmojiPopup from '@/components/EmojiPopup.vue';
 import VueEasyLightbox from 'vue-easy-lightbox';
@@ -882,6 +883,12 @@ const isVideoMediaUrl = (url: string): boolean => {
 const displayAuthor = computed(() => {
   const author = (isReblog.value && props.post.reblog_author) ? props.post.reblog_author : props.post.author;
   return author || authorFallback.value;
+});
+
+const authorSupporterBadge = computed(() => {
+  const membership = (displayAuthor.value as any)?.supporter_membership;
+  if (membership === undefined) return undefined;
+  return badgeFromMembership(membership);
 });
 
 const authorInstanceBadge = computed(() => {

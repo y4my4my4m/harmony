@@ -121,6 +121,29 @@ const badgeCache = new Map<string, { badge: SupporterBadge | null; fetchedAt: nu
 // Dedup in-flight badge requests so concurrent calls for the same user share one RPC
 const pendingBadgeRequests = new Map<string, Promise<SupporterBadge | null>>()
 
+// Normalize the supporter_membership shape returned by the PostgREST embed
+// `author.supporter_membership[*]` into the same SupporterBadge shape that
+// `getSupporterBadge` returns. Caller passes the raw embed array.
+export function badgeFromMembership(
+  membership: Array<{ is_active: boolean; tier: { name: string; badge_icon: string | null; badge_color: string | null } | null }> | null | undefined
+): SupporterBadge | null {
+  if (!membership || membership.length === 0) return null
+  const active = membership.find(m => m?.is_active && m.tier)
+  if (!active || !active.tier) return null
+  return {
+    tier_name: active.tier.name,
+    badge_icon: active.tier.badge_icon,
+    badge_color: active.tier.badge_color,
+    is_active: true,
+  }
+}
+
+// Cache pre-resolved badges so SupporterBadge can render instantly without
+// hitting the RPC. Used by timeline loaders that already have the embed data.
+export function primeBadgeCache(userId: string, badge: SupporterBadge | null): void {
+  badgeCache.set(userId, { badge, fetchedAt: Date.now() })
+}
+
 class FundingService {
   async getFundingConfig(): Promise<FundingConfig | null> {
     try {

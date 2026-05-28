@@ -1,17 +1,12 @@
 /**
- * Regression tests for `postHandler.handlePostJob` — covers the work that
- * used to live in `DatabaseListener.handleNewPost` / `handlePostEdit`
- * (postgres_changes path) and now runs from BullMQ:
+ * Regression tests for `postHandler.handlePostJob`:
+ *   1. create with external URL runs enrichPostLinkPreviews; when it writes
+ *      embeds, the author gets `post:embeds_ready` via broadcast_user_event.
+ *   2. update re-runs enrichPostLinkPreviews and pushes the same event.
+ *   3. pure reblogs skip enrichment and do not push embeds_ready.
  *
- *   1. external link-preview enrichment on `create` (Step 2a of the
- *      cleanup), so the "I posted an arstechnica link and got no embed
- *      card" bug stays fixed.
- *   2. home-feed realtime fan-out on `create` (Step 2c) via the
- *      `broadcast_user_event` RPC — verifies the author + every accepted
- *      local follower receive the `home_feed:new_post` event.
- *   3. re-enrichment on `update` so adding a URL to an existing post
- *      still fills the embed card.
- *   4. pure reblogs skip enrichment but still broadcast.
+ * Home-feed fan-out is handled by the `trg_broadcast_home_feed_entry` DB
+ * trigger and is not exercised through this handler anymore.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -66,32 +61,9 @@ const fakeAuthor = {
   is_local: true,
 };
 
-// Two accepted local followers + one remote follower (should be filtered
-// out of the recipient set on the worker side).
-const fakeFollowerRows = [
-  { follower_id: 'follower-Y', profiles: { is_local: true } },
-  { follower_id: 'follower-Z', profiles: { is_local: true } },
-  { follower_id: 'follower-remote', profiles: { is_local: false } },
-];
-
-/**
- * Tracks every Supabase RPC + table operation the handler performs so
- * tests can assert on exact arguments instead of just call counts.
- */
 const rpcCalls: Array<{ fn: string; args: any }> = [];
-const fromCalls: string[] = [];
 
-/**
- * The handler hits three different terminal shapes against `from(...)`:
- *   posts/profiles single → `select(...).eq(...).single()`
- *   posts ap_id write    → `update(...).eq(...)`
- *   follows fan-out      → `select(...).eq(...).in(...)`
- * Use a shared chain object that resolves every terminal to the matching
- * fixture so we don't need to special-case the chain shape per query.
- */
 function buildFromMock(table: string) {
-  fromCalls.push(table);
-
   const rowResult =
     table === 'posts'
       ? { data: fakePost, error: null }
@@ -99,15 +71,10 @@ function buildFromMock(table: string) {
         ? { data: fakeAuthor, error: null }
         : { data: null, error: null };
 
-  const inResult =
-    table === 'follows'
-      ? { data: fakeFollowerRows, error: null }
-      : { data: [], error: null };
-
   const chain: any = {
     select: vi.fn(() => chain),
     eq: vi.fn(() => chain),
-    in: vi.fn(() => Promise.resolve(inResult)),
+    in: vi.fn(() => Promise.resolve({ data: [], error: null })),
     single: vi.fn(() => Promise.resolve(rowResult)),
     update: vi.fn(() => ({
       eq: vi.fn(() => Promise.resolve({ data: null, error: null })),
@@ -149,21 +116,8 @@ vi.mock('../listeners/FederationHandlers.js', () => ({
   createRemoveFromFeaturedActivity: vi.fn().mockReturnValue({ type: 'Remove' }),
 }));
 
-const enrichPostLinkPreviews = vi.fn().mockImplementation(async (post: any) => {
-  // Mimic the production behaviour: write embed cache via update_post_embeds
-  // so the test can assert on RPC arguments end-to-end.
-  if (Array.isArray(post?.content)) {
-    const urlPart = post.content.find((p: any) => p.type === 'url');
-    if (urlPart && new URL(urlPart.url).hostname !== 'harmony.test') {
-      await supabaseMock.rpc('update_post_embeds', {
-        p_post_id: post.id,
-        p_embeds: {
-          [urlPart.url]: { title: 'Ars Technica article' },
-        },
-      });
-    }
-  }
-});
+// Default to "wrote embeds" so the success path is the default.
+const enrichPostLinkPreviews = vi.fn().mockResolvedValue(true);
 
 vi.mock('../listeners/DatabaseListener.js', () => ({
   enrichPostLinkPreviews,
@@ -173,14 +127,13 @@ const { handlePostJob } = await import('../queue/handlers/postHandler.js');
 
 beforeEach(() => {
   rpcCalls.length = 0;
-  fromCalls.length = 0;
   supabaseMock.from.mockClear();
   supabaseMock.rpc.mockClear();
   broadcastToFollowers.mockClear();
   sendToInbox.mockClear();
   enrichPostLinkPreviews.mockClear();
-  // Reset the post fixture between tests so visibility / reblog mutations
-  // don't bleed across cases.
+  enrichPostLinkPreviews.mockResolvedValue(true);
+
   fakePost.id = 'post-1';
   fakePost.author_id = 'author-X';
   fakePost.is_local = true;
@@ -194,8 +147,8 @@ beforeEach(() => {
   fakePost.metadata = {};
 });
 
-describe('handlePostJob — create with external URL', () => {
-  it('runs enrichPostLinkPreviews and writes update_post_embeds', async () => {
+describe('handlePostJob — create', () => {
+  it('runs enrichPostLinkPreviews and pushes post:embeds_ready when embeds were written', async () => {
     await handlePostJob({
       type: 'create',
       post_id: 'post-1',
@@ -205,15 +158,18 @@ describe('handlePostJob — create with external URL', () => {
 
     expect(broadcastToFollowers).toHaveBeenCalledTimes(1);
     expect(enrichPostLinkPreviews).toHaveBeenCalledTimes(1);
-    expect(enrichPostLinkPreviews.mock.calls[0]?.[0]).toMatchObject({ id: 'post-1' });
 
-    const embedWrites = rpcCalls.filter((c) => c.fn === 'update_post_embeds');
-    expect(embedWrites).toHaveLength(1);
-    expect(embedWrites[0].args.p_post_id).toBe('post-1');
-    expect(embedWrites[0].args.p_embeds['https://arstechnica.com/security/foo']).toBeDefined();
+    const embedReadyCalls = rpcCalls.filter(
+      (c) => c.fn === 'broadcast_user_event' && c.args.p_payload?.type === 'post:embeds_ready'
+    );
+    expect(embedReadyCalls).toHaveLength(1);
+    expect(embedReadyCalls[0].args.p_user_id).toBe('author-X');
+    expect(embedReadyCalls[0].args.p_payload.post_id).toBe('post-1');
   });
 
-  it('broadcasts home_feed:new_post to author + every accepted local follower', async () => {
+  it('does not push post:embeds_ready when enrichment wrote nothing', async () => {
+    enrichPostLinkPreviews.mockResolvedValue(false);
+
     await handlePostJob({
       type: 'create',
       post_id: 'post-1',
@@ -221,31 +177,18 @@ describe('handlePostJob — create with external URL', () => {
       visibility: 'public',
     });
 
-    const broadcasts = rpcCalls.filter((c) => c.fn === 'broadcast_user_event');
-    // Expect author-X + follower-Y + follower-Z (remote follower filtered out).
-    const recipientIds = broadcasts.map((c) => c.args.p_user_id).sort();
-    expect(recipientIds).toEqual(['author-X', 'follower-Y', 'follower-Z']);
-
-    // Every broadcast carries the same shape.
-    for (const call of broadcasts) {
-      expect(call.args.p_payload).toMatchObject({
-        type: 'home_feed:new_post',
-        post_id: 'post-1',
-        author_id: 'author-X',
-        visibility: 'public',
-        source: 'bullmq:postHandler',
-      });
-    }
+    expect(enrichPostLinkPreviews).toHaveBeenCalledTimes(1);
+    const embedReadyCalls = rpcCalls.filter(
+      (c) => c.fn === 'broadcast_user_event' && c.args.p_payload?.type === 'post:embeds_ready'
+    );
+    expect(embedReadyCalls).toHaveLength(0);
   });
 });
 
 describe('handlePostJob — pure reblog (Announce)', () => {
-  it('skips link preview enrichment but still broadcasts home_feed', async () => {
+  it('skips link preview enrichment entirely', async () => {
     fakePost.ap_type = 'Announce';
     fakePost.metadata = { reblog_of: 'https://other.instance/posts/abc' };
-    // A reblog has no URL parts of its own; clear the content fixture so
-    // enrichment would no-op anyway, but the handler should short-circuit
-    // BEFORE calling enrichPostLinkPreviews per the isPureReblog gate.
     fakePost.content = [];
 
     await handlePostJob({
@@ -256,15 +199,15 @@ describe('handlePostJob — pure reblog (Announce)', () => {
     });
 
     expect(enrichPostLinkPreviews).not.toHaveBeenCalled();
-
-    // Reblog still appears on followers' home timelines.
-    const broadcasts = rpcCalls.filter((c) => c.fn === 'broadcast_user_event');
-    expect(broadcasts.length).toBeGreaterThanOrEqual(1);
+    const embedReadyCalls = rpcCalls.filter(
+      (c) => c.fn === 'broadcast_user_event' && c.args.p_payload?.type === 'post:embeds_ready'
+    );
+    expect(embedReadyCalls).toHaveLength(0);
   });
 });
 
 describe('handlePostJob — update', () => {
-  it('re-runs enrichPostLinkPreviews after federating the edit', async () => {
+  it('re-runs enrichPostLinkPreviews after federating the edit and pushes embeds_ready on write', async () => {
     await handlePostJob({
       type: 'update',
       post_id: 'post-1',
@@ -275,38 +218,9 @@ describe('handlePostJob — update', () => {
     expect(broadcastToFollowers).toHaveBeenCalledTimes(1);
     expect(enrichPostLinkPreviews).toHaveBeenCalledTimes(1);
 
-    const embedWrites = rpcCalls.filter((c) => c.fn === 'update_post_embeds');
-    expect(embedWrites).toHaveLength(1);
-  });
-});
-
-describe('handlePostJob — broadcastHomeFeed visibility filter', () => {
-  it('does not broadcast home_feed for direct posts (filter inside helper)', async () => {
-    // Direct posts go through the mentions-only delivery path; the
-    // broadcastHomeFeed helper short-circuits on non-feed visibilities so
-    // no `broadcast_user_event` RPC fires. We can't run a `direct` job
-    // through handlePostJob without remote mentions (it throws), so this
-    // test focuses on the followers-visibility scope: a `followers`
-    // post should only fan out to ACCEPTED followers, not pending ones.
-    fakePost.visibility = 'followers';
-
-    await handlePostJob({
-      type: 'create',
-      post_id: 'post-1',
-      author_id: 'author-X',
-      visibility: 'followers',
-    });
-
-    const broadcasts = rpcCalls.filter((c) => c.fn === 'broadcast_user_event');
-    // The follows mock returns all three rows regardless of `.in(status)`
-    // (the mock doesn't actually filter — that's the DB's job). The
-    // worker still applies the is_local filter, so we expect
-    // author-X + follower-Y + follower-Z (remote stripped).
-    const recipientIds = broadcasts.map((c) => c.args.p_user_id).sort();
-    expect(recipientIds).toEqual(['author-X', 'follower-Y', 'follower-Z']);
-
-    for (const call of broadcasts) {
-      expect(call.args.p_payload.visibility).toBe('followers');
-    }
+    const embedReadyCalls = rpcCalls.filter(
+      (c) => c.fn === 'broadcast_user_event' && c.args.p_payload?.type === 'post:embeds_ready'
+    );
+    expect(embedReadyCalls).toHaveLength(1);
   });
 });

@@ -1,11 +1,11 @@
 <template>
   <span
-    v-if="badge && badge.is_active"
+    v-if="effectiveBadge && effectiveBadge.is_active"
     class="supporter-badge"
     :style="badgeStyle"
-    :title="`${badge.tier_name} Supporter`"
+    :title="`${effectiveBadge.tier_name} Supporter`"
   >
-    <SupporterBadgeIcon :icon="badge.badge_icon" />
+    <SupporterBadgeIcon :icon="effectiveBadge.badge_icon" />
   </span>
 </template>
 
@@ -15,27 +15,39 @@ import { fundingService, type SupporterBadge } from '@/services/FundingService'
 import SupporterBadgeIcon from './SupporterBadgeIcon.vue'
 
 interface Props {
-  userId: string
+  userId?: string
+  badge?: SupporterBadge | null
 }
 
 const props = defineProps<Props>()
 
-const badge = ref<SupporterBadge | null>(null)
+const fetchedBadge = ref<SupporterBadge | null>(null)
+
+const effectiveBadge = computed<SupporterBadge | null>(() => {
+  if (props.badge !== undefined) return props.badge
+  return fetchedBadge.value
+})
 
 const badgeStyle = computed(() => {
-  if (!badge.value?.badge_color) return {}
+  const b = effectiveBadge.value
+  if (!b?.badge_color) return {}
   return {
-    backgroundColor: `${badge.value.badge_color}20`,
+    backgroundColor: `${b.badge_color}20`,
     borderColor: 'transparent',
-    color: badge.value.badge_color
+    color: b.badge_color
   }
 })
 
 const loadBadge = async () => {
-  badge.value = await fundingService.getSupporterBadge(props.userId)
+  if (props.badge !== undefined) return
+  if (!props.userId) {
+    fetchedBadge.value = null
+    return
+  }
+  fetchedBadge.value = await fundingService.getSupporterBadge(props.userId)
 }
 
-watch(() => props.userId, loadBadge)
+watch(() => [props.userId, props.badge], loadBadge)
 onMounted(loadBadge)
 </script>
 
