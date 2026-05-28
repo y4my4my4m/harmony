@@ -14,6 +14,13 @@ dist-ssr
 coverage
 *.local
 
+# Rust / Tauri build output (subdir .gitignore covers git, this line is so
+# top-level tools like eslint that read root .gitignore skip it too)
+src-tauri/target/
+
+# VitePress build output (cache is below)
+docs/.vitepress/dist/
+
 /cypress/videos/
 /cypress/screenshots/
 
