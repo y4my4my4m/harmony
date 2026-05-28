@@ -4,12 +4,15 @@
     :class="{
       'link-embed-card--has-image': !!payload.image && variant !== 'compact',
       'link-embed-card--compact': variant === 'compact',
+      'link-embed-card--thumbnail': variant === 'thumbnail',
     }"
   >
     <!-- Big thumbnail: only the default variant. The compact variant is
          used by MonyPost when the same URL is already represented by an
          inline rich embed (e.g. YouTube iframe), so rendering the same
-         thumbnail again would be visually redundant. -->
+         thumbnail again would be visually redundant. The thumbnail variant
+         still renders the image but at a small fixed size beside the
+         text. -->
     <div v-if="payload.image && variant !== 'compact'" class="link-embed-card__media">
       <img
         :src="payload.image"
@@ -41,13 +44,22 @@ const props = withDefaults(
   defineProps<{
     payload: EmbedPayload;
     /**
-     * 'default'  → full card with large thumbnail + body.
-     * 'compact'  → slim caption row (no thumbnail), used as a low-visual-
-     *              weight metadata strip beneath an inline rich embed
-     *              (e.g. YouTube iframe) so we don't double-render the
-     *              same URL's preview.
+     * 'default'   → full card with large thumbnail (top on mobile, left on
+     *               desktop) + body. Used when the link card is the only
+     *               visual representation of the URL.
+     * 'compact'   → slim caption row (no thumbnail), used as a low-visual-
+     *               weight metadata strip beneath an inline rich embed
+     *               (e.g. YouTube iframe) so we don't double-render the
+     *               same URL's preview.
+     * 'thumbnail' → fixed-size horizontal card (small thumbnail on left,
+     *               one-line title + one-line description). Used when the
+     *               post ALSO has a media attachment - the attachment is
+     *               already the dominant visual, so the link card just
+     *               adds the title/site context without duplicating the
+     *               image size. Mirrors Mastodon/Misskey's "small card
+     *               beneath the photo" layout.
      */
-    variant?: 'default' | 'compact';
+    variant?: 'default' | 'compact' | 'thumbnail';
   }>(),
   { variant: 'default' }
 );
