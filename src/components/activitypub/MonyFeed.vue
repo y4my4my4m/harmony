@@ -130,7 +130,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { debug } from '@/utils/debug'
 import { throttle } from '@/utils/throttle'
 import { useI18n } from 'vue-i18n';
@@ -138,6 +138,7 @@ import { storeToRefs } from 'pinia';
 import { useRouter } from 'vue-router';
 import { useActivityPubStore } from '@/stores/useActivityPub';
 import { usePostInteractions } from '@/composables/usePostInteractions';
+import { useFeedRealtime, type FeedKind } from '@/composables/useFeedRealtime';
 import type { TimelinePost } from '@/types';
 
 const { t } = useI18n();
@@ -363,9 +364,19 @@ const clearError = () => {
   (activityPubStore as any).clearError?.();
 };
 
-// Lifecycle — realtime is app-scoped (see SocialLayout / auth); do not tear down on unmount.
+// Lifecycle — the app-scoped per-user channel is set up in auth.ts initialize()
+// and handles home-feed realtime via UserEventChannel. For the public/local
+// tabs we open an ephemeral broadcast subscription bound to the active view:
+// `useFeedRealtime` subscribes to `feed:public` / `feed:local` only while
+// the matching tab is selected, and tears down on switch/unmount.
+const feedKindRef = computed<FeedKind>(() => {
+  const v = currentView.value as unknown as string;
+  return v === 'home' || v === 'public' || v === 'local' ? v : 'public';
+});
+useFeedRealtime(feedKindRef);
+
 onMounted(() => {
-  void activityPubStore.ensureRealtimeSubscriptions();
+  void activityPubStore.setupRealtimeSubscriptions();
 });
 
 // Auto-refresh on focus - only refresh current view if it has data

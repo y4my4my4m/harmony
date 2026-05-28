@@ -3650,10 +3650,12 @@ CREATE OR REPLACE FUNCTION public.broadcast_post_event()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
-  v_event text;
-  v_row  record;
+  v_event   text;
+  v_row     record;
+  v_payload jsonb;
 BEGIN
   IF TG_OP = 'DELETE' THEN
     v_event := 'post:deleted';
@@ -3666,19 +3668,31 @@ BEGIN
     v_row   := NEW;
   END IF;
 
+  v_payload := jsonb_build_object(
+    'type',       v_event,
+    'post_id',    v_row.id,
+    'author_id',  v_row.author_id,
+    'visibility', v_row.visibility,
+    'is_deleted', COALESCE(v_row.is_deleted, false),
+    'is_local',   COALESCE(v_row.is_local, false),
+    'ap_type',    v_row.ap_type
+  );
+
   PERFORM realtime.send(
-    jsonb_build_object(
-      'type',       v_event,
-      'post_id',    v_row.id,
-      'author_id',  v_row.author_id,
-      'visibility', v_row.visibility,
-      'is_deleted', COALESCE(v_row.is_deleted, false),
-      'ap_type',    v_row.ap_type
-    ),
+    v_payload,
     'user_event',
     'user:' || v_row.author_id::text,
     true
   );
+
+  IF TG_OP = 'INSERT'
+     AND COALESCE(v_row.is_deleted, false) = false
+     AND v_row.visibility = 'public' THEN
+    PERFORM realtime.send(v_payload, 'feed_event', 'feed:public', true);
+    IF COALESCE(v_row.is_local, false) THEN
+      PERFORM realtime.send(v_payload, 'feed_event', 'feed:local', true);
+    END IF;
+  END IF;
 
   RETURN COALESCE(NEW, OLD);
 END;
@@ -3786,6 +3800,61 @@ $$;
 
 GRANT EXECUTE ON FUNCTION public.broadcast_user_event(uuid, jsonb) TO service_role;
 GRANT EXECUTE ON FUNCTION public.broadcast_user_event(uuid, jsonb) TO authenticated;
+
+-- Home-feed realtime push: piggybacks on `create_comprehensive_timeline_entries()`
+-- fan-out so local + remote posts both fire `home_feed:new_post` on every
+-- recipient's `user:{profile_id}` channel without an extra Node round-trip.
+CREATE OR REPLACE FUNCTION public.broadcast_home_feed_entry()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_author     uuid;
+  v_created    timestamptz;
+  v_visibility text;
+  v_is_deleted boolean;
+BEGIN
+  IF NEW.timeline_type <> 'home' THEN
+    RETURN NEW;
+  END IF;
+
+  SELECT author_id,
+         created_at,
+         visibility,
+         COALESCE(is_deleted, false)
+    INTO v_author, v_created, v_visibility, v_is_deleted
+  FROM public.posts
+  WHERE id = NEW.post_id;
+
+  IF v_author IS NULL OR v_is_deleted THEN
+    RETURN NEW;
+  END IF;
+
+  IF v_visibility NOT IN ('public', 'unlisted', 'followers') THEN
+    RETURN NEW;
+  END IF;
+
+  PERFORM realtime.send(
+    jsonb_build_object(
+      'type',         'home_feed:new_post',
+      'post_id',      NEW.post_id,
+      'author_id',    v_author,
+      'created_at',   v_created,
+      'visibility',   v_visibility,
+      'source_table', 'timeline_entries'
+    ),
+    'user_event',
+    'user:' || NEW.user_id::text,
+    true
+  );
+
+  RETURN NEW;
+EXCEPTION WHEN OTHERS THEN
+  RETURN NEW;
+END;
+$$;
 
 -- Emoji changes → server-presence:{server_id}
 CREATE OR REPLACE FUNCTION public.broadcast_emoji_change()

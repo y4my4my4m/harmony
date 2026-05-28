@@ -267,12 +267,12 @@ export const useAuthStore = defineStore('auth', {
         // Note: Notification system is now initialized by RouteAwareInitialization
         // to only load unread count initially (full list loads on-demand)
         
-        // Load blocking/muting data on session restoration (page refresh)
-        // This must happen BEFORE any chat components render
+        // Home-timeline realtime + followedUsers + blocking data must be
+        // ready before social UI mounts. initialize() is idempotent and
+        // resolves the profile id internally via authContextService, so
+        // it does not need userDataService to be ready first.
         const activityPubStore = useActivityPubStore();
-        await activityPubStore.loadBlockingData();
-        // Home-timeline realtime + followedUsers must be ready before social UI mounts.
-        void activityPubStore.initialize().catch((err) => {
+        await activityPubStore.initialize().catch((err) => {
           debug.error('ActivityPub initialize on session restore failed:', err);
         });
 
@@ -394,10 +394,11 @@ export const useAuthStore = defineStore('auth', {
             // This ensures theme and other settings load for the new user
             this.initializeUserSettings(session.user.id);
             
-            // Load blocking/muting data immediately after login
-            // This ensures blocked users are hidden in all views
+            // Full ActivityPub init (blocks/mutes + follows + realtime).
             const activityPubStore = useActivityPubStore();
-            activityPubStore.loadBlockingData();
+            void activityPubStore.initialize().catch((err) =>
+              debug.error('ActivityPub initialize after SIGNED_IN failed:', err)
+            );
           }
           return;
         }
@@ -438,10 +439,11 @@ export const useAuthStore = defineStore('auth', {
               userStorage.setCurrentUser(session.user.id);
               this.setupOfflineHandlers(session.user.id);
               
-              // Load blocking/muting data on app startup
-              // This ensures blocked users are hidden in all views
+              // Full ActivityPub init on app startup.
               const activityPubStore = useActivityPubStore();
-              activityPubStore.loadBlockingData();
+              void activityPubStore.initialize().catch((err) =>
+                debug.error('ActivityPub initialize after INITIAL_SESSION failed:', err)
+              );
             }
           }
           return;
@@ -652,10 +654,9 @@ export const useAuthStore = defineStore('auth', {
           this.setupOfflineHandlers(data.session.user.id);
           this.initializeUserSettings(data.session.user.id);
           const activityPubStore = useActivityPubStore();
-          // Fire and forget - matches the SIGNED_IN handler's pattern
-          // (it doesn't await this either, and we don't want to block
-          // the login UI on a slow blocks/mutes query).
-          activityPubStore.loadBlockingData();
+          void activityPubStore.initialize().catch((err) =>
+            debug.error('ActivityPub initialize after login failed:', err)
+          );
         }
 
         return {
@@ -714,7 +715,9 @@ export const useAuthStore = defineStore('auth', {
           this.setupOfflineHandlers(sessionData.session.user.id);
           this.initializeUserSettings(sessionData.session.user.id);
           const activityPubStore = useActivityPubStore();
-          activityPubStore.loadBlockingData();
+          void activityPubStore.initialize().catch((err) =>
+            debug.error('ActivityPub initialize after 2FA failed:', err)
+          );
         }
 
         debug.log('✅ 2FA verified - session upgraded to AAL2');

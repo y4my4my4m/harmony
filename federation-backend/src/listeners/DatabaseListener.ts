@@ -1906,9 +1906,9 @@ export async function enrichMessageLinkPreviews(message: any): Promise<void> {
  * an unchanged URL set a cheap no-op, which is why the update branch can
  * call this unconditionally without checking what actually changed.
  */
-export async function enrichPostLinkPreviews(post: any): Promise<void> {
+export async function enrichPostLinkPreviews(post: any): Promise<boolean> {
   const content = post.content;
-  if (!Array.isArray(content)) return;
+  if (!Array.isArray(content)) return false;
 
   const instanceDomain = config.INSTANCE_DOMAIN.toLowerCase();
   const existingEmbeds: Record<string, any> = post.metadata?.embeds || {};
@@ -1921,7 +1921,7 @@ export async function enrichPostLinkPreviews(post: any): Promise<void> {
       part.preview !== false
   );
 
-  if (urlParts.length === 0) return;
+  if (urlParts.length === 0) return false;
 
   const eligibleUrls = urlParts.filter((part: any) => {
     try {
@@ -1932,7 +1932,7 @@ export async function enrichPostLinkPreviews(post: any): Promise<void> {
     }
   });
 
-  if (eligibleUrls.length === 0) return;
+  if (eligibleUrls.length === 0) return false;
 
   const previewResults = await Promise.allSettled(
     eligibleUrls.map(async (part: any) => {
@@ -1950,7 +1950,7 @@ export async function enrichPostLinkPreviews(post: any): Promise<void> {
     }
   }
 
-  if (Object.keys(newEmbeds).length === 0) return;
+  if (Object.keys(newEmbeds).length === 0) return false;
 
   const supabase = getSupabaseClient();
   const { error } = await supabase.rpc('update_post_embeds', {
@@ -1960,9 +1960,11 @@ export async function enrichPostLinkPreviews(post: any): Promise<void> {
 
   if (error) {
     logger.warn(`Failed to write embeds for post ${post.id}:`, error);
-  } else {
-    logger.info(`🔗 Enriched post ${post.id} with ${Object.keys(newEmbeds).length} link preview(s)`);
+    return false;
   }
+
+  logger.info(`🔗 Enriched post ${post.id} with ${Object.keys(newEmbeds).length} link preview(s)`);
+  return true;
 }
 
 // Content conversion functions are now in utils/contentUtils.ts

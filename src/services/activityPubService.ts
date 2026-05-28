@@ -2,6 +2,16 @@
 // Triggers handle federation automatically - no client-side federation needed
 import { supabase } from '@/supabase';
 import { trendingService } from './TrendingService';
+
+const POST_AUTHOR_EMBED = `
+  author:profiles!posts_author_id_fkey(
+    id, username, display_name, avatar_url, color, domain, is_local, is_suspended,
+    supporter_membership:instance_supporters(
+      is_active,
+      tier:instance_supporter_tiers(name, badge_icon, badge_color)
+    )
+  )
+`;
 import type { 
   Post, 
   Follow, 
@@ -116,9 +126,7 @@ export class ActivityPubService {
       .select(`
         posts (
           *,
-          author:profiles!posts_author_id_fkey (
-            id, username, display_name, domain, avatar_url, is_local
-          )
+          ${POST_AUTHOR_EMBED}
         )
       `)
       .eq('user_id', userId)
@@ -150,9 +158,7 @@ export class ActivityPubService {
       .from('posts')
       .select(`
         *,
-        author:profiles!posts_author_id_fkey(
-          id, username, display_name, avatar_url, color, domain, is_local, is_suspended
-        ),
+        ${POST_AUTHOR_EMBED},
         my_interactions:post_interactions!left(interaction_type, emoji_id)
       `)
       .eq('my_interactions.user_id', userId)
@@ -202,9 +208,7 @@ export class ActivityPubService {
         .from('posts')
         .select(`
           *,
-          author:profiles!posts_author_id_fkey(
-            id, username, display_name, avatar_url, color, domain, is_local, is_suspended
-          ),
+          ${POST_AUTHOR_EMBED},
           my_interactions:post_interactions!left(interaction_type, emoji_id)
         `)
         .eq('my_interactions.user_id', userId)
@@ -450,9 +454,7 @@ export class ActivityPubService {
         .from('posts')
         .select(`
           *,
-          author:profiles!posts_author_id_fkey (
-            id, username, display_name, domain, avatar_url, is_local
-          ),
+          ${POST_AUTHOR_EMBED},
           reply_context:reply_context
         `)
         .eq('in_reply_to', postId)
@@ -588,9 +590,7 @@ export class ActivityPubService {
         .from('posts')
         .select(`
           *,
-          author:profiles!posts_author_id_fkey (
-            id, username, display_name, domain, avatar_url, is_local, is_suspended
-          )
+          ${POST_AUTHOR_EMBED}
         `)
         .textSearch('content', query)
         .eq('visibility', 'public')
@@ -664,9 +664,7 @@ export class ActivityPubService {
         .from('posts')
         .select(`
           *,
-          author:profiles!posts_author_id_fkey (
-            id, username, display_name, domain, avatar_url, is_local
-          )
+          ${POST_AUTHOR_EMBED}
         `)
         .in('author_id', profileIds)
         .eq('visibility', 'public')
@@ -707,8 +705,8 @@ export class ActivityPubService {
     const currentUser = await this.getCurrentAuthUser().catch(() => null);
 
     const selectClause = currentUser
-      ? `*, author:profiles!posts_author_id_fkey (id, username, display_name, domain, avatar_url, is_local), my_interactions:post_interactions!left(interaction_type)`
-      : `*, author:profiles!posts_author_id_fkey (id, username, display_name, domain, avatar_url, is_local)`;
+      ? `*, ${POST_AUTHOR_EMBED}, my_interactions:post_interactions!left(interaction_type)`
+      : `*, ${POST_AUTHOR_EMBED}`;
 
     let query = supabase
       .from('posts')
@@ -1796,9 +1794,7 @@ export class ActivityPubService {
       query = query
         .select(`
           *,
-          author:profiles!posts_author_id_fkey(
-            id, username, display_name, avatar_url, color, domain, is_local, is_suspended
-          ),
+          ${POST_AUTHOR_EMBED},
           my_interactions:post_interactions!left(interaction_type, emoji_id)
         `)
         .eq('my_interactions.user_id', userId)
@@ -1807,9 +1803,7 @@ export class ActivityPubService {
       query = query
         .select(`
           *,
-          author:profiles!posts_author_id_fkey(
-            id, username, display_name, avatar_url, color, domain, is_local, is_suspended
-          ),
+          ${POST_AUTHOR_EMBED},
           my_interactions:post_interactions!left(interaction_type, emoji_id)
         `)
         .eq('my_interactions.user_id', userId)
@@ -1819,9 +1813,7 @@ export class ActivityPubService {
       query = query
         .select(`
           *,
-          author:profiles!posts_author_id_fkey(
-            id, username, display_name, avatar_url, color, domain, is_local, is_suspended
-          ),
+          ${POST_AUTHOR_EMBED},
           my_interactions:post_interactions!left(interaction_type, emoji_id)
         `)
         .eq('my_interactions.user_id', userId)

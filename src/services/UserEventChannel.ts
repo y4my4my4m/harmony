@@ -29,6 +29,7 @@ type UserEventType =
   // post prepended in real time. Triggered by `broadcast_home_feed_entry`
   // on `timeline_entries` INSERT (timeline_type = 'home').
   | 'home_feed:new_post'
+  | 'post:embeds_ready'
   | 'follow:change'
   | 'encryption:key_request' | 'encryption:key_fulfilled'
   | 'mute:insert' | 'mute:delete'

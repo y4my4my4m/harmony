@@ -537,7 +537,7 @@ export class ActivityProcessor {
           return;
         }
 
-        const { data: insertedPost, error } = await supabase.from('posts').insert(postData).select('id, content, metadata, conversation_root_id').single();
+        const { data: insertedPost, error } = await supabase.from('posts').insert(postData).select('id, author_id, content, metadata, conversation_root_id').single();
 
         if (error) {
           logger.error('Failed to create post from activity:', error);
@@ -558,9 +558,18 @@ export class ActivityProcessor {
             );
 
             const { enrichPostLinkPreviews } = await import('../listeners/DatabaseListener.js');
-            enrichPostLinkPreviews(insertedPost).catch(err =>
-              logger.warn('Link preview enrichment failed for federated post:', err)
-            );
+            const insertedPostAny = insertedPost as any;
+            enrichPostLinkPreviews(insertedPostAny)
+              .then(async (wrote: boolean) => {
+                if (!wrote) return;
+                await supabase.rpc('broadcast_user_event', {
+                  p_user_id: insertedPostAny.author_id,
+                  p_payload: { type: 'post:embeds_ready', post_id: insertedPostAny.id },
+                });
+              })
+              .catch((err: any) =>
+                logger.warn('Link preview enrichment failed for federated post:', err)
+              );
           }
         }
       }
