@@ -9,7 +9,7 @@ Harmony is a federated chat platform that handles end-to-end encrypted messages,
 Instead, use one of these private channels (in order of preference):
 
 1. **GitHub private vulnerability reporting** — go to the [Security tab](https://github.com/y4my4my4m/harmony/security/advisories/new) on this repo and file an advisory. This keeps the report private until a fix ships.
-2. **DM the maintainer** on the canonical Harmony instance: <https://har.mony.lol> (handle: `@y4my4my4m`).
+2. **DM the maintainer** on the canonical Harmony instance: <https://har.mony.lol> (handle: `@y4my4m`).
 3. As a last resort, email the address listed on <https://mony.lol>.
 
 Please include:
