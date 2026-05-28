@@ -288,19 +288,45 @@
    so the link card stays informative but never competes for size. Mirrors
    Mastodon's / Misskey's "small card beneath the photo" pattern and stays
    horizontal on every viewport (no mobile stack — that's what caused the
-   visual doubling we're fixing). */
+   visual doubling we're fixing).
+   The card is wrapped in an <a> by the parent renderer so the whole thing
+   is clickable; border + hover state give it the affordance of a card. */
 .link-embed-card--thumbnail {
   gap: 0.65rem;
   padding: 0.6rem;
   align-items: stretch;
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
+  border-radius: 12px;
+  background: var(--background-tertiary-alpha, rgba(28, 31, 38, 0.4));
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+/* The whole card is wrapped in an <a> by ProviderEmbedSwitch; raise the
+   surface on hover so it visibly responds to pointing at it. Scoped under
+   `a:hover` so it doesn't also trigger when something else inside the card
+   gets hovered in a non-anchor context. */
+a:hover > .link-embed-card--thumbnail,
+.link-embed-card--thumbnail:hover {
+  background: var(--background-tertiary, rgba(28, 31, 38, 0.7));
+  border-color: rgba(255, 255, 255, 0.16);
 }
 
 .link-embed-card--thumbnail .link-embed-card__media {
+  /* Mobile default; desktop bumps to 112px via the media query below for
+     more visual weight (the old 80px-on-desktop looked icon-y per the
+     user's "awkward icon design" feedback). */
   flex: 0 0 80px;
   width: 80px;
   aspect-ratio: 1 / 1;
   height: auto;
   border-radius: 8px;
+}
+
+@media (min-width: 640px) {
+  .link-embed-card--thumbnail .link-embed-card__media {
+    flex: 0 0 112px;
+    width: 112px;
+  }
 }
 
 .link-embed-card--thumbnail .link-embed-card__body {
@@ -336,6 +362,10 @@
   overflow: hidden;
   text-overflow: ellipsis;
   min-width: 0;
+  /* Reserve one line of height even when the OG payload had no
+     description so cards with and without one share the same total
+     height (constant-size promise). */
+  min-height: 1em;
 }
 
 @media (max-width: 640px) {
@@ -361,6 +391,14 @@
   .link-embed-card--thumbnail .link-embed-card__media {
     width: 80px;
     flex: 0 0 80px;
+  }
+  /* Flex children have `min-width: auto` by default, which prevents the
+     body from shrinking below its intrinsic text size — that breaks
+     `text-overflow: ellipsis` on the title/description inside the
+     mobile narrow column. Restate `min-width: 0` here so the parent
+     `.link-embed-card` column override (above) doesn't silently undo it. */
+  .link-embed-card--thumbnail .link-embed-card__body {
+    min-width: 0;
   }
 }
 
