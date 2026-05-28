@@ -10,6 +10,7 @@
         :voice-panel-open="voicePanelOpen"
         :current-view="currentView as any"
         :instance-domain="instanceDomain"
+        :funding-config="fundingConfig"
         @toggle-left-sidebar="$emit('toggleLeftSidebar')"
         @toggle-right-sidebar="$emit('toggleRightSidebar')"
         @toggle-search="handleToggleSearch"
@@ -17,8 +18,16 @@
         @refresh-timeline="$emit('refreshTimeline')"
         @open-search="handleOpenSearch"
         @open-composer="handleOpenComposer"
+        @open-funding="showFundingModal = true"
       />
     </div>
+
+    <!-- Funding modal — same UX as chat layout so the donation flow is
+         consistent everywhere the context bar lives. -->
+    <FundingModal
+      v-if="showFundingModal"
+      @close="showFundingModal = false"
+    />
 
     <!-- Social Layout Content (Flex Row) -->
     <div class="social-layout-content">
@@ -187,10 +196,13 @@ import ProfileCard from '@/components/common/ProfileCard.vue'
 import UserSearchModal from '@/components/activitypub/UserSearchModal.vue'
 import UserProfileModal from '@/components/UserProfileModal.vue'
 import { useActivityPubStore } from '@/stores/useActivityPub'
+import { useFundingStore } from '@/stores/useFunding'
+import { storeToRefs } from 'pinia'
 import { trendingService } from '@/services/TrendingService'
 import { useViewContextTracking } from '@/composables/useViewContext'
 import { useLayoutState } from '@/composables/useLayoutState'
 import { getOriginalPost } from '@/utils/postReblog'
+import FundingModal from '@/components/FundingModal.vue'
 import type { FederatedUser, TimelinePost } from '@/types'
 
 // Props - Made view props optional since we extract from route
@@ -252,6 +264,9 @@ const emit = defineEmits<{
 
 // Store
 const activityPubStore = useActivityPubStore()
+const fundingStore = useFundingStore()
+const { config: fundingConfig } = storeToRefs(fundingStore)
+const showFundingModal = ref(false)
 const router = useRouter()
 const route = useRoute()
 
@@ -438,6 +453,7 @@ onMounted(() => {
   loadTrendingHashtags()
   loadSuggestedUsers()
   activityPubStore.fetchInstanceStats()
+  void fundingStore.load()
 })
 
 // BUGS.md H32: this layout used to call `cleanupRealtimeSubscriptions()` on

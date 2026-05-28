@@ -195,7 +195,8 @@ import { useChatStore } from '@/stores/useChat'
 import { useDMStore } from '@/stores/useDM'
 import { useUserData } from '@/composables/useUserData'
 import { useLayoutState } from '@/composables/useLayoutState'
-import { fundingService, type FundingConfigWithProgress } from '@/services/FundingService'
+import { storeToRefs } from 'pinia'
+import { useFundingStore } from '@/stores/useFunding'
 import FundingModal from '@/components/FundingModal.vue'
 
 // Props
@@ -525,17 +526,15 @@ watch(
   { immediate: true }
 )
 
-// Funding
-const fundingConfig = ref<FundingConfigWithProgress | null>(null)
+// Funding — single source of truth in useFundingStore; load is idempotent
+// and dedup-protected so this is cheap on every mount.
+const fundingStore = useFundingStore()
+const { config: fundingConfig } = storeToRefs(fundingStore)
 const showFundingModal = ref(false)
-const loadFundingConfig = async () => {
-  fundingConfig.value = await fundingService.getFundingWithProgress()
-}
 
-// Initialize on mount
 onMounted(() => {
   navigateToDefaultIfNeeded()
-  loadFundingConfig()
+  void fundingStore.load()
 })
 </script>
 

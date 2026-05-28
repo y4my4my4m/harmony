@@ -59,12 +59,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { debug } from '@/utils/debug'
 import { trendingService } from '@/services/TrendingService'
+import { activityPubService } from '@/services/activityPubService'
 import { usePostInteractions } from '@/composables/usePostInteractions'
 import { useActivityPubStore } from '@/stores/useActivityPub'
+import { useFeedRealtime, type FeedKind } from '@/composables/useFeedRealtime'
 import { useLayoutState } from '@/composables/useLayoutState'
 import MonyHeader from '@/components/activitypub/MonyHeader.vue'
 import PostsContainer from '@/components/common/PostsContainer.vue'
@@ -104,6 +106,30 @@ const isLoadingMore = ref(false)
 const hasMore = ref(false)
 const cursor = ref<string | null>(null)
 const hashtagStats = ref<any>(null)
+
+// Realtime — keep the active subscription scoped to whichever tag this
+// view is showing. `feed:hashtag:{normalized}` is published by the
+// `broadcast_post_event` trigger; normalization mirrors the DB rule
+// (`lower(trim(...))`) so the topic name matches exactly.
+const feedKind = computed<FeedKind>(
+  () => `hashtag:${(props.hashtag || '').replace(/^#/, '').trim().toLowerCase()}` as const
+)
+useFeedRealtime(feedKind, {
+  onCreate: async (event) => {
+    if (posts.value.some(p => p.id === event.id)) return
+    const fullPost = await activityPubService.loadPostWithAuthor(event.id)
+    if (!fullPost) return
+    posts.value = [fullPost as TimelinePost, ...posts.value]
+  },
+  onUpdate: (event) => {
+    if (event.visibility && event.visibility !== 'public') {
+      posts.value = posts.value.filter(p => p.id !== event.id)
+    }
+  },
+  onDelete: (event) => {
+    posts.value = posts.value.filter(p => p.id !== event.id)
+  },
+})
 
 // Post interactions
 const { toggleFavorite, toggleReblog, toggleBookmark } = usePostInteractions()

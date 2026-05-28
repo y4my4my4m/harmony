@@ -207,6 +207,13 @@ CREATE TRIGGER remove_timeline_on_unfollow_trigger
     FOR EACH ROW
     EXECUTE FUNCTION public.remove_timeline_on_unfollow();
 
+-- Keep profiles.followers_count / following_count in sync with `follows`.
+DROP TRIGGER IF EXISTS trg_update_follow_counts ON public.follows;
+CREATE TRIGGER trg_update_follow_counts
+    AFTER INSERT OR UPDATE OF status OR DELETE ON public.follows
+    FOR EACH ROW
+    EXECUTE FUNCTION public.update_follow_counts();
+
 -- ---------------------------------------------------------------------------
 -- POST TRIGGERS
 -- ---------------------------------------------------------------------------
