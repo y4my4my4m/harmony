@@ -7,6 +7,7 @@
  */
 
 import config from '../config/index.js';
+import { stripTrackingParameters } from '../utils/urlTrackerStripper.js';
 
 /**
  * Resolve a Supabase storage URL to a full absolute URL using the render
@@ -86,6 +87,14 @@ function safeAttrUrl(url: string | null | undefined): string {
   return cleaned;
 }
 
+/**
+ * Hex color sanity check used when rendering inline `style="color: ..."`
+ * for role mentions. The role color is attacker-influenceable (federated
+ * payload), so we reject anything that isn't a short or long hex literal
+ * to keep CSS injection (`red; background: url(x)`) out of the page.
+ */
+const SAFE_HEX_COLOR = /^#[0-9a-fA-F]{3,8}$/;
+
 function extractPlainText(content: any): string {
   if (typeof content === 'string') return stripHtml(content);
   if (!Array.isArray(content)) return '';
@@ -98,6 +107,25 @@ function extractPlainText(content: any): string {
         return item.isLocal ? `@${item.username}` : `@${item.username}@${domain}`;
       }
       if (item.type === 'hashtag') return `#${item.name}`;
+      if (item.type === 'link') return item.text || item.url || '';
+      if (item.type === 'url') {
+        const url = typeof item.url === 'string' ? item.url : '';
+        return url ? stripTrackingParameters(url) : '';
+      }
+      if (item.type === 'embed') {
+        return typeof item.url === 'string' ? item.url : '';
+      }
+      if (item.type === 'emoji') {
+        const name = item.emoji?.name ? String(item.emoji.name) : '';
+        return name ? `:${name}:` : '';
+      }
+      if (item.type === 'role_mention') {
+        const roleName = item.roleName ? String(item.roleName) : '';
+        return roleName ? `@${roleName}` : '';
+      }
+      // `file` (attachments are surfaced via the image grid, non-image files
+      // would clutter the OG description) and `system` (membership events
+      // aren't real post content) intentionally contribute nothing here.
       return '';
     })
     .join('')
@@ -150,6 +178,60 @@ function extractContentHtml(content: any): string {
         }
         return `<a href="${escapeHtml(safeUrl)}" rel="nofollow noopener" target="_blank">${escapeHtml(label)}</a>`;
       }
+      // `url` and `embed` are the actual MessagePart shapes a Harmony
+      // composer emits when a user pastes a bare URL (the previous
+      // implementation only handled the `link` variant, which left
+      // URL-only posts rendering an empty `.content` div on the public
+      // post page). Strip tracking params for the visible href so the
+      // SSR page matches what the in-app renderer shows.
+      if (item.type === 'url' || item.type === 'embed') {
+        const rawUrl = typeof item.url === 'string' ? item.url : '';
+        if (!rawUrl) return '';
+        const cleaned = stripTrackingParameters(rawUrl);
+        const safeUrl = safeAttrUrl(cleaned);
+        if (!safeUrl) {
+          return `<span class="url-link url-link--unsafe">${escapeHtml(cleaned)}</span>`;
+        }
+        return `<a href="${escapeHtml(safeUrl)}" rel="nofollow noopener" target="_blank">${escapeHtml(cleaned)}</a>`;
+      }
+      if (item.type === 'emoji') {
+        const name = item.emoji?.name ? String(item.emoji.name) : '';
+        const rawUrl = item.emoji?.url;
+        if (!name) return '';
+        if (!rawUrl) {
+          // Fall back to the textual `:name:` so the user still sees
+          // *something* even if the emoji asset is unresolved.
+          return escapeHtml(`:${name}:`);
+        }
+        const resolved = resolveStorageUrl(rawUrl, 'emojis', 48);
+        const safeUrl = safeAttrUrl(resolved);
+        if (!safeUrl) return escapeHtml(`:${name}:`);
+        return `<img src="${escapeHtml(safeUrl)}" alt=":${escapeHtml(name)}:" class="custom-emoji" draggable="false">`;
+      }
+      if (item.type === 'role_mention') {
+        const roleName = item.roleName ? String(item.roleName) : 'unknown';
+        // Federated payloads can stamp arbitrary CSS in `roleColor`; allow
+        // only short/long hex literals through.
+        const color = typeof item.roleColor === 'string' && SAFE_HEX_COLOR.test(item.roleColor)
+          ? item.roleColor
+          : '';
+        const styleAttr = color ? ` style="color: ${escapeHtml(color)}"` : '';
+        return `<span class="mention"${styleAttr}>@${escapeHtml(roleName)}</span>`;
+      }
+      if (item.type === 'file') {
+        // Image attachments are already surfaced via `<div class="media-grid">`
+        // below; rendering them again here would double the layout.
+        const mime = String(item.mimeType || item.fileType || '');
+        if (/^image/i.test(mime)) return '';
+        const rawUrl = typeof item.url === 'string' ? item.url : '';
+        const safeUrl = safeAttrUrl(rawUrl);
+        const label = item.fileName ? String(item.fileName) : rawUrl;
+        if (!safeUrl) {
+          return label ? `<span class="url-link url-link--unsafe">${escapeHtml(label)}</span>` : '';
+        }
+        return `<a href="${escapeHtml(safeUrl)}" rel="nofollow noopener" target="_blank">${escapeHtml(label)}</a>`;
+      }
+      // `system` (join/leave) is internal state, not user-authored content.
       return '';
     })
     .join('');
