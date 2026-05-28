@@ -484,9 +484,10 @@ export async function startDatabaseListener(): Promise<void> {
 }
 
 /**
- * Handle new post creation
+ * Handle new post creation. Exported for direct test invocation; runtime
+ * callers go through the `posts INSERT` realtime subscription above.
  */
-async function handleNewPost(postEvent: any): Promise<void> {
+export async function handleNewPost(postEvent: any): Promise<void> {
   try {
     // Check if post should be federated
     if (!postEvent.is_local || !['public', 'unlisted'].includes(postEvent.visibility)) {
@@ -562,7 +563,23 @@ async function handleNewPost(postEvent: any): Promise<void> {
 
     // Broadcast to followers
     await DeliveryQueue.broadcastToFollowers(author.id, activity);
-    
+
+    // Enrich external link previews for non-reblog posts. The DB-side
+    // `process_local_link_previews` trigger only handles URLs whose host
+    // matches our own instance domain (so Harmony post embeds get filled
+    // in synchronously); external sites (arstechnica, youtube, etc.) need
+    // an HTTP fetch and were previously only enriched for federated /
+    // backfilled posts. We deliberately fire-and-forget AFTER the
+    // federation broadcast so a slow link-preview HTTP fetch can't delay
+    // the Create activity going out. Reblogs reference another post's
+    // content and don't carry URL-preview semantics of their own, so
+    // skip them; quote posts have real content and DO enrich here.
+    if (!isPureReblog) {
+      enrichPostLinkPreviews(post).catch((err) =>
+        logger.warn(`Link preview enrichment failed for local post ${post.id}:`, err)
+      );
+    }
+
     // Also deliver to mentioned users (they might not be followers) - for posts and quote posts
     if (!isPureReblog && Array.isArray(post.content)) {
       const mentions = post.content.filter((part: any) => part.type === 'mention');
@@ -1146,9 +1163,11 @@ async function handleUnblock(block: any): Promise<void> {
 }
 
 /**
- * Handle post edit - send Update activity
+ * Handle post edit - send Update activity. Exported for direct test
+ * invocation; runtime callers go through the `posts UPDATE` realtime
+ * subscription above.
  */
-async function handlePostEdit(editedPost: any, _oldPost: any): Promise<void> {
+export async function handlePostEdit(editedPost: any, oldPost: any): Promise<void> {
   try {
     const supabase = getSupabaseClient();
 
@@ -1212,6 +1231,20 @@ async function handlePostEdit(editedPost: any, _oldPost: any): Promise<void> {
     );
 
     logger.info(`✏️ Post edit federated to ${inboxes.size} inboxes`);
+
+    // Re-enrich link previews when the edit actually changed `content`
+    // (a user might have added a URL to an existing post). Skip the
+    // content-warning-only path — the URL set hasn't changed, so the
+    // cached embeds in `metadata.embeds` are still correct and re-running
+    // `enrichPostLinkPreviews` would just hit the cache for no benefit.
+    // Same fire-and-forget pattern as the create path above so the
+    // federation Update isn't gated on an HTTP fetch.
+    const contentChanged = JSON.stringify(oldPost?.content) !== JSON.stringify(post.content);
+    if (contentChanged) {
+      enrichPostLinkPreviews(post).catch((err) =>
+        logger.warn(`Link preview re-enrichment failed for edited post ${post.id}:`, err)
+      );
+    }
   } catch (error) {
     logger.error('Failed to handle post edit:', error);
   }
