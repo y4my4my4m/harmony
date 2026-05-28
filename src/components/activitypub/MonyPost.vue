@@ -977,22 +977,39 @@ const isInlineRichEmbed = (embed: { url: string; provider?: string }): boolean =
 
 const inlineRichEmbeds = computed(() => postEmbeds.value.filter(isInlineRichEmbed));
 
-// Embeds that need a full link card. We additionally strip `image` from any
-// embed whose preview image is already shown as a media attachment - this
-// stops a federated post from rendering the same hero image twice (once as
-// a MonyMediaGallery tile, once as the card's big thumbnail), which on
-// mobile looked like a visually doubled embed. Site name / title / link
-// still render via the now-thumbnail-less card so users keep that context.
+// Embeds that need a full link card. We strip `image` from any embed whose
+// preview image visually duplicates something already shown by
+// MonyMediaGallery, so a federated post doesn't render the same hero image
+// twice (once as a gallery tile, once as the card's big thumbnail).
+//
+// Two cases get the strip:
+//  1. Exact URL match — a Harmony post or an instance that serves the og:image
+//     directly without a media cache.
+//  2. The "link share" shape — exactly one media attachment AND exactly one
+//     card embed. This is the most common federated-from-Mastodon case: the
+//     remote serializer puts the cached preview image into `attachment[0]`
+//     (so it lands in `media_attachments`) AND we generate our own link
+//     preview from the URL in content (which lands in `metadata.embeds`).
+//     The two URLs are different (mastodon-media-cache vs the origin host's
+//     CDN) so exact-match never catches this; the shape heuristic does.
+// When stripped, the card still renders site name + title + description, so
+// users keep that context — they just don't see the same image twice.
 const cardEmbeds = computed(() => {
   const cards = postEmbeds.value.filter((e) => !isInlineRichEmbed(e));
+  const attachments = displayMediaAttachments.value as any[];
+  if (attachments.length === 0) return cards;
+
   const attachmentUrls = new Set<string>();
-  for (const m of displayMediaAttachments.value as any[]) {
+  for (const m of attachments) {
     const u = m?.url || m?.remote_url || m?.href;
     if (typeof u === 'string' && u) attachmentUrls.add(u);
   }
-  if (attachmentUrls.size === 0) return cards;
+
+  const isLinkShareShape = attachments.length === 1 && cards.length === 1;
+
   return cards.map((embed) => {
-    if (embed.image && attachmentUrls.has(embed.image)) {
+    const exactMatch = embed.image && attachmentUrls.has(embed.image);
+    if (exactMatch || isLinkShareShape) {
       return { ...embed, image: undefined } as typeof embed;
     }
     return embed;
