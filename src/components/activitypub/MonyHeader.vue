@@ -90,12 +90,14 @@ interface Props {
   rightSidebarOpen?: boolean
 }
 
+// eslint-disable-next-line unused-imports/no-unused-vars
 const props = withDefaults(defineProps<Props>(), {
   currentView: 'home',
   isMobile: false,
   rightSidebarOpen: false
 })
 
+// eslint-disable-next-line unused-imports/no-unused-vars
 const emit = defineEmits<{
   'switch-feed': [feedType: string]
   'refresh-timeline': []

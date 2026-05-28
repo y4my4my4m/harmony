@@ -204,7 +204,6 @@ import { ref, computed, onMounted } from 'vue'
 import { debug } from '@/utils/debug'
 import { supabase } from '@/supabase'
 import { formatDistanceToNow } from 'date-fns'
-import Avatar from '@/components/common/Avatar.vue'
 import BotAvatar from '@/components/common/BotAvatar.vue'
 
 interface Props {
@@ -226,6 +225,7 @@ const message = ref<{ type: string; text: string } | null>(null)
 
 const availableBots = ref<any[]>([])
 const installedBots = ref<any[]>([])
+// eslint-disable-next-line unused-imports/no-unused-vars
 const botStatuses = ref<Record<string, boolean>>({})
 
 const selectedPermissions = ref<Record<string, boolean>>({})
@@ -331,7 +331,7 @@ async function addBot() {
 
   try {
     // Call RPC function to add bot
-    const { data, error } = await supabase.rpc('add_bot_to_server', {
+    const { error } = await supabase.rpc('add_bot_to_server', {
       p_bot_id: selectedBot.value.id,
       p_server_id: props.serverId,
       p_installed_by: (await supabase.auth.getUser()).data.user?.id,
@@ -693,7 +693,7 @@ onMounted(() => {
 }
 
 /* =========================================================================
-   Modal — wider, breathable, scrollable permission list
+   Modal - wider, breathable, scrollable permission list
    ======================================================================= */
 .modal-overlay {
   position: fixed;

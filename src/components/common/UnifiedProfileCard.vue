@@ -160,7 +160,6 @@ import { computed, ref } from 'vue'
 import { debug } from '@/utils/debug'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
-import { useAuthStore } from '@/stores/auth'
 import { useActivityPubStore } from '@/stores/useActivityPub'
 import { useUserData } from '@/composables/useUserData'
 import { services } from '@/services'
@@ -211,11 +210,10 @@ const emit = defineEmits<{
 
 // Stores
 const router = useRouter()
-const authStore = useAuthStore()
 const activityPubStore = useActivityPubStore()
 
 // Professional presence system
-const { getPresenceAwareStatus, isUserOnline, getCurrentUser } = useUserData()
+const { getPresenceAwareStatus, getCurrentUser } = useUserData()
 
 // State
 const isFollowLoading = ref(false)

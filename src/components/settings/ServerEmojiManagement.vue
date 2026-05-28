@@ -631,11 +631,13 @@ const formatDate = (dateString: string): string => {
 }
 
 // Get cache statistics
+// eslint-disable-next-line unused-imports/no-unused-vars
 const getCacheStats = () => {
   return emojiCache.getCacheStats
 }
 
 // Get emoji analytics for this server
+// eslint-disable-next-line unused-imports/no-unused-vars
 const getEmojiAnalytics = () => {
   return emojiCache.getServerEmojis(props.serverId).length
 }

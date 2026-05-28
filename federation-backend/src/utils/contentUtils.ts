@@ -64,51 +64,51 @@ export function convertContentToHTML(content: any): string {
       switch (part.type) {
         case 'text':
           return escapeHtml(part.text || '');
-          
-        case 'mention':
+
+        case 'mention': {
           const mentionDomain = part.domain || config.INSTANCE_DOMAIN;
           const isLocalMention = !part.domain || part.domain === config.INSTANCE_DOMAIN;
           const mentionDisplay = isLocalMention ? `@${part.username}` : `@${part.username}@${part.domain}`;
           return `<span class="h-card"><a href="https://${mentionDomain}/users/${part.username}" class="u-url mention">${mentionDisplay}</a></span>`;
-          
-        case 'url':
+        }
+
+        case 'url': {
           const url = escapeHtml(part.url || '');
           return `<a href="${url}">${url}</a>`;
-          
+        }
+
         case 'emoji':
-          // Custom emoji - use :name: shortcode syntax
-          // The actual emoji data goes in the 'tag' array (see extractActivityPubTags)
-          // Mastodon/Misskey resolve shortcodes by looking up the tag array
           if (part.emoji && typeof part.emoji === 'object') {
             const emojiName = part.emoji.name || part.emoji.display_name || 'emoji';
             return `:${emojiName}:`;
           }
-          // Handle simple string emoji (unicode)
           if (typeof part.emoji === 'string') {
             return part.emoji;
           }
           return '';
-          
+
         case 'code':
           return `<code>${escapeHtml(part.text || '')}</code>`;
-          
-        case 'codeblock':
+
+        case 'codeblock': {
           const lang = part.language ? ` class="language-${escapeHtml(part.language)}"` : '';
           return `<pre><code${lang}>${escapeHtml(part.text || '')}</code></pre>`;
-          
+        }
+
         case 'bold':
           return `<strong>${escapeHtml(part.text || '')}</strong>`;
-          
+
         case 'italic':
           return `<em>${escapeHtml(part.text || '')}</em>`;
-          
+
         case 'strikethrough':
           return `<del>${escapeHtml(part.text || '')}</del>`;
-          
-        case 'link':
+
+        case 'link': {
           const href = escapeHtml(part.url || part.href || '');
           const linkText = escapeHtml(part.text || part.url || '');
           return `<a href="${href}">${linkText}</a>`;
+        }
           
         case 'linebreak':
           return '<br />';

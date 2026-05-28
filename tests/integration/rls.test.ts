@@ -110,7 +110,7 @@ describe('RLS Policies - DM Privacy', () => {
   })
 
   it('Eve CANNOT insert messages into a DM she is not part of', async () => {
-    const { data, error } = await eve.client.from('messages').insert({
+    const { error } = await eve.client.from('messages').insert({
       user_id: eve.profileId,
       content: [{ type: 'text', content: 'I should not be here' }],
       conversation_id: conversationId,
@@ -123,6 +123,7 @@ describe('RLS Policies - DM Privacy', () => {
 describe('RLS Policies - Server Channel Access', () => {
   let serverId: string
   let channelId: string
+  // eslint-disable-next-line unused-imports/no-unused-vars
   let messageId: string
 
   beforeAll(async () => {
@@ -328,7 +329,7 @@ describe('RLS Policies - Notifications', () => {
       .single()
 
     // Alice tries to mark Bob's notification as read
-    const { data, error } = await alice.client
+    const { data } = await alice.client
       .from('notifications')
       .update({ is_read: true })
       .eq('id', notif!.id)

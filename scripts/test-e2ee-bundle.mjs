@@ -105,9 +105,9 @@ async function runTest() {
     // Convert Node Buffer to ArrayBuffer
     const plaintext = plaintextNode.buffer.slice(plaintextNode.byteOffset, plaintextNode.byteOffset + plaintextNode.byteLength)
     
-    const ciphertext = await cipher.encrypt(plaintext)
-    
-    console.log('🔐 Message encrypted successfully')
+    await cipher.encrypt(plaintext)
+
+    console.log('Message encrypted successfully')
     
   } catch (error) {
     console.error('❌ Test Failed:', error)

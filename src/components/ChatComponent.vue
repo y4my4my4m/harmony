@@ -94,7 +94,7 @@
 
     <!-- Emoji Popup for message reactions.
          EmojiPopup teleports itself to <body>, so no outer Teleport wrapper
-         needed — that avoids transform/overflow containment from virtual
+         needed - that avoids transform/overflow containment from virtual
          scroll ancestors automatically. See EmojiPopup.vue template. -->
     <EmojiPopup
       v-if="reactionEmojiOpen"
@@ -153,13 +153,11 @@
   import ThreadView from '@/components/threads/ThreadView.vue';
   import type { FilePreviewData } from '@/components/FilePreview.vue';
   import { parseContentToMessageParts, resolveMentionsUserData, resolveEmojisData, resolveRoleMentionsData } from '@/utils/unifiedContentProcessing';
-  import { useEmojiCacheStore } from '@/stores/useEmojiCache';
   import { threadService } from '@/services/ThreadService';
   import { coreMessageService } from '@/services/core/CoreMessageService';
   import { useEncryptionFallbackPrompt } from '@/composables/useEncryptionFallbackPrompt';
   import { supabase } from '@/supabase';
   import { debug } from '@/utils/debug';
-  import { useUserData } from '@/composables/useUserData';
   import { useServerPermissions } from '@/composables/useServerPermissions';
   import { useI18n } from 'vue-i18n';
 
@@ -221,7 +219,7 @@
     }
   }
 
-  function handleKickBanDone(result: { success: boolean }) {
+  function handleKickBanDone(_result: { success: boolean }) {
     showKickBanModal.value = false;
   }
   
@@ -512,7 +510,7 @@
 
       /**
        * Cross-component mention insertion. UserSidebar (and any other
-       * surface that doesn't have a direct emit path into ChatComponent —
+       * surface that doesn't have a direct emit path into ChatComponent -
        * e.g. context menus living outside the chat subtree) fires
        * `harmony-insert-mention` with a `{ handle, username }` payload.
        * We just append it to the active draft, same way as the existing
@@ -609,7 +607,7 @@
       };
       
       // Handle when a thread is created from ThreadView (on first message)
-      const handleThreadCreated = async (thread: any, parentMessage: Message) => {
+      const handleThreadCreated = async (thread: any, _parentMessage: Message) => {
         selectedThreadId.value = thread.id;
         selectedThread.value = thread;
         draftParentMessage.value = null;
@@ -858,6 +856,7 @@
 
           // Send the message with all parts
           if (messageParts.length > 0) {
+            // eslint-disable-next-line unused-imports/no-unused-vars
             didAttemptSend = true;
             const sendOutcome = await sendChannelOrDMWithEncryptionPolicy(messageParts, replyMessageId)
 

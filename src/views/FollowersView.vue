@@ -110,7 +110,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useVirtualizer } from '@tanstack/vue-virtual';
 import { debug } from '@/utils/debug'
 import { useI18n } from 'vue-i18n';
-import { useRoute, useRouter } from 'vue-router';
+import { useRouter } from 'vue-router';
 import { useActivityPubStore } from '@/stores/useActivityPub';
 import { useAuthStore } from '@/stores/auth';
 import { useToast } from 'vue-toastification';
@@ -118,7 +118,7 @@ import { activityPubService } from '@/services/activityPubService';
 import { supabase } from '@/supabase';
 import type { FederatedUser } from '@/types';
 
-const { t } = useI18n();
+useI18n();
 
 // Components
 import UserCard from '@/components/activitypub/UserCard.vue';
@@ -128,7 +128,6 @@ import Icon from '@/components/common/Icon.vue';
 const activityPubStore = useActivityPubStore();
 const authStore = useAuthStore();
 const router = useRouter();
-const route = useRoute();
 const toast = useToast();
 
 // Props
@@ -293,7 +292,7 @@ const loadMore = () => {
 };
 
 // Event handlers
-const handleFollow = (userId: string) => {
+const handleFollow = (_userId: string) => {
   // User was followed - just update count
   // The UserCard already handled the actual follow via toggleFollow
   followingCount.value++;

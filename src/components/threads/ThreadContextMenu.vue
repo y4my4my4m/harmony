@@ -101,7 +101,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted, onUnmounted } from 'vue'
+import { computed, onMounted, onUnmounted } from 'vue'
 import { useServerPermissions } from '@/composables/useServerPermissions'
 import type { ThreadWithDetails } from '@/services/ThreadService'
 
@@ -233,7 +233,7 @@ const copyThreadId = async () => {
 }
 
 // Close menu on click outside
-const handleClickOutside = (e: MouseEvent) => {
+const handleClickOutside = (_e: MouseEvent) => {
   emit('close')
 }
 

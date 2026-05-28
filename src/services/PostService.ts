@@ -19,7 +19,7 @@
  */
 
 import { supabase } from '@/supabase'
-import type { Post, TimelinePost, MessagePart } from '@/types'
+import type { TimelinePost, MessagePart } from '@/types'
 
 // Import only core service - database handles federation
 import { corePostService } from './core'

@@ -175,7 +175,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch, onUpdated, nextTick } from 'vue';
+import { computed, ref, watch, nextTick } from 'vue';
 import { debug } from '@/utils/debug'
 import type { UserMediaState } from '@/services/unifiedWebRTC';
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';

@@ -3,7 +3,6 @@ import { getSupabaseClient, getSupabaseClientWithAuth } from '../config/supabase
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { postToNote } from './converters/toActivityPub.js';
 import { renderPostPage, renderOEmbed } from './postPageRenderer.js';
-import { logger } from '../utils/logger.js';
 import config from '../config/index.js';
 
 const router = Router();

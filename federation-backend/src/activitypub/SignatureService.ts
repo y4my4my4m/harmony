@@ -109,11 +109,13 @@ export class SignatureService {
     }
 
     // Get user's private key from user_private_keys table
-    let { data: keyData, error: keyError } = await supabase
+    const initialKeyLookup = await supabase
       .from('user_private_keys')
       .select('private_key')
       .eq('user_id', userId)
       .single();
+    const keyError = initialKeyLookup.error;
+    let keyData = initialKeyLookup.data;
 
     // If no keys exist, generate them on-demand (lazy generation)
     if (keyError || !keyData || !keyData.private_key) {
@@ -284,7 +286,7 @@ export class SignatureService {
           // Express normalizes headers to lowercase
           const value = headers[headerName.toLowerCase()] || headers[headerName];
           if (value) {
-            // CRITICAL: Use the lowercase header name as per HTTP Signature spec
+            // Use the lowercase header name as per HTTP Signature spec
             // The signing string should use lowercase header names
             signingParts.push(`${headerName.toLowerCase()}: ${value}`);
           } else {
@@ -352,7 +354,7 @@ export class SignatureService {
    *
    * - **Strict (default)**: `activity.actor` must EXACTLY equal the signing
    *   key owner URL after normalization. Use this for `Person`-actor activities
-   *   (user inbox: Create Note, Like, Follow, Update Person, Delete Note, …).
+   *   (user inbox: Create Note, Like, Follow, Update Person, Delete Note, ...).
    *   Allowing same-domain delegation here would let any compromised /
    *   legitimate user on a remote host forge activities for any other user on
    *   the same host (cross-user impersonation). See BUGS.md item C1.

@@ -120,7 +120,7 @@ export function getDefaultGroupIcon(conversationId: string, size: number = DEFAU
 export async function uploadGroupIcon(
   conversationId: string,
   file: File,
-  onProgress?: (progress: number) => void
+  _onProgress?: (progress: number) => void
 ): Promise<{ success: boolean; iconPath?: string; error?: string }> {
   try {
     // Validate file
@@ -140,7 +140,7 @@ export async function uploadGroupIcon(
     const filePath = `${conversationId}/${fileName}`
 
     // Upload to storage
-    const { data, error: uploadError } = await supabase.storage
+    const { error: uploadError } = await supabase.storage
       .from(BUCKET_NAME)
       .upload(filePath, file, {
         cacheControl: '3600',
@@ -170,7 +170,7 @@ export async function uploadGroupIcon(
     }
 
     // Update conversation metadata with new icon path
-    const { data: updateResult, error: updateError } = await supabase.rpc('update_group_icon', {
+    const { error: updateError } = await supabase.rpc('update_group_icon', {
       conversation_uuid: conversationId,
       user_profile_id: profile.id,
       icon_path: filePath

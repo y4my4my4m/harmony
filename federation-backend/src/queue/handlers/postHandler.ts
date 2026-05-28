@@ -18,7 +18,7 @@ import type { FederationJobData } from '../BullMQManager.js';
  */
 export async function handlePostJob(data: FederationJobData): Promise<void> {
   const supabase = getSupabaseClient();
-  const { type, post_id, author_id, visibility } = data;
+  const { type, post_id, author_id } = data;
 
   logger.info(`📝 Processing post job: ${type} for post ${post_id}`);
 

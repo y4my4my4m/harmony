@@ -1,24 +1,15 @@
-/**
- * Harmony Services - Local-first service layer
- * 
- * This provides a clean abstraction layer between the frontend and database
- * with consistent patterns:
- * - Local-first operations (immediate UI updates)
- * - Background federation (async, optional)
- * - Consistent error handling
- * - Type-safe service interfaces
- */
+// Service-layer barrel. Pulls the local-first service classes/instances
+// into one place so callers can `import { services } from '@/services'`.
 
-// Import service instances first
-import { postService, PostService } from './PostService'
-import { messageService, MessageService } from './MessageService'
-import { interactionService, InteractionService } from './InteractionService'
-import { profileService, ProfileService } from './ProfileService'
-import { notificationService, NotificationService } from './NotificationService'
-import { activityPubService, ActivityPubService } from './activityPubService'
+import { postService } from './PostService'
+import { messageService } from './MessageService'
+import { interactionService } from './InteractionService'
+import { profileService } from './ProfileService'
+import { notificationService } from './NotificationService'
+import { activityPubService } from './activityPubService'
 import { roleService } from './RoleService'
 import { threadService } from './ThreadService'
-import { loggingService, log } from './LoggingService'
+import { loggingService } from './LoggingService'
 import { gifService } from './GifService'
 import { debug } from '@/utils/debug'
 
@@ -158,33 +149,3 @@ export function setError<T>(state: LoadingState<T>, error: ServiceError): Loadin
     error
   }
 }
-
-/**
- * MIGRATION GUIDE:
- * 
- * Instead of direct Supabase calls:
- * ```ts
- * const { data, error } = await supabase.from('posts').insert(...)
- * ```
- * 
- * Use the service layer:
- * ```ts
- * import { services } from '@/services'
- * 
- * try {
- *   const post = await services.posts.createPost({
- *     content: [...],
- *     visibility: 'public'
- *   })
- * } catch (error) {
- *   // Handle error with consistent error format
- * }
- * ```
- * 
- * Benefits:
- * - Local-first operations (immediate UI updates)
- * - Background federation (async, doesn't block UI)
- * - Consistent error handling across all operations
- * - Type-safe service interfaces
- * - Easy testing and mocking
- */

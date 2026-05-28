@@ -13,10 +13,8 @@ import type {
   ActivityPubActivityType,
   ActivityPubObjectType,
   ConversationContext,
-  ConversationThread,
   PostContextOptions,
-  PostWithContext,
-  ThreadInfo
+  PostWithContext
 } from '@/types';
 import { debug } from '@/utils/debug'
 
@@ -40,7 +38,7 @@ export class ActivityPubService {
   private currentDomain: string;
   private instanceUrl: string;
   
-  // OPTIMIZATION: Profile cache with TTL to prevent repeated lookups
+  // Profile cache with TTL to prevent repeated lookups
   private profileCache: Map<string, ProfileCacheEntry> = new Map();
   private inFlightRequests: Map<string, InFlightRequest> = new Map();
   private readonly PROFILE_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
@@ -108,7 +106,7 @@ export class ActivityPubService {
     timelineType: 'home' | 'public' | 'local' = 'home',
     options: TimelineOptions = {}
   ): Promise<TimelinePost[]> {
-    // OPTIMIZED: Use cached auth user ID
+    // Use cached auth user ID
     const userId = await this.getCurrentAuthUserId();
 
     const limit = options.limit || 20;
@@ -142,7 +140,7 @@ export class ActivityPubService {
    * Get public timeline - clean and professional
    */
   async getPublicTimeline(options: TimelineOptions = {}): Promise<TimelinePost[]> {
-    // OPTIMIZED: Use cached auth user ID
+    // Use cached auth user ID
     const userId = await this.getCurrentAuthUserId();
 
     const limit = options.limit || 20;
@@ -193,7 +191,7 @@ export class ActivityPubService {
    * Get public timeline with enhanced federation support and user interaction states
    */
   async getEnhancedPublicTimeline(options: TimelineOptions = {}): Promise<TimelineResult> {
-    // OPTIMIZED: Use cached auth user ID
+    // Use cached auth user ID
     const userId = await this.getCurrentAuthUserId();
 
     const limit = options.limit || 20;
@@ -255,7 +253,7 @@ export class ActivityPubService {
    * Uses RPC for proper server-side filtering of deleted posts and suspended users
    */
   async getFederatedTimeline(options: TimelineOptions = {}): Promise<TimelinePost[]> {
-    // OPTIMIZED: Use cached auth context
+    // Use cached auth context
     const user = await this.getCurrentAuthUser();
     if (!user) throw new Error('User not authenticated');
 
@@ -284,7 +282,7 @@ export class ActivityPubService {
    * Uses RPC for proper server-side filtering
    */
   async getLocalTimeline(options: TimelineOptions = {}): Promise<TimelinePost[]> {
-    // OPTIMIZED: Use cached auth context
+    // Use cached auth context
     const user = await this.getCurrentAuthUser();
     if (!user) throw new Error('User not authenticated');
 
@@ -346,7 +344,7 @@ export class ActivityPubService {
     postId: string, 
     options: PostContextOptions = {}
   ): Promise<PostWithContext> {
-    // OPTIMIZED: Use cached auth context
+    // Use cached auth context
     const user = await this.getCurrentAuthUser();
     if (!user) throw new Error('User not authenticated');
 
@@ -440,7 +438,7 @@ export class ActivityPubService {
    * Get replies to a specific post
    */
   async getPostReplies(postId: string, options: TimelineOptions = {}): Promise<TimelinePost[]> {
-    // OPTIMIZED: Use cached auth context
+    // Use cached auth context
     const user = await this.getCurrentAuthUser();
     if (!user) throw new Error('User not authenticated');
 
@@ -1458,7 +1456,7 @@ export class ActivityPubService {
     const cacheKey = `${username}@${domain}`;
     const isRemote = domain !== this.currentDomain;
 
-    // OPTIMIZATION: Check cache first (unless force refresh)
+    // Check cache first (unless force refresh)
     if (!forceRefresh) {
       const cachedProfile = this.getCachedProfile(cacheKey);
       if (cachedProfile) {
@@ -1470,7 +1468,7 @@ export class ActivityPubService {
       this.clearProfileCache(cacheKey);
     }
     
-    // OPTIMIZATION: Deduplicate concurrent requests for same profile
+    // Deduplicate concurrent requests for same profile
     const inFlight = this.inFlightRequests.get(cacheKey);
     if (inFlight && !forceRefresh) {
       debug.log(`⏳ Waiting for in-flight request: ${cacheKey}`);
@@ -1773,6 +1771,7 @@ export class ActivityPubService {
     options: TimelineOptions = {}
   ): Promise<TimelineResult> {
     const limit = options.limit || 20;
+    // eslint-disable-next-line unused-imports/no-unused-vars
     const max_id = options.max_id || null;
 
     // Build query based on timeline type.

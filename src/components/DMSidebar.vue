@@ -194,8 +194,7 @@
 
 <script setup lang="ts">
 // TODO: Consider virtualizing conversation list for users with many DMs
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
-import { storeToRefs } from 'pinia'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import Icon from '@/components/common/Icon.vue'
 import { useDMStore, type DMUser, type DMConversation } from '@/stores/useDM'
 import { useActivityPubStore } from '@/stores/useActivityPub'
@@ -222,6 +221,7 @@ const {
   getUserDisplayName, 
   getUserAvatarUrl, 
   getCurrentUser,
+  // eslint-disable-next-line unused-imports/no-unused-vars
   subscribeToDMPresence,
   getPresenceAwareStatus
 } = useUserData()
@@ -424,7 +424,7 @@ const getMessagePreviewText = (message: Message): string => {
   return 'Message'
 }
 
-// ⚡ OPTIMIZATION: Lazy user profile loading
+// Lazy user profile loading
 const hoveredConversations = ref(new Set<string>())
 
 const handleConversationHover = async (conversationId: string) => {
@@ -455,7 +455,7 @@ const handleConversationHover = async (conversationId: string) => {
 onMounted(async () => {
   const currentUser = getCurrentUser.value
   if (currentUser?.id) {
-    // OPTIMIZED: Don't initialize DM environment again - BaseLayout already handles it
+    // Don't initialize DM environment again - BaseLayout already handles it
     // Just wait for conversations to be available if they're being loaded
     if (dmStore.loadingConversations) {
       debug.log('⏳ DMSidebar: Waiting for DM conversations to load...')
@@ -477,7 +477,7 @@ onMounted(async () => {
     
     debug.log('✅ DMSidebar: Ready with optimized loading')
     
-    // OPTIMIZED: Don't load all user presence immediately
+    // Don't load all user presence immediately
     // User profiles and presence will be loaded on-demand when conversations are hovered
   }
 })
@@ -488,7 +488,7 @@ onUnmounted(() => {
   }
 })
 
-// OPTIMIZED: Removed automatic presence updates - now handled on-demand during hover
+// Removed automatic presence updates - now handled on-demand during hover
 </script>
 
 <style scoped>

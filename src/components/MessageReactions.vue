@@ -65,7 +65,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch, TransitionGroup } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { debug } from '@/utils/debug'
 import { useReactionsStore } from '@/stores/useReactions';
 import { useAuthStore } from '@/stores/auth';
@@ -105,9 +105,9 @@ const authStore = useAuthStore();
 const themeStore = useThemeStore();
 const { triggerReaction } = useHapticSettings();
 const { recordEmojiUsage } = useFrequentEmojis();
-const { resolveEmoji, isNativePack } = useUnifiedEmoji();
+const { resolveEmoji } = useUnifiedEmoji();
 
-// ✅ UNIFIED ARCHITECTURE: Always use reactions store (populated by CoreMessageService)
+// UNIFIED ARCHITECTURE: Always use reactions store (populated by CoreMessageService)
 const reactions = computed(() => {
   try {
     return reactionsStore.getMessageReactions(props.message.id);
@@ -200,7 +200,7 @@ const handleAddReactionClick = (event: MouseEvent) => {
   emit('open-emoji-picker', props.message.id, event);
 };
 
-// ✅ UNIFIED ARCHITECTURE: Reactions store is pre-populated by batch loading in MessageDisplay
+// UNIFIED ARCHITECTURE: Reactions store is pre-populated by batch loading in MessageDisplay
 // Individual components should only fetch if data is missing (batch loading handles most cases)
 onMounted(() => {
   // Skip fetching for optimistic/temp messages

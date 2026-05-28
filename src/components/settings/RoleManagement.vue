@@ -1,12 +1,12 @@
 <template>
   <!-- =====================================================================
-       Roles — two-pane layout matching ChannelEditModal:
+       Roles - two-pane layout matching ChannelEditModal:
          - Left rail: list of roles (drag-reorderable), with color dot,
            member count, and a "dirty" indicator when there are unsaved
            changes for that role.
          - Right pane: tabbed editor (Display / Permissions / Members) for
            the selected role.
-       This intentionally drops the old slide-over editor — at this width
+       This intentionally drops the old slide-over editor - at this width
        both panes fit comfortably and you can hop between roles without
        losing the rail.
        ===================================================================== -->
@@ -220,7 +220,7 @@
                   v-model="addMemberSearch"
                   type="text"
                   class="form-input"
-                  placeholder="Search server members…"
+                  placeholder="Search server members..."
                   @input="handleAddMemberSearch"
                 />
                 <div v-if="addMemberSearch && searchingMembers" class="loading-members">
@@ -257,7 +257,7 @@
                   v-model="memberSearch"
                   type="text"
                   class="form-input"
-                  placeholder="Filter…"
+                  placeholder="Filter..."
                 />
 
                 <div v-if="loadingMembers" class="loading-members">
@@ -325,7 +325,7 @@
             @click="saveRole"
             :disabled="saving || !hasChanges"
           >
-            {{ saving ? 'Saving…' : 'Save Changes' }}
+            {{ saving ? 'Saving...' : 'Save Changes' }}
           </button>
         </footer>
         </template>
@@ -341,7 +341,7 @@ import { supabase } from '@/supabase'
 import { roleService } from '@/services/RoleService'
 import ToggleSwitch from '@/components/common/ToggleSwitch.vue'
 import Avatar from '@/components/common/Avatar.vue'
-import type { ServerRole, Permission } from '@/services/RoleService'
+import type { ServerRole } from '@/services/RoleService'
 
 interface Props {
   serverId: string

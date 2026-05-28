@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 
 vi.stubGlobal('import', { meta: { env: { VITE_DOMAIN: 'harmony.test', VITE_HARMONY_ALT_DOMAINS: 'alt.harmony.test' } } })
 

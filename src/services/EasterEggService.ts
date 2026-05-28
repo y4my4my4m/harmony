@@ -31,7 +31,7 @@ class EasterEggService {
   /**
    * Initialize easter egg service for a voice channel
    */
-  initialize(channelId: string, userId: string): void {
+  initialize(channelId: string, _userId: string): void {
     if (this.channelName === `easter-egg:${channelId}`) {
       return // Already initialized for this channel
     }

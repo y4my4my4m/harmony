@@ -181,7 +181,6 @@ import { debug } from '@/utils/debug'
 import { useRouter, useRoute } from 'vue-router'
 import UnifiedContextBar from '@/components/common/UnifiedContextBar.vue'
 import AdaptiveChannelSidebar from '@/components/common/AdaptiveChannelSidebar.vue'
-import MainContentAreaHeader from '@/components/MainContentAreaHeader.vue'
 import UserSidebar from '@/components/UserSidebar.vue'
 import NoServersSplash from '@/components/NoServersSplash.vue'
 import CreateChannel from '@/components/CreateChannel.vue'
@@ -229,6 +228,7 @@ const props = withDefaults(defineProps<Props>(), {
 })
 
 // Emits
+// eslint-disable-next-line unused-imports/no-unused-vars
 const emit = defineEmits<{
   toggleLeftSidebar: []
   toggleRightSidebar: []
@@ -238,8 +238,6 @@ const emit = defineEmits<{
 
 // Stores
 const serverChannelStore = useServerChannelStore()
-const chatStore = useChatStore()
-const dmStore = useDMStore()
 const router = useRouter()
 const route = useRoute()
 
@@ -247,7 +245,7 @@ const route = useRoute()
 const { SIDEBAR_WIDTH } = useLayoutState()
 
 // User data
-const { getCurrentUser } = useUserData()
+useUserData();
 
 // State
 const showCreateChannelForm = ref(false)
@@ -280,7 +278,7 @@ const shouldShowNoServersSplash = computed(() => {
   // Only treat an empty server list as "user has no servers" once we've
   // confirmed the fetch actually completed. Without this guard, a failed
   // initial fetch (network slow during PWA cold-boot, etc.) would render
-  // the onboarding splash even though the user has servers — they'd just
+  // the onboarding splash even though the user has servers - they'd just
   // see "join a server / create a community" while half-logged-in.
   // `hasInitialized` is set to true only in the success path of
   // `initializeUserEnvironment`, so it reliably distinguishes the
@@ -321,6 +319,7 @@ const rightSidebarStyle = computed(() => {
     // Right sidebar slides in from right
     const progress = props.rightSidebarDragOffset / SIDEBAR_WIDTH
     const closedPosition = 100 // Hidden off screen (percentage)
+    // eslint-disable-next-line unused-imports/no-unused-vars
     const openPosition = 0 // Fully visible
     const currentPosition = closedPosition - (closedPosition * progress)
     

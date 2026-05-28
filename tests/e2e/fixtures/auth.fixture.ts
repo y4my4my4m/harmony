@@ -86,6 +86,7 @@ export const test = base.extend<AuthFixtures>({
     await ctx.close()
   },
 
+  // eslint-disable-next-line no-empty-pattern
   seedData: async ({}, use) => {
     const seedPath = path.resolve(AUTH_DIR, 'seed-data.json')
     if (!fs.existsSync(seedPath)) {

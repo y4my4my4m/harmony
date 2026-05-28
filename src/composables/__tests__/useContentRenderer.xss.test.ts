@@ -11,8 +11,8 @@
  *   2. Emoji / markdown / hashtag transforms run, inserting only known-safe
  *      tags we chose.
  *   3. The joined output is run through `sanitizeFormattedHtml` (DOMPurify
- *      with a wider allowlist than chat — includes `<iframe>` for YouTube
- *      embeds, `<video>` / `<audio>` for inline media — but still strips
+ *      with a wider allowlist than chat - includes `<iframe>` for YouTube
+ *      embeds, `<video>` / `<audio>` for inline media - but still strips
  *      `<style>`, `<script>`, inline event handlers, and javascript: URLs).
  *
  * These tests assert the security invariant via DOM parsing rather than
@@ -74,7 +74,7 @@ function assertNoExecutableHtml(html: string) {
 }
 
 describe('useContentRenderer.formattedHTML - XSS regression suite', () => {
-  // Identical audit payloads to the chat suite — same vector, different
+  // Identical audit payloads to the chat suite - same vector, different
   // rendering path. Both paths must reject all of them.
   const auditPayloads: Array<[string, string]> = [
     [
@@ -176,7 +176,7 @@ describe('useContentRenderer.formattedHTML - XSS regression suite', () => {
     ]);
     const container = document.createElement('div');
     container.innerHTML = html;
-    // The renderer should still emit an <img> for an image URL — the
+    // The renderer should still emit an <img> for an image URL - the
     // sanitizer's wider allowlist permits it.
     expect(container.querySelector('img')).not.toBeNull();
   });

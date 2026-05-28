@@ -45,17 +45,17 @@ The installer will guide you through all configuration. The rest of this documen
 
 ---
 
-# 🖥️ Full Self-Hosting on VPS
+# Full Self-Hosting on VPS
 
 **Cost: ~$5-12/month** for everything
 
 This method gives you full control and enables:
-- ✅ Cross-instance federation (activitypub + chat/dm servers)
-- ✅ Link previews
-- ✅ Bot gateway
-- ✅ Self-hosted LiveKit
-- ✅ BullMQ (Redis-backed) job queue for reliable delivery
-- ✅ Bull Board dashboard for queue monitoring (optional)
+- Cross-instance federation (activitypub + chat/dm servers)
+- Link previews
+- Bot gateway
+- Self-hosted LiveKit
+- BullMQ (Redis-backed) job queue for reliable delivery
+- Bull Board dashboard for queue monitoring (optional)
 
 ## Recommended VPS Providers
 
@@ -512,9 +512,9 @@ You can mix cloud and self-hosting, or self-host everything, the choice is yours
 
 | Server Spec | Concurrent Text Users | Concurrent Voice Users |
 |---|---|---|
-| 1 vCPU / 4 GB RAM | 300–800 | ~50 |
-| 2 vCPU / 8 GB RAM | 1,000–3,000 | ~100–200 |
-| 4 vCPU / 16 GB RAM | 3,000–8,000 | ~200–400 |
+| 1 vCPU / 4 GB RAM | 300-800 | ~50 |
+| 2 vCPU / 8 GB RAM | 1,000-3,000 | ~100-200 |
+| 4 vCPU / 16 GB RAM | 3,000-8,000 | ~200-400 |
 
 The main bottleneck for text is Supabase Realtime (WebSocket connections). For voice, it's CPU (LiveKit SFU media routing).
 

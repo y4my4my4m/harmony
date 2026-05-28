@@ -13,7 +13,7 @@ import config from '../config/index.js';
 
 /**
  * Custom emojis (e.g. `:xp:`) cannot be rendered as images inside a Web Push
- * notification title/body — the OS only paints plain text. Strip shortcodes
+ * notification title/body - the OS only paints plain text. Strip shortcodes
  * so the username reads "Poring" instead of "Poring :xp:".
  */
 function stripEmojiShortcodes(text: string | null | undefined): string {
@@ -451,7 +451,7 @@ class PushNotificationServiceClass {
       const channelId = data.channel_id || data.location?.channel_id;
       const conversationId = data.conversation_id || data.conversation?.id;
 
-      // 🎯 SMART PUSH: Check if user is viewing this exact context
+      // Check if user is viewing this exact context
       // Don't send push if they're already looking at the channel/conversation
       if (serverId || channelId || conversationId) {
         const isViewingContext = await this.isUserViewingContext(
@@ -467,7 +467,7 @@ class PushNotificationServiceClass {
         }
       }
 
-      // 🎯 SMART PUSH: Check if user has active session (Discord-like behavior)
+      // Check if user has active session (Discord-like behavior)
       const hasActiveSession = await this.hasActiveSession(notification.user_id);
       
       // If push_offline_only is enabled and user has active session, skip
@@ -476,7 +476,7 @@ class PushNotificationServiceClass {
         return;
       }
 
-      // 🔍 Enrich notification data with sender profile if missing
+      // Enrich notification data with sender profile if missing
       // Database stores from_user_id but not full sender profile
       logger.debug(`📬 Enriching notification type=${notification.type}, data keys: ${Object.keys(data).join(', ')}`);
       logger.debug(`📬 from_user_id=${data.from_user_id}, user_id=${data.user_id}, sender=${JSON.stringify(data.sender)}`);

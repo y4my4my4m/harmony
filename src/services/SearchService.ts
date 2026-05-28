@@ -194,12 +194,12 @@ export class SearchService {
         is_system: msg.is_system || false,
         metadata: msg.metadata,
         reactions: [],
-        // 🔐 Include encryption fields for decryption
+        // Include encryption fields for decryption
         encrypted: msg.encrypted || false,
         encryption_metadata: msg.encryption_metadata || undefined
       }))
 
-      // 🔐 Decrypt encrypted messages
+      // Decrypt encrypted messages
       if (messages.some(m => m.encrypted || m.encryption_metadata)) {
         debug.log('🔐 Search results contain encrypted messages, attempting decryption...')
         try {

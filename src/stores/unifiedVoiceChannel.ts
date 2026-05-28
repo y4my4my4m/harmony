@@ -605,7 +605,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
             }
             
             // Extract token data
-            const { livekitUrl, token, roomName } = payload.payload;
+            const { livekitUrl, token } = payload.payload;
             
             try {
               // Setup WebRTC event listeners before joining
@@ -1033,6 +1033,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       
       // Voice Activity mode - normal toggle behavior
       if (this.isConnected) {
+        // eslint-disable-next-line unused-imports/no-unused-vars
         const muted = webrtcManager.toggleMute();
         const newState = webrtcManager.getLocalState();
         if (newState.userId) {
@@ -1650,7 +1651,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         this.handleCallStartTime(data.timestamp);
       });
 
-      webrtcManager.on('request-call-start-time', (data: { from: string }) => {
+      webrtcManager.on('request-call-start-time', (_data: { from: string }) => {
         // Respond with our call start time if we have it
         if (this.callStartTime) {
           this.broadcastCallStartTime();

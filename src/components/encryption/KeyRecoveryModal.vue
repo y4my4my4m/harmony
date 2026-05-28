@@ -176,8 +176,9 @@ const validationMessage = ref('')
 const isValid = ref(false)
 
 // Import validation wordlist from recovery service
+// eslint-disable-next-line unused-imports/no-unused-vars
 let WORDLIST: string[] = []
-import('@/services/encryption/RecoveryKeyService').then(module => {
+import('@/services/encryption/RecoveryKeyService').then(_module => {
   // The wordlist is embedded in the service
   // We'll validate by trying to derive keys
 })

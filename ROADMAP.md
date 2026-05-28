@@ -1,4 +1,4 @@
-# Harmony — Roadmap
+# Harmony - Roadmap
 
 What we want to ship next, in priority order. Items are scoped so that contributors can grab one without needing to coordinate the rest.
 
@@ -23,10 +23,10 @@ These ship before anything else. Most have a corresponding entry in `BUGS.md`.
 4. **Recovery-code MFA hardening** (`BUGS.md` C11 / H8).
    Either require an AAL2 step-up before `mfa.unenroll`, or rotate to a fresh enrollment instead of unenrolling.
 
-5. **SSRF lockdown for admin-triggered fetches** (`BUGS.md` H13–H16, M56).
+5. **SSRF lockdown for admin-triggered fetches** (`BUGS.md` H13-H16, M56).
    Centralise on `safeFetch` for `resolve-post`, `fetch-posts`, NodeInfo follow, and the client-side image fetcher.
 
-6. **HTTP signature replay & body integrity** (`BUGS.md` H17–H19).
+6. **HTTP signature replay & body integrity** (`BUGS.md` H17-H19).
    Add a `Date` skew window, mark `ap_activities` completed in the inbox handler, require Digest when a body is present.
 
 ## Next (correctness & UX)
@@ -93,8 +93,8 @@ These were uncovered while preparing the public release and are in flight:
 
 The full performance breakdown is in `BUGS.md` ("Performance addendum"). The two highest-leverage wins:
 
-- **`AdminPanel.vue` route-level code splitting** — currently ~6 800 lines, eagerly imported (`PC2`).
-- **Bot-gateway message ingest** — 1 s `setInterval` poll on `messages` should switch to `NOTIFY` / Supabase Realtime, falling back to polling only when the subscription is unhealthy (`P-γ`).
+- **`AdminPanel.vue` route-level code splitting** - currently ~6 800 lines, eagerly imported (`PC2`).
+- **Bot-gateway message ingest** - 1 s `setInterval` poll on `messages` should switch to `NOTIFY` / Supabase Realtime, falling back to polling only when the subscription is unhealthy (`P-γ`).
 
 ---
 

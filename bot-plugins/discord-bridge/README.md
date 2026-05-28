@@ -4,15 +4,15 @@ Cross-platform bridge connecting Discord and Harmony servers.
 
 ## Features
 
-- ✅ Bi-directional message sync
-- ✅ User mention translation
-- ✅ Custom emoji translation
-- ✅ Attachment support
-- ✅ Reaction syncing
-- ✅ Message editing sync
-- ✅ Message deletion sync
-- ✅ Loop prevention
-- ✅ Configurable channel mappings
+- Bi-directional message sync
+- User mention translation
+- Custom emoji translation
+- Attachment support
+- Reaction syncing
+- Message editing sync
+- Message deletion sync
+- Loop prevention
+- Configurable channel mappings
 
 ## Setup
 

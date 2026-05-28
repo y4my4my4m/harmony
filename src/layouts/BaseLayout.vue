@@ -116,14 +116,12 @@ import { globalDMCallListener } from '@/services/GlobalDMCallListener'
 import IncomingCallModal from '@/components/dm/IncomingCallModal.vue'
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel'
 import { dmCallSignaling } from '@/services/DMCallSignaling'
-import { useDMStore } from '@/stores/useDM'
 import { realtimeConnectionManager } from '@/services/RealtimeConnectionManager'
 
 // Stores and Router
 const serverChannelStore = useServerChannelStore()
 const authStore = useAuthStore()
 const profileStore = useProfileStore()
-const dmStore = useDMStore()
 const voiceStore = useUnifiedVoiceChannelStore()
 const route = useRoute()
 const router = useRouter()
@@ -144,6 +142,7 @@ const {
   SIDEBAR_WIDTH,
   toggleLeftSidebar,
   toggleRightSidebar,
+  // eslint-disable-next-line unused-imports/no-unused-vars
   toggleVoicePanel,
   toggleMobileProfile,
   closeMobileSidebars,
@@ -171,6 +170,7 @@ const globalIncomingCallData = globalDMCallListener.incomingCall
 
 
 // Emit events
+// eslint-disable-next-line unused-imports/no-unused-vars
 const emit = defineEmits<{
   showPublicServers: []
   switchToActivityPub: []
@@ -386,7 +386,7 @@ const handleVisibilityRetry = () => {
   }
 }
 
-// ⚡ OPTIMIZED: Route-Aware App Initialization
+// Route-Aware App Initialization
 // Only loads what's needed for the current route instead of everything
 const initializeApp = async () => {
   if (initInFlight) {
@@ -415,13 +415,13 @@ const initializeApp = async () => {
     // Determine what to load based on current route
     const loadingStrategy = routeAwareInitialization.getLoadingStrategy(route)
     
-    // ✅ PERFORMANCE: Load minimum data needed to show UI, then mark as ready
+    // PERFORMANCE: Load minimum data needed to show UI, then mark as ready
     // This allows the UI to appear immediately while other data loads in background
     
     // Load user environment (servers list) - CRITICAL for navigation
     await serverChannelStore.initializeUserEnvironment(userId)
     
-    // ✅ CRITICAL: Load profile FIRST, then initialize userData with full profile data
+    // Load profile FIRST, then initialize userData with full profile data
     // This ensures avatar, color, banner, and status are all available immediately
     await profileStore.fetchProfileByAuthUserId(userId).catch(err => {
       debug.warn('⚠️ Profile fetch failed:', err)
@@ -543,22 +543,20 @@ const initializeApp = async () => {
   }
 }
 
-// 🎯 OPTIMIZED: Initialize only route-specific data and stores
+// Initialize only route-specific data and stores
 const initializeRouteSpecificData = async (userId: string, strategy: any, userData: any) => {
   try {
     if (strategy.routeType === 'server-channel') {
-      // Load stores needed for chat
-      const [emojiCache, { useChatStore }, { useReactionsStore }, { useThemeStore }] = await Promise.all([
+      // Warm the chat-related stores in parallel; we only need the emoji cache
+      // store instance directly below, the others register themselves.
+      const [emojiCache] = await Promise.all([
         import('@/stores/useEmojiCache'),
         import('@/stores/useChat'),
         import('@/stores/useReactions'),
         import('@/stores/useTheme')
       ])
-      
+
       const emojiCacheStore = emojiCache.useEmojiCacheStore()
-      const chatStore = useChatStore()
-      const reactionsStore = useReactionsStore()
-      const themeStore = useThemeStore()
       
       // Load current server presence only
       if (strategy.currentServerId) {
@@ -580,18 +578,17 @@ const initializeRouteSpecificData = async (userId: string, strategy: any, userDa
     }
     
     else if (strategy.routeType === 'dm' || strategy.routeType === 'dm-list') {
-      // Load stores needed for DMs
-      const [emojiCache, { useDMStore }, { useReactionsStore }, { useThemeStore }] = await Promise.all([
+      // Warm DM-related stores in parallel; only the cache and DM store
+      // instances are used below.
+      const [emojiCache, { useDMStore }] = await Promise.all([
         import('@/stores/useEmojiCache'),
         import('@/stores/useDM'),
         import('@/stores/useReactions'),
         import('@/stores/useTheme')
       ])
-      
+
       const emojiCacheStore = emojiCache.useEmojiCacheStore()
       const dmStore = useDMStore()
-      const reactionsStore = useReactionsStore()
-      const themeStore = useThemeStore()
       
       // Initialize minimal emoji support for DMs
       const allServerIds = serverChannelStore.servers.map(server => server.id)
@@ -623,18 +620,17 @@ const initializeRouteSpecificData = async (userId: string, strategy: any, userDa
     }
     
     else if (strategy.routeType === 'social') {
-      // Load stores needed for ActivityPub/Social
-      const [emojiCache, { useActivityPubStore }, { useReactionsStore }, { useThemeStore }] = await Promise.all([
+      // Warm ActivityPub-related stores in parallel; only the cache and
+      // ActivityPub store instances are used below.
+      const [emojiCache, { useActivityPubStore }] = await Promise.all([
         import('@/stores/useEmojiCache'),
         import('@/stores/useActivityPub'),
         import('@/stores/useReactions'),
         import('@/stores/useTheme')
       ])
-      
+
       const emojiCacheStore = emojiCache.useEmojiCacheStore()
       const activityPubStore = useActivityPubStore()
-      const reactionsStore = useReactionsStore()
-      const themeStore = useThemeStore()
       
       // Load followed users for proper follow state
       await activityPubStore.loadFollowedUsers()
@@ -649,16 +645,14 @@ const initializeRouteSpecificData = async (userId: string, strategy: any, userDa
     
     // MINIMAL STORES: For unknown/other routes, load only essentials
     else if (strategy.routeType === 'other' && serverChannelStore.servers.length > 0) {
-      // Load minimal essentials
-      const [emojiCache, { useReactionsStore }, { useThemeStore }] = await Promise.all([
+      // Warm essential stores in parallel; only the cache is touched directly.
+      const [emojiCache] = await Promise.all([
         import('@/stores/useEmojiCache'),
         import('@/stores/useReactions'),
         import('@/stores/useTheme')
       ])
-      
+
       const emojiCacheStore = emojiCache.useEmojiCacheStore()
-      const reactionsStore = useReactionsStore()
-      const themeStore = useThemeStore()
       
       // Load default server emojis
       const allServerIds = serverChannelStore.servers.map(server => server.id)
@@ -674,14 +668,14 @@ const initializeRouteSpecificData = async (userId: string, strategy: any, userDa
     }
     
     // BASELINE GLOBAL PRESENCE: Load users for cross-context online status
-    // OPTIMIZED: For single DM views, only load current conversation participant(s)
+    // For single DM views, only load current conversation participant(s)
     const baselineUserIds = new Set<string>()
     
     // For DM routes with a specific conversation, only load that conversation's participants initially
     const isSingleDMView = strategy.routeType === 'dm' && strategy.currentConversationId
     
     if (isSingleDMView) {
-      // OPTIMIZED: Only load current conversation participant for single DM view
+      // Only load current conversation participant for single DM view
       try {
         const { data: participants } = await supabase
           .from('conversation_participants')
@@ -792,7 +786,7 @@ const initializeRouteSpecificData = async (userId: string, strategy: any, userDa
 }
 
 // Background loading of non-critical data
-const initializeBackgroundData = async (userId: string, strategy: any) => {
+const initializeBackgroundData = async (userId: string, _strategy: any) => {
   try {
     // Register global conversation broadcast handlers (new conversations + metadata updates)
     const { useDMStore } = await import('@/stores/useDM')
@@ -848,7 +842,7 @@ watch(() => authStore.session, async (newSession, oldSession) => {
       debug.error('Failed to cleanup user data:', error)
     }
     
-    // ✅ PERFORMANCE FIX: Cleanup state persistence
+    // PERFORMANCE FIX: Cleanup state persistence
     try {
       const { statePersistence } = await import('@/services/StatePersistence')
       await statePersistence.cleanup()
@@ -878,7 +872,7 @@ watch(() => authStore.session, async (newSession, oldSession) => {
   }
 })
 
-// 🔥 CRITICAL FIX: Watch for route changes and refresh global presence
+// Watch for route changes and refresh global presence
 // This ensures users remain visible globally when navigating between different contexts
 // Debounced to prevent excessive calls during rapid navigation
 let presenceRefreshTimeout: ReturnType<typeof setTimeout> | null = null

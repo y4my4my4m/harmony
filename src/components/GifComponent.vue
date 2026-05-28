@@ -293,6 +293,7 @@ const loadFavorites = async () => {
 
 // Toggle favorite status for a GIF
 const toggleFavorite = async (gif: Gif) => {
+  // eslint-disable-next-line unused-imports/no-unused-vars
   const wasAlreadyFavorite = isFavorited(gif.id);
   const result = await gifService.toggleFavorite(gif);
   

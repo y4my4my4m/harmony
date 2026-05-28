@@ -304,6 +304,7 @@ const formatNumber = (num: number): string => {
   return num.toString()
 }
 
+// eslint-disable-next-line unused-imports/no-unused-vars
 const formatJoinDate = (dateString: string | undefined) => {
   if (!dateString) return 'Unknown'
   const date = new Date(dateString)
@@ -314,6 +315,7 @@ const formatJoinDate = (dateString: string | undefined) => {
   })
 }
 
+// eslint-disable-next-line unused-imports/no-unused-vars
 const formatVoiceTime = (minutes: number | undefined) => {
   if (!minutes) return '0m'
   if (minutes < 60) return `${minutes}m`

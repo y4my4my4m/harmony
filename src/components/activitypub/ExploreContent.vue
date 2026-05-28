@@ -278,7 +278,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { debug } from '@/utils/debug'
 import { useI18n } from 'vue-i18n';
@@ -295,7 +295,7 @@ import ProfileCard from '@/components/common/ProfileCard.vue';
 // Router
 const router = useRouter();
 
-const { t } = useI18n();
+useI18n();
 
 // Props
 interface Props {
@@ -399,6 +399,7 @@ const navigateToInstances = () => {
   router.push({ name: 'SocialInstances' });
 };
 
+// eslint-disable-next-line unused-imports/no-unused-vars
 const currentTabData = computed(() => {
   switch (props.currentView) {
     case 'trending':

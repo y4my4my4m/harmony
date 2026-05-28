@@ -1,6 +1,6 @@
 <template>
   <!--
-    Discord-style user context menu — opened by right-click (desktop) or
+    Discord-style user context menu - opened by right-click (desktop) or
     long-press (mobile) on a user in the member list. Only renders items
     the app actually supports; emits high-level events that the parent
     wires to existing flows (UserProfileModal, KickBanModal, InviteModal,
@@ -71,7 +71,7 @@
       </button>
       -->
 
-      <!-- Change Server Nickname (own profile, in server) — uses Edit Profile flow -->
+      <!-- Change Server Nickname (own profile, in server) - uses Edit Profile flow -->
       <button
         v-if="canEditOwnProfile"
         class="menu-item"
@@ -138,7 +138,7 @@
 
       <div class="menu-divider"></div>
 
-      <!-- Copy User ID — always available -->
+      <!-- Copy User ID - always available -->
       <button
         class="menu-item with-trailing"
         role="menuitem"
@@ -211,7 +211,7 @@ const { getCurrentUser, getUserDisplayName } = useUserData();
 const menuRef = ref<HTMLElement | null>(null);
 const adjustedPosition = ref({ x: 0, y: 0 });
 
-// Permission state — lazy-loaded each time the menu opens for the
+// Permission state - lazy-loaded each time the menu opens for the
 // current (user, server) tuple so we don't show actions the user can't
 // actually perform. Defaults are pessimistic (false) so the menu won't
 // flash kick/ban entries while loading.
@@ -233,7 +233,7 @@ const isInServerContext = computed(() => {
     && !!serverChannelStore.currentServerId;
 });
 
-// Chat context covers both server channels and DMs — that's where it
+// Chat context covers both server channels and DMs - that's where it
 // makes sense to insert a mention into the active message input.
 const isInChatContext = computed(() => {
   return route.path.startsWith('/chat/') || route.path.startsWith('/dm');
@@ -244,8 +244,8 @@ const displayName = computed(() => {
   return getUserDisplayName(props.user.id).value || props.user.display_name || props.user.username || 'User';
 });
 
-// Treat anything without an explicit `is_local: false` as local — same
-// rule as UserProfileModal — so DM/Call only show when we can actually
+// Treat anything without an explicit `is_local: false` as local - same
+// rule as UserProfileModal - so DM/Call only show when we can actually
 // route to a local conversation.
 const isLocalUser = computed(() => {
   const u: any = props.user;
@@ -274,7 +274,7 @@ const canMessage = computed(() => {
 });
 
 const canCall = computed(() => {
-  // Same rules as Message — calling routes through the DM flow.
+  // Same rules as Message - calling routes through the DM flow.
   return canMessage.value;
 });
 
@@ -324,7 +324,7 @@ const menuStyle = computed(() => ({
 /**
  * Reposition the menu so it stays within the viewport. Runs after the
  * menu is in the DOM so we can use `getBoundingClientRect()` to know
- * its actual size — items are conditional so we can't hard-code it.
+ * its actual size - items are conditional so we can't hard-code it.
  */
 async function repositionMenu() {
   adjustedPosition.value = { ...props.position };
@@ -361,7 +361,7 @@ function emitAction(action: UserContextAction) {
   close();
 }
 
-// Escape closes the menu — matches behaviour of MessageContextMenu /
+// Escape closes the menu - matches behaviour of MessageContextMenu /
 // VoiceUserContextMenu.
 function handleKeydown(event: KeyboardEvent) {
   if (event.key === 'Escape' && props.visible) close();
@@ -381,7 +381,7 @@ watch(
   async (visible) => {
     if (visible) {
       // Ensure block/mute state is up-to-date before deciding whether to
-      // hide Message/Call — the store loads this lazily on first
+      // hide Message/Call - the store loads this lazily on first
       // open of any feature that needs it, and we may be the first.
       if (activityPubStore.blockedUsers.size === 0 && activityPubStore.mutedUsers.size === 0) {
         activityPubStore.loadBlockingData();
@@ -410,7 +410,7 @@ watch(
   position: fixed;
   inset: 0;
   z-index: 1099;
-  /* Backdrop is invisible — it just gives us a click target that closes
+  /* Backdrop is invisible - it just gives us a click target that closes
      the menu when the user taps outside it. Critically, it does NOT
      have `pointer-events: none` so a stray tap doesn't fall through
      onto the user-item beneath. */
@@ -517,7 +517,7 @@ watch(
   margin: 4px 8px;
 }
 
-/* Mobile sizing — touch targets are larger and font scaled up a bit
+/* Mobile sizing - touch targets are larger and font scaled up a bit
    so the menu reads comfortably under a finger after long-press. */
 @media (max-width: 768px) {
   .user-context-menu {

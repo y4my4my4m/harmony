@@ -305,7 +305,7 @@
         <span class="beta-badge">Beta</span>
       </h3>
       <p class="section-description">
-        Skins go beyond colour switching — they bundle a theme, a font, and a
+        Skins go beyond colour switching - they bundle a theme, a font, and a
         set of CSS rules that change borders, corners, decorative overlays and
         more. Picking one overrides the matching settings above; you can still
         tweak colours afterwards. Pick "None" to clear the skin layer.
@@ -357,7 +357,7 @@
         class="skin-active-options"
       >
         <h4 class="skin-active-options-title">
-          {{ activeSkin?.name }} — decorations
+          {{ activeSkin?.name }} - decorations
         </h4>
         <div
           v-for="option in activeSkinOptions"
@@ -656,7 +656,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useToast } from 'vue-toastification'
 import { debug } from '@/utils/debug'
 import type { User } from '@/types'
@@ -677,6 +677,7 @@ interface Props {
   loading: boolean
 }
 
+// eslint-disable-next-line unused-imports/no-unused-vars
 const props = defineProps<Props>()
 
 // Emits
@@ -740,6 +741,7 @@ const customPreviewColors = computed(() => {
 })
 
 const originalSettings = ref({ ...settings.value })
+// eslint-disable-next-line unused-imports/no-unused-vars
 const showColorPicker = ref(false)
 const showAdvancedCss = ref(false)
 const savedThemeName = ref('')

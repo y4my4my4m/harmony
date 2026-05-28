@@ -271,10 +271,9 @@ import { useThemeStore } from '@/stores/useTheme'
 import { useServerChannelStore } from '@/stores/useServerChannel'
 import { useServerPermissions } from '@/composables/useServerPermissions'
 import { parseContentToMessageParts, resolveMentionsUserData, resolveEmojisData } from '@/utils/unifiedContentProcessing'
-import { recordEmojiUsage } from '@/services/emojiService'
 import { debug } from '@/utils/debug'
 import { realtimeConnectionManager } from '@/services/RealtimeConnectionManager'
-import type { Message, Thread, MessagePart, Emoji, Gif } from '@/types'
+import type { Message, MessagePart, Emoji, Gif } from '@/types'
 import type { ThreadWithDetails } from '@/services/ThreadService'
 import type { FilePreviewData } from '@/components/FilePreview.vue'
 
@@ -897,7 +896,7 @@ const toggleGiphy = () => {
   }
 }
 
-const toggleEmojiListForInput = (isReaction: boolean, message?: Message) => {
+const toggleEmojiListForInput = (isReaction: boolean, _message?: Message) => {
   if (!isReaction) {
     // Regular emoji input - use unified media picker
     mediaPickerInitialTab.value = 'emoji'

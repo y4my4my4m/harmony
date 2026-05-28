@@ -400,7 +400,7 @@ export class MessageService {
     try {
       debug.log(`📌 Pinning message: ${messageId}`)
 
-      const { data, error } = await supabase.rpc('pin_message', {
+      const { error } = await supabase.rpc('pin_message', {
         p_message_id: messageId,
       })
 
@@ -424,7 +424,7 @@ export class MessageService {
     try {
       debug.log(`📌 Unpinning message: ${messageId}`)
 
-      const { data, error } = await supabase.rpc('unpin_message', {
+      const { error } = await supabase.rpc('unpin_message', {
         p_message_id: messageId,
       })
 

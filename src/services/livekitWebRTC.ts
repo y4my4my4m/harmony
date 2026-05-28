@@ -20,14 +20,10 @@ import {
   TrackPublication,
   ConnectionState,
   ParticipantEvent,
-  LocalTrack,
   LocalAudioTrack,
-  LocalVideoTrack,
   RemoteTrack,
   RemoteAudioTrack,
-  RemoteVideoTrack,
   VideoPresets,
-  AudioPresets,
   createLocalAudioTrack,
   createLocalVideoTrack,
   setLogLevel,
@@ -358,11 +354,11 @@ export class LiveKitWebRTCService {
         return VideoPresets.h1080.resolution as { width: number; height: number; frameRate: number };
       case -1: // Source/Native - use 1080p as max
         return VideoPresets.h1080.resolution as { width: number; height: number; frameRate: number };
-      default:
-        // For any other value, calculate 16:9 dimensions
+      default: {
         const height = resolution;
         const width = Math.round(height * 16 / 9);
         return { width, height, frameRate: 30 };
+      }
     }
   }
   
@@ -890,7 +886,7 @@ export class LiveKitWebRTCService {
         // Capture options for screenshare
         const captureOptions = {
           audio: {
-            // IMPORTANT: Disable all audio processing for screenshare audio
+            // Disable all audio processing for screenshare audio
             // We want RAW audio from the shared tab/window - no normalization
             echoCancellation: false,
             noiseSuppression: false,
@@ -1710,7 +1706,7 @@ export class LiveKitWebRTCService {
               debug.log('🔊 [LiveKit] Also storing screenshare audio by userId:', userId);
             }
             
-            // IMPORTANT: Screenshare audio should bypass ALL audio processing
+            // Screenshare audio should bypass ALL audio processing
             // No echo cancellation, no noise suppression, no auto gain control
             // This gives us raw, unprocessed audio from the shared screen/tab
             audioElement.setAttribute('data-screenshare-audio', 'true');
@@ -1766,7 +1762,7 @@ export class LiveKitWebRTCService {
       }
       
       // Emit events to update UI - ALWAYS emit when we have a valid UUID
-      // IMPORTANT: Spread to create a NEW object reference so Vue's reactivity detects the change
+      // Spread to create a NEW object reference so Vue's reactivity detects the change
       if (userId) {
         debug.log('📺 [LiveKit] Emitting state change for:', userId, 'screenSharing:', state.isScreenSharing, 'videoEnabled:', state.isVideoEnabled);
         const stream = this.getUserStream(userId);
@@ -1824,7 +1820,7 @@ export class LiveKitWebRTCService {
       }
       
       // Only emit events if we have a valid UUID
-      // IMPORTANT: Spread to create a NEW object reference so Vue's reactivity detects the change
+      // Spread to create a NEW object reference so Vue's reactivity detects the change
       if (userId && state) {
         const stream = this.getUserStream(userId);
         this.emit('user-stream-changed', { userId, stream });
@@ -1902,7 +1898,7 @@ export class LiveKitWebRTCService {
     });
     
     // LOCAL track unpublished (fires when Chrome's "Stop Sharing" is clicked or track ends)
-    this.room.on(RoomEvent.LocalTrackUnpublished, (publication: TrackPublication, participant: LocalParticipant) => {
+    this.room.on(RoomEvent.LocalTrackUnpublished, (publication: TrackPublication, _participant: LocalParticipant) => {
       debug.log('📺 [LiveKit] Local track unpublished:', publication.kind, 'source:', publication.source);
       
       // Update local media state based on what was unpublished
@@ -2055,6 +2051,7 @@ export class LiveKitWebRTCService {
    */
   private loadAudioSettings(): void {
     try {
+      // eslint-disable-next-line unused-imports/no-unused-vars
       const settings = VoiceSettingsService.getAll();
       const devices = VoiceSettingsService.getDevices();
       const constraints = VoiceSettingsService.getAudioConstraints();

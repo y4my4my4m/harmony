@@ -321,7 +321,7 @@ export const useChatStore = defineStore('chat', {
           debug.log('📭 No older messages found');
           this.allMessagesLoaded = true;
           
-          // IMPORTANT: Still set currentChannelId for empty channels!
+          // Still set currentChannelId for empty channels!
           // This ensures real-time messages will be received correctly
           if (oldestMessageId === '' && this.currentChannelId !== channelId) {
             this.currentChannelId = channelId;
@@ -341,7 +341,6 @@ export const useChatStore = defineStore('chat', {
         }
         
         // Get reactions store instance
-        const reactionsStore = useReactionsStore();
         
         // Extract unique user IDs from messages and pre-load profiles
         // Service already loads user profiles, but we pre-load for consistency
@@ -359,7 +358,7 @@ export const useChatStore = defineStore('chat', {
           await serverUsersStore.fetchMultipleUserProfiles(Array.from(userIds));
         }
         
-        // ✅ PERFORMANCE FIX: Reactions are already loaded by MessageService
+        // PERFORMANCE FIX: Reactions are already loaded by MessageService
         // Components should use message.reactions directly instead of fetching
 
         // Service returns messages in chronological order (oldest first after reversing)
@@ -629,7 +628,7 @@ export const useChatStore = defineStore('chat', {
         // Use services.messages for consistent editing with service layer
         const updatedMessage = await services.messages.editMessage(messageId, content);
         
-        // IMPORTANT: Preserve existing reactions and other computed fields
+        // Preserve existing reactions and other computed fields
         // Service may not return all computed fields
         const messageWithReactions = {
           ...updatedMessage,
@@ -730,7 +729,7 @@ export const useChatStore = defineStore('chat', {
         }
 
         // Length-limit and structural validation errors are also not
-        // transient — retrying with the same payload will fail the same
+        // transient - retrying with the same payload will fail the same
         // way. Drop the optimistic message and surface the error so the
         // UI can show "message too long" instead of two doomed retries.
         const isPermanentValidationError =
@@ -813,7 +812,7 @@ export const useChatStore = defineStore('chat', {
         encryption_metadata: message.encryption_metadata
       };
 
-      try { ensureMessageEmbeds(realMessage); } catch {}
+      try { ensureMessageEmbeds(realMessage); } catch { /* embeds are best-effort */ }
 
       this.messages.splice(tempIndex, 1, realMessage as any);
       debug.log('✅ Replaced temp message with real message:', { tempId, realId: message.id });

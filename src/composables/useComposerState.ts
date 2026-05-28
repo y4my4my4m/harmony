@@ -5,7 +5,7 @@
  * media attachments, and validation logic.
  */
 
-import { ref, computed, type Ref } from 'vue';
+import { ref, computed } from 'vue';
 import type { Post, MediaAttachment } from '@/types';
 
 export interface ComposerStateOptions {

@@ -156,7 +156,7 @@ export function useAutoSuggest(
     // shortcode rather than CLOSING an existing one. Without it, typing the
     // closing `:` of `:joy:` matched the regex with an empty capture group,
     // which the suggestion code then treated as "show every emoji whose name
-    // contains the empty string" — i.e. every server custom emoji in the
+    // contains the empty string" - i.e. every server custom emoji in the
     // user's cache (`:xd:`, `:wtf:`, `:whoa:`, ...). Now `:joy:` produces no
     // match, and `:joy` (cursor just after `joy`) still matches with query
     // `joy` because the leading `:` is preceded by start-of-string.
@@ -430,7 +430,7 @@ export function useAutoSuggest(
         
     } else if (finalConfig.mode === 'activitypub') {
       // ActivityPub mode: Use dynamic search results (no server filtering needed)
-      // RPC search_federated_users returns user_id (not id) – use it so DisplayName + cache priming work
+      // RPC search_federated_users returns user_id (not id) - use it so DisplayName + cache priming work
       return activityPubUsers.value.map(user => {
         const profileId = (user as { user_id?: string }).user_id ?? (user as { id?: string }).id ?? '';
         let handle = user.handle || `@${user.username}${!user.is_local && user.domain ? '@' + user.domain : ''}`;

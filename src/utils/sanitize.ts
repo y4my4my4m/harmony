@@ -29,8 +29,8 @@ const SAFE_URL_SCHEMES = new Set(['http:', 'https:', 'mailto:', 'tel:', 'blob:']
  * lets a remote user repaint or break out of the app UI even though Vue's
  * `v-html` strips inline `<script>` execution.
  *
- * `<img>` is allowed for inline emojis only — DOMPurify will still strip
- * dangerous attributes (`onerror`, `onload`, …) via `FORBID_ATTR` below.
+ * `<img>` is allowed for inline emojis only - DOMPurify will still strip
+ * dangerous attributes (`onerror`, `onload`, ...) via `FORBID_ATTR` below.
  */
 const MESSAGE_ALLOWED_TAGS = [
   'a',
@@ -75,7 +75,7 @@ const MESSAGE_ALLOWED_ATTR = [
  *
  * Use this on the FINAL HTML string immediately before passing it to
  * `v-html`. Do NOT use it on partial fragments that will later be
- * concatenated with untrusted text — concatenation after sanitization
+ * concatenated with untrusted text - concatenation after sanitization
  * re-introduces injection risk.
  */
 export function sanitizeMessageHtml(html: string): string {
@@ -120,7 +120,7 @@ export function sanitizeMessageHtml(html: string): string {
 /**
  * Sanitizer for the structural HTML built by `useContentRenderer`'s
  * `formattedHTML` (HTML-mode) path. This output is our own renderer output,
- * not raw user HTML — but it inlines user-supplied text into the markup
+ * not raw user HTML - but it inlines user-supplied text into the markup
  * (mentions, hashtags, URLs, emoji shortcodes), so a regression in any of
  * those branches could reintroduce XSS.
  *
@@ -191,7 +191,7 @@ export function sanitizeFormattedHtml(html: string): string {
 
 /**
  * Strict bio/display-name sanitizer. Same allowlist as the message
- * sanitizer but with `<a>` blocked — display names and bios should never
+ * sanitizer but with `<a>` blocked - display names and bios should never
  * contain interactive links injected by the user; if we want clickable
  * URLs there we should render them through the structured MessagePart
  * pipeline.
@@ -246,14 +246,15 @@ export function sanitizeInlineHtml(html: string): string {
  */
 export function sanitizeUrl(url: string | null | undefined): string {
   if (url == null) return '';
-  // Strip ASCII control chars (0x00–0x1F and 0x7F) - browsers ignore these
+  // Strip ASCII control chars (0x00-0x1F and 0x7F): browsers ignore these
   // when matching the URL scheme, enabling bypasses like "java\tscript:".
+  // eslint-disable-next-line no-control-regex
   const cleaned = String(url).replace(/[\x00-\x1F\x7F]/g, '').trim();
   if (!cleaned) return '';
 
-  // Scheme-less (relative path, protocol-relative, fragment, query-only) → allow.
+  // Scheme-less (relative path, protocol-relative, fragment, query-only) -> allow.
   // A scheme requires `[a-z][a-z0-9+.-]*:` per RFC 3986.
-  const schemeMatch = /^([a-z][a-z0-9+.\-]*):/i.exec(cleaned);
+  const schemeMatch = /^([a-z][a-z0-9+.-]*):/i.exec(cleaned);
   if (!schemeMatch) return cleaned;
 
   const scheme = schemeMatch[1].toLowerCase() + ':';

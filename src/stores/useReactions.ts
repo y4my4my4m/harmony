@@ -62,7 +62,7 @@ export const useReactionsStore = defineStore('reactions', () => {
   async function fetchMessageReactions(messageId: string, force = false): Promise<void> {
     if (!messageId) return
     
-    // CRITICAL: Skip temp messages to avoid UUID errors
+    // Skip temp messages to avoid UUID errors
     if (messageId.startsWith('temp-')) {
       debug.log('⚠️ Skipping reaction fetch for temp message:', messageId)
       return
@@ -177,7 +177,6 @@ export const useReactionsStore = defineStore('reactions', () => {
       // 1. INSTANT UI UPDATE - Create optimistic version
       const currentReactions = reactionsByMessage.value.get(messageId) || []
       const currentlyHasReaction = hasUserReacted.value(messageId, emojiId, userId)
-      const emojiCache = useEmojiCacheStore()
       
       const optimisticVersion = createOptimisticReactions(
         currentReactions, 
@@ -484,7 +483,7 @@ export const useReactionsStore = defineStore('reactions', () => {
        optimisticReactions.value.delete(messageId)
      },
      
-     // ✅ ARCHITECTURE FIX: Bulk set reactions from CoreMessageService batch loading
+     // ARCHITECTURE FIX: Bulk set reactions from CoreMessageService batch loading
      bulkSetReactions: (reactionsData: Record<string, any[]>) => {
        const now = Date.now()
        Object.entries(reactionsData).forEach(([messageId, reactions]) => {
