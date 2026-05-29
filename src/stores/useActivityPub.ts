@@ -28,6 +28,15 @@ import type {
   MessagePart
 } from '@/types';
 
+// Module-level guards that make ActivityPub store initialization idempotent.
+// initialize() is invoked from many places (auth session-restore, SIGNED_IN,
+// INITIAL_SESSION, login, 2FA, route guards) that can fire concurrently or
+// repeatedly. Without these guards each call re-ran every relationship query
+// (followed users, follow counts, blocks, mutes, realtime setup), producing
+// the duplicate follows/HEAD-count probes seen on a fresh load.
+let _apInitPromise: Promise<void> | null = null
+let _apInitializedProfileId: string | null = null
+
 // User List type for Mastodon-compatible Lists feature
 export interface UserList {
   id: string;
@@ -385,27 +394,46 @@ export const useActivityPubStore = defineStore('activitypub', {
      * userDataService being initialized.
      */
     async initialize() {
+      let profileId: string;
       try {
-        let profileId: string;
-        try {
-          profileId = await authContextService.getCurrentProfileId();
-        } catch {
-          debug.warn('⚠️ ActivityPub initialize: no profile id (not authenticated)');
-          return;
-        }
-
-        debug.log('🌐 Initializing ActivityPub store for profile', profileId);
-        await this.loadBlockingData();
-        await Promise.all([
-          this.loadFollowCounts(true, profileId),
-          this.loadFollowedUsers(true, profileId),
-          this.setupRealtimeSubscriptions(profileId),
-        ]);
-        debug.log(`📊 Relationships loaded: ${this.followedUsers.size} following, ${this.blockedUsers.size} blocked, ${this.mutedUsers.size} muted`);
-      } catch (error) {
-        debug.error('❌ Failed to initialize ActivityPub store:', error);
-        throw error;
+        profileId = await authContextService.getCurrentProfileId();
+      } catch {
+        debug.warn('⚠️ ActivityPub initialize: no profile id (not authenticated)');
+        return;
       }
+
+      // Already initialized for this profile - nothing to do. (Cleared by
+      // resetUserRelationshipState() on logout / user change.)
+      if (_apInitializedProfileId === profileId && !_apInitPromise) {
+        return;
+      }
+
+      // An initialization is already in flight - share it instead of firing a
+      // second wave of identical relationship queries.
+      if (_apInitPromise) {
+        return _apInitPromise;
+      }
+
+      _apInitPromise = (async () => {
+        try {
+          debug.log('🌐 Initializing ActivityPub store for profile', profileId);
+          await this.loadBlockingData();
+          await Promise.all([
+            this.loadFollowCounts(true, profileId),
+            this.loadFollowedUsers(true, profileId),
+            this.setupRealtimeSubscriptions(profileId),
+          ]);
+          _apInitializedProfileId = profileId;
+          debug.log(`📊 Relationships loaded: ${this.followedUsers.size} following, ${this.blockedUsers.size} blocked, ${this.mutedUsers.size} muted`);
+        } catch (error) {
+          debug.error('❌ Failed to initialize ActivityPub store:', error);
+          throw error;
+        } finally {
+          _apInitPromise = null;
+        }
+      })();
+
+      return _apInitPromise;
     },
 
     /**
@@ -599,6 +627,9 @@ export const useActivityPubStore = defineStore('activitypub', {
      * truth that `auth.logout()` can call without unsafe casts.
      */
     resetUserRelationshipState() {
+      // Allow initialize() to run again for the next user/session.
+      _apInitPromise = null;
+      _apInitializedProfileId = null;
       // Relationship sets + cache flags
       this.followedUsers.clear();
       this.blockedUsers.clear();
@@ -671,8 +702,13 @@ export const useActivityPubStore = defineStore('activitypub', {
     },
 
     /**
-     * Load follow counts for the current user
-     * OPTIMIZED: Only loads if not already loaded to prevent duplicate queries
+     * Load the FOLLOWERS (incoming) count for the current user.
+     *
+     * The following (outgoing) count is intentionally NOT fetched here: it is
+     * derived from `followedUsers.size` in loadFollowedUsers(), which already
+     * pulls the complete accepted-following id set. Counting it again with a
+     * separate HEAD query would be a redundant round-trip and could drift out
+     * of sync with the Set that backs every `isFollowing` check.
      */
     async loadFollowCounts(force = false, profileIdOverride?: string) {
       if (this.followCountsLoaded && !force) return;
@@ -686,24 +722,16 @@ export const useActivityPubStore = defineStore('activitypub', {
           return;
         }
 
-        const [{ count: followingCount }, { count: followersCount }] = await Promise.all([
-          supabase
-            .from('follows')
-            .select('*', { count: 'exact', head: true })
-            .eq('follower_id', profileId)
-            .eq('status', 'accepted'),
-          supabase
-            .from('follows')
-            .select('*', { count: 'exact', head: true })
-            .eq('following_id', profileId)
-            .eq('status', 'accepted'),
-        ]);
+        const { count: followersCount } = await supabase
+          .from('follows')
+          .select('*', { count: 'exact', head: true })
+          .eq('following_id', profileId)
+          .eq('status', 'accepted');
 
-        this.followingCount = followingCount || 0;
         this.followersCount = followersCount || 0;
         this.followCountsLoaded = true;
 
-        debug.log(`📊 Follow counts loaded: ${this.followingCount} following, ${this.followersCount} followers`);
+        debug.log(`📊 Followers count loaded: ${this.followersCount} followers`);
       } catch (error) {
         debug.error('❌ Failed to load follow counts:', error);
       }
@@ -3226,6 +3254,9 @@ export const useActivityPubStore = defineStore('activitypub', {
         // make any user past page 1 wrongly render as "not followed".
         const followingIds = await services.interactions.getFollowingIds(profileId);
          this.followedUsers = new Set(followingIds);
+         // followingCount is derived here (not via a separate count query) so it
+         // always matches the relationship Set exactly.
+         this.followingCount = this.followedUsers.size;
          this.followsLoaded = true;
          
          debug.log(`✅ Loaded ${this.followedUsers.size} followed users via service layer`);
@@ -3263,6 +3294,7 @@ export const useActivityPubStore = defineStore('activitypub', {
       
       // Add all followed users (both local and federated)
       this.followedUsers = new Set(data.map(f => f.following_id));
+      this.followingCount = this.followedUsers.size;
     },
 
     /**

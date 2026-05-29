@@ -3,7 +3,7 @@
     <!-- Explore Controls -->
     <div class="explore-controls">
       <div class="filter-group">
-        <select v-model="selectedContentType" class="filter-select">
+        <select v-if="currentView !== 'instances'" v-model="selectedContentType" class="filter-select">
           <option value="all">{{ $t('activitypub.allContent') }}</option>
           <option value="posts">{{ $t('activitypub.postsOnly') }}</option>
           <option value="media">{{ $t('activitypub.withMedia') }}</option>
@@ -29,7 +29,11 @@
           </option>
         </select>
         
-        <select v-model="selectedTimeRange" class="filter-select">
+        <select
+          v-if="currentView !== 'instances' && selectedContentType !== 'users'"
+          v-model="selectedTimeRange"
+          class="filter-select"
+        >
           <option value="1h">{{ $t('activitypub.lastHour') }}</option>
           <option value="6h">{{ $t('activitypub.last6Hours') }}</option>
           <option value="24h">{{ $t('activitypub.last24Hours') }}</option>
@@ -431,7 +435,9 @@ const showTrendingPosts = computed(() => {
 
 const showTrendingHashtags = computed(() => {
   const type = selectedContentType.value;
-  return type === 'all' || type === 'posts' || type === 'media';
+  // Hashtags are post-discovery aids; show them with the post views, not for
+  // the media-uploads view or the users view.
+  return type === 'all' || type === 'posts';
 });
 
 const showSuggestedUsers = computed(() => {
@@ -439,11 +445,14 @@ const showSuggestedUsers = computed(() => {
   return type === 'all' || type === 'users';
 });
 
-const daysForTimeRange = (timeRange: string): number => {
+const hoursForTimeRange = (timeRange: string): number => {
   switch (timeRange) {
-    case '7d': return 7;
-    case '30d': return 30;
-    default: return 1;
+    case '1h': return 1;
+    case '6h': return 6;
+    case '24h': return 24;
+    case '7d': return 24 * 7;
+    case '30d': return 24 * 30;
+    default: return 24;
   }
 };
 
@@ -467,7 +476,7 @@ const loadTrendingContent = async () => {
       showTrendingHashtags.value
         ? trendingService.getTrendingHashtags({
             limit: 10,
-            days: daysForTimeRange(filters.timeRange),
+            hours: hoursForTimeRange(filters.timeRange),
           })
         : Promise.resolve([]),
       showTrendingPosts.value
@@ -475,7 +484,7 @@ const loadTrendingContent = async () => {
             limit: 20,
             timeRange: filters.timeRange,
             instance: filters.instance,
-            mediaOnly: contentType === 'media',
+            mediaFilter: contentType === 'media' ? 'media' : contentType === 'posts' ? 'text' : 'all',
             includeLocal: true,
             includeFederated: true,
           })
