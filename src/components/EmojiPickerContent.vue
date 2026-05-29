@@ -273,6 +273,7 @@ const { triggerReaction } = useHapticSettings();
 const { 
   isNativePack, 
   isTwemojiPack,
+  isMutantPack,
   isLoaded: unifiedLoaded,
   isLoading: unifiedLoading,
   getAllEmojis,
@@ -402,7 +403,7 @@ function getEmojiSvgUrl(emoji: EmojiEntry): string {
     if (url) return url;
   }
   
-  if (emoji.svgPath) {
+  if (isMutantPack.value && emoji.svgPath) {
     return `/assets/emojis/mutant_emojis_svg/${emoji.svgPath}`;
   }
   

@@ -387,6 +387,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { supabase } from '@/supabase'
 import { useActivityPubStore } from '../stores/useActivityPub'
 import { useServerChannelStore } from '../stores/useServerChannel'
+import { showInstanceStaffBadge } from '@/utils/instanceBadge'
 import { useUserData } from '@/composables/useUserData'
 import { useLayoutState } from '@/composables/useLayoutState'
 import { getBannerUrl } from '@/utils/bannerUtils'
@@ -1208,10 +1209,12 @@ const getUserRoles = (_user: any) => {
 }
 
 const isInstanceAdmin = (user: any) => {
+  if (!showInstanceStaffBadge(serverChannelStore.currentServer, isInServerContext.value)) return false
   return user?.is_admin || user?.isAdmin || user?.profile?.is_admin || false
 }
 
 const isInstanceModerator = (user: any) => {
+  if (!showInstanceStaffBadge(serverChannelStore.currentServer, isInServerContext.value)) return false
   return user?.is_moderator || user?.isModerator || user?.profile?.is_moderator || false
 }
 

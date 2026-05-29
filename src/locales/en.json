@@ -808,6 +808,7 @@
     "notShownInPublicTimelines": "Not shown in public timelines",
     "onlyVisibleToFollowers": "Only visible to followers",
     "onlyMentionedUsers": "Only mentioned users",
+    "directRequiresMention": "Direct posts must @mention at least one person.",
     "publicVisibleToEveryone": "Public - visible to everyone",
     "unlistedNotShown": "Unlisted - not shown in public timelines",
     "followersOnly": "Followers only",

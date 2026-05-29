@@ -418,7 +418,9 @@ onUnmounted(() => {
   const chatStore = useChatStore()
   const dmStore = useDMStore()
   chatStore.unsubscribeFromMessages()
-  dmStore.cleanup()
+  // Preserve the conversation list cache (resetData: false) so navigating
+  // back to DMs renders instantly instead of flashing a loading spinner.
+  dmStore.cleanup(false)
 })
 
 const handleChannelSelected = (channelId: string) => {

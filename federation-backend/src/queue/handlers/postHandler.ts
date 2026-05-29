@@ -75,9 +75,13 @@ export async function handlePostJob(data: FederationJobData): Promise<void> {
             : [];
 
           if (mentions.length === 0) {
-            logger.warn(`📧 Direct post ${post.id} has no remote recipients - cannot federate`);
-            await updateFederationStatus(post_id, 'posts', 'failed');
-            throw new Error(`Direct post ${post_id} has no remote mention recipients - nothing to deliver`);
+            // A direct post with only local (or no) recipients has nothing to
+            // deliver over federation. This is a terminal, expected state - it
+            // must NOT throw, or BullMQ retries it ~5x and each failed attempt
+            // re-broadcasts post:updated, hammering the author's client.
+            logger.info(`📧 Direct post ${post.id} has no remote recipients - skipping federation`);
+            await updateFederationStatus(post_id, 'posts', 'skipped');
+            return;
           }
 
           await deliverToMentionedUsers(post, activity, author, supabase);

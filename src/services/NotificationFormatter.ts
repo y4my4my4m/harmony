@@ -13,6 +13,31 @@ export interface NotificationMessage {
   title: string
   message: string
   shortTitle?: string // For badges/compact views
+  /** Action phrase shown after the actor display name in the notification list UI */
+  titleAction?: string
+}
+
+function getActorFromData(data: Record<string, any>) {
+  return (
+    data.sender ||
+    data.actor ||
+    data.reactor ||
+    data.author ||
+    data.user ||
+    data.follower ||
+    data.inviter
+  )
+}
+
+function getActorDisplayName(data: Record<string, any>): string {
+  const actor = getActorFromData(data)
+  return (
+    actor?.display_name ||
+    actor?.username ||
+    data.sender_display_name ||
+    data.sender_username ||
+    'Someone'
+  )
 }
 
 /**
@@ -46,15 +71,33 @@ function extractContentText(content: any): string | null {
   return String(content)
 }
 
+function dmTitleAction(data: Record<string, any>): string {
+  if (data.is_invite) {
+    return ` added you to ${data.conversation?.name || 'a conversation'}`
+  }
+  return ' sent you a message'
+}
+
+function mentionTitleAction(data: Record<string, any>): string {
+  const channelName = data.location?.channel_name || data.channel_name || 'channel'
+  return ` mentioned you in #${channelName}`
+}
+
+function replyTitleAction(data: Record<string, any>): string {
+  const channelName = data.location?.channel_name || data.channel_name || 'channel'
+  return ` replied to your message in #${channelName}`
+}
+
+function threadReplyTitleAction(data: Record<string, any>): string {
+  const channelName = data.location?.channel_name || data.channel_name || 'a thread'
+  return ` replied in a thread in #${channelName}`
+}
+
 // Message templates - easy to replace for internationalization
 const MESSAGE_TEMPLATES = {
   mention: {
-    title: (data: any) => {
-      const sender = data.sender
-      const senderName = sender?.display_name || sender?.username || data.sender_username || data.sender_display_name || 'Someone'
-      const channelName = data.location?.channel_name || data.channel_name || 'channel'
-      return `${senderName} mentioned you in #${channelName}`
-    },
+    titleAction: mentionTitleAction,
+    title: (data: any) => getActorDisplayName(data) + mentionTitleAction(data),
     message: (data: any) => {
       const text = extractContentText(data.message?.content_preview)
         || extractContentText(data.preview || data.content_preview)
@@ -71,16 +114,8 @@ const MESSAGE_TEMPLATES = {
   },
   
   dm: {
-    title: (data: any) => {
-      const sender = data.sender
-      const senderUsername = sender?.display_name || sender?.username || data.sender_username || data.sender_display_name || 'Someone'
-      const domain = sender?.domain
-      const handle = domain && !sender?.is_local ? `@${domain}` : ''
-      if (data.is_invite) {
-        return `${senderUsername}${handle} added you to ${data.conversation?.name || 'a conversation'}`
-      }
-      return `${senderUsername}${handle} sent you a message`
-    },
+    titleAction: dmTitleAction,
+    title: (data: any) => getActorDisplayName(data) + dmTitleAction(data),
     message: (data: any) => {
       const text = extractContentText(data.message?.content_preview)
         || extractContentText(data.message?.content || data.content)
@@ -99,11 +134,8 @@ const MESSAGE_TEMPLATES = {
   },
 
   chat_message: {
-    title: (data: any) => {
-      const sender = data.sender
-      const senderUsername = sender?.display_name || sender?.username || data.sender_username || data.sender_display_name || 'Someone'
-      return `${senderUsername} sent a message`
-    },
+    titleAction: () => ' sent a message',
+    title: (data: any) => getActorDisplayName(data) + ' sent a message',
     message: (data: any) => {
       const text = extractContentText(data.message?.content_preview)
         || extractContentText(data.preview || data.content_preview)
@@ -120,12 +152,8 @@ const MESSAGE_TEMPLATES = {
   },
   
   reaction: {
-    title: (data: any) => {
-      const sender = data.sender
-      const reactor = data.reactor
-      const name = sender?.display_name || sender?.username || reactor?.display_name || reactor?.username || 'Someone'
-      return `${name} reacted to your message`
-    },
+    titleAction: () => ' reacted to your message',
+    title: (data: any) => getActorDisplayName(data) + ' reacted to your message',
     message: (data: any) => {
       const preview = extractContentText(data.message_preview)
         || extractContentText(data.message?.content_preview)
@@ -139,12 +167,8 @@ const MESSAGE_TEMPLATES = {
   },
   
   reply: {
-    title: (data: any) => {
-      const sender = data.sender
-      const senderName = sender?.display_name || sender?.username || data.sender_username || data.sender_display_name || 'Someone'
-      const channelName = data.location?.channel_name || data.channel_name || 'channel'
-      return `${senderName} replied to your message in #${channelName}`
-    },
+    titleAction: replyTitleAction,
+    title: (data: any) => getActorDisplayName(data) + replyTitleAction(data),
     message: (data: any) => {
       const preview = data.message?.content_preview || data.preview || data.content_preview
       if (preview && preview.length > 100) {
@@ -229,11 +253,8 @@ const MESSAGE_TEMPLATES = {
   },
 
   activitypub_mention: {
-    title: (data: any) => {
-      const displayName = data.actor?.display_name || data.actor?.username || 'Someone'
-      const domain = data.actor?.domain ? `@${data.actor.domain}` : ''
-      return `${displayName}${domain} mentioned you`
-    },
+    titleAction: () => ' mentioned you',
+    title: (data: any) => getActorDisplayName(data) + ' mentioned you',
     message: (data: any) => {
       const text = extractContentText(data.post?.content_preview) || extractContentText(data.post_content)
       if (text) {
@@ -246,12 +267,8 @@ const MESSAGE_TEMPLATES = {
   },
 
   activitypub_reply: {
-    title: (data: any) => {
-      const actor = data.actor || data.author || data.sender
-      const name = actor?.display_name || actor?.username || 'Someone'
-      const domain = actor?.domain && !actor?.is_local ? `@${actor.domain}` : ''
-      return `${name}${domain} replied to your post`
-    },
+    titleAction: () => ' replied to your post',
+    title: (data: any) => getActorDisplayName(data) + ' replied to your post',
     message: (data: any) => {
       const text = extractContentText(data.post_content)
         || extractContentText(data.post?.content_preview)
@@ -266,11 +283,8 @@ const MESSAGE_TEMPLATES = {
   },
 
   activitypub_reaction: {
-    title: (data: any) => {
-      const sender = data.sender
-      const name = sender?.display_name || sender?.username || 'Someone'
-      return `${name} reacted to your post`
-    },
+    titleAction: () => ' reacted to your post',
+    title: (data: any) => getActorDisplayName(data) + ' reacted to your post',
     message: (data: any) => {
       const text = extractContentText(data.post?.content_preview)
         || extractContentText(data.post_content)
@@ -290,12 +304,8 @@ const MESSAGE_TEMPLATES = {
   },
 
   thread_reply: {
-    title: (data: any) => {
-      const sender = data.sender
-      const senderName = sender?.display_name || sender?.username || 'Someone'
-      const channelName = data.location?.channel_name || data.channel_name || 'a thread'
-      return `${senderName} replied in a thread in #${channelName}`
-    },
+    titleAction: threadReplyTitleAction,
+    title: (data: any) => getActorDisplayName(data) + threadReplyTitleAction(data),
     message: (data: any) => {
       const text = extractContentText(data.message?.content_preview)
         || extractContentText(data.preview)
@@ -394,7 +404,39 @@ export class NotificationFormatter {
       shortTitle = title
     }
 
-    return { title, message, shortTitle }
+    let titleAction: string | undefined
+    try {
+      if ('titleAction' in template && typeof template.titleAction === 'function') {
+        titleAction = template.titleAction(data)
+      }
+    } catch (e) {
+      debug.warn('Error formatting notification titleAction:', e, notification)
+    }
+
+    return { title, message, shortTitle, titleAction }
+  }
+
+  /**
+   * Action phrase after the actor name (e.g. " sent you a message").
+   */
+  static getTitleAction(notification: Notification): string {
+    const formatted = this.formatNotification(notification)
+    if (formatted.titleAction) return formatted.titleAction
+    return ''
+  }
+
+  /**
+   * Web handle from notification payload (set by DB via notification_actor_json).
+   */
+  static getActorHandle(notification: Notification): string | null {
+    const actor = getActorFromData(notification.data || {})
+    if (!actor?.handle) return null
+    const h = String(actor.handle)
+    return h.startsWith('@') ? h : `@${h}`
+  }
+
+  static getActorDisplayNameFallback(notification: Notification): string {
+    return getActorDisplayName(notification.data || {})
   }
   
   /**

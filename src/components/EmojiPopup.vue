@@ -253,11 +253,14 @@ import { useServerChannelStore } from '@/stores/useServerChannel';
 
 // --- Types ---
 
-interface FilteredServerEmojiGroup {
-  serverId: string;
+interface ResolvedServerEmojiData {
   server_name: string;
   server_icon?: string;
   emojis: ResolvedEmoji[];
+}
+
+interface FilteredServerEmojiGroup extends ResolvedServerEmojiData {
+  serverId: string;
 }
 
 interface DisplayCategory {
@@ -309,6 +312,7 @@ const { triggerReaction } = useHapticSettings();
 const { 
   isNativePack, 
   isTwemojiPack,
+  isMutantPack,
   // eslint-disable-next-line unused-imports/no-unused-vars
   currentPack,
   isLoaded: unifiedLoaded,
@@ -319,6 +323,7 @@ const {
   searchEmojis,
   resolveEmoji,
   getTwemojiUrl,
+  reload: loadUnifiedEmojiData,
   // eslint-disable-next-line unused-imports/no-unused-vars
   getMutantSvgUrl
 } = useUnifiedEmoji();
@@ -372,7 +377,10 @@ const { positionStyle, updatePosition } = usePopupPositioning(
  */
 const filteredEmojiList = computed((): FilteredServerEmojiGroup[] => {
   const query = searchQuery.value.toLowerCase().trim();
-  const allEmojisByServer = Object.entries(emojiCacheStore.resolvedEmojis);
+  const allEmojisByServer = Object.entries(emojiCacheStore.resolvedEmojis) as [
+    string,
+    ResolvedServerEmojiData,
+  ][];
   const currentId = serverChannelStore.currentServerId;
 
   const sortCurrentFirst = (list: FilteredServerEmojiGroup[]) =>
@@ -385,7 +393,12 @@ const filteredEmojiList = computed((): FilteredServerEmojiGroup[] => {
   if (!query) {
     return sortCurrentFirst(
       allEmojisByServer
-        .map(([serverId, data]) => ({ serverId, ...data }))
+        .map(([serverId, data]) => ({
+          serverId,
+          server_name: data.server_name,
+          server_icon: data.server_icon,
+          emojis: data.emojis.filter((emoji) => emojiCacheStore.globalEmojiIndex.has(emoji.id)),
+        }))
         .filter((group) => group.emojis.length > 0)
     );
   }
@@ -395,8 +408,9 @@ const filteredEmojiList = computed((): FilteredServerEmojiGroup[] => {
       .map(([serverId, data]) => {
         const matchingEmojis = data.emojis.filter(
           (emoji) =>
-            emoji.name.toLowerCase().includes(query) ||
-            emoji.display_name.toLowerCase().includes(query),
+            emojiCacheStore.globalEmojiIndex.has(emoji.id) &&
+            (emoji.name.toLowerCase().includes(query) ||
+            emoji.display_name.toLowerCase().includes(query)),
         );
         return {
           serverId,
@@ -479,8 +493,8 @@ function getEmojiSvgUrl(emoji: EmojiEntry): string {
     if (url) return url;
   }
   
-  // For mutant, use svgPath if available
-  if (emoji.svgPath) {
+  // For mutant, use svgPath when that pack is active
+  if (isMutantPack.value && emoji.svgPath) {
     return `/assets/emojis/mutant_emojis_svg/${emoji.svgPath}`;
   }
   
@@ -942,10 +956,8 @@ onMounted(async () => {
   // Also try to load unified emoji data if not already loaded (for picker display)
   // Load in background, don't await - popup should show immediately
   if (!unifiedLoaded.value && !unifiedLoading.value) {
-    import('@/services/unifiedEmojiService').then(({ loadEmojiData }) => {
-      loadEmojiData().catch(err => {
-        debug.warn('Failed to load unified emoji data:', err)
-      })
+    loadUnifiedEmojiData().catch(err => {
+      debug.warn('Failed to load unified emoji data:', err)
     })
   }
   

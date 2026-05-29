@@ -1119,6 +1119,8 @@ const resetSettings = () => {
 
 // Initialize
 onMounted(async () => {
+  settings.value.emojiPack = currentPackId.value
+
   // Initialize visual theme system
   await visualTheme.initialize()
   

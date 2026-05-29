@@ -4,6 +4,9 @@ import { v4 as uuidv4 } from 'uuid';
 import { useEmojiCacheStore } from '@/stores/useEmojiCache';
 import type { Emoji } from '@/types';
 import { debug } from '@/utils/debug'
+import { removeFrequentEmoji } from '@/composables/useFrequentEmojis';
+import { EmojiFavoriteService } from '@/services/EmojiFavoriteService';
+import { invalidateEmojiResolverCache } from '@/services/emojiShortcodeResolver';
 
 const cleanFileName = (originalName: string) => {
     // Remove unwanted characters and trim leading/trailing spaces
@@ -37,6 +40,14 @@ const cleanFileName = (originalName: string) => {
 function isValidUUID(str: string): boolean {
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     return uuidRegex.test(str);
+}
+
+async function cleanupEmojiReferences(emoji: Emoji): Promise<void> {
+    removeFrequentEmoji(emoji.id);
+    await EmojiFavoriteService.getInstance().removeFavorite(emoji.id);
+    const emojiCache = useEmojiCacheStore();
+    await emojiCache.handleEmojiDelete(emoji);
+    invalidateEmojiResolverCache(emoji.name);
 }
 
 // Enhanced emoji usage tracking with context
@@ -271,8 +282,6 @@ async function uploadEmoji(serverId: string, userId: string, file: File): Promis
 
 // Enhanced emoji deletion with cache invalidation
 async function deleteEmoji(emojiId: string): Promise<boolean> {
-    const emojiCache = useEmojiCacheStore();
-    
     try {
         // Get emoji details before deletion for cache invalidation
         const emoji = await getEmoji(emojiId);
@@ -303,13 +312,16 @@ async function deleteEmoji(emojiId: string): Promise<boolean> {
 
         if (dbError) throw dbError;
 
-        // Invalidate cache
-        await emojiCache.invalidate({ serverId: emoji.server_id });
+        await cleanupEmojiReferences(emoji);
 
         debug.log('Emoji deleted successfully:', emoji.name);
         return true;
-    } catch (error) {
-        debug.error('Error deleting emoji:', error);
+    } catch (error: any) {
+        if (error?.code === '23503') {
+            debug.error('Emoji delete blocked by foreign key references:', error);
+        } else {
+            debug.error('Error deleting emoji:', error);
+        }
         return false;
     }
 }
@@ -364,7 +376,6 @@ async function renameEmoji(emojiId: string, newName: string, serverId: string): 
 
 // Bulk delete emojis with cache invalidation
 async function bulkDeleteEmojis(emojiIds: string[]): Promise<{ success: string[], failed: string[] }> {
-    const emojiCache = useEmojiCacheStore();
     const results = { success: [] as string[], failed: [] as string[] };
     
     debug.log(`Starting bulk deletion of ${emojiIds.length} emojis`);
@@ -381,12 +392,10 @@ async function bulkDeleteEmojis(emojiIds: string[]): Promise<{ success: string[]
     }
 
     const emojiMap = new Map((emojis || []).map(e => [e.id, e]));
-    const serverIds = new Set<string>();
 
     // Build storage paths for batch removal
     const storagePaths: string[] = [];
     for (const emoji of emojis || []) {
-        serverIds.add(emoji.server_id);
         const urlParts = emoji.url.split('/');
         const fileName = urlParts[urlParts.length - 1];
         storagePaths.push(`${emoji.server_id}/${emoji.uploader}/${fileName}`);
@@ -417,14 +426,16 @@ async function bulkDeleteEmojis(emojiIds: string[]): Promise<{ success: string[]
         } else {
             results.success = foundIds;
             results.failed = emojiIds.filter(id => !emojiMap.has(id));
+
+            for (const id of foundIds) {
+                const emoji = emojiMap.get(id);
+                if (emoji) {
+                    await cleanupEmojiReferences(emoji as Emoji);
+                }
+            }
         }
     } else {
         results.failed = emojiIds;
-    }
-
-    // Invalidate cache for all affected servers
-    for (const serverId of serverIds) {
-        await emojiCache.invalidate({ serverId });
     }
     
     debug.log(`Bulk deletion completed: ${results.success.length}/${emojiIds.length} successful`);

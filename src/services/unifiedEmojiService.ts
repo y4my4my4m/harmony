@@ -15,7 +15,6 @@ import { debug } from '@/utils/debug'
 import { 
   TWEMOJI_BASE_URL, 
   MUTANT_BASE_URL,
-  DEFAULT_EMOJI_PACK,
   EMOJI_CATEGORIES,
   type EmojiPack 
 } from '@/utils/emojiConstants'
@@ -23,6 +22,11 @@ import {
   getCachedStaticEmojiData,
   setCachedStaticEmojiData,
 } from '@/services/emojiIndexedDBCache'
+import {
+  currentPackId,
+  setCurrentPack,
+  isEmojiPackAvailable,
+} from '@/services/emojiPackService'
 
 // Re-export type for convenience
 export type { EmojiPack } from '@/utils/emojiConstants'
@@ -70,9 +74,8 @@ export interface EmojiData {
   lookups: EmojiLookups
 }
 
-// State
-const PACK_STORAGE_KEY = 'harmony-emoji-pack'
-const currentPack = ref<EmojiPack>(DEFAULT_EMOJI_PACK)
+// State — pack selection is owned by emojiPackService (single source of truth)
+const currentPack = computed(() => currentPackId.value as EmojiPack)
 const emojiData = ref<EmojiData | null>(null)
 const lookups = ref<EmojiLookups | null>(null)
 const isLoaded = ref(false)
@@ -190,6 +193,7 @@ async function loadEmojiData(): Promise<void> {
  * Load mutant-specific lookups (for shortcode to SVG path mapping)
  */
 async function loadMutantLookups(): Promise<void> {
+  if (currentPack.value !== 'mutant' || !isEmojiPackAvailable('mutant')) return
   if (mutantLookups.value) return
   
   try {
@@ -214,41 +218,11 @@ async function loadMutantLookups(): Promise<void> {
 }
 
 /**
- * Load user's emoji pack preference
- */
-function loadPackPreference(): void {
-  try {
-    const stored = localStorage.getItem(PACK_STORAGE_KEY)
-    if (stored === 'native' || stored === 'mutant' || stored === 'twemoji') {
-      currentPack.value = stored as EmojiPack
-    }
-  } catch (error) {
-    debug.error('Failed to load emoji pack preference:', error)
-  }
-}
-
-/**
- * Save user's emoji pack preference
- */
-function savePackPreference(): void {
-  try {
-    localStorage.setItem(PACK_STORAGE_KEY, currentPack.value)
-  } catch (error) {
-    debug.error('Failed to save emoji pack preference:', error)
-  }
-}
-
-/**
- * Set the current emoji pack
+ * Set the current emoji pack (delegates to emojiPackService).
  */
 function setEmojiPack(pack: EmojiPack): void {
-  currentPack.value = pack
-  savePackPreference()
-  debug.log(`📦 Switched to emoji pack: ${pack}`)
-  
-  // Preload mutant lookups if switching to mutant
-  if (pack === 'mutant') {
-    loadMutantLookups()
+  if (!setCurrentPack(pack)) {
+    debug.warn('Failed to switch emoji pack:', pack)
   }
 }
 
@@ -417,6 +391,10 @@ function unicodeToCodepointDirect(unicode: string): string | null {
  * Legacy support for mutant pack
  */
 function getMutantSvgUrl(shortcode: string): string | null {
+  if (currentPack.value !== 'mutant' || !isEmojiPackAvailable('mutant')) {
+    return null
+  }
+
   // First try mutant-specific lookups
   if (mutantLookups.value?.shortcodeToSvg) {
     const path = mutantLookups.value.shortcodeToSvg[shortcode] ||
@@ -459,30 +437,40 @@ function shortcodeToSvgPath(shortcode: string): string | null {
  * Get full SVG URL for a shortcode (legacy compatibility)
  */
 function getSvgUrl(shortcode: string): string | null {
-  // For twemoji, convert shortcode to unicode first, then get twemoji URL
+  if (currentPack.value === 'native') return null
+
   if (currentPack.value === 'twemoji') {
     const unicode = shortcodeToUnicode(shortcode)
     if (unicode) {
       return getTwemojiUrl(unicode)
     }
+    return null
   }
-  
-  // For mutant pack
-  return getMutantSvgUrl(shortcode)
+
+  if (currentPack.value === 'mutant') {
+    return getMutantSvgUrl(shortcode)
+  }
+
+  return null
 }
 
 /**
  * Get SVG URL from unicode emoji
  */
 function unicodeToSvgUrl(unicode: string): string | null {
+  if (currentPack.value === 'native') return null
+
   if (currentPack.value === 'twemoji') {
     return getTwemojiUrl(unicode)
   }
-  
-  // For mutant pack
-  const shortcode = unicodeToShortcode(unicode)
-  if (!shortcode) return null
-  return getMutantSvgUrl(shortcode)
+
+  if (currentPack.value === 'mutant') {
+    const shortcode = unicodeToShortcode(unicode)
+    if (!shortcode) return null
+    return getMutantSvgUrl(shortcode)
+  }
+
+  return null
 }
 
 // ==============================================
@@ -546,11 +534,30 @@ function resolveEmoji(input: string): ResolvedEmoji {
       }
     }
     
-    // Fallback to mutant SVG
+    // Mutant pack only — legacy stored paths on instances without mutant fall back below
+    if (currentPack.value === 'mutant') {
+      return {
+        unicode: unicode || input,
+        shortcode,
+        display: { type: 'svg', content: `${MUTANT_BASE_URL}/${path}` }
+      }
+    }
+
+    if (unicode) {
+      const twemojiUrl = getTwemojiUrl(unicode)
+      if (twemojiUrl) {
+        return {
+          unicode,
+          shortcode,
+          display: { type: 'svg', content: twemojiUrl }
+        }
+      }
+    }
+
     return {
       unicode: unicode || input,
       shortcode,
-      display: { type: 'svg', content: `${MUTANT_BASE_URL}/${path}` }
+      display: { type: 'native', content: unicode || input }
     }
   }
   
@@ -583,13 +590,15 @@ function resolveEmoji(input: string): ResolvedEmoji {
       }
     }
     
-    // Mutant pack or fallback
-    const mutantUrl = getMutantSvgUrl(input)
-    if (mutantUrl) {
-      return {
-        unicode: unicode || input,
-        shortcode: input,
-        display: { type: 'svg', content: mutantUrl }
+    // Mutant pack
+    if (currentPack.value === 'mutant') {
+      const mutantUrl = getMutantSvgUrl(input)
+      if (mutantUrl) {
+        return {
+          unicode: unicode || input,
+          shortcode: input,
+          display: { type: 'svg', content: mutantUrl }
+        }
       }
     }
     
@@ -626,7 +635,7 @@ function resolveEmoji(input: string): ResolvedEmoji {
   }
   
   // Mutant pack
-  if (shortcode) {
+  if (currentPack.value === 'mutant' && shortcode) {
     const mutantUrl = getMutantSvgUrl(shortcode)
     if (mutantUrl) {
       return {
@@ -732,9 +741,6 @@ function getAllEmojis(): EmojiEntry[] {
  * LAZY: Only loads emoji data when actually needed (emoji picker, search, etc.)
  */
 export function useUnifiedEmoji() {
-  // Initialize pack preference (lightweight, can load immediately)
-  loadPackPreference()
-  
   // LAZY: Don't auto-load emoji data - only load when needed
   // This saves 712KB on initial page load
   // Emoji data will be loaded when:
@@ -793,6 +799,7 @@ export function useUnifiedEmoji() {
 // Export singleton functions for use outside Vue components
 export {
   loadEmojiData,
+  loadMutantLookups,
   setEmojiPack,
   shortcodeToUnicode,
   unicodeToShortcode,

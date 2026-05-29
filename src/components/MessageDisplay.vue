@@ -551,6 +551,7 @@ import { useChatStore } from '@/stores/useChat';
 import { useDMStore } from '@/stores/useDM';
 import { useAuthStore } from '@/stores/auth';
 import { useServerChannelStore } from '@/stores/useServerChannel';
+import { showInstanceStaffBadge } from '@/utils/instanceBadge';
 import { useServerRolesStore } from '@/stores/useServerRoles';
 import { useProfileStore } from '@/stores/useProfile';
 import { useNotificationStore } from '@/stores/useNotification';
@@ -1109,6 +1110,8 @@ const getInstanceBadge = (message: Message): ComputedRef<'admin' | 'mod' | null>
   return computed(() => {
     const userId = message.user_id;
     if (!userId) return null;
+    // Global instance staff flags must not surface inside a federated server.
+    if (!showInstanceStaffBadge(serverChannelStore.currentServer)) return null;
     const profile = getUserProfile(userId).value;
     if (profile?.is_admin) return 'admin';
     if (profile?.is_moderator) return 'mod';

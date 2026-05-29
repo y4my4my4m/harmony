@@ -294,6 +294,7 @@ class RoleService {
   // Request deduplication maps
   private pendingUserRolesRequests = new Map<string, Promise<ServerRole[]>>()
   private pendingPermissionsRequests = new Map<string, Promise<Record<Permission, boolean>>>()
+  private pendingServerRolesRequests = new Map<string, Promise<ServerRole[]>>()
 
   // =============================================
   // Role CRUD Operations
@@ -307,6 +308,26 @@ class RoleService {
       return this.roleCache.get(serverId)!
     }
 
+    // Deduplicate concurrent requests. Without this, two callers that both miss
+    // the cache (common on a page load) each run the roles query AND the member
+    // -count user_roles query - the duplicate server_roles/user_roles fetches.
+    if (!forceRefresh && this.pendingServerRolesRequests.has(serverId)) {
+      return this.pendingServerRolesRequests.get(serverId)!
+    }
+
+    const fetchPromise = this._fetchServerRoles(serverId)
+    this.pendingServerRolesRequests.set(serverId, fetchPromise)
+    try {
+      return await fetchPromise
+    } finally {
+      this.pendingServerRolesRequests.delete(serverId)
+    }
+  }
+
+  /**
+   * Internal method to fetch server roles (+ member counts) from DB.
+   */
+  private async _fetchServerRoles(serverId: string): Promise<ServerRole[]> {
     try {
       // Fetch roles (simple query without embedded resource to avoid user_roles RLS issues)
       const { data, error } = await supabase

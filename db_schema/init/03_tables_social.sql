@@ -150,7 +150,7 @@ CREATE TABLE IF NOT EXISTS public.post_interactions (
     interaction_type text NOT NULL,
     
     -- For emoji reactions
-    emoji_id uuid,
+    emoji_id uuid REFERENCES public.emojis(id) ON DELETE SET NULL,
     custom_emoji_content text,
     
     -- Federation
