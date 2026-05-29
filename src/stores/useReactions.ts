@@ -369,7 +369,7 @@ export const useReactionsStore = defineStore('reactions', () => {
              emoji = cachedEmojiData
              debug.log('✅ Found emoji in cache:', emoji.name, emoji.url)
            } else {
-             // Check if this is a native/mutant emoji (not a UUID)
+             // Check if this is a unicode/shortcode emoji (not a UUID)
              // UUIDs have format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
              const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(emojiId)
              
@@ -386,14 +386,14 @@ export const useReactionsStore = defineStore('reactions', () => {
                const { resolveEmoji } = useUnifiedEmoji()
                const resolved = resolveEmoji(emojiId)
                
-               debug.log('🎨 Resolving native/mutant emoji:', emojiId, resolved)
+               debug.log('🎨 Resolving unicode/shortcode emoji:', emojiId, resolved)
                
                emoji = {
                  id: emojiId,
                  name: emojiId,
                  content: emojiId,
                  // For native pack, don't set URL (render as native).
-                 // For mutant pack, set the SVG URL so the chip renders the
+                 // For twemoji pack, set the SVG URL so the chip renders the
                  // pack image instead of an empty span pre-reconcile.
                  url: resolved.display.type === 'svg' ? resolved.display.content : '',
                  native: resolved.unicode,

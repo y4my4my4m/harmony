@@ -273,7 +273,6 @@ const { triggerReaction } = useHapticSettings();
 const { 
   isNativePack, 
   isTwemojiPack,
-  isMutantPack,
   isLoaded: unifiedLoaded,
   isLoading: unifiedLoading,
   getAllEmojis,
@@ -403,18 +402,13 @@ function getEmojiSvgUrl(emoji: EmojiEntry): string {
     if (url) return url;
   }
   
-  if (isMutantPack.value && emoji.svgPath) {
-    return `/assets/emojis/mutant_emojis_svg/${emoji.svgPath}`;
-  }
-  
   const resolved = resolveEmoji(emoji.unicode);
   return resolved.display.type === 'svg' ? resolved.display.content : '';
 }
 
 function isLocalAssetUrl(url: string): boolean {
   return url.startsWith('/assets/') || 
-         url.includes('/twemoji/') || 
-         url.includes('/mutant_emojis_svg/');
+         url.includes('/twemoji/');
 }
 
 function isCustomServerEmoji(emoji: { id: string; native?: string; name: string; url?: string }): boolean {
@@ -489,11 +483,6 @@ const selectFrequentEmoji = (emoji: { id: string; native?: string; name: string;
   triggerReaction();
   
   let unicode = emoji.native || emoji.id;
-  
-  if (unicode.startsWith('mutant:')) {
-    const resolved = resolveEmoji(unicode);
-    unicode = resolved.unicode;
-  }
   
   const emojiUrl = getFrequentEmojiDisplayUrl(emoji);
   if (emojiUrl) {

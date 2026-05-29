@@ -178,7 +178,7 @@ const handleEmojiError = (emoji: Emoji) => {
 
 /**
  * Resolve emoji for display using the unified emoji service
- * Handles: unicode, shortcodes, legacy mutant:path format
+ * Handles: unicode, shortcodes
  */
 const getResolvedEmoji = (reactionGroup: any) => {
   const emoji = reactionGroup.emoji;

@@ -231,26 +231,11 @@ npm run build-only
 Any extra images you drop in are gitignored, so a `git pull` will not
 delete them.
 
-**Emoji packs** (`public/assets/emojis/<pack>/`)
+**Emoji packs**
 
-Harmony ships **Twemoji + native** as the default emoji set; both work out
-of the box with no extra configuration. Additional packs are opt-in,
-instance-side, and gitignored. The most common opt-in is **Mutant
-Standard**: drop the SVGs into `public/assets/emojis/mutant_emojis_svg/`
-before running `npm run build-only` and the build picks them up
-automatically.
-
-```bash
-# Example: opt in to the Mutant Standard pack
-mkdir -p public/assets/emojis/mutant_emojis_svg
-cp /path/to/mutant_standard/*.svg public/assets/emojis/mutant_emojis_svg/
-npm run build-only
-```
-
-> ⚠️ Licensing reminder: Mutant Standard is **CC-BY-NC-SA 4.0**
-> (NonCommercial). If you ship it on your instance, you must operate
-> non-commercially (no ads, no paid tiers, no commercial sponsorship) and
-> display the required attribution somewhere in the UI.
+Harmony ships **Twemoji + native** as the emoji set; both work out of the
+box with no extra configuration. Support for custom, instance-supplied
+emoji packs is a planned future feature (see `ROADMAP.md`).
 
 ## 5. Set Up LiveKit
 

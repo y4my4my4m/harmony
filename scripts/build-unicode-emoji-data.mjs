@@ -4,7 +4,7 @@
  * 
  * Creates a single source of truth JSON file for all Unicode emojis.
  * This is pack-agnostic - it provides the emoji data that all packs
- * (twemoji, mutant, native) use for rendering.
+ * (twemoji, native) use for rendering.
  * 
  * Categories follow Unicode standard order:
  * 1. People (Smileys & Emotion, People & Body)

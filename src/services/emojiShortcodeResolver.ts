@@ -303,7 +303,7 @@ export function isDbMissCached(token: string): boolean {
   return dbEmojiMissCache.has(normalizeToInnerToken(token))
 }
 
-/** Unified pack fallback for non-custom shortcodes (mutant / twemoji). */
+/** Unified pack fallback for non-custom shortcodes (twemoji). */
 export function resolveUnifiedEmojiDisplay(
   shortcode: string
 ): { id: string; name: string; url: string } | null {

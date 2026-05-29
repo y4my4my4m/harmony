@@ -96,9 +96,6 @@ honest about the BullMQ migration.
 - `db_schema/latest_dev_backup.sql` (reference dump no longer needed).
 - `db_schema/archives/` (legacy migration folder; canonical history is
   `db_schema/init/` + `db_schema/migrations/`).
-- Mutant Standard emoji pack (CC-BY-NC-SA 4.0; incompatible with
-  commercial AGPL forks). Instance operators may opt back in by placing
-  the pack under `public/assets/emojis/mutant_emojis_svg/` (gitignored).
 
 ### Notes for self-hosters
 - No data migration required.

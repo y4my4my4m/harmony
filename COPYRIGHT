@@ -35,16 +35,6 @@ Third-party assets bundled with this project, with their own licenses:
   - Various web fonts under public/assets/fonts/  — see individual files
     for their respective licenses.
 
-Optional, instance-side assets that are NOT shipped in this repository
-(operators must opt-in by placing them in the appropriate folder):
-
-  - Mutant Standard emoji                  CC-BY-NC-SA 4.0
-    https://mutant.tech
-    NOTE: NonCommercial. Not compatible with commercial / monetized
-    instances.  If you choose to install this pack on your instance, you
-    must (a) operate non-commercially and (b) display the required
-    attribution.
-
 --------------------------------------------------------------------------------
 
 Contributors are listed in the git commit history.  Substantial contributions

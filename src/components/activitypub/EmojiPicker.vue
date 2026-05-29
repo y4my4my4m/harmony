@@ -28,15 +28,6 @@
               </div>
               <div 
                 class="pack-option"
-                :class="{ active: currentPack === 'mutant' }"
-                @click="switchPack('mutant')"
-              >
-                <span class="pack-icon">🎨</span>
-                <span class="pack-name">Mutant Standard</span>
-                <span v-if="currentPack === 'mutant'" class="check-mark">✓</span>
-              </div>
-              <div 
-                class="pack-option"
                 :class="{ active: currentPack === 'native' }"
                 @click="switchPack('native')"
               >
@@ -205,7 +196,6 @@ const hoveredEmojiName = ref<string | null>(null);
 const currentPackName = computed(() => {
   switch (currentPack.value) {
     case 'twemoji': return 'Twemoji';
-    case 'mutant': return 'Mutant Standard';
     case 'native': return 'System';
     default: return 'Unknown';
   }

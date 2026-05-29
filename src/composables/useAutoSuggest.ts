@@ -221,7 +221,7 @@ export function useAutoSuggest(
       }));
     }
 
-    // Also search unified emoji pack (Mutant Standard / native emojis)
+    // Also search unified emoji pack (twemoji / native emojis)
     if (unifiedLoaded.value && query.length >= 2) {
       const unifiedResults = searchUnifiedEmojis(query, finalConfig.maxSuggestions);
       

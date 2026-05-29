@@ -2081,13 +2081,23 @@ export const useActivityPubStore = defineStore('activitypub', {
         return [];
       }
 
+      // The user_media bucket RLS scopes writes to the uploader's own folder
+      // (first path segment must equal auth.uid()), matching the chat upload
+      // convention in fileService.ts. Uploading to a bare `posts/` prefix
+      // violates that policy → 403 "new row violates row-level security policy".
+      const ctx = await authContextService.getCurrentContext();
+      if (!ctx.isAuthenticated) {
+        throw new Error('User not authenticated');
+      }
+      const authUserId = ctx.authUser.id;
+
       const uploadPromises = attachments.map(async (attachment) => {
         // Convert to File if needed
         const file = await this.convertMediaAttachmentToFile(attachment);
         
         const fileExt = file.name.split('.').pop() || 'bin';
         const fileName = `${crypto.randomUUID()}.${fileExt}`;
-        const filePath = `posts/${fileName}`;
+        const filePath = `${authUserId}/posts/${fileName}`;
 
         try {
           const { data, error } = await supabase.storage
@@ -2099,6 +2109,9 @@ export const useActivityPubStore = defineStore('activitypub', {
 
           if (error) {
             debug.error('Upload error:', error);
+            if (error.message?.includes('row-level security') || error.message?.includes('Unauthorized')) {
+              throw new Error('Media upload failed: storage permission denied. Please try again or contact your instance admin.');
+            }
             // Provide more helpful error messages
             if (error.message?.includes('413') || error.message?.includes('too large')) {
               throw new Error(`File "${file.name}" is too large. Maximum file size is 50MB.`);

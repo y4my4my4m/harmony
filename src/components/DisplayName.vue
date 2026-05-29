@@ -78,7 +78,7 @@ const resolvedParts = computed<DisplayNamePart[] | undefined>(() => {
 
 /**
  * Post-process resolved parts: split unicode emojis out of text parts
- * and resolve them through the current emoji pack (twemoji/mutant/native).
+ * and resolve them through the current emoji pack (twemoji/native).
  */
 const finalParts = computed<RenderPart[] | undefined>(() => {
   let parts = resolvedParts.value

@@ -459,7 +459,7 @@ export default defineComponent({
     const hoveredImageUrl = ref<string | null>(null);
     const favoriteGifUrls = ref<Set<string>>(new Set());
     
-    // Unified emoji service for mutant pack rendering
+    // Unified emoji service for emoji pack rendering
     const { resolveEmoji, isNativePack, isLoaded: emojiServiceLoaded } = useUnifiedEmoji();
     
     // Internal reactive state for image loading (use prop if provided, otherwise create new)

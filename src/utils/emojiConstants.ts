@@ -84,9 +84,8 @@ export const QUICK_REACTION_EMOJIS = [
 /**
  * Emoji pack identifier.
  *
- * Built-in packs are 'twemoji' (default), 'mutant' (Mutant Standard,
- * optional), and 'native' (system Unicode). Instance operators may
- * register additional packs at runtime via
+ * Built-in packs are 'twemoji' (default) and 'native' (system Unicode).
+ * Instance operators may register additional packs at runtime via
  * `emojiPackService.registerEmojiPack(...)`, in which case `EmojiPack`
  * carries the operator's chosen id, so the underlying type is `string`.
  *
@@ -96,10 +95,10 @@ export const QUICK_REACTION_EMOJIS = [
 export type EmojiPack = string;
 
 /**
- * Built-in emoji pack ids that ship (or can ship) with Harmony itself.
+ * Built-in emoji pack ids that ship with Harmony itself.
  * Custom packs registered by an instance operator are not listed here.
  */
-export const KNOWN_EMOJI_PACKS = ['twemoji', 'mutant', 'native'] as const;
+export const KNOWN_EMOJI_PACKS = ['twemoji', 'native'] as const;
 export type KnownEmojiPack = (typeof KNOWN_EMOJI_PACKS)[number];
 
 /**
@@ -113,21 +112,9 @@ export const DEFAULT_EMOJI_PACK: KnownEmojiPack = 'twemoji';
 export const TWEMOJI_BASE_URL = '/assets/emojis/twemoji';
 
 /**
- * Mutant Standard base URL for SVGs
- */
-export const MUTANT_BASE_URL = '/assets/emojis/mutant_emojis_svg';
-
-/**
  * Get Twemoji SVG URL from codepoint
  */
 export function getTwemojiUrl(codepoint: string): string {
   return `${TWEMOJI_BASE_URL}/${codepoint}.svg`;
-}
-
-/**
- * Get Mutant SVG URL from path
- */
-export function getMutantUrl(svgPath: string): string {
-  return `${MUTANT_BASE_URL}/${svgPath}`;
 }
 
