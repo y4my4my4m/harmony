@@ -77,7 +77,8 @@ CREATE TABLE IF NOT EXISTS public.posts (
     CONSTRAINT posts_content_is_array CHECK (jsonb_typeof(content) = 'array'),
     CONSTRAINT posts_content_not_empty CHECK (jsonb_array_length(content) > 0 OR reblog IS NOT NULL),
     CONSTRAINT posts_visibility_check CHECK (visibility IN ('public', 'unlisted', 'followers', 'direct')),
-    CONSTRAINT posts_federation_status_check CHECK (federation_status IN ('pending', 'queued', 'processing', 'completed', 'failed', 'skipped'))
+    CONSTRAINT posts_federation_status_check CHECK (federation_status IN ('pending', 'queued', 'processing', 'completed', 'failed', 'skipped')),
+    CONSTRAINT posts_content_warning_length_check CHECK (content_warning IS NULL OR char_length(content_warning) <= 200)
 );
 
 ALTER TABLE public.posts REPLICA IDENTITY FULL;
@@ -160,7 +161,8 @@ CREATE TABLE IF NOT EXISTS public.post_interactions (
     metadata jsonb DEFAULT '{}'::jsonb,
     
     CONSTRAINT post_interactions_type_check CHECK (interaction_type IN ('favorite', 'reblog', 'emoji_reaction', 'bookmark')),
-    CONSTRAINT post_interactions_federation_status_check CHECK (federation_status IN ('pending', 'queued', 'processing', 'completed', 'failed', 'skipped'))
+    CONSTRAINT post_interactions_federation_status_check CHECK (federation_status IN ('pending', 'queued', 'processing', 'completed', 'failed', 'skipped')),
+    CONSTRAINT post_interactions_custom_emoji_length_check CHECK (custom_emoji_content IS NULL OR char_length(custom_emoji_content) <= 256)
 );
 
 ALTER TABLE public.post_interactions REPLICA IDENTITY FULL;
@@ -323,7 +325,9 @@ CREATE TABLE IF NOT EXISTS public.user_lists (
     is_local boolean DEFAULT true,
     
     CONSTRAINT user_lists_replies_policy_check 
-        CHECK (replies_policy IN ('followed', 'list', 'none'))
+        CHECK (replies_policy IN ('followed', 'list', 'none')),
+    CONSTRAINT user_lists_title_length_check CHECK (char_length(title) <= 100),
+    CONSTRAINT user_lists_description_length_check CHECK (description IS NULL OR char_length(description) <= 500)
 );
 
 ALTER TABLE public.user_lists REPLICA IDENTITY FULL;

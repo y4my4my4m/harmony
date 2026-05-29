@@ -42,7 +42,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, watch } from 'vue'
+import { computed, onMounted, onUnmounted, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { debug } from '@/utils/debug'
 import UnifiedContentArea from '@/components/common/UnifiedContentArea.vue'
@@ -285,11 +285,20 @@ watch(() => props.currentView, (newView, oldView) => {
 
 // Load timeline on mount for direct navigation only if no currentView prop
 onMounted(() => {
+  // Mark the feed as on-screen so the app-scoped realtime handlers process
+  // live post arrivals (prepend + sound). Off-view they no-op to avoid
+  // wasteful fetches and notification sounds for posts the user isn't viewing.
+  activityPubStore.enterFeedView()
+
   // Only load if currentView is not provided (legacy support)
   if (!props.currentView) {
     debug.log(`🔄 Timeline mounted without currentView prop, loading default timeline`)
     loadTimeline()
   }
+})
+
+onUnmounted(() => {
+  activityPubStore.leaveFeedView()
 })
 </script>
 

@@ -88,13 +88,13 @@
               v-model="description"
               class="modern-textarea"
               :placeholder="$t('server.placeholders.description')"
-              maxlength="200"
+              maxlength="500"
               rows="3"
             ></textarea>
             <div class="input-accent"></div>
           </div>
           <div class="input-feedback">
-            <span class="char-count">{{ description.length }}/200</span>
+            <span class="char-count">{{ description.length }}/500</span>
           </div>
         </div>
 

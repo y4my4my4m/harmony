@@ -334,8 +334,11 @@ export function actorToProfile(actor: any): {
     is_local: false,
   };
 
+  // Length clamps mirror the DB sanitize_profile_text() guard. The DB trigger
+  // is authoritative (it also strips bidi/zero-width/control chars), but
+  // clamping here avoids shipping oversized payloads from hostile remotes.
   if (actor.name) {
-    profile.display_name = actor.name;
+    profile.display_name = String(actor.name).slice(0, 80);
   }
 
   if (actor.summary) {
@@ -345,7 +348,7 @@ export function actorToProfile(actor: any): {
     bio = bio.replace(/<[^>]*>/g, ' ');
     bio = bio.replace(/[ \t]+/g, ' ');
     bio = decodeHtmlEntities(bio);
-    profile.bio = bio.trim();
+    profile.bio = bio.trim().slice(0, 500);
   }
 
   if (typeof actor.icon === 'string') {
@@ -378,9 +381,10 @@ export function actorToProfile(actor: any): {
   if (actor.attachment && Array.isArray(actor.attachment)) {
     const profileFields = actor.attachment
       .filter((att: any) => att.type === 'PropertyValue')
+      .slice(0, 4)
       .map((att: any) => ({
-        name: att.name || '',
-        value: att.value || '',
+        name: String(att.name || '').slice(0, 255),
+        value: String(att.value || '').slice(0, 255),
       }));
     
     if (profileFields.length > 0) {

@@ -110,12 +110,12 @@
           v-model="localProfile.bio"
           class="form-textarea"
           :placeholder="$t('user.placeholders.bio')"
-          maxlength="190"
+          maxlength="500"
           rows="3"
           @input="onProfileChange"
         ></textarea>
         <div class="form-hint">
-          {{ (localProfile.bio?.length || 0) }}/190 characters
+          {{ (localProfile.bio?.length || 0) }}/500 characters
         </div>
       </div>
 
