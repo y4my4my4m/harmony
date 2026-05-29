@@ -15,6 +15,7 @@ import { supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
 import { viewContextTracker } from '@/services/ViewContextTracker'
 import { sessionHeartbeat } from '@/services/SessionHeartbeat'
+import { authContextService } from '@/services/AuthContextService'
 
 let viewContextChannel: ReturnType<typeof supabase.channel> | null = null
 // eslint-disable-next-line unused-imports/no-unused-vars
@@ -56,7 +57,8 @@ export async function updateViewContext(
 
     // Initialize view context presence channel if needed
     if (!viewContextChannel) {
-      const userId = (await supabase.auth.getUser()).data.user?.id
+      // Use the cached auth context instead of a fresh network getUser() call.
+      const userId = (await authContextService.getCurrentContext()).authUser?.id
       if (!userId) return
       currentUserId = userId
 

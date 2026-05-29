@@ -326,6 +326,35 @@ export class InteractionService {
   }
 
   /**
+   * Get the COMPLETE set of accepted "following" target IDs for a user.
+   *
+   * This is intentionally distinct from getFollowing(): that one paginates and
+   * embeds full profiles for rendering a UI list, whereas this returns every
+   * followed id with no join and no limit. It is the canonical source for the
+   * app-wide `isFollowing` relationship set, which must be exhaustive (a paged
+   * list would silently mark followed users as "not followed" past page 1).
+   * Returns only UUIDs, so it stays cheap even for users following thousands.
+   */
+  async getFollowingIds(userId: string): Promise<string[]> {
+    if (!userId || typeof userId !== 'string') {
+      throw this.createError('INVALID_INPUT', 'User ID is required')
+    }
+
+    const { data, error } = await supabase
+      .from('follows')
+      .select('following_id')
+      .eq('follower_id', userId)
+      .eq('status', 'accepted')
+
+    if (error) {
+      debug.error('❌ Failed to load following ids:', error)
+      throw this.createError('FOLLOWING_FAILED', 'Failed to load following ids', error)
+    }
+
+    return (data || []).map(row => row.following_id as string)
+  }
+
+  /**
    * Get follow requests (delegated to core service)
    * PRESERVES: Exact same API and return type
    */

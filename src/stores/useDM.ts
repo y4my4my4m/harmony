@@ -943,6 +943,15 @@ export const useDMStore = defineStore('dm', () => {
         // Use 'immediate' strategy to load profiles right away (better UX)
         if (conversations.value.length <= 1) {
           setTimeout(async () => {
+            // Re-check here, not just before the timer: a realtime broadcast
+            // (unread:change / conversation:new) can trigger a full conversation
+            // -list load in the ~100ms gap. Without this guard we'd run a second,
+            // redundant list+participants query that just re-fetches what the
+            // sidebar already has.
+            if (conversations.value.length > 1 || pendingConversationListFetch.value) {
+              debug.log('🔄 Background: sidebar already populated/loading, skipping metadata fetch')
+              return
+            }
             debug.log('🔄 Background: Loading other conversations for sidebar')
             await fetchUserConversationsMetadata(userId, 'immediate')
           }, 100)
@@ -1891,8 +1900,14 @@ export const useDMStore = defineStore('dm', () => {
       // Mark conversation as read (both locally and in DB)
       const conversation = conversations.value.find(c => c.id === conversationId)
       if (conversation) {
+        // Only hit the DB when there is actually something to clear. setCurrentConversation
+        // runs several times during a load (route setup, switchToConversation, watchers);
+        // without this guard each call fires a redundant unread_counts PATCH for a
+        // conversation that's already read.
+        const hadUnread = (conversation.unread_count || 0) > 0
         conversation.unread_count = 0
         debug.log('📖 Marked conversation as read:', conversationId);
+        if (!hadUnread) return
         // Reset DB unread count
         import('@/services/AuthContextService').then(({ authContextService: acs }) => acs.getCurrentContext()).then(ctx => {
           if (!ctx.isAuthenticated) return

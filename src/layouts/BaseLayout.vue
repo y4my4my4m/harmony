@@ -689,21 +689,40 @@ const initializeRouteSpecificData = async (userId: string, strategy: any, userDa
           participants.forEach(p => baselineUserIds.add(p.user_id))
         }
         
-        // DEFER: Load other DM contacts in background (non-blocking)
+        // DEFER: Load other DM contacts in background (non-blocking).
+        // Prefer reusing the conversation list the DM store has already loaded
+        // (initializeDMEnvironmentForDirectAccess + its deferred sidebar fetch)
+        // instead of re-querying conversation_participants twice. Falls back to
+        // the direct query only if the store isn't populated yet.
         setTimeout(async () => {
           try {
-            const { data: allParticipations } = await supabase
-              .from('conversation_participants')
-              .select('conversation_id')
-              .eq('user_id', userId)
-              .is('left_at', null)
-              .limit(100)
-            
-            if (allParticipations && allParticipations.length > 0) {
-              const conversationIds = allParticipations
+            const otherUserIds = new Set<string>()
+
+            const { useDMStore } = await import('@/stores/useDM')
+            const dmStore = useDMStore()
+            for (const conv of dmStore.conversations) {
+              if (conv.id === strategy.currentConversationId) continue
+              if (conv.type === 'direct' && conv.other_user) {
+                otherUserIds.add(conv.other_user.id)
+              } else if (conv.participants) {
+                conv.participants.forEach(p => otherUserIds.add(p.id))
+              }
+            }
+            otherUserIds.delete(userId)
+
+            if (otherUserIds.size === 0) {
+              // Store not ready - fall back to the direct participant lookup.
+              const { data: allParticipations } = await supabase
+                .from('conversation_participants')
+                .select('conversation_id')
+                .eq('user_id', userId)
+                .is('left_at', null)
+                .limit(100)
+
+              const conversationIds = (allParticipations || [])
                 .map(p => p.conversation_id)
                 .filter(id => id !== strategy.currentConversationId)
-              
+
               if (conversationIds.length > 0) {
                 const { data: otherParticipants } = await supabase
                   .from('conversation_participants')
@@ -711,12 +730,13 @@ const initializeRouteSpecificData = async (userId: string, strategy: any, userDa
                   .in('conversation_id', conversationIds)
                   .neq('user_id', userId)
                   .is('left_at', null)
-                
-                if (otherParticipants) {
-                  const otherUserIds = otherParticipants.map(p => p.user_id)
-                  await userData.ensureProfilesAvailable(otherUserIds)
-                }
+
+                ;(otherParticipants || []).forEach(p => otherUserIds.add(p.user_id))
               }
+            }
+
+            if (otherUserIds.size > 0) {
+              await userData.ensureProfilesAvailable(Array.from(otherUserIds))
             }
           } catch (error) {
             debug.warn('⚠️ Background DM contacts loading failed:', error)
