@@ -2,7 +2,7 @@
   <!-- Loading Screen -->
   <div v-if="!isAppReady" class="loading-overlay">
     <div class="loading-spinner-container">
-      <LoadingSpinner :size="40" />
+      <LoadingSpinner />
       <p>Loading Harmony...</p>
     </div>
   </div>
