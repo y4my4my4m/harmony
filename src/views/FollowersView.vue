@@ -35,7 +35,7 @@
     <div class="followers-content">
       <!-- Loading State -->
       <div v-if="isLoading && users.length === 0" class="loading-state">
-        <div class="loading-spinner"></div>
+        <LoadingSpinner :size="32" />
         <p>Loading {{ currentView }}...</p>
       </div>
 
@@ -123,6 +123,7 @@ useI18n();
 // Components
 import UserCard from '@/components/activitypub/UserCard.vue';
 import Icon from '@/components/common/Icon.vue';
+import LoadingSpinner from '@/components/common/LoadingSpinner.vue';
 
 // Stores and composables
 const activityPubStore = useActivityPubStore();
@@ -451,16 +452,6 @@ onUnmounted(() => {
   padding: 48px 24px;
   text-align: center;
   color: var(--text-secondary);
-}
-
-.loading-spinner {
-  width: 32px;
-  height: 32px;
-  border: 2px solid var(--border-color);
-  border-top: 2px solid var(--harmony-primary);
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin-bottom: 16px;
 }
 
 .empty-icon {

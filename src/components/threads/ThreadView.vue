@@ -172,7 +172,7 @@
           <!-- Thread Messages - Reuse MessageDisplay component (DRY) -->
           <div class="thread-messages" ref="messagesContainer">
             <div v-if="loading" class="loading-state">
-              <div class="spinner"></div>
+              <LoadingSpinner :size="32" />
               <p>Loading messages...</p>
             </div>
             
@@ -260,6 +260,7 @@ import { useEncryptionFallbackPrompt } from '@/composables/useEncryptionFallback
 import { format } from 'date-fns'
 import Avatar from '@/components/common/Avatar.vue'
 import DisplayName from '@/components/DisplayName.vue'
+import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import UnifiedMessageContent from '@/components/UnifiedMessageContent.vue'
 import MessageInput from '@/components/MessageInput.vue'
 import MessageDisplay from '@/components/MessageDisplay.vue'
@@ -1536,20 +1537,6 @@ onUnmounted(() => {
   justify-content: center;
   padding: 48px;
   color: var(--text-secondary);
-}
-
-.spinner {
-  width: 32px;
-  height: 32px;
-  border: 3px solid var(--border-color);
-  border-top-color: var(--harmony-primary);
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-  margin-bottom: 16px;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
 }
 
 .load-more-btn {

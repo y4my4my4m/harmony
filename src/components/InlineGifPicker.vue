@@ -1,7 +1,7 @@
 <template>
   <div class="inline-gif-picker">
     <div v-if="isLoading && gifs.length === 0" class="inline-gif-loading">
-      <div class="loading-spinner"></div>
+      <LoadingSpinner :size="20" />
     </div>
     <div v-else-if="gifs.length === 0 && query" class="inline-gif-empty">
       No GIFs found
@@ -27,6 +27,7 @@
 
 <script setup lang="ts">
 import { ref, watch, onMounted } from 'vue';
+import LoadingSpinner from '@/components/common/LoadingSpinner.vue';
 import type { Gif } from '@/types';
 
 interface Props {
@@ -139,18 +140,6 @@ onMounted(() => {
   padding: 24px;
 }
 
-.loading-spinner {
-  width: 20px;
-  height: 20px;
-  border: 2px solid var(--border-color);
-  border-top-color: var(--accent-color, #0EA5E9);
-  border-radius: 50%;
-  animation: spin 0.7s linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
 
 .inline-gif-empty {
   padding: 20px;

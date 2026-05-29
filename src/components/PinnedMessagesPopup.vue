@@ -26,7 +26,7 @@
 
           <div class="drawer-content">
             <div v-if="loading" class="loading-state">
-              <div class="spinner"></div>
+              <LoadingSpinner :size="32" />
               <p>Loading pinned messages...</p>
             </div>
 
@@ -97,6 +97,7 @@ import { useServerPermissions } from '@/composables/useServerPermissions'
 import { useUserData } from '@/composables/useUserData'
 import { format } from 'date-fns'
 import Avatar from '@/components/common/Avatar.vue'
+import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import DisplayName from '@/components/DisplayName.vue'
 import UnifiedMessageContent from '@/components/UnifiedMessageContent.vue'
 import type { Message } from '@/types'
@@ -287,20 +288,6 @@ onMounted(() => {
   justify-content: center;
   padding: 48px 24px;
   text-align: center;
-}
-
-.spinner {
-  width: 32px;
-  height: 32px;
-  border: 3px solid var(--border-color);
-  border-top-color: var(--harmony-primary);
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-  margin-bottom: 16px;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
 }
 
 .empty-icon {

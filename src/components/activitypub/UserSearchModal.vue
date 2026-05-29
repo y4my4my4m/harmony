@@ -53,7 +53,7 @@
         <div class="search-results">
           <!-- Loading State -->
           <div v-if="isSearching" class="loading-state">
-            <div class="loading-spinner"></div>
+            <LoadingSpinner :size="32" />
             <p>{{ $t('activitypub.searchingMonyverse') }}</p>
           </div>
 
@@ -155,6 +155,7 @@ import type { FederatedUser } from '@/types';
 import Icon from '@/components/common/Icon.vue';
 import UserCard from './UserCard.vue';
 import DisplayName from '@/components/DisplayName.vue';
+import LoadingSpinner from '@/components/common/LoadingSpinner.vue';
 
 // Emits
 const emit = defineEmits<{
@@ -511,16 +512,6 @@ onUnmounted(() => {
   text-align: center;
   color: var(--text-tertiary);
   padding: 2rem;
-}
-
-.loading-spinner {
-  width: 32px;
-  height: 32px;
-  border: 3px solid rgba(255, 255, 255, 0.08);
-  border-top: 3px solid var(--harmony-primary);
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin-bottom: 1rem;
 }
 
 .empty-state h3,

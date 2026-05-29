@@ -8,7 +8,7 @@
     </div>
 
     <div v-if="isLoading" class="loading-state">
-      <div class="spinner"></div>
+      <LoadingSpinner :size="48" />
       <p>Loading your bots...</p>
     </div>
 
@@ -327,6 +327,7 @@ import { useToast } from 'vue-toastification'
 import { formatDistanceToNow } from 'date-fns'
 import { generateBotToken, hashBotToken } from '@/utils/botUtils'
 import BotAvatar from '@/components/common/BotAvatar.vue'
+import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 
 defineProps<{ loading: boolean }>()
 const toast = useToast()
@@ -769,20 +770,6 @@ onMounted(() => {
 .empty-state {
   text-align: center;
   padding: 48px 24px;
-}
-
-.spinner {
-  width: 48px;
-  height: 48px;
-  border: 4px solid var(--color-border, var(--h-black-lighter));
-  border-top-color: var(--color-primary, #0EA5E9);
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin: 0 auto 16px;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
 }
 
 .empty-icon {

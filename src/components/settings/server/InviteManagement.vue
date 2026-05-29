@@ -84,7 +84,7 @@
     <!-- Invites Table -->
     <div class="invites-table-container">
       <div v-if="isLoading" class="loading-state">
-        <div class="loading-spinner"></div>
+        <LoadingSpinner :size="32" />
         <p>Loading invites...</p>
       </div>
 
@@ -291,6 +291,7 @@ import { formatDistanceToNow, format } from 'date-fns'
 import { getInviteHistory, revokeInvite, type Invite } from '@/services/inviteService'
 import { useAuthStore } from '@/stores/auth'
 import BaseModal from '@/components/common/BaseModal.vue'
+import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 
 interface Props {
   serverId: string
@@ -740,16 +741,6 @@ onMounted(() => {
   justify-content: center;
   padding: 60px 20px;
   text-align: center;
-}
-
-.loading-spinner {
-  width: 32px;
-  height: 32px;
-  border: 3px solid rgba(255, 255, 255, 0.1);
-  border-top-color: #0EA5E9;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin-bottom: 16px;
 }
 
 .empty-icon {

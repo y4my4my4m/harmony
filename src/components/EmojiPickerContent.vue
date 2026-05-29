@@ -124,7 +124,7 @@
       
       <!-- Unified Emojis by Category -->
       <div v-if="unifiedLoading" class="emoji-loading">
-        <span class="loading-spinner"></span>
+        <LoadingSpinner :size="16" />
         <span>Loading emojis...</span>
       </div>
       
@@ -235,6 +235,7 @@ import { EMOJI_CATEGORIES } from '@/utils/emojiConstants';
 import { debug } from '@/utils/debug';
 import LazyEmojiSection from '@/components/LazyEmojiSection.vue';
 import ServerIcon from '@/components/common/ServerIcon.vue';
+import LoadingSpinner from '@/components/common/LoadingSpinner.vue';
 import { useServerChannelStore } from '@/stores/useServerChannel';
 
 // Types
@@ -977,19 +978,6 @@ onMounted(async () => {
   padding: 24px;
   color: var(--text-secondary);
   font-size: 13px;
-}
-
-.loading-spinner {
-  width: 16px;
-  height: 16px;
-  border: 2px solid rgba(255, 255, 255, 0.2);
-  border-top-color: var(--color-primary);
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
 }
 
 .no-results {

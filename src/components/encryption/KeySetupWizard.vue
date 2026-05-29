@@ -107,7 +107,7 @@
       <!-- Step 3: Processing -->
       <div v-if="step === 3" class="wizard-step">
         <div class="wizard-header">
-          <div class="spinner"></div>
+          <LoadingSpinner :size="64" />
           <h2>Generating Encryption Keys</h2>
         </div>
         
@@ -177,6 +177,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import { debug } from '@/utils/debug'
 import { useAuthStore } from '@/stores/auth'
 import { useChatStore } from '@/stores/useChat'
@@ -329,20 +330,6 @@ function handleComplete() {
 .success-icon {
   font-size: 64px;
   margin-bottom: 16px;
-}
-
-.spinner {
-  width: 64px;
-  height: 64px;
-  border: 4px solid var(--border-color);
-  border-top-color: var(--primary);
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin: 0 auto 16px;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
 }
 
 .wizard-header h2 {

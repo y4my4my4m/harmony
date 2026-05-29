@@ -87,7 +87,7 @@
     <div class="post-content" ref="postContainer">
       <!-- Loading state -->
       <div v-if="isLoading" class="loading-state">
-        <div class="loading-spinner"></div>
+        <LoadingSpinner :size="32" />
         <p>Loading...</p>
       </div>
 
@@ -173,6 +173,7 @@ import { usePostReactionsStore } from '@/stores/postReactions';
 import { activityPubService } from '@/services/activityPubService';
 import { useToast } from 'vue-toastification';
 import Icon from '@/components/common/Icon.vue';
+import LoadingSpinner from '@/components/common/LoadingSpinner.vue';
 import MonyPost from '@/components/activitypub/MonyPost.vue';
 import Composer from '@/components/activitypub/Composer.vue';
 import { getOriginalPost, getOriginalPostId, getOriginalApId, isReblogPost } from '@/utils/postReblog';
@@ -985,20 +986,6 @@ a.dropdown-item {
   padding: 3rem 2rem;
   text-align: center;
   min-height: 50vh;
-}
-
-.loading-spinner {
-  width: 2rem;
-  height: 2rem;
-  border: 2px solid var(--color-border);
-  border-top: 2px solid var(--color-primary);
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin-bottom: 1rem;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
 }
 
 .error-state h3 {

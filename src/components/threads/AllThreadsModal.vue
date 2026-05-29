@@ -107,7 +107,7 @@
 
             <!-- Loading -->
             <div v-if="loading" class="loading-state">
-              <div class="spinner"></div>
+              <LoadingSpinner :size="32" />
               <p>Loading threads...</p>
             </div>
           </div>
@@ -124,6 +124,7 @@ import { useUserData } from '@/composables/useUserData'
 import { formatDistanceToNow } from 'date-fns'
 import Avatar from '@/components/common/Avatar.vue'
 import DisplayName from '@/components/DisplayName.vue'
+import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import type { ThreadWithDetails } from '@/services/ThreadService'
 import Icon from '@/components/common/Icon.vue'
 
@@ -459,20 +460,6 @@ onMounted(() => {
   justify-content: center;
   padding: 48px;
   color: var(--text-secondary);
-}
-
-.spinner {
-  width: 32px;
-  height: 32px;
-  border: 3px solid var(--border-color);
-  border-top-color: var(--harmony-primary);
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-  margin-bottom: 16px;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
 }
 
 /* Modal transitions */
