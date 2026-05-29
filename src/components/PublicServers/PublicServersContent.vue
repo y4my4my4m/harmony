@@ -192,12 +192,9 @@ const loadMore = () => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 1rem;
   padding: 40px 20px 20px;
   text-align: center;
-}
-
-.loading-header :deep(.harmony-spinner) {
-  margin-bottom: 24px;
 }
 
 .loading-text {

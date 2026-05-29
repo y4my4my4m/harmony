@@ -3,7 +3,7 @@
   <div v-if="!isAppReady" class="loading-overlay">
     <div class="loading-spinner-container">
       <LoadingSpinner />
-      <p>Loading Harmony...</p>
+      <p class="loading-state-label">Loading Harmony...</p>
     </div>
   </div>
   
