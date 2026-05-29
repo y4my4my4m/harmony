@@ -678,15 +678,32 @@ const initializeRouteSpecificData = async (userId: string, strategy: any, userDa
     if (isSingleDMView) {
       // Only load current conversation participant for single DM view
       try {
-        const { data: participants } = await supabase
-          .from('conversation_participants')
-          .select('user_id')
-          .eq('conversation_id', strategy.currentConversationId)
-          .neq('user_id', userId)
-          .is('left_at', null)
-        
-        if (participants) {
-          participants.forEach(p => baselineUserIds.add(p.user_id))
+        // The DM store already loaded this conversation (and its other
+        // participant) via initializeDMEnvironmentForDirectAccess above, so
+        // reuse it instead of re-querying conversation_participants. Fall back
+        // to the direct query only if the store doesn't have it yet.
+        const { useDMStore } = await import('@/stores/useDM')
+        const currentConv = useDMStore().conversations.find(c => c.id === strategy.currentConversationId)
+        const knownParticipantIds = currentConv
+          ? (currentConv.type === 'direct' && currentConv.other_user
+              ? [currentConv.other_user.id]
+              : (currentConv.participants?.map(p => p.id) ?? []))
+            .filter(id => id && id !== userId)
+          : []
+
+        if (knownParticipantIds.length > 0) {
+          knownParticipantIds.forEach(id => baselineUserIds.add(id))
+        } else {
+          const { data: participants } = await supabase
+            .from('conversation_participants')
+            .select('user_id')
+            .eq('conversation_id', strategy.currentConversationId)
+            .neq('user_id', userId)
+            .is('left_at', null)
+
+          if (participants) {
+            participants.forEach(p => baselineUserIds.add(p.user_id))
+          }
         }
         
         // DEFER: Load other DM contacts in background (non-blocking).
