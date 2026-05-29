@@ -8,7 +8,7 @@
     </div>
 
     <div v-if="isLoading" class="loading-state">
-      <div class="loading-spinner"></div>
+      <LoadingSpinner :size="20" />
       <span>Loading bans...</span>
     </div>
 
@@ -51,6 +51,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import { useToast } from 'vue-toastification'
 import { moderationService, type ServerBan } from '@/services/ModerationService'
 

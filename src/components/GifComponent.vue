@@ -73,7 +73,7 @@
     <div class="gif-results">
       <!-- Loading State -->
       <div v-if="isLoading" class="loading-state">
-        <div class="loading-spinner"></div>
+        <LoadingSpinner :size="24" />
         <span>Loading...</span>
       </div>
 
@@ -141,6 +141,7 @@
 
 <script setup lang="ts">
 import { ref, watch, onMounted, onUnmounted, nextTick, type Ref } from 'vue';
+import LoadingSpinner from '@/components/common/LoadingSpinner.vue';
 import { debug } from '@/utils/debug';
 import { usePopupPositioning, type PopupPosition } from '@/composables/usePopupPositioning';
 import { gifService, type FavoriteGif } from '@/services/GifService';
@@ -623,18 +624,6 @@ onUnmounted(() => {
   color: var(--text-secondary);
 }
 
-.loading-spinner {
-  width: 24px;
-  height: 24px;
-  border: 2px solid var(--border-color);
-  border-top-color: var(--color-primary);
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
 
 /* Empty State */
 .empty-state {

@@ -852,6 +852,7 @@ export class ActivityPubService {
    */
   async getFollowers(userId: string, options: TimelineOptions = {}): Promise<FederatedUser[]> {
     const limit = options.limit || 20;
+    const offset = options.offset || 0;
     
     const { data, error } = await supabase
       .from('follows')
@@ -864,7 +865,7 @@ export class ActivityPubService {
       .eq('following_id', userId)
       .eq('status', 'accepted')
       .order('created_at', { ascending: false })
-      .limit(limit);
+      .range(offset, offset + limit - 1);
 
     if (error) throw error;
 
@@ -882,6 +883,7 @@ export class ActivityPubService {
    */
   async getFollowing(userId: string, options: TimelineOptions = {}): Promise<FederatedUser[]> {
     const limit = options.limit || 20;
+    const offset = options.offset || 0;
     
     const { data, error } = await supabase
       .from('follows')
@@ -894,7 +896,7 @@ export class ActivityPubService {
       .eq('follower_id', userId)
       .eq('status', 'accepted')
       .order('created_at', { ascending: false })
-      .limit(limit);
+      .range(offset, offset + limit - 1);
 
     if (error) throw error;
 

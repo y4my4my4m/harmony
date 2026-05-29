@@ -314,7 +314,7 @@
 
           <!-- Loading State -->
           <div v-if="loadingStates.instances" class="loading-state">
-            <div class="loading-spinner"></div>
+            <LoadingSpinner :size="20" />
             <span>Loading instances...</span>
           </div>
 
@@ -1020,7 +1020,7 @@
         </div>
         <p class="module-hint">Pin public servers to the top of the community discovery page. Featured servers appear first.</p>
         <div v-if="loadingStates.featuredServers" class="loading-state">
-          <div class="loading-spinner"></div>
+          <LoadingSpinner :size="20" />
           <span>Loading communities...</span>
         </div>
         <div v-else class="featured-servers-list">
@@ -2055,7 +2055,7 @@
           </div>
           <div class="modal-body">
             <div v-if="loadingServers" class="loading-state">
-              <div class="loading-spinner"></div>
+              <LoadingSpinner :size="20" />
               <span>Loading servers...</span>
             </div>
             <div v-else-if="userServers.length === 0" class="empty-state">
@@ -2120,6 +2120,7 @@ import { useInstanceSettingsStore } from '@/stores/useInstanceSettings'
 import { useRouter } from 'vue-router'
 import { useToast } from 'vue-toastification'
 import Icon from '@/components/common/Icon.vue'
+import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import Avatar from '@/components/common/Avatar.vue'
 import DisplayName from '@/components/DisplayName.vue'
 import EmojiImporter from '@/components/admin/EmojiImporter.vue'
@@ -5193,20 +5194,6 @@ const handleAddInstance = () => {
   gap: 12px;
   padding: 40px;
   color: var(--text-secondary);
-}
-
-.loading-spinner {
-  width: 20px;
-  height: 20px;
-  border: 2px solid var(--border-color);
-  border-top: 2px solid var(--accent-color);
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
 }
 
 .instance-list {

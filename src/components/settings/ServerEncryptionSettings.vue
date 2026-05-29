@@ -8,7 +8,7 @@
     </div>
 
     <div v-if="loading" class="loading-state">
-      <div class="spinner"></div>
+      <LoadingSpinner :size="40" />
       <p>Loading encryption settings...</p>
     </div>
 
@@ -168,6 +168,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import { debug } from '@/utils/debug'
 import { supabase } from '@/supabase'
 import { userDataService } from '@/services/userDataService'
@@ -472,33 +473,6 @@ onMounted(() => {
 .loading-state {
   text-align: center;
   padding: 48px 0;
-}
-
-.spinner {
-  width: 48px;
-  height: 48px;
-  border: 4px solid var(--h-chat-light);
-  border-top-color: #0EA5E9;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin: 0 auto 16px;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
-.spinner {
-  width: 40px;
-  height: 40px;
-  border: 4px solid var(--color-border);
-  border-top-color: var(--color-primary);
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
 }
 
 .status-card {

@@ -20,7 +20,7 @@
     <div class="detail-content">
       <!-- Loading state -->
       <div v-if="isLoading" class="loading-state">
-        <div class="loading-spinner"></div>
+        <LoadingSpinner :size="32" />
         <p>Loading post...</p>
       </div>
 
@@ -74,7 +74,7 @@
 
           <!-- Loading replies -->
           <div v-if="isLoadingReplies" class="loading-replies">
-            <div class="loading-spinner small"></div>
+            <LoadingSpinner :size="20" />
             <span>Loading replies...</span>
           </div>
 
@@ -133,6 +133,7 @@ import type { TimelinePost } from '@/types';
 import MonyPost from '@/components/activitypub/MonyPost.vue';
 import Composer from '@/components/activitypub/Composer.vue';
 import Icon from '@/components/common/Icon.vue';
+import LoadingSpinner from '@/components/common/LoadingSpinner.vue';
 
 // Props
 interface Props {
@@ -395,23 +396,6 @@ onMounted(() => {
   color: var(--text-secondary);
   padding: 3rem 1rem;
   flex: 1;
-}
-
-.loading-spinner {
-  width: 32px;
-  height: 32px;
-  border: 3px solid var(--border-color);
-  border-top: 3px solid var(--harmony-primary);
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin-bottom: 1rem;
-}
-
-.loading-spinner.small {
-  width: 20px;
-  height: 20px;
-  border-width: 2px;
-  margin-bottom: 0;
 }
 
 .error-state h3 {

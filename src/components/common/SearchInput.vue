@@ -5,14 +5,7 @@
         <path d="M9.5,3A6.5,6.5 0 0,1 16,9.5C16,11.11 15.41,12.59 14.44,13.73L14.71,14H15.5L20.5,19L19,20.5L14,15.5V14.71L13.73,14.44C12.59,15.41 11.11,16 9.5,16A6.5,6.5 0 0,1 3,9.5A6.5,6.5 0 0,1 9.5,3M9.5,5C7,5 5,7 5,9.5C5,12 7,14 9.5,14C12,14 14,12 14,9.5C14,7 12,5 9.5,5Z" fill="currentColor"/>
       </svg>
       
-      <div v-else class="loading-spinner">
-        <svg viewBox="0 0 24 24" class="spinner">
-          <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-dasharray="31.416" stroke-dashoffset="31.416">
-            <animate attributeName="stroke-dasharray" dur="2s" values="0 31.416;15.708 15.708;0 31.416" repeatCount="indefinite"/>
-            <animate attributeName="stroke-dashoffset" dur="2s" values="0;-15.708;-31.416" repeatCount="indefinite"/>
-          </circle>
-        </svg>
-      </div>
+      <LoadingSpinner v-else :size="16" />
     </div>
     
     <input 
@@ -46,6 +39,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
+import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 
 interface Props {
   modelValue: string
@@ -139,25 +133,6 @@ defineExpose({
 .search-icon {
   width: 20px;
   height: 20px;
-}
-
-.loading-spinner {
-  width: 20px;
-  height: 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.spinner {
-  width: 16px;
-  height: 16px;
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
 }
 
 .search-input__field {
