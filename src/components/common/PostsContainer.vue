@@ -2,8 +2,8 @@
   <div class="posts-container" ref="scrollContainer">
     <!-- Loading State -->
     <div v-if="isLoading && posts.length === 0" class="loading-state">
-      <LoadingSpinner :size="32" />
-      <p>{{ loadingMessage }}</p>
+      <LoadingSpinner :size="24" :thickness="3" />
+      <p class="loading-state-label">{{ loadingMessage }}</p>
     </div>
 
     <!-- Empty State -->
@@ -260,10 +260,18 @@ onUnmounted(() => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: var(--space-5);
   padding: var(--space-16) var(--space-4);
   text-align: center;
   color: var(--text-secondary);
   min-height: 400px;
+}
+
+.loading-state-label {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-relaxed);
+  color: var(--text-secondary);
 }
 
 .empty-state h3 {

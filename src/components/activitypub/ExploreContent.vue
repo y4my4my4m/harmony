@@ -65,8 +65,8 @@
     <div class="explore-content-area">
       <!-- Loading State -->
       <div v-if="isLoading" class="loading-state">
-        <LoadingSpinner :size="32" />
-        <p>{{ $t('activitypub.loadingExploreContent') }}</p>
+        <LoadingSpinner :size="24" :thickness="3" />
+        <p class="loading-state-label">{{ $t('activitypub.loadingExploreContent') }}</p>
       </div>
 
       <!-- Trending Content -->
@@ -950,19 +950,18 @@ defineExpose({ refreshContent });
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 48px 16px;
+  gap: var(--space-5, 20px);
+  padding: var(--space-16, 64px) var(--space-4, 16px);
+  min-height: 280px;
   text-align: center;
   color: var(--text-secondary);
 }
 
-.loading-spinner {
-  width: 32px;
-  height: 32px;
-  border: 3px solid var(--border-color);
-  border-top: 3px solid var(--harmony-primary);
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin-bottom: 16px;
+.loading-state-label {
+  margin: 0;
+  font-size: var(--font-size-sm, 0.875rem);
+  line-height: var(--line-height-relaxed, 1.5);
+  color: var(--text-secondary);
 }
 
 .empty-state h3 {
