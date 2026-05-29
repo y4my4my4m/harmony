@@ -94,6 +94,12 @@
           <div class="date-separator-line"></div>
         </div>
 
+        <!-- "New messages" divider: pinned above the first unread message on open -->
+        <div v-if="item.message.id === dividerBeforeMessageId" class="new-messages-divider">
+          <span class="new-messages-label">{{ $t('message.newMessages') }}</span>
+          <div class="new-messages-line"></div>
+        </div>
+
         <div 
           :id="`message-${item.message.id}`" 
           :data-message-id="item.message.id"
@@ -106,6 +112,7 @@
           }"
           @mouseover="handleMessageMouseover(item.message.id)" 
           @mouseleave="handleMessageMouseleave"
+          @click="clearDividerIfMessageRead(item.message)"
           @touchstart.passive="handleMessageTouchStart(item.message.id, $event)"
           @touchend.passive="handleMessageTouchEnd"
           @touchmove.passive="handleMessageTouchMove"
@@ -562,6 +569,8 @@ import { useServerPermissions } from '@/composables/useServerPermissions';
 import { useUserData } from '@/composables/useUserData';
 import { useHapticSettings } from '@/composables/useHapticSettings';
 import { useLayoutState } from '@/composables/useLayoutState';
+import { useUnreadCounts } from '@/composables/useUnreadCounts';
+import { useReadDivider } from '@/composables/useReadDivider';
 import { format, isToday, isYesterday, isSameDay, isValid } from 'date-fns';
 import UserProfileModal from '@/components/UserProfileModal.vue';
 import InviteModal from '@/components/InviteModal.vue';
@@ -621,6 +630,17 @@ const serverUsersStore = useServerUsersStore();
 const serverChannelStore = useServerChannelStore();
 const serverRolesStore = useServerRolesStore();
 
+// Server whose role colors are currently applied to the rendered messages.
+// This is deliberately decoupled from `serverChannelStore.currentServerId`:
+// on a server switch, `currentServerId` flips synchronously while the old
+// server's messages are still on screen, which would briefly repaint those
+// names with the new server's role lookup (-> usually a fallback to profile
+// color = the visible "color flash"). Instead we only advance
+// `coloringServerId` once the new channel's messages have actually rendered
+// (see the initial-load block in the message watcher), by which point the
+// new server's roles have been requested below.
+const coloringServerId = ref<string | null>(serverChannelStore.currentServerId);
+
 // Ensure role data is loaded for the current server so message author colors
 // reflect their highest colored role (Discord behavior). DMs and contexts
 // without a server fall back to user.color via `getUserColor` below.
@@ -634,18 +654,52 @@ watch(
 
 /**
  * Resolve a chat-author's display color, preferring their highest-position
- * colored role within the current server. Falls back to the user's profile
- * color (and ultimately the default in `getUserColor`).
+ * colored role within the server the rendered messages belong to. Falls back
+ * to the user's profile color (and ultimately the default in `getUserColor`).
  *
- * `serverChannelStore.currentServerId` is null for DMs and ActivityPub
- * contexts, in which case there's no role to look up and we fall through
- * to the profile color - same as before this fix.
+ * `coloringServerId` is null for DMs and ActivityPub contexts, in which case
+ * there's no role to look up and we fall through to the profile color.
  */
 const resolveChatUserColor = (userId: string | null | undefined): string => {
   if (!userId) return '#ffffff';
-  const serverId = serverChannelStore.currentServerId;
+  const serverId = coloringServerId.value;
   const roleColor = serverId ? serverRolesStore.getUserRoleColor(serverId, userId) : null;
   return roleColor || getUserColor(userId).value;
+};
+
+// "New messages" divider state. The boundary is snapshotted at open (before the
+// context is marked read) and resolved once messages render; see useReadDivider.
+const { getUnreadCount } = useUnreadCounts();
+const { dividerBeforeMessageId, captureBoundary, resolveDivider, clear: clearReadDivider } = useReadDivider();
+
+/**
+ * Retire the "New messages" divider when the user clicks a message at or after
+ * it - that's an explicit "I've read past this" signal. Scrolling alone never
+ * clears it (that would defeat the purpose), and clicking an older message
+ * above the divider leaves it in place.
+ */
+const clearDividerIfMessageRead = (message: Message) => {
+  const dividerId = dividerBeforeMessageId.value;
+  if (!dividerId || !message?.id) return;
+  if (message.id === dividerId) { clearReadDivider(); return; }
+  const items = displayItems.value;
+  const dividerIdx = items.findIndex(it => it.type === 'message' && it.message.id === dividerId);
+  const clickedIdx = items.findIndex(it => it.type === 'message' && it.message.id === message.id);
+  if (dividerIdx >= 0 && clickedIdx >= dividerIdx) {
+    clearReadDivider();
+  }
+};
+
+const currentUnreadContext = (): { channelId?: string; conversationId?: string } | null => {
+  if (props.conversationId) return { conversationId: props.conversationId };
+  if (props.channelId) return { channelId: props.channelId };
+  return null;
+};
+
+// Snapshot the read boundary for the active context BEFORE it gets marked read.
+const captureReadBoundary = () => {
+  const ctx = currentUnreadContext();
+  captureBoundary(ctx ? getUnreadCount(ctx) : null);
 };
 const chatStore = useChatStore();
 const dmStore = useDMStore();
@@ -1450,6 +1504,13 @@ const lastKnownDisplayItemCount = ref(0);
 
 // --- WATCHERS ---
 let hasInitiallyScrolled = false;
+// Just after a context opens we scroll to the bottom, but late-arriving
+// messages (the stale-while-revalidate catch-up fetch, or a realtime insert)
+// land a beat later. During this grace window we keep following the bottom so
+// the user ends up at the true end of the conversation rather than floating
+// above the messages that arrived while they were away. Suppressed when a NEW
+// divider is shown (then we intentionally rest at the divider instead).
+let openFollowBottomUntil = 0;
 
 watch([() => props.channelId, () => props.conversationId], () => {
   hasInitiallyScrolled = false;
@@ -1458,6 +1519,9 @@ watch([() => props.channelId, () => props.conversationId], () => {
   lastKnownMessageCount.value = 0;
   lastKnownFirstMessageId.value = null;
   lastKnownDisplayItemCount.value = 0;
+  // Snapshot the read boundary for the newly-opened context now, before the
+  // scroll observer / open-handlers mark it read. Resolved once messages load.
+  captureReadBoundary();
 });
 
 watch(() => props.messages, (newMessages) => {
@@ -1470,6 +1534,25 @@ watch(() => props.messages, (newMessages) => {
   const prevDisplayItemCount = lastKnownDisplayItemCount.value;
   lastKnownMessageCount.value = newMessages.length;
   lastKnownFirstMessageId.value = newMessages[0]?.id ?? null;
+
+  // Retire the "New messages" divider as soon as the current user sends a
+  // message in this context. This is an append (front unchanged) whose tail
+  // contains an own message; sending implies they've seen everything above, so
+  // the divider must never linger (the screenshot bug where "NEW" stayed put
+  // after the viewer replied).
+  if (
+    dividerBeforeMessageId.value &&
+    newMessages.length > prevCount &&
+    prevFirstId !== null &&
+    newMessages[0]?.id === prevFirstId
+  ) {
+    for (let i = prevCount; i < newMessages.length; i++) {
+      if (newMessages[i]?.user_id === props.currentUserId) {
+        clearReadDivider();
+        break;
+      }
+    }
+  }
 
   const oldScrollHeight = messageDisplayContainer.value?.scrollHeight ?? 0;
   // Snapshot scrollTop alongside scrollHeight so the prepend handler below can
@@ -1557,15 +1640,36 @@ watch(() => props.messages, (newMessages) => {
         // If this is the initial load, scroll to bottom
         if (!hasInitiallyScrolled && newMessages.length > 0) {
           hasInitiallyScrolled = true;
-          // Freeze the initial offset for this channel
+          // The new context's messages are now on screen; advance the coloring
+          // server so author names resolve against this server's roles. Doing it
+          // here (rather than on currentServerId change) prevents the previous
+          // server's messages from being briefly repainted during the switch.
+          coloringServerId.value = serverChannelStore.currentServerId;
+
+          // Resolve the "New messages" divider against the freshly-loaded set.
+          const dividerMsgId = resolveDivider(newMessages, props.currentUserId);
+          const dividerIndex = dividerMsgId
+            ? displayItems.value.findIndex(it => it.type === 'message' && it.message.id === dividerMsgId)
+            : -1;
+          const hasDivider = dividerIndex >= 0;
+
+          // Freeze the initial offset for this channel. When there's a divider we
+          // seed the offset near it (instead of the bottom) so the virtualizer
+          // starts close to its final resting place - minimal visible motion.
           if (!hasSetInitialOffset) {
             hasSetInitialOffset = true;
-            frozenInitialOffset.value = displayItems.value.length * 60;
+            frozenInitialOffset.value = (hasDivider ? dividerIndex : displayItems.value.length) * 60;
           }
-          debug.log('📜 Initial load - scrolling to bottom');
-          
-          // Set flag so we re-scroll when images load
-          shouldBeAtBottom.value = true;
+          debug.log(hasDivider ? '📜 Initial load - scrolling to NEW divider' : '📜 Initial load - scrolling to bottom');
+
+          // When landing on a divider we are NOT at the bottom; don't let the
+          // image-load handler yank the view down.
+          shouldBeAtBottom.value = !hasDivider;
+
+          // No divider => we're heading to the bottom. Keep following any
+          // messages that arrive in the next couple seconds (revalidate
+          // catch-up / realtime) so we settle on the real end of the channel.
+          openFollowBottomUntil = hasDivider ? 0 : Date.now() + 2500;
           
           // Find all images in current messages that need to load
           const imageUrlsInMessages = new Set<string>();
@@ -1634,10 +1738,51 @@ watch(() => props.messages, (newMessages) => {
               }
             });
           };
-          
+
+          // Scroll so the "New messages" divider sits near the top with a little
+          // context above it (Discord behaviour). Retries while the virtualizer
+          // measures real row heights so it settles on the right spot.
+          let dividerScrollAttempts = 0;
+          const CONTEXT_NUDGE_PX = 72;
+          const scrollToDivider = () => {
+            dividerScrollAttempts++;
+            const idx = displayItems.value.findIndex(
+              it => it.type === 'message' && it.message.id === dividerMsgId
+            );
+            if (idx < 0) {
+              // Divider message no longer present (shouldn't happen) - fall back.
+              scrollToBottom();
+              return;
+            }
+            // Bring the divider row into the render window first.
+            rowVirtualizer.value.scrollToIndex(idx, { align: 'start' });
+            requestAnimationFrame(() => {
+              const c = messageDisplayContainer.value;
+              if (!c) return;
+              // Position using the divider's REAL rendered position rather than the
+              // virtualizer's height estimate (which lands us above it when rows are
+              // taller than estimated). Measuring the DOM node keeps it reliably in
+              // view with a little read context above the line.
+              const dividerEl = c.querySelector('.new-messages-divider') as HTMLElement | null;
+              if (dividerEl) {
+                const delta = dividerEl.getBoundingClientRect().top - c.getBoundingClientRect().top - CONTEXT_NUDGE_PX;
+                c.scrollTop = Math.max(0, c.scrollTop + delta);
+              } else {
+                c.scrollTop = Math.max(0, c.scrollTop - CONTEXT_NUDGE_PX);
+              }
+              if (dividerScrollAttempts < 6) {
+                setTimeout(scrollToDivider, dividerScrollAttempts < 3 ? 50 : 150);
+              } else {
+                setTimeout(() => { shouldBeAtBottom.value = false; }, 500);
+              }
+            });
+          };
+
+          const scrollToTarget = () => (hasDivider ? scrollToDivider() : scrollToBottom());
+
           if (pendingImages.length === 0 && totalEmbeds === 0) {
             // Scroll immediately, then retry after virtualizer renders
-            nextTick(() => scrollToBottom());
+            nextTick(() => scrollToTarget());
           } else {
             // Wait for images and embeds to load, but with a maximum timeout
             const maxWaitTime = 3000; // Maximum 3 seconds (increased for embeds)
@@ -1660,7 +1805,7 @@ watch(() => props.messages, (newMessages) => {
               // Scroll if all content loaded or timeout reached
               if ((allImagesLoaded && allEmbedsLoaded) || elapsed >= maxWaitTime) {
                 debug.log(`📜 Images loaded: ${imagesLoadedCount}/${pendingImages.length}, Embeds loaded: ${embedsLoadedCount}/${totalEmbeds}, elapsed: ${elapsed}ms`);
-                scrollToBottom();
+                scrollToTarget();
               } else {
                 // Check again after a short delay
                 setTimeout(checkAndScroll, 100);
@@ -1674,8 +1819,13 @@ watch(() => props.messages, (newMessages) => {
         // New messages appended at bottom (sent or received) - scroll if user was at bottom
         else if (prevCount > 0 && newMessages.length > prevCount && oldScrollHeight > 0) {
           const isAppend = prevFirstId != null && newMessages[0]?.id === prevFirstId;
-          if (isAppend && userWasAtBottom.value) {
-            debug.log('📜 New messages - scrolling to bottom (user was at bottom)');
+          // Follow the bottom if the user was already there, OR we're still in
+          // the post-open grace window (catch-up messages from revalidate /
+          // realtime) and no divider is anchoring the view.
+          const followBottom = userWasAtBottom.value ||
+            (Date.now() < openFollowBottomUntil && !dividerBeforeMessageId.value);
+          if (isAppend && followBottom) {
+            debug.log('📜 New messages - scrolling to bottom (at bottom / open grace)');
             shouldBeAtBottom.value = true;
             const scrollNewToBottom = (attempt = 0) => {
               const count = displayItems.value.length;
@@ -2041,6 +2191,9 @@ const setupResizeObserver = () => {
 
 // --- LIFECYCLE HOOKS ---
 onMounted(() => {
+  // Snapshot the read boundary for the initially-opened context (the reset
+  // watcher only fires on subsequent context changes, not first mount).
+  captureReadBoundary();
   if (messageDisplayContainer.value) {
     isAtTop.value = messageDisplayContainer.value.scrollTop === 0;
     checkScrollable();
@@ -2098,6 +2251,7 @@ onUnmounted(() => {
   if (longPressTimer.value) {
     clearTimeout(longPressTimer.value);
   }
+  clearReadDivider();
   chatStore.highlightMessage = (_messageId: string) => {};
 });
 
@@ -2181,14 +2335,22 @@ const handleScroll = throttle(() => {
     }
   }
 
-  const isAtBottom = scrollTop + clientHeight >= scrollHeight - 5;
+  const distanceFromBottom = scrollHeight - (scrollTop + clientHeight);
+  const isAtBottom = distanceFromBottom <= 5;
   userWasAtBottom.value = isAtBottom;
   if (!isAtBottom) {
     shouldBeAtBottom.value = false;
+    // The user deliberately scrolled up - abandon the post-open bottom-follow
+    // so catch-up messages don't yank them back down. Use a comfortable margin
+    // so transient content growth (images/embeds measuring) during the open
+    // scroll doesn't get mistaken for an intentional scroll-up.
+    if (distanceFromBottom > 200) {
+      openFollowBottomUntil = 0;
+    }
   } else {
     shouldBeAtBottom.value = true; // User scrolled back to bottom
   }
-  
+
   emit('update:isAtBottom', isAtBottom);
 }, 16);
 
@@ -2744,7 +2906,13 @@ const correctScrollAfterResize = (callback: () => void) => {
       }
 
       if (Math.abs(delta) > 1) {
-        container.scrollTop = scrollTopBefore + delta;
+        // Apply the correction RELATIVE to the live scroll position rather than
+        // re-seating from the (now stale) `scrollTopBefore`. If the user kept
+        // scrolling while an image/embed finished loading, seating from the
+        // stale value would yank the viewport - the "scroll skips around when
+        // new elements load" bug. A relative nudge cancels the size change
+        // above the viewport without fighting the user's own scrolling.
+        container.scrollTop += delta;
       }
     });
   });
@@ -3410,6 +3578,40 @@ defineExpose({ editLastOwnMessage });
   font-size: 0.75rem;
   font-weight: 600;
   white-space: nowrap;
+}
+
+/* "New messages" divider - secondary-themed pill with a cool fading line */
+.new-messages-divider {
+  display: flex;
+  align-items: center;
+  margin: 8px 16px;
+  pointer-events: none;
+  user-select: none;
+}
+
+.new-messages-label {
+  flex-shrink: 0;
+  padding: 1px 10px;
+  border-radius: 0 8px 8px 0;
+  background-color: var(--harmony-secondary);
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  line-height: 1.6;
+  box-shadow: 0 0 10px color-mix(in srgb, var(--harmony-secondary) 45%, transparent);
+}
+
+.new-messages-line {
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    var(--harmony-secondary) 0%,
+    color-mix(in srgb, var(--harmony-secondary) 35%, transparent) 60%,
+    transparent 100%
+  );
 }
 
 /* Beginning of conversation indicator */

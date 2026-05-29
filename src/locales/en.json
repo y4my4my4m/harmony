@@ -427,6 +427,7 @@
     "jumpTo": "Jump to Message",
     "copyID": "Copy Message ID",
     "noMessagesHere": "There are no messages here, type something!",
+    "newMessages": "New",
     "loadingOlder": "Loading older messages...",
     "conversationBeginning": "This is the beginning of your conversation",
     "conversationBeginningSubtitle": "Start chatting and make it memorable!",

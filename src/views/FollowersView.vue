@@ -150,8 +150,6 @@ const isLoading = ref(false);
 const hasMore = ref(true);
 const followersCount = ref(0);
 const followingCount = ref(0);
-const cursor = ref<string | null>(null);
-
 const scrollContainerRef = ref<HTMLDivElement | null>(null);
 const sentinelRef = ref<HTMLDivElement | null>(null);
 
@@ -227,9 +225,10 @@ const loadUsers = async (refresh = false) => {
   
   isLoading.value = true;
   try {
+    const PAGE_SIZE = 20;
     const options = {
-      limit: 20,
-      cursor: refresh ? null : cursor.value
+      limit: PAGE_SIZE,
+      offset: refresh ? 0 : users.value.length,
     };
 
     let result;
@@ -245,8 +244,7 @@ const loadUsers = async (refresh = false) => {
       users.value.push(...result);
     }
     
-    hasMore.value = result.length === 20;
-    cursor.value = result.length > 0 ? result[result.length - 1].id : null;
+    hasMore.value = result.length === PAGE_SIZE;
   } catch (error) {
     debug.error(`Failed to load ${currentView.value}:`, error);
     toast.error(`Failed to load ${currentView.value}`);
@@ -323,14 +321,12 @@ const handleUserClick = (user: FederatedUser) => {
 // Watchers
 watch(currentView, () => {
   users.value = [];
-  cursor.value = null;
   hasMore.value = true;
   loadUsers(true);
 });
 
 watch(() => props.userId, () => {
   users.value = [];
-  cursor.value = null;
   hasMore.value = true;
   loadCounts();
   loadUsers(true);
