@@ -137,20 +137,37 @@ BEGIN
 END;
 $$;
 
-CREATE OR REPLACE FUNCTION public.sanitize_report_text()
-RETURNS trigger
-LANGUAGE plpgsql
-AS $$
+-- reports.comment is drift-prone: present in db_schema/init but absent from
+-- older migrated deployments. A trigger function that references NEW.comment
+-- would raise at fire-time on such DBs and break every report insert, so the
+-- function body is generated dynamically to touch only columns that exist.
+DO $$
+DECLARE
+    v_has_comment boolean := EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'reports' AND column_name = 'comment'
+    );
+    v_comment_block text := '';
 BEGIN
-    IF NEW.reason IS NOT NULL THEN
-        NEW.reason := public.sanitize_profile_string(NEW.reason, 200, false);
+    IF v_has_comment THEN
+        v_comment_block :=
+            '    IF NEW.comment IS NOT NULL THEN' || E'\n' ||
+            '        NEW.comment := NULLIF(public.sanitize_profile_string(NEW.comment, 1000, true), '''');' || E'\n' ||
+            '    END IF;' || E'\n';
     END IF;
-    IF NEW.comment IS NOT NULL THEN
-        NEW.comment := NULLIF(public.sanitize_profile_string(NEW.comment, 1000, true), '');
-    END IF;
-    RETURN NEW;
-END;
-$$;
+
+    EXECUTE
+        'CREATE OR REPLACE FUNCTION public.sanitize_report_text()' || E'\n' ||
+        'RETURNS trigger LANGUAGE plpgsql AS $fn$' || E'\n' ||
+        'BEGIN' || E'\n' ||
+        '    IF NEW.reason IS NOT NULL THEN' || E'\n' ||
+        '        NEW.reason := public.sanitize_profile_string(NEW.reason, 200, false);' || E'\n' ||
+        '    END IF;' || E'\n' ||
+        v_comment_block ||
+        '    RETURN NEW;' || E'\n' ||
+        'END;' || E'\n' ||
+        '$fn$;';
+END $$;
 
 CREATE OR REPLACE FUNCTION public.sanitize_user_list_text()
 RETURNS trigger
@@ -334,8 +351,8 @@ UPDATE public.bots SET website_url = NULLIF(public.sanitize_profile_string(websi
 
 UPDATE public.reports SET reason = public.sanitize_profile_string(reason, 200, false)
     WHERE char_length(reason) > 200;
-UPDATE public.reports SET comment = NULLIF(public.sanitize_profile_string(comment, 1000, true), '')
-    WHERE comment IS NOT NULL AND char_length(comment) > 1000;
+-- reports.comment cleanup + constraint are handled in the drift guard below
+-- (section 4b) since the column may be absent in this deployment.
 
 UPDATE public.user_lists SET title = public.sanitize_profile_string(title, 100, false)
     WHERE char_length(title) > 100;
@@ -410,9 +427,24 @@ ALTER TABLE public.bots ADD CONSTRAINT bots_website_url_length_check
 ALTER TABLE public.reports DROP CONSTRAINT IF EXISTS reports_reason_length_check;
 ALTER TABLE public.reports ADD CONSTRAINT reports_reason_length_check
     CHECK (char_length(reason) <= 200);
-ALTER TABLE public.reports DROP CONSTRAINT IF EXISTS reports_comment_length_check;
-ALTER TABLE public.reports ADD CONSTRAINT reports_comment_length_check
-    CHECK (comment IS NULL OR char_length(comment) <= 1000);
+
+-- Section 4b: reports.comment cleanup + length constraint (drift guard).
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'reports' AND column_name = 'comment'
+    ) THEN
+        UPDATE public.reports SET comment = NULLIF(public.sanitize_profile_string(comment, 1000, true), '')
+            WHERE comment IS NOT NULL AND char_length(comment) > 1000;
+
+        ALTER TABLE public.reports DROP CONSTRAINT IF EXISTS reports_comment_length_check;
+        ALTER TABLE public.reports ADD CONSTRAINT reports_comment_length_check
+            CHECK (comment IS NULL OR char_length(comment) <= 1000);
+    ELSE
+        RAISE NOTICE 'Skipping reports.comment hardening: column not present in this deployment.';
+    END IF;
+END $$;
 
 ALTER TABLE public.user_lists DROP CONSTRAINT IF EXISTS user_lists_title_length_check;
 ALTER TABLE public.user_lists ADD CONSTRAINT user_lists_title_length_check
