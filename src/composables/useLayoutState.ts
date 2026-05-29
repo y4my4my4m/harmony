@@ -76,6 +76,12 @@ export function useLayoutState() {
     return p.startsWith('/social') || p.startsWith('/posts')
   }
 
+  // DM routes have no right sidebar (no member/details panel). Used to suppress
+  // the right-sidebar toggle/gesture/overlay so the mobile backdrop blur never
+  // appears on a screen that has nothing to reveal.
+  const isDMRoute = (): boolean => route.path.startsWith('/dm')
+  const hasRightSidebar = computed(() => !isDMRoute())
+
   const restoreActivityPubRightSidebar = () => {
     if (typeof window === 'undefined' || isMobile.value) return
     const saved = localStorage.getItem(STORAGE_KEY_ACTIVITYPUB_RIGHT_SIDEBAR)
@@ -110,10 +116,17 @@ export function useLayoutState() {
   watch(
     () => route.path,
     (path) => {
+      // DM has no right sidebar - clear any state leaked from server chat so
+      // the mobile backdrop blur doesn't linger over a panel-less screen.
+      if (path.startsWith('/dm')) {
+        rightSidebarOpen.value = false
+        return
+      }
       if ((path.startsWith('/social') || path.startsWith('/posts')) && !isMobile.value) {
         restoreActivityPubRightSidebar()
       }
-    }
+    },
+    { immediate: true }
   )
 
   // Persist ActivityPub right sidebar when toggled while on social/posts
@@ -141,6 +154,9 @@ export function useLayoutState() {
   }
 
   const toggleRightSidebar = () => {
+    // No right sidebar exists on DM routes; ignore so we don't strand state
+    // that would trigger the mobile overlay blur.
+    if (!hasRightSidebar.value) return
     if (isMobile.value) {
       leftSidebarOpen.value = false
     }
@@ -172,6 +188,7 @@ export function useLayoutState() {
   }
 
   const openRightSidebar = () => {
+    if (!hasRightSidebar.value) return
     if (isMobile.value) {
       leftSidebarOpen.value = false
     }
@@ -195,6 +212,8 @@ export function useLayoutState() {
    * Tracks initial state to determine if we're opening or closing
    */
   const startDrag = (direction: 'left' | 'right') => {
+    // Right-edge drag would reveal a non-existent right sidebar on DM routes.
+    if (direction === 'right' && !hasRightSidebar.value) return
     isDragging.value = true
     dragDirection.value = direction
     
@@ -435,6 +454,7 @@ export function useLayoutState() {
     // Reactive state
     leftSidebarOpen: computed(() => leftSidebarOpen.value),
     rightSidebarOpen: computed(() => rightSidebarOpen.value),
+    hasRightSidebar,
     voicePanelOpen: computed(() => voicePanelOpen.value),
     mobileProfileOpen: computed(() => mobileProfileOpen.value),
     isMobile: computed(() => isMobile.value),

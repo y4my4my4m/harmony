@@ -15,7 +15,7 @@
   }">
     <!-- Mobile Overlay Backdrop -->
     <div 
-      v-if="isMobile && (leftSidebarOpen || rightSidebarOpen || isDragging)" 
+      v-if="isMobile && (leftSidebarOpen || (hasRightSidebar && rightSidebarOpen) || isDragging)" 
       class="mobile-overlay"
       :style="overlayStyle"
       @click="closeMobileSidebars"
@@ -130,8 +130,9 @@ const router = useRouter()
 const { touchState, handleTouchStart, handleTouchMove, handleTouchEnd } = useMobileGestures()
 const { 
   leftSidebarOpen, 
-  rightSidebarOpen, 
-  isMobile, 
+    rightSidebarOpen, 
+    hasRightSidebar,
+    isMobile, 
   voicePanelOpen,
   mobileProfileOpen,
   isDragging,
@@ -920,16 +921,17 @@ watch(() => route.path, async (newPath) => {
     try {
       const { useDMStore } = await import('@/stores/useDM')
       const dmStore = useDMStore()
-      
-      // Check if DM store needs initialization
-      if (dmStore.conversations.length === 0) {
-        debug.log('📬 Initializing DM store for navigation to:', newPath)
-        
-        if (newStrategy.routeType === 'dm' && newStrategy.currentConversationId) {
-          await dmStore.initializeDMEnvironmentForDirectAccess(userId, newStrategy.currentConversationId)
-        } else {
-          await dmStore.initializeDMEnvironment(userId, false, true, 'immediate')
-        }
+
+      // Always (re-)initialize: realtime subscriptions are torn down when
+      // leaving the chat/DM layout, so they must be re-established on return.
+      // The store renders the cached conversation list immediately and only
+      // revalidates in the background when the cache is warm (no spinner).
+      debug.log('📬 Initializing DM store for navigation to:', newPath)
+
+      if (newStrategy.routeType === 'dm' && newStrategy.currentConversationId) {
+        await dmStore.initializeDMEnvironmentForDirectAccess(userId, newStrategy.currentConversationId)
+      } else {
+        await dmStore.initializeDMEnvironment(userId, false, true, 'immediate')
       }
     } catch (error) {
       debug.error('Failed to initialize DM store on navigation:', error)

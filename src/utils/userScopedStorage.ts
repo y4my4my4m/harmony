@@ -24,6 +24,51 @@ const STORAGE_PREFIX = 'harmony_'
 const USER_ID_KEY = `${STORAGE_PREFIX}current_user_id`
 const USER_DATA_PREFIX = `${STORAGE_PREFIX}user_`
 
+/**
+ * Resolve a stable identifier for *this* Harmony instance.
+ *
+ * Without this, two instances served from the same origin (e.g. several dev
+ * builds on http://localhost:5173, or the Tauri desktop app pointed at
+ * different backends) share one localStorage namespace, so the theme/appearance
+ * config of one silently overwrites the others.
+ *
+ * Preference order (all build-time / synchronous, so this never races app init):
+ *   1. VITE_DOMAIN / VITE_INSTANCE_DOMAIN - the federation domain
+ *   2. VITE_SUPABASE_URL host - uniquely identifies the backend even when the
+ *      frontend origin is shared
+ *   3. window.location.host - last resort
+ */
+function resolveInstanceScope(): string {
+  const env = (import.meta as any).env || {}
+  let raw: string =
+    env.VITE_DOMAIN ||
+    env.VITE_INSTANCE_DOMAIN ||
+    ''
+
+  if (!raw && env.VITE_SUPABASE_URL) {
+    try {
+      raw = new URL(env.VITE_SUPABASE_URL).host
+    } catch {
+      /* malformed URL - fall through */
+    }
+  }
+
+  if (!raw && typeof window !== 'undefined') {
+    raw = window.location.host
+  }
+
+  const slug = String(raw || 'default')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+
+  return slug || 'default'
+}
+
+const INSTANCE_SCOPE = resolveInstanceScope()
+// Inserted into every key so per-user prefs are also per-instance.
+const SCOPE_SEGMENT = `i_${INSTANCE_SCOPE}_`
+
 class UserScopedStorage {
   private currentUserId: string | null = null
   private warnedKeys = new Set<string>() // Track which keys have been warned about
@@ -96,10 +141,13 @@ class UserScopedStorage {
     try {
       const keysToRemove: string[] = []
       
-      // Find all keys that belong to this user
+      // Find all keys that belong to this user, across every instance scope and
+      // the legacy (non-scoped) layout. User IDs are UUIDs, so matching the
+      // `user_{id}_` segment can't collide with anything else.
+      const userSegment = `user_${userId}_`
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i)
-        if (key && key.startsWith(`${USER_DATA_PREFIX}${userId}_`)) {
+        if (key && key.startsWith(STORAGE_PREFIX) && key.includes(userSegment)) {
           keysToRemove.push(key)
         }
       }
@@ -116,16 +164,27 @@ class UserScopedStorage {
   }
 
   /**
-   * Get a user-scoped key
+   * Get a user- AND instance-scoped key
    */
   private getUserKey(key: string): string {
     if (!this.currentUserId) {
-      // If no user is set, use a global key (for backwards compatibility during migration)
+      // If no user is set, use an instance-global key (still per-instance).
       // Only warn once per key to avoid excessive logs
       if (!this.warnedKeys.has(key)) {
-        debug.warn('⚠️ Using global localStorage key (no user set):', key)
+        debug.warn('⚠️ Using instance-global localStorage key (no user set):', key)
         this.warnedKeys.add(key)
       }
+      return `${STORAGE_PREFIX}${SCOPE_SEGMENT}${key}`
+    }
+    return `${STORAGE_PREFIX}${SCOPE_SEGMENT}user_${this.currentUserId}_${key}`
+  }
+
+  /**
+   * Legacy (pre-instance-scoping) key for the same logical key. Used as a
+   * read fallback so existing users keep their settings after this rolls out.
+   */
+  private getLegacyKey(key: string): string {
+    if (!this.currentUserId) {
       return `${STORAGE_PREFIX}${key}`
     }
     return `${USER_DATA_PREFIX}${this.currentUserId}_${key}`
@@ -150,7 +209,26 @@ class UserScopedStorage {
   getItem(key: string): string | null {
     try {
       const userKey = this.getUserKey(key)
-      return localStorage.getItem(userKey)
+      const value = localStorage.getItem(userKey)
+      if (value !== null) return value
+
+      // One-time migration: an existing user upgrading to instance-scoped keys
+      // still has their data under the legacy (non-scoped) key. Adopt it so the
+      // first read after deploy doesn't look like a reset.
+      const legacyKey = this.getLegacyKey(key)
+      if (legacyKey !== userKey) {
+        const legacyValue = localStorage.getItem(legacyKey)
+        if (legacyValue !== null) {
+          try {
+            localStorage.setItem(userKey, legacyValue)
+            localStorage.removeItem(legacyKey)
+          } catch {
+            /* best-effort migration */
+          }
+          return legacyValue
+        }
+      }
+      return null
     } catch (error) {
       debug.error(`Failed to get localStorage item ${key}:`, error)
       return null
@@ -184,7 +262,7 @@ class UserScopedStorage {
       return []
     }
 
-    const prefix = `${USER_DATA_PREFIX}${this.currentUserId}_`
+    const prefix = `${STORAGE_PREFIX}${SCOPE_SEGMENT}user_${this.currentUserId}_`
     const keys: string[] = []
 
     try {

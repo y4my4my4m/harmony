@@ -11,11 +11,15 @@ LANGUAGE sql
 STABLE
 SET search_path = public
 AS $$
+  -- Mirrors the profiles.web_handle generated column. Falls back to the bare
+  -- '@username' when a remote profile has no resolvable domain so we never emit
+  -- a NULL handle (string || NULL = NULL in SQL).
   SELECT CASE
     WHEN COALESCE(p_is_local, true) THEN '@' || p_username
-    ELSE '@' || p_username || '@' || COALESCE(
-      NULLIF(p_domain, ''),
-      NULLIF(current_setting('app.domain', true), '')
+    ELSE '@' || p_username || COALESCE(
+      '@' || NULLIF(p_domain, ''),
+      '@' || NULLIF(current_setting('app.domain', true), ''),
+      ''
     )
   END;
 $$;
@@ -469,4 +473,7 @@ BEGIN
     RETURN NEW;
 END;
 $$;
+
+NOTIFY pgrst, 'reload schema';
+
 COMMIT;

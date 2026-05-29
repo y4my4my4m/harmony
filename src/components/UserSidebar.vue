@@ -232,6 +232,7 @@ import InviteModal from './InviteModal.vue';
 import Avatar from '@/components/common/Avatar.vue';
 import DisplayName from '@/components/DisplayName.vue';
 import { useServerChannelStore } from '@/stores/useServerChannel';
+import { showInstanceStaffBadge } from '@/utils/instanceBadge';
 import { useActivityPubStore } from '@/stores/useActivityPub';
 import { useDMStore } from '@/stores/useDM';
 import { authContextService } from '@/services/AuthContextService';
@@ -290,12 +291,20 @@ function hasCustomStatusToShow(userId: string): boolean {
   return !!(s.text || s.emoji || s.emoji_url || (s.type && s.type !== 'custom'));
 }
 
+// Instance staff badges are global to THIS instance - don't show them when
+// viewing a federated server (the owner is just a member there).
+const showInstanceStaff = computed(() =>
+  showInstanceStaffBadge(serverChannelStore.currentServer)
+);
+
 const isUserInstanceAdmin = (userId: string) => computed(() => {
+  if (!showInstanceStaff.value) return false;
   const profile = getUserProfile(userId).value;
   return profile?.is_admin === true;
 });
 
 const isUserInstanceMod = (userId: string) => computed(() => {
+  if (!showInstanceStaff.value) return false;
   const profile = getUserProfile(userId).value;
   return profile?.is_moderator === true && !profile?.is_admin;
 });

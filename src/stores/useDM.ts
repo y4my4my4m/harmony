@@ -518,19 +518,22 @@ export const useDMStore = defineStore('dm', () => {
       // Clean up any existing subscriptions first
       cleanupRealtimeSubscriptions()
       
-      // Only fetch conversations if we don't have them or force refresh is requested
-      const shouldFetch = forceRefresh || conversations.value.length === 0
-      debug.log('📬 Should fetch conversations:', shouldFetch, '(forceRefresh:', forceRefresh, ', existing:', conversations.value.length, ')')
-      
-      if (shouldFetch) {
-        if (metadataOnly) {
-          debug.log('📬 Fetching conversation metadata...')
-          await fetchUserConversationsMetadata(userId, loadStrategy)
-        } else {
-          debug.log('📬 Fetching full conversations...')
-          await fetchUserConversations(userId)
-        }
+      // Cold cache (or explicit refresh): block on the fetch so the loader
+      // shows. Warm cache: render what we have immediately and revalidate in
+      // the background (stale-while-revalidate) so the user never stares at a
+      // spinner when we already have the list.
+      const hasCache = conversations.value.length > 0
+      const runFetch = () => metadataOnly
+        ? fetchUserConversationsMetadata(userId, loadStrategy)
+        : fetchUserConversations(userId)
+
+      if (forceRefresh || !hasCache) {
+        debug.log('📬 Fetching conversations (blocking):', { metadataOnly, hasCache, forceRefresh })
+        await runFetch()
         debug.log('📬 After fetch, conversations count:', conversations.value.length)
+      } else {
+        debug.log('📬 Warm cache - revalidating conversations in background')
+        void runFetch().catch(err => debug.warn('Background conversation revalidation failed:', err))
       }
       
       // Set up realtime subscriptions (always needed for new messages/updates)
@@ -2373,8 +2376,16 @@ export const useDMStore = defineStore('dm', () => {
     debug.log('✅ Global conversation broadcast handlers registered')
   }
 
-  const cleanup = () => {
-    debug.log('🧹 Cleaning up DM store')
+  /**
+   * Tear down DM realtime/listeners.
+   *
+   * @param resetData when true (logout) the conversation list and caches are
+   *   wiped. When false (just leaving the chat/DM layout) the conversation list
+   *   is preserved so returning to DMs renders the cached list instantly instead
+   *   of flashing a "loading conversations" spinner.
+   */
+  const cleanup = (resetData = true) => {
+    debug.log('🧹 Cleaning up DM store', { resetData })
     
     // Remove user-updated listener
     if (_userUpdatedHandler && _userDataServiceRef) {
@@ -2391,14 +2402,19 @@ export const useDMStore = defineStore('dm', () => {
     _globalBroadcastUnsubs = []
     _globalBroadcastRegistered = false
     
-    // Reset state
-    conversations.value = []
+    // Always drop the active-conversation message state (re-fetched on open).
     currentDMMessages.value = []
     currentConversationId.value = null
     searchResults.value = []
-    messageCache.value.clear()
     replyMessageCache.value.clear()
     fetchingReplyMessages.value.clear()
+
+    if (resetData) {
+      // Full reset (e.g. logout): forget everything.
+      conversations.value = []
+      messageCache.value.clear()
+    }
+    // Otherwise keep `conversations` (and message cache) as a warm cache.
     
     debug.log('✅ DM store cleaned up')
   }

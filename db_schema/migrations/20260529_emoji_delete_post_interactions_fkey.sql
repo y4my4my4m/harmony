@@ -55,4 +55,6 @@ ALTER TABLE public.post_interactions
   ADD CONSTRAINT post_interactions_emoji_id_fkey
   FOREIGN KEY (emoji_id) REFERENCES public.emojis(id) ON DELETE SET NULL;
 
+NOTIFY pgrst, 'reload schema';
+
 COMMIT;

@@ -11,6 +11,7 @@ import { useActivityPubStore } from '@/stores/useActivityPub';
 import type RichTextEditor from '@/components/RichTextEditor.vue';
 import { debug } from '@/utils/debug'
 import { getEmojiShortcodeForInsert } from '@/services/emojiShortcodeResolver'
+import { i18n } from '@/i18n'
 
 export interface ComposerActionsOptions {
   content: Ref<string>;
@@ -214,6 +215,17 @@ export function useComposerActions(options: ComposerActionsOptions) {
         hashtagDataMap
       );
       debug.log('[DEBUG] submitPost: Parsed content:', parsedContent.length, 'parts');
+
+      // A "direct" post is delivered only to mentioned users. Posting one with
+      // zero mentions has no recipients - block it here so we never create an
+      // undeliverable post (which previously triggered federation retry churn).
+      if (visibility === 'direct') {
+        const hasMention = Array.isArray(parsedContent)
+          && parsedContent.some((part: any) => part?.type === 'mention');
+        if (!hasMention) {
+          throw new Error(i18n.global.t('activitypub.directRequiresMention'));
+        }
+      }
 
       // Create post via store
       debug.log('[DEBUG] submitPost: Calling store.createPost...');

@@ -69,6 +69,12 @@ class UserDataService extends EventTarget {
   private readonly CACHE_TTL = 5 * 60 * 1000 // 5 minutes
   private readonly HEARTBEAT_INTERVAL = 60 * 1000 // 60 seconds
 
+  // Coalescing batch loader (DataLoader pattern). Collapses bursts of single-id
+  // profile loads - e.g. one <DisplayName> per message/conversation - into a
+  // single id=in.(...) query instead of N separate requests.
+  private userLoadQueue = new Set<string>()
+  private userLoadBatchPromise: Promise<void> | null = null
+
   private heartbeatTimer: NodeJS.Timeout | null = null
   private heartbeatFailures = 0
   private readonly MAX_HEARTBEAT_FAILURES = 3
@@ -1252,7 +1258,36 @@ class UserDataService extends EventTarget {
     })
     
     if (missingUserIds.length === 0) return
-    
+
+    // Coalesce into a single batched fetch. Many UI elements (e.g. one
+    // <DisplayName> per message) call this with a single id within the same
+    // tick; without batching that becomes an N+1 storm of id=in.(oneId)
+    // queries. Every caller in the same microtask window shares one
+    // id=in.(...) request, and the cache check above keeps already-loaded
+    // users out of the queue.
+    missingUserIds.forEach(id => this.userLoadQueue.add(id))
+
+    if (!this.userLoadBatchPromise) {
+      this.userLoadBatchPromise = new Promise<void>((resolve) => {
+        queueMicrotask(() => {
+          const batchIds = Array.from(this.userLoadQueue)
+          this.userLoadQueue.clear()
+          this.userLoadBatchPromise = null
+          this.executeUserLoad(batchIds).finally(() => resolve())
+        })
+      })
+    }
+
+    return this.userLoadBatchPromise
+  }
+
+  /**
+   * Execute the actual profile fetch for a coalesced, de-duplicated set of IDs.
+   * Only ever called by loadUsersData() via the batch queue.
+   */
+  private async executeUserLoad(missingUserIds: string[]): Promise<void> {
+    if (missingUserIds.length === 0) return
+
     debug.log(`🔄 Loading user data for ${missingUserIds.length} users`)
 
     try {

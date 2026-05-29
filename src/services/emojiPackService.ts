@@ -11,6 +11,7 @@
 
 import { ref, computed } from 'vue'
 import { debug } from '@/utils/debug'
+import { userStorage } from '@/utils/userScopedStorage'
 import { 
   EMOJI_CATEGORIES, 
   TWEMOJI_BASE_URL, 
@@ -56,7 +57,10 @@ export interface EmojiPack {
   probePath?: string
 }
 
-const STORAGE_KEY = 'harmony-emoji-pack'
+// Logical key; userStorage namespaces it per-instance (and per-user) so an
+// emoji pack chosen on one Harmony instance doesn't override another's.
+const STORAGE_KEY = 'emoji-pack'
+const LEGACY_STORAGE_KEY = 'harmony-emoji-pack'
 const DEFAULT_PACK_ID: EmojiPackType = DEFAULT_EMOJI_PACK
 
 // Available emoji packs
@@ -148,7 +152,18 @@ export function shouldExcludePath(path: string): boolean {
  */
 function loadPackPreference(): void {
   try {
-    const stored = localStorage.getItem(STORAGE_KEY)
+    let stored = userStorage.getItem(STORAGE_KEY)
+
+    // One-time migration off the old un-namespaced raw key.
+    if (!stored) {
+      const legacy = localStorage.getItem(LEGACY_STORAGE_KEY)
+      if (legacy) {
+        stored = legacy
+        userStorage.setItem(STORAGE_KEY, legacy)
+        localStorage.removeItem(LEGACY_STORAGE_KEY)
+      }
+    }
+
     if (stored && availablePacks.value.has(stored)) {
       currentPackId.value = stored
     }
@@ -162,7 +177,7 @@ function loadPackPreference(): void {
  */
 function savePackPreference(): void {
   try {
-    localStorage.setItem(STORAGE_KEY, currentPackId.value)
+    userStorage.setItem(STORAGE_KEY, currentPackId.value)
   } catch (error) {
     debug.error('Failed to save emoji pack preference:', error)
   }
