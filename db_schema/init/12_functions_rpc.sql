@@ -102,25 +102,75 @@ END;
 $$;
 
 -- Get trending hashtags
+-- Trending hashtags over an arbitrary hours window, with rising/falling trend
+-- computed against the immediately-preceding window of equal length. The
+-- frontend passes the selected time range (1h/6h/24h/7d/30d) as hours so the
+-- "Last X" filter is honored at hashtag granularity.
 CREATE OR REPLACE FUNCTION public.get_trending_hashtags(
-    p_days integer DEFAULT 7,
+    p_hours integer DEFAULT 168,
     p_limit integer DEFAULT 20
 )
-RETURNS TABLE(tag text, uses_count bigint, unique_users bigint)
-LANGUAGE sql
+RETURNS TABLE(
+    tag text,
+    uses_count bigint,
+    unique_users bigint,
+    change_percent numeric,
+    trend text
+)
+LANGUAGE plpgsql
 STABLE
 AS $$
-    SELECT 
-        h.tag,
-        COUNT(*) as uses_count,
-        COUNT(DISTINCT p.author_id) as unique_users
-    FROM post_hashtags ph
-    JOIN hashtags h ON ph.hashtag_id = h.id
-    JOIN posts p ON ph.post_id = p.id
-    WHERE ph.created_at > NOW() - (p_days || ' days')::INTERVAL
-    GROUP BY h.tag
-    ORDER BY uses_count DESC
+DECLARE
+    v_current_start timestamptz;
+    v_previous_start timestamptz;
+BEGIN
+    v_current_start := NOW() - (p_hours || ' hours')::INTERVAL;
+    v_previous_start := NOW() - (p_hours * 2 || ' hours')::INTERVAL;
+
+    RETURN QUERY
+    WITH current_period AS (
+        SELECT
+            h.tag AS htag,
+            COUNT(*) AS current_uses,
+            COUNT(DISTINCT p.author_id) AS current_unique_users
+        FROM post_hashtags ph
+        JOIN hashtags h ON ph.hashtag_id = h.id
+        JOIN posts p ON ph.post_id = p.id
+        WHERE ph.created_at > v_current_start
+        GROUP BY h.tag
+    ),
+    previous_period AS (
+        SELECT
+            h.tag AS htag,
+            COUNT(*) AS previous_uses
+        FROM post_hashtags ph
+        JOIN hashtags h ON ph.hashtag_id = h.id
+        JOIN posts p ON ph.post_id = p.id
+        WHERE ph.created_at > v_previous_start
+          AND ph.created_at <= v_current_start
+        GROUP BY h.tag
+    )
+    SELECT
+        cp.htag AS tag,
+        cp.current_uses AS uses_count,
+        cp.current_unique_users AS unique_users,
+        CASE
+            WHEN COALESCE(pp.previous_uses, 0) = 0 THEN
+                CASE WHEN cp.current_uses > 0 THEN 100.0 ELSE 0.0 END
+            ELSE
+                ROUND(((cp.current_uses::numeric - pp.previous_uses::numeric) / pp.previous_uses::numeric) * 100, 1)
+        END AS change_percent,
+        CASE
+            WHEN COALESCE(pp.previous_uses, 0) = 0 AND cp.current_uses > 0 THEN 'rising'
+            WHEN cp.current_uses > COALESCE(pp.previous_uses, 0) * 1.05 THEN 'rising'
+            WHEN cp.current_uses < COALESCE(pp.previous_uses, 0) * 0.95 THEN 'falling'
+            ELSE 'stable'
+        END AS trend
+    FROM current_period cp
+    LEFT JOIN previous_period pp ON cp.htag = pp.htag
+    ORDER BY cp.current_uses DESC
     LIMIT p_limit;
+END;
 $$;
 
 -- Backfill timeline entries (admin)
@@ -1119,7 +1169,7 @@ $$;
 GRANT EXECUTE ON FUNCTION public.create_group_conversation(uuid, uuid[], text, boolean) TO authenticated;
 -- Timeline functions
 GRANT EXECUTE ON FUNCTION public.get_timeline(uuid, integer, timestamp) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.get_trending_hashtags(integer, integer) TO authenticated, anon;
+GRANT EXECUTE ON FUNCTION public.get_trending_hashtags(integer, integer) TO authenticated, anon; -- get_trending_hashtags(p_hours, p_limit)
 -- Post interaction functions
 GRANT EXECUTE ON FUNCTION public.add_post_emoji_reaction(uuid, uuid, uuid, text) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.get_batch_post_reactions(uuid[]) TO authenticated;

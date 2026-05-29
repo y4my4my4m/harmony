@@ -53,12 +53,23 @@ export interface HashtagStats {
 export interface TrendingOptions {
   limit?: number;
   days?: number;
+  /** Time window in hours. Takes precedence over `days` for hashtag queries. */
+  hours?: number;
   timeframe?: 'hourly' | 'daily' | 'weekly';
   includeLocal?: boolean;
   includeFederated?: boolean;
   minEngagement?: number;
   instance?: string;
   timeRange?: ExploreFilters['timeRange'];
+  /**
+   * Filter posts by real uploaded media (`posts.media_attachments`):
+   *  - `'media'`: only posts that contain at least one media attachment (uploads),
+   *  - `'text'`: only posts with no media attachment,
+   *  - `'all'`: no media constraint.
+   * Link-preview / oEmbed cards (stored in `metadata.embeds`) are NOT media.
+   */
+  mediaFilter?: 'all' | 'media' | 'text';
+  /** @deprecated use `mediaFilter: 'media'` */
   mediaOnly?: boolean;
 }
 
@@ -68,6 +79,11 @@ export interface ExploreFilters {
   instance?: string;
   language?: string;
   minScore?: number;
+  limit?: number;
+  includeLocal?: boolean;
+  includeFederated?: boolean;
+  /** `'engagement'` ranks by interactions within the window; `'recent'` by recency. */
+  orderBy?: 'recent' | 'engagement';
 }
 
 // ============================================================================
@@ -85,10 +101,12 @@ class TrendingService {
    */
   async getTrendingHashtags(options: TrendingOptions = {}): Promise<TrendingHashtag[]> {
     try {
-      const { limit = 20, days = 7 } = options;
+      const { limit = 20 } = options;
+      // Prefer an explicit hours window; fall back to days (legacy callers) → hours.
+      const hours = options.hours ?? (options.days ? options.days * 24 : 168);
 
       const { data, error } = await supabase.rpc('get_trending_hashtags', {
-        p_days: days,
+        p_hours: hours,
         p_limit: limit
       });
 
@@ -178,82 +196,59 @@ class TrendingService {
    */
   async getTrendingPosts(options: TrendingOptions = {}): Promise<TrendingPost[]> {
     try {
-      const { 
-        limit = 20, 
-        timeframe = options.timeRange ? this.getPeriodTypeForTimeRange(options.timeRange) : 'daily',
+      const {
+        limit = 20,
         includeLocal = true,
         includeFederated = true,
-        minEngagement = 1,
         instance,
-        timeRange,
+        timeRange = '24h',
+        mediaFilter,
         mediaOnly = false,
       } = options;
 
-      // Build the query
-      let query = supabase
-        .from('trending_posts')
-        .select(`
-          *,
-          post:posts!inner(
-            *,
-            author:profiles!inner(*)
-          )
-        `)
-        .eq('period_type', timeframe)
-        .gte('total_engagement', minEngagement)
-        .order('trending_score', { ascending: false })
-        .limit(limit);
+      // Map the media filter onto an explore content type. The precomputed
+      // `trending_posts` table can't honor media/instance/time filters at the
+      // row level (nested embeds + sparse buckets), so trending on the explore
+      // tab is sourced from a live, engagement-ranked `posts` query. This makes
+      // every filter (time window, instance, media vs text) actually apply.
+      const contentType: ExploreFilters['contentType'] =
+        mediaFilter === 'media' || mediaOnly
+          ? 'media'
+          : mediaFilter === 'text'
+            ? 'posts'
+            : 'all';
 
-      // Apply local/federated filtering
-      if (!includeLocal || !includeFederated) {
-        query = query.eq('post.is_local', includeLocal);
-      }
+      const posts = await this.getExplorePosts({
+        contentType,
+        timeRange,
+        instance,
+        includeLocal,
+        includeFederated,
+        limit,
+        orderBy: 'engagement',
+      });
 
-      if (timeRange) {
-        query = query.gte('post.created_at', this.getTimeThreshold(timeRange));
-      }
-
-      if (instance && instance !== 'all') {
-        query = query.eq('post.author.domain', instance);
-      }
-
-      if (mediaOnly) {
-        query = query.not('post.media_attachments', 'eq', '[]');
-      }
-
-      const { data, error } = await query;
-      if (error) throw error;
-
-      return (data || []).map((row: any) => {
-        const post = this.transformDatabasePostToTimelinePost(row.post);
+      return posts.map((post, index) => {
+        const score = this.engagementScore(post);
         return {
           post,
-          trending_score: parseFloat(row.trending_score) || 0,
-          engagement_score: parseFloat(row.engagement_score) || 0,
-          trending_rank: row.trending_rank || 999,
-          engagement_velocity: this.calculateEngagementVelocity(row)
+          trending_score: score,
+          engagement_score: score,
+          trending_rank: index + 1,
+          engagement_velocity: 0,
         };
       });
     } catch (error) {
       debug.error('Failed to get trending posts:', error);
-      // Fall back to the explore query when the trending materialized
-      // table is empty or filters aren't representable there.
-      if (options.timeRange || options.instance || options.mediaOnly) {
-        const posts = await this.getExplorePosts({
-          contentType: options.mediaOnly ? 'media' : 'posts',
-          timeRange: options.timeRange,
-          instance: options.instance,
-        });
-        return posts.map((post, index) => ({
-          post,
-          trending_score: 0,
-          engagement_score: 0,
-          trending_rank: index + 1,
-          engagement_velocity: 0,
-        }));
-      }
       return [];
     }
+  }
+
+  /** Weighted engagement score: reblogs count double, replies/favorites once. */
+  private engagementScore(post: { favorites_count?: number; reblogs_count?: number; replies_count?: number }): number {
+    return (post.favorites_count || 0)
+      + (post.reblogs_count || 0) * 2
+      + (post.replies_count || 0);
   }
 
   /**
@@ -397,11 +392,10 @@ class TrendingService {
         `)
         .eq('is_suspended', false);
 
+      // "All Instances" includes federated users too — only narrow to a single
+      // domain when one is explicitly selected.
       if (instance && instance !== 'all') {
         query = query.eq('domain', instance);
-      } else {
-        // Default: local users when no instance filter is selected
-        query = query.eq('domain', import.meta.env.VITE_DOMAIN as string);
       }
 
       query = query.order('followers_count', { ascending: false });
@@ -646,16 +640,24 @@ class TrendingService {
    */
   async getExplorePosts(filters: ExploreFilters = {}): Promise<TimelinePost[]> {
     try {
-      const { 
+      const {
         contentType = 'all',
         timeRange = '24h',
         instance,
-        // eslint-disable-next-line unused-imports/no-unused-vars
-        minScore = 0
+        limit = 20,
+        includeLocal = true,
+        includeFederated = true,
+        orderBy = 'recent',
       } = filters;
 
-      // Calculate time threshold
       const timeThreshold = this.getTimeThreshold(timeRange);
+
+      // For engagement ranking we over-fetch the most recent candidates within
+      // the window, then rank client-side (PostgREST can't ORDER BY a weighted
+      // expression). Capped so a hot window can't pull an unbounded result set.
+      const candidateLimit = orderBy === 'engagement'
+        ? Math.min(Math.max(limit * 5, limit), 100)
+        : limit;
 
       let query = supabase
         .from('posts')
@@ -668,11 +670,15 @@ class TrendingService {
         .eq('author.is_suspended', false) // Exclude posts from suspended users
         .gte('created_at', timeThreshold)
         .order('created_at', { ascending: false })
-        .limit(20);
+        .limit(candidateLimit);
 
-      // Apply content type filter
+      // Content type → real uploaded media (`media_attachments`), not oEmbed
+      // link previews (which live in `metadata.embeds`).
       if (contentType === 'media') {
         query = query.not('media_attachments', 'eq', '[]');
+      } else if (contentType === 'posts') {
+        // "Posts only" = no uploaded media attachment.
+        query = query.eq('media_attachments', '[]');
       }
 
       // Apply instance filter
@@ -680,10 +686,24 @@ class TrendingService {
         query = query.eq('author.domain', instance);
       }
 
+      // Local/federated scoping (only when exactly one is requested)
+      if (includeLocal && !includeFederated) {
+        query = query.eq('is_local', true);
+      } else if (!includeLocal && includeFederated) {
+        query = query.eq('is_local', false);
+      }
+
       const { data, error } = await query;
       if (error) throw error;
 
-      return (data || []).map(row => this.transformDatabasePostToTimelinePost(row));
+      let rows = data || [];
+      if (orderBy === 'engagement') {
+        rows = [...rows]
+          .sort((a, b) => this.engagementScore(b) - this.engagementScore(a))
+          .slice(0, limit);
+      }
+
+      return rows.map(row => this.transformDatabasePostToTimelinePost(row));
     } catch (error) {
       debug.error('Failed to get explore posts:', error);
       return [];
@@ -727,14 +747,6 @@ class TrendingService {
     if (changePercent > 5) return 'up';
     if (changePercent < -5) return 'down';
     return 'stable';
-  }
-
-  private calculateEngagementVelocity(trendingData: any): number {
-    const totalEngagement = (trendingData.likes_count || 0) + 
-                           (trendingData.reblogs_count || 0) + 
-                           (trendingData.replies_count || 0);
-    const hours = Math.max(1, Math.floor((Date.now() - new Date(trendingData.period_start).getTime()) / (1000 * 60 * 60)));
-    return totalEngagement / hours;
   }
 
   private getInstanceStatus(instance: any): 'online' | 'slow' | 'offline' | 'unknown' {
@@ -797,22 +809,6 @@ class TrendingService {
         return new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
       default:
         return new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
-    }
-  }
-
-  private getPeriodTypeForTimeRange(
-    timeRange: ExploreFilters['timeRange']
-  ): 'hourly' | 'daily' | 'weekly' {
-    switch (timeRange) {
-      case '1h':
-      case '6h':
-        return 'hourly';
-      case '7d':
-      case '30d':
-        return 'weekly';
-      case '24h':
-      default:
-        return 'daily';
     }
   }
 
