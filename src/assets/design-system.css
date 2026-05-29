@@ -883,7 +883,18 @@ strong {
   gap: var(--space-3);
 }
 
-/* Loading States */
+/* Loading States — spinner + label stacks (replaces legacy .loading-spinner margin-bottom) */
+.loading-state,
+.loading-spinner-container,
+.loading-indicator,
+.loading-header,
+div.loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
 .loading-spinner-container {
   display: flex;
   flex-direction: column;
@@ -891,6 +902,12 @@ strong {
   justify-content: center;
   height: 100%;
   width: 100%;
+}
+
+.loading-spinner-container p,
+.loading-state > p,
+.loading-state-label {
+  margin: 0;
 }
 
 .loading-spinner {

@@ -13,6 +13,10 @@ import { computed } from 'vue'
  * Note: spinners that sit INSIDE a coloured button should keep using a
  * contrast colour (white / currentColor) for legibility - this component is for
  * standalone loading states on the app background.
+ *
+ * Pair with a label inside `.loading-state`, `.loading-spinner-container`,
+ * `.loading-indicator`, or `div.loading` so design-system `gap: 1rem` applies.
+ * Use `.loading-state-label` on caption text (margin reset).
  */
 const props = withDefaults(defineProps<{
   /** Diameter in px (number) or any CSS length (string). */
