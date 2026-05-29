@@ -4301,6 +4301,8 @@ BEGIN
         'room_id',            NEW.room_id,
         'session_id',         NEW.session_id,
         'status',             NEW.status,
+        'request_signature',  NEW.request_signature,
+        'request_signing_fingerprint', NEW.request_signing_fingerprint,
         'created_at',         NEW.created_at
       ),
       'user_event',
@@ -4321,6 +4323,65 @@ BEGIN
       ),
       'user_event',
       'user:' || NEW.requester_user_id::text,
+      true
+    );
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+-- Device approval requests → the account's own user channel so OTHER devices/tabs
+-- of the same account get the Discord-style "New login on X - was this you?"
+-- prompt, and so the REQUESTING device learns when it was approved (and can pick
+-- up any encrypted key-sync bundle). Both events go to user:{user_id} because the
+-- approval conversation is entirely within one account.
+CREATE OR REPLACE FUNCTION public.broadcast_device_approval_event()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  IF TG_OP = 'INSERT' AND NEW.status = 'pending' THEN
+    PERFORM realtime.send(
+      jsonb_build_object(
+        'type',                  'device:approval_request',
+        'id',                    NEW.id,
+        'user_id',               NEW.user_id,
+        'requesting_device_id',  NEW.requesting_device_id,
+        'requesting_label',      NEW.requesting_label,
+        'created_at',            NEW.created_at,
+        'expires_at',            NEW.expires_at
+      ),
+      'user_event',
+      'user:' || NEW.user_id::text,
+      true
+    );
+  ELSIF TG_OP = 'UPDATE' AND NEW.status = 'approved' AND OLD.status IS DISTINCT FROM 'approved' THEN
+    PERFORM realtime.send(
+      jsonb_build_object(
+        'type',                  'device:approved',
+        'id',                    NEW.id,
+        'user_id',               NEW.user_id,
+        'requesting_device_id',  NEW.requesting_device_id,
+        'approved_by_device_id', NEW.approved_by_device_id,
+        'encrypted_sync_bundle', NEW.encrypted_sync_bundle,
+        'resolved_at',           NEW.resolved_at
+      ),
+      'user_event',
+      'user:' || NEW.user_id::text,
+      true
+    );
+  ELSIF TG_OP = 'UPDATE' AND NEW.status = 'denied' AND OLD.status IS DISTINCT FROM 'denied' THEN
+    PERFORM realtime.send(
+      jsonb_build_object(
+        'type',                  'device:denied',
+        'id',                    NEW.id,
+        'user_id',               NEW.user_id,
+        'requesting_device_id',  NEW.requesting_device_id
+      ),
+      'user_event',
+      'user:' || NEW.user_id::text,
       true
     );
   END IF;

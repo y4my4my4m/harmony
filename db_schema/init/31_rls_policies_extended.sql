@@ -368,36 +368,37 @@ CREATE POLICY "megolm_room_sessions_insert_own" ON public.megolm_room_sessions
 CREATE POLICY "megolm_room_sessions_update_own" ON public.megolm_room_sessions
     FOR UPDATE USING (creator_user_id = public.get_current_profile_id());
 
--- Megolm session shares: sender or recipient
+-- Megolm session shares: sender (the one who wrapped the key) or recipient.
+-- The client tracks the outbound session locally and never writes a
+-- megolm_room_sessions row, so authorization keys off sender_user_id rather
+-- than the (frequently absent) room-session creator.
 CREATE POLICY "megolm_session_shares_select" ON public.megolm_session_shares
     FOR SELECT USING (
         recipient_user_id = public.get_current_profile_id()
-        OR EXISTS (
-            SELECT 1 FROM public.megolm_room_sessions mrs
-            WHERE mrs.session_id = megolm_session_shares.session_id
-            AND mrs.room_id = megolm_session_shares.room_id
-            AND mrs.creator_user_id = public.get_current_profile_id()
-        )
+        OR sender_user_id = public.get_current_profile_id()
     );
 
 CREATE POLICY "megolm_session_shares_insert" ON public.megolm_session_shares
     FOR INSERT WITH CHECK (
-        EXISTS (
-            SELECT 1 FROM public.megolm_room_sessions mrs
-            WHERE mrs.session_id = megolm_session_shares.session_id
-            AND mrs.room_id = megolm_session_shares.room_id
-            AND mrs.creator_user_id = public.get_current_profile_id()
-        )
+        sender_user_id = public.get_current_profile_id()
+    );
+
+CREATE POLICY "megolm_session_shares_update" ON public.megolm_session_shares
+    FOR UPDATE USING (
+        sender_user_id = public.get_current_profile_id()
+        OR recipient_user_id = public.get_current_profile_id()
     );
 
 -- Megolm key requests: own requests
 CREATE POLICY "megolm_key_requests_own" ON public.megolm_key_requests
     FOR ALL USING (requester_user_id = public.get_current_profile_id());
 
--- Also allow viewing requests for sessions you own (to respond)
+-- Also allow viewing requests addressed to me (I'm the designated fulfiller),
+-- or requests for sessions I created.
 CREATE POLICY "megolm_key_requests_select_for_response" ON public.megolm_key_requests
     FOR SELECT USING (
-        EXISTS (
+        sender_user_id = public.get_current_profile_id()
+        OR EXISTS (
             SELECT 1 FROM public.megolm_room_sessions mrs
             WHERE mrs.session_id = megolm_key_requests.session_id
             AND mrs.room_id = megolm_key_requests.room_id
@@ -405,9 +406,42 @@ CREATE POLICY "megolm_key_requests_select_for_response" ON public.megolm_key_req
         )
     );
 
+-- Allow the designated fulfiller (sender_user_id) to mark a request fulfilled.
+-- Without this the auto-fulfill UPDATE in MegolmKeyBackupService silently fails
+-- RLS, so requesters never receive the key. Restricted to the addressed user.
+CREATE POLICY "megolm_key_requests_fulfill" ON public.megolm_key_requests
+    FOR UPDATE USING (sender_user_id = public.get_current_profile_id())
+    WITH CHECK (sender_user_id = public.get_current_profile_id());
+
 -- Megolm key backups: own only
 CREATE POLICY "megolm_key_backups_own_only" ON public.megolm_key_backups
     FOR ALL USING (user_id = public.get_current_profile_id());
+
+-- User devices: anyone authenticated may read public device key material (needed
+-- to wrap session keys per recipient device); only the owner may write.
+ALTER TABLE public.user_devices ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "user_devices_select" ON public.user_devices
+    FOR SELECT USING (auth.role() = 'authenticated' OR auth.role() = 'service_role');
+CREATE POLICY "user_devices_insert_own" ON public.user_devices
+    FOR INSERT WITH CHECK (user_id = public.get_current_profile_id());
+CREATE POLICY "user_devices_update_own" ON public.user_devices
+    FOR UPDATE USING (user_id = public.get_current_profile_id());
+CREATE POLICY "user_devices_delete_own" ON public.user_devices
+    FOR DELETE USING (user_id = public.get_current_profile_id());
+
+-- Device approval requests: account-scoped (requester and approver are the same
+-- user across their devices).
+ALTER TABLE public.device_approval_requests ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "device_approval_requests_own" ON public.device_approval_requests
+    FOR ALL USING (user_id = public.get_current_profile_id())
+    WITH CHECK (user_id = public.get_current_profile_id());
+
+-- Room epoch state: readable by any authenticated client (needed to tag the
+-- correct epoch on send/decrypt). Writes happen only via SECURITY DEFINER
+-- triggers / RPCs, so no write policy is granted here.
+ALTER TABLE public.room_epoch_state ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "room_epoch_state_select" ON public.room_epoch_state
+    FOR SELECT USING (auth.role() = 'authenticated' OR auth.role() = 'service_role');
 
 -- Recovery key metadata: own only
 CREATE POLICY "recovery_key_metadata_own_only" ON public.recovery_key_metadata

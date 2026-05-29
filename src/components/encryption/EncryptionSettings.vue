@@ -31,7 +31,7 @@
             @click="showRecoveryModal = true"
             class="btn btn-primary btn-sm"
           >
-            Unlock
+            Unlock message history
           </button>
         </div>
       </div>
@@ -89,6 +89,16 @@
         </button>
       </div>
       
+      <!-- Devices -->
+      <div v-if="encryptionStatus.hasRecoveryKey" class="subsection">
+        <h4 class="subsection-title">Your Devices</h4>
+        <p class="subsection-description">
+          Devices signed in to your account. New logins can read new messages right away;
+          approving a device lets it unlock your encrypted message history.
+        </p>
+        <DeviceManager />
+      </div>
+
       <!-- Backup & Recovery -->
       <div v-if="encryptionStatus.hasRecoveryKey" class="subsection">
         <h4 class="subsection-title">Backup & Recovery</h4>
@@ -291,6 +301,7 @@ import { debug } from '@/utils/debug'
 import { useToast } from 'vue-toastification'
 import RecoveryKeySetupWizard from './RecoveryKeySetupWizard.vue'
 import KeyRecoveryModal from './KeyRecoveryModal.vue'
+import DeviceManager from './DeviceManager.vue'
 import Icon from '@/components/common/Icon.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 
@@ -350,7 +361,7 @@ const statusDescription = computed(() => {
     return 'Set up a recovery key to enable end-to-end encryption'
   }
   if (!encryptionStatus.value.enabled) {
-    return 'Enter your recovery key to unlock encryption and read your messages'
+    return 'Enter your recovery phrase, or approve this device from another one, to unlock your message history'
   }
   return 'Your messages are protected with end-to-end encryption'
 })

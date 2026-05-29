@@ -826,6 +826,26 @@ CREATE TRIGGER trg_broadcast_key_request_event
     FOR EACH ROW
     EXECUTE FUNCTION public.broadcast_key_request_event();
 
+-- Device approval broadcasts → user:{user_id} (new-login prompts + approval result)
+DROP TRIGGER IF EXISTS trg_broadcast_device_approval_event ON public.device_approval_requests;
+CREATE TRIGGER trg_broadcast_device_approval_event
+    AFTER INSERT OR UPDATE ON public.device_approval_requests
+    FOR EACH ROW
+    EXECUTE FUNCTION public.broadcast_device_approval_event();
+
+-- Membership-epoch bumps: rotate Megolm sessions when room membership changes.
+DROP TRIGGER IF EXISTS trg_conversation_epoch_bump ON public.conversation_participants;
+CREATE TRIGGER trg_conversation_epoch_bump
+    AFTER INSERT OR UPDATE OR DELETE ON public.conversation_participants
+    FOR EACH ROW
+    EXECUTE FUNCTION public.trg_conversation_epoch_bump();
+
+DROP TRIGGER IF EXISTS trg_server_epoch_bump ON public.user_servers;
+CREATE TRIGGER trg_server_epoch_bump
+    AFTER INSERT OR DELETE ON public.user_servers
+    FOR EACH ROW
+    EXECUTE FUNCTION public.trg_server_epoch_bump();
+
 -- Conversation update broadcasts → user:{participant_id}
 DROP TRIGGER IF EXISTS trg_broadcast_conversation_updated ON public.conversations;
 CREATE TRIGGER trg_broadcast_conversation_updated

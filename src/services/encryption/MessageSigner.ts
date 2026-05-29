@@ -42,11 +42,52 @@ export interface SignedMessageFields {
   // TBS short and to avoid the temptation to "re-encode" ciphertext bytes.
   ciphertext_hash_b64: string
   timestamp: number
+  // v3-only fields. Omitted (undefined) for v2 so v2 canonicalization - and
+  // therefore existing v2 signatures - stay byte-identical.
+  epoch_id?: number
+  sender_device_id?: string
 }
 
 const SIGNING_ALG: EcdsaParams = { name: 'ECDSA', hash: 'SHA-256' }
 const SIGNING_KEY_PARAMS: EcKeyImportParams = { name: 'ECDSA', namedCurve: 'P-256' }
 const KEY_GEN_PARAMS: EcKeyGenParams = { name: 'ECDSA', namedCurve: 'P-256' }
+
+/**
+ * Fields of a Megolm key REQUEST that the requester signs.
+ *
+ * A key request asks a session holder to hand over a room session key. Without
+ * a signature, any DB writer could forge a request "from" a victim and have an
+ * honest holder wrap the session key for an attacker-controlled device. Signing
+ * binds the request to the requester's identity so the fulfiller can verify the
+ * request actually came from the claimed requester before fulfilling.
+ */
+export interface KeyRequestFields {
+  room_id: string
+  session_id: string
+  requester_user_id: string
+}
+
+/**
+ * Deterministic, sorted-key encoding of a key-request TBS payload.
+ *
+ * Note: intentionally no timestamp/nonce. The fulfiller reconstructs this from
+ * the stored row's (room_id, session_id, requester_user_id), all of which are
+ * stable. Replay of an authorized request is harmless - the fulfiller re-checks
+ * current room membership before handing over the key, so a stale/duplicate
+ * request from a since-removed member is rejected on the membership gate.
+ */
+export function canonicalizeKeyRequest(fields: KeyRequestFields): string {
+  const ordered: Record<string, string | number> = {
+    purpose: 'megolm_key_request',
+    requester_user_id: fields.requester_user_id,
+    room_id: fields.room_id,
+    session_id: fields.session_id,
+  }
+  const sortedKeys = Object.keys(ordered).sort()
+  const sorted: Record<string, string | number> = {}
+  for (const k of sortedKeys) sorted[k] = ordered[k]
+  return JSON.stringify(sorted)
+}
 
 // =====================================================
 // CANONICAL ENCODING
@@ -71,12 +112,49 @@ export function canonicalizeForSigning(fields: SignedMessageFields): string {
     session_id: fields.session_id,
     timestamp: fields.timestamp,
   }
+  // v3 additions: only included when present, so v2 TBS is unchanged.
+  if (typeof fields.epoch_id === 'number') ordered.epoch_id = fields.epoch_id
+  if (typeof fields.sender_device_id === 'string') ordered.sender_device_id = fields.sender_device_id
   // Belt-and-suspenders: re-sort just in case the object literal above
   // is reordered by a future edit.
   const sortedKeys = Object.keys(ordered).sort()
   const sorted: Record<string, string | number> = {}
   for (const k of sortedKeys) sorted[k] = ordered[k]
   return JSON.stringify(sorted)
+}
+
+/**
+ * Canonical AES-GCM Additional Authenticated Data for v3 messages. Binds the
+ * metadata that is known BEFORE encryption (algorithm, content type, epoch,
+ * room, sender) into the AEAD tag. session_id / message_index / ciphertext are
+ * covered by the ECDSA signature instead, so together the two cover the full
+ * metadata set without an ordering dependency at encrypt time.
+ */
+export interface AadFieldsV3 {
+  algorithm: string
+  content_type: string
+  epoch_id: number
+  room_id: string
+  sender_user_id: string
+}
+
+export function canonicalizeAadV3(fields: AadFieldsV3): string {
+  const ordered: Record<string, string | number> = {
+    algorithm: fields.algorithm,
+    content_type: fields.content_type,
+    epoch_id: fields.epoch_id,
+    room_id: fields.room_id,
+    sender_user_id: fields.sender_user_id,
+  }
+  const sortedKeys = Object.keys(ordered).sort()
+  const sorted: Record<string, string | number> = {}
+  for (const k of sortedKeys) sorted[k] = ordered[k]
+  return JSON.stringify(sorted)
+}
+
+/** UTF-8 bytes of the canonical v3 AAD (what AES-GCM consumes). */
+export function buildAadBytesV3(fields: AadFieldsV3): Uint8Array {
+  return new TextEncoder().encode(canonicalizeAadV3(fields))
 }
 
 /**
@@ -199,6 +277,46 @@ export async function verifyMessageSignature(
     )
   } catch (err) {
     debug.warn('⚠️ verifyMessageSignature threw:', err)
+    return false
+  }
+}
+
+/** Sign a key-request TBS payload with the requester's signing private key. */
+export async function signKeyRequest(
+  fields: KeyRequestFields,
+  privateKey: CryptoKey,
+): Promise<string> {
+  const tbs = canonicalizeKeyRequest(fields)
+  const signature = await crypto.subtle.sign(SIGNING_ALG, privateKey, new TextEncoder().encode(tbs))
+  const bytes = new Uint8Array(signature)
+  let bin = ''
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i])
+  return btoa(bin)
+}
+
+/** Verify a key-request signature against the requester's signing public key. */
+export async function verifyKeyRequestSignature(
+  fields: KeyRequestFields,
+  signatureBase64: string,
+  publicKey: CryptoKey,
+): Promise<boolean> {
+  let signature: Uint8Array
+  try {
+    signature = Uint8Array.from(atob(signatureBase64), c => c.charCodeAt(0))
+  } catch {
+    debug.warn('⚠️ Invalid key-request signature base64')
+    return false
+  }
+  const tbs = canonicalizeKeyRequest(fields)
+  try {
+    return await crypto.subtle.verify(
+      SIGNING_ALG,
+      publicKey,
+      signature,
+      new TextEncoder().encode(tbs),
+    )
+  } catch (err) {
+    debug.warn('⚠️ verifyKeyRequestSignature threw:', err)
     return false
   }
 }

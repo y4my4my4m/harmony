@@ -467,14 +467,172 @@ CREATE OR REPLACE FUNCTION public.claim_session_share(p_share_id uuid, p_user_id
     AS $$
 BEGIN
     UPDATE public.megolm_session_shares
-    SET 
+    SET
         is_claimed = true,
         claimed_at = NOW()
     WHERE id = p_share_id
     AND recipient_user_id = p_user_id
     AND is_claimed = false;
-    
+
     RETURN FOUND;
+END;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- Function: is_room_member
+-- Server-authoritative membership check used to authorize Megolm key requests.
+-- room_id may be a channel id (-> server membership) or a conversation id
+-- (-> active conversation participant). Returns false for unknown/garbage ids.
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.is_room_member(p_room_id text, p_user_id uuid)
+RETURNS boolean
+    LANGUAGE plpgsql
+    STABLE
+    SECURITY DEFINER
+    SET search_path = public
+    AS $$
+DECLARE
+    v_room_uuid uuid;
+    v_server_id uuid;
+BEGIN
+    IF p_room_id IS NULL OR p_user_id IS NULL THEN
+        RETURN false;
+    END IF;
+
+    BEGIN
+        v_room_uuid := p_room_id::uuid;
+    EXCEPTION WHEN others THEN
+        RETURN false;
+    END;
+
+    -- Channel? Resolve to server and check server membership.
+    SELECT server_id INTO v_server_id FROM public.channels WHERE id = v_room_uuid;
+    IF v_server_id IS NOT NULL THEN
+        RETURN EXISTS (
+            SELECT 1 FROM public.user_servers
+            WHERE server_id = v_server_id AND user_id = p_user_id
+        );
+    END IF;
+
+    -- Otherwise treat as a conversation (DM / group DM).
+    RETURN EXISTS (
+        SELECT 1 FROM public.conversation_participants
+        WHERE conversation_id = v_room_uuid
+          AND user_id = p_user_id
+          AND left_at IS NULL
+    );
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.is_room_member(text, uuid) TO authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Function: bump_room_epoch
+-- Increment a room's membership epoch. Forces clients to rotate to a new
+-- Megolm session for that room (so post-change messages use a fresh key).
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.bump_room_epoch(p_room_id text, p_reason text DEFAULT 'manual_rotate')
+RETURNS integer
+    LANGUAGE plpgsql
+    SECURITY DEFINER
+    SET search_path = public
+    AS $$
+DECLARE
+    v_epoch integer;
+BEGIN
+    IF p_room_id IS NULL THEN
+        RETURN NULL;
+    END IF;
+
+    INSERT INTO public.room_epoch_state (room_id, current_epoch, reason, updated_at)
+    VALUES (p_room_id, 2, p_reason, now())
+    ON CONFLICT (room_id) DO UPDATE
+        SET current_epoch = public.room_epoch_state.current_epoch + 1,
+            reason = EXCLUDED.reason,
+            updated_at = now()
+    RETURNING current_epoch INTO v_epoch;
+
+    RETURN v_epoch;
+END;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- Function: get_room_epoch
+-- Current epoch for a room (1 if never bumped).
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.get_room_epoch(p_room_id text)
+RETURNS integer
+    LANGUAGE sql
+    STABLE
+    SECURITY DEFINER
+    SET search_path = public
+    AS $$
+    SELECT COALESCE(
+        (SELECT current_epoch FROM public.room_epoch_state WHERE room_id = p_room_id),
+        1
+    );
+$$;
+
+GRANT EXECUTE ON FUNCTION public.bump_room_epoch(text, text) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.get_room_epoch(text) TO authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Function: bump_server_channel_epochs
+-- Bump the epoch of every channel in a server (used on server membership
+-- changes, which affect all channels at once).
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.bump_server_channel_epochs(p_server_id uuid, p_reason text)
+RETURNS void
+    LANGUAGE plpgsql
+    SECURITY DEFINER
+    SET search_path = public
+    AS $$
+DECLARE
+    v_channel RECORD;
+BEGIN
+    FOR v_channel IN SELECT id FROM public.channels WHERE server_id = p_server_id LOOP
+        PERFORM public.bump_room_epoch(v_channel.id::text, p_reason);
+    END LOOP;
+END;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- Trigger fn: epoch bump on conversation membership change
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.trg_conversation_epoch_bump()
+RETURNS trigger
+    LANGUAGE plpgsql
+    SECURITY DEFINER
+    SET search_path = public
+    AS $$
+BEGIN
+    IF TG_OP = 'INSERT' THEN
+        PERFORM public.bump_room_epoch(NEW.conversation_id::text, 'member_join');
+    ELSIF TG_OP = 'DELETE' THEN
+        PERFORM public.bump_room_epoch(OLD.conversation_id::text, 'member_leave');
+    ELSIF TG_OP = 'UPDATE' AND OLD.left_at IS NULL AND NEW.left_at IS NOT NULL THEN
+        PERFORM public.bump_room_epoch(NEW.conversation_id::text, 'member_leave');
+    END IF;
+    RETURN NULL;
+END;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- Trigger fn: epoch bump on server membership change (affects all channels)
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.trg_server_epoch_bump()
+RETURNS trigger
+    LANGUAGE plpgsql
+    SECURITY DEFINER
+    SET search_path = public
+    AS $$
+BEGIN
+    IF TG_OP = 'INSERT' THEN
+        PERFORM public.bump_server_channel_epochs(NEW.server_id, 'member_join');
+    ELSIF TG_OP = 'DELETE' THEN
+        PERFORM public.bump_server_channel_epochs(OLD.server_id, 'member_leave');
+    END IF;
+    RETURN NULL;
 END;
 $$;
 
@@ -1467,7 +1625,7 @@ $$;
 -- ---------------------------------------------------------------------------
 -- Function: get_unclaimed_session_shares
 -- ---------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION public.get_unclaimed_session_shares(p_user_id uuid) RETURNS TABLE(share_id uuid, room_id uuid, session_id text, sender_user_id uuid, encrypted_session_key text, first_known_index integer, created_at timestamp with time zone)
+CREATE OR REPLACE FUNCTION public.get_unclaimed_session_shares(p_user_id uuid) RETURNS TABLE(share_id uuid, room_id text, session_id text, sender_user_id uuid, encrypted_session_key text, first_known_index integer, created_at timestamp with time zone)
     LANGUAGE plpgsql
     SECURITY DEFINER
     SET search_path = public
