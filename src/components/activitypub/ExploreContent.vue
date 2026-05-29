@@ -24,6 +24,7 @@
 
         <select v-if="currentView !== 'instances'" v-model="selectedInstance" class="filter-select">
           <option value="all">{{ $t('activitypub.allInstances') }}</option>
+          <option value="local">{{ $t('activitypub.thisInstance') }}</option>
           <option v-for="instance in knownInstances" :key="instance.domain" :value="instance.domain">
             {{ instance.domain }}
           </option>
@@ -422,11 +423,20 @@ const currentTabData = computed(() => {
 });
 
 // Methods
-const trendingFilters = () => ({
-  contentType: selectedContentType.value as 'all' | 'posts' | 'media' | 'users',
-  timeRange: selectedTimeRange.value as '1h' | '6h' | '24h' | '7d' | '30d',
-  instance: selectedInstance.value === 'all' ? undefined : selectedInstance.value,
-});
+const trendingFilters = () => {
+  // "local" is a pseudo-instance meaning "this instance only". Express it via
+  // is_local scoping (includeFederated:false) rather than a domain match, since
+  // local rows can have a NULL domain and would be missed by author.domain = X.
+  const sel = selectedInstance.value;
+  const isLocalOnly = sel === 'local';
+  return {
+    contentType: selectedContentType.value as 'all' | 'posts' | 'media' | 'users',
+    timeRange: selectedTimeRange.value as '1h' | '6h' | '24h' | '7d' | '30d',
+    instance: (sel === 'all' || sel === 'local') ? undefined : sel,
+    includeLocal: true,
+    includeFederated: !isLocalOnly,
+  };
+};
 
 const showTrendingPosts = computed(() => {
   const type = selectedContentType.value;
@@ -485,14 +495,16 @@ const loadTrendingContent = async () => {
             timeRange: filters.timeRange,
             instance: filters.instance,
             mediaFilter: contentType === 'media' ? 'media' : contentType === 'posts' ? 'text' : 'all',
-            includeLocal: true,
-            includeFederated: true,
+            includeLocal: filters.includeLocal,
+            includeFederated: filters.includeFederated,
           })
         : Promise.resolve([]),
       showSuggestedUsers.value
         ? trendingService.getTrendingUsers({
             limit: 6,
             instance: filters.instance,
+            includeLocal: filters.includeLocal,
+            includeFederated: filters.includeFederated,
           })
         : Promise.resolve([]),
     ]);

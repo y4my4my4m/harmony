@@ -64,7 +64,6 @@ public/backgrounds/manifest.json
 
 # Optional emoji packs: instance operators can drop their own packs under
 # public/assets/emojis/<pack>/. The repo only ships Twemoji as a default.
-public/assets/emojis/mutant_emojis_svg/
 
 # Editor directories and files
 .vscode/*

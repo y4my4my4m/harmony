@@ -241,7 +241,7 @@ export class PostService {
       // Just toggle the reaction - database triggers handle federation automatically
       const coreResult = await corePostService.toggleReaction(postId, emojiId)
 
-      // Check if this is a native/mutant emoji (not a UUID)
+      // Check if this is a unicode/shortcode emoji (not a UUID)
       const isNativeEmoji = !this.isValidUUID(emojiId)
 
       // Get reaction count for the API response - query by correct field

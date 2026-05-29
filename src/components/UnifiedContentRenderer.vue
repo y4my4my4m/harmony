@@ -74,7 +74,7 @@
             :class="{ 'single': renderer.isSingleEmoji.value }"
             :title="`:${part.emoji?.name}:`"
           >{{ getNativeEmojiChar(part.emoji) }}</span>
-          <!-- SVG/Image rendering (custom emojis or mutant pack) -->
+          <!-- SVG/Image rendering (custom emojis or twemoji pack) -->
           <img 
             v-else
             class="emoji-icon"

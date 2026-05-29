@@ -280,11 +280,6 @@
                   Draft saved
                 </span>
                 
-                <!-- Post error feedback -->
-                <span v-if="postError" class="post-error-indicator" @click="postError = null">
-                  {{ postError }}
-                </span>
-
                 <!-- Cancel Button (modal and inline reply) -->
                 <button
                   v-if="mode === 'modal' || (mode === 'inline' && type === 'reply')"
@@ -331,6 +326,7 @@
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { debug } from '@/utils/debug'
 import { useI18n } from 'vue-i18n';
+import { useToast } from 'vue-toastification';
 import { useProfileStore } from '@/stores/useProfile';
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings';
 import type { TimelinePost, Post, FederatedUser } from '@/types';
@@ -357,6 +353,7 @@ import RichTextEditor from '@/components/RichTextEditor.vue';
 
 // I18n
 const { t } = useI18n();
+const toast = useToast();
 
 // Props
 interface Props {
@@ -395,7 +392,6 @@ const emojiTriggerRef = ref<HTMLElement | null>(null);
 const gifTriggerRef = ref<HTMLElement | null>(null);
 const mediaPickerTriggerRef = computed(() => gifTriggerRef.value || emojiTriggerRef.value);
 const isPosting = ref(false);
-const postError = ref<string | null>(null);
 const isDragging = ref(false);
 
 // Direct state management (no composable to avoid ref confusion)
@@ -777,8 +773,7 @@ const handleSubmit = async () => {
   if (!canSubmit.value || isPosting.value) return;
 
   isPosting.value = true;
-  postError.value = null;
-  
+
   try {
     let post;
     
@@ -823,7 +818,10 @@ const handleSubmit = async () => {
     emit('close');
   } catch (error: any) {
     debug.error('Failed to create post:', error);
-    postError.value = error?.message || 'Failed to send post. Your content has been preserved - try again.';
+    // Surface failures as a toast rather than inline text that would shove the
+    // action buttons around / overflow the toolbar. Content is preserved since
+    // we don't reset the composer on error.
+    toast.error(error?.message || t('activitypub.failedToSendPost'));
   } finally {
     isPosting.value = false;
   }
@@ -1274,16 +1272,6 @@ const vClickOutside = {
   font-size: 0.75rem;
 }
 
-.post-error-indicator {
-  color: var(--error, #f04747);
-  font-size: 0.75rem;
-  cursor: pointer;
-  max-width: 220px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .option-button {
   display: flex;
   align-items: center;
@@ -1466,11 +1454,30 @@ const vClickOutside = {
 /* Mobile responsive */
 @media (max-width: 768px) {
   .composer-overlay {
-    padding: 0.5rem;
+    padding: 0;
+    align-items: stretch;
   }
   
   .composer-modal {
-    max-height: 95vh;
+    max-height: 100vh;
+    height: 100%;
+    max-width: 100%;
+    border-radius: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .composer-modal > div {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+  }
+
+  .composer-body {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
   }
   
   .composer-header,
@@ -1483,16 +1490,47 @@ const vClickOutside = {
   .visibility-button span {
     display: none;
   }
-  
-  .composer-user {
-    position: absolute;
-    left: 13px;
-    top: 24px;
+
+  .compose-options {
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem;
   }
 
-  .text-input-container {
-    padding-left: 48px;
+  .option-group {
+    flex-wrap: wrap;
+    flex: 1 1 auto;
+    min-width: 0;
   }
+
+  .action-group {
+    flex: 1 1 100%;
+    justify-content: flex-end;
+    flex-wrap: nowrap;
+    min-width: 0;
+  }
+
+  .post-button {
+    padding: 0.5rem 1rem;
+    flex-shrink: 0;
+  }
+
+  .cancel-button {
+    flex-shrink: 0;
+  }
+
+  /* Keep the avatar in the normal flex row. It was previously positioned
+     absolutely, but its nearest positioned ancestor is the fixed full-screen
+     overlay (not the modal), so it pinned to the screen's top-left corner and
+     other rows overflowed. The default flex layout fits fine on mobile. */
+  .composer-body {
+    gap: 0.5rem;
+  }
+
+  .composer-user {
+    padding-right: 0;
+  }
+
   .text-input-container .rich-text-editor {
     overflow-y: auto !important;
     height: auto !important;

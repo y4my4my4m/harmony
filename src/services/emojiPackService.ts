@@ -3,10 +3,10 @@
  * 
  * Manages swappable emoji packs:
  * - Twemoji (default) - Twitter's open source emojis
- * - Mutant Standard - Expressive custom emoji set
  * - Native Unicode - System default emojis
  * 
- * Allows users to switch between different emoji styles.
+ * Additional packs can be registered at runtime via `registerEmojiPack()`
+ * (reserved for a future custom-emoji-pack feature).
  */
 
 import { ref, computed } from 'vue'
@@ -15,7 +15,6 @@ import { userStorage } from '@/utils/userScopedStorage'
 import { 
   EMOJI_CATEGORIES, 
   TWEMOJI_BASE_URL, 
-  MUTANT_BASE_URL,
   DEFAULT_EMOJI_PACK,
   type EmojiPack as EmojiPackType
 } from '@/utils/emojiConstants'
@@ -106,47 +105,6 @@ const nativeUnicodePack: EmojiPack = {
   isBuiltIn: true
 }
 
-// Mutant Standard emoji pack definition
-const mutantStandardPack: EmojiPack = {
-  id: 'mutant',
-  name: 'Mutant Standard',
-  description: 'Expressive and unique emoji set',
-  basePath: MUTANT_BASE_URL,
-  format: 'svg',
-  categories: [
-    { id: 'expressions', name: 'Expressions', icon: '😀', order: 0, subcategories: ['smileys', 'body_parts', 'semi_body'] },
-    { id: 'food_drink_herbs', name: 'Food & Drink', icon: '🍕', order: 1, subcategories: ['food', 'drink', 'fruit_veg', 'alcohol_herbs'] },
-    { id: 'activities_clothing', name: 'Activities', icon: '🏀', order: 2, subcategories: ['sports', 'clothing', 'performing_arts', 'roles'] },
-    { id: 'nature_effects', name: 'Nature', icon: '🌿', order: 3, subcategories: ['plants', 'weather', 'earth', 'effects', 'moon'] },
-    { id: 'objects', name: 'Objects', icon: '🔧', order: 4, subcategories: ['tech', 'household', 'office_stationery', 'games', 'party'] },
-    { id: 'symbols', name: 'Symbols', icon: '❤️', order: 5, subcategories: ['hearts', 'arrows', 'shapes', 'misc'] },
-    { id: 'travel_places', name: 'Travel', icon: '✈️', order: 6, subcategories: ['air', 'road', 'trains', 'buildings', 'scenes'] },
-    { id: 'people_animals', name: 'Creatures', icon: '🐱', order: 7, subcategories: ['creatures', 'aspects'] },
-    { id: 'extra', name: 'Extra', icon: '✨', order: 8, subcategories: ['cyber', 'occult_magic', 'weapons', 'symbols'] },
-  ],
-  emojis: [], // Will be populated by the index generator
-  isBuiltIn: false,
-  previewImage: `${MUTANT_BASE_URL}/expressions/smileys/typical/grinning.svg`,
-  probePath: 'expressions/smileys/typical/grinning.svg',
-}
-
-/**
- * Directories/patterns to exclude from Mutant Standard (per user request)
- */
-export const MUTANT_EXCLUDED_PATHS = [
-  'gender_sexuality_relationships', // Exclude trans/furry flags and symbols
-  'expressions/hands/paw',          // Exclude furry hand variants
-  'expressions/hands/hoof',         // Exclude furry hand variants
-  'expressions/hands/clw',          // Exclude furry claw variants
-]
-
-/**
- * Check if a path should be excluded from the emoji pack
- */
-export function shouldExcludePath(path: string): boolean {
-  return MUTANT_EXCLUDED_PATHS.some(excluded => path.includes(excluded))
-}
-
 /**
  * Load emoji pack preference from localStorage
  */
@@ -184,10 +142,7 @@ function savePackPreference(): void {
 }
 
 /**
- * Synchronous initialization: register built-in and shipped packs only.
- *
- * Optional packs (e.g. Mutant Standard) are registered by `detectAvailablePacks()`
- * only after a probe confirms their assets exist on this instance.
+ * Synchronous initialization: register the built-in packs (twemoji, native).
  */
 export function initializeEmojiPacks(): void {
   if (isInitialized.value) return
@@ -196,62 +151,34 @@ export function initializeEmojiPacks(): void {
   availablePacks.value.set('native', nativeUnicodePack)
 
   isInitialized.value = true
-  debug.log('📦 Emoji packs initialized (builtin). Awaiting optional pack probe.')
-}
-
-async function probePackAssets(pack: EmojiPack): Promise<boolean> {
-  if (pack.isBuiltIn || !pack.probePath) return true
-  try {
-    const url = `${pack.basePath}/${pack.probePath}`
-    const res = await fetch(url, { method: 'HEAD', cache: 'no-cache' })
-    return res.ok
-  } catch (err) {
-    debug.warn(`Emoji pack probe failed for "${pack.id}":`, err)
-    return false
-  }
+  debug.log('📦 Emoji packs initialized.')
 }
 
 /**
- * Probe optional emoji packs and apply the user's saved preference.
+ * Initialize packs and apply the user's saved preference, falling back to the
+ * default pack when the stored selection is no longer available.
  *
- * Must complete before the app mounts so the UI never offers or requests
- * assets for packs that are not installed (e.g. gitignored Mutant Standard).
+ * Runs before the app mounts. Kept async so a future custom-pack feature can
+ * probe operator-supplied packs here.
  */
 export async function detectAvailablePacks(): Promise<void> {
   initializeEmojiPacks()
 
-  try {
-    // Only probe optional packs; twemoji/native are always shipped in the repo.
-    if (await probePackAssets(mutantStandardPack)) {
-      availablePacks.value.set('mutant', mutantStandardPack)
-      debug.log('📦 Mutant Standard emoji pack detected')
-    } else {
-      debug.log('📦 Mutant Standard not installed on this instance')
-    }
-  } catch (err) {
-    debug.warn('📦 Optional emoji pack probe failed:', err)
-  } finally {
-    loadPackPreference()
+  loadPackPreference()
 
-    if (!availablePacks.value.has(currentPackId.value)) {
-      const fallback = availablePacks.value.has(DEFAULT_PACK_ID)
-        ? DEFAULT_PACK_ID
-        : (availablePacks.value.keys().next().value as string)
-      debug.warn(
-        `📦 Selected emoji pack "${currentPackId.value}" not available; falling back to "${fallback}"`,
-      )
-      currentPackId.value = fallback
-      savePackPreference()
-    }
-
-    packsDetected.value = true
-    debug.log('📦 Emoji pack detection complete. Current pack:', currentPackId.value)
+  if (!availablePacks.value.has(currentPackId.value)) {
+    const fallback = availablePacks.value.has(DEFAULT_PACK_ID)
+      ? DEFAULT_PACK_ID
+      : (availablePacks.value.keys().next().value as string)
+    debug.warn(
+      `📦 Selected emoji pack "${currentPackId.value}" not available; falling back to "${fallback}"`,
+    )
+    currentPackId.value = fallback
+    savePackPreference()
   }
 
-  if (currentPackId.value === 'mutant') {
-    const { loadMutantLookups } = await import('@/services/unifiedEmojiService')
-    await loadMutantLookups()
-  }
+  packsDetected.value = true
+  debug.log('📦 Emoji pack detection complete. Current pack:', currentPackId.value)
 }
 
 /**
@@ -292,10 +219,6 @@ export function setCurrentPack(packId: string): boolean {
   currentPackId.value = packId
   savePackPreference()
   debug.log('📦 Switched to emoji pack:', packId)
-
-  if (packId === 'mutant') {
-    import('@/services/unifiedEmojiService').then(m => m.loadMutantLookups())
-  }
 
   return true
 }
@@ -389,7 +312,6 @@ export function useEmojiPacks() {
   const packs = computed(() => getAvailablePacks())
   const isNativePack = computed(() => currentPackId.value === 'native')
   const isTwemojiPack = computed(() => currentPackId.value === 'twemoji')
-  const isMutantPack = computed(() => currentPackId.value === 'mutant')
   
   return {
     // State
@@ -398,7 +320,6 @@ export function useEmojiPacks() {
     packs,
     isNativePack,
     isTwemojiPack,
-    isMutantPack,
     
     // Methods
     setCurrentPack,

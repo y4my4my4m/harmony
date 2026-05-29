@@ -367,7 +367,7 @@ class TrendingService {
    */
   async getTrendingUsers(options: TrendingOptions = {}): Promise<TrendingUser[]> {
     try {
-      const { limit = 10, instance } = options;
+      const { limit = 10, instance, includeLocal = true, includeFederated = true } = options;
 
       // Get current user id to exclude from trending users
       const { authContextService } = await import('@/services/AuthContextService');
@@ -396,6 +396,12 @@ class TrendingService {
       // domain when one is explicitly selected.
       if (instance && instance !== 'all') {
         query = query.eq('domain', instance);
+      } else if (includeLocal && !includeFederated) {
+        // "This instance" only. Uses is_local so local users with a NULL domain
+        // are included (they wouldn't match domain = VITE_DOMAIN).
+        query = query.eq('is_local', true);
+      } else if (!includeLocal && includeFederated) {
+        query = query.eq('is_local', false);
       }
 
       query = query.order('followers_count', { ascending: false });

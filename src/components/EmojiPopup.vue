@@ -312,7 +312,6 @@ const { triggerReaction } = useHapticSettings();
 const { 
   isNativePack, 
   isTwemojiPack,
-  isMutantPack,
   // eslint-disable-next-line unused-imports/no-unused-vars
   currentPack,
   isLoaded: unifiedLoaded,
@@ -324,8 +323,6 @@ const {
   resolveEmoji,
   getTwemojiUrl,
   reload: loadUnifiedEmojiData,
-  // eslint-disable-next-line unused-imports/no-unused-vars
-  getMutantSvgUrl
 } = useUnifiedEmoji();
 
 const emojiPopup = ref<HTMLElement | null>(null);
@@ -493,11 +490,6 @@ function getEmojiSvgUrl(emoji: EmojiEntry): string {
     if (url) return url;
   }
   
-  // For mutant, use svgPath when that pack is active
-  if (isMutantPack.value && emoji.svgPath) {
-    return `/assets/emojis/mutant_emojis_svg/${emoji.svgPath}`;
-  }
-  
   // Fallback to resolve
   const resolved = resolveEmoji(emoji.unicode);
   return resolved.display.type === 'svg' ? resolved.display.content : '';
@@ -508,8 +500,7 @@ function getEmojiSvgUrl(emoji: EmojiEntry): string {
  */
 function isLocalAssetUrl(url: string): boolean {
   return url.startsWith('/assets/') || 
-         url.includes('/twemoji/') || 
-         url.includes('/mutant_emojis_svg/');
+         url.includes('/twemoji/');
 }
 
 /**
@@ -563,7 +554,7 @@ function getFrequentEmojiDisplayUrl(emoji: { id: string; native?: string; name: 
 
 /**
  * Get SVG URL for a frequent emoji
- * Only works for unified pack emojis (twemoji/mutant), not custom server emojis
+ * Only works for unified pack emojis (twemoji/native), not custom server emojis
  */
 function getFrequentEmojiSvgUrl(emoji: { id: string; native?: string; name: string; url?: string }): string | null {
   if (isNativePack.value) return null;
@@ -642,12 +633,6 @@ const selectFrequentEmoji = (emoji: { id: string; native?: string; name: string;
   triggerReaction();
   
   let unicode = emoji.native || emoji.id;
-  
-  // Handle legacy mutant:path format
-  if (unicode.startsWith('mutant:')) {
-    const resolved = resolveEmoji(unicode);
-    unicode = resolved.unicode;
-  }
   
   // Custom server emoji - check stored URL or look up from cache
   const emojiUrl = getFrequentEmojiDisplayUrl(emoji);

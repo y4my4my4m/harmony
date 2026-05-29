@@ -180,7 +180,7 @@ export class MessageService {
       // (chat reactions stay local, DM reactions may federate based on participants)
       const result = await coreMessageService.toggleReaction(messageId, emojiId)
 
-      // Check if this is a native/mutant emoji (not a UUID)
+      // Check if this is a unicode/shortcode emoji (not a UUID)
       const isNativeEmoji = !this.isValidUUID(emojiId)
 
       // Get updated count for the response - query by correct field

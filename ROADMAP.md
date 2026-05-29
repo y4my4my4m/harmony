@@ -53,8 +53,7 @@ These ship before anything else. Most have a corresponding entry in `BUGS.md`.
     a real feature: an admin-panel UI for uploading/listing emoji packs,
     a manifest format that records pack metadata (name, license, credit
     line), and an `/about` page that auto-renders the required
-    attributions for non-permissive packs (e.g. Mutant Standard
-    CC-BY-NC-SA).
+    attributions for non-permissive packs.
 
 
 

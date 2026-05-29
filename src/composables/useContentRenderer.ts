@@ -58,7 +58,7 @@ export function useContentRenderer(
   emit?: (event: string, ...args: any[]) => void
 ): ContentRenderResult {
 
-  // Unified emoji service for mutant pack rendering
+  // Unified emoji service for emoji pack rendering
   const { resolveEmoji, isNativePack, isLoaded: emojiServiceLoaded } = useUnifiedEmoji();
   
   // Default options
@@ -340,7 +340,7 @@ export function useContentRenderer(
         case 'text': {
           let text = escapeHtml(part.text || '');
 
-          // For mutant/twemoji pack: Replace unicode emojis with SVG images
+          // For the twemoji pack: Replace unicode emojis with SVG images
           // For native pack: Leave unicode as-is (browser renders them)
           if (!isNativePack.value && emojiServiceLoaded.value) {
             // Emoji regex that captures:

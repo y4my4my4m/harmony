@@ -46,7 +46,7 @@ export function getEmojiUrl(emojiUrl: string | null | undefined, size: number = 
         return '';
     }
 
-    // Static asset emojis (unified emoji pack like Mutant Standard)
+    // Static asset emojis (unified emoji pack, e.g. twemoji SVGs)
     if (emojiUrl.startsWith('/assets/')) {
         return emojiUrl;
     }
