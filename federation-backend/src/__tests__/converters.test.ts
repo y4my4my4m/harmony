@@ -645,6 +645,48 @@ describe('fromActivityPub converters', () => {
       expect(profile.color).toBe('#ff5500')
       expect(profile.custom_status).toEqual({ text: 'Coding', emoji: '💻' })
     })
+
+    // Anti-abuse: a hostile remote can advertise arbitrarily large fields.
+    // The converter clamps length here; the DB sanitize_profile_text() trigger
+    // is the authoritative guard and additionally strips bidi/zero-width/control
+    // chars (charset stripping is DB-enforced, not asserted in this unit test).
+    it('clamps an over-long remote display_name to 80 chars', () => {
+      const actor = {
+        id: 'https://evil.example/users/spammer',
+        inbox: 'https://evil.example/inbox',
+        name: 'A'.repeat(5000),
+      }
+      const profile = actorToProfile(actor)
+      expect(profile.display_name).toHaveLength(80)
+    })
+
+    it('clamps an over-long remote bio to 500 chars', () => {
+      const actor = {
+        id: 'https://evil.example/users/spammer',
+        inbox: 'https://evil.example/inbox',
+        summary: 'B'.repeat(10000),
+      }
+      const profile = actorToProfile(actor)
+      expect(profile.bio).toHaveLength(500)
+    })
+
+    it('caps remote profile_fields at 4 entries with 255-char name/value', () => {
+      const actor = {
+        id: 'https://evil.example/users/spammer',
+        inbox: 'https://evil.example/inbox',
+        attachment: Array.from({ length: 20 }, (_, i) => ({
+          type: 'PropertyValue',
+          name: `f${i}-` + 'x'.repeat(400),
+          value: 'y'.repeat(400),
+        })),
+      }
+      const profile = actorToProfile(actor)
+      expect(profile.profile_fields).toHaveLength(4)
+      for (const field of profile.profile_fields as Array<{ name: string; value: string }>) {
+        expect(field.name.length).toBeLessThanOrEqual(255)
+        expect(field.value.length).toBeLessThanOrEqual(255)
+      }
+    })
   })
 
   describe('extractFollowData', () => {

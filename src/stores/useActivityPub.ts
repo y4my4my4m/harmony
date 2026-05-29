@@ -125,6 +125,16 @@ interface ActivityPubState {
   realtimeSubscriptions: Map<string, any>;
   _broadcastUnsubs: Array<() => void>;
 
+  // Number of timeline/feed views currently mounted. The per-user realtime
+  // channel (`user:{id}`) stays connected app-wide for notifications/DMs, so
+  // home-timeline post events (`post:new`, `home_feed:new_post`) keep arriving
+  // even when the user is in a server channel or DMs. Eagerly fetching +
+  // sounding for every followed-user post off-view is wasteful and noisy, so
+  // the "new post" handlers no-op while this is 0 (the feed reloads fresh on
+  // open). Other post events (update/delete/interaction) stay ungated because
+  // they only mutate posts already held in memory.
+  feedViewActiveCount: number;
+
   // Post IDs that handleRealtimePostCreate is currently fetching via
   // loadPostWithAuthor(). Two concurrent realtime events (e.g. `post:new`
   // and `home_feed:new_post` both delivered to the author's user channel
@@ -233,6 +243,7 @@ export const useActivityPubStore = defineStore('activitypub', {
     realtimeSubscriptions: new Map(),
     _broadcastUnsubs: [] as Array<() => void>,
     _inFlightPostIds: new Set<string>(),
+    feedViewActiveCount: 0,
 
     // Notification integration
     lastNotificationCheck: null,
@@ -761,6 +772,9 @@ export const useActivityPubStore = defineStore('activitypub', {
       const unsubs: Array<() => void> = [];
 
       unsubs.push(userEventChannel.on('post:new', (data) => {
+        // Only prepend + fetch + sound while a feed view is on screen. Off-view
+        // these events are dropped; the feed reloads fresh when next opened.
+        if (this.feedViewActiveCount <= 0) return;
         this.handleRealtimePostCreate({ id: data.post_id, author_id: data.author_id, visibility: data.visibility, ap_type: data.ap_type });
       }));
 
@@ -772,6 +786,7 @@ export const useActivityPubStore = defineStore('activitypub', {
       // arrives first on their channel — the dedup check in
       // handleRealtimePostCreate makes the second arrival a no-op.
       unsubs.push(userEventChannel.on('home_feed:new_post', (data) => {
+        if (this.feedViewActiveCount <= 0) return;
         this.handleRealtimePostCreate({
           id: data.post_id,
           author_id: data.author_id,
@@ -849,6 +864,21 @@ export const useActivityPubStore = defineStore('activitypub', {
 
       this._broadcastUnsubs = unsubs;
       debug.log('🔔 ActivityPub realtime established via user:{id} broadcast');
+    },
+
+    /**
+     * Called by timeline/feed views on mount/unmount. While the count is > 0
+     * the "new post" realtime handlers process live arrivals (prepend + sound);
+     * otherwise they no-op so we don't fetch/ding for posts the user isn't
+     * looking at. Ref-counted to survive overlapping mount/unmount during
+     * route transitions.
+     */
+    enterFeedView() {
+      this.feedViewActiveCount++;
+    },
+
+    leaveFeedView() {
+      this.feedViewActiveCount = Math.max(0, this.feedViewActiveCount - 1);
     },
 
     async handlePostEmbedsReady(postId: string) {

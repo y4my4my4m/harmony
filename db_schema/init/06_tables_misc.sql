@@ -306,7 +306,9 @@ CREATE TABLE IF NOT EXISTS public.reports (
     CONSTRAINT reports_status_check CHECK (status IN ('pending', 'investigating', 'resolved', 'dismissed')),
     CONSTRAINT reports_report_type_check CHECK (report_type IN ('user', 'post', 'message', 'server')),
     CONSTRAINT reports_source_check CHECK (source IN ('local', 'federation')),
-    CONSTRAINT reports_federation_status_check CHECK (federation_status IN ('pending', 'queued', 'processing', 'completed', 'failed', 'skipped'))
+    CONSTRAINT reports_federation_status_check CHECK (federation_status IN ('pending', 'queued', 'processing', 'completed', 'failed', 'skipped')),
+    CONSTRAINT reports_reason_length_check CHECK (char_length(reason) <= 200),
+    CONSTRAINT reports_comment_length_check CHECK (comment IS NULL OR char_length(comment) <= 1000)
 );
 
 ALTER TABLE public.reports REPLICA IDENTITY FULL;
@@ -355,7 +357,10 @@ CREATE TABLE IF NOT EXISTS public.bots (
     settings jsonb DEFAULT '{}'::jsonb,
     
     CONSTRAINT bots_bot_type_check CHECK (bot_type IN ('bot', 'bridge', 'integration')),
-    CONSTRAINT valid_username CHECK (username ~* '^[a-z0-9_-]+$' AND char_length(username) >= 3 AND char_length(username) <= 32)
+    CONSTRAINT valid_username CHECK (username ~* '^[a-z0-9_-]+$' AND char_length(username) >= 3 AND char_length(username) <= 32),
+    CONSTRAINT bots_display_name_length_check CHECK (display_name IS NULL OR char_length(display_name) <= 100),
+    CONSTRAINT bots_bio_length_check CHECK (bio IS NULL OR char_length(bio) <= 500),
+    CONSTRAINT bots_website_url_length_check CHECK (website_url IS NULL OR char_length(website_url) <= 512)
 );
 
 CREATE INDEX IF NOT EXISTS idx_bots_owner ON public.bots(owner_id);

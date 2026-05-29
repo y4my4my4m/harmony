@@ -8,6 +8,83 @@
 -- PROFILE TRIGGERS
 -- ---------------------------------------------------------------------------
 
+-- Sanitize user-controlled profile text (anti-spoofing + length clamp) on all writes
+DROP TRIGGER IF EXISTS sanitize_profile_text_trigger ON public.profiles;
+CREATE TRIGGER sanitize_profile_text_trigger
+    BEFORE INSERT OR UPDATE ON public.profiles
+    FOR EACH ROW
+    EXECUTE FUNCTION public.sanitize_profile_text();
+
+-- ---------------------------------------------------------------------------
+-- USER-INPUT TEXT SANITIZATION (servers/channels/roles/threads/etc.)
+-- These BEFORE triggers also cover SECURITY DEFINER RPC write paths
+-- (create_thread, update_group_name, ban/kick reasons, emoji reactions).
+-- ---------------------------------------------------------------------------
+DROP TRIGGER IF EXISTS sanitize_server_text_trigger ON public.servers;
+CREATE TRIGGER sanitize_server_text_trigger
+    BEFORE INSERT OR UPDATE ON public.servers
+    FOR EACH ROW EXECUTE FUNCTION public.sanitize_server_text();
+
+DROP TRIGGER IF EXISTS sanitize_channel_text_trigger ON public.channels;
+CREATE TRIGGER sanitize_channel_text_trigger
+    BEFORE INSERT OR UPDATE ON public.channels
+    FOR EACH ROW EXECUTE FUNCTION public.sanitize_channel_text();
+
+DROP TRIGGER IF EXISTS sanitize_category_name_trigger ON public.channel_categories;
+CREATE TRIGGER sanitize_category_name_trigger
+    BEFORE INSERT OR UPDATE ON public.channel_categories
+    FOR EACH ROW EXECUTE FUNCTION public.sanitize_entity_name('100', 'required');
+
+DROP TRIGGER IF EXISTS sanitize_role_name_trigger ON public.server_roles;
+CREATE TRIGGER sanitize_role_name_trigger
+    BEFORE INSERT OR UPDATE ON public.server_roles
+    FOR EACH ROW EXECUTE FUNCTION public.sanitize_entity_name('100', 'required');
+
+DROP TRIGGER IF EXISTS sanitize_thread_name_trigger ON public.threads;
+CREATE TRIGGER sanitize_thread_name_trigger
+    BEFORE INSERT OR UPDATE ON public.threads
+    FOR EACH ROW EXECUTE FUNCTION public.sanitize_entity_name('100', 'required');
+
+DROP TRIGGER IF EXISTS sanitize_conversation_name_trigger ON public.conversations;
+CREATE TRIGGER sanitize_conversation_name_trigger
+    BEFORE INSERT OR UPDATE ON public.conversations
+    FOR EACH ROW EXECUTE FUNCTION public.sanitize_entity_name('100', 'optional');
+
+DROP TRIGGER IF EXISTS sanitize_server_folder_name_trigger ON public.server_folders;
+CREATE TRIGGER sanitize_server_folder_name_trigger
+    BEFORE INSERT OR UPDATE ON public.server_folders
+    FOR EACH ROW EXECUTE FUNCTION public.sanitize_entity_name('64', 'optional');
+
+DROP TRIGGER IF EXISTS sanitize_emoji_name_trigger ON public.emojis;
+CREATE TRIGGER sanitize_emoji_name_trigger
+    BEFORE INSERT OR UPDATE ON public.emojis
+    FOR EACH ROW EXECUTE FUNCTION public.sanitize_entity_name('64', 'optional');
+
+DROP TRIGGER IF EXISTS sanitize_bot_text_trigger ON public.bots;
+CREATE TRIGGER sanitize_bot_text_trigger
+    BEFORE INSERT OR UPDATE ON public.bots
+    FOR EACH ROW EXECUTE FUNCTION public.sanitize_bot_text();
+
+DROP TRIGGER IF EXISTS sanitize_report_text_trigger ON public.reports;
+CREATE TRIGGER sanitize_report_text_trigger
+    BEFORE INSERT OR UPDATE ON public.reports
+    FOR EACH ROW EXECUTE FUNCTION public.sanitize_report_text();
+
+DROP TRIGGER IF EXISTS sanitize_user_list_text_trigger ON public.user_lists;
+CREATE TRIGGER sanitize_user_list_text_trigger
+    BEFORE INSERT OR UPDATE ON public.user_lists
+    FOR EACH ROW EXECUTE FUNCTION public.sanitize_user_list_text();
+
+DROP TRIGGER IF EXISTS sanitize_member_nickname_trigger ON public.user_servers;
+CREATE TRIGGER sanitize_member_nickname_trigger
+    BEFORE INSERT OR UPDATE ON public.user_servers
+    FOR EACH ROW EXECUTE FUNCTION public.sanitize_member_nickname();
+
+DROP TRIGGER IF EXISTS sanitize_post_text_trigger ON public.posts;
+CREATE TRIGGER sanitize_post_text_trigger
+    BEFORE INSERT OR UPDATE ON public.posts
+    FOR EACH ROW EXECUTE FUNCTION public.sanitize_post_text();
+
 -- Promote first local user to instance admin
 DROP TRIGGER IF EXISTS promote_first_user_to_admin_trigger ON public.profiles;
 CREATE TRIGGER promote_first_user_to_admin_trigger

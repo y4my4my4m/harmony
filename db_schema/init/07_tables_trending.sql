@@ -115,7 +115,9 @@ CREATE TABLE IF NOT EXISTS public.server_folders (
     name text NOT NULL,
     color text DEFAULT '#5865f2'::text,
     "position" integer DEFAULT 0 NOT NULL,
-    is_expanded boolean DEFAULT true
+    is_expanded boolean DEFAULT true,
+
+    CONSTRAINT server_folders_name_length_check CHECK (char_length(name) <= 64)
 );
 
 ALTER TABLE public.server_folders REPLICA IDENTITY FULL;

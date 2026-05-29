@@ -95,6 +95,19 @@ CREATE TABLE IF NOT EXISTS public.profiles (
     CONSTRAINT profiles_display_name_not_blank CHECK (
         display_name IS NULL OR length(btrim(display_name)) > 0
     ),
+    -- Length backstops. The sanitize_profile_text() BEFORE trigger already
+    -- clamps these on every write (local + federated), so these constraints
+    -- should never fire in practice -- they make the invariant explicit and
+    -- enforced even if the trigger is ever dropped/bypassed.
+    CONSTRAINT profiles_username_length_check CHECK (
+        username IS NULL OR char_length(username) <= 64
+    ),
+    CONSTRAINT profiles_display_name_length_check CHECK (
+        display_name IS NULL OR char_length(display_name) <= 80
+    ),
+    CONSTRAINT profiles_bio_length_check CHECK (
+        bio IS NULL OR char_length(bio) <= 500
+    ),
     CONSTRAINT profiles_username_domain_key UNIQUE (username, domain)
 );
 

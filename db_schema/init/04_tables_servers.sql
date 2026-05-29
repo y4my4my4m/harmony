@@ -42,7 +42,11 @@ CREATE TABLE IF NOT EXISTS public.servers (
 
     -- Featured communities (admin-managed)
     is_featured boolean DEFAULT false,
-    featured_order integer DEFAULT 0
+    featured_order integer DEFAULT 0,
+
+    -- Length backstops (sanitize_server_text() trigger clamps on every write)
+    CONSTRAINT servers_name_length_check CHECK (char_length(name) <= 100),
+    CONSTRAINT servers_description_length_check CHECK (description IS NULL OR char_length(description) <= 500)
 );
 
 ALTER TABLE public.servers REPLICA IDENTITY FULL;
@@ -72,7 +76,9 @@ CREATE TABLE IF NOT EXISTS public.channel_categories (
     "order" integer DEFAULT 0,
     
     -- Federation
-    federation_status text DEFAULT 'pending'::text
+    federation_status text DEFAULT 'pending'::text,
+
+    CONSTRAINT channel_categories_name_length_check CHECK (char_length(name) <= 100)
 );
 
 CREATE INDEX IF NOT EXISTS idx_channel_categories_server ON public.channel_categories(server_id);
@@ -107,7 +113,9 @@ CREATE TABLE IF NOT EXISTS public.channels (
     is_remote boolean DEFAULT false,
     federation_status text DEFAULT 'pending'::text,
     
-    CONSTRAINT channels_federation_status_check CHECK (federation_status IN ('pending', 'queued', 'processing', 'completed', 'failed', 'skipped'))
+    CONSTRAINT channels_federation_status_check CHECK (federation_status IN ('pending', 'queued', 'processing', 'completed', 'failed', 'skipped')),
+    CONSTRAINT channels_name_length_check CHECK (char_length(name) <= 100),
+    CONSTRAINT channels_description_length_check CHECK (description IS NULL OR char_length(description) <= 1024)
 );
 
 ALTER TABLE public.channels REPLICA IDENTITY FULL;
@@ -226,7 +234,9 @@ CREATE TABLE IF NOT EXISTS public.threads (
     
     -- Federation
     ap_id text,
-    federation_status text DEFAULT 'pending'
+    federation_status text DEFAULT 'pending',
+
+    CONSTRAINT threads_name_length_check CHECK (char_length(name) <= 100)
 );
 
 ALTER TABLE public.threads REPLICA IDENTITY FULL;
@@ -283,7 +293,9 @@ CREATE TABLE IF NOT EXISTS public.emojis (
     last_used timestamp with time zone,
     file_size integer,
     
-    domain text
+    domain text,
+
+    CONSTRAINT emojis_name_length_check CHECK (name IS NULL OR char_length(name::text) <= 64)
 );
 
 CREATE INDEX IF NOT EXISTS idx_emojis_server ON public.emojis(server_id);
@@ -313,7 +325,8 @@ CREATE TABLE IF NOT EXISTS public.reactions (
     metadata jsonb DEFAULT '{}'::jsonb,
 
     CONSTRAINT reactions_has_emoji CHECK (emoji_id IS NOT NULL OR custom_emoji_content IS NOT NULL),
-    CONSTRAINT reactions_has_author CHECK (user_id IS NOT NULL OR bot_id IS NOT NULL)
+    CONSTRAINT reactions_has_author CHECK (user_id IS NOT NULL OR bot_id IS NOT NULL),
+    CONSTRAINT reactions_custom_emoji_length_check CHECK (custom_emoji_content IS NULL OR char_length(custom_emoji_content) <= 256)
 );
 
 ALTER TABLE public.reactions REPLICA IDENTITY FULL;
@@ -384,7 +397,8 @@ CREATE TABLE IF NOT EXISTS public.user_servers (
     muted_until timestamp with time zone,
     
     UNIQUE(user_id, server_id),
-    CONSTRAINT user_servers_status_check CHECK (status IN ('pending', 'accepted', 'banned'))
+    CONSTRAINT user_servers_status_check CHECK (status IN ('pending', 'accepted', 'banned')),
+    CONSTRAINT user_servers_nickname_length_check CHECK (nickname IS NULL OR char_length(nickname) <= 64)
 );
 
 ALTER TABLE public.user_servers REPLICA IDENTITY FULL;
@@ -424,7 +438,9 @@ CREATE TABLE IF NOT EXISTS public.server_roles (
     is_default boolean DEFAULT false,
     is_admin boolean DEFAULT false,
     mentionable boolean DEFAULT true,
-    hoist boolean DEFAULT false
+    hoist boolean DEFAULT false,
+
+    CONSTRAINT server_roles_name_length_check CHECK (char_length(name) <= 100)
 );
 
 ALTER TABLE public.server_roles REPLICA IDENTITY FULL;
@@ -472,7 +488,8 @@ CREATE TABLE IF NOT EXISTS public.conversations (
     -- Metadata for federation etc.
     metadata jsonb DEFAULT '{}'::jsonb,
     
-    CONSTRAINT conversations_type_check CHECK (type IN ('direct', 'group', 'channel'))
+    CONSTRAINT conversations_type_check CHECK (type IN ('direct', 'group', 'channel')),
+    CONSTRAINT conversations_name_length_check CHECK (name IS NULL OR char_length(name) <= 100)
 );
 
 ALTER TABLE public.conversations REPLICA IDENTITY FULL;
@@ -530,7 +547,9 @@ CREATE TABLE IF NOT EXISTS public.invites (
     max_uses integer,
     uses integer DEFAULT 0,
     used boolean DEFAULT false,
-    temporary boolean DEFAULT false
+    temporary boolean DEFAULT false,
+
+    CONSTRAINT invites_code_format_check CHECK (code ~ '^[A-Za-z0-9_-]{1,64}$')
 );
 
 CREATE INDEX IF NOT EXISTS idx_invites_code ON public.invites(code);
@@ -583,7 +602,8 @@ CREATE TABLE IF NOT EXISTS public.server_bans (
     delete_message_seconds integer DEFAULT 0,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
 
-    UNIQUE(server_id, user_id)
+    UNIQUE(server_id, user_id),
+    CONSTRAINT server_bans_reason_length_check CHECK (reason IS NULL OR char_length(reason) <= 512)
 );
 
 ALTER TABLE public.server_bans REPLICA IDENTITY FULL;

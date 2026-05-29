@@ -598,13 +598,15 @@ BEGIN
         v_expires_at := NOW() + (p_duration_minutes || ' minutes')::interval;
     END IF;
     
+    -- Clamp/sanitize free-text fields via the shared helper so the returned
+    -- value matches what sanitize_profile_text() stores on the row.
     v_status := jsonb_build_object(
         'type', p_type,
-        'text', p_text,
-        'emoji', p_emoji,
+        'text', public.sanitize_profile_string(p_text, 128, false),
+        'emoji', public.sanitize_profile_string(p_emoji, 64, false),
         'emoji_url', p_emoji_url,
-        'details', p_details,
-        'state', p_state,
+        'details', public.sanitize_profile_string(p_details, 128, false),
+        'state', public.sanitize_profile_string(p_state, 128, false),
         'set_at', NOW(),
         'expires_at', v_expires_at
     );
