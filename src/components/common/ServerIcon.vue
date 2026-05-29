@@ -14,7 +14,7 @@
 
     <!-- Loading State -->
     <div v-if="loading" class="server-loading">
-      <div class="loading-spinner"></div>
+      <LoadingSpinner :size="20" />
     </div>
 
     <!-- Status Indicator -->
@@ -50,6 +50,7 @@
 import { ref, computed, watch, onUnmounted } from 'vue'
 import { getServerIconUrl } from '../../utils/serverUtils'
 import { debug } from '@/utils/debug'
+import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import CameraIcon from '@/components/icons/Camera.vue'
 
 // Types

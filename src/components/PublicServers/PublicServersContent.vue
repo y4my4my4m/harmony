@@ -3,14 +3,7 @@
     <!-- Loading State with Skeletons -->
     <div v-if="isLoading" class="loading-state">
       <div class="loading-header">
-        <div class="loading-spinner">
-          <svg viewBox="0 0 24 24" class="spinner">
-            <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-dasharray="31.416" stroke-dashoffset="31.416">
-              <animate attributeName="stroke-dasharray" dur="2s" values="0 31.416;15.708 15.708;0 31.416" repeatCount="indefinite"/>
-              <animate attributeName="stroke-dashoffset" dur="2s" values="0;-15.708;-31.416" repeatCount="indefinite"/>
-            </circle>
-          </svg>
-        </div>
+        <LoadingSpinner :size="32" />
         <div class="loading-text">
           <h3 class="loading-title">{{ $t('server.loadingCommunities') }}</h3>
           <p class="loading-description">{{ $t('server.findingBestServers') }}</p>
@@ -124,6 +117,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import ServerCard from '@/components/common/ServerCard.vue'
 import ServerCardSkeleton from '@/components/common/ServerCardSkeleton.vue'
 import type { PublicServerWithStats } from '@/stores/usePublicServers'
@@ -202,16 +196,8 @@ const loadMore = () => {
   text-align: center;
 }
 
-.loading-spinner {
-  width: 48px;
-  height: 48px;
-  color: var(--harmony-primary);
+.loading-header :deep(.harmony-spinner) {
   margin-bottom: 24px;
-}
-
-.spinner {
-  width: 100%;
-  height: 100%;
 }
 
 .loading-text {

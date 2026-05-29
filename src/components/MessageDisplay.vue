@@ -31,7 +31,7 @@
 
     <!-- Loading older messages indicator (v-show to avoid layout shifts) -->
     <div v-show="isLoadingOlderMessages && messages.length > 0" class="loading-older-messages">
-      <div class="loading-spinner"></div>
+      <LoadingSpinner :size="16" />
       <span>{{ $t('message.loadingOlder') }}</span>
     </div>
     
@@ -549,6 +549,7 @@
 
 <script setup lang="ts">
 defineOptions({ inheritAttrs: false })
+import LoadingSpinner from '@/components/common/LoadingSpinner.vue';
 import { computed, ref, watch, nextTick, onMounted, onUnmounted } from 'vue';
 import { debug } from '@/utils/debug'
 import type { PropType, Ref, ComputedRef } from 'vue';
@@ -4115,23 +4116,6 @@ defineExpose({ editLastOwnMessage });
   line-height: 16px;
   display: inline-flex;
   align-items: center;
-}
-
-.loading-spinner {
-  width: 16px;
-  height: 16px;
-  border: 2px solid var(--text-secondary);
-  border-top-color: transparent;
-  border-radius: 50%;
-  animation: spin-loader 0.8s linear infinite;
-  /* `display: bl-ck` would still flex-align correctly, but inline-block lets
-     the flex item participate as a baseline-positioned token alongside the
-     text glyphs - visually identical centering without descender drift. */
-  flex-shrink: 0;
-}
-
-@keyframes spin-loader {
-  to { transform: rotate(360deg); }
 }
 
 /* Encryption indicators */
