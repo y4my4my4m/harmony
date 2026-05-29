@@ -113,6 +113,7 @@
                 class="form-input"
                 :disabled="selectedRole.is_default"
                 placeholder="Role name"
+                maxlength="100"
               />
               <p v-if="selectedRole.is_default" class="form-help">
                 The @everyone role's name cannot be changed.

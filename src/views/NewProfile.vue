@@ -147,14 +147,14 @@
                   v-model="bio"
                   class="modern-textarea"
                   placeholder="Tell others about yourself..."
-                  maxlength="190"
+                  maxlength="500"
                   rows="3"
                   data-testid="profile-bio"
                 ></textarea>
                 <div class="input-accent"></div>
               </div>
               <div class="input-feedback">
-                <span class="char-count">{{ bio.length }}/190</span>
+                <span class="char-count">{{ bio.length }}/500</span>
               </div>
             </div>
           </div>
@@ -409,7 +409,7 @@ onMounted(async () => {
 
     // Extract bio if available (some providers might have this)
     if (metadata.bio || metadata.description) {
-      bio.value = (metadata.bio || metadata.description).substring(0, 190)
+      bio.value = (metadata.bio || metadata.description).substring(0, 500)
       debug.log('✅ Auto-populated bio')
     }
 

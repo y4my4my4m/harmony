@@ -8,6 +8,259 @@
 -- PROFILE TRIGGERS
 -- ---------------------------------------------------------------------------
 
+-- Strips spoofing-vector characters (bidi overrides/isolates, zero-width &
+-- invisible format chars, C0/C1 control chars), NFC-normalizes, trims, and
+-- clamps to a max length. Shared by the profile sanitize trigger and the
+-- hardening migration so local + federated writes are cleaned identically.
+CREATE OR REPLACE FUNCTION public.sanitize_profile_string(
+    p_input text,
+    p_max integer,
+    p_allow_newlines boolean DEFAULT false
+)
+RETURNS text
+LANGUAGE sql
+IMMUTABLE
+AS $$
+    SELECT CASE
+        WHEN p_input IS NULL THEN NULL
+        ELSE left(
+            btrim(
+                regexp_replace(
+                    normalize(p_input, NFC),
+                    CASE WHEN p_allow_newlines
+                        -- keep TAB (U+0009) and LF (U+000A); strip the rest
+                        THEN U&'[\0001-\0008\000B-\001F\007F-\009F\200B-\200F\202A-\202E\2060-\206F\FEFF]'
+                        ELSE U&'[\0001-\001F\007F-\009F\200B-\200F\202A-\202E\2060-\206F\FEFF]'
+                    END,
+                    '',
+                    'g'
+                )
+            ),
+            p_max
+        )
+    END;
+$$;
+
+-- Sanitize user-controlled profile text on EVERY write. Local signup, profile
+-- edits via Supabase REST/RLS, and federated actor upserts all pass through
+-- this BEFORE trigger, so it is the authoritative guard regardless of client.
+CREATE OR REPLACE FUNCTION public.sanitize_profile_text()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    -- display_name: single line, max 80; emptied -> NULL (keeps the
+    -- profiles_display_name_not_blank constraint satisfied).
+    IF NEW.display_name IS NOT NULL THEN
+        NEW.display_name := NULLIF(public.sanitize_profile_string(NEW.display_name, 80, false), '');
+    END IF;
+
+    -- bio: line breaks allowed, max 500.
+    IF NEW.bio IS NOT NULL THEN
+        NEW.bio := NULLIF(public.sanitize_profile_string(NEW.bio, 500, true), '');
+    END IF;
+
+    -- profile_fields: at most 4 entries, name/value clamped to 255 each.
+    IF NEW.profile_fields IS NOT NULL AND jsonb_typeof(NEW.profile_fields) = 'array' THEN
+        NEW.profile_fields := COALESCE((
+            SELECT jsonb_agg(jsonb_build_object(
+                'name',  COALESCE(public.sanitize_profile_string(elem->>'name', 255, false), ''),
+                'value', COALESCE(public.sanitize_profile_string(elem->>'value', 255, false), '')
+            ))
+            FROM (
+                SELECT elem
+                FROM jsonb_array_elements(NEW.profile_fields) WITH ORDINALITY AS t(elem, ord)
+                WHERE ord <= 4
+            ) s
+        ), '[]'::jsonb);
+    END IF;
+
+    -- custom_status: clamp the free-text fields, preserve structural keys.
+    IF NEW.custom_status IS NOT NULL AND jsonb_typeof(NEW.custom_status) = 'object' THEN
+        NEW.custom_status := NEW.custom_status || jsonb_strip_nulls(jsonb_build_object(
+            'text',    public.sanitize_profile_string(NEW.custom_status->>'text', 128, false),
+            'emoji',   public.sanitize_profile_string(NEW.custom_status->>'emoji', 64, false),
+            'details', public.sanitize_profile_string(NEW.custom_status->>'details', 128, false),
+            'state',   public.sanitize_profile_string(NEW.custom_status->>'state', 128, false)
+        ));
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- GENERIC USER-INPUT TEXT SANITIZATION (servers/channels/roles/etc.)
+-- ---------------------------------------------------------------------------
+-- RLS lets any token-holder INSERT/UPDATE their own rows via the REST API, and
+-- SECURITY DEFINER RPCs (create_thread, update_group_name, ban/kick, ...) also
+-- write these tables. BEFORE INSERT/UPDATE triggers fire on EVERY write path,
+-- so they are the authoritative guard against over-long / blank / spoofing
+-- (bidi-override, zero-width, control char) text submitted past the UI.
+--
+-- All helpers below clamp + strip via public.sanitize_profile_string().
+
+-- Generic single-line `name` column sanitizer.
+-- TG_ARGV[0] = max length (default 100); TG_ARGV[1] = 'required' | 'optional'.
+-- For required names, a blank value is rejected on INSERT (and on UPDATE when a
+-- previously non-blank name is being blanked); pre-existing blank rows stay
+-- editable. For optional names, blank collapses to NULL.
+CREATE OR REPLACE FUNCTION public.sanitize_entity_name()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_max int := COALESCE(NULLIF(TG_ARGV[0], '')::int, 100);
+    v_required boolean := (TG_ARGV[1] = 'required');
+    v_clean text;
+BEGIN
+    v_clean := public.sanitize_profile_string(NEW.name, v_max, false);
+
+    IF COALESCE(v_clean, '') = '' THEN
+        IF v_required THEN
+            IF TG_OP = 'INSERT' OR COALESCE(OLD.name, '') <> '' THEN
+                RAISE EXCEPTION '% name must not be blank', TG_TABLE_NAME
+                    USING ERRCODE = 'check_violation';
+            END IF;
+            NEW.name := COALESCE(v_clean, '');
+        ELSE
+            NEW.name := NULLIF(v_clean, '');
+        END IF;
+    ELSE
+        NEW.name := v_clean;
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.sanitize_server_text()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_name text := public.sanitize_profile_string(NEW.name, 100, false);
+BEGIN
+    IF COALESCE(v_name, '') = '' THEN
+        IF TG_OP = 'INSERT' OR COALESCE(OLD.name, '') <> '' THEN
+            RAISE EXCEPTION 'server name must not be blank' USING ERRCODE = 'check_violation';
+        END IF;
+    END IF;
+    NEW.name := COALESCE(v_name, '');
+
+    IF NEW.description IS NOT NULL THEN
+        NEW.description := NULLIF(public.sanitize_profile_string(NEW.description, 500, true), '');
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.sanitize_channel_text()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_name text := public.sanitize_profile_string(NEW.name, 100, false);
+BEGIN
+    IF COALESCE(v_name, '') = '' THEN
+        IF TG_OP = 'INSERT' OR COALESCE(OLD.name, '') <> '' THEN
+            RAISE EXCEPTION 'channel name must not be blank' USING ERRCODE = 'check_violation';
+        END IF;
+    END IF;
+    NEW.name := COALESCE(v_name, '');
+
+    IF NEW.description IS NOT NULL THEN
+        NEW.description := NULLIF(public.sanitize_profile_string(NEW.description, 1024, true), '');
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.sanitize_bot_text()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    -- username keeps its own valid_username CHECK (charset + 3..32); don't touch.
+    IF NEW.display_name IS NOT NULL THEN
+        NEW.display_name := NULLIF(public.sanitize_profile_string(NEW.display_name, 100, false), '');
+    END IF;
+    IF NEW.bio IS NOT NULL THEN
+        NEW.bio := NULLIF(public.sanitize_profile_string(NEW.bio, 500, true), '');
+    END IF;
+    IF NEW.website_url IS NOT NULL THEN
+        NEW.website_url := NULLIF(public.sanitize_profile_string(NEW.website_url, 512, false), '');
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.sanitize_report_text()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    IF NEW.reason IS NOT NULL THEN
+        NEW.reason := public.sanitize_profile_string(NEW.reason, 200, false);
+    END IF;
+    IF NEW.comment IS NOT NULL THEN
+        NEW.comment := NULLIF(public.sanitize_profile_string(NEW.comment, 1000, true), '');
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.sanitize_user_list_text()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_title text := public.sanitize_profile_string(NEW.title, 100, false);
+BEGIN
+    IF COALESCE(v_title, '') = '' THEN
+        IF TG_OP = 'INSERT' OR COALESCE(OLD.title, '') <> '' THEN
+            RAISE EXCEPTION 'list title must not be blank' USING ERRCODE = 'check_violation';
+        END IF;
+    END IF;
+    NEW.title := COALESCE(v_title, '');
+
+    IF NEW.description IS NOT NULL THEN
+        NEW.description := NULLIF(public.sanitize_profile_string(NEW.description, 500, true), '');
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.sanitize_member_nickname()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    IF NEW.nickname IS NOT NULL THEN
+        NEW.nickname := NULLIF(public.sanitize_profile_string(NEW.nickname, 64, false), '');
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+-- posts.content_warning is federated (Mastodon CW/summary). Clamp rather than
+-- reject so an over-long remote CW never blocks ingestion of an otherwise-valid
+-- post; the CHECK backstop only guarantees the clamp held.
+CREATE OR REPLACE FUNCTION public.sanitize_post_text()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    IF NEW.content_warning IS NOT NULL THEN
+        NEW.content_warning := NULLIF(public.sanitize_profile_string(NEW.content_warning, 200, false), '');
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
 -- Promote first local user to instance admin
 CREATE OR REPLACE FUNCTION public.promote_first_user_to_admin()
 RETURNS trigger
