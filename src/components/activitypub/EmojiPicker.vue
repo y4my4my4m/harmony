@@ -46,7 +46,7 @@
       <div class="emoji-picker-content">
         <!-- Loading state -->
         <div v-if="isLoading" class="emoji-loading">
-          <span class="loading-spinner"></span>
+          <LoadingSpinner :size="20" />
           <span>Loading emojis...</span>
         </div>
 
@@ -148,6 +148,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue';
 import Icon from '@/components/common/Icon.vue';
+import LoadingSpinner from '@/components/common/LoadingSpinner.vue';
 import { useHapticSettings } from '@/composables/useHapticSettings';
 import { useFrequentEmojis } from '@/composables/useFrequentEmojis';
 import { useUnifiedEmoji, type EmojiEntry } from '@/services/unifiedEmojiService';
@@ -446,19 +447,6 @@ onMounted(() => {
   gap: 8px;
   padding: 48px;
   color: var(--color-text-secondary);
-}
-
-.loading-spinner {
-  width: 20px;
-  height: 20px;
-  border: 2px solid var(--color-border);
-  border-top-color: var(--color-primary);
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
 }
 
 .quick-reactions {

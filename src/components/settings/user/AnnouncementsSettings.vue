@@ -37,7 +37,7 @@
 
     <!-- Loading state -->
     <div v-if="isLoading" class="state-card">
-      <div class="loading-spinner"></div>
+      <LoadingSpinner :size="28" />
       <p>{{ $t('settings.announcements.loading') }}</p>
     </div>
 
@@ -152,6 +152,7 @@ import { useAnnouncementUnreadCount } from '@/composables/useAnnouncementUnreadC
 import { userDataService } from '@/services/userDataService'
 import { debug } from '@/utils/debug'
 import DisplayName from '@/components/DisplayName.vue'
+import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 
 defineProps<{
   loading?: boolean
@@ -477,19 +478,6 @@ onMounted(() => {
 
 .state-error p {
   color: #ed4245;
-}
-
-.loading-spinner {
-  width: 28px;
-  height: 28px;
-  border: 3px solid var(--h-chat-light, rgba(255, 255, 255, 0.1));
-  border-top-color: var(--harmony-primary, #0EA5E9);
-  border-radius: 50%;
-  animation: spin 0.9s linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
 }
 
 .announcement-list {

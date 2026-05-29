@@ -250,7 +250,12 @@ export const useChatStore = defineStore('chat', {
             this.messages = [...cached.messages];
             this.allMessagesLoaded = cached.allMessagesLoaded;
             this.currentChannelId = channelId;
-            // Return immediately - truly instant loading
+            // Stale-while-revalidate: per-channel realtime only delivers to the
+            // channel you're actively viewing, so messages sent to THIS channel
+            // while you were elsewhere never reached this cache. Show the cache
+            // instantly (no flicker) but immediately catch up on anything that
+            // arrived since the cache's newest message.
+            void this.revalidateRecentMessages(channelId);
             return;
           } else {
             debug.log(`⚠️ Cache is stale (${Math.round(cacheAge / 1000)}s old), fetching from database`);
@@ -423,6 +428,59 @@ export const useChatStore = defineStore('chat', {
         throw error;
       } finally {
         this.loadingOlderMessages = false;
+      }
+    },
+
+    /**
+     * Catch up on messages that arrived for `channelId` while it wasn't the
+     * active realtime subscription. Fetches only messages newer than the
+     * currently-loaded newest one (`after` cursor) and merges them in. Cheap:
+     * usually returns zero rows. Guarded so a channel switch mid-flight is a
+     * no-op.
+     */
+    async revalidateRecentMessages(channelId: string) {
+      try {
+        const newest = this.messages.length ? this.messages[this.messages.length - 1] : null;
+        if (!newest) return; // empty channel - realtime will populate it
+        const ts: unknown = newest.created_at;
+        const afterTs = ts instanceof Date ? ts.toISOString() : (typeof ts === 'string' ? ts : undefined);
+        if (!afterTs) return;
+
+        const { messages } = await services.messages.loadChannelMessages(channelId, {
+          limit: 50,
+          after: afterTs,
+        });
+        if (!messages || messages.length === 0) return;
+        // Bail if the user navigated away while we were fetching.
+        if (this.currentChannelId !== channelId) return;
+
+        const existingIds = new Set(this.messages.map((m: Message) => m.id));
+        const fresh = messages.filter((m: Message) => !existingIds.has(m.id));
+        if (fresh.length === 0) return;
+
+        try { ensureMessageEmbeds(fresh); } catch (e) { debug.warn('Failed to prepare embeds for caught-up messages:', e); }
+
+        const userIds = [...new Set(fresh.map((m: Message) => m.user_id).filter(Boolean))] as string[];
+        if (userIds.length > 0) {
+          const serverUsersStore = useServerUsersStore();
+          await serverUsersStore.fetchMultipleUserProfiles(userIds);
+        }
+        if (this.currentChannelId !== channelId) return;
+
+        const merged = [...this.messages, ...fresh].sort(
+          (a: Message, b: Message) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+        );
+        this.messages = merged;
+
+        const cached = this.messageCache.get(channelId);
+        if (cached) {
+          cached.messages = [...merged];
+          cached.lastFetchedAt = new Date();
+          cached.lastModified = new Date();
+        }
+        debug.log(`🔄 Revalidate: merged ${fresh.length} missed message(s) for channel ${channelId}`);
+      } catch (error) {
+        debug.warn('Revalidate recent messages failed (non-fatal):', error);
       }
     },
 

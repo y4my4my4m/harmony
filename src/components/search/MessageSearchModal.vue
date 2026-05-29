@@ -164,7 +164,7 @@
         <div class="search-results-container">
           <!-- Loading State -->
           <div v-if="isSearching && searchResults.length === 0" class="loading-state">
-            <div class="loading-spinner"></div>
+            <LoadingSpinner :size="32" />
             <p>{{ $t('message.searchingMessages') }}</p>
           </div>
 
@@ -268,6 +268,7 @@ import { useServerChannelStore } from '@/stores/useServerChannel'
 import type { Message, Channel } from '@/types'
 import Avatar from '@/components/common/Avatar.vue'
 import Icon from '@/components/common/Icon.vue'
+import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import UnifiedMessageContent from '@/components/UnifiedMessageContent.vue'
 
 const { t } = useI18n()
@@ -838,16 +839,6 @@ onMounted(() => {
   padding: 48px 24px;
   text-align: center;
   color: var(--text-muted);
-}
-
-.loading-spinner {
-  width: 32px;
-  height: 32px;
-  border: 3px solid var(--border-primary);
-  border-top-color: var(--harmony-primary);
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin-bottom: 16px;
 }
 
 @keyframes spin {

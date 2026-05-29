@@ -2,7 +2,7 @@
   <div class="posts-container" ref="scrollContainer">
     <!-- Loading State -->
     <div v-if="isLoading && posts.length === 0" class="loading-state">
-      <div class="loading-spinner"></div>
+      <LoadingSpinner :size="32" />
       <p>{{ loadingMessage }}</p>
     </div>
 
@@ -63,6 +63,7 @@ import { computed, ref, watch, onMounted, onUnmounted, watchEffect } from 'vue'
 import { useVirtualizer } from '@tanstack/vue-virtual'
 import MonyPost from '@/components/activitypub/MonyPost.vue'
 import Icon from '@/components/common/Icon.vue'
+import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import type { TimelinePost } from '@/types'
 
 interface Props {

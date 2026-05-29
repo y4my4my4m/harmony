@@ -2,7 +2,7 @@
   <!-- Loading Screen -->
   <div v-if="!isAppReady" class="loading-overlay">
     <div class="loading-spinner-container">
-      <div class="loading-spinner"></div>
+      <LoadingSpinner :size="40" />
       <p>Loading Harmony...</p>
     </div>
   </div>
@@ -102,6 +102,7 @@
 import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue'
 import { debug } from '@/utils/debug'
 import { useRoute, useRouter } from 'vue-router'
+import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import ServerSidebar from '@/components/ServerSidebar.vue'
 import UserProfileComponent from '@/components/UserProfileComponent.vue'
 import { useServerChannelStore } from '@/stores/useServerChannel'

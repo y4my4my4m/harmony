@@ -10,7 +10,7 @@
 
     <!-- Loading State -->
     <div v-if="isLoadingLists" class="lists-loading">
-      <div class="loading-spinner" />
+      <LoadingSpinner :size="32" />
       <span>Loading lists...</span>
     </div>
 
@@ -150,6 +150,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref, reactive } from 'vue'
+import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import { useRouter } from 'vue-router'
 import { debug } from '@/utils/debug'
 import { useActivityPubStore, type UserList } from '@/stores/useActivityPub'
@@ -342,18 +343,6 @@ onMounted(() => {
   color: var(--text-secondary, #a0a0a0);
 }
 
-.loading-spinner {
-  width: 2rem;
-  height: 2rem;
-  border: 3px solid var(--border-primary, #333);
-  border-top-color: var(--harmony-primary, #6366f1);
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
 
 /* Empty State */
 .lists-empty {

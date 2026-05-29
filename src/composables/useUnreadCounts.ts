@@ -181,6 +181,9 @@ export function useUnreadCounts() {
       conversation_id: countData.conversation_id,
       unread_messages: countData.unread_messages ?? 0,
       unread_mentions: countData.unread_mentions ?? 0,
+      // Preserve the read boundary so the "NEW messages" divider can be
+      // positioned on next open even after a realtime count update.
+      last_read_message_id: countData.last_read_message_id,
       last_read_at: countData.last_read_at,
     } as UnreadCount
 

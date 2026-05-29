@@ -217,6 +217,80 @@ export const useDMStore = defineStore('dm', () => {
     arr.splice(lo, 0, msg)
   }
 
+  /**
+   * Catch up on DM messages that arrived for `conversationId` while it wasn't
+   * the active realtime subscription. Mirrors useChat.revalidateRecentMessages:
+   * the per-conversation CDC subscription only delivers to the DM you're
+   * actively viewing, so messages sent to THIS conversation while you were
+   * elsewhere never reached the cache. We show the cache instantly (no
+   * flicker) then fetch only what's newer than the loaded newest message
+   * (`after` cursor) and merge it in. Cheap - usually zero rows. Guarded so a
+   * conversation switch mid-flight is a no-op.
+   */
+  const revalidateRecentDMMessages = async (conversationId: string) => {
+    try {
+      const msgs = currentDMMessages.value
+      const newest = msgs.length ? msgs[msgs.length - 1] : null
+      if (!newest) return // empty conversation - realtime will populate it
+      const ts: unknown = newest.created_at
+      const afterTs = ts instanceof Date ? ts.toISOString() : (typeof ts === 'string' ? ts : undefined)
+      if (!afterTs) return
+
+      const { messages: messagesData } = await services.messages.loadConversationMessages(conversationId, {
+        limit: 50,
+        after: afterTs,
+      })
+      if (!messagesData || messagesData.length === 0) return
+      // Bail if the user navigated away while we were fetching.
+      if (currentConversationId.value !== conversationId) return
+
+      const existingIds = new Set(currentDMMessages.value.map(m => m.id))
+      const freshRaw = messagesData.filter(m => !existingIds.has(m.id))
+      if (freshRaw.length === 0) return
+
+      const userIds = [...new Set(freshRaw.map(m => m.user_id).filter(Boolean))] as string[]
+      if (userIds.length > 0) {
+        const serverUsersStore = useServerUsersStore()
+        await serverUsersStore.fetchMultipleUserProfiles(userIds)
+      }
+      if (currentConversationId.value !== conversationId) return
+
+      // CoreMessageService already decrypted these; preserve the flags and
+      // normalize to the same shape the initial load uses.
+      const fresh: Message[] = (freshRaw.map(msg => ({
+        id: msg.id,
+        user_id: msg.user_id,
+        content: msg.content,
+        created_at: new Date(msg.created_at),
+        channel_id: '',
+        conversation_id: conversationId,
+        reply_to: msg.reply_to,
+        reactions: msg.reactions || [],
+        is_system: msg.is_system,
+        metadata: msg.metadata || null,
+        encrypted: msg.encrypted || false,
+        decrypted: msg.decrypted || false,
+        encryption_metadata: msg.encryption_metadata,
+      })) as unknown as Message[])
+
+      try { ensureMessageEmbeds(fresh) } catch (e) { debug.warn('Failed to prepare embeds for caught-up DM messages:', e) }
+
+      const merged = [...currentDMMessages.value]
+      for (const m of fresh) insertMessageSorted(merged, m)
+      currentDMMessages.value = merged
+
+      const cached = messageCache.value.get(conversationId)
+      if (cached) {
+        cached.messages = [...merged]
+        cached.lastFetchedAt = new Date()
+        cached.lastModified = new Date()
+      }
+      debug.log(`🔄 DM revalidate: merged ${fresh.length} missed message(s) for ${conversationId}`)
+    } catch (error) {
+      debug.warn('Revalidate recent DM messages failed (non-fatal):', error)
+    }
+  }
+
   const addMessageToCache = (message: Message) => {
     try {
       ensureMessageEmbeds(message)
@@ -1399,6 +1473,10 @@ export const useDMStore = defineStore('dm', () => {
       if (isCacheValid(conversationId)) {
         debug.log(`Loading from DM cache instantly: ${conversationId}`)
         loadCachedMessages(conversationId)
+        // Stale-while-revalidate: catch up on anything that arrived for this
+        // conversation while it wasn't the active subscription (same fix as
+        // channels - prevents "DM messages don't appear until refresh").
+        void revalidateRecentDMMessages(conversationId)
         return
       }
     }
@@ -1942,6 +2020,8 @@ export const useDMStore = defineStore('dm', () => {
     if (isCacheValid(conversationId)) {
       debug.log('📂 Loading cached messages instantly for conversation:', conversationId)
       loadCachedMessages(conversationId)
+      // Catch up on messages that arrived while this DM wasn't subscribed.
+      void revalidateRecentDMMessages(conversationId)
       return true // Indicates instant loading from cache
     } else {
       debug.log('🔄 No valid cache, will need to fetch messages for conversation:', conversationId)

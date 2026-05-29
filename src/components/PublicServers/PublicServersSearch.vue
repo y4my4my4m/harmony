@@ -262,7 +262,7 @@ const formatStats = (filtered: number, total: number): string => {
   min-height: var(--filter-row-height);
   max-height: var(--filter-row-height);
   background: linear-gradient(135deg, rgba(32, 34, 37, 0.8), rgba(47, 49, 54, 0.6));
-  border: 1px solid rgba(14, 165, 233, 0.2);
+  border: 1px solid color-mix(in srgb, var(--harmony-primary) 20%, transparent);
   border-radius: 10px;
   padding: 0 12px;
   cursor: pointer;
@@ -281,7 +281,7 @@ const formatStats = (filtered: number, total: number): string => {
   left: -100%;
   width: 100%;
   height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(14, 165, 233, 0.1), transparent);
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--harmony-primary) 10%, transparent), transparent);
   transition: left 0.4s ease;
 }
 
@@ -290,16 +290,16 @@ const formatStats = (filtered: number, total: number): string => {
 }
 
 .category-toggle-btn:hover {
-  border-color: rgba(14, 165, 233, 0.4);
+  border-color: color-mix(in srgb, var(--harmony-primary) 40%, transparent);
   background: linear-gradient(135deg, rgba(47, 49, 54, 0.9), rgba(54, 57, 63, 0.7));
   transform: translateY(-2px);
-  box-shadow: 0 8px 25px rgba(14, 165, 233, 0.15);
+  box-shadow: 0 8px 25px color-mix(in srgb, var(--harmony-primary) 15%, transparent);
 }
 
 .category-toggle-btn--expanded {
-  border-color: rgba(14, 165, 233, 0.6);
-  background: linear-gradient(135deg, rgba(14, 165, 233, 0.1), rgba(14, 165, 233, 0.05));
-  box-shadow: 0 4px 20px rgba(14, 165, 233, 0.2);
+  border-color: color-mix(in srgb, var(--harmony-primary) 60%, transparent);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--harmony-primary) 10%, transparent), color-mix(in srgb, var(--harmony-primary) 5%, transparent));
+  box-shadow: 0 4px 20px color-mix(in srgb, var(--harmony-primary) 20%, transparent);
 }
 
 .category-toggle-content {
@@ -319,7 +319,7 @@ const formatStats = (filtered: number, total: number): string => {
 .toggle-chevron {
   width: 20px;
   height: 20px;
-  color: rgba(14, 165, 233, 0.8);
+  color: var(--harmony-primary);
   transition: transform 0.2s ease;
 }
 
@@ -353,14 +353,14 @@ const formatStats = (filtered: number, total: number): string => {
 
 .selected-category-preview {
   font-size: 11px;
-  color: rgba(14, 165, 233, 0.9);
+  color: var(--harmony-primary);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  background: rgba(14, 165, 233, 0.1);
+  background: color-mix(in srgb, var(--harmony-primary) 10%, transparent);
   padding: 1px 6px;
   border-radius: 8px;
-  border: 1px solid rgba(14, 165, 233, 0.2);
+  border: 1px solid color-mix(in srgb, var(--harmony-primary) 20%, transparent);
   display: inline-block;
   max-width: 100%;
   overflow: hidden;
@@ -402,7 +402,7 @@ const formatStats = (filtered: number, total: number): string => {
   padding: 10px 12px;
   background: rgba(32, 34, 37, 0.4);
   border-radius: 10px;
-  border: 1px solid rgba(14, 165, 233, 0.1);
+  border: 1px solid color-mix(in srgb, var(--harmony-primary) 10%, transparent);
   margin-top: 0;
 }
 
@@ -448,21 +448,21 @@ const formatStats = (filtered: number, total: number): string => {
   border-color: rgba(255, 255, 255, 0.2);
   color: var(--text-primary);
   transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(14, 165, 233, 0.15);
+  box-shadow: 0 6px 20px color-mix(in srgb, var(--harmony-primary) 15%, transparent);
 }
 
 .category-pill--active {
-  background: linear-gradient(135deg, #0EA5E9, #38BDF8);
-  border-color: #0EA5E9;
+  background: linear-gradient(135deg, var(--harmony-primary), var(--harmony-secondary));
+  border-color: var(--harmony-primary);
   color: var(--text-primary);
-  box-shadow: 0 4px 15px rgba(14, 165, 233, 0.3);
+  box-shadow: 0 4px 15px color-mix(in srgb, var(--harmony-primary) 30%, transparent);
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
 }
 
 .category-pill--active:hover {
-  background: linear-gradient(135deg, #0284C7, #5b6ecd);
+  background: linear-gradient(135deg, var(--harmony-primary-hover), var(--harmony-primary));
   transform: translateY(-3px);
-  box-shadow: 0 8px 25px rgba(14, 165, 233, 0.4);
+  box-shadow: 0 8px 25px color-mix(in srgb, var(--harmony-primary) 40%, transparent);
 }
 
 .category-pill-text {
@@ -528,7 +528,7 @@ const formatStats = (filtered: number, total: number): string => {
 .stats-icon {
   width: 16px;
   height: 16px;
-  color: rgba(14, 165, 233, 0.8);
+  color: var(--harmony-primary);
 }
 
 .stats-text {

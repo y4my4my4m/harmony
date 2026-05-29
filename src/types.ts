@@ -1358,6 +1358,8 @@ export interface MonyFeed {
 
 export interface TimelineOptions {
   limit?: number;
+  /** Row offset for offset-based pagination (e.g. follower/following lists) */
+  offset?: number;
   /** @deprecated Use `before` for reliable time-based pagination */
   max_id?: string;
   since_id?: string;

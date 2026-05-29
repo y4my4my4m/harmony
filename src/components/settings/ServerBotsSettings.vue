@@ -8,7 +8,7 @@
     </div>
 
     <div v-if="loading" class="loading-state">
-      <div class="spinner"></div>
+      <LoadingSpinner :size="48" />
       <p>Loading bots...</p>
     </div>
 
@@ -205,6 +205,7 @@ import { debug } from '@/utils/debug'
 import { supabase } from '@/supabase'
 import { formatDistanceToNow } from 'date-fns'
 import BotAvatar from '@/components/common/BotAvatar.vue'
+import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 
 interface Props {
   serverId: string
@@ -499,20 +500,6 @@ onMounted(() => {
 .loading-state {
   text-align: center;
   padding: 48px 0;
-}
-
-.spinner {
-  width: 48px;
-  height: 48px;
-  border: 4px solid var(--h-chat-light);
-  border-top-color: #0EA5E9;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin: 0 auto 16px;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
 }
 
 .empty-state {

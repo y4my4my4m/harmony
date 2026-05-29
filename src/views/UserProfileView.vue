@@ -24,7 +24,7 @@
     >
       <!-- Loading State -->
       <div v-if="isLoading" class="loading-state">
-        <div class="loading-spinner"></div>
+        <LoadingSpinner :size="32" />
         <p>Loading profile...</p>
       </div>
 
@@ -332,6 +332,7 @@ import DOMPurify from 'dompurify';
 
 // Components
 import MonyHeader from '@/components/activitypub/MonyHeader.vue'
+import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import DisplayName from '@/components/DisplayName.vue'
 import MonyContent from '@/components/activitypub/MonyContent.vue';
 import MonyPost from '@/components/activitypub/MonyPost.vue';

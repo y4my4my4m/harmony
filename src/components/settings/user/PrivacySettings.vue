@@ -151,7 +151,7 @@
             </p>
             <div class="qr-code-container">
               <div v-if="qrCodeLoading" class="qr-loading">
-                <div class="loading-spinner"></div>
+                <LoadingSpinner :size="24" />
                 <p>Generating QR code...</p>
               </div>
               <div v-else-if="qrCodeDataUrl" class="qr-code">
@@ -500,6 +500,7 @@ import QRCode from 'qrcode'
 import { isUrlTrackingStrippingEnabled, setUrlTrackingStrippingEnabled } from '@/utils/urlTrackerStripper'
 
 // Components
+import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import ToggleSwitch from '@/components/common/ToggleSwitch.vue'
 import Avatar from '@/components/common/Avatar.vue'
 import ShieldIcon from '@/components/icons/Shield.vue'

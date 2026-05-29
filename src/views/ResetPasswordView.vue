@@ -181,7 +181,7 @@
 
           <!-- Loading state while checking token -->
           <div v-else class="loading-state">
-            <div class="loading-spinner large"></div>
+            <LoadingSpinner :size="40" />
             <p class="form-subtitle">Verifying password reset link...</p>
           </div>
         </div>
@@ -267,6 +267,7 @@ import { useRouter } from 'vue-router'
 import { supabase } from '@/supabase'
 import { useToast } from 'vue-toastification'
 import { useAuthStore } from '@/stores/auth'
+import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 
 const router = useRouter()
 const toast = useToast()
@@ -988,12 +989,6 @@ const toggleRecoveryCode = () => {
   padding: 40px 20px;
 }
 
-.loading-spinner.large {
-  width: 48px;
-  height: 48px;
-  border-width: 3px;
-  margin: 0 auto 20px;
-}
 
 @media (max-width: 768px) {
   .reset-password-container {

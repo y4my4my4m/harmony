@@ -80,7 +80,7 @@
             </p>
 
             <div v-if="isGenerating" class="generating">
-              <div class="spinner"></div>
+              <LoadingSpinner :size="40" />
               <p>Generating your recovery key...</p>
             </div>
 
@@ -226,6 +226,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import { debug } from '@/utils/debug'
 import { useToast } from 'vue-toastification'
 
@@ -647,16 +648,6 @@ onMounted(() => {
 
 .generating {
   padding: 40px;
-}
-
-.spinner {
-  width: 40px;
-  height: 40px;
-  border: 3px solid var(--bg-secondary, #2a2a3e);
-  border-top-color: var(--primary, #0EA5E9);
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin: 0 auto 16px;
 }
 
 @keyframes spin {

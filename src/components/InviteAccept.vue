@@ -1,7 +1,7 @@
 <template>
   <div class="invite-accept-container">
     <div v-if="status === 'loading'" class="invite-status">
-      <div class="spinner"></div>
+      <LoadingSpinner :size="36" />
       <p>{{ t('invite.accepting') }}</p>
     </div>
     <div v-else-if="status === 'error'" class="invite-status error">
@@ -20,6 +20,7 @@ import { useAuthStore } from '@/stores/auth';
 import { useToast } from 'vue-toastification';
 import { useI18n } from 'vue-i18n';
 import { debug } from '@/utils/debug';
+import LoadingSpinner from '@/components/common/LoadingSpinner.vue';
 
 const route = useRoute();
 const router = useRouter();
@@ -110,18 +111,6 @@ onMounted(async () => {
   font-size: 32px;
 }
 
-.spinner {
-  width: 36px;
-  height: 36px;
-  border: 3px solid var(--border-color, #333);
-  border-top-color: var(--color-primary, #5865f2);
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
 
 .retry-btn {
   padding: 8px 20px;

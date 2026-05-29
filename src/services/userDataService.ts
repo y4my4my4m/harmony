@@ -48,6 +48,13 @@ function detectMobileDevice(): boolean {
   return mobileRegex.test(userAgent) || hasSmallScreen || isTouchOnlyDevice
 }
 
+/**
+ * Server member lists larger than this hydrate online members first and
+ * backfill the remaining (offline) profiles in the background, in chunks of
+ * this size.
+ */
+const PROFILE_BACKFILL_CHUNK = 30
+
 
 
 class UserDataService extends EventTarget {
@@ -895,10 +902,24 @@ class UserDataService extends EventTarget {
     
     try {
       debug.log(`🔄 Subscribing to ${type} context:`, contextId, `(${userIds.length} users)`)
-      
-      // Load user data for context
-      await this.loadUsersData(userIds)
-      
+
+      // Online-first hydration for large server member lists: load the
+      // online members (or, if global presence hasn't synced yet, the first
+      // chunk) up front so the list paints immediately, then backfill the
+      // remaining (offline) profiles in the background. This keeps big
+      // servers from blocking the member list on loading every profile.
+      let offlineBackfillIds: string[] = []
+      if (type === 'server' && userIds.length > PROFILE_BACKFILL_CHUNK) {
+        const onlineIds = userIds.filter(id => this.users.get(id)?.isOnline === true)
+        const offlineIds = userIds.filter(id => this.users.get(id)?.isOnline !== true)
+        const firstBatch = onlineIds.length > 0 ? onlineIds : offlineIds.slice(0, PROFILE_BACKFILL_CHUNK)
+        offlineBackfillIds = onlineIds.length > 0 ? offlineIds : offlineIds.slice(PROFILE_BACKFILL_CHUNK)
+        await this.loadUsersData(firstBatch)
+      } else {
+        // Small contexts (DMs, friends, small servers): just load everyone.
+        await this.loadUsersData(userIds)
+      }
+
       // Create context
       const context: UserContext = {
         id: contextId,
@@ -908,17 +929,52 @@ class UserDataService extends EventTarget {
       }
       
       this.contexts.set(contextId, context)
-      
+
+      // The context must be registered BEFORE we notify subscribers. The
+      // profile load above emits `data-refreshed` while this context does
+      // NOT yet exist, so the reactive member-list computed recomputes
+      // against an empty context. Without this explicit notify the list
+      // stays blank until the next unrelated event (e.g. a presence change)
+      // happens to bump reactivity - the "users only appear when presence
+      // changes" regression.
+      this.emitEvent('context-updated', { contextId })
+
       // Setup context-specific presence if needed
       if (type === 'server') {
         await this.setupServerPresence(contextId, userIds)
       }
-      
+
+      // Backfill the remaining (offline) profiles in the background.
+      if (offlineBackfillIds.length > 0) {
+        void this.backfillContextProfiles(contextId, offlineBackfillIds)
+      }
+
       debug.log(`✅ Subscribed to ${type} context:`, contextId)
     } finally {
       // Remove from pending subscriptions
       this.pendingSubscriptions.delete(contextId)
     }
+  }
+
+  /**
+   * Progressively load a context's remaining profiles (typically offline
+   * members) in the background, emitting `context-updated` after each chunk so
+   * the member list fills in without ever blocking the initial paint. Bails if
+   * the context is torn down (user navigated away) mid-backfill.
+   */
+  private async backfillContextProfiles(contextId: string, userIds: string[]): Promise<void> {
+    for (let i = 0; i < userIds.length; i += PROFILE_BACKFILL_CHUNK) {
+      if (!this.contexts.has(contextId)) return
+      const chunk = userIds.slice(i, i + PROFILE_BACKFILL_CHUNK)
+      try {
+        await this.loadUsersData(chunk)
+        if (!this.contexts.has(contextId)) return
+        this.emitEvent('context-updated', { contextId })
+      } catch (error) {
+        debug.warn(`⚠️ Profile backfill chunk failed for context ${contextId}:`, error)
+      }
+    }
+    debug.log(`✅ Profile backfill complete for context ${contextId} (${userIds.length} users)`)
   }
   
   /**

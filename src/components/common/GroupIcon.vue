@@ -34,7 +34,7 @@
     
     <!-- Loading state -->
     <div v-if="loading" class="loading-overlay">
-      <div class="loading-spinner"></div>
+      <LoadingSpinner :size="20" />
     </div>
   </div>
 </template>
@@ -42,6 +42,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { debug } from '@/utils/debug'
+import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import Icon from '@/components/common/Icon.vue'
 import { GroupIconPresets, getDefaultGroupIcon, getGroupIconUrlRaw } from '@/utils/groupIconUtils'
 
@@ -295,34 +296,6 @@ function handleClick() {
   justify-content: center;
   border-radius: inherit;
   z-index: 2;
-}
-
-.loading-spinner {
-  width: 20px;
-  height: 20px;
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  border-top: 2px solid white;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-}
-
-.size-xs .loading-spinner,
-.size-sm .loading-spinner {
-  width: 12px;
-  height: 12px;
-  border-width: 1px;
-}
-
-.size-lg .loading-spinner,
-.size-xl .loading-spinner {
-  width: 32px;
-  height: 32px;
-  border-width: 3px;
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
 }
 
 /* Focus styles for accessibility */

@@ -3,7 +3,7 @@
     <TransitionGroup name="reaction-list" tag="div" class="reactions-container">
       <!-- Loading state -->
       <div v-if="isLoadingReactions && reactions.length === 0" key="loading" class="reaction-loading">
-        <div class="loading-spinner"></div>
+        <LoadingSpinner :size="16" />
       </div>
       
       <!-- Reaction groups -->
@@ -62,6 +62,7 @@ import { getEmojiUrl } from '@/utils/emojiUtils';
 import { useFrequentEmojis } from '@/composables/useFrequentEmojis';
 import { postReactionsRealtime } from '@/services/PostReactionsRealtime';
 import Icon from '@/components/common/Icon.vue';
+import LoadingSpinner from '@/components/common/LoadingSpinner.vue';
 import type { TimelinePost } from '@/types';
 
 interface Reactor {
@@ -442,20 +443,6 @@ defineExpose({
   display: flex;
   align-items: center;
   padding: 6px;
-}
-
-.loading-spinner {
-  width: 16px;
-  height: 16px;
-  border: 2px solid var(--background-quaternary);
-  border-top: 2px solid var(--harmony-primary);
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
 }
 
 .reaction-list-enter-active {

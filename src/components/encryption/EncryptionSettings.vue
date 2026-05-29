@@ -1,7 +1,7 @@
 <template>
   <div class="encryption-settings">
     <div v-if="!isInitialized" class="loading-state">
-      <div class="spinner"></div>
+      <LoadingSpinner :size="48" />
       <p>Loading encryption status...</p>
     </div>
     
@@ -292,6 +292,7 @@ import { useToast } from 'vue-toastification'
 import RecoveryKeySetupWizard from './RecoveryKeySetupWizard.vue'
 import KeyRecoveryModal from './KeyRecoveryModal.vue'
 import Icon from '@/components/common/Icon.vue'
+import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 
 const toast = useToast()
 
@@ -578,20 +579,6 @@ onMounted(() => {
 .loading-state {
   text-align: center;
   padding: 48px 0;
-}
-
-.spinner {
-  width: 48px;
-  height: 48px;
-  border: 4px solid var(--bg-secondary, #2a2a3e);
-  border-top-color: var(--primary, #0EA5E9);
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin: 0 auto 16px;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
 }
 
 .subsection {

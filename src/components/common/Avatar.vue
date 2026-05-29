@@ -13,7 +13,7 @@
 
     <!-- Loading State -->
     <div v-if="loading" class="avatar-loading">
-      <div class="loading-spinner"></div>
+      <LoadingSpinner :size="20" />
     </div>
 
     <!-- Status Indicator -->
@@ -60,6 +60,7 @@
 import { ref, computed, watch, onUnmounted } from 'vue'
 import { debug } from '@/utils/debug'
 import { getAvatarUrl } from '@/utils/avatarUtils'
+import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import CameraIcon from '@/components/icons/Camera.vue'
 
 // Types

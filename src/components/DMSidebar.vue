@@ -96,7 +96,7 @@
         v-if="(dmStore.loadingConversations || dmStore.isInitializing) && sortedConversations.length === 0"
         class="loading-state"
       >
-        <div class="loading-spinner"></div>
+        <LoadingSpinner :size="24" />
         <span>{{ $t('dm.loadingConversations') }}</span>
       </div>
       
@@ -201,6 +201,7 @@
 // TODO: Consider virtualizing conversation list for users with many DMs
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import Icon from '@/components/common/Icon.vue'
+import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import { useDMStore, type DMUser, type DMConversation } from '@/stores/useDM'
 import { useActivityPubStore } from '@/stores/useActivityPub'
 import { useUserData } from '@/composables/useUserData'
@@ -644,20 +645,6 @@ onUnmounted(() => {
   padding: 40px 20px;
   color: var(--text-muted);
   gap: 12px;
-}
-
-.loading-spinner {
-  width: 24px;
-  height: 24px;
-  border: 2px solid var(--h-chat-light, var(--h-black-lighter));
-  border-top: 2px solid var(--h-brand, #0EA5E9);
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
 }
 
 .empty-state {

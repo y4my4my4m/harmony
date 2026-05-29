@@ -65,7 +65,7 @@
     <div class="explore-content-area">
       <!-- Loading State -->
       <div v-if="isLoading" class="loading-state">
-        <Icon name="loader" class="spinning" />
+        <LoadingSpinner :size="32" />
         <p>{{ $t('activitypub.loadingExploreContent') }}</p>
       </div>
 
@@ -294,6 +294,7 @@ import { adminService } from '@/services/AdminService';
 import MonyPost from './MonyPost.vue';
 import InstanceDetailModal from './InstanceDetailModal.vue';
 import Icon from '@/components/common/Icon.vue';
+import LoadingSpinner from '@/components/common/LoadingSpinner.vue';
 import type { TimelinePost, FederatedUser } from '@/types';
 import ProfileCard from '@/components/common/ProfileCard.vue';
 

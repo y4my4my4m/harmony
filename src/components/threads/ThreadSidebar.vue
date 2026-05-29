@@ -50,13 +50,14 @@
     </div>
     
     <div v-else class="loading-state">
-      <div class="spinner"></div>
+      <LoadingSpinner :size="24" />
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, watch, onMounted } from 'vue'
+import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import { threadService } from '@/services/ThreadService'
 import { formatDistanceToNow } from 'date-fns'
 import type { ThreadWithDetails } from '@/services/ThreadService'
@@ -265,17 +266,5 @@ onMounted(() => {
   padding: 32px;
 }
 
-.spinner {
-  width: 24px;
-  height: 24px;
-  border: 2px solid var(--border-color);
-  border-top-color: var(--harmony-primary);
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
 </style>
 

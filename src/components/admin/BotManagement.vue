@@ -8,7 +8,7 @@
     </div>
     
     <div v-if="loading" class="loading">
-      <div class="spinner"></div>
+      <LoadingSpinner :size="48" />
       <p>Loading bots...</p>
     </div>
     
@@ -150,6 +150,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useToast } from 'vue-toastification'
 import { generateBotToken, hashBotToken } from '@/utils/botUtils'
 import BotAvatar from '@/components/common/BotAvatar.vue'
+import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 
 const toast = useToast()
 const authStore = useAuthStore()
@@ -382,20 +383,6 @@ onMounted(() => {
 .loading {
   text-align: center;
   padding: 48px 0;
-}
-
-.spinner {
-  width: 48px;
-  height: 48px;
-  border: 4px solid var(--border-color);
-  border-top-color: var(--primary);
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin: 0 auto 16px;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
 }
 
 .empty-state {

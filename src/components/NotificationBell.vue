@@ -135,7 +135,7 @@
           <!-- Loading State -->
           <div v-if="isLoading" class="notification-state loading-state">
             <div class="state-animation">
-              <div class="loading-spinner"></div>
+              <LoadingSpinner :size="32" />
             </div>
             <h4 class="state-title">Loading notifications...</h4>
             <p class="state-description">Fetching your latest updates</p>
@@ -207,6 +207,7 @@ import { useRouter } from 'vue-router'
 import { useLayoutState } from '@/composables/useLayoutState'
 import NotificationItem from './NotificationItem.vue'
 import Icon from '@/components/common/Icon.vue'
+import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import type { Notification } from '@/types'
 
 const notificationStore = useNotificationStore()
@@ -701,17 +702,6 @@ onUnmounted(() => {
 .state-animation {
   margin-bottom: 20px;
   position: relative;
-}
-
-/* Loading state - uses standard app spinner */
-.loading-state .loading-spinner {
-  width: 32px;
-  height: 32px;
-  border: 3px solid rgba(255, 255, 255, 0.08);
-  border-top-color: var(--h-brand);
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin-bottom: 0;
 }
 
 /* Empty state */

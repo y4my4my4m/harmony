@@ -65,7 +65,7 @@
     <!-- User Groups (virtualized) -->
     <div class="user-groups" ref="sidebarGroupsRef" v-if="props.visible">
       <div v-if="isLoadingUsers" class="loading-indicator">
-        <div class="loading-spinner"></div>
+        <LoadingSpinner :size="24" />
         <span>{{ $t('server.loadingUsers') }}</span>
       </div>
 
@@ -230,6 +230,7 @@ import UserContextMenu from '@/components/UserContextMenu.vue';
 import KickBanModal from '@/components/moderation/KickBanModal.vue';
 import InviteModal from './InviteModal.vue';
 import Avatar from '@/components/common/Avatar.vue';
+import LoadingSpinner from '@/components/common/LoadingSpinner.vue';
 import DisplayName from '@/components/DisplayName.vue';
 import { useServerChannelStore } from '@/stores/useServerChannel';
 import { showInstanceStaffBadge } from '@/utils/instanceBadge';
@@ -839,9 +840,11 @@ const loadServerRolesAndAssignments = async (serverId: string) => {
       debug.log(`🎭 UserSidebar: Loaded role assignments for ${newUserRolesMap.size} users`);
     }
     
-    rolesLoadedForServer.value = serverId;
   } catch (error) {
     debug.error('Failed to load server roles:', error);
+  } finally {
+    // Mark loaded even on failure so we never re-loop the role fetch.
+    rolesLoadedForServer.value = serverId;
   }
 };
 
@@ -1269,23 +1272,10 @@ const closeInviteModal = () => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 12px;
   padding: 24px 16px;
   color: var(--text-secondary);
   font-size: 14px;
-}
-
-.loading-spinner {
-  width: 24px;
-  height: 24px;
-  border: 2px solid rgba(255, 255, 255, 0.1);
-  border-left: 2px solid var(--accent-primary);
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin-bottom: 12px;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
 }
 
 .user-group {
