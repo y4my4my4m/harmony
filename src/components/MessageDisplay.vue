@@ -621,6 +621,16 @@ const props = defineProps({
     type: Boolean,
     default: false
   },
+  // Whether the "New messages" divider is active for this context. Channels and
+  // DMs derive their read boundary from the unread_counts store. Threads have no
+  // per-thread read-state, and they reuse this component with their PARENT
+  // channel id - feeding that channel's unread row against thread messages would
+  // place a bogus/stuck "NEW" line. So thread views pass false until real
+  // per-thread read tracking exists.
+  enableReadDivider: {
+    type: Boolean,
+    default: true
+  },
 });
 
 const emit = defineEmits(['loadMoreMessages', 'toggleEmojiList', 'sendReaction', 'replyingTo', 'update:isAtBottom', 'createThread', 'showAllThreads', 'mentionUser', 'retry-message', 'discard-message']);
@@ -698,6 +708,12 @@ const currentUnreadContext = (): { channelId?: string; conversationId?: string }
 
 // Snapshot the read boundary for the active context BEFORE it gets marked read.
 const captureReadBoundary = () => {
+  // Divider disabled for this context (e.g. threads) - never capture a boundary
+  // so resolveDivider has nothing to place and no "NEW" line can appear.
+  if (!props.enableReadDivider) {
+    captureBoundary(null);
+    return;
+  }
   const ctx = currentUnreadContext();
   captureBoundary(ctx ? getUnreadCount(ctx) : null);
 };
@@ -1732,9 +1748,16 @@ watch(() => props.messages, (newMessages) => {
                 const isAtBottom = scrollTop + clientHeight >= scrollHeight - 5;
                 if (!isAtBottom && scrollAttempts < 8) {
                   setTimeout(() => scrollToBottom(), scrollAttempts < 3 ? 50 : 150);
-                } else {
-                  setTimeout(() => { shouldBeAtBottom.value = false; }, 500);
                 }
+                // else: settled (or gave up retrying). Intentionally KEEP
+                // `shouldBeAtBottom` true. Late content grows the list AFTER
+                // this initial scroll - the stale-while-revalidate catch-up
+                // append and image/embed loads - and the ResizeObserver only
+                // re-pins to the bottom while `shouldBeAtBottom` is true.
+                // Releasing it here (the old 500ms timeout) is exactly what
+                // left the user scrolled up when messages arrived during a
+                // channel switch. The scroll handler flips it false the moment
+                // the user scrolls up themselves.
               }
             });
           };
@@ -2339,12 +2362,18 @@ const handleScroll = throttle(() => {
   const isAtBottom = distanceFromBottom <= 5;
   userWasAtBottom.value = isAtBottom;
   if (!isAtBottom) {
-    shouldBeAtBottom.value = false;
-    // The user deliberately scrolled up - abandon the post-open bottom-follow
-    // so catch-up messages don't yank them back down. Use a comfortable margin
-    // so transient content growth (images/embeds measuring) during the open
-    // scroll doesn't get mistaken for an intentional scroll-up.
-    if (distanceFromBottom > 200) {
+    // A comfortable margin so transient content growth (images/embeds
+    // measuring, the revalidate catch-up append) isn't mistaken for the user
+    // deliberately scrolling up.
+    const intentionalScrollUp = distanceFromBottom > 200;
+    // During the post-open settling window we keep the bottom pin even if late
+    // content briefly puts us a little above the bottom; only a real scroll-up
+    // releases it. This is what keeps a channel switch (with messages arriving)
+    // settled at the true bottom instead of floating just above them.
+    if (intentionalScrollUp || Date.now() >= openFollowBottomUntil) {
+      shouldBeAtBottom.value = false;
+    }
+    if (intentionalScrollUp) {
       openFollowBottomUntil = 0;
     }
   } else {

@@ -194,6 +194,7 @@
                 :channel-id="thread?.channel_id"
                 :is-loading="loading"
                 :hide-thread-actions="true"
+                :enable-read-divider="false"
                 @send-reaction="handleSendReaction"
                 @toggle-emoji-list="handleToggleEmojiList"
                 @replying-to="handleReplyingTo"

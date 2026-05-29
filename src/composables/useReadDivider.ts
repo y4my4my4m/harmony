@@ -23,6 +23,11 @@ import type { Message, UnreadCount } from '@/types'
  *
  * There is no user-removable state and nothing persisted, so the divider
  * cannot end up orphaned.
+ *
+ * Threads deliberately opt OUT (MessageDisplay `enableReadDivider=false`): they
+ * have no per-thread read-state and reuse this component with their parent
+ * channel id, so deriving a boundary there would place a bogus line. A real
+ * thread divider needs dedicated thread read tracking first.
  */
 export function useReadDivider() {
   /** Id of the message the divider should render directly above (or null). */
