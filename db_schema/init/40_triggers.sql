@@ -728,6 +728,13 @@ CREATE TRIGGER trg_broadcast_permission_override
     FOR EACH ROW
     EXECUTE FUNCTION public.broadcast_permission_override_change();
 
+-- Snapshot post_interactions.custom_emoji_content before emoji delete
+DROP TRIGGER IF EXISTS trg_prepare_emoji_deletion ON public.emojis;
+CREATE TRIGGER trg_prepare_emoji_deletion
+    BEFORE DELETE ON public.emojis
+    FOR EACH ROW
+    EXECUTE FUNCTION public.prepare_emoji_deletion();
+
 -- Emoji broadcasts → server-presence:{server_id}
 DROP TRIGGER IF EXISTS trg_broadcast_emoji_change ON public.emojis;
 CREATE TRIGGER trg_broadcast_emoji_change
