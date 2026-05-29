@@ -288,7 +288,7 @@ const serverName = computed(() =>
   NotificationFormatter.getServerName(props.notification)
 )
 
-const channelName = computed(() => 
+const _channelName = computed(() => 
   NotificationFormatter.getChannelName(props.notification)
 )
 
