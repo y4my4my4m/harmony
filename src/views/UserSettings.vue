@@ -205,7 +205,8 @@ import { debug } from '@/utils/debug'
 import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
-import { getProfileWithAvatarUrl, updateProfile, uploadAvatar, uploadBanner } from '@/services/ProfileService'
+import { useProfileStore } from '@/stores/useProfile'
+import { updateProfile, uploadAvatar, uploadBanner } from '@/services/ProfileService'
 import { normalizeAvatarForStorage } from '@/utils/avatarUtils'
 import { invalidateBannerCache } from '@/utils/bannerUtils'
 import { createSettingsNavigator, type SettingsSection } from '@/utils/settingsUtils'
@@ -256,6 +257,7 @@ const props = withDefaults(defineProps<Props>(), {
 const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
+const profileStore = useProfileStore()
 const toast = useToast()
 const { t } = useI18n()
 const settingsNav = createSettingsNavigator(router)
@@ -411,6 +413,11 @@ const handleProfileUpdate = async (updatedProfile: Partial<User>) => {
     const { username, ...profileToUpdate } = updatedProfile
     await updateProfile(profileToUpdate)
     profile.value = { ...profile.value, ...profileToUpdate } as User
+    // Keep the cached store profile authoritative so reopening settings shows
+    // the saved values without another fetch.
+    if (profileStore.profile) {
+      profileStore.profile = { ...profileStore.profile, ...profileToUpdate } as typeof profileStore.profile
+    }
     
     // Broadcast profile updates to all connected clients for real-time updates
     await updateCurrentUserProfile({
@@ -445,6 +452,9 @@ const handleAvatarUpload = async (file: File) => {
     const normalizedPath = normalizeAvatarForStorage(result.url || '')
     await updateProfile({ avatar_url: normalizedPath || undefined })
     profile.value = { ...profile.value, avatar_url: normalizedPath } as User
+    if (profileStore.profile) {
+      profileStore.profile = { ...profileStore.profile, avatar_url: normalizedPath } as typeof profileStore.profile
+    }
     
     // Broadcast avatar update to all connected clients for real-time updates
     await updateCurrentUserProfile({
@@ -484,6 +494,9 @@ const handleBannerUpload = async (file: File) => {
     
     invalidateBannerCache()
     profile.value = { ...profile.value, banner_url: storagePath } as User
+    if (profileStore.profile) {
+      profileStore.profile = { ...profileStore.profile, banner_url: storagePath } as typeof profileStore.profile
+    }
     
     // Broadcast banner update (non-blocking - don't let broadcast failure undo a successful upload)
     try {
@@ -603,10 +616,20 @@ onMounted(async () => {
     router.replace({ name: 'UserSettings', params: { section: 'account' } })
   }
 
-  if (authStore.session?.user) {
+  // Reuse the profile already cached in the store (warmed at login / app init)
+  // instead of an extra DB round-trip every time Settings opens. Shallow-clone
+  // so local edits in the form don't mutate the shared store object.
+  if (profileStore.profile) {
+    profile.value = { ...(profileStore.profile as unknown as User) }
+  } else if (authStore.session?.user?.id) {
     try {
       loading.value = true
-      profile.value = await getProfileWithAvatarUrl(authStore.session.user.id) as User
+      // fetchProfileByAuthUserId keys on auth_user_id (correct) and populates
+      // the store cache for everyone else.
+      await profileStore.fetchProfileByAuthUserId(authStore.session.user.id)
+      profile.value = profileStore.profile
+        ? { ...(profileStore.profile as unknown as User) }
+        : null
     } catch (error) {
       debug.error('Error fetching profile:', error)
       toast.error('Failed to load profile')

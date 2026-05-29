@@ -3220,12 +3220,12 @@ export const useActivityPubStore = defineStore('activitypub', {
 
         debug.log('🔄 Current user PROFILE ID for loading followed users:', profileId);
 
-        const result = await services.interactions.getFollowing(profileId);
-         debug.log('🔄 Service result:', result);
-         
-         // Result returns { following, hasMore, total } not { users }
-         const followingList = result?.following || [];
-         this.followedUsers = new Set(followingList.map((user: any) => user.id));
+        // IMPORTANT: use the exhaustive ids-only query, NOT the paginated
+        // getFollowing() list. followedUsers backs every `isFollowing` check in
+        // the app, so it must contain ALL followed ids - a paged list would
+        // make any user past page 1 wrongly render as "not followed".
+        const followingIds = await services.interactions.getFollowingIds(profileId);
+         this.followedUsers = new Set(followingIds);
          this.followsLoaded = true;
          
          debug.log(`✅ Loaded ${this.followedUsers.size} followed users via service layer`);

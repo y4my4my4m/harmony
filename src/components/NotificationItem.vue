@@ -46,57 +46,52 @@
       <div class="notification-header">
         <div class="notification-title-section">
           <h4 class="notification-title">
-            <template v-if="props.notification.type === 'activitypub_reaction' || props.notification.type === 'reaction'">
+            <template v-if="usesActorHeaderLayout">
               <DisplayName
                 v-if="actorUserId"
                 :user-id="actorUserId"
-                :fallback="getReactorName()"
+                :fallback="actorDisplayNameFallback"
                 class="notification-actor-name"
               />
-              <template v-else>{{ getReactorName() }}</template>
-              <span> reacted </span>
-              <img 
-                v-if="reactionEmoji?.url"
-                :src="reactionEmoji.url" 
-                :alt="reactionEmoji.name"
-                :title="reactionEmoji.name ? `:${reactionEmoji.name}:` : ''"
-                class="notification-title-emoji"
-              />
-              <span 
-                v-else-if="reactionEmoji?.name"
-                class="notification-title-emoji-fallback"
-              >{{ reactionEmoji.name }}</span>
-              <span> to your {{ props.notification.type === 'activitypub_reaction' ? 'post' : 'message' }}</span>
+              <template v-else>{{ actorDisplayNameFallback }}</template>
+
+              <template v-if="isReactionNotification">
+                <span> reacted </span>
+                <img
+                  v-if="reactionEmoji?.url"
+                  :src="reactionEmoji.url"
+                  :alt="reactionEmoji.name"
+                  :title="reactionEmoji.name ? `:${reactionEmoji.name}:` : ''"
+                  class="notification-title-emoji"
+                />
+                <span
+                  v-else-if="reactionEmoji?.unicode"
+                  class="notification-title-emoji-fallback"
+                >{{ reactionEmoji.unicode }}</span>
+                <span
+                  v-else-if="reactionEmoji?.name"
+                  class="notification-title-emoji-fallback"
+                >{{ reactionEmoji.name }}</span>
+                <span>{{ reactionTitleSuffix }}</span>
+              </template>
+              <span v-else>{{ titleAction }}</span>
             </template>
             <template v-else>
               {{ formattedMessage.title }}
             </template>
           </h4>
           <div class="notification-metadata">
-            <template v-if="props.notification.type === 'reaction' || props.notification.type === 'activitypub_reaction'">
+            <template v-if="usesActorHeaderLayout">
+              <span v-if="actorHandle" class="actor-handle">{{ actorHandle }}</span>
+              <span v-if="actorHandle" class="separator">•</span>
               <span class="timestamp" :title="fullTimestamp">{{ relativeTime }}</span>
-              <template v-if="channelName">
-                <span class="separator">•</span>
-                <span class="channel-name">#{{ channelName }}</span>
-              </template>
+            </template>
+            <template v-else>
+              <span class="timestamp" :title="fullTimestamp">{{ relativeTime }}</span>
               <template v-if="serverName">
                 <span class="separator">•</span>
                 <span class="server-name">{{ serverName }}</span>
               </template>
-            </template>
-            <template v-else>
-              <span class="username">
-                <DisplayName
-                  v-if="actorUserId"
-                  :user-id="actorUserId"
-                  :fallback="username"
-                />
-                <template v-else>{{ username }}</template>
-              </span>
-              <span class="separator">•</span>
-              <span class="timestamp" :title="fullTimestamp">{{ relativeTime }}</span>
-              <span v-if="serverName" class="separator">•</span>
-              <span v-if="serverName" class="server-name">{{ serverName }}</span>
             </template>
           </div>
         </div>
@@ -133,15 +128,10 @@
         <div v-if="hasRichContent" class="rich-content">
           <!-- Message Preview for mentions/replies -->
           <div v-if="messagePreview" class="message-preview">
-            <div class="preview-content">
+            <p class="preview-line">
+              <span class="preview-marker" aria-hidden="true">&gt;</span>
               <span class="preview-text">{{ messagePreview }}</span>
-            </div>
-          </div>
-          
-          <!-- Channel/Server Info -->
-          <div v-if="channelInfo" class="channel-info">
-            <span class="channel-name">#{{ channelInfo }}</span>
-            <span v-if="serverName" class="in-server">in {{ serverName }}</span>
+            </p>
           </div>
           
           <!-- Reaction Display - Show emoji inline in title, not here -->
@@ -227,6 +217,18 @@ const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 const router = useRouter()
 
+const ACTOR_HEADER_TYPES = new Set([
+  'dm',
+  'chat_message',
+  'mention',
+  'reply',
+  'reaction',
+  'thread_reply',
+  'activitypub_mention',
+  'activitypub_reply',
+  'activitypub_reaction',
+])
+
 // State
 const isHovering = ref(false)
 
@@ -235,17 +237,48 @@ const formattedMessage = computed(() =>
   NotificationFormatter.formatNotification(props.notification)
 )
 
-const username = computed(() => 
+const username = computed(() =>
   NotificationFormatter.getUsername(props.notification)
+)
+
+const usesActorHeaderLayout = computed(() =>
+  ACTOR_HEADER_TYPES.has(props.notification.type)
+)
+
+const isReactionNotification = computed(() =>
+  props.notification.type === 'reaction' || props.notification.type === 'activitypub_reaction'
+)
+
+const titleAction = computed(() =>
+  NotificationFormatter.getTitleAction(props.notification)
+)
+
+const reactionTitleSuffix = computed(() =>
+  props.notification.type === 'activitypub_reaction'
+    ? ' to your post'
+    : ' to your message'
+)
+
+const actorDisplayNameFallback = computed(() =>
+  NotificationFormatter.getActorDisplayNameFallback(props.notification)
 )
 
 // Actor profile id when available (for DisplayName so custom emojis render)
 const actorUserId = computed(() => {
   const data = props.notification.data
   if (!data) return null
-  const id = data.from_user_id ?? data.sender?.id ?? data.sender?.user_id ?? data.reactor?.id ?? data.reactor?.user_id ?? data.inviter?.user_id
+  const actor = data.sender || data.actor || data.reactor || data.author || data.user || data.follower
+  const id =
+    data.from_user_id ??
+    actor?.user_id ??
+    actor?.id ??
+    data.inviter?.user_id
   return id && typeof id === 'string' ? id : null
 })
+
+const actorHandle = computed(() =>
+  NotificationFormatter.getActorHandle(props.notification)
+)
 
 const avatarUrl = computed(() => 
   NotificationFormatter.getAvatarUrl(props.notification)
@@ -255,7 +288,7 @@ const serverName = computed(() =>
   NotificationFormatter.getServerName(props.notification)
 )
 
-const channelName = computed(() => 
+const _channelName = computed(() => 
   NotificationFormatter.getChannelName(props.notification)
 )
 
@@ -339,35 +372,36 @@ const messagePreview = computed(() => {
   return truncatePreview(preview)
 })
 
-const channelInfo = computed(() => {
-  return channelName.value
-})
-
 const reactionEmoji = computed(() => {
-  // Handle both chat reactions and ActivityPub reactions
-  if (props.notification.type === 'reaction' || props.notification.type === 'activitypub_reaction') {
-    const data = props.notification.data
-    const reactionData = data.reaction || data
-    
-    // Try multiple paths for emoji URL
-    let emojiUrl = reactionData?.emoji_url || data.emoji_url
-    const emojiName = reactionData?.emoji_name || reactionData?.custom_emoji_content || data.emoji_name || '👍'
-    
-    // If we have emoji_url, use it
-    if (emojiUrl) {
-      return {
-        name: emojiName,
-        url: getEmojiUrl(emojiUrl, 48)
-      }
-    }
-    
-    // Fallback: return name only
+  if (!isReactionNotification.value) return null
+
+  const data = props.notification.data
+  const reactionData = data.reaction || data
+  const emojiUrl = reactionData?.emoji_url || data.emoji_url
+  const rawName =
+    reactionData?.emoji_name ||
+    reactionData?.custom_emoji_content ||
+    data.emoji_name ||
+    '👍'
+
+  if (emojiUrl) {
     return {
-      name: emojiName,
-      url: null
+      name: rawName,
+      url: getEmojiUrl(emojiUrl, 48),
+      unicode: null as string | null,
     }
   }
-  return null
+
+  // Unicode or shortcode-only reaction (common on federated posts)
+  const trimmed = String(rawName).trim()
+  if (/^:[\w+-]+:$/.test(trimmed)) {
+    return { name: trimmed.slice(1, -1), url: null, unicode: null }
+  }
+  if (trimmed.length <= 8 && /\p{Extended_Pictographic}/u.test(trimmed)) {
+    return { name: trimmed, url: null, unicode: trimmed }
+  }
+
+  return { name: trimmed, url: null, unicode: null }
 })
 
 const relativeTime = computed(() => {
@@ -394,8 +428,7 @@ const fullTimestamp = computed(() => {
 })
 
 const hasRichContent = computed(() => {
-  // Show rich content for mentions, replies, reactions (both chat and ActivityPub), and report updates (note)
-  return messagePreview.value || channelInfo.value || reactionEmoji.value
+  return !!messagePreview.value
 })
 
 // Check if this notification should show reaction display
@@ -403,16 +436,6 @@ const hasRichContent = computed(() => {
 const shouldShowReactionDisplay = computed(() => {
   return props.notification.type === 'reaction' || props.notification.type === 'activitypub_reaction'
 })
-
-// Get reactor name for both chat and ActivityPub reactions
-const getReactorName = () => {
-  const data = props.notification.data
-  if (props.notification.type === 'activitypub_reaction') {
-    const sender = data.sender || data.actor
-    return sender?.display_name || sender?.username || 'Someone'
-  }
-  return data.reactor?.display_name || data.reactor?.username || 'Someone'
-}
 
 const hasQuickActions = computed(() => {
   return ['server_invite', 'dm', 'chat_message', 'mention', 'reply'].includes(props.notification.type)
@@ -756,9 +779,14 @@ const typeIcon = computed(() => {
   line-height: 1;
 }
 
-.username {
+.username,
+.actor-handle {
   font-weight: 600;
   color: var(--text-secondary);
+}
+
+.actor-handle {
+  font-weight: 500;
 }
 
 .separator {
@@ -851,36 +879,30 @@ const typeIcon = computed(() => {
 }
 
 .message-preview {
-  background: var(--background-quaternary, rgba(79, 84, 92, 0.3));
-  border-radius: 6px;
-  padding: 8px 10px;
-  border-left: 3px solid rgba(14, 165, 233, 0.5);
+  margin-top: 4px;
 }
 
-.preview-content {
+.preview-line {
+  margin: 0;
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
   font-size: 12px;
+  line-height: 1.4;
   color: var(--text-secondary);
-  line-height: 1.3;
+}
+
+.preview-marker {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  font-weight: 600;
+  user-select: none;
 }
 
 .preview-text {
   font-style: italic;
-}
-
-.channel-info {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-}
-
-.channel-name {
-  font-weight: 600;
-  color: #38BDF8;
-}
-
-.in-server {
-  color: var(--text-muted);
+  word-wrap: break-word;
+  min-width: 0;
 }
 
 .reaction-display {

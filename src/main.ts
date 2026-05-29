@@ -113,8 +113,15 @@ async function initializeApp() {
     const authStore = useAuthStore()
     await authStore.initializeAuth()
     debug.log('✅ Auth initialized')
-    
-    // Mount the app AFTER auth is initialized (so router guard has correct auth state)
+
+    try {
+      await detectAvailablePacks()
+      debug.log('📦 Emoji packs detected')
+    } catch (err) {
+      debug.warn('⚠️ Emoji pack detection failed, using builtin packs:', err)
+    }
+
+    // Mount the app AFTER auth (emoji detection is best-effort above)
     mountApp()
 
     try {
@@ -122,12 +129,6 @@ async function initializeApp() {
     } catch (err) {
       debug.error('❌ reactionCacheManager.startCleanup failed:', err)
     }
-
-    // Probe optional emoji packs after mount; the picker UI will react when
-    // unavailable packs are removed from the pack list.
-    detectAvailablePacks().catch((err) => {
-      debug.warn('⚠️ Emoji pack detection failed:', err)
-    })
   } catch (error) {
     debug.error('❌ Error initializing app:', error)
     // Still mount the app even if initialization fails (no-op if already mounted)

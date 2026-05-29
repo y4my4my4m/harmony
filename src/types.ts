@@ -171,6 +171,8 @@ export interface UserData {
   // Core identity
   id: string
   username: string
+  /** @user or @user@domain — from profiles.web_handle */
+  handle?: string
   displayName: string
   displayNameParts?: DisplayNamePart[] // Pre-resolved display name with inline emojis
   displayNameEmojis?: Array<{ id: string; name: string; url: string }> // Pinned emojis from federation_metadata
