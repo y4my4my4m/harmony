@@ -213,6 +213,18 @@
                     has joined the server
                   </div>
                 </template>
+                <!-- Member leave system message -->
+                <template v-else-if="item.message.metadata?.type === 'member_leave'">
+                  <div class="system-icon">🚪</div>
+                  <div class="system-text">
+                    <span 
+                      class="system-user-mention"
+                      @click="showUserProfile(item.message.user_id)"
+                      :style="{ color: resolveChatUserColor(item.message.user_id) }"
+                    ><DisplayName :userId="item.message.user_id" /></span>
+                    has left the server
+                  </div>
+                </template>
                 <!-- Member kick system message -->
                 <template v-else-if="item.message.metadata?.type === 'member_kick'">
                   <div class="system-icon">🚪</div>

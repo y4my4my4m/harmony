@@ -3331,6 +3331,61 @@ BEGIN
 END;
 $$;
 
+-- ---------------------------------------------------------------------------
+-- System message when a user leaves a server (mirror of the join message).
+-- Skips kick/ban removals (those RPCs post their own message and set the
+-- transaction-local `harmony.skip_leave_message` flag) and skips cascade
+-- deletes when the whole server is removed.
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.handle_member_leave_system_message()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $$
+DECLARE
+    v_channel_id uuid;
+    v_is_local boolean;
+BEGIN
+    -- A kick/ban already inserts "was kicked/banned" - don't also post "has left".
+    IF current_setting('harmony.skip_leave_message', true) = '1' THEN
+        RETURN OLD;
+    END IF;
+
+    -- Only emit for local servers, and skip cascade deletes (server gone).
+    SELECT is_local_server INTO v_is_local
+    FROM servers
+    WHERE id = OLD.server_id;
+
+    IF NOT FOUND OR v_is_local IS NOT TRUE THEN
+        RETURN OLD;
+    END IF;
+
+    SELECT system_channel_id INTO v_channel_id
+    FROM server_settings
+    WHERE server_id = OLD.server_id;
+
+    IF v_channel_id IS NULL THEN
+        v_channel_id := get_default_channel(OLD.server_id);
+    END IF;
+
+    IF v_channel_id IS NULL THEN
+        RETURN OLD;
+    END IF;
+
+    INSERT INTO messages (channel_id, user_id, content, is_system, metadata)
+    VALUES (
+        v_channel_id,
+        OLD.user_id,
+        jsonb_build_array(jsonb_build_object('type', 'text', 'text', 'has left the server')),
+        true,
+        jsonb_build_object('type', 'member_leave')
+    );
+
+    RETURN OLD;
+END;
+$$;
+
 -- =========================================================================
 -- User Event Broadcast functions (Phase 1 scalability)
 -- Push compact events to the user's broadcast channel via realtime.send(),

@@ -229,6 +229,13 @@ CREATE TRIGGER trigger_member_join_system_message
     FOR EACH ROW
     EXECUTE FUNCTION public.handle_member_join_system_message();
 
+-- System message when a user leaves a server
+DROP TRIGGER IF EXISTS trigger_member_leave_system_message ON public.user_servers;
+CREATE TRIGGER trigger_member_leave_system_message
+    AFTER DELETE ON public.user_servers
+    FOR EACH ROW
+    EXECUTE FUNCTION public.handle_member_leave_system_message();
+
 -- Prevent deletion of protected roles
 DROP TRIGGER IF EXISTS trigger_prevent_protected_role_deletion ON public.server_roles;
 CREATE TRIGGER trigger_prevent_protected_role_deletion

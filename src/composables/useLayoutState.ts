@@ -3,6 +3,11 @@ import { useRoute } from 'vue-router'
 import { debug } from '@/utils/debug'
 
 const STORAGE_KEY_ACTIVITYPUB_RIGHT_SIDEBAR = 'harmony_activitypub_right_sidebar_open'
+// Server chat (member list) right sidebar is remembered independently from the
+// ActivityPub right sidebar, so collapsing one context doesn't collapse the
+// other - and bouncing through a DM (which has no right sidebar) no longer
+// leaves the chat member list stuck collapsed.
+const STORAGE_KEY_CHAT_RIGHT_SIDEBAR = 'harmony_chat_right_sidebar_open'
 
 // Global layout state
 const leftSidebarOpen = ref(false)
@@ -80,6 +85,7 @@ export function useLayoutState() {
   // the right-sidebar toggle/gesture/overlay so the mobile backdrop blur never
   // appears on a screen that has nothing to reveal.
   const isDMRoute = (): boolean => route.path.startsWith('/dm')
+  const isChatRoute = (): boolean => route.path.startsWith('/chat')
   const hasRightSidebar = computed(() => !isDMRoute())
 
   const restoreActivityPubRightSidebar = () => {
@@ -95,12 +101,25 @@ export function useLayoutState() {
     localStorage.setItem(STORAGE_KEY_ACTIVITYPUB_RIGHT_SIDEBAR, String(rightSidebarOpen.value))
   }
 
+  const restoreChatRightSidebar = () => {
+    if (typeof window === 'undefined' || isMobile.value) return
+    const saved = localStorage.getItem(STORAGE_KEY_CHAT_RIGHT_SIDEBAR)
+    // Default to open (member list visible) on first run, matching desktop default.
+    rightSidebarOpen.value = saved === null ? true : saved === 'true'
+  }
+
+  const persistChatRightSidebar = () => {
+    if (typeof window === 'undefined' || !isChatRoute()) return
+    localStorage.setItem(STORAGE_KEY_CHAT_RIGHT_SIDEBAR, String(rightSidebarOpen.value))
+  }
+
   // Initialize mobile detection on mount
   onMounted(() => {
     if (typeof window !== 'undefined') {
       checkMobileDevice()
-      if (!isMobile.value && isActivityPubRoute()) {
-        restoreActivityPubRightSidebar()
+      if (!isMobile.value) {
+        if (isActivityPubRoute()) restoreActivityPubRightSidebar()
+        else if (isChatRoute()) restoreChatRightSidebar()
       }
       window.addEventListener('resize', handleResize)
     }
@@ -116,28 +135,35 @@ export function useLayoutState() {
   watch(
     () => route.path,
     (path) => {
-      // DM has no right sidebar - clear any state leaked from server chat so
-      // the mobile backdrop blur doesn't linger over a panel-less screen.
+      // DM has no right sidebar - collapse it so the mobile backdrop blur
+      // doesn't linger over a panel-less screen. The chat member-list state is
+      // preserved in localStorage and restored when returning to /chat.
       if (path.startsWith('/dm')) {
         rightSidebarOpen.value = false
         return
       }
-      if ((path.startsWith('/social') || path.startsWith('/posts')) && !isMobile.value) {
+      if (isMobile.value) return
+      if (path.startsWith('/social') || path.startsWith('/posts')) {
         restoreActivityPubRightSidebar()
+      } else if (path.startsWith('/chat')) {
+        restoreChatRightSidebar()
       }
     },
     { immediate: true }
   )
 
-  // Persist ActivityPub right sidebar when toggled while on social/posts
+  // Persist whichever context's right sidebar was just toggled. Each persist
+  // helper guards on its own route, so the active context is the only one saved.
   watch(rightSidebarOpen, () => {
     persistActivityPubRightSidebar()
+    persistChatRightSidebar()
   })
 
-  // Restore ActivityPub right sidebar when resizing from mobile to desktop
+  // Restore the active context's right sidebar when resizing from mobile to desktop
   watch(isMobile, (mobile, wasMobile) => {
-    if (wasMobile && !mobile && isActivityPubRoute()) {
-      restoreActivityPubRightSidebar()
+    if (wasMobile && !mobile) {
+      if (isActivityPubRoute()) restoreActivityPubRightSidebar()
+      else if (isChatRoute()) restoreChatRightSidebar()
     }
   })
 

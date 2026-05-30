@@ -98,9 +98,9 @@
               <Icon name="trending-up" />
               {{ $t('activitypub.trendingPosts') }}
             </h3>
-            <div v-if="trendingPosts.length > 0" data-timeline class="posts-list">
+            <div v-if="visibleTrendingPosts.length > 0" data-timeline class="posts-list">
               <MonyPost
-                v-for="trendingPost in trendingPosts"
+                v-for="trendingPost in visibleTrendingPosts"
                 :key="trendingPost.post?.id || trendingPost.id"
                 :post="trendingPost.post || trendingPost"
                 @reply="$emit('reply-to-post', $event)"
@@ -158,9 +158,9 @@
               <Icon name="user-plus" />
               {{ $t('activitypub.suggestedUsers') }}
             </h3>
-            <div v-if="suggestedUsers.length > 0" class="users-grid">
+            <div v-if="visibleSuggestedUsers.length > 0" class="users-grid">
               <ProfileCard 
-                v-for="user in suggestedUsers"
+                v-for="user in visibleSuggestedUsers"
                 :key="user.user?.id || user.id"
                 :user="user.user || user"
                 :show-more-actions="true"
@@ -391,10 +391,33 @@ const filteredInstances = computed(() => {
   return filtered;
 });
 
+// Hide muted/blocked users from trending. Trending is fetched via a direct
+// PostgREST query that doesn't know about the viewer's mutes, so filter here
+// (mirrors the timeline behaviour) using the store's muted/blocked sets.
+const authorIdOf = (entry: any): string | undefined => {
+  const post = entry?.post || entry;
+  return post?.author_id || post?.author?.id;
+};
+const userIdOf = (entry: any): string | undefined => {
+  const user = entry?.user || entry;
+  return user?.id;
+};
+const isHiddenUser = (id: string | undefined): boolean => {
+  if (!id) return false;
+  return activityPubStore.mutedUsers.has(id) || activityPubStore.blockedUsers.has(id);
+};
+
+const visibleTrendingPosts = computed(() =>
+  trendingPosts.value.filter(p => !isHiddenUser(authorIdOf(p)))
+);
+const visibleSuggestedUsers = computed(() =>
+  suggestedUsers.value.filter(u => !isHiddenUser(userIdOf(u)))
+);
+
 const allEmpty = computed(() =>
   trendingHashtags.value.length === 0 &&
-  trendingPosts.value.length === 0 &&
-  suggestedUsers.value.length === 0
+  visibleTrendingPosts.value.length === 0 &&
+  visibleSuggestedUsers.value.length === 0
 );
 
 const openComposer = () => {

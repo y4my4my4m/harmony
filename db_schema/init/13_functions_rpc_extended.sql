@@ -4075,6 +4075,9 @@ BEGIN
         GET DIAGNOSTICS v_deleted_count = ROW_COUNT;
     END IF;
 
+    -- Suppress the "has left the server" trigger - we post "was kicked" below.
+    PERFORM set_config('harmony.skip_leave_message', '1', true);
+
     DELETE FROM public.user_servers
     WHERE user_id = p_user_id AND server_id = p_server_id;
 
@@ -4182,6 +4185,9 @@ BEGIN
 
     INSERT INTO public.server_bans (server_id, user_id, banned_by, reason, delete_message_seconds)
     VALUES (p_server_id, p_user_id, v_caller_id, p_reason, p_delete_message_seconds);
+
+    -- Suppress the "has left the server" trigger - we post "was banned" below.
+    PERFORM set_config('harmony.skip_leave_message', '1', true);
 
     DELETE FROM public.user_servers
     WHERE user_id = p_user_id AND server_id = p_server_id;

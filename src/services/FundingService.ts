@@ -121,6 +121,71 @@ const badgeCache = new Map<string, { badge: SupporterBadge | null; fetchedAt: nu
 // Dedup in-flight badge requests so concurrent calls for the same user share one RPC
 const pendingBadgeRequests = new Map<string, Promise<SupporterBadge | null>>()
 
+// ---------------------------------------------------------------------------
+// Coalescing batch loader (DataLoader-style).
+//
+// A chat view renders one <SupporterBadge> per message author, each calling
+// getSupporterBadge() on mount within the same tick. Previously that produced
+// one /rpc/get_supporter_badge POST per user (an N+1 storm). We now collect all
+// userIds requested in the same microtask and resolve them with a single
+// get_supporter_badges(uuid[]) round-trip.
+const badgeLoadQueue = new Set<string>()
+const badgeQueueResolvers = new Map<string, Array<(badge: SupporterBadge | null) => void>>()
+let badgeFlushScheduled = false
+
+async function flushBadgeQueue(): Promise<void> {
+  badgeFlushScheduled = false
+  const userIds = Array.from(badgeLoadQueue)
+  badgeLoadQueue.clear()
+  const resolvers = new Map(badgeQueueResolvers)
+  badgeQueueResolvers.clear()
+  if (userIds.length === 0) return
+
+  const resolveOne = (id: string, badge: SupporterBadge | null) => {
+    badgeCache.set(id, { badge, fetchedAt: Date.now() })
+    resolvers.get(id)?.forEach(fn => fn(badge))
+  }
+
+  try {
+    const { data, error } = await supabase.rpc('get_supporter_badges', {
+      p_user_ids: userIds,
+    })
+    if (error) throw error
+
+    const byUser = new Map<string, SupporterBadge>()
+    for (const row of (data || []) as Array<{ user_id: string } & SupporterBadge>) {
+      byUser.set(row.user_id, {
+        tier_name: row.tier_name,
+        badge_icon: row.badge_icon,
+        badge_color: row.badge_color,
+        is_active: row.is_active,
+      })
+    }
+    for (const id of userIds) {
+      resolveOne(id, byUser.get(id) || null)
+    }
+  } catch (error) {
+    debug.error('Failed to batch-get supporter badges:', error)
+    // Cache null so a transient failure doesn't re-trigger a storm immediately.
+    for (const id of userIds) {
+      resolveOne(id, null)
+    }
+  }
+}
+
+function queueBadgeLoad(userId: string): Promise<SupporterBadge | null> {
+  return new Promise<SupporterBadge | null>(resolve => {
+    badgeLoadQueue.add(userId)
+    const list = badgeQueueResolvers.get(userId) || []
+    list.push(resolve)
+    badgeQueueResolvers.set(userId, list)
+    if (!badgeFlushScheduled) {
+      badgeFlushScheduled = true
+      queueMicrotask(() => { void flushBadgeQueue() })
+    }
+  })
+}
+
 // Normalize the supporter_membership shape returned by the PostgREST embed
 // `author.supporter_membership[*]` into the same SupporterBadge shape that
 // `getSupporterBadge` returns. Caller passes the raw embed array.
@@ -343,25 +408,11 @@ class FundingService {
     const pending = pendingBadgeRequests.get(userId)
     if (pending) return pending
 
-    const request = (async () => {
-      try {
-        const { data, error } = await supabase.rpc('get_supporter_badge', {
-          p_user_id: userId
-        })
-
-        if (error) throw error
-        const badge = data?.[0] || null
-        badgeCache.set(userId, { badge, fetchedAt: Date.now() })
-        return badge
-      } catch (error) {
-        debug.error('Failed to get supporter badge:', error)
-        badgeCache.set(userId, { badge: null, fetchedAt: Date.now() })
-        return null
-      } finally {
-        pendingBadgeRequests.delete(userId)
-      }
-    })()
-
+    // Coalesce with every other badge requested in this microtask into a single
+    // get_supporter_badges([...]) call instead of one RPC per user.
+    const request = queueBadgeLoad(userId).finally(() => {
+      pendingBadgeRequests.delete(userId)
+    })
     pendingBadgeRequests.set(userId, request)
     return request
   }
@@ -378,7 +429,7 @@ class FundingService {
     })
     if (uncached.length === 0) return
 
-    // Fire all uncached requests in parallel (dedup handles concurrent calls)
+    // All of these queue into the same coalesced batch RPC.
     await Promise.allSettled(uncached.map(id => this.getSupporterBadge(id)))
   }
 
