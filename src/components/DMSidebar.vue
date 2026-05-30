@@ -498,15 +498,16 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-/* .dm-sidebar {
-  width: 240px;
-  min-width: 240px;
-  background: var(--h-channel-sidebar, var(--background-tertiary));
+/* Fill the parent (.dm-content) and become a flex column so the conversations
+   list can scroll internally. Width/background/border are owned by the parent
+   AdaptiveChannelSidebar now, so we only manage layout + height here.
+   `min-height: 0` is required for the flex children to shrink and scroll. */
+.dm-sidebar {
   display: flex;
   flex-direction: column;
-  height: 100vh;
-  border-right: 1px solid var(--h-chat-light, var(--h-black-lighter));
-} */
+  height: 100%;
+  min-height: 0;
+}
 
 .dm-header {
   padding: 16px;
@@ -632,6 +633,7 @@ onUnmounted(() => {
 
 .conversations-section {
   flex: 1;
+  min-height: 0;
   overflow: hidden;
   display: flex;
   flex-direction: column;

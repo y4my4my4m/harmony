@@ -664,7 +664,14 @@ export const useDMStore = defineStore('dm', () => {
         `)
         .eq('user_id', userId)
         .is('left_at', null)
-        .limit(50) // Reasonable limit for metadata
+        // Fetch ALL of the user's conversations (matching the full-fetch path).
+        // The previous `.limit(50)` with NO ordering meant that, for users with
+        // more than 50 conversations, an arbitrary 50 were returned - so a
+        // recently-active conversation could be missing from the sidebar
+        // (e.g. open a server channel, refresh, then switch to DMs). Ordering
+        // is deterministic via joined_at; the list is re-sorted by last
+        // activity client-side in `sortedConversations`.
+        .order('joined_at', { ascending: false })
 
       debug.log('📬 fetchUserConversationsMetadata: Query result:', { 
         participations: participations?.length || 0, 
@@ -713,12 +720,17 @@ export const useDMStore = defineStore('dm', () => {
         }
       }
 
-      // Step 3: Load last message for each conversation (for preview)
+      // Step 3: Load last message for each conversation (for preview).
+      // Bound the scan to the most recent messages across all conversations
+      // (same heuristic as the full-fetch path) so this stays cheap now that
+      // we no longer cap the number of conversations.
+      const lastMessageScanLimit = Math.min(conversationIds.length * 5, 1000)
       const { data: lastMessages, error: messagesError } = await supabase
         .from('messages')
         .select('conversation_id, content, created_at, user_id')
         .in('conversation_id', conversationIds)
         .order('created_at', { ascending: false })
+        .limit(lastMessageScanLimit)
 
       if (messagesError) {
         debug.warn('⚠️ Error fetching last messages for preview:', messagesError)
