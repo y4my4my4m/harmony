@@ -698,6 +698,15 @@ CREATE POLICY "invites_delete_creator" ON public.invites FOR DELETE
 
 ALTER TABLE public.voice_channel_participants ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "voice_participants_select_all" ON public.voice_channel_participants FOR SELECT USING (true);
+-- Local users manage their own presence row directly from the client. Federated
+-- participants and cleanup jobs use the service_role key, which bypasses RLS.
+CREATE POLICY "voice_participants_insert_self" ON public.voice_channel_participants
+    FOR INSERT WITH CHECK (user_id = public.get_current_profile_id());
+CREATE POLICY "voice_participants_update_self" ON public.voice_channel_participants
+    FOR UPDATE USING (user_id = public.get_current_profile_id())
+    WITH CHECK (user_id = public.get_current_profile_id());
+CREATE POLICY "voice_participants_delete_self" ON public.voice_channel_participants
+    FOR DELETE USING (user_id = public.get_current_profile_id());
 
 -- ---------------------------------------------------------------------------
 -- INSTANCE WEBRTC SETTINGS RLS
