@@ -1,5 +1,6 @@
 import { supabase } from '@/supabase';
 import { debug } from '@/utils/debug'
+import { validateImageUpload, humanizeUploadError } from '@/utils/uploadValidation'
 
 export interface UploadResult {
   success: boolean;
@@ -21,20 +22,11 @@ export async function uploadFile(
   path: string
 ): Promise<UploadResult> {
   try {
-    // Check file size (5MB limit)
-    if (file.size > 5 * 1024 * 1024) {
-      return {
-        success: false,
-        error: 'File size must be less than 5MB'
-      };
-    }
-
-    // Check file type
-    if (!file.type.startsWith('image/')) {
-      return {
-        success: false,
-        error: 'Only image files are allowed'
-      };
+    // Validate against the bucket's real size/type limits so the user gets a
+    // precise reason (e.g. "too large - max 2 MB") instead of a generic failure.
+    const validationError = await validateImageUpload(file, bucket);
+    if (validationError) {
+      return { success: false, error: validationError };
     }
 
     debug.log(`Uploading file to ${bucket}/${path}...`);
@@ -51,7 +43,7 @@ export async function uploadFile(
       debug.error('Upload error:', error);
       return {
         success: false,
-        error: error.message
+        error: humanizeUploadError(error, bucket)
       };
     }
 
@@ -71,7 +63,7 @@ export async function uploadFile(
     debug.error('Upload error:', error);
     return {
       success: false,
-      error: error.message || 'Upload failed'
+      error: humanizeUploadError(error, bucket)
     };
   }
 }
