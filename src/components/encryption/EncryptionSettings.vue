@@ -528,6 +528,19 @@ function closeImportModal() {
 async function resetEncryption() {
   isResetting.value = true
   try {
+    // If we're in an end-to-end encrypted voice call, drop it first. The
+    // LiveKit worker holds the voice key independently of the Megolm stores
+    // we're about to wipe, so the call would otherwise keep running with a key
+    // we can no longer rotate into - leaving a misleading "encrypted" shield
+    // and breaking on the next membership change. Leaving is the honest move.
+    const { useUnifiedVoiceChannelStore } = await import('@/stores/unifiedVoiceChannel')
+    const voiceStore = useUnifiedVoiceChannelStore()
+    if (voiceStore.isConnected && voiceStore.isEncrypted) {
+      debug.log('🔐 Reset encryption: leaving active encrypted voice call first')
+      await voiceStore.leaveVoiceChannel()
+      toast.info('Left the encrypted voice call (its keys were reset)')
+    }
+
     const { megolmMessageEncryptionService } = await import('@/services/encryption/MegolmMessageEncryptionService')
     await megolmMessageEncryptionService.resetEncryption()
     

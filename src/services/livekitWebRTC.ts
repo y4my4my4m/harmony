@@ -2422,6 +2422,33 @@ export class LiveKitWebRTCService {
       debug.error('❌ [LiveKit] Failed to disable E2EE:', error);
     }
   }
+
+  /**
+   * Re-apply the shared room key we already hold (debug/testing helper, e.g.
+   * to recover after a manual `disableE2EE()`). No-op if no key is held.
+   */
+  async reapplyE2EEKey(): Promise<void> {
+    if (this.e2eeRoomKey && this.e2eeKeyId) {
+      await this.applyRoomKey(this.e2eeRoomKey, this.e2eeKeyId);
+    }
+  }
+
+  /** Snapshot of current E2EE state for debugging. */
+  getE2EEDebugStatus(): {
+    required: boolean;
+    enabled: boolean;
+    keyReady: boolean;
+    keyId: string | null;
+    hasKey: boolean;
+  } {
+    return {
+      required: this.e2eeRequired,
+      enabled: this.e2eeEnabled,
+      keyReady: this.e2eeKeyReady,
+      keyId: this.e2eeKeyId,
+      hasKey: !!this.e2eeRoomKey,
+    };
+  }
   
   // =============================================================================
   // EVENT SYSTEM
@@ -2503,4 +2530,36 @@ export class LiveKitWebRTCService {
 
 export const livekitWebRTC = new LiveKitWebRTCService();
 export default livekitWebRTC;
+
+// ---------------------------------------------------------------------------
+// Debug console handle for manual voice E2EE testing.
+//
+// Opt-in (so prod builds don't expose internals by default): in dev it's
+// always on; elsewhere enable once with
+//   localStorage.setItem('harmony-debug-voice', '1')  // then reload
+// then in the console, mid-call:
+//   __voiceE2EE.status()    // inspect current E2EE state
+//   await __voiceE2EE.disable()   // should garble audio for you
+//   await __voiceE2EE.reenable()  // re-apply the held key to recover
+//
+// These only affect THIS client's own call and never expose key bytes, so the
+// surface is limited to self-downgrading your own privacy.
+// ---------------------------------------------------------------------------
+if (typeof window !== 'undefined') {
+  try {
+    const debugEnabled =
+      import.meta.env.DEV ||
+      window.localStorage?.getItem('harmony-debug-voice') === '1';
+    if (debugEnabled) {
+      (window as any).__voiceE2EE = {
+        status: () => livekitWebRTC.getE2EEDebugStatus(),
+        disable: () => livekitWebRTC.disableE2EE(),
+        reenable: () => livekitWebRTC.reapplyE2EEKey(),
+      };
+      (window as any).__livekit = livekitWebRTC;
+    }
+  } catch {
+    /* ignore - debug hook is best-effort */
+  }
+}
 
