@@ -129,6 +129,7 @@
             :is-in-thread="true"
             :hide-reply-context="true"
             @reply="handleReply"
+            @reply-created="handleInlineReplyCreated"
             @favorite="handleFavorite"
             @reblog="handleReblog"
             @bookmark="handleBookmark"
@@ -543,6 +544,36 @@ const handleReply = (post: TimelinePost) => {
   replyToPost.value = getOriginalPost(post);
   replyingToPostId.value = getOriginalPostId(post);
   showReplyComposer.value = true;
+};
+
+// Replies sent from a post's own inline composer (MonyPost handles its reply
+// box internally and emits the created reply up). PostView owns the thread
+// state and has no realtime subscription of its own, so without this the new
+// reply wouldn't appear until a manual reload.
+const handleInlineReplyCreated = (newReply: TimelinePost, _parentId: string) => {
+  if (!newReply || !postWithContext.value) return;
+
+  // Guard against duplicates (e.g. if a later background reload already
+  // included it, or the same event fires twice).
+  const alreadyPresent = allPostsInOrder.value.some(p => p.id === newReply.id);
+  if (!alreadyPresent) {
+    postWithContext.value = {
+      ...postWithContext.value,
+      descendants: [...postWithContext.value.descendants, newReply]
+    };
+    if (postWithContext.value.mainPost) {
+      postWithContext.value.mainPost.replies_count =
+        (postWithContext.value.mainPost.replies_count || 0) + 1;
+    }
+    debug.log('✅ Inline reply appended to thread:', newReply.id);
+  }
+
+  // Reconcile with the server shortly after so counts/threading are accurate.
+  setTimeout(() => {
+    loadPostWithContext().catch(err => {
+      debug.warn('Background refresh failed:', err);
+    });
+  }, 1000);
 };
 
 const handleReplyCreated = async (newReply?: TimelinePost) => {

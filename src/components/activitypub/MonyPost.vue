@@ -652,6 +652,7 @@ const props = withDefaults(defineProps<Props>(), {
 // Emits
 const emit = defineEmits<{
   reply: [post: TimelinePost];
+  'reply-created': [reply: TimelinePost, parentId: string];
   delete: [postId: string];
   edit: [postId: string];
   click: [post: TimelinePost];
@@ -1401,7 +1402,16 @@ const onReply = () => {
 const handleReplySent = (reply: any) => {
   debug.log('Reply sent:', reply);
   showInlineReply.value = false;
-  // Could emit a success event or update local state here
+  // Bump the local reply count so the affordance updates immediately.
+  if (props.post) {
+    props.post.replies_count = (props.post.replies_count || 0) + 1;
+  }
+  // Notify containers (e.g. PostView thread) so they can append the reply
+  // without waiting for a reload. We thread under the *original* post id so
+  // reblog wrappers attribute the reply to the correct note.
+  if (reply) {
+    emit('reply-created', reply as TimelinePost, replyTarget.value.id);
+  }
 };
 
 const handleShowEmojiPicker = (post: TimelinePost) => {

@@ -75,9 +75,6 @@ export class PWAManager {
     // Setup badge API
     this.setupBadgeAPI()
 
-    // Hide loading screen when app is ready
-    this.hideLoadingScreen()
-
     // Refresh flags after listeners are registered (installPrompt may still be null until event fires)
     this.detectCapabilities()
 
@@ -671,23 +668,6 @@ export class PWAManager {
   private hidePullToRefreshIndicator(): void {
     // Hide pull-to-refresh UI
     debug.log('📱 PWA Manager: Hide pull-to-refresh indicator')
-  }
-
-  /**
-   * Hide loading screen
-   */
-  private hideLoadingScreen(): void {
-    const loadingElement = document.getElementById('app-loading')
-    if (loadingElement) {
-      // Add fade out animation
-      loadingElement.style.transition = 'opacity 0.3s ease-out'
-      loadingElement.style.opacity = '0'
-      
-      setTimeout(() => {
-        loadingElement.remove()
-        document.body.classList.add('app-ready')
-      }, 300)
-    }
   }
 
   /**

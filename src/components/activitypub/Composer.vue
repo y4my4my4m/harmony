@@ -115,11 +115,6 @@
                 <span>Drop images or videos here</span>
               </div>
               
-              <!-- Character Counter -->
-              <div class="character-counter" :class="characterCounterClass">
-                {{ remainingCharacters }}
-              </div>
-              
               <!-- Auto-suggest dropdown -->
               <AutoSuggest
                 :isVisible="autoSuggest.state.value.isActive"
@@ -274,6 +269,11 @@
               
               <!-- Right: Action Buttons -->
               <div class="action-group">
+                <!-- Character Counter -->
+                <span class="character-counter" :class="characterCounterClass">
+                  {{ remainingCharacters }}
+                </span>
+
                 <!-- Draft Indicator -->
                 <span v-if="isDraft" class="draft-indicator">
                   <Icon name="save" />
@@ -1224,11 +1224,11 @@ const vClickOutside = {
 }
 
 .character-counter {
-  position: absolute;
-  bottom: 0.75rem;
-  right: 0.75rem;
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
   color: #9ca3af;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+  user-select: none;
 }
 
 .character-counter.warning {
@@ -1264,6 +1264,7 @@ const vClickOutside = {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  margin-left: auto;
 }
 
 .draft-indicator {
@@ -1512,34 +1513,45 @@ const vClickOutside = {
     display: none;
   }
 
+  /* Compact the toolbar so the action icons stay pinned left and the
+     Post/Cancel group sits inline on the same row whenever it fits. The icons
+     are made a touch smaller with tighter gaps to win back the horizontal
+     space the buttons need; the action group only wraps to its own (still
+     right-aligned) line when there genuinely isn't room (e.g. the narrowest
+     phones with both Cancel + Post in the modal). */
   .compose-options {
     flex-wrap: wrap;
     align-items: center;
-    gap: 0.5rem;
+    column-gap: 0.25rem;
     row-gap: 0.5rem;
   }
 
-  /* Keep the icon row on one line and let the Post/Cancel group sit inline at
-     the end; it only wraps to its own line when there genuinely isn't room. */
   .option-group {
     flex-wrap: nowrap;
     flex: 1 1 auto;
     min-width: 0;
+    gap: 0.125rem;
+  }
+
+  .option-button {
+    width: 34px;
+    height: 34px;
   }
 
   .action-group {
     flex: 0 0 auto;
-    justify-content: flex-end;
+    margin-left: auto;
     flex-wrap: nowrap;
-    min-width: 0;
+    gap: 0.35rem;
   }
 
   .post-button {
-    padding: 0.5rem 1rem;
+    padding: 0.5rem 0.9rem;
     flex-shrink: 0;
   }
 
   .cancel-button {
+    padding: 0.5rem 0.75rem;
     flex-shrink: 0;
   }
 }
