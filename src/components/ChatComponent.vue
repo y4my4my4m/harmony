@@ -961,7 +961,10 @@
         }
 
         const scope: 'channel' | 'dm' = props.isDM ? 'dm' : 'channel'
-        const outcome = await runWithEncryptionFallback(trySend, { scope })
+        const contextKey = props.isDM
+          ? `dm:${props.conversationId}`
+          : `channel:${serverChannelStore.currentChannelId}`
+        const outcome = await runWithEncryptionFallback(trySend, { scope, contextKey })
 
         if (outcome.status === 'declined') {
           sendError.value = 'Message was not sent.'
