@@ -309,7 +309,7 @@ const createServer = async () => {
           debug.log('Server icon uploaded successfully:', uploadResult.url);
         } else {
           debug.error('Server icon upload failed:', uploadResult.error);
-          toast.warning('Server created but icon upload failed. You can update it later in server settings.');
+          toast.warning(`Server created, but the icon couldn't be uploaded: ${uploadResult.error || 'unknown error'}. You can update it later in server settings.`);
         }
       } catch (uploadError) {
         debug.error('Server icon upload error:', uploadError);

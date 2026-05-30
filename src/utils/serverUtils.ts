@@ -1,5 +1,6 @@
 import { supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
+import { validateImageUpload, humanizeUploadError } from '@/utils/uploadValidation'
 
 // Constants
 const DEFAULT_SERVER_ICON = '/default_server.webp'
@@ -213,6 +214,11 @@ export async function uploadServerBanner(
     const ext = file.name.split('.').pop()
     if (!ext) return { success: false, error: 'File must have an extension' }
 
+    const validationError = await validateImageUpload(file, SERVER_BANNERS_BUCKET)
+    if (validationError) {
+      return { success: false, error: validationError }
+    }
+
     const filePath = `${serverId}/${serverId}_banner.${ext}`
 
     const { error } = await supabase.storage
@@ -221,7 +227,7 @@ export async function uploadServerBanner(
 
     if (error) {
       debug.error('Failed to upload server banner:', error)
-      return { success: false, error: error.message }
+      return { success: false, error: humanizeUploadError(error, SERVER_BANNERS_BUCKET) }
     }
 
     return { success: true, url: filePath }

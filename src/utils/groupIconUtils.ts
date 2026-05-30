@@ -1,5 +1,6 @@
 import { supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
+import { validateImageUpload, humanizeUploadError } from '@/utils/uploadValidation'
 
 /**
  * Group Icon Utilities
@@ -123,15 +124,10 @@ export async function uploadGroupIcon(
   _onProgress?: (progress: number) => void
 ): Promise<{ success: boolean; iconPath?: string; error?: string }> {
   try {
-    // Validate file
-    if (!file.type.startsWith('image/')) {
-      return { success: false, error: 'File must be an image' }
-    }
-
-    // Check file size (max 5MB)
-    const maxSize = 5 * 1024 * 1024
-    if (file.size > maxSize) {
-      return { success: false, error: 'File size must be less than 5MB' }
+    // Validate against the group-icons bucket's real size/type limits.
+    const validationError = await validateImageUpload(file, BUCKET_NAME)
+    if (validationError) {
+      return { success: false, error: validationError }
     }
 
     // Generate unique filename
@@ -149,7 +145,7 @@ export async function uploadGroupIcon(
 
     if (uploadError) {
       debug.error('Upload error:', uploadError)
-      return { success: false, error: uploadError.message }
+      return { success: false, error: humanizeUploadError(uploadError, BUCKET_NAME) }
     }
 
     // Get current user profile ID

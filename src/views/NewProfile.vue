@@ -725,7 +725,7 @@ const createProfile = async () => {
           debug.log('Avatar uploaded successfully:', normalizedPath);
         } else {
           debug.error('Avatar upload failed:', uploadResult.error);
-          toast.warning('Profile created but avatar upload failed. You can update it later in settings.');
+          toast.warning(`Profile created, but the avatar couldn't be uploaded: ${uploadResult.error || 'unknown error'}. You can update it later in settings.`);
         }
       } catch (uploadError) {
         debug.error('Avatar upload error:', uploadError);

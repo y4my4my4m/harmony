@@ -1,5 +1,6 @@
 import { supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
+import { validateImageUpload, humanizeUploadError } from '@/utils/uploadValidation'
 
 let bannerCacheBuster = Date.now()
 
@@ -75,8 +76,6 @@ export function normalizeBannerForStorage(bannerUrl?: string | null): string | n
   return bannerUrl
 }
 
-const MAX_BANNER_SIZE = 10 * 1024 * 1024 // 10MB - must match bucket file_size_limit
-
 /**
  * Upload banner file to storage.
  * Removes stale files from a previous upload (e.g. different extension) before uploading.
@@ -86,11 +85,10 @@ export async function uploadBanner(file: File, userId: string): Promise<{ succes
     if (!file || file.size === 0) {
       return { success: false, error: 'Choose a non-empty image file' }
     }
-    if (file.size > MAX_BANNER_SIZE) {
-      return { success: false, error: `File is too large (max ${MAX_BANNER_SIZE / 1024 / 1024}MB)` }
-    }
-    if (!file.type.startsWith('image/')) {
-      return { success: false, error: 'File must be an image' }
+    // Validate against the banners bucket's real size/type limits.
+    const validationError = await validateImageUpload(file, 'banners')
+    if (validationError) {
+      return { success: false, error: validationError }
     }
     const ext = file.name.split('.').pop()?.toLowerCase()
     if (!ext) {
@@ -121,7 +119,7 @@ export async function uploadBanner(file: File, userId: string): Promise<{ succes
       .upload(filePath, file, { upsert: true })
 
     if (error) {
-      return { success: false, error: error.message }
+      return { success: false, error: humanizeUploadError(error, 'banners') }
     }
 
     return { success: true, url: filePath }

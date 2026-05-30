@@ -2134,6 +2134,7 @@ import { trendingService } from '@/services/TrendingService'
 import { announcementService, type Announcement } from '@/services/AnnouncementService'
 import { usePublicServersStore } from '@/stores/usePublicServers'
 import { getServerIconUrl } from '@/utils/serverUtils'
+import { validateImageUpload, humanizeUploadError } from '@/utils/uploadValidation'
 import { userDataService } from '@/services/userDataService'
 import { activityPubService } from '@/services/activityPubService'
 import EmojiPopup from '@/components/EmojiPopup.vue'
@@ -3885,13 +3886,19 @@ const saveInstanceBranding = async () => {
   try {
     // Upload icon if a new file was selected
     if (instanceIconFile.value) {
+      const iconValidationError = await validateImageUpload(instanceIconFile.value, 'server_icons')
+      if (iconValidationError) {
+        toast.error(iconValidationError)
+        savingBranding.value = false
+        return
+      }
       const ext = instanceIconFile.value.name.split('.').pop()
       const filePath = `instance/instance_icon.${ext}`
       const { error: uploadErr } = await supabase.storage
         .from('server_icons')
         .upload(filePath, instanceIconFile.value, { upsert: true })
       if (uploadErr) {
-        toast.error(`Failed to upload icon: ${uploadErr.message}`)
+        toast.error(humanizeUploadError(uploadErr, 'server_icons'))
         savingBranding.value = false
         return
       }
@@ -3902,13 +3909,19 @@ const saveInstanceBranding = async () => {
 
     // Upload banner if a new file was selected
     if (instanceBannerFile.value) {
+      const bannerValidationError = await validateImageUpload(instanceBannerFile.value, 'server_banners')
+      if (bannerValidationError) {
+        toast.error(bannerValidationError)
+        savingBranding.value = false
+        return
+      }
       const ext = instanceBannerFile.value.name.split('.').pop()
       const filePath = `instance/instance_banner.${ext}`
       const { error: uploadErr } = await supabase.storage
         .from('server_banners')
         .upload(filePath, instanceBannerFile.value, { upsert: true })
       if (uploadErr) {
-        toast.error(`Failed to upload banner: ${uploadErr.message}`)
+        toast.error(humanizeUploadError(uploadErr, 'server_banners'))
         savingBranding.value = false
         return
       }

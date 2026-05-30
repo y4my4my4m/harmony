@@ -252,6 +252,7 @@ import { uploadEmoji, deleteEmoji, renameEmoji, bulkUploadEmojis, bulkDeleteEmoj
 import { useEmojiCacheStore } from '@/stores/useEmojiCache'
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings'
 import { getEmojiUrl } from '@/utils/emojiUtils'
+import { validateImageUpload } from '@/utils/uploadValidation'
 import type { Emoji } from '@/types'
 
 const { t } = useI18n()
@@ -364,14 +365,11 @@ const handleEmojiFile = async (file: File) => {
     return
   }
 
-  // Validate file
-  if (!file.type.startsWith('image/')) {
-    toast.error(t('server.selectImageFile'))
-    return
-  }
-
-  if (file.size > 1024 * 1024) {
-    toast.error(t('server.fileSizeMustBeLessThan1MB'))
+  // Validate against the emojis bucket limits. This also rejects SVGs, which
+  // are an XSS vector (they can embed <script>/event handlers).
+  const validationError = await validateImageUpload(file, 'emojis')
+  if (validationError) {
+    toast.error(validationError)
     return
   }
 
@@ -438,7 +436,8 @@ const handleBulkEmojiUpload = async (files: File[]) => {
   const skippedNotImage: string[] = []
   const skippedTooLarge: string[] = []
   const validFiles = files.filter(file => {
-    if (!file.type.startsWith('image/')) {
+    // Reject non-images and SVGs (SVGs are an XSS vector for emoji).
+    if (!file.type.startsWith('image/') || file.type === 'image/svg+xml') {
       skippedNotImage.push(file.name)
       return false
     }

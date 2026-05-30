@@ -78,13 +78,16 @@ ON CONFLICT (id) DO UPDATE SET
     file_size_limit = EXCLUDED.file_size_limit;
 
 -- Emojis bucket (custom emoji)
+-- NOTE: SVG is intentionally NOT allowed. User-uploaded SVGs are an XSS vector
+-- (they can embed <script>, event handlers, foreignObject, etc.), so emoji are
+-- restricted to raster image formats only.
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 VALUES (
     'emojis',
     'emojis',
     true,
     1048576, -- 1MB
-    ARRAY['image/png', 'image/gif', 'image/webp', 'image/apng', 'image/svg+xml', 'image/jpeg']
+    ARRAY['image/png', 'image/gif', 'image/webp', 'image/apng', 'image/jpeg']
 )
 ON CONFLICT (id) DO UPDATE SET
     public = EXCLUDED.public,
