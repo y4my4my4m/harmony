@@ -966,6 +966,8 @@ const vClickOutside = {
   right: 0;
   bottom: 0;
   background-color: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1453,25 +1455,26 @@ const vClickOutside = {
 
 /* Mobile responsive */
 @media (max-width: 768px) {
-  /* ---------- Modal composer (full-screen on mobile) ---------- */
+  /* ---------- Modal composer ---------- */
+  /* Keep the modal centered over a dimmed/blurred backdrop (like our other
+     modals) and just let it grow in height to fit its content, instead of
+     forcing a full-screen sheet that left a huge empty gap below the input. */
   .composer-overlay {
-    padding: 0;
-    align-items: stretch;
+    padding: 1rem;
+    align-items: center;
   }
 
   .composer-modal {
-    max-height: 100dvh;
-    height: 100dvh;
+    max-height: 85vh;
+    height: auto;
     max-width: 100%;
-    border-radius: 0;
+    border-radius: 1rem;
     display: flex;
     flex-direction: column;
   }
 
-  /* Header stays pinned at the top; only the body grows and scrolls.
-     The previous `.composer-modal > div` rule also matched the header,
-     stretching it to fill half the screen and leaving a huge empty gap
-     above the input (see mobile "Create a Post" composer). */
+  /* Header stays pinned at the top; only the body grows and scrolls once the
+     content exceeds the modal's max-height. */
   .composer-modal > .composer-header {
     flex-shrink: 0;
     padding: 1rem;
