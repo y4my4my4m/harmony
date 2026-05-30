@@ -462,9 +462,9 @@ const handleAvatarUpload = async (file: File) => {
     })
     
     toast.success('Avatar updated successfully')
-  } catch (error) {
+  } catch (error: any) {
     debug.error('Error uploading avatar:', error)
-    toast.error('Failed to upload avatar')
+    toast.error(error?.message || 'Failed to upload avatar')
   } finally {
     loading.value = false
   }

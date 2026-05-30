@@ -2,8 +2,8 @@
   <!-- Loading Screen -->
   <div v-if="!isAppReady" class="loading-overlay">
     <div class="loading-spinner-container">
-      <LoadingSpinner :size="40" />
-      <p>Loading Harmony...</p>
+      <LoadingSpinner />
+      <p class="loading-state-label">Loading {{ instanceName }}...</p>
     </div>
   </div>
   
@@ -108,6 +108,7 @@ import UserProfileComponent from '@/components/UserProfileComponent.vue'
 import { useServerChannelStore } from '@/stores/useServerChannel'
 import { useAuthStore } from '@/stores/auth'
 import { useProfileStore } from '@/stores/useProfile'
+import { useInstanceSettingsStore } from '@/stores/useInstanceSettings'
 import { useMobileGestures } from '@/composables/useMobileGestures'
 import { useLayoutState } from '@/composables/useLayoutState'
 import { useTimelineSwipe } from '@/composables/useTimelineSwipe'
@@ -123,9 +124,14 @@ import { realtimeConnectionManager } from '@/services/RealtimeConnectionManager'
 const serverChannelStore = useServerChannelStore()
 const authStore = useAuthStore()
 const profileStore = useProfileStore()
+const instanceSettingsStore = useInstanceSettingsStore()
 const voiceStore = useUnifiedVoiceChannelStore()
 const route = useRoute()
 const router = useRouter()
+
+// Branded loading label - falls back to the env default / "Harmony" before
+// instance settings have loaded from the DB.
+const instanceName = computed(() => instanceSettingsStore.settings.instanceName || 'Harmony')
 
 // Composables
 const { touchState, handleTouchStart, handleTouchMove, handleTouchEnd } = useMobileGestures()

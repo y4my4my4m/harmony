@@ -13,6 +13,10 @@ import { computed } from 'vue'
  * Note: spinners that sit INSIDE a coloured button should keep using a
  * contrast colour (white / currentColor) for legibility - this component is for
  * standalone loading states on the app background.
+ *
+ * Pair with a label inside `.loading-state`, `.loading-spinner-container`,
+ * `.loading-indicator`, or `div.loading` so design-system `gap: 1rem` applies.
+ * Use `.loading-state-label` on caption text (margin reset).
  */
 const props = withDefaults(defineProps<{
   /** Diameter in px (number) or any CSS length (string). */
@@ -20,8 +24,9 @@ const props = withDefaults(defineProps<{
   /** Border thickness in px. */
   thickness?: number
 }>(), {
-  size: 24,
-  thickness: 2,
+  // Matches the original app-boot / design-system `.loading-spinner` (BaseLayout).
+  size: 32,
+  thickness: 3,
 })
 
 const spinnerStyle = computed(() => {
@@ -38,10 +43,10 @@ const spinnerStyle = computed(() => {
 .harmony-spinner {
   box-sizing: border-box;
   border-style: solid;
-  border-color: color-mix(in srgb, var(--harmony-primary) 22%, transparent);
-  border-top-color: var(--harmony-primary);
+  border-color: rgba(255, 255, 255, 0.08);
+  border-top-color: var(--harmony-primary, var(--h-brand, #0ea5e9));
   border-radius: 50%;
-  animation: harmony-spin 0.8s linear infinite;
+  animation: harmony-spin 1s linear infinite;
 }
 
 @keyframes harmony-spin {

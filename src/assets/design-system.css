@@ -883,14 +883,35 @@ strong {
   gap: var(--space-3);
 }
 
-/* Loading States */
+/* Loading States — spinner + label stacks (replaces legacy .loading-spinner margin-bottom).
+   Scoped with :has() so ONLY containers that directly hold a <LoadingSpinner>
+   (.harmony-spinner) get centered + gapped. Containers that hold skeleton grids
+   or other custom loaders (e.g. DM FollowersList .loading-state > .loading-grid)
+   are left completely untouched. */
+.loading-state:has(> .harmony-spinner),
+.loading-indicator:has(> .harmony-spinner),
+.loading-header:has(> .harmony-spinner),
+div.loading:has(> .harmony-spinner) {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
 .loading-spinner-container {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 1rem;
   height: 100%;
   width: 100%;
+}
+
+.loading-spinner-container p,
+.loading-state:has(> .harmony-spinner) > p,
+.loading-state-label {
+  margin: 0;
 }
 
 .loading-spinner {

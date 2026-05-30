@@ -516,9 +516,14 @@ CREATE TABLE IF NOT EXISTS public.conversation_participants (
     -- Last read tracking
     last_read_at timestamp with time zone,
     last_read_message_id uuid,
-    
+
     -- Notifications
     is_muted boolean DEFAULT false,
+
+    -- Per-user dismissal: hide the conversation from this user's list without
+    -- deleting it or leaving. Cleared (set back to NULL) when the conversation
+    -- is reopened or a newer message arrives, so it reappears on new activity.
+    hidden_at timestamp with time zone,
 
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
     updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,

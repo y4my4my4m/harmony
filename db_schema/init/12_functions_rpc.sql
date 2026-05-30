@@ -1419,6 +1419,37 @@ AS $$
     LIMIT 1;
 $$;
 
+-- Batched supporter badge RPC. Returns one row per user that actually has a
+-- qualifying badge, keyed by user_id, so the client can resolve badges for an
+-- entire chat view (every distinct author) in a single round-trip instead of
+-- firing one get_supporter_badge call per user (the N+1 storm).
+CREATE OR REPLACE FUNCTION public.get_supporter_badges(p_user_ids uuid[])
+RETURNS TABLE(
+    user_id uuid,
+    tier_name text,
+    badge_icon text,
+    badge_color text,
+    is_active boolean
+)
+LANGUAGE sql STABLE
+AS $$
+    SELECT DISTINCT ON (s.user_id)
+        s.user_id,
+        t.name AS tier_name,
+        t.badge_icon,
+        t.badge_color,
+        s.is_active
+    FROM public.instance_supporters s
+    JOIN public.instance_supporter_tiers t ON t.id = s.tier_id
+    WHERE s.user_id = ANY(p_user_ids)
+      AND s.is_active = true
+      AND s.tier_id IS NOT NULL
+      AND (s.expires_at IS NULL OR s.expires_at > NOW())
+    ORDER BY s.user_id, t.min_amount DESC NULLS LAST, s.started_at DESC;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.get_supporter_badges(uuid[]) TO authenticated;
+
 -- Funding total from donations (SECURITY DEFINER so any user can see aggregate)
 CREATE OR REPLACE FUNCTION public.get_funding_current_total(p_period text DEFAULT 'monthly')
 RETURNS numeric
@@ -1439,6 +1470,37 @@ GRANT EXECUTE ON FUNCTION public.get_pending_reports_count() TO authenticated;
 GRANT EXECUTE ON FUNCTION public.get_reports_with_details(text, integer, integer) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.get_supporter_badge(uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.get_funding_current_total(text) TO authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Hide/dismiss a DM conversation for the current user (non-destructive).
+-- Sets or clears `conversation_participants.hidden_at` for the caller.
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.set_conversation_hidden(
+    p_conversation_id uuid,
+    p_hidden boolean
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $$
+DECLARE
+    v_profile_id uuid;
+BEGIN
+    v_profile_id := public.get_current_profile_id();
+    IF v_profile_id IS NULL THEN
+        RAISE EXCEPTION 'Not authenticated';
+    END IF;
+
+    UPDATE public.conversation_participants
+    SET hidden_at = CASE WHEN p_hidden THEN NOW() ELSE NULL END
+    WHERE conversation_id = p_conversation_id
+      AND user_id = v_profile_id
+      AND left_at IS NULL;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.set_conversation_hidden(uuid, boolean) TO authenticated;
 
 DO $$
 BEGIN

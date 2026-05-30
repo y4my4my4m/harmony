@@ -115,11 +115,6 @@
                 <span>Drop images or videos here</span>
               </div>
               
-              <!-- Character Counter -->
-              <div class="character-counter" :class="characterCounterClass">
-                {{ remainingCharacters }}
-              </div>
-              
               <!-- Auto-suggest dropdown -->
               <AutoSuggest
                 :isVisible="autoSuggest.state.value.isActive"
@@ -274,6 +269,11 @@
               
               <!-- Right: Action Buttons -->
               <div class="action-group">
+                <!-- Character Counter -->
+                <span class="character-counter" :class="characterCounterClass">
+                  {{ remainingCharacters }}
+                </span>
+
                 <!-- Draft Indicator -->
                 <span v-if="isDraft" class="draft-indicator">
                   <Icon name="save" />
@@ -966,6 +966,8 @@ const vClickOutside = {
   right: 0;
   bottom: 0;
   background-color: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1222,11 +1224,11 @@ const vClickOutside = {
 }
 
 .character-counter {
-  position: absolute;
-  bottom: 0.75rem;
-  right: 0.75rem;
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
   color: #9ca3af;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+  user-select: none;
 }
 
 .character-counter.warning {
@@ -1262,6 +1264,7 @@ const vClickOutside = {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  margin-left: auto;
 }
 
 .draft-indicator {
@@ -1453,87 +1456,103 @@ const vClickOutside = {
 
 /* Mobile responsive */
 @media (max-width: 768px) {
+  /* ---------- Modal composer ---------- */
+  /* Keep the modal centered over a dimmed/blurred backdrop (like our other
+     modals) and just let it grow in height to fit its content, instead of
+     forcing a full-screen sheet that left a huge empty gap below the input. */
   .composer-overlay {
-    padding: 0;
-    align-items: stretch;
+    padding: 1rem;
+    align-items: center;
   }
-  
+
   .composer-modal {
-    max-height: 100vh;
-    height: 100%;
+    max-height: 85vh;
+    height: auto;
     max-width: 100%;
-    border-radius: 0;
+    border-radius: 1rem;
     display: flex;
     flex-direction: column;
   }
 
-  .composer-modal > div {
-    display: flex;
-    flex-direction: column;
-    flex: 1;
-    min-height: 0;
+  /* Header stays pinned at the top; only the body grows and scrolls once the
+     content exceeds the modal's max-height. */
+  .composer-modal > .composer-header {
+    flex-shrink: 0;
+    padding: 1rem;
+    margin-bottom: 0;
   }
 
-  .composer-body {
-    flex: 1;
+  .composer-modal > .composer-body {
+    flex: 1 1 auto;
     min-height: 0;
     overflow-y: auto;
+    align-items: flex-start;
+    gap: 0.5rem;
+    padding: 1rem;
   }
-  
-  .composer-header,
-  .composer-body,
-  .composer-footer {
-    padding-left: 1rem;
-    padding-right: 1rem;
+
+  .composer-modal .composer-user {
+    padding-right: 0;
   }
-  
+
+  .composer-modal .text-input-container .rich-text-editor {
+    overflow-y: auto !important;
+    height: auto !important;
+  }
+
+  /* ---------- Inline composer ---------- */
+  /* The inline card already supplies its own padding via
+     .composer-inline-content, so we must NOT add the modal's body padding
+     on top of it (that double padding squished the inline composer). */
+  .composer-inline-content {
+    padding: 0.75rem;
+  }
+
+  /* ---------- Shared toolbar behaviour ---------- */
   .visibility-button span {
     display: none;
   }
 
+  /* Compact the toolbar so the action icons stay pinned left and the
+     Post/Cancel group sits inline on the same row whenever it fits. The icons
+     are made a touch smaller with tighter gaps to win back the horizontal
+     space the buttons need; the action group only wraps to its own (still
+     right-aligned) line when there genuinely isn't room (e.g. the narrowest
+     phones with both Cancel + Post in the modal). */
   .compose-options {
     flex-wrap: wrap;
     align-items: center;
-    gap: 0.75rem;
+    column-gap: 0.25rem;
+    row-gap: 0.5rem;
   }
 
   .option-group {
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     flex: 1 1 auto;
     min-width: 0;
+    gap: 0.125rem;
+  }
+
+  .option-button {
+    width: 34px;
+    height: 34px;
   }
 
   .action-group {
-    flex: 1 1 100%;
-    justify-content: flex-end;
+    flex: 0 0 auto;
+    margin-left: auto;
     flex-wrap: nowrap;
-    min-width: 0;
+    gap: 0.35rem;
   }
 
   .post-button {
-    padding: 0.5rem 1rem;
+    padding: 0.5rem 0.9rem;
     flex-shrink: 0;
   }
 
   .cancel-button {
+    padding: 0.5rem 0.75rem;
     flex-shrink: 0;
-  }
-
-  /* Keep the avatar in the normal flex row. It was previously positioned
-     absolutely, but its nearest positioned ancestor is the fixed full-screen
-     overlay (not the modal), so it pinned to the screen's top-left corner and
-     other rows overflowed. The default flex layout fits fine on mobile. */
-  .composer-body {
-    gap: 0.5rem;
-  }
-
-  .composer-user {
-    padding-right: 0;
-  }
-
-  .text-input-container .rich-text-editor {
-    overflow-y: auto !important;
-    height: auto !important;
   }
 }
 </style>

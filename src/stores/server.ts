@@ -4,6 +4,7 @@ import { useToast } from 'vue-toastification';
 import type { Server, Emoji } from '@/types';
 import { debug } from '@/utils/debug'
 import { invalidateServerMemberCache } from '@/services/usersService'
+import { validateImageUpload, humanizeUploadError } from '@/utils/uploadValidation'
 
 export const useServerStore = defineStore('server', {
   actions: {
@@ -19,12 +20,20 @@ export const useServerStore = defineStore('server', {
     },
 
     async updateServer(serverData: Partial<Server>, file?: File, bannerFile?: File): Promise<boolean> {
+      const toast = useToast();
       try {
         const dataToUpdate = { ...serverData }
         
         if (file && serverData.id) {
           const ext = file.name.split('.').pop();
           if (!ext) throw new Error('File must have an extension');
+
+          const iconValidationError = await validateImageUpload(file, 'server_icons');
+          if (iconValidationError) {
+            toast.error(iconValidationError);
+            return false;
+          }
+
           const filePath = `${serverData.id}/${serverData.id}.${ext}`;
 
           debug.log('Uploading server icon to:', filePath);
@@ -34,7 +43,10 @@ export const useServerStore = defineStore('server', {
               upsert: true
             });
 
-          if (uploadError) throw uploadError;
+          if (uploadError) {
+            toast.error(humanizeUploadError(uploadError, 'server_icons'));
+            return false;
+          }
 
           dataToUpdate.icon = filePath;
         } else if (dataToUpdate.icon && dataToUpdate.icon.startsWith('blob:')) {
@@ -46,6 +58,13 @@ export const useServerStore = defineStore('server', {
         if (bannerFile && serverData.id) {
           const ext = bannerFile.name.split('.').pop();
           if (!ext) throw new Error('Banner file must have an extension');
+
+          const bannerValidationError = await validateImageUpload(bannerFile, 'server_banners');
+          if (bannerValidationError) {
+            toast.error(bannerValidationError);
+            return false;
+          }
+
           const filePath = `${serverData.id}/${serverData.id}_banner.${ext}`;
 
           debug.log('Uploading server banner to:', filePath);
@@ -55,7 +74,10 @@ export const useServerStore = defineStore('server', {
               upsert: true
             });
 
-          if (uploadError) throw uploadError;
+          if (uploadError) {
+            toast.error(humanizeUploadError(uploadError, 'server_banners'));
+            return false;
+          }
 
           dataToUpdate.banner = filePath;
         } else if (dataToUpdate.banner && dataToUpdate.banner.startsWith('blob:')) {

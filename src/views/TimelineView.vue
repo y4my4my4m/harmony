@@ -111,8 +111,9 @@ const posts = computed(() => {
       return false
     }
     
-    // Hide posts from muted users (in home timeline)
-    if (props.currentView === 'home' && mutedUsers.value.has(authorId)) {
+    // Hide posts from muted users across every timeline (home, public/federated,
+    // local) - a muted user should not reappear just because you switched tabs.
+    if (mutedUsers.value.has(authorId)) {
       return false
     }
     
