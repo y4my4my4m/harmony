@@ -37,6 +37,15 @@
               <Icon :name="voiceStore.connectionMode === 'livekit' ? 'server' : 'users'" />
               <span>{{ voiceStore.connectionMode === 'livekit' ? 'SFU' : 'P2P' }}</span>
             </div>
+
+            <!-- E2EE Indicator -->
+            <VoiceEncryptionBadge
+              v-if="voiceStore.connectionMode"
+              class="overlay-encryption-badge"
+              :encrypted="voiceStore.isEncrypted"
+              size="md"
+              show-label
+            />
             
             <button 
               @click="voiceStore.setLayoutMode('grid')"
@@ -287,6 +296,7 @@ import UnifiedVoiceUserCard from './UnifiedVoiceUserCard.vue';
 import VoiceSettingsPanel from './VoiceSettingsPanel.vue';
 import SpatialAudioPanel from './SpatialAudioPanel.vue';
 import DeviceSelector from './DeviceSelector.vue';
+import VoiceEncryptionBadge from './VoiceEncryptionBadge.vue';
 import ConfettiEffect from '../easteregg/ConfettiEffect.vue';
 import Icon from '@/components/common/Icon.vue';
 import DisplayName from '@/components/DisplayName.vue';

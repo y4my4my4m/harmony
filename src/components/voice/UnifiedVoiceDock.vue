@@ -47,16 +47,7 @@
             <span class="dock-connection-badge" :class="voiceStore.connectionMode || 'unknown'">
               {{ voiceStore.connectionMode === 'livekit' ? 'SFU' : voiceStore.connectionMode === 'p2p' ? 'P2P' : '' }}
             </span>
-            <span
-              v-if="voiceStore.connectionMode"
-              class="dock-encryption-badge"
-              :class="{ encrypted: voiceStore.isEncrypted }"
-              :title="voiceStore.isEncrypted
-                ? 'End-to-end encrypted — media is encrypted before it reaches the server'
-                : 'Not end-to-end encrypted — media is secured in transit (DTLS-SRTP) but the server can access it'"
-            >
-              <Icon :name="voiceStore.isEncrypted ? 'shield-check' : 'shield-off'" />
-            </span>
+            <VoiceEncryptionBadge v-if="voiceStore.connectionMode" :encrypted="voiceStore.isEncrypted" />
           </span>
         </div>
       </div>
@@ -235,6 +226,7 @@
             <template v-else>{{ channelName }}</template>
           </span>
           <span class="participant-count">{{ voiceStore.connectionStats.total }}</span>
+          <VoiceEncryptionBadge v-if="voiceStore.connectionMode" :encrypted="voiceStore.isEncrypted" />
           <!-- Recent Speakers -->
           <RecentSpeakers class="recent-speakers-container" :max-speakers="4" />
         </div>
@@ -348,6 +340,7 @@ import Icon from '@/components/common/Icon.vue';
 import Avatar from '@/components/common/Avatar.vue';
 import DisplayName from '@/components/DisplayName.vue';
 import HeadphonesIcon from '@/components/icons/Headphones.vue';
+import VoiceEncryptionBadge from './VoiceEncryptionBadge.vue';
 
 const UnifiedVoiceOverlay = defineAsyncComponent(() => import('./UnifiedVoiceOverlay.vue'));
 const VoiceSettingsPanel = defineAsyncComponent(() => import('./VoiceSettingsPanel.vue'));
@@ -1442,23 +1435,6 @@ onUnmounted(() => {
   color: #0EA5E9;
 }
 
-.dock-encryption-badge {
-  display: inline-flex;
-  align-items: center;
-  flex-shrink: 0;
-  color: var(--text-muted, #9ca3af);
-  opacity: 0.7;
-}
-
-.dock-encryption-badge.encrypted {
-  color: #57f287;
-  opacity: 1;
-}
-
-.dock-encryption-badge :deep(svg) {
-  width: 12px;
-  height: 12px;
-}
 
 /* Voice Controls */
 .voice-controls {
