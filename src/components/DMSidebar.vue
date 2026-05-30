@@ -184,6 +184,17 @@
               </div>
             </div>
           </div>
+
+          <!-- Dismiss (hide from list without deleting). Appears on hover. -->
+          <button
+            class="conversation-dismiss"
+            type="button"
+            :title="$t('dm.dismissConversation')"
+            :aria-label="$t('dm.dismissConversation')"
+            @click.stop="dismissConversation(conversation)"
+          >
+            <Icon name="x" :size="14" />
+          </button>
         </div>
       </div>
     </div>
@@ -211,6 +222,11 @@ import DisplayName from '@/components/DisplayName.vue'
 import GroupIcon from '@/components/common/GroupIcon.vue'
 import GroupChatInviteModal from '@/components/dm/GroupChatInviteModal.vue'
 import { debug } from '@/utils/debug'
+import { useToast } from 'vue-toastification'
+import { useI18n } from 'vue-i18n'
+
+const toast = useToast()
+const { t } = useI18n()
 
 const emit = defineEmits<{
   'conversationSelected': [conversationId: string]
@@ -347,6 +363,15 @@ const startConversation = async (user: DMUser) => {
 
 const selectConversation = (conversationId: string) => {
   emit('conversationSelected', conversationId)
+}
+
+const dismissConversation = async (conversation: DMConversation) => {
+  const ok = await dmStore.hideConversation(conversation.id)
+  if (ok) {
+    toast.success(t('dm.conversationDismissed'))
+  } else {
+    toast.error(t('dm.failedToDismissConversation'))
+  }
 }
 
 const handleGroupChatCreated = (conversationId: string) => {
@@ -687,6 +712,7 @@ onUnmounted(() => {
 }
 
 .conversation-item {
+  position: relative;
   display: flex;
   align-items: center;
   padding: 8px 16px;
@@ -702,6 +728,44 @@ onUnmounted(() => {
 
 .conversation-item:hover {
   background: var(--h-chat-light, var(--h-black-lighter));
+}
+
+/* Dismiss button - hidden until the row is hovered (or always shown on touch). */
+.conversation-dismiss {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: var(--background-primary, rgba(0, 0, 0, 0.45));
+  color: var(--text-muted);
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s ease, background-color 0.12s ease, color 0.12s ease;
+}
+
+.conversation-item:hover .conversation-dismiss {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.conversation-dismiss:hover {
+  background: var(--h-danger, #da373c);
+  color: #fff;
+}
+
+@media (hover: none) {
+  .conversation-dismiss {
+    opacity: 0.55;
+    pointer-events: auto;
+  }
 }
 
 .conversation-item.active {

@@ -47,6 +47,20 @@ export interface DMConversation {
   icon_url?: string // Group icon
   created_by?: string // Creator user ID
   participants?: DMUser[] // All participants for group chats
+
+  // Per-user dismissal: when set, the conversation is hidden from the list
+  // unless its latest activity is newer than this timestamp.
+  hidden_at?: string | null
+}
+
+/**
+ * A dismissed conversation stays hidden only while its most recent activity is
+ * older than `hidden_at`. Any newer message brings it back into the list.
+ */
+function isConversationHidden(hiddenAt: string | null | undefined, lastActivity: string | null | undefined): boolean {
+  if (!hiddenAt) return false
+  const lastTs = lastActivity ? new Date(lastActivity).getTime() : 0
+  return lastTs <= new Date(hiddenAt).getTime()
 }
 
 export interface DMCache {
@@ -653,6 +667,7 @@ export const useDMStore = defineStore('dm', () => {
         .from('conversation_participants')
         .select(`
           conversation_id,
+          hidden_at,
           conversations!inner(
             id,
             created_at,
@@ -747,7 +762,8 @@ export const useDMStore = defineStore('dm', () => {
       }
 
       // Step 4: Transform to simplified conversation objects (metadata only - NO user profile loading)
-      const processedConversations: DMConversation[] = participations.map((participation) => {
+      const processedConversations: DMConversation[] = participations
+        .map((participation): DMConversation | null => {
         const conversation = Array.isArray(participation.conversations) 
           ? participation.conversations[0] 
           : participation.conversations
@@ -755,6 +771,13 @@ export const useDMStore = defineStore('dm', () => {
         const otherParticipants = participantsByConv.get(conversation.id) || []
         const primaryOtherUserId = otherParticipants[0]
         const lastMessage = lastMessagesByConv.get(conversation.id)
+        const lastActivity = lastMessage?.created_at || conversation.updated_at
+
+        // Drop conversations the user dismissed, unless there's newer activity.
+        const hiddenAt = (participation as any).hidden_at as string | null | undefined
+        if (isConversationHidden(hiddenAt, lastActivity)) {
+          return null
+        }
 
         // Extract icon_url from metadata JSON for group chats
         const metadata = conversation.metadata || {}
@@ -766,7 +789,8 @@ export const useDMStore = defineStore('dm', () => {
           type: conversation.type || 'direct',
           name: conversation.name,
           icon_url: iconUrl, // For group chat icons only
-          last_activity: lastMessage?.created_at || conversation.updated_at,
+          hidden_at: hiddenAt ?? null,
+          last_activity: lastActivity,
           unread_count: 0, // Will be calculated separately if needed
           participant_count: otherParticipants.length + 1, // +1 for current user
           // Include last message for preview without loading full message history
@@ -792,6 +816,7 @@ export const useDMStore = defineStore('dm', () => {
 
         return dmConversation
       })
+        .filter((c): c is DMConversation => c !== null)
 
       // MERGE: Preserve existing conversations that have full user data loaded
       // Don't overwrite conversations that were already loaded with full details
@@ -1107,8 +1132,13 @@ export const useDMStore = defineStore('dm', () => {
       
       for (const conv of rawConversations) {
         const lastMsg = batchLastMessages.get(conv.conversation_id)
+        // Skip conversations the user dismissed, unless there's newer activity.
+        if (isConversationHidden((conv as any).hidden_at, lastMsg?.created_at)) {
+          continue
+        }
         const processedConv = await _processConversationData(conv, userId, lastMsg)
         if (processedConv) {
+          processedConv.hidden_at = (conv as any).hidden_at ?? null
           processedConversations.push(processedConv)
         }
       }
@@ -1162,6 +1192,7 @@ export const useDMStore = defineStore('dm', () => {
           conversation_id,
           role,
           joined_at,
+          hidden_at,
           conversations!inner(
             id,
             created_at,
@@ -1753,8 +1784,19 @@ export const useDMStore = defineStore('dm', () => {
       if (conversationId) {
         debug.log('✅ Conversation created/found:', conversationId)
 
-        // If conversation already in store, return immediately
+        // Reopening a conversation un-dismisses it (clears any prior hide) so it
+        // sticks around in the list even if it has no messages yet. Clear the
+        // server-side flag unconditionally - it's a cheap no-op when not hidden.
         const existing = conversations.value.find(c => c.id === conversationId)
+        if (existing?.hidden_at) existing.hidden_at = null
+        void supabase.rpc('set_conversation_hidden', {
+          p_conversation_id: conversationId,
+          p_hidden: false,
+        }).then(({ error }) => {
+          if (error) debug.warn('Failed to clear hidden flag on reopen:', error)
+        })
+
+        // If conversation already in store, return immediately
         if (!existing) {
           conversations.value.push({
             id: conversationId,
@@ -1780,6 +1822,35 @@ export const useDMStore = defineStore('dm', () => {
     } catch (error) {
       debug.error('❌ Failed to create conversation via service-like method:', error)
       return null
+    }
+  }
+
+  /**
+   * Dismiss (hide) a conversation from the current user's DM list without
+   * deleting it or leaving. It stays hidden until reopened or a newer message
+   * arrives. Optimistically removes it locally, then persists via RPC.
+   */
+  const hideConversation = async (conversationId: string): Promise<boolean> => {
+    const idx = conversations.value.findIndex(c => c.id === conversationId)
+    const removed = idx !== -1 ? conversations.value[idx] : null
+    if (idx !== -1) {
+      conversations.value.splice(idx, 1)
+    }
+
+    try {
+      const { error } = await supabase.rpc('set_conversation_hidden', {
+        p_conversation_id: conversationId,
+        p_hidden: true,
+      })
+      if (error) throw error
+      return true
+    } catch (error) {
+      debug.error('❌ Failed to hide conversation:', error)
+      // Roll back the optimistic removal so the UI stays consistent.
+      if (removed && !conversations.value.some(c => c.id === conversationId)) {
+        conversations.value.splice(idx === -1 ? conversations.value.length : idx, 0, removed)
+      }
+      return false
     }
   }
 
@@ -3218,6 +3289,7 @@ export const useDMStore = defineStore('dm', () => {
     fetchConversationDetails,
     fetchUserConversations,
     fetchUserConversationsMetadata,
+    hideConversation,
     fetchConversationMessages,
     searchUsers,
     createOrGetConversation,

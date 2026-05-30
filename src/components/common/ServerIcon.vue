@@ -48,10 +48,14 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onUnmounted } from 'vue'
+import { useToast } from 'vue-toastification'
 import { getServerIconUrl } from '../../utils/serverUtils'
 import { debug } from '@/utils/debug'
+import { validateImageUpload } from '@/utils/uploadValidation'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import CameraIcon from '@/components/icons/Camera.vue'
+
+const toast = useToast()
 
 // Types
 type serverSize = 'mini' | 'xs' | 'sm' | 'md' | 'lg' | 'xl' | '2xl'
@@ -196,20 +200,17 @@ const handleEdit = () => {
   }
 }
 
-const handleFileSelect = (event: Event) => {
+const handleFileSelect = async (event: Event) => {
   const target = event.target as HTMLInputElement
   const file = target.files?.[0]
   
   if (file) {
-    // Validate file size (max 8MB)
-    if (file.size > 8 * 1024 * 1024) {
-      alert('File size must be less than 8MB')
-      return
-    }
-    
-    // Validate file type
-    if (!file.type.startsWith('image/')) {
-      alert('Please select a valid image file')
+    // Validate against the server_icons bucket's real size/type limits and
+    // surface any problem through the toast system (not a native alert).
+    const validationError = await validateImageUpload(file, 'server_icons')
+    if (validationError) {
+      toast.error(validationError)
+      target.value = ''
       return
     }
     

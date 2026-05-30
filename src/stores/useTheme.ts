@@ -38,7 +38,7 @@ export const useThemeStore = defineStore('theme', {
     // Audio themes
     audioThemes: [],
     currentAudioTheme: 'default',
-    audioVolume: 0.7,
+    audioVolume: 1.0,
     
     // State management
     isInitialized: false,
