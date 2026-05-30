@@ -619,6 +619,19 @@ export const useDMStore = defineStore('dm', () => {
     }
   }
 
+  // When a batched/cached conversation list arrives, make sure the conversation
+  // the user is currently viewing isn't dropped. On a page refresh that lands
+  // directly on /dm/:id, fetchConversationDetails pushes that one conversation
+  // first; if the batched metadata query (limited to 50 unordered rows) doesn't
+  // include it, replacing the array wholesale made the open conversation vanish
+  // from the sidebar. Re-append it instead of letting the cache overwrite it.
+  const preserveCurrentConversation = (next: DMConversation[]): DMConversation[] => {
+    const id = currentConversationId.value
+    if (!id || next.some(c => c.id === id)) return next
+    const existing = conversations.value.find(c => c.id === id)
+    return existing ? [existing, ...next] : next
+  }
+
   // Fetch only conversation metadata (no message content, configurable user profile loading)
   // For faster initial load when user isn't actively viewing DMs
   const fetchUserConversationsMetadata = async (userId: string, loadStrategy: 'lazy' | 'partial' | 'immediate' = 'partial') => {
@@ -665,7 +678,9 @@ export const useDMStore = defineStore('dm', () => {
 
       if (!participations || participations.length === 0) {
         debug.log('📬 fetchUserConversationsMetadata: No conversations found for user')
-        conversations.value = []
+        // Don't clobber the conversation being viewed (loaded directly via URL)
+        // just because the batch query came back empty/raced.
+        conversations.value = preserveCurrentConversation([])
         return
       }
 
@@ -782,7 +797,7 @@ export const useDMStore = defineStore('dm', () => {
         return newConv
       })
       
-      conversations.value = mergedConversations
+      conversations.value = preserveCurrentConversation(mergedConversations)
 
       // Fetch DB-backed unread counts for all conversations
       const convIds = mergedConversations.map(c => c.id)
@@ -1064,7 +1079,7 @@ export const useDMStore = defineStore('dm', () => {
       // Use service-like helpers to break down complexity
       const rawConversations = await _fetchRawConversations(userId)
       if (!rawConversations || rawConversations.length === 0) {
-        conversations.value = []
+        conversations.value = preserveCurrentConversation([])
         return
       }
 
@@ -1107,7 +1122,7 @@ export const useDMStore = defineStore('dm', () => {
         debug.error('Failed to batch-load mute states:', e)
       }
       
-      conversations.value = processedConversations
+      conversations.value = preserveCurrentConversation(processedConversations)
       
     } catch (error) {
       debug.error('❌ Failed to fetch conversations via service-like method:', error)

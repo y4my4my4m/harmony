@@ -1453,40 +1453,58 @@ const vClickOutside = {
 
 /* Mobile responsive */
 @media (max-width: 768px) {
+  /* ---------- Modal composer (full-screen on mobile) ---------- */
   .composer-overlay {
     padding: 0;
     align-items: stretch;
   }
-  
+
   .composer-modal {
-    max-height: 100vh;
-    height: 100%;
+    max-height: 100dvh;
+    height: 100dvh;
     max-width: 100%;
     border-radius: 0;
     display: flex;
     flex-direction: column;
   }
 
-  .composer-modal > div {
-    display: flex;
-    flex-direction: column;
-    flex: 1;
-    min-height: 0;
+  /* Header stays pinned at the top; only the body grows and scrolls.
+     The previous `.composer-modal > div` rule also matched the header,
+     stretching it to fill half the screen and leaving a huge empty gap
+     above the input (see mobile "Create a Post" composer). */
+  .composer-modal > .composer-header {
+    flex-shrink: 0;
+    padding: 1rem;
+    margin-bottom: 0;
   }
 
-  .composer-body {
-    flex: 1;
+  .composer-modal > .composer-body {
+    flex: 1 1 auto;
     min-height: 0;
     overflow-y: auto;
+    align-items: flex-start;
+    gap: 0.5rem;
+    padding: 1rem;
   }
-  
-  .composer-header,
-  .composer-body,
-  .composer-footer {
-    padding-left: 1rem;
-    padding-right: 1rem;
+
+  .composer-modal .composer-user {
+    padding-right: 0;
   }
-  
+
+  .composer-modal .text-input-container .rich-text-editor {
+    overflow-y: auto !important;
+    height: auto !important;
+  }
+
+  /* ---------- Inline composer ---------- */
+  /* The inline card already supplies its own padding via
+     .composer-inline-content, so we must NOT add the modal's body padding
+     on top of it (that double padding squished the inline composer). */
+  .composer-inline-content {
+    padding: 0.75rem;
+  }
+
+  /* ---------- Shared toolbar behaviour ---------- */
   .visibility-button span {
     display: none;
   }
@@ -1494,17 +1512,20 @@ const vClickOutside = {
   .compose-options {
     flex-wrap: wrap;
     align-items: center;
-    gap: 0.75rem;
+    gap: 0.5rem;
+    row-gap: 0.5rem;
   }
 
+  /* Keep the icon row on one line and let the Post/Cancel group sit inline at
+     the end; it only wraps to its own line when there genuinely isn't room. */
   .option-group {
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     flex: 1 1 auto;
     min-width: 0;
   }
 
   .action-group {
-    flex: 1 1 100%;
+    flex: 0 0 auto;
     justify-content: flex-end;
     flex-wrap: nowrap;
     min-width: 0;
@@ -1517,23 +1538,6 @@ const vClickOutside = {
 
   .cancel-button {
     flex-shrink: 0;
-  }
-
-  /* Keep the avatar in the normal flex row. It was previously positioned
-     absolutely, but its nearest positioned ancestor is the fixed full-screen
-     overlay (not the modal), so it pinned to the screen's top-left corner and
-     other rows overflowed. The default flex layout fits fine on mobile. */
-  .composer-body {
-    gap: 0.5rem;
-  }
-
-  .composer-user {
-    padding-right: 0;
-  }
-
-  .text-input-container .rich-text-editor {
-    overflow-y: auto !important;
-    height: auto !important;
   }
 }
 </style>
