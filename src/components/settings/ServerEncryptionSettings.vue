@@ -106,6 +106,33 @@
         </div>
       </div>
 
+      <!-- Voice / Video E2EE -->
+      <div class="setting-group">
+        <label class="setting-label">
+          Voice &amp; Video Encryption
+          <span class="setting-hint">End-to-end encrypt call media so the media server can't access it</span>
+        </label>
+
+        <div class="checkbox-option">
+          <input
+            type="checkbox"
+            id="voice-e2ee"
+            :checked="voiceEncryptionMode === 'required'"
+            :disabled="!canModify"
+            @change="voiceEncryptionMode = ($event.target as HTMLInputElement).checked ? 'required' : 'disabled'"
+          />
+          <label for="voice-e2ee">
+            <span class="option-name">Require end-to-end encrypted voice/video</span>
+            <span class="option-hint">Call audio/video is encrypted before reaching the SFU. Unlike messages, calls are all-or-nothing.</span>
+          </label>
+        </div>
+
+        <div v-if="voiceEncryptionMode === 'required'" class="mode-warning">
+          <span class="warning-icon">⚠️</span>
+          <span>Participants who haven't set up encryption (and federated/legacy clients) will be unable to join encrypted calls.</span>
+        </div>
+      </div>
+
       <!-- Server Encryption Status -->
       <div class="setting-group">
         <label class="setting-label">Server Statistics</label>
@@ -191,6 +218,10 @@ const forceKeySetup = ref(false)
 const encryptAttachments = ref(true)
 const originalForceKeySetup = ref(false)
 const originalEncryptAttachments = ref(true)
+// Voice/video E2EE: disabled | required (no per-call "optional" — LiveKit E2EE
+// is room-wide, so a call is either fully encrypted or not).
+const voiceEncryptionMode = ref<'disabled' | 'required'>('disabled')
+const originalVoiceEncryptionMode = ref<'disabled' | 'required'>('disabled')
 
 const memberStats = ref({
   total: 0,
@@ -231,7 +262,8 @@ const canModify = computed(() => {
 const hasChanges = computed(() => {
   return currentMode.value !== originalMode.value ||
          forceKeySetup.value !== originalForceKeySetup.value ||
-         encryptAttachments.value !== originalEncryptAttachments.value
+         encryptAttachments.value !== originalEncryptAttachments.value ||
+         voiceEncryptionMode.value !== originalVoiceEncryptionMode.value
 })
 
 const statusClass = computed(() => {
@@ -293,10 +325,12 @@ async function loadSettings() {
       currentMode.value = policy.encryption_mode || 'optional'
       forceKeySetup.value = policy.force_key_setup || false
       encryptAttachments.value = policy.encrypt_attachments !== false
+      voiceEncryptionMode.value = policy.voice_encryption_mode === 'required' ? 'required' : 'disabled'
       
       originalMode.value = currentMode.value
       originalForceKeySetup.value = forceKeySetup.value
       originalEncryptAttachments.value = encryptAttachments.value
+      originalVoiceEncryptionMode.value = voiceEncryptionMode.value
     } else {
       // Create default policy
       await createDefaultPolicy()
@@ -388,6 +422,7 @@ async function saveSettings() {
       encryption_mode: currentMode.value,
       force_key_setup: forceKeySetup.value,
       encrypt_attachments: encryptAttachments.value,
+      voice_encryption_mode: voiceEncryptionMode.value,
       updated_at: new Date().toISOString()
     }
 
@@ -403,6 +438,7 @@ async function saveSettings() {
     originalMode.value = currentMode.value
     originalForceKeySetup.value = forceKeySetup.value
     originalEncryptAttachments.value = encryptAttachments.value
+    originalVoiceEncryptionMode.value = voiceEncryptionMode.value
 
     successMessage.value = 'Encryption settings saved successfully!'
     
@@ -423,6 +459,7 @@ function resetSettings() {
   currentMode.value = originalMode.value
   forceKeySetup.value = originalForceKeySetup.value
   encryptAttachments.value = originalEncryptAttachments.value
+  voiceEncryptionMode.value = originalVoiceEncryptionMode.value
   error.value = null
   successMessage.value = null
 }

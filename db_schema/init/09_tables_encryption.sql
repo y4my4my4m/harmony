@@ -297,6 +297,12 @@ CREATE TABLE IF NOT EXISTS public.server_encryption_settings (
     -- Encrypt file attachments
     encrypt_attachments boolean DEFAULT true NOT NULL,
     
+    -- Voice/video E2EE mode. Unlike messages there is no per-call "optional":
+    -- LiveKit E2EE is room-wide, so a call is either fully encrypted or not.
+    --   disabled: voice/video uses transport security only (DTLS-SRTP)
+    --   required: media is E2E encrypted; participants who can't do E2EE are refused
+    voice_encryption_mode text DEFAULT 'disabled'::text NOT NULL,
+    
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now(),
     updated_by uuid REFERENCES public.profiles(id) ON DELETE SET NULL,
@@ -305,13 +311,16 @@ CREATE TABLE IF NOT EXISTS public.server_encryption_settings (
     metadata jsonb DEFAULT '{}'::jsonb,
     
     CONSTRAINT server_encryption_settings_encryption_mode_check 
-        CHECK (encryption_mode = ANY (ARRAY['disabled'::text, 'optional'::text, 'required'::text, 'required_local_only'::text]))
+        CHECK (encryption_mode = ANY (ARRAY['disabled'::text, 'optional'::text, 'required'::text, 'required_local_only'::text])),
+    CONSTRAINT server_encryption_settings_voice_encryption_mode_check 
+        CHECK (voice_encryption_mode = ANY (ARRAY['disabled'::text, 'required'::text]))
 );
 
 CREATE INDEX IF NOT EXISTS idx_server_encryption_server ON public.server_encryption_settings(server_id);
 
 COMMENT ON TABLE public.server_encryption_settings IS 'Per-server E2EE enforcement policies. Server owners control encryption requirements.';
 COMMENT ON COLUMN public.server_encryption_settings.encryption_mode IS 'disabled: No E2EE. optional: User choice. required: All messages encrypted. required_local_only: E2EE required, federation disabled.';
+COMMENT ON COLUMN public.server_encryption_settings.voice_encryption_mode IS 'disabled: voice/video transport-secured only (DTLS-SRTP). required: voice/video media is E2E encrypted (server-blind); non-capable participants are refused.';
 
 -- ---------------------------------------------------------------------------
 -- ENCRYPTION SESSIONS - Signal Protocol session state
