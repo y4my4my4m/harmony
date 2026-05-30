@@ -2230,10 +2230,12 @@ export class LiveKitWebRTCService {
   // Shared-key distribution (Model S)
   //
   // All participants must hold the same 32-byte room key. A deterministic
-  // "coordinator" (smallest participant identity) mints the key and ships it,
-  // Megolm-wrapped, over LiveKit's data channel; everyone else applies what
-  // they receive. The key rotates whenever membership changes. The SFU only
-  // ever sees Megolm ciphertext, never the key bytes.
+  // "coordinator" (smallest participant identity) mints the key ONCE and ships
+  // it, Megolm-wrapped, over LiveKit's data channel; everyone else applies what
+  // they receive. On membership change the coordinator re-broadcasts the SAME
+  // key (re-wrapped for the new member) rather than rotating — regenerating per
+  // join desynced peers and triggered MissingKey/InvalidKey. The SFU only ever
+  // sees Megolm ciphertext, never the key bytes.
   // ---------------------------------------------------------------------------
 
   /** Identities of everyone currently in the room (self + remotes). */
@@ -2250,12 +2252,33 @@ export class LiveKitWebRTCService {
     return electKeyCoordinator(this.getRoomMemberIdentities()) === this.room.localParticipant.identity;
   }
 
+  /**
+   * Profile UUID for a participant. The LiveKit token embeds the real profile
+   * UUID in `metadata.profileId` (see federation-backend LiveKitService), so we
+   * trust that first. We MUST: the identity is always the synthetic
+   * `federated:https://{domain}/users/{username}` form — even for local users —
+   * and `resolveIdentityToUuid` can't map a local user's synthetic federated
+   * identity back to a UUID (they have no `federated_id` row), which silently
+   * dropped them from the Megolm recipient list -> "MissingKey".
+   */
+  private async resolveParticipantUuid(p: { identity: string; metadata?: string }): Promise<string | null> {
+    if (p.metadata) {
+      try {
+        const meta = JSON.parse(p.metadata) as { profileId?: string };
+        if (meta.profileId) return meta.profileId;
+      } catch {
+        /* fall through to network resolution */
+      }
+    }
+    return resolveIdentityToUuid(p.identity, this.remoteServerDomain);
+  }
+
   /** Resolve remote participant identities to profile UUIDs (Megolm recipients). */
   private async getRemoteMemberUuids(): Promise<string[]> {
     if (!this.room) return [];
     const uuids: string[] = [];
     for (const p of this.room.remoteParticipants.values()) {
-      const uuid = await resolveIdentityToUuid(p.identity, this.remoteServerDomain);
+      const uuid = await this.resolveParticipantUuid(p);
       if (uuid) uuids.push(uuid);
     }
     return uuids;
@@ -2272,9 +2295,17 @@ export class LiveKitWebRTCService {
     }
   }
 
-  /** Apply a raw shared key to the LiveKit key provider and turn E2EE on. */
+  /**
+   * Apply a raw shared key to the LiveKit key provider and turn E2EE on.
+   *
+   * Idempotent: re-applying the key we already hold is a no-op. This matters
+   * because the coordinator re-broadcasts the SAME key on every join, and
+   * calling setKey repeatedly would otherwise churn the provider's key index
+   * and desync peers (-> "MissingKey at index N").
+   */
   private async applyRoomKey(key: Uint8Array, keyId: string): Promise<void> {
     if (!this.e2eeKeyProvider || !this.room) return;
+    if (this.e2eeKeyId === keyId && this.e2eeKeyReady) return; // already applied
     // ExternalE2EEKeyProvider.setKey(ArrayBuffer) -> HKDF-derives the media key.
     await this.e2eeKeyProvider.setKey(key.buffer.slice(key.byteOffset, key.byteOffset + key.byteLength));
     await this.room.setE2EEEnabled(true);
@@ -2288,18 +2319,33 @@ export class LiveKitWebRTCService {
     debug.log('🔐 [LiveKit] Applied shared room key', keyId);
   }
 
-  /** Coordinator: mint a fresh key, apply it locally, and broadcast it. */
-  private async coordinatorIssueKey(): Promise<void> {
+  /**
+   * Coordinator: ensure a stable room key exists, then (re)wrap it for the
+   * current members and broadcast.
+   *
+   * The key is minted ONCE per call and reused for its lifetime. New joiners
+   * receive the existing key (re-wrapped to include them) rather than forcing
+   * a fresh key on everyone — regenerating per membership change caused peers
+   * to desync and drop to MissingKey/InvalidKey. (Trade-off: no forward
+   * secrecy on leave for v1; a departed member keeps the key until the call
+   * ends. Acceptable for a live media key; revisit with explicit rotation.)
+   */
+  private async coordinatorEnsureKey(): Promise<void> {
     if (!this.room || !this.channelId) return;
-    const key = voiceE2EEService.generateRoomKey();
-    const keyId = voiceE2EEService.newKeyId();
+    // Reuse the key we already hold; only mint one if this is the first time.
+    let key = this.e2eeRoomKey;
+    let keyId = this.e2eeKeyId;
+    if (!key || !keyId) {
+      key = voiceE2EEService.generateRoomKey();
+      keyId = voiceE2EEService.newKeyId();
+      await this.applyRoomKey(key, keyId);
+    }
     const recipients = await this.getRemoteMemberUuids();
-    // Wrap for remotes (no-op recipient list is fine for a solo room).
+    // Wrap the (stable) key for current remotes. Solo room -> empty list is fine.
     const cipher = await voiceE2EEService.wrapKey(key, this.channelId, recipients);
     this.lastKeyEnvelope = { t: 'voice-key', keyId, cipher };
-    await this.applyRoomKey(key, keyId);
     await this.sendE2EEEnvelope(this.lastKeyEnvelope);
-    debug.log(`🔑 [LiveKit] Coordinator issued key ${keyId} to ${recipients.length} member(s)`);
+    debug.log(`🔑 [LiveKit] Coordinator broadcast key ${keyId} to ${recipients.length} member(s)`);
   }
 
   /** Try to apply the most recently received key envelope (retried as Megolm sessions arrive). */
@@ -2321,9 +2367,9 @@ export class LiveKitWebRTCService {
       return;
     }
     if (env.t === 'voice-key-request') {
-      // A fresh joiner wants the key. If we're the coordinator, (re)issue so the
-      // new member is included as a recipient and gets a current key.
-      if (this.isE2EECoordinator()) await this.coordinatorIssueKey();
+      // A fresh joiner wants the key. If we're the coordinator, re-share the
+      // existing key wrapped to include the new member (no new key minted).
+      if (this.isE2EECoordinator()) await this.coordinatorEnsureKey();
       return;
     }
     if (env.t === 'voice-key') {
@@ -2359,18 +2405,22 @@ export class LiveKitWebRTCService {
     window.addEventListener('megolm-key-received', this.megolmKeyRetryHandler);
 
     if (this.isE2EECoordinator()) {
-      await this.coordinatorIssueKey();
+      await this.coordinatorEnsureKey();
     } else {
       await this.sendE2EEEnvelope({ t: 'voice-key-request' });
     }
     return this.waitForKey(12000);
   }
 
-  /** Re-issue the key on membership change (coordinator only). Provides rotation. */
+  /**
+   * On membership change the coordinator re-shares the existing key so newly
+   * connected members can decrypt. The key itself is stable (see
+   * coordinatorEnsureKey) — we are not rotating, just re-broadcasting.
+   */
   private async onE2EEMembershipChanged(): Promise<void> {
     if (!this.e2eeRequired || !this.room) return;
     if (this.isE2EECoordinator()) {
-      await this.coordinatorIssueKey();
+      await this.coordinatorEnsureKey();
     }
   }
 

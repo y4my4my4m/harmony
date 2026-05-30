@@ -1298,46 +1298,57 @@ export class MegolmMessageEncryptionService {
 
     debug.log(`📤 Sharing session with ${usersWithKeys} users...`)
 
-    // PARALLEL: Encrypt and store shares concurrently
-    const sharePromises = Array.from(keyMap.entries()).map(async ([userId, publicKey]) => {
-      try {
-        // Encrypt session key for this user
-        const encryptedSessionKey = await this.encryptSessionKeyForUser(
-          sessionData.sessionKey,
-          publicKey
-        )
-
-        // Store the share
-        const { error: shareError } = await supabase
-          .from('megolm_session_shares')
-          .upsert({
-            room_id: roomId,
-            session_id: sessionId,
-            sender_user_id: this.currentUserId,
-            recipient_user_id: userId,
-            encrypted_session_key: encryptedSessionKey,
-            first_known_index: 0
-          }, {
-            onConflict: 'room_id,session_id,recipient_user_id'
-          })
-
-        if (shareError) {
-          debug.error(`❌ Failed to store session share for ${userId.substring(0, 8)}:`, shareError)
-          return false
+    // PARALLEL: encrypt the session key for every recipient (cheap, CPU-bound).
+    // The N ECDH wraps are unavoidable for group E2EE — each recipient gets the
+    // key sealed to their own identity key so the server can never read it.
+    const encryptResults = await Promise.all(
+      Array.from(keyMap.entries()).map(async ([userId, publicKey]) => {
+        try {
+          const encryptedSessionKey = await this.encryptSessionKeyForUser(
+            sessionData.sessionKey,
+            publicKey
+          )
+          return { userId, encryptedSessionKey }
+        } catch (error) {
+          debug.error(`❌ Failed to encrypt session share for ${userId.substring(0, 8)}:`, error)
+          return null
         }
+      })
+    )
 
-        // Mark as shared in local state (sync)
-        megolmService.markSessionSharedWith(roomId, userId)
-        return true
-      } catch (error) {
-        debug.error(`❌ Failed to share session with ${userId.substring(0, 8)}:`, error)
-        return false
-      }
-    })
+    const rows = encryptResults
+      .filter((r): r is { userId: string; encryptedSessionKey: string } => r !== null)
+      .map(({ userId, encryptedSessionKey }) => ({
+        room_id: roomId,
+        session_id: sessionId,
+        sender_user_id: this.currentUserId!,
+        recipient_user_id: userId,
+        encrypted_session_key: encryptedSessionKey,
+        first_known_index: 0,
+      }))
 
-    const results = await Promise.all(sharePromises)
-    const successCount = results.filter(Boolean).length
-    debug.log(`✅ Session shared with ${successCount}/${usersWithKeys} users`)
+    if (rows.length === 0) {
+      debug.error('❌ No session shares could be encrypted')
+      return
+    }
+
+    // BATCH: write ALL shares in ONE upsert. Previously this fanned out to one
+    // HTTP request per recipient (1000 recipients -> 1000 round-trips); a single
+    // array upsert collapses that to one request.
+    const { error: shareError } = await supabase
+      .from('megolm_session_shares')
+      .upsert(rows, { onConflict: 'room_id,session_id,recipient_user_id' })
+
+    if (shareError) {
+      debug.error('❌ Failed to store session shares (batch):', shareError)
+      return
+    }
+
+    // Only mark as shared once the write succeeded, so a failed batch is retried.
+    for (const { recipient_user_id } of rows) {
+      megolmService.markSessionSharedWith(roomId, recipient_user_id)
+    }
+    debug.log(`✅ Session shared with ${rows.length}/${usersWithKeys} users`)
   }
 
   /**
