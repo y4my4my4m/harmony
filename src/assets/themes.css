@@ -18,7 +18,11 @@
 .message-content,
 .chat-message,
 .message-text,
-.unified-message-content {
+/* `.unified-content` is the wrapper UnifiedMessageContent.vue actually
+   renders (chat + DM message bodies). The old `.unified-message-content`
+   selector matched nothing, which is why the font-size slider appeared to
+   do nothing. */
+.unified-content {
   font-size: var(--message-font-size);
 }
 
