@@ -238,22 +238,64 @@ CREATE POLICY "Users can delete their own banner"
         )
     );
 
--- Authenticated users can upload to user_media
+-- Authenticated users can upload to user_media, but only under their OWN
+-- folder. Upload path is {profileId}/{file} (see fileService.ts), so
+-- foldername[1] must match the caller. Previously ANY authenticated user could
+-- write anywhere in this public bucket (abuse hosting / quota exhaustion).
 DROP POLICY IF EXISTS "Authenticated users can upload user_media" ON storage.objects;
 CREATE POLICY "Authenticated users can upload user_media"
     ON storage.objects FOR INSERT
     WITH CHECK (
         bucket_id = 'user_media'
         AND auth.role() = 'authenticated'
+        AND (
+            (storage.foldername(name))[1] = auth.uid()::text
+            OR (
+                public.get_current_profile_id() IS NOT NULL
+                AND (storage.foldername(name))[1] = public.get_current_profile_id()::text
+            )
+        )
     );
 
--- Server owners can upload server icons/banners
+DROP POLICY IF EXISTS "Users can update their own user_media" ON storage.objects;
+CREATE POLICY "Users can update their own user_media"
+    ON storage.objects FOR UPDATE
+    USING (
+        bucket_id = 'user_media'
+        AND auth.role() = 'authenticated'
+        AND (
+            (storage.foldername(name))[1] = auth.uid()::text
+            OR (
+                public.get_current_profile_id() IS NOT NULL
+                AND (storage.foldername(name))[1] = public.get_current_profile_id()::text
+            )
+        )
+    );
+
+DROP POLICY IF EXISTS "Users can delete their own user_media" ON storage.objects;
+CREATE POLICY "Users can delete their own user_media"
+    ON storage.objects FOR DELETE
+    USING (
+        bucket_id = 'user_media'
+        AND auth.role() = 'authenticated'
+        AND (
+            (storage.foldername(name))[1] = auth.uid()::text
+            OR (
+                public.get_current_profile_id() IS NOT NULL
+                AND (storage.foldername(name))[1] = public.get_current_profile_id()::text
+            )
+        )
+    );
+
+-- Server icons/banners: upload path is {serverId}/... and requires MANAGE_SERVER
+-- permission on that server (not merely being logged in). Previously any
+-- authenticated user could overwrite any server's icon/banner.
 DROP POLICY IF EXISTS "Server owners can upload server icons" ON storage.objects;
 CREATE POLICY "Server owners can upload server icons"
     ON storage.objects FOR INSERT
     WITH CHECK (
         bucket_id = 'server_icons'
-        AND auth.role() = 'authenticated'
+        AND public.has_permission(public.get_current_profile_id(), (storage.foldername(name))[1]::uuid, 'MANAGE_SERVER')
     );
 
 DROP POLICY IF EXISTS "Server owners can update server icons" ON storage.objects;
@@ -261,7 +303,7 @@ CREATE POLICY "Server owners can update server icons"
     ON storage.objects FOR UPDATE
     USING (
         bucket_id = 'server_icons'
-        AND auth.role() = 'authenticated'
+        AND public.has_permission(public.get_current_profile_id(), (storage.foldername(name))[1]::uuid, 'MANAGE_SERVER')
     );
 
 DROP POLICY IF EXISTS "Server owners can upload server banners" ON storage.objects;
@@ -269,7 +311,7 @@ CREATE POLICY "Server owners can upload server banners"
     ON storage.objects FOR INSERT
     WITH CHECK (
         bucket_id = 'server_banners'
-        AND auth.role() = 'authenticated'
+        AND public.has_permission(public.get_current_profile_id(), (storage.foldername(name))[1]::uuid, 'MANAGE_SERVER')
     );
 
 DROP POLICY IF EXISTS "Server owners can update server banners" ON storage.objects;
@@ -277,16 +319,25 @@ CREATE POLICY "Server owners can update server banners"
     ON storage.objects FOR UPDATE
     USING (
         bucket_id = 'server_banners'
-        AND auth.role() = 'authenticated'
+        AND public.has_permission(public.get_current_profile_id(), (storage.foldername(name))[1]::uuid, 'MANAGE_SERVER')
     );
 
--- Emoji upload (server owners or global)
+-- Emoji upload: path is {serverId}/{uploaderId}/{file}; requires MANAGE_EMOJIS
+-- on that server. Previously any authenticated user could upload to any server.
 DROP POLICY IF EXISTS "Users can upload emojis" ON storage.objects;
 CREATE POLICY "Users can upload emojis"
     ON storage.objects FOR INSERT
     WITH CHECK (
         bucket_id = 'emojis'
-        AND auth.role() = 'authenticated'
+        AND public.has_permission(public.get_current_profile_id(), (storage.foldername(name))[1]::uuid, 'MANAGE_EMOJIS')
+    );
+
+DROP POLICY IF EXISTS "Users can delete emojis" ON storage.objects;
+CREATE POLICY "Users can delete emojis"
+    ON storage.objects FOR DELETE
+    USING (
+        bucket_id = 'emojis'
+        AND public.has_permission(public.get_current_profile_id(), (storage.foldername(name))[1]::uuid, 'MANAGE_EMOJIS')
     );
 
 -- Group icons: public read access

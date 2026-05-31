@@ -48,12 +48,12 @@ class RoomEpochService {
   /** Force a new epoch for a room (manual rotate). Returns the new epoch. */
   async rotate(roomId: string, reason = 'manual_rotate'): Promise<number | null> {
     try {
-      const { data, error } = await supabase.rpc('bump_room_epoch', {
+      const { data, error } = await supabase.rpc('request_room_epoch_bump', {
         p_room_id: roomId,
         p_reason: reason,
       })
       if (error) {
-        debug.warn('⚠️ bump_room_epoch failed:', error)
+        debug.warn('⚠️ request_room_epoch_bump failed:', error)
         return null
       }
       this.invalidate(roomId)

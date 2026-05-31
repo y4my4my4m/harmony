@@ -409,31 +409,104 @@ class DeviceIdentityService {
       .neq('requesting_device_id', this.getDeviceId())
       .order('created_at', { ascending: false })
     if (error) return []
-    return (data || []) as DeviceApprovalRequest[]
+    const rows = (data || []) as DeviceApprovalRequest[]
+    const filtered: DeviceApprovalRequest[] = []
+    for (const req of rows) {
+      if (await this.canActAsApprover(userId, req)) filtered.push(req)
+    }
+    return filtered
+  }
+
+  /** Pending approval raised BY this device (the new login waiting for approval). */
+  async getOwnPendingApproval(userId: string): Promise<DeviceApprovalRequest | null> {
+    const { data, error } = await supabase
+      .from('device_approval_requests')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('requesting_device_id', this.getDeviceId())
+      .eq('status', 'pending')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    if (error) return null
+    return (data || null) as DeviceApprovalRequest | null
+  }
+
+  /** This device's row in user_devices, if registered. */
+  async getMyDeviceRow(userId: string): Promise<UserDevice | null> {
+    const { data, error } = await supabase
+      .from('user_devices')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('device_id', this.getDeviceId())
+      .maybeSingle()
+    if (error || !data) return null
+    return data as UserDevice
   }
 
   /**
-   * Approve another device. `encryptedSyncBundle` is the key-sync payload the
-   * caller wrapped for the requesting device (opaque to this service); the
-   * requesting device picks it up and unlocks history (L3).
+   * Whether THIS device should see the "approve/deny" prompt for `req`.
+   *
+   * Fresh logins (incognito, new install) must NOT act as approvers - they would
+   * otherwise see stale pending requests from previous sessions and get the
+   * confusing "someone signed in" card about themselves. Only an established
+   * session (predates the request, or explicitly recovery/verified trust) may
+   * approve another login.
    */
-  async approveDevice(requestId: string, encryptedSyncBundle?: string): Promise<void> {
-    await supabase
-      .from('device_approval_requests')
-      .update({
-        status: 'approved',
-        approved_by_device_id: this.getDeviceId(),
-        encrypted_sync_bundle: encryptedSyncBundle || null,
-        resolved_at: new Date().toISOString(),
-      })
-      .eq('id', requestId)
+  async canActAsApprover(userId: string, req: DeviceApprovalRequest): Promise<boolean> {
+    if (req.requesting_device_id === this.getDeviceId()) return false
+
+    const myDevice = await this.getMyDeviceRow(userId)
+    if (!myDevice || myDevice.revoked_at) return false
+
+    if (myDevice.trust_state === 'verified' || myDevice.trust_state === 'recovery') {
+      return true
+    }
+
+    const myCreated = new Date(myDevice.created_at).getTime()
+    const reqCreated = new Date(req.created_at).getTime()
+    // Established session: registered well before this login request.
+    return myCreated <= reqCreated - 5000
   }
 
+  /** Sign out THIS device row (for "this wasn't me" on a fresh login). */
+  async revokeCurrentDevice(): Promise<void> {
+    const userId = await this.resolveUserId()
+    if (!userId) return
+    const deviceId = this.getDeviceId()
+    const { error } = await supabase
+      .from('user_devices')
+      .update({ trust_state: 'revoked', revoked_at: new Date().toISOString() })
+      .eq('user_id', userId)
+      .eq('device_id', deviceId)
+    if (error) {
+      debug.error('❌ Failed to revoke current device:', error)
+      throw new Error(error.message || 'Failed to secure account')
+    }
+  }
+
+  /**
+   * Approve another device via the server-enforced RPC. The RPC verifies THIS
+   * device is an established approver (predates the request or already trusted),
+   * so a freshly-logged-in attacker device can't approve itself. It also elevates
+   * the requesting device to 'verified'. `encryptedSyncBundle` is the optional
+   * key-sync payload the requesting device picks up to unlock history (L3).
+   */
+  async approveDevice(requestId: string, encryptedSyncBundle?: string): Promise<void> {
+    const { error } = await supabase.rpc('approve_device_request', {
+      p_request_id: requestId,
+      p_approver_device_id: this.getDeviceId(),
+      p_encrypted_sync_bundle: encryptedSyncBundle || null,
+    })
+    if (error) throw new Error(error.message || 'Failed to approve device')
+  }
+
+  /** Deny/secure a pending login. The RPC also revokes the requesting device. */
   async denyDevice(requestId: string): Promise<void> {
-    await supabase
-      .from('device_approval_requests')
-      .update({ status: 'denied', resolved_at: new Date().toISOString() })
-      .eq('id', requestId)
+    const { error } = await supabase.rpc('deny_device_request', {
+      p_request_id: requestId,
+    })
+    if (error) throw new Error(error.message || 'Failed to deny device')
   }
 }
 

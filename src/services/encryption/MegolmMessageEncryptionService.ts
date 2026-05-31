@@ -35,18 +35,6 @@ import { roomEpochService } from './RoomEpochService'
 import type { MessagePart } from '@/types'
 import { debug } from '@/utils/debug'
 
-/**
- * v1 deprecation cutoff. Honest clients stopped emitting unsigned `megolm_v1`
- * on the send path (see encryptMessage). Any `megolm_v1` message whose
- * timestamp is at/after this instant therefore did NOT come from a current
- * client and is treated as suspicious (still decrypted so users can read, but
- * never reported as sender-verified and logged loudly). Messages before the
- * cutoff are legitimate legacy history and decrypt quietly.
- *
- * 2026-05-29T00:00:00Z - the day v1 send was removed.
- */
-const MEGOLM_V1_DEPRECATION_CUTOFF_MS = Date.UTC(2026, 4, 29)
-
 export interface MegolmEncryptionStatus {
   enabled: boolean
   hasRecoveryKey: boolean
@@ -1023,36 +1011,25 @@ export class MegolmMessageEncryptionService {
       return { content, senderVerified: true }
     }
 
-    if (metadata.algorithm === 'megolm_v2_signed' || metadata.algorithm === 'megolm_v1') {
-      // Verification step runs BEFORE decryption:
+    if (metadata.algorithm === 'megolm_v2_signed') {
+      // Verify the per-message signature BEFORE decryption:
       //   - It's pointless to spend CPU decrypting a message we'll reject.
       //   - More importantly, it prevents an attacker from using bogus
       //     signed-metadata to push the client into the key-request /
       //     session-share fallback path (network noise + log spam).
-      if (metadata.algorithm === 'megolm_v2_signed') {
-        const senderVerified = await this.verifyV2Signature(message)
-        if (!senderVerified) {
-          throw new Error('Sender signature invalid - refusing to display tampered message')
-        }
-      } else {
-        // v1: nothing to verify. Distinguish legitimate legacy history from
-        // a post-cutoff v1 (which no honest client emits anymore, so it is
-        // suspicious - likely a downgrade attempt or tampered metadata).
-        const senderShort = (metadata.sender_user_id || '').substring(0, 8)
-        if (typeof metadata.timestamp === 'number' && metadata.timestamp >= MEGOLM_V1_DEPRECATION_CUTOFF_MS) {
-          debug.warn(
-            `🚨 Suspicious unsigned megolm_v1 message from ${senderShort} dated after the v1 deprecation cutoff - ` +
-            `no current client emits v1. Decrypting for readability but flagging UNVERIFIED.`,
-          )
-        } else {
-          debug.warn(
-            `⚠️ Unsigned legacy megolm_v1 message from ${senderShort} - sender unverified`,
-          )
-        }
+      const senderVerified = await this.verifyV2Signature(message)
+      if (!senderVerified) {
+        throw new Error('Sender signature invalid - refusing to display tampered message')
       }
-
       const content = await this.decryptMegolmMessage(message, roomId)
-      return { content, senderVerified: metadata.algorithm === 'megolm_v2_signed' }
+      return { content, senderVerified: true }
+    }
+
+    if (metadata.algorithm === 'megolm_v1') {
+      // v1 was unsigned (no per-message sender binding). Support has been
+      // dropped entirely: an unsigned message can be forged/reattributed, so we
+      // refuse to display it rather than render unverifiable content.
+      throw new Error('Unsupported legacy message (megolm_v1) - sender cannot be verified')
     }
 
     if (metadata.algorithm === 'signal_protocol_v1_hybrid') {

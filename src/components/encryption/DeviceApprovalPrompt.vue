@@ -1,14 +1,15 @@
 <template>
   <Teleport to="body">
+    <!-- Established device: approve/deny someone else's login -->
     <transition name="device-approval-fade">
-      <div v-if="current" class="device-approval-card" role="dialog" aria-live="polite">
+      <div v-if="currentApprover" class="device-approval-card" role="dialog" aria-live="polite">
         <div class="dap-icon">
           <Icon name="smartphone" :size="22" />
         </div>
         <div class="dap-body">
-          <strong class="dap-title">New login{{ current.requesting_label ? ` on ${current.requesting_label}` : '' }}</strong>
+          <strong class="dap-title">New login{{ currentApprover.requesting_label ? ` on ${currentApprover.requesting_label}` : '' }}</strong>
           <p class="dap-text">
-            Someone just signed in to your account. If this was you, approve it to unlock your
+            A new device signed in to your account. If this was you, approve it to unlock
             encrypted message history on that device.
           </p>
           <div class="dap-actions">
@@ -25,6 +26,36 @@
         </div>
       </div>
     </transition>
+
+    <!-- Fresh login: waiting for approval on another device -->
+    <transition name="device-approval-fade">
+      <div
+        v-if="showOwnPending"
+        class="device-approval-card device-approval-card-waiting"
+        role="dialog"
+        aria-live="polite"
+      >
+        <div class="dap-icon">
+          <Icon name="clock" :size="22" />
+        </div>
+        <div class="dap-body">
+          <strong class="dap-title">Approve this login on another device</strong>
+          <p class="dap-text">
+            Open Harmony on a device where you're already signed in and tap
+            <strong>Yes, it's me</strong> to unlock your encrypted message history here.
+            New messages still work in the meantime.
+          </p>
+          <div class="dap-actions">
+            <button class="dap-btn dap-btn-approve" :disabled="busy" @click="onDismissWaiting">
+              Got it
+            </button>
+            <button class="dap-btn dap-btn-deny" :disabled="busy" @click="onSecureThisLogin">
+              This wasn't me
+            </button>
+          </div>
+        </div>
+      </div>
+    </transition>
   </Teleport>
 </template>
 
@@ -35,31 +66,89 @@ import { useDeviceApprovals } from '@/composables/useDeviceApprovals'
 import type { DeviceApprovalRequest } from '@/services/encryption/DeviceIdentityService'
 import { debug } from '@/utils/debug'
 
-const { pendingApprovals, start, approve, deny } = useDeviceApprovals()
+const {
+  pendingApprovals,
+  ownPendingRequest,
+  ownPendingDismissed,
+  start,
+  approve,
+  deny,
+  dismissOwnPending,
+  secureThisLogin,
+} = useDeviceApprovals()
 const busy = ref(false)
 
-// Show one prompt at a time (the most recent); the rest queue behind it.
-const current = computed<DeviceApprovalRequest | null>(() => pendingApprovals.value[0] || null)
+// Show one approver prompt at a time; the rest queue behind it.
+const currentApprover = computed<DeviceApprovalRequest | null>(
+  () => pendingApprovals.value[0] || null,
+)
+
+const showOwnPending = computed(
+  () => !!ownPendingRequest.value && !ownPendingDismissed.value && !currentApprover.value,
+)
 
 async function onApprove() {
-  if (!current.value || busy.value) return
+  if (!currentApprover.value || busy.value) return
   busy.value = true
   try {
-    await approve(current.value)
+    await approve(currentApprover.value)
   } catch (err) {
     debug.warn('⚠️ Approve device failed:', err)
+    try {
+      const { useNotificationStore } = await import('@/stores/useNotification')
+      useNotificationStore().showToast(
+        'server_update',
+        'Could not approve login',
+        err instanceof Error ? err.message : 'Please try again.',
+        6000,
+      )
+    } catch { /* non-fatal */ }
   } finally {
     busy.value = false
   }
 }
 
 async function onDeny() {
-  if (!current.value || busy.value) return
+  if (!currentApprover.value || busy.value) return
   busy.value = true
   try {
-    await deny(current.value)
+    await deny(currentApprover.value)
   } catch (err) {
     debug.warn('⚠️ Deny device failed:', err)
+    try {
+      const { useNotificationStore } = await import('@/stores/useNotification')
+      useNotificationStore().showToast(
+        'server_update',
+        'Could not secure account',
+        err instanceof Error ? err.message : 'Please try again from Settings → Privacy.',
+        7000,
+      )
+    } catch { /* non-fatal */ }
+  } finally {
+    busy.value = false
+  }
+}
+
+function onDismissWaiting() {
+  dismissOwnPending()
+}
+
+async function onSecureThisLogin() {
+  if (busy.value) return
+  busy.value = true
+  try {
+    await secureThisLogin()
+  } catch (err) {
+    debug.warn('⚠️ Secure this login failed:', err)
+    try {
+      const { useNotificationStore } = await import('@/stores/useNotification')
+      useNotificationStore().showToast(
+        'server_update',
+        'Could not sign out',
+        err instanceof Error ? err.message : 'Please sign out manually from the user menu.',
+        7000,
+      )
+    } catch { /* non-fatal */ }
   } finally {
     busy.value = false
   }
@@ -95,9 +184,17 @@ onMounted(async () => {
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
 }
 
+.device-approval-card-waiting {
+  border-color: var(--accent, #5865f2);
+}
+
 .dap-icon {
   flex-shrink: 0;
   color: var(--warning, #f1c40f);
+}
+
+.device-approval-card-waiting .dap-icon {
+  color: var(--accent, #5865f2);
 }
 
 .dap-body {

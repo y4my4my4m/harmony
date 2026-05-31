@@ -4231,8 +4231,12 @@ EXCEPTION WHEN OTHERS THEN
 END;
 $$;
 
+-- service_role ONLY. This pushes arbitrary payloads onto any user's realtime
+-- channel; granting it to `authenticated` let any client forge notifications,
+-- conversation updates, etc. for any victim. The federation worker calls it
+-- with the service-role key; DB triggers call it as definer.
+REVOKE EXECUTE ON FUNCTION public.broadcast_user_event(uuid, jsonb) FROM authenticated;
 GRANT EXECUTE ON FUNCTION public.broadcast_user_event(uuid, jsonb) TO service_role;
-GRANT EXECUTE ON FUNCTION public.broadcast_user_event(uuid, jsonb) TO authenticated;
 
 -- Home-feed realtime push: piggybacks on `create_comprehensive_timeline_entries()`
 -- fan-out so local + remote posts both fire `home_feed:new_post` on every

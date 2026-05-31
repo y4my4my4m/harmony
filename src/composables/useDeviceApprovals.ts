@@ -13,8 +13,9 @@
  *   - device:denied            -> the request was denied; surface a security
  *       toast so the user knows the login was rejected.
  *
- * The component layer (DeviceApprovalPrompt.vue) renders `pendingApprovals`;
- * this composable owns the data + actions so it can be mounted once globally.
+ * The component layer (DeviceApprovalPrompt.vue) renders `pendingApprovals` on
+ * established devices and `ownPendingRequest` on the fresh login; this
+ * composable owns the data + actions so it can be mounted once globally.
  */
 
 import { ref, onMounted, onUnmounted } from 'vue'
@@ -23,12 +24,21 @@ import { deviceIdentityService, type DeviceApprovalRequest } from '@/services/en
 import { debug } from '@/utils/debug'
 
 const pendingApprovals = ref<DeviceApprovalRequest[]>([])
+const ownPendingRequest = ref<DeviceApprovalRequest | null>(null)
+const ownPendingDismissed = ref(false)
 let initialized = false
 let currentUserId: string | null = null
 
-function upsertApproval(req: DeviceApprovalRequest) {
-  // Never show this device its own request.
-  if (req.requesting_device_id === deviceIdentityService.getDeviceId()) return
+async function upsertApproval(req: DeviceApprovalRequest) {
+  // This device raised the request → waiting UI, not approver UI.
+  if (req.requesting_device_id === deviceIdentityService.getDeviceId()) {
+    ownPendingRequest.value = req
+    ownPendingDismissed.value = false
+    return
+  }
+  if (!currentUserId) return
+  if (!(await deviceIdentityService.canActAsApprover(currentUserId, req))) return
+
   const idx = pendingApprovals.value.findIndex(r => r.id === req.id)
   if (idx >= 0) pendingApprovals.value[idx] = req
   else pendingApprovals.value.unshift(req)
@@ -36,6 +46,15 @@ function upsertApproval(req: DeviceApprovalRequest) {
 
 function removeApproval(id: string) {
   pendingApprovals.value = pendingApprovals.value.filter(r => r.id !== id)
+  if (ownPendingRequest.value?.id === id) ownPendingRequest.value = null
+}
+
+async function refreshOwnPending(userId: string) {
+  try {
+    ownPendingRequest.value = await deviceIdentityService.getOwnPendingApproval(userId)
+  } catch {
+    ownPendingRequest.value = null
+  }
 }
 
 async function onApprovedForThisDevice(payload: Record<string, any>) {
@@ -45,6 +64,8 @@ async function onApprovedForThisDevice(payload: Record<string, any>) {
     removeApproval(payload.id)
     return
   }
+  ownPendingRequest.value = null
+  ownPendingDismissed.value = false
   try {
     const { megolmMessageEncryptionService } = await import('@/services/encryption/MegolmMessageEncryptionService')
     // Approval elevates this device to a key-sync-capable state. Claim any
@@ -68,6 +89,7 @@ async function onApprovedForThisDevice(payload: Record<string, any>) {
 async function onDeniedForThisDevice(payload: Record<string, any>) {
   removeApproval(payload.id)
   if (payload.requesting_device_id !== deviceIdentityService.getDeviceId()) return
+  ownPendingRequest.value = null
   try {
     const { useNotificationStore } = await import('@/stores/useNotification')
     useNotificationStore().showToast(
@@ -87,18 +109,24 @@ export function useDeviceApprovals() {
 
   async function start(userId: string) {
     currentUserId = userId
-    if (initialized) return
+    if (initialized) {
+      await refreshOwnPending(userId)
+      return
+    }
     initialized = true
     ownsSubscriptions = true
 
     // Seed with any already-pending requests (e.g. raised while we were offline).
     try {
       const existing = await deviceIdentityService.listPendingApprovals(userId)
-      existing.forEach(upsertApproval)
+      pendingApprovals.value = existing
+      await refreshOwnPending(userId)
     } catch { /* non-fatal */ }
 
     offFns.push(
-      userEventChannel.on('device:approval_request', (p) => upsertApproval(p as unknown as DeviceApprovalRequest)),
+      userEventChannel.on('device:approval_request', (p) => {
+        upsertApproval(p as unknown as DeviceApprovalRequest).catch(() => {})
+      }),
       userEventChannel.on('device:approved', (p) => { onApprovedForThisDevice(p) }),
       userEventChannel.on('device:denied', (p) => { onDeniedForThisDevice(p) }),
     )
@@ -106,10 +134,19 @@ export function useDeviceApprovals() {
 
   async function approve(req: DeviceApprovalRequest) {
     try {
-      // Mark the requesting device trusted, then resolve the request. (A future
+      // Server-enforced: the RPC verifies this device may approve, resolves the
+      // request, and elevates the requesting device to 'verified'. (A future
       // per-device ECDH fan-out can attach an encrypted_sync_bundle here.)
-      await deviceIdentityService.setTrustState(req.requesting_device_id, 'verified')
       await deviceIdentityService.approveDevice(req.id)
+      try {
+        const { useNotificationStore } = await import('@/stores/useNotification')
+        useNotificationStore().showToast(
+          'server_update',
+          'Login approved',
+          `${req.requesting_label || 'The new device'} can now unlock your encrypted history.`,
+          5000,
+        )
+      } catch { /* non-fatal */ }
     } finally {
       removeApproval(req.id)
     }
@@ -117,11 +154,50 @@ export function useDeviceApprovals() {
 
   async function deny(req: DeviceApprovalRequest) {
     try {
+      // The RPC marks the request denied AND revokes the requesting device row.
       await deviceIdentityService.denyDevice(req.id)
-      // Defense-in-depth: a denied login should not keep a usable device row.
-      await deviceIdentityService.revokeDevice(req.requesting_device_id).catch(() => {})
+      try {
+        const { useNotificationStore } = await import('@/stores/useNotification')
+        useNotificationStore().showToast(
+          'server_update',
+          'Login blocked',
+          `${req.requesting_label || 'That device'} was signed out for your security.`,
+          6000,
+        )
+      } catch { /* non-fatal */ }
     } finally {
       removeApproval(req.id)
+    }
+  }
+
+  /** Dismiss the "waiting for approval" card on this device (non-destructive). */
+  function dismissOwnPending() {
+    ownPendingDismissed.value = true
+  }
+
+  /** "This wasn't me" on a fresh login: revoke this device and sign out. */
+  async function secureThisLogin() {
+    try {
+      if (ownPendingRequest.value) {
+        await deviceIdentityService.denyDevice(ownPendingRequest.value.id).catch(() => {})
+      }
+      await deviceIdentityService.revokeCurrentDevice()
+      ownPendingRequest.value = null
+      ownPendingDismissed.value = false
+      const { useAuthStore } = await import('@/stores/auth')
+      await useAuthStore().logout()
+      try {
+        const { useNotificationStore } = await import('@/stores/useNotification')
+        useNotificationStore().showToast(
+          'server_update',
+          'Signed out',
+          'This login was ended for your security.',
+          5000,
+        )
+      } catch { /* non-fatal */ }
+    } catch (err) {
+      debug.error('❌ secureThisLogin failed:', err)
+      throw err
     }
   }
 
@@ -139,5 +215,14 @@ export function useDeviceApprovals() {
     }
   })
 
-  return { pendingApprovals, start, approve, deny }
+  return {
+    pendingApprovals,
+    ownPendingRequest,
+    ownPendingDismissed,
+    start,
+    approve,
+    deny,
+    dismissOwnPending,
+    secureThisLogin,
+  }
 }

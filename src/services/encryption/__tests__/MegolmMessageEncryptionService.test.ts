@@ -437,25 +437,25 @@ describe('MegolmMessageEncryptionService', () => {
       ).rejects.toThrow(/Sender signature invalid/)
     })
 
-    it('still decrypts legacy megolm_v1 messages but flags senderVerified: false', async () => {
-      // Encrypt with the underlying MegolmService directly so we bypass
-      // the v2-signing wrapper and produce a true legacy ciphertext.
+    it('refuses to decrypt legacy unsigned megolm_v1 messages', async () => {
+      // v1 had no per-message sender binding, so it can be forged/reattributed.
+      // Support was dropped: decryptMessage must reject rather than render
+      // unverifiable content.
       const raw = JSON.stringify([{ type: 'text', text: 'legacy hi' }])
       const legacy = await megolm.encryptMessage(TEST_ROOM_ID, raw)
 
-      const decrypted = await messageService.decryptMessage({
-        content: [{ type: 'text', text: legacy.ciphertext }],
-        channel_id: TEST_ROOM_ID,
-        encryption_metadata: {
-          algorithm: 'megolm_v1',
-          session_id: legacy.sessionId,
-          message_index: legacy.messageIndex,
-          sender_user_id: TEST_USER_ID,
-        },
-      })
-
-      expect(decrypted.content).toEqual([{ type: 'text', text: 'legacy hi' }])
-      expect(decrypted.senderVerified).toBe(false)
+      await expect(
+        messageService.decryptMessage({
+          content: [{ type: 'text', text: legacy.ciphertext }],
+          channel_id: TEST_ROOM_ID,
+          encryption_metadata: {
+            algorithm: 'megolm_v1',
+            session_id: legacy.sessionId,
+            message_index: legacy.messageIndex,
+            sender_user_id: TEST_USER_ID,
+          },
+        })
+      ).rejects.toThrow(/megolm_v1|Unsupported legacy/)
     })
   })
 })
