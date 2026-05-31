@@ -22,7 +22,7 @@
     </div>
 
     <ul v-else class="dm-list">
-      <li v-for="d in devices" :key="d.id" class="dm-item" :class="{ revoked: !!d.revoked_at }">
+      <li v-for="d in activeDevices" :key="d.id" class="dm-item" :class="{ revoked: !!d.revoked_at }">
         <Icon :name="platformIcon(d.platform)" :size="20" class="dm-item-icon" />
         <div class="dm-item-info">
           <div class="dm-item-label">
@@ -59,11 +59,38 @@
         </div>
       </li>
     </ul>
+
+    <!-- Signed-out / inactive devices: collapsed by default so the list doesn't
+         become a graveyard (every incognito login mints a fresh device). -->
+    <div v-if="!loading && inactiveDevices.length" class="dm-inactive">
+      <button class="dm-toggle" @click="showInactive = !showInactive">
+        <Icon :name="showInactive ? 'chevron-down' : 'chevron-right'" :size="16" />
+        {{ showInactive ? 'Hide' : 'Show' }} {{ inactiveDevices.length }} signed-out device{{ inactiveDevices.length === 1 ? '' : 's' }}
+      </button>
+
+      <ul v-if="showInactive" class="dm-list dm-list-inactive">
+        <li v-for="d in inactiveDevices" :key="d.id" class="dm-item revoked">
+          <Icon :name="platformIcon(d.platform)" :size="20" class="dm-item-icon" />
+          <div class="dm-item-info">
+            <div class="dm-item-label">
+              <span>{{ d.label || 'Unknown device' }}</span>
+              <span class="dm-trust trust-revoked">Signed out</span>
+            </div>
+            <div class="dm-item-meta">
+              {{ d.platform || 'device' }} · last active {{ formatTime(d.last_seen_at) }}
+            </div>
+          </div>
+          <div class="dm-item-actions">
+            <button class="btn btn-sm btn-secondary" :disabled="busyId === d.id" @click="onDelete(d)">Remove</button>
+          </div>
+        </li>
+      </ul>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import Icon from '@/components/common/Icon.vue'
 import { useDeviceApprovals } from '@/composables/useDeviceApprovals'
 import { deviceIdentityService, type UserDevice, type DeviceApprovalRequest } from '@/services/encryption/DeviceIdentityService'
@@ -77,7 +104,22 @@ const thisDeviceId = deviceIdentityService.getDeviceId()
 const editingId = ref<string | null>(null)
 const editLabel = ref('')
 const busyId = ref<string | null>(null)
+const showInactive = ref(false)
 let userId: string | null = null
+
+const INACTIVE_IDLE_MS = 30 * 86400_000
+
+// A device is "inactive" (collapsed) when signed out, or silent for a long
+// time. The current device is always active.
+function isInactive(d: UserDevice): boolean {
+  if (d.device_id === thisDeviceId) return false
+  if (d.revoked_at) return true
+  const lastSeen = d.last_seen_at ? new Date(d.last_seen_at).getTime() : new Date(d.created_at).getTime()
+  return Date.now() - lastSeen > INACTIVE_IDLE_MS
+}
+
+const activeDevices = computed(() => devices.value.filter(d => !isInactive(d)))
+const inactiveDevices = computed(() => devices.value.filter(isInactive))
 
 function platformIcon(platform: string | null): string {
   if (platform === 'desktop') return 'monitor'
@@ -150,6 +192,18 @@ async function onRevoke(d: UserDevice) {
   }
 }
 
+async function onDelete(d: UserDevice) {
+  busyId.value = d.id
+  try {
+    await deviceIdentityService.deleteDevice(d.device_id)
+    await loadDevices()
+  } catch (err) {
+    debug.error('❌ Remove device failed:', err)
+  } finally {
+    busyId.value = null
+  }
+}
+
 async function onApprove(req: DeviceApprovalRequest) {
   busyId.value = req.id
   try {
@@ -177,6 +231,8 @@ onMounted(async () => {
     if (ctx.isAuthenticated && ctx.profileId) {
       userId = ctx.profileId
       await start(ctx.profileId)
+      // Garbage-collect long-dead rows so the list stays manageable, then load.
+      await deviceIdentityService.pruneStaleDevices(ctx.profileId).catch(() => 0)
       await loadDevices()
     } else {
       loading.value = false
@@ -251,6 +307,28 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.dm-inactive {
+  margin-top: 12px;
+}
+
+.dm-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  color: var(--text-secondary, #888);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 4px 0;
+}
+
+.dm-toggle:hover { color: var(--text-primary, #fff); }
+
+.dm-list-inactive {
+  margin-top: 8px;
 }
 
 .dm-item {

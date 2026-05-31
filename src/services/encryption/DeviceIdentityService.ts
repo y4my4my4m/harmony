@@ -315,6 +315,66 @@ class DeviceIdentityService {
       .eq('device_id', deviceId)
   }
 
+  /** Permanently remove a device row (used to clear the list of dead entries). */
+  async deleteDevice(deviceId: string): Promise<void> {
+    const userId = await this.resolveUserId()
+    if (!userId) return
+    // Never delete the device we're currently using.
+    if (deviceId === this.getDeviceId()) return
+    const { error } = await supabase
+      .from('user_devices')
+      .delete()
+      .eq('user_id', userId)
+      .eq('device_id', deviceId)
+    if (error) {
+      debug.error('❌ Failed to delete device:', error)
+      throw new Error(error.message || 'Failed to remove device')
+    }
+  }
+
+  /**
+   * Garbage-collect dead device rows so the list doesn't grow without bound
+   * (every incognito login mints a fresh device id). Removes the caller's own
+   * rows that are either revoked a while ago or have gone silent for a long
+   * time. Conservative thresholds; never touches the current device. Returns
+   * how many rows were removed.
+   */
+  async pruneStaleDevices(
+    userId: string,
+    opts: { revokedOlderThanDays?: number; idleOlderThanDays?: number } = {},
+  ): Promise<number> {
+    const revokedDays = opts.revokedOlderThanDays ?? 30
+    const idleDays = opts.idleOlderThanDays ?? 90
+    const now = Date.now()
+    const thisDevice = this.getDeviceId()
+
+    let devices: UserDevice[]
+    try {
+      devices = await this.listAllDevices(userId)
+    } catch {
+      return 0
+    }
+
+    const toDelete = devices.filter(d => {
+      if (d.device_id === thisDevice) return false
+      const revokedStale =
+        !!d.revoked_at && now - new Date(d.revoked_at).getTime() > revokedDays * 86400_000
+      const lastSeen = d.last_seen_at ? new Date(d.last_seen_at).getTime() : new Date(d.created_at).getTime()
+      const idleStale = now - lastSeen > idleDays * 86400_000
+      return revokedStale || idleStale
+    })
+
+    let removed = 0
+    for (const d of toDelete) {
+      try {
+        await this.deleteDevice(d.device_id)
+        removed++
+      } catch { /* best-effort */ }
+    }
+    if (removed > 0) debug.log(`🧹 Pruned ${removed} stale device row(s)`)
+    return removed
+  }
+
   // ---------------------------------------------------------------------------
   // Device approval ("new login - was this you?")
   // ---------------------------------------------------------------------------

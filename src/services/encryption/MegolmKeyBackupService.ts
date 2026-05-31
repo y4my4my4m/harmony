@@ -84,6 +84,8 @@ export class MegolmKeyBackupService {
   private static instance: MegolmKeyBackupService
   private userId: string | null = null
   private autoBackupEnabled = true
+  private autoBackupTimer: ReturnType<typeof setTimeout> | null = null
+  private readonly AUTO_BACKUP_DEBOUNCE_MS = 4000
 
   private broadcastUnsubs: Array<() => void> = []
 
@@ -674,18 +676,25 @@ export class MegolmKeyBackupService {
   }
 
   /**
-   * Trigger backup if auto-backup is enabled
-   * Called after creating new sessions
+   * Trigger backup if auto-backup is enabled.
+   *
+   * Debounced: callers fire this per new session (and a burst of new rooms /
+   * rapid sends could otherwise re-upload the whole backup many times in a
+   * row). We coalesce into a single trailing backup a few seconds after the
+   * last trigger. The backup is a full snapshot, so the latest run captures
+   * everything regardless of how many triggers were dropped.
    */
   async triggerAutoBackup(): Promise<void> {
     if (!this.autoBackupEnabled) return
+    if (this.autoBackupTimer) return // a backup is already scheduled
 
-    try {
-      await this.createBackup()
-    } catch (error) {
-      debug.warn('⚠️ Auto-backup failed:', error)
-      // Don't throw - auto-backup failure shouldn't block operations
-    }
+    this.autoBackupTimer = setTimeout(() => {
+      this.autoBackupTimer = null
+      this.createBackup().catch(error => {
+        debug.warn('⚠️ Auto-backup failed:', error)
+        // Don't throw - auto-backup failure shouldn't block operations
+      })
+    }, this.AUTO_BACKUP_DEBOUNCE_MS)
   }
 
   // =====================================================

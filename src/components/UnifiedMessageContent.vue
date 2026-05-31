@@ -51,9 +51,23 @@
         >
           <!-- Encrypted glyphs -->
           <template v-if="encrypted && !decrypted">
+            <!-- Permanently unrecoverable: encrypted with a key that no longer
+                 exists. No click-to-decrypt - retrying would never succeed. -->
+            <span
+              v-if="unrecoverable"
+              class="encrypted-no-decrypt encrypted-unrecoverable"
+              title="This message was encrypted with a previous key that no longer exists on this account, so it can't be decrypted."
+            >
+              <span class="unrecoverable-lock" aria-hidden="true">🔒</span>
+              <span
+                v-for="(char, charIdx) in generateGlyphs(part.text || 'encrypted')"
+                :key="`${partIndex}-${charIdx}`"
+                class="glyph-char glyph-lost"
+              >{{ char }}</span>
+            </span>
             <!-- Clickable version (user has encryption set up) -->
             <span 
-              v-if="canDecrypt"
+              v-else-if="canDecrypt"
               class="encrypted-click-target"
               @click="handleDecryptClick"
               :title="decrypting ? 'Decrypting...' : 'Click to decrypt'"
@@ -428,6 +442,15 @@ export default defineComponent({
       default: false
     },
     canDecrypt: {
+      type: Boolean,
+      default: false
+    },
+    /**
+     * The message is encrypted with a key that no longer exists (it predates the
+     * current encryption identity). Decryption can never succeed, so the UI must
+     * NOT offer a click-to-decrypt retry for it.
+     */
+    unrecoverable: {
       type: Boolean,
       default: false
     },
@@ -1540,4 +1563,24 @@ export default defineComponent({
 }
 
 /* Encrypted message styles now use global design-system.css */
+
+/* Permanently unrecoverable message: encrypted with a key that no longer
+   exists. Visually muted + a lock prefix, and explicitly NOT clickable so the
+   user isn't invited to retry something that can never succeed. */
+.encrypted-unrecoverable {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.encrypted-unrecoverable .unrecoverable-lock {
+  margin-right: 4px;
+  font-size: 0.85em;
+  opacity: 0.8;
+}
+
+.encrypted-unrecoverable .glyph-lost {
+  animation: none;
+  color: var(--text-muted, var(--text-secondary, #888));
+  filter: grayscale(1);
+}
 </style>

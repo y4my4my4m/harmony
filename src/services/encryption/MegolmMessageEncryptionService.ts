@@ -117,6 +117,15 @@ export class MegolmMessageEncryptionService {
   private signingKeyCache = new Map<string, CachedSigningKey>()
   private static readonly SIGNING_KEY_CACHE_TTL_MS = 5 * 60_000
 
+  // Session ids we've already triggered a key-backup for this run. Sending under
+  // a brand-new outbound session refreshes the backup once so the sender can
+  // read their own messages on a future device (see encryptMessage).
+  private backedUpSessionIds = new Set<string>()
+
+  // Cached "identity epoch" (created_at of the active key pair). See
+  // getIdentityCreatedAt(). Cleared on reset/cleanup.
+  private identityCreatedAtMs: number | null = null
+
   private constructor() {}
 
   static getInstance(): MegolmMessageEncryptionService {
@@ -873,6 +882,19 @@ export class MegolmMessageEncryptionService {
       // in-memory `sharedWith` list is stale).
       this.ensureSessionShared(roomId, encryptedMessage.sessionId, recipientIds)
         .catch(err => debug.warn('⚠️ Background session sharing failed:', err))
+    }
+
+    // Refresh the encrypted key backup the first time we send under a given
+    // session. CRITICAL for reading our OWN messages on a fresh device:
+    // recipients recover via server-side megolm_session_shares, but the SENDER
+    // is intentionally excluded from those shares and relies solely on the
+    // backup. The backup used to be written only at setup, so every outbound
+    // session created afterwards was unrecoverable on a new login - our own
+    // messages showed "session key not available" while everyone else read
+    // them fine. triggerAutoBackup is debounced, so bursts coalesce.
+    if (!this.backedUpSessionIds.has(encryptedMessage.sessionId)) {
+      this.backedUpSessionIds.add(encryptedMessage.sessionId)
+      megolmKeyBackupService.triggerAutoBackup().catch(() => {})
     }
 
     // Store encrypted message in content as base64 text
@@ -1745,6 +1767,29 @@ export class MegolmMessageEncryptionService {
   }
 
   /**
+   * Timestamp (ms) the current encryption identity was created, a.k.a. the
+   * "identity epoch". Messages encrypted before this point were sealed to a
+   * previous identity whose private key no longer exists, so a missing session
+   * key for them is *permanent*, not a transient "ask the sender" situation.
+   * The UI uses this to distinguish unrecoverable messages from retryable ones.
+   * Cached; cleared on reset/cleanup.
+   */
+  async getIdentityCreatedAt(): Promise<number | null> {
+    if (this.identityCreatedAtMs !== null) return this.identityCreatedAtMs
+    try {
+      const { data } = await supabase.rpc('get_my_key_pair')
+      const row = (Array.isArray(data) ? data[0] : null) as { created_at?: string } | null
+      if (row?.created_at) {
+        this.identityCreatedAtMs = new Date(row.created_at).getTime()
+        return this.identityCreatedAtMs
+      }
+    } catch {
+      /* best-effort; treat as unknown */
+    }
+    return null
+  }
+
+  /**
    * Reset encryption (delete all data)
    */
   async resetEncryption(): Promise<void> {
@@ -1756,6 +1801,8 @@ export class MegolmMessageEncryptionService {
     await identityKeyStore.clear(this.currentUserId).catch(() => {})
     await signingKeyStore.clear(this.currentUserId).catch(() => {})
     this.signingKeyCache.clear()
+    this.backedUpSessionIds.clear()
+    this.identityCreatedAtMs = null
     this.clearLegacyStorage()
 
     // Delete the local backup record.
