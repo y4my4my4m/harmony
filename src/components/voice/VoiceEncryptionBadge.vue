@@ -39,6 +39,7 @@ withDefaults(
 .voice-encryption-badge.encrypted {
   color: #57f287;
   opacity: 1;
+  display: flex;
 }
 
 .voice-encryption-badge.sm :deep(svg) {

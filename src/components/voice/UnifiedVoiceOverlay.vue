@@ -786,7 +786,7 @@ const connectionStats = computed(() => voiceStore.connectionStats);
   gap: 4px;
   padding: 6px 10px;
   border-radius: 6px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
