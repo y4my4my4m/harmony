@@ -254,30 +254,64 @@ class DeviceIdentityService {
     return (data.device_signing_public_key as string) || null
   }
 
+  /**
+   * Resolve the caller's profile id. Prefers the id set during ensureRegistered,
+   * but falls back to the auth context. This matters because device management
+   * (rename / sign out) is reachable while encryption is LOCKED - in which case
+   * ensureRegistered never ran and `this.userId` is null. Previously these
+   * methods early-returned on null, so the buttons silently did nothing.
+   */
+  private async resolveUserId(): Promise<string | null> {
+    if (this.userId) return this.userId
+    try {
+      const { authContextService } = await import('@/services/AuthContextService')
+      const ctx = await authContextService.getCurrentContext()
+      if (ctx.isAuthenticated && ctx.profileId) return ctx.profileId
+    } catch { /* fall through */ }
+    return null
+  }
+
   async revokeDevice(deviceId: string): Promise<void> {
-    if (!this.userId) return
-    await supabase
+    const userId = await this.resolveUserId()
+    if (!userId) {
+      debug.warn('⚠️ revokeDevice: no profile id available')
+      return
+    }
+    const { error } = await supabase
       .from('user_devices')
       .update({ trust_state: 'revoked', revoked_at: new Date().toISOString() })
-      .eq('user_id', this.userId)
+      .eq('user_id', userId)
       .eq('device_id', deviceId)
+    if (error) {
+      debug.error('❌ Failed to revoke device:', error)
+      throw new Error(error.message || 'Failed to sign out device')
+    }
   }
 
   async renameDevice(deviceId: string, label: string): Promise<void> {
-    if (!this.userId) return
-    await supabase
+    const userId = await this.resolveUserId()
+    if (!userId) {
+      debug.warn('⚠️ renameDevice: no profile id available')
+      return
+    }
+    const { error } = await supabase
       .from('user_devices')
       .update({ label })
-      .eq('user_id', this.userId)
+      .eq('user_id', userId)
       .eq('device_id', deviceId)
+    if (error) {
+      debug.error('❌ Failed to rename device:', error)
+      throw new Error(error.message || 'Failed to rename device')
+    }
   }
 
   async setTrustState(deviceId: string, trustState: DeviceTrustState): Promise<void> {
-    if (!this.userId) return
+    const userId = await this.resolveUserId()
+    if (!userId) return
     await supabase
       .from('user_devices')
       .update({ trust_state: trustState })
-      .eq('user_id', this.userId)
+      .eq('user_id', userId)
       .eq('device_id', deviceId)
   }
 

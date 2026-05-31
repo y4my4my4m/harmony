@@ -127,13 +127,27 @@ async function saveRename(d: UserDevice) {
   const label = editLabel.value.trim()
   editingId.value = null
   if (!label || label === d.label) return
-  await deviceIdentityService.renameDevice(d.device_id, label)
-  await loadDevices()
+  busyId.value = d.id
+  try {
+    await deviceIdentityService.renameDevice(d.device_id, label)
+    await loadDevices()
+  } catch (err) {
+    debug.error('❌ Rename device failed:', err)
+  } finally {
+    busyId.value = null
+  }
 }
 
 async function onRevoke(d: UserDevice) {
-  await deviceIdentityService.revokeDevice(d.device_id)
-  await loadDevices()
+  busyId.value = d.id
+  try {
+    await deviceIdentityService.revokeDevice(d.device_id)
+    await loadDevices()
+  } catch (err) {
+    debug.error('❌ Sign out device failed:', err)
+  } finally {
+    busyId.value = null
+  }
 }
 
 async function onApprove(req: DeviceApprovalRequest) {

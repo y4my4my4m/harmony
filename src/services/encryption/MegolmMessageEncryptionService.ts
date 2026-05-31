@@ -363,8 +363,10 @@ export class MegolmMessageEncryptionService {
     await megolmService.initialize(this.currentUserId, derivedKeys.encryptionKey)
     debug.log('✅ Megolm service initialized')
 
-    // Generate identity key pair for session key exchange
-    await this.ensureIdentityKeyPair()
+    // Generate identity key pair for session key exchange. forceNew: this is a
+    // fresh setup, so replace any stale row rather than trying (and failing) to
+    // restore an old identity wrapped under a different recovery key.
+    await this.ensureIdentityKeyPair(true)
     debug.log('✅ Identity key pair ready')
 
     // Generate signing key pair for per-message sender binding
@@ -416,8 +418,14 @@ export class MegolmMessageEncryptionService {
   /**
    * Ensure user has an identity key pair for session key exchange.
    * Also ensures the private key CryptoKey is cached in IndexedDB for ECDH.
+   *
+   * @param forceNew - Used by fresh setup. Replaces any existing identity row
+   *   with a brand-new key pair instead of trying to restore it. This unblocks
+   *   "Reset Encryption -> set up again" even if a stale, undecryptable row
+   *   survived (e.g. on a deploy without the reset RPC): we overwrite it in
+   *   place rather than throwing "could not unlock".
    */
-  private async ensureIdentityKeyPair(): Promise<void> {
+  private async ensureIdentityKeyPair(forceNew = false): Promise<void> {
     if (!this.currentUserId) return
 
     const cachedKey = await identityKeyStore.load(this.currentUserId)
@@ -440,10 +448,10 @@ export class MegolmMessageEncryptionService {
     }
 
     const existingKey = (Array.isArray(keyPairRows) ? keyPairRows[0] : null) as
-      | { identity_public_key: string; identity_private_key_encrypted: string }
+      | { id?: string; identity_public_key: string; identity_private_key_encrypted: string }
       | null
 
-    if (existingKey) {
+    if (existingKey && !forceNew) {
       if (cachedKey) return
 
       // Key pair in DB but not in IndexedDB - decrypt from DB using recovery key.
@@ -498,18 +506,39 @@ export class MegolmMessageEncryptionService {
 
     const encryptedPrivateKey = await this.encryptPrivateKeyForStorage(privateKeyBase64)
 
-    const { error } = await supabase
-      .from('user_key_pairs')
-      .insert({
-        user_id: this.currentUserId,
-        identity_public_key: publicKeyBase64,
-        identity_private_key_encrypted: encryptedPrivateKey,
-        device_id: 1,
-        is_active: true
-      })
+    // If a stale row survived a reset (e.g. the reset RPC wasn't available),
+    // overwrite it in place so setup doesn't collide with UNIQUE(user_id,
+    // device_id) and doesn't leave the old, undecryptable key around. The
+    // signing columns are nulled so ensureSigningKeyPair() re-mints them under
+    // the new recovery key.
+    let writeError: { message: string } | null = null
+    if (forceNew && existingKey?.id) {
+      const { error } = await supabase
+        .from('user_key_pairs')
+        .update({
+          identity_public_key: publicKeyBase64,
+          identity_private_key_encrypted: encryptedPrivateKey,
+          identity_signing_public_key: null,
+          identity_signing_private_key_encrypted: null,
+          is_active: true,
+        })
+        .eq('id', existingKey.id)
+      writeError = error
+    } else {
+      const { error } = await supabase
+        .from('user_key_pairs')
+        .insert({
+          user_id: this.currentUserId,
+          identity_public_key: publicKeyBase64,
+          identity_private_key_encrypted: encryptedPrivateKey,
+          device_id: 1,
+          is_active: true
+        })
+      writeError = error
+    }
 
-    if (error) {
-      debug.error('❌ Failed to store identity key:', error)
+    if (writeError) {
+      debug.error('❌ Failed to store identity key:', writeError)
       throw new Error('Failed to create identity key pair')
     }
 
@@ -1721,25 +1750,34 @@ export class MegolmMessageEncryptionService {
   async resetEncryption(): Promise<void> {
     if (!this.currentUserId) return
 
-    // Clear stored keys
+    // Clear stored keys (identity + signing + session). Signing was previously
+    // left behind, which could leave a stale cached signing key after reset.
     await secureSessionKeyStore.clear(this.currentUserId).catch(() => {})
     await identityKeyStore.clear(this.currentUserId).catch(() => {})
+    await signingKeyStore.clear(this.currentUserId).catch(() => {})
+    this.signingKeyCache.clear()
     this.clearLegacyStorage()
 
-    // Delete backup
-    await megolmKeyBackupService.deleteBackup()
+    // Delete the local backup record.
+    await megolmKeyBackupService.deleteBackup().catch(() => {})
 
-    // Delete recovery key metadata
-    await supabase
-      .from('recovery_key_metadata')
-      .delete()
-      .eq('user_id', this.currentUserId)
-
-    // Delete session shares
-    await supabase
-      .from('megolm_session_shares')
-      .delete()
-      .or(`sender_user_id.eq.${this.currentUserId},recipient_user_id.eq.${this.currentUserId}`)
+    // Wipe ALL server-side identity in one atomic, RLS-bypassing call. This is
+    // the critical fix: the old piecemeal deletes never removed the
+    // user_key_pairs row (no DELETE policy exists), so a later setup tripped
+    // over the stale row and failed to unlock. The RPC removes the key pair
+    // plus dependent state for the caller only.
+    const { error: resetError } = await supabase.rpc('reset_my_encryption_identity')
+    if (resetError) {
+      // Fall back to best-effort direct deletes (works for tables that do have
+      // self-delete policies) so older deploys without the RPC still clear what
+      // they can. user_key_pairs itself will remain until the migration is run.
+      debug.warn('⚠️ reset_my_encryption_identity RPC unavailable, falling back:', resetError)
+      await supabase.from('recovery_key_metadata').delete().eq('user_id', this.currentUserId)
+      await supabase
+        .from('megolm_session_shares')
+        .delete()
+        .or(`sender_user_id.eq.${this.currentUserId},recipient_user_id.eq.${this.currentUserId}`)
+    }
 
     // Close Megolm service
     megolmService.close()
