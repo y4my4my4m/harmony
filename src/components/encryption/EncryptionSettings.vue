@@ -446,6 +446,16 @@ async function syncKeys() {
       toast.info('No new keys to sync')
     }
 
+    // Re-decrypt anything currently on screen. Claiming keys without
+    // reprocessing left visible messages stuck as glyphs ("clicked sync,
+    // nothing happened"). Always reprocess: even claimed==0, an unlock that
+    // just restored sessions from backup may now be able to decrypt.
+    try {
+      const { useChatStore } = await import('@/stores/useChat')
+      useChatStore().reprocessEncryptedMessages()
+    } catch { /* non-fatal */ }
+    window.dispatchEvent(new CustomEvent('megolm-key-received', { detail: { roomId: '*', sessionId: '*' } }))
+
     await loadEncryptionStatus()
   } catch (error: any) {
     toast.error(error.message || 'Failed to sync keys')

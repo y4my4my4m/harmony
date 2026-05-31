@@ -3089,8 +3089,21 @@ const handleDecryptMessage = async (message: Message) => {
         detail: { roomId: messageToDecrypt.channel_id || messageToDecrypt.conversation_id, sessionId: messageToDecrypt.encryption_metadata?.session_id }
       }));
     }
-  } catch (error) {
-    debug.log('❌ Could not decrypt message:', error);
+  } catch (error: any) {
+    // Surface the real reason. This used to be a silent debug.log, which made
+    // "click the glyph -> nothing happens" impossible to diagnose. The message
+    // distinguishes the common failure modes (missing session key, locked keys,
+    // signature mismatch) so it's actionable.
+    const reason = error?.message || String(error);
+    debug.error('❌ Could not decrypt message:', error);
+    try {
+      useNotificationStore().showToast(
+        'server_update',
+        'Could not decrypt message',
+        reason,
+        6000,
+      );
+    } catch { /* toast best-effort */ }
   }
 };
 

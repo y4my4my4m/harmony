@@ -316,6 +316,13 @@ export class MegolmMessageEncryptionService {
     await this.storeSessionKeys(derivedKeys)
     this.clearLegacyStorage()
 
+    // Now that keys are unlocked and shares/backups are restored, tell the UI
+    // to re-decrypt anything already on screen. Without this, messages that
+    // rendered as glyphs while locked stay as glyphs until a manual reload.
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('megolm-key-received', { detail: { roomId: '*', sessionId: '*' } }))
+    }
+
     debug.log('✅ Encryption initialized with recovery key')
   }
 
@@ -418,7 +425,20 @@ export class MegolmMessageEncryptionService {
     // Fetch own keypair via SECURITY DEFINER RPC. After the
     // 20260520 user_key_pairs RLS tightening, the encrypted_private columns
     // are no longer SELECTable through PostgREST (column-level GRANTs).
-    const { data: keyPairRows } = await supabase.rpc('get_my_key_pair')
+    const { data: keyPairRows, error: keyPairError } = await supabase.rpc('get_my_key_pair')
+
+    // CRITICAL: if the lookup itself failed (RPC missing, network, RLS), we must
+    // NOT fall through to "generate a new key". Doing so mints a *second*
+    // identity key whose public half others never received - every session
+    // share addressed to our real key becomes undecryptable, and our own shares
+    // are signed by a key peers can't match. Fail loudly so unlock is honest.
+    if (keyPairError) {
+      throw new Error(
+        `Could not load your encryption identity (${keyPairError.message}). ` +
+        `Encryption was not unlocked - please retry.`,
+      )
+    }
+
     const existingKey = (Array.isArray(keyPairRows) ? keyPairRows[0] : null) as
       | { identity_public_key: string; identity_private_key_encrypted: string }
       | null
@@ -426,26 +446,41 @@ export class MegolmMessageEncryptionService {
     if (existingKey) {
       if (cachedKey) return
 
-      // Key pair in DB but not in IndexedDB - decrypt from DB using recovery key
+      // Key pair in DB but not in IndexedDB - decrypt from DB using recovery key.
+      // Let failures PROPAGATE: silently continuing left us with no identity key
+      // in IndexedDB, so every later ECDH (claiming shares, sharing our session)
+      // threw "Identity private key not found" and all messages showed as glyphs
+      // in BOTH directions. A clear error is far better than silent breakage.
       if (existingKey.identity_private_key_encrypted) {
+        let privateKeyBase64: string
         try {
-          const privateKeyBase64 = await this.decryptPrivateKeyFromStorage(
-            existingKey.identity_private_key_encrypted
+          privateKeyBase64 = await this.decryptPrivateKeyFromStorage(
+            existingKey.identity_private_key_encrypted,
           )
-          const privateKeyBytes = Uint8Array.from(atob(privateKeyBase64), c => c.charCodeAt(0))
-          const privateKey = await crypto.subtle.importKey(
-            'pkcs8', privateKeyBytes,
-            { name: 'ECDH', namedCurve: 'P-256' }, false, ['deriveBits']
-          )
-          await identityKeyStore.store(this.currentUserId, privateKey)
-          debug.log('✅ Restored identity key from DB to IndexedDB')
-          return
         } catch (e) {
-          debug.warn('⚠️ Failed to restore identity key from DB:', e)
+          debug.error('❌ Failed to decrypt stored identity key:', e)
+          throw new Error(
+            'Could not unlock your encryption identity with this recovery key. ' +
+            'Double-check the recovery phrase, or reset encryption from Privacy settings.',
+          )
         }
+        const privateKeyBytes = Uint8Array.from(atob(privateKeyBase64), c => c.charCodeAt(0))
+        const privateKey = await crypto.subtle.importKey(
+          'pkcs8', privateKeyBytes,
+          { name: 'ECDH', namedCurve: 'P-256' }, false, ['deriveBits']
+        )
+        await identityKeyStore.store(this.currentUserId, privateKey)
+        debug.log('✅ Restored identity key from DB to IndexedDB')
+        return
       }
 
-      return
+      // Row exists but carries no encrypted private key - we can't derive it and
+      // regenerating would change our public identity, breaking peers' shares to
+      // us. Refuse loudly instead of leaving a half-broken state.
+      throw new Error(
+        'Your stored encryption identity is incomplete (no private key on record). ' +
+        'Reset encryption from Privacy settings to regenerate it.',
+      )
     }
 
     // Generate a new ECDH key pair

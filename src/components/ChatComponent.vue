@@ -160,6 +160,7 @@
   import { debug } from '@/utils/debug';
   import { useServerPermissions } from '@/composables/useServerPermissions';
   import { useI18n } from 'vue-i18n';
+  import { useToast } from 'vue-toastification';
 
   // FIXME: probably breaking the __TAURI__ implementation if we declare it here
   declare const __TAURI__: any;
@@ -188,6 +189,7 @@
   const emit = defineEmits<Emits>();
 
   const { t } = useI18n();
+  const toast = useToast();
   const chatStore = useChatStore();
   const authStore = useAuthStore();
   const serverChannelStore = useServerChannelStore();
@@ -879,8 +881,21 @@
           }
         } catch (error: any) {
           debug.error('Error sending message:', error);
+          const code = (error?.code || '').toString()
           const msg = error?.message || String(error)
-          if (msg.includes('ENCRYPTION_')) {
+          if (code === 'ENCRYPTION_REQUIRED' || msg.includes('ENCRYPTION_REQUIRED')) {
+            // Server mandates encryption — there is no plaintext override. Give
+            // the same kinetic rejection as an over-limit send (buzz + toast)
+            // instead of (wrongly) offering a "send plaintext" prompt.
+            toast.error(msg || 'This server requires end-to-end encryption.')
+            messageInputRef.value?.flashRejection?.()
+            // The input cleared itself optimistically on send; restore the draft
+            // so the user doesn't lose what they typed — unless they've already
+            // started typing something new in the meantime.
+            if (content && !messageContent.value.trim()) {
+              messageContent.value = content
+            }
+          } else if (code.startsWith('ENCRYPTION_') || msg.includes('ENCRYPTION_')) {
             sendError.value = msg
             setTimeout(() => { sendError.value = null }, 6000)
           }
