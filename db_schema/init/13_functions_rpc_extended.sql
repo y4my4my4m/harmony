@@ -465,16 +465,330 @@ CREATE OR REPLACE FUNCTION public.claim_session_share(p_share_id uuid, p_user_id
     SECURITY DEFINER
     SET search_path = public
     AS $$
+DECLARE
+    v_caller uuid;
 BEGIN
+    -- CALLER BINDING: SECURITY DEFINER bypasses RLS, so without this an attacker
+    -- could mark another user's shares claimed (DoS on key delivery). Bind to
+    -- the authenticated caller and ignore a mismatched client-supplied id.
+    v_caller := public.get_current_profile_id();
+    IF v_caller IS NULL OR p_user_id IS DISTINCT FROM v_caller THEN
+        RETURN false;
+    END IF;
+
     UPDATE public.megolm_session_shares
-    SET 
+    SET
         is_claimed = true,
         claimed_at = NOW()
     WHERE id = p_share_id
-    AND recipient_user_id = p_user_id
+    AND recipient_user_id = v_caller
     AND is_claimed = false;
-    
+
     RETURN FOUND;
+END;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- Function: is_room_member
+-- Server-authoritative membership check used to authorize Megolm key requests.
+-- room_id may be a channel id (-> server membership) or a conversation id
+-- (-> active conversation participant). Returns false for unknown/garbage ids.
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.is_room_member(p_room_id text, p_user_id uuid)
+RETURNS boolean
+    LANGUAGE plpgsql
+    STABLE
+    SECURITY DEFINER
+    SET search_path = public
+    AS $$
+DECLARE
+    v_room_uuid uuid;
+    v_server_id uuid;
+BEGIN
+    IF p_room_id IS NULL OR p_user_id IS NULL THEN
+        RETURN false;
+    END IF;
+
+    BEGIN
+        v_room_uuid := p_room_id::uuid;
+    EXCEPTION WHEN others THEN
+        RETURN false;
+    END;
+
+    -- Channel? Resolve to server and check server membership.
+    SELECT server_id INTO v_server_id FROM public.channels WHERE id = v_room_uuid;
+    IF v_server_id IS NOT NULL THEN
+        RETURN EXISTS (
+            SELECT 1 FROM public.user_servers
+            WHERE server_id = v_server_id AND user_id = p_user_id
+        );
+    END IF;
+
+    -- Otherwise treat as a conversation (DM / group DM).
+    RETURN EXISTS (
+        SELECT 1 FROM public.conversation_participants
+        WHERE conversation_id = v_room_uuid
+          AND user_id = p_user_id
+          AND left_at IS NULL
+    );
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.is_room_member(text, uuid) TO authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Function: bump_room_epoch
+-- Increment a room's membership epoch. Forces clients to rotate to a new
+-- Megolm session for that room (so post-change messages use a fresh key).
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.bump_room_epoch(p_room_id text, p_reason text DEFAULT 'manual_rotate')
+RETURNS integer
+    LANGUAGE plpgsql
+    SECURITY DEFINER
+    SET search_path = public
+    AS $$
+DECLARE
+    v_epoch integer;
+BEGIN
+    IF p_room_id IS NULL THEN
+        RETURN NULL;
+    END IF;
+
+    INSERT INTO public.room_epoch_state (room_id, current_epoch, reason, updated_at)
+    VALUES (p_room_id, 2, p_reason, now())
+    ON CONFLICT (room_id) DO UPDATE
+        SET current_epoch = public.room_epoch_state.current_epoch + 1,
+            reason = EXCLUDED.reason,
+            updated_at = now()
+    RETURNING current_epoch INTO v_epoch;
+
+    RETURN v_epoch;
+END;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- Function: get_room_epoch
+-- Current epoch for a room (1 if never bumped).
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.get_room_epoch(p_room_id text)
+RETURNS integer
+    LANGUAGE sql
+    STABLE
+    SECURITY DEFINER
+    SET search_path = public
+    AS $$
+    SELECT COALESCE(
+        (SELECT current_epoch FROM public.room_epoch_state WHERE room_id = p_room_id),
+        1
+    );
+$$;
+
+-- bump_room_epoch is privileged: it's reused by membership-change triggers
+-- (incl. member_leave, where the actor is no longer a room member), so it can't
+-- carry a membership check itself. Revoke direct client access and expose a
+-- guarded wrapper (request_room_epoch_bump) for manual client rotation.
+REVOKE EXECUTE ON FUNCTION public.bump_room_epoch(text, text) FROM authenticated;
+GRANT EXECUTE ON FUNCTION public.get_room_epoch(text) TO authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Function: request_room_epoch_bump
+-- Client-facing, membership-gated wrapper around bump_room_epoch. Prevents any
+-- authenticated user from forcing key rotation on rooms they don't belong to.
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.request_room_epoch_bump(p_room_id text, p_reason text DEFAULT 'manual_rotate')
+RETURNS integer
+    LANGUAGE plpgsql
+    SECURITY DEFINER
+    SET search_path = public
+    AS $$
+BEGIN
+    IF p_room_id IS NULL THEN
+        RETURN NULL;
+    END IF;
+    IF NOT public.is_room_member(p_room_id, public.get_current_profile_id()) THEN
+        RAISE EXCEPTION 'Permission denied: not a member of this room'
+            USING ERRCODE = '42501';
+    END IF;
+    RETURN public.bump_room_epoch(p_room_id, p_reason);
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.request_room_epoch_bump(text, text) TO authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Function: approve_device_request
+-- Server-enforced device approval. Direct UPDATEs to device_approval_requests
+-- are blocked by RLS (no client UPDATE policy); approval MUST go through this
+-- RPC so the server can verify the approving device is an ESTABLISHED one.
+-- A freshly-logged-in (potentially attacker) device cannot approve itself:
+-- the approver device must predate the request, or already carry recovery/
+-- verified trust. On success the requesting device is elevated to 'verified'.
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.approve_device_request(
+    p_request_id uuid,
+    p_approver_device_id text,
+    p_encrypted_sync_bundle text DEFAULT NULL
+)
+RETURNS boolean
+    LANGUAGE plpgsql
+    SECURITY DEFINER
+    SET search_path = public
+    AS $$
+DECLARE
+    v_caller uuid;
+    v_req record;
+    v_approver record;
+BEGIN
+    v_caller := public.get_current_profile_id();
+    IF v_caller IS NULL THEN
+        RAISE EXCEPTION 'Authentication required' USING ERRCODE = '42501';
+    END IF;
+
+    SELECT * INTO v_req FROM public.device_approval_requests
+    WHERE id = p_request_id;
+    IF v_req IS NULL OR v_req.user_id IS DISTINCT FROM v_caller THEN
+        RAISE EXCEPTION 'Approval request not found' USING ERRCODE = '42501';
+    END IF;
+    IF v_req.status <> 'pending' THEN
+        RETURN false; -- already resolved
+    END IF;
+    IF p_approver_device_id IS NULL OR p_approver_device_id = v_req.requesting_device_id THEN
+        RAISE EXCEPTION 'A device cannot approve its own login' USING ERRCODE = '42501';
+    END IF;
+
+    SELECT * INTO v_approver FROM public.user_devices
+    WHERE user_id = v_caller AND device_id = p_approver_device_id;
+    IF v_approver IS NULL OR v_approver.revoked_at IS NOT NULL THEN
+        RAISE EXCEPTION 'Approving device is not a valid device on this account'
+            USING ERRCODE = '42501';
+    END IF;
+
+    -- The approver must be an ESTABLISHED device: registered before this request
+    -- (small skew tolerance) OR already trusted at recovery/verified level.
+    IF NOT (
+        v_approver.trust_state IN ('verified', 'recovery')
+        OR v_approver.created_at <= v_req.created_at - interval '5 seconds'
+    ) THEN
+        RAISE EXCEPTION 'Only an established device can approve a new login'
+            USING ERRCODE = '42501';
+    END IF;
+
+    UPDATE public.device_approval_requests
+    SET status = 'approved',
+        approved_by_device_id = p_approver_device_id,
+        encrypted_sync_bundle = p_encrypted_sync_bundle,
+        resolved_at = now()
+    WHERE id = p_request_id;
+
+    -- Elevate the newly-approved device.
+    UPDATE public.user_devices
+    SET trust_state = 'verified'
+    WHERE user_id = v_caller AND device_id = v_req.requesting_device_id;
+
+    RETURN true;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.approve_device_request(uuid, text, text) TO authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Function: deny_device_request
+-- Deny/secure a pending login. Any device on the account may deny (securing
+-- the account is always allowed). Also revokes the requesting device row.
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.deny_device_request(p_request_id uuid)
+RETURNS boolean
+    LANGUAGE plpgsql
+    SECURITY DEFINER
+    SET search_path = public
+    AS $$
+DECLARE
+    v_caller uuid;
+    v_req record;
+BEGIN
+    v_caller := public.get_current_profile_id();
+    IF v_caller IS NULL THEN
+        RAISE EXCEPTION 'Authentication required' USING ERRCODE = '42501';
+    END IF;
+
+    SELECT * INTO v_req FROM public.device_approval_requests
+    WHERE id = p_request_id;
+    IF v_req IS NULL OR v_req.user_id IS DISTINCT FROM v_caller THEN
+        RAISE EXCEPTION 'Approval request not found' USING ERRCODE = '42501';
+    END IF;
+
+    UPDATE public.device_approval_requests
+    SET status = 'denied', resolved_at = now()
+    WHERE id = p_request_id AND status = 'pending';
+
+    -- Defense in depth: a denied login should not keep a usable device row.
+    UPDATE public.user_devices
+    SET trust_state = 'revoked', revoked_at = now()
+    WHERE user_id = v_caller AND device_id = v_req.requesting_device_id;
+
+    RETURN true;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.deny_device_request(uuid) TO authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Function: bump_server_channel_epochs
+-- Bump the epoch of every channel in a server (used on server membership
+-- changes, which affect all channels at once).
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.bump_server_channel_epochs(p_server_id uuid, p_reason text)
+RETURNS void
+    LANGUAGE plpgsql
+    SECURITY DEFINER
+    SET search_path = public
+    AS $$
+DECLARE
+    v_channel RECORD;
+BEGIN
+    FOR v_channel IN SELECT id FROM public.channels WHERE server_id = p_server_id LOOP
+        PERFORM public.bump_room_epoch(v_channel.id::text, p_reason);
+    END LOOP;
+END;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- Trigger fn: epoch bump on conversation membership change
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.trg_conversation_epoch_bump()
+RETURNS trigger
+    LANGUAGE plpgsql
+    SECURITY DEFINER
+    SET search_path = public
+    AS $$
+BEGIN
+    IF TG_OP = 'INSERT' THEN
+        PERFORM public.bump_room_epoch(NEW.conversation_id::text, 'member_join');
+    ELSIF TG_OP = 'DELETE' THEN
+        PERFORM public.bump_room_epoch(OLD.conversation_id::text, 'member_leave');
+    ELSIF TG_OP = 'UPDATE' AND OLD.left_at IS NULL AND NEW.left_at IS NOT NULL THEN
+        PERFORM public.bump_room_epoch(NEW.conversation_id::text, 'member_leave');
+    END IF;
+    RETURN NULL;
+END;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- Trigger fn: epoch bump on server membership change (affects all channels)
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.trg_server_epoch_bump()
+RETURNS trigger
+    LANGUAGE plpgsql
+    SECURITY DEFINER
+    SET search_path = public
+    AS $$
+BEGIN
+    IF TG_OP = 'INSERT' THEN
+        PERFORM public.bump_server_channel_epochs(NEW.server_id, 'member_join');
+    ELSIF TG_OP = 'DELETE' THEN
+        PERFORM public.bump_server_channel_epochs(OLD.server_id, 'member_leave');
+    END IF;
+    RETURN NULL;
 END;
 $$;
 
@@ -1467,12 +1781,21 @@ $$;
 -- ---------------------------------------------------------------------------
 -- Function: get_unclaimed_session_shares
 -- ---------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION public.get_unclaimed_session_shares(p_user_id uuid) RETURNS TABLE(share_id uuid, room_id uuid, session_id text, sender_user_id uuid, encrypted_session_key text, first_known_index integer, created_at timestamp with time zone)
+CREATE OR REPLACE FUNCTION public.get_unclaimed_session_shares(p_user_id uuid) RETURNS TABLE(share_id uuid, room_id text, session_id text, sender_user_id uuid, encrypted_session_key text, first_known_index integer, created_at timestamp with time zone)
     LANGUAGE plpgsql
     SECURITY DEFINER
     SET search_path = public
     AS $$
+DECLARE
+    v_caller uuid;
 BEGIN
+    -- CALLER BINDING: only return the authenticated caller's own pending shares,
+    -- regardless of the client-supplied p_user_id (SECURITY DEFINER bypasses RLS).
+    v_caller := public.get_current_profile_id();
+    IF v_caller IS NULL OR p_user_id IS DISTINCT FROM v_caller THEN
+        RETURN;
+    END IF;
+
     RETURN QUERY
     SELECT 
         s.id as share_id,
@@ -1483,7 +1806,7 @@ BEGIN
         s.first_known_index,
         s.created_at
     FROM public.megolm_session_shares s
-    WHERE s.recipient_user_id = p_user_id
+    WHERE s.recipient_user_id = v_caller
     AND s.is_claimed = false
     ORDER BY s.created_at DESC;
 END;
@@ -1784,6 +2107,11 @@ BEGIN
     RETURN COALESCE((v_permissions->>p_permission)::boolean, false);
 END;
 $$;
+
+-- Used by storage RLS (server icon/banner/emoji uploads) which is evaluated as
+-- the authenticated role, so the helpers must be explicitly executable by it.
+GRANT EXECUTE ON FUNCTION public.has_permission(uuid, uuid, text, uuid) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.get_user_permissions(uuid, uuid, uuid) TO authenticated;
 
 -- ---------------------------------------------------------------------------
 -- Function: get_user_prekey_bundle
@@ -2579,17 +2907,33 @@ CREATE OR REPLACE FUNCTION public.save_recovery_codes(p_user_id uuid, p_codes te
 DECLARE
   v_code TEXT;
   v_code_hash TEXT;
+  v_caller uuid;
+  v_batch_id uuid := gen_random_uuid();
 BEGIN
-  -- Delete any existing recovery codes for this user
-  DELETE FROM public.mfa_recovery_codes WHERE user_id = p_user_id;
-  
-  -- Insert new recovery codes
+  -- CALLER BINDING: this is SECURITY DEFINER and bypasses RLS, so without this
+  -- check ANY authenticated user could wipe/replace another user's MFA recovery
+  -- codes by passing their profile id. Bind the write to the caller and ignore
+  -- the client-supplied target. (auth.uid() matches profile id for local users;
+  -- get_current_profile_id() is the authoritative profile id.)
+  v_caller := public.get_current_profile_id();
+  IF v_caller IS NULL THEN
+    RAISE EXCEPTION 'Authentication required' USING ERRCODE = '42501';
+  END IF;
+  IF p_user_id IS DISTINCT FROM v_caller AND p_user_id IS DISTINCT FROM auth.uid() THEN
+    RAISE EXCEPTION 'Permission denied: can only save your own recovery codes'
+      USING ERRCODE = '42501';
+  END IF;
+
+  -- Delete any existing recovery codes for the caller
+  DELETE FROM public.mfa_recovery_codes WHERE user_id = v_caller;
+
+  -- Insert new recovery codes (batch_id is NOT NULL in the schema)
   FOREACH v_code IN ARRAY p_codes
   LOOP
     -- Use extensions.digest() to explicitly reference the pgcrypto extension
     v_code_hash := encode(extensions.digest(v_code::bytea, 'sha256'), 'hex');
-    INSERT INTO public.mfa_recovery_codes (user_id, code_hash)
-    VALUES (p_user_id, v_code_hash);
+    INSERT INTO public.mfa_recovery_codes (user_id, code_hash, batch_id)
+    VALUES (v_caller, v_code_hash, v_batch_id);
   END LOOP;
 END;
 $$;

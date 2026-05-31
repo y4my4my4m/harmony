@@ -63,6 +63,23 @@ const requireAuth = async (req: Request, res: Response, next: Function) => {
 };
 
 /**
+ * Is the given auth user an instance admin? (auth.uid -> profiles.is_admin)
+ */
+const isAdmin = async (authUserId: string): Promise<boolean> => {
+  try {
+    const supabase = getSupabaseClient();
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('is_admin')
+      .eq('auth_user_id', authUserId)
+      .single();
+    return !!profile?.is_admin;
+  } catch {
+    return false;
+  }
+};
+
+/**
  * Check if LiveKit is configured
  */
 const requireLiveKit = (req: Request, res: Response, next: Function) => {
@@ -305,17 +322,25 @@ router.get('/rooms', requireAuth, requireLiveKit, async (req: Request, res: Resp
  */
 router.get('/rooms/:roomName', requireAuth, requireLiveKit, async (req: Request, res: Response) => {
   try {
+    const user = (req as any).user;
     const { roomName } = req.params;
+
+    // Only members of the room (or admins) may introspect it.
+    const canAccess = await livekitService.userCanAccessRoom(user.id, roomName);
+    if (!canAccess && !(await isAdmin(user.id))) {
+      return res.status(403).json({ error: 'You do not have access to this room' });
+    }
+
     const room = await livekitService.getRoomInfo(roomName);
     
     if (!room) {
       return res.status(404).json({ error: 'Room not found' });
     }
     
-    res.json({ room });
+    return res.json({ room });
   } catch (error) {
     logger.error('Failed to get room info:', error);
-    res.status(500).json({ error: 'Failed to get room info' });
+    return res.status(500).json({ error: 'Failed to get room info' });
   }
 });
 
@@ -325,13 +350,20 @@ router.get('/rooms/:roomName', requireAuth, requireLiveKit, async (req: Request,
  */
 router.get('/rooms/:roomName/participants', requireAuth, requireLiveKit, async (req: Request, res: Response) => {
   try {
+    const user = (req as any).user;
     const { roomName } = req.params;
+
+    const canAccess = await livekitService.userCanAccessRoom(user.id, roomName);
+    if (!canAccess && !(await isAdmin(user.id))) {
+      return res.status(403).json({ error: 'You do not have access to this room' });
+    }
+
     const participants = await livekitService.getParticipants(roomName);
     
-    res.json({ participants });
+    return res.json({ participants });
   } catch (error) {
     logger.error('Failed to get participants:', error);
-    res.status(500).json({ error: 'Failed to get participants' });
+    return res.status(500).json({ error: 'Failed to get participants' });
   }
 });
 

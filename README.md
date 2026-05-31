@@ -14,7 +14,7 @@ Harmony is a federated social app: Discord-style servers and chat with ActivityP
 - Servers, channels, DMs, threads, voice/video (LiveKit where configured)
 - ActivityPub timelines, follows, and federation with other instances
 - Multi-instance servers (members from different Harmony domains in one server)
-- End-to-end encryption (Megolm-style) for chat, with cross-device key sharing
+- End-to-end encryption (Megolm-style) for chat, with cross-device key sharing (per-message derived keys + periodic session rotation; see [Encryption notes](SECURITY.md#encryption-specific-notes) for the exact secrecy properties)
 - Tauri desktop app and web app from the same codebase
 
 ## Stack

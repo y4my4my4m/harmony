@@ -31,7 +31,7 @@
             @click="showRecoveryModal = true"
             class="btn btn-primary btn-sm"
           >
-            Unlock
+            Unlock message history
           </button>
         </div>
       </div>
@@ -89,6 +89,16 @@
         </button>
       </div>
       
+      <!-- Devices -->
+      <div v-if="encryptionStatus.hasRecoveryKey" class="subsection">
+        <h4 class="subsection-title">Your Devices</h4>
+        <p class="subsection-description">
+          Devices signed in to your account. New logins can read new messages right away;
+          approving a device lets it unlock your encrypted message history.
+        </p>
+        <DeviceManager />
+      </div>
+
       <!-- Backup & Recovery -->
       <div v-if="encryptionStatus.hasRecoveryKey" class="subsection">
         <h4 class="subsection-title">Backup & Recovery</h4>
@@ -291,6 +301,7 @@ import { debug } from '@/utils/debug'
 import { useToast } from 'vue-toastification'
 import RecoveryKeySetupWizard from './RecoveryKeySetupWizard.vue'
 import KeyRecoveryModal from './KeyRecoveryModal.vue'
+import DeviceManager from './DeviceManager.vue'
 import Icon from '@/components/common/Icon.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 
@@ -350,7 +361,7 @@ const statusDescription = computed(() => {
     return 'Set up a recovery key to enable end-to-end encryption'
   }
   if (!encryptionStatus.value.enabled) {
-    return 'Enter your recovery key to unlock encryption and read your messages'
+    return 'Enter your recovery phrase, or approve this device from another one, to unlock your message history'
   }
   return 'Your messages are protected with end-to-end encryption'
 })
@@ -435,6 +446,16 @@ async function syncKeys() {
       toast.info('No new keys to sync')
     }
 
+    // Re-decrypt anything currently on screen. Claiming keys without
+    // reprocessing left visible messages stuck as glyphs ("clicked sync,
+    // nothing happened"). Always reprocess: even claimed==0, an unlock that
+    // just restored sessions from backup may now be able to decrypt.
+    try {
+      const { useChatStore } = await import('@/stores/useChat')
+      useChatStore().reprocessEncryptedMessages()
+    } catch { /* non-fatal */ }
+    window.dispatchEvent(new CustomEvent('megolm-key-received', { detail: { roomId: '*', sessionId: '*' } }))
+
     await loadEncryptionStatus()
   } catch (error: any) {
     toast.error(error.message || 'Failed to sync keys')
@@ -517,6 +538,19 @@ function closeImportModal() {
 async function resetEncryption() {
   isResetting.value = true
   try {
+    // If we're in an end-to-end encrypted voice call, drop it first. The
+    // LiveKit worker holds the voice key independently of the Megolm stores
+    // we're about to wipe, so the call would otherwise keep running with a key
+    // we can no longer rotate into - leaving a misleading "encrypted" shield
+    // and breaking on the next membership change. Leaving is the honest move.
+    const { useUnifiedVoiceChannelStore } = await import('@/stores/unifiedVoiceChannel')
+    const voiceStore = useUnifiedVoiceChannelStore()
+    if (voiceStore.isConnected && voiceStore.isEncrypted) {
+      debug.log('🔐 Reset encryption: leaving active encrypted voice call first')
+      await voiceStore.leaveVoiceChannel()
+      toast.info('Left the encrypted voice call (its keys were reset)')
+    }
+
     const { megolmMessageEncryptionService } = await import('@/services/encryption/MegolmMessageEncryptionService')
     await megolmMessageEncryptionService.resetEncryption()
     

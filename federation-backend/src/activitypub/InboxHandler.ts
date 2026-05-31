@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { getSupabaseClient } from '../config/supabase.js';
+import { getSupabaseClient, getSupabaseClientWithAuth } from '../config/supabase.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { SignatureService } from './SignatureService.js';
 import { ActivityProcessor } from './ActivityProcessor.js';
@@ -9,6 +9,31 @@ import config from '../config/index.js';
 import { inboxLimiter } from '../middleware/rateLimit.js';
 
 const router = Router();
+
+/**
+ * Resolve the caller's PROFILE id from a Supabase Bearer token, or null if the
+ * request is unauthenticated / invalid. Used to gate private inbox reads to the
+ * inbox owner. Returns the profile id (profiles.id), not the auth uid.
+ */
+async function resolveBearerProfileId(req: Request): Promise<string | null> {
+  const authHeader = req.headers.authorization;
+  if (!authHeader?.startsWith('Bearer ')) return null;
+  try {
+    const token = authHeader.substring(7);
+    const supabase = getSupabaseClientWithAuth(token);
+    const { data: { user }, error } = await supabase.auth.getUser();
+    if (error || !user) return null;
+    const admin = getSupabaseClient();
+    const { data: profile } = await admin
+      .from('profiles')
+      .select('id')
+      .eq('auth_user_id', user.id)
+      .maybeSingle();
+    return profile?.id ?? null;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Shared inbox endpoint (standard location)
@@ -126,6 +151,34 @@ router.get(
         type: 'OrderedCollection',
         totalItems: count || 0,
         first: `${inboxUrl}?cursor=start&limit=${limit}`,
+      });
+      return;
+    }
+
+    // AUTHORIZATION: the paginated branch returns full `activity_data`, which is
+    // private inbox content. ActivityPub delivery is POST-based, so remote
+    // servers never need to GET another user's inbox items. Require the caller
+    // to be the inbox owner (or admin). Unauthorized callers get an empty,
+    // owner-only OrderedCollectionPage rather than someone else's activities.
+    const authedProfileId = await resolveBearerProfileId(req);
+    const isOwner = authedProfileId !== null && authedProfileId === user.id;
+    let isAdmin = false;
+    if (authedProfileId && !isOwner) {
+      const { data: adminProfile } = await supabase
+        .from('profiles')
+        .select('is_admin')
+        .eq('id', authedProfileId)
+        .maybeSingle();
+      isAdmin = !!adminProfile?.is_admin;
+    }
+    if (!isOwner && !isAdmin) {
+      res.setHeader('Content-Type', 'application/activity+json');
+      res.json({
+        '@context': 'https://www.w3.org/ns/activitystreams',
+        id: `${inboxUrl}?cursor=${cursor || 'start'}&limit=${limit}`,
+        type: 'OrderedCollectionPage',
+        partOf: inboxUrl,
+        orderedItems: [],
       });
       return;
     }

@@ -32,6 +32,14 @@
           </div>
           
           <div class="header-controls">
+            <!-- E2EE Indicator -->
+            <VoiceEncryptionBadge
+              v-if="voiceStore.connectionMode"
+              class="overlay-encryption-badge"
+              :encrypted="voiceStore.isEncrypted"
+              size="md"
+              show-label
+            />
             <!-- Connection Mode Indicator -->
             <div class="connection-mode-indicator" :class="voiceStore.connectionMode || 'unknown'">
               <Icon :name="voiceStore.connectionMode === 'livekit' ? 'server' : 'users'" />
@@ -287,6 +295,7 @@ import UnifiedVoiceUserCard from './UnifiedVoiceUserCard.vue';
 import VoiceSettingsPanel from './VoiceSettingsPanel.vue';
 import SpatialAudioPanel from './SpatialAudioPanel.vue';
 import DeviceSelector from './DeviceSelector.vue';
+import VoiceEncryptionBadge from './VoiceEncryptionBadge.vue';
 import ConfettiEffect from '../easteregg/ConfettiEffect.vue';
 import Icon from '@/components/common/Icon.vue';
 import DisplayName from '@/components/DisplayName.vue';
@@ -777,11 +786,10 @@ const connectionStats = computed(() => voiceStore.connectionStats);
   gap: 4px;
   padding: 6px 10px;
   border-radius: 6px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  margin-right: 4px;
 }
 
 .connection-mode-indicator.livekit {
@@ -800,6 +808,9 @@ const connectionStats = computed(() => voiceStore.connectionStats);
   background: rgba(255, 255, 255, 0.1);
   color: #b9bbbe;
   border: 1px solid rgba(255, 255, 255, 0.1);
+}
+.connection-mode-indicator :deep(span) {
+  display: flex;
 }
 
 .connection-mode-indicator :deep(svg) {

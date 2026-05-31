@@ -833,6 +833,26 @@ CREATE TRIGGER trg_broadcast_key_request_event
     FOR EACH ROW
     EXECUTE FUNCTION public.broadcast_key_request_event();
 
+-- Device approval broadcasts → user:{user_id} (new-login prompts + approval result)
+DROP TRIGGER IF EXISTS trg_broadcast_device_approval_event ON public.device_approval_requests;
+CREATE TRIGGER trg_broadcast_device_approval_event
+    AFTER INSERT OR UPDATE ON public.device_approval_requests
+    FOR EACH ROW
+    EXECUTE FUNCTION public.broadcast_device_approval_event();
+
+-- Membership-epoch bumps: rotate Megolm sessions when room membership changes.
+DROP TRIGGER IF EXISTS trg_conversation_epoch_bump ON public.conversation_participants;
+CREATE TRIGGER trg_conversation_epoch_bump
+    AFTER INSERT OR UPDATE OR DELETE ON public.conversation_participants
+    FOR EACH ROW
+    EXECUTE FUNCTION public.trg_conversation_epoch_bump();
+
+DROP TRIGGER IF EXISTS trg_server_epoch_bump ON public.user_servers;
+CREATE TRIGGER trg_server_epoch_bump
+    AFTER INSERT OR DELETE ON public.user_servers
+    FOR EACH ROW
+    EXECUTE FUNCTION public.trg_server_epoch_bump();
+
 -- Conversation update broadcasts → user:{participant_id}
 DROP TRIGGER IF EXISTS trg_broadcast_conversation_updated ON public.conversations;
 CREATE TRIGGER trg_broadcast_conversation_updated
@@ -956,6 +976,59 @@ CREATE TRIGGER trg_broadcast_follow_event
     AFTER INSERT OR UPDATE OR DELETE ON public.follows
     FOR EACH ROW
     EXECUTE FUNCTION public.broadcast_follow_event();
+
+-- ---------------------------------------------------------------------------
+-- Prevent profile self-escalation to admin / moderator / suspended-bypass.
+-- `profiles_update_own` has no column allowlist, so without this guard any
+-- authenticated user could `UPDATE profiles SET is_admin = true` on their own
+-- row and become an instance admin. See
+-- db_schema/migrations/20260520_profile_admin_escalation_trigger.sql.
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.prevent_profile_moderation_self_update()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+    v_role text;
+    v_is_admin boolean;
+BEGIN
+    v_role := current_setting('request.jwt.claims', true)::jsonb ->> 'role';
+    IF v_role = 'service_role' OR session_user = 'postgres' THEN
+        RETURN NEW;
+    END IF;
+
+    IF NEW.is_admin IS DISTINCT FROM OLD.is_admin
+       OR NEW.is_moderator IS DISTINCT FROM OLD.is_moderator
+       OR NEW.is_suspended IS DISTINCT FROM OLD.is_suspended
+       OR NEW.is_silenced IS DISTINCT FROM OLD.is_silenced
+       OR NEW.force_sensitive IS DISTINCT FROM OLD.force_sensitive
+    THEN
+        SELECT EXISTS (
+            SELECT 1 FROM public.profiles p
+            WHERE p.auth_user_id = auth.uid()
+              AND p.is_admin = true
+              AND COALESCE(p.is_suspended, false) = false
+        ) INTO v_is_admin;
+
+        IF v_is_admin IS NOT TRUE THEN
+            RAISE EXCEPTION
+                'Permission denied: cannot modify moderation flags on profile'
+                USING ERRCODE = '42501';
+        END IF;
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS prevent_profile_moderation_self_update_trigger ON public.profiles;
+CREATE TRIGGER prevent_profile_moderation_self_update_trigger
+    BEFORE UPDATE OF is_admin, is_moderator, is_suspended, is_silenced, force_sensitive
+    ON public.profiles
+    FOR EACH ROW
+    EXECUTE FUNCTION public.prevent_profile_moderation_self_update();
 
 DO $$
 BEGIN

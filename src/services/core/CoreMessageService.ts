@@ -272,11 +272,16 @@ export class CoreMessageService {
               this.markPlaintextOverride(extraMetadata = extraMetadata || {}, 'optional_encrypt_failed')
             }
           } else if (encryptionMode === 'required') {
-            // Server requires encryption but user doesn't have it set up/unlocked
+            // Server requires encryption but user doesn't have it set up/unlocked.
+            // Both cases must be NON-overridable: there is no "send plaintext"
+            // option on a required server, so always raise ENCRYPTION_REQUIRED
+            // (NOT ENCRYPTION_LOCKED, which the UI treats as fallback-eligible
+            // and would wrongly offer a plaintext send). The message still tells
+            // the user whether to set up or unlock.
             if (!hasRecoveryKey) {
               throw this.createError('ENCRYPTION_REQUIRED', 'This server requires encryption. Set up encryption in Settings first.')
             } else {
-              throw this.createError('ENCRYPTION_LOCKED', 'This server requires encryption. Unlock encryption with your recovery key first.')
+              throw this.createError('ENCRYPTION_REQUIRED', 'This server requires encryption. Unlock encryption with your recovery key first.')
             }
           } else {
             // Optional encryption + user cannot encrypt. Two sub-cases:

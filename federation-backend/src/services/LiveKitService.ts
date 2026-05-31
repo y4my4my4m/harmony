@@ -120,6 +120,18 @@ class LiveKitService {
       .eq('auth_user_id', request.userId)
       .single();
     
+    // AUTHORIZATION: the caller must actually belong to the room they're asking
+    // for a publish/subscribe token for. Without this, any authenticated user
+    // could mint a token for any voice channel / DM call and join it.
+    const allowed = await this.validateRoomPermission(
+      request.userId,
+      request.roomName,
+      request.roomType,
+    );
+    if (!allowed) {
+      throw new Error('permission denied: not a member of this room');
+    }
+
     // Create access token
     // Use federated identity format for consistency across federation
     // This allows ANY client (local or remote) to resolve the user profile
@@ -347,6 +359,19 @@ class LiveKitService {
     return false;
   }
   
+  /**
+   * Public membership check for a room, inferring the room type from the name
+   * prefix. Used to gate room-introspection endpoints so callers can only see
+   * metadata/participants for rooms they belong to.
+   */
+  async userCanAccessRoom(authUserId: string, roomName: string): Promise<boolean> {
+    const roomType: 'voice_channel' | 'dm_call' | 'stage' =
+      roomName.startsWith('stage-') ? 'stage'
+      : roomName.startsWith('channel-') ? 'voice_channel'
+      : 'dm_call';
+    return this.validateRoomPermission(authUserId, roomName, roomType);
+  }
+
   /**
    * Get room info
    */

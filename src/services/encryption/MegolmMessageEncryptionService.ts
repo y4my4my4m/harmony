@@ -16,7 +16,7 @@ import { supabase } from '@/supabase'
 import { megolmService, type MegolmEncryptedMessage } from './MegolmService'
 import { recoveryKeyService } from './RecoveryKeyService'
 import { megolmKeyBackupService } from './MegolmKeyBackupService'
-import { secureSessionKeyStore, identityKeyStore, signingKeyStore } from './SecureSessionKeyStore'
+import { secureSessionKeyStore, identityKeyStore, signingKeyStore, pinnedKeyStore } from './SecureSessionKeyStore'
 import {
   hashCiphertextB64,
   generateSigningKeyPair,
@@ -26,8 +26,12 @@ import {
   importPrivateSigningKey,
   signMessage,
   verifyMessageSignature,
+  buildAadBytesV3,
   type SignedMessageFields,
+  type AadFieldsV3,
 } from './MessageSigner'
+import { deviceIdentityService } from './DeviceIdentityService'
+import { roomEpochService } from './RoomEpochService'
 import type { MessagePart } from '@/types'
 import { debug } from '@/utils/debug'
 
@@ -55,12 +59,12 @@ export interface MegolmEncryptedMessageData {
   encrypted: true
   content: MessagePart[] // Encrypted content (base64 ciphertext in text field)
   encryption_metadata: {
-    algorithm: 'megolm_v1' | 'megolm_v2_signed'
+    algorithm: 'megolm_v1' | 'megolm_v2_signed' | 'megolm_v3'
     session_id: string
     message_index: number
     sender_user_id: string
     timestamp: number
-    /** base64(ECDSA P-256 SHA-256 signature). Only present for v2. */
+    /** base64(ECDSA P-256 SHA-256 signature). Only present for v2/v3. */
     signature?: string
     /**
      * Fingerprint (SHA-256 first 16 chars hex of SPKI) of the signing public
@@ -68,6 +72,12 @@ export interface MegolmEncryptedMessageData {
      * Optional in v2; we set it when we know it.
      */
     signing_key_fingerprint?: string
+    /** v3: membership epoch the message belongs to. */
+    epoch_id?: number
+    /** v3: id of the sending device (verified against user_devices). */
+    sender_device_id?: string
+    /** v3: content type bound into the AES-GCM AAD. */
+    content_type?: string
   }
 }
 
@@ -94,6 +104,15 @@ export class MegolmMessageEncryptionService {
   // for the hot decrypt path. Time-bounded so device rotations propagate.
   private signingKeyCache = new Map<string, CachedSigningKey>()
   private static readonly SIGNING_KEY_CACHE_TTL_MS = 5 * 60_000
+
+  // Session ids we've already triggered a key-backup for this run. Sending under
+  // a brand-new outbound session refreshes the backup once so the sender can
+  // read their own messages on a future device (see encryptMessage).
+  private backedUpSessionIds = new Set<string>()
+
+  // Cached "identity epoch" (created_at of the active key pair). See
+  // getIdentityCreatedAt(). Cleared on reset/cleanup.
+  private identityCreatedAtMs: number | null = null
 
   private constructor() {}
 
@@ -177,6 +196,10 @@ export class MegolmMessageEncryptionService {
         await this.ensureSigningKeyPair().catch(err =>
           debug.warn('⚠️ Failed to ensure signing key on auto-unlock:', err),
         )
+        // Register this device (per-device signing identity, trust state).
+        await deviceIdentityService.ensureRegistered(this.currentUserId).catch(err =>
+          debug.warn('⚠️ Failed to register device on auto-unlock:', err),
+        )
 
         try {
           const result = await megolmKeyBackupService.restoreFromBackup()
@@ -253,6 +276,10 @@ export class MegolmMessageEncryptionService {
     // Ensure identity key pair (ECDH) and signing key pair (ECDSA) both exist
     await this.ensureIdentityKeyPair()
     await this.ensureSigningKeyPair()
+    // Recovery-key unlock implies L2 (history-unlock capable) trust for this device.
+    await deviceIdentityService.ensureRegistered(this.currentUserId, 'recovery').catch(err =>
+      debug.warn('⚠️ Failed to register device after recovery unlock:', err),
+    )
 
     // Try to restore from backup
     try {
@@ -285,6 +312,13 @@ export class MegolmMessageEncryptionService {
     // Store non-extractable CryptoKeys in IndexedDB (mnemonic is NOT persisted)
     await this.storeSessionKeys(derivedKeys)
     this.clearLegacyStorage()
+
+    // Now that keys are unlocked and shares/backups are restored, tell the UI
+    // to re-decrypt anything already on screen. Without this, messages that
+    // rendered as glyphs while locked stay as glyphs until a manual reload.
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('megolm-key-received', { detail: { roomId: '*', sessionId: '*' } }))
+    }
 
     debug.log('✅ Encryption initialized with recovery key')
   }
@@ -326,13 +360,21 @@ export class MegolmMessageEncryptionService {
     await megolmService.initialize(this.currentUserId, derivedKeys.encryptionKey)
     debug.log('✅ Megolm service initialized')
 
-    // Generate identity key pair for session key exchange
-    await this.ensureIdentityKeyPair()
+    // Generate identity key pair for session key exchange. forceNew: this is a
+    // fresh setup, so replace any stale row rather than trying (and failing) to
+    // restore an old identity wrapped under a different recovery key.
+    await this.ensureIdentityKeyPair(true)
     debug.log('✅ Identity key pair ready')
 
     // Generate signing key pair for per-message sender binding
     await this.ensureSigningKeyPair()
     debug.log('✅ Signing key pair ready')
+
+    // Register this device. Completing setup means the recovery phrase exists
+    // on this device -> L2 (history-unlock capable).
+    await deviceIdentityService.ensureRegistered(this.currentUserId, 'recovery').catch(err =>
+      debug.warn('⚠️ Failed to register device during setup:', err),
+    )
 
     // Initialize backup service
     await megolmKeyBackupService.initialize(this.currentUserId)
@@ -373,8 +415,14 @@ export class MegolmMessageEncryptionService {
   /**
    * Ensure user has an identity key pair for session key exchange.
    * Also ensures the private key CryptoKey is cached in IndexedDB for ECDH.
+   *
+   * @param forceNew - Used by fresh setup. Replaces any existing identity row
+   *   with a brand-new key pair instead of trying to restore it. This unblocks
+   *   "Reset Encryption -> set up again" even if a stale, undecryptable row
+   *   survived (e.g. on a deploy without the reset RPC): we overwrite it in
+   *   place rather than throwing "could not unlock".
    */
-  private async ensureIdentityKeyPair(): Promise<void> {
+  private async ensureIdentityKeyPair(forceNew = false): Promise<void> {
     if (!this.currentUserId) return
 
     const cachedKey = await identityKeyStore.load(this.currentUserId)
@@ -382,34 +430,62 @@ export class MegolmMessageEncryptionService {
     // Fetch own keypair via SECURITY DEFINER RPC. After the
     // 20260520 user_key_pairs RLS tightening, the encrypted_private columns
     // are no longer SELECTable through PostgREST (column-level GRANTs).
-    const { data: keyPairRows } = await supabase.rpc('get_my_key_pair')
+    const { data: keyPairRows, error: keyPairError } = await supabase.rpc('get_my_key_pair')
+
+    // CRITICAL: if the lookup itself failed (RPC missing, network, RLS), we must
+    // NOT fall through to "generate a new key". Doing so mints a *second*
+    // identity key whose public half others never received - every session
+    // share addressed to our real key becomes undecryptable, and our own shares
+    // are signed by a key peers can't match. Fail loudly so unlock is honest.
+    if (keyPairError) {
+      throw new Error(
+        `Could not load your encryption identity (${keyPairError.message}). ` +
+        `Encryption was not unlocked - please retry.`,
+      )
+    }
+
     const existingKey = (Array.isArray(keyPairRows) ? keyPairRows[0] : null) as
-      | { identity_public_key: string; identity_private_key_encrypted: string }
+      | { id?: string; identity_public_key: string; identity_private_key_encrypted: string }
       | null
 
-    if (existingKey) {
+    if (existingKey && !forceNew) {
       if (cachedKey) return
 
-      // Key pair in DB but not in IndexedDB - decrypt from DB using recovery key
+      // Key pair in DB but not in IndexedDB - decrypt from DB using recovery key.
+      // Let failures PROPAGATE: silently continuing left us with no identity key
+      // in IndexedDB, so every later ECDH (claiming shares, sharing our session)
+      // threw "Identity private key not found" and all messages showed as glyphs
+      // in BOTH directions. A clear error is far better than silent breakage.
       if (existingKey.identity_private_key_encrypted) {
+        let privateKeyBase64: string
         try {
-          const privateKeyBase64 = await this.decryptPrivateKeyFromStorage(
-            existingKey.identity_private_key_encrypted
+          privateKeyBase64 = await this.decryptPrivateKeyFromStorage(
+            existingKey.identity_private_key_encrypted,
           )
-          const privateKeyBytes = Uint8Array.from(atob(privateKeyBase64), c => c.charCodeAt(0))
-          const privateKey = await crypto.subtle.importKey(
-            'pkcs8', privateKeyBytes,
-            { name: 'ECDH', namedCurve: 'P-256' }, false, ['deriveBits']
-          )
-          await identityKeyStore.store(this.currentUserId, privateKey)
-          debug.log('✅ Restored identity key from DB to IndexedDB')
-          return
         } catch (e) {
-          debug.warn('⚠️ Failed to restore identity key from DB:', e)
+          debug.error('❌ Failed to decrypt stored identity key:', e)
+          throw new Error(
+            'Could not unlock your encryption identity with this recovery key. ' +
+            'Double-check the recovery phrase, or reset encryption from Privacy settings.',
+          )
         }
+        const privateKeyBytes = Uint8Array.from(atob(privateKeyBase64), c => c.charCodeAt(0))
+        const privateKey = await crypto.subtle.importKey(
+          'pkcs8', privateKeyBytes,
+          { name: 'ECDH', namedCurve: 'P-256' }, false, ['deriveBits']
+        )
+        await identityKeyStore.store(this.currentUserId, privateKey)
+        debug.log('✅ Restored identity key from DB to IndexedDB')
+        return
       }
 
-      return
+      // Row exists but carries no encrypted private key - we can't derive it and
+      // regenerating would change our public identity, breaking peers' shares to
+      // us. Refuse loudly instead of leaving a half-broken state.
+      throw new Error(
+        'Your stored encryption identity is incomplete (no private key on record). ' +
+        'Reset encryption from Privacy settings to regenerate it.',
+      )
     }
 
     // Generate a new ECDH key pair
@@ -427,18 +503,39 @@ export class MegolmMessageEncryptionService {
 
     const encryptedPrivateKey = await this.encryptPrivateKeyForStorage(privateKeyBase64)
 
-    const { error } = await supabase
-      .from('user_key_pairs')
-      .insert({
-        user_id: this.currentUserId,
-        identity_public_key: publicKeyBase64,
-        identity_private_key_encrypted: encryptedPrivateKey,
-        device_id: 1,
-        is_active: true
-      })
+    // If a stale row survived a reset (e.g. the reset RPC wasn't available),
+    // overwrite it in place so setup doesn't collide with UNIQUE(user_id,
+    // device_id) and doesn't leave the old, undecryptable key around. The
+    // signing columns are nulled so ensureSigningKeyPair() re-mints them under
+    // the new recovery key.
+    let writeError: { message: string } | null = null
+    if (forceNew && existingKey?.id) {
+      const { error } = await supabase
+        .from('user_key_pairs')
+        .update({
+          identity_public_key: publicKeyBase64,
+          identity_private_key_encrypted: encryptedPrivateKey,
+          identity_signing_public_key: null,
+          identity_signing_private_key_encrypted: null,
+          is_active: true,
+        })
+        .eq('id', existingKey.id)
+      writeError = error
+    } else {
+      const { error } = await supabase
+        .from('user_key_pairs')
+        .insert({
+          user_id: this.currentUserId,
+          identity_public_key: publicKeyBase64,
+          identity_private_key_encrypted: encryptedPrivateKey,
+          device_id: 1,
+          is_active: true
+        })
+      writeError = error
+    }
 
-    if (error) {
-      debug.error('❌ Failed to store identity key:', error)
+    if (writeError) {
+      debug.error('❌ Failed to store identity key:', writeError)
       throw new Error('Failed to create identity key pair')
     }
 
@@ -605,11 +702,68 @@ export class MegolmMessageEncryptionService {
       const fingerprint = await this.signingKeyFingerprint(spki)
       const entry: CachedSigningKey = { publicKey, fingerprint, cachedAt: Date.now() }
       this.signingKeyCache.set(senderUserId, entry)
+      // TOFU: pin on first sight, gently notify (non-blocking) on change.
+      // Fire-and-forget so verification stays fast.
+      this.checkAndPinSigningKey(senderUserId, fingerprint).catch(() => {})
       return entry
     } catch (err) {
       debug.warn(`⚠️ Failed to import signing key for ${senderUserId.substring(0, 8)}:`, err)
       return null
     }
+  }
+
+  /**
+   * Trust-on-first-use bookkeeping for a sender's signing key.
+   *
+   * - First time we see a sender: pin their fingerprint silently.
+   * - Fingerprint unchanged: nothing to do.
+   * - Fingerprint changed: this is the deliberately gentle, anti-Matrix path.
+   *   We do NOT block decryption or force a verification ceremony. We accept
+   *   the new key (verification already uses it), update the pin, and emit a
+   *   non-blocking `harmony-identity-changed` CustomEvent so the UI can show a
+   *   small, dismissible "X's security identity changed" notice. Most users
+   *   never see it; when they do, it's informational.
+   *
+   * We never warn for the current user's own key (device enrollment is normal).
+   */
+  private async checkAndPinSigningKey(userId: string, fingerprint: string): Promise<void> {
+    if (!fingerprint) return
+    const existing = await pinnedKeyStore.get(userId)
+    const now = Date.now()
+
+    if (!existing) {
+      await pinnedKeyStore.put({ userId, fingerprint, pinnedAt: now, updatedAt: now })
+      return
+    }
+
+    if (existing.fingerprint === fingerprint) return
+
+    // Changed. Update the pin and emit a soft notice (unless it's our own key).
+    await pinnedKeyStore.put({
+      userId,
+      fingerprint,
+      pinnedAt: existing.pinnedAt,
+      updatedAt: now,
+    })
+
+    if (userId === this.currentUserId) return
+
+    debug.warn(
+      `🔔 Signing identity changed for ${userId.substring(0, 8)} ` +
+      `(${existing.fingerprint} -> ${fingerprint})`,
+    )
+    try {
+      if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+        window.dispatchEvent(new CustomEvent('harmony-identity-changed', {
+          detail: {
+            userId,
+            previousFingerprint: existing.fingerprint,
+            newFingerprint: fingerprint,
+            changedAt: now,
+          },
+        }))
+      }
+    } catch { /* non-fatal */ }
   }
 
   // =====================================================
@@ -639,15 +793,67 @@ export class MegolmMessageEncryptionService {
       throw new Error('Encryption not unlocked - enter your recovery key first')
     }
 
+    const timestamp = Date.now()
+    const contentType = 'application/json'
+
+    // Prefer the device-aware v3 format: signed by THIS device's key, bound to
+    // the current membership epoch, with AES-GCM AAD over the message metadata.
+    // Fall back to v2 (user-level signing key, no epoch/AAD) when no device
+    // signing key is available (e.g. tests or pre-device-enrollment clients).
+    const deviceSigningKey = await deviceIdentityService.getMyDeviceSigningKey().catch(() => null)
+
     // Determine if we need to share the session before sending. Cheap
     // in-memory check; falls through to "no work" when the room is steady.
     const usersNeedingSession = megolmService.getUsersNeedingSession(roomId, recipientIds)
-
-    // Serialize content
     const plaintextContent = JSON.stringify(content)
 
-    // Encrypt with Megolm (fast - uses in-memory session key)
-    const encryptedMessage = await megolmService.encryptMessage(roomId, plaintextContent)
+    let encryptedMessage: MegolmEncryptedMessage
+    let algorithm: 'megolm_v2_signed' | 'megolm_v3'
+    let epochId: number | undefined
+    let senderDeviceId: string | undefined
+    let signingKey: CryptoKey
+
+    if (deviceSigningKey) {
+      algorithm = 'megolm_v3'
+      senderDeviceId = deviceIdentityService.getDeviceId()
+      epochId = await roomEpochService.getEpoch(roomId)
+      const aadFields: AadFieldsV3 = {
+        algorithm,
+        content_type: contentType,
+        epoch_id: epochId,
+        room_id: roomId,
+        sender_user_id: this.currentUserId,
+      }
+      const aadBytes = buildAadBytesV3(aadFields)
+      encryptedMessage = await megolmService.encryptMessage(roomId, plaintextContent, {
+        epoch: epochId,
+        additionalData: aadBytes,
+      })
+      // The session may have rotated to a newer epoch inside encryptMessage.
+      epochId = encryptedMessage.epoch ?? epochId
+      signingKey = deviceSigningKey
+    } else {
+      // Legacy v2 path: user-level signing key, lazily enrolled, no AAD/epoch.
+      algorithm = 'megolm_v2_signed'
+      encryptedMessage = await megolmService.encryptMessage(roomId, plaintextContent)
+      let userSigningKey = await this.getMySigningPrivateKey().catch(() => null)
+      if (!userSigningKey) {
+        debug.warn('⚠️ No signing key on this device - attempting lazy enrollment before send')
+        try {
+          await this.ensureSigningKeyPair()
+        } catch (err) {
+          debug.error('❌ Signing key enrollment failed:', err)
+        }
+        userSigningKey = await this.getMySigningPrivateKey().catch(() => null)
+      }
+      if (!userSigningKey) {
+        throw new Error(
+          'Cannot send a signed encrypted message: no signing key available. ' +
+          'Unlock encryption with your recovery key so a signing key can be created.',
+        )
+      }
+      signingKey = userSigningKey
+    }
 
     if (usersNeedingSession.length > 0) {
       // Block on session sharing so recipients have the key when the message
@@ -666,70 +872,72 @@ export class MegolmMessageEncryptionService {
         .catch(err => debug.warn('⚠️ Background session sharing failed:', err))
     }
 
+    // Refresh the encrypted key backup the first time we send under a given
+    // session. CRITICAL for reading our OWN messages on a fresh device:
+    // recipients recover via server-side megolm_session_shares, but the SENDER
+    // is intentionally excluded from those shares and relies solely on the
+    // backup. The backup used to be written only at setup, so every outbound
+    // session created afterwards was unrecoverable on a new login - our own
+    // messages showed "session key not available" while everyone else read
+    // them fine. triggerAutoBackup is debounced, so bursts coalesce.
+    if (!this.backedUpSessionIds.has(encryptedMessage.sessionId)) {
+      this.backedUpSessionIds.add(encryptedMessage.sessionId)
+      megolmKeyBackupService.triggerAutoBackup().catch(() => {})
+    }
+
     // Store encrypted message in content as base64 text
     const encryptedContent: MessagePart[] = [{
       type: 'text',
       text: encryptedMessage.ciphertext
     }]
 
-    const timestamp = Date.now()
-
-    // Try to sign the message (sender binding). If signing isn't possible
-    // (no signing key on this device yet - legacy users), fall back to v1
-    // emitter behavior so we don't block the send. A v1 message is decoded
-    // by recipients but flagged `sender_verified: false` in display.
-    const signingKey = await this.getMySigningPrivateKey().catch(() => null)
-    if (!signingKey) {
-      debug.warn('⚠️ No signing key available - emitting legacy megolm_v1 (unsigned)')
-      return {
-        encrypted: true,
-        content: encryptedContent,
-        encryption_metadata: {
-          algorithm: 'megolm_v1',
-          session_id: encryptedMessage.sessionId,
-          message_index: encryptedMessage.messageIndex,
-          sender_user_id: this.currentUserId,
-          timestamp,
-        },
-      }
-    }
-
     const ciphertextHash = await hashCiphertextB64(encryptedMessage.ciphertext)
     const tbsFields: SignedMessageFields = {
-      algorithm: 'megolm_v2_signed',
+      algorithm,
       room_id: roomId,
       session_id: encryptedMessage.sessionId,
       message_index: encryptedMessage.messageIndex,
       sender_user_id: this.currentUserId,
       ciphertext_hash_b64: ciphertextHash,
       timestamp,
+      // v3-only fields (undefined for v2 -> identical v2 TBS).
+      epoch_id: algorithm === 'megolm_v3' ? epochId : undefined,
+      sender_device_id: algorithm === 'megolm_v3' ? senderDeviceId : undefined,
     }
     const signature = await signMessage(tbsFields, signingKey)
 
     // Best-effort fingerprint for UI/debug. If lookup fails we just omit it.
     let fingerprint: string | undefined
     try {
-      const { data: myKey } = await supabase
-        .from('user_key_pairs')
-        .select('identity_signing_public_key')
-        .eq('user_id', this.currentUserId)
-        .eq('is_active', true)
-        .maybeSingle()
-      const myPk = (myKey as any)?.identity_signing_public_key as string | undefined
-      if (myPk) fingerprint = await this.signingKeyFingerprint(myPk)
+      if (algorithm === 'megolm_v3' && senderDeviceId) {
+        const spki = await deviceIdentityService.getDeviceSigningPublicKey(this.currentUserId, senderDeviceId)
+        if (spki) fingerprint = await this.signingKeyFingerprint(spki)
+      } else {
+        const { data: myKey } = await supabase
+          .from('user_key_pairs')
+          .select('identity_signing_public_key')
+          .eq('user_id', this.currentUserId)
+          .eq('is_active', true)
+          .maybeSingle()
+        const myPk = (myKey as any)?.identity_signing_public_key as string | undefined
+        if (myPk) fingerprint = await this.signingKeyFingerprint(myPk)
+      }
     } catch { /* non-fatal */ }
 
     return {
       encrypted: true,
       content: encryptedContent,
       encryption_metadata: {
-        algorithm: 'megolm_v2_signed',
+        algorithm,
         session_id: encryptedMessage.sessionId,
         message_index: encryptedMessage.messageIndex,
         sender_user_id: this.currentUserId,
         timestamp,
         signature,
         signing_key_fingerprint: fingerprint,
+        epoch_id: algorithm === 'megolm_v3' ? epochId : undefined,
+        sender_device_id: algorithm === 'megolm_v3' ? senderDeviceId : undefined,
+        content_type: algorithm === 'megolm_v3' ? contentType : undefined,
       },
     }
   }
@@ -767,6 +975,10 @@ export class MegolmMessageEncryptionService {
         timestamp?: number
         signature?: string
         signing_key_fingerprint?: string
+        // v3 fields
+        epoch_id?: number
+        sender_device_id?: string
+        content_type?: string
         // Legacy Signal Protocol fields
         encrypted_keys?: Record<string, string>
         sender_key_id?: string
@@ -786,26 +998,38 @@ export class MegolmMessageEncryptionService {
     // Get room ID from message context
     const roomId = message.channel_id || message.conversation_id || ''
 
-    if (metadata.algorithm === 'megolm_v2_signed' || metadata.algorithm === 'megolm_v1') {
-      // Verification step runs BEFORE decryption:
+    if (metadata.algorithm === 'megolm_v3') {
+      // v3: device-signed, epoch-bound, AAD-protected. Verify the device
+      // signature BEFORE decrypting, then decrypt with the reconstructed AAD
+      // (GCM authentication fails if any AAD-bound field was tampered).
+      const senderVerified = await this.verifyV3Signature(message)
+      if (!senderVerified) {
+        throw new Error('Sender signature invalid - refusing to display tampered message')
+      }
+      const aadBytes = this.buildAadForMessage(message, roomId)
+      const content = await this.decryptMegolmMessage(message, roomId, aadBytes)
+      return { content, senderVerified: true }
+    }
+
+    if (metadata.algorithm === 'megolm_v2_signed') {
+      // Verify the per-message signature BEFORE decryption:
       //   - It's pointless to spend CPU decrypting a message we'll reject.
       //   - More importantly, it prevents an attacker from using bogus
       //     signed-metadata to push the client into the key-request /
       //     session-share fallback path (network noise + log spam).
-      if (metadata.algorithm === 'megolm_v2_signed') {
-        const senderVerified = await this.verifyV2Signature(message)
-        if (!senderVerified) {
-          throw new Error('Sender signature invalid - refusing to display tampered message')
-        }
-      } else {
-        // v1: nothing to verify, log so audits can spot legacy senders.
-        debug.warn(
-          `⚠️ Unsigned megolm_v1 message from ${(metadata.sender_user_id || '').substring(0, 8)} - sender unverified`,
-        )
+      const senderVerified = await this.verifyV2Signature(message)
+      if (!senderVerified) {
+        throw new Error('Sender signature invalid - refusing to display tampered message')
       }
-
       const content = await this.decryptMegolmMessage(message, roomId)
-      return { content, senderVerified: metadata.algorithm === 'megolm_v2_signed' }
+      return { content, senderVerified: true }
+    }
+
+    if (metadata.algorithm === 'megolm_v1') {
+      // v1 was unsigned (no per-message sender binding). Support has been
+      // dropped entirely: an unsigned message can be forged/reattributed, so we
+      // refuse to display it rather than render unverifiable content.
+      throw new Error('Unsupported legacy message (megolm_v1) - sender cannot be verified')
     }
 
     if (metadata.algorithm === 'signal_protocol_v1_hybrid') {
@@ -888,6 +1112,117 @@ export class MegolmMessageEncryptionService {
   }
 
   /**
+   * Reconstruct the AES-GCM AAD for a v3 message from its metadata + room.
+   * Must exactly match what the sender bound at encrypt time, or GCM auth fails.
+   */
+  private buildAadForMessage(
+    message: { encryption_metadata?: { sender_user_id?: string; epoch_id?: number; content_type?: string } },
+    roomId: string,
+  ): Uint8Array {
+    const meta = message.encryption_metadata || {}
+    const aadFields: AadFieldsV3 = {
+      algorithm: 'megolm_v3',
+      content_type: meta.content_type || 'application/json',
+      epoch_id: typeof meta.epoch_id === 'number' ? meta.epoch_id : 1,
+      room_id: roomId,
+      sender_user_id: meta.sender_user_id || '',
+    }
+    return buildAadBytesV3(aadFields)
+  }
+
+  /**
+   * Verify a v3 message's signature against the SENDING DEVICE's signing key
+   * (looked up by (sender_user_id, sender_device_id) in user_devices, which
+   * also enforces revocation - a revoked device's messages fail to verify).
+   */
+  private async verifyV3Signature(
+    message: {
+      content: MessagePart[]
+      channel_id?: string
+      conversation_id?: string
+      encryption_metadata?: {
+        session_id?: string
+        message_index?: number
+        sender_user_id?: string
+        timestamp?: number
+        signature?: string
+        epoch_id?: number
+        sender_device_id?: string
+      }
+    },
+  ): Promise<boolean> {
+    const meta = message.encryption_metadata
+    if (!meta) return false
+    const {
+      session_id: sessionId,
+      message_index: messageIndex,
+      sender_user_id: senderUserId,
+      timestamp,
+      signature,
+      epoch_id: epochId,
+      sender_device_id: senderDeviceId,
+    } = meta
+    const roomId = message.channel_id || message.conversation_id || ''
+
+    if (
+      !signature ||
+      !sessionId ||
+      messageIndex === undefined ||
+      !senderUserId ||
+      !timestamp ||
+      !roomId ||
+      typeof epochId !== 'number' ||
+      !senderDeviceId
+    ) {
+      debug.warn('⚠️ v3 message missing required fields for verification - rejecting')
+      return false
+    }
+
+    const ciphertext = message.content[0]?.type === 'text' ? message.content[0].text : ''
+    if (!ciphertext) return false
+
+    const spki = await deviceIdentityService.getDeviceSigningPublicKey(senderUserId, senderDeviceId)
+    if (!spki) {
+      debug.warn(
+        `⚠️ No active signing key for device ${senderDeviceId.substring(0, 8)} of ${senderUserId.substring(0, 8)} ` +
+        `(unknown or revoked) - rejecting`,
+      )
+      return false
+    }
+
+    let publicKey: CryptoKey
+    let fingerprint = ''
+    try {
+      publicKey = await importPublicSigningKey(spki)
+      fingerprint = await this.signingKeyFingerprint(spki)
+    } catch (err) {
+      debug.warn('⚠️ Failed to import v3 device signing key:', err)
+      return false
+    }
+
+    const ciphertextHash = await hashCiphertextB64(ciphertext)
+    const tbsFields: SignedMessageFields = {
+      algorithm: 'megolm_v3',
+      room_id: roomId,
+      session_id: sessionId,
+      message_index: messageIndex,
+      sender_user_id: senderUserId,
+      ciphertext_hash_b64: ciphertextHash,
+      timestamp,
+      epoch_id: epochId,
+      sender_device_id: senderDeviceId,
+    }
+
+    const ok = await verifyMessageSignature(tbsFields, signature, publicKey)
+    if (ok && fingerprint) {
+      // TOFU pin is per-(user, device) for v3. Reuse the per-user pin store with
+      // a composite key so a device key rotation surfaces the same gentle notice.
+      this.checkAndPinSigningKey(`${senderUserId}:${senderDeviceId}`, fingerprint).catch(() => {})
+    }
+    return ok
+  }
+
+  /**
    * Decrypt a Megolm-encrypted message
    * OPTIMIZED: Fast path when we have the session key in memory
    */
@@ -900,7 +1235,8 @@ export class MegolmMessageEncryptionService {
         sender_user_id?: string
       }
     },
-    roomId: string
+    roomId: string,
+    additionalData?: Uint8Array
   ): Promise<MessagePart[]> {
     if (!megolmService.isInitialized()) {
       throw new Error('Encryption not unlocked - enter your recovery key first')
@@ -930,7 +1266,7 @@ export class MegolmMessageEncryptionService {
 
     // FAST PATH: Try to decrypt immediately (works if we have the key in memory)
     try {
-      const decryptedJson = await megolmService.decryptMessage(roomId, senderId, encryptedMessage)
+      const decryptedJson = await megolmService.decryptMessage(roomId, senderId, encryptedMessage, additionalData)
       const decryptedContent: MessagePart[] = JSON.parse(decryptedJson)
       return decryptedContent
     } catch (error: any) {
@@ -944,7 +1280,7 @@ export class MegolmMessageEncryptionService {
         if (claimed > 0) {
           // Retry decryption after claiming shares
           try {
-            const decryptedJson = await megolmService.decryptMessage(roomId, senderId, encryptedMessage)
+            const decryptedJson = await megolmService.decryptMessage(roomId, senderId, encryptedMessage, additionalData)
             const decryptedContent: MessagePart[] = JSON.parse(decryptedJson)
             return decryptedContent
           } catch {
@@ -1025,46 +1361,57 @@ export class MegolmMessageEncryptionService {
 
     debug.log(`📤 Sharing session with ${usersWithKeys} users...`)
 
-    // PARALLEL: Encrypt and store shares concurrently
-    const sharePromises = Array.from(keyMap.entries()).map(async ([userId, publicKey]) => {
-      try {
-        // Encrypt session key for this user
-        const encryptedSessionKey = await this.encryptSessionKeyForUser(
-          sessionData.sessionKey,
-          publicKey
-        )
-
-        // Store the share
-        const { error: shareError } = await supabase
-          .from('megolm_session_shares')
-          .upsert({
-            room_id: roomId,
-            session_id: sessionId,
-            sender_user_id: this.currentUserId,
-            recipient_user_id: userId,
-            encrypted_session_key: encryptedSessionKey,
-            first_known_index: 0
-          }, {
-            onConflict: 'room_id,session_id,recipient_user_id'
-          })
-
-        if (shareError) {
-          debug.error(`❌ Failed to store session share for ${userId.substring(0, 8)}:`, shareError)
-          return false
+    // PARALLEL: encrypt the session key for every recipient (cheap, CPU-bound).
+    // The N ECDH wraps are unavoidable for group E2EE — each recipient gets the
+    // key sealed to their own identity key so the server can never read it.
+    const encryptResults = await Promise.all(
+      Array.from(keyMap.entries()).map(async ([userId, publicKey]) => {
+        try {
+          const encryptedSessionKey = await this.encryptSessionKeyForUser(
+            sessionData.sessionKey,
+            publicKey
+          )
+          return { userId, encryptedSessionKey }
+        } catch (error) {
+          debug.error(`❌ Failed to encrypt session share for ${userId.substring(0, 8)}:`, error)
+          return null
         }
+      })
+    )
 
-        // Mark as shared in local state (sync)
-        megolmService.markSessionSharedWith(roomId, userId)
-        return true
-      } catch (error) {
-        debug.error(`❌ Failed to share session with ${userId.substring(0, 8)}:`, error)
-        return false
-      }
-    })
+    const rows = encryptResults
+      .filter((r): r is { userId: string; encryptedSessionKey: string } => r !== null)
+      .map(({ userId, encryptedSessionKey }) => ({
+        room_id: roomId,
+        session_id: sessionId,
+        sender_user_id: this.currentUserId!,
+        recipient_user_id: userId,
+        encrypted_session_key: encryptedSessionKey,
+        first_known_index: 0,
+      }))
 
-    const results = await Promise.all(sharePromises)
-    const successCount = results.filter(Boolean).length
-    debug.log(`✅ Session shared with ${successCount}/${usersWithKeys} users`)
+    if (rows.length === 0) {
+      debug.error('❌ No session shares could be encrypted')
+      return
+    }
+
+    // BATCH: write ALL shares in ONE upsert. Previously this fanned out to one
+    // HTTP request per recipient (1000 recipients -> 1000 round-trips); a single
+    // array upsert collapses that to one request.
+    const { error: shareError } = await supabase
+      .from('megolm_session_shares')
+      .upsert(rows, { onConflict: 'room_id,session_id,recipient_user_id' })
+
+    if (shareError) {
+      debug.error('❌ Failed to store session shares (batch):', shareError)
+      return
+    }
+
+    // Only mark as shared once the write succeeded, so a failed batch is retried.
+    for (const { recipient_user_id } of rows) {
+      megolmService.markSessionSharedWith(roomId, recipient_user_id)
+    }
+    debug.log(`✅ Session shared with ${rows.length}/${usersWithKeys} users`)
   }
 
   /**
@@ -1397,30 +1744,64 @@ export class MegolmMessageEncryptionService {
   }
 
   /**
+   * Timestamp (ms) the current encryption identity was created, a.k.a. the
+   * "identity epoch". Messages encrypted before this point were sealed to a
+   * previous identity whose private key no longer exists, so a missing session
+   * key for them is *permanent*, not a transient "ask the sender" situation.
+   * The UI uses this to distinguish unrecoverable messages from retryable ones.
+   * Cached; cleared on reset/cleanup.
+   */
+  async getIdentityCreatedAt(): Promise<number | null> {
+    if (this.identityCreatedAtMs !== null) return this.identityCreatedAtMs
+    try {
+      const { data } = await supabase.rpc('get_my_key_pair')
+      const row = (Array.isArray(data) ? data[0] : null) as { created_at?: string } | null
+      if (row?.created_at) {
+        this.identityCreatedAtMs = new Date(row.created_at).getTime()
+        return this.identityCreatedAtMs
+      }
+    } catch {
+      /* best-effort; treat as unknown */
+    }
+    return null
+  }
+
+  /**
    * Reset encryption (delete all data)
    */
   async resetEncryption(): Promise<void> {
     if (!this.currentUserId) return
 
-    // Clear stored keys
+    // Clear stored keys (identity + signing + session). Signing was previously
+    // left behind, which could leave a stale cached signing key after reset.
     await secureSessionKeyStore.clear(this.currentUserId).catch(() => {})
     await identityKeyStore.clear(this.currentUserId).catch(() => {})
+    await signingKeyStore.clear(this.currentUserId).catch(() => {})
+    this.signingKeyCache.clear()
+    this.backedUpSessionIds.clear()
+    this.identityCreatedAtMs = null
     this.clearLegacyStorage()
 
-    // Delete backup
-    await megolmKeyBackupService.deleteBackup()
+    // Delete the local backup record.
+    await megolmKeyBackupService.deleteBackup().catch(() => {})
 
-    // Delete recovery key metadata
-    await supabase
-      .from('recovery_key_metadata')
-      .delete()
-      .eq('user_id', this.currentUserId)
-
-    // Delete session shares
-    await supabase
-      .from('megolm_session_shares')
-      .delete()
-      .or(`sender_user_id.eq.${this.currentUserId},recipient_user_id.eq.${this.currentUserId}`)
+    // Wipe ALL server-side identity in one atomic, RLS-bypassing call. This is
+    // the critical fix: the old piecemeal deletes never removed the
+    // user_key_pairs row (no DELETE policy exists), so a later setup tripped
+    // over the stale row and failed to unlock. The RPC removes the key pair
+    // plus dependent state for the caller only.
+    const { error: resetError } = await supabase.rpc('reset_my_encryption_identity')
+    if (resetError) {
+      // Fall back to best-effort direct deletes (works for tables that do have
+      // self-delete policies) so older deploys without the RPC still clear what
+      // they can. user_key_pairs itself will remain until the migration is run.
+      debug.warn('⚠️ reset_my_encryption_identity RPC unavailable, falling back:', resetError)
+      await supabase.from('recovery_key_metadata').delete().eq('user_id', this.currentUserId)
+      await supabase
+        .from('megolm_session_shares')
+        .delete()
+        .or(`sender_user_id.eq.${this.currentUserId},recipient_user_id.eq.${this.currentUserId}`)
+    }
 
     // Close Megolm service
     megolmService.close()

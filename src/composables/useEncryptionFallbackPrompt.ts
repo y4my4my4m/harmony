@@ -30,6 +30,14 @@ export type EncryptionFallbackScope = 'channel' | 'dm' | 'thread'
 interface FallbackOptions {
   scope: EncryptionFallbackScope
   /**
+   * Stable id for the conversation surface (e.g. `channel:${id}`,
+   * `dm:${conversationId}`, `thread:${threadId}`). When set, the user is
+   * prompted at most once per context per page load; subsequent sends in the
+   * same channel/DM/thread auto-fallback to plaintext without re-prompting.
+   * Switching context or refreshing resets the prompt.
+   */
+  contextKey?: string
+  /**
    * Optional override for the prompt. May return a boolean synchronously or
    * a Promise<boolean>. Tests inject a stub here; production code lets the
    * default (the styled modal below) handle it.
@@ -110,6 +118,9 @@ const initialState = (): EncryptionFallbackPromptState => ({
 
 export const encryptionFallbackPromptState = ref<EncryptionFallbackPromptState>(initialState())
 
+/** Contexts where the user already confirmed a plaintext send this session. */
+const plaintextFallbackAcceptedContexts = new Set<string>()
+
 /**
  * Called by `EncryptionFallbackModal.vue` when the user clicks the confirm
  * or cancel button. Resolves the pending Promise and closes the modal.
@@ -165,6 +176,16 @@ export function useEncryptionFallbackPrompt() {
         return { status: 'error', error }
       }
 
+      // User already accepted plaintext for this channel/DM/thread this session.
+      if (options.contextKey && plaintextFallbackAcceptedContexts.has(options.contextKey)) {
+        try {
+          const result = await send({ allowPlaintextFallback: true })
+          return { result, status: 'ok' }
+        } catch (retryError) {
+          return { status: 'error', error: retryError }
+        }
+      }
+
       // Use the injected confirm if provided (tests), else the styled modal.
       // Both can return either `boolean` or `Promise<boolean>`; `await
       // Promise.resolve(x)` handles both shapes uniformly.
@@ -175,6 +196,10 @@ export function useEncryptionFallbackPrompt() {
       if (!accepted) {
         debug.warn('🔒 User declined plaintext fallback')
         return { status: 'declined' }
+      }
+
+      if (options.contextKey) {
+        plaintextFallbackAcceptedContexts.add(options.contextKey)
       }
 
       try {
