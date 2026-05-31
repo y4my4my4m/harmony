@@ -32,12 +32,6 @@
           </div>
           
           <div class="header-controls">
-            <!-- Connection Mode Indicator -->
-            <div class="connection-mode-indicator" :class="voiceStore.connectionMode || 'unknown'">
-              <Icon :name="voiceStore.connectionMode === 'livekit' ? 'server' : 'users'" />
-              <span>{{ voiceStore.connectionMode === 'livekit' ? 'SFU' : 'P2P' }}</span>
-            </div>
-
             <!-- E2EE Indicator -->
             <VoiceEncryptionBadge
               v-if="voiceStore.connectionMode"
@@ -46,6 +40,11 @@
               size="md"
               show-label
             />
+            <!-- Connection Mode Indicator -->
+            <div class="connection-mode-indicator" :class="voiceStore.connectionMode || 'unknown'">
+              <Icon :name="voiceStore.connectionMode === 'livekit' ? 'server' : 'users'" />
+              <span>{{ voiceStore.connectionMode === 'livekit' ? 'SFU' : 'P2P' }}</span>
+            </div>
             
             <button 
               @click="voiceStore.setLayoutMode('grid')"
@@ -791,7 +790,6 @@ const connectionStats = computed(() => voiceStore.connectionStats);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  margin-right: 4px;
 }
 
 .connection-mode-indicator.livekit {
@@ -810,6 +808,9 @@ const connectionStats = computed(() => voiceStore.connectionStats);
   background: rgba(255, 255, 255, 0.1);
   color: #b9bbbe;
   border: 1px solid rgba(255, 255, 255, 0.1);
+}
+.connection-mode-indicator :deep(span) {
+  display: flex;
 }
 
 .connection-mode-indicator :deep(svg) {
