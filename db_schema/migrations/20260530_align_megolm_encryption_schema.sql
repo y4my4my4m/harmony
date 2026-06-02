@@ -29,14 +29,30 @@ BEGIN;
 -- ===========================================================================
 -- megolm_session_shares
 -- ===========================================================================
+-- NOTE: prod/dev schemas drifted from init in different directions - some
+-- deploys are MISSING columns init declares (e.g. recipient_device_id), others
+-- have them as legacy NOT NULL. So we (a) ADD every column the runtime contract
+-- needs with IF NOT EXISTS, then (b) relax constraints only on columns that
+-- actually exist. This makes the migration safe on any prior schema shape.
 ALTER TABLE public.megolm_session_shares
     ADD COLUMN IF NOT EXISTS sender_user_id uuid REFERENCES public.profiles(id) ON DELETE CASCADE;
 ALTER TABLE public.megolm_session_shares
     ADD COLUMN IF NOT EXISTS is_claimed boolean DEFAULT false;
+-- Contract columns the client/functions read or write; create them (with safe
+-- defaults) if this deploy never had them.
+ALTER TABLE public.megolm_session_shares
+    ADD COLUMN IF NOT EXISTS recipient_device_id text DEFAULT 'default'::text;
+ALTER TABLE public.megolm_session_shares
+    ADD COLUMN IF NOT EXISTS claimed_at timestamp with time zone;
+ALTER TABLE public.megolm_session_shares
+    ADD COLUMN IF NOT EXISTS first_known_index integer DEFAULT 0;
 
--- recipient_device_id: give it a default and stop requiring callers to pass it.
+-- recipient_device_id: ensure a default and that it's nullable (it now exists
+-- thanks to the ADD above). The client never supplies it.
 ALTER TABLE public.megolm_session_shares
     ALTER COLUMN recipient_device_id SET DEFAULT 'default'::text;
+ALTER TABLE public.megolm_session_shares
+    ALTER COLUMN recipient_device_id DROP NOT NULL;
 UPDATE public.megolm_session_shares
     SET recipient_device_id = 'default'
     WHERE recipient_device_id IS NULL;
@@ -74,9 +90,22 @@ ALTER TABLE public.megolm_key_requests
     ADD COLUMN IF NOT EXISTS request_signature text;
 ALTER TABLE public.megolm_key_requests
     ADD COLUMN IF NOT EXISTS request_signing_fingerprint text;
+-- requester_device_id is part of the (legacy) contract but no longer supplied by
+-- the client; ensure it exists with a default so inserts that omit it succeed.
+ALTER TABLE public.megolm_key_requests
+    ADD COLUMN IF NOT EXISTS requester_device_id text DEFAULT 'default'::text;
 
--- request_id / requester_device_id are no longer supplied by the client.
-ALTER TABLE public.megolm_key_requests ALTER COLUMN request_id DROP NOT NULL;
+-- request_id / requester_device_id are no longer supplied by the client. Relax
+-- them only if present (request_id may not exist on a drifted schema).
+DO $relax$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns
+               WHERE table_schema = 'public' AND table_name = 'megolm_key_requests'
+                 AND column_name = 'request_id') THEN
+        EXECUTE 'ALTER TABLE public.megolm_key_requests ALTER COLUMN request_id DROP NOT NULL';
+    END IF;
+END
+$relax$;
 ALTER TABLE public.megolm_key_requests ALTER COLUMN requester_device_id SET DEFAULT 'default'::text;
 ALTER TABLE public.megolm_key_requests ALTER COLUMN requester_device_id DROP NOT NULL;
 
@@ -103,9 +132,22 @@ ALTER TABLE public.megolm_key_backups
 ALTER TABLE public.megolm_key_backups
     ADD COLUMN IF NOT EXISTS last_updated timestamp with time zone DEFAULT now();
 
--- Legacy NOT NULLs the client doesn't populate.
-ALTER TABLE public.megolm_key_backups ALTER COLUMN backup_version DROP NOT NULL;
-ALTER TABLE public.megolm_key_backups ALTER COLUMN auth_data DROP NOT NULL;
+-- Legacy NOT NULLs the client doesn't populate. Relax only the ones that exist
+-- (a drifted deploy may have neither / either).
+DO $relaxbackup$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns
+               WHERE table_schema = 'public' AND table_name = 'megolm_key_backups'
+                 AND column_name = 'backup_version') THEN
+        EXECUTE 'ALTER TABLE public.megolm_key_backups ALTER COLUMN backup_version DROP NOT NULL';
+    END IF;
+    IF EXISTS (SELECT 1 FROM information_schema.columns
+               WHERE table_schema = 'public' AND table_name = 'megolm_key_backups'
+                 AND column_name = 'auth_data') THEN
+        EXECUTE 'ALTER TABLE public.megolm_key_backups ALTER COLUMN auth_data DROP NOT NULL';
+    END IF;
+END
+$relaxbackup$;
 
 -- Client upserts onConflict 'user_id' which needs a plain unique constraint.
 DO $$
