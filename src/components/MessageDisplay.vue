@@ -473,6 +473,10 @@
     :index="indexRef"
     @hide="closeLightbox"
   />
+  <LightboxDownloadButton
+    :visible="isLightboxOpen"
+    :url="activeLightboxImages[indexRef] ?? ''"
+  />
 
   <!-- Modern User Profile Modal -->
   <UserProfileModal
@@ -601,6 +605,8 @@ import DisplayName from '@/components/DisplayName.vue';
 import ReactionTooltip from '@/components/messages/ReactionTooltip.vue';
 import MessageReactions from '@/components/MessageReactions.vue';
 import MessageContextMenu from '@/components/MessageContextMenu.vue';
+import LightboxDownloadButton from '@/components/common/LightboxDownloadButton.vue';
+import { shouldAllowNativeContextMenu } from '@/utils/nativeContextMenu';
 import ReportModal from '@/components/moderation/ReportModal.vue';
 import SupporterBadge from '@/components/common/SupporterBadge.vue';
 import { fundingService } from '@/services/FundingService';
@@ -3164,19 +3170,13 @@ const handleMessageContextMenu = (message: Message, event: MouseEvent) => {
   // so opening the full context menu on top of it produces two competing
   // surfaces. Swallow the synthetic event so only the toolbar shows;
   // the user can then tap the (...) button to get the full menu.
-  if (isMobile.value) {
+  // Exception: selected text or native media/link targets should keep
+  // the browser/OS copy menu.
+  if (isMobile.value && !shouldAllowNativeContextMenu(event)) {
     event.preventDefault();
     return;
   }
-  const target = event.target as HTMLElement | null;
-  if (target?.closest('a, img, video, audio, [data-no-context-menu]')) {
-    return;
-  }
-  // Don't intercept right-clicks while a text selection is active -
-  // browsers expose the standard "Copy" menu for selected text and
-  // overriding it would hide that affordance.
-  const selection = window.getSelection?.();
-  if (selection && !selection.isCollapsed && selection.toString().length > 0) {
+  if (shouldAllowNativeContextMenu(event)) {
     return;
   }
   openContextMenu(message, event);
