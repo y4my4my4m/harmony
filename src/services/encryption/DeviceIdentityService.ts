@@ -243,15 +243,20 @@ class DeviceIdentityService {
    * is unknown or revoked - the caller treats that as a verification failure.
    */
   async getDeviceSigningPublicKey(userId: string, deviceId: string): Promise<string | null> {
-    const { data, error } = await supabase
-      .from('user_devices')
-      .select('device_signing_public_key, revoked_at')
-      .eq('user_id', userId)
-      .eq('device_id', deviceId)
-      .maybeSingle()
-    if (error || !data) return null
-    if (data.revoked_at) return null
-    return (data.device_signing_public_key as string) || null
+    // user_devices SELECT is owner-only at the RLS layer, so cross-user lookups
+    // (verifying another sender's v3 messages) go through a SECURITY DEFINER RPC
+    // that returns ONLY the public signing key + revoked flag - never the rest of
+    // the device row (label / platform / last_seen / trust_state).
+    const { data, error } = await supabase.rpc('get_device_signing_key', {
+      p_user_id: userId,
+      p_device_id: deviceId,
+    })
+    if (error) return null
+    const row = (Array.isArray(data) ? data[0] : data) as
+      | { device_signing_public_key: string | null; revoked_at: string | null }
+      | undefined
+    if (!row || row.revoked_at) return null
+    return row.device_signing_public_key || null
   }
 
   /**

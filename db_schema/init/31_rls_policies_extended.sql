@@ -423,17 +423,36 @@ CREATE POLICY "megolm_key_requests_fulfill" ON public.megolm_key_requests
 CREATE POLICY "megolm_key_backups_own_only" ON public.megolm_key_backups
     FOR ALL USING (user_id = public.get_current_profile_id());
 
--- User devices: anyone authenticated may read public device key material (needed
--- to wrap session keys per recipient device); only the owner may write.
+-- User devices: the OWNER reads their own device rows in full (device-management
+-- UI); only the owner may write. Other users get NO direct row access - a
+-- blanket authenticated SELECT leaked every account's device label / platform /
+-- last_seen_at / trust_state to all clients. Cross-user lookups need only the
+-- PUBLIC signing-key material and go through the SECURITY DEFINER
+-- get_device_signing_key() RPC below.
 ALTER TABLE public.user_devices ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "user_devices_select" ON public.user_devices
-    FOR SELECT USING (auth.role() = 'authenticated' OR auth.role() = 'service_role');
+DROP POLICY IF EXISTS "user_devices_select" ON public.user_devices;
+DROP POLICY IF EXISTS "user_devices_select_own" ON public.user_devices;
+CREATE POLICY "user_devices_select_own" ON public.user_devices
+    FOR SELECT USING (user_id = public.get_current_profile_id());
 CREATE POLICY "user_devices_insert_own" ON public.user_devices
     FOR INSERT WITH CHECK (user_id = public.get_current_profile_id());
 CREATE POLICY "user_devices_update_own" ON public.user_devices
     FOR UPDATE USING (user_id = public.get_current_profile_id());
 CREATE POLICY "user_devices_delete_own" ON public.user_devices
     FOR DELETE USING (user_id = public.get_current_profile_id());
+
+-- Narrow cross-user read for v3 signature verification: returns ONLY a device's
+-- public signing key + revoked flag, never the rest of the device row.
+CREATE OR REPLACE FUNCTION public.get_device_signing_key(p_user_id uuid, p_device_id text)
+RETURNS TABLE (device_signing_public_key text, revoked_at timestamptz)
+    LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+    AS $$
+    SELECT ud.device_signing_public_key, ud.revoked_at
+    FROM public.user_devices ud
+    WHERE ud.user_id = p_user_id AND ud.device_id = p_device_id
+    LIMIT 1;
+$$;
+GRANT EXECUTE ON FUNCTION public.get_device_signing_key(uuid, text) TO authenticated;
 
 -- Device approval requests: account-scoped. A device may SELECT its account's
 -- requests and INSERT its own (raising a "new login" prompt), but it may NOT

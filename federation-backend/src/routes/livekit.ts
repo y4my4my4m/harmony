@@ -27,6 +27,7 @@ const federatedTokenRequestSchema = z.object({
   roomType: z.enum(['voice_channel', 'dm_call', 'stage']),
   canPublish: z.boolean().optional(),
   canSubscribe: z.boolean().optional(),
+  canPublishData: z.boolean().optional(),
 });
 
 // =============================================================================
@@ -217,7 +218,7 @@ router.post('/federated-token', requireLiveKit, async (req: Request, res: Respon
       });
     }
     
-    const { actorId, roomName, roomType, canPublish, canSubscribe } = validation.data;
+    const { actorId, roomName, roomType, canPublish, canSubscribe, canPublishData } = validation.data;
     
     // Verify HTTP Signature from the requesting instance
     const signatureHeader = req.headers.signature as string | undefined;
@@ -260,6 +261,7 @@ router.post('/federated-token', requireLiveKit, async (req: Request, res: Respon
       roomType,
       canPublish,
       canSubscribe,
+      canPublishData,
       signature: signatureHeader,
     };
     

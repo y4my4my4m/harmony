@@ -63,10 +63,16 @@ CREATE TABLE IF NOT EXISTS public.room_epoch_state (
 -- ===========================================================================
 -- RLS
 -- ===========================================================================
+-- user_devices: the OWNER reads their own device rows in full (device-management
+-- UI). Other users do NOT get direct row access - a blanket authenticated SELECT
+-- would leak every account's device label / platform / last_seen_at / trust_state
+-- to all clients. Cross-user lookups need ONLY the public signing-key material and
+-- go through the SECURITY DEFINER get_device_signing_key() RPC defined below.
 ALTER TABLE public.user_devices ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "user_devices_select" ON public.user_devices;
-CREATE POLICY "user_devices_select" ON public.user_devices
-    FOR SELECT USING (auth.role() = 'authenticated' OR auth.role() = 'service_role');
+DROP POLICY IF EXISTS "user_devices_select_own" ON public.user_devices;
+CREATE POLICY "user_devices_select_own" ON public.user_devices
+    FOR SELECT USING (user_id = public.get_current_profile_id());
 DROP POLICY IF EXISTS "user_devices_insert_own" ON public.user_devices;
 CREATE POLICY "user_devices_insert_own" ON public.user_devices
     FOR INSERT WITH CHECK (user_id = public.get_current_profile_id());
@@ -77,11 +83,36 @@ DROP POLICY IF EXISTS "user_devices_delete_own" ON public.user_devices;
 CREATE POLICY "user_devices_delete_own" ON public.user_devices
     FOR DELETE USING (user_id = public.get_current_profile_id());
 
+-- Narrow cross-user read: returns only a device's PUBLIC signing key + revoked
+-- flag, so clients can verify v3 message signatures without exposing the rest of
+-- the device row. Revoked devices return their row (caller treats revoked_at as
+-- a verification failure).
+CREATE OR REPLACE FUNCTION public.get_device_signing_key(p_user_id uuid, p_device_id text)
+RETURNS TABLE (device_signing_public_key text, revoked_at timestamptz)
+    LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+    AS $$
+    SELECT ud.device_signing_public_key, ud.revoked_at
+    FROM public.user_devices ud
+    WHERE ud.user_id = p_user_id AND ud.device_id = p_device_id
+    LIMIT 1;
+$$;
+GRANT EXECUTE ON FUNCTION public.get_device_signing_key(uuid, text) TO authenticated;
+
+-- device_approval_requests: account-scoped SELECT + INSERT only. A device may
+-- raise/see its account's requests but must NOT directly UPDATE one to
+-- 'approved' - approval/denial flow exclusively through the SECURITY DEFINER
+-- RPCs (approve_device_request / deny_device_request, defined in
+-- 20260531_security_hardening.sql and init), which verify the approver is an
+-- established device. A permissive FOR ALL policy here would reopen that
+-- self-approval bypass, so we deliberately grant no UPDATE/DELETE.
 ALTER TABLE public.device_approval_requests ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "device_approval_requests_own" ON public.device_approval_requests;
-CREATE POLICY "device_approval_requests_own" ON public.device_approval_requests
-    FOR ALL USING (user_id = public.get_current_profile_id())
-    WITH CHECK (user_id = public.get_current_profile_id());
+DROP POLICY IF EXISTS "device_approval_requests_select_own" ON public.device_approval_requests;
+CREATE POLICY "device_approval_requests_select_own" ON public.device_approval_requests
+    FOR SELECT USING (user_id = public.get_current_profile_id());
+DROP POLICY IF EXISTS "device_approval_requests_insert_own" ON public.device_approval_requests;
+CREATE POLICY "device_approval_requests_insert_own" ON public.device_approval_requests
+    FOR INSERT WITH CHECK (user_id = public.get_current_profile_id());
 
 ALTER TABLE public.room_epoch_state ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "room_epoch_state_select" ON public.room_epoch_state;

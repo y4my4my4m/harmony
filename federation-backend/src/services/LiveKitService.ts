@@ -23,6 +23,7 @@ export interface FederatedTokenRequest {
   roomType: 'voice_channel' | 'dm_call' | 'stage';
   canPublish?: boolean;
   canSubscribe?: boolean;
+  canPublishData?: boolean;
   signature?: string; // HTTP Signature for verification
 }
 
@@ -200,11 +201,14 @@ class LiveKitService {
     if (!cfg.allowFederatedVoice) {
       throw new Error('Federated voice is not enabled on this instance');
     }
-    
-    // TODO: Verify ActivityPub signature
-    // This should validate the HTTP Signature to ensure the request is legitimate
-    // For now, we trust requests that include a valid actor ID format
-    
+
+    // NOTE: the HTTP Signature (and the actorId<->signer binding) is verified by
+    // the caller of this method (POST /api/livekit/federated-token). That proves
+    // "this remote actor is who they claim". It does NOT prove the actor belongs
+    // to the requested room - we must still authorize room access below, or any
+    // actor on a non-blocked instance could mint a token to join ANY voice
+    // channel / DM call and (for non-E2EE rooms) eavesdrop on the SFU media.
+
     // Extract instance domain from actor ID
     const actorUrl = new URL(request.actorId);
     const remoteDomain = actorUrl.hostname;
@@ -220,7 +224,17 @@ class LiveKitService {
     if (blocked) {
       throw new Error('Instance is blocked');
     }
-    
+
+    // AUTHORIZATION: the remote actor must actually belong to the requested room.
+    const allowed = await this.validateFederatedRoomAccess(
+      request.actorId,
+      request.roomName,
+      request.roomType,
+    );
+    if (!allowed) {
+      throw new Error('permission denied: federated actor is not authorized for this room');
+    }
+
     // Create identity for federated user (unique across federation)
     const federatedIdentity = `federated:${request.actorId}`;
     
@@ -359,6 +373,92 @@ class LiveKitService {
     return false;
   }
   
+  /**
+   * Validate that a FEDERATED (remote) actor is authorized for the requested
+   * room. Mirrors validateRoomPermission but resolves the actor by ActivityPub
+   * `federated_id` instead of a local auth user, and adds a DM-call fallback.
+   *
+   *  - voice_channel / stage: the actor's mirrored local profile must be an
+   *    accepted member of the channel's server (same gate the AP
+   *    VoiceChannelJoin handler enforces before minting a token).
+   *  - dm_call: the actor must be a participant of the underlying conversation
+   *    OR a party to an active federated_voice_calls row for this exact room.
+   *    Either is sufficient and both call directions are covered.
+   *
+   * Fails closed on any lookup error.
+   */
+  private async validateFederatedRoomAccess(
+    actorId: string,
+    roomName: string,
+    roomType: 'voice_channel' | 'dm_call' | 'stage',
+  ): Promise<boolean> {
+    const supabase = getSupabaseClient();
+    try {
+      // Resolve the remote actor to its mirrored local profile (if any).
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('federated_id', actorId)
+        .maybeSingle();
+      const profileId = profile?.id as string | undefined;
+
+      if (roomType === 'voice_channel' || roomType === 'stage') {
+        if (!profileId) return false;
+        const channelId = roomName.replace(/^(channel|stage)-/, '');
+        const { data: channel } = await supabase
+          .from('channels')
+          .select('server_id')
+          .eq('id', channelId)
+          .maybeSingle();
+        if (!channel?.server_id) return false;
+        const { data: member } = await supabase
+          .from('user_servers')
+          .select('id')
+          .eq('server_id', channel.server_id)
+          .eq('user_id', profileId)
+          .eq('status', 'accepted')
+          .maybeSingle();
+        return !!member;
+      }
+
+      if (roomType === 'dm_call') {
+        const federatedMatch = roomName.match(/^federated-dm-([a-f0-9-]{36})/i);
+        const conversationId = federatedMatch
+          ? federatedMatch[1]
+          : roomName.replace(/^dm-/, '');
+
+        // (a) Mirrored profile is an active participant of the conversation.
+        if (profileId) {
+          const { data: participant } = await supabase
+            .from('conversation_participants')
+            .select('id')
+            .eq('conversation_id', conversationId)
+            .eq('user_id', profileId)
+            .is('left_at', null)
+            .maybeSingle();
+          if (participant) return true;
+        }
+
+        // (b) The actor is party to an active federated call for THIS room.
+        let q = supabase
+          .from('federated_voice_calls')
+          .select('id')
+          .eq('room_name', roomName)
+          .in('status', ['pending', 'accepted']);
+        q = profileId
+          ? q.or(`caller_federated_id.eq.${actorId},recipient_id.eq.${profileId}`)
+          : q.eq('caller_federated_id', actorId);
+        const { data: call } = await q.maybeSingle();
+        return !!call;
+      }
+
+      return false;
+    } catch (error) {
+      logger.warn(`Federated room access check failed for ${actorId} / ${roomName}:`, error);
+      return false;
+    }
+  }
+
   /**
    * Public membership check for a room, inferring the room type from the name
    * prefix. Used to gate room-introspection endpoints so callers can only see

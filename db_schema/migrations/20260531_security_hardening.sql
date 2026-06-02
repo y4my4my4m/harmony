@@ -297,14 +297,31 @@ GRANT EXECUTE ON FUNCTION public.request_room_epoch_bump(text, text) TO authenti
 
 -- ---------------------------------------------------------------------------
 -- H: device approval server enforcement (RPCs + lock down table UPDATE)
+--
+-- NOTE: public.device_approval_requests is created by the LATER-numbered
+-- migration 20260601_device_identity_and_epochs.sql. If migrations are applied
+-- in filename order on a DB that doesn't yet have the table, the policy DDL
+-- below would raise "relation does not exist" and abort this ENTIRE
+-- transaction, silently rolling back every C1-C6 / RLS hardening fix above.
+-- We therefore guard the table-dependent statements with to_regclass(); the
+-- 20260601 migration sets the same hardened (SELECT + INSERT only) policies, so
+-- the end state is correct regardless of which migration runs first.
 -- ---------------------------------------------------------------------------
-DROP POLICY IF EXISTS "device_approval_requests_own" ON public.device_approval_requests;
-DROP POLICY IF EXISTS "device_approval_requests_select_own" ON public.device_approval_requests;
-CREATE POLICY "device_approval_requests_select_own" ON public.device_approval_requests
-    FOR SELECT USING (user_id = public.get_current_profile_id());
-DROP POLICY IF EXISTS "device_approval_requests_insert_own" ON public.device_approval_requests;
-CREATE POLICY "device_approval_requests_insert_own" ON public.device_approval_requests
-    FOR INSERT WITH CHECK (user_id = public.get_current_profile_id());
+DO $devapproval$
+BEGIN
+    IF to_regclass('public.device_approval_requests') IS NOT NULL THEN
+        EXECUTE 'DROP POLICY IF EXISTS "device_approval_requests_own" ON public.device_approval_requests';
+        EXECUTE 'DROP POLICY IF EXISTS "device_approval_requests_select_own" ON public.device_approval_requests';
+        EXECUTE 'CREATE POLICY "device_approval_requests_select_own" ON public.device_approval_requests
+            FOR SELECT USING (user_id = public.get_current_profile_id())';
+        EXECUTE 'DROP POLICY IF EXISTS "device_approval_requests_insert_own" ON public.device_approval_requests';
+        EXECUTE 'CREATE POLICY "device_approval_requests_insert_own" ON public.device_approval_requests
+            FOR INSERT WITH CHECK (user_id = public.get_current_profile_id())';
+    ELSE
+        RAISE NOTICE 'device_approval_requests not present yet; its policies are set by 20260601_device_identity_and_epochs.sql';
+    END IF;
+END
+$devapproval$;
 
 CREATE OR REPLACE FUNCTION public.approve_device_request(
     p_request_id uuid, p_approver_device_id text, p_encrypted_sync_bundle text DEFAULT NULL
