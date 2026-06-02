@@ -385,8 +385,10 @@ CREATE POLICY "megolm_session_shares_select" ON public.megolm_session_shares
 CREATE POLICY "megolm_session_shares_insert" ON public.megolm_session_shares
     FOR INSERT WITH CHECK (
         sender_user_id = public.get_current_profile_id()
-        AND public.is_room_member(room_id, sender_user_id)
-        AND public.is_room_member(room_id, recipient_user_id)
+        -- room_id::text: is_room_member takes (text, uuid). Cast is a no-op on
+        -- text columns and keeps the policy resolvable if room_id is ever uuid.
+        AND public.is_room_member(room_id::text, sender_user_id)
+        AND public.is_room_member(room_id::text, recipient_user_id)
     );
 
 CREATE POLICY "megolm_session_shares_update" ON public.megolm_session_shares

@@ -34,6 +34,40 @@ BEGIN;
 -- have them as legacy NOT NULL. So we (a) ADD every column the runtime contract
 -- needs with IF NOT EXISTS, then (b) relax constraints only on columns that
 -- actually exist. This makes the migration safe on any prior schema shape.
+
+-- Type normalization: init declares room_id / session_id as TEXT and ALL the
+-- SQL that touches them is typed for text - is_room_member(text, uuid), and
+-- get_unclaimed_session_shares() which RETURNS room_id text. Some prod/local
+-- deploys created these columns as UUID, which (a) makes is_room_member(room_id,
+-- uuid) fail to resolve - uuid->text is not an implicit cast - and (b) makes the
+-- text-returning function raise a structure-mismatch at runtime. The client only
+-- ever treats them as strings, so normalize uuid -> text. No-op where already
+-- text. Any indexes on these columns are rebuilt automatically by ALTER TYPE.
+DO $normalize_types$
+BEGIN
+    IF (SELECT data_type FROM information_schema.columns
+        WHERE table_schema='public' AND table_name='megolm_session_shares'
+          AND column_name='room_id') = 'uuid' THEN
+        ALTER TABLE public.megolm_session_shares ALTER COLUMN room_id TYPE text USING room_id::text;
+    END IF;
+    IF (SELECT data_type FROM information_schema.columns
+        WHERE table_schema='public' AND table_name='megolm_session_shares'
+          AND column_name='session_id') = 'uuid' THEN
+        ALTER TABLE public.megolm_session_shares ALTER COLUMN session_id TYPE text USING session_id::text;
+    END IF;
+    IF (SELECT data_type FROM information_schema.columns
+        WHERE table_schema='public' AND table_name='megolm_key_requests'
+          AND column_name='room_id') = 'uuid' THEN
+        ALTER TABLE public.megolm_key_requests ALTER COLUMN room_id TYPE text USING room_id::text;
+    END IF;
+    IF (SELECT data_type FROM information_schema.columns
+        WHERE table_schema='public' AND table_name='megolm_key_requests'
+          AND column_name='session_id') = 'uuid' THEN
+        ALTER TABLE public.megolm_key_requests ALTER COLUMN session_id TYPE text USING session_id::text;
+    END IF;
+END
+$normalize_types$;
+
 ALTER TABLE public.megolm_session_shares
     ADD COLUMN IF NOT EXISTS sender_user_id uuid REFERENCES public.profiles(id) ON DELETE CASCADE;
 ALTER TABLE public.megolm_session_shares

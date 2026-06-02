@@ -104,6 +104,10 @@ $guard$;
 -- ---------------------------------------------------------------------------
 -- C2: save_recovery_codes caller binding + batch_id
 -- ---------------------------------------------------------------------------
+-- Some deploys' mfa_recovery_codes predate batch_id; save_recovery_codes below
+-- inserts it, so ensure the column exists (nullable - existing rows keep NULL).
+ALTER TABLE public.mfa_recovery_codes ADD COLUMN IF NOT EXISTS batch_id uuid;
+
 CREATE OR REPLACE FUNCTION public.save_recovery_codes(p_user_id uuid, p_codes text[]) RETURNS void
     LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public', 'pg_catalog'
     AS $$
@@ -231,12 +235,17 @@ GRANT EXECUTE ON FUNCTION public.broadcast_user_event(uuid, jsonb) TO service_ro
 -- ---------------------------------------------------------------------------
 -- H: megolm_session_shares INSERT membership check
 -- ---------------------------------------------------------------------------
+-- room_id is cast to text: is_room_member takes (text, uuid), and some deploys
+-- created megolm_session_shares.room_id as uuid (uuid->text is not implicit, so
+-- an uncast call fails to resolve). The cast is a no-op where room_id is already
+-- text. The align migration also normalizes the column type, so this is belt-
+-- and-suspenders that lets this migration succeed even if run on its own.
 DROP POLICY IF EXISTS "megolm_session_shares_insert" ON public.megolm_session_shares;
 CREATE POLICY "megolm_session_shares_insert" ON public.megolm_session_shares
     FOR INSERT WITH CHECK (
         sender_user_id = public.get_current_profile_id()
-        AND public.is_room_member(room_id, sender_user_id)
-        AND public.is_room_member(room_id, recipient_user_id)
+        AND public.is_room_member(room_id::text, sender_user_id)
+        AND public.is_room_member(room_id::text, recipient_user_id)
     );
 
 -- ---------------------------------------------------------------------------
