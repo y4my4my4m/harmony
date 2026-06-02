@@ -32,6 +32,18 @@ CREATE TRIGGER trg_assign_server_slug
     BEFORE INSERT ON public.servers
     FOR EACH ROW EXECUTE FUNCTION public.assign_server_slug();
 
+-- Shared handle namespace: keep local_actor_handles in sync with users/servers.
+-- AFTER triggers so they see finalized values (post sanitize + slug assignment).
+DROP TRIGGER IF EXISTS trg_sync_profile_handle ON public.profiles;
+CREATE TRIGGER trg_sync_profile_handle
+    AFTER INSERT OR DELETE OR UPDATE OF username, is_local ON public.profiles
+    FOR EACH ROW EXECUTE FUNCTION public.sync_actor_handle_for_profile();
+
+DROP TRIGGER IF EXISTS trg_sync_server_handle ON public.servers;
+CREATE TRIGGER trg_sync_server_handle
+    AFTER INSERT OR DELETE OR UPDATE OF slug, is_local_server ON public.servers
+    FOR EACH ROW EXECUTE FUNCTION public.sync_actor_handle_for_server();
+
 DROP TRIGGER IF EXISTS sanitize_channel_text_trigger ON public.channels;
 CREATE TRIGGER sanitize_channel_text_trigger
     BEFORE INSERT OR UPDATE ON public.channels

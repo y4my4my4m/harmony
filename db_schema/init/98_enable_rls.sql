@@ -104,6 +104,7 @@ ALTER TABLE public.instance_supporter_tiers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.instance_supporters ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.instance_webrtc_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.invites ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.local_actor_handles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.megolm_key_backups ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.megolm_key_requests ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.megolm_room_sessions ENABLE ROW LEVEL SECURITY;

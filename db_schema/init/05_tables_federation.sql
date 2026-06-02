@@ -43,6 +43,31 @@ GRANT ALL ON public.federated_instances TO service_role;
 COMMENT ON TABLE public.federated_instances IS 'Known federated instances';
 
 -- ---------------------------------------------------------------------------
+-- LOCAL ACTOR HANDLES (shared WebFinger namespace: users + chat servers)
+-- ---------------------------------------------------------------------------
+-- One row per local actor. The unique index on lower(handle) guarantees a
+-- WebFinger localpart (acct:{handle}@domain) maps to exactly one actor, so a
+-- username and a server slug can never collide. Maintained by triggers on
+-- profiles/servers (see 11_functions_triggers.sql / 40_triggers.sql); never
+-- written directly by the app. RLS-locked (owner/service_role only).
+CREATE TABLE IF NOT EXISTS public.local_actor_handles (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    handle text NOT NULL,
+    actor_type text NOT NULL CHECK (actor_type IN ('user', 'server')),
+    actor_id uuid NOT NULL,
+    created_at timestamptz DEFAULT now(),
+    CONSTRAINT local_actor_handles_actor_key UNIQUE (actor_type, actor_id)
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_local_actor_handles_lower
+    ON public.local_actor_handles (lower(handle));
+
+GRANT ALL ON public.local_actor_handles TO service_role;
+
+COMMENT ON TABLE public.local_actor_handles IS
+'Single shared handle namespace for local actors (users + chat servers). Unique on lower(handle) so a WebFinger localpart maps to exactly one actor. Maintained by triggers; not written directly by the app.';
+
+-- ---------------------------------------------------------------------------
 -- BLOCKED INSTANCES
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.blocked_instances (
