@@ -260,6 +260,31 @@ export const useAuthStore = defineStore('auth', {
         }
       }
 
+      // SUSPENSION ENFORCEMENT ON SESSION RESTORE.
+      // login() and the OAuth callback already block suspended users, but a
+      // user suspended WHILE they had an active session would otherwise keep
+      // full access until their JWT expired (just by reloading the page).
+      // Re-check here on every restore and tear down the session if suspended.
+      if (this.session?.user?.id) {
+        try {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('is_suspended')
+            .eq('auth_user_id', this.session.user.id)
+            .maybeSingle();
+          if (profile?.is_suspended) {
+            debug.warn('🚫 Session restore blocked - account is suspended');
+            try { await supabase.auth.signOut(); } catch { /* ignore */ }
+            userStorage.clearCurrentUser();
+            this.session = null;
+          }
+        } catch (err) {
+          // Fail open on transient errors (don't lock out the whole app if the
+          // profile query hiccups); the next reload re-checks.
+          debug.warn('⚠️ Suspension check on restore failed (continuing):', err);
+        }
+      }
+
       // Initialize notification system for existing session
       if (this.session?.user?.id) {
         // DO NOT force status to online - let userDataService handle status properly

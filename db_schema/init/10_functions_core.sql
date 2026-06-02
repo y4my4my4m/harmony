@@ -288,6 +288,26 @@ AS $$
     );
 $$;
 
+-- Is the given profile an active participant of a conversation?
+-- SECURITY DEFINER so it can be used inside the conversation_participants RLS
+-- SELECT policy without triggering recursive RLS evaluation on the same table.
+CREATE OR REPLACE FUNCTION public.is_conversation_participant(p_conversation_id uuid, p_user_id uuid)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+    SELECT EXISTS (
+        SELECT 1 FROM public.conversation_participants
+        WHERE conversation_id = p_conversation_id
+          AND user_id = p_user_id
+          AND left_at IS NULL
+    );
+$$;
+
+GRANT EXECUTE ON FUNCTION public.is_conversation_participant(uuid, uuid) TO authenticated;
+
 -- Get channel's server ID
 CREATE OR REPLACE FUNCTION public.get_channel_server_id(channel_uuid uuid)
 RETURNS uuid

@@ -1199,12 +1199,21 @@ GRANT EXECUTE ON FUNCTION public.update_session_context(text, uuid, uuid, uuid) 
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.get_pending_reports_count()
 RETURNS integer
-LANGUAGE sql
+LANGUAGE plpgsql
 STABLE
 SECURITY DEFINER
 SET search_path = public
 AS $$
-    SELECT COUNT(*)::integer FROM public.reports WHERE status = 'pending';
+BEGIN
+    -- Moderation queue is admin/moderator-only. The table RLS already blocks
+    -- direct SELECT; this SECURITY DEFINER RPC must enforce the same gate or it
+    -- leaks the full report queue to any authenticated user.
+    IF NOT public.is_current_user_admin_or_mod() THEN
+        RAISE EXCEPTION 'Permission denied: moderator access required'
+            USING ERRCODE = '42501';
+    END IF;
+    RETURN (SELECT COUNT(*)::integer FROM public.reports WHERE status = 'pending');
+END;
 $$;
 
 CREATE OR REPLACE FUNCTION public.get_reports_with_details(
@@ -1249,6 +1258,12 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 BEGIN
+    -- Moderation queue is admin/moderator-only (mirrors reports table RLS).
+    IF NOT public.is_current_user_admin_or_mod() THEN
+        RAISE EXCEPTION 'Permission denied: moderator access required'
+            USING ERRCODE = '42501';
+    END IF;
+
     RETURN QUERY
     SELECT
         r.id,

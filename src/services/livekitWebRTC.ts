@@ -34,6 +34,11 @@ import { supabase } from '@/supabase';
 import { debug } from '@/utils/debug';
 import { userStorage } from '@/utils/userScopedStorage';
 import { VoiceSettingsService } from './VoiceSettingsService';
+import {
+  voiceE2EEService,
+  electKeyCoordinator,
+  type VoiceKeyEnvelope,
+} from './encryption/VoiceE2EEService';
 
 // =============================================================================
 // FEDERATED IDENTITY HELPERS
@@ -323,8 +328,18 @@ export class LiveKitWebRTCService {
   private selectedOutputDevice: string | null = null;
   private selectedVideoDevice: string | null = null;
   
-  // E2EE key provider
+  // E2EE key provider + worker (LiveKit requires both at Room construction)
   private e2eeKeyProvider: ExternalE2EEKeyProvider | null = null;
+  private e2eeWorker: Worker | null = null;
+  private e2eeEnabled = false;
+  // Voice E2EE key distribution (Model S: shared room key over Megolm)
+  private e2eeRequired = false;        // E2EE was requested for this join
+  private e2eeRoomKey: Uint8Array | null = null;
+  private e2eeKeyId: string | null = null;
+  private e2eeKeyReady = false;
+  private lastKeyEnvelope: VoiceKeyEnvelope | null = null;
+  private megolmKeyRetryHandler: (() => void) | null = null;
+  private readonly E2EE_DATA_TOPIC = 'harmony-e2ee';
   
   // LiveKit config cache
   private configCache: LiveKitConfig | null = null;
@@ -488,8 +503,8 @@ export class LiveKitWebRTCService {
   /**
    * Join a voice channel using LiveKit SFU
    */
-  async joinChannel(channelId: string, userId: string, roomType: 'voice_channel' | 'dm_call' | 'stage' = 'voice_channel', abortSignal?: AbortSignal): Promise<boolean> {
-    debug.log('🎯 [LiveKit] Joining voice channel:', channelId, 'as user:', userId);
+  async joinChannel(channelId: string, userId: string, roomType: 'voice_channel' | 'dm_call' | 'stage' = 'voice_channel', abortSignal?: AbortSignal, requireE2EE = false): Promise<boolean> {
+    debug.log('🎯 [LiveKit] Joining voice channel:', channelId, 'as user:', userId, 'E2EE:', requireE2EE);
     
     try {
       // Check for cancellation
@@ -524,16 +539,30 @@ export class LiveKitWebRTCService {
         throw new DOMException('Connection cancelled', 'AbortError');
       }
       
+      // Prepare E2EE. The key itself is NOT known yet — it's a random shared
+      // room key distributed server-blind over Megolm after we connect (see
+      // initVoiceE2EE). LiveKit needs the worker + key provider wired up front
+      // at Room construction, so we set those up here when E2EE is requested
+      // and this client is capable of participating.
+      this.e2eeRequired = requireE2EE && voiceE2EEService.canParticipate();
+      if (requireE2EE && !this.e2eeRequired) {
+        // Caller asked for E2EE but this client can't do it. The store gates on
+        // this before joining, so reaching here means a race; refuse cleanly.
+        throw new Error('Voice end-to-end encryption is required but not available on this device');
+      }
+      const e2eeOptions = this.e2eeRequired ? await this.setupE2EEOptions() : null;
+      
       // Create room with options
       this.room = new Room({
         adaptiveStream: true,
         dynacast: true,
-        // E2EE options (optional, enabled by user)
-        // e2ee: this.e2eeKeyProvider ? { keyProvider: this.e2eeKeyProvider } : undefined,
+        ...(e2eeOptions ? { e2ee: e2eeOptions } : {}),
       });
       
       // Setup room event listeners
       this.setupRoomListeners();
+      this.e2eeEnabled = false;
+      this.e2eeKeyReady = false;
       
       // Connect to LiveKit server
       // Use relay-only ICE to avoid browser "local network" prompt
@@ -560,6 +589,18 @@ export class LiveKitWebRTCService {
       if (abortSignal?.aborted) {
         await this.leaveChannel();
         throw new DOMException('Connection cancelled', 'AbortError');
+      }
+      
+      // Establish the shared E2EE key BEFORE publishing media, so the very
+      // first frames we send are encrypted with the agreed key. If we can't
+      // agree on a key in time, refuse rather than leak plaintext into a room
+      // that's supposed to be encrypted.
+      if (this.e2eeRequired) {
+        const keyed = await this.initVoiceE2EE();
+        if (!keyed) {
+          await this.leaveChannel();
+          throw new Error('Could not establish a shared encryption key for this call');
+        }
       }
       
       // Publish local audio track
@@ -689,6 +730,20 @@ export class LiveKitWebRTCService {
     this.userMicVolumes.clear();
     this.userScreenShareVolumes.clear();
     this.traditionalAudioMuted = false;
+    
+    if (this.megolmKeyRetryHandler) {
+      window.removeEventListener('megolm-key-received', this.megolmKeyRetryHandler);
+      this.megolmKeyRetryHandler = null;
+    }
+    this.e2eeRequired = false;
+    this.e2eeRoomKey = null;
+    this.e2eeKeyId = null;
+    this.e2eeKeyReady = false;
+    this.lastKeyEnvelope = null;
+    if (this.e2eeEnabled) {
+      this.e2eeEnabled = false;
+      this.emit('e2ee-status-changed', { enabled: false });
+    }
     
     const oldChannelId = this.channelId;
     this.channelId = null;
@@ -1598,6 +1653,13 @@ export class LiveKitWebRTCService {
       this.emit('connection-state-changed', { state });
     });
     
+    // E2EE key-distribution messages (Model S shared-key handshake)
+    this.room.on(RoomEvent.DataReceived, (payload: Uint8Array, _participant, _kind, topic?: string) => {
+      if (topic === this.E2EE_DATA_TOPIC) {
+        void this.handleE2EEData(payload);
+      }
+    });
+    
     // Local participant speaking changes (voice activity indicator for ourselves)
     this.room.localParticipant.on(ParticipantEvent.IsSpeakingChanged, (speaking: boolean) => {
       this.localMediaState.isSpeaking = speaking;
@@ -1630,6 +1692,9 @@ export class LiveKitWebRTCService {
       
       this.emit('user-joined', { userId, mediaState });
       this.emit('channel-state-synced', { users: this.getAllUsers() });
+      
+      // Rotate/redistribute the shared E2EE key so the newcomer is included.
+      void this.onE2EEMembershipChanged();
     });
     
     // Participant disconnected
@@ -1652,6 +1717,11 @@ export class LiveKitWebRTCService {
       }
       
       this.emit('channel-state-synced', { users: this.getAllUsers() });
+      
+      // Rotate the shared E2EE key so the departed member can't decrypt
+      // future media (forward secrecy on leave). The newly-elected coordinator
+      // — which may now be us — issues the fresh key.
+      void this.onE2EEMembershipChanged();
     });
     
     // Track subscribed - this is the PRIMARY mechanism for receiving remote tracks
@@ -2131,7 +2201,239 @@ export class LiveKitWebRTCService {
   // =============================================================================
   
   /**
-   * Enable E2EE for the room
+   * Build the E2EE options passed to the `Room` constructor.
+   *
+   * Returns `{ keyProvider, worker }` ready to encrypt media, or `null` if the
+   * environment can't support it (e.g. the crypto worker fails to spin up), in
+   * which case the caller proceeds with an unencrypted room.
+   */
+  private async setupE2EEOptions(): Promise<{ keyProvider: ExternalE2EEKeyProvider; worker: Worker } | null> {
+    try {
+      if (!this.e2eeKeyProvider) {
+        this.e2eeKeyProvider = new ExternalE2EEKeyProvider();
+      }
+      if (!this.e2eeWorker) {
+        // Vite resolves this to the livekit-client e2ee worker bundle.
+        this.e2eeWorker = new Worker(
+          new URL('livekit-client/e2ee-worker', import.meta.url),
+          { type: 'module' }
+        );
+      }
+      return { keyProvider: this.e2eeKeyProvider, worker: this.e2eeWorker };
+    } catch (error) {
+      debug.warn('⚠️ [LiveKit] Failed to set up E2EE worker, room will be unencrypted:', error);
+      return null;
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Shared-key distribution (Model S)
+  //
+  // All participants must hold the same 32-byte room key. A deterministic
+  // "coordinator" (smallest participant identity) mints the key ONCE and ships
+  // it, Megolm-wrapped, over LiveKit's data channel; everyone else applies what
+  // they receive. On membership change the coordinator re-broadcasts the SAME
+  // key (re-wrapped for the new member) rather than rotating — regenerating per
+  // join desynced peers and triggered MissingKey/InvalidKey. The SFU only ever
+  // sees Megolm ciphertext, never the key bytes.
+  // ---------------------------------------------------------------------------
+
+  /** Identities of everyone currently in the room (self + remotes). */
+  private getRoomMemberIdentities(): string[] {
+    if (!this.room) return [];
+    const ids = [this.room.localParticipant.identity];
+    for (const p of this.room.remoteParticipants.values()) ids.push(p.identity);
+    return ids;
+  }
+
+  /** Whether this client is the elected key coordinator right now. */
+  private isE2EECoordinator(): boolean {
+    if (!this.room) return false;
+    return electKeyCoordinator(this.getRoomMemberIdentities()) === this.room.localParticipant.identity;
+  }
+
+  /**
+   * Profile UUID for a participant. The LiveKit token embeds the real profile
+   * UUID in `metadata.profileId` (see federation-backend LiveKitService), so we
+   * trust that first. We MUST: the identity is always the synthetic
+   * `federated:https://{domain}/users/{username}` form — even for local users —
+   * and `resolveIdentityToUuid` can't map a local user's synthetic federated
+   * identity back to a UUID (they have no `federated_id` row), which silently
+   * dropped them from the Megolm recipient list -> "MissingKey".
+   */
+  private async resolveParticipantUuid(p: { identity: string; metadata?: string }): Promise<string | null> {
+    if (p.metadata) {
+      try {
+        const meta = JSON.parse(p.metadata) as { profileId?: string };
+        if (meta.profileId) return meta.profileId;
+      } catch {
+        /* fall through to network resolution */
+      }
+    }
+    return resolveIdentityToUuid(p.identity, this.remoteServerDomain);
+  }
+
+  /** Resolve remote participant identities to profile UUIDs (Megolm recipients). */
+  private async getRemoteMemberUuids(): Promise<string[]> {
+    if (!this.room) return [];
+    const uuids: string[] = [];
+    for (const p of this.room.remoteParticipants.values()) {
+      const uuid = await this.resolveParticipantUuid(p);
+      if (uuid) uuids.push(uuid);
+    }
+    return uuids;
+  }
+
+  /** Push an envelope to all room participants over the data channel. */
+  private async sendE2EEEnvelope(envelope: VoiceKeyEnvelope): Promise<void> {
+    if (!this.room) return;
+    try {
+      const data = new TextEncoder().encode(JSON.stringify(envelope));
+      await this.room.localParticipant.publishData(data, { reliable: true, topic: this.E2EE_DATA_TOPIC });
+    } catch (err) {
+      debug.warn('⚠️ [LiveKit] Failed to send E2EE envelope:', err);
+    }
+  }
+
+  /**
+   * Apply a raw shared key to the LiveKit key provider and turn E2EE on.
+   *
+   * Idempotent: re-applying the key we already hold is a no-op. This matters
+   * because the coordinator re-broadcasts the SAME key on every join, and
+   * calling setKey repeatedly would otherwise churn the provider's key index
+   * and desync peers (-> "MissingKey at index N").
+   */
+  private async applyRoomKey(key: Uint8Array, keyId: string): Promise<void> {
+    if (!this.e2eeKeyProvider || !this.room) return;
+    if (this.e2eeKeyId === keyId && this.e2eeKeyReady) return; // already applied
+    // ExternalE2EEKeyProvider.setKey(ArrayBuffer) -> HKDF-derives the media key.
+    await this.e2eeKeyProvider.setKey(key.buffer.slice(key.byteOffset, key.byteOffset + key.byteLength));
+    await this.room.setE2EEEnabled(true);
+    this.e2eeRoomKey = key;
+    this.e2eeKeyId = keyId;
+    this.e2eeKeyReady = true;
+    if (!this.e2eeEnabled) {
+      this.e2eeEnabled = true;
+      this.emit('e2ee-status-changed', { enabled: true });
+    }
+    debug.log('🔐 [LiveKit] Applied shared room key', keyId);
+  }
+
+  /**
+   * Coordinator: ensure a stable room key exists, then (re)wrap it for the
+   * current members and broadcast.
+   *
+   * The key is minted ONCE per call and reused for its lifetime. New joiners
+   * receive the existing key (re-wrapped to include them) rather than forcing
+   * a fresh key on everyone — regenerating per membership change caused peers
+   * to desync and drop to MissingKey/InvalidKey. (Trade-off: no forward
+   * secrecy on leave for v1; a departed member keeps the key until the call
+   * ends. Acceptable for a live media key; revisit with explicit rotation.)
+   */
+  private async coordinatorEnsureKey(): Promise<void> {
+    if (!this.room || !this.channelId) return;
+    // Reuse the key we already hold; only mint one if this is the first time.
+    let key = this.e2eeRoomKey;
+    let keyId = this.e2eeKeyId;
+    if (!key || !keyId) {
+      key = voiceE2EEService.generateRoomKey();
+      keyId = voiceE2EEService.newKeyId();
+      await this.applyRoomKey(key, keyId);
+    }
+    const recipients = await this.getRemoteMemberUuids();
+    // Wrap the (stable) key for current remotes. Solo room -> empty list is fine.
+    const cipher = await voiceE2EEService.wrapKey(key, this.channelId, recipients);
+    this.lastKeyEnvelope = { t: 'voice-key', keyId, cipher };
+    await this.sendE2EEEnvelope(this.lastKeyEnvelope);
+    debug.log(`🔑 [LiveKit] Coordinator broadcast key ${keyId} to ${recipients.length} member(s)`);
+  }
+
+  /** Try to apply the most recently received key envelope (retried as Megolm sessions arrive). */
+  private async tryApplyPendingEnvelope(): Promise<void> {
+    const env = this.lastKeyEnvelope;
+    if (!env || env.t !== 'voice-key' || !this.channelId) return;
+    if (this.e2eeKeyId === env.keyId) return; // already applied
+    const key = await voiceE2EEService.unwrapKey(env.cipher, this.channelId);
+    if (!key) return; // session not here yet; megolm-key-received will retry
+    await this.applyRoomKey(key, env.keyId);
+  }
+
+  /** Handle a key-distribution envelope received over the data channel. */
+  private async handleE2EEData(payload: Uint8Array): Promise<void> {
+    let env: VoiceKeyEnvelope;
+    try {
+      env = JSON.parse(new TextDecoder().decode(payload)) as VoiceKeyEnvelope;
+    } catch {
+      return;
+    }
+    if (env.t === 'voice-key-request') {
+      // A fresh joiner wants the key. If we're the coordinator, re-share the
+      // existing key wrapped to include the new member (no new key minted).
+      if (this.isE2EECoordinator()) await this.coordinatorEnsureKey();
+      return;
+    }
+    if (env.t === 'voice-key') {
+      if (this.e2eeKeyId === env.keyId) return;
+      this.lastKeyEnvelope = env;
+      await this.tryApplyPendingEnvelope();
+    }
+  }
+
+  /** Block until the shared key is applied, or time out. */
+  private waitForKey(timeoutMs: number): Promise<boolean> {
+    if (this.e2eeKeyReady) return Promise.resolve(true);
+    return new Promise<boolean>((resolve) => {
+      const start = Date.now();
+      const tick = () => {
+        if (this.e2eeKeyReady) return resolve(true);
+        if (Date.now() - start >= timeoutMs) return resolve(false);
+        setTimeout(tick, 150);
+      };
+      tick();
+    });
+  }
+
+  /**
+   * Run the key handshake after connecting. Returns true once a shared key is
+   * applied. The coordinator mints immediately; everyone else requests the key
+   * and waits (retrying as the Megolm session arrives).
+   */
+  private async initVoiceE2EE(): Promise<boolean> {
+    if (!this.room) return false;
+    // Retry applying a pending key whenever a Megolm session shows up.
+    this.megolmKeyRetryHandler = () => { void this.tryApplyPendingEnvelope(); };
+    window.addEventListener('megolm-key-received', this.megolmKeyRetryHandler);
+
+    if (this.isE2EECoordinator()) {
+      await this.coordinatorEnsureKey();
+    } else {
+      await this.sendE2EEEnvelope({ t: 'voice-key-request' });
+    }
+    return this.waitForKey(12000);
+  }
+
+  /**
+   * On membership change the coordinator re-shares the existing key so newly
+   * connected members can decrypt. The key itself is stable (see
+   * coordinatorEnsureKey) — we are not rotating, just re-broadcasting.
+   */
+  private async onE2EEMembershipChanged(): Promise<void> {
+    if (!this.e2eeRequired || !this.room) return;
+    if (this.isE2EECoordinator()) {
+      await this.coordinatorEnsureKey();
+    }
+  }
+
+  /**
+   * Whether media for the current room is end-to-end encrypted.
+   */
+  isE2EEEnabled(): boolean {
+    return this.e2eeEnabled;
+  }
+  
+  /**
+   * Enable E2EE for the room with an explicit shared key.
+   * (Normal joins enable E2EE automatically; this is for manual/override use.)
    */
   async enableE2EE(sharedKey: Uint8Array): Promise<void> {
     if (!this.room) {
@@ -2139,16 +2441,14 @@ export class LiveKitWebRTCService {
     }
     
     try {
-      // Create key provider if not exists
       if (!this.e2eeKeyProvider) {
         this.e2eeKeyProvider = new ExternalE2EEKeyProvider();
       }
       
-      // Set the shared key
       await this.e2eeKeyProvider.setKey(sharedKey);
-      
-      // Enable E2EE on the room
       await this.room.setE2EEEnabled(true);
+      this.e2eeEnabled = true;
+      this.emit('e2ee-status-changed', { enabled: true });
       
       debug.log('🔐 [LiveKit] E2EE enabled');
     } catch (error) {
@@ -2165,12 +2465,14 @@ export class LiveKitWebRTCService {
     
     try {
       await this.room.setE2EEEnabled(false);
+      this.e2eeEnabled = false;
+      this.emit('e2ee-status-changed', { enabled: false });
       debug.log('🔓 [LiveKit] E2EE disabled');
     } catch (error) {
       debug.error('❌ [LiveKit] Failed to disable E2EE:', error);
     }
   }
-  
+
   // =============================================================================
   // EVENT SYSTEM
   // =============================================================================

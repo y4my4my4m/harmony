@@ -240,7 +240,7 @@ describe('CoreMessageService - encryption policy (fail-closed by default)', () =
           undefined,
           { allowPlaintextFallback: true },
         ),
-      ).rejects.toMatchObject({ code: 'ENCRYPTION_LOCKED' })
+      ).rejects.toMatchObject({ code: 'ENCRYPTION_REQUIRED' })
     })
 
     it('allows plaintext when override is explicit (optional + locked)', async () => {

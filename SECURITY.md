@@ -52,6 +52,8 @@ Chat E2EE uses a Megolm-style scheme (per-room session keys, non-extractable `Cr
 - implementation flaw (storage, lifecycle, race conditions), or
 - side-channel / metadata leak.
 
+**Secrecy properties (please don't report these as bugs).** Each message is encrypted under a distinct key derived from the room session key and the message index, so no two messages reuse a key. This is intentionally *not* Signal-style forward secrecy: per-message keys are derived deterministically from the long-lived session key, so anyone who obtains a session key can derive the keys for every message in that session (past and future) until the session rotates. Session rotation (every 100 messages or 7 days) bounds the blast radius. Sender authenticity for current messages is provided by per-message ECDSA signatures (`megolm_v2_signed` and later), verified before decryption.
+
 ## Federation-Specific Notes
 
 The ActivityPub layer sits in `federation-backend/`. Common concern areas:

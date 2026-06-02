@@ -101,6 +101,7 @@ class WebRTCManagerService implements WebRTCManager {
       'error',
       'call-start-time',
       'request-call-start-time',
+      'e2ee-status-changed',
     ];
     
     for (const event of eventsToForward) {
@@ -149,6 +150,18 @@ class WebRTCManagerService implements WebRTCManager {
   }
   
   /**
+   * Whether media for the active connection is end-to-end encrypted.
+   * Currently only the LiveKit (SFU) transport encrypts media; P2P E2EE
+   * activation is a follow-up.
+   */
+  isE2EEEnabled(): boolean {
+    if (this.activeService === 'livekit') {
+      return livekitWebRTC.isE2EEEnabled();
+    }
+    return false;
+  }
+  
+  /**
    * Check if SFU is available and should be used
    */
   private async shouldUseSFU(): Promise<boolean> {
@@ -183,9 +196,18 @@ class WebRTCManagerService implements WebRTCManager {
     channelId: string,
     userId: string,
     roomType: 'voice_channel' | 'dm_call' | 'stage' = 'voice_channel',
-    abortSignal?: AbortSignal
+    abortSignal?: AbortSignal,
+    requireE2EE = false
   ): Promise<boolean> {
-    debug.log(`🎯 [WebRTCManager] Joining channel: ${channelId} as: ${userId}`);
+    debug.log(`🎯 [WebRTCManager] Joining channel: ${channelId} as: ${userId}, E2EE: ${requireE2EE}`);
+    
+    // Voice E2EE is currently implemented only on the LiveKit (SFU) transport.
+    // If a channel requires it, the P2P fallback can't satisfy the guarantee,
+    // so we force SFU and refuse rather than silently downgrading.
+    if (requireE2EE && this.currentMode === 'p2p') {
+      this.emit('error', new Error('This channel requires end-to-end encrypted voice, which needs the SFU transport.'));
+      return false;
+    }
     
     // Check for cancellation before starting
     if (abortSignal?.aborted) {
@@ -220,7 +242,7 @@ class WebRTCManagerService implements WebRTCManager {
       this.activeService = 'livekit';
       
       try {
-        const success = await livekitWebRTC.joinChannel(channelId, userId, roomType, abortSignal);
+        const success = await livekitWebRTC.joinChannel(channelId, userId, roomType, abortSignal, requireE2EE);
         
         // Check for cancellation after LiveKit join attempt
         if (abortSignal?.aborted) {
@@ -254,6 +276,14 @@ class WebRTCManagerService implements WebRTCManager {
       if (this.currentMode === 'sfu') {
         debug.error('❌ [WebRTCManager] SFU connection failed and mode is sfu-only');
         this.emit('error', new Error('SFU connection failed'));
+        return false;
+      }
+      
+      // E2EE-required channels must not fall back to the (currently
+      // unencrypted) P2P transport.
+      if (requireE2EE) {
+        debug.error('❌ [WebRTCManager] SFU failed and channel requires E2EE; not falling back to P2P');
+        this.emit('error', new Error('Could not establish an end-to-end encrypted call'));
         return false;
       }
       

@@ -16,6 +16,10 @@
        channel / DM / thread send paths so the dialog matches the rest of
        the app's UI and isn't a native browser alert. -->
   <EncryptionFallbackModal />
+
+  <!-- Discord-style "new login - was this you?" device-approval prompt. Gentle,
+       non-blocking, and skippable; never a mandatory verification wall. -->
+  <DeviceApprovalPrompt v-if="!isAuthRoute" />
   
   <!-- Persistent Voice Connection (only when authenticated) -->
   <PersistentVoiceConnection v-if="!isAuthRoute" />
@@ -50,6 +54,7 @@ import AuthLayout from '@/layouts/AuthLayout.vue'
 import NotificationToast from '@/components/NotificationToast.vue'
 import OfflineBanner from '@/components/OfflineBanner.vue'
 import EncryptionFallbackModal from '@/components/EncryptionFallbackModal.vue'
+import DeviceApprovalPrompt from '@/components/encryption/DeviceApprovalPrompt.vue'
 import PersistentVoiceConnection from '@/components/PersistentVoiceConnection.vue'
 import PWAInstallBanner from '@/components/PWAInstallBanner.vue'
 import PWAUpdateNotification from '@/components/PWAUpdateNotification.vue'
@@ -124,7 +129,47 @@ onMounted(() => {
       debug.log('🔍 Status lifecycle debugger started. Type showHelp() for available commands.')
     })
   }
+
+  // Gentle, non-blocking notice when a contact's encryption identity changes
+  // (TOFU). We deliberately do NOT show a blocking verification modal - just a
+  // dismissible toast, framed in plain language for non-technical users.
+  window.addEventListener('harmony-identity-changed', (e: Event) => {
+    handleIdentityChanged(e as CustomEvent).catch(err =>
+      debug.warn('⚠️ Failed to surface identity-change notice:', err),
+    )
+  })
 })
+
+async function handleIdentityChanged(e: CustomEvent) {
+  const detail = (e?.detail || {}) as { userId?: string }
+  const userId = detail.userId
+  if (!userId) return
+
+  const [{ useNotificationStore }, { userDataService }] = await Promise.all([
+    import('@/stores/useNotification'),
+    import('@/services/userDataService'),
+  ])
+
+  let name = 'A contact'
+  let avatar: string | undefined
+  try {
+    const profile = await userDataService.fetchUserProfile(userId)
+    name = profile?.displayName || profile?.username || name
+    avatar = profile?.avatar_url || profile?.avatar || undefined
+  } catch { /* fall back to generic copy */ }
+
+  const notifications = useNotificationStore()
+  notifications.showToast(
+    'server_update',
+    'Security identity changed',
+    `${name}'s encryption keys changed. This is normal if they reinstalled the app or signed in on a new device.`,
+    8000,
+    avatar,
+    undefined,
+    undefined,
+    userId,
+  )
+}
 </script>
 
 <style>

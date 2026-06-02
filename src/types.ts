@@ -439,6 +439,13 @@ export interface Message {
   encrypted?: boolean; // true if this message is encrypted
   decrypted?: boolean; // true if this message was encrypted and successfully decrypted (client-side flag)
   /**
+   * Client-side flag: the message is encrypted, decryption failed for lack of a
+   * session key, AND it predates the current encryption identity - so the key is
+   * gone for good and retrying/requesting will never succeed. UI shows a
+   * distinct "permanently unavailable" state instead of a retryable glyph.
+   */
+  decryption_unrecoverable?: boolean;
+  /**
    * Client-side verification flag for cryptographic sender binding (Megolm v2).
    *  - `true`  → signature verified against sender's published signing key.
    *  - `false` → signature missing (legacy v1) OR sender has no signing key on record.

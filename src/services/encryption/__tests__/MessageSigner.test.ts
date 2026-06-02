@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   canonicalizeForSigning,
+  canonicalizeKeyRequest,
   hashCiphertextB64,
   generateSigningKeyPair,
   exportPublicSigningKey,
@@ -9,7 +10,10 @@ import {
   importPrivateSigningKey,
   signMessage,
   verifyMessageSignature,
+  signKeyRequest,
+  verifyKeyRequestSignature,
   type SignedMessageFields,
+  type KeyRequestFields,
 } from '../MessageSigner'
 
 const sampleFields = (overrides: Partial<SignedMessageFields> = {}): SignedMessageFields => ({
@@ -132,6 +136,52 @@ describe('sign/verify round-trip', () => {
     const fields = sampleFields()
     const ok = await verifyMessageSignature(fields, '!!!not base64!!!', keyPair.publicKey)
     expect(ok).toBe(false)
+  })
+})
+
+describe('key-request sign/verify', () => {
+  const reqFields = (overrides: Partial<KeyRequestFields> = {}): KeyRequestFields => ({
+    room_id: 'room-123',
+    session_id: 'session-abc',
+    requester_user_id: 'alice',
+    ...overrides,
+  })
+
+  it('canonicalization is order-independent and field-sensitive', () => {
+    const a = canonicalizeKeyRequest(reqFields())
+    const b = canonicalizeKeyRequest({
+      requester_user_id: 'alice',
+      session_id: 'session-abc',
+      room_id: 'room-123',
+    })
+    expect(a).toBe(b)
+    expect(canonicalizeKeyRequest(reqFields({ requester_user_id: 'bob' }))).not.toBe(a)
+    expect(canonicalizeKeyRequest(reqFields({ session_id: 'other' }))).not.toBe(a)
+  })
+
+  it('verifies a request signed by the matching key', async () => {
+    const kp = await generateSigningKeyPair()
+    const sig = await signKeyRequest(reqFields(), kp.privateKey)
+    expect(await verifyKeyRequestSignature(reqFields(), sig, kp.publicKey)).toBe(true)
+  })
+
+  it('rejects a request signed by a different key', async () => {
+    const alice = await generateSigningKeyPair()
+    const mallory = await generateSigningKeyPair()
+    const sig = await signKeyRequest(reqFields(), alice.privateKey)
+    expect(await verifyKeyRequestSignature(reqFields(), sig, mallory.publicKey)).toBe(false)
+  })
+
+  it('rejects when the requester_user_id is swapped', async () => {
+    const kp = await generateSigningKeyPair()
+    const sig = await signKeyRequest(reqFields({ requester_user_id: 'alice' }), kp.privateKey)
+    // Attacker tries to reuse Alice's signature claiming to be Mallory.
+    expect(await verifyKeyRequestSignature(reqFields({ requester_user_id: 'mallory' }), sig, kp.publicKey)).toBe(false)
+  })
+
+  it('does not throw on garbage signature', async () => {
+    const kp = await generateSigningKeyPair()
+    expect(await verifyKeyRequestSignature(reqFields(), '!!!nope!!!', kp.publicKey)).toBe(false)
   })
 })
 

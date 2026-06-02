@@ -1,7 +1,10 @@
 <template>
   <div v-if="participants.length > 0" class="voice-participants">
     <div class="participants-header">
-      <span class="participant-count">{{ participants.length }} in call</span>
+      <span class="participants-header-left">
+        <span class="participant-count">{{ participants.length }} in call</span>
+        <VoiceEncryptionBadge v-if="voiceStore.connectionMode" :encrypted="voiceStore.isEncrypted" />
+      </span>
       <span v-if="sessionDuration" class="session-duration">{{ sessionDuration }}</span>
     </div>
     <div class="participants-list">
@@ -29,6 +32,7 @@ import { ref, onMounted, onUnmounted } from 'vue';
 import Avatar from '@/components/common/Avatar.vue';
 import DisplayName from '@/components/DisplayName.vue';
 import Icon from '@/components/common/Icon.vue';
+import VoiceEncryptionBadge from './VoiceEncryptionBadge.vue';
 import { useUserData } from '@/composables/useUserData';
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
 import type { UserMediaState } from '@/services/unifiedWebRTC';
@@ -99,6 +103,13 @@ onUnmounted(() => {
   margin-bottom: 8px;
   padding-bottom: 4px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.participants-header-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
 }
 
 .participant-count {

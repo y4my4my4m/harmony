@@ -7,9 +7,10 @@
  * Features:
  * - Encrypt audio/video frames before sending
  * - Decrypt frames after receiving
- * - Uses same Signal Protocol keys as messages
- * - Perfect forward secrecy for calls
- * - Frame-by-frame encryption
+ * - Uses Signal Protocol key material for call setup
+ * - Frame-by-frame encryption with periodic key rotation (rotation bounds the
+ *   exposure window of a leaked media key; it is not a per-frame ratchet, so
+ *   do not describe this as "perfect forward secrecy")
  */
 
 import { signalProtocolService } from './SignalProtocolService'
@@ -425,7 +426,8 @@ export class WebRTCEncryptionService {
   }
 
   /**
-   * Renegotiate keys (for perfect forward secrecy)
+   * Renegotiate keys (rotation bounds the exposure window of a leaked media
+   * key; not a per-frame ratchet, so not "perfect forward secrecy")
    */
   async renegotiateKeys(participantIds: string[]): Promise<void> {
     if (!this.enabled) return

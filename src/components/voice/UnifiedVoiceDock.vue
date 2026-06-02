@@ -47,6 +47,7 @@
             <span class="dock-connection-badge" :class="voiceStore.connectionMode || 'unknown'">
               {{ voiceStore.connectionMode === 'livekit' ? 'SFU' : voiceStore.connectionMode === 'p2p' ? 'P2P' : '' }}
             </span>
+            <VoiceEncryptionBadge v-if="voiceStore.connectionMode" :encrypted="voiceStore.isEncrypted" />
           </span>
         </div>
       </div>
@@ -225,6 +226,7 @@
             <template v-else>{{ channelName }}</template>
           </span>
           <span class="participant-count">{{ voiceStore.connectionStats.total }}</span>
+          <VoiceEncryptionBadge v-if="voiceStore.connectionMode" :encrypted="voiceStore.isEncrypted" />
           <!-- Recent Speakers -->
           <RecentSpeakers class="recent-speakers-container" :max-speakers="4" />
         </div>
@@ -338,6 +340,7 @@ import Icon from '@/components/common/Icon.vue';
 import Avatar from '@/components/common/Avatar.vue';
 import DisplayName from '@/components/DisplayName.vue';
 import HeadphonesIcon from '@/components/icons/Headphones.vue';
+import VoiceEncryptionBadge from './VoiceEncryptionBadge.vue';
 
 const UnifiedVoiceOverlay = defineAsyncComponent(() => import('./UnifiedVoiceOverlay.vue'));
 const VoiceSettingsPanel = defineAsyncComponent(() => import('./VoiceSettingsPanel.vue'));
@@ -1431,6 +1434,7 @@ onUnmounted(() => {
   background: rgba(14, 165, 233, 0.2);
   color: #0EA5E9;
 }
+
 
 /* Voice Controls */
 .voice-controls {

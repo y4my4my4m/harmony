@@ -316,7 +316,7 @@ async function restoreEncryption() {
     await megolmMessageEncryptionService.initialize(user.id)
     await megolmMessageEncryptionService.initializeWithRecoveryKey(words)
 
-    toast.success('Encryption restored successfully!')
+    // Toast is shown by the parent (EncryptionSettings.handleRecoveryComplete).
     emit('restored')
   } catch (error: any) {
     debug.error('Failed to restore encryption:', error)

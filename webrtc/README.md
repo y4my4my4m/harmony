@@ -129,7 +129,7 @@ LiveKit supports E2EE where the server never sees unencrypted media:
 1. **Key Exchange**: Clients use Signal Protocol (existing Harmony E2EE)
 2. **Frame Encryption**: Each audio/video frame is encrypted client-side
 3. **Server Role**: Only forwards encrypted frames (SFU)
-4. **Key Rotation**: Supported for perfect forward secrecy
+4. **Key Rotation**: Supported; rotation bounds the exposure window of a leaked media key (not a per-frame ratchet, so not "perfect forward secrecy")
 
 E2EE is enabled per-room by the LiveKit client SDK.
 

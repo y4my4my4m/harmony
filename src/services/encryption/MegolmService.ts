@@ -26,7 +26,19 @@
  * - Outbound Session: Your sending key for a room (you rotate it)
  * - Inbound Session: Others' keys you've received (they rotate them)
  * - Session ID: Unique identifier for each session
- * - Message Index: Ratchets forward for each message (forward secrecy)
+ * - Message Index: Ratchets forward so each message gets a distinct derived key.
+ *
+ * SECRECY PROPERTIES (read this before claiming "forward secrecy")
+ * ----------------------------------------------------------------
+ * Each message is encrypted under a key derived from the session key and the
+ * message index, so no two messages share a key. This is NOT strong forward
+ * secrecy: the per-message keys are derived deterministically from the
+ * long-lived session key (HKDF, no ratchet state erasure), so anyone who
+ * learns a session key can derive the keys for EVERY message in that session -
+ * past and future - until the session rotates. Session rotation (every 100
+ * messages or 7 days) is what bounds the blast radius of a leaked session key.
+ * Describe this as "per-message keys + session rotation", never as Signal-style
+ * forward secrecy.
  */
 
 import { debug } from '@/utils/debug'
@@ -40,6 +52,11 @@ export interface MegolmOutboundSession {
   createdAt: number
   rotateAt: number // When to create a new session
   sharedWith: string[] // User IDs we've shared this session with
+  // Membership epoch this session belongs to (Phase 3b). A session is rotated
+  // when the room's epoch advances (member join/leave), so a removed member's
+  // old session cannot decrypt newer-epoch messages. Defaults to 1 for
+  // sessions created before epochs existed.
+  epoch?: number
 }
 
 export interface MegolmInboundSession {
@@ -55,6 +72,16 @@ export interface MegolmEncryptedMessage {
   sessionId: string
   messageIndex: number
   ciphertext: string // Base64 encoded
+  epoch?: number // Membership epoch of the session used (Phase 3b)
+}
+
+/** Optional per-message crypto options (Phase 3c v3). */
+export interface MegolmEncryptOptions {
+  // Current room epoch; rotates the session if it advanced.
+  epoch?: number
+  // AES-GCM Additional Authenticated Data binding message metadata to the
+  // ciphertext (algorithm, room_id, sender, session, index, epoch, ...).
+  additionalData?: Uint8Array
 }
 
 // Session rotation settings
@@ -235,18 +262,27 @@ export class MegolmService {
   // =====================================================
 
   /**
-   * Get or create an outbound session for a room
+   * Get or create an outbound session for a room.
+   *
+   * @param epoch the room's current membership epoch. When provided and greater
+   *   than the existing session's epoch, the session is rotated so post-change
+   *   messages use a fresh key (membership-epoch rotation, Phase 3b).
    */
-  async getOrCreateOutboundSession(roomId: string): Promise<MegolmOutboundSession> {
+  async getOrCreateOutboundSession(roomId: string, epoch?: number): Promise<MegolmOutboundSession> {
     // Check if we have an existing valid session
     let session = this.outboundSessions.get(roomId)
-    
-    if (session && !this.shouldRotateSession(session)) {
+
+    const epochAdvanced =
+      session != null &&
+      typeof epoch === 'number' &&
+      epoch > (session.epoch ?? 1)
+
+    if (session && !this.shouldRotateSession(session) && !epochAdvanced) {
       return session
     }
 
-    // Create a new session
-    session = await this.createOutboundSession(roomId)
+    // Create a new session (tagged with the current epoch).
+    session = await this.createOutboundSession(roomId, epoch)
     return session
   }
 
@@ -257,7 +293,7 @@ export class MegolmService {
    * This is the Matrix/Element approach - it ensures we can always decrypt our
    * own messages even after session rotation, because we look up by sessionId.
    */
-  private async createOutboundSession(roomId: string): Promise<MegolmOutboundSession> {
+  private async createOutboundSession(roomId: string, epoch?: number): Promise<MegolmOutboundSession> {
     // Generate session key material (32 bytes for AES-256)
     const sessionKeyBytes = crypto.getRandomValues(new Uint8Array(32))
     const sessionKey = this.arrayBufferToBase64(sessionKeyBytes.buffer)
@@ -274,7 +310,8 @@ export class MegolmService {
       messageIndex: 0,
       createdAt: now,
       rotateAt: now + SESSION_ROTATION_TIME_MS,
-      sharedWith: []
+      sharedWith: [],
+      epoch: typeof epoch === 'number' ? epoch : 1
     }
 
     // Store in memory
@@ -401,10 +438,19 @@ export class MegolmService {
   // =====================================================
 
   /**
-   * Encrypt a message using the room's outbound session
+   * Encrypt a message using the room's outbound session.
+   *
+   * @param opts.epoch          current room epoch (rotates the session if it advanced)
+   * @param opts.additionalData AES-GCM AAD that binds message metadata to the
+   *                            ciphertext (v3). The SAME bytes must be supplied
+   *                            to decryptMessage or authentication fails.
    */
-  async encryptMessage(roomId: string, plaintext: string): Promise<MegolmEncryptedMessage> {
-    const session = await this.getOrCreateOutboundSession(roomId)
+  async encryptMessage(
+    roomId: string,
+    plaintext: string,
+    opts: MegolmEncryptOptions = {}
+  ): Promise<MegolmEncryptedMessage> {
+    const session = await this.getOrCreateOutboundSession(roomId, opts.epoch)
 
     // Derive the current ratchet key from session key + message index
     const ratchetKey = await this.deriveRatchetKey(session.sessionKey, session.messageIndex)
@@ -414,8 +460,11 @@ export class MegolmService {
     const plaintextBytes = encoder.encode(plaintext)
     const iv = crypto.getRandomValues(new Uint8Array(12))
 
+    const gcmParams: AesGcmParams = { name: 'AES-GCM', iv }
+    if (opts.additionalData) gcmParams.additionalData = opts.additionalData
+
     const encryptedData = await crypto.subtle.encrypt(
-      { name: 'AES-GCM', iv },
+      gcmParams,
       ratchetKey,
       plaintextBytes
     )
@@ -428,7 +477,8 @@ export class MegolmService {
     const result: MegolmEncryptedMessage = {
       sessionId: session.sessionId,
       messageIndex: session.messageIndex,
-      ciphertext: this.arrayBufferToBase64(combined.buffer)
+      ciphertext: this.arrayBufferToBase64(combined.buffer),
+      epoch: session.epoch ?? 1
     }
 
     // Increment message index for next message
@@ -450,7 +500,8 @@ export class MegolmService {
   async decryptMessage(
     roomId: string,
     senderUserId: string,
-    encryptedMessage: MegolmEncryptedMessage
+    encryptedMessage: MegolmEncryptedMessage,
+    additionalData?: Uint8Array
   ): Promise<string> {
     // Always use inbound session lookup (this works for both own and others' messages)
     // Own messages work because createOutboundSession also saves as inbound
@@ -501,9 +552,14 @@ export class MegolmService {
     const iv = combinedArray.slice(0, 12)
     const ciphertext = combinedArray.slice(12)
 
-    // Decrypt
+    // Decrypt. When AAD was supplied at encrypt time (v3), the same bytes must
+    // be provided here or GCM authentication fails (which is the point - it
+    // binds the metadata to the ciphertext).
+    const gcmParams: AesGcmParams = { name: 'AES-GCM', iv }
+    if (additionalData) gcmParams.additionalData = additionalData
+
     const decryptedData = await crypto.subtle.decrypt(
-      { name: 'AES-GCM', iv },
+      gcmParams,
       ratchetKey,
       ciphertext
     )
@@ -513,8 +569,11 @@ export class MegolmService {
   }
 
   /**
-   * Derive a ratchet key from session key and message index
-   * This provides forward secrecy - each message uses a different key
+   * Derive a ratchet key from session key and message index.
+   * Each message index yields a distinct AES-GCM key, so no two messages reuse
+   * a key. Note this is deterministic from the session key (not a destructive
+   * ratchet): compromise of the session key exposes every message in the
+   * session until rotation. See the secrecy-properties note at the top of file.
    */
   private async deriveRatchetKey(sessionKeyBase64: string, messageIndex: number): Promise<CryptoKey> {
     const sessionKeyBytes = this.base64ToArrayBuffer(sessionKeyBase64)

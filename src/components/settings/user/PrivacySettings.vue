@@ -864,10 +864,14 @@ const verifyAndEnable2FA = async () => {
       throw new Error('2FA verification failed - factor not verified')
     }
 
-    // Generate recovery codes (10 random codes)
-    recoveryCodes.value = Array.from({ length: 10 }, () => 
-      Math.random().toString(36).substring(2, 10).toUpperCase()
-    )
+    // Generate recovery codes (10 codes) using a CSPRNG. Math.random() is not
+    // cryptographically secure and made the codes guessable.
+    const generateRecoveryCode = (): string => {
+      // 5 random bytes -> 10 hex chars, uppercased. ~40 bits of entropy each.
+      const bytes = crypto.getRandomValues(new Uint8Array(5))
+      return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('').toUpperCase()
+    }
+    recoveryCodes.value = Array.from({ length: 10 }, generateRecoveryCode)
 
     // Save recovery codes to database
     const userId = authStore.session?.user?.id

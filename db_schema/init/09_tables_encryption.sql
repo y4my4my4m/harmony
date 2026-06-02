@@ -72,13 +72,20 @@ CREATE TABLE IF NOT EXISTS public.megolm_session_shares (
     session_id text NOT NULL,
     room_id text NOT NULL,
     
-    -- Recipient
-    recipient_user_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
-    recipient_device_id text NOT NULL,
+    -- Sender (who wrapped the key). Needed by the recipient to run ECDH and by
+    -- get_unclaimed_session_shares(); the client always populates it.
+    sender_user_id uuid REFERENCES public.profiles(id) ON DELETE CASCADE,
     
-    -- Share status
+    -- Recipient. recipient_device_id defaults to 'default' until the per-device
+    -- identity model (see user_devices) starts populating it for real.
+    recipient_user_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    recipient_device_id text NOT NULL DEFAULT 'default'::text,
+    
+    -- Share status. is_claimed mirrors (claimed_at IS NOT NULL) for fast lookup
+    -- by get_unclaimed_session_shares() / claim_session_share().
     shared_at timestamp with time zone DEFAULT now(),
     claimed_at timestamp with time zone,
+    is_claimed boolean DEFAULT false,
     
     -- The encrypted session key for this recipient
     encrypted_session_key text NOT NULL,
@@ -87,11 +94,13 @@ CREATE TABLE IF NOT EXISTS public.megolm_session_shares (
     forwarded_count integer DEFAULT 0,
     first_known_index integer DEFAULT 0,
     
-    UNIQUE(session_id, room_id, recipient_user_id, recipient_device_id)
+    -- Conflict target used by the client upsert (one share per recipient/session).
+    UNIQUE(room_id, session_id, recipient_user_id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_megolm_session_shares_recipient ON public.megolm_session_shares(recipient_user_id, recipient_device_id);
 CREATE INDEX IF NOT EXISTS idx_megolm_session_shares_session ON public.megolm_session_shares(session_id, room_id);
+CREATE INDEX IF NOT EXISTS idx_megolm_session_shares_unclaimed ON public.megolm_session_shares(recipient_user_id) WHERE is_claimed = false;
 
 COMMENT ON TABLE public.megolm_session_shares IS 'Tracking of shared Megolm session keys';
 
@@ -103,12 +112,19 @@ CREATE TABLE IF NOT EXISTS public.megolm_key_requests (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now(),
     
-    -- Request identity
-    request_id text NOT NULL,
+    -- Request identity (legacy; the client now keys off the PK `id`).
+    request_id text,
+    
+    -- Legacy mirror of requester_user_id kept for backwards compatibility.
+    user_id uuid REFERENCES public.profiles(id) ON DELETE CASCADE,
     
     -- Requester
     requester_user_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
-    requester_device_id text NOT NULL,
+    requester_device_id text NOT NULL DEFAULT 'default'::text,
+    
+    -- The user we are asking to fulfill (original sender / session holder).
+    -- broadcast_key_request_event() routes the request to user:{sender_user_id}.
+    sender_user_id uuid REFERENCES public.profiles(id) ON DELETE SET NULL,
     
     -- What key is being requested
     session_id text NOT NULL,
@@ -117,16 +133,24 @@ CREATE TABLE IF NOT EXISTS public.megolm_key_requests (
     -- Request status
     status text DEFAULT 'pending'::text,
     
+    -- Signed request material (Megolm key-request authorization, see MessageSigner).
+    request_signature text,
+    request_signing_fingerprint text,
+    
+    -- Fulfillment payload (ECDH-wrapped session key for the requester).
+    encrypted_key text,
+    fulfilled_at timestamp with time zone,
+    
     -- Response tracking
     responded_by_user_id uuid REFERENCES public.profiles(id) ON DELETE SET NULL,
     responded_by_device_id text,
     responded_at timestamp with time zone,
     
-    UNIQUE(request_id, requester_user_id, requester_device_id),
-    CONSTRAINT megolm_key_requests_status_check CHECK (status IN ('pending', 'sent', 'received', 'cancelled', 'ignored'))
+    CONSTRAINT megolm_key_requests_status_check CHECK (status IN ('pending', 'sent', 'received', 'cancelled', 'ignored', 'fulfilled', 'expired'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_megolm_key_requests_requester ON public.megolm_key_requests(requester_user_id);
+CREATE INDEX IF NOT EXISTS idx_megolm_key_requests_sender ON public.megolm_key_requests(sender_user_id);
 CREATE INDEX IF NOT EXISTS idx_megolm_key_requests_session ON public.megolm_key_requests(session_id, room_id);
 CREATE INDEX IF NOT EXISTS idx_megolm_key_requests_status ON public.megolm_key_requests(status) WHERE status = 'pending';
 
@@ -140,29 +164,29 @@ CREATE TABLE IF NOT EXISTS public.megolm_key_backups (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now(),
     
-    user_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    -- One backup row per user (client upserts onConflict 'user_id').
+    user_id uuid NOT NULL UNIQUE REFERENCES public.profiles(id) ON DELETE CASCADE,
     
-    -- Backup identity
-    backup_version integer NOT NULL,
+    -- Backup payload as written by MegolmKeyBackupService: a recovery-key
+    -- encrypted JSON blob plus integrity hash and bookkeeping.
+    encrypted_data text,
+    version integer DEFAULT 1,
+    session_count integer DEFAULT 0,
+    backup_hash text,
+    last_updated timestamp with time zone DEFAULT now(),
     
-    -- Backup encryption (encrypted with recovery key)
-    auth_data jsonb NOT NULL,
+    -- Legacy / Matrix-compatible columns (nullable; not written by the client).
+    backup_version integer,
+    auth_data jsonb,
     algorithm text DEFAULT 'm.megolm_backup.v1.curve25519-aes-sha2'::text,
-    
-    -- Status
     is_current boolean DEFAULT true,
     key_count integer DEFAULT 0,
-    
-    -- Etag for sync
-    etag text,
-    
-    UNIQUE(user_id, backup_version)
+    etag text
 );
 
 CREATE INDEX IF NOT EXISTS idx_megolm_key_backups_user ON public.megolm_key_backups(user_id);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_megolm_key_backups_current ON public.megolm_key_backups(user_id) WHERE is_current = true;
 
-COMMENT ON TABLE public.megolm_key_backups IS 'Encrypted Megolm key backups';
+COMMENT ON TABLE public.megolm_key_backups IS 'Encrypted Megolm key backups (one row per user)';
 
 -- ---------------------------------------------------------------------------
 -- RECOVERY KEY METADATA - Recovery key info (not the key itself!)
@@ -273,6 +297,12 @@ CREATE TABLE IF NOT EXISTS public.server_encryption_settings (
     -- Encrypt file attachments
     encrypt_attachments boolean DEFAULT true NOT NULL,
     
+    -- Voice/video E2EE mode. Unlike messages there is no per-call "optional":
+    -- LiveKit E2EE is room-wide, so a call is either fully encrypted or not.
+    --   disabled: voice/video uses transport security only (DTLS-SRTP)
+    --   required: media is E2E encrypted; participants who can't do E2EE are refused
+    voice_encryption_mode text DEFAULT 'disabled'::text NOT NULL,
+    
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now(),
     updated_by uuid REFERENCES public.profiles(id) ON DELETE SET NULL,
@@ -281,13 +311,16 @@ CREATE TABLE IF NOT EXISTS public.server_encryption_settings (
     metadata jsonb DEFAULT '{}'::jsonb,
     
     CONSTRAINT server_encryption_settings_encryption_mode_check 
-        CHECK (encryption_mode = ANY (ARRAY['disabled'::text, 'optional'::text, 'required'::text, 'required_local_only'::text]))
+        CHECK (encryption_mode = ANY (ARRAY['disabled'::text, 'optional'::text, 'required'::text, 'required_local_only'::text])),
+    CONSTRAINT server_encryption_settings_voice_encryption_mode_check 
+        CHECK (voice_encryption_mode = ANY (ARRAY['disabled'::text, 'required'::text]))
 );
 
 CREATE INDEX IF NOT EXISTS idx_server_encryption_server ON public.server_encryption_settings(server_id);
 
 COMMENT ON TABLE public.server_encryption_settings IS 'Per-server E2EE enforcement policies. Server owners control encryption requirements.';
 COMMENT ON COLUMN public.server_encryption_settings.encryption_mode IS 'disabled: No E2EE. optional: User choice. required: All messages encrypted. required_local_only: E2EE required, federation disabled.';
+COMMENT ON COLUMN public.server_encryption_settings.voice_encryption_mode IS 'disabled: voice/video transport-secured only (DTLS-SRTP). required: voice/video media is E2E encrypted (server-blind); non-capable participants are refused.';
 
 -- ---------------------------------------------------------------------------
 -- ENCRYPTION SESSIONS - Signal Protocol session state
@@ -333,6 +366,103 @@ COMMENT ON TABLE public.encryption_audit_log IS 'Audit log for encryption-relate
 CREATE INDEX IF NOT EXISTS idx_encryption_audit_user ON public.encryption_audit_log(user_id);
 CREATE INDEX IF NOT EXISTS idx_encryption_audit_type ON public.encryption_audit_log(event_type);
 CREATE INDEX IF NOT EXISTS idx_encryption_audit_created ON public.encryption_audit_log(created_at DESC);
+
+-- ---------------------------------------------------------------------------
+-- USER DEVICES - Per-device encryption identity (Phase 3 device-aware model)
+-- ---------------------------------------------------------------------------
+-- Each browser profile / install / app gets its own device row with its own
+-- ECDH (session-key exchange) and ECDSA (message signing) PUBLIC keys. Private
+-- keys never leave the device (IndexedDB, non-extractable). trust_state maps to
+-- the internal trust levels surfaced to users only as "approve this login" and
+-- "unlock message history":
+--   untrusted (L0) - logged in, gets no keys
+--   account   (L1) - receives NEW room keys automatically after login
+--   recovery  (L2) - unlocked history via the recovery phrase
+--   verified  (L3) - approved from another trusted device (full key sync)
+--   revoked        - explicitly removed; must not receive any keys
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.user_devices (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    user_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    device_id text NOT NULL,
+
+    -- Public key material (private parts stay on the device).
+    device_ecdh_public_key text,
+    device_signing_public_key text,
+
+    -- Trust + presentation.
+    trust_state text NOT NULL DEFAULT 'account',
+    platform text,          -- 'web' | 'desktop' | 'mobile'
+    label text,             -- human label e.g. "Chrome on Windows"
+
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    last_seen_at timestamp with time zone DEFAULT now(),
+    revoked_at timestamp with time zone,
+
+    UNIQUE(user_id, device_id),
+    CONSTRAINT user_devices_trust_check
+        CHECK (trust_state IN ('untrusted', 'account', 'recovery', 'verified', 'revoked'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_devices_user ON public.user_devices(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_devices_active
+    ON public.user_devices(user_id) WHERE revoked_at IS NULL;
+
+COMMENT ON TABLE public.user_devices IS 'Per-device encryption identities and trust state (account-friendly, device-aware E2EE).';
+
+-- ---------------------------------------------------------------------------
+-- DEVICE APPROVAL REQUESTS - "New login on X - was this you?"
+-- ---------------------------------------------------------------------------
+-- A freshly logged-in device asks the user's existing trusted devices to
+-- approve it (which pushes encrypted key sync). This is the Discord-style
+-- new-login prompt, scoped to a single account (requester == approver user).
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.device_approval_requests (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    user_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+
+    requesting_device_id text NOT NULL,
+    requesting_label text,
+    requesting_ecdh_public_key text,
+
+    status text NOT NULL DEFAULT 'pending',  -- pending | approved | denied | expired
+
+    -- When approved, the approver wraps the account key-sync bundle for the
+    -- requesting device's ECDH public key.
+    approved_by_device_id text,
+    encrypted_sync_bundle text,
+
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    resolved_at timestamp with time zone,
+    expires_at timestamp with time zone DEFAULT (now() + interval '15 minutes'),
+
+    CONSTRAINT device_approval_requests_status_check
+        CHECK (status IN ('pending', 'approved', 'denied', 'expired'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_device_approval_user ON public.device_approval_requests(user_id);
+CREATE INDEX IF NOT EXISTS idx_device_approval_pending
+    ON public.device_approval_requests(user_id) WHERE status = 'pending';
+
+COMMENT ON TABLE public.device_approval_requests IS 'New-device approval requests for cross-device key sync (account-scoped).';
+
+-- ---------------------------------------------------------------------------
+-- ROOM EPOCH STATE - Membership epochs for backward/forward secrecy at joins
+-- ---------------------------------------------------------------------------
+-- Each room (channel or conversation) has a monotonically increasing epoch.
+-- Membership changes (join/leave) and explicit rotations bump the epoch, which
+-- forces a new Megolm session. Messages and session shares carry the epoch they
+-- belong to, so a removed member cannot read messages from later epochs.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.room_epoch_state (
+    room_id text NOT NULL PRIMARY KEY,
+    current_epoch integer NOT NULL DEFAULT 1,
+    member_set_hash text,
+    reason text,            -- created | member_join | member_leave | device_change | manual_rotate
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+COMMENT ON TABLE public.room_epoch_state IS 'Current membership epoch per room; bumped on membership changes to rotate Megolm sessions.';
 
 DO $$
 BEGIN

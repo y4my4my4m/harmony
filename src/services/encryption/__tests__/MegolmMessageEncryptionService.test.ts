@@ -22,10 +22,48 @@ const TEST_MNEMONIC = [
 const TEST_USER_ID = 'aaaaaaaa-1111-2222-3333-444444444444'
 const TEST_ROOM_ID = 'bbbbbbbb-1111-2222-3333-444444444444'
 
+// Builds a supabase.from mock whose `user_key_pairs` lookups resolve signing
+// public keys from the given map. The lookup chain is
+// `.select('identity_signing_public_key').eq('user_id', id).eq('is_active', true).maybeSingle()`.
+function userKeyPairsFromMock(lookup: Map<string, string>) {
+  return (table: string) => {
+    if (table !== 'user_key_pairs') {
+      return {
+        select: () => ({
+          eq: () => ({ eq: () => ({ maybeSingle: () => Promise.resolve({ data: null, error: null }) }) }),
+        }),
+      }
+    }
+    const filters: Record<string, any> = {}
+    const builder: any = {
+      select: () => builder,
+      eq: (field: string, value: any) => {
+        filters[field] = value
+        return builder
+      },
+      maybeSingle: () => {
+        const userId = filters['user_id']
+        if (userId && lookup.has(userId)) {
+          return Promise.resolve({
+            data: { identity_signing_public_key: lookup.get(userId) },
+            error: null,
+          })
+        }
+        return Promise.resolve({ data: null, error: null })
+      },
+    }
+    return builder
+  }
+}
+
 describe('MegolmMessageEncryptionService', () => {
   let megolm: MegolmService
   let recovery: RecoveryKeyService
   let messageService: MegolmMessageEncryptionService
+  // Default signing-key harness shared by all blocks. v1 send was removed, so
+  // every encrypt now needs a usable signing key; this provides one for
+  // TEST_USER_ID and answers the verification lookup on decrypt.
+  let topPublicLookup: Map<string, string>
 
   beforeEach(async () => {
     recovery = RecoveryKeyService.getInstance()
@@ -48,30 +86,42 @@ describe('MegolmMessageEncryptionService', () => {
     // Set currentUserId via reflection since constructor is private
     ;(messageService as any).currentUserId = TEST_USER_ID
     ;(messageService as any).initialized = true
+
+    // Default signing-key harness: mint a key for TEST_USER_ID, publish its
+    // public part to the mocked DB, and cache the private in IndexedDB so
+    // encrypt emits megolm_v2_signed and decrypt can verify.
+    topPublicLookup = new Map()
+    ;(messageService as any).signingKeyCache?.clear?.()
+    ;(supabase.from as any).mockImplementation(userKeyPairsFromMock(topPublicLookup))
+    ;(supabase.rpc as any).mockResolvedValue({ data: [], error: null })
+
+    const topKp = await generateSigningKeyPair()
+    topPublicLookup.set(TEST_USER_ID, await exportPublicSigningKey(topKp.publicKey))
+    const topPkcs8 = await exportPrivateSigningKey(topKp.privateKey)
+    await signingKeyStore.store(TEST_USER_ID, await importPrivateSigningKey(topPkcs8, false))
   })
 
-  afterEach(() => {
+  afterEach(async () => {
     megolm.close()
     recovery.clear()
     ;(messageService as any).currentUserId = null
     ;(messageService as any).initialized = false
+    await signingKeyStore.clear(TEST_USER_ID).catch(() => {})
   })
 
   // ─── Full message encrypt → decrypt round-trip ────────────
 
   describe('encryptMessage / decryptMessage round-trip', () => {
-    // NOTE: These tests bypass the normal setup flow (which would create a
-    // signing keypair from `ensureSigningKeyPair`) and inject the user id
-    // directly. Without a signing key in IndexedDB the service falls back to
-    // emitting legacy `megolm_v1` (unsigned), and decrypt reports
-    // `senderVerified: false`. That's the correct legacy path - separate
-    // tests below exercise the v2 signed path.
+    // The shared harness sets up a signing key, so encrypt always emits the
+    // current `megolm_v2_signed` format (v1 send was removed) and decrypt
+    // reports `senderVerified: true`. Legacy v1 is exercised on the decrypt
+    // side only, in a dedicated test below.
     it('encrypts and decrypts a text message', async () => {
       const content: MessagePart[] = [{ type: 'text', text: 'Hello encrypted world!' }]
 
       const encrypted = await messageService.encryptMessage(content, TEST_ROOM_ID, [])
       expect(encrypted.encrypted).toBe(true)
-      expect(['megolm_v1', 'megolm_v2_signed']).toContain(encrypted.encryption_metadata.algorithm)
+      expect(encrypted.encryption_metadata.algorithm).toBe('megolm_v2_signed')
       expect(encrypted.encryption_metadata.sender_user_id).toBe(TEST_USER_ID)
       expect(encrypted.encryption_metadata.session_id).toBeTruthy()
 
@@ -82,8 +132,18 @@ describe('MegolmMessageEncryptionService', () => {
       })
 
       expect(decrypted.content).toEqual(content)
-      // No signing key was set up → emit v1 → unverified.
-      expect(decrypted.senderVerified).toBe(false)
+      expect(decrypted.senderVerified).toBe(true)
+    })
+
+    it('refuses to send when no signing key can be obtained', async () => {
+      // Drop the signing key and make enrollment impossible (no recovery key).
+      await signingKeyStore.clear(TEST_USER_ID).catch(() => {})
+      ;(messageService as any).signingKeyCache?.clear?.()
+      recovery.clear()
+
+      await expect(
+        messageService.encryptMessage([{ type: 'text', text: 'no key' }], TEST_ROOM_ID, [])
+      ).rejects.toThrow(/no signing key available/i)
     })
 
     it('encrypts and decrypts multi-part content', async () => {
@@ -377,25 +437,25 @@ describe('MegolmMessageEncryptionService', () => {
       ).rejects.toThrow(/Sender signature invalid/)
     })
 
-    it('still decrypts legacy megolm_v1 messages but flags senderVerified: false', async () => {
-      // Encrypt with the underlying MegolmService directly so we bypass
-      // the v2-signing wrapper and produce a true legacy ciphertext.
+    it('refuses to decrypt legacy unsigned megolm_v1 messages', async () => {
+      // v1 had no per-message sender binding, so it can be forged/reattributed.
+      // Support was dropped: decryptMessage must reject rather than render
+      // unverifiable content.
       const raw = JSON.stringify([{ type: 'text', text: 'legacy hi' }])
       const legacy = await megolm.encryptMessage(TEST_ROOM_ID, raw)
 
-      const decrypted = await messageService.decryptMessage({
-        content: [{ type: 'text', text: legacy.ciphertext }],
-        channel_id: TEST_ROOM_ID,
-        encryption_metadata: {
-          algorithm: 'megolm_v1',
-          session_id: legacy.sessionId,
-          message_index: legacy.messageIndex,
-          sender_user_id: TEST_USER_ID,
-        },
-      })
-
-      expect(decrypted.content).toEqual([{ type: 'text', text: 'legacy hi' }])
-      expect(decrypted.senderVerified).toBe(false)
+      await expect(
+        messageService.decryptMessage({
+          content: [{ type: 'text', text: legacy.ciphertext }],
+          channel_id: TEST_ROOM_ID,
+          encryption_metadata: {
+            algorithm: 'megolm_v1',
+            session_id: legacy.sessionId,
+            message_index: legacy.messageIndex,
+            sender_user_id: TEST_USER_ID,
+          },
+        })
+      ).rejects.toThrow(/megolm_v1|Unsupported legacy/)
     })
   })
 })

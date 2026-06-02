@@ -144,4 +144,75 @@ describe('useEncryptionFallbackPrompt', () => {
     const firstResult = await first
     expect(firstResult.status).toBe('error')
   })
+
+  it('prompts only once per contextKey when user accepts', async () => {
+    const { runWithEncryptionFallback } = useEncryptionFallbackPrompt()
+    const confirm = vi.fn().mockReturnValue(true)
+    const send = vi
+      .fn()
+      .mockRejectedValueOnce({ code: 'ENCRYPTION_LOCKED' })
+      .mockResolvedValueOnce('msg-a')
+      .mockRejectedValueOnce({ code: 'ENCRYPTION_LOCKED' })
+      .mockResolvedValueOnce('msg-b')
+
+    const opts = { scope: 'channel' as const, contextKey: 'channel:test-once' }
+
+    const first = await runWithEncryptionFallback(send, { ...opts, confirm })
+    const second = await runWithEncryptionFallback(send, { ...opts, confirm })
+
+    expect(first).toEqual({ result: 'msg-a', status: 'ok' })
+    expect(second).toEqual({ result: 'msg-b', status: 'ok' })
+    expect(confirm).toHaveBeenCalledTimes(1)
+    expect(send).toHaveBeenNthCalledWith(1, { allowPlaintextFallback: false })
+    expect(send).toHaveBeenNthCalledWith(2, { allowPlaintextFallback: true })
+    // Second send still tries encrypted first, then auto-fallbacks without prompting.
+    expect(send).toHaveBeenNthCalledWith(3, { allowPlaintextFallback: false })
+    expect(send).toHaveBeenNthCalledWith(4, { allowPlaintextFallback: true })
+  })
+
+  it('prompts again for a different contextKey', async () => {
+    const { runWithEncryptionFallback } = useEncryptionFallbackPrompt()
+    const confirm = vi.fn().mockReturnValue(true)
+    const send = vi
+      .fn()
+      .mockRejectedValueOnce({ code: 'ENCRYPTION_LOCKED' })
+      .mockResolvedValueOnce('msg-a')
+      .mockRejectedValueOnce({ code: 'ENCRYPTION_LOCKED' })
+      .mockResolvedValueOnce('msg-b')
+
+    await runWithEncryptionFallback(send, {
+      scope: 'channel',
+      contextKey: 'channel:alpha',
+      confirm,
+    })
+    await runWithEncryptionFallback(send, {
+      scope: 'channel',
+      contextKey: 'channel:beta',
+      confirm,
+    })
+
+    expect(confirm).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not remember context when user declines the prompt', async () => {
+    const { runWithEncryptionFallback } = useEncryptionFallbackPrompt()
+    const confirm = vi
+      .fn()
+      .mockReturnValueOnce(false)
+      .mockReturnValueOnce(true)
+    const send = vi
+      .fn()
+      .mockRejectedValueOnce({ code: 'ENCRYPTION_LOCKED' })
+      .mockRejectedValueOnce({ code: 'ENCRYPTION_LOCKED' })
+      .mockResolvedValueOnce('msg-after-retry')
+
+    const opts = { scope: 'dm' as const, contextKey: 'dm:decline-test', confirm }
+
+    const declined = await runWithEncryptionFallback(send, opts)
+    expect(declined).toEqual({ status: 'declined' })
+
+    const accepted = await runWithEncryptionFallback(send, opts)
+    expect(accepted).toEqual({ result: 'msg-after-retry', status: 'ok' })
+    expect(confirm).toHaveBeenCalledTimes(2)
+  })
 })

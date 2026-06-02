@@ -7,13 +7,20 @@ Harmony uses **Megolm-style group encryption** for end-to-end encrypted messages
 > **Provenance:** Harmony's implementation is an **independent clean-room build** on top of the browser WebCrypto API (AES-GCM + HKDF). It is not a port of libolm/vodozemac/matrix-js-sdk and bundles no Matrix code. Wire format and ratchet construction are Harmony-specific and intentionally not wire-compatible with Matrix's Megolm - see `MegolmService.ts`. Licensed under AGPL-3.0 with the rest of Harmony.
 
 **Key Features:**
-- Zero-knowledge architecture (servers cannot decrypt messages)
+- Zero-knowledge architecture (servers store ciphertext + encrypted key blobs; they cannot decrypt messages, but they *are* trusted for room membership and for serving public identity keys - see "Secrecy & trust model" below)
 - Per-room session keys (efficient for group channels)
 - Recovery key system with mnemonic words
 - Non-extractable CryptoKeys stored in IndexedDB
 - Server-controlled encryption policies (disabled/optional/required)
 - Cross-device key sharing via `megolm_session_shares` table
 - Thread messages bypass encryption (sent as plaintext)
+
+## Secrecy & trust model (what we do and don't promise)
+
+- **Per-message keys, not forward secrecy.** Each message is encrypted under a distinct key derived (HKDF) from the room session key + message index. No two messages reuse a key, but the derivation is deterministic from the long-lived session key. Compromise of a session key exposes every message in that session (past and future) until rotation. Rotation (100 messages / 7 days) bounds the blast radius. This is **not** Signal-style forward secrecy and must not be described as such.
+- **Sender authenticity.** `megolm_v2_signed` (and later) messages carry a per-message ECDSA P-256 signature over the canonical metadata; clients verify before decrypting and reject mismatches. This defends against a malicious DB writer swapping `sender_user_id`.
+- **Identity keys are server-served (residual risk).** Public signing/ECDH keys come from `user_key_pairs`; per-device v3 signing keys come from `user_devices` (read cross-user only via the `get_device_signing_key` SECURITY DEFINER RPC - the table itself is owner-only, so other accounts' device labels / platform / last-seen / trust-state are never exposed). Clients pin first-seen keys (TOFU) and surface a gentle, non-blocking "security identity changed" notice on change; there is **no mandatory key-verification step**. This is a deliberate UX trade-off: a malicious or compromised server that swaps a user's published signing/device key can forge messages from that user - the change is *detectable* (the TOFU notice) but not *prevented*. Users who need stronger guarantees should treat an unexpected identity-change notice as a red flag.
+- **Membership is server-authoritative.** Who belongs to a channel is decided by the server (Discord-style). Key sharing/requests are gated on current membership; this is inherently server-trusted and is an accepted trade-off for the product model.
 
 ## Architecture
 

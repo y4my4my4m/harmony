@@ -368,36 +368,45 @@ CREATE POLICY "megolm_room_sessions_insert_own" ON public.megolm_room_sessions
 CREATE POLICY "megolm_room_sessions_update_own" ON public.megolm_room_sessions
     FOR UPDATE USING (creator_user_id = public.get_current_profile_id());
 
--- Megolm session shares: sender or recipient
+-- Megolm session shares: sender (the one who wrapped the key) or recipient.
+-- The client tracks the outbound session locally and never writes a
+-- megolm_room_sessions row, so authorization keys off sender_user_id rather
+-- than the (frequently absent) room-session creator.
 CREATE POLICY "megolm_session_shares_select" ON public.megolm_session_shares
     FOR SELECT USING (
         recipient_user_id = public.get_current_profile_id()
-        OR EXISTS (
-            SELECT 1 FROM public.megolm_room_sessions mrs
-            WHERE mrs.session_id = megolm_session_shares.session_id
-            AND mrs.room_id = megolm_session_shares.room_id
-            AND mrs.creator_user_id = public.get_current_profile_id()
-        )
+        OR sender_user_id = public.get_current_profile_id()
     );
 
+-- Sender must be the caller AND both sender and recipient must belong to the
+-- room. Without the membership checks, a malicious member could wrap a room's
+-- session key to an arbitrary recipient outside the room, leaking all messages
+-- in that Megolm session.
 CREATE POLICY "megolm_session_shares_insert" ON public.megolm_session_shares
     FOR INSERT WITH CHECK (
-        EXISTS (
-            SELECT 1 FROM public.megolm_room_sessions mrs
-            WHERE mrs.session_id = megolm_session_shares.session_id
-            AND mrs.room_id = megolm_session_shares.room_id
-            AND mrs.creator_user_id = public.get_current_profile_id()
-        )
+        sender_user_id = public.get_current_profile_id()
+        -- room_id::text: is_room_member takes (text, uuid). Cast is a no-op on
+        -- text columns and keeps the policy resolvable if room_id is ever uuid.
+        AND public.is_room_member(room_id::text, sender_user_id)
+        AND public.is_room_member(room_id::text, recipient_user_id)
+    );
+
+CREATE POLICY "megolm_session_shares_update" ON public.megolm_session_shares
+    FOR UPDATE USING (
+        sender_user_id = public.get_current_profile_id()
+        OR recipient_user_id = public.get_current_profile_id()
     );
 
 -- Megolm key requests: own requests
 CREATE POLICY "megolm_key_requests_own" ON public.megolm_key_requests
     FOR ALL USING (requester_user_id = public.get_current_profile_id());
 
--- Also allow viewing requests for sessions you own (to respond)
+-- Also allow viewing requests addressed to me (I'm the designated fulfiller),
+-- or requests for sessions I created.
 CREATE POLICY "megolm_key_requests_select_for_response" ON public.megolm_key_requests
     FOR SELECT USING (
-        EXISTS (
+        sender_user_id = public.get_current_profile_id()
+        OR EXISTS (
             SELECT 1 FROM public.megolm_room_sessions mrs
             WHERE mrs.session_id = megolm_key_requests.session_id
             AND mrs.room_id = megolm_key_requests.room_id
@@ -405,9 +414,67 @@ CREATE POLICY "megolm_key_requests_select_for_response" ON public.megolm_key_req
         )
     );
 
+-- Allow the designated fulfiller (sender_user_id) to mark a request fulfilled.
+-- Without this the auto-fulfill UPDATE in MegolmKeyBackupService silently fails
+-- RLS, so requesters never receive the key. Restricted to the addressed user.
+CREATE POLICY "megolm_key_requests_fulfill" ON public.megolm_key_requests
+    FOR UPDATE USING (sender_user_id = public.get_current_profile_id())
+    WITH CHECK (sender_user_id = public.get_current_profile_id());
+
 -- Megolm key backups: own only
 CREATE POLICY "megolm_key_backups_own_only" ON public.megolm_key_backups
     FOR ALL USING (user_id = public.get_current_profile_id());
+
+-- User devices: the OWNER reads their own device rows in full (device-management
+-- UI); only the owner may write. Other users get NO direct row access - a
+-- blanket authenticated SELECT leaked every account's device label / platform /
+-- last_seen_at / trust_state to all clients. Cross-user lookups need only the
+-- PUBLIC signing-key material and go through the SECURITY DEFINER
+-- get_device_signing_key() RPC below.
+ALTER TABLE public.user_devices ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "user_devices_select" ON public.user_devices;
+DROP POLICY IF EXISTS "user_devices_select_own" ON public.user_devices;
+CREATE POLICY "user_devices_select_own" ON public.user_devices
+    FOR SELECT USING (user_id = public.get_current_profile_id());
+CREATE POLICY "user_devices_insert_own" ON public.user_devices
+    FOR INSERT WITH CHECK (user_id = public.get_current_profile_id());
+CREATE POLICY "user_devices_update_own" ON public.user_devices
+    FOR UPDATE USING (user_id = public.get_current_profile_id());
+CREATE POLICY "user_devices_delete_own" ON public.user_devices
+    FOR DELETE USING (user_id = public.get_current_profile_id());
+
+-- Narrow cross-user read for v3 signature verification: returns ONLY a device's
+-- public signing key + revoked flag, never the rest of the device row.
+CREATE OR REPLACE FUNCTION public.get_device_signing_key(p_user_id uuid, p_device_id text)
+RETURNS TABLE (device_signing_public_key text, revoked_at timestamptz)
+    LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+    AS $$
+    SELECT ud.device_signing_public_key, ud.revoked_at
+    FROM public.user_devices ud
+    WHERE ud.user_id = p_user_id AND ud.device_id = p_device_id
+    LIMIT 1;
+$$;
+GRANT EXECUTE ON FUNCTION public.get_device_signing_key(uuid, text) TO authenticated;
+
+-- Device approval requests: account-scoped. A device may SELECT its account's
+-- requests and INSERT its own (raising a "new login" prompt), but it may NOT
+-- directly UPDATE a request to 'approved'. Approval/denial flow exclusively
+-- through the SECURITY DEFINER RPCs approve_device_request / deny_device_request,
+-- which verify the approver is an established device. This closes the
+-- self-approval hole where any account session could approve its own login.
+ALTER TABLE public.device_approval_requests ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "device_approval_requests_own" ON public.device_approval_requests;
+CREATE POLICY "device_approval_requests_select_own" ON public.device_approval_requests
+    FOR SELECT USING (user_id = public.get_current_profile_id());
+CREATE POLICY "device_approval_requests_insert_own" ON public.device_approval_requests
+    FOR INSERT WITH CHECK (user_id = public.get_current_profile_id());
+
+-- Room epoch state: readable by any authenticated client (needed to tag the
+-- correct epoch on send/decrypt). Writes happen only via SECURITY DEFINER
+-- triggers / RPCs, so no write policy is granted here.
+ALTER TABLE public.room_epoch_state ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "room_epoch_state_select" ON public.room_epoch_state
+    FOR SELECT USING (auth.role() = 'authenticated' OR auth.role() = 'service_role');
 
 -- Recovery key metadata: own only
 CREATE POLICY "recovery_key_metadata_own_only" ON public.recovery_key_metadata
@@ -985,7 +1052,11 @@ DO $$ BEGIN
         EXECUTE 'CREATE POLICY "Users can view server events they''re involved in" ON public.server_federation_events FOR SELECT USING (user_id = public.get_current_profile_id())';
     ELSE
         EXECUTE 'DROP POLICY IF EXISTS "Authenticated users can manage server events" ON public.server_federation_events';
-        EXECUTE 'CREATE POLICY "Authenticated users can manage server events" ON public.server_federation_events TO authenticated USING (true) WITH CHECK (true)';
+        -- Writes go through SECURITY DEFINER paths / the federation worker
+        -- (service_role). The old USING(true) WITH CHECK(true) policy let any
+        -- authenticated user read/modify the entire federation event queue.
+        EXECUTE 'DROP POLICY IF EXISTS "Service role can manage server events" ON public.server_federation_events';
+        EXECUTE 'CREATE POLICY "Service role can manage server events" ON public.server_federation_events TO service_role USING (true) WITH CHECK (true)';
     END IF;
 EXCEPTION WHEN undefined_table THEN
     RAISE NOTICE 'server_federation_events table does not exist, skipping';
@@ -1007,9 +1078,17 @@ CREATE POLICY "System can insert membership events" ON public.server_membership_
 -- ---------------------------------------------------------------------------
 -- TIMELINE ENTRIES
 -- ---------------------------------------------------------------------------
+-- Timeline rows are written exclusively by SECURITY DEFINER fan-out triggers
+-- (create_comprehensive_timeline_entries / broadcast_home_feed_entry), which
+-- bypass RLS. Clients may only READ their OWN timeline; the previous
+-- USING(true) WITH CHECK(true) let any user read/insert/delete anyone's feed.
 DROP POLICY IF EXISTS "System can manage all timeline entries" ON public.timeline_entries;
-CREATE POLICY "System can manage all timeline entries" ON public.timeline_entries
-    USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "timeline_entries_select_own" ON public.timeline_entries;
+CREATE POLICY "timeline_entries_select_own" ON public.timeline_entries
+    FOR SELECT USING (user_id = public.get_current_profile_id());
+DROP POLICY IF EXISTS "timeline_entries_service_write" ON public.timeline_entries;
+CREATE POLICY "timeline_entries_service_write" ON public.timeline_entries
+    FOR ALL TO service_role USING (true) WITH CHECK (true);
 
 -- ---------------------------------------------------------------------------
 -- UNREAD COUNTS
@@ -1033,17 +1112,66 @@ CREATE POLICY "Users can update their own key pairs" ON public.user_key_pairs
         EXISTS (SELECT 1 FROM public.profiles WHERE profiles.id = user_key_pairs.user_id AND profiles.auth_user_id = auth.uid())
     );
 
+-- RLS is row-level, not column-level: a row-wide public SELECT would expose
+-- every user's `identity_private_key_encrypted` / signing private columns to
+-- all authenticated clients via PostgREST. We split SELECT into:
+--   (a) owner can read their FULL row (private columns included)
+--   (b) everyone authenticated can read rows, BUT a column-level GRANT below
+--       restricts the projection to PUBLIC columns only.
+-- The owner fetches their own encrypted private columns through the
+-- SECURITY DEFINER RPC get_my_key_pair() (defined below), not via direct SELECT.
 DROP POLICY IF EXISTS "Users can view others' public keys for encryption" ON public.user_key_pairs;
-DO $$ BEGIN
-    IF EXISTS (
-        SELECT 1 FROM information_schema.columns
-        WHERE table_schema = 'public' AND table_name = 'user_key_pairs' AND column_name = 'is_active'
-    ) THEN
-        EXECUTE 'CREATE POLICY "Users can view others'' public keys for encryption" ON public.user_key_pairs FOR SELECT USING (is_active = true)';
-    ELSE
-        EXECUTE 'CREATE POLICY "Users can view others'' public keys for encryption" ON public.user_key_pairs FOR SELECT USING (true)';
-    END IF;
-END $$;
+
+DROP POLICY IF EXISTS "Users can view own key pair (full row)" ON public.user_key_pairs;
+CREATE POLICY "Users can view own key pair (full row)" ON public.user_key_pairs
+    FOR SELECT USING (
+        EXISTS (
+            SELECT 1 FROM public.profiles
+            WHERE profiles.id = user_key_pairs.user_id
+              AND profiles.auth_user_id = auth.uid()
+        )
+    );
+
+DROP POLICY IF EXISTS "Users can view active public key columns" ON public.user_key_pairs;
+CREATE POLICY "Users can view active public key columns" ON public.user_key_pairs
+    FOR SELECT USING (is_active = true);
+
+-- Replace the broad row GRANT with a PUBLIC-COLUMNS-ONLY grant.
+REVOKE SELECT ON public.user_key_pairs FROM authenticated;
+REVOKE SELECT ON public.user_key_pairs FROM anon;
+GRANT SELECT (
+    id, user_id, device_id, identity_public_key, identity_signing_public_key,
+    key_version, is_active, created_at, last_used_at, expires_at, metadata
+) ON public.user_key_pairs TO authenticated;
+
+-- Owner-only access to the encrypted PRIVATE columns (used during local unlock).
+CREATE OR REPLACE FUNCTION public.get_my_key_pair()
+RETURNS TABLE (
+    id uuid, user_id uuid, device_id text,
+    identity_public_key text, identity_private_key_encrypted text,
+    identity_signing_public_key text, identity_signing_private_key_encrypted text,
+    key_version integer, is_active boolean, created_at timestamptz,
+    last_used_at timestamptz, expires_at timestamptz, metadata jsonb
+)
+LANGUAGE sql
+SECURITY DEFINER
+STABLE
+SET search_path = public, pg_temp
+AS $$
+    SELECT ukp.id, ukp.user_id, ukp.device_id,
+           ukp.identity_public_key, ukp.identity_private_key_encrypted,
+           ukp.identity_signing_public_key, ukp.identity_signing_private_key_encrypted,
+           ukp.key_version, ukp.is_active, ukp.created_at,
+           ukp.last_used_at, ukp.expires_at, ukp.metadata
+    FROM public.user_key_pairs ukp
+    JOIN public.profiles p ON p.id = ukp.user_id
+    WHERE p.auth_user_id = auth.uid()
+      AND ukp.is_active = true
+    ORDER BY ukp.created_at DESC
+    LIMIT 1;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.get_my_key_pair() TO authenticated;
 
 -- ---------------------------------------------------------------------------
 -- USER SESSIONS

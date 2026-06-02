@@ -32,6 +32,7 @@ type UserEventType =
   | 'post:embeds_ready'
   | 'follow:change'
   | 'encryption:key_request' | 'encryption:key_fulfilled'
+  | 'device:approval_request' | 'device:approved' | 'device:denied'
   | 'mute:insert' | 'mute:delete'
   | 'block:insert' | 'block:delete'
   | '_reconnected'

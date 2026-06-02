@@ -916,10 +916,26 @@ const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText);
       }
     });
 
+    /**
+     * Kinetic rejection feedback for the parent: shake the input and refocus.
+     * Reuses the over-limit buzz animation. Called by ChatComponent when a send
+     * is refused by server policy (e.g. required E2EE) so the rejection feels
+     * the same as the over-limit case instead of a silent failure.
+     */
+    const flashRejection = () => {
+      overLimitBuzz.value = false;
+      nextTick(() => {
+        overLimitBuzz.value = true;
+        window.setTimeout(() => { overLimitBuzz.value = false; }, 450);
+      });
+      if (richEditorRef.value?.focus) richEditorRef.value.focus();
+    };
+
     // Expose refs for parent component
     defineExpose({
       gifTriggerRef,
-      emojiTriggerRef
+      emojiTriggerRef,
+      flashRejection
     });
 
 
