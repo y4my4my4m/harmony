@@ -132,7 +132,7 @@ export function useAutoSuggest(
     position: { x: 0, y: 0 }
   });
 
-  // Active parameterized command (e.g. /tenor waiting for query input)
+  // Active parameterized command (e.g. /gif waiting for query input)
   const activeCommand = ref<{ name: string; params: { name: string; description: string }[] } | null>(null);
 
   // Dynamic user search results for ActivityPub mode
@@ -463,7 +463,7 @@ export function useAutoSuggest(
   const SLASH_COMMANDS: SlashCommand[] = [
     { id: 'cmd:kick', name: 'kick', description: 'Kick a member from the server', permission: 'KICK_MEMBERS' },
     { id: 'cmd:ban', name: 'ban', description: 'Ban a member from the server', permission: 'BAN_MEMBERS' },
-    { id: 'cmd:tenor', name: 'tenor', description: 'Search for a GIF', permission: '', params: [{ name: 'query', description: 'Search for a GIF' }] },
+    { id: 'cmd:gif', name: 'gif', description: 'Search for a GIF', permission: '', params: [{ name: 'query', description: 'Search for a GIF' }] },
   ];
 
   const commandSuggestions = computed((): SuggestionItem[] => {

@@ -36,6 +36,10 @@ CREATE TABLE IF NOT EXISTS public.servers (
     
     -- Invite code
     invite_code text UNIQUE,
+
+    -- WebFinger/federation handle (acct:{slug}@domain). Unique among local
+    -- servers; NULL for remote servers. Auto-assigned by trg_assign_server_slug.
+    slug text,
     
     -- Member count (denormalized)
     member_count integer DEFAULT 0,
@@ -46,7 +50,8 @@ CREATE TABLE IF NOT EXISTS public.servers (
 
     -- Length backstops (sanitize_server_text() trigger clamps on every write)
     CONSTRAINT servers_name_length_check CHECK (char_length(name) <= 100),
-    CONSTRAINT servers_description_length_check CHECK (description IS NULL OR char_length(description) <= 500)
+    CONSTRAINT servers_description_length_check CHECK (description IS NULL OR char_length(description) <= 500),
+    CONSTRAINT servers_slug_format CHECK (slug IS NULL OR slug ~ '^[a-z0-9][a-z0-9_-]{0,63}$')
 );
 
 ALTER TABLE public.servers REPLICA IDENTITY FULL;
@@ -56,6 +61,7 @@ CREATE INDEX IF NOT EXISTS idx_servers_invite_code ON public.servers(invite_code
 CREATE INDEX IF NOT EXISTS idx_servers_federation ON public.servers(federation_enabled, is_local_server);
 CREATE INDEX IF NOT EXISTS idx_servers_ap_id ON public.servers(ap_id) WHERE ap_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_servers_featured ON public.servers(is_featured, featured_order) WHERE is_featured = true;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_servers_slug_local ON public.servers (lower(slug)) WHERE is_local_server = true AND slug IS NOT NULL;
 
 COMMENT ON TABLE public.servers IS 'Discord-like community servers';
 COMMENT ON COLUMN public.servers.allow_cross_server_emojis IS 'Whether server emojis can be used in other servers';

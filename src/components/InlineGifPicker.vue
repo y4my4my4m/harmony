@@ -1,26 +1,34 @@
 <template>
   <div class="inline-gif-picker">
-    <div v-if="isLoading && gifs.length === 0" class="inline-gif-loading">
+    <div v-if="isLoading && items.length === 0" class="inline-gif-loading">
       <LoadingSpinner :size="20" />
     </div>
-    <div v-else-if="gifs.length === 0 && query" class="inline-gif-empty">
+    <div v-else-if="items.length === 0 && query" class="inline-gif-empty">
       No GIFs found
     </div>
     <div v-else class="inline-gif-grid">
-      <div 
-        v-for="gif in gifs" 
-        :key="gif.id" 
-        class="inline-gif-item"
-        @click="$emit('selectGif', gif)"
-        @mouseover="hoveredGif = gif.id"
-        @mouseleave="hoveredGif = null"
-      >
-        <img 
-          :src="hoveredGif === gif.id ? gif.media_formats.gif.url : gif.media_formats.gifpreview.url" 
-          :alt="gif.title || 'GIF'"
-          loading="lazy"
+      <template v-for="item in items" :key="item.id">
+        <GifAdSlot
+          v-if="item.kind === 'ad'"
+          class="inline-gif-ad"
+          :content="item.content"
+          :width="item.width"
+          :height="item.height"
+        />
+        <div 
+          v-else
+          class="inline-gif-item"
+          @click="$emit('selectGif', item)"
+          @mouseover="hoveredGif = item.id"
+          @mouseleave="hoveredGif = null"
         >
-      </div>
+          <img 
+            :src="hoveredGif === item.id ? item.media_formats.gif.url : item.media_formats.gifpreview.url" 
+            :alt="item.title || 'GIF'"
+            loading="lazy"
+          >
+        </div>
+      </template>
     </div>
   </div>
 </template>
@@ -28,7 +36,9 @@
 <script setup lang="ts">
 import { ref, watch, onMounted } from 'vue';
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue';
-import type { Gif } from '@/types';
+import GifAdSlot from '@/components/GifAdSlot.vue';
+import { gifProvider } from '@/services/gifProviderService';
+import type { Gif, GifResultItem } from '@/types';
 
 interface Props {
   query: string;
@@ -40,7 +50,7 @@ defineEmits<{
   (e: 'selectGif', gif: Gif): void;
 }>();
 
-const gifs = ref<Gif[]>([]);
+const items = ref<GifResultItem[]>([]);
 const hoveredGif = ref<string | null>(null);
 const isLoading = ref(false);
 let searchTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -50,13 +60,10 @@ const fetchTrending = async () => {
   const requestId = ++currentRequestId;
   isLoading.value = true;
   try {
-    const response = await fetch(
-      `https://tenor.googleapis.com/v2/featured?key=${import.meta.env.VITE_TENOR_API_KEY}&limit=20`
-    );
-    if (!response.ok || requestId !== currentRequestId) return;
-    const data = await response.json();
-    gifs.value = data.results;
-  } catch { /* ignore */ } finally {
+    const feed = await gifProvider.trending({ perPage: 20 });
+    if (requestId !== currentRequestId) return;
+    items.value = feed.items;
+  } finally {
     if (requestId === currentRequestId) isLoading.value = false;
   }
 };
@@ -69,13 +76,10 @@ const searchGifs = async (q: string) => {
   const requestId = ++currentRequestId;
   isLoading.value = true;
   try {
-    const response = await fetch(
-      `https://tenor.googleapis.com/v2/search?q=${encodeURIComponent(q)}&key=${import.meta.env.VITE_TENOR_API_KEY}&limit=20`
-    );
-    if (!response.ok || requestId !== currentRequestId) return;
-    const data = await response.json();
-    gifs.value = data.results;
-  } catch { /* ignore */ } finally {
+    const feed = await gifProvider.search(q, { perPage: 20 });
+    if (requestId !== currentRequestId) return;
+    items.value = feed.items;
+  } finally {
     if (requestId === currentRequestId) isLoading.value = false;
   }
 };

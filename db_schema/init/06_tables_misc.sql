@@ -738,6 +738,8 @@ CREATE TABLE IF NOT EXISTS public.instance_supporter_tiers (
     badge_color text,
     perks text,
     display_order integer DEFAULT 0,
+    -- When true, active supporters on this tier get the ad-free Klipy GIF key.
+    removes_ads boolean NOT NULL DEFAULT false,
     created_at timestamptz DEFAULT now()
 );
 

@@ -33,7 +33,7 @@
         <input 
           type="text" 
           v-model="searchQuery" 
-          :placeholder="showFavorites ? $t('gif.favorites') : $t('gif.searchTenor')" 
+          :placeholder="showFavorites ? $t('gif.favorites') : $t('gif.searchKlipy')" 
           class="search-input"
           ref="searchInput"
           :disabled="showFavorites"
@@ -84,13 +84,21 @@
 
       <!-- Trending/Search Results -->
       <template v-else>
-        <div v-if="gifs.length === 0 && !isLoading" class="empty-state">
+        <div v-if="items.length === 0 && !isLoading" class="empty-state">
           <p>{{ $t('gif.noResults') }}</p>
           <span class="empty-hint">Try a different search term</span>
         </div>
-        <masonry-wall v-else :items="gifs" :column-width="150" :gap="10">
+        <masonry-wall v-else :items="items" :column-width="150" :gap="10">
           <template #default="{ item }">
+            <GifAdSlot
+              v-if="item.kind === 'ad'"
+              :key="item.id"
+              :content="item.content"
+              :width="item.width"
+              :height="item.height"
+            />
             <div 
+              v-else
               :key="item.id" 
               class="gif-item" 
               @mouseover="hoveredGif = item.id" 
@@ -120,9 +128,11 @@
 <script setup lang="ts">
 import { ref, watch, onMounted, nextTick } from 'vue';
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue';
+import GifAdSlot from '@/components/GifAdSlot.vue';
 import { debug } from '@/utils/debug';
 import { gifService, type FavoriteGif } from '@/services/GifService';
-import type { Gif } from '@/types';
+import { gifProvider } from '@/services/gifProviderService';
+import type { Gif, GifResultItem } from '@/types';
 
 interface Props {
   showFavorites: boolean;
@@ -140,7 +150,7 @@ const emit = defineEmits<Emits>();
 
 // State
 const searchQuery = ref(props.initialSearchQuery || '');
-const gifs = ref<Gif[]>([]);
+const items = ref<GifResultItem[]>([]);
 const favorites = ref<FavoriteGif[]>([]);
 const hoveredGif = ref<string | null>(null);
 const searchInput = ref<HTMLInputElement | null>(null);
@@ -155,40 +165,28 @@ const getGifImageSource = (id: string, gifUrl: string, previewUrl: string): stri
 // Check if a GIF is favorited (by URL)
 const isFavorited = (gifUrl: string): boolean => favoriteUrls.value.has(gifUrl);
 
-// Fetch trending GIFs from Tenor API
+// Fetch trending GIFs via the backend Klipy proxy
 const fetchTrendingGifs = async () => {
   isLoading.value = true;
   try {
-    const response = await fetch(
-      `https://tenor.googleapis.com/v2/featured?key=${import.meta.env.VITE_TENOR_API_KEY}&limit=18`
-    );
-    if (!response.ok) throw new Error('Network response was not ok');
-    const data = await response.json();
-    gifs.value = data.results;
-  } catch (error) {
-    debug.error('Failed to fetch trending GIFs:', error);
+    const feed = await gifProvider.trending({ perPage: 24 });
+    items.value = feed.items;
   } finally {
     isLoading.value = false;
   }
 };
 
-// Search GIFs from Tenor API
+// Search GIFs via the backend Klipy proxy
 const searchGifs = async () => {
   if (!searchQuery.value.trim()) {
     await fetchTrendingGifs();
     return;
   }
-  
+
   isLoading.value = true;
   try {
-    const response = await fetch(
-      `https://tenor.googleapis.com/v2/search?q=${encodeURIComponent(searchQuery.value)}&key=${import.meta.env.VITE_TENOR_API_KEY}&limit=18`
-    );
-    if (!response.ok) throw new Error('Network response was not ok');
-    const data = await response.json();
-    gifs.value = data.results;
-  } catch (error) {
-    debug.error('Failed to search GIFs:', error);
+    const feed = await gifProvider.search(searchQuery.value, { perPage: 24 });
+    items.value = feed.items;
   } finally {
     isLoading.value = false;
   }
@@ -207,7 +205,7 @@ const loadFavorites = async () => {
   }
 };
 
-// Toggle favorite status for a Tenor GIF
+// Toggle favorite status for a GIF
 const toggleFavorite = async (gif: Gif) => {
   const gifUrl = gif.media_formats.gif.url;
   const previewUrl = gif.media_formats.gifpreview.url;

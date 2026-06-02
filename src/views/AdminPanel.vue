@@ -1769,6 +1769,10 @@
                   <input v-model="editTierName" class="cyber-input" style="flex: 1;" />
                   <input v-model.number="editTierMinAmount" type="number" class="cyber-input" style="width: 90px;" min="0" />
                   <input v-model="editTierColor" type="color" class="color-input" />
+                  <label class="tier-ads-toggle" title="Supporters on this tier see no GIF ads">
+                    <input type="checkbox" v-model="editTierRemovesAds" />
+                    <span>Ad-free GIFs</span>
+                  </label>
                   <button class="mod-btn" @click="saveEditTier(tier.id)" title="Save"><Icon name="check" :size="14" /></button>
                   <button class="mod-btn" @click="editingTierId = null; showEditTierEmojiPicker = false" title="Cancel"><Icon name="x" :size="14" /></button>
                 </template>
@@ -1779,6 +1783,7 @@
                   <div class="tier-info">
                     <span class="tier-name">{{ tier.name }}</span>
                     <span class="tier-amount">Min: {{ tier.min_amount }}</span>
+                    <span v-if="tier.removes_ads" class="tier-adfree-badge" title="Supporters on this tier see no GIF ads">Ad-free GIFs</span>
                     <span v-if="tier.perks" class="tier-perks">{{ tier.perks }}</span>
                   </div>
                   <div class="tier-actions">
@@ -2244,6 +2249,7 @@ const editTierName = ref('')
 const editTierMinAmount = ref<number>(0)
 const editTierIcon = ref('')
 const editTierColor = ref('#0EA5E9')
+const editTierRemovesAds = ref(false)
 
 const showNewTierEmojiPicker = ref(false)
 const showEditTierEmojiPicker = ref(false)
@@ -3090,6 +3096,7 @@ const addTier = async () => {
     badge_color: newTierColor.value || null,
     perks: null,
     display_order: supporterTiers.value.length,
+    removes_ads: false,
   })
   if (tier) {
     await adminService.logAdminAction({ action: 'tier_create', targetType: 'tier', targetId: tier.id, details: { name: tier.name } })
@@ -3108,6 +3115,7 @@ const startEditTier = (tier: SupporterTier) => {
   editTierMinAmount.value = tier.min_amount
   editTierIcon.value = tier.badge_icon || '⭐'
   editTierColor.value = tier.badge_color || '#0EA5E9'
+  editTierRemovesAds.value = tier.removes_ads ?? false
 }
 
 const saveEditTier = async (tierId: string) => {
@@ -3116,6 +3124,7 @@ const saveEditTier = async (tierId: string) => {
     min_amount: editTierMinAmount.value,
     badge_icon: editTierIcon.value,
     badge_color: editTierColor.value,
+    removes_ads: editTierRemovesAds.value,
   })
   if (success) {
     await adminService.logAdminAction({ action: 'tier_update', targetType: 'tier', targetId: tierId, details: { name: editTierName.value } })
@@ -7233,6 +7242,32 @@ const handleAddInstance = () => {
   font-size: 11px;
   color: var(--text-secondary);
   font-style: italic;
+}
+
+.tier-ads-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.tier-ads-toggle input {
+  cursor: pointer;
+}
+
+.tier-adfree-badge {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--harmony-primary, #0ea5e9);
+  border: 1px solid var(--harmony-primary-alpha, rgba(14, 165, 233, 0.4));
+  border-radius: 4px;
+  padding: 1px 5px;
+  width: fit-content;
 }
 
 .empty-hint {

@@ -16,6 +16,7 @@
     "search": "Search",
     "send": "Send",
     "copy": "Copy",
+    "copied": "Copied",
     "paste": "Paste",
     "cut": "Cut",
     "undo": "Undo",
@@ -302,6 +303,8 @@
     "federationBenefit1": "Users from other instances can join via invite links",
     "federationBenefit2": "Messages are shared with federated members in real-time",
     "federationBenefit3": "Server appears in federated server discovery",
+    "federationHandle": "Server handle",
+    "federationHandleDesc": "Share this handle so people on other instances can find and join this server.",
     "uploadingEmojis": "Uploading emoji {current} of {total}...",
     "copyEmojiName": "Copy emoji name",
     "renameEmoji": "Rename emoji",
@@ -654,7 +657,7 @@
         "pinned": "Pinned"
       },
       "empty": {
-        "unread": "You're all caught up - no unread announcements.",
+        "unread": "You're all caught up — no unread announcements.",
         "all": "No announcements have been posted yet.",
         "pinned": "No pinned announcements right now."
       },
@@ -913,7 +916,8 @@
   "gif": {
     "search": "Search GIF...",
     "searchGifs": "Search GIFs...",
-    "searchTenor": "Search Tenor",
+    "searchKlipy": "Search KLIPY",
+    "ad": "Ad",
     "trending": "Trending",
     "favorites": "Favorites",
     "noResults": "No GIFs found",

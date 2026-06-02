@@ -17,9 +17,9 @@
       :files="attachedFiles"
       @remove-file="removeFile"
     />
-    <!-- Inline GIF results (live search during /tenor command) -->
+    <!-- Inline GIF results (live search during /gif command) -->
     <InlineGifPicker
-      v-if="autoSuggest.activeCommand.value?.name === 'tenor'"
+      v-if="autoSuggest.activeCommand.value?.name === 'gif'"
       :query="modelValue || ''"
       @selectGif="handleInlineGifSelect"
     />

@@ -267,6 +267,17 @@
               <path v-else d="M22 9.24l-7.19-.62L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21 12 17.27 18.18 21l-1.63-7.03L22 9.24zM12 15.4l-3.76 2.27 1-4.28-3.32-2.88 4.38-.38L12 6.1l1.71 4.04 4.38.38-3.32 2.88 1 4.28L12 15.4z"/>
             </svg>
           </button>
+          <!-- KLIPY attribution watermark (only on Klipy-sourced GIFs, on hover) -->
+          <a
+            v-if="isKlipyMedia(part.url)"
+            class="klipy-watermark"
+            :class="{ 'visible': hoveredImageUrl === part.url }"
+            href="https://klipy.com"
+            target="_blank"
+            rel="noopener noreferrer nofollow"
+            @click.stop
+            title="GIF via KLIPY"
+          >KLIPY</a>
         </div>
 
         <!-- Video files -->
@@ -557,9 +568,16 @@ export default defineComponent({
       return lowerUrl.includes('.gif') || 
              lowerUrl.includes('tenor.com') || 
              lowerUrl.includes('giphy.com') ||
+             lowerUrl.includes('klipy.com') ||
              lowerUrl.includes('/gif') ||
              // Could also check for webp/apng but harder to detect animation
              false;
+    };
+
+    // True for GIFs sourced from Klipy (host-based). Drives the KLIPY
+    // attribution watermark, which must only appear on Klipy content.
+    const isKlipyMedia = (url: string): boolean => {
+      return !!url && url.toLowerCase().includes('klipy.com');
     };
     
     const isGifFavorited = (url: string): boolean => {
@@ -1041,6 +1059,7 @@ export default defineComponent({
       // GIF favorites
       hoveredImageUrl,
       isAnimatedImage,
+      isKlipyMedia,
       isGifFavorited,
       toggleGifFavorite
     };
@@ -1313,6 +1332,36 @@ export default defineComponent({
 
 .gif-favorite-button.favorited {
   color: var(--color-warning, #faa61a);
+}
+
+/* KLIPY attribution watermark - subtle, fades in on hover */
+.klipy-watermark {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  padding: 3px 6px;
+  border-radius: 4px;
+  text-decoration: none;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  pointer-events: none;
+  z-index: 10;
+  user-select: none;
+}
+
+.klipy-watermark.visible {
+  opacity: 0.85;
+  pointer-events: auto;
+}
+
+.klipy-watermark:hover {
+  opacity: 1;
 }
 
 .video-container {

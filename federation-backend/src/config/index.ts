@@ -82,6 +82,17 @@ const envSchema = z.object({
   // When true (default), reject unsigned activities or activities with invalid signatures
   // Set to 'false' in development to allow testing with unsigned activities
   REQUIRE_VALID_SIGNATURES: z.string().transform(v => v !== 'false').default('true'),
+
+  // Klipy GIF provider (replaces Tenor). Keys live ONLY on the backend so they
+  // never reach the browser bundle. Two keys: one with ads enabled in the Klipy
+  // dashboard, one without. The proxy picks per-request based on the viewer's
+  // supporter tier, so the no-ads key is never exposed to clients.
+  //   - KLIPY_API_KEY_ADS   : ad-enabled key (monetized, served to regular users)
+  //   - KLIPY_API_KEY_NOADS : ad-free key (served to supporters whose tier removes ads)
+  // If only one is set it is used for everyone. If neither is set, GIF search is disabled.
+  KLIPY_API_KEY_ADS: z.string().optional(),
+  KLIPY_API_KEY_NOADS: z.string().optional(),
+  KLIPY_BASE_URL: z.string().url().default('https://api.klipy.com'),
 });
 
 // Validate and export configuration

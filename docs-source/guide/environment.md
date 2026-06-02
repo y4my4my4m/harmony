@@ -46,7 +46,7 @@ All frontend environment variables are prefixed with `VITE_` and accessible at b
 
 | Variable | Description |
 |----------|-------------|
-| `VITE_TENOR_API_KEY` | Tenor API key for GIF search |
+| _(none)_ | GIF search (Klipy) is proxied through the federation backend; its keys (`KLIPY_API_KEY_ADS` / `KLIPY_API_KEY_NOADS`) are configured there, not in the frontend. |
 
 ### Debugging
 

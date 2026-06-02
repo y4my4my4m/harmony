@@ -1434,6 +1434,36 @@ AS $$
     LIMIT 1;
 $$;
 
+-- GIF ad decision. TRUE when the user should be shown GIF (Klipy) ads. The
+-- federation backend calls this (service_role) to pick the ad-enabled vs
+-- ad-free Klipy key; clients may call it to reflect ad-free status in the UI.
+-- Ads are on unless the instance disabled them or the user holds an active
+-- supporter tier flagged removes_ads.
+CREATE OR REPLACE FUNCTION public.should_show_gif_ads(p_user_id uuid)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+    SELECT
+        COALESCE((SELECT config_value::text = 'true'
+                  FROM public.instance_config
+                  WHERE config_key = 'gif_ads_enabled'), true)
+        AND NOT EXISTS (
+            SELECT 1
+            FROM public.instance_supporters s
+            JOIN public.instance_supporter_tiers t ON t.id = s.tier_id
+            WHERE s.user_id = p_user_id
+              AND s.is_active = true
+              AND t.removes_ads = true
+              AND (s.expires_at IS NULL OR s.expires_at > now())
+        );
+$$;
+
+GRANT EXECUTE ON FUNCTION public.should_show_gif_ads(uuid) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.should_show_gif_ads(uuid) TO service_role;
+
 -- Batched supporter badge RPC. Returns one row per user that actually has a
 -- qualifying badge, keyed by user_id, so the client can resolve badges for an
 -- entire chat view (every distinct author) in a single round-trip instead of

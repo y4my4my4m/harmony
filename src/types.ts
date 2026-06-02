@@ -595,6 +595,20 @@ export interface Gif {
   title?: string;
 }
 
+/**
+ * A GIF feed item from the backend Klipy proxy. Either a GIF (same shape as
+ * `Gif`) or a Klipy ad (HTML rendered in a sandboxed iframe). Ad items are only
+ * present for viewers the backend decided should see ads.
+ */
+export interface GifAdItem {
+  kind: 'ad';
+  id: string;
+  content: string;
+  width: number;
+  height: number;
+}
+export type GifResultItem = (Gif & { kind: 'gif' }) | GifAdItem;
+
 export interface Emoji {
   id: string;
   created_at?: Date;

@@ -38,40 +38,77 @@ router.get(
       });
     }
 
-    // Lookup user (case-insensitive username via ilike)
+    // A handle can name either a user (acct:alice@…) or a chat server
+    // (acct:myserver@…, the same pattern Lemmy uses for communities). Users are
+    // the common case, so try them first, then fall back to a server slug.
     const supabase = getSupabaseClient();
-    const { data: user, error } = await supabase
+    const { data: user } = await supabase
       .from('profiles')
       .select('username, domain')
       .ilike('username', username)
       .eq('is_local', true)
       .maybeSingle();
 
-    if (error || !user) {
-      return res.status(404).json({
-        error: 'User not found',
+    if (user) {
+      const canonicalUsername = user.username;
+      const userUrl = `https://${config.INSTANCE_DOMAIN}/users/${canonicalUsername}`;
+
+      res.setHeader('Content-Type', 'application/jrd+json');
+      return res.json({
+        subject: `acct:${canonicalUsername}@${config.INSTANCE_DOMAIN}`,
+        aliases: [userUrl],
+        links: [
+          {
+            rel: 'self',
+            type: 'application/activity+json',
+            href: userUrl,
+          },
+          {
+            rel: 'http://webfinger.net/rel/profile-page',
+            type: 'text/html',
+            href: `https://${config.INSTANCE_DOMAIN}/social/profile/${canonicalUsername}`,
+          },
+        ],
       });
     }
 
-    const canonicalUsername = user.username;
-    const userUrl = `https://${config.INSTANCE_DOMAIN}/users/${canonicalUsername}`;
+    // Fall back to a federated chat server (Group actor). Only local servers
+    // that are BOTH public and federation-enabled are discoverable by handle.
+    // Private servers stay invite-only: their members reach them via the invite
+    // flow (which fetches the Group actor by URL), never by guessing a handle.
+    const { data: server } = await supabase
+      .from('servers')
+      .select('id, slug')
+      .ilike('slug', username)
+      .eq('is_local_server', true)
+      .eq('federation_enabled', true)
+      .eq('public', true)
+      .maybeSingle();
 
-    res.setHeader('Content-Type', 'application/jrd+json');
-    res.json({
-      subject: `acct:${canonicalUsername}@${config.INSTANCE_DOMAIN}`,
-      aliases: [userUrl],
-      links: [
-        {
-          rel: 'self',
-          type: 'application/activity+json',
-          href: userUrl,
-        },
-        {
-          rel: 'http://webfinger.net/rel/profile-page',
-          type: 'text/html',
-          href: `https://${config.INSTANCE_DOMAIN}/social/profile/${canonicalUsername}`,
-        },
-      ],
+    if (server) {
+      const serverUrl = `https://${config.INSTANCE_DOMAIN}/servers/${server.id}`;
+
+      res.setHeader('Content-Type', 'application/jrd+json');
+      return res.json({
+        subject: `acct:${server.slug}@${config.INSTANCE_DOMAIN}`,
+        aliases: [serverUrl],
+        links: [
+          {
+            rel: 'self',
+            type: 'application/activity+json',
+            href: serverUrl,
+          },
+          {
+            rel: 'http://webfinger.net/rel/profile-page',
+            type: 'text/html',
+            href: serverUrl,
+          },
+        ],
+      });
+    }
+
+    return res.status(404).json({
+      error: 'Account not found',
     });
   })
 );

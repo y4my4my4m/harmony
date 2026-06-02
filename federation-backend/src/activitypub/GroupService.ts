@@ -58,6 +58,9 @@ function serverToGroup(
     id: serverUrl,
     type: 'Group',
     'harmony:type': 'ChatServer',
+    // WebFinger handle (acct:{preferredUsername}@domain). Lets remote instances
+    // resolve and verify this Group the standard Fediverse way.
+    preferredUsername: server.slug || undefined,
     name: server.name,
     summary: server.description || '',
     inbox: `${serverUrl}/inbox`,

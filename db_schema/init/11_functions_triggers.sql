@@ -156,6 +156,76 @@ BEGIN
 END;
 $$;
 
+-- ---------------------------------------------------------------------------
+-- SERVER HANDLE (slug) for WebFinger/federation discovery
+-- ---------------------------------------------------------------------------
+-- Turn a display name into a slug-safe base, or NULL when nothing usable
+-- remains (e.g. an all-CJK name) so callers fall back to the id prefix.
+CREATE OR REPLACE FUNCTION public.slugify_server_name(p_name text)
+RETURNS text
+LANGUAGE sql
+IMMUTABLE
+SET search_path = public, pg_temp
+AS $$
+    SELECT NULLIF(
+        regexp_replace(
+            regexp_replace(lower(coalesce(p_name, '')), '[^a-z0-9]+', '-', 'g'),
+            '(^-+|-+$)', '', 'g'
+        ),
+    '');
+$$;
+
+-- Produce a slug for a local server that is unique among local servers.
+CREATE OR REPLACE FUNCTION public.generate_unique_server_slug(p_name text, p_id uuid)
+RETURNS text
+LANGUAGE plpgsql
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+    base text;
+    candidate text;
+    n integer := 0;
+BEGIN
+    base := left(coalesce(public.slugify_server_name(p_name), left(p_id::text, 8)), 60);
+    candidate := base;
+    -- Servers and users share the acct: handle namespace, and WebFinger resolves
+    -- users first. Avoid both an existing server slug AND an existing local
+    -- username so the generated handle is actually reachable.
+    WHILE EXISTS (
+        SELECT 1 FROM public.servers s
+        WHERE s.is_local_server = true
+          AND lower(s.slug) = lower(candidate)
+          AND s.id <> p_id
+    ) OR EXISTS (
+        SELECT 1 FROM public.profiles p
+        WHERE p.is_local = true
+          AND lower(p.username) = lower(candidate)
+    ) LOOP
+        n := n + 1;
+        candidate := base || '-' || n;
+    END LOOP;
+    RETURN candidate;
+END;
+$$;
+
+-- BEFORE INSERT: auto-assign a handle to local servers that don't supply one.
+CREATE OR REPLACE FUNCTION public.assign_server_slug()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = public, pg_temp
+AS $$
+BEGIN
+    IF NEW.is_local_server IS DISTINCT FROM true THEN
+        RETURN NEW; -- remote servers keep NULL
+    END IF;
+    IF NEW.slug IS NOT NULL AND NEW.slug <> '' THEN
+        RETURN NEW; -- explicit slug respected (format enforced by constraint)
+    END IF;
+    NEW.slug := public.generate_unique_server_slug(NEW.name, NEW.id);
+    RETURN NEW;
+END;
+$$;
+
 CREATE OR REPLACE FUNCTION public.sanitize_channel_text()
 RETURNS trigger
 LANGUAGE plpgsql
