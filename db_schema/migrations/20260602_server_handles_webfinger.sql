@@ -66,18 +66,14 @@ DECLARE
 BEGIN
     base := left(coalesce(public.slugify_server_name(p_name), left(p_id::text, 8)), 60);
     candidate := base;
-    -- Servers and users share the acct: handle namespace, and WebFinger resolves
-    -- users first. Avoid both an existing server slug AND an existing local
-    -- username so the generated handle is actually reachable.
+    -- Unique among local SERVERS only. Users (Person) and servers (Group) are
+    -- distinct actor types and may share a handle; WebFinger disambiguates by
+    -- AS type (Lemmy-style), so server slugs don't need to dodge usernames.
     WHILE EXISTS (
         SELECT 1 FROM public.servers s
         WHERE s.is_local_server = true
           AND lower(s.slug) = lower(candidate)
           AND s.id <> p_id
-    ) OR EXISTS (
-        SELECT 1 FROM public.profiles p
-        WHERE p.is_local = true
-          AND lower(p.username) = lower(candidate)
     ) LOOP
         n := n + 1;
         candidate := base || '-' || n;

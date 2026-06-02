@@ -175,14 +175,13 @@ AS $$
     '');
 $$;
 
--- Produce a slug for a local server that is unique across the WHOLE shared
--- handle namespace (users + servers), consulting the local_actor_handles
--- registry as the single source of truth. SECURITY DEFINER so it can read the
--- RLS-locked registry from within a user-initiated server insert.
+-- Produce a slug for a local server that is unique AMONG LOCAL SERVERS. Users
+-- and servers are separate actor types (Person vs Group): they're allowed to
+-- share a handle, and WebFinger disambiguates by AS type (Lemmy-style). So this
+-- only needs to dodge other server slugs, not usernames.
 CREATE OR REPLACE FUNCTION public.generate_unique_server_slug(p_name text, p_id uuid)
 RETURNS text
 LANGUAGE plpgsql
-SECURITY DEFINER
 SET search_path = public, pg_temp
 AS $$
 DECLARE
@@ -193,82 +192,15 @@ BEGIN
     base := left(coalesce(public.slugify_server_name(p_name), left(p_id::text, 8)), 60);
     candidate := base;
     WHILE EXISTS (
-        SELECT 1 FROM public.local_actor_handles h
-        WHERE lower(h.handle) = lower(candidate)
-          AND NOT (h.actor_type = 'server' AND h.actor_id = p_id)
+        SELECT 1 FROM public.servers s
+        WHERE s.is_local_server = true
+          AND lower(s.slug) = lower(candidate)
+          AND s.id <> p_id
     ) LOOP
         n := n + 1;
         candidate := base || '-' || n;
     END LOOP;
     RETURN candidate;
-END;
-$$;
-
--- ---------------------------------------------------------------------------
--- SHARED HANDLE NAMESPACE SYNC (local_actor_handles registry)
--- ---------------------------------------------------------------------------
--- Keep the registry in lock-step with profiles/servers. SECURITY DEFINER so the
--- triggers can write the RLS-locked registry from ordinary user writes. A
--- handle collision (with a user OR a server) raises a friendly 23505.
-CREATE OR REPLACE FUNCTION public.sync_actor_handle_for_profile()
-RETURNS trigger
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public, pg_temp
-AS $$
-BEGIN
-    IF TG_OP = 'DELETE' THEN
-        DELETE FROM public.local_actor_handles
-        WHERE actor_type = 'user' AND actor_id = OLD.id;
-        RETURN OLD;
-    END IF;
-
-    IF NEW.is_local IS NOT TRUE OR NEW.username IS NULL OR NEW.username = '' THEN
-        DELETE FROM public.local_actor_handles
-        WHERE actor_type = 'user' AND actor_id = NEW.id;
-        RETURN NEW;
-    END IF;
-
-    BEGIN
-        INSERT INTO public.local_actor_handles (handle, actor_type, actor_id)
-        VALUES (NEW.username, 'user', NEW.id)
-        ON CONFLICT (actor_type, actor_id) DO UPDATE SET handle = EXCLUDED.handle;
-    EXCEPTION WHEN unique_violation THEN
-        RAISE EXCEPTION 'username "%" is already in use on this instance', NEW.username
-            USING ERRCODE = '23505';
-    END;
-    RETURN NEW;
-END;
-$$;
-
-CREATE OR REPLACE FUNCTION public.sync_actor_handle_for_server()
-RETURNS trigger
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public, pg_temp
-AS $$
-BEGIN
-    IF TG_OP = 'DELETE' THEN
-        DELETE FROM public.local_actor_handles
-        WHERE actor_type = 'server' AND actor_id = OLD.id;
-        RETURN OLD;
-    END IF;
-
-    IF NEW.is_local_server IS NOT TRUE OR NEW.slug IS NULL OR NEW.slug = '' THEN
-        DELETE FROM public.local_actor_handles
-        WHERE actor_type = 'server' AND actor_id = NEW.id;
-        RETURN NEW;
-    END IF;
-
-    BEGIN
-        INSERT INTO public.local_actor_handles (handle, actor_type, actor_id)
-        VALUES (NEW.slug, 'server', NEW.id)
-        ON CONFLICT (actor_type, actor_id) DO UPDATE SET handle = EXCLUDED.handle;
-    EXCEPTION WHEN unique_violation THEN
-        RAISE EXCEPTION 'server handle "%" is already in use on this instance', NEW.slug
-            USING ERRCODE = '23505';
-    END;
-    RETURN NEW;
 END;
 $$;
 

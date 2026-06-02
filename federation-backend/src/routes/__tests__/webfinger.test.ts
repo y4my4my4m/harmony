@@ -29,28 +29,42 @@ vi.mock('../../middleware/errorHandler.js', () => ({
 
 import { default as supertest } from 'supertest'
 
-function setupMockUser(username: string | null) {
-  // WebFingerService chains:
-  //   .from('profiles').select(...).ilike('username', X).eq('is_local', true).maybeSingle()
-  // The previous mock used `.eq().eq().single()` which (a) doesn't expose
-  // the `ilike` step the route calls and (b) terminates with `.single()`
-  // instead of `.maybeSingle()` - both produce `undefined.method()` at
-  // runtime, which the route's asyncHandler turns into a 500 response and
-  // every assertion of 200/404 fails. Mirror the actual chain shape.
-  const result = Promise.resolve(
-    username
-      ? { data: { username, domain: 'harmony.test' }, error: null }
-      : { data: null, error: null },
-  )
-  mockSupabase.from.mockReturnValue({
-    select: vi.fn().mockReturnValue({
-      ilike: vi.fn().mockReturnValue({
-        eq: vi.fn().mockReturnValue({
-          maybeSingle: vi.fn().mockReturnValue(result),
-        }),
-      }),
-    }),
+// WebFingerService now queries BOTH tables (Lemmy-style handle disambiguation):
+//   .from('profiles').select(...).ilike('username', X).eq('is_local', true).maybeSingle()
+//   .from('servers').select(...).ilike('slug', X).eq(...).eq(...).eq(...).maybeSingle()
+// The `.eq()` must be self-chaining (the servers query chains three of them) and
+// each terminal `.maybeSingle()` resolves to that table's row. Dispatch by the
+// `from()` table name so a user and/or a server can be returned independently.
+function setupMocks(opts: { user?: string | null; server?: { id: string; slug: string } | null } = {}) {
+  const makeChain = (result: any) => {
+    const chain: any = {
+      select: vi.fn(() => chain),
+      ilike: vi.fn(() => chain),
+      eq: vi.fn(() => chain),
+      maybeSingle: vi.fn(() => Promise.resolve(result)),
+    }
+    return chain
+  }
+
+  mockSupabase.from.mockImplementation((table: string) => {
+    if (table === 'profiles') {
+      return makeChain(
+        opts.user
+          ? { data: { username: opts.user, domain: 'harmony.test' }, error: null }
+          : { data: null, error: null },
+      )
+    }
+    if (table === 'servers') {
+      return makeChain(
+        opts.server ? { data: opts.server, error: null } : { data: null, error: null },
+      )
+    }
+    return makeChain({ data: null, error: null })
   })
+}
+
+function setupMockUser(username: string | null) {
+  setupMocks({ user: username })
 }
 
 async function createTestApp() {
@@ -127,5 +141,41 @@ describe('WebFinger endpoint', () => {
         }),
       ])
     )
+  })
+
+  it('resolves a chat server (Group) by handle with an AS type property', async () => {
+    setupMocks({ user: null, server: { id: 'srv-1', slug: 'gaming' } })
+    const app = await createTestApp()
+    const res = await supertest(app).get(
+      '/.well-known/webfinger?resource=acct:gaming@harmony.test'
+    )
+    expect(res.status).toBe(200)
+    expect(res.body.subject).toBe('acct:gaming@harmony.test')
+    expect(res.body.links).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          rel: 'self',
+          type: 'application/activity+json',
+          href: 'https://harmony.test/servers/srv-1',
+          properties: { 'https://www.w3.org/ns/activitystreams#type': 'Group' },
+        }),
+      ])
+    )
+  })
+
+  it('returns BOTH actors when a user and a server share a handle (type-tagged)', async () => {
+    setupMocks({ user: 'general', server: { id: 'srv-9', slug: 'general' } })
+    const app = await createTestApp()
+    const res = await supertest(app).get(
+      '/.well-known/webfinger?resource=acct:general@harmony.test'
+    )
+    expect(res.status).toBe(200)
+    const selfLinks = res.body.links.filter(
+      (l: any) => l.rel === 'self' && l.type === 'application/activity+json'
+    )
+    expect(selfLinks).toHaveLength(2)
+    const types = selfLinks.map((l: any) => l.properties?.['https://www.w3.org/ns/activitystreams#type'])
+    expect(types).toContain('Person')
+    expect(types).toContain('Group')
   })
 })

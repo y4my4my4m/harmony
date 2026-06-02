@@ -925,19 +925,29 @@ export class ServerDiscoveryService {
 
       const data = await response.json();
 
-      // Prefer the canonical rel="self" actor link; fall back to any AP link.
-      const apLink =
-        data.links?.find(
-          (link: any) => link.rel === 'self' && link.type === 'application/activity+json',
-        ) || data.links?.find((link: any) => link.type === 'application/activity+json');
+      // A handle may resolve to BOTH a user (Person) and a server (Group) when
+      // they share a localpart (Lemmy-style). Pick the Group link, identified by
+      // its ActivityStreams `type` property. Fall back to a plain self link only
+      // when no link is type-tagged (single-actor response from older peers).
+      const AS_TYPE = 'https://www.w3.org/ns/activitystreams#type';
+      const selfLinks = (data.links || []).filter(
+        (link: any) => link.rel === 'self' && link.type === 'application/activity+json',
+      );
 
-      if (!apLink?.href) {
-        logger.warn('No ActivityPub self link in WebFinger response');
+      const groupLink =
+        selfLinks.find((link: any) => link.properties?.[AS_TYPE] === 'Group') ||
+        // Only accept an untyped link if it's unambiguous (no Person sibling).
+        (selfLinks.length === 1 && !selfLinks[0].properties?.[AS_TYPE]
+          ? selfLinks[0]
+          : undefined);
+
+      if (!groupLink?.href) {
+        logger.warn(`No Group actor in WebFinger response for ${webfingerResource}`);
         return null;
       }
 
-      // Fetch the actor and confirm it's a Group (a chat server, not a user).
-      return await this.fetchServerByUrl(apLink.href);
+      // Fetch the actor and confirm it's a Group (fetchServerByUrl rejects non-Groups).
+      return await this.fetchServerByUrl(groupLink.href);
     } catch (error) {
       logger.error('Error discovering server via WebFinger:', error);
       return null;
