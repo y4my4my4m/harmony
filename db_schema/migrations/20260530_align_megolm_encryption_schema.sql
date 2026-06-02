@@ -195,17 +195,40 @@ CREATE POLICY "megolm_session_shares_update" ON public.megolm_session_shares
 
 -- Key requests: requester owns the row; the addressed fulfiller can read and
 -- mark it fulfilled.
+-- The optional "session creator" branch references public.megolm_room_sessions,
+-- whose columns vary across drifted deploys (some prod schemas predate
+-- session_id/room_id/creator_user_id). Only include that branch when all three
+-- columns exist; otherwise fall back to the sender_user_id branch, which is the
+-- primary path (a key request is addressed to sender_user_id).
 DROP POLICY IF EXISTS "megolm_key_requests_select_for_response" ON public.megolm_key_requests;
-CREATE POLICY "megolm_key_requests_select_for_response" ON public.megolm_key_requests
-    FOR SELECT USING (
-        sender_user_id = public.get_current_profile_id()
-        OR EXISTS (
-            SELECT 1 FROM public.megolm_room_sessions mrs
-            WHERE mrs.session_id = megolm_key_requests.session_id
-            AND mrs.room_id = megolm_key_requests.room_id
-            AND mrs.creator_user_id = public.get_current_profile_id()
-        )
-    );
+DO $kreqpolicy$
+BEGIN
+    IF (SELECT count(*) FROM information_schema.columns
+        WHERE table_schema='public' AND table_name='megolm_room_sessions'
+          AND column_name IN ('session_id','room_id','creator_user_id')) = 3 THEN
+        EXECUTE $p$
+            CREATE POLICY "megolm_key_requests_select_for_response" ON public.megolm_key_requests
+                FOR SELECT USING (
+                    sender_user_id = public.get_current_profile_id()
+                    OR EXISTS (
+                        SELECT 1 FROM public.megolm_room_sessions mrs
+                        WHERE mrs.session_id = megolm_key_requests.session_id
+                          AND mrs.room_id = megolm_key_requests.room_id
+                          AND mrs.creator_user_id = public.get_current_profile_id()
+                    )
+                )
+        $p$;
+    ELSE
+        RAISE NOTICE 'megolm_room_sessions lacks session_id/room_id/creator_user_id; creating sender-only select policy (reconcile megolm_room_sessions schema to restore the creator branch)';
+        EXECUTE $p$
+            CREATE POLICY "megolm_key_requests_select_for_response" ON public.megolm_key_requests
+                FOR SELECT USING (
+                    sender_user_id = public.get_current_profile_id()
+                )
+        $p$;
+    END IF;
+END
+$kreqpolicy$;
 
 DROP POLICY IF EXISTS "megolm_key_requests_fulfill" ON public.megolm_key_requests;
 CREATE POLICY "megolm_key_requests_fulfill" ON public.megolm_key_requests
