@@ -1252,6 +1252,7 @@ const displayPostForReactions = computed((): TimelinePost => {
 
 // Optimistic override for favorite state - set immediately on click, reconciled after DB response
 const favoriteOverride = ref<{ is_favorited: boolean; favorites_count: number } | null>(null)
+const repliesCountOverride = ref<number | null>(null)
 
 const displayInteractionCounts = computed(() => {
   const fav = favoriteOverride.value;
@@ -1261,7 +1262,7 @@ const displayInteractionCounts = computed(() => {
     return {
       favorites_count: fav?.favorites_count ?? props.post.reblog.favorites_count ?? 0,
       reblogs_count: props.post.reblog.reblogs_count || 0,
-      replies_count: props.post.reblog.replies_count || 0,
+      replies_count: repliesCountOverride.value ?? props.post.reblog.replies_count ?? 0,
       is_favorited: fav?.is_favorited ?? interactions?.is_favorited ?? props.post.reblog.is_favorited ?? false,
       is_reblogged: interactions?.is_reblogged ?? props.post.reblog.is_reblogged ?? false,
       is_bookmarked: interactions?.is_bookmarked ?? props.post.reblog.is_bookmarked ?? false
@@ -1270,7 +1271,7 @@ const displayInteractionCounts = computed(() => {
   return {
     favorites_count: fav?.favorites_count ?? props.post.favorites_count ?? 0,
     reblogs_count: props.post.reblogs_count || 0,
-    replies_count: props.post.replies_count || 0,
+    replies_count: repliesCountOverride.value ?? props.post.replies_count ?? 0,
     is_favorited: fav?.is_favorited ?? props.post.is_favorited ?? false,
     is_reblogged: props.post.is_reblogged || false,
     is_bookmarked: props.post.is_bookmarked || false
@@ -1402,10 +1403,8 @@ const onReply = () => {
 const handleReplySent = (reply: any) => {
   debug.log('Reply sent:', reply);
   showInlineReply.value = false;
-  // Bump the local reply count so the affordance updates immediately.
-  if (props.post) {
-    props.post.replies_count = (props.post.replies_count || 0) + 1;
-  }
+  // Bump reply count optimistically (displayInteractionCounts reads the override).
+  repliesCountOverride.value = displayInteractionCounts.value.replies_count + 1;
   // Notify containers (e.g. PostView thread) so they can append the reply
   // without waiting for a reload. We thread under the *original* post id so
   // reblog wrappers attribute the reply to the correct note.

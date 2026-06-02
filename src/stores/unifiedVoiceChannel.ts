@@ -9,8 +9,10 @@ import { useAuthStore } from '@/stores/auth';
 import { useServerUsersStore } from '@/stores/useServerUsers';
 import { useServerChannelStore } from './useServerChannel';
 import { useThemeStore } from '@/stores/useTheme';
+import { useNotificationStore } from '@/stores/useNotification';
 import { useUserData } from '@/composables/useUserData';
 import { useKeybinds } from '@/composables/useKeybinds';
+import { voiceE2EEService } from '@/services/encryption/VoiceE2EEService';
 import { supabase } from '@/supabase';
 import { debug } from '@/utils/debug';
 import { userStorage } from '@/utils/userScopedStorage';
@@ -102,6 +104,9 @@ interface VoiceChannelState {
   // Active WebRTC transport ('livekit' for SFU, 'p2p' for peer-to-peer, null when disconnected)
   connectionMode: 'livekit' | 'p2p' | null;
 
+  // Whether the active call's media is end-to-end encrypted (SFU/LiveKit only for now).
+  isEncrypted: boolean;
+
   // Cache of the last-seen voice-channel user IDs, used to short-circuit
   // `ensureProfilesAvailable` when the membership list has not changed.
   previousUserIds: string[];
@@ -174,6 +179,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     streamUpdateCounter: 0,
     
     connectionMode: null,
+    isEncrypted: false,
 
     previousUserIds: [],
   }),
@@ -399,6 +405,29 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     },
     
     /**
+     * Resolve whether a server mandates E2E-encrypted voice/video.
+     * DM calls (serverId === 'dm') have no server policy and default to off.
+     */
+    async resolveVoiceE2EERequired(serverId: string): Promise<boolean> {
+      if (!serverId || serverId === 'dm') return false;
+      try {
+        const { data, error } = await supabase
+          .from('server_encryption_settings')
+          .select('voice_encryption_mode')
+          .eq('server_id', serverId)
+          .maybeSingle();
+        if (error) {
+          debug.warn('⚠️ [VoiceChannel] Failed to read voice_encryption_mode:', error);
+          return false;
+        }
+        return data?.voice_encryption_mode === 'required';
+      } catch (err) {
+        debug.warn('⚠️ [VoiceChannel] resolveVoiceE2EERequired error:', err);
+        return false;
+      }
+    },
+    
+    /**
      * Join a local (non-federated) voice channel
      */
     async joinLocalVoiceChannel(channelId: string, serverId: string, userId: string, abortSignal?: AbortSignal): Promise<boolean> {
@@ -423,9 +452,24 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       // Determine room type: DM calls use 'dm_call', server channels use 'voice_channel'
       const roomType = serverId === 'dm' ? 'dm_call' : 'voice_channel';
       
+      // Resolve whether this server requires E2E-encrypted voice. If it does and
+      // this client can't participate (no encryption set up / locked), refuse the
+      // join with a clear message rather than dropping into a plaintext call.
+      const requireE2EE = await this.resolveVoiceE2EERequired(serverId);
+      if (requireE2EE && !voiceE2EEService.canParticipate()) {
+        await serverUsersStore.leaveVoiceChannel(serverId, channelId, userId);
+        useNotificationStore().showToast(
+          'server_update',
+          'End-to-end encryption required',
+          'This channel requires encrypted voice. Set up encryption (and unlock it) to join.',
+          6000
+        );
+        throw new Error('Voice E2EE required but not available on this device');
+      }
+      
       // Join WebRTC channel (uses LiveKit SFU or P2P based on config)
       // Pass abort signal to allow cancellation
-      const webrtcSuccess = await webrtcManager.joinChannel(channelId, userId, roomType, abortSignal);
+      const webrtcSuccess = await webrtcManager.joinChannel(channelId, userId, roomType, abortSignal, requireE2EE);
       
       // Check for cancellation after join attempt
       if (abortSignal?.aborted) {
@@ -444,7 +488,8 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       }
       
       this.connectionMode = webrtcManager.getActiveService();
-      debug.log(`🔌 [VoiceChannel] Connected via ${this.connectionMode?.toUpperCase() || 'unknown'} mode (${roomType})`);
+      this.isEncrypted = webrtcManager.isE2EEEnabled();
+      debug.log(`🔌 [VoiceChannel] Connected via ${this.connectionMode?.toUpperCase() || 'unknown'} mode (${roomType}), E2EE: ${this.isEncrypted}`);
       
       // Final cancellation check before marking as connected
       if (abortSignal?.aborted) {
@@ -628,6 +673,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
               }
               
               this.connectionMode = 'livekit';
+              this.isEncrypted = webrtcManager.isE2EEEnabled();
               debug.log('🔌 [VoiceChannel] Connected to federated voice channel via LiveKit');
               
               // Update store state
@@ -1401,10 +1447,17 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       webrtcManager.on('channel-joined', (data: any) => {
         debug.log('✅ Channel joined:', data);
         this.connectionMode = webrtcManager.getActiveService();
+        this.isEncrypted = webrtcManager.isE2EEEnabled();
       });
 
       webrtcManager.on('channel-left', (data: any) => {
         debug.log('👋 Channel left:', data);
+        this.isEncrypted = false;
+      });
+
+      webrtcManager.on('e2ee-status-changed', (data: { enabled: boolean }) => {
+        debug.log('🔐 E2EE status changed:', data);
+        this.isEncrypted = !!data?.enabled;
       });
 
       webrtcManager.on('channel-state-synced', async (data: any) => {
@@ -2084,6 +2137,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       this.pipActive = false;
       this.pipUserId = null;
       this.connectionMode = null;
+      this.isEncrypted = false;
     },
 
     /**

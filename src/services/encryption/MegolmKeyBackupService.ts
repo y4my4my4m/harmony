@@ -24,7 +24,13 @@
 import { supabase } from '@/supabase'
 import { recoveryKeyService } from './RecoveryKeyService'
 import { megolmService, type MegolmOutboundSession, type MegolmInboundSession } from './MegolmService'
-import { identityKeyStore } from './SecureSessionKeyStore'
+import { identityKeyStore, signingKeyStore } from './SecureSessionKeyStore'
+import {
+  signKeyRequest,
+  verifyKeyRequestSignature,
+  importPublicSigningKey,
+  type KeyRequestFields,
+} from './MessageSigner'
 import { userEventChannel } from '@/services/UserEventChannel'
 import { debug } from '@/utils/debug'
 
@@ -39,6 +45,10 @@ export interface KeyRequest {
   encrypted_key?: string
   created_at: string
   fulfilled_at?: string
+  // Requester's signature over (room_id, session_id, requester_user_id),
+  // verified by the fulfiller before handing over the session key.
+  request_signature?: string
+  request_signing_fingerprint?: string
 }
 
 // Callback for when a key is received
@@ -74,6 +84,8 @@ export class MegolmKeyBackupService {
   private static instance: MegolmKeyBackupService
   private userId: string | null = null
   private autoBackupEnabled = true
+  private autoBackupTimer: ReturnType<typeof setTimeout> | null = null
+  private readonly AUTO_BACKUP_DEBOUNCE_MS = 4000
 
   private broadcastUnsubs: Array<() => void> = []
 
@@ -155,7 +167,22 @@ export class MegolmKeyBackupService {
         return
       }
 
-      debug.log(`✅ Found session, fulfilling request...`)
+      // AUTHORIZATION GATE - do NOT auto-fulfill just because we hold the key.
+      //   1. The request must be signed by the requester's published signing
+      //      key (proves the request truly came from the claimed requester,
+      //      not a DB writer forging one for an attacker device).
+      //   2. The requester must be a CURRENT member of the room
+      //      (server-authoritative; removed members are rejected here even if
+      //      they replay an old request).
+      const authorized = await this.isKeyRequestAuthorized(request)
+      if (!authorized) {
+        debug.warn(
+          `🚫 Refusing key request ${request.id.substring(0, 8)} from ${request.requester_user_id.substring(0, 8)} - failed authorization`,
+        )
+        return
+      }
+
+      debug.log(`✅ Found session and request authorized, fulfilling...`)
 
       // Get the requester's public key for encryption
       const { data: requesterKey } = await supabase
@@ -194,6 +221,101 @@ export class MegolmKeyBackupService {
       debug.log(`✅ Fulfilled key request ${request.id.substring(0, 8)}...`)
     } catch (error) {
       debug.error('❌ Error handling key request:', error)
+    }
+  }
+
+  /**
+   * Decide whether a key request may be fulfilled.
+   *
+   * Two independent checks, both required:
+   *   1. Signature: the request carries a valid signature from the requester's
+   *      published signing key over (room_id, session_id, requester_user_id).
+   *      Unsigned requests are rejected (no honest current client sends them).
+   *   2. Membership: the requester is a current member of the room, as judged
+   *      by the server (is_room_member RPC). Membership is inherently
+   *      server-authoritative in a Discord-style app; this is where a removed
+   *      member - or someone who was never in the room - is denied old keys.
+   */
+  private async isKeyRequestAuthorized(request: KeyRequest): Promise<boolean> {
+    // (1) Signature check.
+    if (!request.request_signature) {
+      debug.warn('🚫 Key request has no signature - rejecting')
+      return false
+    }
+    try {
+      const { data: requesterSigningRow } = await supabase
+        .from('user_key_pairs')
+        .select('identity_signing_public_key')
+        .eq('user_id', request.requester_user_id)
+        .eq('is_active', true)
+        .maybeSingle()
+
+      const spki = (requesterSigningRow as any)?.identity_signing_public_key as string | undefined
+      if (!spki) {
+        debug.warn('🚫 Requester has no published signing key - cannot verify request')
+        return false
+      }
+      const publicKey = await importPublicSigningKey(spki)
+      const fields: KeyRequestFields = {
+        room_id: request.room_id,
+        session_id: request.session_id,
+        requester_user_id: request.requester_user_id,
+      }
+      const sigValid = await verifyKeyRequestSignature(fields, request.request_signature, publicKey)
+      if (!sigValid) {
+        debug.warn('🚫 Key request signature invalid - rejecting')
+        return false
+      }
+    } catch (err) {
+      debug.warn('🚫 Key request signature verification threw - rejecting:', err)
+      return false
+    }
+
+    // (2) Membership check (server-authoritative).
+    try {
+      const { data: isMember, error } = await supabase.rpc('is_room_member', {
+        p_room_id: request.room_id,
+        p_user_id: request.requester_user_id,
+      })
+      if (error) {
+        debug.warn('🚫 is_room_member RPC failed - rejecting request:', error)
+        return false
+      }
+      if (!isMember) {
+        debug.warn('🚫 Requester is not a current member of the room - rejecting')
+        return false
+      }
+    } catch (err) {
+      debug.warn('🚫 Membership check threw - rejecting:', err)
+      return false
+    }
+
+    return true
+  }
+
+  /**
+   * Best-effort short fingerprint of our own active signing public key, used to
+   * annotate outgoing key requests. Returns undefined on any failure.
+   */
+  private async getMySigningFingerprint(): Promise<string | undefined> {
+    if (!this.userId) return undefined
+    try {
+      const { data } = await supabase
+        .from('user_key_pairs')
+        .select('identity_signing_public_key')
+        .eq('user_id', this.userId)
+        .eq('is_active', true)
+        .maybeSingle()
+      const spki = (data as any)?.identity_signing_public_key as string | undefined
+      if (!spki) return undefined
+      const bytes = Uint8Array.from(atob(spki), c => c.charCodeAt(0))
+      const digest = await crypto.subtle.digest('SHA-256', bytes)
+      return Array.from(new Uint8Array(digest))
+        .map(b => b.toString(16).padStart(2, '0'))
+        .join('')
+        .slice(0, 16)
+    } catch {
+      return undefined
     }
   }
 
@@ -554,18 +676,25 @@ export class MegolmKeyBackupService {
   }
 
   /**
-   * Trigger backup if auto-backup is enabled
-   * Called after creating new sessions
+   * Trigger backup if auto-backup is enabled.
+   *
+   * Debounced: callers fire this per new session (and a burst of new rooms /
+   * rapid sends could otherwise re-upload the whole backup many times in a
+   * row). We coalesce into a single trailing backup a few seconds after the
+   * last trigger. The backup is a full snapshot, so the latest run captures
+   * everything regardless of how many triggers were dropped.
    */
   async triggerAutoBackup(): Promise<void> {
     if (!this.autoBackupEnabled) return
+    if (this.autoBackupTimer) return // a backup is already scheduled
 
-    try {
-      await this.createBackup()
-    } catch (error) {
-      debug.warn('⚠️ Auto-backup failed:', error)
-      // Don't throw - auto-backup failure shouldn't block operations
-    }
+    this.autoBackupTimer = setTimeout(() => {
+      this.autoBackupTimer = null
+      this.createBackup().catch(error => {
+        debug.warn('⚠️ Auto-backup failed:', error)
+        // Don't throw - auto-backup failure shouldn't block operations
+      })
+    }, this.AUTO_BACKUP_DEBOUNCE_MS)
   }
 
   // =====================================================
@@ -594,6 +723,29 @@ export class MegolmKeyBackupService {
 
     const requestId = crypto.randomUUID()
 
+    // Sign the request so the fulfiller can verify it actually came from us
+    // before wrapping the session key. Best-effort: if we have no signing key
+    // yet, we still send an unsigned request (the fulfiller decides whether to
+    // honor unsigned requests under its policy).
+    let requestSignature: string | undefined
+    let signingFingerprint: string | undefined
+    try {
+      const signingKey = await signingKeyStore.load(this.userId)
+      if (signingKey) {
+        const fields: KeyRequestFields = {
+          room_id: roomId,
+          session_id: sessionId,
+          requester_user_id: this.userId,
+        }
+        requestSignature = await signKeyRequest(fields, signingKey)
+        signingFingerprint = await this.getMySigningFingerprint()
+      } else {
+        debug.warn('⚠️ No signing key available to sign key request - sending unsigned')
+      }
+    } catch (err) {
+      debug.warn('⚠️ Failed to sign key request (sending unsigned):', err)
+    }
+
     const { error } = await supabase
       .from('megolm_key_requests')
       .insert({
@@ -604,6 +756,8 @@ export class MegolmKeyBackupService {
         room_id: roomId,
         session_id: sessionId,
         status: 'pending',
+        request_signature: requestSignature || null,
+        request_signing_fingerprint: signingFingerprint || null,
         created_at: new Date().toISOString()
       })
 

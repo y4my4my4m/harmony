@@ -381,13 +381,30 @@ CREATE POLICY "conversations_insert_authenticated" ON public.conversations
 -- Complex membership checks should be done in application logic or via helper functions.
 ALTER TABLE public.conversation_participants ENABLE ROW LEVEL SECURITY;
 
--- Allow all authenticated users to read conversation participants
+-- Read participant rows only for conversations the caller is in. Uses a
+-- SECURITY DEFINER helper to avoid recursive RLS on this table. Previously this
+-- was USING (true), which let any authenticated user enumerate every DM's
+-- members (and, combined with the old permissive INSERT, self-join any DM).
 CREATE POLICY "conversation_participants_select_policy" ON public.conversation_participants
-    FOR SELECT USING (true);
+    FOR SELECT USING (
+        public.is_conversation_participant(conversation_id, public.get_current_profile_id())
+    );
 
--- Allow authenticated users to insert participants
-CREATE POLICY "Authenticated users can manage participants" ON public.conversation_participants
-    FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
+-- Direct client INSERTs are limited to adding YOURSELF to a conversation YOU
+-- created. All real multi-party flows (1:1, group create, add member) go
+-- through SECURITY DEFINER RPCs (create_or_get_direct_conversation,
+-- create_group_conversation, add_user_to_conversation) which bypass RLS, so
+-- this strict policy does not break any legitimate path. It does block the
+-- attack of inserting yourself into a victim's existing conversation.
+CREATE POLICY "conversation_participants_insert_self_owned" ON public.conversation_participants
+    FOR INSERT WITH CHECK (
+        user_id = public.get_current_profile_id()
+        AND EXISTS (
+            SELECT 1 FROM public.conversations c
+            WHERE c.id = conversation_id
+              AND c.created_by = public.get_current_profile_id()
+        )
+    );
 
 -- Allow users to update their own participation
 CREATE POLICY "conversation_participants_update_policy" ON public.conversation_participants
@@ -405,8 +422,13 @@ ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "notifications_select_own" ON public.notifications
     FOR SELECT USING (user_id = public.get_current_profile_id());
 
+-- Notifications are created exclusively by SECURITY DEFINER functions/triggers
+-- (send_notification, create_notification_structured, ...) which run as the
+-- table owner and bypass RLS. Restricting the INSERT policy to service_role
+-- means authenticated clients can no longer forge arbitrary notifications for
+-- other users (fake mentions/DMs/admin prompts) via PostgREST.
 CREATE POLICY "notifications_insert_system" ON public.notifications
-    FOR INSERT WITH CHECK (true);
+    FOR INSERT TO service_role WITH CHECK (true);
 
 CREATE POLICY "notifications_update_own" ON public.notifications
     FOR UPDATE USING (user_id = public.get_current_profile_id());
@@ -698,6 +720,15 @@ CREATE POLICY "invites_delete_creator" ON public.invites FOR DELETE
 
 ALTER TABLE public.voice_channel_participants ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "voice_participants_select_all" ON public.voice_channel_participants FOR SELECT USING (true);
+-- Local users manage their own presence row directly from the client. Federated
+-- participants and cleanup jobs use the service_role key, which bypasses RLS.
+CREATE POLICY "voice_participants_insert_self" ON public.voice_channel_participants
+    FOR INSERT WITH CHECK (user_id = public.get_current_profile_id());
+CREATE POLICY "voice_participants_update_self" ON public.voice_channel_participants
+    FOR UPDATE USING (user_id = public.get_current_profile_id())
+    WITH CHECK (user_id = public.get_current_profile_id());
+CREATE POLICY "voice_participants_delete_self" ON public.voice_channel_participants
+    FOR DELETE USING (user_id = public.get_current_profile_id());
 
 -- ---------------------------------------------------------------------------
 -- INSTANCE WEBRTC SETTINGS RLS
@@ -774,14 +805,23 @@ CREATE POLICY "notification_channels_delete_own" ON public.notification_channels
 -- ---------------------------------------------------------------------------
 ALTER TABLE public.server_bans ENABLE ROW LEVEL SECURITY;
 
+-- All ban mutations go through SECURITY DEFINER RPCs (ban_server_member,
+-- unban_server_member) and the list is read via get_server_bans (also definer,
+-- with a BAN_MEMBERS/owner check). The table itself must NOT be openly
+-- readable/writable: previously any authenticated user could enumerate every
+-- server's ban list (reasons included) and insert/delete arbitrary bans.
 CREATE POLICY "server_bans_select_moderator" ON public.server_bans
-    FOR SELECT TO authenticated USING (true);
+    FOR SELECT TO authenticated USING (
+        public.is_current_user_admin()
+        OR public.has_permission(public.get_current_profile_id(), server_id, 'BAN_MEMBERS')
+    );
 
-CREATE POLICY "server_bans_insert_rpc" ON public.server_bans
-    FOR INSERT TO authenticated WITH CHECK (true);
+-- Writes are service_role / SECURITY DEFINER RPC only (definers bypass RLS).
+CREATE POLICY "server_bans_insert_service" ON public.server_bans
+    FOR INSERT TO service_role WITH CHECK (true);
 
-CREATE POLICY "server_bans_delete_rpc" ON public.server_bans
-    FOR DELETE TO authenticated USING (true);
+CREATE POLICY "server_bans_delete_service" ON public.server_bans
+    FOR DELETE TO service_role USING (true);
 
 -- ---------------------------------------------------------------------------
 -- ANNOUNCEMENTS RLS

@@ -107,6 +107,21 @@ BEGIN
     v_username := 'user_' || LEFT(v_user_id::text, 8);
   END IF;
 
+  -- AUTHORIZATION: the caller must belong to the room they are requesting a
+  -- publish/subscribe token for. Without this, any authenticated user could
+  -- mint a token for any channel/DM (room names are channel/conversation UUIDs)
+  -- and join/listen/publish. Strip any known room-name prefix, then verify
+  -- membership via the server-authoritative helper.
+  DECLARE
+    v_room_uuid_text text := regexp_replace(room_name, '^(channel|stage|voice-channel|dm)-', '');
+  BEGIN
+    IF v_profile_id IS NULL OR NOT public.is_room_member(v_room_uuid_text, v_profile_id) THEN
+      RETURN jsonb_build_object(
+        'error', 'You do not have access to this room', 'code', 'ROOM_ACCESS_DENIED'
+      );
+    END IF;
+  END;
+
   -- Get LiveKit credentials from instance_webrtc_settings
   SELECT 
     livekit_api_key,

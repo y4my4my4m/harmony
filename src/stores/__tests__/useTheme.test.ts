@@ -9,7 +9,7 @@ vi.mock('@/services/AudioThemeService', () => ({
       { id: 'custom1', name: 'My Theme', isBuiltIn: false },
     ]),
     getCurrentTheme: vi.fn(() => ({ id: 'default', name: 'Default' })),
-    getVolume: vi.fn(() => 0.7),
+    getVolume: vi.fn(() => 1.0),
     setTheme: vi.fn().mockResolvedValue(true),
     setVolume: vi.fn(),
     preloadTheme: vi.fn().mockResolvedValue(undefined),
@@ -37,7 +37,7 @@ describe('useThemeStore', () => {
   it('initializes with default state', () => {
     const store = useThemeStore()
     expect(store.currentAudioTheme).toBe('default')
-    expect(store.audioVolume).toBe(0.7)
+    expect(store.audioVolume).toBe(1.0)
     expect(store.isInitialized).toBe(false)
     expect(store.isLoading).toBe(false)
     expect(store.lastError).toBeNull()
@@ -124,7 +124,7 @@ describe('useThemeStore', () => {
       const store = useThemeStore()
       const prefs = store.exportPreferences()
       expect(prefs.audio.selectedTheme).toBe('default')
-      expect(prefs.audio.volume).toBe(0.7)
+      expect(prefs.audio.volume).toBe(1.0)
     })
   })
 })

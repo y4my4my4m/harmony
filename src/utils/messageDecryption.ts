@@ -90,6 +90,14 @@ export async function processMessageDecryption(messages: Message[]): Promise<Mes
     return messages // Fast path: nothing to decrypt
   }
 
+  // "Identity epoch": messages encrypted before our current identity was created
+  // are sealed to a key that no longer exists. A missing session key for them is
+  // permanent (no point asking the sender / retrying), so we flag them distinctly.
+  let identityEpochMs: number | null = null
+  try {
+    identityEpochMs = await encryptionService.getIdentityCreatedAt?.()
+  } catch { /* unknown epoch → treat all failures as retryable */ }
+
   // Process encrypted messages in parallel
   const decryptedResults = await Promise.all(
     encryptedMessages.map(async (message) => {
@@ -128,6 +136,20 @@ export async function processMessageDecryption(messages: Message[]): Promise<Mes
           lastDecryptionError = `Decryption error`
         }
 
+        // A missing session key is *permanent* when the message predates our
+        // current identity: the private key that could unwrap its share is gone.
+        // Flag those so the UI stops offering a (futile) retry/key-request.
+        const missingKey =
+          errorMessage.includes('No inbound session') ||
+          errorMessage.includes('No outbound session') ||
+          errorMessage.includes('session key')
+        const sentAtMs = message.created_at ? new Date(message.created_at).getTime() : NaN
+        const unrecoverable =
+          missingKey &&
+          identityEpochMs != null &&
+          Number.isFinite(sentAtMs) &&
+          sentAtMs < identityEpochMs
+
         // PRESERVE original content - UI will show glyphs based on encrypted && !decrypted
         // This allows retry without hitting the database
         return {
@@ -135,6 +157,7 @@ export async function processMessageDecryption(messages: Message[]): Promise<Mes
           encrypted: true,
           decrypted: false,
           sender_verified: false,
+          decryption_unrecoverable: unrecoverable,
         }
       }
     })

@@ -629,7 +629,7 @@ const handleSendMessage = async (content: string, files: FilePreviewData[] = [],
             undefined,
             { allowPlaintextFallback },
           ),
-        { scope: 'thread' },
+        { scope: 'thread', contextKey: `thread:${targetThreadId}` },
       )
 
       if (sendResult.status === 'ok' && sendResult.result) {
@@ -761,7 +761,7 @@ const handleSendVoiceMessage = async (data: { url: string, duration: number, wav
         threadService.sendThreadMessage(targetThreadId, messageParts, undefined, voiceMetadata, {
           allowPlaintextFallback,
         }),
-      { scope: 'thread' },
+      { scope: 'thread', contextKey: `thread:${targetThreadId}` },
     )
 
     if (sendResult.status === 'ok' && sendResult.result) {
@@ -801,7 +801,7 @@ const handleSendGif = async (gif: Gif) => {
         threadService.sendThreadMessage(targetThreadId, messageParts, replyingToMessageId.value || undefined, undefined, {
           allowPlaintextFallback,
         }),
-      { scope: 'thread' },
+      { scope: 'thread', contextKey: `thread:${targetThreadId}` },
     )
 
     if (sendResult.status === 'ok' && sendResult.result) {
