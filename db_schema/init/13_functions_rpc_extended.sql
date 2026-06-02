@@ -587,7 +587,11 @@ $$;
 -- (incl. member_leave, where the actor is no longer a room member), so it can't
 -- carry a membership check itself. Revoke direct client access and expose a
 -- guarded wrapper (request_room_epoch_bump) for manual client rotation.
-REVOKE EXECUTE ON FUNCTION public.bump_room_epoch(text, text) FROM authenticated;
+-- Revoke from PUBLIC (not just authenticated): CREATE FUNCTION grants EXECUTE to
+-- PUBLIC by default, so a bare authenticated revoke would leave it reachable.
+REVOKE EXECUTE ON FUNCTION public.bump_room_epoch(text, text) FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.bump_room_epoch(text, text) FROM anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.bump_room_epoch(text, text) TO service_role;
 GRANT EXECUTE ON FUNCTION public.get_room_epoch(text) TO authenticated;
 
 -- ---------------------------------------------------------------------------

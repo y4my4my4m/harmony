@@ -148,7 +148,18 @@ RETURNS integer
     SELECT COALESCE((SELECT current_epoch FROM public.room_epoch_state WHERE room_id = p_room_id), 1);
 $$;
 
-GRANT EXECUTE ON FUNCTION public.bump_room_epoch(text, text) TO authenticated;
+-- bump_room_epoch is PRIVILEGED: it is reused by the membership-change triggers
+-- and by the membership-gated wrapper request_room_epoch_bump (defined in
+-- 20260531_security_hardening.sql / init). It must NOT be directly callable by
+-- clients, or any authenticated user could force-rotate the Megolm session of
+-- ANY room (abuse / DoS). Lock it to the function owner + service_role; clients
+-- rotate via request_room_epoch_bump, which checks room membership. We revoke
+-- from PUBLIC (not just authenticated) because CREATE FUNCTION grants EXECUTE to
+-- PUBLIC by default, so a bare "REVOKE FROM authenticated" would leave it
+-- reachable through the PUBLIC grant.
+REVOKE EXECUTE ON FUNCTION public.bump_room_epoch(text, text) FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.bump_room_epoch(text, text) FROM anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.bump_room_epoch(text, text) TO service_role;
 GRANT EXECUTE ON FUNCTION public.get_room_epoch(text) TO authenticated;
 
 CREATE OR REPLACE FUNCTION public.bump_server_channel_epochs(p_server_id uuid, p_reason text)

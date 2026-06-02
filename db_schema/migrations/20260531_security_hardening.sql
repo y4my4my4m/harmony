@@ -279,8 +279,26 @@ $$;
 
 -- ---------------------------------------------------------------------------
 -- H: bump_room_epoch authz (revoke direct grant + guarded wrapper)
+--
+-- bump_room_epoch is created by the LATER migration 20260601. Guard the REVOKE
+-- so this transaction doesn't abort (and roll back every hardening fix above)
+-- when it runs first; 20260601 also locks the function down, so the end state is
+-- correct in either order. The wrapper below resolves bump_room_epoch at call
+-- time, so it can be created before bump_room_epoch exists. We revoke from
+-- PUBLIC (not just authenticated) because CREATE FUNCTION grants EXECUTE to
+-- PUBLIC by default - a bare authenticated revoke would leave it reachable.
 -- ---------------------------------------------------------------------------
-REVOKE EXECUTE ON FUNCTION public.bump_room_epoch(text, text) FROM authenticated;
+DO $epochauthz$
+BEGIN
+    IF to_regprocedure('public.bump_room_epoch(text, text)') IS NOT NULL THEN
+        EXECUTE 'REVOKE EXECUTE ON FUNCTION public.bump_room_epoch(text, text) FROM PUBLIC';
+        EXECUTE 'REVOKE EXECUTE ON FUNCTION public.bump_room_epoch(text, text) FROM anon, authenticated';
+        EXECUTE 'GRANT EXECUTE ON FUNCTION public.bump_room_epoch(text, text) TO service_role';
+    ELSE
+        RAISE NOTICE 'bump_room_epoch not present yet; it is locked down by 20260601_device_identity_and_epochs.sql';
+    END IF;
+END
+$epochauthz$;
 
 CREATE OR REPLACE FUNCTION public.request_room_epoch_bump(p_room_id text, p_reason text DEFAULT 'manual_rotate')
 RETURNS integer LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
