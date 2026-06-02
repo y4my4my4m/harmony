@@ -444,7 +444,7 @@ const remoteOutboxUrl = ref<string | null>(null); // For remote user pagination
 const oldestRemotePostId = ref<string | null>(null); // Track oldest post for pagination
 const isLoadingMoreRemote = ref(false);
 
-// Realtime — anyone viewing this profile (including the author on another
+// Realtime - anyone viewing this profile (including the author on another
 // tab) gets prepends/edits/deletes via `feed:user:{profile_id}`. The DB
 // trigger publishes every post event for this author there; the kind ref
 // changes when the route param changes so navigation cleanly re-subscribes.
@@ -462,7 +462,7 @@ useFeedRealtime(feedKind, {
   },
   onUpdate: (event) => {
     if (event.author_id !== user.value?.id) return
-    // We don't get content in the broadcast payload, just metadata —
+    // We don't get content in the broadcast payload, just metadata -
     // visibility downgrades remove the post; content edits are reflected
     // via the per-post component refetch already in place. Skip noisy
     // count-update echoes here too.

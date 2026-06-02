@@ -48,7 +48,7 @@
 /* Channel list (text rows) gets tighter padding in compact mode. NOTE:
    `.server-item` was previously included here, but it's a fixed-dimension
    48x48 square avatar container in the server rail (see ServerSidebar.vue
-   `.server-item { width: 48px; height: 48px }`) — not a text row. Inheriting
+   `.server-item { width: 48px; height: 48px }`) - not a text row. Inheriting
    asymmetric padding here squished the icon into a non-square box, so it's
    intentionally excluded. If you need a denser server rail in compact mode,
    adjust the icon size / wrapper margin in ServerSidebar.vue instead. */

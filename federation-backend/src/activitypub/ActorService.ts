@@ -630,7 +630,7 @@ router.post(
 
     // Single round-trip metadata lookup for every entry that gave us a
     // post_id. Used for the TTL cache hit-check below AND for the counts
-    // we return — avoids the original per-post SELECT roundtrip.
+    // we return - avoids the original per-post SELECT roundtrip.
     const idsToLookup = batch
       .map((e: any) => e.post_id)
       .filter((id: any): id is string => typeof id === 'string' && id.length > 0);
@@ -659,7 +659,7 @@ router.post(
 
         const cachedRow = entry.post_id ? postRowsById.get(entry.post_id) : null;
 
-        // TTL cache hit — skip all outbound HTTP. The aggregated
+        // TTL cache hit - skip all outbound HTTP. The aggregated
         // `remote_reactions` is already on the row we just SELECTed.
         if (cachedRow && isReactionsCacheFresh(cachedRow.metadata)) {
           results[entry.post_ap_id] = {
@@ -682,7 +682,7 @@ router.post(
           let updatedPost: any = null;
 
           if (entry.post_id) {
-            // Re-read AFTER the fetch — metadata may have been updated by
+            // Re-read AFTER the fetch - metadata may have been updated by
             // `fetchRemotePostReactions` itself (Misskey path writes
             // remote_reactions in-line; standard AP path writes only the
             // raw `reactions` and lets us aggregate below).
@@ -1278,7 +1278,7 @@ async function fetchRemotePostReactions(
   // Skip local posts up-front so dedup map never traps a same-host key.
   try {
     if (new URL(postApId).hostname === config.INSTANCE_DOMAIN) return [];
-  } catch { /* invalid URL — fall through, _impl handles the failure */ }
+  } catch { /* invalid URL - fall through, _impl handles the failure */ }
 
   const existing = inFlightReactionFetches.get(postApId);
   if (existing) {
@@ -1364,7 +1364,7 @@ async function _fetchRemotePostReactionsImpl(
       if (!postResponse.ok) {
         logger.warn(`Failed to fetch post: ${postResponse.status}`);
         // 404 / 410 / unauthorized on a remote post is sticky for the TTL
-        // window — mark it attempted so the next feed refresh doesn't
+        // window - mark it attempted so the next feed refresh doesn't
         // re-hit the origin for a known-dead post.
         await markRemoteReactionsAttempted(postId, supabase);
         return [];
@@ -1422,7 +1422,7 @@ async function _fetchRemotePostReactionsImpl(
       likesCollection = await likesResponse.json();
     }
 
-    // Self-healing of favorites_count from the likes collection itself —
+    // Self-healing of favorites_count from the likes collection itself -
     // works on both the shortcut and fallback paths and is a single column
     // write, much cheaper than the full counts update above.
     if (postId && typeof likesCollection?.totalItems === 'number') {

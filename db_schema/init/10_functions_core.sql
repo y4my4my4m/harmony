@@ -18,7 +18,7 @@
 -- count limits, URL parsing, mention resolution, …).
 --
 -- Returns 0 for NULL / non-array input so the CHECK constraint never raises
--- on malformed content — that case is handled by the
+-- on malformed content - that case is handled by the
 -- `messages_content_is_array` / `posts_content_is_array` constraints which
 -- are checked first.
 CREATE OR REPLACE FUNCTION public.jsonb_text_content_length(content jsonb)
@@ -1053,7 +1053,7 @@ $$;
 --
 --   1. BEFORE INSERT/UPDATE triggers that read the LIVE admin config
 --      (`instance_config.max_message_length` / `max_post_length`) and
---      reject if exceeded. This is the actual user-facing limit — the
+--      reject if exceeded. This is the actual user-facing limit - the
 --      same number the admin sees in the dashboard.
 --
 --   2. CHECK constraints that enforce a very large absolute ceiling
@@ -1146,7 +1146,7 @@ BEGIN
         IF octet_length(NEW.content::text) > encrypted_byte_limit THEN
             RAISE EXCEPTION 'Encrypted message payload exceeds maximum size of % bytes', encrypted_byte_limit
                 USING ERRCODE = 'check_violation',
-                      HINT = 'Send shorter messages — the plaintext limit is enforced by the client before encryption.';
+                      HINT = 'Send shorter messages - the plaintext limit is enforced by the client before encryption.';
         END IF;
         RETURN NEW;
     END IF;

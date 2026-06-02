@@ -301,7 +301,7 @@ optgroup {
  * "Disable blur" preference produces a usable flat UI everywhere, not just
  * on the components that already use the variables.
  *
- * NOTE: this list is deliberately tactical — these are the specific class
+ * NOTE: this list is deliberately tactical - these are the specific class
  * names that render translucent surfaces today. If a new component ships
  * with the same pattern, add it here.
  */
@@ -362,7 +362,7 @@ optgroup {
 
 /*
  * Modal *overlays* (the dim layer behind a modal) intentionally stay
- * translucent so the user can still see context behind the modal — but
+ * translucent so the user can still see context behind the modal - but
  * we drop blur and bump opacity slightly so they read as a clean dim
  * pass instead of a smeared see-through panel.
  */
@@ -883,7 +883,7 @@ strong {
   gap: var(--space-3);
 }
 
-/* Loading States — spinner + label stacks (replaces legacy .loading-spinner margin-bottom).
+/* Loading States - spinner + label stacks (replaces legacy .loading-spinner margin-bottom).
    Scoped with :has() so ONLY containers that directly hold a <LoadingSpinner>
    (.harmony-spinner) get centered + gapped. Containers that hold skeleton grids
    or other custom loaders (e.g. DM FollowersList .loading-state > .loading-grid)

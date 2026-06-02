@@ -64,7 +64,7 @@ export async function startDatabaseListener(): Promise<void> {
   // postgres_changes subscription on `posts` here. The previous CDC-based
   // path used to handle these events but was unreliable (Supabase Realtime
   // doesn't fire consistently for every row) and racy against the BullMQ
-  // path — `enrichPostLinkPreviews` and the home-feed realtime push now
+  // path - `enrichPostLinkPreviews` and the home-feed realtime push now
   // both live inside `handlePostJob`.
   channel = channel
     .on(
@@ -1897,7 +1897,7 @@ export async function enrichMessageLinkPreviews(message: any): Promise<void> {
  * Same shape as enrichMessageLinkPreviews but for the posts table.
  *
  * Called from:
- *   - postHandler.handlePostJob (BullMQ create/update branches) — the
+ *   - postHandler.handlePostJob (BullMQ create/update branches) - the
  *     primary runtime path; reliable retries via BullMQ.
  *   - ActivityProcessor (federated/refetched remote posts).
  *   - federation-backend/backfill-posts.ts (--link-previews-only manual run).

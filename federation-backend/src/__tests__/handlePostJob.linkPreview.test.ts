@@ -147,7 +147,7 @@ beforeEach(() => {
   fakePost.metadata = {};
 });
 
-describe('handlePostJob — create', () => {
+describe('handlePostJob - create', () => {
   it('runs enrichPostLinkPreviews and pushes post:embeds_ready when embeds were written', async () => {
     await handlePostJob({
       type: 'create',
@@ -185,7 +185,7 @@ describe('handlePostJob — create', () => {
   });
 });
 
-describe('handlePostJob — pure reblog (Announce)', () => {
+describe('handlePostJob - pure reblog (Announce)', () => {
   it('skips link preview enrichment entirely', async () => {
     fakePost.ap_type = 'Announce';
     fakePost.metadata = { reblog_of: 'https://other.instance/posts/abc' };
@@ -206,7 +206,7 @@ describe('handlePostJob — pure reblog (Announce)', () => {
   });
 });
 
-describe('handlePostJob — update', () => {
+describe('handlePostJob - update', () => {
   it('re-runs enrichPostLinkPreviews after federating the edit and pushes embeds_ready on write', async () => {
     await handlePostJob({
       type: 'update',

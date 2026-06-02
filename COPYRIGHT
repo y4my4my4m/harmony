@@ -1,4 +1,4 @@
-Harmony — federated social application
+Harmony - federated social application
 ======================================
 
 Copyright (C) 2024–present  y4my4my4m  <https://github.com/y4my4my4m>
@@ -32,7 +32,7 @@ Third-party assets bundled with this project, with their own licenses:
     public/assets/emojis/twemoji/
     https://github.com/twitter/twemoji
 
-  - Various web fonts under public/assets/fonts/  — see individual files
+  - Various web fonts under public/assets/fonts/  - see individual files
     for their respective licenses.
 
 --------------------------------------------------------------------------------

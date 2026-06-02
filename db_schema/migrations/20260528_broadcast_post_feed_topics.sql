@@ -23,7 +23,7 @@
 --
 -- Realtime architecture compliance:
 --   * Reuses `realtime.send()` (no new infra, no CDC).
---   * Topics `feed:public` / `feed:local` are ephemeral — the frontend
+--   * Topics `feed:public` / `feed:local` are ephemeral - the frontend
 --     `useFeedRealtime` composable subscribes/unsubscribes as the user
 --     switches tabs (same pattern as `typing:{ctx}`, `view-context:{id}`).
 --   * Author's own `user:{author_id}` push is preserved; client dedup via
@@ -65,7 +65,7 @@ BEGIN
     'ap_type',    v_row.ap_type
   );
 
-  -- (1) Author's own channel — existing behaviour, kept verbatim so the
+  -- (1) Author's own channel - existing behaviour, kept verbatim so the
   -- author still sees their own create/edit/delete reflected across tabs.
   PERFORM realtime.send(
     v_payload,

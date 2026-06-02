@@ -334,7 +334,7 @@
    when the post already has a media attachment that's the dominant visual,
    so the link card stays informative but never competes for size. Mirrors
    Mastodon's / Misskey's "small card beneath the photo" pattern and stays
-   horizontal on every viewport (no mobile stack — that's what caused the
+   horizontal on every viewport (no mobile stack - that's what caused the
    visual doubling we're fixing).
    The card is wrapped in an <a> by the parent renderer so the whole thing
    is clickable; border + hover state give it the affordance of a card. */
@@ -418,7 +418,7 @@ a:hover > .link-embed-card--thumbnail,
     width: 100%;
   }
 
-  /* Cards with a side thumbnail stay horizontal on mobile — stacking the
+  /* Cards with a side thumbnail stay horizontal on mobile - stacking the
      image on top makes the card tall and breaks single-line truncation. */
   .link-embed-card--has-image,
   .link-embed-card--thumbnail {

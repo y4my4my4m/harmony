@@ -4,8 +4,8 @@
  * Verifies the variant prop is honoured (the `--thumbnail` modifier class
  * shows up so the matching CSS rules in `embed-previews.css` apply), and
  * that the thumbnail variant still renders the preview image. The CSS
- * deltas themselves (border, hover, image sizes) are visual — happy-dom
- * doesn't evaluate `@media` queries — so the test stops at the structural
+ * deltas themselves (border, hover, image sizes) are visual - happy-dom
+ * doesn't evaluate `@media` queries - so the test stops at the structural
  * contract the CSS depends on.
  */
 
@@ -85,7 +85,7 @@ describe('LinkEmbedCard', () => {
 
   it('omits the description element when the payload has no description', () => {
     // The card still needs to keep a constant height when description is
-    // absent — that's enforced by CSS (`min-height: 1em`), but at the DOM
+    // absent - that's enforced by CSS (`min-height: 1em`), but at the DOM
     // level a `v-if`-skipped <p> means the slot just isn't there.
     const wrapper = mount(LinkEmbedCard, {
       props: {

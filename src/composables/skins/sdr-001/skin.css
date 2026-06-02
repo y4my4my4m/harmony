@@ -409,7 +409,7 @@
  * version of this rule applied the console look + `position: relative` to
  * `.voice-overlay`, which clobbered the base component's `position: fixed`
  * and dropped the teleported overlay into normal document flow at the
- * bottom of the body — appearing under the rest of the UI instead of on
+ * bottom of the body - appearing under the rest of the UI instead of on
  * top of everything. The descendant selectors below (header / overlay-
  * header / leave-button / tactical-labels) still match through the overlay
  * → container chain, so they stay scoped to `.voice-overlay` and don't
@@ -695,7 +695,7 @@
   color: #fff;
 }
 
-/* Profile-card follow CTA — keep readable on compact user grids */
+/* Profile-card follow CTA - keep readable on compact user grids */
 :root[data-skin="sdr-001"] .profile-card .action-btn.follow-btn {
   background: var(--harmony-primary, var(--skin-accent, #0ea5e9));
   border-color: var(--harmony-primary, var(--skin-accent, #0ea5e9));

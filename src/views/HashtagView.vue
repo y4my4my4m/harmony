@@ -107,7 +107,7 @@ const hasMore = ref(false)
 const cursor = ref<string | null>(null)
 const hashtagStats = ref<any>(null)
 
-// Realtime — keep the active subscription scoped to whichever tag this
+// Realtime - keep the active subscription scoped to whichever tag this
 // view is showing. `feed:hashtag:{normalized}` is published by the
 // `broadcast_post_event` trigger; normalization mirrors the DB rule
 // (`lower(trim(...))`) so the topic name matches exactly.

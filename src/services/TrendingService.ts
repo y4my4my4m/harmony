@@ -392,7 +392,7 @@ class TrendingService {
         `)
         .eq('is_suspended', false);
 
-      // "All Instances" includes federated users too — only narrow to a single
+      // "All Instances" includes federated users too - only narrow to a single
       // domain when one is explicitly selected.
       if (instance && instance !== 'all') {
         query = query.eq('domain', instance);

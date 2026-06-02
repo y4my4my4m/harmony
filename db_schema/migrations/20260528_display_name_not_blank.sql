@@ -4,7 +4,7 @@
 -- A blank display name was allowed by the original schema (`display_name
 -- text` with no CHECK). Users who cleared their display name in the
 -- settings UI ended up persisted with `""`, then appeared as
--- `Unknown User` everywhere via the `getUserDisplayName` fallback chain —
+-- `Unknown User` everywhere via the `getUserDisplayName` fallback chain -
 -- confusing UX, and a passive impersonation surface (multiple users all
 -- show as `Unknown User`, so you can't tell them apart in member lists).
 --

@@ -528,7 +528,7 @@ watch(
   { immediate: true }
 )
 
-// Funding — single source of truth in useFundingStore; load is idempotent
+// Funding - single source of truth in useFundingStore; load is idempotent
 // and dedup-protected so this is cheap on every mount.
 const fundingStore = useFundingStore()
 const { config: fundingConfig } = storeToRefs(fundingStore)

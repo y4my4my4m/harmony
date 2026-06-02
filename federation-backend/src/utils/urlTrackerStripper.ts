@@ -5,8 +5,8 @@
  * This is a Node-only port of the frontend's
  * `src/utils/urlTrackerStripper.ts` (the original lives in the Vue app and
  * pulls in `localStorage` for the user opt-out toggle). The federation
- * backend doesn't have that toggle — server-rendered post pages always
- * show cleaned URLs — so this duplicate keeps the two `UNIVERSAL_TRACKING_*`
+ * backend doesn't have that toggle - server-rendered post pages always
+ * show cleaned URLs - so this duplicate keeps the two `UNIVERSAL_TRACKING_*`
  * tables in sync without dragging the browser-only opt-out code into Node.
  *
  * IMPORTANT: when you add a tracker class here, mirror it in

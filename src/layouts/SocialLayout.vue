@@ -22,7 +22,7 @@
       />
     </div>
 
-    <!-- Funding modal — same UX as chat layout so the donation flow is
+    <!-- Funding modal - same UX as chat layout so the donation flow is
          consistent everywhere the context bar lives. -->
     <FundingModal
       v-if="showFundingModal"

@@ -15,7 +15,7 @@
 -- This migration introduces a BEFORE INSERT/UPDATE trigger that reads
 -- the live `instance_config.max_message_length` / `max_post_length` and
 -- enforces it at the storage boundary. The CHECK constraint stays as
--- an absolute safety net (50000 chars) — purely a sanity bound that
+-- an absolute safety net (50000 chars) - purely a sanity bound that
 -- catches a misconfigured admin value or a disabled trigger.
 --
 -- Encrypted messages are exempt from the plaintext char-length cap (the
@@ -139,7 +139,7 @@ BEGIN
         IF octet_length(NEW.content::text) > encrypted_byte_limit THEN
             RAISE EXCEPTION 'Encrypted message payload exceeds maximum size of % bytes', encrypted_byte_limit
                 USING ERRCODE = 'check_violation',
-                      HINT = 'Send shorter messages — the plaintext limit is enforced by the client before encryption.';
+                      HINT = 'Send shorter messages - the plaintext limit is enforced by the client before encryption.';
         END IF;
         RETURN NEW;
     END IF;

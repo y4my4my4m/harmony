@@ -49,7 +49,7 @@ function basePost(content: any) {
 
 /**
  * Slice the user-content island out of the rendered page. Mirrors the
- * helper in `postPageRenderer.xss.test.ts` — we want to assert against
+ * helper in `postPageRenderer.xss.test.ts` - we want to assert against
  * the `<div class="content">` body only, not the page's `<head>`.
  */
 function userContent(html: string): string {
@@ -62,7 +62,7 @@ function userContent(html: string): string {
   return m[1];
 }
 
-describe('postPageRenderer — content-type coverage', () => {
+describe('postPageRenderer - content-type coverage', () => {
   describe('regression: URL-only posts (the arstechnica case)', () => {
     it('renders an <a href> for a `type:url` part with tracking params stripped', () => {
       const html = renderPostPage(
@@ -98,7 +98,7 @@ describe('postPageRenderer — content-type coverage', () => {
         baseAuthor,
       );
 
-      // The og:description must not be empty (was the original bug — empty
+      // The og:description must not be empty (was the original bug - empty
       // description meant Mastodon/Discord previews showed no excerpt).
       const m = /<meta property="og:description" content="([^"]*)"/.exec(html);
       expect(m, 'og:description meta tag').not.toBeNull();
@@ -292,7 +292,7 @@ describe('postPageRenderer — content-type coverage', () => {
     });
   });
 
-  describe('safety — content-type renderers preserve XSS guards', () => {
+  describe('safety - content-type renderers preserve XSS guards', () => {
     it('rejects a javascript: URL in a `url` part', () => {
       const html = renderPostPage(
         basePost([{ type: 'url', url: 'javascript:alert(1)', preview: true }]),
