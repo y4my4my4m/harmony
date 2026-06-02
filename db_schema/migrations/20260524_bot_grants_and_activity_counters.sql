@@ -77,7 +77,7 @@ CREATE TRIGGER trg_profile_message_counter_del
 -- `voice_channel_participants` only tracks ACTIVE sessions (no left_at), so
 -- on DELETE we compute `now() - joined_at` and add it to the user's bucket.
 -- "Orphaned" rows (browser crash, server restart that wipes the participant
--- without a clean leave) won't be counted — acceptable trade-off for not
+-- without a clean leave) won't be counted - acceptable trade-off for not
 -- having a separate session-log table.
 CREATE OR REPLACE FUNCTION public.tg_profile_voice_counter()
 RETURNS trigger

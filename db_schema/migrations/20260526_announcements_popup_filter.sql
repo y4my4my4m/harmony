@@ -4,9 +4,9 @@
 -- The 20260309_announcements migration created `get_unread_announcements`
 -- but it ignored two important fields on `instance_announcements`:
 --
---   * `show_popup`  — admin opt-out for popup display (still surfaced in the
+--   * `show_popup`  - admin opt-out for popup display (still surfaced in the
 --     Settings archive, but not auto-popped on app load).
---   * `starts_at`  — relative to `profiles.created_at`, this lets us avoid
+--   * `starts_at`  - relative to `profiles.created_at`, this lets us avoid
 --     spamming brand-new users with the entire backlog of historical
 --     announcements they have no context for.
 --
@@ -16,7 +16,7 @@
 --
 -- Semantics:
 --   - `get_unread_announcements(p_user_id)`                  → full unread set
---     (no change in behaviour for existing callers — used by the Settings
+--     (no change in behaviour for existing callers - used by the Settings
 --     archive to compute the Unread tab and the sidebar badge).
 --   - `get_unread_announcements(p_user_id, p_popup_only := true)` → strictly
 --     what the AnnouncementPopup should auto-open with: show_popup = true
@@ -100,7 +100,7 @@ AS $$
     LIMIT CASE WHEN p_popup_only THEN 10 ELSE 1000 END;
 $$;
 
--- Re-grant EXECUTE — DROP FUNCTION above also drops any prior grants.
+-- Re-grant EXECUTE - DROP FUNCTION above also drops any prior grants.
 GRANT EXECUTE ON FUNCTION public.get_unread_announcements(uuid, boolean) TO authenticated;
 
 NOTIFY pgrst, 'reload schema';

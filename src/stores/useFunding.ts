@@ -14,7 +14,7 @@
  *   - A 60s background refresh keeps the progress bar live without
  *     hitting the DB on every navigation.
  *
- * Note: the funding bar is intentionally public — `getFundingWithProgress`
+ * Note: the funding bar is intentionally public - `getFundingWithProgress`
  * works without an auth session, so we can prime it as early as
  * `useAuthStore.initializeAuth()` regardless of whether the user is
  * signed in.
@@ -72,7 +72,7 @@ export const useFundingStore = defineStore('funding', {
 
     /**
      * Start a low-frequency background refresh so progress ticks without
-     * router navigation. Safe to call multiple times — second call is a no-op.
+     * router navigation. Safe to call multiple times - second call is a no-op.
      */
     startAutoRefresh(intervalMs = STALE_MS) {
       if (this.refreshTimer) return

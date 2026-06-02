@@ -9,10 +9,10 @@
 --    Postgres treats NULLs as distinct. PostgREST then refuses upserts with
 --    `onConflict=channel_id,role_id,user_id` whenever one column is NULL,
 --    returning 400 ("there is no unique or exclusion constraint matching the
---    ON CONFLICT specification") — exactly the error in the network log.
+--    ON CONFLICT specification") - exactly the error in the network log.
 --
---    Fix: add two *partial* unique indexes — one for role overrides, one for
---    user overrides — that PostgREST can match for the upsert key. The
+--    Fix: add two *partial* unique indexes - one for role overrides, one for
+--    user overrides - that PostgREST can match for the upsert key. The
 --    original composite UNIQUE is left in place (harmless) so the data model
 --    is unchanged.
 --
@@ -23,7 +23,7 @@
 --      - the server owner,
 --      - any instance admin/moderator,
 --      - anyone whose effective role permissions include MANAGE_CHANNELS or
---        MANAGE_ROLES (bits 2 and 3 respectively — see
+--        MANAGE_ROLES (bits 2 and 3 respectively - see
 --        services/RoleService.ts::PERMISSION_BITS),
 --      - or an explicit ADMINISTRATOR bit (bit 0).
 -- =============================================================================

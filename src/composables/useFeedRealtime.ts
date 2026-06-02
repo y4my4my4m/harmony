@@ -92,7 +92,7 @@ export function useFeedRealtime(
       is_deleted: data.is_deleted,
     }
 
-    // If the caller passed custom handlers, route to those exclusively —
+    // If the caller passed custom handlers, route to those exclusively -
     // they own their local state. Otherwise fall back to the store
     // handlers (default for MonyFeed which consumes store feeds).
     const useCustom = !!(handlers.onCreate || handlers.onUpdate || handlers.onDelete)

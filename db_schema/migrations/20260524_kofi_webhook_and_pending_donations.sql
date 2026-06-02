@@ -90,13 +90,13 @@ CREATE INDEX IF NOT EXISTS idx_donation_history_user ON public.instance_donation
 CREATE INDEX IF NOT EXISTS idx_donation_history_supporter ON public.instance_donation_history (supporter_id);
 CREATE INDEX IF NOT EXISTS idx_donation_history_date ON public.instance_donation_history (donated_at);
 
--- RLS on the prerequisite tables (idempotent — ENABLE is no-op if already on)
+-- RLS on the prerequisite tables (idempotent - ENABLE is no-op if already on)
 ALTER TABLE public.instance_funding ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.instance_supporter_tiers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.instance_supporters ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.instance_donation_history ENABLE ROW LEVEL SECURITY;
 
--- Baseline policies (only applied if the table was freshly created — older
+-- Baseline policies (only applied if the table was freshly created - older
 -- instances will already have these via 20260309_*.sql, the DROP makes it safe).
 DROP POLICY IF EXISTS "funding_select_all" ON public.instance_funding;
 CREATE POLICY "funding_select_all" ON public.instance_funding
@@ -229,7 +229,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_donation_history_external_unique
 -- ---------------------------------------------------------------------------
 -- The federation-backend uses the Supabase service_role key for webhook
 -- processing. service_role bypasses RLS but still needs explicit table
--- grants — the earlier funding migration only granted to `authenticated`,
+-- grants - the earlier funding migration only granted to `authenticated`,
 -- which caused "permission denied for table instance_funding" errors.
 GRANT SELECT ON public.instance_funding TO service_role;
 GRANT SELECT ON public.instance_supporter_tiers TO service_role;

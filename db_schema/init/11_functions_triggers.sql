@@ -4080,7 +4080,7 @@ BEGIN
     true
   );
 
-  -- Profile timeline topic — gated on public visibility because realtime
+  -- Profile timeline topic - gated on public visibility because realtime
   -- authorization is USING (true), so the topic name is the only access
   -- check. Author's own tabs still receive every event via the private
   -- user:{author_id} channel above.

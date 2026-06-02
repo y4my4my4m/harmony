@@ -2,7 +2,7 @@
 -- Migration: extend `broadcast_post_event` so that
 --
 --   1. edits and deletes (not just new posts) propagate to public/local
---      feed viewers — matches Mastodon / Misskey UX where a post update or
+--      feed viewers - matches Mastodon / Misskey UX where a post update or
 --      delete is reflected on every visible timeline in real time;
 --
 --   2. every post event also lands on the author's ephemeral profile
@@ -14,7 +14,7 @@
 --      `extract_hashtags_on_post_insert` trigger, which runs alphabetically
 --      before this one so the `post_hashtags` rows are visible here).
 --
--- DRY: still a single trigger function — it decides which topics each event
+-- DRY: still a single trigger function - it decides which topics each event
 -- belongs on. No new triggers. Adding the next feed kind (e.g. lists, group
 -- feeds) is one more `PERFORM realtime.send(...)` block inside this function.
 --
@@ -84,7 +84,7 @@ BEGIN
   -- followers-only and private posts must NOT broadcast their metadata
   -- on this topic because realtime authorization is `USING (true)` for
   -- all authenticated users, so the topic name alone is the only access
-  -- check (it's not a secret — it's literally derived from a public
+  -- check (it's not a secret - it's literally derived from a public
   -- profile id). The author themselves still receives every event via
   -- their private `user:{author_id}` channel, so this restriction does
   -- not break the "author's other tabs see their own posts in realtime"

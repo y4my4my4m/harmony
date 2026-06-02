@@ -1,6 +1,6 @@
 # Security Policy
 
-Harmony is a federated chat platform that handles end-to-end encrypted messages, voice/video, and ActivityPub federation. Security issues — especially in the federation backend, encryption stack, or Supabase RLS policies — can affect every instance and every connected fediverse server, so we take them seriously.
+Harmony is a federated chat platform that handles end-to-end encrypted messages, voice/video, and ActivityPub federation. Security issues - especially in the federation backend, encryption stack, or Supabase RLS policies - can affect every instance and every connected fediverse server, so we take them seriously.
 
 ## Reporting a Vulnerability
 
@@ -8,7 +8,7 @@ Harmony is a federated chat platform that handles end-to-end encrypted messages,
 
 Instead, use one of these private channels (in order of preference):
 
-1. **GitHub private vulnerability reporting** — go to the [Security tab](https://github.com/y4my4my4m/harmony/security/advisories/new) on this repo and file an advisory. This keeps the report private until a fix ships.
+1. **GitHub private vulnerability reporting** - go to the [Security tab](https://github.com/y4my4my4m/harmony/security/advisories/new) on this repo and file an advisory. This keeps the report private until a fix ships.
 2. **DM the maintainer** on the canonical Harmony instance: <https://har.mony.lol> (handle: `@y4my4m`).
 3. As a last resort, email the address listed on <https://mony.lol>.
 
@@ -26,7 +26,7 @@ You should expect an initial acknowledgement within **72 hours**. We aim to ship
 In scope:
 
 - This repository (frontend, `federation-backend/`, `bot-gateway/`, `bot-plugins/`, `webrtc/`)
-- Supabase schema (`db_schema/`) — RLS bypasses, privilege escalation, etc.
+- Supabase schema (`db_schema/`) - RLS bypasses, privilege escalation, etc.
 - Tauri desktop builds (`src-tauri/`)
 - The canonical instance at <https://har.mony.lol> (please be reasonable; no DoS testing)
 
@@ -63,10 +63,10 @@ The ActivityPub layer sits in `federation-backend/`. Common concern areas:
 - LiveKit token minting (must be tied to the verified actor)
 - SSRF in remote object fetching (helpers under `federation-backend/src/utils/safeFetch*`)
 
-If your finding involves cross-instance behavior, please mention which other fediverse software (Mastodon, Misskey, Pleroma, …) is involved — we may need to coordinate with their maintainers as well.
+If your finding involves cross-instance behavior, please mention which other fediverse software (Mastodon, Misskey, Pleroma, …) is involved - we may need to coordinate with their maintainers as well.
 
 ## Hall of Fame
 
 Researchers who responsibly disclose serious issues will be listed here (with their permission).
 
-*(empty — be the first!)*
+*(empty - be the first!)*

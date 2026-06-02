@@ -4,7 +4,7 @@
 --
 -- The federation-backend uses the Supabase service_role key (which bypasses
 -- RLS) when processing donation webhooks. Bypassing RLS is NOT the same as
--- bypassing PostgreSQL table grants — service_role still needs explicit
+-- bypassing PostgreSQL table grants - service_role still needs explicit
 -- GRANT permissions to SELECT/INSERT/UPDATE the funding tables.
 --
 -- The earlier funding migration (20260309_*) only granted to `authenticated`.
@@ -26,7 +26,7 @@ GRANT SELECT, INSERT, UPDATE ON public.instance_supporters TO service_role;
 GRANT SELECT, INSERT ON public.instance_donation_history TO service_role;
 
 -- profiles: webhook needs to look up user by handle when matching donors.
--- Restricted to SELECT only — we never modify profiles from a webhook.
+-- Restricted to SELECT only - we never modify profiles from a webhook.
 GRANT SELECT ON public.profiles TO service_role;
 
 -- instance_pending_donations was already granted in the previous migration

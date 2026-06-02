@@ -4,7 +4,7 @@
  * Bug history: `20260322_broadcast_post_follow_interaction.sql` replaced the
  * firehose `postgres_changes` subscription on `posts` with a targeted
  * `realtime.send()` that only delivered `post:new` to the AUTHOR's
- * `user:{author_id}` channel — so followers' home feeds stopped prepending
+ * `user:{author_id}` channel - so followers' home feeds stopped prepending
  * posts in real time (the user complaint: "I'm not seeing posts appearing
  * in realtime btw"). The DB-side fix broadcasts a new `home_feed:new_post`
  * event on each home-timeline recipient's channel; the frontend-side fix

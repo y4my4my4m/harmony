@@ -364,7 +364,7 @@ const clearError = () => {
   (activityPubStore as any).clearError?.();
 };
 
-// Lifecycle — the app-scoped per-user channel is set up in auth.ts initialize()
+// Lifecycle - the app-scoped per-user channel is set up in auth.ts initialize()
 // and handles home-feed realtime via UserEventChannel. For the public/local
 // tabs we open an ephemeral broadcast subscription bound to the active view:
 // `useFeedRealtime` subscribes to `feed:public` / `feed:local` only while

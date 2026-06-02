@@ -30,10 +30,10 @@
 --   4) Apply the user-specific channel override:       (mask & ~deny) | allow
 --
 -- This means a role override ALLOW always trumps an @everyone DENY at the
--- channel level, and a user-specific ALLOW always trumps a role DENY — which
+-- channel level, and a user-specific ALLOW always trumps a role DENY - which
 -- is what every Discord admin (and our UI copy in ChannelEditModal) assumes.
 --
--- This migration is idempotent — `CREATE OR REPLACE FUNCTION` replaces the
+-- This migration is idempotent - `CREATE OR REPLACE FUNCTION` replaces the
 -- previous implementation. No data is touched; only the computation changes.
 -- =============================================================================
 

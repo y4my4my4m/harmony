@@ -9,7 +9,7 @@
 --    single donation amount. This created two bugs:
 --      a) A $1 donation showed a supporter badge with NO tier (since none
 --         of the tiers had min_amount <= 1), and the fallback star "⭐"
---         rendered as a generic supporter — misleading.
+--         rendered as a generic supporter - misleading.
 --      b) Multiple smaller donations in the same cycle that, summed, would
 --         exceed a tier's min_amount, weren't recognized.
 --

@@ -663,7 +663,7 @@ const collapsedGroups = ref<Record<string, boolean>>({
 
 // Members are the user IDs that the server-presence subscription has
 // reported for the currently selected server. We deliberately do NOT
-// fall back to `getAllUsers` here — that map contains every profile the
+// fall back to `getAllUsers` here - that map contains every profile the
 // client has cached for any reason (DM partners, mention authors,
 // recently-viewed profiles), so falling back would leak unrelated users
 // into the member sidebar (e.g. a DM partner appearing in a server they

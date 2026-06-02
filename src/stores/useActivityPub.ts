@@ -139,7 +139,7 @@ interface ActivityPubState {
   // loadPostWithAuthor(). Two concurrent realtime events (e.g. `post:new`
   // and `home_feed:new_post` both delivered to the author's user channel
   // when they create a post) race past the dedup-by-id check before either
-  // call finishes its async fetch + unshift — the in-flight Set bridges
+  // call finishes its async fetch + unshift - the in-flight Set bridges
   // that window so the second handler call bails immediately.
   _inFlightPostIds: Set<string>;
 
@@ -754,7 +754,7 @@ export const useActivityPubStore = defineStore('activitypub', {
         ?? userDataService.getCurrentUser()?.id
         ?? await authContextService.getCurrentProfileId().catch(() => null);
       if (!profileId) {
-        debug.warn('⚠️ setupRealtimeSubscriptions: no profile id — skipping');
+        debug.warn('⚠️ setupRealtimeSubscriptions: no profile id - skipping');
         return;
       }
 
@@ -783,7 +783,7 @@ export const useActivityPubStore = defineStore('activitypub', {
       // because the handler is already idempotent via dedup-by-id on the
       // four feeds. The author also receives this event (their own home
       // timeline_entry insert fires it), but the existing `post:new`
-      // arrives first on their channel — the dedup check in
+      // arrives first on their channel - the dedup check in
       // handleRealtimePostCreate makes the second arrival a no-op.
       unsubs.push(userEventChannel.on('home_feed:new_post', (data) => {
         if (this.feedViewActiveCount <= 0) return;
@@ -1058,7 +1058,7 @@ export const useActivityPubStore = defineStore('activitypub', {
 
       // Ignore updates that are likely just count changes from interaction
       // triggers. Skip when `updated_at` is missing (broadcast payload from
-      // `broadcast_post_event` doesn't include it — those are real edits).
+      // `broadcast_post_event` doesn't include it - those are real edits).
       if (post.updated_at) {
         const now = new Date();
         const updatedAt = new Date(post.updated_at);
@@ -1705,7 +1705,7 @@ export const useActivityPubStore = defineStore('activitypub', {
 
         if (!response.ok) {
           debug.warn(
-            `batchFetchRemoteReactions: ${response.status} from fetch-reactions-batch — per-post fallback allowed`
+            `batchFetchRemoteReactions: ${response.status} from fetch-reactions-batch - per-post fallback allowed`
           );
           for (const p of remotePosts) fetchedReactionsThisSession.delete(p.id);
           return;
@@ -1821,7 +1821,7 @@ export const useActivityPubStore = defineStore('activitypub', {
         }
 
         const processedPosts = await this.batchFetchReblogInteractions(posts);
-        // No longer clearing `fetchedReactionsThisSession` here — the
+        // No longer clearing `fetchedReactionsThisSession` here - the
         // backend's 30s TTL on `posts.metadata.remote_reactions_fetched_at`
         // already handles refresh frequency, and re-opening the session
         // dedup window every background refresh just lets MonyPost mounts

@@ -402,7 +402,7 @@ CREATE POLICY "Group participants can delete group icons"
 -- accurate per-instance size/type limits in upload validation messages.
 --
 -- We expose metadata for PUBLIC buckets only (id, public, file_size_limit,
--- allowed_mime_types) — all of which are non-sensitive. No custom RPC needed.
+-- allowed_mime_types) - all of which are non-sensitive. No custom RPC needed.
 ALTER TABLE storage.buckets ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Public buckets metadata is readable" ON storage.buckets;

@@ -301,7 +301,7 @@ export const useAuthStore = defineStore('auth', {
           debug.error('ActivityPub initialize on session restore failed:', err);
         });
 
-        // Funding bar — load once at session restore and start the slow
+        // Funding bar - load once at session restore and start the slow
         // background refresh. Layouts now read this store instead of
         // refetching per-view.
         import('@/stores/useFunding').then(({ useFundingStore }) => {
