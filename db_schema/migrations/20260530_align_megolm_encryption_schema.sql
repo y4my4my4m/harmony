@@ -109,11 +109,15 @@ $relax$;
 ALTER TABLE public.megolm_key_requests ALTER COLUMN requester_device_id SET DEFAULT 'default'::text;
 ALTER TABLE public.megolm_key_requests ALTER COLUMN requester_device_id DROP NOT NULL;
 
--- Extend the status CHECK to include the runtime statuses.
+-- Extend the status CHECK to include the runtime statuses. NOT VALID so it does
+-- not fail on legacy rows whose status is outside the set (prod has ~hundreds of
+-- historical key requests); the constraint is still enforced for every new and
+-- updated row immediately. Once legacy values are confirmed/cleaned you can run
+--   ALTER TABLE public.megolm_key_requests VALIDATE CONSTRAINT megolm_key_requests_status_check;
 ALTER TABLE public.megolm_key_requests DROP CONSTRAINT IF EXISTS megolm_key_requests_status_check;
 ALTER TABLE public.megolm_key_requests
     ADD CONSTRAINT megolm_key_requests_status_check
-    CHECK (status IN ('pending', 'sent', 'received', 'cancelled', 'ignored', 'fulfilled', 'expired'));
+    CHECK (status IN ('pending', 'sent', 'received', 'cancelled', 'ignored', 'fulfilled', 'expired')) NOT VALID;
 
 CREATE INDEX IF NOT EXISTS idx_megolm_key_requests_sender
     ON public.megolm_key_requests(sender_user_id);
