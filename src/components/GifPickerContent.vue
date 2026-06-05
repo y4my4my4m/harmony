@@ -1,7 +1,7 @@
 <template>
   <div class="gif-picker-content">
-    <!-- Category Buttons (Favorites/Trending) -->
-    <div class="gif-categories">
+    <!-- Category Buttons (Favorites/Trending) — GIFs only; stickers have no favorites -->
+    <div class="gif-categories" v-if="!isStickers">
       <button 
         class="category-button"
         :class="{ active: showFavorites }"
@@ -33,7 +33,7 @@
         <input 
           type="text" 
           v-model="searchQuery" 
-          :placeholder="showFavorites ? $t('gif.favorites') : $t('gif.searchKlipy')" 
+          :placeholder="gifSearchPlaceholder" 
           class="search-input"
           ref="searchInput"
           :disabled="showFavorites"
@@ -107,6 +107,7 @@
             >
               <img :src="getGifImageSource(item.id, item.media_formats.gif.url, item.media_formats.gifpreview.url)" :alt="item.title">
               <button 
+                v-if="!isStickers"
                 class="favorite-button"
                 :class="{ favorited: isFavorited(item.media_formats.gif.url) }"
                 @click.stop="toggleFavorite(item)"
@@ -126,17 +127,21 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted, nextTick } from 'vue';
+import { ref, watch, onMounted, nextTick, computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue';
 import GifAdSlot from '@/components/GifAdSlot.vue';
 import { debug } from '@/utils/debug';
 import { gifService, type FavoriteGif } from '@/services/GifService';
 import { gifProvider } from '@/services/gifProviderService';
+import { useInstanceSettingsStore } from '@/stores/useInstanceSettings';
+import { stripKlipyAttributionFragment, withGifMessageUrl } from '@/utils/klipyAttribution';
 import type { Gif, GifResultItem } from '@/types';
 
 interface Props {
   showFavorites: boolean;
   initialSearchQuery?: string;
+  mediaType?: 'gifs' | 'stickers';
 }
 
 const props = defineProps<Props>();
@@ -147,6 +152,16 @@ interface Emits {
 }
 
 const emit = defineEmits<Emits>();
+const { t } = useI18n();
+const instanceSettings = useInstanceSettingsStore();
+
+const isStickers = computed(() => props.mediaType === 'stickers');
+
+const gifSearchPlaceholder = computed(() => {
+  if (props.showFavorites) return t('gif.favorites');
+  if (instanceSettings.settings.gifKlipyBrandingEnabled) return t('gif.searchKlipy');
+  return isStickers.value ? t('gif.searchStickers') : t('gif.search');
+});
 
 // State
 const searchQuery = ref(props.initialSearchQuery || '');
@@ -159,7 +174,18 @@ const favoriteUrls = ref<Set<string>>(new Set());
 
 // Unified image source helper
 const getGifImageSource = (id: string, gifUrl: string, previewUrl: string): string => {
-  return hoveredGif.value === id ? gifUrl : previewUrl;
+  const src = hoveredGif.value === id ? gifUrl : previewUrl;
+  return stripKlipyAttributionFragment(src);
+};
+
+const applyFeed = (feed: Awaited<ReturnType<typeof gifProvider.trending>>) => {
+  items.value = feed.items;
+  if (feed.meta?.showAds && !feed.items.some((i) => i.kind === 'ad')) {
+    debug.log(
+      'GIF feed: ads enabled for this user but Klipy returned no ad slots. ' +
+        'Try search, confirm KLIPY_API_KEY_ADS has ads on in the Klipy dashboard, and restart the federation backend.',
+    );
+  }
 };
 
 // Check if a GIF is favorited (by URL)
@@ -169,8 +195,8 @@ const isFavorited = (gifUrl: string): boolean => favoriteUrls.value.has(gifUrl);
 const fetchTrendingGifs = async () => {
   isLoading.value = true;
   try {
-    const feed = await gifProvider.trending({ perPage: 24 });
-    items.value = feed.items;
+    const feed = await gifProvider.trending({ perPage: 24 }, props.mediaType);
+    applyFeed(feed);
   } finally {
     isLoading.value = false;
   }
@@ -185,8 +211,8 @@ const searchGifs = async () => {
 
   isLoading.value = true;
   try {
-    const feed = await gifProvider.search(searchQuery.value, { perPage: 24 });
-    items.value = feed.items;
+    const feed = await gifProvider.search(searchQuery.value, { perPage: 24 }, props.mediaType);
+    applyFeed(feed);
   } finally {
     isLoading.value = false;
   }
@@ -256,7 +282,7 @@ const removeFavorite = async (favoriteId: string) => {
 };
 
 // Select and send a GIF
-const selectGif = (gif: Gif) => emit('sendGif', gif);
+const selectGif = (gif: Gif) => emit('sendGif', withGifMessageUrl(gif));
 
 // Select and send a favorite GIF
 const selectFavoriteGif = (favorite: FavoriteGif) => {

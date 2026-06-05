@@ -806,6 +806,8 @@ class AdminService {
       let maxMediaAttachmentsPerPost = 20
       let allowFileUploads = true
       let enableVoiceChannels = true
+      let gifAdsEnabled = true
+      let gifKlipyBrandingEnabled = true
       let maxPostLength = 500
       let retryAttempts = 3
       let maxCustomEmojisPerServer = 0
@@ -818,7 +820,7 @@ class AdminService {
         const { data: configData } = await supabase
           .from('instance_config')
           .select('config_key, config_value')
-          .in('config_key', ['instance_name', 'instance_description', 'domain', 'open_registration', 'approval_required', 'oauth_providers', 'terms_url', 'privacy_url', 'max_server_size', 'max_message_length', 'max_media_attachments_per_post', 'allow_file_uploads', 'enable_voice_channels', 'max_post_length', 'federation_retry_attempts', 'max_custom_emojis_per_server', 'custom_emoji_transform_quality', 'allow_custom_emojis_in_display_names', 'instance_icon', 'instance_banner', 'theme_color', 'maintainer_name', 'maintainer_email'])
+          .in('config_key', ['instance_name', 'instance_description', 'domain', 'open_registration', 'approval_required', 'oauth_providers', 'terms_url', 'privacy_url', 'max_server_size', 'max_message_length', 'max_media_attachments_per_post', 'allow_file_uploads', 'enable_voice_channels', 'gif_ads_enabled', 'gif_klipy_branding_enabled', 'max_post_length', 'federation_retry_attempts', 'max_custom_emojis_per_server', 'custom_emoji_transform_quality', 'allow_custom_emojis_in_display_names', 'instance_icon', 'instance_banner', 'theme_color', 'maintainer_name', 'maintainer_email'])
 
         if (configData) {
           configData.forEach((config) => {
@@ -886,6 +888,12 @@ class AdminService {
                 case 'enable_voice_channels':
                   enableVoiceChannels = value === true || value === 'true'
                   break
+                case 'gif_ads_enabled':
+                  gifAdsEnabled = value === true || value === 'true'
+                  break
+                case 'gif_klipy_branding_enabled':
+                  gifKlipyBrandingEnabled = value === true || value === 'true'
+                  break
                 case 'max_post_length':
                   maxPostLength = typeof value === 'number' ? value : parseInt(String(value), 10) || 500
                   break
@@ -936,7 +944,9 @@ class AdminService {
           maxMessageLength,
           maxMediaAttachmentsPerPost,
           allowFileUploads,
-          enableVoiceChannels
+          enableVoiceChannels,
+          gifAdsEnabled,
+          gifKlipyBrandingEnabled,
         },
         federation: {
           maxPostLength,

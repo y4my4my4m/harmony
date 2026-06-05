@@ -26,6 +26,8 @@ export interface NormalizedGif {
   id: string;
   slug?: string;
   title?: string;
+  /** Klipy item page (klipy.com/gifs/...) for attribution links. */
+  itemUrl?: string;
   media_formats: {
     gif: { url: string };
     gifpreview: { url: string };
@@ -50,8 +52,13 @@ export interface GifFeed {
   hasNext: boolean;
 }
 
+/** Klipy native media collections we proxy. */
+export type GifMediaType = 'gifs' | 'stickers';
+
 export interface FetchGifsOptions {
   kind: GifKind;
+  /** Which Klipy collection to query. Defaults to 'gifs'. */
+  mediaType?: GifMediaType;
   query?: string;
   page?: number;
   perPage?: number;
@@ -103,25 +110,40 @@ function resolveKey(withAds: boolean): string | undefined {
   return noAdsKey || adsKey;
 }
 
-function normalizeGif(raw: any): NormalizedGif | null {
+function normalizeGif(raw: any, mediaType: GifMediaType = 'gifs'): NormalizedGif | null {
   const file = raw?.file as KlipyFile | undefined;
   const gifUrl = pickUrl(file, DISPLAY_SIZES, 'gif') || raw?.url;
   if (!gifUrl) return null;
 
+  // Stickers are transparent, so prefer formats that preserve alpha (webp/png/
+  // gif) over jpg for the preview. GIFs prefer a cheap jpg/webp still.
   const previewUrl =
-    pickUrl(file, PREVIEW_SIZES, 'jpg') ||
-    pickUrl(file, PREVIEW_SIZES, 'webp') ||
-    pickUrl(file, PREVIEW_SIZES, 'gif') ||
-    gifUrl;
+    mediaType === 'stickers'
+      ? pickUrl(file, PREVIEW_SIZES, 'webp') ||
+        pickUrl(file, PREVIEW_SIZES, 'png') ||
+        pickUrl(file, PREVIEW_SIZES, 'gif') ||
+        gifUrl
+      : pickUrl(file, PREVIEW_SIZES, 'jpg') ||
+        pickUrl(file, PREVIEW_SIZES, 'webp') ||
+        pickUrl(file, PREVIEW_SIZES, 'gif') ||
+        gifUrl;
 
   const mp4Url = pickUrl(file, DISPLAY_SIZES, 'mp4') || gifUrl;
   const webmUrl = pickUrl(file, DISPLAY_SIZES, 'webm') || mp4Url;
+
+  const itemUrl =
+    typeof raw?.itemurl === 'string'
+      ? raw.itemurl
+      : typeof raw?.item_url === 'string'
+        ? raw.item_url
+        : undefined;
 
   return {
     kind: 'gif',
     id: String(raw?.id ?? raw?.slug ?? gifUrl),
     slug: raw?.slug,
     title: raw?.title || undefined,
+    itemUrl,
     media_formats: {
       gif: { url: gifUrl },
       gifpreview: { url: previewUrl },
@@ -132,8 +154,13 @@ function normalizeGif(raw: any): NormalizedGif | null {
 }
 
 function normalizeAd(raw: any, index: number): NormalizedAd | null {
-  const content = raw?.content;
-  if (!content || typeof content !== 'string') return null;
+  const content =
+    typeof raw?.content === 'string'
+      ? raw.content
+      : typeof raw?.ad_content === 'string'
+        ? raw.ad_content
+        : undefined;
+  if (!content) return null;
   return {
     kind: 'ad',
     id: `ad:${index}`,
@@ -158,7 +185,8 @@ export class KlipyService {
     const page = Math.max(1, opts.page || 1);
     const perPage = Math.min(50, Math.max(1, opts.perPage || 24));
 
-    const path = opts.kind === 'search' ? 'gifs/search' : 'gifs/trending';
+    const mediaType: GifMediaType = opts.mediaType || 'gifs';
+    const path = `${mediaType}/${opts.kind === 'search' ? 'search' : 'trending'}`;
     const url = new URL(`${config.KLIPY_BASE_URL}/api/v1/${key}/${path}`);
     url.searchParams.set('page', String(page));
     url.searchParams.set('per_page', String(perPage));
@@ -198,19 +226,33 @@ export class KlipyService {
     }
 
     const data = payload?.data ?? {};
-    const rawItems: any[] = Array.isArray(data?.data) ? data.data : [];
+    const rawItems: any[] = Array.isArray(data?.data)
+      ? data.data
+      : Array.isArray(payload?.data)
+        ? payload.data
+        : [];
 
     const items: GifFeedItem[] = [];
+    let rawAdCount = 0;
     rawItems.forEach((raw, index) => {
-      if (raw?.type === 'ad') {
+      const itemType = String(raw?.type ?? '').toLowerCase();
+      if (itemType === 'ad') {
+        rawAdCount++;
         if (!opts.withAds) return; // safety net: never surface ads to ad-free users
         const ad = normalizeAd(raw, index);
         if (ad) items.push(ad);
         return;
       }
-      const gif = normalizeGif(raw);
+      const gif = normalizeGif(raw, mediaType);
       if (gif) items.push(gif);
     });
+
+    if (opts.withAds && rawAdCount === 0 && rawItems.length > 0) {
+      logger.debug(
+        `Klipy ${path}: ads requested but response had 0 ad objects (${rawItems.length} items). ` +
+          'Confirm ads are enabled for KLIPY_API_KEY_ADS in the Klipy Partner Dashboard.',
+      );
+    }
 
     return {
       items,

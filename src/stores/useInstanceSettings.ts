@@ -49,6 +49,10 @@ interface InstanceSettings {
   // Display names
   allowCustomEmojisInDisplayNames: boolean
 
+  // GIF / Klipy (picker UI)
+  gifAdsEnabled: boolean
+  gifKlipyBrandingEnabled: boolean
+
   // Default theme for new/unauthenticated users
   defaultThemeJson: string | null
 }
@@ -79,6 +83,8 @@ const DEFAULT_SETTINGS: InstanceSettings = {
   maxCustomEmojisPerServer: 50,
   maxMediaAttachmentsPerPost: 20,
   allowCustomEmojisInDisplayNames: true,
+  gifAdsEnabled: true,
+  gifKlipyBrandingEnabled: true,
   defaultThemeJson: null,
   customEmojiTransformQuality: 80,
 }
@@ -262,6 +268,12 @@ export const useInstanceSettingsStore = defineStore('instanceSettings', {
           }
           case 'allow_custom_emojis_in_display_names':
             this.settings.allowCustomEmojisInDisplayNames = value === true || value === 'true'
+            break
+          case 'gif_ads_enabled':
+            this.settings.gifAdsEnabled = value === true || value === 'true'
+            break
+          case 'gif_klipy_branding_enabled':
+            this.settings.gifKlipyBrandingEnabled = value === true || value === 'true'
             break
           case 'default_theme_json':
             if (value && typeof value === 'string') {

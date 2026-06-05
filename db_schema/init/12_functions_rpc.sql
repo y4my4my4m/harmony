@@ -1447,9 +1447,16 @@ SECURITY DEFINER
 SET search_path = public, pg_temp
 AS $$
     SELECT
-        COALESCE((SELECT config_value::text = 'true'
-                  FROM public.instance_config
-                  WHERE config_key = 'gif_ads_enabled'), true)
+        COALESCE((
+            SELECT CASE
+                WHEN jsonb_typeof(config_value) = 'boolean' THEN config_value::boolean
+                WHEN config_value::text IN ('true', '"true"') THEN true
+                WHEN config_value::text IN ('false', '"false"') THEN false
+                ELSE true
+            END
+            FROM public.instance_config
+            WHERE config_key = 'gif_ads_enabled'
+        ), true)
         AND NOT EXISTS (
             SELECT 1
             FROM public.instance_supporters s

@@ -17,10 +17,11 @@
       :files="attachedFiles"
       @remove-file="removeFile"
     />
-    <!-- Inline GIF results (live search during /gif command) -->
+    <!-- Inline GIF/sticker results (live search during /gif or /sticker command) -->
     <InlineGifPicker
-      v-if="autoSuggest.activeCommand.value?.name === 'gif'"
+      v-if="autoSuggest.activeCommand.value?.name === 'gif' || autoSuggest.activeCommand.value?.name === 'sticker'"
       :query="modelValue || ''"
+      :media-type="autoSuggest.activeCommand.value?.name === 'sticker' ? 'stickers' : 'gifs'"
       @selectGif="handleInlineGifSelect"
     />
     <!-- Command parameter hint bar (Discord-style) -->

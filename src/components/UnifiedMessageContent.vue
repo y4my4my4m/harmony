@@ -247,7 +247,7 @@
         >
           <div v-if="!imageLoadedState[part.url]" class="media-skeleton image-skeleton"></div>
           <img
-            :src="part.url"
+            :src="displayMediaUrl(part.url)"
             @load="handleImageLoad(part.url)"
             @click="$emit('open-lightbox', part.url)"
             v-show="imageLoadedState[part.url]"
@@ -269,10 +269,10 @@
           </button>
           <!-- KLIPY attribution watermark (only on Klipy-sourced GIFs, on hover) -->
           <a
-            v-if="isKlipyMedia(part.url)"
+            v-if="showKlipyBranding && isKlipyMedia(part.url)"
             class="klipy-watermark"
             :class="{ 'visible': hoveredImageUrl === part.url }"
-            href="https://klipy.com"
+            :href="klipyWatermarkHref(part.url)"
             target="_blank"
             rel="noopener noreferrer nofollow"
             @click.stop
@@ -379,7 +379,7 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, watch, ref, nextTick, reactive, onMounted } from 'vue';
+import { defineComponent, watch, ref, nextTick, reactive, onMounted, computed } from 'vue';
 import type { PropType } from 'vue';
 import type { EmbedPayload, MessagePart } from '@/types';
 import AutoSuggest from '@/components/AutoSuggest.vue';
@@ -400,6 +400,12 @@ import { debug } from '@/utils/debug';
 import { sanitizeUrl } from '@/utils/sanitize';
 import { renderChatMessageText } from '@/utils/chatMessageTextRenderer';
 import { useVisualTheme } from '@/composables/useVisualTheme';
+import { useInstanceSettingsStore } from '@/stores/useInstanceSettings';
+import {
+  defaultKlipyHomeUrl,
+  parseKlipyItemPageUrl,
+  stripKlipyAttributionFragment,
+} from '@/utils/klipyAttribution';
 
 export default defineComponent({
   name: 'UnifiedMessageContent',
@@ -488,6 +494,14 @@ export default defineComponent({
     const videoContainers = ref<HTMLElement[]>([]);
     const visualTheme = useVisualTheme();
     const decrypting = ref(false);
+    const instanceSettings = useInstanceSettingsStore();
+    const showKlipyBranding = computed(
+      () => instanceSettings.settings.gifKlipyBrandingEnabled,
+    );
+
+    const displayMediaUrl = (url: string) => stripKlipyAttributionFragment(url);
+    const klipyWatermarkHref = (url: string) =>
+      parseKlipyItemPageUrl(url) || defaultKlipyHomeUrl();
     
     // GIF favorites state
     const hoveredImageUrl = ref<string | null>(null);
@@ -577,20 +591,23 @@ export default defineComponent({
     // True for GIFs sourced from Klipy (host-based). Drives the KLIPY
     // attribution watermark, which must only appear on Klipy content.
     const isKlipyMedia = (url: string): boolean => {
-      return !!url && url.toLowerCase().includes('klipy.com');
+      if (!url) return false;
+      if (parseKlipyItemPageUrl(url)) return true;
+      return url.toLowerCase().includes('klipy.com');
     };
     
     const isGifFavorited = (url: string): boolean => {
-      return favoriteGifUrls.value.has(url);
+      return favoriteGifUrls.value.has(stripKlipyAttributionFragment(url));
     };
     
     const toggleGifFavorite = async (url: string) => {
-      const result = await gifService.toggleFavoriteByUrl(url, url, null);
+      const mediaUrl = stripKlipyAttributionFragment(url);
+      const result = await gifService.toggleFavoriteByUrl(mediaUrl, mediaUrl, null);
       if (!result.error) {
         if (result.isFavorite) {
-          favoriteGifUrls.value.add(url);
+          favoriteGifUrls.value.add(mediaUrl);
         } else {
-          favoriteGifUrls.value.delete(url);
+          favoriteGifUrls.value.delete(mediaUrl);
         }
         // Trigger reactivity
         favoriteGifUrls.value = new Set(favoriteGifUrls.value);
@@ -1060,6 +1077,9 @@ export default defineComponent({
       hoveredImageUrl,
       isAnimatedImage,
       isKlipyMedia,
+      showKlipyBranding,
+      displayMediaUrl,
+      klipyWatermarkHref,
       isGifFavorited,
       toggleGifFavorite
     };

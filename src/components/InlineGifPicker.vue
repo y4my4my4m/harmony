@@ -18,12 +18,12 @@
         <div 
           v-else
           class="inline-gif-item"
-          @click="$emit('selectGif', item)"
+          @click="$emit('selectGif', withGifMessageUrl(item))"
           @mouseover="hoveredGif = item.id"
           @mouseleave="hoveredGif = null"
         >
           <img 
-            :src="hoveredGif === item.id ? item.media_formats.gif.url : item.media_formats.gifpreview.url" 
+            :src="inlineGifSrc(item)" 
             :alt="item.title || 'GIF'"
             loading="lazy"
           >
@@ -37,14 +37,18 @@
 import { ref, watch, onMounted } from 'vue';
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue';
 import GifAdSlot from '@/components/GifAdSlot.vue';
-import { gifProvider } from '@/services/gifProviderService';
+import { gifProvider, type GifMediaType } from '@/services/gifProviderService';
+import { stripKlipyAttributionFragment, withGifMessageUrl } from '@/utils/klipyAttribution';
 import type { Gif, GifResultItem } from '@/types';
 
 interface Props {
   query: string;
+  mediaType?: GifMediaType;
 }
 
-const props = defineProps<Props>();
+const props = withDefaults(defineProps<Props>(), {
+  mediaType: 'gifs',
+});
 
 defineEmits<{
   (e: 'selectGif', gif: Gif): void;
@@ -52,6 +56,14 @@ defineEmits<{
 
 const items = ref<GifResultItem[]>([]);
 const hoveredGif = ref<string | null>(null);
+
+const inlineGifSrc = (item: Gif) => {
+  const url =
+    hoveredGif.value === item.id
+      ? item.media_formats.gif.url
+      : item.media_formats.gifpreview.url;
+  return stripKlipyAttributionFragment(url);
+};
 const isLoading = ref(false);
 let searchTimeout: ReturnType<typeof setTimeout> | null = null;
 let currentRequestId = 0;
@@ -60,7 +72,7 @@ const fetchTrending = async () => {
   const requestId = ++currentRequestId;
   isLoading.value = true;
   try {
-    const feed = await gifProvider.trending({ perPage: 20 });
+    const feed = await gifProvider.trending({ perPage: 20 }, props.mediaType);
     if (requestId !== currentRequestId) return;
     items.value = feed.items;
   } finally {
@@ -76,7 +88,7 @@ const searchGifs = async (q: string) => {
   const requestId = ++currentRequestId;
   isLoading.value = true;
   try {
-    const feed = await gifProvider.search(q, { perPage: 20 });
+    const feed = await gifProvider.search(q, { perPage: 20 }, props.mediaType);
     if (requestId !== currentRequestId) return;
     items.value = feed.items;
   } finally {

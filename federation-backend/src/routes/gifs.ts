@@ -19,26 +19,57 @@ import { logger } from '../utils/logger.js';
 
 const router = Router();
 
-/** Resolve whether this viewer should be shown ads, per instance + tier policy. */
+/**
+ * Short-lived cache of the per-viewer ads decision.
+ *
+ * `should_show_gif_ads` is two indexed lookups (instance_config by PK-ish key +
+ * instance_supporters by indexed user_id), run once per GIF feed request — not
+ * per profile and not per item, so there is no N+1. The only realistic hot path
+ * is a user paging/typing in the picker, which would re-ask the same answer
+ * repeatedly. A tiny TTL cache collapses that burst into one DB round-trip while
+ * staying fresh enough that a tier change is reflected within a minute.
+ */
+const ADS_CACHE_TTL_MS = 60_000;
+const adsDecisionCache = new Map<string, { value: boolean; expires: number }>();
+
 async function shouldShowAds(profileId: string | undefined): Promise<boolean> {
   if (!hasAdsKey()) return false; // no ad key → nobody gets ads
   if (!profileId) return true;
+
+  const cached = adsDecisionCache.get(profileId);
+  const now = Date.now();
+  if (cached && cached.expires > now) return cached.value;
+
+  let value = true;
   try {
     const supabase = getSupabaseClient();
     const { data, error } = await supabase.rpc('should_show_gif_ads', { p_user_id: profileId });
     if (error) {
       logger.warn('should_show_gif_ads RPC failed, defaulting to ads on:', error.message);
-      return true;
+    } else {
+      // RPC returns boolean; default to showing ads if null/undefined.
+      value = data !== false;
     }
-    // RPC returns boolean; default to showing ads if null/undefined.
-    return data !== false;
   } catch (err) {
     logger.warn('should_show_gif_ads lookup errored, defaulting to ads on:', err);
-    return true;
   }
+
+  adsDecisionCache.set(profileId, { value, expires: now + ADS_CACHE_TTL_MS });
+  // Opportunistic cleanup so the map can't grow unbounded on a busy instance.
+  if (adsDecisionCache.size > 5000) {
+    for (const [key, entry] of adsDecisionCache) {
+      if (entry.expires <= now) adsDecisionCache.delete(key);
+    }
+  }
+  return value;
 }
 
-async function handle(kind: 'trending' | 'search', req: AuthenticatedRequest, res: any) {
+async function handle(
+  kind: 'trending' | 'search',
+  mediaType: 'gifs' | 'stickers',
+  req: AuthenticatedRequest,
+  res: any,
+) {
   if (!isKlipyConfigured()) {
     return res.status(503).json({ error: 'GIF search is not configured on this instance' });
   }
@@ -48,11 +79,14 @@ async function handle(kind: 'trending' | 'search', req: AuthenticatedRequest, re
   const perPage = req.query.per_page ? Number(req.query.per_page) : 24;
   const locale = typeof req.query.locale === 'string' ? req.query.locale : undefined;
 
-  const withAds = await shouldShowAds(req.profileId);
+  // Klipy serves ad objects on the GIF feed; the sticker feed is kept ad-free
+  // (cleaner UX, and it also skips the per-request ads lookup entirely).
+  const withAds = mediaType === 'gifs' ? await shouldShowAds(req.profileId) : false;
 
   try {
     const feed = await KlipyService.fetchGifs({
       kind,
+      mediaType,
       query,
       page: Number.isFinite(page) ? page : 1,
       perPage: Number.isFinite(perPage) ? perPage : 24,
@@ -63,7 +97,11 @@ async function handle(kind: 'trending' | 'search', req: AuthenticatedRequest, re
       userAgent: req.headers['user-agent'],
     });
     res.setHeader('Cache-Control', 'private, max-age=30');
-    return res.json(feed);
+    return res.json({
+      ...feed,
+      // Helps diagnose ad setup (keys are never exposed).
+      meta: { showAds: withAds },
+    });
   } catch (err: any) {
     return res.status(502).json({ error: err?.message || 'GIF provider error' });
   }
@@ -71,11 +109,19 @@ async function handle(kind: 'trending' | 'search', req: AuthenticatedRequest, re
 
 // Mounted at /gifs in server.ts
 router.get('/trending', requireAuth, (req, res) =>
-  handle('trending', req as AuthenticatedRequest, res),
+  handle('trending', 'gifs', req as AuthenticatedRequest, res),
 );
 
 router.get('/search', requireAuth, (req, res) =>
-  handle('search', req as AuthenticatedRequest, res),
+  handle('search', 'gifs', req as AuthenticatedRequest, res),
+);
+
+router.get('/stickers/trending', requireAuth, (req, res) =>
+  handle('trending', 'stickers', req as AuthenticatedRequest, res),
+);
+
+router.get('/stickers/search', requireAuth, (req, res) =>
+  handle('search', 'stickers', req as AuthenticatedRequest, res),
 );
 
 export default router;

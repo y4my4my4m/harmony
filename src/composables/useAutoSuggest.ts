@@ -464,6 +464,7 @@ export function useAutoSuggest(
     { id: 'cmd:kick', name: 'kick', description: 'Kick a member from the server', permission: 'KICK_MEMBERS' },
     { id: 'cmd:ban', name: 'ban', description: 'Ban a member from the server', permission: 'BAN_MEMBERS' },
     { id: 'cmd:gif', name: 'gif', description: 'Search for a GIF', permission: '', params: [{ name: 'query', description: 'Search for a GIF' }] },
+    { id: 'cmd:sticker', name: 'sticker', description: 'Search for a sticker', permission: '', params: [{ name: 'query', description: 'Search for a sticker' }] },
   ];
 
   const commandSuggestions = computed((): SuggestionItem[] => {

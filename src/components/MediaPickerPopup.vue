@@ -13,7 +13,6 @@
         class="tab-button" 
         :class="{ active: activeTab === 'stickers' }"
         @click="activeTab = 'stickers'"
-        disabled
       >
         Stickers
       </button>
@@ -45,6 +44,14 @@
       :show-favorites="showFavorites"
       :initial-search-query="initialSearchQuery"
       @update:show-favorites="showFavorites = $event"
+      @send-gif="handleSendGif"
+    />
+
+    <!-- Sticker Content (Klipy stickers; no favorites) -->
+    <GifPickerContent
+      v-else-if="activeTab === 'stickers'"
+      :show-favorites="false"
+      media-type="stickers"
       @send-gif="handleSendGif"
     />
 

@@ -28,7 +28,8 @@ INSERT INTO public.instance_config (config_key, config_value, description) VALUE
     ('features', '{"voice_enabled": true, "video_enabled": true, "e2e_encryption": true}', 'Feature flags'),
     ('terms_url', '""', 'URL to the Terms of Service page (shown on registration)'),
     ('privacy_url', '""', 'URL to the Privacy Policy page (shown on registration)'),
-    ('gif_ads_enabled', 'true', 'Whether the GIF picker (Klipy) may serve ads to non-supporters')
+    ('gif_ads_enabled', 'true', 'Whether the GIF picker (Klipy) may serve ads to non-supporters'),
+    ('gif_klipy_branding_enabled', 'true', 'Show KLIPY search placeholder and optional GIF watermark attribution')
 ON CONFLICT (config_key) DO NOTHING;
 
 DO $$

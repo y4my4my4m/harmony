@@ -20,6 +20,7 @@ export interface GifFeed {
   items: GifResultItem[]
   page: number
   hasNext: boolean
+  meta?: { showAds?: boolean }
 }
 
 interface FetchOptions {
@@ -50,6 +51,7 @@ async function request(path: string, params: URLSearchParams, opts?: FetchOption
     items: Array.isArray(data?.items) ? data.items : [],
     page: Number(data?.page) || 1,
     hasNext: Boolean(data?.hasNext),
+    meta: data?.meta,
   }
 }
 
@@ -61,23 +63,30 @@ function buildParams(opts?: FetchOptions): URLSearchParams {
   return params
 }
 
+export type GifMediaType = 'gifs' | 'stickers'
+
+/** Backend path prefix for a media type. GIFs sit at the proxy root for back-compat. */
+function pathPrefix(mediaType: GifMediaType): string {
+  return mediaType === 'stickers' ? 'stickers/' : ''
+}
+
 export const gifProvider = {
-  async trending(opts?: FetchOptions): Promise<GifFeed> {
+  async trending(opts?: FetchOptions, mediaType: GifMediaType = 'gifs'): Promise<GifFeed> {
     try {
-      return await request('trending', buildParams(opts), opts)
+      return await request(`${pathPrefix(mediaType)}trending`, buildParams(opts), opts)
     } catch (err) {
-      if ((err as Error)?.name !== 'AbortError') debug.error('Failed to fetch trending GIFs:', err)
+      if ((err as Error)?.name !== 'AbortError') debug.error(`Failed to fetch trending ${mediaType}:`, err)
       return { items: [], page: 1, hasNext: false }
     }
   },
 
-  async search(query: string, opts?: FetchOptions): Promise<GifFeed> {
+  async search(query: string, opts?: FetchOptions, mediaType: GifMediaType = 'gifs'): Promise<GifFeed> {
     const params = buildParams(opts)
     params.set('q', query)
     try {
-      return await request('search', params, opts)
+      return await request(`${pathPrefix(mediaType)}search`, params, opts)
     } catch (err) {
-      if ((err as Error)?.name !== 'AbortError') debug.error('Failed to search GIFs:', err)
+      if ((err as Error)?.name !== 'AbortError') debug.error(`Failed to search ${mediaType}:`, err)
       return { items: [], page: 1, hasNext: false }
     }
   },

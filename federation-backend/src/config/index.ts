@@ -90,8 +90,14 @@ const envSchema = z.object({
   //   - KLIPY_API_KEY_ADS   : ad-enabled key (monetized, served to regular users)
   //   - KLIPY_API_KEY_NOADS : ad-free key (served to supporters whose tier removes ads)
   // If only one is set it is used for everyone. If neither is set, GIF search is disabled.
-  KLIPY_API_KEY_ADS: z.string().optional(),
-  KLIPY_API_KEY_NOADS: z.string().optional(),
+  KLIPY_API_KEY_ADS: z.preprocess(
+    (v) => (typeof v === 'string' && v.trim() ? v.trim() : undefined),
+    z.string().optional(),
+  ),
+  KLIPY_API_KEY_NOADS: z.preprocess(
+    (v) => (typeof v === 'string' && v.trim() ? v.trim() : undefined),
+    z.string().optional(),
+  ),
   KLIPY_BASE_URL: z.string().url().default('https://api.klipy.com'),
 });
 

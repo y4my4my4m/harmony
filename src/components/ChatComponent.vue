@@ -1047,7 +1047,8 @@
       }
 
       const handleSendGif = async (gif: Gif) => {
-        const gifUrl = gif.media_formats.gif.url;
+        const gifUrl = gif.media_formats?.gif?.url;
+        if (!gifUrl) return;
         closeMediaPicker();
 
         const messageParts: MessagePart[] = [{

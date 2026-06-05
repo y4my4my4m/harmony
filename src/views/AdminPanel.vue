@@ -1118,6 +1118,28 @@
               </label>
             </div>
 
+            <h3 style="margin-top: 24px;">GIF picker (Klipy)</h3>
+            <p class="setting-hint" style="margin-bottom: 12px;">
+              GIF search is proxied through the federation backend. API keys are set in the backend environment
+              (<code>KLIPY_API_KEY_ADS</code> / <code>KLIPY_API_KEY_NOADS</code>), not here.
+            </p>
+            <div class="setting-row">
+              <label class="toggle-label">
+                <input type="checkbox" v-model="config.chat.gifAdsEnabled" />
+                <span class="toggle-slider"></span>
+                <span class="toggle-text">Show GIF ads (non-supporters)</span>
+              </label>
+              <label class="toggle-label">
+                <input type="checkbox" v-model="config.chat.gifKlipyBrandingEnabled" />
+                <span class="toggle-slider"></span>
+                <span class="toggle-text">KLIPY attribution (search placeholder + watermark)</span>
+              </label>
+            </div>
+            <span class="setting-hint">
+              Ads require an ad-enabled Klipy key on the backend and ads turned on in the Klipy Partner Dashboard for that key.
+              Per-tier ad-free is configured under Funding &amp; Supporters.
+            </span>
+
             <h3 style="margin-top: 24px;">Trending & Discovery</h3>
             <div class="setting-group">
               <label>Trending Posts</label>
@@ -1821,6 +1843,10 @@
                 />
               </div>
               <input v-model="newTierColor" type="color" class="color-input" title="Badge color" />
+              <label class="tier-ads-toggle" title="Supporters on this tier see no GIF ads">
+                <input type="checkbox" v-model="newTierRemovesAds" />
+                <span>Ad-free GIFs</span>
+              </label>
               <button class="action-btn" @click="addTier" :disabled="!newTierName || !newTierMinAmount">
                 <Icon name="plus" :size="16" /> Add
               </button>
@@ -2242,6 +2268,7 @@ const newTierName = ref('')
 const newTierMinAmount = ref<number>(0)
 const newTierIcon = ref('⭐')
 const newTierColor = ref('#0EA5E9')
+const newTierRemovesAds = ref(false)
 
 // Tier editing
 const editingTierId = ref<string | null>(null)
@@ -2471,7 +2498,9 @@ const config = ref({
     maxMessageLength: 2000,
     maxMediaAttachmentsPerPost: 20,
     allowFileUploads: true,
-    enableVoiceChannels: true
+    enableVoiceChannels: true,
+    gifAdsEnabled: true,
+    gifKlipyBrandingEnabled: true,
   },
   federation: {
     maxPostLength: 500,
@@ -3096,7 +3125,7 @@ const addTier = async () => {
     badge_color: newTierColor.value || null,
     perks: null,
     display_order: supporterTiers.value.length,
-    removes_ads: false,
+    removes_ads: newTierRemovesAds.value,
   })
   if (tier) {
     await adminService.logAdminAction({ action: 'tier_create', targetType: 'tier', targetId: tier.id, details: { name: tier.name } })
@@ -3104,6 +3133,7 @@ const addTier = async () => {
     newTierName.value = ''
     newTierMinAmount.value = 0
     newTierIcon.value = '⭐'
+    newTierRemovesAds.value = false
     toast.success('Tier created')
   }
 }
@@ -3807,6 +3837,8 @@ const saveConfig = async () => {
       max_media_attachments_per_post: config.value.chat.maxMediaAttachmentsPerPost ?? 20,
       allow_file_uploads: config.value.chat.allowFileUploads,
       enable_voice_channels: config.value.chat.enableVoiceChannels,
+      gif_ads_enabled: config.value.chat.gifAdsEnabled,
+      gif_klipy_branding_enabled: config.value.chat.gifKlipyBrandingEnabled,
       max_post_length: config.value.federation.maxPostLength,
       federation_retry_attempts: config.value.federation.retryAttempts,
       max_custom_emojis_per_server: config.value.federation.maxCustomEmojisPerServer ?? 0,

@@ -69,7 +69,8 @@ export function useComposerActions(options: ComposerActionsOptions) {
    * Insert GIF URL into content
    */
   const insertGif = (gif: any) => {
-    const gifUrl = gif.media_formats.gif.url;
+    const gifUrl = gif.media_formats?.gif?.url;
+    if (!gifUrl) return;
     const currentContent = options.content.value;
     
     options.content.value = currentContent + (currentContent ? '\n' : '') + gifUrl;

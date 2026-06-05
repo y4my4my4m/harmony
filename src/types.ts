@@ -593,6 +593,8 @@ export interface Gif {
       webm: {url:string}
   }
   title?: string;
+  /** Klipy item page URL (for attribution link on shared GIFs). */
+  itemUrl?: string;
 }
 
 /**
