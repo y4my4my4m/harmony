@@ -468,6 +468,8 @@ CREATE TABLE IF NOT EXISTS public.gif_favorites (
     gif_url text NOT NULL,
     preview_url text,
     title text,
+    -- 'gif' | 'sticker' — keeps the GIF and sticker favorite lists separate.
+    media_type text NOT NULL DEFAULT 'gif',
     created_at timestamp with time zone DEFAULT now(),
     
     UNIQUE(user_id, gif_url)
@@ -475,7 +477,7 @@ CREATE TABLE IF NOT EXISTS public.gif_favorites (
 
 CREATE INDEX IF NOT EXISTS idx_gif_favorites_user ON public.gif_favorites(user_id);
 
-COMMENT ON TABLE public.gif_favorites IS 'User favorite GIFs';
+COMMENT ON TABLE public.gif_favorites IS 'User favorite GIFs and stickers';
 
 -- ---------------------------------------------------------------------------
 -- EMOJI FAVORITES

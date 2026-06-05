@@ -1127,17 +1127,22 @@
               <label class="toggle-label">
                 <input type="checkbox" v-model="config.chat.gifAdsEnabled" />
                 <span class="toggle-slider"></span>
-                <span class="toggle-text">Show GIF ads (non-supporters)</span>
+                <span class="toggle-text">Enable GIF ads (server-wide)</span>
               </label>
               <label class="toggle-label">
-                <input type="checkbox" v-model="config.chat.gifKlipyBrandingEnabled" />
+                <input type="checkbox" v-model="config.chat.gifKlipyWatermarkEnabled" />
                 <span class="toggle-slider"></span>
-                <span class="toggle-text">KLIPY attribution (search placeholder + watermark)</span>
+                <span class="toggle-text">KLIPY watermark on sent GIFs/stickers (recommended)</span>
               </label>
             </div>
             <span class="setting-hint">
-              Ads require an ad-enabled Klipy key on the backend and ads turned on in the Klipy Partner Dashboard for that key.
-              Per-tier ad-free is configured under Funding &amp; Supporters.
+              When <strong>GIF ads</strong> is on, non-supporters see Klipy ads in the picker; supporters on an
+              ad-free tier never do. When off, nobody sees ads. Ads also require an ad-enabled Klipy key on the
+              backend and ads turned on in the Klipy Partner Dashboard for that key. Per-tier ad-free is configured
+              under Funding &amp; Supporters.
+              <br />
+              The "Search KLIPY" picker label is required attribution and is always shown; the
+              <strong>watermark</strong> on sent media is optional but recommended.
             </span>
 
             <h3 style="margin-top: 24px;">Trending & Discovery</h3>
@@ -2500,7 +2505,7 @@ const config = ref({
     allowFileUploads: true,
     enableVoiceChannels: true,
     gifAdsEnabled: true,
-    gifKlipyBrandingEnabled: true,
+    gifKlipyWatermarkEnabled: true,
   },
   federation: {
     maxPostLength: 500,
@@ -3838,7 +3843,7 @@ const saveConfig = async () => {
       allow_file_uploads: config.value.chat.allowFileUploads,
       enable_voice_channels: config.value.chat.enableVoiceChannels,
       gif_ads_enabled: config.value.chat.gifAdsEnabled,
-      gif_klipy_branding_enabled: config.value.chat.gifKlipyBrandingEnabled,
+      gif_klipy_watermark_enabled: config.value.chat.gifKlipyWatermarkEnabled,
       max_post_length: config.value.federation.maxPostLength,
       federation_retry_attempts: config.value.federation.retryAttempts,
       max_custom_emojis_per_server: config.value.federation.maxCustomEmojisPerServer ?? 0,

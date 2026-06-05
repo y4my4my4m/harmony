@@ -16,6 +16,8 @@ import { authContextService } from '@/services/AuthContextService'
 import type { Gif } from '@/types'
 
 // Database row type for gif_favorites table
+export type GifMediaType = 'gif' | 'sticker'
+
 export interface GifFavorite {
   id: string
   user_id: string
@@ -23,6 +25,8 @@ export interface GifFavorite {
   preview_url: string
   title: string | null
   created_at: string
+  /** Distinguishes GIF favorites from sticker favorites. Defaults to 'gif'. */
+  media_type?: GifMediaType
   /**
    * Tenor's stable GIF identifier. Populated for Tenor-sourced favorites;
    * absent for direct-URL favorites. Surfaced to consumers (GifComponent)
@@ -91,7 +95,8 @@ export class GifService {
   async addFavoriteByUrl(
     gifUrl: string, 
     previewUrl: string, 
-    title: string | null = null
+    title: string | null = null,
+    mediaType: GifMediaType = 'gif'
   ): Promise<{ success: boolean; error?: string }> {
     try {
       const context = await authContextService.getCurrentContext()
@@ -105,7 +110,8 @@ export class GifService {
           user_id: context.profileId,
           gif_url: gifUrl,
           preview_url: previewUrl,
-          title: title
+          title: title,
+          media_type: mediaType
         })
 
       if (error) {
@@ -170,7 +176,8 @@ export class GifService {
   async toggleFavoriteByUrl(
     gifUrl: string, 
     previewUrl: string, 
-    title: string | null = null
+    title: string | null = null,
+    mediaType: GifMediaType = 'gif'
   ): Promise<{ isFavorite: boolean; error?: string }> {
     const isCurrentlyFavorite = this.isFavoriteByUrl(gifUrl)
     
@@ -178,7 +185,7 @@ export class GifService {
       const result = await this.removeFavoriteByUrl(gifUrl)
       return { isFavorite: !result.success, error: result.error }
     } else {
-      const result = await this.addFavoriteByUrl(gifUrl, previewUrl, title)
+      const result = await this.addFavoriteByUrl(gifUrl, previewUrl, title, mediaType)
       return { isFavorite: result.success, error: result.error }
     }
   }
@@ -220,26 +227,32 @@ export class GifService {
    * OPTIMIZED: Caches results with TTL, deduplicates concurrent requests,
    * uses AuthContextService for auth
    */
-  async getFavorites(): Promise<FavoriteGif[]> {
+  async getFavorites(mediaType?: GifMediaType): Promise<FavoriteGif[]> {
     // Return cached data if still valid
     const now = Date.now()
     if (this.favoritesCache && (now - this.favoritesCacheTime) < CACHE_TTL) {
-      return this.favoritesCache
+      return this.filterByType(this.favoritesCache, mediaType)
     }
     
     // Deduplicate concurrent requests
     if (this.pendingFavoritesRequest) {
-      return this.pendingFavoritesRequest
+      return this.filterByType(await this.pendingFavoritesRequest, mediaType)
     }
     
     this.pendingFavoritesRequest = this._fetchFavorites()
     
     try {
       const result = await this.pendingFavoritesRequest
-      return result
+      return this.filterByType(result, mediaType)
     } finally {
       this.pendingFavoritesRequest = null
     }
+  }
+
+  /** Rows missing media_type are legacy GIF favorites (column added later). */
+  private filterByType(rows: FavoriteGif[], mediaType?: GifMediaType): FavoriteGif[] {
+    if (!mediaType) return rows
+    return rows.filter(r => (r.media_type ?? 'gif') === mediaType)
   }
   
   /**

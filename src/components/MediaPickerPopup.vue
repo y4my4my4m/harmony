@@ -23,9 +23,9 @@
       >
         Emoji
       </button>
-      <!-- Favorite toggle (GIFs tab only - Emoji favorites are always inline) -->
+      <!-- Favorite toggle (GIFs/Stickers tabs - Emoji favorites are always inline) -->
       <button 
-        v-if="activeTab === 'gifs'"
+        v-if="activeTab === 'gifs' || activeTab === 'stickers'"
         class="tab-icon-button"
         :class="{ active: showFavorites }"
         @click="showFavorites = !showFavorites"
@@ -47,11 +47,12 @@
       @send-gif="handleSendGif"
     />
 
-    <!-- Sticker Content (Klipy stickers; no favorites) -->
+    <!-- Sticker Content (Klipy stickers) -->
     <GifPickerContent
       v-else-if="activeTab === 'stickers'"
-      :show-favorites="false"
+      :show-favorites="showFavorites"
       media-type="stickers"
+      @update:show-favorites="showFavorites = $event"
       @send-gif="handleSendGif"
     />
 
@@ -94,6 +95,9 @@ const emit = defineEmits<Emits>();
 // State
 const activeTab = ref<'gifs' | 'stickers' | 'emoji'>(props.initialTab);
 const showFavorites = ref(false);
+
+// Reset the favorites view when switching tabs so each picker opens on trending.
+watch(activeTab, () => { showFavorites.value = false; });
 const popupRef = ref<HTMLElement | null>(null);
 
 // Popup positioning

@@ -1,11 +1,14 @@
--- GIF / Klipy instance toggles (branding) + robust should_show_gif_ads boolean read
+-- GIF / Klipy instance toggles (watermark) + robust should_show_gif_ads boolean read
+-- NOTE: the key was originally named gif_klipy_branding_enabled; it is renamed to
+-- gif_klipy_watermark_enabled in 20260606. This file now seeds the final name so a
+-- fresh migration-based apply is consistent.
 BEGIN;
 
 INSERT INTO public.instance_config (config_key, config_value, description)
 VALUES (
-    'gif_klipy_branding_enabled',
+    'gif_klipy_watermark_enabled',
     'true'::jsonb,
-    'Show KLIPY search placeholder and optional GIF watermark attribution'
+    'Show the optional (recommended) KLIPY attribution watermark on sent GIFs/stickers'
 )
 ON CONFLICT (config_key) DO NOTHING;
 

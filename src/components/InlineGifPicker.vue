@@ -18,7 +18,7 @@
         <div 
           v-else
           class="inline-gif-item"
-          @click="$emit('selectGif', withGifMessageUrl(item))"
+          @click="$emit('selectGif', withGifMessageUrl(item, mediaType === 'stickers'))"
           @mouseover="hoveredGif = item.id"
           @mouseleave="hoveredGif = null"
         >

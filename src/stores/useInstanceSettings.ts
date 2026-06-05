@@ -51,7 +51,9 @@ interface InstanceSettings {
 
   // GIF / Klipy (picker UI)
   gifAdsEnabled: boolean
-  gifKlipyBrandingEnabled: boolean
+  // Optional (recommended) KLIPY attribution watermark on sent GIFs/stickers.
+  // The "Search KLIPY" picker placeholder is required attribution and always on.
+  gifKlipyWatermarkEnabled: boolean
 
   // Default theme for new/unauthenticated users
   defaultThemeJson: string | null
@@ -84,7 +86,7 @@ const DEFAULT_SETTINGS: InstanceSettings = {
   maxMediaAttachmentsPerPost: 20,
   allowCustomEmojisInDisplayNames: true,
   gifAdsEnabled: true,
-  gifKlipyBrandingEnabled: true,
+  gifKlipyWatermarkEnabled: true,
   defaultThemeJson: null,
   customEmojiTransformQuality: 80,
 }
@@ -272,8 +274,8 @@ export const useInstanceSettingsStore = defineStore('instanceSettings', {
           case 'gif_ads_enabled':
             this.settings.gifAdsEnabled = value === true || value === 'true'
             break
-          case 'gif_klipy_branding_enabled':
-            this.settings.gifKlipyBrandingEnabled = value === true || value === 'true'
+          case 'gif_klipy_watermark_enabled':
+            this.settings.gifKlipyWatermarkEnabled = value === true || value === 'true'
             break
           case 'default_theme_json':
             if (value && typeof value === 'string') {

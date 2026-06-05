@@ -242,6 +242,7 @@
         <div 
           v-else-if="part && typeof part === 'object' && part.type === 'file' && part.fileType === 'image'" 
           class="media-container image-container"
+          :class="{ 'sticker-container': isStickerMedia(part.url) }"
           @mouseenter="hoveredImageUrl = part.url"
           @mouseleave="hoveredImageUrl = null"
         >
@@ -249,14 +250,15 @@
           <img
             :src="displayMediaUrl(part.url)"
             @load="handleImageLoad(part.url)"
-            @click="$emit('open-lightbox', part.url)"
+            @click="!isStickerMedia(part.url) && $emit('open-lightbox', part.url)"
             v-show="imageLoadedState[part.url]"
             draggable="false"
             class="content-image"
+            :class="{ 'sticker-image': isStickerMedia(part.url) }"
           />
-          <!-- GIF Favorite Button -->
+          <!-- GIF/sticker Favorite Button -->
           <button 
-            v-if="isAnimatedImage(part.url)"
+            v-if="isAnimatedImage(part.url) || isStickerMedia(part.url)"
             class="gif-favorite-button"
             :class="{ 'favorited': isGifFavorited(part.url), 'visible': hoveredImageUrl === part.url || isGifFavorited(part.url) }"
             @click.stop="toggleGifFavorite(part.url)"
@@ -267,16 +269,16 @@
               <path v-else d="M22 9.24l-7.19-.62L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21 12 17.27 18.18 21l-1.63-7.03L22 9.24zM12 15.4l-3.76 2.27 1-4.28-3.32-2.88 4.38-.38L12 6.1l1.71 4.04 4.38.38-3.32 2.88 1 4.28L12 15.4z"/>
             </svg>
           </button>
-          <!-- KLIPY attribution watermark (only on Klipy-sourced GIFs, on hover) -->
+          <!-- KLIPY attribution watermark (optional; only on Klipy-sourced media, on hover) -->
           <a
-            v-if="showKlipyBranding && isKlipyMedia(part.url)"
+            v-if="showKlipyWatermark && isKlipyMedia(part.url)"
             class="klipy-watermark"
             :class="{ 'visible': hoveredImageUrl === part.url }"
             :href="klipyWatermarkHref(part.url)"
             target="_blank"
             rel="noopener noreferrer nofollow"
             @click.stop
-            title="GIF via KLIPY"
+            title="via KLIPY"
           >KLIPY</a>
         </div>
 
@@ -405,6 +407,7 @@ import {
   defaultKlipyHomeUrl,
   parseKlipyItemPageUrl,
   stripKlipyAttributionFragment,
+  isStickerMessageUrl,
 } from '@/utils/klipyAttribution';
 
 export default defineComponent({
@@ -495,13 +498,15 @@ export default defineComponent({
     const visualTheme = useVisualTheme();
     const decrypting = ref(false);
     const instanceSettings = useInstanceSettingsStore();
-    const showKlipyBranding = computed(
-      () => instanceSettings.settings.gifKlipyBrandingEnabled,
+    const showKlipyWatermark = computed(
+      () => instanceSettings.settings.gifKlipyWatermarkEnabled,
     );
 
     const displayMediaUrl = (url: string) => stripKlipyAttributionFragment(url);
     const klipyWatermarkHref = (url: string) =>
       parseKlipyItemPageUrl(url) || defaultKlipyHomeUrl();
+    // Stickers render small and inline, with no lightbox/zoom — "like stickers".
+    const isStickerMedia = (url: string) => isStickerMessageUrl(url);
     
     // GIF favorites state
     const hoveredImageUrl = ref<string | null>(null);
@@ -592,7 +597,7 @@ export default defineComponent({
     // attribution watermark, which must only appear on Klipy content.
     const isKlipyMedia = (url: string): boolean => {
       if (!url) return false;
-      if (parseKlipyItemPageUrl(url)) return true;
+      if (parseKlipyItemPageUrl(url) || isStickerMessageUrl(url)) return true;
       return url.toLowerCase().includes('klipy.com');
     };
     
@@ -602,7 +607,8 @@ export default defineComponent({
     
     const toggleGifFavorite = async (url: string) => {
       const mediaUrl = stripKlipyAttributionFragment(url);
-      const result = await gifService.toggleFavoriteByUrl(mediaUrl, mediaUrl, null);
+      const mediaType = isStickerMessageUrl(url) ? 'sticker' : 'gif';
+      const result = await gifService.toggleFavoriteByUrl(mediaUrl, mediaUrl, null, mediaType);
       if (!result.error) {
         if (result.isFavorite) {
           favoriteGifUrls.value.add(mediaUrl);
@@ -1077,9 +1083,10 @@ export default defineComponent({
       hoveredImageUrl,
       isAnimatedImage,
       isKlipyMedia,
-      showKlipyBranding,
+      showKlipyWatermark,
       displayMediaUrl,
       klipyWatermarkHref,
+      isStickerMedia,
       isGifFavorited,
       toggleGifFavorite
     };
@@ -1318,6 +1325,22 @@ export default defineComponent({
 
 .content-image:hover {
   transform: scale(1.02);
+}
+
+/* Stickers render small and inline with no lightbox affordance or hover zoom. */
+.sticker-container {
+  max-width: 160px;
+}
+
+.sticker-image {
+  max-width: 160px;
+  max-height: 160px;
+  border-radius: 0;
+  cursor: default;
+}
+
+.sticker-image:hover {
+  transform: none;
 }
 
 /* GIF Favorite Button */

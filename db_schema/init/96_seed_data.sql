@@ -29,7 +29,7 @@ INSERT INTO public.instance_config (config_key, config_value, description) VALUE
     ('terms_url', '""', 'URL to the Terms of Service page (shown on registration)'),
     ('privacy_url', '""', 'URL to the Privacy Policy page (shown on registration)'),
     ('gif_ads_enabled', 'true', 'Whether the GIF picker (Klipy) may serve ads to non-supporters'),
-    ('gif_klipy_branding_enabled', 'true', 'Show KLIPY search placeholder and optional GIF watermark attribution')
+    ('gif_klipy_watermark_enabled', 'true', 'Show the optional (recommended) KLIPY attribution watermark on sent GIFs/stickers. The required "Search KLIPY" picker label is always shown regardless.')
 ON CONFLICT (config_key) DO NOTHING;
 
 DO $$

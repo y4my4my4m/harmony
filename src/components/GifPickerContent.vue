@@ -1,7 +1,7 @@
 <template>
   <div class="gif-picker-content">
-    <!-- Category Buttons (Favorites/Trending) — GIFs only; stickers have no favorites -->
-    <div class="gif-categories" v-if="!isStickers">
+    <!-- Category Buttons (Favorites/Trending) -->
+    <div class="gif-categories">
       <button 
         class="category-button"
         :class="{ active: showFavorites }"
@@ -67,7 +67,7 @@
               @mouseleave="hoveredGif = null"
               @click="selectFavoriteGif(item)"
             >
-              <img :src="getGifImageSource(item.id, item.gif_url, item.preview_url)" :alt="item.title || 'GIF'">
+              <img :src="getGifImageSource(item.id, item.gif_url, item.preview_url)" :alt="item.title || 'GIF'" :class="{ 'sticker-thumb': isStickers }">
               <button 
                 class="favorite-button favorited"
                 @click.stop="removeFavorite(item.id)"
@@ -105,9 +105,8 @@
               @mouseleave="hoveredGif = null"
               @click="selectGif(item)"
             >
-              <img :src="getGifImageSource(item.id, item.media_formats.gif.url, item.media_formats.gifpreview.url)" :alt="item.title">
+              <img :src="getGifImageSource(item.id, item.media_formats.gif.url, item.media_formats.gifpreview.url)" :alt="item.title" :class="{ 'sticker-thumb': isStickers }">
               <button 
-                v-if="!isStickers"
                 class="favorite-button"
                 :class="{ favorited: isFavorited(item.media_formats.gif.url) }"
                 @click.stop="toggleFavorite(item)"
@@ -134,7 +133,6 @@ import GifAdSlot from '@/components/GifAdSlot.vue';
 import { debug } from '@/utils/debug';
 import { gifService, type FavoriteGif } from '@/services/GifService';
 import { gifProvider } from '@/services/gifProviderService';
-import { useInstanceSettingsStore } from '@/stores/useInstanceSettings';
 import { stripKlipyAttributionFragment, withGifMessageUrl } from '@/utils/klipyAttribution';
 import type { Gif, GifResultItem } from '@/types';
 
@@ -153,15 +151,14 @@ interface Emits {
 
 const emit = defineEmits<Emits>();
 const { t } = useI18n();
-const instanceSettings = useInstanceSettingsStore();
 
 const isStickers = computed(() => props.mediaType === 'stickers');
 
-const gifSearchPlaceholder = computed(() => {
-  if (props.showFavorites) return t('gif.favorites');
-  if (instanceSettings.settings.gifKlipyBrandingEnabled) return t('gif.searchKlipy');
-  return isStickers.value ? t('gif.searchStickers') : t('gif.search');
-});
+// "Search KLIPY" is required attribution per Klipy's terms, so it is always
+// shown regardless of the optional watermark setting.
+const gifSearchPlaceholder = computed(() =>
+  props.showFavorites ? t('gif.favorites') : t('gif.searchKlipy'),
+);
 
 // State
 const searchQuery = ref(props.initialSearchQuery || '');
@@ -222,7 +219,7 @@ const searchGifs = async () => {
 const loadFavorites = async () => {
   isLoading.value = true;
   try {
-    favorites.value = await gifService.getFavorites();
+    favorites.value = await gifService.getFavorites(isStickers.value ? 'sticker' : 'gif');
     favoriteUrls.value = new Set(favorites.value.map(f => f.gif_url));
   } catch (error) {
     debug.error('Failed to load favorites:', error);
@@ -241,7 +238,8 @@ const toggleFavorite = async (gif: Gif) => {
   const result = await gifService.toggleFavoriteByUrl(
     gifUrl,
     previewUrl,
-    gif.title || null
+    gif.title || null,
+    isStickers.value ? 'sticker' : 'gif'
   );
   
   if (result.error) {
@@ -282,11 +280,12 @@ const removeFavorite = async (favoriteId: string) => {
 };
 
 // Select and send a GIF
-const selectGif = (gif: Gif) => emit('sendGif', withGifMessageUrl(gif));
+const selectGif = (gif: Gif) => emit('sendGif', withGifMessageUrl(gif, isStickers.value));
 
-// Select and send a favorite GIF
+// Select and send a favorite GIF/sticker
 const selectFavoriteGif = (favorite: FavoriteGif) => {
-  emit('sendGif', gifService.favoriteToGif(favorite));
+  const isSticker = (favorite.media_type ?? 'gif') === 'sticker';
+  emit('sendGif', withGifMessageUrl(gifService.favoriteToGif(favorite), isSticker));
 };
 
 // Debounced search
@@ -440,6 +439,14 @@ onMounted(async () => {
   object-fit: cover;
   display: block;
   border-radius: 4px;
+}
+
+/* Stickers are transparent: show them whole on no background, not cropped. */
+.gif-item img.sticker-thumb {
+  object-fit: contain;
+  max-height: 140px;
+  border-radius: 0;
+  background: transparent;
 }
 
 /* Favorite Button on GIF Items */
