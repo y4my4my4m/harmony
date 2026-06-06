@@ -20,7 +20,7 @@
           class="inline-gif-item"
           @click="$emit('selectGif', withGifMessageUrl(item, kind))"
           @mouseover="hoveredGif = item.id"
-          @mouseleave="hoveredGif = null"
+          @mouseleave="isClips ? handleClipItemLeave(item.id, $event) : (hoveredGif = null)"
         >
           <template v-if="isClips">
             <video
@@ -112,6 +112,16 @@ const stripFragment = (url: string) => stripKlipyAttributionFragment(url);
 const audioClipId = ref<string | null>(null);
 let audioClipEl: HTMLVideoElement | null = null;
 
+const resetClipAudio = () => {
+  if (audioClipEl) {
+    audioClipEl.muted = true;
+    audioClipEl.pause?.();
+    audioClipEl.currentTime = 0;
+  }
+  audioClipEl = null;
+  audioClipId.value = null;
+};
+
 const playPreview = (e: Event) => {
   const v = e.target as HTMLVideoElement;
   if (v === audioClipEl) return;
@@ -120,9 +130,25 @@ const playPreview = (e: Event) => {
 };
 const pausePreview = (e: Event) => {
   const v = e.target as HTMLVideoElement;
-  if (v === audioClipEl) return;
+  if (v === audioClipEl) {
+    resetClipAudio();
+    return;
+  }
   v.pause?.();
-  if (v) v.currentTime = 0;
+  v.currentTime = 0;
+};
+
+const handleClipItemLeave = (itemId: string, e: MouseEvent) => {
+  hoveredGif.value = null;
+  if (audioClipId.value === itemId) {
+    resetClipAudio();
+    return;
+  }
+  const v = (e.currentTarget as HTMLElement).querySelector('video');
+  if (v) {
+    v.pause?.();
+    v.currentTime = 0;
+  }
 };
 
 // Tap the mute/unmute icon to play a clip with sound (tap again to mute).
@@ -132,11 +158,7 @@ const toggleClipAudio = (itemId: string, e: Event) => {
   const v = btn.closest('.inline-gif-item')?.querySelector('video') as HTMLVideoElement | null;
   if (!v) return;
   if (audioClipId.value === itemId) {
-    v.muted = true;
-    v.pause?.();
-    v.currentTime = 0;
-    audioClipEl = null;
-    audioClipId.value = null;
+    resetClipAudio();
     return;
   }
   if (audioClipEl && audioClipEl !== v) {

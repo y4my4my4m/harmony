@@ -157,7 +157,7 @@
               :key="item.id" 
               class="gif-item" 
               @mouseover="hoveredGif = item.id" 
-              @mouseleave="hoveredGif = null"
+              @mouseleave="(item.media_type ?? 'gif') === 'clip' ? handleClipItemLeave(item.id, $event) : (hoveredGif = null)"
               @click="selectFavoriteGif(item)"
             >
               <template v-if="(item.media_type ?? 'gif') === 'clip'">
@@ -217,7 +217,7 @@
               :key="item.id" 
               class="gif-item" 
               @mouseover="hoveredGif = item.id" 
-              @mouseleave="hoveredGif = null"
+              @mouseleave="isClips ? handleClipItemLeave(item.id, $event) : (hoveredGif = null)"
               @click="selectGif(item)"
             >
               <template v-if="isClips">
@@ -453,7 +453,7 @@ const resetClipAudio = () => {
 };
 
 // Hover play/pause for clip previews. Muted by default; the audio icon opts a
-// single clip into sound and keeps it playing regardless of hover.
+// single clip into sound. Leaving the clip (desktop) stops playback + audio.
 const playPreview = (e: Event) => {
   const v = e.target as HTMLVideoElement;
   if (v === audioClipEl) return; // already previewing with audio
@@ -462,9 +462,26 @@ const playPreview = (e: Event) => {
 };
 const pausePreview = (e: Event) => {
   const v = e.target as HTMLVideoElement;
-  if (v === audioClipEl) return; // keep audio preview running on mouseleave
+  if (v === audioClipEl) {
+    resetClipAudio();
+    return;
+  }
   v.pause?.();
-  if (v) v.currentTime = 0;
+  v.currentTime = 0;
+};
+
+/** Leaving a clip card — stop muted preview and any audio on this item. */
+const handleClipItemLeave = (itemId: string, e: MouseEvent) => {
+  hoveredGif.value = null;
+  if (audioClipId.value === itemId) {
+    resetClipAudio();
+    return;
+  }
+  const v = (e.currentTarget as HTMLElement).querySelector('video');
+  if (v) {
+    v.pause?.();
+    v.currentTime = 0;
+  }
 };
 
 // Tap the mute/unmute icon to play a clip with sound (tap again to mute).

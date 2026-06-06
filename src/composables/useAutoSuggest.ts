@@ -468,11 +468,11 @@ export function useAutoSuggest(
   const SLASH_COMMANDS: SlashCommand[] = [
     { id: 'cmd:kick', name: 'kick', description: 'Kick a member from the server', permission: 'KICK_MEMBERS' },
     { id: 'cmd:ban', name: 'ban', description: 'Ban a member from the server', permission: 'BAN_MEMBERS' },
-    { id: 'cmd:gif', name: 'gif', description: 'Search for a GIF', permission: '', params: [{ name: 'query', description: 'Search for a GIF' }] },
-    { id: 'cmd:sticker', name: 'sticker', description: 'Search for a sticker', permission: '', params: [{ name: 'query', description: 'Search for a sticker' }] },
-    { id: 'cmd:clip', name: 'clip', description: 'Search for a clip', permission: '', params: [{ name: 'query', description: 'Search for a clip' }], enabled: () => instanceSettings.gifClipsEnabled },
-    { id: 'cmd:meme', name: 'meme', description: 'Search for a meme', permission: '', params: [{ name: 'query', description: 'Search for a meme' }], enabled: () => instanceSettings.gifMemesEnabled },
-    { id: 'cmd:aiemoji', name: 'aiemoji', description: 'Search for an AI emoji', permission: '', params: [{ name: 'query', description: 'Search for an AI emoji' }], enabled: () => instanceSettings.gifAiEmojisEnabled },
+    { id: 'cmd:gif', name: 'gif', description: 'Search KLIPY for a GIF', permission: '', params: [{ name: 'query', description: 'Search KLIPY for a GIF' }] },
+    { id: 'cmd:sticker', name: 'sticker', description: 'Search KLIPY for a sticker', permission: '', params: [{ name: 'query', description: 'Search KLIPY for a sticker' }] },
+    { id: 'cmd:clip', name: 'clip', description: 'Search KLIPY for a Clip', permission: '', params: [{ name: 'query', description: 'Search KLIPY for a Clip' }], enabled: () => instanceSettings.gifClipsEnabled },
+    { id: 'cmd:meme', name: 'meme', description: 'Search KLIPY for a meme', permission: '', params: [{ name: 'query', description: 'Search KLIPY for a meme' }], enabled: () => instanceSettings.gifMemesEnabled },
+    { id: 'cmd:aiemoji', name: 'aiemoji', description: 'Search KLIPY for an AI emoji', permission: '', params: [{ name: 'query', description: 'Search KLIPY for an AI emoji' }], enabled: () => instanceSettings.gifAiEmojisEnabled },
   ];
 
   const commandSuggestions = computed((): SuggestionItem[] => {
