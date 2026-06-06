@@ -16,7 +16,7 @@ import { authContextService } from '@/services/AuthContextService'
 import type { Gif } from '@/types'
 
 // Database row type for gif_favorites table
-export type GifMediaType = 'gif' | 'sticker'
+export type GifMediaType = 'gif' | 'sticker' | 'clip' | 'meme' | 'ai-emoji'
 
 export interface GifFavorite {
   id: string

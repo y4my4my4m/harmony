@@ -1145,6 +1145,30 @@
               <strong>watermark</strong> on sent media is optional but recommended.
             </span>
 
+            <h4 style="margin-top: 20px;">Optional media types</h4>
+            <p class="setting-hint" style="margin-bottom: 12px;">
+              GIFs and Stickers are always available. Enable the extra Klipy collections below to add them as
+              picker tabs and slash commands (<code>/clip</code>, <code>/meme</code>, <code>/aiemoji</code>).
+              When off, they are hidden everywhere.
+            </p>
+            <div class="setting-row">
+              <label class="toggle-label">
+                <input type="checkbox" v-model="config.chat.gifClipsEnabled" />
+                <span class="toggle-slider"></span>
+                <span class="toggle-text">Enable Clips (short videos)</span>
+              </label>
+              <label class="toggle-label">
+                <input type="checkbox" v-model="config.chat.gifMemesEnabled" />
+                <span class="toggle-slider"></span>
+                <span class="toggle-text">Enable Memes</span>
+              </label>
+              <label class="toggle-label">
+                <input type="checkbox" v-model="config.chat.gifAiEmojisEnabled" />
+                <span class="toggle-slider"></span>
+                <span class="toggle-text">Enable AI Emoji</span>
+              </label>
+            </div>
+
             <h3 style="margin-top: 24px;">Trending & Discovery</h3>
             <div class="setting-group">
               <label>Trending Posts</label>
@@ -2506,6 +2530,9 @@ const config = ref({
     enableVoiceChannels: true,
     gifAdsEnabled: true,
     gifKlipyWatermarkEnabled: true,
+    gifClipsEnabled: false,
+    gifMemesEnabled: false,
+    gifAiEmojisEnabled: false,
   },
   federation: {
     maxPostLength: 500,
@@ -3844,6 +3871,9 @@ const saveConfig = async () => {
       enable_voice_channels: config.value.chat.enableVoiceChannels,
       gif_ads_enabled: config.value.chat.gifAdsEnabled,
       gif_klipy_watermark_enabled: config.value.chat.gifKlipyWatermarkEnabled,
+      gif_clips_enabled: config.value.chat.gifClipsEnabled,
+      gif_memes_enabled: config.value.chat.gifMemesEnabled,
+      gif_ai_emojis_enabled: config.value.chat.gifAiEmojisEnabled,
       max_post_length: config.value.federation.maxPostLength,
       federation_retry_attempts: config.value.federation.retryAttempts,
       max_custom_emojis_per_server: config.value.federation.maxCustomEmojisPerServer ?? 0,

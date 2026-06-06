@@ -1,38 +1,45 @@
 /**
  * Klipy attribution helpers.
  *
- * Messages store GIFs/stickers as plain image URLs. We append a URL fragment
- * the image loader ignores but our renderer can read back, carrying two bits of
- * metadata:
- *   - `item`    : the GIF/sticker's Klipy page (klipy.com/...) for the optional
- *                 attribution watermark link.
- *   - `sticker` : whether this media is a sticker (rendered small, no lightbox).
+ * Messages store GIFs/stickers/clips/memes/AI-emojis as plain media URLs. We
+ * append a URL fragment the loader ignores but our renderer reads back, carrying:
+ *   - `item` : the media's Klipy page (klipy.com/...) for the optional watermark link.
+ *   - `kind` : 'sticker' | 'clip' | 'meme' | 'ai-emoji' (absent ⇒ 'gif').
  *
- * Format: `#harmony-klipy=item%3D...%26sticker%3D1` (a urlencoded querystring).
+ * Format: `#harmony-klipy=item%3D...%26kind%3Dclip` (a urlencoded querystring).
  */
 import type { Gif } from '@/types'
+import type { GifMediaType } from '@/services/gifProviderService'
 
 const KLIPY_FRAGMENT = 'harmony-klipy'
 
-export interface KlipyMeta {
-  itemPageUrl?: string
-  isSticker: boolean
+export type KlipyKind = 'gif' | 'sticker' | 'clip' | 'meme' | 'ai-emoji'
+
+/** Map the picker's media type to the compact kind stored on the message URL. */
+export function mediaTypeToKind(mediaType: GifMediaType): KlipyKind {
+  switch (mediaType) {
+    case 'stickers': return 'sticker'
+    case 'clips': return 'clip'
+    case 'memes': return 'meme'
+    case 'ai-emojis': return 'ai-emoji'
+    default: return 'gif'
+  }
 }
 
 export interface BuildOptions {
   itemPageUrl?: string | null
-  isSticker?: boolean
+  kind?: KlipyKind
 }
 
 export function buildGifMessageUrl(gifUrl: string, opts?: BuildOptions): string {
   const itemPageUrl = opts?.itemPageUrl
-  const isSticker = opts?.isSticker
-  if (!itemPageUrl && !isSticker) return gifUrl
+  const kind = opts?.kind && opts.kind !== 'gif' ? opts.kind : undefined
+  if (!itemPageUrl && !kind) return gifUrl
   try {
     const u = new URL(gifUrl)
     const params = new URLSearchParams()
     if (itemPageUrl) params.set('item', itemPageUrl)
-    if (isSticker) params.set('sticker', '1')
+    if (kind) params.set('kind', kind)
     const encoded = params.toString()
     if (!encoded) return gifUrl
     u.hash = `${KLIPY_FRAGMENT}=${encoded}`
@@ -72,9 +79,22 @@ export function parseKlipyItemPageUrl(mediaUrl: string): string | null {
   return readFragment(mediaUrl)?.get('item') || null
 }
 
-/** True when this message media URL was tagged as a Klipy sticker. */
+/** The Klipy kind tagged on a message media URL ('gif' when untagged). */
+export function parseKlipyKind(mediaUrl: string): KlipyKind {
+  const k = readFragment(mediaUrl)?.get('kind')
+  if (k === 'sticker' || k === 'clip' || k === 'meme' || k === 'ai-emoji') return k
+  return 'gif'
+}
+
+/** Small, sticker-like media (stickers + AI emojis): rendered tiny, no lightbox. */
 export function isStickerMessageUrl(mediaUrl: string): boolean {
-  return readFragment(mediaUrl)?.get('sticker') === '1'
+  const k = parseKlipyKind(mediaUrl)
+  return k === 'sticker' || k === 'ai-emoji'
+}
+
+/** Clip media — rendered/sent as a video. */
+export function isVideoMessageUrl(mediaUrl: string): boolean {
+  return parseKlipyKind(mediaUrl) === 'clip'
 }
 
 /** Fallback Klipy page when we only know it's a Klipy CDN asset (no item page stored). */
@@ -82,11 +102,11 @@ export function defaultKlipyHomeUrl(): string {
   return 'https://klipy.com'
 }
 
-/** Copy a picker GIF/sticker with the message URL (CDN + optional metadata). */
-export function withGifMessageUrl(gif: Gif, isSticker = false): Gif {
+/** Copy a picker item with the message URL (CDN + optional metadata). */
+export function withGifMessageUrl(gif: Gif, kind: KlipyKind = 'gif'): Gif {
   const url = buildGifMessageUrl(gif.media_formats.gif.url, {
     itemPageUrl: gif.itemUrl,
-    isSticker,
+    kind,
   })
   if (url === gif.media_formats.gif.url) return gif
   return {

@@ -11,6 +11,7 @@ import { userDataService } from '@/services/userDataService'
 import { userEventChannel } from '@/services/UserEventChannel'
 import { debug } from '@/utils/debug'
 import { updateFaviconBadge } from '@/utils/faviconBadge'
+import { useInstanceSettingsStore } from '@/stores/useInstanceSettings'
 import type { 
   Notification, 
   NotificationType,
@@ -1090,9 +1091,9 @@ export const useNotificationStore = defineStore('notification', {
         }
       }
 
-      // Update document title
+      // Update document title (base title follows the instance name)
       if (typeof document !== 'undefined') {
-        const baseTitle = 'Harmony'
+        const baseTitle = useInstanceSettingsStore().settings.instanceName || 'Harmony'
         if (this.unreadCount > 0) {
           document.title = `(${this.unreadCount}) ${baseTitle}`
         } else {

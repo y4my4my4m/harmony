@@ -17,11 +17,11 @@
       :files="attachedFiles"
       @remove-file="removeFile"
     />
-    <!-- Inline GIF/sticker results (live search during /gif or /sticker command) -->
+    <!-- Inline media results (live search during /gif, /sticker, /clip, /meme, /aiemoji) -->
     <InlineGifPicker
-      v-if="autoSuggest.activeCommand.value?.name === 'gif' || autoSuggest.activeCommand.value?.name === 'sticker'"
+      v-if="inlineMediaType"
       :query="modelValue || ''"
-      :media-type="autoSuggest.activeCommand.value?.name === 'sticker' ? 'stickers' : 'gifs'"
+      :media-type="inlineMediaType"
       @selectGif="handleInlineGifSelect"
     />
     <!-- Command parameter hint bar (Discord-style) -->
@@ -167,6 +167,7 @@ import AutoSuggest from '@/components/AutoSuggest.vue';
 import RichTextEditor from '@/components/RichTextEditor.vue';
 import VoiceRecorder from '@/components/VoiceRecorder.vue';
 import InlineGifPicker from '@/components/InlineGifPicker.vue';
+import type { GifMediaType } from '@/services/gifProviderService';
 import type { FilePreviewData } from '@/components/FilePreview.vue';
 import type { SuggestionItem } from '@/components/AutoSuggest.vue';
 import type { Message, Gif } from '@/types';
@@ -493,6 +494,19 @@ const updateText = (newText: string, cursorPosition?: number) => {
   }
 };
 const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText);
+
+// Maps the active media slash command to the inline picker's media type.
+const INLINE_MEDIA_COMMANDS: Record<string, GifMediaType> = {
+  gif: 'gifs',
+  sticker: 'stickers',
+  clip: 'clips',
+  meme: 'memes',
+  aiemoji: 'ai-emojis',
+};
+const inlineMediaType = computed<GifMediaType | null>(() => {
+  const name = autoSuggest.activeCommand.value?.name;
+  return name ? INLINE_MEDIA_COMMANDS[name] ?? null : null;
+});
 
     const handleModelValueUpdate = (value: string) => {
       emit('update:modelValue', value)

@@ -18,27 +18,53 @@
         <div 
           v-else
           class="inline-gif-item"
-          @click="$emit('selectGif', withGifMessageUrl(item, mediaType === 'stickers'))"
+          @click="$emit('selectGif', withGifMessageUrl(item, kind))"
           @mouseover="hoveredGif = item.id"
           @mouseleave="hoveredGif = null"
         >
+          <video
+            v-if="isClips"
+            :src="stripFragment(item.media_formats.mp4.url)"
+            :poster="stripFragment(item.media_formats.gifpreview.url)"
+            class="inline-gif-media"
+            muted
+            loop
+            playsinline
+            preload="metadata"
+            @mouseenter="(e) => playPreview(e)"
+            @mouseleave="(e) => pausePreview(e)"
+          ></video>
           <img 
+            v-else
             :src="inlineGifSrc(item)" 
             :alt="item.title || 'GIF'"
             loading="lazy"
           >
         </div>
       </template>
+      <!-- Required KLIPY attribution -->
+      <a
+        class="inline-gif-attribution"
+        href="https://klipy.com"
+        target="_blank"
+        rel="noopener noreferrer nofollow"
+        @click.stop
+        title="Powered by KLIPY"
+      >KLIPY</a>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted } from 'vue';
+import { ref, watch, onMounted, computed } from 'vue';
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue';
 import GifAdSlot from '@/components/GifAdSlot.vue';
 import { gifProvider, type GifMediaType } from '@/services/gifProviderService';
-import { stripKlipyAttributionFragment, withGifMessageUrl } from '@/utils/klipyAttribution';
+import {
+  stripKlipyAttributionFragment,
+  withGifMessageUrl,
+  mediaTypeToKind,
+} from '@/utils/klipyAttribution';
 import type { Gif, GifResultItem } from '@/types';
 
 interface Props {
@@ -56,6 +82,20 @@ defineEmits<{
 
 const items = ref<GifResultItem[]>([]);
 const hoveredGif = ref<string | null>(null);
+const kind = computed(() => mediaTypeToKind(props.mediaType));
+const isClips = computed(() => props.mediaType === 'clips');
+
+const stripFragment = (url: string) => stripKlipyAttributionFragment(url);
+
+const playPreview = (e: Event) => {
+  const v = e.target as HTMLVideoElement;
+  v.play?.().catch(() => {});
+};
+const pausePreview = (e: Event) => {
+  const v = e.target as HTMLVideoElement;
+  v.pause?.();
+  if (v) v.currentTime = 0;
+};
 
 const inlineGifSrc = (item: Gif) => {
   const url =
@@ -142,11 +182,34 @@ onMounted(() => {
   z-index: 1;
 }
 
-.inline-gif-item img {
+.inline-gif-item img,
+.inline-gif-media {
   width: 100%;
   height: 100%;
   object-fit: cover;
   display: block;
+  background: #000;
+}
+
+/* Required KLIPY attribution, sits as a subtle tile at the end of the strip. */
+.inline-gif-attribution {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 1;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  background: var(--background-senary-alpha);
+  text-decoration: none;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.inline-gif-attribution:hover {
+  color: var(--text-primary);
+  background: var(--background-modifier-hover);
 }
 
 .inline-gif-loading {

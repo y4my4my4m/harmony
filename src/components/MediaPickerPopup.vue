@@ -1,31 +1,21 @@
 <template>
   <div class="media-picker-popup" ref="popupRef" :style="positionStyle">
-    <!-- Tab Navigation Header -->
+    <!-- Tab Navigation Header (horizontally scrollable) -->
     <div class="picker-tabs">
+      <div class="picker-tabs-scroll" ref="tabsScrollRef" @wheel="onTabsWheel">
+        <button
+          v-for="tab in tabs"
+          :key="tab.id"
+          class="tab-button"
+          :class="{ active: activeTab === tab.id }"
+          @click="activeTab = tab.id"
+        >
+          {{ tab.label }}
+        </button>
+      </div>
+      <!-- Favorite toggle (media tabs only - Emoji favorites are always inline) -->
       <button 
-        class="tab-button" 
-        :class="{ active: activeTab === 'gifs' }"
-        @click="activeTab = 'gifs'"
-      >
-        GIFs
-      </button>
-      <button 
-        class="tab-button" 
-        :class="{ active: activeTab === 'stickers' }"
-        @click="activeTab = 'stickers'"
-      >
-        Stickers
-      </button>
-      <button 
-        class="tab-button"
-        :class="{ active: activeTab === 'emoji' }"
-        @click="activeTab = 'emoji'"
-      >
-        Emoji
-      </button>
-      <!-- Favorite toggle (GIFs/Stickers tabs - Emoji favorites are always inline) -->
-      <button 
-        v-if="activeTab === 'gifs' || activeTab === 'stickers'"
+        v-if="activeTab !== 'emoji'"
         class="tab-icon-button"
         :class="{ active: showFavorites }"
         @click="showFavorites = !showFavorites"
@@ -38,44 +28,41 @@
       </button>
     </div>
 
-    <!-- GIF Content -->
+    <!-- Klipy media content (gifs/stickers/clips/memes/ai-emojis) -->
     <GifPickerContent
-      v-if="activeTab === 'gifs'"
+      v-if="activeTab !== 'emoji'"
+      :key="activeTab"
       :show-favorites="showFavorites"
-      :initial-search-query="initialSearchQuery"
-      @update:show-favorites="showFavorites = $event"
-      @send-gif="handleSendGif"
-    />
-
-    <!-- Sticker Content (Klipy stickers) -->
-    <GifPickerContent
-      v-else-if="activeTab === 'stickers'"
-      :show-favorites="showFavorites"
-      media-type="stickers"
+      :media-type="activeTab"
+      :initial-search-query="activeTab === 'gifs' ? initialSearchQuery : ''"
       @update:show-favorites="showFavorites = $event"
       @send-gif="handleSendGif"
     />
 
     <!-- Emoji Content -->
     <EmojiPickerContent
-      v-else-if="activeTab === 'emoji'"
+      v-else
       @send-emoji="handleSendEmoji"
     />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted, onUnmounted, nextTick, type Ref } from 'vue';
+import { ref, watch, onMounted, onUnmounted, nextTick, computed, type Ref } from 'vue';
 import { usePopupPositioning, type PopupPosition } from '@/composables/usePopupPositioning';
 import GifPickerContent from '@/components/GifPickerContent.vue';
 import EmojiPickerContent from '@/components/EmojiPickerContent.vue';
+import { useInstanceSettingsStore } from '@/stores/useInstanceSettings';
+import type { GifMediaType } from '@/services/gifProviderService';
 import type { Gif, Emoji } from '@/types';
+
+type PickerTab = GifMediaType | 'emoji';
 
 interface Props {
   closePopup?: () => void;
   position?: PopupPosition;
   triggerElement?: HTMLElement;
-  initialTab?: 'gifs' | 'stickers' | 'emoji';
+  initialTab?: PickerTab;
   initialSearchQuery?: string;
 }
 
@@ -92,12 +79,41 @@ interface Emits {
 
 const emit = defineEmits<Emits>();
 
+const instanceSettings = useInstanceSettingsStore();
+
+// Tabs: GIFs + Stickers are always available; Clips/Memes/AI Emoji are
+// gated by per-instance admin toggles. Emoji is the built-in picker.
+const tabs = computed<{ id: PickerTab; label: string }[]>(() => {
+  const list: { id: PickerTab; label: string }[] = [
+    { id: 'gifs', label: 'GIFs' },
+    { id: 'stickers', label: 'Stickers' },
+  ];
+  if (instanceSettings.gifClipsEnabled) list.push({ id: 'clips', label: 'Clips' });
+  if (instanceSettings.gifMemesEnabled) list.push({ id: 'memes', label: 'Memes' });
+  if (instanceSettings.gifAiEmojisEnabled) list.push({ id: 'ai-emojis', label: 'AI Emoji' });
+  list.push({ id: 'emoji', label: 'Emoji' });
+  return list;
+});
+
 // State
-const activeTab = ref<'gifs' | 'stickers' | 'emoji'>(props.initialTab);
+const initialTab: PickerTab = props.initialTab;
+const isEnabledTab = tabs.value.some((t) => t.id === initialTab);
+const activeTab = ref<PickerTab>(isEnabledTab ? initialTab : 'gifs');
 const showFavorites = ref(false);
+const tabsScrollRef = ref<HTMLElement | null>(null);
 
 // Reset the favorites view when switching tabs so each picker opens on trending.
 watch(activeTab, () => { showFavorites.value = false; });
+
+// Desktop: vertical wheel over the tab strip scrolls it horizontally.
+const onTabsWheel = (e: WheelEvent) => {
+  const el = tabsScrollRef.value;
+  if (!el || el.scrollWidth <= el.clientWidth) return;
+  if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
+  el.scrollLeft += e.deltaY;
+  e.preventDefault();
+};
+
 const popupRef = ref<HTMLElement | null>(null);
 
 // Popup positioning
@@ -179,6 +195,26 @@ onUnmounted(() => {
   gap: 4px;
   flex-shrink: 0;
   background: var(--background-senary-alpha);
+  min-width: 0;
+}
+
+/* Horizontally scrollable strip; keeps the popup width fixed. */
+.picker-tabs-scroll {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  flex: 1 1 auto;
+  min-width: 0;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+}
+
+.picker-tabs-scroll::-webkit-scrollbar {
+  display: none;
 }
 
 .tab-button {
@@ -191,6 +227,8 @@ onUnmounted(() => {
   cursor: pointer;
   border-radius: 4px;
   transition: all 0.15s ease;
+  white-space: nowrap;
+  flex: 0 0 auto;
 }
 
 .tab-button:hover:not(:disabled) {

@@ -63,11 +63,11 @@ function buildParams(opts?: FetchOptions): URLSearchParams {
   return params
 }
 
-export type GifMediaType = 'gifs' | 'stickers'
+export type GifMediaType = 'gifs' | 'stickers' | 'clips' | 'memes' | 'ai-emojis'
 
 /** Backend path prefix for a media type. GIFs sit at the proxy root for back-compat. */
 function pathPrefix(mediaType: GifMediaType): string {
-  return mediaType === 'stickers' ? 'stickers/' : ''
+  return mediaType === 'gifs' ? '' : `${mediaType}/`
 }
 
 export const gifProvider = {
@@ -88,6 +88,27 @@ export const gifProvider = {
     } catch (err) {
       if ((err as Error)?.name !== 'AbortError') debug.error(`Failed to search ${mediaType}:`, err)
       return { items: [], page: 1, hasNext: false }
+    }
+  },
+
+  /** Klipy search suggestions (no query) / autocomplete (with query). Best-effort. */
+  async suggest(query: string | undefined, opts?: FetchOptions): Promise<string[]> {
+    const params = new URLSearchParams()
+    if (query?.trim()) params.set('q', query.trim())
+    if (opts?.locale) params.set('locale', opts.locale)
+    try {
+      const headers = { Accept: 'application/json', ...(await authHeaders()) }
+      const res = await fetch(`${FEDERATION_API}/gifs/suggest?${params}`, {
+        method: 'GET',
+        headers,
+        signal: opts?.signal,
+      })
+      if (!res.ok) return []
+      const data = await res.json()
+      return Array.isArray(data?.suggestions) ? data.suggestions : []
+    } catch (err) {
+      if ((err as Error)?.name !== 'AbortError') debug.error('Failed to fetch GIF suggestions:', err)
+      return []
     }
   },
 }

@@ -287,6 +287,8 @@
           v-else-if="part && typeof part === 'object' && part.type === 'file' && part.fileType === 'video'" 
           class="media-container video-container"
           :ref="el => { if (el) videoContainers[partIndex] = el as HTMLElement }"
+          @mouseenter="hoveredImageUrl = part.url"
+          @mouseleave="hoveredImageUrl = null"
         >
           <video
             :src="part.url"
@@ -297,6 +299,29 @@
             @play="handleVideoPlay"
             @pause="handleVideoPause"
           ></video>
+          <!-- Clip favorite button (Klipy clips only) -->
+          <button
+            v-if="isKlipyMedia(part.url)"
+            class="gif-favorite-button"
+            :class="{ 'favorited': isGifFavorited(part.url), 'visible': hoveredImageUrl === part.url || isGifFavorited(part.url) }"
+            @click.stop="toggleGifFavorite(part.url)"
+            :title="isGifFavorited(part.url) ? 'Remove from favorites' : 'Add to favorites'"
+          >
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+              <path v-if="isGifFavorited(part.url)" d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
+              <path v-else d="M22 9.24l-7.19-.62L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21 12 17.27 18.18 21l-1.63-7.03L22 9.24zM12 15.4l-3.76 2.27 1-4.28-3.32-2.88 4.38-.38L12 6.1l1.71 4.04 4.38.38-3.32 2.88 1 4.28L12 15.4z"/>
+            </svg>
+          </button>
+          <a
+            v-if="showKlipyWatermark && isKlipyMedia(part.url)"
+            class="klipy-watermark"
+            :class="{ 'visible': hoveredImageUrl === part.url }"
+            :href="klipyWatermarkHref(part.url)"
+            target="_blank"
+            rel="noopener noreferrer nofollow"
+            @click.stop
+            title="via KLIPY"
+          >KLIPY</a>
         </div>
         
         <!-- Audio files (voice messages + regular audio) -->
@@ -408,6 +433,7 @@ import {
   parseKlipyItemPageUrl,
   stripKlipyAttributionFragment,
   isStickerMessageUrl,
+  parseKlipyKind,
 } from '@/utils/klipyAttribution';
 
 export default defineComponent({
@@ -607,7 +633,8 @@ export default defineComponent({
     
     const toggleGifFavorite = async (url: string) => {
       const mediaUrl = stripKlipyAttributionFragment(url);
-      const mediaType = isStickerMessageUrl(url) ? 'sticker' : 'gif';
+      // Route the favorite into its matching media tab (gif/sticker/clip/meme/ai-emoji).
+      const mediaType = parseKlipyKind(url);
       const result = await gifService.toggleFavoriteByUrl(mediaUrl, mediaUrl, null, mediaType);
       if (!result.error) {
         if (result.isFavorite) {

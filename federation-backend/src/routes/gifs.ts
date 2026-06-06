@@ -14,7 +14,7 @@
 import { Router } from 'express';
 import { requireAuth, AuthenticatedRequest } from '../middleware/auth.js';
 import { getSupabaseClient } from '../config/supabase.js';
-import { KlipyService, isKlipyConfigured, hasAdsKey } from '../services/KlipyService.js';
+import { KlipyService, isKlipyConfigured, hasAdsKey, isValidMediaType, type GifMediaType } from '../services/KlipyService.js';
 import { logger } from '../utils/logger.js';
 
 const router = Router();
@@ -66,7 +66,7 @@ async function shouldShowAds(profileId: string | undefined): Promise<boolean> {
 
 async function handle(
   kind: 'trending' | 'search',
-  mediaType: 'gifs' | 'stickers',
+  mediaType: GifMediaType,
   req: AuthenticatedRequest,
   res: any,
 ) {
@@ -79,8 +79,8 @@ async function handle(
   const perPage = req.query.per_page ? Number(req.query.per_page) : 24;
   const locale = typeof req.query.locale === 'string' ? req.query.locale : undefined;
 
-  // Klipy serves ad objects on the GIF feed; the sticker feed is kept ad-free
-  // (cleaner UX, and it also skips the per-request ads lookup entirely).
+  // Klipy serves ad objects on the GIF feed only in our setup; other media
+  // feeds are kept ad-free (cleaner UX, and it skips the per-request ads lookup).
   const withAds = mediaType === 'gifs' ? await shouldShowAds(req.profileId) : false;
 
   try {
@@ -107,7 +107,23 @@ async function handle(
   }
 }
 
-// Mounted at /gifs in server.ts
+// Mounted at /gifs in server.ts.
+
+// Search suggestions / autocomplete (literal paths declared before /:media/*).
+router.get('/suggest', requireAuth, async (req, res) => {
+  if (!isKlipyConfigured()) return res.json({ suggestions: [] });
+  const query = typeof req.query.q === 'string' ? req.query.q : undefined;
+  const locale = typeof req.query.locale === 'string' ? req.query.locale : undefined;
+  const suggestions = await KlipyService.fetchSuggestions({
+    query,
+    locale,
+    userAgent: req.headers['user-agent'],
+  });
+  res.setHeader('Cache-Control', 'private, max-age=60');
+  return res.json({ suggestions });
+});
+
+// Back-compat GIF routes (frontend GIF path sits at the proxy root).
 router.get('/trending', requireAuth, (req, res) =>
   handle('trending', 'gifs', req as AuthenticatedRequest, res),
 );
@@ -116,12 +132,17 @@ router.get('/search', requireAuth, (req, res) =>
   handle('search', 'gifs', req as AuthenticatedRequest, res),
 );
 
-router.get('/stickers/trending', requireAuth, (req, res) =>
-  handle('trending', 'stickers', req as AuthenticatedRequest, res),
-);
+// Generic per-media routes: /stickers/trending, /clips/search, /memes/trending, etc.
+router.get('/:media/trending', requireAuth, (req, res) => {
+  const media = req.params.media;
+  if (!isValidMediaType(media)) return res.status(404).json({ error: 'Unknown media type' });
+  return handle('trending', media, req as AuthenticatedRequest, res);
+});
 
-router.get('/stickers/search', requireAuth, (req, res) =>
-  handle('search', 'stickers', req as AuthenticatedRequest, res),
-);
+router.get('/:media/search', requireAuth, (req, res) => {
+  const media = req.params.media;
+  if (!isValidMediaType(media)) return res.status(404).json({ error: 'Unknown media type' });
+  return handle('search', media, req as AuthenticatedRequest, res);
+});
 
 export default router;

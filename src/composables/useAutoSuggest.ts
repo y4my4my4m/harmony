@@ -2,6 +2,7 @@ import { ref, computed, nextTick, watch, onScopeDispose } from 'vue';
 import type { Ref } from 'vue';
 import { useEmojiCacheStore } from '@/stores/useEmojiCache';
 import { useServerChannelStore } from '@/stores/useServerChannel';
+import { useInstanceSettingsStore } from '@/stores/useInstanceSettings';
 import { userDataService } from '@/services/userDataService';
 import { activityPubService } from '@/services/activityPubService';
 import { roleService } from '@/services/RoleService';
@@ -458,13 +459,20 @@ export function useAutoSuggest(
     description: string;
     permission: string;
     params?: { name: string; description: string }[];
+    /** Optional instance-setting gate; command is hidden when this returns false. */
+    enabled?: () => boolean;
   }
+
+  const instanceSettings = useInstanceSettingsStore();
 
   const SLASH_COMMANDS: SlashCommand[] = [
     { id: 'cmd:kick', name: 'kick', description: 'Kick a member from the server', permission: 'KICK_MEMBERS' },
     { id: 'cmd:ban', name: 'ban', description: 'Ban a member from the server', permission: 'BAN_MEMBERS' },
     { id: 'cmd:gif', name: 'gif', description: 'Search for a GIF', permission: '', params: [{ name: 'query', description: 'Search for a GIF' }] },
     { id: 'cmd:sticker', name: 'sticker', description: 'Search for a sticker', permission: '', params: [{ name: 'query', description: 'Search for a sticker' }] },
+    { id: 'cmd:clip', name: 'clip', description: 'Search for a clip', permission: '', params: [{ name: 'query', description: 'Search for a clip' }], enabled: () => instanceSettings.gifClipsEnabled },
+    { id: 'cmd:meme', name: 'meme', description: 'Search for a meme', permission: '', params: [{ name: 'query', description: 'Search for a meme' }], enabled: () => instanceSettings.gifMemesEnabled },
+    { id: 'cmd:aiemoji', name: 'aiemoji', description: 'Search for an AI emoji', permission: '', params: [{ name: 'query', description: 'Search for an AI emoji' }], enabled: () => instanceSettings.gifAiEmojisEnabled },
   ];
 
   const commandSuggestions = computed((): SuggestionItem[] => {
@@ -474,6 +482,7 @@ export function useAutoSuggest(
     return SLASH_COMMANDS
       .filter(cmd => {
         if (!cmd.name.includes(query)) return false;
+        if (cmd.enabled && !cmd.enabled()) return false;
         if (!cmd.permission) return true;
         if (isOwner) return true;
         return hasCurrentUserPermission(Permission[cmd.permission as keyof typeof Permission]);

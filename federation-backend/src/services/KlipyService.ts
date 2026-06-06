@@ -28,6 +28,8 @@ export interface NormalizedGif {
   title?: string;
   /** Klipy item page (klipy.com/gifs/...) for attribution links. */
   itemUrl?: string;
+  /** True for clip media (mp4/webm) — rendered/sent as video, not an image. */
+  isVideo?: boolean;
   media_formats: {
     gif: { url: string };
     gifpreview: { url: string };
@@ -53,7 +55,35 @@ export interface GifFeed {
 }
 
 /** Klipy native media collections we proxy. */
-export type GifMediaType = 'gifs' | 'stickers';
+export type GifMediaType = 'gifs' | 'stickers' | 'clips' | 'memes' | 'ai-emojis';
+
+/** Maps our media type to Klipy's URL path slug (memes live under static-memes). */
+const MEDIA_PATH_SLUG: Record<GifMediaType, string> = {
+  'gifs': 'gifs',
+  'stickers': 'stickers',
+  'clips': 'clips',
+  'memes': 'static-memes',
+  'ai-emojis': 'ai-emojis',
+};
+
+const VIDEO_MEDIA: ReadonlySet<GifMediaType> = new Set<GifMediaType>(['clips']);
+
+/**
+ * Public klipy.com page path per media type (for the attribution watermark link).
+ * Note these differ from the API slugs: memes → static-memes, ai-emojis → ai-gifs.
+ * Source: Klipy's Embedly URL scheme (clips|gifs|stickers|ai-gifs|static-memes).
+ */
+const MEDIA_WEB_PATH: Record<GifMediaType, string> = {
+  'gifs': 'gifs',
+  'stickers': 'stickers',
+  'clips': 'clips',
+  'memes': 'static-memes',
+  'ai-emojis': 'ai-gifs',
+};
+
+export function isValidMediaType(value: string): value is GifMediaType {
+  return Object.prototype.hasOwnProperty.call(MEDIA_PATH_SLUG, value);
+}
 
 export interface FetchGifsOptions {
   kind: GifKind;
@@ -112,43 +142,58 @@ function resolveKey(withAds: boolean): string | undefined {
 
 function normalizeGif(raw: any, mediaType: GifMediaType = 'gifs'): NormalizedGif | null {
   const file = raw?.file as KlipyFile | undefined;
-  const gifUrl = pickUrl(file, DISPLAY_SIZES, 'gif') || raw?.url;
-  if (!gifUrl) return null;
+  const isVideo = VIDEO_MEDIA.has(mediaType);
 
-  // Stickers are transparent, so prefer formats that preserve alpha (webp/png/
-  // gif) over jpg for the preview. GIFs prefer a cheap jpg/webp still.
+  const mp4Url = pickUrl(file, DISPLAY_SIZES, 'mp4');
+  const webmUrl = pickUrl(file, DISPLAY_SIZES, 'webm');
+  const animatedGif = pickUrl(file, DISPLAY_SIZES, 'gif');
+  const staticImg =
+    pickUrl(file, DISPLAY_SIZES, 'webp') || pickUrl(file, DISPLAY_SIZES, 'png');
+
+  // The "primary" URL is what gets sent in a message: a video src for clips,
+  // otherwise the best available still/animated image.
+  const primaryUrl = isVideo
+    ? mp4Url || webmUrl || animatedGif
+    : animatedGif || staticImg || raw?.url;
+  if (!primaryUrl) return null;
+
+  // Previews: transparent media (stickers/ai-emojis) avoid jpg to keep alpha;
+  // clips fall back to a poster still.
+  const transparent = mediaType === 'stickers' || mediaType === 'ai-emojis';
   const previewUrl =
-    mediaType === 'stickers'
+    (transparent
       ? pickUrl(file, PREVIEW_SIZES, 'webp') ||
         pickUrl(file, PREVIEW_SIZES, 'png') ||
-        pickUrl(file, PREVIEW_SIZES, 'gif') ||
-        gifUrl
+        pickUrl(file, PREVIEW_SIZES, 'gif')
       : pickUrl(file, PREVIEW_SIZES, 'jpg') ||
         pickUrl(file, PREVIEW_SIZES, 'webp') ||
-        pickUrl(file, PREVIEW_SIZES, 'gif') ||
-        gifUrl;
+        pickUrl(file, PREVIEW_SIZES, 'png') ||
+        pickUrl(file, PREVIEW_SIZES, 'gif')) || primaryUrl;
 
-  const mp4Url = pickUrl(file, DISPLAY_SIZES, 'mp4') || gifUrl;
-  const webmUrl = pickUrl(file, DISPLAY_SIZES, 'webm') || mp4Url;
-
+  // Klipy's feed doesn't return an item page URL, so build it from the slug.
+  // Falls back to any URL the API does provide.
+  const slug = typeof raw?.slug === 'string' ? raw.slug : undefined;
   const itemUrl =
     typeof raw?.itemurl === 'string'
       ? raw.itemurl
       : typeof raw?.item_url === 'string'
         ? raw.item_url
-        : undefined;
+        : slug
+          ? `https://klipy.com/${MEDIA_WEB_PATH[mediaType]}/${slug}`
+          : undefined;
 
   return {
     kind: 'gif',
-    id: String(raw?.id ?? raw?.slug ?? gifUrl),
+    id: String(raw?.id ?? raw?.slug ?? primaryUrl),
     slug: raw?.slug,
     title: raw?.title || undefined,
     itemUrl,
+    isVideo: isVideo || undefined,
     media_formats: {
-      gif: { url: gifUrl },
+      gif: { url: primaryUrl },
       gifpreview: { url: previewUrl },
-      mp4: { url: mp4Url },
-      webm: { url: webmUrl },
+      mp4: { url: mp4Url || primaryUrl },
+      webm: { url: webmUrl || mp4Url || primaryUrl },
     },
   };
 }
@@ -186,7 +231,8 @@ export class KlipyService {
     const perPage = Math.min(50, Math.max(1, opts.perPage || 24));
 
     const mediaType: GifMediaType = opts.mediaType || 'gifs';
-    const path = `${mediaType}/${opts.kind === 'search' ? 'search' : 'trending'}`;
+    const slug = MEDIA_PATH_SLUG[mediaType];
+    const path = `${slug}/${opts.kind === 'search' ? 'search' : 'trending'}`;
     const url = new URL(`${config.KLIPY_BASE_URL}/api/v1/${key}/${path}`);
     url.searchParams.set('page', String(page));
     url.searchParams.set('per_page', String(perPage));
@@ -260,6 +306,59 @@ export class KlipyService {
       hasNext: Boolean(data?.has_next),
     };
   }
+
+  /**
+   * Fetch search suggestions (no query) or autocomplete (with query) terms.
+   * Klipy exposes these as `/search-suggestions` and `/autocomplete` under the
+   * keyed base path. Failures degrade to an empty list — suggestions are a
+   * nice-to-have, never a hard dependency.
+   */
+  static async fetchSuggestions(opts: {
+    query?: string;
+    locale?: string;
+    userAgent?: string;
+  }): Promise<string[]> {
+    // Suggestions don't need ad selection; use whichever key exists.
+    const key = config.KLIPY_API_KEY_NOADS || config.KLIPY_API_KEY_ADS;
+    if (!key) return [];
+
+    const q = opts.query?.trim();
+    const endpoint = q ? 'autocomplete' : 'search-suggestions';
+    const url = new URL(`${config.KLIPY_BASE_URL}/api/v1/${key}/${endpoint}`);
+    if (q) url.searchParams.set('q', q);
+    if (opts.locale) url.searchParams.set('locale', opts.locale);
+
+    try {
+      const res = await fetch(url, {
+        method: 'GET',
+        headers: {
+          Accept: 'application/json',
+          'User-Agent': opts.userAgent || 'HarmonyFederation/1.0',
+        },
+      });
+      if (!res.ok) return [];
+      const payload: any = await res.json();
+      return extractSuggestionStrings(payload);
+    } catch (err) {
+      logger.debug('Klipy suggestions request failed (non-fatal):', err);
+      return [];
+    }
+  }
+}
+
+/** Klipy suggestion payloads vary; pull plain strings out of common shapes. */
+function extractSuggestionStrings(payload: any): string[] {
+  const data = payload?.data ?? payload;
+  const arr: any[] = Array.isArray(data) ? data : Array.isArray(data?.data) ? data.data : [];
+  const out: string[] = [];
+  for (const entry of arr) {
+    if (typeof entry === 'string') out.push(entry);
+    else if (entry && typeof entry === 'object') {
+      const term = entry.term ?? entry.text ?? entry.title ?? entry.name ?? entry.query;
+      if (typeof term === 'string') out.push(term);
+    }
+  }
+  return out.slice(0, 8);
 }
 
 export default KlipyService;

@@ -29,7 +29,10 @@ INSERT INTO public.instance_config (config_key, config_value, description) VALUE
     ('terms_url', '""', 'URL to the Terms of Service page (shown on registration)'),
     ('privacy_url', '""', 'URL to the Privacy Policy page (shown on registration)'),
     ('gif_ads_enabled', 'true', 'Whether the GIF picker (Klipy) may serve ads to non-supporters'),
-    ('gif_klipy_watermark_enabled', 'true', 'Show the optional (recommended) KLIPY attribution watermark on sent GIFs/stickers. The required "Search KLIPY" picker label is always shown regardless.')
+    ('gif_klipy_watermark_enabled', 'true', 'Show the optional (recommended) KLIPY attribution watermark on sent GIFs/stickers. The required "Search KLIPY" picker label is always shown regardless.'),
+    ('gif_clips_enabled', 'false', 'Enable the Klipy Clips (short video) media type in the picker and the /clip command'),
+    ('gif_memes_enabled', 'false', 'Enable the Klipy Memes media type in the picker and the /meme command'),
+    ('gif_ai_emojis_enabled', 'false', 'Enable the Klipy AI Emoji media type in the picker and the /aiemoji command')
 ON CONFLICT (config_key) DO NOTHING;
 
 DO $$

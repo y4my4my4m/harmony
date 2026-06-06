@@ -39,10 +39,20 @@
           :disabled="showFavorites"
         >
       </div>
+      <!-- Klipy search suggestions / autocomplete -->
+      <div v-if="!showFavorites && suggestions.length" class="gif-suggestions">
+        <button
+          v-for="term in suggestions"
+          :key="term"
+          type="button"
+          class="gif-suggestion-chip"
+          @click="applySuggestion(term)"
+        >{{ term }}</button>
+      </div>
     </div>
 
     <!-- GIF Results / Favorites -->
-    <div class="gif-results">
+    <div class="gif-results" ref="resultsRef" @scroll="onResultsScroll">
       <!-- Loading State -->
       <div v-if="isLoading" class="loading-state">
         <LoadingSpinner :size="24" />
@@ -67,7 +77,19 @@
               @mouseleave="hoveredGif = null"
               @click="selectFavoriteGif(item)"
             >
-              <img :src="getGifImageSource(item.id, item.gif_url, item.preview_url)" :alt="item.title || 'GIF'" :class="{ 'sticker-thumb': isStickers }">
+              <video
+                v-if="(item.media_type ?? 'gif') === 'clip'"
+                :src="stripFragment(item.gif_url)"
+                :poster="stripFragment(item.preview_url)"
+                class="gif-video"
+                muted
+                loop
+                playsinline
+                preload="metadata"
+                @mouseenter="(e) => playPreview(e)"
+                @mouseleave="(e) => pausePreview(e)"
+              ></video>
+              <img v-else :src="getGifImageSource(item.id, item.gif_url, item.preview_url)" :alt="item.title || 'GIF'" :class="{ 'sticker-thumb': isStickerLike }">
               <button 
                 class="favorite-button favorited"
                 @click.stop="removeFavorite(item.id)"
@@ -105,7 +127,19 @@
               @mouseleave="hoveredGif = null"
               @click="selectGif(item)"
             >
-              <img :src="getGifImageSource(item.id, item.media_formats.gif.url, item.media_formats.gifpreview.url)" :alt="item.title" :class="{ 'sticker-thumb': isStickers }">
+              <video
+                v-if="isClips"
+                :src="stripFragment(item.media_formats.mp4.url)"
+                :poster="stripFragment(item.media_formats.gifpreview.url)"
+                class="gif-video"
+                muted
+                loop
+                playsinline
+                preload="metadata"
+                @mouseenter="(e) => playPreview(e)"
+                @mouseleave="(e) => pausePreview(e)"
+              ></video>
+              <img v-else :src="getGifImageSource(item.id, item.media_formats.gif.url, item.media_formats.gifpreview.url)" :alt="item.title" :class="{ 'sticker-thumb': isStickerLike }">
               <button 
                 class="favorite-button"
                 :class="{ favorited: isFavorited(item.media_formats.gif.url) }"
@@ -120,6 +154,9 @@
             </div>
           </template>
         </masonry-wall>
+        <div v-if="loadingMore" class="loading-more">
+          <LoadingSpinner :size="20" />
+        </div>
       </template>
     </div>
   </div>
@@ -132,17 +169,24 @@ import LoadingSpinner from '@/components/common/LoadingSpinner.vue';
 import GifAdSlot from '@/components/GifAdSlot.vue';
 import { debug } from '@/utils/debug';
 import { gifService, type FavoriteGif } from '@/services/GifService';
-import { gifProvider } from '@/services/gifProviderService';
-import { stripKlipyAttributionFragment, withGifMessageUrl } from '@/utils/klipyAttribution';
+import { gifProvider, type GifMediaType } from '@/services/gifProviderService';
+import {
+  stripKlipyAttributionFragment,
+  withGifMessageUrl,
+  mediaTypeToKind,
+  type KlipyKind,
+} from '@/utils/klipyAttribution';
 import type { Gif, GifResultItem } from '@/types';
 
 interface Props {
   showFavorites: boolean;
   initialSearchQuery?: string;
-  mediaType?: 'gifs' | 'stickers';
+  mediaType?: GifMediaType;
 }
 
-const props = defineProps<Props>();
+const props = withDefaults(defineProps<Props>(), {
+  mediaType: 'gifs',
+});
 
 interface Emits {
   (e: 'sendGif', gif: Gif): void;
@@ -152,7 +196,12 @@ interface Emits {
 const emit = defineEmits<Emits>();
 const { t } = useI18n();
 
-const isStickers = computed(() => props.mediaType === 'stickers');
+const kind = computed<KlipyKind>(() => mediaTypeToKind(props.mediaType));
+const isClips = computed(() => props.mediaType === 'clips');
+// Stickers and AI emojis are small, transparent, sticker-like media.
+const isStickerLike = computed(
+  () => props.mediaType === 'stickers' || props.mediaType === 'ai-emojis',
+);
 
 // "Search KLIPY" is required attribution per Klipy's terms, so it is always
 // shown regardless of the optional watermark setting.
@@ -166,13 +215,38 @@ const items = ref<GifResultItem[]>([]);
 const favorites = ref<FavoriteGif[]>([]);
 const hoveredGif = ref<string | null>(null);
 const searchInput = ref<HTMLInputElement | null>(null);
+const resultsRef = ref<HTMLElement | null>(null);
 const isLoading = ref(false);
+const loadingMore = ref(false);
 const favoriteUrls = ref<Set<string>>(new Set());
+const suggestions = ref<string[]>([]);
+
+// Pagination state for trending/search infinite scroll.
+const page = ref(1);
+const hasNext = ref(false);
+const PER_PAGE = 24;
+
+const stripFragment = (url: string): string => stripKlipyAttributionFragment(url);
 
 // Unified image source helper
 const getGifImageSource = (id: string, gifUrl: string, previewUrl: string): string => {
   const src = hoveredGif.value === id ? gifUrl : previewUrl;
   return stripKlipyAttributionFragment(src);
+};
+
+// Hover play/pause for clip (video) previews.
+const playPreview = (e: Event) => {
+  const v = e.target as HTMLVideoElement;
+  v.play?.().catch(() => {});
+};
+const pausePreview = (e: Event) => {
+  const v = e.target as HTMLVideoElement;
+  v.pause?.();
+  if (v) v.currentTime = 0;
+};
+
+const applySuggestion = (term: string) => {
+  searchQuery.value = term;
 };
 
 const applyFeed = (feed: Awaited<ReturnType<typeof gifProvider.trending>>) => {
@@ -188,38 +262,53 @@ const applyFeed = (feed: Awaited<ReturnType<typeof gifProvider.trending>>) => {
 // Check if a GIF is favorited (by URL)
 const isFavorited = (gifUrl: string): boolean => favoriteUrls.value.has(gifUrl);
 
-// Fetch trending GIFs via the backend Klipy proxy
-const fetchTrendingGifs = async () => {
-  isLoading.value = true;
+// Fetch a page of trending/search results. `reset` replaces the list and
+// resets pagination; otherwise the page is appended (infinite scroll).
+const fetchPage = async (reset: boolean) => {
+  if (reset) {
+    page.value = 1;
+    isLoading.value = true;
+  } else {
+    if (loadingMore.value || isLoading.value || !hasNext.value) return;
+    loadingMore.value = true;
+  }
+
+  const query = searchQuery.value.trim();
+  const opts = { perPage: PER_PAGE, page: page.value };
   try {
-    const feed = await gifProvider.trending({ perPage: 24 }, props.mediaType);
-    applyFeed(feed);
+    const feed = query
+      ? await gifProvider.search(query, opts, props.mediaType)
+      : await gifProvider.trending(opts, props.mediaType);
+    if (reset) {
+      applyFeed(feed);
+    } else {
+      items.value = [...items.value, ...feed.items];
+    }
+    hasNext.value = feed.hasNext;
   } finally {
     isLoading.value = false;
+    loadingMore.value = false;
   }
 };
 
-// Search GIFs via the backend Klipy proxy
-const searchGifs = async () => {
-  if (!searchQuery.value.trim()) {
-    await fetchTrendingGifs();
-    return;
-  }
+const loadMore = () => {
+  if (props.showFavorites || loadingMore.value || isLoading.value || !hasNext.value) return;
+  page.value += 1;
+  fetchPage(false);
+};
 
-  isLoading.value = true;
-  try {
-    const feed = await gifProvider.search(searchQuery.value, { perPage: 24 }, props.mediaType);
-    applyFeed(feed);
-  } finally {
-    isLoading.value = false;
-  }
+// Trigger the next page when the user scrolls near the bottom.
+const onResultsScroll = () => {
+  const el = resultsRef.value;
+  if (!el) return;
+  if (el.scrollHeight - el.scrollTop - el.clientHeight < 320) loadMore();
 };
 
 // Load user's favorite GIFs
 const loadFavorites = async () => {
   isLoading.value = true;
   try {
-    favorites.value = await gifService.getFavorites(isStickers.value ? 'sticker' : 'gif');
+    favorites.value = await gifService.getFavorites(kind.value);
     favoriteUrls.value = new Set(favorites.value.map(f => f.gif_url));
   } catch (error) {
     debug.error('Failed to load favorites:', error);
@@ -239,7 +328,7 @@ const toggleFavorite = async (gif: Gif) => {
     gifUrl,
     previewUrl,
     gif.title || null,
-    isStickers.value ? 'sticker' : 'gif'
+    kind.value
   );
   
   if (result.error) {
@@ -256,6 +345,7 @@ const toggleFavorite = async (gif: Gif) => {
       gif_url: gifUrl,
       preview_url: previewUrl,
       title: gif.title || null,
+      media_type: kind.value,
       created_at: new Date().toISOString()
     });
   } else {
@@ -280,19 +370,25 @@ const removeFavorite = async (favoriteId: string) => {
 };
 
 // Select and send a GIF
-const selectGif = (gif: Gif) => emit('sendGif', withGifMessageUrl(gif, isStickers.value));
+const selectGif = (gif: Gif) => emit('sendGif', withGifMessageUrl(gif, kind.value));
 
-// Select and send a favorite GIF/sticker
+// Select and send a favorite GIF/sticker/clip/etc.
 const selectFavoriteGif = (favorite: FavoriteGif) => {
-  const isSticker = (favorite.media_type ?? 'gif') === 'sticker';
-  emit('sendGif', withGifMessageUrl(gifService.favoriteToGif(favorite), isSticker));
+  const favKind = (favorite.media_type ?? 'gif') as KlipyKind;
+  emit('sendGif', withGifMessageUrl(gifService.favoriteToGif(favorite), favKind));
 };
 
-// Debounced search
+// Debounced search + suggestions/autocomplete.
 let searchTimeout: ReturnType<typeof setTimeout> | null = null;
+let suggestTimeout: ReturnType<typeof setTimeout> | null = null;
+const refreshSuggestions = async () => {
+  suggestions.value = await gifProvider.suggest(searchQuery.value || undefined);
+};
 watch(searchQuery, () => {
   if (searchTimeout) clearTimeout(searchTimeout);
-  searchTimeout = setTimeout(searchGifs, 300);
+  searchTimeout = setTimeout(() => fetchPage(true), 300);
+  if (suggestTimeout) clearTimeout(suggestTimeout);
+  suggestTimeout = setTimeout(refreshSuggestions, 250);
 });
 
 // Load favorites when switching to favorites view
@@ -305,11 +401,8 @@ watch(() => props.showFavorites, (show) => {
 // Initialize
 onMounted(async () => {
   await loadFavorites();
-  if (searchQuery.value) {
-    searchGifs();
-  } else {
-    fetchTrendingGifs();
-  }
+  fetchPage(true);
+  refreshSuggestions();
   
   nextTick(() => {
     searchInput.value?.focus();
@@ -406,6 +499,59 @@ onMounted(async () => {
 .search-input:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* Search suggestions / autocomplete chips */
+.gif-suggestions {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 6px;
+  margin-top: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding-bottom: 2px;
+}
+
+.gif-suggestions::-webkit-scrollbar {
+  display: none;
+}
+
+.gif-suggestion-chip {
+  flex: 0 0 auto;
+  background: var(--background-senary-alpha);
+  border: 1px solid var(--border-secondary);
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1;
+  padding: 6px 10px;
+  border-radius: 999px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.gif-suggestion-chip:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-primary);
+}
+
+/* Infinite-scroll loading indicator */
+.loading-more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 0 16px;
+}
+
+/* Clip (video) previews share the GIF item sizing. */
+.gif-video {
+  width: 100%;
+  height: auto;
+  max-height: 250px;
+  object-fit: cover;
+  display: block;
+  border-radius: 4px;
+  background: #000;
 }
 
 /* Results Area */

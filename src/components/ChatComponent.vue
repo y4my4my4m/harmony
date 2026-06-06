@@ -158,6 +158,7 @@
   import { useEncryptionFallbackPrompt } from '@/composables/useEncryptionFallbackPrompt';
   import { supabase } from '@/supabase';
   import { debug } from '@/utils/debug';
+  import { isVideoMessageUrl } from '@/utils/klipyAttribution';
   import { useServerPermissions } from '@/composables/useServerPermissions';
   import { useI18n } from 'vue-i18n';
   import { useToast } from 'vue-toastification';
@@ -1054,7 +1055,7 @@
         const messageParts: MessagePart[] = [{
           type: 'file',
           url: gifUrl,
-          fileType: 'image',
+          fileType: isVideoMessageUrl(gifUrl) ? 'video' : 'image',
         }];
 
         try {

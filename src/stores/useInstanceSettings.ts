@@ -13,12 +13,15 @@
 import { defineStore } from 'pinia'
 import { supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
+import { setBaseFavicon } from '@/utils/faviconBadge'
 
 interface InstanceSettings {
   // Instance identity
   domain: string
   instanceName: string
   instanceDescription: string
+  /** Branding icon URL used for the document favicon. */
+  instanceIcon: string
   
   // Legal / policy URLs
   termsUrl: string
@@ -54,6 +57,10 @@ interface InstanceSettings {
   // Optional (recommended) KLIPY attribution watermark on sent GIFs/stickers.
   // The "Search KLIPY" picker placeholder is required attribution and always on.
   gifKlipyWatermarkEnabled: boolean
+  // Optional Klipy media types (hidden in picker + no slash command when off).
+  gifClipsEnabled: boolean
+  gifMemesEnabled: boolean
+  gifAiEmojisEnabled: boolean
 
   // Default theme for new/unauthenticated users
   defaultThemeJson: string | null
@@ -70,6 +77,7 @@ const DEFAULT_SETTINGS: InstanceSettings = {
   domain: import.meta.env.VITE_INSTANCE_DOMAIN || window.location.hostname,
   instanceName: import.meta.env.VITE_INSTANCE_NAME || 'Harmony',
   instanceDescription: '',
+  instanceIcon: '',
   termsUrl: import.meta.env.VITE_TERMS_URL || '',
   privacyUrl: import.meta.env.VITE_PRIVACY_URL || '',
   openRegistration: true,
@@ -87,6 +95,9 @@ const DEFAULT_SETTINGS: InstanceSettings = {
   allowCustomEmojisInDisplayNames: true,
   gifAdsEnabled: true,
   gifKlipyWatermarkEnabled: true,
+  gifClipsEnabled: false,
+  gifMemesEnabled: false,
+  gifAiEmojisEnabled: false,
   defaultThemeJson: null,
   customEmojiTransformQuality: 80,
 }
@@ -125,6 +136,11 @@ export const useInstanceSettingsStore = defineStore('instanceSettings', {
     canReceiveRemoteFollows: (state): boolean => {
       return state.settings.federationEnabled && state.settings.federationInboundEnabled
     },
+
+    /** Optional Klipy media type toggles (default off). */
+    gifClipsEnabled: (state): boolean => state.settings.gifClipsEnabled,
+    gifMemesEnabled: (state): boolean => state.settings.gifMemesEnabled,
+    gifAiEmojisEnabled: (state): boolean => state.settings.gifAiEmojisEnabled,
 
     /**
      * Is the settings cache still valid?
@@ -186,6 +202,9 @@ export const useInstanceSettingsStore = defineStore('instanceSettings', {
         this.isLoaded = true
         this.lastFetchedAt = Date.now()
 
+        // Apply branding (document title + favicon) site-wide.
+        this.applyBranding()
+
         debug.log('✅ Instance settings loaded:', {
           federationEnabled: this.settings.federationEnabled,
           inbound: this.settings.federationInboundEnabled,
@@ -217,6 +236,9 @@ export const useInstanceSettingsStore = defineStore('instanceSettings', {
             break
           case 'instance_description':
             this.settings.instanceDescription = value || ''
+            break
+          case 'instance_icon':
+            this.settings.instanceIcon = (typeof value === 'string' ? value : '') || ''
             break
           case 'terms_url':
             this.settings.termsUrl = value || ''
@@ -277,6 +299,15 @@ export const useInstanceSettingsStore = defineStore('instanceSettings', {
           case 'gif_klipy_watermark_enabled':
             this.settings.gifKlipyWatermarkEnabled = value === true || value === 'true'
             break
+          case 'gif_clips_enabled':
+            this.settings.gifClipsEnabled = value === true || value === 'true'
+            break
+          case 'gif_memes_enabled':
+            this.settings.gifMemesEnabled = value === true || value === 'true'
+            break
+          case 'gif_ai_emojis_enabled':
+            this.settings.gifAiEmojisEnabled = value === true || value === 'true'
+            break
           case 'default_theme_json':
             if (value && typeof value === 'string') {
               this.settings.defaultThemeJson = value
@@ -308,6 +339,19 @@ export const useInstanceSettingsStore = defineStore('instanceSettings', {
         }
       }
       return val
+    },
+
+    /**
+     * Apply instance branding to the document: page title and favicon.
+     * The notification store keeps the title in sync with unread counts using
+     * the same instance name as its base.
+     */
+    applyBranding(): void {
+      if (typeof document === 'undefined') return
+      document.title = this.settings.instanceName || 'Harmony'
+      if (this.settings.instanceIcon) {
+        setBaseFavicon(this.settings.instanceIcon)
+      }
     },
 
     /**
