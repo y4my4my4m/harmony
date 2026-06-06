@@ -617,7 +617,53 @@ async function preloadFrequentEmojis(serverIds: string[] = []) {
  * The backend hosts the image and creates a per-user custom emoji; we drop the
  * result straight into the picker's AI Generated group so it's usable at once.
  */
-async function generateAiEmoji(prompt: string): Promise<Emoji> {
+export interface AiEmojiQuota {
+    enabled: boolean;
+    /** Instance admins/owners skip the per-user cap (instance cap still applies). */
+    isExempt: boolean;
+    perUserDaily: number;
+    userUsed: number;
+    userRemaining: number;
+    instanceDaily: number;
+    instanceUsed: number;
+    instanceRemaining: number;
+    /** Effective remaining for this user (bounded by the instance cap). */
+    remaining: number;
+}
+
+/**
+ * Result of *starting* a generation. The emoji itself arrives asynchronously
+ * via the `ai_emoji:generated` realtime event (Klipy is webhook-driven), so
+ * this only carries the job id and an optimistic quota snapshot.
+ */
+export interface StartedAiEmoji {
+    jobId: string;
+    quota?: AiEmojiQuota;
+}
+
+/** Fetch the current user's AI emoji generation quota (drives the UI counter). */
+async function getAiEmojiQuota(): Promise<AiEmojiQuota | null> {
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+    try {
+        const res = await fetch('/api/federation/gifs/ai-emojis/quota', {
+            headers: {
+                Accept: 'application/json',
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+        });
+        if (!res.ok) return null;
+        return (await res.json()) as AiEmojiQuota;
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * Start an AI emoji generation. Returns immediately with a job id; the finished
+ * emoji is delivered later via the `ai_emoji:generated` realtime user event.
+ */
+async function generateAiEmoji(prompt: string): Promise<StartedAiEmoji> {
     const { data } = await supabase.auth.getSession();
     const token = data.session?.access_token;
     const res = await fetch('/api/federation/gifs/ai-emojis/generate', {
@@ -633,17 +679,25 @@ async function generateAiEmoji(prompt: string): Promise<Emoji> {
     if (!res.ok) {
         throw new Error(typeof payload?.error === 'string' ? payload.error : 'AI emoji generation failed');
     }
+    return {
+        jobId: String(payload.jobId ?? ''),
+        quota: payload.quota as AiEmojiQuota | undefined,
+    };
+}
 
+/**
+ * Register an emoji delivered by the generation webhook into the picker cache
+ * so it's immediately resolvable + visible in the AI Generated category.
+ */
+function registerGeneratedEmoji(raw: { id: string; name: string; url: string }): Emoji {
     const emoji: Emoji = {
-        id: String(payload.id),
-        name: String(payload.name),
-        url: String(payload.url),
+        id: String(raw.id),
+        name: String(raw.name),
+        url: String(raw.url),
         scope: 'user',
         is_ai_generated: true,
         created_at: new Date(),
     };
-
-    // Make it immediately resolvable + visible in the picker.
     const cache = useEmojiCacheStore();
     cache.addPersonalEmoji(PERSONAL_EMOJI_GROUPS.ai, 'AI Generated', emoji);
     invalidateEmojiResolverCache();
@@ -653,6 +707,8 @@ async function generateAiEmoji(prompt: string): Promise<Emoji> {
 export { 
     uploadEmoji, 
     generateAiEmoji,
+    registerGeneratedEmoji,
+    getAiEmojiQuota,
     getEmoji, 
     deleteEmoji, 
     renameEmoji,

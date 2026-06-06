@@ -365,32 +365,37 @@ export interface GeneratedEmoji {
   mimeType: string;
 }
 
+/** Status of an async AI emoji generation poll. */
+export type GenerationStatus =
+  | { state: 'processing' }
+  | { state: 'failed' }
+  | { state: 'success'; image: GeneratedEmoji };
+
 /**
- * Generate an AI emoji from a text prompt. Klipy returns a job id immediately;
- * we poll the status endpoint until the image is ready (it comes back as
- * base64-encoded bytes — there is no hosted URL). Uses the no-ads key.
- *
- * Throws on failure/timeout so the route can surface a clean error.
+ * Kick off an AI emoji generation. Klipy returns a job id immediately and
+ * processes asynchronously. When `callbackUrl` is provided, Klipy POSTs the
+ * finished emoji there (preferred — no long-held request). The id is also used
+ * for status polling as a fallback. Uses the no-ads key.
  */
-export async function generateEmoji(
+export async function startEmojiGeneration(
   prompt: string,
-  opts?: { userAgent?: string; timeoutMs?: number },
-): Promise<GeneratedEmoji> {
+  opts?: { userAgent?: string; callbackUrl?: string },
+): Promise<string> {
   const key = config.KLIPY_API_KEY_NOADS || config.KLIPY_API_KEY_ADS;
   if (!key) throw new Error('Klipy is not configured');
 
   const base = `${config.KLIPY_BASE_URL}/api/v1/${key}/emojis`;
-  const headers = {
-    Accept: 'application/json',
-    'Content-Type': 'application/json',
-    'User-Agent': opts?.userAgent || 'HarmonyFederation/1.0',
-  };
+  const body: Record<string, string> = { prompt };
+  if (opts?.callbackUrl) body.callback_url = opts.callbackUrl;
 
-  // Kick off generation (polling mode — no callback_url).
   const startRes = await fetch(`${base}/generate`, {
     method: 'POST',
-    headers,
-    body: JSON.stringify({ prompt }),
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      'User-Agent': opts?.userAgent || 'HarmonyFederation/1.0',
+    },
+    body: JSON.stringify(body),
   });
   if (!startRes.ok) {
     throw new Error(`Klipy generation request failed (${startRes.status})`);
@@ -400,33 +405,48 @@ export async function generateEmoji(
   if (!id || typeof id !== 'string') {
     throw new Error('Klipy did not return a generation id');
   }
+  return id;
+}
 
-  // Poll for the result.
-  const deadline = Date.now() + (opts?.timeoutMs ?? 45_000);
-  let delay = 1_500;
-  while (Date.now() < deadline) {
-    await new Promise((r) => setTimeout(r, delay));
-    delay = Math.min(delay + 500, 4_000);
+/**
+ * Check the status of a generation by id. Returns `processing` until Klipy has
+ * an image, `success` with the downloaded bytes when ready, or `failed`.
+ * Used as the fallback path when a webhook callback doesn't arrive.
+ */
+export async function fetchGenerationStatus(
+  id: string,
+  opts?: { userAgent?: string },
+): Promise<GenerationStatus> {
+  const key = config.KLIPY_API_KEY_NOADS || config.KLIPY_API_KEY_ADS;
+  if (!key) throw new Error('Klipy is not configured');
 
-    const statusRes = await fetch(`${base}/generated/${encodeURIComponent(id)}`, {
-      method: 'GET',
-      headers: { Accept: 'application/json', 'User-Agent': headers['User-Agent'] },
-    });
-    if (!statusRes.ok) continue;
-    const payload: any = await statusRes.json();
-    const status = String(payload?.status ?? payload?.data?.status ?? '').toLowerCase();
-    if (status === 'failed' || status === 'error') {
-      throw new Error('Klipy could not generate that emoji');
-    }
+  const userAgent = opts?.userAgent || 'HarmonyFederation/1.0';
+  const base = `${config.KLIPY_BASE_URL}/api/v1/${key}/emojis`;
+  const statusRes = await fetch(`${base}/generated/${encodeURIComponent(id)}`, {
+    method: 'GET',
+    headers: { Accept: 'application/json', 'User-Agent': userAgent },
+  });
+  if (!statusRes.ok) return { state: 'processing' };
 
-    // Klipy returns the finished emoji as a `file` URL structure (same shape as
-    // its other media), not base64. We accept either: inline base64 if present,
-    // otherwise download the hosted image. A pending poll has no image yet.
-    const image = await extractGeneratedImage(payload, headers['User-Agent']);
-    if (image) return image;
-    // No image and not a terminal/failed status → still generating, keep polling.
-  }
-  throw new Error('AI emoji generation timed out — please try again');
+  const payload: any = await statusRes.json();
+  return parseGenerationPayload(payload, userAgent);
+}
+
+/**
+ * Normalize a Klipy generation payload (from either the status endpoint or a
+ * webhook callback) into a GenerationStatus. Exported so the callback route can
+ * reuse the exact same extraction logic.
+ */
+export async function parseGenerationPayload(
+  payload: any,
+  userAgent = 'HarmonyFederation/1.0',
+): Promise<GenerationStatus> {
+  const status = String(payload?.status ?? payload?.data?.status ?? '').toLowerCase();
+  if (status === 'failed' || status === 'error') return { state: 'failed' };
+
+  const image = await extractGeneratedImage(payload, userAgent);
+  if (image) return { state: 'success', image };
+  return { state: 'processing' };
 }
 
 /** Map a Klipy image URL extension to a mime type (fallback when no header). */

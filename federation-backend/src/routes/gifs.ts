@@ -11,7 +11,7 @@
  * stripped in KlipyService), so supporters get a clean, ad-free experience.
  */
 
-import { randomUUID } from 'crypto';
+import { createHash, randomUUID, timingSafeEqual } from 'crypto';
 import { Router } from 'express';
 import { requireAuth, AuthenticatedRequest } from '../middleware/auth.js';
 import config from '../config/index.js';
@@ -21,7 +21,10 @@ import {
   isKlipyConfigured,
   hasAdsKey,
   isValidMediaType,
-  generateEmoji,
+  startEmojiGeneration,
+  fetchGenerationStatus,
+  parseGenerationPayload,
+  type GeneratedEmoji,
   type GifMediaType,
 } from '../services/KlipyService.js';
 import { logger } from '../utils/logger.js';
@@ -282,6 +285,314 @@ async function countGeneratedToday(profileId?: string): Promise<number> {
   return count ?? 0;
 }
 
+/** Instance admins/owners are exempt from the per-user cap (instance cap still applies). */
+async function isInstanceAdmin(profileId: string): Promise<boolean> {
+  try {
+    const supabase = getSupabaseClient();
+    const { data } = await supabase
+      .from('profiles')
+      .select('is_admin')
+      .eq('id', profileId)
+      .maybeSingle();
+    return data?.is_admin === true;
+  } catch {
+    return false;
+  }
+}
+
+interface AiEmojiQuota {
+  enabled: boolean;
+  isExempt: boolean;
+  perUserDaily: number;
+  userUsed: number;
+  userRemaining: number;
+  instanceDaily: number;
+  instanceUsed: number;
+  instanceRemaining: number;
+  /** What to actually show/enforce for this user (instance cap bounds everyone). */
+  remaining: number;
+}
+
+/**
+ * Compute the AI emoji generation quota for a user. Admins skip the per-user
+ * cap but are still bounded by the instance-wide cap (Klipy's hard daily limit).
+ */
+async function getQuota(profileId: string): Promise<AiEmojiQuota> {
+  const [enabled, isExempt, userUsed, instanceUsed] = await Promise.all([
+    isGenerationEnabled(),
+    isInstanceAdmin(profileId),
+    countGeneratedToday(profileId),
+    countGeneratedToday(),
+  ]);
+
+  const userRemaining = Math.max(0, GEN_PER_USER_DAILY - userUsed);
+  const instanceRemaining = Math.max(0, GEN_INSTANCE_DAILY - instanceUsed);
+  // Admins ignore the per-user cap; everyone is bounded by the instance cap.
+  const remaining = isExempt
+    ? instanceRemaining
+    : Math.min(userRemaining, instanceRemaining);
+
+  return {
+    enabled,
+    isExempt,
+    perUserDaily: GEN_PER_USER_DAILY,
+    userUsed,
+    userRemaining,
+    instanceDaily: GEN_INSTANCE_DAILY,
+    instanceUsed,
+    instanceRemaining,
+    remaining,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Async AI emoji generation (webhook-driven).
+//
+// Klipy's generate endpoint returns a job id instantly and pushes the finished
+// emoji to a callback URL when done — so we never hold the HTTP request open
+// (that was causing the proxy/client to time out while the emoji still landed
+// in the DB). Flow:
+//   1. POST /ai-emojis/generate → kick off Klipy with our callback URL, record
+//      a pending job in memory, return 202 immediately.
+//   2. Klipy → POST /ai-emojis/callback?token=… with the result. We host the
+//      bytes, create the emoji, and broadcast `ai_emoji:generated` on the
+//      user's realtime channel.
+//   3. Fallback: if no callback arrives, a detached server-side poll finalizes
+//      the same way. In-memory state is intentionally ephemeral — a backend
+//      restart mid-generation just drops the job (acceptable per product).
+// ---------------------------------------------------------------------------
+
+interface PendingGeneration {
+  profileId: string;
+  prompt: string;
+  userAgent?: string;
+  createdAt: number;
+  /** Set once finalization starts so the callback and fallback poll can't race. */
+  finalizing: boolean;
+  fallbackTimer?: ReturnType<typeof setTimeout>;
+}
+
+const pendingGenerations = new Map<string, PendingGeneration>();
+// Klipy emoji generation is async; allow a generous window for the result.
+const GEN_FALLBACK_POLL_MS = 6_000;
+const GEN_DEADLINE_MS = 120_000;
+
+/** Stable secret for verifying inbound Klipy callbacks (derived if unset). */
+function webhookSecret(): string {
+  if (config.AI_EMOJI_WEBHOOK_SECRET) return config.AI_EMOJI_WEBHOOK_SECRET;
+  return createHash('sha256')
+    .update(`ai-emoji-callback:${config.SUPABASE_SERVICE_ROLE_KEY}`)
+    .digest('hex');
+}
+
+/** Constant-time token comparison. */
+function tokenMatches(provided: unknown): boolean {
+  if (typeof provided !== 'string' || !provided) return false;
+  const a = Buffer.from(provided);
+  const b = Buffer.from(webhookSecret());
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
+/** Public callback URL Klipy will POST the finished emoji to. */
+function callbackUrl(): string {
+  const domain = config.INSTANCE_DOMAIN.replace(/^https?:\/\//, '').replace(/\/+$/, '');
+  return `https://${domain}/api/federation/gifs/ai-emojis/callback?token=${encodeURIComponent(webhookSecret())}`;
+}
+
+/**
+ * Host the generated bytes in the emojis bucket and create a per-user custom
+ * emoji row. Returns the inserted emoji, or null on validation/IO failure.
+ */
+async function hostAndCreateEmoji(
+  profileId: string,
+  prompt: string,
+  image: GeneratedEmoji,
+): Promise<{ id: string; name: string; url: string } | null> {
+  const ext = GEN_ALLOWED_MIME[image.mimeType.toLowerCase()];
+  if (!ext) {
+    logger.warn('Generated emoji has unsupported format:', image.mimeType);
+    return null;
+  }
+  if (image.buffer.length > GEN_MAX_BYTES) {
+    logger.warn('Generated emoji too large:', image.buffer.length);
+    return null;
+  }
+
+  const supabase = getSupabaseClient();
+  const path = `ai/${profileId}/${randomUUID()}.${ext}`;
+  const { error: uploadError } = await supabase.storage
+    .from(GEN_BUCKET)
+    .upload(path, image.buffer, { contentType: image.mimeType, upsert: false });
+  if (uploadError) {
+    logger.error('Failed to store generated emoji:', uploadError.message);
+    return null;
+  }
+
+  // Public URL from the externally-reachable Supabase base (getPublicUrl would
+  // emit the internal docker host). PUBLIC_SUPABASE_URL defaults to SUPABASE_URL.
+  const publicBase = (config.PUBLIC_SUPABASE_URL || config.SUPABASE_URL).replace(/\/+$/, '');
+  const url = `${publicBase}/storage/v1/object/public/${GEN_BUCKET}/${path}`;
+
+  const name = await uniqueEmojiName(supabase, profileId, promptToShortcode(prompt));
+  const { data: inserted, error: insertError } = await supabase
+    .from('emojis')
+    .insert({
+      name,
+      url,
+      server_id: null,
+      scope: 'user',
+      uploader: profileId,
+      is_ai_generated: true,
+      file_size: image.buffer.length,
+      domain: null,
+    })
+    .select('id, name, url')
+    .single();
+  if (insertError || !inserted) {
+    logger.error('Failed to record generated emoji:', insertError?.message);
+    await supabase.storage.from(GEN_BUCKET).remove([path]).catch(() => {});
+    return null;
+  }
+  return inserted;
+}
+
+/** Push a terminal generation event to the user's realtime channel. */
+async function broadcastGeneration(
+  profileId: string,
+  jobId: string,
+  payload: Record<string, unknown>,
+): Promise<void> {
+  try {
+    const supabase = getSupabaseClient();
+    await supabase.rpc('broadcast_user_event', {
+      p_user_id: profileId,
+      p_payload: { jobId, ...payload },
+    });
+  } catch (err) {
+    logger.warn('Failed to broadcast AI emoji event:', err);
+  }
+}
+
+/**
+ * Finalize a generation from a parsed status/callback result. Idempotent and
+ * race-safe: the first caller (callback or fallback poll) claims the job.
+ */
+async function finalizeGeneration(
+  jobId: string,
+  status: Awaited<ReturnType<typeof parseGenerationPayload>>,
+): Promise<void> {
+  const pending = pendingGenerations.get(jobId);
+  if (!pending || pending.finalizing) return;
+
+  if (status.state === 'processing') return; // not ready yet
+  pending.finalizing = true;
+
+  if (pending.fallbackTimer) clearTimeout(pending.fallbackTimer);
+
+  if (status.state === 'failed') {
+    pendingGenerations.delete(jobId);
+    await broadcastGeneration(pending.profileId, jobId, {
+      type: 'ai_emoji:failed',
+      error: 'Klipy could not generate that emoji',
+    });
+    return;
+  }
+
+  const emoji = await hostAndCreateEmoji(pending.profileId, pending.prompt, status.image);
+  pendingGenerations.delete(jobId);
+  if (!emoji) {
+    await broadcastGeneration(pending.profileId, jobId, {
+      type: 'ai_emoji:failed',
+      error: 'Failed to save the generated emoji',
+    });
+    return;
+  }
+  await broadcastGeneration(pending.profileId, jobId, {
+    type: 'ai_emoji:generated',
+    emoji,
+  });
+}
+
+/** Detached fallback: poll Klipy's status endpoint until ready or deadline. */
+function scheduleFallbackPoll(jobId: string): void {
+  const pending = pendingGenerations.get(jobId);
+  if (!pending) return;
+
+  pending.fallbackTimer = setTimeout(async () => {
+    const job = pendingGenerations.get(jobId);
+    if (!job || job.finalizing) return;
+    try {
+      const status = await fetchGenerationStatus(jobId, { userAgent: job.userAgent });
+      if (status.state === 'processing') {
+        if (Date.now() - job.createdAt > GEN_DEADLINE_MS) {
+          pendingGenerations.delete(jobId);
+          await broadcastGeneration(job.profileId, jobId, {
+            type: 'ai_emoji:failed',
+            error: 'AI emoji generation timed out — please try again',
+          });
+          return;
+        }
+        scheduleFallbackPoll(jobId); // keep polling
+        return;
+      }
+      await finalizeGeneration(jobId, status);
+    } catch (err) {
+      logger.warn('AI emoji fallback poll failed:', err);
+      scheduleFallbackPoll(jobId);
+    }
+  }, GEN_FALLBACK_POLL_MS);
+}
+
+// Klipy posts the finished emoji here. Token-protected (no user auth — Klipy
+// can't carry a Supabase JWT). Must be reachable from the public internet.
+router.post('/ai-emojis/callback', async (req, res) => {
+  if (!tokenMatches(req.query.token)) {
+    res.status(403).json({ error: 'Invalid callback token' });
+    return;
+  }
+  // Acknowledge immediately; do the heavy lifting after responding so Klipy
+  // isn't kept waiting (and won't retry on our processing time).
+  res.status(200).json({ ok: true });
+
+  try {
+    const payload = req.body;
+    const jobId =
+      (typeof req.query.gid === 'string' && req.query.gid) ||
+      payload?.id ||
+      payload?.data?.id;
+    if (!jobId || typeof jobId !== 'string') return;
+    if (!pendingGenerations.has(jobId)) return; // unknown/expired job
+    const status = await parseGenerationPayload(payload);
+    await finalizeGeneration(jobId, status);
+  } catch (err) {
+    logger.warn('AI emoji callback processing failed:', err);
+  }
+});
+
+// AI emoji generation quota for the current user (drives the picker's
+// "N generations left today" indicator). Cheap: a couple of indexed counts.
+router.get('/ai-emojis/quota', requireAuth, async (req, res) => {
+  const authedReq = req as AuthenticatedRequest;
+  const profileId = authedReq.profileId;
+  if (!profileId) return res.status(401).json({ error: 'Profile not found' });
+  if (!isKlipyConfigured()) {
+    return res.json({
+      enabled: false,
+      isExempt: false,
+      perUserDaily: GEN_PER_USER_DAILY,
+      userUsed: 0,
+      userRemaining: 0,
+      instanceDaily: GEN_INSTANCE_DAILY,
+      instanceUsed: 0,
+      instanceRemaining: 0,
+      remaining: 0,
+    });
+  }
+  const quota = await getQuota(profileId);
+  res.setHeader('Cache-Control', 'private, max-age=10');
+  return res.json(quota);
+});
+
 // AI emoji generation: prompt → Klipy → host the bytes → create a custom emoji.
 router.post('/ai-emojis/generate', requireAuth, async (req, res) => {
   const authedReq = req as AuthenticatedRequest;
@@ -311,85 +622,64 @@ router.post('/ai-emojis/generate', requireAuth, async (req, res) => {
   }
 
   // Enforce per-user and instance daily caps (Klipy's 20/day is instance-wide).
-  const [userCount, instanceCount] = await Promise.all([
-    countGeneratedToday(profileId),
-    countGeneratedToday(),
-  ]);
-  if (userCount >= GEN_PER_USER_DAILY) {
+  // Instance admins/owners are exempt from the per-user cap but the instance
+  // cap still bounds everyone so we never blow past Klipy's hard limit.
+  const quota = await getQuota(profileId);
+  if (!quota.isExempt && quota.userRemaining <= 0) {
     return res.status(429).json({
       error: `You've reached your daily limit of ${GEN_PER_USER_DAILY} generated emoji. Try again tomorrow.`,
     });
   }
-  if (instanceCount >= GEN_INSTANCE_DAILY) {
+  if (quota.instanceRemaining <= 0) {
     return res.status(429).json({
       error: 'This instance reached its daily AI emoji generation limit. Try again tomorrow.',
     });
   }
 
   try {
-    const { buffer, mimeType } = await generateEmoji(prompt, {
+    // Kick off Klipy generation with our webhook; it returns a job id at once
+    // and pushes the result to the callback (we never hold the request open).
+    const jobId = await startEmojiGeneration(prompt, {
       userAgent: req.headers['user-agent'],
+      callbackUrl: callbackUrl(),
     });
 
-    const ext = GEN_ALLOWED_MIME[mimeType.toLowerCase()];
-    if (!ext) {
-      return res.status(502).json({ error: 'Generated image has an unsupported format' });
-    }
-    if (buffer.length > GEN_MAX_BYTES) {
-      return res.status(502).json({ error: 'Generated image is too large' });
-    }
+    pendingGenerations.set(jobId, {
+      profileId,
+      prompt,
+      userAgent: req.headers['user-agent'],
+      createdAt: Date.now(),
+      finalizing: false,
+    });
+    // Safety net in case the webhook never arrives (detached from this request).
+    scheduleFallbackPoll(jobId);
 
-    const supabase = getSupabaseClient();
-    // Store under the user's folder in the emojis bucket: ai/{profileId}/{uuid}.
-    const path = `ai/${profileId}/${randomUUID()}.${ext}`;
-    const { error: uploadError } = await supabase.storage
-      .from(GEN_BUCKET)
-      .upload(path, buffer, { contentType: mimeType, upsert: false });
-    if (uploadError) {
-      logger.error('Failed to store generated emoji:', uploadError.message);
-      return res.status(500).json({ error: 'Failed to save the generated emoji' });
-    }
+    // Optimistic quota: this generation will consume one slot once it resolves.
+    const instanceRemaining = Math.max(0, quota.instanceRemaining - 1);
+    const userRemaining = quota.isExempt
+      ? quota.userRemaining
+      : Math.max(0, quota.userRemaining - 1);
+    const remaining = quota.isExempt
+      ? instanceRemaining
+      : Math.min(userRemaining, instanceRemaining);
 
-    // Build the public URL from the externally-reachable Supabase base, NOT the
-    // client's internal URL (getPublicUrl would emit the internal docker host,
-    // e.g. http://supabase-kong:8000). PUBLIC_SUPABASE_URL defaults to
-    // SUPABASE_URL when unset. Mirrors DatabaseListener's storage URL building.
-    const publicBase = (config.PUBLIC_SUPABASE_URL || config.SUPABASE_URL).replace(/\/+$/, '');
-    const url = `${publicBase}/storage/v1/object/public/${GEN_BUCKET}/${path}`;
-
-    // Create a real, per-user custom emoji so it renders via :shortcode: and
-    // shows up in the picker's AI Generated category.
-    const name = await uniqueEmojiName(supabase, profileId, promptToShortcode(prompt));
-    const { data: inserted, error: insertError } = await supabase
-      .from('emojis')
-      .insert({
-        name,
-        url,
-        server_id: null,
-        scope: 'user',
-        uploader: profileId,
-        is_ai_generated: true,
-        file_size: buffer.length,
-        domain: null,
-      })
-      .select('id, name, url')
-      .single();
-    if (insertError || !inserted) {
-      logger.error('Failed to record generated emoji:', insertError?.message);
-      // Clean up the orphaned upload so it doesn't linger in storage.
-      await supabase.storage.from(GEN_BUCKET).remove([path]).catch(() => {});
-      return res.status(500).json({ error: 'Failed to save the generated emoji' });
-    }
-
-    return res.json({
-      id: inserted.id,
-      name: inserted.name,
-      url: inserted.url,
-      createdAt: new Date().toISOString(),
+    // 202 Accepted: the emoji arrives later via the `ai_emoji:generated`
+    // realtime event on the user's channel.
+    return res.status(202).json({
+      jobId,
+      status: 'processing',
+      quota: {
+        ...quota,
+        userUsed: quota.userUsed + (quota.isExempt ? 0 : 1),
+        instanceUsed: quota.instanceUsed + 1,
+        userRemaining,
+        instanceRemaining,
+        remaining,
+      },
     });
   } catch (err: any) {
     const message = err?.message || 'AI emoji generation failed';
-    // Timeouts/failures from Klipy are upstream issues → 502.
+    // Failure to even start the job is an upstream issue → 502.
     return res.status(502).json({ error: message });
   }
 });

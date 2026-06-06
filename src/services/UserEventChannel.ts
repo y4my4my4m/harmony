@@ -35,6 +35,7 @@ type UserEventType =
   | 'device:approval_request' | 'device:approved' | 'device:denied'
   | 'mute:insert' | 'mute:delete'
   | 'block:insert' | 'block:delete'
+  | 'ai_emoji:generated' | 'ai_emoji:failed'
   | '_reconnected'
 type EventHandler = (payload: Record<string, any>) => void | Promise<void>
 

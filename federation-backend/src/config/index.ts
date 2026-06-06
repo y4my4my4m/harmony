@@ -99,6 +99,13 @@ const envSchema = z.object({
     z.string().optional(),
   ),
   KLIPY_BASE_URL: z.string().url().default('https://api.klipy.com'),
+  // Secret embedded in the AI-emoji generation callback URL so we can verify
+  // inbound Klipy webhooks. Optional: when unset we derive a stable token from
+  // the service-role key (always present), so this needs no extra config.
+  AI_EMOJI_WEBHOOK_SECRET: z.preprocess(
+    (v) => (typeof v === 'string' && v.trim() ? v.trim() : undefined),
+    z.string().optional(),
+  ),
 });
 
 // Validate and export configuration

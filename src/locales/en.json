@@ -942,6 +942,8 @@
     "aiGenerateHint": "Type a prompt to generate your own emoji. Daily limits apply.",
     "aiGenerateEmpty": "No generated emoji yet",
     "aiGenerateEmptyHint": "Use the prompt above to create your first one.",
+    "aiQuotaUser": "{remaining} of {total} generations left today",
+    "aiQuotaInstance": "{remaining} of {total} instance generations left today",
     "recent": "Recent",
     "smileys": "Smileys & People",
     "animals": "Animals & Nature",

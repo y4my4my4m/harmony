@@ -37,19 +37,28 @@
     </div>
 
     <!-- Inline AI emoji generation (AI Emoji tab) -->
-    <form v-if="showGenerate && isAiEmoji" class="gif-generate-form" @submit.prevent="runGenerate">
-      <input
-        v-model="genPrompt"
-        type="text"
-        class="search-input gif-generate-input"
-        :maxlength="GEN_PROMPT_MAX_LEN"
-        :placeholder="$t('emoji.aiGeneratePlaceholder')"
-        :disabled="generating"
-      />
-      <button type="submit" class="gif-generate-button" :disabled="generating || !genPrompt.trim()">
-        {{ generating ? $t('emoji.aiGenerating') : $t('emoji.aiGenerate') }}
-      </button>
-    </form>
+    <div v-if="showGenerate && isAiEmoji" class="gif-generate-wrap">
+      <form class="gif-generate-form" @submit.prevent="runGenerate">
+        <input
+          v-model="genPrompt"
+          type="text"
+          class="search-input gif-generate-input"
+          :maxlength="GEN_PROMPT_MAX_LEN"
+          :placeholder="$t('emoji.aiGeneratePlaceholder')"
+          :disabled="generating || (atLimit && !quota?.isExempt)"
+        />
+        <button
+          type="submit"
+          class="gif-generate-button"
+          :disabled="generating || !genPrompt.trim() || atLimit"
+        >
+          {{ generating ? $t('emoji.aiGenerating') : $t('emoji.aiGenerate') }}
+        </button>
+      </form>
+      <p v-if="quotaText" class="gif-generate-quota" :class="{ 'at-limit': atLimit }">
+        {{ quotaText }}
+      </p>
+    </div>
 
     <!-- Search Input (hidden in AI generate mode; disabled in favorites view) -->
     <div v-if="!(showGenerate && isAiEmoji)" class="gif-search">
@@ -313,8 +322,33 @@ const showGenerate = ref(false);
 const genPrompt = ref('');
 const GEN_PROMPT_MAX_LEN = 200;
 const generating = aiGen.isGenerating;
+const quota = aiGen.quota;
 /** Latest successfully generated emoji — shown in the hero slot above the list. */
 const revealedEmoji = ref<Emoji | null>(null);
+
+// "You have N generation(s) left today" — auto-bounded by the instance cap.
+// Admins/owners are exempt from the per-user cap, so we phrase it accordingly.
+const quotaText = computed(() => {
+  const q = quota.value;
+  if (!q) return '';
+  if (q.isExempt) {
+    return t('emoji.aiQuotaInstance', {
+      remaining: q.instanceRemaining,
+      total: q.instanceDaily,
+    });
+  }
+  return t('emoji.aiQuotaUser', {
+    remaining: q.remaining,
+    used: q.userUsed,
+    total: q.perUserDaily,
+  });
+});
+
+const atLimit = computed(() => {
+  const q = quota.value;
+  if (!q) return false;
+  return q.remaining <= 0;
+});
 
 const myGeneratedAiEmojis = computed((): ResolvedEmoji[] => {
   const group = emojiCacheStore.resolvedEmojis[PERSONAL_EMOJI_GROUPS.ai];
@@ -335,6 +369,7 @@ const loadMyAiEmojis = async () => {
   } catch {
     await emojiCacheStore.loadPersonalEmojis(null);
   }
+  aiGen.refreshQuota().catch(() => {});
 };
 
 const runGenerate = async () => {
@@ -676,13 +711,27 @@ onMounted(async () => {
 }
 
 /* Inline AI emoji generation form (AI Emoji tab). */
+.gif-generate-wrap {
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border-secondary);
+  background: var(--background-senary-alpha);
+}
+
 .gif-generate-form {
   display: flex;
   gap: 8px;
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--border-secondary);
-  flex-shrink: 0;
-  background: var(--background-senary-alpha);
+  padding: 8px 12px 0;
+}
+
+.gif-generate-quota {
+  margin: 0;
+  padding: 4px 12px 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.gif-generate-quota.at-limit {
+  color: var(--status-danger, #f04747);
 }
 
 .gif-generate-input {
