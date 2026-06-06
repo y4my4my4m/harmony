@@ -81,6 +81,11 @@ interface Props {
   editable?: boolean
   interactive?: boolean
   loading?: boolean
+  // Decouple the imgproxy fetch resolution from the display size. When the same
+  // avatar is already rendered elsewhere at a larger size (e.g. the message list
+  // at "sm"=48px), small placements like the reaction tooltip can request that
+  // same pixel size to reuse the cached image instead of fetching a new variant.
+  fetchSize?: number
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -119,7 +124,7 @@ const sizeMap: Record<AvatarSize, number> = {
 // Computed
 const avatarUrl = computed(() => {
   if (imageError.value) return '/default_avatar.webp'
-  const pixelSize = sizeMap[props.size] || 48
+  const pixelSize = props.fetchSize ?? (sizeMap[props.size] || 48)
   return getAvatarUrl(props.src, pixelSize)
 })
 

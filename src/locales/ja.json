@@ -1000,7 +1000,8 @@
   "gif": {
     "search": "GIF を検索...",
     "searchGifs": "GIF を検索...",
-    "searchTenor": "Tenor で検索",
+    "searchKlipy": "KLIPY で検索",
+    "ad": "広告",
     "trending": "トレンド",
     "favorites": "お気に入り",
     "noResults": "GIF が見つかりません",

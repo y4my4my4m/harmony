@@ -20,6 +20,7 @@
               :src="currentServer.icon"
               :class="'rounded'"
               size="xs"
+              :fetch-size="96"
               v-if="currentServer.icon" 
             />
             <div class="server-details">

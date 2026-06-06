@@ -75,6 +75,13 @@ interface Props {
   loading?: boolean
   shape?: ImageShape
   showTitle?: boolean
+  /**
+   * Override the imgproxy render width/height (px) independent of display size.
+   * Use to reuse an already-cached variant: e.g. the small context-bar icon can
+   * request the same 96px variant the server rail already loaded (cache hit, no
+   * extra fetch) instead of a unique tiny variant.
+   */
+  fetchSize?: number
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -150,9 +157,9 @@ const scheduleRetry = () => {
 
 // Update imgSrc when props change
 watch(
-  () => [props.src, props.size],
+  () => [props.src, props.size, props.fetchSize],
   () => {
-    const pixelSize = sizeMap[props.size] || 48
+    const pixelSize = props.fetchSize ?? (sizeMap[props.size] || 48)
     const resolved = getServerIconUrl(props.src, pixelSize) || fallbackImage
     realImgSrc.value = resolved
     imgSrc.value = resolved

@@ -61,6 +61,20 @@
             {{ federatedMemberCount }} federated member{{ federatedMemberCount !== 1 ? 's' : '' }} currently in this server
           </div>
         </div>
+
+        <!-- Federation handle: how people on other instances discover this server -->
+        <div v-if="serverHandle" class="server-handle-card">
+          <label class="form-label">{{ $t('server.federationHandle', 'Server handle') }}</label>
+          <div class="form-hint">
+            {{ $t('server.federationHandleDesc', 'Share this handle so people on other instances can find and join this server.') }}
+          </div>
+          <div class="handle-row">
+            <code class="handle-value">{{ serverHandle }}</code>
+            <button type="button" class="handle-copy-btn" @click="copyHandle">
+              {{ copied ? $t('common.copied', 'Copied') : $t('common.copy', 'Copy') }}
+            </button>
+          </div>
+        </div>
       </div>
 
       <!-- Warning dialog when disabling federation with existing members -->
@@ -248,6 +262,8 @@ const emit = defineEmits<Emits>()
 
 const federatedMemberCount = ref(0)
 const showDisableWarning = ref(false)
+const serverHandle = ref('')
+const copied = ref(false)
 
 async function fetchFederatedMemberCount() {
   if (!props.serverId) return
@@ -264,12 +280,40 @@ async function fetchFederatedMemberCount() {
   }
 }
 
+// The server's WebFinger handle ({slug}@{instance}) used for federated discovery.
+async function fetchServerHandle() {
+  serverHandle.value = ''
+  if (!props.serverId) return
+  const { data, error } = await supabase
+    .from('servers')
+    .select('slug')
+    .eq('id', props.serverId)
+    .maybeSingle()
+
+  if (!error && data?.slug) {
+    serverHandle.value = `${data.slug}@${window.location.hostname}`
+  }
+}
+
+async function copyHandle() {
+  if (!serverHandle.value) return
+  try {
+    await navigator.clipboard.writeText(serverHandle.value)
+    copied.value = true
+    setTimeout(() => { copied.value = false }, 2000)
+  } catch {
+    // Clipboard may be unavailable (e.g. insecure context); ignore.
+  }
+}
+
 onMounted(() => {
   fetchFederatedMemberCount()
+  fetchServerHandle()
 })
 
 watch(() => props.serverId, () => {
   fetchFederatedMemberCount()
+  fetchServerHandle()
 })
 
 const handlePublicToggle = (event: Event) => {
@@ -492,6 +536,48 @@ input:checked + .toggle-slider:before {
   border-radius: 6px;
   font-size: 13px;
   color: #8b9dff;
+}
+
+.server-handle-card {
+  margin-top: 16px;
+}
+
+.handle-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.handle-value {
+  flex: 1;
+  padding: 8px 12px;
+  background: var(--background-tertiary, rgba(0, 0, 0, 0.2));
+  border: 1px solid var(--border-secondary, rgba(255, 255, 255, 0.1));
+  border-radius: 6px;
+  font-family: var(--font-mono, monospace);
+  font-size: 13px;
+  color: var(--text-primary);
+  user-select: all;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+.handle-copy-btn {
+  flex-shrink: 0;
+  padding: 8px 14px;
+  background: rgba(14, 165, 233, 0.15);
+  border: 1px solid rgba(14, 165, 233, 0.4);
+  border-radius: 6px;
+  color: #0ea5e9;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.handle-copy-btn:hover {
+  background: rgba(14, 165, 233, 0.25);
 }
 
 .disable-federation-warning-overlay {

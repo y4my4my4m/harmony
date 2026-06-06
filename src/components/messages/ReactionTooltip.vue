@@ -1,13 +1,15 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import Avatar from '@/components/common/Avatar.vue'
 import DisplayName from '@/components/DisplayName.vue'
 import { getEmojiUrl } from '@/utils/emojiCdnHelper'
+import { useUnifiedEmoji } from '@/services/unifiedEmojiService'
 
 interface Props {
   visible: boolean
   x: number
   y: number
-  emoji: { name?: string; url?: string } | null
+  emoji: { name?: string; url?: string; content?: string; is_native?: boolean } | null
   users: Array<{
     id: string
     displayName: string
@@ -18,7 +20,36 @@ interface Props {
   }>
 }
 
-defineProps<Props>()
+const props = defineProps<Props>()
+
+const { resolveEmoji } = useUnifiedEmoji()
+
+/**
+ * Custom (uploaded/AI) emoji render as their hosted image with a `:shortcode:`
+ * label. Native unicode reactions are identified inconsistently across the
+ * optimistic vs reconciled paths (optimistic carries the shortcode in `name`,
+ * the server returns the unicode glyph), so we resolve them through the unified
+ * service to always show the glyph + canonical `:shortcode:` regardless.
+ */
+const isCustom = computed(() => !!props.emoji?.url && !props.emoji?.is_native)
+
+const resolved = computed(() => {
+  if (!props.emoji || isCustom.value) return null
+  const identifier = props.emoji.content || props.emoji.name
+  if (!identifier) return null
+  try {
+    return resolveEmoji(identifier)
+  } catch {
+    return null
+  }
+})
+
+/** Clean `:shortcode:` label, falling back to the raw name only if unresolved. */
+const label = computed(() => {
+  if (isCustom.value) return `:${props.emoji?.name}:`
+  const shortcode = resolved.value?.shortcode
+  return shortcode ? `:${shortcode}:` : ''
+})
 </script>
 
 <template>
@@ -29,17 +60,25 @@ defineProps<Props>()
   >
     <div class="tooltip-header">
       <img
-        v-if="emoji?.url"
-        :src="getEmojiUrl(emoji.url, 48)"
+        v-if="isCustom"
+        :src="getEmojiUrl(emoji!.url!, 48)"
         :alt="emoji?.name || 'emoji'"
         class="tooltip-emoji"
       />
-      <span class="emoji-name">:{{ emoji?.name }}:</span>
+      <img
+        v-else-if="resolved?.display.type === 'svg'"
+        :src="resolved.display.content"
+        :alt="resolved.shortcode || 'emoji'"
+        class="tooltip-emoji"
+      />
+      <span v-else-if="resolved" class="tooltip-emoji-glyph">{{ resolved.display.content }}</span>
+      <span v-if="label" class="emoji-name">{{ label }}</span>
     </div>
     <div v-for="user in users" :key="user.id" class="tooltip-user">
       <Avatar
         :src="user.avatarUrl"
         size="xs"
+        :fetch-size="48"
         class="tooltip-avatar"
       />
       <span :style="{ color: user.userColor }">
@@ -101,6 +140,12 @@ defineProps<Props>()
 .tooltip-emoji {
   width: 48px;
   height: 48px;
+  margin-right: 4px;
+}
+
+.tooltip-emoji-glyph {
+  font-size: 36px;
+  line-height: 1;
   margin-right: 4px;
 }
 

@@ -242,21 +242,23 @@
         <div 
           v-else-if="part && typeof part === 'object' && part.type === 'file' && part.fileType === 'image'" 
           class="media-container image-container"
+          :class="{ 'sticker-container': isStickerMedia(part.url), 'ai-emoji-container': isAiEmojiMedia(part.url) }"
           @mouseenter="hoveredImageUrl = part.url"
           @mouseleave="hoveredImageUrl = null"
         >
           <div v-if="!imageLoadedState[part.url]" class="media-skeleton image-skeleton"></div>
           <img
-            :src="part.url"
+            :src="displayMediaUrl(part.url)"
             @load="handleImageLoad(part.url)"
-            @click="$emit('open-lightbox', part.url)"
+            @click="!isStickerMedia(part.url) && $emit('open-lightbox', part.url)"
             v-show="imageLoadedState[part.url]"
             draggable="false"
             class="content-image"
+            :class="{ 'sticker-image': isStickerMedia(part.url), 'ai-emoji-image': isAiEmojiMedia(part.url) }"
           />
-          <!-- GIF Favorite Button -->
+          <!-- GIF/sticker Favorite Button (AI emoji are treated as plain emoji: no favorite) -->
           <button 
-            v-if="isAnimatedImage(part.url)"
+            v-if="(isAnimatedImage(part.url) || isStickerMedia(part.url)) && !isAiEmojiMedia(part.url)"
             class="gif-favorite-button"
             :class="{ 'favorited': isGifFavorited(part.url), 'visible': hoveredImageUrl === part.url || isGifFavorited(part.url) }"
             @click.stop="toggleGifFavorite(part.url)"
@@ -267,6 +269,17 @@
               <path v-else d="M22 9.24l-7.19-.62L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21 12 17.27 18.18 21l-1.63-7.03L22 9.24zM12 15.4l-3.76 2.27 1-4.28-3.32-2.88 4.38-.38L12 6.1l1.71 4.04 4.38.38-3.32 2.88 1 4.28L12 15.4z"/>
             </svg>
           </button>
+          <!-- KLIPY attribution watermark (optional; only on Klipy media, on hover; never on AI emoji) -->
+          <a
+            v-if="showKlipyWatermark && isKlipyMedia(part.url) && !isAiEmojiMedia(part.url)"
+            class="klipy-watermark"
+            :class="{ 'visible': hoveredImageUrl === part.url }"
+            :href="klipyWatermarkHref(part.url)"
+            target="_blank"
+            rel="noopener noreferrer nofollow"
+            @click.stop
+            title="via KLIPY"
+          >KLIPY</a>
         </div>
 
         <!-- Video files -->
@@ -274,6 +287,8 @@
           v-else-if="part && typeof part === 'object' && part.type === 'file' && part.fileType === 'video'" 
           class="media-container video-container"
           :ref="el => { if (el) videoContainers[partIndex] = el as HTMLElement }"
+          @mouseenter="hoveredImageUrl = part.url"
+          @mouseleave="hoveredImageUrl = null"
         >
           <video
             :src="part.url"
@@ -284,6 +299,29 @@
             @play="handleVideoPlay"
             @pause="handleVideoPause"
           ></video>
+          <!-- Clip favorite button (Klipy clips only) -->
+          <button
+            v-if="isKlipyMedia(part.url)"
+            class="gif-favorite-button"
+            :class="{ 'favorited': isGifFavorited(part.url), 'visible': hoveredImageUrl === part.url || isGifFavorited(part.url) }"
+            @click.stop="toggleGifFavorite(part.url)"
+            :title="isGifFavorited(part.url) ? 'Remove from favorites' : 'Add to favorites'"
+          >
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+              <path v-if="isGifFavorited(part.url)" d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
+              <path v-else d="M22 9.24l-7.19-.62L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21 12 17.27 18.18 21l-1.63-7.03L22 9.24zM12 15.4l-3.76 2.27 1-4.28-3.32-2.88 4.38-.38L12 6.1l1.71 4.04 4.38.38-3.32 2.88 1 4.28L12 15.4z"/>
+            </svg>
+          </button>
+          <a
+            v-if="showKlipyWatermark && isKlipyMedia(part.url)"
+            class="klipy-watermark"
+            :class="{ 'visible': hoveredImageUrl === part.url }"
+            :href="klipyWatermarkHref(part.url)"
+            target="_blank"
+            rel="noopener noreferrer nofollow"
+            @click.stop
+            title="via KLIPY"
+          >KLIPY</a>
         </div>
         
         <!-- Audio files (voice messages + regular audio) -->
@@ -368,7 +406,7 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, watch, ref, nextTick, reactive, onMounted } from 'vue';
+import { defineComponent, watch, ref, nextTick, reactive, onMounted, computed } from 'vue';
 import type { PropType } from 'vue';
 import type { EmbedPayload, MessagePart } from '@/types';
 import AutoSuggest from '@/components/AutoSuggest.vue';
@@ -389,6 +427,15 @@ import { debug } from '@/utils/debug';
 import { sanitizeUrl } from '@/utils/sanitize';
 import { renderChatMessageText } from '@/utils/chatMessageTextRenderer';
 import { useVisualTheme } from '@/composables/useVisualTheme';
+import { useInstanceSettingsStore } from '@/stores/useInstanceSettings';
+import {
+  defaultKlipyHomeUrl,
+  parseKlipyItemPageUrl,
+  stripKlipyAttributionFragment,
+  isStickerMessageUrl,
+  isAiEmojiMessageUrl,
+  parseKlipyKind,
+} from '@/utils/klipyAttribution';
 
 export default defineComponent({
   name: 'UnifiedMessageContent',
@@ -477,6 +524,18 @@ export default defineComponent({
     const videoContainers = ref<HTMLElement[]>([]);
     const visualTheme = useVisualTheme();
     const decrypting = ref(false);
+    const instanceSettings = useInstanceSettingsStore();
+    const showKlipyWatermark = computed(
+      () => instanceSettings.settings.gifKlipyWatermarkEnabled,
+    );
+
+    const displayMediaUrl = (url: string) => stripKlipyAttributionFragment(url);
+    const klipyWatermarkHref = (url: string) =>
+      parseKlipyItemPageUrl(url) || defaultKlipyHomeUrl();
+    // Stickers render small and inline, with no lightbox/zoom — "like stickers".
+    const isStickerMedia = (url: string) => isStickerMessageUrl(url);
+    // Klipy AI emoji render as plain emoji: no watermark, no favorite, no lightbox.
+    const isAiEmojiMedia = (url: string) => isAiEmojiMessageUrl(url);
     
     // GIF favorites state
     const hoveredImageUrl = ref<string | null>(null);
@@ -557,22 +616,34 @@ export default defineComponent({
       return lowerUrl.includes('.gif') || 
              lowerUrl.includes('tenor.com') || 
              lowerUrl.includes('giphy.com') ||
+             lowerUrl.includes('klipy.com') ||
              lowerUrl.includes('/gif') ||
              // Could also check for webp/apng but harder to detect animation
              false;
     };
+
+    // True for GIFs sourced from Klipy (host-based). Drives the KLIPY
+    // attribution watermark, which must only appear on Klipy content.
+    const isKlipyMedia = (url: string): boolean => {
+      if (!url) return false;
+      if (parseKlipyItemPageUrl(url) || isStickerMessageUrl(url)) return true;
+      return url.toLowerCase().includes('klipy.com');
+    };
     
     const isGifFavorited = (url: string): boolean => {
-      return favoriteGifUrls.value.has(url);
+      return favoriteGifUrls.value.has(stripKlipyAttributionFragment(url));
     };
     
     const toggleGifFavorite = async (url: string) => {
-      const result = await gifService.toggleFavoriteByUrl(url, url, null);
+      const mediaUrl = stripKlipyAttributionFragment(url);
+      // Route the favorite into its matching media tab (gif/sticker/clip/meme/ai-emoji).
+      const mediaType = parseKlipyKind(url);
+      const result = await gifService.toggleFavoriteByUrl(mediaUrl, mediaUrl, null, mediaType);
       if (!result.error) {
         if (result.isFavorite) {
-          favoriteGifUrls.value.add(url);
+          favoriteGifUrls.value.add(mediaUrl);
         } else {
-          favoriteGifUrls.value.delete(url);
+          favoriteGifUrls.value.delete(mediaUrl);
         }
         // Trigger reactivity
         favoriteGifUrls.value = new Set(favoriteGifUrls.value);
@@ -1041,6 +1112,12 @@ export default defineComponent({
       // GIF favorites
       hoveredImageUrl,
       isAnimatedImage,
+      isKlipyMedia,
+      showKlipyWatermark,
+      displayMediaUrl,
+      klipyWatermarkHref,
+      isStickerMedia,
+      isAiEmojiMedia,
       isGifFavorited,
       toggleGifFavorite
     };
@@ -1281,6 +1358,38 @@ export default defineComponent({
   transform: scale(1.02);
 }
 
+/* Stickers render small and inline with no lightbox affordance or hover zoom. */
+.sticker-container {
+  max-width: 160px;
+}
+
+.sticker-image {
+  max-width: 160px;
+  max-height: 160px;
+  border-radius: 0;
+  cursor: default;
+}
+
+.sticker-image:hover {
+  transform: none;
+}
+
+/* Klipy AI emoji render at jumbo-emoji size, like a single custom emoji. */
+.ai-emoji-container {
+  max-width: 64px;
+}
+
+.ai-emoji-image {
+  max-width: 64px;
+  max-height: 64px;
+  border-radius: 0;
+  cursor: default;
+}
+
+.ai-emoji-image:hover {
+  transform: none;
+}
+
 /* GIF Favorite Button */
 .gif-favorite-button {
   position: absolute;
@@ -1313,6 +1422,36 @@ export default defineComponent({
 
 .gif-favorite-button.favorited {
   color: var(--color-warning, #faa61a);
+}
+
+/* KLIPY attribution watermark - subtle, fades in on hover */
+.klipy-watermark {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  padding: 3px 6px;
+  border-radius: 4px;
+  text-decoration: none;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  pointer-events: none;
+  z-index: 10;
+  user-select: none;
+}
+
+.klipy-watermark.visible {
+  opacity: 0.85;
+  pointer-events: auto;
+}
+
+.klipy-watermark:hover {
+  opacity: 1;
 }
 
 .video-container {

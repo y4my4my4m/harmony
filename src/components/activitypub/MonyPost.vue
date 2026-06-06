@@ -587,6 +587,11 @@
       :index="0"
       @hide="closeLightbox"
     />
+    <LightboxDownloadButton
+      v-if="!embedded"
+      :visible="showLightbox"
+      :url="currentLightboxImage"
+    />
   </article>
 </template>
 
@@ -618,6 +623,7 @@ import MonyContent from './MonyContent.vue';
 import LinkEmbedCard from '@/components/embeds/LinkEmbedCard.vue';
 import { parseEmbedUrl, isYouTubeUrl } from '@/utils/embedDetection';
 import Icon from '@/components/common/Icon.vue';
+import LightboxDownloadButton from '@/components/common/LightboxDownloadButton.vue';
 import Avatar from '../common/Avatar.vue';
 import Composer from './Composer.vue';
 import PostReactions from './PostReactions.vue';

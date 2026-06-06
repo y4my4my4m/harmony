@@ -540,6 +540,52 @@
     </div>
 
     <div class="settings-section">
+      <h3 class="section-title">{{ $t('settings.appearance.quickReact') }}</h3>
+
+      <div class="setting-item">
+        <div class="setting-info">
+          <h4 class="setting-label">{{ $t('settings.appearance.quickReactEnable') }}</h4>
+          <p class="setting-description">{{ $t('settings.appearance.quickReactEnableDesc') }}</p>
+        </div>
+        <div class="setting-control">
+          <ToggleSwitch v-model="quickReact.enabled.value" />
+        </div>
+      </div>
+
+      <div v-if="quickReact.enabled.value" class="setting-item">
+        <div class="setting-info">
+          <h4 class="setting-label">{{ $t('settings.appearance.quickReactEmoji') }}</h4>
+          <p class="setting-description">{{ $t('settings.appearance.quickReactEmojiDesc') }}</p>
+        </div>
+        <div class="setting-control">
+          <button
+            ref="quickReactBtn"
+            type="button"
+            class="quick-react-emoji-btn"
+            :title="$t('settings.appearance.quickReactEmoji')"
+            @click="toggleQuickReactPicker"
+          >
+            <img
+              v-if="quickReact.emoji.value.url"
+              :src="quickReact.emoji.value.url"
+              :alt="quickReact.emoji.value.name"
+              class="quick-react-emoji-img"
+            />
+            <span v-else class="quick-react-emoji-native">{{ quickReact.emoji.value.content || quickReact.emoji.value.id }}</span>
+          </button>
+          <EmojiPopup
+            v-if="showQuickReactPicker"
+            :trigger-element="quickReactTrigger"
+            position="below"
+            :is-reaction="true"
+            :close-emoji-list="() => (showQuickReactPicker = false)"
+            @sendEmoji="onQuickReactEmojiChosen"
+          />
+        </div>
+      </div>
+    </div>
+
+    <div class="settings-section">
       <h3 class="section-title">Emoji Style</h3>
       
       <div class="setting-item">
@@ -659,17 +705,19 @@
 import { ref, computed, onMounted } from 'vue'
 import { useToast } from 'vue-toastification'
 import { debug } from '@/utils/debug'
-import type { User } from '@/types'
+import type { User, Emoji } from '@/types'
 import { useFloatingVideo } from '@/composables/useFloatingVideo'
 import { useVisualTheme } from '@/composables/useVisualTheme'
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings'
 import { generateThemePalette, applyThemePalette, generatePreviewColors } from '@/utils/colorUtils'
 import { useEmojiPacks } from '@/services/emojiPackService'
+import { useQuickReactSettings } from '@/composables/useQuickReactSettings'
 
 // Components
 import ToggleSwitch from '@/components/common/ToggleSwitch.vue'
 import ColorPicker from '@/components/common/ColorPicker.vue'
 import Icon from '@/components/common/Icon.vue'
+import EmojiPopup from '@/components/EmojiPopup.vue'
 
 // Props
 interface Props {
@@ -690,6 +738,27 @@ const { isEnabled: floatingVideoEnabled, setEnabled: setFloatingVideoEnabled } =
 const visualTheme = useVisualTheme()
 const { currentPackId, packs, setCurrentPack } = useEmojiPacks()
 const instanceSettings = useInstanceSettingsStore()
+const quickReact = useQuickReactSettings()
+
+// Quick-react emoji chooser popup
+const showQuickReactPicker = ref(false)
+const quickReactBtn = ref<HTMLElement | null>(null)
+const quickReactTrigger = computed(() => quickReactBtn.value || undefined)
+
+function toggleQuickReactPicker() {
+  showQuickReactPicker.value = !showQuickReactPicker.value
+}
+
+function onQuickReactEmojiChosen(emoji: Emoji) {
+  quickReact.setEmoji({
+    id: emoji.id,
+    name: emoji.name,
+    url: emoji.url || undefined,
+    // Native emoji: id IS the unicode char (no url). Custom: leave undefined.
+    content: emoji.content || (emoji.url ? undefined : emoji.id),
+  })
+  showQuickReactPicker.value = false
+}
 
 // State
 const settings = ref({
@@ -1432,6 +1501,36 @@ onMounted(async () => {
 }
 
 /* Emoji pack selector */
+.quick-react-emoji-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border: 2px solid var(--h-chat-light, var(--border-color));
+  background-color: var(--h-chat-darker, var(--background-tertiary));
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  padding: 0;
+}
+
+.quick-react-emoji-btn:hover {
+  border-color: var(--harmony-primary, #0EA5E9);
+  transform: scale(1.05);
+}
+
+.quick-react-emoji-img {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+}
+
+.quick-react-emoji-native {
+  font-size: 24px;
+  line-height: 1;
+}
+
 .emoji-pack-options {
   display: flex;
   gap: 12px;

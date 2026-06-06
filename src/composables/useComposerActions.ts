@@ -11,6 +11,7 @@ import { useActivityPubStore } from '@/stores/useActivityPub';
 import type RichTextEditor from '@/components/RichTextEditor.vue';
 import { debug } from '@/utils/debug'
 import { getEmojiShortcodeForInsert } from '@/services/emojiShortcodeResolver'
+import { stripKlipyAttributionFragment } from '@/utils/klipyAttribution'
 import { i18n } from '@/i18n'
 
 export interface ComposerActionsOptions {
@@ -69,7 +70,10 @@ export function useComposerActions(options: ComposerActionsOptions) {
    * Insert GIF URL into content
    */
   const insertGif = (gif: any) => {
-    const gifUrl = gif.media_formats.gif.url;
+    const rawUrl = gif.media_formats?.gif?.url;
+    if (!rawUrl) return;
+    // Posts store a clean media URL (no attribution/kind fragment).
+    const gifUrl = stripKlipyAttributionFragment(rawUrl);
     const currentContent = options.content.value;
     
     options.content.value = currentContent + (currentContent ? '\n' : '') + gifUrl;

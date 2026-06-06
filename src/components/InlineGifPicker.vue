@@ -1,47 +1,185 @@
 <template>
   <div class="inline-gif-picker">
-    <div v-if="isLoading && gifs.length === 0" class="inline-gif-loading">
+    <div v-if="isLoading && items.length === 0" class="inline-gif-loading">
       <LoadingSpinner :size="20" />
     </div>
-    <div v-else-if="gifs.length === 0 && query" class="inline-gif-empty">
-      No GIFs found
+    <div v-else-if="items.length === 0 && query" class="inline-gif-empty">
+      No {{ mediaNoun }} found
     </div>
     <div v-else class="inline-gif-grid">
-      <div 
-        v-for="gif in gifs" 
-        :key="gif.id" 
-        class="inline-gif-item"
-        @click="$emit('selectGif', gif)"
-        @mouseover="hoveredGif = gif.id"
-        @mouseleave="hoveredGif = null"
-      >
-        <img 
-          :src="hoveredGif === gif.id ? gif.media_formats.gif.url : gif.media_formats.gifpreview.url" 
-          :alt="gif.title || 'GIF'"
-          loading="lazy"
+      <template v-for="item in items" :key="item.id">
+        <GifAdSlot
+          v-if="item.kind === 'ad'"
+          class="inline-gif-ad"
+          :content="item.content"
+          :width="item.width"
+          :height="item.height"
+        />
+        <div 
+          v-else
+          class="inline-gif-item"
+          @click="$emit('selectGif', withGifMessageUrl(item, kind))"
+          @mouseover="hoveredGif = item.id"
+          @mouseleave="isClips ? handleClipItemLeave(item.id, $event) : (hoveredGif = null)"
         >
-      </div>
+          <template v-if="isClips">
+            <video
+              :src="stripFragment(item.media_formats.mp4.url)"
+              :poster="stripFragment(item.media_formats.gifpreview.url)"
+              class="inline-gif-media"
+              muted
+              loop
+              playsinline
+              preload="metadata"
+              @mouseenter="(e) => playPreview(e)"
+              @mouseleave="(e) => pausePreview(e)"
+            ></video>
+            <button
+              class="clip-audio-button"
+              :class="{ visible: hoveredGif === item.id || isMobile || audioClipId === item.id }"
+              :title="audioClipId === item.id ? $t('gif.clipMute') : $t('gif.clipUnmute')"
+              @click.stop="(e) => toggleClipAudio(item.id, e)"
+            >
+              <svg v-if="audioClipId === item.id" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
+              <svg v-else viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
+            </button>
+          </template>
+          <img 
+            v-else
+            :src="inlineGifSrc(item)" 
+            :alt="item.title || 'GIF'"
+            loading="lazy"
+          >
+        </div>
+      </template>
+      <!-- Required KLIPY attribution -->
+      <a
+        class="inline-gif-attribution"
+        href="https://klipy.com"
+        target="_blank"
+        rel="noopener noreferrer nofollow"
+        @click.stop
+        title="Powered by KLIPY"
+      >KLIPY</a>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted } from 'vue';
+import { ref, watch, onMounted, computed } from 'vue';
+import { useLayoutState } from '@/composables/useLayoutState';
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue';
-import type { Gif } from '@/types';
+import GifAdSlot from '@/components/GifAdSlot.vue';
+import { gifProvider, type GifMediaType } from '@/services/gifProviderService';
+import {
+  stripKlipyAttributionFragment,
+  withGifMessageUrl,
+  mediaTypeToKind,
+} from '@/utils/klipyAttribution';
+import type { Gif, GifResultItem } from '@/types';
 
 interface Props {
   query: string;
+  mediaType?: GifMediaType;
 }
 
-const props = defineProps<Props>();
+const props = withDefaults(defineProps<Props>(), {
+  mediaType: 'gifs',
+});
 
 defineEmits<{
   (e: 'selectGif', gif: Gif): void;
 }>();
 
-const gifs = ref<Gif[]>([]);
+const { isMobile } = useLayoutState();
+const items = ref<GifResultItem[]>([]);
 const hoveredGif = ref<string | null>(null);
+const kind = computed(() => mediaTypeToKind(props.mediaType));
+const isClips = computed(() => props.mediaType === 'clips');
+const mediaNoun = computed(() => {
+  switch (props.mediaType) {
+    case 'stickers': return 'stickers';
+    case 'clips': return 'clips';
+    case 'memes': return 'memes';
+    case 'ai-emojis': return 'AI emoji';
+    default: return 'GIFs';
+  }
+});
+
+const stripFragment = (url: string) => stripKlipyAttributionFragment(url);
+
+// The clip currently previewing with audio (toggled via the mute/unmute icon).
+const audioClipId = ref<string | null>(null);
+let audioClipEl: HTMLVideoElement | null = null;
+
+const resetClipAudio = () => {
+  if (audioClipEl) {
+    audioClipEl.muted = true;
+    audioClipEl.pause?.();
+    audioClipEl.currentTime = 0;
+  }
+  audioClipEl = null;
+  audioClipId.value = null;
+};
+
+const playPreview = (e: Event) => {
+  const v = e.target as HTMLVideoElement;
+  if (v === audioClipEl) return;
+  v.muted = true;
+  v.play?.().catch(() => {});
+};
+const pausePreview = (e: Event) => {
+  const v = e.target as HTMLVideoElement;
+  if (v === audioClipEl) {
+    resetClipAudio();
+    return;
+  }
+  v.pause?.();
+  v.currentTime = 0;
+};
+
+const handleClipItemLeave = (itemId: string, e: MouseEvent) => {
+  hoveredGif.value = null;
+  if (audioClipId.value === itemId) {
+    resetClipAudio();
+    return;
+  }
+  const v = (e.currentTarget as HTMLElement).querySelector('video');
+  if (v) {
+    v.pause?.();
+    v.currentTime = 0;
+  }
+};
+
+// Tap the mute/unmute icon to play a clip with sound (tap again to mute).
+const toggleClipAudio = (itemId: string, e: Event) => {
+  e.stopPropagation();
+  const btn = e.currentTarget as HTMLElement;
+  const v = btn.closest('.inline-gif-item')?.querySelector('video') as HTMLVideoElement | null;
+  if (!v) return;
+  if (audioClipId.value === itemId) {
+    resetClipAudio();
+    return;
+  }
+  if (audioClipEl && audioClipEl !== v) {
+    audioClipEl.muted = true;
+    audioClipEl.pause?.();
+    audioClipEl.currentTime = 0;
+  }
+  v.muted = false;
+  v.volume = 1;
+  v.play?.().catch(() => {});
+  audioClipEl = v;
+  audioClipId.value = itemId;
+};
+
+const inlineGifSrc = (item: Gif) => {
+  const url =
+    hoveredGif.value === item.id
+      ? item.media_formats.gif.url
+      : item.media_formats.gifpreview.url;
+  return stripKlipyAttributionFragment(url);
+};
 const isLoading = ref(false);
 let searchTimeout: ReturnType<typeof setTimeout> | null = null;
 let currentRequestId = 0;
@@ -50,13 +188,10 @@ const fetchTrending = async () => {
   const requestId = ++currentRequestId;
   isLoading.value = true;
   try {
-    const response = await fetch(
-      `https://tenor.googleapis.com/v2/featured?key=${import.meta.env.VITE_TENOR_API_KEY}&limit=20`
-    );
-    if (!response.ok || requestId !== currentRequestId) return;
-    const data = await response.json();
-    gifs.value = data.results;
-  } catch { /* ignore */ } finally {
+    const feed = await gifProvider.trending({ perPage: 20 }, props.mediaType);
+    if (requestId !== currentRequestId) return;
+    items.value = feed.items;
+  } finally {
     if (requestId === currentRequestId) isLoading.value = false;
   }
 };
@@ -69,13 +204,10 @@ const searchGifs = async (q: string) => {
   const requestId = ++currentRequestId;
   isLoading.value = true;
   try {
-    const response = await fetch(
-      `https://tenor.googleapis.com/v2/search?q=${encodeURIComponent(q)}&key=${import.meta.env.VITE_TENOR_API_KEY}&limit=20`
-    );
-    if (!response.ok || requestId !== currentRequestId) return;
-    const data = await response.json();
-    gifs.value = data.results;
-  } catch { /* ignore */ } finally {
+    const feed = await gifProvider.search(q, { perPage: 20 }, props.mediaType);
+    if (requestId !== currentRequestId) return;
+    items.value = feed.items;
+  } finally {
     if (requestId === currentRequestId) isLoading.value = false;
   }
 };
@@ -114,6 +246,7 @@ onMounted(() => {
 }
 
 .inline-gif-item {
+  position: relative;
   cursor: pointer;
   border-radius: 4px;
   overflow: hidden;
@@ -121,16 +254,69 @@ onMounted(() => {
   transition: transform 0.12s ease;
 }
 
+/* Clip audio toggle - bottom-right, fades in on hover; forced visible on
+   mobile and while this clip is the active audio one. */
+.clip-audio-button {
+  position: absolute;
+  bottom: 4px;
+  right: 4px;
+  width: 22px;
+  height: 22px;
+  background: rgba(0, 0, 0, 0.6);
+  border: none;
+  padding: 0;
+  border-radius: 50%;
+  cursor: pointer;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.15s ease, background 0.15s ease;
+  z-index: 2;
+}
+
+.clip-audio-button.visible {
+  opacity: 1;
+}
+
+.clip-audio-button:hover {
+  background: rgba(0, 0, 0, 0.85);
+}
+
 .inline-gif-item:hover {
   transform: scale(1.05);
   z-index: 1;
 }
 
-.inline-gif-item img {
+.inline-gif-item img,
+.inline-gif-media {
   width: 100%;
   height: 100%;
   object-fit: cover;
   display: block;
+  background: #000;
+}
+
+/* Required KLIPY attribution, sits as a subtle tile at the end of the strip. */
+.inline-gif-attribution {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 1;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  background: var(--background-senary-alpha);
+  text-decoration: none;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.inline-gif-attribution:hover {
+  color: var(--text-primary);
+  background: var(--background-modifier-hover);
 }
 
 .inline-gif-loading {

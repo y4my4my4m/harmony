@@ -38,40 +38,77 @@ router.get(
       });
     }
 
-    // Lookup user (case-insensitive username via ilike)
+    // A handle can name a user (Person) AND/OR a chat server (Group). They are
+    // distinct actor types that may share a localpart, exactly like Lemmy's
+    // users vs communities. WebFinger has no type field in the acct: URI, so we
+    // return one rel="self" link PER matching actor, each tagged with its
+    // ActivityStreams type in `properties`. The requester filters by the type
+    // it wants (Mastodon-style consumers that ignore properties just take the
+    // first link — fine, since collisions are rare and servers aren't @-mentioned).
+    const AS_TYPE = 'https://www.w3.org/ns/activitystreams#type';
     const supabase = getSupabaseClient();
-    const { data: user, error } = await supabase
-      .from('profiles')
-      .select('username, domain')
-      .ilike('username', username)
-      .eq('is_local', true)
-      .maybeSingle();
 
-    if (error || !user) {
-      return res.status(404).json({
-        error: 'User not found',
+    const [{ data: user }, { data: server }] = await Promise.all([
+      supabase
+        .from('profiles')
+        .select('username')
+        .ilike('username', username)
+        .eq('is_local', true)
+        .maybeSingle(),
+      // Only public, federation-enabled local servers are discoverable by
+      // handle. Private servers stay invite-only (reached by Group-actor URL
+      // through the invite flow), never by guessing a handle.
+      supabase
+        .from('servers')
+        .select('id, slug')
+        .ilike('slug', username)
+        .eq('is_local_server', true)
+        .eq('federation_enabled', true)
+        .eq('public', true)
+        .maybeSingle(),
+    ]);
+
+    if (!user && !server) {
+      return res.status(404).json({ error: 'Account not found' });
+    }
+
+    const links: any[] = [];
+    const aliases: string[] = [];
+    // Canonical localpart for the subject: prefer the user's casing, else server's.
+    const canonical = user?.username || server?.slug;
+
+    if (user) {
+      const userUrl = `https://${config.INSTANCE_DOMAIN}/users/${user.username}`;
+      aliases.push(userUrl);
+      links.push({
+        rel: 'self',
+        type: 'application/activity+json',
+        href: userUrl,
+        properties: { [AS_TYPE]: 'Person' },
+      });
+      links.push({
+        rel: 'http://webfinger.net/rel/profile-page',
+        type: 'text/html',
+        href: `https://${config.INSTANCE_DOMAIN}/social/profile/${user.username}`,
       });
     }
 
-    const canonicalUsername = user.username;
-    const userUrl = `https://${config.INSTANCE_DOMAIN}/users/${canonicalUsername}`;
+    if (server) {
+      const serverUrl = `https://${config.INSTANCE_DOMAIN}/servers/${server.id}`;
+      aliases.push(serverUrl);
+      links.push({
+        rel: 'self',
+        type: 'application/activity+json',
+        href: serverUrl,
+        properties: { [AS_TYPE]: 'Group' },
+      });
+    }
 
     res.setHeader('Content-Type', 'application/jrd+json');
-    res.json({
-      subject: `acct:${canonicalUsername}@${config.INSTANCE_DOMAIN}`,
-      aliases: [userUrl],
-      links: [
-        {
-          rel: 'self',
-          type: 'application/activity+json',
-          href: userUrl,
-        },
-        {
-          rel: 'http://webfinger.net/rel/profile-page',
-          type: 'text/html',
-          href: `https://${config.INSTANCE_DOMAIN}/social/profile/${canonicalUsername}`,
-        },
-      ],
+    return res.json({
+      subject: `acct:${canonical}@${config.INSTANCE_DOMAIN}`,
+      aliases,
+      links,
     });
   })
 );

@@ -68,6 +68,22 @@ function drawBadge(img: HTMLImageElement, count: number): string {
   return canvas.toDataURL('image/png')
 }
 
+/**
+ * Set the base favicon (e.g. from instance branding). Updates the main favicon
+ * link and makes the badge renderer use this image as its base going forward.
+ */
+export function setBaseFavicon(href: string): void {
+  if (typeof document === 'undefined' || !href) return
+  const favicon = getMainFavicon()
+  if (!favicon) return
+  favicon.href = href
+  originalFaviconHref = href
+  originalFaviconElement = favicon
+  cachedImage = null
+  // Force the next updateFaviconBadge() call to re-render against the new base.
+  currentCount = -1
+}
+
 export async function updateFaviconBadge(count: number): Promise<void> {
   if (typeof document === 'undefined') return
   if (count === currentCount) return

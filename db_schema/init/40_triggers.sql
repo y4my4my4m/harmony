@@ -25,6 +25,13 @@ CREATE TRIGGER sanitize_server_text_trigger
     BEFORE INSERT OR UPDATE ON public.servers
     FOR EACH ROW EXECUTE FUNCTION public.sanitize_server_text();
 
+-- Auto-assign a WebFinger handle to new local servers. Runs after the sanitize
+-- trigger (alphabetical 's' < 't') so it slugifies the cleaned name.
+DROP TRIGGER IF EXISTS trg_assign_server_slug ON public.servers;
+CREATE TRIGGER trg_assign_server_slug
+    BEFORE INSERT ON public.servers
+    FOR EACH ROW EXECUTE FUNCTION public.assign_server_slug();
+
 DROP TRIGGER IF EXISTS sanitize_channel_text_trigger ON public.channels;
 CREATE TRIGGER sanitize_channel_text_trigger
     BEFORE INSERT OR UPDATE ON public.channels

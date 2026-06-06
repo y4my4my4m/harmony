@@ -52,6 +52,8 @@ export interface SupporterTier {
   badge_color: string | null
   perks: string | null
   display_order: number
+  /** When true, active supporters on this tier get the ad-free GIF picker. */
+  removes_ads?: boolean
 }
 
 export interface Supporter {

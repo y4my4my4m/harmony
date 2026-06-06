@@ -88,6 +88,20 @@
       </div>
     </template>
 
+    <template v-if="firstVideoAttachment">
+      <div class="context-menu-item" @click="saveVideo">
+        <Icon name="download" size="sm" />
+        <span>Save Video</span>
+      </div>
+    </template>
+
+    <template v-if="firstAudioAttachment">
+      <div class="context-menu-item" @click="saveAudio">
+        <Icon name="download" size="sm" />
+        <span>Save Audio</span>
+      </div>
+    </template>
+
     <template v-if="hasMediaURL">
       <div class="context-menu-item" @click="copyLinkURL">
         <Icon name="link" size="sm" />
@@ -145,6 +159,7 @@ import { useDeveloperTools } from '@/composables/useDeveloperTools';
 import { messageService } from '@/services';
 import { getEmojiUrl } from '@/utils/emojiUtils';
 import { messagePartsToPlainText } from '@/utils/messageContentUtils';
+import { downloadMediaFromUrl, filenameFromUrl } from '@/utils/downloadMedia';
 import type { Message } from '@/types';
 import Icon from '@/components/common/Icon.vue';
 import ReactionIcon from '@/components/icons/Reaction.vue';
@@ -230,6 +245,38 @@ const firstImageAttachment = computed(() => {
       typeof part === 'object' &&
       part.type === 'file' &&
       (part as any).fileType === 'image' &&
+      (part as any).url
+    ) {
+      return part as { type: 'file'; fileType: string; url: string; name?: string };
+    }
+  }
+  return null;
+});
+
+const firstVideoAttachment = computed(() => {
+  if (!props.message || !Array.isArray(props.message.content)) return null;
+  for (const part of props.message.content) {
+    if (
+      part &&
+      typeof part === 'object' &&
+      part.type === 'file' &&
+      (part as any).fileType === 'video' &&
+      (part as any).url
+    ) {
+      return part as { type: 'file'; fileType: string; url: string; name?: string };
+    }
+  }
+  return null;
+});
+
+const firstAudioAttachment = computed(() => {
+  if (!props.message || !Array.isArray(props.message.content)) return null;
+  for (const part of props.message.content) {
+    if (
+      part &&
+      typeof part === 'object' &&
+      part.type === 'file' &&
+      (part as any).fileType === 'audio' &&
       (part as any).url
     ) {
       return part as { type: 'file'; fileType: string; url: string; name?: string };
@@ -514,57 +561,36 @@ const copyImage = async () => {
   emit('close');
 };
 
-/**
- * Trigger a download of the first image attachment. Uses an in-memory
- * object URL when possible so the download respects the original
- * filename; falls back to the raw URL with `download` attribute when
- * fetching fails (e.g. CORS issues on a federated CDN).
- */
 const saveImage = async () => {
   const attachment = firstImageAttachment.value;
   if (!attachment) {
     emit('close');
     return;
   }
-  // Derive a sensible filename: prefer the part's `name` if present,
-  // otherwise fall back to the URL's last path segment.
-  const fallbackName = (() => {
-    try {
-      const u = new URL(attachment.url, window.location.origin);
-      const last = u.pathname.split('/').filter(Boolean).pop();
-      return last || 'image';
-    } catch {
-      return 'image';
-    }
-  })();
-  const filename = (attachment as any).name || fallbackName;
+  const filename = (attachment as any).name || filenameFromUrl(attachment.url, 'image');
+  await downloadMediaFromUrl(attachment.url, filename);
+  emit('close');
+};
 
-  try {
-    const response = await fetch(attachment.url);
-    const blob = await response.blob();
-    const objectUrl = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = objectUrl;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
-    debug.log('Image saved');
-  } catch (error) {
-    debug.error('Failed to save image (likely CORS); falling back to direct anchor', error);
-    // Fallback: same-origin direct anchor download. Browsers may still
-    // open the image in a new tab if the server doesn't send a
-    // Content-Disposition header, but it's better than nothing.
-    const a = document.createElement('a');
-    a.href = attachment.url;
-    a.download = filename;
-    a.target = '_blank';
-    a.rel = 'noopener';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+const saveVideo = async () => {
+  const attachment = firstVideoAttachment.value;
+  if (!attachment) {
+    emit('close');
+    return;
   }
+  const filename = (attachment as any).name || filenameFromUrl(attachment.url, 'video');
+  await downloadMediaFromUrl(attachment.url, filename);
+  emit('close');
+};
+
+const saveAudio = async () => {
+  const attachment = firstAudioAttachment.value;
+  if (!attachment) {
+    emit('close');
+    return;
+  }
+  const filename = (attachment as any).name || filenameFromUrl(attachment.url, 'audio');
+  await downloadMediaFromUrl(attachment.url, filename);
   emit('close');
 };
 

@@ -43,11 +43,13 @@ body::-webkit-scrollbar {
 }
 
 /* Allow text selection on inputs and content */
-input, textarea, [contenteditable], .message-content, .selectable {
+input, textarea, [contenteditable],
+.message-content, .content-display, .post-text, .post-body, .selectable {
   -webkit-user-select: text;
   -moz-user-select: text;
   -ms-user-select: text;
   user-select: text;
+  -webkit-touch-callout: default;
 }
 
 /* PWA safe area support */

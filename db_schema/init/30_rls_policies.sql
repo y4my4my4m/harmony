@@ -530,6 +530,47 @@ CREATE POLICY "emojis_delete_server_owner" ON public.emojis
         )
     );
 
+-- User-scoped emoji (personal uploads + AI-generated): owner manages their own.
+DROP POLICY IF EXISTS "emojis_insert_user_scope" ON public.emojis;
+CREATE POLICY "emojis_insert_user_scope" ON public.emojis
+    FOR INSERT WITH CHECK (
+        scope = 'user' AND uploader = public.get_current_profile_id()
+    );
+
+DROP POLICY IF EXISTS "emojis_update_user_scope" ON public.emojis;
+CREATE POLICY "emojis_update_user_scope" ON public.emojis
+    FOR UPDATE USING (
+        scope = 'user' AND uploader = public.get_current_profile_id()
+    );
+
+DROP POLICY IF EXISTS "emojis_delete_user_scope" ON public.emojis;
+CREATE POLICY "emojis_delete_user_scope" ON public.emojis
+    FOR DELETE USING (
+        scope = 'user' AND uploader = public.get_current_profile_id()
+    );
+
+-- Instance-wide emoji: managed by instance admins.
+DROP POLICY IF EXISTS "emojis_insert_instance_admin" ON public.emojis;
+CREATE POLICY "emojis_insert_instance_admin" ON public.emojis
+    FOR INSERT WITH CHECK (
+        scope = 'instance'
+        AND (SELECT is_admin FROM public.profiles WHERE auth_user_id = auth.uid())
+    );
+
+DROP POLICY IF EXISTS "emojis_update_instance_admin" ON public.emojis;
+CREATE POLICY "emojis_update_instance_admin" ON public.emojis
+    FOR UPDATE USING (
+        scope = 'instance'
+        AND (SELECT is_admin FROM public.profiles WHERE auth_user_id = auth.uid())
+    );
+
+DROP POLICY IF EXISTS "emojis_delete_instance_admin" ON public.emojis;
+CREATE POLICY "emojis_delete_instance_admin" ON public.emojis
+    FOR DELETE USING (
+        scope = 'instance'
+        AND (SELECT is_admin FROM public.profiles WHERE auth_user_id = auth.uid())
+    );
+
 ALTER TABLE public.hashtags ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "hashtags_select_all" ON public.hashtags FOR SELECT USING (true);
 
