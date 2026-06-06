@@ -14,6 +14,7 @@
 import { randomUUID } from 'crypto';
 import { Router } from 'express';
 import { requireAuth, AuthenticatedRequest } from '../middleware/auth.js';
+import config from '../config/index.js';
 import { getSupabaseClient } from '../config/supabase.js';
 import {
   KlipyService,
@@ -349,11 +350,12 @@ router.post('/ai-emojis/generate', requireAuth, async (req, res) => {
       return res.status(500).json({ error: 'Failed to save the generated emoji' });
     }
 
-    const { data: pub } = supabase.storage.from(GEN_BUCKET).getPublicUrl(path);
-    const url = pub?.publicUrl;
-    if (!url) {
-      return res.status(500).json({ error: 'Failed to resolve the generated emoji URL' });
-    }
+    // Build the public URL from the externally-reachable Supabase base, NOT the
+    // client's internal URL (getPublicUrl would emit the internal docker host,
+    // e.g. http://supabase-kong:8000). PUBLIC_SUPABASE_URL defaults to
+    // SUPABASE_URL when unset. Mirrors DatabaseListener's storage URL building.
+    const publicBase = (config.PUBLIC_SUPABASE_URL || config.SUPABASE_URL).replace(/\/+$/, '');
+    const url = `${publicBase}/storage/v1/object/public/${GEN_BUCKET}/${path}`;
 
     // Create a real, per-user custom emoji so it renders via :shortcode: and
     // shows up in the picker's AI Generated category.

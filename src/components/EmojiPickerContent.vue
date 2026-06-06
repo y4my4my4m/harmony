@@ -317,7 +317,9 @@ const searchInput = ref<HTMLInputElement | null>(null);
 const searchQuery = ref('');
 const hoveredEmojiName = ref<string | null>(null);
 const favoriteEmojis = ref<EmojiFavorite[]>([]);
-const collapsedSections = ref(new Set<string>());
+// The instance emoji set can be large and is rarely the user's first choice, so
+// it starts collapsed — its images aren't mounted/fetched until expanded.
+const collapsedSections = ref(new Set<string>([`server-${PERSONAL_EMOJI_GROUPS.instance}`]));
 
 const toggleSection = (id: string) => {
   const s = new Set(collapsedSections.value);

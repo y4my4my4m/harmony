@@ -437,7 +437,15 @@ export const useEmojiCacheStore = defineStore('emojiCache', {
     async loadPersonalEmojis(profileId: string | null) {
       try {
         const requests: Promise<{ data: Emoji[] | null }>[] = [
-          supabase.from('emojis').select('*').eq('scope', 'instance').order('name') as any,
+          // Instance category: only LOCAL (and admin-imported, re-hosted) emoji.
+          // Emoji cached from inter-instance interactions carry a `domain`, so
+          // exclude those — they don't belong in this instance's own collection.
+          supabase
+            .from('emojis')
+            .select('*')
+            .eq('scope', 'instance')
+            .is('domain', null)
+            .order('name') as any,
         ];
         if (profileId) {
           requests.push(
@@ -456,9 +464,17 @@ export const useEmojiCacheStore = defineStore('emojiCache', {
         const aiEmojis = userEmojis.filter((e) => (e as any).is_ai_generated === true);
         const ownEmojis = userEmojis.filter((e) => (e as any).is_ai_generated !== true);
 
+        // Name the instance group after the instance (e.g. "Spacify Emoji").
+        let instanceLabel = 'Instance Emoji';
+        try {
+          const { useInstanceSettingsStore } = await import('@/stores/useInstanceSettings');
+          const name = useInstanceSettingsStore().settings.instanceName?.trim();
+          if (name) instanceLabel = `${name} Emoji`;
+        } catch { /* settings not ready — keep fallback */ }
+
         this.updateServerCache(PERSONAL_EMOJI_GROUPS.ai, aiEmojis, { name: 'AI Generated' }, false);
         this.updateServerCache(PERSONAL_EMOJI_GROUPS.user, ownEmojis, { name: 'My Emoji' }, false);
-        this.updateServerCache(PERSONAL_EMOJI_GROUPS.instance, instanceEmojis, { name: 'Instance Emoji' }, false);
+        this.updateServerCache(PERSONAL_EMOJI_GROUPS.instance, instanceEmojis, { name: instanceLabel }, false);
         this.rebuildResolvedEmojis();
       } catch (e) {
         debug.error('Failed to load personal/instance emoji:', e);
