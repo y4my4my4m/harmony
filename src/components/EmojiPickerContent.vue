@@ -103,21 +103,6 @@
           ✨ AI Generated
         </h3>
         <template v-if="!isSectionCollapsed('ai-generated')">
-          <form v-if="canGenerate && !searchQuery" class="ai-gen-form" @submit.prevent="runGenerate">
-            <input
-              v-model="aiPrompt"
-              type="text"
-              class="search-input ai-gen-input"
-              :maxlength="AI_PROMPT_MAX_LEN"
-              :placeholder="$t('emoji.aiGeneratePlaceholder')"
-              :disabled="aiGenerating"
-            />
-            <button type="submit" class="ai-gen-button" :disabled="aiGenerating || !aiPrompt.trim()">
-              <LoadingSpinner v-if="aiGenerating" :size="14" />
-              <span v-else>{{ $t('emoji.aiGenerate') }}</span>
-            </button>
-          </form>
-          <p v-if="aiGenError" class="ai-gen-error">{{ aiGenError }}</p>
           <div v-if="aiEmojis.length" class="emoji-list">
             <div
               v-for="emoji in aiEmojis"
@@ -132,9 +117,6 @@
               <svg v-if="brokenEmojiUrls.has(emoji.url)" class="emoji-broken-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="2" y1="2" x2="22" y2="22"/><path d="M10.41 10.41a2 2 0 1 1-2.83-2.83"/><line x1="13.5" y1="13.5" x2="6" y2="21"/><line x1="18" y1="12" x2="21" y2="15"/><path d="M3.59 3.59A1.99 1.99 0 0 0 3 5v14a2 2 0 0 0 2 2h14c.55 0 1.052-.22 1.41-.59"/><path d="M21 15V5a2 2 0 0 0-2-2H9"/></svg>
               <img v-else :src="getEmojiUrl(emoji.url, 42)" :alt="emoji.name" @error="brokenEmojiUrls.add(emoji.url)" />
             </div>
-          </div>
-          <div v-else-if="canGenerate && !searchQuery" class="no-favorites-hint">
-            <p>{{ $t('emoji.aiGenerateHint') }}</p>
           </div>
         </template>
       </div>
@@ -272,9 +254,7 @@
 import { ref, onMounted, computed, nextTick, watch } from 'vue';
 import { useEmojiCacheStore, PERSONAL_EMOJI_GROUPS } from '@/stores/useEmojiCache';
 import { KLIPY_EPHEMERAL_GROUP, registerEphemeralEmoji } from '@/utils/ephemeralEmoji';
-import { useInstanceSettingsStore } from '@/stores/useInstanceSettings';
 import { authContextService } from '@/services/AuthContextService';
-import { useAiEmojiGeneration } from '@/composables/useAiEmojiGeneration';
 import { useFrequentEmojis } from '@/composables/useFrequentEmojis';
 import { useHapticSettings } from '@/composables/useHapticSettings';
 import { useUnifiedEmoji, type EmojiEntry } from '@/services/unifiedEmojiService';
@@ -318,16 +298,8 @@ const emit = defineEmits<{
 // State & Composables
 const brokenEmojiUrls = ref(new Set<string>());
 const emojiCacheStore = useEmojiCacheStore();
-const instanceSettings = useInstanceSettingsStore();
 const serverChannelStore = useServerChannelStore();
 
-// --- AI emoji generation ---
-const AI_PROMPT_MAX_LEN = 200;
-const canGenerate = computed(() => instanceSettings.gifAiEmojiGenerationEnabled);
-const aiPrompt = ref('');
-const aiGen = useAiEmojiGeneration();
-const aiGenerating = aiGen.isGenerating;
-const aiGenError = aiGen.lastError;
 const { topEmojisForPicker, hasFrequentEmojis, recordEmojiUsage, removeFrequentEmoji, isFrequentEmoji } = useFrequentEmojis();
 const { triggerReaction } = useHapticSettings();
 const { 
@@ -419,14 +391,7 @@ const aiEmojis = computed((): ResolvedEmoji[] => {
   );
 });
 
-const showAiSection = computed(() => canGenerate.value || aiEmojis.value.length > 0);
-
-async function runGenerate() {
-  const prompt = aiPrompt.value.trim();
-  if (!prompt || aiGenerating.value) return;
-  const emoji = await aiGen.generate(prompt);
-  if (emoji) aiPrompt.value = '';
-}
+const showAiSection = computed(() => aiEmojis.value.length > 0);
 
 // Computed: Displayed categories from unified emoji service
 const displayedCategories = computed((): DisplayCategory[] => {
