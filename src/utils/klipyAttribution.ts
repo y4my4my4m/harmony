@@ -92,6 +92,14 @@ export function isStickerMessageUrl(mediaUrl: string): boolean {
   return k === 'sticker' || k === 'ai-emoji'
 }
 
+/**
+ * Klipy AI emoji — these ARE emoji, so they render exactly like one: emoji-sized,
+ * inline, no lightbox, no favorite affordance, and no KLIPY watermark.
+ */
+export function isAiEmojiMessageUrl(mediaUrl: string): boolean {
+  return parseKlipyKind(mediaUrl) === 'ai-emoji'
+}
+
 /** Clip media — rendered/sent as a video. */
 export function isVideoMessageUrl(mediaUrl: string): boolean {
   return parseKlipyKind(mediaUrl) === 'clip'

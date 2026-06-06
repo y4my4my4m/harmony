@@ -242,7 +242,7 @@
         <div 
           v-else-if="part && typeof part === 'object' && part.type === 'file' && part.fileType === 'image'" 
           class="media-container image-container"
-          :class="{ 'sticker-container': isStickerMedia(part.url) }"
+          :class="{ 'sticker-container': isStickerMedia(part.url), 'ai-emoji-container': isAiEmojiMedia(part.url) }"
           @mouseenter="hoveredImageUrl = part.url"
           @mouseleave="hoveredImageUrl = null"
         >
@@ -254,11 +254,11 @@
             v-show="imageLoadedState[part.url]"
             draggable="false"
             class="content-image"
-            :class="{ 'sticker-image': isStickerMedia(part.url) }"
+            :class="{ 'sticker-image': isStickerMedia(part.url), 'ai-emoji-image': isAiEmojiMedia(part.url) }"
           />
-          <!-- GIF/sticker Favorite Button -->
+          <!-- GIF/sticker Favorite Button (AI emoji are treated as plain emoji: no favorite) -->
           <button 
-            v-if="isAnimatedImage(part.url) || isStickerMedia(part.url)"
+            v-if="(isAnimatedImage(part.url) || isStickerMedia(part.url)) && !isAiEmojiMedia(part.url)"
             class="gif-favorite-button"
             :class="{ 'favorited': isGifFavorited(part.url), 'visible': hoveredImageUrl === part.url || isGifFavorited(part.url) }"
             @click.stop="toggleGifFavorite(part.url)"
@@ -269,9 +269,9 @@
               <path v-else d="M22 9.24l-7.19-.62L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21 12 17.27 18.18 21l-1.63-7.03L22 9.24zM12 15.4l-3.76 2.27 1-4.28-3.32-2.88 4.38-.38L12 6.1l1.71 4.04 4.38.38-3.32 2.88 1 4.28L12 15.4z"/>
             </svg>
           </button>
-          <!-- KLIPY attribution watermark (optional; only on Klipy-sourced media, on hover) -->
+          <!-- KLIPY attribution watermark (optional; only on Klipy media, on hover; never on AI emoji) -->
           <a
-            v-if="showKlipyWatermark && isKlipyMedia(part.url)"
+            v-if="showKlipyWatermark && isKlipyMedia(part.url) && !isAiEmojiMedia(part.url)"
             class="klipy-watermark"
             :class="{ 'visible': hoveredImageUrl === part.url }"
             :href="klipyWatermarkHref(part.url)"
@@ -433,6 +433,7 @@ import {
   parseKlipyItemPageUrl,
   stripKlipyAttributionFragment,
   isStickerMessageUrl,
+  isAiEmojiMessageUrl,
   parseKlipyKind,
 } from '@/utils/klipyAttribution';
 
@@ -533,6 +534,8 @@ export default defineComponent({
       parseKlipyItemPageUrl(url) || defaultKlipyHomeUrl();
     // Stickers render small and inline, with no lightbox/zoom — "like stickers".
     const isStickerMedia = (url: string) => isStickerMessageUrl(url);
+    // Klipy AI emoji render as plain emoji: no watermark, no favorite, no lightbox.
+    const isAiEmojiMedia = (url: string) => isAiEmojiMessageUrl(url);
     
     // GIF favorites state
     const hoveredImageUrl = ref<string | null>(null);
@@ -1114,6 +1117,7 @@ export default defineComponent({
       displayMediaUrl,
       klipyWatermarkHref,
       isStickerMedia,
+      isAiEmojiMedia,
       isGifFavorited,
       toggleGifFavorite
     };
@@ -1367,6 +1371,22 @@ export default defineComponent({
 }
 
 .sticker-image:hover {
+  transform: none;
+}
+
+/* Klipy AI emoji render at jumbo-emoji size, like a single custom emoji. */
+.ai-emoji-container {
+  max-width: 64px;
+}
+
+.ai-emoji-image {
+  max-width: 64px;
+  max-height: 64px;
+  border-radius: 0;
+  cursor: default;
+}
+
+.ai-emoji-image:hover {
   transform: none;
 }
 
