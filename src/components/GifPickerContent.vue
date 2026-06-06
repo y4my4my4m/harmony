@@ -47,13 +47,12 @@
         :disabled="generating"
       />
       <button type="submit" class="gif-generate-button" :disabled="generating || !genPrompt.trim()">
-        <LoadingSpinner v-if="generating" :size="14" />
-        <span v-else>{{ $t('emoji.aiGenerate') }}</span>
+        {{ generating ? $t('emoji.aiGenerating') : $t('emoji.aiGenerate') }}
       </button>
     </form>
 
-    <!-- Search Input (disabled in favorites view to maintain consistent height) -->
-    <div class="gif-search">
+    <!-- Search Input (hidden in AI generate mode; disabled in favorites view) -->
+    <div v-if="!(showGenerate && isAiEmoji)" class="gif-search">
       <div class="search-wrapper">
         <svg class="search-icon" viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
           <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
@@ -79,10 +78,57 @@
       </div>
     </div>
 
-    <!-- GIF Results / Favorites -->
+    <!-- GIF Results / Favorites / AI Generate -->
     <div class="gif-results" ref="resultsRef" @scroll="onResultsScroll">
+      <!-- AI Emoji generate mode: user's generated emoji + in-flight reveal -->
+      <template v-if="showGenerate && isAiEmoji">
+        <div v-if="generating || revealedEmoji" class="ai-gen-hero">
+          <Transition name="gen-fade" mode="out-in">
+            <div v-if="generating" key="spinner" class="ai-gen-spinner-wrap">
+              <LoadingSpinner :size="40" />
+            </div>
+            <button
+              v-else-if="revealedEmoji"
+              :key="revealedEmoji.id"
+              type="button"
+              class="ai-gen-reveal"
+              @click="selectGeneratedEmoji(revealedEmoji)"
+            >
+              <img
+                :src="getEmojiUrl(revealedEmoji.url, 128)"
+                :alt="`:${revealedEmoji.name}:`"
+                class="ai-gen-reveal-img"
+              />
+            </button>
+          </Transition>
+        </div>
+
+        <div
+          v-if="myGeneratedAiEmojis.length === 0 && !generating && !revealedEmoji"
+          class="empty-state"
+        >
+          <p>{{ $t('emoji.aiGenerateEmpty') }}</p>
+          <span class="empty-hint">{{ $t('emoji.aiGenerateEmptyHint') }}</span>
+        </div>
+        <div v-else-if="gridAiEmojis.length > 0 || revealedEmoji" class="ai-gen-grid">
+          <button
+            v-for="emoji in gridAiEmojis"
+            :key="emoji.id"
+            type="button"
+            class="ai-gen-item"
+            @click="selectGeneratedEmoji(emoji)"
+          >
+            <img
+              :src="getEmojiUrl(emoji.url, 64)"
+              :alt="emoji.name"
+              class="ai-gen-item-img"
+            />
+          </button>
+        </div>
+      </template>
+
       <!-- Loading State -->
-      <div v-if="isLoading" class="loading-state">
+      <div v-else-if="isLoading" class="loading-state">
         <LoadingSpinner :size="24" />
         <span>Loading...</span>
       </div>
@@ -216,9 +262,12 @@ import { ref, watch, onMounted, nextTick, computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useLayoutState } from '@/composables/useLayoutState';
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings';
+import { useEmojiCacheStore, PERSONAL_EMOJI_GROUPS } from '@/stores/useEmojiCache';
+import { authContextService } from '@/services/AuthContextService';
 import { useAiEmojiGeneration } from '@/composables/useAiEmojiGeneration';
 import { useFrequentEmojis } from '@/composables/useFrequentEmojis';
 import { buildEphemeralEmojiFromGif, registerEphemeralEmoji } from '@/utils/ephemeralEmoji';
+import { getEmojiUrl } from '@/utils/emojiUtils';
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue';
 import GifAdSlot from '@/components/GifAdSlot.vue';
 import { debug } from '@/utils/debug';
@@ -230,7 +279,7 @@ import {
   mediaTypeToKind,
   type KlipyKind,
 } from '@/utils/klipyAttribution';
-import type { Gif, GifResultItem, Emoji } from '@/types';
+import type { Gif, GifResultItem, Emoji, ResolvedEmoji } from '@/types';
 
 interface Props {
   showFavorites: boolean;
@@ -252,6 +301,7 @@ const emit = defineEmits<Emits>();
 const { t } = useI18n();
 const { isMobile } = useLayoutState();
 const instanceSettings = useInstanceSettingsStore();
+const emojiCacheStore = useEmojiCacheStore();
 const aiGen = useAiEmojiGeneration();
 const { recordEmojiUsage } = useFrequentEmojis();
 
@@ -263,15 +313,44 @@ const showGenerate = ref(false);
 const genPrompt = ref('');
 const GEN_PROMPT_MAX_LEN = 200;
 const generating = aiGen.isGenerating;
+/** Latest successfully generated emoji — shown in the hero slot above the list. */
+const revealedEmoji = ref<Emoji | null>(null);
+
+const myGeneratedAiEmojis = computed((): ResolvedEmoji[] => {
+  const group = emojiCacheStore.resolvedEmojis[PERSONAL_EMOJI_GROUPS.ai];
+  return group?.emojis ?? [];
+});
+
+/** Grid excludes the emoji currently showcased in the hero reveal slot. */
+const gridAiEmojis = computed((): ResolvedEmoji[] => {
+  const revealId = revealedEmoji.value?.id;
+  if (!revealId) return myGeneratedAiEmojis.value;
+  return myGeneratedAiEmojis.value.filter((e) => e.id !== revealId);
+});
+
+const loadMyAiEmojis = async () => {
+  try {
+    const ctx = await authContextService.getCurrentContext();
+    await emojiCacheStore.loadPersonalEmojis(ctx.profileId ?? null);
+  } catch {
+    await emojiCacheStore.loadPersonalEmojis(null);
+  }
+};
 
 const runGenerate = async () => {
   const prompt = genPrompt.value.trim();
   if (!prompt || generating.value) return;
+  revealedEmoji.value = null;
   const emoji = await aiGen.generate(prompt);
   if (emoji) {
     genPrompt.value = '';
-    showGenerate.value = false;
+    revealedEmoji.value = emoji;
   }
+};
+
+const selectGeneratedEmoji = (emoji: ResolvedEmoji | Emoji) => {
+  recordEmojiUsage({ id: emoji.id, name: emoji.name, url: emoji.url });
+  emit('sendEmoji', emoji as Emoji);
 };
 
 const kind = computed<KlipyKind>(() => mediaTypeToKind(props.mediaType));
@@ -430,6 +509,7 @@ const fetchPage = async (reset: boolean) => {
 };
 
 const loadMore = () => {
+  if (showGenerate.value && isAiEmoji.value) return;
   if (props.showFavorites || loadingMore.value || isLoading.value || !hasNext.value) return;
   page.value += 1;
   fetchPage(false);
@@ -543,10 +623,19 @@ const refreshSuggestions = async () => {
   suggestions.value = await gifProvider.suggest(searchQuery.value || undefined);
 };
 watch(searchQuery, () => {
+  if (showGenerate.value && isAiEmoji.value) return;
   if (searchTimeout) clearTimeout(searchTimeout);
   searchTimeout = setTimeout(() => fetchPage(true), 300);
   if (suggestTimeout) clearTimeout(suggestTimeout);
   suggestTimeout = setTimeout(refreshSuggestions, 250);
+});
+
+watch(showGenerate, (show) => {
+  if (show && isAiEmoji.value) {
+    loadMyAiEmojis();
+  } else {
+    revealedEmoji.value = null;
+  }
 });
 
 // Load favorites when switching to favorites view
@@ -621,6 +710,95 @@ onMounted(async () => {
 .gif-generate-button:disabled {
   opacity: 0.55;
   cursor: not-allowed;
+}
+
+/* AI generate mode: in-flight spinner + reveal hero above the user's list */
+.ai-gen-hero {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 28px 16px 20px;
+  margin: 0 8px 8px;
+  border-radius: 8px;
+  background: var(--background-senary-alpha);
+  min-height: 120px;
+}
+
+.ai-gen-spinner-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ai-gen-reveal {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: transform 0.15s ease;
+}
+
+.ai-gen-reveal:hover {
+  transform: scale(1.06);
+}
+
+.ai-gen-reveal-img {
+  width: 96px;
+  height: 96px;
+  object-fit: contain;
+}
+
+.gen-fade-enter-active,
+.gen-fade-leave-active {
+  transition: opacity 0.35s ease, transform 0.35s ease;
+}
+
+.gen-fade-enter-from {
+  opacity: 0;
+  transform: scale(0.85);
+}
+
+.gen-fade-leave-to {
+  opacity: 0;
+  transform: scale(0.92);
+}
+
+/* User's previously generated AI emoji grid (no category header) */
+.ai-gen-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
+  gap: 8px;
+  padding: 4px 8px 12px;
+}
+
+.ai-gen-item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 1;
+  padding: 6px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.ai-gen-item:hover {
+  background: var(--background-modifier-hover);
+  transform: scale(1.06);
+}
+
+.ai-gen-item-img {
+  width: 100%;
+  height: 100%;
+  max-width: 48px;
+  max-height: 48px;
+  object-fit: contain;
 }
 
 .category-button {
