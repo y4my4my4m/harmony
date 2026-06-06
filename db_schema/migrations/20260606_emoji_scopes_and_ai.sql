@@ -140,9 +140,15 @@ DROP INDEX IF EXISTS public.idx_gif_favorites_generated;
 ALTER TABLE public.gif_favorites DROP COLUMN IF EXISTS is_generated;
 COMMENT ON TABLE public.gif_favorites IS 'User favorite GIFs and stickers';
 
+-- Drop the now-unused read policy for the old 'ai-emojis' bucket.
 DROP POLICY IF EXISTS "Public read access for ai-emojis" ON storage.objects;
-DELETE FROM storage.objects WHERE bucket_id = 'ai-emojis';
-DELETE FROM storage.buckets WHERE id = 'ai-emojis';
+
+-- NOTE: We intentionally do NOT delete the 'ai-emojis' bucket or its objects
+-- here. Supabase forbids direct DELETE on storage.objects / storage.buckets
+-- (storage.protect_delete() raises 42501) to avoid orphaning files. If the
+-- bucket was created on this instance, leave it dormant — nothing writes to it
+-- anymore — or remove it via the Storage API / dashboard ("Empty bucket" then
+-- "Delete bucket"). Fresh deploys never create it.
 
 COMMIT;
 
