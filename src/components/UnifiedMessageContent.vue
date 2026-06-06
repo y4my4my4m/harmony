@@ -279,7 +279,15 @@
             rel="noopener noreferrer nofollow"
             @click.stop
             title="via KLIPY"
-          >KLIPY</a>
+          >
+            <img
+              :src="klipyWatermarkLogoUrl"
+              alt="KLIPY"
+              class="klipy-watermark-logo"
+              width="51"
+              height="14"
+            />
+          </a>
         </div>
 
         <!-- Video files -->
@@ -321,7 +329,15 @@
             rel="noopener noreferrer nofollow"
             @click.stop
             title="via KLIPY"
-          >KLIPY</a>
+          >
+            <img
+              :src="klipyWatermarkLogoUrl"
+              alt="KLIPY"
+              class="klipy-watermark-logo"
+              width="51"
+              height="14"
+            />
+          </a>
         </div>
         
         <!-- Audio files (voice messages + regular audio) -->
@@ -430,6 +446,7 @@ import { useVisualTheme } from '@/composables/useVisualTheme';
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings';
 import {
   defaultKlipyHomeUrl,
+  KLIPY_WATERMARK_LOGO_URL,
   parseKlipyItemPageUrl,
   stripKlipyAttributionFragment,
   isStickerMessageUrl,
@@ -532,6 +549,7 @@ export default defineComponent({
     const displayMediaUrl = (url: string) => stripKlipyAttributionFragment(url);
     const klipyWatermarkHref = (url: string) =>
       parseKlipyItemPageUrl(url) || defaultKlipyHomeUrl();
+    const klipyWatermarkLogoUrl = KLIPY_WATERMARK_LOGO_URL;
     // Stickers render small and inline, with no lightbox/zoom — "like stickers".
     const isStickerMedia = (url: string) => isStickerMessageUrl(url);
     // Klipy AI emoji render as plain emoji: no watermark, no favorite, no lightbox.
@@ -1116,6 +1134,7 @@ export default defineComponent({
       showKlipyWatermark,
       displayMediaUrl,
       klipyWatermarkHref,
+      klipyWatermarkLogoUrl,
       isStickerMedia,
       isAiEmojiMedia,
       isGifFavorited,
@@ -1424,25 +1443,25 @@ export default defineComponent({
   color: var(--color-warning, #faa61a);
 }
 
-/* KLIPY attribution watermark - subtle, fades in on hover */
+/* KLIPY attribution watermark - official logo, fades in on hover */
 .klipy-watermark {
   position: absolute;
   bottom: 8px;
   left: 8px;
-  background: rgba(0, 0, 0, 0.55);
-  color: #fff;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  line-height: 1;
-  padding: 3px 6px;
-  border-radius: 4px;
+  display: block;
+  line-height: 0;
   text-decoration: none;
   opacity: 0;
   transition: opacity 0.15s ease;
   pointer-events: none;
   z-index: 10;
   user-select: none;
+}
+
+.klipy-watermark-logo {
+  display: block;
+  height: 14px;
+  width: auto;
 }
 
 .klipy-watermark.visible {
