@@ -57,13 +57,18 @@ export interface GifFeed {
 /** Klipy native media collections we proxy. */
 export type GifMediaType = 'gifs' | 'stickers' | 'clips' | 'memes' | 'ai-emojis';
 
-/** Maps our media type to Klipy's URL path slug (memes live under static-memes). */
+/**
+ * Maps our media type to Klipy's API path slug. These differ from both our
+ * names and the public web paths: memes → static-memes, ai-emojis → emojis
+ * (the browse/trending endpoint lives at /emojis; only generation uses
+ * /ai-emojis).
+ */
 const MEDIA_PATH_SLUG: Record<GifMediaType, string> = {
   'gifs': 'gifs',
   'stickers': 'stickers',
   'clips': 'clips',
   'memes': 'static-memes',
-  'ai-emojis': 'ai-emojis',
+  'ai-emojis': 'emojis',
 };
 
 const VIDEO_MEDIA: ReadonlySet<GifMediaType> = new Set<GifMediaType>(['clips']);
@@ -110,6 +115,9 @@ type KlipyFile = Record<string, Record<string, { url?: string } | undefined> | u
 
 function pickUrl(file: KlipyFile | undefined, sizes: readonly string[], format: string): string | undefined {
   if (!file) return undefined;
+  // Flat structure (clips): file[format] is a direct URL string, not sized.
+  const flat = (file as Record<string, unknown>)[format];
+  if (typeof flat === 'string') return flat;
   for (const size of sizes) {
     const url = file[size]?.[format]?.url;
     if (url) return url;
@@ -170,17 +178,22 @@ function normalizeGif(raw: any, mediaType: GifMediaType = 'gifs'): NormalizedGif
         pickUrl(file, PREVIEW_SIZES, 'png') ||
         pickUrl(file, PREVIEW_SIZES, 'gif')) || primaryUrl;
 
-  // Klipy's feed doesn't return an item page URL, so build it from the slug.
-  // Falls back to any URL the API does provide.
+  // Prefer a klipy.com page URL when the API provides one (clips include it as
+  // raw.url); otherwise build it from the slug. Ignore static.* (media) URLs.
   const slug = typeof raw?.slug === 'string' ? raw.slug : undefined;
+  const rawPageUrl =
+    typeof raw?.url === 'string' && /(^|\.)klipy\.com\//.test(raw.url) && !raw.url.includes('static')
+      ? raw.url
+      : undefined;
   const itemUrl =
-    typeof raw?.itemurl === 'string'
+    rawPageUrl ||
+    (typeof raw?.itemurl === 'string'
       ? raw.itemurl
       : typeof raw?.item_url === 'string'
         ? raw.item_url
         : slug
           ? `https://klipy.com/${MEDIA_WEB_PATH[mediaType]}/${slug}`
-          : undefined;
+          : undefined);
 
   return {
     kind: 'gif',

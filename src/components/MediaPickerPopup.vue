@@ -84,14 +84,15 @@ const instanceSettings = useInstanceSettingsStore();
 // Tabs: GIFs + Stickers are always available; Clips/Memes/AI Emoji are
 // gated by per-instance admin toggles. Emoji is the built-in picker.
 const tabs = computed<{ id: PickerTab; label: string }[]>(() => {
+  // Order: GIFs, Stickers, Emoji, then the optional Klipy types.
   const list: { id: PickerTab; label: string }[] = [
     { id: 'gifs', label: 'GIFs' },
     { id: 'stickers', label: 'Stickers' },
+    { id: 'emoji', label: 'Emoji' },
   ];
   if (instanceSettings.gifClipsEnabled) list.push({ id: 'clips', label: 'Clips' });
   if (instanceSettings.gifMemesEnabled) list.push({ id: 'memes', label: 'Memes' });
   if (instanceSettings.gifAiEmojisEnabled) list.push({ id: 'ai-emojis', label: 'AI Emoji' });
-  list.push({ id: 'emoji', label: 'Emoji' });
   return list;
 });
 

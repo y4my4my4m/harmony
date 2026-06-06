@@ -4,7 +4,7 @@
       <LoadingSpinner :size="20" />
     </div>
     <div v-else-if="items.length === 0 && query" class="inline-gif-empty">
-      No GIFs found
+      No {{ mediaNoun }} found
     </div>
     <div v-else class="inline-gif-grid">
       <template v-for="item in items" :key="item.id">
@@ -84,6 +84,15 @@ const items = ref<GifResultItem[]>([]);
 const hoveredGif = ref<string | null>(null);
 const kind = computed(() => mediaTypeToKind(props.mediaType));
 const isClips = computed(() => props.mediaType === 'clips');
+const mediaNoun = computed(() => {
+  switch (props.mediaType) {
+    case 'stickers': return 'stickers';
+    case 'clips': return 'clips';
+    case 'memes': return 'memes';
+    case 'ai-emojis': return 'AI emoji';
+    default: return 'GIFs';
+  }
+});
 
 const stripFragment = (url: string) => stripKlipyAttributionFragment(url);
 

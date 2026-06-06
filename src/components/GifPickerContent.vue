@@ -65,7 +65,7 @@
           <svg viewBox="0 0 24 24" width="48" height="48" fill="currentColor" class="empty-icon">
             <path d="M22 9.24l-7.19-.62L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21 12 17.27 18.18 21l-1.63-7.03L22 9.24zM12 15.4l-3.76 2.27 1-4.28-3.32-2.88 4.38-.38L12 6.1l1.71 4.04 4.38.38-3.32 2.88 1 4.28L12 15.4z"/>
           </svg>
-          <p>{{ $t('gif.noFavorites') }}</p>
+          <p>No favorite {{ mediaNoun }} yet</p>
           <span class="empty-hint">{{ $t('gif.noFavoritesHint') }}</span>
         </div>
         <masonry-wall v-else :items="favorites" :column-width="150" :gap="10">
@@ -107,7 +107,7 @@
       <!-- Trending/Search Results -->
       <template v-else>
         <div v-if="items.length === 0 && !isLoading" class="empty-state">
-          <p>{{ $t('gif.noResults') }}</p>
+          <p>No {{ mediaNoun }} found</p>
           <span class="empty-hint">Try a different search term</span>
         </div>
         <masonry-wall v-else :items="items" :column-width="150" :gap="10">
@@ -198,6 +198,16 @@ const { t } = useI18n();
 
 const kind = computed<KlipyKind>(() => mediaTypeToKind(props.mediaType));
 const isClips = computed(() => props.mediaType === 'clips');
+// Human-readable noun for empty states (the picker spans several media types).
+const mediaNoun = computed(() => {
+  switch (props.mediaType) {
+    case 'stickers': return 'stickers';
+    case 'clips': return 'clips';
+    case 'memes': return 'memes';
+    case 'ai-emojis': return 'AI emoji';
+    default: return 'GIFs';
+  }
+});
 // Stickers and AI emojis are small, transparent, sticker-like media.
 const isStickerLike = computed(
   () => props.mediaType === 'stickers' || props.mediaType === 'ai-emojis',
@@ -281,10 +291,18 @@ const fetchPage = async (reset: boolean) => {
       : await gifProvider.trending(opts, props.mediaType);
     if (reset) {
       applyFeed(feed);
+      hasNext.value = feed.hasNext;
     } else {
+      // Preserve scroll position: masonry re-layout on append otherwise jumps
+      // the container back to the top.
+      const el = resultsRef.value;
+      const prevScroll = el?.scrollTop ?? 0;
       items.value = [...items.value, ...feed.items];
+      hasNext.value = feed.hasNext;
+      await nextTick();
+      if (el) el.scrollTop = prevScroll;
+      requestAnimationFrame(() => { if (el) el.scrollTop = prevScroll; });
     }
-    hasNext.value = feed.hasNext;
   } finally {
     isLoading.value = false;
     loadingMore.value = false;
