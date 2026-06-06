@@ -415,20 +415,77 @@ export async function generateEmoji(
     if (!statusRes.ok) continue;
     const payload: any = await statusRes.json();
     const status = String(payload?.status ?? payload?.data?.status ?? '').toLowerCase();
-    if (status === 'failed') throw new Error('Klipy could not generate that emoji');
-    if (status !== 'success') continue;
-
-    const result = payload?.result ?? payload?.data?.result;
-    const b64: unknown = result?.base64_encoded;
-    const mimeType = String(result?.mime_type || 'image/png');
-    if (typeof b64 !== 'string' || !b64) {
-      throw new Error('Klipy returned an empty generation result');
+    if (status === 'failed' || status === 'error') {
+      throw new Error('Klipy could not generate that emoji');
     }
-    const buffer = Buffer.from(b64, 'base64');
-    if (!buffer.length) throw new Error('Klipy returned an unreadable image');
-    return { buffer, mimeType };
+
+    // Klipy returns the finished emoji as a `file` URL structure (same shape as
+    // its other media), not base64. We accept either: inline base64 if present,
+    // otherwise download the hosted image. A pending poll has no image yet.
+    const image = await extractGeneratedImage(payload, headers['User-Agent']);
+    if (image) return image;
+    // No image and not a terminal/failed status → still generating, keep polling.
   }
   throw new Error('AI emoji generation timed out — please try again');
+}
+
+/** Map a Klipy image URL extension to a mime type (fallback when no header). */
+function mimeFromUrl(url: string): string | undefined {
+  const ext = url.split('?')[0].split('#')[0].split('.').pop()?.toLowerCase();
+  switch (ext) {
+    case 'png': return 'image/png';
+    case 'webp': return 'image/webp';
+    case 'gif': return 'image/gif';
+    case 'jpg':
+    case 'jpeg': return 'image/jpeg';
+    default: return undefined;
+  }
+}
+
+/**
+ * Pull the finished image out of a Klipy generation status payload, tolerating
+ * the several shapes their API can return. Returns null when the job hasn't
+ * produced an image yet (caller keeps polling).
+ */
+async function extractGeneratedImage(
+  payload: any,
+  userAgent: string,
+): Promise<GeneratedEmoji | null> {
+  const item = payload?.data?.result ?? payload?.result ?? payload?.data ?? payload;
+  if (!item || typeof item !== 'object') return null;
+
+  // 1) Inline base64 (if Klipy ever returns it directly).
+  const b64: unknown =
+    item?.base64_encoded ?? item?.result?.base64_encoded ?? item?.file?.base64_encoded;
+  if (typeof b64 === 'string' && b64) {
+    const buffer = Buffer.from(b64, 'base64');
+    if (buffer.length) {
+      const mimeType = String(item?.mime_type ?? item?.file?.mime_type ?? 'image/png');
+      return { buffer, mimeType };
+    }
+  }
+
+  // 2) Hosted file URL — Klipy's standard `file` size/format structure, or a
+  // plain url/preview_url. Prefer lossless/transparent formats for emoji.
+  const file = item?.file as KlipyFile | undefined;
+  const imageUrl =
+    pickUrl(file, DISPLAY_SIZES, 'png') ||
+    pickUrl(file, DISPLAY_SIZES, 'webp') ||
+    pickUrl(file, DISPLAY_SIZES, 'gif') ||
+    (typeof item?.url === 'string' && /^https?:\/\//.test(item.url) ? item.url : undefined) ||
+    (typeof item?.preview_url === 'string' ? item.preview_url : undefined);
+
+  if (!imageUrl) return null;
+
+  const imgRes = await fetch(imageUrl, { headers: { 'User-Agent': userAgent } });
+  if (!imgRes.ok) {
+    throw new Error(`Failed to download generated emoji (${imgRes.status})`);
+  }
+  const buffer = Buffer.from(await imgRes.arrayBuffer());
+  if (!buffer.length) throw new Error('Klipy returned an unreadable image');
+  const headerMime = imgRes.headers.get('content-type')?.split(';')[0]?.trim();
+  const mimeType = headerMime || mimeFromUrl(imageUrl) || 'image/png';
+  return { buffer, mimeType };
 }
 
 /** Klipy suggestion payloads vary; pull plain strings out of common shapes. */

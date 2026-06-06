@@ -632,6 +632,9 @@ CREATE TABLE IF NOT EXISTS public.performance_metrics (
     metric_type text NOT NULL,
     metric_name text NOT NULL,
     value double precision NOT NULL,
+    -- Unit of `value` (e.g. 'ms', 'count', 'bytes'). Written by the federation
+    -- worker and the record_performance_metric() RPC.
+    unit text,
     
     labels jsonb DEFAULT '{}'::jsonb,
     source text
