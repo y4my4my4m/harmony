@@ -22,20 +22,28 @@
           @mouseover="hoveredGif = item.id"
           @mouseleave="hoveredGif = null"
         >
-          <video
-            v-if="isClips"
-            :src="stripFragment(item.media_formats.mp4.url)"
-            :poster="stripFragment(item.media_formats.gifpreview.url)"
-            class="inline-gif-media"
-            muted
-            loop
-            playsinline
-            preload="metadata"
-            :title="$t('gif.clipAudioHint')"
-            @mouseenter="(e) => playPreview(e)"
-            @mouseleave="(e) => pausePreview(e)"
-            @contextmenu="toggleClipAudio"
-          ></video>
+          <template v-if="isClips">
+            <video
+              :src="stripFragment(item.media_formats.mp4.url)"
+              :poster="stripFragment(item.media_formats.gifpreview.url)"
+              class="inline-gif-media"
+              muted
+              loop
+              playsinline
+              preload="metadata"
+              @mouseenter="(e) => playPreview(e)"
+              @mouseleave="(e) => pausePreview(e)"
+            ></video>
+            <button
+              class="clip-audio-button"
+              :class="{ visible: hoveredGif === item.id || isMobile || audioClipId === item.id }"
+              :title="audioClipId === item.id ? $t('gif.clipMute') : $t('gif.clipUnmute')"
+              @click.stop="(e) => toggleClipAudio(item.id, e)"
+            >
+              <svg v-if="audioClipId === item.id" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
+              <svg v-else viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
+            </button>
+          </template>
           <img 
             v-else
             :src="inlineGifSrc(item)" 
@@ -59,6 +67,7 @@
 
 <script setup lang="ts">
 import { ref, watch, onMounted, computed } from 'vue';
+import { useLayoutState } from '@/composables/useLayoutState';
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue';
 import GifAdSlot from '@/components/GifAdSlot.vue';
 import { gifProvider, type GifMediaType } from '@/services/gifProviderService';
@@ -82,6 +91,7 @@ defineEmits<{
   (e: 'selectGif', gif: Gif): void;
 }>();
 
+const { isMobile } = useLayoutState();
 const items = ref<GifResultItem[]>([]);
 const hoveredGif = ref<string | null>(null);
 const kind = computed(() => mediaTypeToKind(props.mediaType));
@@ -98,44 +108,47 @@ const mediaNoun = computed(() => {
 
 const stripFragment = (url: string) => stripKlipyAttributionFragment(url);
 
-// The clip video currently previewing with audio (via right-click).
-const audioClipEl = ref<HTMLVideoElement | null>(null);
+// The clip currently previewing with audio (toggled via the mute/unmute icon).
+const audioClipId = ref<string | null>(null);
+let audioClipEl: HTMLVideoElement | null = null;
 
 const playPreview = (e: Event) => {
   const v = e.target as HTMLVideoElement;
-  if (v === audioClipEl.value) return;
+  if (v === audioClipEl) return;
   v.muted = true;
   v.play?.().catch(() => {});
 };
 const pausePreview = (e: Event) => {
   const v = e.target as HTMLVideoElement;
-  if (v === audioClipEl.value) return;
+  if (v === audioClipEl) return;
   v.pause?.();
   if (v) v.currentTime = 0;
 };
 
-// Right-click a clip to preview with sound (again to mute/stop).
-const toggleClipAudio = (e: Event) => {
-  e.preventDefault();
-  const v = e.currentTarget as HTMLVideoElement;
+// Tap the mute/unmute icon to play a clip with sound (tap again to mute).
+const toggleClipAudio = (itemId: string, e: Event) => {
+  e.stopPropagation();
+  const btn = e.currentTarget as HTMLElement;
+  const v = btn.closest('.inline-gif-item')?.querySelector('video') as HTMLVideoElement | null;
   if (!v) return;
-  if (audioClipEl.value === v) {
+  if (audioClipId.value === itemId) {
     v.muted = true;
     v.pause?.();
     v.currentTime = 0;
-    audioClipEl.value = null;
+    audioClipEl = null;
+    audioClipId.value = null;
     return;
   }
-  const prev = audioClipEl.value;
-  if (prev && prev !== v) {
-    prev.muted = true;
-    prev.pause?.();
-    prev.currentTime = 0;
+  if (audioClipEl && audioClipEl !== v) {
+    audioClipEl.muted = true;
+    audioClipEl.pause?.();
+    audioClipEl.currentTime = 0;
   }
   v.muted = false;
   v.volume = 1;
   v.play?.().catch(() => {});
-  audioClipEl.value = v;
+  audioClipEl = v;
+  audioClipId.value = itemId;
 };
 
 const inlineGifSrc = (item: Gif) => {
@@ -211,11 +224,42 @@ onMounted(() => {
 }
 
 .inline-gif-item {
+  position: relative;
   cursor: pointer;
   border-radius: 4px;
   overflow: hidden;
   aspect-ratio: 1;
   transition: transform 0.12s ease;
+}
+
+/* Clip audio toggle - bottom-right, fades in on hover; forced visible on
+   mobile and while this clip is the active audio one. */
+.clip-audio-button {
+  position: absolute;
+  bottom: 4px;
+  right: 4px;
+  width: 22px;
+  height: 22px;
+  background: rgba(0, 0, 0, 0.6);
+  border: none;
+  padding: 0;
+  border-radius: 50%;
+  cursor: pointer;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.15s ease, background 0.15s ease;
+  z-index: 2;
+}
+
+.clip-audio-button.visible {
+  opacity: 1;
+}
+
+.clip-audio-button:hover {
+  background: rgba(0, 0, 0, 0.85);
 }
 
 .inline-gif-item:hover {

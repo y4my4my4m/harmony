@@ -271,9 +271,10 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, nextTick, watch } from 'vue';
 import { useEmojiCacheStore, PERSONAL_EMOJI_GROUPS } from '@/stores/useEmojiCache';
+import { KLIPY_EPHEMERAL_GROUP, registerEphemeralEmoji } from '@/utils/ephemeralEmoji';
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings';
 import { authContextService } from '@/services/AuthContextService';
-import { generateAiEmoji } from '@/services/emojiService';
+import { useAiEmojiGeneration } from '@/composables/useAiEmojiGeneration';
 import { useFrequentEmojis } from '@/composables/useFrequentEmojis';
 import { useHapticSettings } from '@/composables/useHapticSettings';
 import { useUnifiedEmoji, type EmojiEntry } from '@/services/unifiedEmojiService';
@@ -324,8 +325,9 @@ const serverChannelStore = useServerChannelStore();
 const AI_PROMPT_MAX_LEN = 200;
 const canGenerate = computed(() => instanceSettings.gifAiEmojiGenerationEnabled);
 const aiPrompt = ref('');
-const aiGenerating = ref(false);
-const aiGenError = ref('');
+const aiGen = useAiEmojiGeneration();
+const aiGenerating = aiGen.isGenerating;
+const aiGenError = aiGen.lastError;
 const { topEmojisForPicker, hasFrequentEmojis, recordEmojiUsage, removeFrequentEmoji, isFrequentEmoji } = useFrequentEmojis();
 const { triggerReaction } = useHapticSettings();
 const { 
@@ -369,7 +371,7 @@ const filteredEmojiList = computed((): FilteredServerEmojiGroup[] => {
   // AI Generated has its own dedicated section below; everything else (servers,
   // plus the synthetic "My Emoji" / "Instance Emoji" groups) renders here.
   const allEmojisByServer = Object.entries(emojiCacheStore.resolvedEmojis)
-    .filter(([serverId]) => serverId !== PERSONAL_EMOJI_GROUPS.ai);
+    .filter(([serverId]) => serverId !== PERSONAL_EMOJI_GROUPS.ai && serverId !== KLIPY_EPHEMERAL_GROUP);
   const currentId = serverChannelStore.currentServerId;
 
   const sortCurrentFirst = (list: FilteredServerEmojiGroup[]) =>
@@ -422,16 +424,8 @@ const showAiSection = computed(() => canGenerate.value || aiEmojis.value.length 
 async function runGenerate() {
   const prompt = aiPrompt.value.trim();
   if (!prompt || aiGenerating.value) return;
-  aiGenerating.value = true;
-  aiGenError.value = '';
-  try {
-    await generateAiEmoji(prompt);
-    aiPrompt.value = '';
-  } catch (e) {
-    aiGenError.value = (e as Error)?.message || 'AI emoji generation failed';
-  } finally {
-    aiGenerating.value = false;
-  }
+  const emoji = await aiGen.generate(prompt);
+  if (emoji) aiPrompt.value = '';
 }
 
 // Computed: Displayed categories from unified emoji service
@@ -583,6 +577,11 @@ const selectFrequentEmoji = (emoji: { id: string; native?: string; name: string;
       uploader: '',
       server_id: ''
     } as Emoji;
+    // Ephemeral (Klipy/remote) emoji use their URL as the id and aren't in the
+    // session cache after a reload — re-register so the :shortcode: resolves.
+    if (emoji.id.startsWith('http')) {
+      registerEphemeralEmoji(emojiObj);
+    }
     emit('sendEmoji', emojiObj);
   } else {
     const emojiObj = {

@@ -167,6 +167,9 @@ import AutoSuggest from '@/components/AutoSuggest.vue';
 import RichTextEditor from '@/components/RichTextEditor.vue';
 import VoiceRecorder from '@/components/VoiceRecorder.vue';
 import InlineGifPicker from '@/components/InlineGifPicker.vue';
+import { useFrequentEmojis } from '@/composables/useFrequentEmojis';
+import { parseKlipyKind } from '@/utils/klipyAttribution';
+import { buildEphemeralEmojiFromGif, registerEphemeralEmoji } from '@/utils/ephemeralEmoji';
 import type { GifMediaType } from '@/services/gifProviderService';
 import type { FilePreviewData } from '@/components/FilePreview.vue';
 import type { SuggestionItem } from '@/components/AutoSuggest.vue';
@@ -244,6 +247,7 @@ const emit = defineEmits<{
 const authStore = useAuthStore();
 const toast = useToast();
 const { triggerMessage } = useHapticSettings();
+const { recordEmojiUsage } = useFrequentEmojis();
 const showUploadMenu = ref(false);
 const attachedFiles = ref<FilePreviewData[]>([]);
 const isDragging = ref(false);
@@ -699,6 +703,19 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
 
     const handleInlineGifSelect = (gif: Gif) => {
       autoSuggest.dismissActiveCommand();
+      // AI emoji behave like emoji: insert into the composer (no autosend).
+      if (parseKlipyKind(gif.media_formats?.gif?.url || '') === 'ai-emoji') {
+        const emoji = buildEphemeralEmojiFromGif(gif);
+        registerEphemeralEmoji(emoji);
+        recordEmojiUsage({ id: emoji.id, name: emoji.name, url: emoji.url });
+        const shortcode = `:${emoji.name}:`;
+        emit('update:modelValue', shortcode);
+        nextTick(() => {
+          richEditorRef.value?.renderContent?.(shortcode);
+          richEditorRef.value?.focus();
+        });
+        return;
+      }
       emit('update:modelValue', '');
       if (richEditorRef.value?.clear) {
         richEditorRef.value.clear();

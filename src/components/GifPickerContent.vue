@@ -1,8 +1,9 @@
 <template>
   <div class="gif-picker-content">
-    <!-- Category Buttons (Favorites/Trending) -->
+    <!-- Category Buttons (Favorites/Trending [+ Generate for AI Emoji]) -->
     <div class="gif-categories">
       <button 
+        v-if="!isAiEmoji"
         class="category-button"
         :class="{ active: showFavorites }"
         @click="$emit('update:showFavorites', true)"
@@ -14,15 +15,42 @@
       </button>
       <button 
         class="category-button"
-        :class="{ active: !showFavorites }"
-        @click="$emit('update:showFavorites', false)"
+        :class="{ active: !showFavorites && !showGenerate }"
+        @click="$emit('update:showFavorites', false); showGenerate = false"
       >
         <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
           <path d="M17.09 4.56c-.7-1.03-1.5-1.99-2.4-2.85-.35-.34-.94-.02-.84.46.19.94.39 2.18.39 3.29 0 2.06-1.35 3.73-3.41 3.73-1.54 0-2.8-.93-3.35-2.26-.1-.2-.14-.32-.2-.54-.11-.42-.66-.55-.9-.18-.18.27-.35.56-.51.84A13.74 13.74 0 004 14c0 4.42 3.58 8 8 8s8-3.58 8-8c0-3.49-1.08-6.73-2.91-9.44zM11.71 19c-1.78 0-3.22-1.4-3.22-3.14 0-1.62 1.05-2.76 2.81-3.12 1.47-.3 2.98-.93 4.03-1.92.28-.26.74-.14.82.23.23 1.02.35 2.08.35 3.15.01 2.65-2.14 4.8-4.79 4.8z"/>
         </svg>
         {{ $t('gif.trending') }}
       </button>
+      <button
+        v-if="isAiEmoji && canGenerate"
+        class="category-button"
+        :class="{ active: showGenerate }"
+        @click="showGenerate = !showGenerate"
+      >
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+          <path d="M11 2 9.2 7.2 4 9l5.2 1.8L11 16l1.8-5.2L18 9l-5.2-1.8L11 2zm7 11-1 2.8L14 17l2.8 1L18 21l1-2.8L22 17l-2.8-1L18 13z"/>
+        </svg>
+        {{ $t('emoji.aiGenerate') }}
+      </button>
     </div>
+
+    <!-- Inline AI emoji generation (AI Emoji tab) -->
+    <form v-if="showGenerate && isAiEmoji" class="gif-generate-form" @submit.prevent="runGenerate">
+      <input
+        v-model="genPrompt"
+        type="text"
+        class="search-input gif-generate-input"
+        :maxlength="GEN_PROMPT_MAX_LEN"
+        :placeholder="$t('emoji.aiGeneratePlaceholder')"
+        :disabled="generating"
+      />
+      <button type="submit" class="gif-generate-button" :disabled="generating || !genPrompt.trim()">
+        <LoadingSpinner v-if="generating" :size="14" />
+        <span v-else>{{ $t('emoji.aiGenerate') }}</span>
+      </button>
+    </form>
 
     <!-- Search Input (disabled in favorites view to maintain consistent height) -->
     <div class="gif-search">
@@ -77,20 +105,28 @@
               @mouseleave="hoveredGif = null"
               @click="selectFavoriteGif(item)"
             >
-              <video
-                v-if="(item.media_type ?? 'gif') === 'clip'"
-                :src="stripFragment(item.gif_url)"
-                :poster="stripFragment(item.preview_url)"
-                class="gif-video"
-                muted
-                loop
-                playsinline
-                preload="metadata"
-                :title="$t('gif.clipAudioHint')"
-                @mouseenter="(e) => playPreview(e)"
-                @mouseleave="(e) => pausePreview(e)"
-                @contextmenu="toggleClipAudio"
-              ></video>
+              <template v-if="(item.media_type ?? 'gif') === 'clip'">
+                <video
+                  :src="stripFragment(item.gif_url)"
+                  :poster="stripFragment(item.preview_url)"
+                  class="gif-video"
+                  muted
+                  loop
+                  playsinline
+                  preload="metadata"
+                  @mouseenter="(e) => playPreview(e)"
+                  @mouseleave="(e) => pausePreview(e)"
+                ></video>
+                <button
+                  class="clip-audio-button"
+                  :class="{ visible: hoveredGif === item.id || isMobile || audioClipId === item.id }"
+                  :title="audioClipId === item.id ? $t('gif.clipMute') : $t('gif.clipUnmute')"
+                  @click.stop="(e) => toggleClipAudio(item.id, e)"
+                >
+                  <svg v-if="audioClipId === item.id" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
+                  <svg v-else viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
+                </button>
+              </template>
               <img v-else :src="getGifImageSource(item.id, item.gif_url, item.preview_url)" :alt="item.title || 'GIF'" :class="{ 'sticker-thumb': isStickerLike }">
               <button 
                 class="favorite-button favorited"
@@ -129,22 +165,31 @@
               @mouseleave="hoveredGif = null"
               @click="selectGif(item)"
             >
-              <video
-                v-if="isClips"
-                :src="stripFragment(item.media_formats.mp4.url)"
-                :poster="stripFragment(item.media_formats.gifpreview.url)"
-                class="gif-video"
-                muted
-                loop
-                playsinline
-                preload="metadata"
-                :title="$t('gif.clipAudioHint')"
-                @mouseenter="(e) => playPreview(e)"
-                @mouseleave="(e) => pausePreview(e)"
-                @contextmenu="toggleClipAudio"
-              ></video>
+              <template v-if="isClips">
+                <video
+                  :src="stripFragment(item.media_formats.mp4.url)"
+                  :poster="stripFragment(item.media_formats.gifpreview.url)"
+                  class="gif-video"
+                  muted
+                  loop
+                  playsinline
+                  preload="metadata"
+                  @mouseenter="(e) => playPreview(e)"
+                  @mouseleave="(e) => pausePreview(e)"
+                ></video>
+                <button
+                  class="clip-audio-button"
+                  :class="{ visible: hoveredGif === item.id || isMobile || audioClipId === item.id }"
+                  :title="audioClipId === item.id ? $t('gif.clipMute') : $t('gif.clipUnmute')"
+                  @click.stop="(e) => toggleClipAudio(item.id, e)"
+                >
+                  <svg v-if="audioClipId === item.id" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
+                  <svg v-else viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
+                </button>
+              </template>
               <img v-else :src="getGifImageSource(item.id, item.media_formats.gif.url, item.media_formats.gifpreview.url)" :alt="item.title" :class="{ 'sticker-thumb': isStickerLike }">
               <button 
+                v-if="!isAiEmoji"
                 class="favorite-button"
                 :class="{ favorited: isFavorited(item.media_formats.gif.url) }"
                 @click.stop="toggleFavorite(item)"
@@ -169,6 +214,11 @@
 <script setup lang="ts">
 import { ref, watch, onMounted, nextTick, computed } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { useLayoutState } from '@/composables/useLayoutState';
+import { useInstanceSettingsStore } from '@/stores/useInstanceSettings';
+import { useAiEmojiGeneration } from '@/composables/useAiEmojiGeneration';
+import { useFrequentEmojis } from '@/composables/useFrequentEmojis';
+import { buildEphemeralEmojiFromGif, registerEphemeralEmoji } from '@/utils/ephemeralEmoji';
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue';
 import GifAdSlot from '@/components/GifAdSlot.vue';
 import { debug } from '@/utils/debug';
@@ -180,7 +230,7 @@ import {
   mediaTypeToKind,
   type KlipyKind,
 } from '@/utils/klipyAttribution';
-import type { Gif, GifResultItem } from '@/types';
+import type { Gif, GifResultItem, Emoji } from '@/types';
 
 interface Props {
   showFavorites: boolean;
@@ -194,11 +244,35 @@ const props = withDefaults(defineProps<Props>(), {
 
 interface Emits {
   (e: 'sendGif', gif: Gif): void;
+  (e: 'sendEmoji', emoji: Emoji): void;
   (e: 'update:showFavorites', value: boolean): void;
 }
 
 const emit = defineEmits<Emits>();
 const { t } = useI18n();
+const { isMobile } = useLayoutState();
+const instanceSettings = useInstanceSettingsStore();
+const aiGen = useAiEmojiGeneration();
+const { recordEmojiUsage } = useFrequentEmojis();
+
+const isAiEmoji = computed(() => props.mediaType === 'ai-emojis');
+const canGenerate = computed(() => instanceSettings.gifAiEmojiGenerationEnabled);
+
+// Inline generation form (AI Emoji tab only).
+const showGenerate = ref(false);
+const genPrompt = ref('');
+const GEN_PROMPT_MAX_LEN = 200;
+const generating = aiGen.isGenerating;
+
+const runGenerate = async () => {
+  const prompt = genPrompt.value.trim();
+  if (!prompt || generating.value) return;
+  const emoji = await aiGen.generate(prompt);
+  if (emoji) {
+    genPrompt.value = '';
+    showGenerate.value = false;
+  }
+};
 
 const kind = computed<KlipyKind>(() => mediaTypeToKind(props.mediaType));
 const isClips = computed(() => props.mediaType === 'clips');
@@ -248,48 +322,57 @@ const getGifImageSource = (id: string, gifUrl: string, previewUrl: string): stri
   return stripKlipyAttributionFragment(src);
 };
 
-// The clip video currently previewing with audio (via right-click). Kept so
-// that hover in/out doesn't interrupt an explicit audio preview.
-const audioClipEl = ref<HTMLVideoElement | null>(null);
+// The clip currently previewing with audio (toggled via the mute/unmute icon).
+// Tracked by item id (drives the icon state) plus the element (to pause it when
+// switching). Only one clip plays audio at a time.
+const audioClipId = ref<string | null>(null);
+let audioClipEl: HTMLVideoElement | null = null;
 
-// Hover play/pause for clip (video) previews. Muted by default; right-click
-// (toggleClipAudio) opts a single clip into audio playback.
+const resetClipAudio = () => {
+  if (audioClipEl) {
+    audioClipEl.muted = true;
+    audioClipEl.pause?.();
+    audioClipEl.currentTime = 0;
+  }
+  audioClipEl = null;
+  audioClipId.value = null;
+};
+
+// Hover play/pause for clip previews. Muted by default; the audio icon opts a
+// single clip into sound and keeps it playing regardless of hover.
 const playPreview = (e: Event) => {
   const v = e.target as HTMLVideoElement;
-  if (v === audioClipEl.value) return; // already previewing with audio
+  if (v === audioClipEl) return; // already previewing with audio
   v.muted = true;
   v.play?.().catch(() => {});
 };
 const pausePreview = (e: Event) => {
   const v = e.target as HTMLVideoElement;
-  if (v === audioClipEl.value) return; // keep audio preview running on mouseleave
+  if (v === audioClipEl) return; // keep audio preview running on mouseleave
   v.pause?.();
   if (v) v.currentTime = 0;
 };
 
-// Right-click a clip to play it with sound (and again to mute/stop). Only one
-// clip plays audio at a time.
-const toggleClipAudio = (e: Event) => {
-  e.preventDefault();
-  const v = e.currentTarget as HTMLVideoElement;
+// Tap the mute/unmute icon to play a clip with sound (tap again to mute).
+const toggleClipAudio = (itemId: string, e: Event) => {
+  e.stopPropagation();
+  const btn = e.currentTarget as HTMLElement;
+  const v = btn.closest('.gif-item')?.querySelector('video') as HTMLVideoElement | null;
   if (!v) return;
-  if (audioClipEl.value === v) {
-    v.muted = true;
-    v.pause?.();
-    v.currentTime = 0;
-    audioClipEl.value = null;
+  if (audioClipId.value === itemId) {
+    resetClipAudio();
     return;
   }
-  const prev = audioClipEl.value;
-  if (prev && prev !== v) {
-    prev.muted = true;
-    prev.pause?.();
-    prev.currentTime = 0;
+  if (audioClipEl && audioClipEl !== v) {
+    audioClipEl.muted = true;
+    audioClipEl.pause?.();
+    audioClipEl.currentTime = 0;
   }
   v.muted = false;
   v.volume = 1;
   v.play?.().catch(() => {});
-  audioClipEl.value = v;
+  audioClipEl = v;
+  audioClipId.value = itemId;
 };
 
 const applySuggestion = (term: string) => {
@@ -425,12 +508,32 @@ const removeFavorite = async (favoriteId: string) => {
 };
 
 // Select and send a GIF
-const selectGif = (gif: Gif) => emit('sendGif', withGifMessageUrl(gif, kind.value));
+const selectGif = (gif: Gif) => {
+  // AI emoji behave like emoji: insert into the composer (no autosend) as an
+  // ephemeral URL-backed custom emoji, and count toward frequently-used.
+  if (isAiEmoji.value) {
+    sendAsEmoji(gif);
+    return;
+  }
+  emit('sendGif', withGifMessageUrl(gif, kind.value));
+};
 
 // Select and send a favorite GIF/sticker/clip/etc.
 const selectFavoriteGif = (favorite: FavoriteGif) => {
   const favKind = (favorite.media_type ?? 'gif') as KlipyKind;
+  if (favKind === 'ai-emoji') {
+    sendAsEmoji(gifService.favoriteToGif(favorite));
+    return;
+  }
   emit('sendGif', withGifMessageUrl(gifService.favoriteToGif(favorite), favKind));
+};
+
+// Route a Klipy AI emoji through the emoji pipeline instead of the media one.
+const sendAsEmoji = (gif: Gif) => {
+  const emoji = buildEphemeralEmojiFromGif(gif);
+  registerEphemeralEmoji(emoji);
+  recordEmojiUsage({ id: emoji.id, name: emoji.name, url: emoji.url });
+  emit('sendEmoji', emoji);
 };
 
 // Debounced search + suggestions/autocomplete.
@@ -481,6 +584,43 @@ onMounted(async () => {
   border-bottom: 1px solid var(--border-secondary);
   flex-shrink: 0;
   background: var(--background-senary-alpha);
+}
+
+/* Inline AI emoji generation form (AI Emoji tab). */
+.gif-generate-form {
+  display: flex;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-secondary);
+  flex-shrink: 0;
+  background: var(--background-senary-alpha);
+}
+
+.gif-generate-input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.gif-generate-button {
+  flex: 0 0 auto;
+  min-width: 76px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 14px;
+  border: none;
+  border-radius: 6px;
+  background: var(--harmony-primary, #0EA5E9);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s ease, background 0.15s ease;
+}
+
+.gif-generate-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .category-button {
@@ -680,6 +820,37 @@ onMounted(async () => {
 .favorite-button.favorited {
   color: var(--color-warning);
   opacity: 1;
+}
+
+/* Clip audio (mute/unmute) toggle - bottom-right, fades in on hover (desktop);
+   forced visible on mobile and whenever this clip is the active audio one. */
+.clip-audio-button {
+  position: absolute;
+  bottom: 6px;
+  right: 6px;
+  width: 26px;
+  height: 26px;
+  background: rgba(0, 0, 0, 0.6);
+  border: none;
+  padding: 0;
+  border-radius: 50%;
+  cursor: pointer;
+  color: var(--text-primary, #fff);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.15s ease, background 0.15s ease, transform 0.15s ease;
+  z-index: 2;
+}
+
+.clip-audio-button.visible {
+  opacity: 1;
+}
+
+.clip-audio-button:hover {
+  background: rgba(0, 0, 0, 0.85);
+  transform: scale(1.1);
 }
 
 /* Loading State */

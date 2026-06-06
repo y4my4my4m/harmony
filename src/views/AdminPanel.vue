@@ -1118,66 +1118,103 @@
               </label>
             </div>
 
-            <h3 style="margin-top: 24px;">GIF picker (Klipy)</h3>
-            <p class="setting-hint" style="margin-bottom: 12px;">
-              GIF search is proxied through the federation backend. API keys are set in the backend environment
-              (<code>KLIPY_API_KEY_ADS</code> / <code>KLIPY_API_KEY_NOADS</code>), not here.
+            <h3 style="margin-top: 24px;">Media picker (Klipy)</h3>
+            <p class="setting-hint" style="margin-bottom: 16px;">
+              GIF/media search is proxied through the federation backend. API keys live in the backend
+              environment (<code>KLIPY_API_KEY_ADS</code> / <code>KLIPY_API_KEY_NOADS</code>), not here.
             </p>
-            <div class="setting-row">
-              <label class="toggle-label">
-                <input type="checkbox" v-model="config.chat.gifAdsEnabled" />
-                <span class="toggle-slider"></span>
-                <span class="toggle-text">Enable GIF ads (server-wide)</span>
-              </label>
-              <label class="toggle-label">
-                <input type="checkbox" v-model="config.chat.gifKlipyWatermarkEnabled" />
-                <span class="toggle-slider"></span>
-                <span class="toggle-text">KLIPY watermark on sent GIFs/stickers (recommended)</span>
-              </label>
-            </div>
-            <span class="setting-hint">
-              When <strong>GIF ads</strong> is on, non-supporters see Klipy ads in the picker; supporters on an
-              ad-free tier never do. When off, nobody sees ads. Ads also require an ad-enabled Klipy key on the
-              backend and ads turned on in the Klipy Partner Dashboard for that key. Per-tier ad-free is configured
-              under Funding &amp; Supporters.
-              <br />
-              The "Search KLIPY" picker label is required attribution and is always shown; the
-              <strong>watermark</strong> on sent media is optional but recommended.
-            </span>
 
-            <h4 style="margin-top: 20px;">Optional media types</h4>
-            <p class="setting-hint" style="margin-bottom: 12px;">
-              GIFs and Stickers are always available. Enable the extra Klipy collections below to add them as
-              picker tabs and slash commands (<code>/clip</code>, <code>/meme</code>, <code>/aiemoji</code>).
-              When off, they are hidden everywhere.
-            </p>
-            <div class="setting-row">
-              <label class="toggle-label">
-                <input type="checkbox" v-model="config.chat.gifClipsEnabled" />
-                <span class="toggle-slider"></span>
-                <span class="toggle-text">Enable Clips (short videos)</span>
-              </label>
-              <label class="toggle-label">
-                <input type="checkbox" v-model="config.chat.gifMemesEnabled" />
-                <span class="toggle-slider"></span>
-                <span class="toggle-text">Enable Memes</span>
-              </label>
-              <label class="toggle-label">
-                <input type="checkbox" v-model="config.chat.gifAiEmojisEnabled" />
-                <span class="toggle-slider"></span>
-                <span class="toggle-text">Enable AI Emoji (Klipy browse)</span>
-              </label>
-              <label class="toggle-label">
-                <input type="checkbox" v-model="config.chat.gifAiEmojiGenerationEnabled" />
-                <span class="toggle-slider"></span>
-                <span class="toggle-text">Allow AI Emoji generation (text → custom emoji)</span>
-              </label>
+            <div class="klipy-settings">
+              <div class="klipy-group-label">Ads &amp; attribution</div>
+
+              <div class="klipy-setting">
+                <div class="klipy-setting-text">
+                  <span class="klipy-setting-title">GIF ads</span>
+                  <span class="klipy-setting-desc">
+                    Non-supporters see Klipy ads in the picker; ad-free supporters never do. When off, nobody sees
+                    ads. Also requires an ad-enabled Klipy key and ads enabled in the Klipy Partner Dashboard.
+                    Per-tier ad-free lives under Funding &amp; Supporters.
+                  </span>
+                </div>
+                <label class="toggle-label klipy-toggle">
+                  <input type="checkbox" v-model="config.chat.gifAdsEnabled" />
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+
+              <div class="klipy-setting">
+                <div class="klipy-setting-text">
+                  <span class="klipy-setting-title">KLIPY watermark on sent media</span>
+                  <span class="klipy-setting-desc">
+                    Adds a small KLIPY badge to shared GIFs/stickers. The “Search KLIPY” picker label is always
+                    shown (required attribution); this watermark is optional but recommended.
+                  </span>
+                </div>
+                <label class="toggle-label klipy-toggle">
+                  <input type="checkbox" v-model="config.chat.gifKlipyWatermarkEnabled" />
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+
+              <div class="klipy-group-label">Optional collections</div>
+              <p class="klipy-group-hint">
+                GIFs and Stickers are always available. Enabling these adds picker tabs and slash commands; when
+                off they are hidden everywhere.
+              </p>
+
+              <div class="klipy-setting">
+                <div class="klipy-setting-text">
+                  <span class="klipy-setting-title">Clips <code>/clip</code></span>
+                  <span class="klipy-setting-desc">Short looping videos (with optional audio).</span>
+                </div>
+                <label class="toggle-label klipy-toggle">
+                  <input type="checkbox" v-model="config.chat.gifClipsEnabled" />
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+
+              <div class="klipy-setting">
+                <div class="klipy-setting-text">
+                  <span class="klipy-setting-title">Memes <code>/meme</code></span>
+                  <span class="klipy-setting-desc">Klipy's meme collection.</span>
+                </div>
+                <label class="toggle-label klipy-toggle">
+                  <input type="checkbox" v-model="config.chat.gifMemesEnabled" />
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+
+              <div class="klipy-setting">
+                <div class="klipy-setting-text">
+                  <span class="klipy-setting-title">AI Emoji browse <code>/aiemoji</code></span>
+                  <span class="klipy-setting-desc">
+                    Browse Klipy's AI emoji. Picking one inserts it into the composer as an emoji (it is not
+                    hosted here — it behaves like a remote emoji and counts toward frequently-used).
+                  </span>
+                </div>
+                <label class="toggle-label klipy-toggle">
+                  <input type="checkbox" v-model="config.chat.gifAiEmojisEnabled" />
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+
+              <div class="klipy-group-label">AI emoji generation</div>
+
+              <div class="klipy-setting">
+                <div class="klipy-setting-text">
+                  <span class="klipy-setting-title">Allow AI emoji generation</span>
+                  <span class="klipy-setting-desc">
+                    Members generate their own custom emoji from a text prompt; these are hosted on this instance
+                    and appear in the emoji picker's “AI Generated” category. Klipy caps generation at 20/day per
+                    instance (shared) plus a per-user daily limit.
+                  </span>
+                </div>
+                <label class="toggle-label klipy-toggle">
+                  <input type="checkbox" v-model="config.chat.gifAiEmojiGenerationEnabled" />
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
             </div>
-            <p class="setting-hint" v-if="config.chat.gifAiEmojiGenerationEnabled">
-              Members can generate their own custom emoji from a text prompt; these appear in the emoji
-              picker's “AI Generated” category. Klipy caps generation at 20/day per instance (shared by
-              everyone) plus a per-user daily limit. Generated emoji are hosted on this instance.
-            </p>
 
             <h3 style="margin-top: 24px;">Trending & Discovery</h3>
             <div class="setting-group">
@@ -4892,6 +4929,91 @@ const handleAddInstance = () => {
 .toggle-label input[type="checkbox"]:checked + .toggle-slider:before {
   left: 22px;
   background: white;
+}
+
+/* Klipy media-picker settings: one self-documented row per toggle. */
+.klipy-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 8px 16px 16px;
+  background: var(--background-secondary-alpha, rgba(0, 0, 0, 0.12));
+}
+
+.klipy-group-label {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-secondary);
+}
+
+.klipy-settings > .klipy-group-label:first-child {
+  margin-top: 4px;
+  padding-top: 0;
+  border-top: none;
+}
+
+.klipy-group-hint {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  margin: 0 0 4px;
+}
+
+.klipy-setting {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border-secondary);
+}
+
+.klipy-setting:last-child {
+  border-bottom: none;
+}
+
+.klipy-setting-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.klipy-setting-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.klipy-setting-title code {
+  font-size: 11.5px;
+  font-weight: 500;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--background-tertiary);
+  color: var(--text-secondary);
+}
+
+.klipy-setting-desc {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.klipy-toggle {
+  flex-shrink: 0;
+  margin-top: 2px;
 }
 
 /* Blocked Instances */

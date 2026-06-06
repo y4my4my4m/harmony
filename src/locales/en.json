@@ -930,7 +930,8 @@
     "noFavoritesHint": "Click the star on any GIF to save it here",
     "addToFavorites": "Add to favorites",
     "removeFromFavorites": "Remove from favorites",
-    "clipAudioHint": "Right-click to play with sound"
+    "clipUnmute": "Play with sound",
+    "clipMute": "Mute"
   },
   "emoji": {
     "search": "Search emoji...",

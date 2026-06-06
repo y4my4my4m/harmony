@@ -13,9 +13,9 @@
           {{ tab.label }}
         </button>
       </div>
-      <!-- Favorite toggle (media tabs only - Emoji favorites are always inline) -->
+      <!-- Favorite toggle (media tabs only - Emoji + AI Emoji manage their own) -->
       <button 
-        v-if="activeTab !== 'emoji'"
+        v-if="activeTab !== 'emoji' && activeTab !== 'ai-emojis'"
         class="tab-icon-button"
         :class="{ active: showFavorites }"
         @click="showFavorites = !showFavorites"
@@ -37,6 +37,7 @@
       :initial-search-query="activeTab === 'gifs' ? initialSearchQuery : ''"
       @update:show-favorites="showFavorites = $event"
       @send-gif="handleSendGif"
+      @send-emoji="handleSendEmoji"
     />
 
     <!-- Emoji Content -->
