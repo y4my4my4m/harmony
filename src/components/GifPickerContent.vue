@@ -1,5 +1,82 @@
 <template>
   <div class="gif-picker-content">
+    <!-- AI emoji Browse / Generate switch (only when generation is enabled) -->
+    <div v-if="canGenerate" class="ai-mode-toggle">
+      <button
+        type="button"
+        class="ai-mode-button"
+        :class="{ active: aiMode === 'browse' }"
+        @click="aiMode = 'browse'"
+      >Browse</button>
+      <button
+        type="button"
+        class="ai-mode-button"
+        :class="{ active: aiMode === 'generate' }"
+        @click="switchToGenerate"
+      >Generate</button>
+    </div>
+
+    <!-- GENERATE MODE: prompt → AI emoji, plus the user's generation history -->
+    <template v-if="canGenerate && aiMode === 'generate'">
+      <form class="gen-form" @submit.prevent="runGenerate">
+        <input
+          v-model="prompt"
+          type="text"
+          class="search-input gen-input"
+          :maxlength="GEN_PROMPT_MAX_LEN"
+          :placeholder="t('gif.generatePromptPlaceholder')"
+          :disabled="generating"
+          ref="genInput"
+        >
+        <button
+          type="submit"
+          class="gen-button"
+          :disabled="generating || !prompt.trim()"
+        >
+          <LoadingSpinner v-if="generating" :size="16" />
+          <span v-else>{{ t('gif.generate') }}</span>
+        </button>
+      </form>
+      <p v-if="genError" class="gen-error">{{ genError }}</p>
+      <p v-else class="gen-hint">{{ t('gif.generateHint') }}</p>
+
+      <div class="gif-results">
+        <div v-if="generating" class="loading-state">
+          <LoadingSpinner :size="24" />
+          <span>{{ t('gif.generating') }}</span>
+        </div>
+        <template v-else>
+          <div v-if="generated.length === 0" class="empty-state">
+            <p>{{ t('gif.noGeneratedYet') }}</p>
+            <span class="empty-hint">{{ t('gif.generateHistoryHint') }}</span>
+          </div>
+          <masonry-wall v-else :items="generated" :column-width="150" :gap="10">
+            <template #default="{ item }">
+              <div
+                :key="item.id"
+                class="gif-item"
+                :title="item.title || ''"
+                @click="selectFavoriteGif(item)"
+              >
+                <img :src="stripFragment(item.gif_url)" :alt="item.title || 'AI emoji'" class="sticker-thumb">
+                <button
+                  class="favorite-button favorited"
+                  @click.stop="removeFavorite(item.id)"
+                  :title="$t('gif.removeFromFavorites')"
+                >
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                    <path d="M19 13H5v-2h14v2z"/>
+                  </svg>
+                </button>
+              </div>
+            </template>
+          </masonry-wall>
+        </template>
+      </div>
+    </template>
+
+    <!-- BROWSE MODE -->
+    <template v-else>
     <!-- Category Buttons (Favorites/Trending) -->
     <div class="gif-categories">
       <button 
@@ -159,6 +236,7 @@
         </div>
       </template>
     </div>
+    </template>
   </div>
 </template>
 
@@ -170,6 +248,7 @@ import GifAdSlot from '@/components/GifAdSlot.vue';
 import { debug } from '@/utils/debug';
 import { gifService, type FavoriteGif } from '@/services/GifService';
 import { gifProvider, type GifMediaType } from '@/services/gifProviderService';
+import { useInstanceSettingsStore } from '@/stores/useInstanceSettings';
 import {
   stripKlipyAttributionFragment,
   withGifMessageUrl,
@@ -195,6 +274,7 @@ interface Emits {
 
 const emit = defineEmits<Emits>();
 const { t } = useI18n();
+const instanceSettings = useInstanceSettingsStore();
 
 const kind = computed<KlipyKind>(() => mediaTypeToKind(props.mediaType));
 const isClips = computed(() => props.mediaType === 'clips');
@@ -235,6 +315,66 @@ const suggestions = ref<string[]>([]);
 const page = ref(1);
 const hasNext = ref(false);
 const PER_PAGE = 24;
+
+// AI emoji generation. Available only on the AI Emoji tab when the instance has
+// generation enabled. Generated emoji are stored as the user's history.
+const GEN_PROMPT_MAX_LEN = 200;
+const canGenerate = computed(
+  () => props.mediaType === 'ai-emojis' && instanceSettings.gifAiEmojiGenerationEnabled,
+);
+const aiMode = ref<'browse' | 'generate'>('browse');
+const prompt = ref('');
+const generating = ref(false);
+const genError = ref('');
+const generated = ref<FavoriteGif[]>([]);
+const genInput = ref<HTMLInputElement | null>(null);
+
+const loadGenerated = async () => {
+  try {
+    generated.value = await gifService.getGenerated();
+  } catch (error) {
+    debug.error('Failed to load generated emoji:', error);
+  }
+};
+
+const switchToGenerate = async () => {
+  aiMode.value = 'generate';
+  genError.value = '';
+  if (generated.value.length === 0) await loadGenerated();
+  nextTick(() => genInput.value?.focus());
+};
+
+const runGenerate = async () => {
+  const text = prompt.value.trim();
+  if (!text || generating.value) return;
+  generating.value = true;
+  genError.value = '';
+  try {
+    const result = await gifProvider.generateEmoji(text);
+    gifService.invalidateCache();
+    // Prepend the new emoji to the history (also reflected in favorites).
+    generated.value = [
+      {
+        id: crypto.randomUUID(),
+        user_id: '',
+        gif_url: result.url,
+        preview_url: result.url,
+        title: result.title,
+        media_type: 'ai-emoji',
+        is_generated: true,
+        created_at: result.createdAt || new Date().toISOString(),
+      },
+      ...generated.value,
+    ];
+    favoriteUrls.value.add(result.url);
+    favoriteUrls.value = new Set(favoriteUrls.value);
+    prompt.value = '';
+  } catch (err) {
+    genError.value = (err as Error)?.message || t('gif.generateFailed');
+  } finally {
+    generating.value = false;
+  }
+};
 
 const stripFragment = (url: string): string => stripKlipyAttributionFragment(url);
 
@@ -472,6 +612,91 @@ onMounted(async () => {
 
 .category-button svg {
   opacity: 0.8;
+}
+
+/* AI emoji Browse / Generate toggle */
+.ai-mode-toggle {
+  display: flex;
+  gap: 6px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-secondary);
+  flex-shrink: 0;
+  background: var(--background-senary-alpha);
+}
+
+.ai-mode-button {
+  flex: 1;
+  background: transparent;
+  border: 1px solid var(--border-secondary);
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-radius: 16px;
+  transition: all 0.15s ease;
+}
+
+.ai-mode-button:hover {
+  background: var(--background-tertiary-alpha);
+  color: var(--text-primary);
+}
+
+.ai-mode-button.active {
+  background: var(--harmony-primary-alpha);
+  border-color: transparent;
+  color: var(--text-primary);
+}
+
+/* Generate prompt form */
+.gen-form {
+  display: flex;
+  gap: 8px;
+  padding: 10px 12px 6px;
+  flex-shrink: 0;
+}
+
+.gen-input {
+  flex: 1;
+  padding: 8px 12px;
+}
+
+.gen-button {
+  flex: 0 0 auto;
+  min-width: 84px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--harmony-primary, var(--harmony-primary-alpha));
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+
+.gen-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.gen-hint,
+.gen-error {
+  margin: 0;
+  padding: 0 12px 8px;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.gen-hint {
+  color: var(--text-muted);
+}
+
+.gen-error {
+  color: var(--color-danger, #f23f42);
 }
 
 /* Search */

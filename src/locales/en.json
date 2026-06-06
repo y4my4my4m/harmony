@@ -924,7 +924,14 @@
     "noFavorites": "No favorite GIFs yet",
     "noFavoritesHint": "Click the star on any GIF to save it here",
     "addToFavorites": "Add to favorites",
-    "removeFromFavorites": "Remove from favorites"
+    "removeFromFavorites": "Remove from favorites",
+    "generate": "Generate",
+    "generating": "Generating…",
+    "generatePromptPlaceholder": "Describe an emoji to generate…",
+    "generateHint": "Type a prompt and generate a unique emoji. Daily limits apply.",
+    "generateFailed": "AI emoji generation failed",
+    "noGeneratedYet": "No generated emoji yet",
+    "generateHistoryHint": "Emoji you generate appear here and in your AI Emoji favorites"
   },
   "emoji": {
     "search": "Search emoji...",

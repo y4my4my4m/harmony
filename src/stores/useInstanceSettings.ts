@@ -61,6 +61,8 @@ interface InstanceSettings {
   gifClipsEnabled: boolean
   gifMemesEnabled: boolean
   gifAiEmojisEnabled: boolean
+  // Allow members to generate AI emoji from prompts (Klipy generation API).
+  gifAiEmojiGenerationEnabled: boolean
 
   // Default theme for new/unauthenticated users
   defaultThemeJson: string | null
@@ -98,6 +100,7 @@ const DEFAULT_SETTINGS: InstanceSettings = {
   gifClipsEnabled: false,
   gifMemesEnabled: false,
   gifAiEmojisEnabled: false,
+  gifAiEmojiGenerationEnabled: false,
   defaultThemeJson: null,
   customEmojiTransformQuality: 80,
 }
@@ -141,6 +144,7 @@ export const useInstanceSettingsStore = defineStore('instanceSettings', {
     gifClipsEnabled: (state): boolean => state.settings.gifClipsEnabled,
     gifMemesEnabled: (state): boolean => state.settings.gifMemesEnabled,
     gifAiEmojisEnabled: (state): boolean => state.settings.gifAiEmojisEnabled,
+    gifAiEmojiGenerationEnabled: (state): boolean => state.settings.gifAiEmojiGenerationEnabled,
 
     /**
      * Is the settings cache still valid?
@@ -307,6 +311,9 @@ export const useInstanceSettingsStore = defineStore('instanceSettings', {
             break
           case 'gif_ai_emojis_enabled':
             this.settings.gifAiEmojisEnabled = value === true || value === 'true'
+            break
+          case 'gif_ai_emoji_generation_enabled':
+            this.settings.gifAiEmojiGenerationEnabled = value === true || value === 'true'
             break
           case 'default_theme_json':
             if (value && typeof value === 'string') {

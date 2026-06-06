@@ -468,16 +468,22 @@ CREATE TABLE IF NOT EXISTS public.gif_favorites (
     gif_url text NOT NULL,
     preview_url text,
     title text,
-    -- 'gif' | 'sticker' — keeps the GIF and sticker favorite lists separate.
+    -- 'gif' | 'sticker' | 'clip' | 'meme' | 'ai-emoji' — keeps the favorite lists separate.
     media_type text NOT NULL DEFAULT 'gif',
+    -- True for AI emoji the user generated (hosted in the 'ai-emojis' bucket).
+    -- Doubles as the per-user / instance daily generation-cap source of truth.
+    is_generated boolean NOT NULL DEFAULT false,
     created_at timestamp with time zone DEFAULT now(),
     
     UNIQUE(user_id, gif_url)
 );
 
 CREATE INDEX IF NOT EXISTS idx_gif_favorites_user ON public.gif_favorites(user_id);
+-- Supports counting today's generated emoji for daily-cap enforcement.
+CREATE INDEX IF NOT EXISTS idx_gif_favorites_generated
+    ON public.gif_favorites(created_at) WHERE is_generated;
 
-COMMENT ON TABLE public.gif_favorites IS 'User favorite GIFs and stickers';
+COMMENT ON TABLE public.gif_favorites IS 'User favorite GIFs, stickers, and generated AI emoji';
 
 -- ---------------------------------------------------------------------------
 -- EMOJI FAVORITES

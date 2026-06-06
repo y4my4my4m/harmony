@@ -32,7 +32,8 @@ INSERT INTO public.instance_config (config_key, config_value, description) VALUE
     ('gif_klipy_watermark_enabled', 'true', 'Show the optional (recommended) KLIPY attribution watermark on sent GIFs/stickers. The required "Search KLIPY" picker label is always shown regardless.'),
     ('gif_clips_enabled', 'false', 'Enable the Klipy Clips (short video) media type in the picker and the /clip command'),
     ('gif_memes_enabled', 'false', 'Enable the Klipy Memes media type in the picker and the /meme command'),
-    ('gif_ai_emojis_enabled', 'false', 'Enable the Klipy AI Emoji media type in the picker and the /aiemoji command')
+    ('gif_ai_emojis_enabled', 'false', 'Enable the Klipy AI Emoji media type in the picker and the /aiemoji command'),
+    ('gif_ai_emoji_generation_enabled', 'false', 'Allow members to generate AI emoji from text prompts (Klipy generation API). Shared 20/day instance cap plus a per-user daily cap.')
 ON CONFLICT (config_key) DO NOTHING;
 
 DO $$

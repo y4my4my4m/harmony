@@ -1167,7 +1167,16 @@
                 <span class="toggle-slider"></span>
                 <span class="toggle-text">Enable AI Emoji</span>
               </label>
+              <label class="toggle-label" v-if="config.chat.gifAiEmojisEnabled">
+                <input type="checkbox" v-model="config.chat.gifAiEmojiGenerationEnabled" />
+                <span class="toggle-slider"></span>
+                <span class="toggle-text">Allow AI Emoji generation (text prompt)</span>
+              </label>
             </div>
+            <p class="setting-hint" v-if="config.chat.gifAiEmojisEnabled && config.chat.gifAiEmojiGenerationEnabled">
+              Members can generate emoji from prompts. Klipy caps generation at 20/day per instance (shared by everyone);
+              a per-user daily limit also applies. Generated emoji are hosted on this instance.
+            </p>
 
             <h3 style="margin-top: 24px;">Trending & Discovery</h3>
             <div class="setting-group">
@@ -2533,6 +2542,7 @@ const config = ref({
     gifClipsEnabled: false,
     gifMemesEnabled: false,
     gifAiEmojisEnabled: false,
+    gifAiEmojiGenerationEnabled: false,
   },
   federation: {
     maxPostLength: 500,
@@ -3874,6 +3884,7 @@ const saveConfig = async () => {
       gif_clips_enabled: config.value.chat.gifClipsEnabled,
       gif_memes_enabled: config.value.chat.gifMemesEnabled,
       gif_ai_emojis_enabled: config.value.chat.gifAiEmojisEnabled,
+      gif_ai_emoji_generation_enabled: config.value.chat.gifAiEmojiGenerationEnabled,
       max_post_length: config.value.federation.maxPostLength,
       federation_retry_attempts: config.value.federation.retryAttempts,
       max_custom_emojis_per_server: config.value.federation.maxCustomEmojisPerServer ?? 0,

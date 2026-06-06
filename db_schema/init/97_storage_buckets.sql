@@ -94,6 +94,21 @@ ON CONFLICT (id) DO UPDATE SET
     file_size_limit = EXCLUDED.file_size_limit,
     allowed_mime_types = EXCLUDED.allowed_mime_types;
 
+-- AI emoji bucket (user-generated AI emoji from Klipy generation API).
+-- Written only by the federation backend (service role); served publicly.
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES (
+    'ai-emojis',
+    'ai-emojis',
+    true,
+    3145728, -- 3MB
+    ARRAY['image/png', 'image/webp', 'image/gif', 'image/jpeg']
+)
+ON CONFLICT (id) DO UPDATE SET
+    public = EXCLUDED.public,
+    file_size_limit = EXCLUDED.file_size_limit,
+    allowed_mime_types = EXCLUDED.allowed_mime_types;
+
 -- Group icons bucket (group conversation avatars)
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 VALUES (
@@ -145,6 +160,12 @@ DROP POLICY IF EXISTS "Public read access for emojis" ON storage.objects;
 CREATE POLICY "Public read access for emojis"
     ON storage.objects FOR SELECT
     USING (bucket_id = 'emojis');
+
+-- Generated AI emoji are public-read; writes happen via the service role only.
+DROP POLICY IF EXISTS "Public read access for ai-emojis" ON storage.objects;
+CREATE POLICY "Public read access for ai-emojis"
+    ON storage.objects FOR SELECT
+    USING (bucket_id = 'ai-emojis');
 
 -- Authenticated users can upload to avatars (their own folder)
 DROP POLICY IF EXISTS "Users can upload their own avatar" ON storage.objects;

@@ -359,6 +359,78 @@ export class KlipyService {
   }
 }
 
+export interface GeneratedEmoji {
+  /** Raw image bytes returned by Klipy (base64 generation result). */
+  buffer: Buffer;
+  mimeType: string;
+}
+
+/**
+ * Generate an AI emoji from a text prompt. Klipy returns a job id immediately;
+ * we poll the status endpoint until the image is ready (it comes back as
+ * base64-encoded bytes — there is no hosted URL). Uses the no-ads key.
+ *
+ * Throws on failure/timeout so the route can surface a clean error.
+ */
+export async function generateEmoji(
+  prompt: string,
+  opts?: { userAgent?: string; timeoutMs?: number },
+): Promise<GeneratedEmoji> {
+  const key = config.KLIPY_API_KEY_NOADS || config.KLIPY_API_KEY_ADS;
+  if (!key) throw new Error('Klipy is not configured');
+
+  const base = `${config.KLIPY_BASE_URL}/api/v1/${key}/emojis`;
+  const headers = {
+    Accept: 'application/json',
+    'Content-Type': 'application/json',
+    'User-Agent': opts?.userAgent || 'HarmonyFederation/1.0',
+  };
+
+  // Kick off generation (polling mode — no callback_url).
+  const startRes = await fetch(`${base}/generate`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ prompt }),
+  });
+  if (!startRes.ok) {
+    throw new Error(`Klipy generation request failed (${startRes.status})`);
+  }
+  const startPayload: any = await startRes.json();
+  const id = startPayload?.data?.id ?? startPayload?.id;
+  if (!id || typeof id !== 'string') {
+    throw new Error('Klipy did not return a generation id');
+  }
+
+  // Poll for the result.
+  const deadline = Date.now() + (opts?.timeoutMs ?? 45_000);
+  let delay = 1_500;
+  while (Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, delay));
+    delay = Math.min(delay + 500, 4_000);
+
+    const statusRes = await fetch(`${base}/generated/${encodeURIComponent(id)}`, {
+      method: 'GET',
+      headers: { Accept: 'application/json', 'User-Agent': headers['User-Agent'] },
+    });
+    if (!statusRes.ok) continue;
+    const payload: any = await statusRes.json();
+    const status = String(payload?.status ?? payload?.data?.status ?? '').toLowerCase();
+    if (status === 'failed') throw new Error('Klipy could not generate that emoji');
+    if (status !== 'success') continue;
+
+    const result = payload?.result ?? payload?.data?.result;
+    const b64: unknown = result?.base64_encoded;
+    const mimeType = String(result?.mime_type || 'image/png');
+    if (typeof b64 !== 'string' || !b64) {
+      throw new Error('Klipy returned an empty generation result');
+    }
+    const buffer = Buffer.from(b64, 'base64');
+    if (!buffer.length) throw new Error('Klipy returned an unreadable image');
+    return { buffer, mimeType };
+  }
+  throw new Error('AI emoji generation timed out — please try again');
+}
+
 /** Klipy suggestion payloads vary; pull plain strings out of common shapes. */
 function extractSuggestionStrings(payload: any): string[] {
   const data = payload?.data ?? payload;
