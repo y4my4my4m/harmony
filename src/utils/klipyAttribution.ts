@@ -13,6 +13,9 @@ import type { GifMediaType } from '@/services/gifProviderService'
 
 const KLIPY_FRAGMENT = 'harmony-klipy'
 
+/** Official KLIPY wordmark for the optional on-media watermark overlay. */
+export const KLIPY_WATERMARK_LOGO_URL = '/assets/3rdparty/KLIPY_TEXT_LIGHT.svg'
+
 export type KlipyKind = 'gif' | 'sticker' | 'clip' | 'meme' | 'ai-emoji'
 
 /** Map the picker's media type to the compact kind stored on the message URL. */
