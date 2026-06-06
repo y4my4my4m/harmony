@@ -8,6 +8,23 @@ import {
   removeCachedServerEmojis,
 } from '@/services/emojiIndexedDBCache'
 
+/**
+ * Reserved cache keys for non-server emoji groups. They flow through the same
+ * server-keyed machinery (so they land in nameIndex/globalEmojiIndex and resolve
+ * in :shortcode: at send time) but are not real servers — they're never
+ * persisted to IndexedDB and the picker renders them as their own sections.
+ */
+export const PERSONAL_EMOJI_GROUPS = {
+  ai: '__ai_generated__',
+  user: '__user_emoji__',
+  instance: '__instance_emoji__',
+} as const;
+
+/** True for the synthetic personal/instance group keys above. */
+export function isPersonalEmojiGroup(key: string): boolean {
+  return key.startsWith('__');
+}
+
 interface EmojiCacheEntry {
   emoji: Emoji;
   lastUpdated: Date;
@@ -354,7 +371,7 @@ export const useEmojiCacheStore = defineStore('emojiCache', {
     },
 
     // Update cache for a specific server and persist to IndexedDB
-    updateServerCache(serverId: string, emojis: Emoji[], serverDetails?: any) {
+    updateServerCache(serverId: string, emojis: Emoji[], serverDetails?: any, persist = true) {
       // Remove old cache if it exists
       this.removeServerFromCache(serverId);
 
@@ -395,17 +412,69 @@ export const useEmojiCacheStore = defineStore('emojiCache', {
 
       this.serverCaches.set(serverId, serverCache);
       
-      // Write-through to IndexedDB for persistence across page reloads
-      setCachedServerEmojis({
-        serverId,
-        serverName: serverCache.serverName,
-        serverIcon: serverCache.serverIcon,
-        allowCrossServer: serverCache.allowCrossServer,
-        emojis,
-        lastFetched: now.getTime(),
-      });
+      // Write-through to IndexedDB for persistence across page reloads.
+      // Synthetic personal/instance groups are session-scoped (refetched on open).
+      if (persist) {
+        setCachedServerEmojis({
+          serverId,
+          serverName: serverCache.serverName,
+          serverIcon: serverCache.serverIcon,
+          allowCrossServer: serverCache.allowCrossServer,
+          emojis,
+          lastFetched: now.getTime(),
+        });
+      }
       
-      debug.log(`📦 Cached ${emojis.length} emojis for server: ${serverCache.serverName}`);
+      debug.log(`📦 Cached ${emojis.length} emojis for: ${serverCache.serverName}`);
+    },
+
+    /**
+     * Load the viewer's personal (user-scoped) emoji and the instance-wide
+     * emoji into the picker. AI-generated emoji become their own group. This is
+     * what surfaces generated emoji as a category and makes user/instance custom
+     * emoji resolvable in messages.
+     */
+    async loadPersonalEmojis(profileId: string | null) {
+      try {
+        const requests: Promise<{ data: Emoji[] | null }>[] = [
+          supabase.from('emojis').select('*').eq('scope', 'instance').order('name') as any,
+        ];
+        if (profileId) {
+          requests.push(
+            supabase
+              .from('emojis')
+              .select('*')
+              .eq('scope', 'user')
+              .eq('uploader', profileId)
+              .order('created_at', { ascending: false }) as any,
+          );
+        }
+        const results = await Promise.all(requests);
+        const instanceEmojis = (results[0]?.data || []) as Emoji[];
+        const userEmojis = ((profileId ? results[1]?.data : []) || []) as Emoji[];
+
+        const aiEmojis = userEmojis.filter((e) => (e as any).is_ai_generated === true);
+        const ownEmojis = userEmojis.filter((e) => (e as any).is_ai_generated !== true);
+
+        this.updateServerCache(PERSONAL_EMOJI_GROUPS.ai, aiEmojis, { name: 'AI Generated' }, false);
+        this.updateServerCache(PERSONAL_EMOJI_GROUPS.user, ownEmojis, { name: 'My Emoji' }, false);
+        this.updateServerCache(PERSONAL_EMOJI_GROUPS.instance, instanceEmojis, { name: 'Instance Emoji' }, false);
+        this.rebuildResolvedEmojis();
+      } catch (e) {
+        debug.error('Failed to load personal/instance emoji:', e);
+      }
+    },
+
+    /** Add a single emoji to a personal group (e.g. a freshly generated one). */
+    addPersonalEmoji(groupKey: string, groupName: string, emoji: Emoji) {
+      const cache = this.serverCaches.get(groupKey);
+      const existing = cache
+        ? Array.from(cache.emojis.values())
+            .map((e) => e.emoji)
+            .filter((e) => e.id !== emoji.id)
+        : [];
+      this.updateServerCache(groupKey, [emoji, ...existing], { name: groupName }, false);
+      this.rebuildResolvedEmojis();
     },
 
     // Remove server from all caches (memory + IndexedDB)

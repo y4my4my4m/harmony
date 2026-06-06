@@ -93,6 +93,52 @@
         </div>
       </div>
 
+      <!-- AI Generated Emoji (own category) -->
+      <div v-if="showAiSection" class="emoji-section">
+        <h3
+          class="section-title section-title-collapsible"
+          @click="toggleSection('ai-generated')"
+        >
+          <span class="section-chevron" :class="{ collapsed: isSectionCollapsed('ai-generated') }">&#9662;</span>
+          ✨ AI Generated
+        </h3>
+        <template v-if="!isSectionCollapsed('ai-generated')">
+          <form v-if="canGenerate && !searchQuery" class="ai-gen-form" @submit.prevent="runGenerate">
+            <input
+              v-model="aiPrompt"
+              type="text"
+              class="search-input ai-gen-input"
+              :maxlength="AI_PROMPT_MAX_LEN"
+              :placeholder="$t('emoji.aiGeneratePlaceholder')"
+              :disabled="aiGenerating"
+            />
+            <button type="submit" class="ai-gen-button" :disabled="aiGenerating || !aiPrompt.trim()">
+              <LoadingSpinner v-if="aiGenerating" :size="14" />
+              <span v-else>{{ $t('emoji.aiGenerate') }}</span>
+            </button>
+          </form>
+          <p v-if="aiGenError" class="ai-gen-error">{{ aiGenError }}</p>
+          <div v-if="aiEmojis.length" class="emoji-list">
+            <div
+              v-for="emoji in aiEmojis"
+              :key="emoji.id"
+              class="emoji-item"
+              @click="selectEmoji(emoji)"
+              @contextmenu.prevent="openEmojiCtxServer(emoji, $event)"
+              @touchstart="handleTouchHold($event, (e) => openEmojiCtxServer(emoji, e))"
+              @pointerenter="hoveredEmojiName = emoji.display_name"
+              @pointerleave="hoveredEmojiName = null"
+            >
+              <svg v-if="brokenEmojiUrls.has(emoji.url)" class="emoji-broken-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="2" y1="2" x2="22" y2="22"/><path d="M10.41 10.41a2 2 0 1 1-2.83-2.83"/><line x1="13.5" y1="13.5" x2="6" y2="21"/><line x1="18" y1="12" x2="21" y2="15"/><path d="M3.59 3.59A1.99 1.99 0 0 0 3 5v14a2 2 0 0 0 2 2h14c.55 0 1.052-.22 1.41-.59"/><path d="M21 15V5a2 2 0 0 0-2-2H9"/></svg>
+              <img v-else :src="getEmojiUrl(emoji.url, 42)" :alt="emoji.name" @error="brokenEmojiUrls.add(emoji.url)" />
+            </div>
+          </div>
+          <div v-else-if="canGenerate && !searchQuery" class="no-favorites-hint">
+            <p>{{ $t('emoji.aiGenerateHint') }}</p>
+          </div>
+        </template>
+      </div>
+
       <!-- Server Emojis List -->
       <div v-if="filteredEmojiList.length">
         <div v-for="group in filteredEmojiList" :key="group.serverId" class="emoji-section">
@@ -224,7 +270,10 @@
 
 <script setup lang="ts">
 import { ref, onMounted, computed, nextTick, watch } from 'vue';
-import { useEmojiCacheStore } from '@/stores/useEmojiCache';
+import { useEmojiCacheStore, PERSONAL_EMOJI_GROUPS } from '@/stores/useEmojiCache';
+import { useInstanceSettingsStore } from '@/stores/useInstanceSettings';
+import { authContextService } from '@/services/AuthContextService';
+import { generateAiEmoji } from '@/services/emojiService';
 import { useFrequentEmojis } from '@/composables/useFrequentEmojis';
 import { useHapticSettings } from '@/composables/useHapticSettings';
 import { useUnifiedEmoji, type EmojiEntry } from '@/services/unifiedEmojiService';
@@ -268,7 +317,15 @@ const emit = defineEmits<{
 // State & Composables
 const brokenEmojiUrls = ref(new Set<string>());
 const emojiCacheStore = useEmojiCacheStore();
+const instanceSettings = useInstanceSettingsStore();
 const serverChannelStore = useServerChannelStore();
+
+// --- AI emoji generation ---
+const AI_PROMPT_MAX_LEN = 200;
+const canGenerate = computed(() => instanceSettings.gifAiEmojiGenerationEnabled);
+const aiPrompt = ref('');
+const aiGenerating = ref(false);
+const aiGenError = ref('');
 const { topEmojisForPicker, hasFrequentEmojis, recordEmojiUsage, removeFrequentEmoji, isFrequentEmoji } = useFrequentEmojis();
 const { triggerReaction } = useHapticSettings();
 const { 
@@ -309,7 +366,10 @@ const isSectionCollapsed = (id: string) => {
 // Computed: Filtered emoji list (current server first)
 const filteredEmojiList = computed((): FilteredServerEmojiGroup[] => {
   const query = searchQuery.value.toLowerCase().trim();
-  const allEmojisByServer = Object.entries(emojiCacheStore.resolvedEmojis);
+  // AI Generated has its own dedicated section below; everything else (servers,
+  // plus the synthetic "My Emoji" / "Instance Emoji" groups) renders here.
+  const allEmojisByServer = Object.entries(emojiCacheStore.resolvedEmojis)
+    .filter(([serverId]) => serverId !== PERSONAL_EMOJI_GROUPS.ai);
   const currentId = serverChannelStore.currentServerId;
 
   const sortCurrentFirst = (list: FilteredServerEmojiGroup[]) =>
@@ -345,6 +405,34 @@ const filteredEmojiList = computed((): FilteredServerEmojiGroup[] => {
       .filter((group) => group.emojis.length > 0)
   );
 });
+
+// The viewer's AI-generated emoji (filtered by the active search query).
+const aiEmojis = computed((): ResolvedEmoji[] => {
+  const group = emojiCacheStore.resolvedEmojis[PERSONAL_EMOJI_GROUPS.ai];
+  const list = group?.emojis ?? [];
+  const query = searchQuery.value.toLowerCase().trim();
+  if (!query) return list;
+  return list.filter(
+    (e) => e.name.toLowerCase().includes(query) || e.display_name.toLowerCase().includes(query),
+  );
+});
+
+const showAiSection = computed(() => canGenerate.value || aiEmojis.value.length > 0);
+
+async function runGenerate() {
+  const prompt = aiPrompt.value.trim();
+  if (!prompt || aiGenerating.value) return;
+  aiGenerating.value = true;
+  aiGenError.value = '';
+  try {
+    await generateAiEmoji(prompt);
+    aiPrompt.value = '';
+  } catch (e) {
+    aiGenError.value = (e as Error)?.message || 'AI emoji generation failed';
+  } finally {
+    aiGenerating.value = false;
+  }
+}
 
 // Computed: Displayed categories from unified emoji service
 const displayedCategories = computed((): DisplayCategory[] => {
@@ -785,6 +873,12 @@ onMounted(async () => {
   await emojiFavoriteService.initializeCache();
   loadFavorites();
 
+  // Load the viewer's personal + instance emoji (incl. AI Generated) so they
+  // appear as picker categories and resolve in :shortcode: at send time.
+  authContextService.getCurrentContext()
+    .then((ctx) => emojiCacheStore.loadPersonalEmojis(ctx.profileId ?? null))
+    .catch(() => emojiCacheStore.loadPersonalEmojis(null));
+
   nextTick(() => {
     searchInput.value?.focus();
   });
@@ -1010,6 +1104,47 @@ onMounted(async () => {
 .no-results small {
   color: var(--text-muted);
   font-size: 12px;
+}
+
+/* AI generation form */
+.ai-gen-form {
+  display: flex;
+  gap: 6px;
+  margin: 2px 0 8px;
+}
+
+.ai-gen-input {
+  flex: 1;
+  padding: 6px 10px;
+  font-size: 13px;
+}
+
+.ai-gen-button {
+  flex: 0 0 auto;
+  min-width: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--harmony-primary, var(--harmony-primary-alpha));
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+
+.ai-gen-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.ai-gen-error {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: var(--color-danger, #f23f42);
 }
 
 /* Favorites */

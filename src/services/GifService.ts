@@ -27,8 +27,6 @@ export interface GifFavorite {
   created_at: string
   /** Distinguishes GIF favorites from sticker favorites. Defaults to 'gif'. */
   media_type?: GifMediaType
-  /** True for AI emoji the user generated (vs. browsed-and-favorited). */
-  is_generated?: boolean
   /**
    * Tenor's stable GIF identifier. Populated for Tenor-sourced favorites;
    * absent for direct-URL favorites. Surfaced to consumers (GifComponent)
@@ -255,21 +253,6 @@ export class GifService {
   private filterByType(rows: FavoriteGif[], mediaType?: GifMediaType): FavoriteGif[] {
     if (!mediaType) return rows
     return rows.filter(r => (r.media_type ?? 'gif') === mediaType)
-  }
-
-  /**
-   * The user's AI emoji generation history (newest first). Generated emoji are
-   * stored as gif_favorites rows with is_generated = true.
-   */
-  async getGenerated(): Promise<FavoriteGif[]> {
-    const all = await this.getFavorites('ai-emoji')
-    return all.filter(r => r.is_generated === true)
-  }
-
-  /** Drop the cached favorites so the next read reflects a new generation. */
-  invalidateCache(): void {
-    this.favoritesCache = null
-    this.favoritesCacheTime = 0
   }
   
   /**

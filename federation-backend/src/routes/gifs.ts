@@ -27,19 +27,97 @@ import { logger } from '../utils/logger.js';
 
 const router = Router();
 
+// ---------------------------------------------------------------------------
+// Input sanitization for everything forwarded to Klipy. Nothing user-supplied
+// reaches the upstream API (or our DB) without passing through these.
+// ---------------------------------------------------------------------------
+const QUERY_MAX_LEN = 100;
+
+/** Trim, strip control chars, collapse whitespace, and cap a free-text query. */
+function sanitizeQuery(raw: unknown): string | undefined {
+  if (typeof raw !== 'string') return undefined;
+  const cleaned = raw
+    // eslint-disable-next-line no-control-regex
+    .replace(/[\u0000-\u001f\u007f]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, QUERY_MAX_LEN);
+  return cleaned || undefined;
+}
+
+/** Accept only ISO 3166-1 alpha-2 locale codes; anything else is dropped. */
+function sanitizeLocale(raw: unknown): string | undefined {
+  if (typeof raw !== 'string') return undefined;
+  const code = raw.trim().toLowerCase();
+  return /^[a-z]{2}$/.test(code) ? code : undefined;
+}
+
+/** Clamp a page number to a sane positive range. */
+function sanitizePage(raw: unknown): number {
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return 1;
+  return Math.min(Math.max(Math.trunc(n), 1), 100);
+}
+
+/** Clamp per-page to Klipy's allowed window (1..50). */
+function sanitizePerPage(raw: unknown): number {
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return 24;
+  return Math.min(Math.max(Math.trunc(n), 1), 50);
+}
+
 // AI emoji generation guardrails. The Klipy daily cap (20/key) is shared across
 // the whole instance, so we cap per-user too and never exceed the instance cap.
+// Generated emoji become real custom emoji (public.emojis, scope 'user').
 const GEN_PROMPT_MAX_LEN = 200;
 const GEN_PER_USER_DAILY = 3;
 const GEN_INSTANCE_DAILY = 20;
-const GEN_BUCKET = 'ai-emojis';
+// Reuse the existing custom-emoji bucket so AI emoji render via the normal path.
+const GEN_BUCKET = 'emojis';
 const GEN_ALLOWED_MIME: Record<string, string> = {
   'image/png': 'png',
   'image/webp': 'webp',
   'image/gif': 'gif',
   'image/jpeg': 'jpg',
 };
-const GEN_MAX_BYTES = 3 * 1024 * 1024;
+// Match the 'emojis' bucket limit (1MB). Generated emoji are tens of KB.
+const GEN_MAX_BYTES = 1024 * 1024;
+const GEN_NAME_MAX_LEN = 32;
+
+/**
+ * Turn a free-text prompt into a safe emoji shortcode: lowercase, ASCII
+ * alphanumerics + underscore only, collapsed and trimmed. Never trusts the
+ * prompt as-is (it ends up in `:shortcode:` markup and the DB).
+ */
+function promptToShortcode(prompt: string): string {
+  const slug = prompt
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '') // strip diacritics
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, GEN_NAME_MAX_LEN)
+    .replace(/_+$/g, '');
+  return slug || 'ai_emoji';
+}
+
+/** Find a name not already used by this user's emoji (appends _2, _3, …). */
+async function uniqueEmojiName(supabase: any, profileId: string, base: string): Promise<string> {
+  const { data } = await supabase
+    .from('emojis')
+    .select('name')
+    .eq('uploader', profileId)
+    .eq('scope', 'user')
+    .like('name', `${base}%`);
+  const taken = new Set<string>((data || []).map((r: { name: string }) => r.name));
+  if (!taken.has(base)) return base;
+  for (let n = 2; n < 1000; n++) {
+    const candidate = `${base}_${n}`.slice(0, GEN_NAME_MAX_LEN);
+    if (!taken.has(candidate)) return candidate;
+  }
+  return `${base}_${Date.now().toString(36)}`.slice(0, GEN_NAME_MAX_LEN);
+}
 
 /**
  * Short-lived cache of the per-viewer ads decision.
@@ -96,10 +174,10 @@ async function handle(
     return res.status(503).json({ error: 'GIF search is not configured on this instance' });
   }
 
-  const query = typeof req.query.q === 'string' ? req.query.q : undefined;
-  const page = req.query.page ? Number(req.query.page) : 1;
-  const perPage = req.query.per_page ? Number(req.query.per_page) : 24;
-  const locale = typeof req.query.locale === 'string' ? req.query.locale : undefined;
+  const query = sanitizeQuery(req.query.q);
+  const page = sanitizePage(req.query.page);
+  const perPage = sanitizePerPage(req.query.per_page);
+  const locale = sanitizeLocale(req.query.locale);
 
   // Klipy serves ad objects on the GIF feed only in our setup; other media
   // feeds are kept ad-free (cleaner UX, and it skips the per-request ads lookup).
@@ -110,8 +188,8 @@ async function handle(
       kind,
       mediaType,
       query,
-      page: Number.isFinite(page) ? page : 1,
-      perPage: Number.isFinite(perPage) ? perPage : 24,
+      page,
+      perPage,
       locale,
       // Profile id is a stable, non-PII UUID — ideal as Klipy's customer_id.
       customerId: req.profileId || req.user.id,
@@ -134,8 +212,8 @@ async function handle(
 // Search suggestions / autocomplete (literal paths declared before /:media/*).
 router.get('/suggest', requireAuth, async (req, res) => {
   if (!isKlipyConfigured()) return res.json({ suggestions: [] });
-  const query = typeof req.query.q === 'string' ? req.query.q : undefined;
-  const locale = typeof req.query.locale === 'string' ? req.query.locale : undefined;
+  const query = sanitizeQuery(req.query.q);
+  const locale = sanitizeLocale(req.query.locale);
   const suggestions = await KlipyService.fetchSuggestions({
     query,
     locale,
@@ -183,17 +261,17 @@ async function isGenerationEnabled(): Promise<boolean> {
   }
 }
 
-/** Count today's (UTC) generated emoji rows, optionally scoped to one user. */
+/** Count today's (UTC) AI-generated emoji, optionally scoped to one uploader. */
 async function countGeneratedToday(profileId?: string): Promise<number> {
   const supabase = getSupabaseClient();
   const start = new Date();
   start.setUTCHours(0, 0, 0, 0);
   let q = supabase
-    .from('gif_favorites')
+    .from('emojis')
     .select('id', { count: 'exact', head: true })
-    .eq('is_generated', true)
+    .eq('is_ai_generated', true)
     .gte('created_at', start.toISOString());
-  if (profileId) q = q.eq('user_id', profileId);
+  if (profileId) q = q.eq('uploader', profileId);
   const { count, error } = await q;
   if (error) {
     logger.warn('Failed to count generated emoji:', error.message);
@@ -203,7 +281,7 @@ async function countGeneratedToday(profileId?: string): Promise<number> {
   return count ?? 0;
 }
 
-// AI emoji generation: prompt → Klipy → host the bytes → save per-user row.
+// AI emoji generation: prompt → Klipy → host the bytes → create a custom emoji.
 router.post('/ai-emojis/generate', requireAuth, async (req, res) => {
   const authedReq = req as AuthenticatedRequest;
   if (!isKlipyConfigured()) {
@@ -214,7 +292,11 @@ router.post('/ai-emojis/generate', requireAuth, async (req, res) => {
   }
 
   const rawPrompt = typeof req.body?.prompt === 'string' ? req.body.prompt : '';
-  const prompt = rawPrompt.replace(/\s+/g, ' ').trim();
+  const prompt = rawPrompt
+    // eslint-disable-next-line no-control-regex
+    .replace(/[\u0000-\u001f\u007f]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
   if (!prompt) {
     return res.status(400).json({ error: 'A prompt is required' });
   }
@@ -257,7 +339,8 @@ router.post('/ai-emojis/generate', requireAuth, async (req, res) => {
     }
 
     const supabase = getSupabaseClient();
-    const path = `${profileId}/${randomUUID()}.${ext}`;
+    // Store under the user's folder in the emojis bucket: ai/{profileId}/{uuid}.
+    const path = `ai/${profileId}/${randomUUID()}.${ext}`;
     const { error: uploadError } = await supabase.storage
       .from(GEN_BUCKET)
       .upload(path, buffer, { contentType: mimeType, upsert: false });
@@ -272,21 +355,36 @@ router.post('/ai-emojis/generate', requireAuth, async (req, res) => {
       return res.status(500).json({ error: 'Failed to resolve the generated emoji URL' });
     }
 
-    // Persist as the user's generation history (doubles as the daily-cap source).
-    const { error: insertError } = await supabase.from('gif_favorites').insert({
-      user_id: profileId,
-      gif_url: url,
-      preview_url: url,
-      title: prompt,
-      media_type: 'ai-emoji',
-      is_generated: true,
-    });
-    if (insertError) {
-      logger.error('Failed to record generated emoji:', insertError.message);
-      // The image is stored and usable even if the history row failed.
+    // Create a real, per-user custom emoji so it renders via :shortcode: and
+    // shows up in the picker's AI Generated category.
+    const name = await uniqueEmojiName(supabase, profileId, promptToShortcode(prompt));
+    const { data: inserted, error: insertError } = await supabase
+      .from('emojis')
+      .insert({
+        name,
+        url,
+        server_id: null,
+        scope: 'user',
+        uploader: profileId,
+        is_ai_generated: true,
+        file_size: buffer.length,
+        domain: null,
+      })
+      .select('id, name, url')
+      .single();
+    if (insertError || !inserted) {
+      logger.error('Failed to record generated emoji:', insertError?.message);
+      // Clean up the orphaned upload so it doesn't linger in storage.
+      await supabase.storage.from(GEN_BUCKET).remove([path]).catch(() => {});
+      return res.status(500).json({ error: 'Failed to save the generated emoji' });
     }
 
-    return res.json({ url, title: prompt, createdAt: new Date().toISOString() });
+    return res.json({
+      id: inserted.id,
+      name: inserted.name,
+      url: inserted.url,
+      createdAt: new Date().toISOString(),
+    });
   } catch (err: any) {
     const message = err?.message || 'AI emoji generation failed';
     // Timeouts/failures from Klipy are upstream issues → 502.

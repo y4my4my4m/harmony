@@ -301,11 +301,22 @@ CREATE TABLE IF NOT EXISTS public.emojis (
     
     domain text,
 
-    CONSTRAINT emojis_name_length_check CHECK (name IS NULL OR char_length(name::text) <= 64)
+    -- Ownership scope: 'server' (server_id set), 'instance' (server_id NULL,
+    -- e.g. remote imports), or 'user' (personal emoji owned by `uploader`).
+    scope text NOT NULL DEFAULT 'server',
+    -- True for emoji created via the Klipy AI generation API (a 'user' scope).
+    is_ai_generated boolean NOT NULL DEFAULT false,
+
+    CONSTRAINT emojis_name_length_check CHECK (name IS NULL OR char_length(name::text) <= 64),
+    CONSTRAINT emojis_scope_check CHECK (scope IN ('server', 'instance', 'user'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_emojis_server ON public.emojis(server_id);
 CREATE INDEX IF NOT EXISTS idx_emojis_name ON public.emojis(lower(name::text));
+CREATE INDEX IF NOT EXISTS idx_emojis_user ON public.emojis(uploader) WHERE scope = 'user';
+CREATE INDEX IF NOT EXISTS idx_emojis_scope ON public.emojis(scope);
+CREATE INDEX IF NOT EXISTS idx_emojis_ai_generated
+    ON public.emojis(uploader, created_at) WHERE is_ai_generated;
 
 COMMENT ON TABLE public.emojis IS 'Custom emoji library';
 

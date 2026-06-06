@@ -91,25 +91,6 @@ export const gifProvider = {
     }
   },
 
-  /**
-   * Generate an AI emoji from a text prompt. The backend calls Klipy, hosts the
-   * resulting image, records it in the user's generation history, and returns the
-   * hosted URL. Throws with a user-facing message on failure (rate limits, etc.).
-   */
-  async generateEmoji(prompt: string): Promise<{ url: string; title: string; createdAt: string }> {
-    const headers = { Accept: 'application/json', 'Content-Type': 'application/json', ...(await authHeaders()) }
-    const res = await fetch(`${FEDERATION_API}/gifs/ai-emojis/generate`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ prompt }),
-    })
-    const data = await res.json().catch(() => ({}))
-    if (!res.ok) {
-      throw new Error(typeof data?.error === 'string' ? data.error : 'AI emoji generation failed')
-    }
-    return { url: String(data.url), title: String(data.title ?? prompt), createdAt: String(data.createdAt ?? '') }
-  },
-
   /** Klipy search suggestions (no query) / autocomplete (with query). Best-effort. */
   async suggest(query: string | undefined, opts?: FetchOptions): Promise<string[]> {
     const params = new URLSearchParams()

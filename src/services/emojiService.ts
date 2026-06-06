@@ -1,7 +1,7 @@
 // emojiService.ts
 import { supabase } from '@/supabase';
 import { v4 as uuidv4 } from 'uuid';
-import { useEmojiCacheStore } from '@/stores/useEmojiCache';
+import { useEmojiCacheStore, PERSONAL_EMOJI_GROUPS } from '@/stores/useEmojiCache';
 import type { Emoji } from '@/types';
 import { debug } from '@/utils/debug'
 import { removeFrequentEmoji } from '@/composables/useFrequentEmojis';
@@ -612,8 +612,47 @@ async function preloadFrequentEmojis(serverIds: string[] = []) {
     }
 }
 
+/**
+ * Generate an AI emoji from a text prompt via the federation backend (Klipy).
+ * The backend hosts the image and creates a per-user custom emoji; we drop the
+ * result straight into the picker's AI Generated group so it's usable at once.
+ */
+async function generateAiEmoji(prompt: string): Promise<Emoji> {
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+    const res = await fetch('/api/federation/gifs/ai-emojis/generate', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ prompt }),
+    });
+    const payload = await res.json().catch(() => ({}));
+    if (!res.ok) {
+        throw new Error(typeof payload?.error === 'string' ? payload.error : 'AI emoji generation failed');
+    }
+
+    const emoji: Emoji = {
+        id: String(payload.id),
+        name: String(payload.name),
+        url: String(payload.url),
+        scope: 'user',
+        is_ai_generated: true,
+        created_at: new Date(),
+    };
+
+    // Make it immediately resolvable + visible in the picker.
+    const cache = useEmojiCacheStore();
+    cache.addPersonalEmoji(PERSONAL_EMOJI_GROUPS.ai, 'AI Generated', emoji);
+    invalidateEmojiResolverCache();
+    return emoji;
+}
+
 export { 
     uploadEmoji, 
+    generateAiEmoji,
     getEmoji, 
     deleteEmoji, 
     renameEmoji,

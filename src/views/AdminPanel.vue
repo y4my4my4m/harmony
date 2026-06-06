@@ -1165,17 +1165,18 @@
               <label class="toggle-label">
                 <input type="checkbox" v-model="config.chat.gifAiEmojisEnabled" />
                 <span class="toggle-slider"></span>
-                <span class="toggle-text">Enable AI Emoji</span>
+                <span class="toggle-text">Enable AI Emoji (Klipy browse)</span>
               </label>
-              <label class="toggle-label" v-if="config.chat.gifAiEmojisEnabled">
+              <label class="toggle-label">
                 <input type="checkbox" v-model="config.chat.gifAiEmojiGenerationEnabled" />
                 <span class="toggle-slider"></span>
-                <span class="toggle-text">Allow AI Emoji generation (text prompt)</span>
+                <span class="toggle-text">Allow AI Emoji generation (text → custom emoji)</span>
               </label>
             </div>
-            <p class="setting-hint" v-if="config.chat.gifAiEmojisEnabled && config.chat.gifAiEmojiGenerationEnabled">
-              Members can generate emoji from prompts. Klipy caps generation at 20/day per instance (shared by everyone);
-              a per-user daily limit also applies. Generated emoji are hosted on this instance.
+            <p class="setting-hint" v-if="config.chat.gifAiEmojiGenerationEnabled">
+              Members can generate their own custom emoji from a text prompt; these appear in the emoji
+              picker's “AI Generated” category. Klipy caps generation at 20/day per instance (shared by
+              everyone) plus a per-user daily limit. Generated emoji are hosted on this instance.
             </p>
 
             <h3 style="margin-top: 24px;">Trending & Discovery</h3>

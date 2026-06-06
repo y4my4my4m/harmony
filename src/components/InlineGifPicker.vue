@@ -31,8 +31,10 @@
             loop
             playsinline
             preload="metadata"
+            :title="$t('gif.clipAudioHint')"
             @mouseenter="(e) => playPreview(e)"
             @mouseleave="(e) => pausePreview(e)"
+            @contextmenu="toggleClipAudio"
           ></video>
           <img 
             v-else
@@ -96,14 +98,44 @@ const mediaNoun = computed(() => {
 
 const stripFragment = (url: string) => stripKlipyAttributionFragment(url);
 
+// The clip video currently previewing with audio (via right-click).
+const audioClipEl = ref<HTMLVideoElement | null>(null);
+
 const playPreview = (e: Event) => {
   const v = e.target as HTMLVideoElement;
+  if (v === audioClipEl.value) return;
+  v.muted = true;
   v.play?.().catch(() => {});
 };
 const pausePreview = (e: Event) => {
   const v = e.target as HTMLVideoElement;
+  if (v === audioClipEl.value) return;
   v.pause?.();
   if (v) v.currentTime = 0;
+};
+
+// Right-click a clip to preview with sound (again to mute/stop).
+const toggleClipAudio = (e: Event) => {
+  e.preventDefault();
+  const v = e.currentTarget as HTMLVideoElement;
+  if (!v) return;
+  if (audioClipEl.value === v) {
+    v.muted = true;
+    v.pause?.();
+    v.currentTime = 0;
+    audioClipEl.value = null;
+    return;
+  }
+  const prev = audioClipEl.value;
+  if (prev && prev !== v) {
+    prev.muted = true;
+    prev.pause?.();
+    prev.currentTime = 0;
+  }
+  v.muted = false;
+  v.volume = 1;
+  v.play?.().catch(() => {});
+  audioClipEl.value = v;
 };
 
 const inlineGifSrc = (item: Gif) => {

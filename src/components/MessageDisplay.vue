@@ -113,8 +113,9 @@
           @mouseover="handleMessageMouseover(item.message.id)" 
           @mouseleave="handleMessageMouseleave"
           @click="clearDividerIfMessageRead(item.message)"
+          @dblclick="handleMessageDoubleClick(item.message.id, $event)"
           @touchstart.passive="handleMessageTouchStart(item.message.id, $event)"
-          @touchend.passive="handleMessageTouchEnd"
+          @touchend.passive="handleMessageTouchEnd(item.message.id)"
           @touchmove.passive="handleMessageTouchMove"
           @contextmenu="handleMessageContextMenu(item.message, $event)"
         >
@@ -587,6 +588,7 @@ import { throttle } from '@/utils/throttle';
 import { useServerPermissions } from '@/composables/useServerPermissions';
 import { useUserData } from '@/composables/useUserData';
 import { useHapticSettings } from '@/composables/useHapticSettings';
+import { useQuickReactSettings } from '@/composables/useQuickReactSettings';
 import { useLayoutState } from '@/composables/useLayoutState';
 import { useUnreadCounts } from '@/composables/useUnreadCounts';
 import { useReadDivider } from '@/composables/useReadDivider';
@@ -1035,6 +1037,7 @@ const floatingActionsStyle = computed((): Record<string, string> => {
 });
 const { isCurrentUserServerOwner, canManageMessages } = useServerPermissions();
 const { triggerInteraction, triggerDestructive } = useHapticSettings();
+const quickReact = useQuickReactSettings();
 const { isMobile } = useLayoutState();
 const { 
   getUserDisplayName, 
@@ -1372,11 +1375,26 @@ const handleMessageTouchStart = (messageId: string, event: TouchEvent) => {
   }, LONG_PRESS_DURATION);
 };
 
-const handleMessageTouchEnd = () => {
+// Double-tap (mobile) detection. Window is shorter than LONG_PRESS_DURATION so
+// two quick taps never trigger the long-press action bar.
+const DOUBLE_TAP_WINDOW = 300;
+const lastTap = ref<{ id: string; time: number } | null>(null);
+
+const handleMessageTouchEnd = (messageId: string) => {
   if (longPressTimer.value) {
     clearTimeout(longPressTimer.value);
     longPressTimer.value = null;
   }
+  // Skip double-tap if the long-press action bar is already showing.
+  if (hoveredMessageId.value === messageId && mobileActionTapPosition.value) return;
+
+  const now = Date.now();
+  if (lastTap.value && lastTap.value.id === messageId && now - lastTap.value.time < DOUBLE_TAP_WINDOW) {
+    lastTap.value = null;
+    triggerQuickReact(messageId);
+    return;
+  }
+  lastTap.value = { id: messageId, time: now };
 };
 
 const handleMessageTouchMove = () => {
@@ -1384,6 +1402,30 @@ const handleMessageTouchMove = () => {
     clearTimeout(longPressTimer.value);
     longPressTimer.value = null;
   }
+};
+
+// Desktop double-click to quick-react. Clears the accidental text selection
+// that a double-click would otherwise leave behind.
+const handleMessageDoubleClick = (messageId: string, event: MouseEvent) => {
+  // Don't hijack double-clicks on interactive content (links, media, code).
+  const target = event.target as HTMLElement | null;
+  if (target?.closest('a, button, img, video, input, textarea, [contenteditable="true"]')) return;
+  window.getSelection?.()?.removeAllRanges();
+  triggerQuickReact(messageId);
+};
+
+// Apply the user's configured quick-react emoji to a message.
+const triggerQuickReact = (messageId: string) => {
+  if (!quickReact.enabled.value) return;
+  const e = quickReact.emoji.value;
+  if (!e?.id) return;
+  const emojiForReaction: Emoji = {
+    id: e.id,
+    name: e.name,
+    url: e.url || '',
+    content: e.content,
+  };
+  handleToggleReaction(messageId, emojiForReaction);
 };
 
 const dismissMobileActions = (event: MouseEvent) => {

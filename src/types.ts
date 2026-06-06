@@ -625,6 +625,10 @@ export interface Emoji {
   server_id?: string;
   usage_count?: number;
   last_used?: Date;
+  /** Ownership scope: 'server' | 'instance' | 'user'. Absent = legacy server emoji. */
+  scope?: 'server' | 'instance' | 'user';
+  /** True for emoji created via the Klipy AI generation API. */
+  is_ai_generated?: boolean;
   /**
    * Native unicode emoji codepoint(s) when this `Emoji` is a wrapper around
    * a system emoji rather than a custom server emoji. Set by reaction code
