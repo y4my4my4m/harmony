@@ -11,6 +11,7 @@ import {
   logInstallDiagnostics,
   shouldDeferInstallPrompt,
 } from '@/utils/pwaUtils'
+import { shouldAllowNativeContextMenu } from '@/utils/nativeContextMenu'
 
 export interface PWAInstallPrompt {
   prompt(): Promise<void>
@@ -139,14 +140,13 @@ export class PWAManager {
    * Enhanced setup for native app behaviors
    */
   private setupNativeAppBehaviors(): void {
-    // Prevent context menus on touch devices for app-like feel
+    // Prevent context menus on touch devices for app-like feel, but never
+    // block the OS/browser menu when the user has selected text or is
+    // interacting with links/media inside message/post content.
     if (checkIsPWA() || isMobileUserAgent()) {
       document.addEventListener('contextmenu', (e) => {
-        // Allow context menu on text inputs
-        const target = e.target as HTMLElement
-        if (!target.matches('input, textarea, [contenteditable]')) {
-          e.preventDefault()
-        }
+        if (shouldAllowNativeContextMenu(e)) return
+        e.preventDefault()
       })
     }
 

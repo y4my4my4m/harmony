@@ -2277,11 +2277,13 @@ BEGIN
     name,
     url,
     server_id,
+    scope,
     domain  -- NULL means it's now a local emoji
   ) VALUES (
     v_name,
     v_remote.url,
     p_server_id,
+    CASE WHEN p_server_id IS NULL THEN 'instance' ELSE 'server' END,
     NULL  -- Imported as local emoji
   ) RETURNING id INTO v_new_id;
   

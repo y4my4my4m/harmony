@@ -17,10 +17,11 @@
       :files="attachedFiles"
       @remove-file="removeFile"
     />
-    <!-- Inline GIF results (live search during /tenor command) -->
+    <!-- Inline media results (live search during /gif, /sticker, /clip, /meme, /aiemoji) -->
     <InlineGifPicker
-      v-if="autoSuggest.activeCommand.value?.name === 'tenor'"
+      v-if="inlineMediaType"
       :query="modelValue || ''"
+      :media-type="inlineMediaType"
       @selectGif="handleInlineGifSelect"
     />
     <!-- Command parameter hint bar (Discord-style) -->
@@ -166,6 +167,10 @@ import AutoSuggest from '@/components/AutoSuggest.vue';
 import RichTextEditor from '@/components/RichTextEditor.vue';
 import VoiceRecorder from '@/components/VoiceRecorder.vue';
 import InlineGifPicker from '@/components/InlineGifPicker.vue';
+import { useFrequentEmojis } from '@/composables/useFrequentEmojis';
+import { parseKlipyKind } from '@/utils/klipyAttribution';
+import { buildEphemeralEmojiFromGif, registerEphemeralEmoji } from '@/utils/ephemeralEmoji';
+import type { GifMediaType } from '@/services/gifProviderService';
 import type { FilePreviewData } from '@/components/FilePreview.vue';
 import type { SuggestionItem } from '@/components/AutoSuggest.vue';
 import type { Message, Gif } from '@/types';
@@ -242,6 +247,7 @@ const emit = defineEmits<{
 const authStore = useAuthStore();
 const toast = useToast();
 const { triggerMessage } = useHapticSettings();
+const { recordEmojiUsage } = useFrequentEmojis();
 const showUploadMenu = ref(false);
 const attachedFiles = ref<FilePreviewData[]>([]);
 const isDragging = ref(false);
@@ -493,6 +499,19 @@ const updateText = (newText: string, cursorPosition?: number) => {
 };
 const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText);
 
+// Maps the active media slash command to the inline picker's media type.
+const INLINE_MEDIA_COMMANDS: Record<string, GifMediaType> = {
+  gif: 'gifs',
+  sticker: 'stickers',
+  clip: 'clips',
+  meme: 'memes',
+  aiemoji: 'ai-emojis',
+};
+const inlineMediaType = computed<GifMediaType | null>(() => {
+  const name = autoSuggest.activeCommand.value?.name;
+  return name ? INLINE_MEDIA_COMMANDS[name] ?? null : null;
+});
+
     const handleModelValueUpdate = (value: string) => {
       emit('update:modelValue', value)
       handleTyping()
@@ -684,6 +703,19 @@ const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText);
 
     const handleInlineGifSelect = (gif: Gif) => {
       autoSuggest.dismissActiveCommand();
+      // AI emoji behave like emoji: insert into the composer (no autosend).
+      if (parseKlipyKind(gif.media_formats?.gif?.url || '') === 'ai-emoji') {
+        const emoji = buildEphemeralEmojiFromGif(gif);
+        registerEphemeralEmoji(emoji);
+        recordEmojiUsage({ id: emoji.id, name: emoji.name, url: emoji.url });
+        const shortcode = `:${emoji.name}:`;
+        emit('update:modelValue', shortcode);
+        nextTick(() => {
+          richEditorRef.value?.renderContent?.(shortcode);
+          richEditorRef.value?.focus();
+        });
+        return;
+      }
       emit('update:modelValue', '');
       if (richEditorRef.value?.clear) {
         richEditorRef.value.clear();

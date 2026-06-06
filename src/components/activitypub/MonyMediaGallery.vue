@@ -76,6 +76,18 @@
         </button>
       </div>
 
+      <!-- Mobile download affordance (no right-click / long-press save on touch) -->
+      <button
+        v-if="canDownloadMedia(media)"
+        type="button"
+        class="media-download-overlay"
+        aria-label="Download"
+        title="Download"
+        @click.stop="downloadMedia(media)"
+      >
+        <Icon name="download" />
+      </button>
+
       <!-- Media description (alt text) -->
       <div v-if="media.description && showAltText" class="media-description">
         {{ media.description }}
@@ -160,6 +172,12 @@
       </div>
     </Transition>
   </Teleport>
+
+  <LightboxDownloadButton
+    :visible="showModal"
+    :url="currentDownloadUrl"
+    :filename="currentDownloadFilename"
+  />
 </template>
 
 <script setup lang="ts">
@@ -167,7 +185,9 @@ import { computed, ref, watch } from 'vue';
 import { debug } from '@/utils/debug'
 import type { MediaAttachment } from '@/types';
 import Icon from '@/components/common/Icon.vue';
+import LightboxDownloadButton from '@/components/common/LightboxDownloadButton.vue';
 import VueEasyLightbox from 'vue-easy-lightbox';
+import { downloadMediaFromUrl, filenameFromUrl } from '@/utils/downloadMedia';
 
 interface Props {
   mediaAttachments: MediaAttachment[];
@@ -331,6 +351,27 @@ const currentVideoPoster = computed(() => {
   return media?.preview_url;
 });
 
+const currentDownloadUrl = computed(() => {
+  const media = viewableMedia.value[currentMediaIndex.value] ?? props.mediaAttachments[currentMediaIndex.value];
+  return media?.url ?? '';
+});
+
+const currentDownloadFilename = computed(() => {
+  const media = viewableMedia.value[currentMediaIndex.value] ?? props.mediaAttachments[currentMediaIndex.value];
+  if (!media) return undefined;
+  return media.filename || filenameFromUrl(media.url, media.type || 'media');
+});
+
+function canDownloadMedia(media: MediaAttachment): boolean {
+  return Boolean(media.url);
+}
+
+async function downloadMedia(media: MediaAttachment) {
+  if (!media.url) return;
+  const filename = media.filename || filenameFromUrl(media.url, media.type || 'media');
+  await downloadMediaFromUrl(media.url, filename);
+}
+
 // Methods
 const formatFileSize = (bytes?: number): string => {
   if (!bytes) return '';
@@ -448,6 +489,36 @@ const closeModal = () => {
 
 .media-item-clickable:hover {
   opacity: 0.9;
+}
+
+.media-download-overlay {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.65);
+  color: #fff;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+@media (max-width: 768px) {
+  .media-download-overlay {
+    display: flex;
+  }
+}
+
+@media (pointer: fine) {
+  .media-item:hover .media-download-overlay {
+    display: flex;
+  }
 }
 
 .media-image,

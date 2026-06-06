@@ -113,8 +113,9 @@
           @mouseover="handleMessageMouseover(item.message.id)" 
           @mouseleave="handleMessageMouseleave"
           @click="clearDividerIfMessageRead(item.message)"
+          @dblclick="handleMessageDoubleClick(item.message.id, $event)"
           @touchstart.passive="handleMessageTouchStart(item.message.id, $event)"
-          @touchend.passive="handleMessageTouchEnd"
+          @touchend.passive="handleMessageTouchEnd(item.message.id)"
           @touchmove.passive="handleMessageTouchMove"
           @contextmenu="handleMessageContextMenu(item.message, $event)"
         >
@@ -473,6 +474,10 @@
     :index="indexRef"
     @hide="closeLightbox"
   />
+  <LightboxDownloadButton
+    :visible="isLightboxOpen"
+    :url="activeLightboxImages[indexRef] ?? ''"
+  />
 
   <!-- Modern User Profile Modal -->
   <UserProfileModal
@@ -583,6 +588,7 @@ import { throttle } from '@/utils/throttle';
 import { useServerPermissions } from '@/composables/useServerPermissions';
 import { useUserData } from '@/composables/useUserData';
 import { useHapticSettings } from '@/composables/useHapticSettings';
+import { useQuickReactSettings } from '@/composables/useQuickReactSettings';
 import { useLayoutState } from '@/composables/useLayoutState';
 import { useUnreadCounts } from '@/composables/useUnreadCounts';
 import { useReadDivider } from '@/composables/useReadDivider';
@@ -601,6 +607,8 @@ import DisplayName from '@/components/DisplayName.vue';
 import ReactionTooltip from '@/components/messages/ReactionTooltip.vue';
 import MessageReactions from '@/components/MessageReactions.vue';
 import MessageContextMenu from '@/components/MessageContextMenu.vue';
+import LightboxDownloadButton from '@/components/common/LightboxDownloadButton.vue';
+import { shouldAllowNativeContextMenu } from '@/utils/nativeContextMenu';
 import ReportModal from '@/components/moderation/ReportModal.vue';
 import SupporterBadge from '@/components/common/SupporterBadge.vue';
 import { fundingService } from '@/services/FundingService';
@@ -1029,6 +1037,7 @@ const floatingActionsStyle = computed((): Record<string, string> => {
 });
 const { isCurrentUserServerOwner, canManageMessages } = useServerPermissions();
 const { triggerInteraction, triggerDestructive } = useHapticSettings();
+const quickReact = useQuickReactSettings();
 const { isMobile } = useLayoutState();
 const { 
   getUserDisplayName, 
@@ -1366,11 +1375,26 @@ const handleMessageTouchStart = (messageId: string, event: TouchEvent) => {
   }, LONG_PRESS_DURATION);
 };
 
-const handleMessageTouchEnd = () => {
+// Double-tap (mobile) detection. Window is shorter than LONG_PRESS_DURATION so
+// two quick taps never trigger the long-press action bar.
+const DOUBLE_TAP_WINDOW = 300;
+const lastTap = ref<{ id: string; time: number } | null>(null);
+
+const handleMessageTouchEnd = (messageId: string) => {
   if (longPressTimer.value) {
     clearTimeout(longPressTimer.value);
     longPressTimer.value = null;
   }
+  // Skip double-tap if the long-press action bar is already showing.
+  if (hoveredMessageId.value === messageId && mobileActionTapPosition.value) return;
+
+  const now = Date.now();
+  if (lastTap.value && lastTap.value.id === messageId && now - lastTap.value.time < DOUBLE_TAP_WINDOW) {
+    lastTap.value = null;
+    triggerQuickReact(messageId);
+    return;
+  }
+  lastTap.value = { id: messageId, time: now };
 };
 
 const handleMessageTouchMove = () => {
@@ -1378,6 +1402,30 @@ const handleMessageTouchMove = () => {
     clearTimeout(longPressTimer.value);
     longPressTimer.value = null;
   }
+};
+
+// Desktop double-click to quick-react. Clears the accidental text selection
+// that a double-click would otherwise leave behind.
+const handleMessageDoubleClick = (messageId: string, event: MouseEvent) => {
+  // Don't hijack double-clicks on interactive content (links, media, code).
+  const target = event.target as HTMLElement | null;
+  if (target?.closest('a, button, img, video, input, textarea, [contenteditable="true"]')) return;
+  window.getSelection?.()?.removeAllRanges();
+  triggerQuickReact(messageId);
+};
+
+// Apply the user's configured quick-react emoji to a message.
+const triggerQuickReact = (messageId: string) => {
+  if (!quickReact.enabled.value) return;
+  const e = quickReact.emoji.value;
+  if (!e?.id) return;
+  const emojiForReaction: Emoji = {
+    id: e.id,
+    name: e.name,
+    url: e.url || '',
+    content: e.content,
+  };
+  handleToggleReaction(messageId, emojiForReaction);
 };
 
 const dismissMobileActions = (event: MouseEvent) => {
@@ -3164,19 +3212,13 @@ const handleMessageContextMenu = (message: Message, event: MouseEvent) => {
   // so opening the full context menu on top of it produces two competing
   // surfaces. Swallow the synthetic event so only the toolbar shows;
   // the user can then tap the (...) button to get the full menu.
-  if (isMobile.value) {
+  // Exception: selected text or native media/link targets should keep
+  // the browser/OS copy menu.
+  if (isMobile.value && !shouldAllowNativeContextMenu(event)) {
     event.preventDefault();
     return;
   }
-  const target = event.target as HTMLElement | null;
-  if (target?.closest('a, img, video, audio, [data-no-context-menu]')) {
-    return;
-  }
-  // Don't intercept right-clicks while a text selection is active -
-  // browsers expose the standard "Copy" menu for selected text and
-  // overriding it would hide that affordance.
-  const selection = window.getSelection?.();
-  if (selection && !selection.isCollapsed && selection.toString().length > 0) {
+  if (shouldAllowNativeContextMenu(event)) {
     return;
   }
   openContextMenu(message, event);

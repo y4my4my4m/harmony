@@ -468,6 +468,8 @@ CREATE TABLE IF NOT EXISTS public.gif_favorites (
     gif_url text NOT NULL,
     preview_url text,
     title text,
+    -- 'gif' | 'sticker' | 'clip' | 'meme' — keeps the favorite lists separate.
+    media_type text NOT NULL DEFAULT 'gif',
     created_at timestamp with time zone DEFAULT now(),
     
     UNIQUE(user_id, gif_url)
@@ -475,7 +477,7 @@ CREATE TABLE IF NOT EXISTS public.gif_favorites (
 
 CREATE INDEX IF NOT EXISTS idx_gif_favorites_user ON public.gif_favorites(user_id);
 
-COMMENT ON TABLE public.gif_favorites IS 'User favorite GIFs';
+COMMENT ON TABLE public.gif_favorites IS 'User favorite GIFs and stickers';
 
 -- ---------------------------------------------------------------------------
 -- EMOJI FAVORITES
@@ -630,6 +632,9 @@ CREATE TABLE IF NOT EXISTS public.performance_metrics (
     metric_type text NOT NULL,
     metric_name text NOT NULL,
     value double precision NOT NULL,
+    -- Unit of `value` (e.g. 'ms', 'count', 'bytes'). Written by the federation
+    -- worker and the record_performance_metric() RPC.
+    unit text,
     
     labels jsonb DEFAULT '{}'::jsonb,
     source text
@@ -738,6 +743,8 @@ CREATE TABLE IF NOT EXISTS public.instance_supporter_tiers (
     badge_color text,
     perks text,
     display_order integer DEFAULT 0,
+    -- When true, active supporters on this tier get the ad-free Klipy GIF key.
+    removes_ads boolean NOT NULL DEFAULT false,
     created_at timestamptz DEFAULT now()
 );
 

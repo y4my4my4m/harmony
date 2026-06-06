@@ -1118,6 +1118,104 @@
               </label>
             </div>
 
+            <h3 style="margin-top: 24px;">Media picker (Klipy)</h3>
+            <p class="setting-hint" style="margin-bottom: 16px;">
+              GIF/media search is proxied through the federation backend. API keys live in the backend
+              environment (<code>KLIPY_API_KEY_ADS</code> / <code>KLIPY_API_KEY_NOADS</code>), not here.
+            </p>
+
+            <div class="klipy-settings">
+              <div class="klipy-group-label">Ads &amp; attribution</div>
+
+              <div class="klipy-setting">
+                <div class="klipy-setting-text">
+                  <span class="klipy-setting-title">GIF ads</span>
+                  <span class="klipy-setting-desc">
+                    Non-supporters see Klipy ads in the picker; ad-free supporters never do. When off, nobody sees
+                    ads. Also requires an ad-enabled Klipy key and ads enabled in the Klipy Partner Dashboard.
+                    Per-tier ad-free lives under Funding &amp; Supporters.
+                  </span>
+                </div>
+                <label class="toggle-label klipy-toggle">
+                  <input type="checkbox" v-model="config.chat.gifAdsEnabled" />
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+
+              <div class="klipy-setting">
+                <div class="klipy-setting-text">
+                  <span class="klipy-setting-title">KLIPY watermark on sent media</span>
+                  <span class="klipy-setting-desc">
+                    Adds a small KLIPY badge to shared GIFs/stickers. The “Search KLIPY” picker label is always
+                    shown (required attribution); this watermark is optional but recommended.
+                  </span>
+                </div>
+                <label class="toggle-label klipy-toggle">
+                  <input type="checkbox" v-model="config.chat.gifKlipyWatermarkEnabled" />
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+
+              <div class="klipy-group-label">Optional collections</div>
+              <p class="klipy-group-hint">
+                GIFs and Stickers are always available. Enabling these adds picker tabs and slash commands; when
+                off they are hidden everywhere.
+              </p>
+
+              <div class="klipy-setting">
+                <div class="klipy-setting-text">
+                  <span class="klipy-setting-title">Clips <code>/clip</code></span>
+                  <span class="klipy-setting-desc">Short looping videos (with optional audio).</span>
+                </div>
+                <label class="toggle-label klipy-toggle">
+                  <input type="checkbox" v-model="config.chat.gifClipsEnabled" />
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+
+              <div class="klipy-setting">
+                <div class="klipy-setting-text">
+                  <span class="klipy-setting-title">Memes <code>/meme</code></span>
+                  <span class="klipy-setting-desc">Klipy's meme collection.</span>
+                </div>
+                <label class="toggle-label klipy-toggle">
+                  <input type="checkbox" v-model="config.chat.gifMemesEnabled" />
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+
+              <div class="klipy-setting">
+                <div class="klipy-setting-text">
+                  <span class="klipy-setting-title">AI Emoji browse <code>/aiemoji</code></span>
+                  <span class="klipy-setting-desc">
+                    Browse Klipy's AI emoji. Picking one inserts it into the composer as an emoji (it is not
+                    hosted here — it behaves like a remote emoji and counts toward frequently-used).
+                  </span>
+                </div>
+                <label class="toggle-label klipy-toggle">
+                  <input type="checkbox" v-model="config.chat.gifAiEmojisEnabled" />
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+
+              <div class="klipy-group-label">AI emoji generation</div>
+
+              <div class="klipy-setting">
+                <div class="klipy-setting-text">
+                  <span class="klipy-setting-title">Allow AI emoji generation</span>
+                  <span class="klipy-setting-desc">
+                    Members generate their own custom emoji from a text prompt; these are hosted on this instance
+                    and appear in the emoji picker's “AI Generated” category. Klipy caps generation at 20/day per
+                    instance (shared) plus a per-user daily limit.
+                  </span>
+                </div>
+                <label class="toggle-label klipy-toggle">
+                  <input type="checkbox" v-model="config.chat.gifAiEmojiGenerationEnabled" />
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+            </div>
+
             <h3 style="margin-top: 24px;">Trending & Discovery</h3>
             <div class="setting-group">
               <label>Trending Posts</label>
@@ -1769,6 +1867,10 @@
                   <input v-model="editTierName" class="cyber-input" style="flex: 1;" />
                   <input v-model.number="editTierMinAmount" type="number" class="cyber-input" style="width: 90px;" min="0" />
                   <input v-model="editTierColor" type="color" class="color-input" />
+                  <label class="tier-ads-toggle" title="Supporters on this tier see no GIF ads">
+                    <input type="checkbox" v-model="editTierRemovesAds" />
+                    <span>Ad-free GIFs</span>
+                  </label>
                   <button class="mod-btn" @click="saveEditTier(tier.id)" title="Save"><Icon name="check" :size="14" /></button>
                   <button class="mod-btn" @click="editingTierId = null; showEditTierEmojiPicker = false" title="Cancel"><Icon name="x" :size="14" /></button>
                 </template>
@@ -1779,6 +1881,7 @@
                   <div class="tier-info">
                     <span class="tier-name">{{ tier.name }}</span>
                     <span class="tier-amount">Min: {{ tier.min_amount }}</span>
+                    <span v-if="tier.removes_ads" class="tier-adfree-badge" title="Supporters on this tier see no GIF ads">Ad-free GIFs</span>
                     <span v-if="tier.perks" class="tier-perks">{{ tier.perks }}</span>
                   </div>
                   <div class="tier-actions">
@@ -1816,6 +1919,10 @@
                 />
               </div>
               <input v-model="newTierColor" type="color" class="color-input" title="Badge color" />
+              <label class="tier-ads-toggle" title="Supporters on this tier see no GIF ads">
+                <input type="checkbox" v-model="newTierRemovesAds" />
+                <span>Ad-free GIFs</span>
+              </label>
               <button class="action-btn" @click="addTier" :disabled="!newTierName || !newTierMinAmount">
                 <Icon name="plus" :size="16" /> Add
               </button>
@@ -2237,6 +2344,7 @@ const newTierName = ref('')
 const newTierMinAmount = ref<number>(0)
 const newTierIcon = ref('⭐')
 const newTierColor = ref('#0EA5E9')
+const newTierRemovesAds = ref(false)
 
 // Tier editing
 const editingTierId = ref<string | null>(null)
@@ -2244,6 +2352,7 @@ const editTierName = ref('')
 const editTierMinAmount = ref<number>(0)
 const editTierIcon = ref('')
 const editTierColor = ref('#0EA5E9')
+const editTierRemovesAds = ref(false)
 
 const showNewTierEmojiPicker = ref(false)
 const showEditTierEmojiPicker = ref(false)
@@ -2465,7 +2574,13 @@ const config = ref({
     maxMessageLength: 2000,
     maxMediaAttachmentsPerPost: 20,
     allowFileUploads: true,
-    enableVoiceChannels: true
+    enableVoiceChannels: true,
+    gifAdsEnabled: true,
+    gifKlipyWatermarkEnabled: true,
+    gifClipsEnabled: false,
+    gifMemesEnabled: false,
+    gifAiEmojisEnabled: false,
+    gifAiEmojiGenerationEnabled: false,
   },
   federation: {
     maxPostLength: 500,
@@ -3090,6 +3205,7 @@ const addTier = async () => {
     badge_color: newTierColor.value || null,
     perks: null,
     display_order: supporterTiers.value.length,
+    removes_ads: newTierRemovesAds.value,
   })
   if (tier) {
     await adminService.logAdminAction({ action: 'tier_create', targetType: 'tier', targetId: tier.id, details: { name: tier.name } })
@@ -3097,6 +3213,7 @@ const addTier = async () => {
     newTierName.value = ''
     newTierMinAmount.value = 0
     newTierIcon.value = '⭐'
+    newTierRemovesAds.value = false
     toast.success('Tier created')
   }
 }
@@ -3108,6 +3225,7 @@ const startEditTier = (tier: SupporterTier) => {
   editTierMinAmount.value = tier.min_amount
   editTierIcon.value = tier.badge_icon || '⭐'
   editTierColor.value = tier.badge_color || '#0EA5E9'
+  editTierRemovesAds.value = tier.removes_ads ?? false
 }
 
 const saveEditTier = async (tierId: string) => {
@@ -3116,6 +3234,7 @@ const saveEditTier = async (tierId: string) => {
     min_amount: editTierMinAmount.value,
     badge_icon: editTierIcon.value,
     badge_color: editTierColor.value,
+    removes_ads: editTierRemovesAds.value,
   })
   if (success) {
     await adminService.logAdminAction({ action: 'tier_update', targetType: 'tier', targetId: tierId, details: { name: editTierName.value } })
@@ -3798,6 +3917,12 @@ const saveConfig = async () => {
       max_media_attachments_per_post: config.value.chat.maxMediaAttachmentsPerPost ?? 20,
       allow_file_uploads: config.value.chat.allowFileUploads,
       enable_voice_channels: config.value.chat.enableVoiceChannels,
+      gif_ads_enabled: config.value.chat.gifAdsEnabled,
+      gif_klipy_watermark_enabled: config.value.chat.gifKlipyWatermarkEnabled,
+      gif_clips_enabled: config.value.chat.gifClipsEnabled,
+      gif_memes_enabled: config.value.chat.gifMemesEnabled,
+      gif_ai_emojis_enabled: config.value.chat.gifAiEmojisEnabled,
+      gif_ai_emoji_generation_enabled: config.value.chat.gifAiEmojiGenerationEnabled,
       max_post_length: config.value.federation.maxPostLength,
       federation_retry_attempts: config.value.federation.retryAttempts,
       max_custom_emojis_per_server: config.value.federation.maxCustomEmojisPerServer ?? 0,
@@ -4804,6 +4929,91 @@ const handleAddInstance = () => {
 .toggle-label input[type="checkbox"]:checked + .toggle-slider:before {
   left: 22px;
   background: white;
+}
+
+/* Klipy media-picker settings: one self-documented row per toggle. */
+.klipy-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 8px 16px 16px;
+  background: var(--background-secondary-alpha, rgba(0, 0, 0, 0.12));
+}
+
+.klipy-group-label {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-secondary);
+}
+
+.klipy-settings > .klipy-group-label:first-child {
+  margin-top: 4px;
+  padding-top: 0;
+  border-top: none;
+}
+
+.klipy-group-hint {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  margin: 0 0 4px;
+}
+
+.klipy-setting {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border-secondary);
+}
+
+.klipy-setting:last-child {
+  border-bottom: none;
+}
+
+.klipy-setting-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.klipy-setting-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.klipy-setting-title code {
+  font-size: 11.5px;
+  font-weight: 500;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--background-tertiary);
+  color: var(--text-secondary);
+}
+
+.klipy-setting-desc {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.klipy-toggle {
+  flex-shrink: 0;
+  margin-top: 2px;
 }
 
 /* Blocked Instances */
@@ -7233,6 +7443,32 @@ const handleAddInstance = () => {
   font-size: 11px;
   color: var(--text-secondary);
   font-style: italic;
+}
+
+.tier-ads-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.tier-ads-toggle input {
+  cursor: pointer;
+}
+
+.tier-adfree-badge {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--harmony-primary, #0ea5e9);
+  border: 1px solid var(--harmony-primary-alpha, rgba(14, 165, 233, 0.4));
+  border-radius: 4px;
+  padding: 1px 5px;
+  width: fit-content;
 }
 
 .empty-hint {

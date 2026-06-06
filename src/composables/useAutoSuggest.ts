@@ -2,6 +2,7 @@ import { ref, computed, nextTick, watch, onScopeDispose } from 'vue';
 import type { Ref } from 'vue';
 import { useEmojiCacheStore } from '@/stores/useEmojiCache';
 import { useServerChannelStore } from '@/stores/useServerChannel';
+import { useInstanceSettingsStore } from '@/stores/useInstanceSettings';
 import { userDataService } from '@/services/userDataService';
 import { activityPubService } from '@/services/activityPubService';
 import { roleService } from '@/services/RoleService';
@@ -132,7 +133,7 @@ export function useAutoSuggest(
     position: { x: 0, y: 0 }
   });
 
-  // Active parameterized command (e.g. /tenor waiting for query input)
+  // Active parameterized command (e.g. /gif waiting for query input)
   const activeCommand = ref<{ name: string; params: { name: string; description: string }[] } | null>(null);
 
   // Dynamic user search results for ActivityPub mode
@@ -458,12 +459,20 @@ export function useAutoSuggest(
     description: string;
     permission: string;
     params?: { name: string; description: string }[];
+    /** Optional instance-setting gate; command is hidden when this returns false. */
+    enabled?: () => boolean;
   }
+
+  const instanceSettings = useInstanceSettingsStore();
 
   const SLASH_COMMANDS: SlashCommand[] = [
     { id: 'cmd:kick', name: 'kick', description: 'Kick a member from the server', permission: 'KICK_MEMBERS' },
     { id: 'cmd:ban', name: 'ban', description: 'Ban a member from the server', permission: 'BAN_MEMBERS' },
-    { id: 'cmd:tenor', name: 'tenor', description: 'Search for a GIF', permission: '', params: [{ name: 'query', description: 'Search for a GIF' }] },
+    { id: 'cmd:gif', name: 'gif', description: 'Search KLIPY for a GIF', permission: '', params: [{ name: 'query', description: 'Search KLIPY for a GIF' }] },
+    { id: 'cmd:sticker', name: 'sticker', description: 'Search KLIPY for a sticker', permission: '', params: [{ name: 'query', description: 'Search KLIPY for a sticker' }] },
+    { id: 'cmd:clip', name: 'clip', description: 'Search KLIPY for a Clip', permission: '', params: [{ name: 'query', description: 'Search KLIPY for a Clip' }], enabled: () => instanceSettings.gifClipsEnabled },
+    { id: 'cmd:meme', name: 'meme', description: 'Search KLIPY for a meme', permission: '', params: [{ name: 'query', description: 'Search KLIPY for a meme' }], enabled: () => instanceSettings.gifMemesEnabled },
+    { id: 'cmd:aiemoji', name: 'aiemoji', description: 'Search KLIPY for an AI emoji', permission: '', params: [{ name: 'query', description: 'Search KLIPY for an AI emoji' }], enabled: () => instanceSettings.gifAiEmojisEnabled },
   ];
 
   const commandSuggestions = computed((): SuggestionItem[] => {
@@ -473,6 +482,7 @@ export function useAutoSuggest(
     return SLASH_COMMANDS
       .filter(cmd => {
         if (!cmd.name.includes(query)) return false;
+        if (cmd.enabled && !cmd.enabled()) return false;
         if (!cmd.permission) return true;
         if (isOwner) return true;
         return hasCurrentUserPermission(Permission[cmd.permission as keyof typeof Permission]);
@@ -826,7 +836,7 @@ export function useAutoSuggest(
     // Ensure suggestions don't go off-screen
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
-    const popupWidth = 280; // Estimated popup width
+    const popupWidth = state.value.triggerType === 'command' ? 380 : 280;
 
     // Adjust x position if it would go off the right edge
     if (x + popupWidth > viewportWidth) {

@@ -131,6 +131,22 @@ export const linkPreviewLimiter = createRateLimiter({
   message: 'Too many link preview requests, please try again later.',
 });
 
+// GIF proxy (Klipy). Keyed per-token so one noisy client can't exhaust the
+// shared IP budget; debounced searches fire a few requests per second while
+// typing, so the ceiling is generous.
+export const gifLimiter = createRateLimiter({
+  windowMs: 60 * 1000,
+  maxRequests: 120,
+  message: 'Too many GIF requests, please slow down.',
+  keyGenerator: (req: Request) => {
+    const auth = req.headers.authorization;
+    if (auth && auth.startsWith('Bearer ')) {
+      return `gif:${auth.slice(0, 100)}`;
+    }
+    return `gif:ip:${req.ip || 'unknown'}`;
+  },
+});
+
 export const discoveryLimiter = createRateLimiter({
   windowMs: 60 * 1000,
   maxRequests: 30,

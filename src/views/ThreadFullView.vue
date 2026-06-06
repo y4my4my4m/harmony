@@ -249,6 +249,7 @@ import { useReactionsStore } from '@/stores/useReactions'
 import { useServerPermissions } from '@/composables/useServerPermissions'
 import { parseContentToMessageParts, resolveMentionsUserData, resolveEmojisData } from '@/utils/unifiedContentProcessing'
 import { debug } from '@/utils/debug'
+import { isVideoMessageUrl } from '@/utils/klipyAttribution'
 import { realtimeConnectionManager } from '@/services/RealtimeConnectionManager'
 import type { Message, MessagePart, Emoji, Gif } from '@/types'
 import type { ThreadWithDetails } from '@/services/ThreadService'
@@ -792,7 +793,7 @@ const handleSendGif = async (gif: Gif) => {
     const messageParts: MessagePart[] = [{
       type: 'file',
       url: gifUrl,
-      fileType: 'image'
+      fileType: isVideoMessageUrl(gifUrl) ? 'video' : 'image'
     }]
     
     const targetThreadId = thread.value.id

@@ -158,6 +158,7 @@
   import { useEncryptionFallbackPrompt } from '@/composables/useEncryptionFallbackPrompt';
   import { supabase } from '@/supabase';
   import { debug } from '@/utils/debug';
+  import { isVideoMessageUrl } from '@/utils/klipyAttribution';
   import { useServerPermissions } from '@/composables/useServerPermissions';
   import { useI18n } from 'vue-i18n';
   import { useToast } from 'vue-toastification';
@@ -1047,13 +1048,14 @@
       }
 
       const handleSendGif = async (gif: Gif) => {
-        const gifUrl = gif.media_formats.gif.url;
+        const gifUrl = gif.media_formats?.gif?.url;
+        if (!gifUrl) return;
         closeMediaPicker();
 
         const messageParts: MessagePart[] = [{
           type: 'file',
           url: gifUrl,
-          fileType: 'image',
+          fileType: isVideoMessageUrl(gifUrl) ? 'video' : 'image',
         }];
 
         try {

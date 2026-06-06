@@ -995,7 +995,8 @@
   "gif": {
     "search": "Buscar GIF...",
     "searchGifs": "Buscar GIFs...",
-    "searchTenor": "Buscar en Tenor",
+    "searchKlipy": "Buscar en KLIPY",
+    "ad": "Anuncio",
     "trending": "Tendencias",
     "favorites": "Favoritos",
     "noResults": "No se encontraron GIFs",

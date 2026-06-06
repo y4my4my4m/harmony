@@ -872,11 +872,15 @@ router.get(
 
 export class ServerDiscoveryService {
   /**
-   * Discover server by WebFinger
+   * Discover a server by WebFinger handle, the standard Fediverse way.
    * Formats supported:
-   * - harmony://server@domain.com/server-name
-   * - server@domain.com (for known servers)
-   * - https://domain.com/servers/uuid (direct URL)
+   * - server@domain.com         (preferred — an acct: handle, like Lemmy's !community@instance)
+   * - @server@domain.com        (leading @ tolerated)
+   * - harmony://server@domain.com/slug   (legacy form, mapped to acct:slug@domain)
+   * - https://domain.com/servers/uuid    (direct URL — short-circuits WebFinger)
+   *
+   * Resolution: GET https://{domain}/.well-known/webfinger?resource=acct:{slug}@{domain}
+   * then follow the rel="self" application/activity+json link to the Group actor.
    */
   static async discoverByWebFinger(resource: string): Promise<any | null> {
     try {
@@ -885,55 +889,65 @@ export class ServerDiscoveryService {
         return await this.fetchServerByUrl(resource);
       }
 
-      // Parse harmony:// resource
       let domain: string;
-      let serverIdentifier: string;
+      let slug: string;
 
       const harmonyMatch = resource.match(/^harmony:\/\/server@([^/]+)\/(.+)$/);
       if (harmonyMatch) {
+        // Legacy scheme: take the path segment as the handle slug.
         domain = harmonyMatch[1];
-        serverIdentifier = harmonyMatch[2];
+        slug = harmonyMatch[2];
       } else {
-        // Try simple format: servername@domain.com
-        const simpleMatch = resource.match(/^([^@]+)@(.+)$/);
-        if (simpleMatch) {
-          serverIdentifier = simpleMatch[1];
-          domain = simpleMatch[2];
-        } else {
-          logger.warn('Invalid server resource format:', resource);
+        // acct form: server@domain.com (tolerate a leading @ and acct: prefix)
+        const normalized = resource.replace(/^@/, '').replace(/^acct:/i, '');
+        const simpleMatch = normalized.match(/^([^@]+)@(.+)$/);
+        if (!simpleMatch) {
+          logger.warn('Invalid server handle format:', resource);
           return null;
         }
+        slug = simpleMatch[1];
+        domain = simpleMatch[2];
       }
 
-      // WebFinger lookup
-      const webfingerResource = `harmony://server@${domain}/${serverIdentifier}`;
+      const webfingerResource = `acct:${slug}@${domain}`;
       const webfingerUrl = `https://${domain}/.well-known/webfinger?resource=${encodeURIComponent(webfingerResource)}`;
 
       const response = await safeFetch(webfingerUrl, {
         headers: {
-          'Accept': 'application/jrd+json',
+          'Accept': 'application/jrd+json, application/json',
         },
       });
 
       if (!response.ok) {
-        logger.warn(`WebFinger lookup failed for ${resource}: ${response.status}`);
+        logger.warn(`WebFinger lookup failed for ${webfingerResource}: ${response.status}`);
         return null;
       }
 
       const data = await response.json();
 
-      // Find ActivityPub link
-      const apLink = data.links?.find(
-        (link: any) => link.type === 'application/activity+json'
+      // A handle may resolve to BOTH a user (Person) and a server (Group) when
+      // they share a localpart (Lemmy-style). Pick the Group link, identified by
+      // its ActivityStreams `type` property. Fall back to a plain self link only
+      // when no link is type-tagged (single-actor response from older peers).
+      const AS_TYPE = 'https://www.w3.org/ns/activitystreams#type';
+      const selfLinks = (data.links || []).filter(
+        (link: any) => link.rel === 'self' && link.type === 'application/activity+json',
       );
 
-      if (!apLink) {
-        logger.warn('No ActivityPub link in WebFinger response');
+      const groupLink =
+        selfLinks.find((link: any) => link.properties?.[AS_TYPE] === 'Group') ||
+        // Only accept an untyped link if it's unambiguous (no Person sibling).
+        (selfLinks.length === 1 && !selfLinks[0].properties?.[AS_TYPE]
+          ? selfLinks[0]
+          : undefined);
+
+      if (!groupLink?.href) {
+        logger.warn(`No Group actor in WebFinger response for ${webfingerResource}`);
         return null;
       }
 
-      // Fetch server as ActivityPub Group
-      return await this.fetchServerByUrl(apLink.href);
+      // Fetch the actor and confirm it's a Group (fetchServerByUrl rejects non-Groups).
+      return await this.fetchServerByUrl(groupLink.href);
     } catch (error) {
       logger.error('Error discovering server via WebFinger:', error);
       return null;

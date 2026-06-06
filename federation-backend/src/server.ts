@@ -17,10 +17,11 @@ import compression from 'compression';
 import config from './config/index.js';
 import { logger } from './utils/logger.js';
 import { errorHandler, notFound } from './middleware/errorHandler.js';
-import { linkPreviewLimiter, pushLimiter } from './middleware/rateLimit.js';
+import { linkPreviewLimiter, pushLimiter, gifLimiter } from './middleware/rateLimit.js';
 
 import healthRouter from './routes/health.js';
 import linkPreviewRouter from './routes/linkPreview.js';
+import gifsRouter from './routes/gifs.js';
 import pushRouter from './routes/push.js';
 import livekitRouter from './routes/livekit.js';
 import voiceRouter from './routes/voice.js';
@@ -85,6 +86,9 @@ export function createApp(): Application {
   app.use('/push', pushWithLimiter, pushRouter);
   app.use('/api/federation/push', pushWithLimiter, pushRouter);
   app.use('/link-preview', linkPreviewLimiter, linkPreviewRouter);
+  // GIF proxy (Klipy). Frontend calls /api/federation/gifs/* which nginx
+  // rewrites to /gifs/*. Limiter scoped to this mount to avoid cascade bleed.
+  app.use('/gifs', gifLimiter, gifsRouter);
   app.use('/api/livekit', livekitRouter);
   app.use('/voice', voiceRouter);
   app.use('/api/federation/voice', voiceRouter);
