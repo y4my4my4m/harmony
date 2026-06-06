@@ -836,7 +836,7 @@ export function useAutoSuggest(
     // Ensure suggestions don't go off-screen
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
-    const popupWidth = 280; // Estimated popup width
+    const popupWidth = state.value.triggerType === 'command' ? 380 : 280;
 
     // Adjust x position if it would go off the right edge
     if (x + popupWidth > viewportWidth) {
