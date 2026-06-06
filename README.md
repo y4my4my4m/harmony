@@ -7,7 +7,9 @@ Harmony is a federated social app: Discord-style servers and chat with ActivityP
 
 - **Project home:** <https://mony.lol>
 - **Live instance:** <https://har.mony.lol>
-- **Docs:** `npm run docs:dev` (see [docs/README.md](docs/README.md))
+- **Docs:** <https://docs.mony.lol> (see [docs/README.md](docs/README.md))
+
+<img width="1597" height="911" alt="image" src="https://github.com/user-attachments/assets/43a874fc-7af0-4056-ba3a-0472d70daaf5" />
 
 ## What it does
 
