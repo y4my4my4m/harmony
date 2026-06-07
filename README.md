@@ -48,12 +48,24 @@ npm run dev
 
 App: http://localhost:5173 - With federation running, health is http://localhost:3001/health.
 
-**Installer:** `bash scripts/install.sh` - Full production-style steps: [docs/self-hosting.md](docs/self-hosting.md).
+**Self-host in one command (recommended):** a complete instance (app + trimmed
+Supabase + federation + automatic-HTTPS reverse proxy) via Docker, no host
+toolchain needed:
+
+```bash
+cd self-host
+bash configure.sh && docker compose up -d && bash bootstrap.sh
+```
+
+See [self-host/README.md](self-host/README.md). The interactive
+`bash scripts/install.sh` (host nginx + certbot) remains available for advanced
+setups: [docs/self-hosting.md](docs/self-hosting.md).
 
 ## Documentation
 
 | Topic | Link |
 |--------|------|
+| One-command self-host (Docker + Caddy + trimmed Supabase) | [self-host/README.md](self-host/README.md) |
 | Self-hosting / Docker / Redis / federation-server & worker | [docs/self-hosting.md](docs/self-hosting.md) |
 | Roadmap | [ROADMAP.md](ROADMAP.md) |
 | DB init | [db_schema/init/README.md](db_schema/init/README.md) |

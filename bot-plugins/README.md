@@ -8,36 +8,17 @@ This directory contains official and community-created bot plugins for Harmony.
 
 ```
 bot-plugins/
-├── discord-bridge/      # Official Discord bridge (reference implementation)
 ├── template/            # Plugin template for developers
 ├── community/           # Community-contributed plugins
 └── examples/            # Example bots
 ```
 
+> **Note:** The official **Discord bridge** now lives in its own repository so
+> it can be self-hosted without the rest of Harmony:
+> [github.com/y4my4my4m/harmony-discord-bridge](https://github.com/y4my4my4m/harmony-discord-bridge).
+> It still talks only to this repo's `bot-gateway` over WebSocket + REST.
+
 ## Quick Start
-
-### Using an Existing Plugin
-
-1. Navigate to plugin directory:
-```bash
-cd bot-plugins/discord-bridge
-```
-
-2. Install dependencies:
-```bash
-npm install
-```
-
-3. Configure:
-```bash
-cp config/bridge-config.example.yml config/bridge-config.yml
-nano config/bridge-config.yml
-```
-
-4. Run:
-```bash
-npm run dev
-```
 
 ### Creating Your Own Plugin
 
@@ -60,15 +41,15 @@ cd my-bridge/
 Cross-platform bridge connecting Discord and Harmony servers.
 
 **Features:**
-- Bi-directional message sync
+- Bi-directional message and reaction sync
 - Mention and emoji translation
 - Attachment support
+- Slash commands incl. one-shot server cloning (channels, categories, roles)
 - Loop prevention
 - Configurable mappings
 
-**Directory:** `discord-bridge/`
-
-**Documentation:** [Discord Bridge README](discord-bridge/README.md)
+**Repository:** [github.com/y4my4my4m/harmony-discord-bridge](https://github.com/y4my4my4m/harmony-discord-bridge)
+(standalone — only needs this repo's `bot-gateway`)
 
 ## Community Plugins
 
