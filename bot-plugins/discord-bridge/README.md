@@ -3,8 +3,56 @@
 Cross-platform bridge connecting Discord and Harmony servers.
 
 This is a **standalone** service: it talks only to a Harmony `bot-gateway` over
-WebSocket + REST, so you can host it on its own without the Harmony backend or
-database. See [`EXTRACTION.md`](./EXTRACTION.md) to split it into its own repo.
+WebSocket + REST. You do not need the Harmony backend, database, or this repo's
+source tree on the host — just Docker and a config file.
+
+## Quick start (Docker)
+
+**Prerequisites:** Docker + Docker Compose, a Harmony instance with
+[bot-gateway](https://github.com/y4my4my4m/harmony) running, and bots on both
+sides.
+
+### 1. Gather these values
+
+| What | Where to get it |
+|------|-----------------|
+| **Discord bot token** | [Discord Developer Portal](https://discord.com/developers/applications) → your app → **Bot** → **Reset Token**. Enable **Message Content Intent** on the Bot page. |
+| **Discord server (guild) ID** | Discord → **User Settings** → **Advanced** → enable **Developer Mode** → right-click your server icon → **Copy Server ID**. |
+| **Discord channel ID(s)** | Right-click each channel to bridge → **Copy Channel ID**. |
+| **Harmony bot token** | Harmony admin → **Bot Management** → create a bot → copy token. Grant **Read Messages** and **Send Messages** on the target server. |
+| **Harmony server ID** | UUID of the Harmony server (from server settings or URL). |
+| **Harmony channel ID(s)** | UUID of each channel to bridge (from the channel URL or dev tools). |
+| **bot-gateway URL** | Where your Harmony instance exposes the bot gateway. Examples: `http://localhost:3002` (same machine), or `https://chat.example.com/bot-gateway` (behind your reverse proxy). |
+
+**Discord bot invite:** in the Developer Portal → **OAuth2** → **URL Generator**,
+scopes: `bot`. Permissions: View Channels, Send Messages, Read Message History,
+Add Reactions, Manage Webhooks (for name/avatar puppeting on Harmony → Discord).
+
+### 2. Configure
+
+```bash
+cp config/bridge-config.example.yml config/bridge-config.yml
+```
+
+Edit `config/bridge-config.yml` — at minimum set `discord.token`, `discord.guildId`,
+`harmony.token`, `harmony.serverId`, `harmony.baseUrl`, and one entry under
+`channelMappings`. Point `harmony.gatewayUrl` and `harmony.apiUrl` at your
+bot-gateway (see the comments in the example file).
+
+### 3. Run
+
+```bash
+docker compose up -d
+```
+
+Done. Check logs with `docker compose logs -f`.
+
+To stop: `docker compose down`.
+
+The image is built locally on first run; config is mounted read-only and channel
+mappings hot-reload when you edit the file.
+
+---
 
 ## Features
 
@@ -19,62 +67,7 @@ database. See [`EXTRACTION.md`](./EXTRACTION.md) to split it into its own repo.
 - Loop prevention
 - Configurable channel mappings
 
-## Setup
-
-### 1. Install Dependencies
-
-```bash
-npm install
-```
-
-### 2. Create Discord Bot
-
-1. Go to https://discord.com/developers/applications
-2. Create a new application
-3. Go to "Bot" tab and create a bot
-4. Copy the bot token
-5. Enable "Message Content Intent"
-6. Invite bot to your server with these permissions:
-   - Read Messages/View Channels
-   - Send Messages
-   - Read Message History
-
-### 3. Create Harmony Bot
-
-1. Log into your Harmony admin panel
-2. Go to Bot Management
-3. Create a new bot
-4. Copy the bot token
-5. Add bot to your Harmony server with permissions:
-   - Read Messages
-   - Send Messages
-
-### 4. Configure Bridge
-
-```bash
-cp config/bridge-config.example.yml config/bridge-config.yml
-nano config/bridge-config.yml
-```
-
-Fill in:
-- Discord bot token
-- Discord server (guild) ID
-- Harmony bot token
-- Channel mappings (Discord ID <-> Harmony ID)
-
-To get channel IDs:
-- **Discord**: Enable Developer Mode in Discord settings, right-click channel, Copy ID
-- **Harmony**: Check channel URL or use developer tools
-
-### 5. Start Bridge
-
-```bash
-npm run dev
-```
-
-## Configuration
-
-### Example Config
+## Configuration reference
 
 ```yaml
 discord:
@@ -83,12 +76,12 @@ discord:
 
 harmony:
   token: "YOUR_HARMONY_BOT_TOKEN"
-  # Both point at the Harmony bot-gateway (default port 3002). When hosting the
-  # bridge remotely, use your public proxy, e.g.
-  #   gatewayUrl: "wss://chat.example.com/bot-gateway/gateway"
-  #   apiUrl:     "https://chat.example.com/bot-gateway/api/v1"
+  # Local bot-gateway on the same host:
   gatewayUrl: "ws://localhost:3002/gateway"
   apiUrl: "http://localhost:3002/api/v1"
+  # Remote Harmony instance (behind reverse proxy):
+  # gatewayUrl: "wss://chat.example.com/bot-gateway/gateway"
+  # apiUrl:     "https://chat.example.com/bot-gateway/api/v1"
   serverId: "YOUR_HARMONY_SERVER_UUID"
   baseUrl: "https://chat.example.com"
 
@@ -97,11 +90,6 @@ channelMappings:
     harmony: "550e8400-e29b-41d4-a716-446655440000"
     bidirectional: true
     name: "general"
-  
-  - discord: "111222333444555666"
-    harmony: "650e8400-e29b-41d4-a716-446655440000"
-    bidirectional: true
-    name: "announcements"
 
 settings:
   syncAttachments: true
@@ -111,100 +99,65 @@ settings:
   mentionTranslation: true
 ```
 
-## How It Works
-
-### Discord → Harmony
-
-```
-User sends message in Discord
-  ↓
-Bridge receives via discord.js
-  ↓
-Translate mentions and emojis
-  ↓
-Format: **[Discord]** username: message
-  ↓
-Send to Harmony via Bot API
-  ↓
-Appears in Harmony channel
-```
-
-### Harmony → Discord
-
-```
-User sends message in Harmony
-  ↓
-Bridge receives via WebSocket gateway
-  ↓
-Check if from Discord (avoid loop)
-  ↓
-Format: **[Harmony]** username: message
-  ↓
-Send to Discord channel
-  ↓
-Appears in Discord channel
-```
-
-## Loop Prevention
-
-The bridge prevents infinite loops by:
-1. Ignoring its own bot's messages on both platforms
-2. Tagging bridged content with `metadata.bridge_source = "discord"` and
-   skipping anything already carrying that marker
-3. Posting Harmony → Discord via a webhook so bridged messages are never
-   re-ingested as normal user messages
-
-## Production Deployment
-
-### Docker Compose (recommended)
-
-```bash
-cp config/bridge-config.example.yml config/bridge-config.yml
-# edit config/bridge-config.yml with your tokens + channel mappings
-docker compose up -d
-```
-
-The bundled `docker-compose.yml` builds the image and mounts `./config`
-read-only (the bridge hot-reloads channel mappings on change).
-
-### Manual
-
-```bash
-npm ci
-npm run build
-npm start
-```
-
 ## Troubleshooting
 
 ### Messages not bridging
 
-1. Check both bots are online
-2. Verify channel IDs in config are correct
-3. Check bot permissions in both platforms
-4. Check bot-gateway is running (for Harmony)
-5. Look at bridge logs for errors
+1. `docker compose logs -f` — look for connection or permission errors
+2. Confirm bot-gateway is reachable from this container (`harmony.apiUrl` / `gatewayUrl`)
+3. Verify channel IDs in `channelMappings`
+4. Confirm both bots have read/send permissions in their channels
+5. On Discord: **Message Content Intent** must be enabled
 
 ### Mentions not translating
 
-- Ensure `mentionTranslation: true` in config
-- Discord mentions require user to be in server
-- Harmony mentions use profile ID
+- Set `mentionTranslation: true` in config
+- Discord mentions require the user to be in the Discord server
+- Harmony mentions use profile IDs
 
 ### Attachments not working
 
 - Set `syncAttachments: true`
 - Attachments are linked, not re-uploaded
-- Ensure bots have embed/attachment permissions
+- Bots need embed/attachment permissions
+
+## How it works
+
+**Discord → Harmony:** discord.js receives the message → translate mentions/emojis
+→ send via bot-gateway REST API → appears in Harmony.
+
+**Harmony → Discord:** WebSocket event from bot-gateway → skip if already bridged
+from Discord → post via Discord webhook (Harmony user's name/avatar) → appears
+in Discord.
+
+**Loop prevention:** own bot messages ignored; `metadata.bridge_source = "discord"`
+skipped on the way back; Harmony → Discord uses webhooks so messages are not
+re-ingested as user messages.
 
 ## Limitations
 
 - No voice/video bridging
 - Embeds are simplified
 - 2000 character Discord limit
-- Custom Discord emojis are automatically synced to Harmony as federated emojis
+- Custom Discord emojis are synced to Harmony as federated emojis; Harmony custom
+  emojis only bridge to Discord if a matching guild emoji name exists
+
+## Development
+
+For hacking on the bridge itself (not required to run it):
+
+```bash
+npm ci
+cp config/bridge-config.example.yml config/bridge-config.yml
+# edit config/bridge-config.yml
+npm run dev          # watch mode
+# or
+npm run build && npm start
+```
+
+Requires Node 20+. The production Docker image uses the same `Dockerfile` as
+`docker compose build`.
 
 ## License
 
-GNU **AGPL-3.0** (same as the main Harmony repository; see root `LICENSE`).
-
+GNU **AGPL-3.0** — see repository `LICENSE`.
