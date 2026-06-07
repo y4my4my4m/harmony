@@ -73,6 +73,12 @@ export class BotRestAPI {
     // List categories (for clone/diff)
     this.router.get('/servers/:serverId/categories', this.getCategories.bind(this))
 
+    // Roles: list + create (bot must have manage_channels - role creation is
+    // part of the same admin clone flow as channel creation; there is no
+    // separate manage_roles bot permission).
+    this.router.get('/servers/:serverId/roles', this.getRoles.bind(this))
+    this.router.post('/servers/:serverId/roles', this.createRole.bind(this))
+
     // Legacy aliases (Discord terminology - deprecated)
     this.router.get('/guilds/:guildId', this.getGuild.bind(this))
     this.router.get('/guilds/:guildId/members', this.getGuildMembers.bind(this))
@@ -681,6 +687,86 @@ export class BotRestAPI {
       res.json(data || [])
     } catch (error: any) {
       res.status(500).json({ error: error.message })
+    }
+  }
+
+  private async getRoles(req: BotRequest, res: Response) {
+    try {
+      const serverId = req.params.serverId
+      const botId = req.bot!.id
+      const hasAccess = await this.checkBotInGuild(botId, serverId)
+      if (!hasAccess) return res.status(403).json({ error: 'Bot not in server' })
+
+      const { data, error } = await supabase
+        .from('server_roles')
+        .select('id, name, color, position, permissions, is_default, is_admin, mentionable, hoist')
+        .eq('server_id', serverId)
+        .order('position', { ascending: false })
+
+      if (error) return res.status(500).json({ error: error.message })
+      // permissions is bigint -> returned as string by PostgREST; pass through.
+      res.json(data || [])
+    } catch (error: any) {
+      res.status(500).json({ error: error.message })
+    }
+  }
+
+  private async createRole(req: BotRequest, res: Response) {
+    try {
+      const serverId = req.params.serverId
+      const botId = req.bot!.id
+      const { name, color, position, permissions, mentionable, hoist } =
+        req.body as {
+          name?: string
+          color?: string | null
+          position?: number
+          permissions?: string | number | null
+          mentionable?: boolean
+          hoist?: boolean
+        }
+
+      if (!name || typeof name !== 'string' || !name.trim()) {
+        return res.status(400).json({ error: 'name is required' })
+      }
+
+      const allowed = await this.checkServerPermission(botId, serverId, 'manage_channels')
+      if (!allowed) {
+        return res.status(403).json({ error: 'Missing permission: manage_channels' })
+      }
+
+      // Permissions arrive as a bigint bitmask in string form (JS can't safely
+      // carry 53+ bit ints). Store as-is; never let a bot mint ADMINISTRATOR
+      // (bit 0) - that must be granted by a human in the Harmony UI.
+      let permMask = 0n
+      try {
+        permMask = BigInt(permissions ?? 0)
+      } catch {
+        permMask = 0n
+      }
+      permMask &= ~(1n << 0n) // strip ADMINISTRATOR
+
+      const { data, error } = await supabase
+        .from('server_roles')
+        .insert({
+          server_id: serverId,
+          name: name.trim().slice(0, 100),
+          color: color || null,
+          position: typeof position === 'number' ? position : 0,
+          permissions: permMask.toString(),
+          mentionable: mentionable ?? true,
+          hoist: hoist ?? false,
+          is_default: false,
+          is_admin: false,
+        })
+        .select('id, name, color, position, permissions, mentionable, hoist')
+        .single()
+
+      if (error) return res.status(500).json({ error: error.message })
+
+      await this.logBotAction(botId, 'role_created', { server_id: serverId, role_id: data.id })
+      res.status(201).json(data)
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || 'Internal server error' })
     }
   }
 
