@@ -1,6 +1,0 @@
-node_modules/
-dist/
-*.log
-
-# Local bridge config contains bot tokens - never commit it.
-config/bridge-config.yml

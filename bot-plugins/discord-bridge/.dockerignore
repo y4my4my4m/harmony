@@ -1,5 +1,0 @@
-node_modules
-dist
-*.log
-config/bridge-config.yml
-.git
