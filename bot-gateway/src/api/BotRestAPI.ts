@@ -78,6 +78,13 @@ export class BotRestAPI {
     // separate manage_roles bot permission).
     this.router.get('/servers/:serverId/roles', this.getRoles.bind(this))
     this.router.post('/servers/:serverId/roles', this.createRole.bind(this))
+    this.router.patch('/servers/:serverId/roles/:roleId', this.updateRole.bind(this))
+    this.router.delete('/servers/:serverId/roles/:roleId', this.deleteRole.bind(this))
+
+    // Channel permission overrides (for Discord bridge permission sync)
+    this.router.get('/channels/:channelId/permission-overrides', this.getChannelPermissionOverrides.bind(this))
+    this.router.put('/channels/:channelId/permission-overrides', this.upsertChannelPermissionOverride.bind(this))
+    this.router.delete('/channels/:channelId/permission-overrides/role/:roleId', this.deleteChannelPermissionOverrideForRole.bind(this))
 
     // Legacy aliases (Discord terminology - deprecated)
     this.router.get('/guilds/:guildId', this.getGuild.bind(this))
@@ -765,6 +772,264 @@ export class BotRestAPI {
 
       await this.logBotAction(botId, 'role_created', { server_id: serverId, role_id: data.id })
       res.status(201).json(data)
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || 'Internal server error' })
+    }
+  }
+
+  private async updateRole(req: BotRequest, res: Response) {
+    try {
+      const { serverId, roleId } = req.params
+      const botId = req.bot!.id
+      const { name, color, position, permissions, mentionable, hoist } =
+        req.body as {
+          name?: string
+          color?: string | null
+          position?: number
+          permissions?: string | number | null
+          mentionable?: boolean
+          hoist?: boolean
+        }
+
+      const allowed = await this.checkServerPermission(botId, serverId, 'manage_channels')
+      if (!allowed) {
+        return res.status(403).json({ error: 'Missing permission: manage_channels' })
+      }
+
+      const { data: existing, error: fetchErr } = await supabase
+        .from('server_roles')
+        .select('id, is_default, is_admin')
+        .eq('id', roleId)
+        .eq('server_id', serverId)
+        .single()
+
+      if (fetchErr || !existing) {
+        return res.status(404).json({ error: 'Role not found' })
+      }
+      if (existing.is_default || existing.is_admin) {
+        return res.status(403).json({ error: 'Cannot modify default or admin roles via bot API' })
+      }
+
+      const patch: Record<string, unknown> = { updated_at: new Date().toISOString() }
+      if (typeof name === 'string' && name.trim()) patch.name = name.trim().slice(0, 100)
+      if (color !== undefined) patch.color = color || null
+      if (typeof position === 'number') patch.position = position
+      if (mentionable !== undefined) patch.mentionable = mentionable
+      if (hoist !== undefined) patch.hoist = hoist
+      if (permissions !== undefined) {
+        let permMask = 0n
+        try {
+          permMask = BigInt(permissions ?? 0)
+        } catch {
+          permMask = 0n
+        }
+        permMask &= ~(1n << 0n)
+        patch.permissions = permMask.toString()
+      }
+
+      const { data, error } = await supabase
+        .from('server_roles')
+        .update(patch)
+        .eq('id', roleId)
+        .select('id, name, color, position, permissions, mentionable, hoist')
+        .single()
+
+      if (error) return res.status(500).json({ error: error.message })
+
+      await this.logBotAction(botId, 'role_updated', { server_id: serverId, role_id: roleId })
+      res.json(data)
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || 'Internal server error' })
+    }
+  }
+
+  private async deleteRole(req: BotRequest, res: Response) {
+    try {
+      const { serverId, roleId } = req.params
+      const botId = req.bot!.id
+
+      const allowed = await this.checkServerPermission(botId, serverId, 'manage_channels')
+      if (!allowed) {
+        return res.status(403).json({ error: 'Missing permission: manage_channels' })
+      }
+
+      const { data: existing, error: fetchErr } = await supabase
+        .from('server_roles')
+        .select('id, is_default, is_admin')
+        .eq('id', roleId)
+        .eq('server_id', serverId)
+        .single()
+
+      if (fetchErr || !existing) {
+        return res.status(404).json({ error: 'Role not found' })
+      }
+      if (existing.is_default || existing.is_admin) {
+        return res.status(403).json({ error: 'Cannot delete default or admin roles via bot API' })
+      }
+
+      const { error } = await supabase
+        .from('server_roles')
+        .delete()
+        .eq('id', roleId)
+
+      if (error) return res.status(500).json({ error: error.message })
+
+      await this.logBotAction(botId, 'role_deleted', { server_id: serverId, role_id: roleId })
+      res.status(204).send()
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || 'Internal server error' })
+    }
+  }
+
+  private async resolveChannelServer(channelId: string): Promise<string | null> {
+    const { data } = await supabase
+      .from('channels')
+      .select('server_id')
+      .eq('id', channelId)
+      .single()
+    return data?.server_id ?? null
+  }
+
+  private async getChannelPermissionOverrides(req: BotRequest, res: Response) {
+    try {
+      const { channelId } = req.params
+      const botId = req.bot!.id
+      const serverId = await this.resolveChannelServer(channelId)
+      if (!serverId) return res.status(404).json({ error: 'Channel not found' })
+
+      const hasAccess = await this.checkBotInGuild(botId, serverId)
+      if (!hasAccess) return res.status(403).json({ error: 'Bot not in server' })
+
+      const { data, error } = await supabase
+        .from('channel_permission_overrides')
+        .select('id, channel_id, target_type, role_id, user_id, allow_permissions, deny_permissions')
+        .eq('channel_id', channelId)
+
+      if (error) return res.status(500).json({ error: error.message })
+      res.json(data || [])
+    } catch (error: any) {
+      res.status(500).json({ error: error.message })
+    }
+  }
+
+  private async upsertChannelPermissionOverride(req: BotRequest, res: Response) {
+    try {
+      const { channelId } = req.params
+      const botId = req.bot!.id
+      const { target_type, role_id, user_id, allow_permissions, deny_permissions } =
+        req.body as {
+          target_type?: 'role' | 'user'
+          role_id?: string | null
+          user_id?: string | null
+          allow_permissions?: string | number
+          deny_permissions?: string | number
+        }
+
+      const serverId = await this.resolveChannelServer(channelId)
+      if (!serverId) return res.status(404).json({ error: 'Channel not found' })
+
+      const allowed = await this.checkServerPermission(botId, serverId, 'manage_channels')
+      if (!allowed) {
+        return res.status(403).json({ error: 'Missing permission: manage_channels' })
+      }
+
+      if (target_type !== 'role' && target_type !== 'user') {
+        return res.status(400).json({ error: 'target_type must be role or user' })
+      }
+      if (target_type === 'role' && !role_id) {
+        return res.status(400).json({ error: 'role_id is required for role overrides' })
+      }
+      if (target_type === 'user' && !user_id) {
+        return res.status(400).json({ error: 'user_id is required for user overrides' })
+      }
+
+      let allowMask = 0n
+      let denyMask = 0n
+      try {
+        allowMask = BigInt(allow_permissions ?? 0)
+        denyMask = BigInt(deny_permissions ?? 0)
+      } catch {
+        return res.status(400).json({ error: 'Invalid permission bitmask' })
+      }
+      allowMask &= ~(1n << 0n)
+      denyMask &= ~(1n << 0n)
+
+      const baseQuery = supabase
+        .from('channel_permission_overrides')
+        .select('id')
+        .eq('channel_id', channelId)
+
+      const { data: existing, error: lookupErr } =
+        target_type === 'role'
+          ? await baseQuery.eq('role_id', role_id!).is('user_id', null).maybeSingle()
+          : await baseQuery.eq('user_id', user_id!).is('role_id', null).maybeSingle()
+
+      if (lookupErr) return res.status(500).json({ error: lookupErr.message })
+
+      if (allowMask === 0n && denyMask === 0n) {
+        if (existing?.id) {
+          await supabase.from('channel_permission_overrides').delete().eq('id', existing.id)
+        }
+        return res.status(204).send()
+      }
+
+      const row = {
+        allow_permissions: allowMask.toString(),
+        deny_permissions: denyMask.toString(),
+        updated_at: new Date().toISOString(),
+      }
+
+      if (existing?.id) {
+        const { data, error } = await supabase
+          .from('channel_permission_overrides')
+          .update(row)
+          .eq('id', existing.id)
+          .select('*')
+          .single()
+        if (error) return res.status(500).json({ error: error.message })
+        return res.json(data)
+      }
+
+      const { data, error } = await supabase
+        .from('channel_permission_overrides')
+        .insert({
+          channel_id: channelId,
+          target_type,
+          role_id: target_type === 'role' ? role_id : null,
+          user_id: target_type === 'user' ? user_id : null,
+          ...row,
+        })
+        .select('*')
+        .single()
+
+      if (error) return res.status(500).json({ error: error.message })
+      res.status(201).json(data)
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || 'Internal server error' })
+    }
+  }
+
+  private async deleteChannelPermissionOverrideForRole(req: BotRequest, res: Response) {
+    try {
+      const { channelId, roleId } = req.params
+      const botId = req.bot!.id
+      const serverId = await this.resolveChannelServer(channelId)
+      if (!serverId) return res.status(404).json({ error: 'Channel not found' })
+
+      const allowed = await this.checkServerPermission(botId, serverId, 'manage_channels')
+      if (!allowed) {
+        return res.status(403).json({ error: 'Missing permission: manage_channels' })
+      }
+
+      const { error } = await supabase
+        .from('channel_permission_overrides')
+        .delete()
+        .eq('channel_id', channelId)
+        .eq('role_id', roleId)
+        .is('user_id', null)
+
+      if (error) return res.status(500).json({ error: error.message })
+      res.status(204).send()
     } catch (error: any) {
       res.status(500).json({ error: error.message || 'Internal server error' })
     }
