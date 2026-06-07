@@ -2,13 +2,18 @@
 
 Cross-platform bridge connecting Discord and Harmony servers.
 
+This is a **standalone** service: it talks only to a Harmony `bot-gateway` over
+WebSocket + REST, so you can host it on its own without the Harmony backend or
+database. See [`EXTRACTION.md`](./EXTRACTION.md) to split it into its own repo.
+
 ## Features
 
 - Bi-directional message sync
+- Bi-directional reaction sync (unicode emojis both ways; custom Discord emojis
+  are synced into Harmony as federated emojis)
 - User mention translation
 - Custom emoji translation
 - Attachment support
-- Reaction syncing
 - Message editing sync
 - Message deletion sync
 - Loop prevention
@@ -78,8 +83,14 @@ discord:
 
 harmony:
   token: "YOUR_HARMONY_BOT_TOKEN"
-  gatewayUrl: "ws://localhost:3001/gateway"
-  apiUrl: "http://localhost:3001/api/v1"
+  # Both point at the Harmony bot-gateway (default port 3002). When hosting the
+  # bridge remotely, use your public proxy, e.g.
+  #   gatewayUrl: "wss://chat.example.com/bot-gateway/gateway"
+  #   apiUrl:     "https://chat.example.com/bot-gateway/api/v1"
+  gatewayUrl: "ws://localhost:3002/gateway"
+  apiUrl: "http://localhost:3002/api/v1"
+  serverId: "YOUR_HARMONY_SERVER_UUID"
+  baseUrl: "https://chat.example.com"
 
 channelMappings:
   - discord: "987654321098765432"
@@ -137,34 +148,31 @@ Appears in Discord channel
 ## Loop Prevention
 
 The bridge prevents infinite loops by:
-1. Ignoring all bot messages
-2. Checking for `[Discord]` and `[Harmony]` prefixes
-3. Not bridging messages that are already bridged
+1. Ignoring its own bot's messages on both platforms
+2. Tagging bridged content with `metadata.bridge_source = "discord"` and
+   skipping anything already carrying that marker
+3. Posting Harmony → Discord via a webhook so bridged messages are never
+   re-ingested as normal user messages
 
 ## Production Deployment
 
-### Build
+### Docker Compose (recommended)
 
 ```bash
+cp config/bridge-config.example.yml config/bridge-config.yml
+# edit config/bridge-config.yml with your tokens + channel mappings
+docker compose up -d
+```
+
+The bundled `docker-compose.yml` builds the image and mounts `./config`
+read-only (the bridge hot-reloads channel mappings on change).
+
+### Manual
+
+```bash
+npm ci
 npm run build
-```
-
-### Run
-
-```bash
 npm start
-```
-
-### Docker
-
-```dockerfile
-FROM node:18-alpine
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci --only=production
-COPY dist ./dist
-COPY config ./config
-CMD ["npm", "start"]
 ```
 
 ## Troubleshooting

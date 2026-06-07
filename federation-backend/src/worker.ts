@@ -35,20 +35,37 @@ export async function startWorker(): Promise<void> {
   });
 
   if (config.USE_BULLMQ_QUEUE) {
-    logger.info('Starting BullMQ workers with LISTEN/NOTIFY bridge...');
+    logger.info('Starting BullMQ workers...');
     await bullmqManager.start();
 
-    const connectionString = process.env.DATABASE_URL;
-    if (!connectionString) {
-      throw new Error('DATABASE_URL is required for LISTEN/NOTIFY bridge');
-    }
+    // LISTEN/NOTIFY bridge for instant (sub-second) job pickup. This needs a
+    // direct, session-mode Postgres connection (LISTEN cannot go through
+    // PostgREST/poolers). It is an OPTIMIZATION, not a hard requirement:
+    // FEDERATION_LISTENER_URL is preferred (a dedicated least-privilege
+    // `harmony_listener` role - see 20260607_federation_listener_role.sql),
+    // with DATABASE_URL accepted for backward compatibility.
+    //
+    // When no listener connection is available we degrade gracefully: the
+    // 60s periodic sweep + 30s delivery-queue retry below still pick jobs up,
+    // just at higher latency. We do NOT crash - federation keeps working.
+    const connectionString =
+      process.env.FEDERATION_LISTENER_URL || process.env.DATABASE_URL;
 
-    notificationListener = new NotificationListener(
-      connectionString,
-      (jobName) => bullmqManager.getQueue(jobName),
-    );
-    await notificationListener.start();
-    logger.info('NotificationListener bridging pg_notify -> BullMQ');
+    if (connectionString) {
+      notificationListener = new NotificationListener(
+        connectionString,
+        (jobName) => bullmqManager.getQueue(jobName),
+      );
+      await notificationListener.start();
+      logger.info('NotificationListener bridging pg_notify -> BullMQ (instant pickup)');
+    } else {
+      logger.warn(
+        'No listener DB connection set (FEDERATION_LISTENER_URL/DATABASE_URL). ' +
+        'Federation jobs will be processed by the periodic sweep (60s) and ' +
+        'delivery retry (30s) instead of instantly. Configure a least-privilege ' +
+        'listener connection for low-latency federation.',
+      );
+    }
 
     bullmqManager.startPeriodicSweep();
 

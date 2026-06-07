@@ -6,11 +6,16 @@ discord:
   guildId: "YOUR_DISCORD_SERVER_ID"
 
 # Harmony Bot Configuration
+# gatewayUrl and apiUrl both point at the Harmony bot-gateway (default port 3002).
+# When hosting the bridge remotely, use your public proxy, e.g.
+#   gatewayUrl: "wss://chat.example.com/bot-gateway/gateway"
+#   apiUrl:     "https://chat.example.com/bot-gateway/api/v1"
 harmony:
   token: "YOUR_HARMONY_BOT_TOKEN"
-  gatewayUrl: "ws://localhost:3001/gateway"
-  apiUrl: "http://localhost:3002"
+  gatewayUrl: "ws://localhost:3002/gateway"
+  apiUrl: "http://localhost:3002/api/v1"
   serverId: "YOUR_HARMONY_SERVER_UUID"  # Required for Discord autocomplete of Harmony users
+  baseUrl: "https://chat.example.com"   # Your Harmony instance URL (for federated mentions)
 
 # Channel Mappings
 # Each mapping connects a Discord channel to a Harmony channel

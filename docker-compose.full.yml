@@ -47,8 +47,11 @@ services:
       - FEDERATION_MODE=server
       - SUPABASE_URL=http://supabase-kong:8000
       - USE_BULLMQ_QUEUE=true
-      - DATABASE_URL=postgresql://supabase_admin:${POSTGRES_PASSWORD:-your-super-secret-and-long-postgres-password}@supabase-db:5432/postgres
-      - DATABASE_POOL_URL=postgresql://supabase_admin:${POSTGRES_PASSWORD:-your-super-secret-and-long-postgres-password}@supabase-pooler:6543/postgres
+      # Least-privilege LISTEN connection. Create the role + password once:
+      #   psql -f db_schema/migrations/20260607_federation_listener_role.sql
+      #   ALTER ROLE harmony_listener PASSWORD '<LISTENER_PASSWORD>';
+      # If it's absent the worker degrades to the periodic sweep (no crash).
+      - FEDERATION_LISTENER_URL=postgresql://harmony_listener:${LISTENER_PASSWORD:-}@supabase-db:5432/postgres
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
     healthcheck:
       test:
@@ -82,8 +85,7 @@ services:
       - FEDERATION_MODE=worker
       - SUPABASE_URL=http://supabase-kong:8000
       - USE_BULLMQ_QUEUE=true
-      - DATABASE_URL=postgresql://supabase_admin:${POSTGRES_PASSWORD:-your-super-secret-and-long-postgres-password}@supabase-db:5432/postgres
-      - DATABASE_POOL_URL=postgresql://supabase_admin:${POSTGRES_PASSWORD:-your-super-secret-and-long-postgres-password}@supabase-pooler:6543/postgres
+      - FEDERATION_LISTENER_URL=postgresql://harmony_listener:${LISTENER_PASSWORD:-}@supabase-db:5432/postgres
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
     depends_on:
       redis:
@@ -110,8 +112,7 @@ services:
       - FEDERATION_MODE=unified
       - SUPABASE_URL=http://supabase-kong:8000
       - USE_BULLMQ_QUEUE=true
-      - DATABASE_URL=postgresql://supabase_admin:${POSTGRES_PASSWORD:-your-super-secret-and-long-postgres-password}@supabase-db:5432/postgres
-      - DATABASE_POOL_URL=postgresql://supabase_admin:${POSTGRES_PASSWORD:-your-super-secret-and-long-postgres-password}@supabase-pooler:6543/postgres
+      - FEDERATION_LISTENER_URL=postgresql://harmony_listener:${LISTENER_PASSWORD:-}@supabase-db:5432/postgres
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
     healthcheck:
       test:

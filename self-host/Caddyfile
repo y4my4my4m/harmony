@@ -1,0 +1,77 @@
+# =============================================================================
+# Harmony reverse proxy (Caddy)
+# =============================================================================
+# Caddy terminates TLS and routes:
+#   - https://{$DOMAIN}        -> Vue SPA (web) + federation (ActivityPub) paths
+#   - https://{$DB_DOMAIN}     -> Supabase API gateway (Kong)
+#   - https://{$LIVEKIT_DOMAIN}-> LiveKit (only used if the voice profile is up)
+#
+# TLS is controlled by {$CADDY_TLS}: a contact email enables public Let's
+# Encrypt; the literal "internal" uses Caddy's local CA (LAN/NAS, no public DNS).
+#
+# Federation endpoints must be matched BEFORE the SPA fallback so crawlers and
+# remote instances reach the federation backend instead of the Vue index.html.
+# =============================================================================
+
+# Reusable federation routing, imported into the main site block.
+(federation) {
+	# ActivityPub discovery + machine endpoints -> federation backend
+	@fed {
+		path /.well-known/webfinger /.well-known/host-meta /.well-known/host-meta.json /.well-known/nodeinfo
+		path /nodeinfo/2.0 /nodeinfo/2.1
+		path /inbox /outbox /oembed /health
+		path /link-preview /link-preview/*
+		path /api/federation/* /api/livekit/*
+		path /webhooks/*
+		path /servers/*
+		path /users/*/inbox /users/*/outbox /users/*/followers /users/*/following /users/*/featured
+		path /posts/*/likes /posts/*/replies
+	}
+	reverse_proxy @fed federation-server:3001
+
+	# Actor profile + post permalinks: the federation backend performs content
+	# negotiation (ActivityPub JSON for fediverse clients, HTML w/ OpenGraph
+	# tags for browsers and link-preview crawlers), so always proxy these.
+	@apActor {
+		path_regexp ^/users/[^/]+$
+		header_regexp Accept (application/(activity\+json|ld\+json|json))
+	}
+	reverse_proxy @apActor federation-server:3001
+
+	# Browser hitting /users/:name directly -> send them to the in-app profile.
+	@humanActor path_regexp humanActor ^/users/([^/]+)$
+	redir @humanActor /social/profile/{re.humanActor.1} 302
+
+	@post path_regexp ^/posts/[0-9a-f-]+$
+	reverse_proxy @post federation-server:3001
+}
+
+# --- Main app + federation ---------------------------------------------------
+{$DOMAIN} {
+	tls {$CADDY_TLS}
+	encode zstd gzip
+
+	import federation
+
+	# Optional bot gateway (only reachable if the bots profile is running).
+	handle_path /bot-gateway/* {
+		reverse_proxy bot-gateway:3002
+	}
+
+	# Everything else -> the SPA container (which handles its own SPA fallback).
+	reverse_proxy web:80
+}
+
+# --- Supabase API gateway ----------------------------------------------------
+{$DB_DOMAIN} {
+	tls {$CADDY_TLS}
+	reverse_proxy supabase-kong:8000
+}
+
+# --- LiveKit (voice/video) ---------------------------------------------------
+# Harmless to keep defined; only proxies successfully when the voice profile
+# is running. Clients connect over WebSocket, which Caddy upgrades transparently.
+{$LIVEKIT_DOMAIN} {
+	tls {$CADDY_TLS}
+	reverse_proxy livekit:7880
+}

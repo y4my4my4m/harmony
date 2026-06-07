@@ -32,8 +32,18 @@ export class EventDispatcher {
   private subscriptions: any[] = []
   private pollingInterval: NodeJS.Timeout | null = null
   private editPollingInterval: NodeJS.Timeout | null = null
+  private reactionPollingInterval: NodeJS.Timeout | null = null
   private lastProcessedTimestamp: Date = new Date()
+  private lastReactionTimestamp: Date = new Date()
   private processedMessageIds: Set<string> = new Set()
+
+  // Reaction add/remove tracking. Reactions are hard-deleted, so (like message
+  // deletes) we detect removals by diffing a window of known reaction IDs
+  // against what currently exists.
+  private knownReactionIds: Set<string> = new Set()
+  private reactionContext: Map<string, { channel_id: string | null, message_id: string }> = new Map()
+  // emoji_id -> shortcode name (for custom emoji reactions). Read-mostly.
+  private emojiNameCache = new TTLCache<string, string | null>(5_000, 30 * 60 * 1000)
   
   // Track message versions for edit detection (includes channel_id for delete dispatch)
   private messageVersions: Map<string, { updated_at: string, content: string, channel_id: string, metadata: any }> = new Map()
@@ -69,11 +79,12 @@ export class EventDispatcher {
     
     // Initialize known messages for a recent window (for delete detection)
     await this.initializeKnownMessages()
+    await this.initializeKnownReactions()
     
     // Use polling for everything - more reliable than Realtime
     this.startPolling()
     
-    console.log('✅ Event Dispatcher started with polling mode (creates, edits, deletes)')
+    console.log('✅ Event Dispatcher started with polling mode (creates, edits, deletes, reactions)')
   }
   
   private async initializeKnownMessages() {
@@ -115,6 +126,155 @@ export class EventDispatcher {
     this.editPollingInterval = setInterval(async () => {
       await this.pollEditsAndDeletes()
     }, 2000)
+
+    // Poll every 2 seconds for reaction add/remove so bots (and the Discord
+    // bridge) get MESSAGE_REACTION_ADD / MESSAGE_REACTION_REMOVE events.
+    this.reactionPollingInterval = setInterval(async () => {
+      await this.pollReactions()
+    }, 2000)
+  }
+
+  // ---------------------------------------------------------------------
+  // Reactions
+  // ---------------------------------------------------------------------
+
+  private async initializeKnownReactions() {
+    // Seed the known-reaction window so we don't replay historical reactions
+    // as "adds" on startup, and so removals can be detected from now on.
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+    const { data: reactions } = await supabase
+      .from('reactions')
+      .select('id, message_id, channel_id, created_at')
+      .gt('created_at', twentyFourHoursAgo)
+      .order('created_at', { ascending: false })
+      .limit(5000)
+
+    if (reactions) {
+      for (const r of reactions) {
+        this.knownReactionIds.add(r.id)
+        this.reactionContext.set(r.id, { channel_id: r.channel_id, message_id: r.message_id })
+      }
+      console.log(`📋 Initialized ${reactions.length} known reactions for add/remove tracking (last 24h)`)
+    }
+  }
+
+  private async pollReactions() {
+    try {
+      // --- new reactions (adds) ---
+      const { data: newReactions, error } = await supabase
+        .from('reactions')
+        .select('id, message_id, channel_id, user_id, bot_id, emoji_id, custom_emoji_content, metadata, created_at')
+        .gt('created_at', this.lastReactionTimestamp.toISOString())
+        .order('created_at', { ascending: true })
+        .limit(100)
+
+      if (error) {
+        console.error('❌ Error polling reactions:', error)
+      } else if (newReactions?.length) {
+        for (const r of newReactions) {
+          if (!this.knownReactionIds.has(r.id)) {
+            await this.handleReactionEvent('MESSAGE_REACTION_ADD', r)
+            this.knownReactionIds.add(r.id)
+            this.reactionContext.set(r.id, { channel_id: r.channel_id, message_id: r.message_id })
+          }
+          this.lastReactionTimestamp = new Date(r.created_at)
+        }
+
+        // Keep the tracking set bounded.
+        if (this.knownReactionIds.size > 10000) {
+          const ids = Array.from(this.knownReactionIds).slice(-10000)
+          this.knownReactionIds = new Set(ids)
+          const ctx = new Map<string, { channel_id: string | null, message_id: string }>()
+          for (const id of ids) {
+            const c = this.reactionContext.get(id)
+            if (c) ctx.set(id, c)
+          }
+          this.reactionContext = ctx
+        }
+      }
+
+      // --- removed reactions (hard deletes) ---
+      // Check the most recent window of known reaction IDs; any that no longer
+      // exist were removed.
+      const idsToCheck = Array.from(this.knownReactionIds).slice(-200)
+      if (idsToCheck.length > 0) {
+        const { data: stillThere } = await supabase
+          .from('reactions')
+          .select('id')
+          .in('id', idsToCheck)
+
+        const present = new Set((stillThere || []).map(r => r.id))
+        for (const id of idsToCheck) {
+          if (!present.has(id)) {
+            const ctx = this.reactionContext.get(id)
+            this.knownReactionIds.delete(id)
+            this.reactionContext.delete(id)
+            if (ctx) {
+              await this.handleReactionEvent('MESSAGE_REACTION_REMOVE', {
+                id,
+                message_id: ctx.message_id,
+                channel_id: ctx.channel_id,
+              })
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.error('❌ pollReactions exception:', err)
+    }
+  }
+
+  /**
+   * Resolve a custom emoji's shortcode name (cached). Native/unicode reactions
+   * store the character in custom_emoji_content and have no emoji_id.
+   */
+  private async resolveEmojiName(emojiId: string): Promise<string | null> {
+    const cached = this.emojiNameCache.get(emojiId)
+    if (cached !== undefined) return cached
+    const { data, error } = await supabase
+      .from('emojis')
+      .select('name')
+      .eq('id', emojiId)
+      .single()
+    if (error && error.code !== 'PGRST116') return null
+    const name = data?.name ?? null
+    this.emojiNameCache.set(emojiId, name)
+    return name
+  }
+
+  private async handleReactionEvent(type: 'MESSAGE_REACTION_ADD' | 'MESSAGE_REACTION_REMOVE', reaction: any) {
+    const serverId = await this.resolveServerId(reaction.channel_id)
+    if (!serverId) return
+
+    const botPermissions = await this.resolveBotPermissions(serverId)
+    if (botPermissions.length === 0) return
+
+    // Build the emoji descriptor the way consumers (e.g. the Discord bridge)
+    // expect: { id, name }. Unicode emoji -> name is the character itself.
+    let emoji: { id: string | null, name: string | null }
+    if (reaction.emoji_id) {
+      emoji = { id: reaction.emoji_id, name: await this.resolveEmojiName(reaction.emoji_id) }
+    } else {
+      emoji = { id: null, name: reaction.custom_emoji_content ?? null }
+    }
+
+    const event = {
+      op: 0,
+      t: type,
+      d: {
+        reaction_id: reaction.id,
+        message_id: reaction.message_id,
+        channel_id: reaction.channel_id,
+        user_id: reaction.user_id ?? null,
+        bot_id: reaction.bot_id ?? null,
+        emoji,
+        metadata: reaction.metadata ?? {},
+      },
+    }
+
+    const botIds = botPermissions.map(bp => bp.bot_id)
+    this.gateway.sendToMultipleBots(botIds, event)
+    console.log(`🎭 Dispatched ${type} to ${botIds.length} bots`)
   }
 
   // ---------------------------------------------------------------------
@@ -604,6 +764,10 @@ export class EventDispatcher {
       clearInterval(this.editPollingInterval)
       this.editPollingInterval = null
     }
+    if (this.reactionPollingInterval) {
+      clearInterval(this.reactionPollingInterval)
+      this.reactionPollingInterval = null
+    }
     
     for (const channel of this.subscriptions) {
       await channel.unsubscribe()
@@ -612,6 +776,7 @@ export class EventDispatcher {
     this.channelToServerCache.clear()
     this.botPermissionsCache.clear()
     this.authorCache.clear()
+    this.emojiNameCache.clear()
     console.log('🛑 Event Dispatcher shut down')
   }
 }

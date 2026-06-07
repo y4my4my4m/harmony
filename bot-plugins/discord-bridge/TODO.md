@@ -63,6 +63,7 @@ Currently using polling for message edits/deletes because Supabase Realtime subs
 - [x] User mentions (both directions)
 - [x] Discord user autocomplete via `/m` slash command
 - [x] Reaction bridging (Discord → Harmony with user attribution)
+- [x] Reaction bridging (Harmony → Discord; bot-gateway now emits MESSAGE_REACTION_ADD/REMOVE)
 - [x] Custom emoji bridging
 - [x] Media/attachment bridging
 - [x] Webhook puppeting (Harmony users appear with their name/avatar in Discord)

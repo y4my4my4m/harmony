@@ -29,10 +29,15 @@ const envSchema = z.object({
   
   // Redis
   REDIS_URL: z.string().default('redis://localhost:6379'),
-  
-  // Database pool URL (Supavisor transaction mode, port 6543)
-  // If set, used for regular queries; DATABASE_URL stays for LISTEN/NOTIFY
-  DATABASE_POOL_URL: z.string().optional(),
+
+  // Optional direct, session-mode Postgres connection used ONLY for the
+  // LISTEN/NOTIFY federation-jobs bridge (instant job pickup). Prefer a
+  // dedicated least-privilege role (harmony_listener). DATABASE_URL is still
+  // honoured for backward compatibility. Both are read via process.env in
+  // worker.ts; declared here for documentation/visibility. When neither is
+  // set the worker degrades to periodic-sweep pickup (no crash).
+  FEDERATION_LISTENER_URL: z.string().optional(),
+  DATABASE_URL: z.string().optional(),
   
   // Security
   JWT_SECRET: z.string().optional(),

@@ -7,10 +7,10 @@
 #   1. Build frontend: npm run build-only
 #   2. Copy env.example to .env and configure
 #   3. Copy federation-backend/env.template to federation-backend/.env
-#      - Set SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
-#      - For reliable federation: Set DATABASE_URL, REDIS_URL, and USE_BULLMQ_QUEUE=true
-#        (Get DATABASE_URL from Supabase Dashboard → Project Settings → Database)
-#      - For simple setup: Leave DATABASE_URL empty and USE_BULLMQ_QUEUE=false
+#      - Set SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, REDIS_URL, USE_BULLMQ_QUEUE=true
+#      - Optional: set FEDERATION_LISTENER_URL (a least-privilege, session-mode
+#        Postgres connection) for instant job pickup. If omitted, jobs are still
+#        processed by the periodic sweep - the worker no longer requires it.
 #      - (USE_PGBOSS_QUEUE is accepted as a backward-compat alias)
 #
 # Usage:
