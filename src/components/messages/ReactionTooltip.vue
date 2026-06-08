@@ -134,7 +134,7 @@ const label = computed(() => {
   gap: 8px;
   padding: 4px 0 8px 0;
   margin-bottom: 8px;
-  border-bottom: 1px solid color-mix(in srgb, var(--h-black-lighter) 30%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--background-quinary) 30%, transparent);
 }
 
 .tooltip-emoji {

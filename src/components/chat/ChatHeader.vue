@@ -685,7 +685,7 @@ onUnmounted(() => {
 
 .more-menu .context-menu-divider {
   height: 1px;
-  background: var(--border-color, var(--h-black-lighter));
+  background: var(--border-color, var(--background-quinary));
   margin: 4px 8px;
 }
 

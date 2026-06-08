@@ -543,7 +543,7 @@ watch(() => props.show, (visible) => {
 }
 
 .modal-close:hover {
-  background: var(--h-black-lighter);
+  background: var(--background-quinary);
   color: var(--text-secondary);
 }
 
@@ -574,8 +574,8 @@ watch(() => props.show, (visible) => {
 
 .form-input {
   width: 100%;
-  background: var(--h-black-lighter);
-  border: 1px solid var(--h-black-lighter);
+  background: var(--background-quinary);
+  border: 1px solid var(--background-quinary);
   border-radius: 4px;
   padding: 12px;
   color: var(--text-secondary);
@@ -590,8 +590,8 @@ watch(() => props.show, (visible) => {
 
 .form-textarea {
   width: 100%;
-  background: var(--h-black-lighter);
-  border: 1px solid var(--h-black-lighter);
+  background: var(--background-quinary);
+  border: 1px solid var(--background-quinary);
   border-radius: 4px;
   padding: 12px;
   color: var(--text-secondary);
@@ -620,7 +620,7 @@ watch(() => props.show, (visible) => {
   gap: 8px;
   padding: 12px;
   background: var(--background-tertiary);
-  border: 1px solid var(--h-black-lighter);
+  border: 1px solid var(--background-quinary);
   border-radius: 4px;
   color: var(--text-secondary);
 }
@@ -672,7 +672,7 @@ watch(() => props.show, (visible) => {
 }
 
 .btn-secondary:hover:not(:disabled) {
-  background: var(--h-black-lighter);
+  background: var(--background-quinary);
   color: var(--text-secondary);
 }
 

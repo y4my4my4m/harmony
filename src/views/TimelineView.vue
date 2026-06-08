@@ -309,6 +309,10 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  /* Use a recessed canvas so the post cards (primary surface) stand out as
+     elevated. Works in both themes: light => grey canvas + white cards,
+     dark => darkest tier canvas + lighter cards. */
+  background: var(--background-tertiary);
 }
 
 .mony-header-container {

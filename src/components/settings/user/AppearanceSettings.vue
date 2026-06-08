@@ -5,6 +5,10 @@
       <p class="settings-description">
         {{ $t('settings.appearance.description') }}
       </p>
+      <button class="live-editor-btn" @click="openLiveEditor">
+        <Icon name="sparkles" :size="16" />
+        Edit on live preview
+      </button>
     </div>
 
     <div class="settings-section">
@@ -708,6 +712,8 @@ import { debug } from '@/utils/debug'
 import type { User, Emoji } from '@/types'
 import { useFloatingVideo } from '@/composables/useFloatingVideo'
 import { useVisualTheme } from '@/composables/useVisualTheme'
+import { useThemeEditorPanel } from '@/composables/useThemeEditorPanel'
+import { useRouter } from 'vue-router'
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings'
 import { generateThemePalette, applyThemePalette, generatePreviewColors } from '@/utils/colorUtils'
 import { useEmojiPacks } from '@/services/emojiPackService'
@@ -736,7 +742,16 @@ const emit = defineEmits<{
 // Composables
 const { isEnabled: floatingVideoEnabled, setEnabled: setFloatingVideoEnabled } = useFloatingVideo()
 const visualTheme = useVisualTheme()
+const themeEditorPanel = useThemeEditorPanel()
+const router = useRouter()
 const { currentPackId, packs, setCurrentPack } = useEmojiPacks()
+
+// Open the floating live theme editor and close the full-screen settings so the
+// user can see the actual chat/sidebars update as they tweak colors.
+const openLiveEditor = () => {
+  themeEditorPanel.open()
+  router.back()
+}
 const instanceSettings = useInstanceSettingsStore()
 const quickReact = useQuickReactSettings()
 
@@ -916,7 +931,6 @@ const applyPresetTheme = (preset: ThemePreset) => {
 }
 
 const ALPHA_VAR_NAMES = new Set([
-  '--h-chat-alpha', '--h-chat-alpha-light', '--h-sidebar-alpha', '--h-black-alpha',
   '--background-primary-alpha', '--background-secondary-alpha', '--background-tertiary-alpha',
   '--background-senary-alpha',
 ])
@@ -1246,12 +1260,33 @@ onMounted(async () => {
   margin: 0;
 }
 
+.live-editor-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+  padding: 9px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background: var(--background-quaternary);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.live-editor-btn:hover {
+  border-color: var(--harmony-primary);
+  background: var(--harmony-primary-alpha, var(--background-quinary));
+}
+
 .settings-section {
   margin-bottom: 32px;
   padding: 24px;
-  background-color: var(--h-chat);
+  background-color: var(--background-secondary);
   border-radius: 8px;
-  border: 1px solid var(--h-chat-light);
+  border: 1px solid var(--background-quaternary);
 }
 
 .section-title {
@@ -1268,7 +1303,7 @@ onMounted(async () => {
 }
 
 .theme-option {
-  border: 2px solid var(--h-chat-light);
+  border: 2px solid var(--background-quaternary);
   border-radius: 8px;
   padding: 16px;
   cursor: pointer;
@@ -1442,7 +1477,7 @@ onMounted(async () => {
 .custom-color-section {
   margin-top: 24px;
   padding-top: 24px;
-  border-top: 1px solid var(--h-chat-light);
+  border-top: 1px solid var(--background-quaternary);
 }
 
 .section-subtitle {
@@ -1479,8 +1514,8 @@ onMounted(async () => {
 .mode-btn {
   flex: 1;
   padding: 12px 16px;
-  border: 2px solid var(--h-chat-light);
-  background-color: var(--h-chat-darker);
+  border: 2px solid var(--background-quaternary);
+  background-color: var(--background-senary);
   color: var(--text-secondary, var(--text-secondary));
   border-radius: 6px;
   cursor: pointer;
@@ -1491,7 +1526,7 @@ onMounted(async () => {
 
 .mode-btn:hover {
   border-color: var(--h-primary, #0EA5E9);
-  background-color: var(--h-chat-light);
+  background-color: var(--background-quaternary);
 }
 
 .mode-btn.active {
@@ -1507,8 +1542,8 @@ onMounted(async () => {
   justify-content: center;
   width: 44px;
   height: 44px;
-  border: 2px solid var(--h-chat-light, var(--border-color));
-  background-color: var(--h-chat-darker, var(--background-tertiary));
+  border: 2px solid var(--background-quaternary, var(--border-color));
+  background-color: var(--background-senary, var(--background-tertiary));
   border-radius: 8px;
   cursor: pointer;
   transition: all 0.15s ease;
@@ -1542,8 +1577,8 @@ onMounted(async () => {
   align-items: center;
   gap: 8px;
   padding: 16px 20px;
-  border: 2px solid var(--h-chat-light);
-  background-color: var(--h-chat-darker);
+  border: 2px solid var(--background-quaternary);
+  background-color: var(--background-senary);
   color: var(--text-secondary, var(--text-secondary));
   border-radius: 8px;
   cursor: pointer;
@@ -1555,7 +1590,7 @@ onMounted(async () => {
 
 .emoji-pack-btn:hover {
   border-color: var(--h-primary, #0EA5E9);
-  background-color: var(--h-chat-light);
+  background-color: var(--background-quaternary);
 }
 
 .emoji-pack-btn.active {
@@ -1605,9 +1640,9 @@ onMounted(async () => {
 .skin-card {
   display: flex;
   flex-direction: column;
-  border: 2px solid var(--h-chat-light);
+  border: 2px solid var(--background-quaternary);
   border-radius: 10px;
-  background: var(--h-chat);
+  background: var(--background-secondary);
   color: var(--text-primary);
   cursor: pointer;
   transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
@@ -1646,10 +1681,10 @@ onMounted(async () => {
 .skin-card-preview-none {
   background: repeating-linear-gradient(
     45deg,
-    var(--h-chat-darker),
-    var(--h-chat-darker) 10px,
-    var(--h-chat) 10px,
-    var(--h-chat) 20px
+    var(--background-senary),
+    var(--background-senary) 10px,
+    var(--background-secondary) 10px,
+    var(--background-secondary) 20px
   );
 }
 
@@ -1687,7 +1722,7 @@ onMounted(async () => {
   padding: 14px 16px;
   border: 1px solid var(--border-primary);
   border-radius: 8px;
-  background: var(--h-chat-light);
+  background: var(--background-quaternary);
 }
 
 .skin-active-options-title {
@@ -1724,9 +1759,9 @@ onMounted(async () => {
   align-items: flex-start;
   gap: 4px;
   padding: 12px 14px;
-  border: 2px solid var(--h-chat-light);
+  border: 2px solid var(--background-quaternary);
   border-radius: 8px;
-  background-color: var(--h-chat);
+  background-color: var(--background-secondary);
   color: var(--text-primary);
   cursor: pointer;
   transition: all 0.15s ease;
@@ -1735,7 +1770,7 @@ onMounted(async () => {
 
 .font-family-btn:hover {
   border-color: var(--harmony-primary, #0EA5E9);
-  background-color: var(--h-chat-light);
+  background-color: var(--background-quaternary);
 }
 
 .font-family-btn.active {
@@ -1776,9 +1811,9 @@ onMounted(async () => {
 .lightness-section {
   margin-bottom: 24px;
   padding: 16px;
-  background-color: var(--h-chat-darker);
+  background-color: var(--background-senary);
   border-radius: 8px;
-  border: 1px solid var(--h-chat-light);
+  border: 1px solid var(--background-quaternary);
 }
 
 .lightness-slider-container {
@@ -1849,9 +1884,9 @@ onMounted(async () => {
 .chroma-section {
   margin-bottom: 24px;
   padding: 16px;
-  background-color: var(--h-chat-darker);
+  background-color: var(--background-senary);
   border-radius: 8px;
-  border: 1px solid var(--h-chat-light);
+  border: 1px solid var(--background-quaternary);
 }
 
 .chroma-slider-container {
@@ -1924,7 +1959,7 @@ onMounted(async () => {
   align-items: flex-start;
   margin-bottom: 20px;
   padding-bottom: 20px;
-  border-bottom: 1px solid var(--h-chat-light);
+  border-bottom: 1px solid var(--background-quaternary);
 }
 
 .setting-item:last-child {
@@ -2005,8 +2040,8 @@ onMounted(async () => {
 .zoom-btn {
   width: 28px;
   height: 28px;
-  border: 1px solid var(--h-chat-light);
-  background-color: var(--h-chat-darker);
+  border: 1px solid var(--background-quaternary);
+  background-color: var(--background-senary);
   color: var(--text-primary, #ffffff);
   border-radius: 4px;
   cursor: pointer;
@@ -2018,7 +2053,7 @@ onMounted(async () => {
 }
 
 .zoom-btn:hover:not(:disabled) {
-  background-color: var(--h-chat-light);
+  background-color: var(--background-quaternary);
 }
 
 .zoom-btn:disabled {
@@ -2035,8 +2070,8 @@ onMounted(async () => {
 
 .select-input {
   padding: 8px 12px;
-  background-color: var(--h-chat-darker);
-  border: 1px solid var(--h-chat-light);
+  background-color: var(--background-senary);
+  border: 1px solid var(--background-quaternary);
   border-radius: 4px;
   color: var(--text-primary, #ffffff);
   font-size: 14px;
@@ -2085,11 +2120,11 @@ onMounted(async () => {
 .btn-secondary {
   background-color: transparent;
   color: var(--text-secondary, var(--text-secondary));
-  border: 1px solid var(--h-chat-light);
+  border: 1px solid var(--background-quaternary);
 }
 
 .btn-secondary:hover:not(:disabled) {
-  background-color: var(--h-chat-light);
+  background-color: var(--background-quaternary);
   color: var(--text-primary, #ffffff);
 }
 
@@ -2135,7 +2170,7 @@ onMounted(async () => {
 .community-presets-section {
   margin-top: 24px;
   padding-top: 24px;
-  border-top: 1px solid var(--h-chat-light);
+  border-top: 1px solid var(--background-quaternary);
 }
 
 .presets-grid {
@@ -2150,8 +2185,8 @@ onMounted(async () => {
   align-items: center;
   gap: 12px;
   padding: 12px;
-  background: var(--h-chat);
-  border: 1px solid var(--h-chat-light);
+  background: var(--background-secondary);
+  border: 1px solid var(--background-quaternary);
   border-radius: 8px;
   cursor: pointer;
   transition: all 0.2s;
@@ -2193,7 +2228,7 @@ onMounted(async () => {
 .theme-import-export-section {
   margin-top: 24px;
   padding-top: 24px;
-  border-top: 1px solid var(--h-chat-light);
+  border-top: 1px solid var(--background-quaternary);
 }
 
 .import-export-buttons {
@@ -2224,14 +2259,14 @@ onMounted(async () => {
   gap: 12px;
   margin-top: 20px;
   padding-top: 20px;
-  border-top: 1px solid var(--h-chat-light);
+  border-top: 1px solid var(--background-quaternary);
 }
 
 .theme-name-input {
   flex: 1;
   padding: 10px 14px;
-  border: 1px solid var(--h-chat-light);
-  background: var(--h-chat);
+  border: 1px solid var(--background-quaternary);
+  background: var(--background-secondary);
   color: var(--text-primary);
   border-radius: 6px;
   font-size: 14px;
@@ -2270,7 +2305,7 @@ onMounted(async () => {
 .advanced-css-section {
   margin-top: 24px;
   padding-top: 24px;
-  border-top: 1px solid var(--h-chat-light);
+  border-top: 1px solid var(--background-quaternary);
 }
 
 .toggle-advanced-btn {
@@ -2278,7 +2313,7 @@ onMounted(async () => {
   align-items: center;
   gap: 8px;
   background: none;
-  border: 1px solid var(--h-chat-light);
+  border: 1px solid var(--background-quaternary);
   color: var(--text-secondary);
   padding: 10px 16px;
   border-radius: 6px;
@@ -2291,7 +2326,7 @@ onMounted(async () => {
 }
 
 .toggle-advanced-btn:hover {
-  background: var(--h-chat-light);
+  background: var(--background-quaternary);
   color: var(--text-primary);
 }
 
@@ -2329,9 +2364,9 @@ onMounted(async () => {
   justify-content: space-between;
   padding: 8px 12px;
   margin-bottom: 16px;
-  background: var(--h-chat-dark, #141618);
+  background: var(--background-tertiary, #141618);
   border-radius: 6px;
-  border: 1px solid var(--h-chat-light);
+  border: 1px solid var(--background-quaternary);
 }
 
 .override-summary {
@@ -2386,7 +2421,7 @@ onMounted(async () => {
 }
 
 .var-item:hover {
-  background: var(--h-chat-light);
+  background: var(--background-quaternary);
 }
 
 .var-item.has-override {
@@ -2442,8 +2477,8 @@ onMounted(async () => {
 .var-text-input {
   width: 140px;
   padding: 4px 8px;
-  background: var(--h-chat-dark, #141618);
-  border: 1px solid var(--h-chat-light);
+  background: var(--background-tertiary, #141618);
+  border: 1px solid var(--background-quaternary);
   border-radius: 4px;
   color: var(--text-primary);
   font-size: 11px;

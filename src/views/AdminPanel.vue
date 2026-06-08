@@ -1407,20 +1407,10 @@
               <div class="setting-group">
                 <label>Theme Color</label>
                 <div style="display: flex; align-items: center; gap: 12px;">
-                  <input
-                    v-model="instanceConfig.themeColor"
-                    type="color"
-                    class="cyber-input"
-                    style="width: 48px; height: 36px; padding: 2px; cursor: pointer;"
-                    @input="instanceBrandingChanged = true"
-                  />
-                  <input
-                    v-model="instanceConfig.themeColor"
-                    type="text"
-                    class="cyber-input"
-                    placeholder="#0EA5E9"
-                    style="flex: 1;"
-                    @input="instanceBrandingChanged = true"
+                  <ColorPicker
+                    :color="instanceConfig.themeColor || '#0EA5E9'"
+                    @update:color="instanceConfig.themeColor = $event; instanceBrandingChanged = true"
+                    @change="instanceConfig.themeColor = $event; instanceBrandingChanged = true"
                   />
                 </div>
                 <span class="setting-hint">
@@ -2229,6 +2219,7 @@ import { useToast } from 'vue-toastification'
 import Icon from '@/components/common/Icon.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import Avatar from '@/components/common/Avatar.vue'
+import ColorPicker from '@/components/common/ColorPicker.vue'
 import DisplayName from '@/components/DisplayName.vue'
 import EmojiImporter from '@/components/admin/EmojiImporter.vue'
 import PerformanceMonitoring from '@/components/admin/PerformanceMonitoring.vue'
@@ -7363,7 +7354,7 @@ const handleAddInstance = () => {
   right: 0;
   z-index: 100;
   background: var(--background-tertiary);
-  border: 1px solid var(--h-black-lighter);
+  border: 1px solid var(--background-quinary);
   border-radius: 8px;
   box-shadow: 0 8px 16px rgba(0, 0, 0, 0.24);
   max-height: 220px;

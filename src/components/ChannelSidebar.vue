@@ -1322,12 +1322,12 @@ watch(() => props.currentServer?.id, () => {
 
 .channel-item:hover {
   transform: translateX(2px);
-  background-color: var(--h-sidebar-light);
+  background-color: var(--background-quaternary);
 }
 
 .channel-item.selected {
   position: relative;
-  background-color: var(--h-sidebar-light);
+  background-color: var(--background-quaternary);
   color: var(--text-primary);
 }
 
@@ -1473,7 +1473,7 @@ watch(() => props.currentServer?.id, () => {
 
 .channel-item.in-collapsed-category.selected {
   opacity: 1;
-  background-color: var(--h-sidebar-light);
+  background-color: var(--background-quaternary);
   color: var(--text-primary);
 }
 
@@ -1601,7 +1601,7 @@ watch(() => props.currentServer?.id, () => {
   width: 100%;
 }
 .channel-thread-item .thread-name:hover {
-  background: var(--h-sidebar-light);
+  background: var(--background-quaternary);
 }
 
 .channel-thread-item.selected {
@@ -1609,7 +1609,7 @@ watch(() => props.currentServer?.id, () => {
 }
 .channel-thread-item.selected .thread-name {
   color: var(--text-primary, #FFFFFF);
-  background: var(--h-sidebar-light);
+  background: var(--background-quaternary);
 }
 
 /* Thread branch/tree-line - vertical line connecting to parent */
@@ -1694,7 +1694,7 @@ watch(() => props.currentServer?.id, () => {
 .category-context-menu {
   position: absolute;
   z-index: 1000;
-  background: var(--h-sidebar);
+  background: var(--background-tertiary);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 4px;
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);

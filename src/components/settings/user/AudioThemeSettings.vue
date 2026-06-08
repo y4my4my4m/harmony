@@ -326,11 +326,11 @@ onMounted(async () => {
 }
 
 .settings-section {
-  background-color: var(--h-chat);
+  background-color: var(--background-secondary);
   border-radius: 8px;
   padding: 24px;
   margin-bottom: 32px;
-  border: 1px solid var(--h-chat-light);
+  border: 1px solid var(--background-quaternary);
 }
 
 .section-title {
@@ -437,7 +437,7 @@ onMounted(async () => {
   flex: 1;
   height: 6px;
   border-radius: 3px;
-  background: var(--h-chat-light);
+  background: var(--background-quaternary);
   outline: none;
   cursor: pointer;
 }
@@ -479,8 +479,8 @@ onMounted(async () => {
 }
 
 .theme-card {
-  background: var(--h-chat);
-  border: 2px solid var(--h-chat-light);
+  background: var(--background-secondary);
+  border: 2px solid var(--background-quaternary);
   border-radius: 8px;
   padding: 16px;
   cursor: pointer;
@@ -517,7 +517,7 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--h-chat-light);
+  background: var(--background-quaternary);
   border-radius: 6px;
 }
 
@@ -554,7 +554,7 @@ onMounted(async () => {
 .loading-spinner {
   width: 16px;
   height: 16px;
-  border: 2px solid var(--h-chat-light);
+  border: 2px solid var(--background-quaternary);
   border-top: 2px solid var(--h-brand);
   border-radius: 50%;
   animation: spin 1s linear infinite;
@@ -585,7 +585,7 @@ onMounted(async () => {
 
 .test-theme-btn {
   background: transparent;
-  border: 1px solid var(--h-chat-light);
+  border: 1px solid var(--background-quaternary);
   border-radius: 4px;
   padding: 6px;
   color: var(--text-secondary);
@@ -615,7 +615,7 @@ onMounted(async () => {
 
 .sound-test-btn {
   background: transparent;
-  border: 1px solid var(--h-chat-light);
+  border: 1px solid var(--background-quaternary);
   border-radius: 6px;
   padding: 12px 8px;
   color: var(--text-secondary);
@@ -658,7 +658,7 @@ onMounted(async () => {
   gap: 8px;
   padding: 10px 16px;
   background: transparent;
-  border: 1px solid var(--h-chat-light);
+  border: 1px solid var(--background-quaternary);
   border-radius: 6px;
   color: var(--text-secondary);
   font-size: 13px;
@@ -680,8 +680,8 @@ onMounted(async () => {
 
 /* Advanced Settings */
 .advanced-section {
-  border: 1px dashed var(--h-chat-light);
-  background: color-mix(in srgb, var(--h-chat-light) 30%, transparent);
+  border: 1px dashed var(--background-quaternary);
+  background: color-mix(in srgb, var(--background-quaternary) 30%, transparent);
 }
 
 .setting-item {
@@ -690,7 +690,7 @@ onMounted(async () => {
   justify-content: space-between;
   gap: 16px;
   padding: 16px 0;
-  border-bottom: 1px solid var(--h-chat-light);
+  border-bottom: 1px solid var(--background-quaternary);
 }
 
 .setting-item:last-child {
@@ -743,7 +743,7 @@ onMounted(async () => {
 
 .toggle-btn {
   background: transparent;
-  border: 1px solid var(--h-chat-light);
+  border: 1px solid var(--background-quaternary);
   border-radius: 6px;
   padding: 8px 16px;
   color: var(--text-secondary);
@@ -777,7 +777,7 @@ onMounted(async () => {
   gap: 8px;
   padding: 10px 18px;
   background: transparent;
-  border: 1px solid var(--h-chat-light);
+  border: 1px solid var(--background-quaternary);
   border-radius: 6px;
   color: var(--text-secondary);
   font-size: 13px;

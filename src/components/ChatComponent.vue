@@ -4,13 +4,6 @@
       @dragover.prevent="handleDragOver"
       @dragleave.prevent="handleDragLeave"
       @drop.prevent="triggerFileDrop">
-    <div v-if="showDragDropArea" 
-      class="drag-drop-area"
-      @dragleave.prevent="handleDragLeave">
-      <div v-if="uploading" class="upload-status">{{ t('chat.uploading') }}</div>
-      <div v-else>{{ t('chat.dropFilesHere') }}</div>
-    </div>
-
     <MessageDisplay 
       ref="messageDisplayRef"
       :messages="messages" 
@@ -128,6 +121,17 @@
       @close="showKickBanModal = false"
       @done="handleKickBanDone"
     />
+
+    <!-- File-drop overlay. Rendered LAST inside the positioned .chat-container
+         and as an absolute layer so it always paints above the (virtualized,
+         transform-using) message list. pointer-events:none lets the drop event
+         still reach .chat-container. -->
+    <div v-if="showDragDropArea" class="drag-drop-area">
+      <div class="drag-drop-inner">
+        <div v-if="uploading" class="upload-status">{{ t('chat.uploading') }}</div>
+        <div v-else>{{ t('chat.dropFilesHere') }}</div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -1163,27 +1167,35 @@
     opacity: 1;
   } */
   .drag-drop-area {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    z-index: 50;
+    position: absolute;
+    inset: 0;
+    z-index: 1030;
     display: flex;
-    border: 2px dashed #ccc;
-    padding: 20px;
-    text-align: center;
-    background: rgba(0, 0, 0, 0.8);
     align-items: center;
     justify-content: center;
-    transition: 0.2s ease-in-out;
-    font-size: 48px;
+    padding: 16px;
+    background: rgba(0, 0, 0, 0.78);
+    backdrop-filter: blur(2px);
+    pointer-events: none;
+    transition: opacity 0.15s ease-in-out;
+  }
 
-    .upload-status {
-      color: rgb(18, 143, 18);
-    } 
+  .drag-drop-inner {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    border: 3px dashed rgba(255, 255, 255, 0.5);
+    border-radius: 12px;
+    font-size: 40px;
     font-weight: bold;
-    color: var(--text-primary);
+    text-align: center;
+    color: #ffffff;
+  }
+
+  .drag-drop-area .upload-status {
+    color: rgb(74, 222, 128);
   }
   .encryption-status-bar {
     display: flex;

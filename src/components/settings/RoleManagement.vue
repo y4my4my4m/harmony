@@ -122,29 +122,11 @@
 
             <div class="form-group">
               <label>Role Color</label>
-              <div class="color-picker-row">
-                <input
-                  v-model="editForm.color"
-                  type="color"
-                  class="color-input"
-                />
-                <input
-                  v-model="editForm.color"
-                  type="text"
-                  class="color-text"
-                  placeholder="#99AAB5"
-                />
-              </div>
-              <div class="color-presets">
-                <button
-                  v-for="color in colorPresets"
-                  :key="color"
-                  type="button"
-                  class="color-preset"
-                  :style="{ background: color }"
-                  @click="editForm.color = color"
-                />
-              </div>
+              <ColorPicker
+                :color="editForm.color || '#99AAB5'"
+                @update:color="editForm.color = $event"
+                @change="editForm.color = $event"
+              />
             </div>
 
             <div class="form-group toggle-row">
@@ -342,6 +324,7 @@ import { supabase } from '@/supabase'
 import { roleService } from '@/services/RoleService'
 import ToggleSwitch from '@/components/common/ToggleSwitch.vue'
 import Avatar from '@/components/common/Avatar.vue'
+import ColorPicker from '@/components/common/ColorPicker.vue'
 import type { ServerRole } from '@/services/RoleService'
 
 interface Props {

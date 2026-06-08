@@ -1161,7 +1161,7 @@ const removeServerFromFolder = async () => {
 .dm-button {
   width: 48px;
   height: 48px;
-  background-color: var(--h-black-darker);
+  background-color: var(--background-secondary);
   color: var(--text-light);
   padding: 4px;
   border-radius: 12px;
@@ -1203,7 +1203,7 @@ const removeServerFromFolder = async () => {
 .monyverse-button {
   width: 48px;
   height: 48px;
-  background-color: var(--h-black-darker);
+  background-color: var(--background-secondary);
   padding: 4px;
   border-radius: 12px;
   cursor: pointer;
@@ -1316,7 +1316,7 @@ const removeServerFromFolder = async () => {
 .server-item {
   width: 48px;
   height: 48px;
-  background-color: var(--h-black-light);
+  background-color: var(--background-secondary);
   margin: 0;
   border-radius: 50%;
   cursor: pointer;
@@ -1333,7 +1333,7 @@ const removeServerFromFolder = async () => {
   height: 48px;
   /* background: linear-gradient(135deg, var(--harmony-primary), var(--harmony-primary-hover)); */
   /* background: transparent; */
-  background-color: var(--h-black-darker);
+  background-color: var(--background-secondary);
   margin: 10px 10px 5px 10px;
   transition: background 0.2s ease-in-out;
   padding: 4px;
@@ -1373,7 +1373,7 @@ const removeServerFromFolder = async () => {
   transform: translateY(-50%);
   width: 4px;
   height: 0;
-  background: #ffffff;
+  background: var(--text-primary, #ffffff);
   border-radius: 0 4px 4px 0;
   opacity: 0;
   transition: all 0.15s ease;
@@ -1501,8 +1501,8 @@ const removeServerFromFolder = async () => {
 /* Context menu */
 .context-menu {
   position: fixed;
-  background: #18191c;
-  border: 1px solid var(--h-black-lighter);
+  background: var(--background-floating, #18191c);
+  border: 1px solid var(--border-color);
   border-radius: 6px;
   padding: 6px 0;
   min-width: 180px;
@@ -1523,12 +1523,12 @@ const removeServerFromFolder = async () => {
 
 .context-menu-item:hover {
   background-color: var(--harmony-primary, #0EA5E9);
-  color: var(--text-primary);
+  color: var(--text-on-primary, #ffffff);
 }
 
 .context-menu-divider {
   height: 1px;
-  background: var(--border-color, var(--h-black-lighter));
+  background: var(--border-color);
   margin: 4px 8px;
 }
 

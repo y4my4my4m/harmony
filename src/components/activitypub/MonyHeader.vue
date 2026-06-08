@@ -187,7 +187,7 @@ const getIconPath = (iconName: string): string => {
   align-items: center;
   justify-content: space-between;
   padding: 8px 16px;
-  background: var(--background-primary);
+  background: var(--background-tertiary);
   border-bottom: 1px solid var(--border-color);
   height: 48px;
   min-height: 48px;
@@ -382,7 +382,7 @@ const getIconPath = (iconName: string): string => {
   /* background: var(--harmony-primary-alpha, rgba(14, 165, 233, 0.1)); */
 }
 .sidebar-btn:hover {
-  color: var(--text-light);
+  color: var(--harmony-primary, #0EA5E9);
 }
 
 /* Mobile styles */

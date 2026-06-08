@@ -183,8 +183,8 @@ watch(
 
 .modal-content {
   position: relative;
-  background: var(--h-chat, #2b2d31);
-  border: 1px solid var(--h-chat-light, #3f4147);
+  background: var(--background-secondary, #2b2d31);
+  border: 1px solid var(--background-quaternary, #3f4147);
   border-radius: 14px;
   padding: 24px;
   max-width: 520px;
@@ -319,7 +319,7 @@ watch(
   align-items: center;
   gap: 8px;
   background: rgba(255, 255, 255, 0.05);
-  border: 1px solid var(--h-chat-light, #3f4147);
+  border: 1px solid var(--background-quaternary, #3f4147);
   border-radius: 8px;
   padding: 4px 4px 4px 12px;
   width: fit-content;
@@ -361,7 +361,7 @@ watch(
 .menu-mock {
   margin-top: 4px;
   background: #1e1f22;
-  border: 1px solid var(--h-chat-light, #3f4147);
+  border: 1px solid var(--background-quaternary, #3f4147);
   border-radius: 8px;
   overflow: hidden;
   width: fit-content;
@@ -375,7 +375,7 @@ watch(
   gap: 8px;
   padding: 8px 12px;
   background: rgba(255, 255, 255, 0.04);
-  border-bottom: 1px solid var(--h-chat-light, #3f4147);
+  border-bottom: 1px solid var(--background-quaternary, #3f4147);
   font-size: 12px;
   font-weight: 600;
   color: var(--text-secondary, #b9bbbe);
@@ -456,7 +456,7 @@ watch(
 }
 
 .btn-secondary:hover {
-  background: var(--h-chat-light, #3f4147);
+  background: var(--background-quaternary, #3f4147);
   color: var(--text-primary, #fff);
 }
 

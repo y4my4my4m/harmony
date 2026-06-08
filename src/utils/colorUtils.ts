@@ -306,7 +306,8 @@ export function generateThemePalette(
   backgroundHex?: string,
   lightnessOffset: number = 0,
   primaryHex?: string,
-  chromaOffset: number = 0
+  chromaOffset: number = 0,
+  sidebarHex?: string
 ): ThemePalette {
   const isLight = forcedMode === 'light' || (forcedMode === undefined && isLightColor(accentHex))
   const baseOklch = hexToOklch(accentHex)
@@ -327,6 +328,22 @@ export function generateThemePalette(
     }
   }
 
+  // Optional separate hue for the structural "sidebar" surfaces (secondary /
+  // tertiary tiers). Falls back to the main background hue when not provided,
+  // preserving the original single-colour behaviour.
+  let sidebarHue = bgHue
+  let sidebarHasOwnHue = false
+  if (sidebarHex) {
+    const sbOklch = hexToOklch(sidebarHex)
+    if (sbOklch) {
+      sidebarHue = sbOklch.h
+      sidebarHasOwnHue = true
+    }
+  }
+  // Give a user-chosen sidebar colour a touch more tint so it's perceptible
+  // against the main surface even at low chroma.
+  const sidebarChromaBoost = sidebarHasOwnHue ? 2.2 : 1
+
   if (isLight) {
     // Light theme - use background hue for subtle tinting
     // Lightness offset: -50 to +50, negative = darker, positive = lighter
@@ -338,9 +355,9 @@ export function generateThemePalette(
     // Scale: at 0 = 98, at -50 = 68, at +50 = 100 (capped)
     const baseLightness = 98 + (lightnessOffset * 0.6)
     const bgPrimaryOklch = { l: Math.min(100, Math.max(60, baseLightness)), c: bgTintChroma, h: bgHue }
-    const bgSecondaryOklch = { l: Math.min(100, Math.max(58, baseLightness - 2)), c: bgTintChroma, h: bgHue }
-    const bgTertiaryOklch = { l: Math.min(100, Math.max(56, baseLightness - 4)), c: bgTintChroma, h: bgHue }
-    const sidebarOklch = { l: Math.min(100, Math.max(55, baseLightness - 4)), c: bgTintChroma * 1.5, h: bgHue }
+    const bgSecondaryOklch = { l: Math.min(100, Math.max(58, baseLightness - 2)), c: bgTintChroma * sidebarChromaBoost, h: sidebarHue }
+    const bgTertiaryOklch = { l: Math.min(100, Math.max(56, baseLightness - 4)), c: bgTintChroma * sidebarChromaBoost, h: sidebarHue }
+    const sidebarOklch = { l: Math.min(100, Math.max(55, baseLightness - 4)), c: bgTintChroma * 1.5 * sidebarChromaBoost, h: sidebarHue }
     
     // Generate oklch-based border colors using background hue
     const borderLightness = Math.max(30, baseLightness - 40)
@@ -380,20 +397,24 @@ export function generateThemePalette(
     const baseChroma = 0.015
     const bgTintChroma = Math.max(0, Math.min(0.12, baseChroma + (chromaOffset * 0.003)))
     
-    // Base lightness levels for dark mode
-    // Scale: at 0 = ~20, at -50 = ~5 (very dark), at +50 = ~45 (lighter dark)
-    const chatBaseLightness = 19.5 + (lightnessOffset * 0.5)
-    const sidebarBaseLightness = 17 + (lightnessOffset * 0.5)
-    const systemBaseLightness = 12 + (lightnessOffset * 0.45)
+    // Base lightness levels for dark mode.
+    // `systemBaseLightness` drives the main content + sidebars + settings
+    // surfaces (the --background-* tiers). It was previously 12, which rendered
+    // a default custom theme noticeably darker than the built-in Dark preset
+    // (~17). Realigned so "custom, untouched" matches the polished Dark look.
+    const chatBaseLightness = 21 + (lightnessOffset * 0.5)
+    const sidebarBaseLightness = 18.5 + (lightnessOffset * 0.5)
+    const systemBaseLightness = 17 + (lightnessOffset * 0.45)
     
     // Chat/content areas (lighter, more visible)
     const bgChatOklch = { l: Math.max(3, Math.min(50, chatBaseLightness)), c: bgTintChroma, h: bgHue }
-    const sidebarOklch = { l: Math.max(2, Math.min(45, sidebarBaseLightness)), c: bgTintChroma * 1.5, h: bgHue }
+    const sidebarOklch = { l: Math.max(2, Math.min(45, sidebarBaseLightness)), c: bgTintChroma * 1.5 * sidebarChromaBoost, h: sidebarHue }
     
-    // System backgrounds (darker, for structure)
+    // System backgrounds (darker, for structure). Secondary/tertiary tiers back
+    // the sidebars, so they follow the optional sidebar hue.
     const systemBgPrimaryOklch = { l: Math.max(2, Math.min(40, systemBaseLightness)), c: bgTintChroma, h: bgHue }
-    const systemBgSecondaryOklch = { l: Math.max(1, Math.min(38, systemBaseLightness - 1.5)), c: bgTintChroma, h: bgHue }
-    const systemBgTertiaryOklch = { l: Math.max(1, Math.min(35, systemBaseLightness - 3.5)), c: bgTintChroma, h: bgHue }
+    const systemBgSecondaryOklch = { l: Math.max(1, Math.min(38, systemBaseLightness - 1.5)), c: bgTintChroma * sidebarChromaBoost, h: sidebarHue }
+    const systemBgTertiaryOklch = { l: Math.max(1, Math.min(35, systemBaseLightness - 3.5)), c: bgTintChroma * sidebarChromaBoost, h: sidebarHue }
     
     // Generate oklch-based border colors using background hue for dark theme
     const borderLightness = Math.min(60, chatBaseLightness + 25)
@@ -515,40 +536,10 @@ export function applyThemePalette(palette: ThemePalette): void {
   }
   
   // Convert background colors to OKLCH for proper hue/chroma application
-  const bgChatOklch = hexToOklch(palette.bgChat)
-  const bgSidebarOklch = hexToOklch(palette.bgSidebar)
   const bgPrimaryOklch = hexToOklch(palette.bgPrimary)
   const bgSecondaryOklch = hexToOklch(palette.bgSecondary)
   const bgTertiaryOklch = hexToOklch(palette.bgTertiary)
-  
-  if (bgChatOklch) {
-    // Chat backgrounds - use OKLCH so custom hue applies
-    root.style.setProperty('--h-chat', oklchToString(bgChatOklch.l, bgChatOklch.c, bgChatOklch.h))
-    root.style.setProperty('--h-chat-light', oklchToString(bgChatOklch.l + 3, bgChatOklch.c, bgChatOklch.h))
-    root.style.setProperty('--h-chat-lighter', oklchToString(bgChatOklch.l + 5, bgChatOklch.c, bgChatOklch.h))
-    root.style.setProperty('--h-chat-dark', oklchToString(bgChatOklch.l - 8, bgChatOklch.c, bgChatOklch.h))
-    root.style.setProperty('--h-chat-darker', oklchToString(bgChatOklch.l - 12, bgChatOklch.c, bgChatOklch.h))
-    // Alpha variants
-    root.style.setProperty('--h-chat-alpha', oklchToStringAlpha(bgChatOklch.l, bgChatOklch.c, bgChatOklch.h, 0.67))
-    root.style.setProperty('--h-chat-alpha-light', oklchToStringAlpha(bgChatOklch.l, bgChatOklch.c, bgChatOklch.h, 0.5))
-  }
-  
-  if (bgSidebarOklch) {
-    root.style.setProperty('--h-sidebar', oklchToString(bgSidebarOklch.l, bgSidebarOklch.c, bgSidebarOklch.h))
-    root.style.setProperty('--h-sidebar-light', oklchToString(bgSidebarOklch.l + 4, bgSidebarOklch.c, bgSidebarOklch.h))
-    // Alpha variants
-    root.style.setProperty('--h-sidebar-alpha', oklchToStringAlpha(bgSidebarOklch.l, bgSidebarOklch.c, bgSidebarOklch.h, 0.67))
-  }
-  
-  if (bgTertiaryOklch) {
-    root.style.setProperty('--h-black', oklchToString(bgTertiaryOklch.l + 6, bgTertiaryOklch.c, bgTertiaryOklch.h))
-    root.style.setProperty('--h-black-light', oklchToString(bgTertiaryOklch.l + 11, bgTertiaryOklch.c, bgTertiaryOklch.h))
-    root.style.setProperty('--h-black-lighter', oklchToString(bgTertiaryOklch.l + 14, bgTertiaryOklch.c, bgTertiaryOklch.h))
-    root.style.setProperty('--h-black-darker', oklchToString(bgTertiaryOklch.l - 2, bgTertiaryOklch.c, bgTertiaryOklch.h))
-    // Alpha variants
-    root.style.setProperty('--h-black-alpha', oklchToStringAlpha(bgTertiaryOklch.l + 6, bgTertiaryOklch.c, bgTertiaryOklch.h, 0.67))
-  }
-  
+
   // System background colors - use OKLCH for custom hue
   if (bgPrimaryOklch) {
     root.style.setProperty('--background-primary', oklchToString(bgPrimaryOklch.l, bgPrimaryOklch.c, bgPrimaryOklch.h))

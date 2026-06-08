@@ -351,7 +351,7 @@ export default defineComponent({
   margin: 4px 0;
   background-color: var(--background-tertiary);
   border-radius: 8px;
-  border: 1px solid var(--h-black-lighter);
+  border: 1px solid var(--background-quinary);
   overflow: hidden;
   font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', 'source-code-pro', monospace;
 }
@@ -380,7 +380,7 @@ export default defineComponent({
   /* gap: 4px; */
   padding: 4px 8px;
   margin-right: 180px;
-  background-color: var(--h-black-lighter);
+  background-color: var(--background-quinary);
   border: 1px solid #0EA5E9;
   border-radius: 4px;
   color: #0EA5E9;

@@ -139,14 +139,18 @@
             <button class="color-reset-btn" @click="resetColor">{{ $t('common.reset') }}</button>
           </div>
           
-          <ColorPicker
+          <div
             v-show="showColorPicker"
             v-click-outside="closeColorPicker"
             ref="colorPickerRef"
-            theme="light"
-            :color="`#${localProfile.color}`"
-            @changeColor="onColorPickerChange"
-          />
+            class="color-picker-popover"
+          >
+            <ColorPicker
+              :color="normalizedProfileColor"
+              @update:color="onColorPickerChange"
+              @change="onColorPickerChange"
+            />
+          </div>
         </div>
         <div class="form-hint">
           This color will be used for your name and profile accents.
@@ -363,8 +367,7 @@ import { format } from 'date-fns'
 import { getBannerUrl } from '@/utils/bannerUtils'
 
 // Components
-import { ColorPicker } from 'vue-color-kit'
-import 'vue-color-kit/dist/vue-color-kit.css'
+import ColorPicker from '@/components/common/ColorPicker.vue'
 import Avatar from '@/components/common/Avatar.vue'
 import Icon from '@/components/common/Icon.vue'
 import AutoSuggest from '@/components/AutoSuggest.vue'
@@ -471,7 +474,7 @@ function removeProfileField(index: number) {
 }
 
 // Refs
-const colorPickerRef = ref<InstanceType<typeof ColorPicker>>()
+const colorPickerRef = ref<HTMLElement | null>(null)
 const colorPreviewRef = ref<HTMLElement | null>(null)
 const bannerInput = ref<HTMLInputElement>()
 const displayNameInput = ref<HTMLInputElement | null>(null)
@@ -629,8 +632,13 @@ const onColorChange = () => {
   }
 }
 
-const onColorPickerChange = (colorObject: { hex: string }) => {
-  localProfile.value.color = colorObject.hex
+const normalizedProfileColor = computed(() => {
+  const color = localProfile.value.color || '#0EA5E9'
+  return color.startsWith('#') ? color : `#${color}`
+})
+
+const onColorPickerChange = (hex: string) => {
+  localProfile.value.color = hex
 }
 
 const toggleColorPicker = () => {
@@ -832,16 +840,16 @@ onMounted(async () => {
 .settings-section {
   margin-bottom: 32px;
   padding: 24px;
-  background-color: var(--h-chat);
+  background-color: var(--background-secondary);
   border-radius: 8px;
-  border: 1px solid var(--h-chat-light);
+  border: 1px solid var(--background-quaternary);
 }
 
 .profile-preview {
   position: relative;
   border-radius: 8px;
   overflow: hidden;
-  background-color: var(--h-chat-darker);
+  background-color: var(--background-senary);
 }
 
 .profile-banner {
@@ -950,8 +958,8 @@ onMounted(async () => {
 .form-textarea {
   width: 100%;
   padding: 12px;
-  background-color: var(--h-chat-darker);
-  border: 1px solid var(--h-chat-light);
+  background-color: var(--background-senary);
+  border: 1px solid var(--background-quaternary);
   border-radius: 4px;
   color: var(--text-primary);
   font-size: 14px;
@@ -968,7 +976,7 @@ onMounted(async () => {
 .form-input[readonly] {
   opacity: 0.6;
   cursor: not-allowed;
-  background-color: var(--h-chat-dark);
+  background-color: var(--background-tertiary);
 }
 
 .form-textarea {
@@ -997,7 +1005,7 @@ onMounted(async () => {
   height: 40px;
   border-radius: 50%;
   cursor: pointer;
-  border: 2px solid var(--h-chat-light);
+  border: 2px solid var(--background-quaternary);
   transition: all 0.15s ease;
 }
 
@@ -1012,8 +1020,8 @@ onMounted(async () => {
 
 .color-reset-btn {
   padding: 8px 16px;
-  background-color: var(--h-chat-darker);
-  border: 1px solid var(--h-chat-light);
+  background-color: var(--background-senary);
+  border: 1px solid var(--background-quaternary);
   border-radius: 4px;
   color: var(--text-secondary);
   cursor: pointer;
@@ -1022,50 +1030,26 @@ onMounted(async () => {
 }
 
 .color-reset-btn:hover {
-  background-color: var(--h-chat-light);
+  background-color: var(--background-quaternary);
   color: var(--text-primary);
 }
 
-/* Professional Color Picker Styling */
-:deep(.hu-color-picker) {
-  position: absolute !important;
-  top: 100% !important;
-  left: 0 !important;
-  z-index: 1000 !important;
-  margin-top: 8px !important;
-  backdrop-filter: blur(8px);
-  background-color: transparent!important;
-  border: 1px solid var(--h-chat-light) !important;
-  border-radius: 8px !important;
-  padding: 16px !important;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4) !important;
-  width: 280px !important;
+/* Color picker popover (wraps the shared ColorPicker component) */
+.color-picker-container {
+  position: relative;
 }
 
-:deep(.hu-color-picker .color-set) {
-  background-color: var(--background-secondary-alpha) !important;
-  border: 1px solid var(--border-color) !important;
-}
-
-:deep(.hu-color-picker .color-show) {
-  border: 1px solid var(--border-color) !important;
-}
-
-:deep(.hu-color-picker .sucker) {
-  background-color: var(--background-secondary-alpha) !important;
-  border: 1px solid var(--border-color) !important;
-}
-
-:deep(.hu-color-picker .color-type .name) {
-  background-color: var(--background-secondary-alpha) !important;
-  border: 1px solid var(--border-color) !important;
-  color: var(--text-primary) !important;
-}
-
-:deep(.hu-color-picker .color-type .value) {
-  background-color: var(--background-secondary-alpha) !important;
-  border: 1px solid var(--border-color) !important;
-  color: var(--text-primary) !important;
+.color-picker-popover {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 1000;
+  margin-top: 8px;
+  background-color: var(--background-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 16px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
 }
 
 .section-title {
@@ -1080,7 +1064,7 @@ onMounted(async () => {
   justify-content: space-between;
   align-items: center;
   padding: 12px 0;
-  border-bottom: 1px solid var(--h-chat-light);
+  border-bottom: 1px solid var(--background-quaternary);
 }
 
 .info-row:last-child {
@@ -1150,7 +1134,7 @@ onMounted(async () => {
 }
 
 .btn-secondary:hover:not(:disabled) {
-  background-color: var(--h-chat-light);
+  background-color: var(--background-quaternary);
   color: var(--text-primary);
 }
 

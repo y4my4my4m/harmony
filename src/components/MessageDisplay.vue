@@ -572,7 +572,7 @@ import LoadingSpinner from '@/components/common/LoadingSpinner.vue';
 import { computed, ref, watch, nextTick, onMounted, onUnmounted } from 'vue';
 import { debug } from '@/utils/debug'
 import type { PropType, Ref, ComputedRef } from 'vue';
-import type { Message, MessagePart, User, Emoji, Reaction } from '@/types';
+import type { Message, MessagePart, User, Emoji, Reaction, FileContent } from '@/types';
 import { useServerUsersStore } from '@/stores/useServerUsers';
 import { useChatStore } from '@/stores/useChat';
 import { useDMStore } from '@/stores/useDM';
@@ -2650,7 +2650,9 @@ const canDeleteMessage = (message: Message) => {
     const startEdit = (message: Message) => {
     if (!canEditMessage(message)) return;
     editableMessageId.value = message.id;
-    editableMessageContent.value = messagePartsToMarkdown(message.content);
+    // Exclude file parts from the editable text - attachments are shown and
+    // managed as a separate, individually-removable media list in edit mode.
+    editableMessageContent.value = messagePartsToMarkdown(message.content, { excludeFiles: true });
     hoveredMessageId.value = null;
     nextTick(() => {
       const editInput = document.querySelector(`#edit-input-${message.id}`) as HTMLTextAreaElement;
@@ -2662,10 +2664,13 @@ const canDeleteMessage = (message: Message) => {
     });
   };
 
-const saveEdit = async (messageId: string, newContent?: string) => {
+const saveEdit = async (messageId: string, newContent?: string, retainedFiles: FileContent[] = []) => {
   if (!editableMessageId.value) return;
   const textContent = newContent ?? editableMessageContent.value;
-  if (!textContent.trim()) {
+  // Allow saving a message that has no text as long as at least one attachment
+  // remains. Only cancel (delete-via-empty is handled elsewhere) when nothing
+  // would be left at all.
+  if (!textContent.trim() && retainedFiles.length === 0) {
     cancelEdit();
     return;
   }
@@ -2674,11 +2679,13 @@ const saveEdit = async (messageId: string, newContent?: string) => {
     const emojiDataMap = await resolveEmojisData(textContent);
     const roleDataMap = await resolveRoleMentionsData(textContent, serverChannelStore.currentServerId || undefined);
     const parsedContent = await parseContentToMessageParts(textContent, userDataMap, emojiDataMap, {}, roleDataMap);
-    
+    // Re-append the attachments the user kept, so editing text never drops media.
+    const finalContent = [...parsedContent, ...retainedFiles];
+
     if (props.channelId) {
-      await chatStore.editMessage(messageId, parsedContent);
+      await chatStore.editMessage(messageId, finalContent);
     } else if (props.conversationId) {
-      await dmStore.editMessage(messageId, parsedContent);
+      await dmStore.editMessage(messageId, finalContent);
     }
     cancelEdit();
   } catch (error) {
@@ -3641,7 +3648,7 @@ defineExpose({ editLastOwnMessage });
 .gap-line {
   flex: 1;
   height: 1px;
-  background-color: var(--h-black-lighter);
+  background-color: var(--background-quinary);
 }
 
 .gap-text {
@@ -3665,7 +3672,7 @@ defineExpose({ editLastOwnMessage });
 .date-separator-line {
   flex: 1;
   height: 1px;
-  /* background-color: var(--h-black-lighter); */
+  /* background-color: var(--background-quinary); */
   background-color: var(--border-color);
 }
 
@@ -3839,7 +3846,7 @@ defineExpose({ editLastOwnMessage });
   gap: 8px;
   padding: 4px 0 8px 0;
   margin-bottom: 8px;
-  border-bottom: 1px solid color-mix(in srgb, var(--h-black-lighter) 30%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--background-quinary) 30%, transparent);
 }
 .tooltip-emoji {
   width: 48px;

@@ -1,5 +1,11 @@
+// Editable fields must always defer to the browser's native menu so users can
+// paste, select-all, look up, etc. (right-click on desktop, long-press on
+// mobile/PWA) — even when nothing is currently selected (e.g. empty input).
+const EDITABLE_FIELD_SELECTOR =
+  'input:not([readonly]):not([type="button"]):not([type="submit"]):not([type="checkbox"]):not([type="radio"]), textarea:not([readonly]), [contenteditable="true"], [contenteditable=""]';
+
 const SELECTABLE_CONTENT_SELECTOR =
-  'input, textarea, [contenteditable], .message-content, .content-display, .post-text, .post-body, .selectable';
+  '.message-content, .content-display, .post-text, .post-body, .selectable';
 
 const NATIVE_MEDIA_SELECTOR = 'a, img, video, audio, [data-no-context-menu]';
 
@@ -26,6 +32,12 @@ function selectionContainsNode(node: Node): boolean {
 export function shouldAllowNativeContextMenu(event: Event): boolean {
   const target = event.target;
   if (!(target instanceof Node)) return hasActiveTextSelection();
+
+  // Editable fields: always allow the native menu (paste, select all, etc.),
+  // regardless of whether text is currently selected.
+  if (target instanceof HTMLElement && target.closest(EDITABLE_FIELD_SELECTOR)) {
+    return true;
+  }
 
   if (target instanceof HTMLElement && target.closest(NATIVE_MEDIA_SELECTOR)) {
     return true;
