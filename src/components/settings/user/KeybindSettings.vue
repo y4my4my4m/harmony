@@ -386,9 +386,9 @@ onUnmounted(() => {
 .settings-section {
   margin-bottom: 32px;
   padding: 24px;
-  background-color: var(--h-chat);
+  background-color: var(--background-secondary);
   border-radius: 8px;
-  border: 1px solid var(--h-chat-light);
+  border: 1px solid var(--background-quaternary);
 }
 
 .section-header {
@@ -417,7 +417,7 @@ onUnmounted(() => {
   gap: 6px;
   padding: 6px 12px;
   background-color: transparent;
-  border: 1px solid var(--h-chat-light);
+  border: 1px solid var(--background-quaternary);
   border-radius: 4px;
   color: var(--text-secondary);
   font-size: 12px;
@@ -442,7 +442,7 @@ onUnmounted(() => {
   align-items: flex-start;
   margin-bottom: 20px;
   padding-bottom: 20px;
-  border-bottom: 1px solid var(--h-chat-light);
+  border-bottom: 1px solid var(--background-quaternary);
 }
 
 .keybind-item:last-child {
@@ -479,8 +479,8 @@ onUnmounted(() => {
 
 .keybind-button {
   padding: 6px 16px;
-  background-color: var(--h-chat-darker);
-  border: 1px solid var(--h-chat-light);
+  background-color: var(--background-senary);
+  border: 1px solid var(--background-quaternary);
   border-radius: 4px;
   color: var(--text-primary);
   font-size: 12px;

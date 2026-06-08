@@ -365,9 +365,9 @@ onMounted(() => {
   display: inline-flex;
   gap: 4px;
   padding: 4px;
-  background: var(--h-chat, var(--background-secondary, #2b2d31));
+  background: var(--background-secondary, var(--background-secondary, #2b2d31));
   border-radius: 999px;
-  border: 1px solid var(--h-chat-light, var(--border-color, #3f4147));
+  border: 1px solid var(--background-quaternary, var(--border-color, #3f4147));
 }
 
 .filter-tab {
@@ -430,11 +430,11 @@ onMounted(() => {
 .btn-secondary {
   background: transparent;
   color: var(--text-secondary);
-  border-color: var(--h-chat-light, var(--border-color, #3f4147));
+  border-color: var(--background-quaternary, var(--border-color, #3f4147));
 }
 
 .btn-secondary:hover:not(:disabled) {
-  background: var(--h-chat-light, rgba(255, 255, 255, 0.05));
+  background: var(--background-quaternary, rgba(255, 255, 255, 0.05));
   color: var(--text-primary);
 }
 
@@ -463,8 +463,8 @@ onMounted(() => {
   justify-content: center;
   gap: 12px;
   padding: 48px 24px;
-  background: var(--h-chat, var(--background-secondary, #2b2d31));
-  border: 1px solid var(--h-chat-light, var(--border-color, #3f4147));
+  background: var(--background-secondary, var(--background-secondary, #2b2d31));
+  border: 1px solid var(--background-quaternary, var(--border-color, #3f4147));
   border-radius: 12px;
   color: var(--text-secondary);
   font-size: 14px;
@@ -487,8 +487,8 @@ onMounted(() => {
 }
 
 .announcement-card {
-  background: var(--h-chat, var(--background-secondary, #2b2d31));
-  border: 1px solid var(--h-chat-light, var(--border-color, #3f4147));
+  background: var(--background-secondary, var(--background-secondary, #2b2d31));
+  border: 1px solid var(--background-quaternary, var(--border-color, #3f4147));
   border-radius: 10px;
   padding: 16px 18px;
   transition: border-color 0.15s ease, opacity 0.15s ease;

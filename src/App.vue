@@ -43,6 +43,9 @@
     :force-refresh="shouldForceRefreshPublicServers"
     @close="handleClosePublicServers"
   />
+
+  <!-- Floating live theme editor (Discord-style side panel over the app) -->
+  <ThemeCustomizerPanel v-if="!isAuthRoute" />
 </template>
 
 <script setup lang="ts">
@@ -62,6 +65,7 @@ import PushNotificationPrompt from '@/components/PushNotificationPrompt.vue'
 import RunOnLoginPrompt from '@/components/RunOnLoginPrompt.vue'
 import PublicServers from '@/components/PublicServers.vue'
 import AnnouncementPopup from '@/components/announcements/AnnouncementPopup.vue'
+import ThemeCustomizerPanel from '@/components/settings/user/ThemeCustomizerPanel.vue'
 import { onMounted } from 'vue'
 import { hapticManager } from '@/utils/hapticFeedback'
 import { initializeAppSettings } from '@/services/AppInitService'

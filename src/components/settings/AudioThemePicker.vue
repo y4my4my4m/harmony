@@ -94,7 +94,7 @@ const {
 
 <style scoped>
 .audio-theme-picker {
-  background: var(--h-chat-darker);
+  background: var(--background-senary);
   border-radius: 8px;
   padding: 16px;
 }
@@ -114,7 +114,7 @@ const {
 
 .test-button {
   background: transparent;
-  border: 1px solid var(--h-chat-light);
+  border: 1px solid var(--background-quaternary);
   border-radius: 4px;
   padding: 4px 6px;
   color: var(--text-secondary);
@@ -146,8 +146,8 @@ const {
   align-items: center;
   gap: 12px;
   padding: 12px;
-  background: var(--h-chat);
-  border: 1px solid var(--h-chat-light);
+  background: var(--background-secondary);
+  border: 1px solid var(--background-quaternary);
   border-radius: 6px;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -175,7 +175,7 @@ const {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--h-chat-light);
+  background: var(--background-quaternary);
   border-radius: 4px;
   flex-shrink: 0;
 }
@@ -230,7 +230,7 @@ const {
 .volume-section {
   margin-top: 16px;
   padding-top: 12px;
-  border-top: 1px solid var(--h-chat-light);
+  border-top: 1px solid var(--background-quaternary);
 }
 
 .volume-control {
@@ -250,7 +250,7 @@ const {
   flex: 1;
   height: 4px;
   border-radius: 2px;
-  background: var(--h-chat-light);
+  background: var(--background-quaternary);
   outline: none;
   cursor: pointer;
 }

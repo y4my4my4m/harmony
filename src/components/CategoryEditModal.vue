@@ -185,7 +185,7 @@ watch(() => props.show, (isVisible) => {
 }
 
 .modal-close:hover {
-  background: var(--h-black-lighter);
+  background: var(--background-quinary);
   color: var(--text-secondary);
 }
 
@@ -213,8 +213,8 @@ watch(() => props.show, (isVisible) => {
 
 .form-input {
   width: 100%;
-  background: var(--h-black-lighter);
-  border: 1px solid var(--h-black-lighter);
+  background: var(--background-quinary);
+  border: 1px solid var(--background-quinary);
   border-radius: 4px;
   padding: 12px;
   color: var(--text-secondary);
@@ -266,7 +266,7 @@ watch(() => props.show, (isVisible) => {
 }
 
 .btn-secondary:hover:not(:disabled) {
-  background: var(--h-black-lighter);
+  background: var(--background-quinary);
   color: var(--text-secondary);
 }
 

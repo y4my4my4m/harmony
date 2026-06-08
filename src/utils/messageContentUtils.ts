@@ -66,9 +66,17 @@ export function assertMessageTextWithinLimit(
 }
 
 /**
- * Convert MessagePart[] to markdown text for rendering with MarkdownContent
+ * Convert MessagePart[] to markdown text for rendering with MarkdownContent.
+ *
+ * When `options.excludeFiles` is true, `file` parts are omitted entirely
+ * (rather than rendered as a `[image: attachment]` placeholder). This is used
+ * by the message editor, which shows attachments as a separate, individually
+ * removable media list instead of inline placeholder text.
  */
-export function messagePartsToMarkdown(parts: MessagePart[]): string {
+export function messagePartsToMarkdown(
+  parts: MessagePart[],
+  options: { excludeFiles?: boolean } = {},
+): string {
   if (!Array.isArray(parts)) {
     return '';
   }
@@ -100,12 +108,23 @@ export function messagePartsToMarkdown(parts: MessagePart[]): string {
         return part.url || '';
 
       case 'file':
-        return `[${part.fileType || 'file'}: attachment]`;
+        return options.excludeFiles ? '' : `[${part.fileType || 'file'}: attachment]`;
       
       default:
         return '';
     }
   }).join('');
+}
+
+/**
+ * Extract the `file` (attachment) parts from a message's content array.
+ */
+export function extractFileParts(parts: MessagePart[]): import('@/types').FileContent[] {
+  if (!Array.isArray(parts)) return [];
+  return parts.filter(
+    (p): p is import('@/types').FileContent =>
+      !!p && typeof p === 'object' && p.type === 'file',
+  );
 }
 
 /**

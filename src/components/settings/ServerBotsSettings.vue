@@ -461,9 +461,9 @@ onMounted(() => {
 }
 
 .settings-card {
-  background-color: var(--h-chat);
+  background-color: var(--background-secondary);
   border-radius: 8px;
-  border: 1px solid var(--h-chat-light);
+  border: 1px solid var(--background-quaternary);
   padding: 20px;
   margin-bottom: 16px;
 }
@@ -484,8 +484,8 @@ onMounted(() => {
 
 .search-input {
   padding: 8px 12px;
-  background-color: var(--h-chat-dark);
-  border: 1px solid var(--h-chat-light);
+  background-color: var(--background-tertiary);
+  border: 1px solid var(--background-quaternary);
   border-radius: 4px;
   color: var(--text-primary);
   font-size: 14px;
@@ -520,8 +520,8 @@ onMounted(() => {
   flex-direction: column;
   gap: 12px;
   padding: 16px;
-  background-color: var(--h-chat-dark);
-  border: 1px solid var(--h-chat-light);
+  background-color: var(--background-tertiary);
+  border: 1px solid var(--background-quaternary);
   border-radius: 8px;
   transition: all 0.2s;
 }
@@ -584,8 +584,8 @@ onMounted(() => {
   align-items: center;
   gap: 16px;
   padding: 16px;
-  background-color: var(--h-chat-dark);
-  border: 1px solid var(--h-chat-light);
+  background-color: var(--background-tertiary);
+  border: 1px solid var(--background-quaternary);
   border-radius: 8px;
 }
 
@@ -597,7 +597,7 @@ onMounted(() => {
   position: absolute;
   bottom: 0;
   right: 0;
-  border: 2px solid var(--h-chat);
+  border: 2px solid var(--background-secondary);
 }
 
 .install-date {
@@ -637,11 +637,11 @@ onMounted(() => {
 .btn-secondary {
   background-color: transparent;
   color: var(--text-secondary);
-  border: 1px solid var(--h-chat-light);
+  border: 1px solid var(--background-quaternary);
 }
 
 .btn-secondary:hover:not(:disabled) {
-  background-color: var(--h-chat-light);
+  background-color: var(--background-quaternary);
 }
 
 .btn-secondary:disabled {

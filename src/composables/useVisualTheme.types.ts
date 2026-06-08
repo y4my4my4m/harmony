@@ -11,6 +11,14 @@ export interface VisualThemeSettings {
   customPrimaryColor?: string
   customAccentColor?: string
   customBackgroundColor?: string
+  /**
+   * Optional second background hue applied to the structural "sidebar" surfaces
+   * (server rail, channel sidebar, member list - the secondary/tertiary tiers).
+   * When unset, those surfaces are derived from `customBackgroundColor` like
+   * before (single-colour mode). When set, only their hue/tint changes; tier
+   * lightness relationships are preserved so elevation/contrast stays intact.
+   */
+  customSidebarColor?: string
   customBackgroundLightness?: number // -50 to +50
   customBackgroundChroma?: number // -30 to +30
   customCssOverrides?: Record<string, string>

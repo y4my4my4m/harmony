@@ -377,10 +377,10 @@ const updateServerDescription = (event: Event) => {
 }
 
 .settings-card {
-  background-color: var(--h-chat);
+  background-color: var(--background-secondary);
   border-radius: 8px;
   padding: 24px;
-  border: 1px solid var(--h-chat-light);
+  border: 1px solid var(--background-quaternary);
 }
 
 /* Permission Notice */
@@ -440,8 +440,8 @@ const updateServerDescription = (event: Event) => {
 .form-textarea {
   width: 100%;
   padding: 12px;
-  background-color: var(--h-chat-darker);
-  border: 1px solid var(--h-chat-light);
+  background-color: var(--background-senary);
+  border: 1px solid var(--background-quaternary);
   border-radius: 4px;
   color: var(--text-primary);
   font-size: 14px;
@@ -460,12 +460,12 @@ const updateServerDescription = (event: Event) => {
 .form-textarea.read-only {
   opacity: 0.7;
   cursor: default;
-  background-color: var(--h-chat-darker);
+  background-color: var(--background-senary);
 }
 
 .form-input.read-only:focus,
 .form-textarea.read-only:focus {
-  border-color: var(--h-chat-light);
+  border-color: var(--background-quaternary);
 }
 
 .form-textarea {
@@ -495,7 +495,7 @@ const updateServerDescription = (event: Event) => {
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
-  background-color: var(--h-chat-darker);
+  background-color: var(--background-senary);
   border-radius: 16px;
   font-size: 14px;
   font-weight: 500;
@@ -522,15 +522,15 @@ const updateServerDescription = (event: Event) => {
   height: 80px;
   border-radius: 50%;
   object-fit: cover;
-  border: 2px solid var(--h-chat-light);
+  border: 2px solid var(--background-quaternary);
 }
 
 .no-icon-placeholder {
   width: 80px;
   height: 80px;
   border-radius: 50%;
-  background-color: var(--h-chat-darker);
-  border: 2px solid var(--h-chat-light);
+  background-color: var(--background-senary);
+  border: 2px solid var(--background-quaternary);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -565,13 +565,13 @@ const updateServerDescription = (event: Event) => {
 }
 
 .btn-secondary {
-  background-color: var(--h-chat-darker);
+  background-color: var(--background-senary);
   color: var(--text-primary);
-  border: 1px solid var(--h-chat-light);
+  border: 1px solid var(--background-quaternary);
 }
 
 .btn-secondary:hover:not(:disabled) {
-  background-color: var(--h-chat-light);
+  background-color: var(--background-quaternary);
 }
 
 .btn-danger-outline {
@@ -606,7 +606,7 @@ const updateServerDescription = (event: Event) => {
   cursor: pointer;
   position: relative;
   overflow: hidden;
-  border: 2px dashed var(--h-chat-light);
+  border: 2px dashed var(--background-quaternary);
   transition: border-color 0.2s;
 }
 

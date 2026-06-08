@@ -166,7 +166,7 @@ const expandThread = () => {
 .nested-reply-composer {
   margin-top: 1rem;
   margin-left: 1rem;
-  background: var(--h-chat, #313338);
+  background: var(--background-secondary, #313338);
   border-radius: 8px;
   padding: 0.75rem;
   border-left: 3px solid var(--h-brand, #0EA5E9);

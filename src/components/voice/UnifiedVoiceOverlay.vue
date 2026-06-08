@@ -79,8 +79,7 @@
               }"
               :title="spatialStore.settings.enabled ? 'Spatial Audio: ON' : 'Spatial Audio: OFF'"
             >
-              <Icon name="map" />
-              <span v-if="spatialStore.settings.enabled" class="spatial-badge">3D</span>
+              <Icon name="audio-lines" />
             </button>
             <button 
               @click="toggleSettings"
@@ -906,28 +905,6 @@ const connectionStats = computed(() => voiceStore.connectionStats);
   background: linear-gradient(145deg, #00e5b8, #00c9a0);
 }
 
-.spatial-badge {
-  position: absolute;
-  top: -4px;
-  right: -4px;
-  background: #00d4aa;
-  color: #000;
-  font-size: 8px;
-  font-weight: 800;
-  padding: 2px 4px;
-  border-radius: 4px;
-  line-height: 1;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
-  animation: pulse-badge 2s infinite;
-}
-
-@keyframes pulse-badge {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.05); }
-}
-
 .close-btn:hover {
   background: #ed4245;
   color: var(--text-primary);
@@ -1447,12 +1424,6 @@ const connectionStats = computed(() => voiceStore.connectionStats);
     width: 40px;
     height: 40px;
     font-size: 16px;
-  }
-  
-  /* Hide spatial badge text on tablet */
-  .spatial-badge {
-    font-size: 7px;
-    padding: 1px 3px;
   }
   
   .participants-container {

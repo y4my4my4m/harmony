@@ -815,7 +815,7 @@ watch(
 
 .connection-bars span {
   width: 3px;
-  background: var(--h-black-lighter);
+  background: var(--background-quinary);
   border-radius: 1px;
   transition: all 0.3s ease;
 }
@@ -896,7 +896,7 @@ watch(
   width: 82px;
   height: 82px;
   border-radius: 50%;
-  background: linear-gradient(145deg, var(--h-black-lighter), var(--background-tertiary));
+  background: linear-gradient(145deg, var(--background-quinary), var(--background-tertiary));
   transition: all 0.3s ease;
   padding: 4px;
   display: flex;

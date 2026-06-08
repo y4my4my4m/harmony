@@ -1208,11 +1208,11 @@ watch(() => notificationStore.preferences, (newPreferences) => {
 }
 
 .settings-section {
-  background-color: var(--h-chat);
+  background-color: var(--background-secondary);
   border-radius: 8px;
   padding: 24px;
   margin-bottom: 32px;
-  border: 1px solid var(--h-chat-light);
+  border: 1px solid var(--background-quaternary);
 }
 
 .section-header {

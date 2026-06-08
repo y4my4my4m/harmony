@@ -247,9 +247,9 @@ onUnmounted(() => {
   height: 100%;
   border-radius: 50%;
   object-fit: cover;
-  background-color: var(--h-chat-light);
+  background-color: var(--background-quaternary);
   transition: all 0.2s ease;
-  /* border: 2px solid var(--h-chat-darker); */
+  /* border: 2px solid var(--background-senary); */
 }
 
 /* .avatar-container.interactive .avatar-image:hover {
@@ -301,7 +301,7 @@ onUnmounted(() => {
   right: 0;
   bottom: 0;
   border-radius: 50%;
-  background-color: var(--h-chat-light);
+  background-color: var(--background-quaternary);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -312,7 +312,7 @@ onUnmounted(() => {
 .avatar-status {
   position: absolute;
   border-radius: 50%;
-  border: 2px solid var(--h-chat);
+  border: 2px solid var(--background-secondary);
   bottom: -2px;
   right: -2px;
   width: 12px;
@@ -344,24 +344,24 @@ onUnmounted(() => {
 }
 
 .avatar-status.status-online {
-  background-color: #43b581;
+  background-color: var(--status-online, #43b581);
 }
 
 .avatar-status.status-away {
-  background-color: #faa81a;
+  background-color: var(--status-away, #faa81a);
 }
 
 .avatar-status.status-busy {
-  background-color: #f04747;
+  background-color: var(--status-busy, #f04747);
 }
 
 .avatar-status.status-offline {
-  background-color: #747f8d;
+  background-color: var(--status-offline, #747f8d);
 }
 
 .avatar-status.status-invisible {
   background-color: transparent;
-  border: 2px solid #747f8d;
+  border: 2px solid var(--status-offline, #747f8d);
   box-sizing: border-box;
 }
 
@@ -384,20 +384,20 @@ onUnmounted(() => {
 }
 
 .avatar-status-mobile.status-online .mobile-icon {
-  color: #43b581;
+  color: var(--status-online, #43b581);
 }
 
 .avatar-status-mobile.status-away .mobile-icon {
-  color: #faa81a;
+  color: var(--status-away, #faa81a);
 }
 
 .avatar-status-mobile.status-busy .mobile-icon {
-  color: #f04747;
+  color: var(--status-busy, #f04747);
 }
 
 .avatar-status-mobile.status-offline .mobile-icon,
 .avatar-status-mobile.status-invisible .mobile-icon {
-  color: #747f8d;
+  color: var(--status-offline, #747f8d);
 }
 
 /* Edit button */

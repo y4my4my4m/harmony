@@ -71,7 +71,7 @@
 }
 
 :root[data-skin="sdr-001"] body {
-  background-color: #1c1c28;
+  background-color: var(--background-primary);
   background-image: radial-gradient(ellipse at center, transparent 80%, rgba(0, 0, 0, 0.18) 100%);
   background-attachment: fixed;
 }
@@ -170,7 +170,7 @@
 /* 2.7 Selection / scrollbar / cursor. */
 :root[data-skin="sdr-001"] ::selection {
   background: var(--skin-accent-55);
-  color: #fff;
+  color: var(--text-primary);
   text-shadow: none;
 }
 :root[data-skin="sdr-001"] ::-webkit-scrollbar { width: 8px; height: 8px; }
@@ -244,6 +244,16 @@
   box-shadow: 0 0 0 1px var(--skin-accent-45);
 }
 
+/* 2.9b User avatars — rounded square, not circular. Targets `.avatar-image`
+   from Avatar.vue and the same class name on a few inline img wrappers.
+   Server-rail tiles stay at 2px (section 2.11); status dots stay circular. */
+:root[data-skin="sdr-001"] .avatar-image {
+  border-radius: 10%;
+}
+:root[data-skin="sdr-001"] .avatar-container .avatar-loading {
+  border-radius: 10%;
+}
+
 /* 2.10 Chat input - red border on the OUTER bar (.message-container).
    Bug fix: the previous skin put the border on `.rich-text-editor` (the
    inner contenteditable, only as wide as the typing area) AND referenced
@@ -270,11 +280,12 @@
 :root[data-skin="sdr-001"] .servers-sidebar,
 :root[data-skin="sdr-001"] .server-sidebar,
 :root[data-skin="sdr-001"] .ServerSidebar {
-  background: linear-gradient(to bottom, #0c0c12, #08080d);
+  background: linear-gradient(to bottom, var(--background-tertiary), var(--background-senary));
   border-right: 1px solid var(--skin-accent-22);
 }
 
 :root[data-skin="sdr-001"] .portal,
+:root[data-skin="sdr-001"] .portal-icon,
 :root[data-skin="sdr-001"] .portal-img,
 :root[data-skin="sdr-001"] .dm-button,
 :root[data-skin="sdr-001"] .dm-button.selected,
@@ -284,7 +295,6 @@
 :root[data-skin="sdr-001"] .server-item img,
 :root[data-skin="sdr-001"] .servers-list .server-item img,
 :root[data-skin="sdr-001"] .server-item .avatar,
-:root[data-skin="sdr-001"] .server-item .avatar-image,
 :root[data-skin="sdr-001"] .server-icon {
   border-radius: 2px;
 }
@@ -297,12 +307,12 @@
 /* 2.12 Channel sidebar + chat header chrome. */
 :root[data-skin="sdr-001"] .channel-sidebar,
 :root[data-skin="sdr-001"] .ChannelSidebar {
-  background: linear-gradient(180deg, #14141c, #0e0e16);
+  background: linear-gradient(180deg, var(--background-secondary), var(--background-tertiary));
   border-right: 1px solid var(--skin-accent-22);
 }
 :root[data-skin="sdr-001"] .chat-header,
 :root[data-skin="sdr-001"] .ChatHeader {
-  background: linear-gradient(180deg, #14141c, #0e0e16);
+  background: linear-gradient(180deg, var(--background-secondary), var(--background-tertiary));
   border-bottom: 1px solid var(--skin-accent-35);
 }
 
@@ -372,11 +382,9 @@
    background, top-border, and avatar / name / status typography. */
 :root[data-skin="sdr-001"] .user-profile {
   border-top: 1px solid var(--skin-accent-70);
-  background: linear-gradient(180deg, #0c0c12 0%, #04040a 100%);
+  background: linear-gradient(180deg, var(--background-tertiary) 0%, var(--background-senary) 100%);
 }
-:root[data-skin="sdr-001"] .user-profile .avatar-wrapper,
-:root[data-skin="sdr-001"] .user-profile .avatar {
-  border-radius: 2px;
+:root[data-skin="sdr-001"] .user-profile .avatar-image {
   border: 2px solid var(--skin-accent-70);
   box-shadow:
     0 0 0 1px #000,
@@ -387,7 +395,7 @@
   text-transform: uppercase;
   letter-spacing: 0.1em;
   font-weight: 700;
-  color: #fff;
+  color: var(--text-primary);
   text-shadow: 0 0 6px var(--skin-accent-45);
   font-size: 13px;
   line-height: 1.1;
@@ -457,7 +465,7 @@
 
 /* Voice participant cards. */
 :root[data-skin="sdr-001"] .harmony-voice-card {
-  background: linear-gradient(180deg, #0c0c14, #06060a);
+  background: linear-gradient(180deg, var(--background-senary), var(--background-senary));
   border: 1px solid var(--skin-accent-50);
   border-radius: 2px;
   box-shadow:
@@ -542,7 +550,7 @@
   font-family: 'NoRe Sans Pixel Pro', monospace;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: #fff;
+  color: var(--text-primary);
   box-shadow: 0 0 12px var(--skin-accent-35);
 }
 :root[data-skin="sdr-001"] .voice-overlay .leave-button:hover,
@@ -557,7 +565,7 @@
 :root[data-skin="sdr-001"] .unified-voice-dock .dock-container {
   border-radius: 2px;
   border: 1px solid var(--skin-accent-55);
-  background: linear-gradient(180deg, #0c0c14 0%, #06060a 100%);
+  background: linear-gradient(180deg, var(--background-senary) 0%, var(--background-senary) 100%);
   box-shadow:
     inset 0 1px 0 var(--skin-accent-35),
     inset 0 0 32px var(--skin-accent-06),
@@ -571,13 +579,13 @@
   font-family: 'NoRe Sans Pixel Pro', monospace;
   text-transform: uppercase;
   letter-spacing: 0.14em;
-  color: #fff;
+  color: var(--text-primary);
 }
 
 /* 2.17 Settings sidebar. */
 :root[data-skin="sdr-001"] .settings-sidebar,
 :root[data-skin="sdr-001"] .settings-nav {
-  background: linear-gradient(180deg, #14141c, #0e0e16);
+  background: linear-gradient(180deg, var(--background-secondary), var(--background-tertiary));
   border-right: 1px solid var(--skin-accent-22);
 }
 
@@ -598,14 +606,14 @@
 :root[data-skin="sdr-001"] .member-list-item .member-name::before,
 :root[data-skin="sdr-001"] .user-list-item .user-name::before {
   content: '● ';
-  color: rgba(46, 204, 113, 0.85);
+  color: var(--status-online);
   margin-right: 4px;
   font-family: 'NoRe Sans Pixel Pro', monospace;
 }
 :root[data-skin="sdr-001"] .member-list-item.offline .member-name::before,
 :root[data-skin="sdr-001"] .user-list-item.offline .user-name::before {
   content: '○ ';
-  color: rgba(180, 180, 180, 0.5);
+  color: color-mix(in srgb, var(--status-offline) 50%, transparent);
 }
 :root[data-skin="sdr-001"] .member-section-header,
 :root[data-skin="sdr-001"] .user-list-section-header,
@@ -627,7 +635,7 @@
 :root[data-skin="sdr-001"] .notification-badge,
 :root[data-skin="sdr-001"] .unread-count {
   background: var(--skin-accent);
-  color: #fff;
+  color: var(--text-on-primary, var(--text-primary));
   border-radius: 0;
   font-family: 'NoRe Sans Pixel Pro', monospace;
   letter-spacing: 0.06em;
@@ -639,7 +647,7 @@
 }
 :root[data-skin="sdr-001"] [role="tooltip"],
 :root[data-skin="sdr-001"] .tooltip {
-  background: #06060a;
+  background: var(--tooltip-bg, var(--background-senary));
   border: 1px solid var(--skin-accent-55);
   font-family: 'NoRe Sans Pixel Pro', monospace;
   letter-spacing: 0.05em;
@@ -649,9 +657,9 @@
 :root[data-skin="sdr-001"] pre,
 :root[data-skin="sdr-001"] code,
 :root[data-skin="sdr-001"] .code-block {
-  background: #04040a;
+  background: var(--background-senary);
   border: 1px solid var(--skin-accent-35);
-  color: #2bff7a;
+  color: var(--success);
 }
 :root[data-skin="sdr-001"] pre *,
 :root[data-skin="sdr-001"] code *,
@@ -692,14 +700,14 @@
 :root[data-skin="sdr-001"] .mini-control-btn:hover {
   background: var(--skin-accent-12);
   border-color: var(--skin-accent-45);
-  color: #fff;
+  color: var(--text-primary);
 }
 
 /* Profile-card follow CTA - keep readable on compact user grids */
 :root[data-skin="sdr-001"] .profile-card .action-btn.follow-btn {
-  background: var(--harmony-primary, var(--skin-accent, #0ea5e9));
-  border-color: var(--harmony-primary, var(--skin-accent, #0ea5e9));
-  color: #fff;
+  background: var(--harmony-primary, var(--skin-accent));
+  border-color: var(--harmony-primary, var(--skin-accent));
+  color: var(--text-on-primary, var(--text-primary));
 }
 :root[data-skin="sdr-001"] .profile-card .action-btn.follow-btn.following {
   background: var(--background-secondary, rgba(255, 255, 255, 0.06));
@@ -719,7 +727,7 @@
   background: var(--skin-accent-32);
   background-image: none;
   border-color: var(--skin-accent-70);
-  color: #fff;
+  color: var(--text-primary);
 }
 
 /* ============================================================================

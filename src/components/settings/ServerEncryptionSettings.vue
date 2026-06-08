@@ -500,9 +500,9 @@ onMounted(() => {
 }
 
 .settings-card {
-  background-color: var(--h-chat);
+  background-color: var(--background-secondary);
   border-radius: 8px;
-  border: 1px solid var(--h-chat-light);
+  border: 1px solid var(--background-quaternary);
   padding: 20px;
   margin-bottom: 16px;
 }

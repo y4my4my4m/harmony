@@ -722,9 +722,9 @@ onUnmounted(() => {
 .settings-section {
   margin-bottom: 32px;
   padding: 24px;
-  background-color: var(--h-chat);
+  background-color: var(--background-secondary);
   border-radius: 8px;
-  border: 1px solid var(--h-chat-light);
+  border: 1px solid var(--background-quaternary);
 }
 
 .section-title {

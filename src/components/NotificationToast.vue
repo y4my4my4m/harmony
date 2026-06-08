@@ -186,8 +186,8 @@ const getTypeIcon = (type: NotificationType) => {
   display: flex;
   align-items: flex-start;
   gap: 12px;
-  background: var(--h-chat);
-  border: 1px solid var(--h-chat-light);
+  background: var(--background-secondary);
+  border: 1px solid var(--background-quaternary);
   border-radius: 8px;
   padding: 16px;
   min-width: 300px;
@@ -341,7 +341,7 @@ const getTypeIcon = (type: NotificationType) => {
 .toast-action-btn.secondary {
   background: transparent;
   color: var(--text-secondary);
-  border: 1px solid var(--h-chat-light);
+  border: 1px solid var(--background-quaternary);
 }
 
 .toast-action-btn.secondary:hover {

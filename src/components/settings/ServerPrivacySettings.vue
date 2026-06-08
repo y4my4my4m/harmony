@@ -410,10 +410,10 @@ const setDiscoveryMode = (mode: 'invite-only' | 'public-directory') => {
 }
 
 .settings-card {
-  background-color: var(--h-chat);
+  background-color: var(--background-secondary);
   border-radius: 8px;
   padding: 24px;
-  border: 1px solid var(--h-chat-light);
+  border: 1px solid var(--background-quaternary);
 }
 
 .form-group {
@@ -514,7 +514,7 @@ input:checked + .toggle-slider:before {
 }
 
 .info-card {
-  background-color: var(--h-chat-darker);
+  background-color: var(--background-senary);
   border-radius: 6px;
   padding: 16px;
   border-left: 4px solid #57f287;
@@ -672,7 +672,7 @@ input:checked + .toggle-slider:before {
 }
 
 .warning-card {
-  background-color: var(--h-chat-darker);
+  background-color: var(--background-senary);
   border-radius: 6px;
   padding: 16px;
   border-left: 4px solid #faa61a;
@@ -731,15 +731,15 @@ input:checked + .toggle-slider:before {
   align-items: center;
   gap: 16px;
   padding: 16px;
-  background-color: var(--h-chat-darker);
+  background-color: var(--background-senary);
   border-radius: 6px;
-  border: 1px solid var(--h-chat-light);
+  border: 1px solid var(--background-quaternary);
   cursor: pointer;
   transition: all 0.15s ease;
 }
 
 .discovery-option:hover {
-  background-color: var(--h-chat-light);
+  background-color: var(--background-quaternary);
 }
 
 .option-content {

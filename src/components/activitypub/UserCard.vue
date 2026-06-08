@@ -306,7 +306,7 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .user-card {
-  background: var(--h-sidebar, #2b2d31);
+  background: var(--background-tertiary, #2b2d31);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 12px;
   padding: 1rem;
@@ -488,7 +488,7 @@ onBeforeUnmount(() => {
   top: 100%;
   right: 0;
   width: 180px;
-  background: var(--h-sidebar, #2b2d31);
+  background: var(--background-tertiary, #2b2d31);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 8px;
   padding: 0.5rem;
@@ -502,7 +502,7 @@ onBeforeUnmount(() => {
   top: 100%;
   right: 0;
   width: 180px;
-  background: var(--h-sidebar, #2b2d31);
+  background: var(--background-tertiary, #2b2d31);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 8px;
   padding: 0.5rem;

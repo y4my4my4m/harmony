@@ -1258,7 +1258,7 @@ const closeInviteModal = () => {
 }
 
 .offline-user {
-  opacity: 0.3;
+  opacity: 0.55;
   transition: opacity 0.2s ease;
 }
 
@@ -1346,19 +1346,19 @@ const closeInviteModal = () => {
 }
 
 .status-indicator.online {
-  background-color: #3ba55c;
+  background-color: var(--status-online, #3ba55c);
 }
 
 .status-indicator.away {
-  background-color: #faa61a;
+  background-color: var(--status-away, #faa61a);
 }
 
 .status-indicator.busy {
-  background-color: #ed4245;
+  background-color: var(--status-busy, #ed4245);
 }
 
 .status-indicator.offline {
-  background-color: #747f8d;
+  background-color: var(--status-offline, #747f8d);
 }
 
 .group-title {
@@ -1390,11 +1390,11 @@ const closeInviteModal = () => {
 }
 
 .user-item:hover {
-  background-color: rgba(255, 255, 255, 0.04);
+  background-color: var(--background-modifier-hover, rgba(255, 255, 255, 0.04));
 }
 
 .user-item:active {
-  background-color: rgba(255, 255, 255, 0.02);
+  background-color: var(--background-modifier-active, rgba(255, 255, 255, 0.02));
 }
 
 .user-avatar {

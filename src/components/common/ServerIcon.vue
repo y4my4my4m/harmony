@@ -307,7 +307,7 @@ const handleFileSelect = async (event: Event) => {
   right: 0;
   bottom: 0;
   border-radius: 50%;
-  background-color: var(--h-chat-light);
+  background-color: var(--background-quaternary);
   display: flex;
   align-items: center;
   justify-content: center;

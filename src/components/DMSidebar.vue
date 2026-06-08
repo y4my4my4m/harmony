@@ -536,7 +536,7 @@ onUnmounted(() => {
 
 .dm-header {
   padding: 16px;
-  border-bottom: 1px solid var(--h-chat-light, var(--h-black-lighter));
+  border-bottom: 1px solid var(--background-quaternary, var(--background-quinary));
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -571,7 +571,7 @@ onUnmounted(() => {
 .new-dm-btn:hover,
 .group-chat-btn:hover {
   color: var(--text-primary);
-  background: var(--h-chat-light, var(--h-black-lighter));
+  background: var(--background-quaternary, var(--background-quinary));
 }
 
 .icon {
@@ -581,7 +581,7 @@ onUnmounted(() => {
 
 .user-search-section {
   padding: 16px;
-  border-bottom: 1px solid var(--h-chat-light, var(--h-black-lighter));
+  border-bottom: 1px solid var(--background-quaternary, var(--background-quinary));
 }
 
 .search-input-container {
@@ -593,8 +593,8 @@ onUnmounted(() => {
 .search-input {
   width: 100%;
   padding: 8px 32px 8px 12px;
-  background: var(--h-chat, var(--background-secondary));
-  border: 1px solid var(--h-chat-light, var(--h-black-lighter));
+  background: var(--background-secondary, var(--background-secondary));
+  border: 1px solid var(--background-quaternary, var(--background-quinary));
   border-radius: 4px;
   color: var(--text-primary);
   font-size: 14px;
@@ -653,7 +653,7 @@ onUnmounted(() => {
 }
 
 .search-result-item:hover {
-  background: var(--h-chat-light, var(--h-black-lighter));
+  background: var(--background-quaternary, var(--background-quinary));
 }
 
 .conversations-section {
@@ -727,7 +727,7 @@ onUnmounted(() => {
 }
 
 .conversation-item:hover {
-  background: var(--h-chat-light, var(--h-black-lighter));
+  background: var(--background-quaternary, var(--background-quinary));
 }
 
 /* Dismiss button - hidden until the row is hovered (or always shown on touch). */
@@ -777,7 +777,7 @@ onUnmounted(() => {
 }
 
 .conversation-item.unread:hover {
-  background: var(--h-chat-light, var(--h-black-lighter));
+  background: var(--background-quaternary, var(--background-quinary));
 }
 
 .conversation-item.muted {
@@ -944,7 +944,7 @@ onUnmounted(() => {
     width: 100%;
     /* max-width: 360px;
     min-width: 320px;
-    background: linear-gradient(135deg, var(--h-sidebar, #2b2d31) 0%, #252830 100%); */
+    background: linear-gradient(135deg, var(--background-tertiary, #2b2d31) 0%, #252830 100%); */
   }
 
   /* Enhanced mobile touch targets */

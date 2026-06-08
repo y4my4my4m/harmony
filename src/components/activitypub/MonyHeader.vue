@@ -382,7 +382,7 @@ const getIconPath = (iconName: string): string => {
   /* background: var(--harmony-primary-alpha, rgba(14, 165, 233, 0.1)); */
 }
 .sidebar-btn:hover {
-  color: var(--text-light);
+  color: var(--harmony-primary, #0EA5E9);
 }
 
 /* Mobile styles */

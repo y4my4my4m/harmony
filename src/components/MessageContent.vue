@@ -278,9 +278,9 @@ export default defineComponent({
   min-height: 40px;
   max-height: 200px;
   padding: 8px 12px;
-  border: 1px solid var(--h-black-lighter);
+  border: 1px solid var(--background-quinary);
   border-radius: 8px;
-  background-color: var(--h-black-lighter);
+  background-color: var(--background-quinary);
   color: var(--text-secondary);
   font-family: inherit;
   font-size: 14px;

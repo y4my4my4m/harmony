@@ -479,7 +479,7 @@ watch(hasChanges, (newValue) => {
   display: flex;
   flex-direction: column;
   height: 100vh;
-  background-color: var(--h-chat-dark);
+  background-color: var(--background-tertiary);
   color: var(--text-primary);
 }
 
@@ -487,8 +487,8 @@ watch(hasChanges, (newValue) => {
 .mobile-nav {
   display: none;
   height: 60px;
-  background-color: var(--h-chat);
-  border-bottom: 1px solid var(--h-chat-light);
+  background-color: var(--background-secondary);
+  border-bottom: 1px solid var(--background-quaternary);
   padding: 0 16px;
   align-items: center;
   justify-content: space-between;
@@ -505,7 +505,7 @@ watch(hasChanges, (newValue) => {
 }
 
 .mobile-menu-btn:hover {
-  background-color: var(--h-chat-light);
+  background-color: var(--background-quaternary);
 }
 
 .hamburger-icon {
@@ -561,7 +561,7 @@ watch(hasChanges, (newValue) => {
 }
 
 .mobile-back-btn:hover {
-  background-color: var(--h-chat-light);
+  background-color: var(--background-quaternary);
   color: var(--text-primary);
 }
 
@@ -571,8 +571,8 @@ watch(hasChanges, (newValue) => {
   align-items: center;
   justify-content: space-between;
   padding: 16px 24px;
-  background-color: var(--h-chat);
-  border-bottom: 1px solid var(--h-chat-light);
+  background-color: var(--background-secondary);
+  border-bottom: 1px solid var(--background-quaternary);
   box-shadow: 0 1px 0 rgba(0, 0, 0, 0.2);
 }
 
@@ -591,7 +591,7 @@ watch(hasChanges, (newValue) => {
 }
 
 .back-button:hover {
-  background-color: var(--h-chat-light);
+  background-color: var(--background-quaternary);
   color: var(--text-primary);
 }
 
@@ -642,7 +642,7 @@ watch(hasChanges, (newValue) => {
 }
 
 .btn-secondary:hover:not(:disabled) {
-  background-color: var(--h-chat-light);
+  background-color: var(--background-quaternary);
   color: var(--text-primary);
 }
 
@@ -671,8 +671,8 @@ watch(hasChanges, (newValue) => {
 
 .server-settings-sidebar {
   width: 240px;
-  background-color: var(--h-chat);
-  border-right: 1px solid var(--h-chat-light);
+  background-color: var(--background-secondary);
+  border-right: 1px solid var(--background-quaternary);
   padding: 24px 0;
   transition: transform 0.3s ease;
 }
@@ -699,12 +699,12 @@ watch(hasChanges, (newValue) => {
 }
 
 .nav-item:hover {
-  background-color: var(--h-chat-light);
+  background-color: var(--background-quaternary);
   color: var(--text-primary);
 }
 
 .nav-item.active {
-  background-color: var(--h-chat-light);
+  background-color: var(--background-quaternary);
   color: var(--text-primary);
   border-left-color: #0EA5E9;
 }
@@ -724,9 +724,9 @@ watch(hasChanges, (newValue) => {
 .mobile-save-actions {
   margin-bottom: 24px;
   padding: 16px;
-  background-color: var(--h-chat);
+  background-color: var(--background-secondary);
   border-radius: 8px;
-  border: 1px solid var(--h-chat-light);
+  border: 1px solid var(--background-quaternary);
 }
 
 

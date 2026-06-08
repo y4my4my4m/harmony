@@ -1198,9 +1198,9 @@ onMounted(async () => {
 .settings-section {
   margin-bottom: 32px;
   padding: 24px;
-  background-color: var(--h-chat);
+  background-color: var(--background-secondary);
   border-radius: 8px;
-  border: 1px solid var(--h-chat-light);
+  border: 1px solid var(--background-quaternary);
 }
 
 .section-title {
@@ -1216,7 +1216,7 @@ onMounted(async () => {
   align-items: flex-start;
   margin-bottom: 20px;
   padding-bottom: 20px;
-  border-bottom: 1px solid var(--h-chat-light);
+  border-bottom: 1px solid var(--background-quaternary);
 }
 
 .setting-item:last-child {
@@ -1318,7 +1318,7 @@ onMounted(async () => {
   justify-content: space-between;
   align-items: center;
   padding: 12px;
-  background-color: var(--h-chat-darker);
+  background-color: var(--background-senary);
   border-radius: 4px;
 }
 
@@ -1410,7 +1410,7 @@ onMounted(async () => {
 }
 
 .btn-secondary:hover:not(:disabled) {
-  background-color: var(--h-chat-light);
+  background-color: var(--background-quaternary);
   color: var(--text-primary);
 }
 
@@ -1459,7 +1459,7 @@ onMounted(async () => {
 .subsection {
   margin-bottom: 32px;
   padding-bottom: 32px;
-  border-bottom: 1px solid var(--h-chat-light);
+  border-bottom: 1px solid var(--background-quaternary);
 }
 
 .subsection:last-child {
@@ -1510,8 +1510,8 @@ onMounted(async () => {
   width: 100%;
   padding: 10px 12px;
   padding-right: 40px;
-  background-color: var(--h-chat-darker);
-  border: 1px solid var(--h-chat-light);
+  background-color: var(--background-senary);
+  border: 1px solid var(--background-quaternary);
   border-radius: 4px;
   color: var(--text-primary);
   font-size: 14px;
@@ -1609,9 +1609,9 @@ onMounted(async () => {
 
 .enroll-step {
   padding: 16px;
-  background-color: var(--h-chat-darker);
+  background-color: var(--background-senary);
   border-radius: 6px;
-  border: 1px solid var(--h-chat-light);
+  border: 1px solid var(--background-quaternary);
 }
 
 .step-title {
@@ -1658,7 +1658,7 @@ onMounted(async () => {
   align-items: center;
   gap: 10px;
   padding: 12px;
-  background-color: var(--h-chat);
+  background-color: var(--background-secondary);
   border-radius: 4px;
   margin-bottom: 16px;
 }
@@ -1675,7 +1675,7 @@ onMounted(async () => {
   font-family: 'Courier New', monospace;
   font-size: 13px;
   color: var(--text-primary);
-  background-color: var(--h-chat-darker);
+  background-color: var(--background-senary);
   padding: 6px 10px;
   border-radius: 3px;
   word-break: break-all;
@@ -1714,11 +1714,11 @@ onMounted(async () => {
   font-family: 'Courier New', monospace;
   font-size: 12px;
   color: var(--text-primary);
-  background-color: var(--h-chat);
+  background-color: var(--background-secondary);
   padding: 10px;
   border-radius: 4px;
   text-align: center;
-  border: 1px solid var(--h-chat-light);
+  border: 1px solid var(--background-quaternary);
 }
 
 .step-actions {
@@ -1742,12 +1742,12 @@ onMounted(async () => {
 }
 
 .modal-content {
-  background-color: var(--h-chat);
+  background-color: var(--background-secondary);
   border-radius: 8px;
   padding: 24px;
   max-width: 420px;
   width: 90%;
-  border: 1px solid var(--h-chat-light);
+  border: 1px solid var(--background-quaternary);
 }
 
 .modal-title {

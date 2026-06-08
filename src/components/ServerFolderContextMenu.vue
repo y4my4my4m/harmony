@@ -114,7 +114,7 @@ const markAsRead = () => {
 .context-menu {
   position: fixed;
   background: #18191c;
-  border: 1px solid var(--h-black-lighter);
+  border: 1px solid var(--background-quinary);
   border-radius: 6px;
   padding: 6px 0;
   min-width: 180px;
@@ -149,7 +149,7 @@ const markAsRead = () => {
 
 .context-menu-divider {
   height: 1px;
-  background: var(--border-color, var(--h-black-lighter));
+  background: var(--border-color, var(--background-quinary));
   margin: 4px 8px;
 }
 </style>

@@ -430,25 +430,25 @@ onBeforeUnmount(() => {
 }
 
 .status-online {
-  background-color: #43b581;
+  background-color: var(--status-online, #43b581);
 }
 
 .status-away {
-  background-color: #faa81a;
+  background-color: var(--status-away, #faa81a);
 }
 
 .status-busy {
-  background-color: #f04747;
+  background-color: var(--status-busy, #f04747);
 }
 
 .status-offline {
-  background-color: #747f8d;
+  background-color: var(--status-offline, #747f8d);
 }
 
 .status-invisible {
-  background-color: #747f8d;
+  background-color: var(--status-offline, #747f8d);
   /* Hollow circle to indicate invisible (like Discord) */
-  border: 2px solid #747f8d;
+  border: 2px solid var(--status-offline, #747f8d);
   background: transparent !important;
 }
 
@@ -474,7 +474,7 @@ onBeforeUnmount(() => {
   align-items: center;
   cursor: pointer;
   font-size: 0.8em;
-  color: #b3b3b3;
+  color: var(--text-muted, #b3b3b3);
   padding: 4px 6px;
   border-radius: 3px;
   transition: background 0.2s;
@@ -482,7 +482,7 @@ onBeforeUnmount(() => {
 }
 
 .user-status-container:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--background-modifier-hover, rgba(127, 127, 127, 0.15));
 }
 
 .buttons {
@@ -502,7 +502,7 @@ onBeforeUnmount(() => {
 }
 
 .buttons :deep(.notification-bell:hover) {
-  background-color: rgba(79, 84, 92, 0.4);
+  background-color: var(--background-modifier-hover, rgba(79, 84, 92, 0.4));
   transform: none; /* match other icon buttons - no lift effect */
 }
 
@@ -521,7 +521,7 @@ onBeforeUnmount(() => {
 }
 
 .icon-button:hover {
-  background-color: rgba(79, 84, 92, 0.4);
+  background-color: var(--background-modifier-hover, rgba(79, 84, 92, 0.4));
   color: var(--text-secondary);
 }
 
@@ -545,7 +545,7 @@ onBeforeUnmount(() => {
 }
 
 .icon-button.settings:hover {
-  background-color: rgba(79, 84, 92, 0.6);
+  background-color: var(--background-modifier-hover, rgba(79, 84, 92, 0.6));
 }
 
 .status-dropdown {
@@ -556,11 +556,11 @@ onBeforeUnmount(() => {
   left: 0px;
   width: 220px;
   gap: 4px;
-  background: #18191c;
+  background: var(--background-floating, var(--background-senary, #18191c));
   border-radius: 8px;
   padding: 6px;
   box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4);
-  border: 1px solid #202225;
+  border: 1px solid var(--border-color, #202225);
   z-index: 1000;
   animation: slideUp 0.15s ease-out;
 }
@@ -573,13 +573,13 @@ onBeforeUnmount(() => {
   padding: 8px;
   margin: 4px;
   border-radius: 4px;
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--background-modifier-hover, rgba(127, 127, 127, 0.08));
   cursor: pointer;
   transition: background 0.15s;
 }
 
 .custom-status-preview:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--background-modifier-active, rgba(127, 127, 127, 0.14));
 }
 
 .custom-status-preview .preview-left {
@@ -747,7 +747,7 @@ onBeforeUnmount(() => {
 }
 
 .status-option:hover {
-  background: #4f545c;
+  background: var(--background-modifier-hover, #4f545c);
 }
 
 .status-option.active {

@@ -129,20 +129,6 @@
   --h-primary-light: #38BDF8;
   --h-primary-dark: #0369A1;
 
-  --h-black: #1e1f22;
-  --h-black-light: #313336;
-  --h-black-lighter: #40444b;
-  --h-black-darker: #000000;
-
-  --h-sidebar: #292b2f;
-  --h-sidebar-light: #36393f;
-
-  --h-chat: #313338;
-  --h-chat-light: #383a40;
-  --h-chat-lighter: #313336;
-  --h-chat-dark: #141618;
-  --h-chat-darker: #0c0d0e;
-
   --h-brand: var(--harmony-primary, #0EA5E9);
   --h-channel-sidebar: var(--background-tertiary);
 
@@ -200,6 +186,46 @@
   --text-on-primary: #ffffff;
 }
 
+/* Light text used on dark/accent pills (server icons, badges) – always light */
+:root {
+  --text-light: #f2f3f5;
+}
+
+/* Server-rail nav pills + channel selection (legacy --h-black-darker / --h-sidebar-light).
+   applyPresetTheme / applyThemePalette overwrite per theme; these are dark defaults. */
+:root {
+  --nav-rail-button-bg: #000000;
+  --nav-rail-button-icon: #f2f3f5;
+  --channel-item-hover-bg: #35373c;
+  --channel-item-selected-bg: #35373c;
+}
+
+/* ActivityPub feed canvas/header – dark matches content surface; light recesses */
+:root {
+  --feed-canvas-bg: var(--background-secondary);
+  --feed-header-bg: var(--background-secondary);
+}
+:root[data-theme-type="light"] {
+  --feed-canvas-bg: var(--background-tertiary);
+  --feed-header-bg: var(--background-tertiary);
+}
+
+/* Theme-aware interaction surfaces (hover/active backgrounds, floating menus).
+   Defaults target the dark theme; the light overrides below use dark alphas so
+   hover states stay visible on light surfaces. */
+:root {
+  --background-modifier-hover: rgba(255, 255, 255, 0.06);
+  --background-modifier-active: rgba(255, 255, 255, 0.1);
+  --background-modifier-selected: rgba(255, 255, 255, 0.08);
+  --background-floating: #18191c;
+}
+:root[data-theme-type="light"] {
+  --background-modifier-hover: rgba(0, 0, 0, 0.06);
+  --background-modifier-active: rgba(0, 0, 0, 0.1);
+  --background-modifier-selected: rgba(0, 0, 0, 0.08);
+  --background-floating: #ffffff;
+}
+
 /* === BASE RESET & TYPOGRAPHY === */
 *,
 *::before,
@@ -214,6 +240,20 @@
 
 .selectableText { user-select: text; }
 .draggable { user-select: auto; }
+
+/* Always allow native text selection / editing affordances in editable fields.
+   These need to support right-click paste (desktop) and long-press callout
+   (mobile/PWA), so they must override the global `user-select: none` reset. */
+input,
+textarea,
+select,
+[contenteditable="true"],
+[contenteditable=""],
+.rich-text-editor {
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
+}
 
 .emoji-icon,
 .inline-emoji,
@@ -283,10 +323,6 @@ optgroup {
 }
 
 [data-disable-blur="true"] {
-  --h-chat-alpha: var(--h-chat);
-  --h-chat-alpha-light: var(--h-chat-light);
-  --h-sidebar-alpha: var(--h-sidebar);
-  --h-black-alpha: var(--h-black);
   --background-primary-alpha: var(--background-primary);
   --background-secondary-alpha: var(--background-secondary);
   --background-tertiary-alpha: var(--background-tertiary);

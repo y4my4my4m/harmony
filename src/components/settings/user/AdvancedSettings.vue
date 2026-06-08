@@ -311,9 +311,9 @@ const exportData = () => {
 .settings-section {
   margin-bottom: 32px;
   padding: 24px;
-  background-color: var(--h-chat);
+  background-color: var(--background-secondary);
   border-radius: 8px;
-  border: 1px solid var(--h-chat-light);
+  border: 1px solid var(--background-quaternary);
 }
 
 .settings-section.danger-zone {
@@ -338,7 +338,7 @@ const exportData = () => {
   align-items: flex-start;
   margin-bottom: 20px;
   padding-bottom: 20px;
-  border-bottom: 1px solid var(--h-chat-light);
+  border-bottom: 1px solid var(--background-quaternary);
 }
 
 .setting-item:last-child {
@@ -406,7 +406,7 @@ const exportData = () => {
   margin-top: 16px;
   padding-top: 16px;
   padding-bottom: 0;
-  border-top: 1px solid var(--h-chat-light);
+  border-top: 1px solid var(--background-quaternary);
   border-bottom: none;
 }
 
@@ -431,7 +431,7 @@ const exportData = () => {
 }
 
 .btn-secondary:hover {
-  background-color: var(--h-chat-light);
+  background-color: var(--background-quaternary);
   color: var(--text-primary);
 }
 
@@ -458,12 +458,12 @@ const exportData = () => {
 }
 
 .modal-content {
-  background-color: var(--h-chat);
+  background-color: var(--background-secondary);
   border-radius: 8px;
   padding: 24px;
   max-width: 400px;
   width: 90%;
-  border: 1px solid var(--h-chat-light);
+  border: 1px solid var(--background-quaternary);
 }
 
 .modal-title {

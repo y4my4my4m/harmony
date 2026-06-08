@@ -673,7 +673,7 @@ onUnmounted(() => {
   width: 100vw;
   height: 100vh;
   max-width: none;
-  background-color: var(--h-chat-dark);
+  background-color: var(--background-tertiary);
   border-radius: 0;
   display: flex;
   position: relative;
@@ -685,8 +685,8 @@ onUnmounted(() => {
 .mobile-nav {
   display: none;
   height: 60px;
-  background-color: var(--h-chat);
-  border-bottom: 1px solid var(--h-chat-light);
+  background-color: var(--background-secondary);
+  border-bottom: 1px solid var(--background-quaternary);
   padding: 0 16px;
   align-items: center;
   justify-content: space-between;
@@ -707,7 +707,7 @@ onUnmounted(() => {
 }
 
 .mobile-menu-btn:hover {
-  background-color: var(--h-chat-light);
+  background-color: var(--background-quaternary);
 }
 
 .hamburger-icon {
@@ -763,15 +763,15 @@ onUnmounted(() => {
 }
 
 .mobile-close-btn:hover {
-  background-color: var(--h-chat-light);
+  background-color: var(--background-quaternary);
   color: var(--text-primary);
 }
 
 /* Sidebar */
 .settings-sidebar {
   width: 260px;
-  background-color: var(--h-chat);
-  border-right: 1px solid var(--h-chat-light);
+  background-color: var(--background-secondary);
+  border-right: 1px solid var(--background-quaternary);
   display: flex;
   flex-direction: column;
   transition: transform 0.3s ease;
@@ -829,7 +829,7 @@ onUnmounted(() => {
 }
 
 .nav-item:hover {
-  background-color: var(--h-chat-light);
+  background-color: var(--background-quaternary);
   color: var(--text-primary);
 }
 

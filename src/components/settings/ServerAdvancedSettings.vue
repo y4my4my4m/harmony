@@ -315,10 +315,10 @@ const formatDate = (dateString: string | undefined): string => {
 }
 
 .settings-card {
-  background-color: var(--h-chat);
+  background-color: var(--background-secondary);
   border-radius: 8px;
   padding: 24px;
-  border: 1px solid var(--h-chat-light);
+  border: 1px solid var(--background-quaternary);
 }
 
 .settings-card.danger-zone {
@@ -352,9 +352,9 @@ const formatDate = (dateString: string | undefined): string => {
 
 .stat-item {
   padding: 12px;
-  background-color: var(--h-chat-darker);
+  background-color: var(--background-senary);
   border-radius: 6px;
-  border: 1px solid var(--h-chat-light);
+  border: 1px solid var(--background-quaternary);
 }
 
 .stat-label {
@@ -438,7 +438,7 @@ const formatDate = (dateString: string | undefined): string => {
 }
 
 .btn-secondary:hover:not(:disabled) {
-  background-color: var(--h-chat-light);
+  background-color: var(--background-quaternary);
   color: var(--text-primary);
 }
 
@@ -455,11 +455,11 @@ const formatDate = (dateString: string | undefined): string => {
 }
 
 .modal-content {
-  background: var(--h-chat);
+  background: var(--background-secondary);
   border-radius: 8px;
   width: 100%;
   max-width: 500px;
-  border: 1px solid var(--h-chat-light);
+  border: 1px solid var(--background-quaternary);
   box-shadow: 0 32px 64px rgba(0, 0, 0, 0.5);
 }
 
@@ -468,7 +468,7 @@ const formatDate = (dateString: string | undefined): string => {
   align-items: center;
   justify-content: space-between;
   padding: 16px 20px;
-  border-bottom: 1px solid var(--h-chat-light);
+  border-bottom: 1px solid var(--background-quaternary);
 }
 
 .modal-title {
@@ -489,7 +489,7 @@ const formatDate = (dateString: string | undefined): string => {
 }
 
 .modal-close:hover {
-  background-color: var(--h-chat-light);
+  background-color: var(--background-quaternary);
   color: var(--text-primary);
 }
 
@@ -546,8 +546,8 @@ const formatDate = (dateString: string | undefined): string => {
 .confirmation-input {
   width: 100%;
   padding: 12px;
-  background-color: var(--h-chat-darker);
-  border: 1px solid var(--h-chat-light);
+  background-color: var(--background-senary);
+  border: 1px solid var(--background-quaternary);
   border-radius: 4px;
   color: var(--text-primary);
   font-size: 14px;
@@ -574,7 +574,7 @@ const formatDate = (dateString: string | undefined): string => {
   gap: 12px;
   justify-content: flex-end;
   padding: 16px 20px;
-  border-top: 1px solid var(--h-chat-light);
+  border-top: 1px solid var(--background-quaternary);
 }
 
 .loading-spinner {

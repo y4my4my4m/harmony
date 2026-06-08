@@ -8,7 +8,7 @@
         @mouseenter="showSidebarTooltip($event, 'Harmony Portal')"
         @mouseleave="hideSidebarTooltip"
       >
-      <img src="/img/app_icon_badge.png" alt="Harmony Portal" class="portal-img" width="30px">
+      <span class="portal-icon" role="img" aria-label="Harmony Portal"></span>
       </div>
       <!-- <div
         class="portal"
@@ -1100,7 +1100,7 @@ const removeServerFromFolder = async () => {
 }
 
 .funding-button:hover .funding-icon {
-  color: var(--text-primary);
+  color: var(--text-on-primary, #ffffff);
 }
 
 /* Scrollable servers section */
@@ -1157,12 +1157,34 @@ const removeServerFromFolder = async () => {
   margin: 10px;
 }
 
+/* Portal bear – PNG is white-on-black; mask drops the black box so we can
+   tint the bear shape with theme-aware icon colors. */
+.portal-icon {
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  background-color: var(--nav-rail-button-icon, var(--icon-primary));
+  mask-image: url('/img/app_icon_badge.png');
+  mask-size: contain;
+  mask-repeat: no-repeat;
+  mask-position: center;
+  -webkit-mask-image: url('/img/app_icon_badge.png');
+  -webkit-mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  transition: background-color 0.2s ease;
+}
+
+.portal:hover .portal-icon {
+  background-color: var(--text-on-primary, #ffffff);
+}
+
 /* DM Button */
 .dm-button {
   width: 48px;
   height: 48px;
-  background-color: var(--h-black-darker);
-  color: var(--text-light);
+  background-color: var(--nav-rail-button-bg, var(--background-secondary));
+  color: var(--nav-rail-button-icon, var(--icon-primary));
   padding: 4px;
   border-radius: 12px;
   cursor: pointer;
@@ -1187,7 +1209,7 @@ const removeServerFromFolder = async () => {
 }
 
 .dm-button:hover .dm-icon {
-  color: var(--text-light);
+  color: var(--text-on-primary, #ffffff);
 }
 
 .dm-button.selected {
@@ -1196,14 +1218,14 @@ const removeServerFromFolder = async () => {
 }
 
 .dm-button.selected .dm-icon {
-  color: var(--text-light);
+  color: var(--text-on-primary, #ffffff);
 }
 
 /* Monyverse Button */
 .monyverse-button {
   width: 48px;
   height: 48px;
-  background-color: var(--h-black-darker);
+  background-color: var(--nav-rail-button-bg, var(--background-secondary));
   padding: 4px;
   border-radius: 12px;
   cursor: pointer;
@@ -1219,8 +1241,9 @@ const removeServerFromFolder = async () => {
 .monyverse-icon {
   font-size: 24px;
   font-weight: bold;
-  color: var(--text-light);
+  color: var(--nav-rail-button-icon, var(--icon-primary));
   font-family: var(--font-family);
+  transition: color 0.2s ease;
 }
 
 .monyverse-button:hover {
@@ -1232,8 +1255,9 @@ const removeServerFromFolder = async () => {
   background: var(--harmony-primary, #0284C7);
   border-radius: 50%;
 }
+.monyverse-button:hover .monyverse-icon,
 .monyverse-button.selected .monyverse-icon {
-  color: var(--text-light);
+  color: var(--text-on-primary, #ffffff);
 }
 
 /* Unread badge */
@@ -1316,7 +1340,7 @@ const removeServerFromFolder = async () => {
 .server-item {
   width: 48px;
   height: 48px;
-  background-color: var(--h-black-light);
+  background-color: var(--background-secondary);
   margin: 0;
   border-radius: 50%;
   cursor: pointer;
@@ -1333,7 +1357,7 @@ const removeServerFromFolder = async () => {
   height: 48px;
   /* background: linear-gradient(135deg, var(--harmony-primary), var(--harmony-primary-hover)); */
   /* background: transparent; */
-  background-color: var(--h-black-darker);
+  background-color: var(--nav-rail-button-bg, var(--background-secondary));
   margin: 10px 10px 5px 10px;
   transition: background 0.2s ease-in-out;
   padding: 4px;
@@ -1373,7 +1397,7 @@ const removeServerFromFolder = async () => {
   transform: translateY(-50%);
   width: 4px;
   height: 0;
-  background: #ffffff;
+  background: var(--text-primary, #ffffff);
   border-radius: 0 4px 4px 0;
   opacity: 0;
   transition: all 0.15s ease;
@@ -1501,8 +1525,8 @@ const removeServerFromFolder = async () => {
 /* Context menu */
 .context-menu {
   position: fixed;
-  background: #18191c;
-  border: 1px solid var(--h-black-lighter);
+  background: var(--background-floating, #18191c);
+  border: 1px solid var(--border-color);
   border-radius: 6px;
   padding: 6px 0;
   min-width: 180px;
@@ -1523,12 +1547,12 @@ const removeServerFromFolder = async () => {
 
 .context-menu-item:hover {
   background-color: var(--harmony-primary, #0EA5E9);
-  color: var(--text-primary);
+  color: var(--text-on-primary, #ffffff);
 }
 
 .context-menu-divider {
   height: 1px;
-  background: var(--border-color, var(--h-black-lighter));
+  background: var(--border-color);
   margin: 4px 8px;
 }
 

@@ -826,7 +826,7 @@ const formatFileSize = (bytes: number): string => {
 
 .content-html :deep(.media-gallery__item) {
   overflow: hidden;
-  background: var(--h-chat, #313338);
+  background: var(--background-secondary, #313338);
 }
 
 .content-html :deep(.media-gallery__item img),
@@ -916,7 +916,7 @@ const formatFileSize = (bytes: number): string => {
 
 /* Media loading skeletons */
 .media-skeleton {
-  background: linear-gradient(90deg, var(--background-secondary) 25%, var(--h-black-lighter) 50%, var(--background-secondary) 75%);
+  background: linear-gradient(90deg, var(--background-secondary) 25%, var(--background-quinary) 50%, var(--background-secondary) 75%);
   background-size: 200% 100%;
   animation: loading 1.5s infinite;
   border-radius: 4px;

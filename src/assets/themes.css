@@ -69,10 +69,9 @@
   --border-secondary: rgba(255, 255, 255, 0.15);
   
   /* Higher contrast backgrounds */
-  --h-chat: #1a1a1a;
-  --h-chat-light: #252525;
-  --h-sidebar: #101010;
-  --h-sidebar-light: #1a1a1a;
+  --background-secondary: #1a1a1a;
+  --background-quaternary: #252525;
+  --background-tertiary: #101010;
 }
 
 [data-high-contrast="true"] .message-content {

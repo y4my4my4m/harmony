@@ -188,7 +188,7 @@ const getServerAcronym = (serverName: string): string => {
 .nav-divider {
   width: 32px;
   height: 2px;
-  background: var(--h-chat-light, var(--h-black-lighter));
+  background: var(--background-quaternary, var(--background-quinary));
   border-radius: 1px;
   margin: 8px 0;
 }
@@ -218,7 +218,7 @@ const getServerAcronym = (serverName: string): string => {
 }
 
 .dm-button {
-  background: var(--h-chat, var(--background-secondary));
+  background: var(--background-secondary, var(--background-secondary));
   color: var(--text-primary);
 }
 
@@ -280,7 +280,7 @@ const getServerAcronym = (serverName: string): string => {
 }
 
 .server-item {
-  background: var(--h-chat, var(--background-secondary));
+  background: var(--background-secondary, var(--background-secondary));
   position: relative;
 }
 
@@ -365,7 +365,7 @@ const getServerAcronym = (serverName: string): string => {
 .add-server-btn,
 .explore-btn,
 .settings-btn {
-  background: var(--h-chat, var(--background-secondary));
+  background: var(--background-secondary, var(--background-secondary));
   color: #3ba55c;
 }
 

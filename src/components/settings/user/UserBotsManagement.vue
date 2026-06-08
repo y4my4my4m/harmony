@@ -747,9 +747,9 @@ onMounted(() => {
 .settings-section {
   margin-bottom: 32px;
   padding: 24px;
-  background-color: var(--h-chat);
+  background-color: var(--background-secondary);
   border-radius: 8px;
-  border: 1px solid var(--h-chat-light);
+  border: 1px solid var(--background-quaternary);
 }
 
 .section-header {
@@ -800,8 +800,8 @@ onMounted(() => {
 
 .bot-card {
   padding: 20px;
-  background: var(--h-chat-dark);
-  border: 1px solid var(--h-chat-light);
+  background: var(--background-tertiary);
+  border: 1px solid var(--background-quaternary);
   border-radius: 8px;
   transition: all 0.2s;
   margin-bottom: 16px;
@@ -905,8 +905,8 @@ onMounted(() => {
   display: flex;
   gap: 24px;
   padding: 12px 0;
-  border-top: 1px solid var(--color-border, var(--h-black-lighter));
-  border-bottom: 1px solid var(--color-border, var(--h-black-lighter));
+  border-top: 1px solid var(--color-border, var(--background-quinary));
+  border-bottom: 1px solid var(--color-border, var(--background-quinary));
   margin-bottom: 16px;
 }
 
@@ -964,11 +964,11 @@ onMounted(() => {
 .btn-secondary {
   background: transparent;
   color: var(--text-secondary);
-  border: 1px solid var(--h-chat-light);
+  border: 1px solid var(--background-quaternary);
 }
 
 .btn-secondary:hover {
-  background: var(--h-chat-light);
+  background: var(--background-quaternary);
 }
 
 .btn-danger {
@@ -1032,7 +1032,7 @@ onMounted(() => {
   justify-content: space-between;
   align-items: center;
   padding: 20px 24px;
-  border-bottom: 1px solid var(--color-border, var(--h-black-lighter));
+  border-bottom: 1px solid var(--color-border, var(--background-quinary));
 }
 
 .modal-header h3 {
@@ -1080,7 +1080,7 @@ onMounted(() => {
   width: 100%;
   padding: 10px 12px;
   background: var(--color-background-tertiary, #202225);
-  border: 1px solid var(--color-border, var(--h-black-lighter));
+  border: 1px solid var(--color-border, var(--background-quinary));
   border-radius: 4px;
   color: var(--color-text-primary, #ffffff);
   font-size: 14px;
@@ -1179,7 +1179,7 @@ onMounted(() => {
   flex: 1;
   padding: 12px;
   background: var(--color-background-tertiary, #202225);
-  border: 1px solid var(--color-border, var(--h-black-lighter));
+  border: 1px solid var(--color-border, var(--background-quinary));
   border-radius: 4px;
   color: var(--color-text-primary, #ffffff);
   font-family: 'Consolas', 'Monaco', monospace;
@@ -1202,7 +1202,7 @@ onMounted(() => {
   gap: 12px;
   justify-content: flex-end;
   padding: 20px 24px;
-  border-top: 1px solid var(--color-border, var(--h-black-lighter));
+  border-top: 1px solid var(--color-border, var(--background-quinary));
 }
 
 .message-banner {

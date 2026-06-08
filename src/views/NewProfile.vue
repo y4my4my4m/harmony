@@ -190,32 +190,10 @@
 
             <div class="color-picker-section">
               <label class="input-label">Profile Color</label>
-              <div class="color-options">
-                <div 
-                  v-for="color in colorPresets" 
-                  :key="color"
-                  class="color-option"
-                  :class="{ active: selectedColor === color }"
-                  :style="{ backgroundColor: color }"
-                  data-testid="color-preset"
-                  @click="selectedColor = color"
-                ></div>
-                <div 
-                  class="color-option custom-color" 
-                  :class="{ active: !colorPresets.includes(selectedColor) }"
-                  @click="openCustomColorPicker"
-                >
-                  <svg viewBox="0 0 24 24" class="plus-icon">
-                    <path d="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z" fill="currentColor"/>
-                  </svg>
-                </div>
-              </div>
-              <input 
-                ref="colorInput"
-                type="color" 
-                v-model="selectedColor" 
-                class="hidden-color-input"
-                @change="onColorChange"
+              <ColorPicker
+                :color="selectedColor"
+                @update:color="selectedColor = $event"
+                @change="selectedColor = $event"
               />
             </div>
 
@@ -299,6 +277,7 @@ import { useToast } from 'vue-toastification';
 import { uploadAvatar, downloadAndUploadImage } from '@/utils/fileUpload';
 import { uploadBanner } from '@/utils/bannerUtils';
 import { supabase } from '@/supabase';
+import ColorPicker from '@/components/common/ColorPicker.vue';
 
 const username = ref('');
 const displayName = ref('');
@@ -324,15 +303,8 @@ const toast = useToast();
 
 const avatarInput = ref<HTMLInputElement>();
 const bannerInput = ref<HTMLInputElement>();
-const colorInput = ref<HTMLInputElement>();
 
 let usernameCheckTimeout: NodeJS.Timeout | null = null;
-
-const colorPresets = [
-  '#0EA5E9', '#57f287', '#fee75c', '#eb459e', '#ed4245',
-  '#f23f42', '#ff6b35', '#4f46e5', '#06b6d4', '#10b981',
-  '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6'
-];
 
 // Extract OAuth provider data and auto-populate form
 onMounted(async () => {
@@ -603,14 +575,6 @@ const validateDisplayName = () => {
   } else {
     displayNameError.value = '';
   }
-};
-
-const openCustomColorPicker = () => {
-  colorInput.value?.click();
-};
-
-const onColorChange = () => {
-  // Color is automatically updated via v-model
 };
 
 const nextStep = async () => {

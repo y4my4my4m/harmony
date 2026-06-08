@@ -109,8 +109,7 @@
           }]"
           :title="spatialStore.settings.enabled ? 'Spatial Audio: ON' : 'Spatial Audio: OFF'"
         >
-          <Icon name="map" />
-          <span v-if="spatialStore.settings.enabled" class="spatial-badge">3D</span>
+          <Icon name="audio-lines" />
         </button>
 
         <button
@@ -1308,7 +1307,7 @@ onUnmounted(() => {
 }
 
 .dock-container:hover:not(.is-dragging) {
-  background: linear-gradient(145deg, color-mix(in srgb, var(--background-secondary) 39%, transparent), color-mix(in srgb, var(--h-black-lighter) 35%, transparent));
+  background: linear-gradient(145deg, color-mix(in srgb, var(--background-secondary) 39%, transparent), color-mix(in srgb, var(--background-quinary) 35%, transparent));
   transform: translateY(-2px);
   box-shadow: 
     0 12px 40px rgba(0, 0, 0, 0.7),
@@ -1346,7 +1345,7 @@ onUnmounted(() => {
   height: 48px;
   border-radius: 50%;
   object-fit: cover;
-  border: 2px solid var(--h-black-lighter);
+  border: 2px solid var(--background-quinary);
   transition: all 0.3s ease;
 }
 
@@ -1544,22 +1543,6 @@ onUnmounted(() => {
   background: linear-gradient(145deg, #00e5b8, #00c9a0);
 }
 
-.spatial-badge {
-  position: absolute;
-  top: -4px;
-  right: -4px;
-  background: #00d4aa;
-  color: #000;
-  font-size: 7px;
-  font-weight: 800;
-  padding: 2px 3px;
-  border-radius: 3px;
-  line-height: 1;
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
-}
-
 /* Dock Video Preview (small thumbnail in dock mode) */
 .dock-video-preview {
   position: relative;
@@ -1653,8 +1636,8 @@ onUnmounted(() => {
 }
 
 .minimized-container:hover:not(.is-dragging) {
-  /* background: linear-gradient(145deg, var(--background-secondary), var(--h-black-lighter)); */
-  background: linear-gradient(145deg, color-mix(in srgb, var(--background-secondary) 39%, transparent), color-mix(in srgb, var(--h-black-lighter) 35%, transparent));
+  /* background: linear-gradient(145deg, var(--background-secondary), var(--background-quinary)); */
+  background: linear-gradient(145deg, color-mix(in srgb, var(--background-secondary) 39%, transparent), color-mix(in srgb, var(--background-quinary) 35%, transparent));
   transform: translateY(-1px);
   box-shadow: 
     0 8px 25px rgba(0, 0, 0, 0.5),
@@ -1866,14 +1849,14 @@ onUnmounted(() => {
 }
 
 .participants-dropdown-btn:hover:not(.active) {
-  background: linear-gradient(145deg, color-mix(in srgb, var(--background-secondary) 39%, transparent), color-mix(in srgb, var(--h-black-lighter) 35%, transparent));
+  background: linear-gradient(145deg, color-mix(in srgb, var(--background-secondary) 39%, transparent), color-mix(in srgb, var(--background-quinary) 35%, transparent));
   color: var(--text-primary);
   border-color: rgba(255, 255, 255, 0.3);
   transform: translateY(2px);
 }
 
 .participants-dropdown-btn.active {
-  background: linear-gradient(145deg, color-mix(in srgb, var(--background-secondary) 39%, transparent), color-mix(in srgb, var(--h-black-lighter) 35%, transparent));
+  background: linear-gradient(145deg, color-mix(in srgb, var(--background-secondary) 39%, transparent), color-mix(in srgb, var(--background-quinary) 35%, transparent));
   color: var(--text-primary);
   border-color: rgba(255, 255, 255, 0.4);
   transform: translateY(2px);

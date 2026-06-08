@@ -9,7 +9,12 @@
  */
 
 import { ref, computed, watch } from 'vue'
-import { generateThemePalette, applyThemePalette } from '@/utils/colorUtils'
+import {
+  generateThemePalette,
+  applyThemePalette,
+  applySurfaceSemanticTokens,
+  canonicalizeBackgroundTone,
+} from '@/utils/colorUtils'
 import { supabase } from '@/supabase'
 import { useAuthStore } from '@/stores/auth'
 import { useProfileStore } from '@/stores/useProfile'
@@ -170,10 +175,15 @@ export const COMMUNITY_PRESETS: ThemePreset[] = [
       theme: 'custom',
       customThemeMode: 'dark',
       customPrimaryColor: '#e91e8c',
-      customAccentColor: '#e91e8c',
+      customAccentColor: '#f472b6',
       customBackgroundColor: '#e91e8c',
       customBackgroundLightness: 20,
       customBackgroundChroma: 2,
+      customCssOverrides: {
+        '--harmony-primary': '#e91e8c',
+        '--harmony-primary-hover': '#be185d',
+        '--harmony-accent': '#f9a8d4',
+      }
     }
   },
   {
@@ -183,10 +193,15 @@ export const COMMUNITY_PRESETS: ThemePreset[] = [
       theme: 'custom',
       customThemeMode: 'dark',
       customPrimaryColor: '#2d9b4e',
-      customAccentColor: '#2d9b4e',
+      customAccentColor: '#34d399',
       customBackgroundColor: '#2d9b4e',
       customBackgroundLightness: 20,
       customBackgroundChroma: 2,
+      customCssOverrides: {
+        '--harmony-primary': '#2d9b4e',
+        '--harmony-primary-hover': '#22863a',
+        '--harmony-accent': '#6ee7b7',
+      }
     }
   },
   {
@@ -196,10 +211,15 @@ export const COMMUNITY_PRESETS: ThemePreset[] = [
       theme: 'custom',
       customThemeMode: 'dark',
       customPrimaryColor: '#f59e0b',
-      customAccentColor: '#f59e0b',
+      customAccentColor: '#fbbf24',
       customBackgroundColor: '#f59e0b',
       customBackgroundLightness: 20,
       customBackgroundChroma: 1,
+      customCssOverrides: {
+        '--harmony-primary': '#f59e0b',
+        '--harmony-primary-hover': '#d97706',
+        '--harmony-accent': '#fcd34d',
+      }
     }
   }
 ]
@@ -304,25 +324,7 @@ function applyPresetTheme(themeName: 'dark' | 'light' | 'midnight') {
   
   // Background colors - use proper defaults based on theme
   if (themeName === 'dark') {
-    root.style.setProperty('--h-chat', '#313338')
-    root.style.setProperty('--h-chat-light', '#383a40')
-    root.style.setProperty('--h-chat-lighter', '#40444b')
-    root.style.setProperty('--h-chat-dark', '#141618')
-    root.style.setProperty('--h-chat-darker', '#0c0d0e')
-    root.style.setProperty('--h-chat-alpha', 'rgba(49, 51, 56, 0.67)')
-    root.style.setProperty('--h-chat-alpha-light', 'rgba(49, 51, 56, 0.5)')
-    
-    root.style.setProperty('--h-sidebar', '#2b2d31')
-    root.style.setProperty('--h-sidebar-light', '#35373c')
-    root.style.setProperty('--h-sidebar-alpha', 'rgba(43, 45, 49, 0.67)')
-    
-    root.style.setProperty('--h-black', '#1e1f22')
-    root.style.setProperty('--h-black-light', '#313336')
-    root.style.setProperty('--h-black-lighter', '#40444b')
-    root.style.setProperty('--h-black-darker', '#000000')
-    root.style.setProperty('--h-black-alpha', 'rgba(30, 31, 34, 0.67)')
-    
-    // Original background system colors
+    // Background system colors
     root.style.setProperty('--background-primary', '#1a1a1e')
     root.style.setProperty('--background-secondary', '#17181a')
     root.style.setProperty('--background-tertiary', '#121214')
@@ -335,24 +337,6 @@ function applyPresetTheme(themeName: 'dark' | 'light' | 'midnight') {
     root.style.setProperty('--background-senary', '#0a0b0d')
     root.style.setProperty('--background-senary-alpha', '#0a0b0dc7')
   } else if (themeName === 'light') {
-    root.style.setProperty('--h-chat', '#ffffff')
-    root.style.setProperty('--h-chat-light', '#f6f6f7')
-    root.style.setProperty('--h-chat-lighter', '#f2f3f5')
-    root.style.setProperty('--h-chat-dark', '#e3e5e8')
-    root.style.setProperty('--h-chat-darker', '#d0d2d5')
-    root.style.setProperty('--h-chat-alpha', 'rgba(255, 255, 255, 0.85)')
-    root.style.setProperty('--h-chat-alpha-light', 'rgba(255, 255, 255, 0.7)')
-    
-    root.style.setProperty('--h-sidebar', '#f2f3f5')
-    root.style.setProperty('--h-sidebar-light', '#e3e5e8')
-    root.style.setProperty('--h-sidebar-alpha', 'rgba(242, 243, 245, 0.85)')
-    
-    root.style.setProperty('--h-black', '#e3e5e8')
-    root.style.setProperty('--h-black-light', '#ebedef')
-    root.style.setProperty('--h-black-lighter', '#f2f3f5')
-    root.style.setProperty('--h-black-darker', '#d0d2d5')
-    root.style.setProperty('--h-black-alpha', 'rgba(227, 229, 232, 0.85)')
-    
     root.style.setProperty('--background-primary', '#ffffff')
     root.style.setProperty('--background-secondary', '#f6f6f7')
     root.style.setProperty('--background-tertiary', '#f2f3f5')
@@ -365,24 +349,6 @@ function applyPresetTheme(themeName: 'dark' | 'light' | 'midnight') {
     root.style.setProperty('--background-senary', '#2b2d31')
     root.style.setProperty('--background-senary-alpha', 'rgba(43, 45, 49, 0.78)')
   } else if (themeName === 'midnight') {
-    root.style.setProperty('--h-chat', '#1e2124')
-    root.style.setProperty('--h-chat-light', '#25272a')
-    root.style.setProperty('--h-chat-lighter', '#2b2d31')
-    root.style.setProperty('--h-chat-dark', '#18191c')
-    root.style.setProperty('--h-chat-darker', '#0f1012')
-    root.style.setProperty('--h-chat-alpha', 'rgba(30, 33, 36, 0.67)')
-    root.style.setProperty('--h-chat-alpha-light', 'rgba(30, 33, 36, 0.5)')
-    
-    root.style.setProperty('--h-sidebar', '#1a1d20')
-    root.style.setProperty('--h-sidebar-light', '#1f2226')
-    root.style.setProperty('--h-sidebar-alpha', 'rgba(26, 29, 32, 0.67)')
-    
-    root.style.setProperty('--h-black', '#13151a')
-    root.style.setProperty('--h-black-light', '#1a1d20')
-    root.style.setProperty('--h-black-lighter', '#1f2226')
-    root.style.setProperty('--h-black-darker', '#0a0b0d')
-    root.style.setProperty('--h-black-alpha', 'rgba(19, 21, 26, 0.67)')
-    
     root.style.setProperty('--background-primary', '#1e2124')
     root.style.setProperty('--background-secondary', '#13151a')
     root.style.setProperty('--background-tertiary', '#0f1012')
@@ -422,6 +388,8 @@ function applyPresetTheme(themeName: 'dark' | 'light' | 'midnight') {
 
   root.setAttribute('data-theme', themeName)
   root.setAttribute('data-theme-type', theme.isLightTheme ? 'light' : 'dark')
+
+  applySurfaceSemanticTokens(theme.isLightTheme, themeName)
   
   debug.log(`🎨 Applied ${themeName} theme`)
 }
@@ -441,7 +409,8 @@ function applySettings(settings: VisualThemeSettings) {
         settings.customBackgroundColor,
         settings.customBackgroundLightness || 0,
         settings.customPrimaryColor,
-        settings.customBackgroundChroma || 0
+        settings.customBackgroundChroma || 0,
+        settings.customSidebarColor
       )
       applyThemePalette(palette)
     } catch (error) {
@@ -917,6 +886,7 @@ export function useVisualTheme() {
       customPrimaryColor: s.customPrimaryColor,
       customAccentColor: s.customAccentColor,
       customBackgroundColor: s.customBackgroundColor,
+      customSidebarColor: s.customSidebarColor,
       customBackgroundLightness: s.customBackgroundLightness,
       customBackgroundChroma: s.customBackgroundChroma,
       customCssOverrides: s.customCssOverrides ? { ...s.customCssOverrides } : {},
@@ -1061,7 +1031,33 @@ export function useVisualTheme() {
    * Apply a community preset
    */
   function applyPreset(preset: ThemePreset) {
-    Object.assign(settings.value, preset.settings)
+    const previousOverrides = { ...(settings.value.customCssOverrides || {}) }
+    const newOverrides = preset.settings.customCssOverrides
+      ? { ...preset.settings.customCssOverrides }
+      : {}
+
+    // Drop stale DOM overrides so presets without overrides don't inherit
+    // harmony-primary etc. from a previously applied preset.
+    for (const varName of Object.keys(previousOverrides)) {
+      if (!(varName in newOverrides)) {
+        document.documentElement.style.removeProperty(varName)
+      }
+    }
+
+    Object.assign(settings.value, {
+      ...preset.settings,
+      customCssOverrides: newOverrides,
+    })
+
+    const mode = (settings.value.customThemeMode || 'dark') as 'light' | 'dark'
+    if (settings.value.customBackgroundColor) {
+      settings.value.customBackgroundColor = canonicalizeBackgroundTone(
+        settings.value.customBackgroundColor,
+        settings.value.customBackgroundLightness ?? 0,
+        settings.value.customBackgroundChroma ?? 0,
+        mode,
+      )
+    }
   }
   
   /**
@@ -1070,28 +1066,25 @@ export function useVisualTheme() {
   function getThemableVariables(): { category: string; vars: string[] }[] {
     return [
       {
+        category: 'Navigation Rail',
+        vars: [
+          '--nav-rail-button-bg',
+          '--nav-rail-button-icon',
+          '--channel-item-hover-bg',
+          '--channel-item-selected-bg',
+        ]
+      },
+      {
         category: 'Brand',
         vars: ['--harmony-primary', '--harmony-primary-hover', '--harmony-primary-light', '--harmony-secondary', '--harmony-accent', '--h-brand']
-      },
-      {
-        category: 'Chat Surfaces',
-        vars: ['--h-chat', '--h-chat-light', '--h-chat-lighter', '--h-chat-dark', '--h-chat-darker']
-      },
-      {
-        category: 'Sidebar Surfaces',
-        vars: ['--h-sidebar', '--h-sidebar-light', '--h-channel-sidebar']
-      },
-      {
-        category: 'Dark Surfaces',
-        vars: ['--h-black', '--h-black-light', '--h-black-lighter', '--h-black-darker']
       },
       {
         category: 'Primary (Layout)',
         vars: ['--h-primary', '--h-primary-light', '--h-primary-dark']
       },
       {
-        category: 'Background',
-        vars: ['--background-primary', '--background-secondary', '--background-tertiary', '--background-quaternary', '--background-quinary', '--background-senary']
+        category: 'Background Surfaces',
+        vars: ['--background-primary', '--background-secondary', '--background-tertiary', '--background-quaternary', '--background-quinary', '--background-senary', '--background-septenary', '--h-channel-sidebar']
       },
       {
         category: 'Text',
@@ -1115,7 +1108,7 @@ export function useVisualTheme() {
       },
       {
         category: 'Alpha / Transparency',
-        vars: ['--h-chat-alpha', '--h-chat-alpha-light', '--h-sidebar-alpha', '--h-black-alpha', '--background-primary-alpha', '--background-secondary-alpha', '--background-tertiary-alpha', '--background-senary-alpha']
+        vars: ['--background-primary-alpha', '--background-secondary-alpha', '--background-tertiary-alpha', '--background-senary-alpha']
       },
       {
         category: 'Tooltips & Overlays',
@@ -1224,6 +1217,7 @@ export function useVisualTheme() {
       customPrimaryColor: settings.value.customPrimaryColor,
       customAccentColor: settings.value.customAccentColor,
       customBackgroundColor: settings.value.customBackgroundColor,
+      customSidebarColor: settings.value.customSidebarColor,
       customBackgroundLightness: settings.value.customBackgroundLightness,
       customBackgroundChroma: settings.value.customBackgroundChroma,
       customCssOverrides: settings.value.customCssOverrides ? { ...settings.value.customCssOverrides } : undefined,
@@ -1245,6 +1239,7 @@ export function useVisualTheme() {
         customPrimaryColor: parsed.customPrimaryColor ?? settings.value.customPrimaryColor,
         customAccentColor: parsed.customAccentColor ?? settings.value.customAccentColor,
         customBackgroundColor: parsed.customBackgroundColor ?? settings.value.customBackgroundColor,
+        customSidebarColor: parsed.customSidebarColor ?? settings.value.customSidebarColor,
         customBackgroundLightness: parsed.customBackgroundLightness ?? settings.value.customBackgroundLightness,
         customBackgroundChroma: parsed.customBackgroundChroma ?? settings.value.customBackgroundChroma,
         customCssOverrides: parsed.customCssOverrides ? { ...parsed.customCssOverrides } : undefined,
@@ -1270,6 +1265,7 @@ export function useVisualTheme() {
         customPrimaryColor: settings.value.customPrimaryColor,
         customAccentColor: settings.value.customAccentColor,
         customBackgroundColor: settings.value.customBackgroundColor,
+        customSidebarColor: settings.value.customSidebarColor,
         customBackgroundLightness: settings.value.customBackgroundLightness,
         customBackgroundChroma: settings.value.customBackgroundChroma,
         customCssOverrides: settings.value.customCssOverrides ? { ...settings.value.customCssOverrides } : undefined,

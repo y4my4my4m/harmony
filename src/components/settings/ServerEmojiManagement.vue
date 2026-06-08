@@ -700,10 +700,10 @@ const getEmojiAnalytics = () => {
 }
 
 .settings-card {
-  background-color: var(--h-chat);
+  background-color: var(--background-secondary);
   border-radius: 8px;
   padding: 24px;
-  border: 1px solid var(--h-chat-light);
+  border: 1px solid var(--background-quaternary);
 }
 
 .form-group {
@@ -790,13 +790,13 @@ input:checked + .toggle-slider:before {
 }
 
 .emoji-upload-area {
-  border: 2px dashed var(--h-chat-light);
+  border: 2px dashed var(--background-quaternary);
   border-radius: 8px;
   padding: 32px;
   text-align: center;
   cursor: pointer;
   transition: all 0.15s ease;
-  background-color: var(--h-chat-darker);
+  background-color: var(--background-senary);
 }
 
 .emoji-upload-area:hover,
@@ -849,7 +849,7 @@ input:checked + .toggle-slider:before {
 .emoji-count {
   font-size: 12px;
   color: var(--text-muted);
-  background-color: var(--h-chat-darker);
+  background-color: var(--background-senary);
   padding: 4px 8px;
   border-radius: 12px;
 }
@@ -864,9 +864,9 @@ input:checked + .toggle-slider:before {
 .upload-progress {
   margin-top: 16px;
   padding: 12px;
-  background-color: var(--h-chat-darker);
+  background-color: var(--background-senary);
   border-radius: 6px;
-  border: 1px solid var(--h-chat-light);
+  border: 1px solid var(--background-quaternary);
 }
 
 .progress-header {
@@ -889,7 +889,7 @@ input:checked + .toggle-slider:before {
 .progress-bar {
   width: 100%;
   height: 6px;
-  background-color: var(--h-chat-light);
+  background-color: var(--background-quaternary);
   border-radius: 3px;
   overflow: hidden;
 }
@@ -937,13 +937,13 @@ input:checked + .toggle-slider:before {
 }
 
 .btn-secondary {
-  background-color: var(--h-chat-darker);
+  background-color: var(--background-senary);
   color: var(--text-secondary);
-  border: 1px solid var(--h-chat-light);
+  border: 1px solid var(--background-quaternary);
 }
 
 .btn-secondary:hover:not(:disabled) {
-  background-color: var(--h-chat-light);
+  background-color: var(--background-quaternary);
   color: var(--text-primary);
 }
 
@@ -989,9 +989,9 @@ input:checked + .toggle-slider:before {
   align-items: center;
   gap: 12px;
   padding: 12px;
-  background-color: var(--h-chat-darker);
+  background-color: var(--background-senary);
   border-radius: 6px;
-  border: 1px solid var(--h-chat-light);
+  border: 1px solid var(--background-quaternary);
   transition: all 0.15s ease;
 }
 
@@ -1072,7 +1072,7 @@ input:checked + .toggle-slider:before {
   font-size: 14px;
   font-weight: 500;
   color: var(--text-primary);
-  background-color: var(--h-chat);
+  background-color: var(--background-secondary);
   border: 1px solid #57f287;
   border-radius: 4px;
   outline: none;
@@ -1110,7 +1110,7 @@ input:checked + .toggle-slider:before {
 }
 
 .action-btn:hover {
-  background-color: var(--h-chat-light);
+  background-color: var(--background-quaternary);
 }
 
 .copy-btn:hover {
