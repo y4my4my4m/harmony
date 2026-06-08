@@ -86,21 +86,11 @@ export const sdr001Skin: Skin = {
     customBackgroundColor: '#DC143C',
     customBackgroundLightness: 5,
     customBackgroundChroma: -6,
-    customCssOverrides: {
-      '--harmony-primary': '#DC143C',
-      '--harmony-primary-hover': '#FF3355',
-      '--harmony-accent': '#DC143C',
-      '--text-primary': '#EDEDF2',
-      '--text-secondary': '#A8A8B6',
-      '--text-muted': '#7A7A8A',
-      '--border-primary': 'rgba(220, 20, 60, 0.35)',
-      '--border-secondary': 'rgba(220, 20, 60, 0.18)',
-      '--border-focus': '#DC143C',
-      '--border-hover': '#DC143C',
-      '--shadow-small': '0 0 0 1px rgba(220, 20, 60, 0.2)',
-      '--shadow-medium': '0 0 12px rgba(220, 20, 60, 0.18)',
-      '--shadow-large': '0 0 24px rgba(220, 20, 60, 0.25)',
-    },
+    // Colour tokens are derived from the palette (customPrimaryColor +
+    // background sliders above). Do not pin --harmony-* / --text-* /
+    // --border-* in customCssOverrides — that blocks the theme editor
+    // from updating the skin after apply.
+    customCssOverrides: {},
     fontFamily: 'pixel',
   },
   globalCss: skinCss,
