@@ -1,5 +1,10 @@
 <template>
-  <div class="media-picker-popup" ref="popupRef" :style="positionStyle">
+  <div
+    class="media-picker-popup"
+    :class="{ 'media-picker-popup--mobile': isMobile }"
+    ref="popupRef"
+    :style="popupStyle"
+  >
     <!-- Tab Navigation Header (horizontally scrollable) -->
     <div class="picker-tabs">
       <div class="picker-tabs-scroll" ref="tabsScrollRef" @wheel="onTabsWheel">
@@ -51,6 +56,7 @@
 <script setup lang="ts">
 import { ref, watch, onMounted, onUnmounted, nextTick, computed, type Ref } from 'vue';
 import { usePopupPositioning, type PopupPosition } from '@/composables/usePopupPositioning';
+import { useLayoutState } from '@/composables/useLayoutState';
 import GifPickerContent from '@/components/GifPickerContent.vue';
 import EmojiPickerContent from '@/components/EmojiPickerContent.vue';
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings';
@@ -81,11 +87,11 @@ interface Emits {
 const emit = defineEmits<Emits>();
 
 const instanceSettings = useInstanceSettingsStore();
+const { isMobile } = useLayoutState();
 
 // Tabs: GIFs + Stickers are always available; Clips/Memes/AI Emoji are
 // gated by per-instance admin toggles. Emoji is the built-in picker.
 const tabs = computed<{ id: PickerTab; label: string }[]>(() => {
-  // Order: GIFs, Stickers, Emoji, then the optional Klipy types.
   const list: { id: PickerTab; label: string }[] = [
     { id: 'gifs', label: 'GIFs' },
     { id: 'stickers', label: 'Stickers' },
@@ -97,14 +103,12 @@ const tabs = computed<{ id: PickerTab; label: string }[]>(() => {
   return list;
 });
 
-// State
 const initialTab: PickerTab = props.initialTab;
 const isEnabledTab = tabs.value.some((t) => t.id === initialTab);
 const activeTab = ref<PickerTab>(isEnabledTab ? initialTab : 'gifs');
 const showFavorites = ref(false);
 const tabsScrollRef = ref<HTMLElement | null>(null);
 
-// Reset the favorites view when switching tabs so each picker opens on trending.
 watch(activeTab, () => { showFavorites.value = false; });
 
 // Desktop: vertical wheel over the tab strip scrolls it horizontally.
@@ -116,9 +120,31 @@ const onTabsWheel = (e: WheelEvent) => {
   e.preventDefault();
 };
 
+// Mobile: claim horizontal swipes on the tab strip so the browser doesn't navigate back/forward.
+let tabsTouchStartX = 0;
+let tabsTouchStartY = 0;
+
+const onTabsTouchStart = (e: TouchEvent) => {
+  const t = e.touches[0];
+  if (!t) return;
+  tabsTouchStartX = t.clientX;
+  tabsTouchStartY = t.clientY;
+};
+
+const onTabsTouchMove = (e: TouchEvent) => {
+  const el = tabsScrollRef.value;
+  if (!el || el.scrollWidth <= el.clientWidth) return;
+  const t = e.touches[0];
+  if (!t) return;
+  const dx = t.clientX - tabsTouchStartX;
+  const dy = t.clientY - tabsTouchStartY;
+  if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 4) {
+    e.preventDefault();
+  }
+};
+
 const popupRef = ref<HTMLElement | null>(null);
 
-// Popup positioning
 const POPUP_DIMENSIONS = { width: 400, height: 500 };
 const triggerElementRef = ref<HTMLElement | null>(null);
 
@@ -130,10 +156,58 @@ watch(() => props.triggerElement, (newTrigger) => {
 const { positionStyle, updatePosition } = usePopupPositioning(
   triggerElementRef as unknown as Ref<HTMLElement | null>,
   POPUP_DIMENSIONS,
-  { position: props.position, offset: 8, viewport: { padding: 10 } }
+  { position: props.position, offset: 8, viewport: { padding: 10 } },
 );
 
-// Event handlers
+/** Tracks the visible viewport (shrinks when the mobile keyboard opens). */
+const visualViewportRect = ref({
+  top: 0,
+  left: 0,
+  width: typeof window !== 'undefined' ? window.innerWidth : 400,
+  height: typeof window !== 'undefined' ? window.innerHeight : 700,
+});
+
+const syncVisualViewport = () => {
+  const vv = window.visualViewport;
+  if (!vv) {
+    visualViewportRect.value = {
+      top: 0,
+      left: 0,
+      width: window.innerWidth,
+      height: window.innerHeight,
+    };
+    return;
+  }
+  visualViewportRect.value = {
+    top: vv.offsetTop,
+    left: vv.offsetLeft,
+    width: vv.width,
+    height: vv.height,
+  };
+};
+
+/** Mobile: anchor in the visible viewport (above the keyboard), not over the composer. */
+const mobilePopupStyle = computed(() => {
+  const pad = 12;
+  const vv = visualViewportRect.value;
+  const width = Math.min(400, Math.round(vv.width - pad * 2));
+  const maxHeight = Math.min(500, Math.round(vv.height - pad * 2));
+  const left = vv.left + (vv.width - width) / 2;
+  const top = vv.top + pad;
+
+  return {
+    position: 'fixed' as const,
+    left: `${left}px`,
+    top: `${top}px`,
+    width: `${width}px`,
+    maxHeight: `${maxHeight}px`,
+    zIndex: 1050,
+    visibility: 'visible' as const,
+  };
+});
+
+const popupStyle = computed(() => (isMobile.value ? mobilePopupStyle.value : positionStyle.value));
+
 const handleSendGif = (gif: Gif) => {
   emit('sendGif', gif);
   props.closePopup?.();
@@ -148,7 +222,6 @@ const handleClickOutside = (event: MouseEvent) => {
   if (!popupRef.value) return;
   const target = event.target as Node;
   if (popupRef.value.contains(target)) return;
-  // Don't close when interacting with emoji context menu (teleported to body)
   if ((target as Element).closest?.('[data-emoji-ctx-backdrop]')) return;
   props.closePopup?.();
 };
@@ -159,24 +232,44 @@ const handleKeyDown = (event: KeyboardEvent) => {
   }
 };
 
+let tabsTouchMoveHandler: ((e: TouchEvent) => void) | null = null;
+
 onMounted(() => {
   setTimeout(() => {
     document.addEventListener('click', handleClickOutside);
     document.addEventListener('keydown', handleKeyDown);
   }, 100);
-  
-  nextTick(() => updatePosition());
+
+  syncVisualViewport();
+  window.visualViewport?.addEventListener('resize', syncVisualViewport);
+  window.visualViewport?.addEventListener('scroll', syncVisualViewport);
+
+  nextTick(() => {
+    updatePosition();
+    const el = tabsScrollRef.value;
+    if (el) {
+      tabsTouchMoveHandler = onTabsTouchMove;
+      el.addEventListener('touchstart', onTabsTouchStart, { passive: true });
+      el.addEventListener('touchmove', tabsTouchMoveHandler, { passive: false });
+    }
+  });
 });
 
 onUnmounted(() => {
   document.removeEventListener('click', handleClickOutside);
   document.removeEventListener('keydown', handleKeyDown);
+  window.visualViewport?.removeEventListener('resize', syncVisualViewport);
+  window.visualViewport?.removeEventListener('scroll', syncVisualViewport);
+  const el = tabsScrollRef.value;
+  if (el && tabsTouchMoveHandler) {
+    el.removeEventListener('touchstart', onTabsTouchStart);
+    el.removeEventListener('touchmove', tabsTouchMoveHandler);
+  }
 });
 </script>
 
 <style scoped>
 .media-picker-popup {
-  /* background: var(--background-primary-alpha); */
   border: 1px solid var(--border-color);
   border-radius: 8px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
@@ -187,6 +280,7 @@ onUnmounted(() => {
   overflow: hidden;
   backdrop-filter: blur(8px);
   z-index: 1000;
+  overscroll-behavior: contain;
 }
 
 .picker-tabs {
@@ -200,7 +294,6 @@ onUnmounted(() => {
   min-width: 0;
 }
 
-/* Horizontally scrollable strip; keeps the popup width fixed. */
 .picker-tabs-scroll {
   display: flex;
   align-items: center;
@@ -213,6 +306,8 @@ onUnmounted(() => {
   -ms-overflow-style: none;
   scroll-behavior: smooth;
   -webkit-overflow-scrolling: touch;
+  touch-action: pan-x;
+  overscroll-behavior-x: contain;
 }
 
 .picker-tabs-scroll::-webkit-scrollbar {
@@ -260,6 +355,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
 }
 
 .tab-icon-button:hover {
@@ -272,16 +368,13 @@ onUnmounted(() => {
 }
 
 @media (max-width: 768px) {
-  .media-picker-popup {
-    width: 90vw;
-    max-width: 400px;
-    max-height: 70vh;
+  .media-picker-popup--mobile {
+    border-radius: 12px;
   }
-  
+
   .tab-button {
     padding: 6px 12px;
     font-size: 13px;
   }
 }
 </style>
-

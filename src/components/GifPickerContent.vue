@@ -203,33 +203,36 @@
           <p>No {{ mediaNoun }} found</p>
           <span class="empty-hint">Try a different search term</span>
         </div>
-        <masonry-wall
-          v-else
-          class="gif-results-masonry"
-          :items="items"
-          :column-width="GIF_MASONRY_COLUMN_WIDTH"
-          :gap="GIF_MASONRY_GAP"
-          :min-columns="2"
-          :scroll-container="resultsRef"
-        >
-          <template #default="{ item, column }">
+        <!-- Ads sit in full-width rows between masonry runs (masonry can't column-span). -->
+        <div v-else class="gif-results-feed">
+          <template v-for="segment in feedSegments" :key="segment.key">
             <GifAdSlot
-              v-if="item.kind === 'ad'"
+              v-if="segment.kind === 'ad'"
               layout="banner"
-              class="gif-ad-masonry-break"
-              :style="adMasonryStyle(column)"
-              :content="item.content"
-              :width="item.width"
-              :height="item.height"
+              class="gif-ad-tile"
+              :content="segment.ad.content"
+              :width="segment.ad.width"
+              :height="segment.ad.height"
             />
-            <div
+            <masonry-wall
               v-else
-              class="gif-item"
-              @mouseover="hoveredGif = item.id"
-              @mouseleave="isClips ? handleClipItemLeave(item.id, $event) : (hoveredGif = null)"
-              @click="selectGif(item)"
+              class="gif-masonry-segment"
+              :items="segment.items"
+              :column-width="150"
+              :gap="10"
+              :min-columns="2"
+              :scroll-container="resultsRef"
+              :key="segment.key"
             >
-              <template v-if="isClips">
+              <template #default="{ item }">
+                <div
+                  :key="item.id"
+                  class="gif-item"
+                  @mouseover="hoveredGif = item.id"
+                  @mouseleave="isClips ? handleClipItemLeave(item.id, $event) : (hoveredGif = null)"
+                  @click="selectGif(item)"
+                >
+                  <template v-if="isClips">
                     <video
                       :src="stripFragment(item.media_formats.mp4.url)"
                       :poster="stripFragment(item.media_formats.gifpreview.url)"
@@ -249,24 +252,26 @@
                     >
                       <svg v-if="audioClipId === item.id" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
                       <svg v-else viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
-                </button>
+                    </button>
+                  </template>
+                  <img v-else :src="getGifImageSource(item.id, item.media_formats.gif.url, item.media_formats.gifpreview.url)" :alt="item.title" :class="{ 'sticker-thumb': isStickerLike }">
+                  <button
+                    v-if="!isAiEmoji"
+                    class="favorite-button"
+                    :class="{ favorited: isFavorited(item.media_formats.gif.url) }"
+                    @click.stop="toggleFavorite(item)"
+                    :title="isFavorited(item.media_formats.gif.url) ? $t('gif.removeFromFavorites') : $t('gif.addToFavorites')"
+                  >
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                      <path v-if="isFavorited(item.media_formats.gif.url)" d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
+                      <path v-else d="M22 9.24l-7.19-.62L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21 12 17.27 18.18 21l-1.63-7.03L22 9.24zM12 15.4l-3.76 2.27 1-4.28-3.32-2.88 4.38-.38L12 6.1l1.71 4.04 4.38.38-3.32 2.88 1 4.28L12 15.4z"/>
+                    </svg>
+                  </button>
+                </div>
               </template>
-              <img v-else :src="getGifImageSource(item.id, item.media_formats.gif.url, item.media_formats.gifpreview.url)" :alt="item.title" :class="{ 'sticker-thumb': isStickerLike }">
-              <button
-                v-if="!isAiEmoji"
-                class="favorite-button"
-                :class="{ favorited: isFavorited(item.media_formats.gif.url) }"
-                @click.stop="toggleFavorite(item)"
-                :title="isFavorited(item.media_formats.gif.url) ? $t('gif.removeFromFavorites') : $t('gif.addToFavorites')"
-              >
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
-                  <path v-if="isFavorited(item.media_formats.gif.url)" d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
-                  <path v-else d="M22 9.24l-7.19-.62L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21 12 17.27 18.18 21l-1.63-7.03L22 9.24zM12 15.4l-3.76 2.27 1-4.28-3.32-2.88 4.38-.38L12 6.1l1.71 4.04 4.38.38-3.32 2.88 1 4.28L12 15.4z"/>
-                </svg>
-              </button>
-            </div>
+            </masonry-wall>
           </template>
-        </masonry-wall>
+        </div>
         <div v-if="loadingMore" class="loading-more">
           <LoadingSpinner :size="20" />
         </div>
@@ -276,7 +281,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted, onUnmounted, nextTick, computed } from 'vue';
+import { ref, watch, onMounted, nextTick, computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useLayoutState } from '@/composables/useLayoutState';
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings';
@@ -297,13 +302,7 @@ import {
   mediaTypeToKind,
   type KlipyKind,
 } from '@/utils/klipyAttribution';
-import {
-  GIF_MASONRY_COLUMN_WIDTH,
-  GIF_MASONRY_GAP,
-  masonryAdBreakoutStyle,
-  masonryColumnCount,
-} from '@/utils/masonryAdBreakout';
-import type { Gif, GifResultItem, Emoji, ResolvedEmoji } from '@/types';
+import type { Gif, GifAdItem, GifResultItem, Emoji, ResolvedEmoji } from '@/types';
 
 interface Props {
   showFavorites: boolean;
@@ -433,11 +432,6 @@ const favorites = ref<FavoriteGif[]>([]);
 const hoveredGif = ref<string | null>(null);
 const searchInput = ref<HTMLInputElement | null>(null);
 const resultsRef = ref<HTMLElement | null>(null);
-const resultsWidth = ref(0);
-let resultsResizeObserver: ResizeObserver | null = null;
-const masonryColCount = computed(() => masonryColumnCount(resultsWidth.value || 384));
-const adMasonryStyle = (columnIndex: number) =>
-  masonryAdBreakoutStyle(columnIndex, masonryColCount.value, GIF_MASONRY_GAP);
 const isLoading = ref(false);
 const loadingMore = ref(false);
 const favoriteUrls = ref<Set<string>>(new Set());
@@ -529,6 +523,35 @@ const toggleClipAudio = (itemId: string, e: Event) => {
 const applySuggestion = (term: string) => {
   searchQuery.value = term;
 };
+
+/** Masonry can't span columns; split the feed into GIF runs and full-width ad rows. */
+type GifFeedSegment =
+  | { key: string; kind: 'ad'; ad: GifAdItem }
+  | { key: string; kind: 'gifs'; items: Gif[] };
+
+const feedSegments = computed((): GifFeedSegment[] => {
+  const segments: GifFeedSegment[] = [];
+  let batch: Gif[] = [];
+  let batchStart = 0;
+
+  items.value.forEach((item, index) => {
+    if (item.kind === 'ad') {
+      if (batch.length > 0) {
+        segments.push({ key: `gifs-${batchStart}`, kind: 'gifs', items: batch });
+        batch = [];
+      }
+      segments.push({ key: `ad-${item.id}`, kind: 'ad', ad: item });
+      return;
+    }
+    if (batch.length === 0) batchStart = index;
+    batch.push(item);
+  });
+
+  if (batch.length > 0) {
+    segments.push({ key: `gifs-${batchStart}`, kind: 'gifs', items: batch });
+  }
+  return segments;
+});
 
 const applyFeed = (feed: Awaited<ReturnType<typeof gifProvider.trending>>) => {
   items.value = feed.items;
@@ -719,28 +742,14 @@ watch(() => props.showFavorites, (show) => {
 });
 
 // Initialize
-const measureResultsWidth = () => {
-  resultsWidth.value = resultsRef.value?.clientWidth ?? 0;
-};
-
 onMounted(async () => {
   await loadFavorites();
   fetchPage(true);
   refreshSuggestions();
-
+  
   nextTick(() => {
     searchInput.value?.focus();
-    measureResultsWidth();
-    if (typeof ResizeObserver !== 'undefined' && resultsRef.value) {
-      resultsResizeObserver = new ResizeObserver(measureResultsWidth);
-      resultsResizeObserver.observe(resultsRef.value);
-    }
   });
-});
-
-onUnmounted(() => {
-  resultsResizeObserver?.disconnect();
-  resultsResizeObserver = null;
 });
 </script>
 
@@ -1038,15 +1047,21 @@ onUnmounted(() => {
   scrollbar-gutter: stable;
 }
 
-/* Full picker width so masonry allocates 2 columns, not shrink-wrapped. */
-.gif-results-masonry {
-  width: 100%;
+/* Feed = alternating full-width ad rows + masonry GIF runs. */
+.gif-results-feed {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
   padding-right: 8px;
 }
 
-/* Ad spans all masonry columns from whichever column it landed in. */
-.gif-ad-masonry-break {
-  max-width: none;
+.gif-ad-tile {
+  width: 100%;
+  flex-shrink: 0;
+}
+
+.gif-masonry-segment {
+  width: 100%;
 }
 
 .gif-item {
