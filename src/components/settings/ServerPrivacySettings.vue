@@ -514,7 +514,7 @@ input:checked + .toggle-slider:before {
 }
 
 .info-card {
-  background-color: var(--background-senary);
+  background-color: var(--surface-inset);
   border-radius: 6px;
   padding: 16px;
   border-left: 4px solid #57f287;
@@ -593,7 +593,7 @@ input:checked + .toggle-slider:before {
 }
 
 .disable-federation-warning {
-  background: var(--bg-secondary, #2b2d31);
+  background: var(--background-primary);
   border-radius: 12px;
   padding: 28px;
   max-width: 480px;
@@ -672,7 +672,7 @@ input:checked + .toggle-slider:before {
 }
 
 .warning-card {
-  background-color: var(--background-senary);
+  background-color: var(--surface-inset);
   border-radius: 6px;
   padding: 16px;
   border-left: 4px solid #faa61a;
@@ -731,7 +731,7 @@ input:checked + .toggle-slider:before {
   align-items: center;
   gap: 16px;
   padding: 16px;
-  background-color: var(--background-senary);
+  background-color: var(--surface-inset);
   border-radius: 6px;
   border: 1px solid var(--background-quaternary);
   cursor: pointer;

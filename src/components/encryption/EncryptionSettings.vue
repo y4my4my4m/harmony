@@ -986,8 +986,8 @@ onMounted(() => {
 }
 
 .btn-primary {
-  background: var(--primary, #0EA5E9);
-  color: var(--text-primary);
+  background: var(--harmony-primary, #0EA5E9);
+  color: var(--text-on-primary, #ffffff);
 }
 
 .btn-primary:hover:not(:disabled) {
@@ -1006,7 +1006,7 @@ onMounted(() => {
 
 .btn-danger {
   background: var(--danger, #e74c3c);
-  color: var(--text-primary);
+  color: var(--text-on-primary, #ffffff);
 }
 
 .btn-danger:hover:not(:disabled) {

@@ -166,8 +166,8 @@ onMounted(async () => {
 
 .select-input {
   padding: 8px 12px;
-  background-color: var(--background-senary);
-  border: 1px solid var(--background-quaternary);
+  background-color: var(--input-bg);
+  border: 1px solid var(--input-border);
   border-radius: 4px;
   color: var(--text-primary);
   font-size: 14px;

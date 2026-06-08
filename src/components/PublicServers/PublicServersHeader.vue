@@ -38,8 +38,8 @@ defineEmits<Emits>()
   align-items: center;
   justify-content: space-between;
   padding: 24px 32px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  background: linear-gradient(135deg, color-mix(in srgb, var(--harmony-primary) 6%, transparent) 0%, transparent 100%);
+  border-bottom: 1px solid var(--border-primary);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--harmony-primary) 8%, var(--background-primary)) 0%, var(--background-primary) 100%);
 }
 
 .header-content {
@@ -102,7 +102,7 @@ defineEmits<Emits>()
 
 .modal-subtitle {
   font-size: 14px;
-  color: rgba(255, 255, 255, 0.7);
+  color: var(--text-secondary);
   margin: 0;
   line-height: 1.4;
 }
@@ -110,10 +110,10 @@ defineEmits<Emits>()
 .close-button {
   width: 40px;
   height: 40px;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--background-modifier-hover);
   border: none;
   border-radius: 8px;
-  color: rgba(255, 255, 255, 0.7);
+  color: var(--text-secondary);
   cursor: pointer;
   display: flex;
   align-items: center;

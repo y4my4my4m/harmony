@@ -402,10 +402,10 @@ onBeforeUnmount(() => {
 .hex-input {
   flex: 1;
   padding: 8px 12px;
-  background-color: var(--background-senary);
-  border: 1px solid var(--background-quaternary);
+  background-color: var(--input-bg);
+  border: 1px solid var(--input-border);
   border-radius: 4px;
-  color: var(--text-primary, #ffffff);
+  color: var(--text-primary);
   font-size: 14px;
   font-family: 'Courier New', monospace;
 }
@@ -429,7 +429,7 @@ onBeforeUnmount(() => {
 .preview-text {
   font-size: 16px;
   font-weight: 600;
-  color: var(--text-primary);
+  color: var(--text-on-primary, #ffffff);
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6), 0 0 8px rgba(0, 0, 0, 0.4);
 }
 
