@@ -675,14 +675,16 @@ const initializeRouteSpecificData = async (userId: string, strategy: any, userDa
       }
     }
     
-    // BASELINE GLOBAL PRESENCE: Load users for cross-context online status
-    // For single DM views, only load current conversation participant(s)
+    // BASELINE GLOBAL PRESENCE: Load users for cross-context online status.
+    // Settings/admin routes don't render member lists or DM sidebars - skip the
+    // all-servers member blast that was blowing past reverse-proxy URL limits.
     const baselineUserIds = new Set<string>()
+    const skipBaselinePresence = strategy.routeType === 'settings'
     
     // For DM routes with a specific conversation, only load that conversation's participants initially
     const isSingleDMView = strategy.routeType === 'dm' && strategy.currentConversationId
     
-    if (isSingleDMView) {
+    if (!skipBaselinePresence && isSingleDMView) {
       // Only load current conversation participant for single DM view
       try {
         // The DM store already loaded this conversation (and its other
@@ -769,7 +771,7 @@ const initializeRouteSpecificData = async (userId: string, strategy: any, userDa
       } catch (error) {
         debug.warn('⚠️ Failed to load current conversation participants:', error)
       }
-    } else {
+    } else if (!skipBaselinePresence) {
       // Not a single DM view - load all users normally
     await Promise.all([
       // Fetch server users
@@ -821,7 +823,7 @@ const initializeRouteSpecificData = async (userId: string, strategy: any, userDa
     }
     
     // Load baseline user data for global presence (minimal profile info)
-    if (baselineUserIds.size > 0) {
+    if (!skipBaselinePresence && baselineUserIds.size > 0) {
       await userData.ensureProfilesAvailable(Array.from(baselineUserIds))
     }
     
