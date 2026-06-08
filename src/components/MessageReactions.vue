@@ -65,7 +65,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onMounted, ref, watch, nextTick } from 'vue';
 import { debug } from '@/utils/debug'
 import { useReactionsStore } from '@/stores/useReactions';
 import { useAuthStore } from '@/stores/auth';
@@ -87,6 +87,7 @@ interface Emits {
   (e: 'show-reaction-tooltip', event: MouseEvent, reactionGroup: any): void;
   (e: 'hide-reaction-tooltip'): void;
   (e: 'open-emoji-picker', messageId: string, event: MouseEvent): void;
+  (e: 'layout-change', messageId: string): void;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -218,6 +219,20 @@ onMounted(() => {
   }
 });
 
+// Reactions change row height (virtual list); parent must remeasure.
+watch(
+  () => reactions.value.map(g => `${getReactionKey(g)}:${g.count}`).join(','),
+  () => {
+    nextTick(() => emit('layout-change', props.message.id));
+  },
+);
+
+watch(() => isLoadingReactions.value, (loading, wasLoading) => {
+  if (wasLoading && !loading) {
+    nextTick(() => emit('layout-change', props.message.id));
+  }
+});
+
 // Watch for message changes and reload reactions if needed
 watch(() => props.message.id, (newMessageId, oldMessageId) => {
   // Skip if it's a temp message or optimistic message
@@ -239,8 +254,7 @@ watch(() => props.message.id, (newMessageId, oldMessageId) => {
 <style scoped>
 .message-reactions {
   display: flex;
-  /* margin: 2px 0; old approach */
-  margin: 6px 4px 0 4px;
+  margin: 6px 4px 8px 4px;
 }
 
 .reactions-gutter {

@@ -299,7 +299,8 @@
             :class="{ 'sticker-image': isStickerMedia(part.url), 'ai-emoji-image': isAiEmojiMedia(part.url) }"
           />
           <!-- GIF/sticker Favorite Button (AI emoji are treated as plain emoji: no favorite) -->
-          <button 
+          <button
+            type="button"
             v-if="(isAnimatedImage(part.url) || isStickerMedia(part.url)) && !isAiEmojiMedia(part.url)"
             class="gif-favorite-button"
             :class="{ 'favorited': isGifFavorited(part.url), 'visible': hoveredImageUrl === part.url || isGifFavorited(part.url) }"
@@ -351,6 +352,7 @@
           ></video>
           <!-- Clip favorite button (Klipy clips only) -->
           <button
+            type="button"
             v-if="isKlipyMedia(part.url)"
             class="gif-favorite-button"
             :class="{ 'favorited': isGifFavorited(part.url), 'visible': hoveredImageUrl === part.url || isGifFavorited(part.url) }"
@@ -1423,11 +1425,15 @@ export default defineComponent({
 }
 
 .image-container {
-  max-width: 400px;
+  display: inline-block;
+  width: fit-content;
+  max-width: min(400px, 100%);
   position: relative;
+  vertical-align: top;
 }
 
 .content-image {
+  display: block;
   max-width: 100%;
   height: auto;
   max-height: 300px;
@@ -1477,9 +1483,12 @@ export default defineComponent({
   position: absolute;
   top: 8px;
   right: 8px;
+  width: 28px;
+  height: 28px;
+  box-sizing: border-box;
   background: rgba(0, 0, 0, 0.5);
   border: none;
-  padding: 6px;
+  padding: 0;
   border-radius: 4px;
   cursor: pointer;
   opacity: 0;
@@ -1488,6 +1497,7 @@ export default defineComponent({
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
   z-index: 10;
   pointer-events: none;
 }
@@ -1537,10 +1547,15 @@ export default defineComponent({
 }
 
 .video-container {
-  max-width: 400px;
+  display: inline-block;
+  width: fit-content;
+  max-width: min(400px, 100%);
+  position: relative;
+  vertical-align: top;
 }
 
 .content-video {
+  display: block;
   max-width: 100%;
   height: auto;
   max-height: 300px;
@@ -1563,6 +1578,7 @@ export default defineComponent({
 }
 
 .image-skeleton {
+  display: block;
   width: 200px;
   height: 150px;
 }

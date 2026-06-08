@@ -290,6 +290,7 @@
               @show-reaction-tooltip="showTooltip"
               @hide-reaction-tooltip="hideTooltip"
               @open-emoji-picker="handleOpenEmojiPicker"
+              @layout-change="handleReactionsLayoutChange"
             />
           </div>
 
@@ -449,6 +450,7 @@
           @show-reaction-tooltip="showTooltip"
           @hide-reaction-tooltip="hideTooltip"
           @open-emoji-picker="handleOpenEmojiPicker"
+          @layout-change="handleReactionsLayoutChange"
         />
         
           <!-- Thread Indicator (if this message started a thread) - hidden in thread view -->
@@ -585,6 +587,7 @@ import { useNotificationStore } from '@/stores/useNotification';
 import { useActivityPubStore } from '@/stores/useActivityPub';
 import { supabase } from '@/supabase'; 
 import { throttle } from '@/utils/throttle';
+import { getReactionTooltipAnchor } from '@/utils/reactionTooltipPosition';
 import { useServerPermissions } from '@/composables/useServerPermissions';
 import { useUserData } from '@/composables/useUserData';
 import { useHapticSettings } from '@/composables/useHapticSettings';
@@ -2384,8 +2387,9 @@ const showTooltip = async (event: MouseEvent, reaction: Reaction) => {
     };
   });
   
+  const anchor = getReactionTooltipAnchor(event);
   tooltipTimer.value = setTimeout(() => {
-    tooltip.value = { visible: true, content: usersDetails, x: event.clientX, y: event.clientY, emoji: reaction.emoji };
+    tooltip.value = { visible: true, content: usersDetails, x: anchor.x, y: anchor.y, emoji: reaction.emoji };
   }, 500);
 };
 
@@ -2958,16 +2962,25 @@ const getReplyMessagePreview = (replyMessageId: string) => {
 // Uses an anchor-based approach: track the item at the viewport top before
 // the resize, then after re-measurement adjust scrollTop by only the change
 // in that anchor item's start offset (which reflects above-viewport growth).
+const scrollToBottomIfPinned = () => {
+  nextTick(() => {
+    requestAnimationFrame(() => {
+      if (!messageDisplayContainer.value) return;
+      const count = displayItems.value.length;
+      if (count > 0) rowVirtualizer.value.scrollToIndex(count - 1, { align: 'end' });
+    });
+  });
+};
+
 const correctScrollAfterResize = (callback: () => void) => {
   const container = messageDisplayContainer.value;
   if (!container) { callback(); return; }
   
-  if (shouldBeAtBottom.value) {
+  // Pinned to bottom: remeasure first, then re-seat so totalSize includes
+  // the new height (reactions, embeds, images) before we scroll.
+  if (shouldBeAtBottom.value || userWasAtBottom.value) {
     callback();
-    requestAnimationFrame(() => {
-      const count = displayItems.value.length;
-      if (count > 0) rowVirtualizer.value.scrollToIndex(count - 1, { align: 'end' });
-    });
+    scrollToBottomIfPinned();
     return;
   }
   
@@ -3029,6 +3042,12 @@ const handleImageLoaded = (url: string) => {
         rowVirtualizer.value.measureElement(el as HTMLElement);
       });
     });
+  });
+};
+
+const handleReactionsLayoutChange = (messageId: string) => {
+  correctScrollAfterResize(() => {
+    remeasureItem(messageId);
   });
 };
 
