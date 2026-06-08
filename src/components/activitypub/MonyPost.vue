@@ -716,6 +716,7 @@ const tooltip = ref({
     userColor?: string;
     isRemote?: boolean;
     domain?: string;
+    handle?: string;
   }[],
   x: 0,
   y: 0,

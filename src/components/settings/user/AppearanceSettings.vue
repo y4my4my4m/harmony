@@ -769,9 +769,7 @@ import {
   generateThemePalette,
   applyThemePalette,
   generatePreviewColors,
-  composeBackgroundToneHex,
   decomposeBackgroundToneHex,
-  extractBackgroundHue,
   canonicalizeBackgroundTone,
 } from '@/utils/colorUtils'
 import { useEmojiPacks } from '@/services/emojiPackService'
