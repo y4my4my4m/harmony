@@ -1,7 +1,11 @@
 <template>
   <div
     class="media-picker-popup"
-    :class="{ 'media-picker-popup--mobile': isMobile }"
+    :class="{
+      'media-picker-popup--mobile': isMobile,
+      'media-picker-popup--keyboard-open': isMobile && keyboardOpen,
+    }"
+    data-block-sidebar-gestures
     ref="popupRef"
     :style="popupStyle"
   >
@@ -129,6 +133,7 @@ const onTabsTouchStart = (e: TouchEvent) => {
   if (!t) return;
   tabsTouchStartX = t.clientX;
   tabsTouchStartY = t.clientY;
+  e.stopPropagation();
 };
 
 const onTabsTouchMove = (e: TouchEvent) => {
@@ -140,6 +145,10 @@ const onTabsTouchMove = (e: TouchEvent) => {
   const dy = t.clientY - tabsTouchStartY;
   if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 4) {
     e.preventDefault();
+    e.stopPropagation();
+    el.scrollLeft -= dx;
+    tabsTouchStartX = t.clientX;
+    tabsTouchStartY = t.clientY;
   }
 };
 
@@ -167,7 +176,12 @@ const visualViewportRect = ref({
   height: typeof window !== 'undefined' ? window.innerHeight : 700,
 });
 
+const layoutHeight = ref(typeof window !== 'undefined' ? window.innerHeight : 700);
+
+const KEYBOARD_OPEN_THRESHOLD = 120;
+
 const syncVisualViewport = () => {
+  layoutHeight.value = window.innerHeight;
   const vv = window.visualViewport;
   if (!vv) {
     visualViewportRect.value = {
@@ -186,14 +200,34 @@ const syncVisualViewport = () => {
   };
 };
 
-/** Mobile: anchor in the visible viewport (above the keyboard), not over the composer. */
+/** True when the soft keyboard is consuming viewport height. */
+const keyboardOpen = computed(() => {
+  if (!isMobile.value) return false;
+  return layoutHeight.value - visualViewportRect.value.height > KEYBOARD_OPEN_THRESHOLD;
+});
+
+/**
+ * Mobile positioning:
+ * - Keyboard open → compact panel pinned to the top of the visible viewport.
+ * - Keyboard closed → taller bottom-anchored panel that uses more of the screen.
+ */
 const mobilePopupStyle = computed(() => {
   const pad = 12;
+  const bottomPad = 16;
   const vv = visualViewportRect.value;
   const width = Math.min(400, Math.round(vv.width - pad * 2));
-  const maxHeight = Math.min(500, Math.round(vv.height - pad * 2));
   const left = vv.left + (vv.width - width) / 2;
-  const top = vv.top + pad;
+
+  let maxHeight: number;
+  let top: number;
+
+  if (keyboardOpen.value) {
+    maxHeight = Math.min(420, Math.round(vv.height - pad * 2));
+    top = vv.top + pad;
+  } else {
+    maxHeight = Math.min(560, Math.round(vv.height * 0.78));
+    top = vv.top + vv.height - maxHeight - bottomPad;
+  }
 
   return {
     position: 'fixed' as const,
@@ -243,6 +277,7 @@ onMounted(() => {
   syncVisualViewport();
   window.visualViewport?.addEventListener('resize', syncVisualViewport);
   window.visualViewport?.addEventListener('scroll', syncVisualViewport);
+  window.addEventListener('resize', syncVisualViewport);
 
   nextTick(() => {
     updatePosition();
@@ -260,6 +295,7 @@ onUnmounted(() => {
   document.removeEventListener('keydown', handleKeyDown);
   window.visualViewport?.removeEventListener('resize', syncVisualViewport);
   window.visualViewport?.removeEventListener('scroll', syncVisualViewport);
+  window.removeEventListener('resize', syncVisualViewport);
   const el = tabsScrollRef.value;
   if (el && tabsTouchMoveHandler) {
     el.removeEventListener('touchstart', onTabsTouchStart);
@@ -370,6 +406,7 @@ onUnmounted(() => {
 @media (max-width: 768px) {
   .media-picker-popup--mobile {
     border-radius: 12px;
+    transition: top 0.22s ease, max-height 0.22s ease;
   }
 
   .tab-button {

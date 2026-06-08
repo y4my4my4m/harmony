@@ -987,11 +987,20 @@ watch(() => route.path, async (newPath) => {
 
 // ===== NATIVE MOBILE GESTURE HANDLERS =====
 
+/** Overlays with horizontal scroll (e.g. media picker tabs) must not trigger sidebar swipes. */
+const shouldIgnoreSidebarGesture = (event: TouchEvent) => {
+  const target = event.target
+  if (!(target instanceof Element)) return false
+  return !!target.closest('[data-block-sidebar-gestures]')
+}
+
 const wrappedTouchStart = (event: TouchEvent) => {
+  if (shouldIgnoreSidebarGesture(event)) return
   handleTouchStart(event, isMobile.value)
 }
 
 const wrappedTouchMove = (event: TouchEvent) => {
+  if (shouldIgnoreSidebarGesture(event)) return
   const hasOpenSidebars = leftSidebarOpen.value || rightSidebarOpen.value
   const isActivityPubTimeline = route.path.startsWith('/social') && timelineIndex.value >= 0
 
@@ -1011,6 +1020,7 @@ const wrappedTouchMove = (event: TouchEvent) => {
 }
 
 const wrappedTouchEnd = (event: TouchEvent) => {
+  if (shouldIgnoreSidebarGesture(event)) return
   const isActivityPub = route.path.startsWith('/social')
   const isOnTimeline = isActivityPub && timelineIndex.value >= 0
 
