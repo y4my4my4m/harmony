@@ -120,25 +120,30 @@
       </div>
 
       <div class="form-group">
-        <label class="form-label">Profile Color</label>
+        <label class="form-label">Display Color</label>
         <div class="color-picker-container">
           <div class="color-preview-row">
-            <div 
-              class="color-preview" 
-              :style="{ backgroundColor: localProfile.color || '#0EA5E9' }"
-              ref="colorPreviewRef"
-              @click="toggleColorPicker"
-            ></div>
-            <input
-              v-model="localProfile.color"
-              type="text"
-              class="color-input"
-              :placeholder="localProfile.color || '#0EA5E9'"
-              @input="onColorChange"
-            />
-            <button class="color-reset-btn" @click="resetColor">{{ $t('common.reset') }}</button>
+            <div class="color-hex-field">
+              <button
+                type="button"
+                class="color-hex-swatch"
+                :style="{ backgroundColor: localProfile.color || '#0EA5E9' }"
+                ref="colorPreviewRef"
+                aria-label="Open color picker"
+                @click="toggleColorPicker"
+              ></button>
+              <input
+                v-model="localProfile.color"
+                type="text"
+                class="form-input color-hex-input"
+                :placeholder="localProfile.color || '#0EA5E9'"
+                @input="onColorChange"
+              />
+            </div>
+            <button type="button" class="btn btn-secondary color-reset-btn" @click="resetColor">
+              {{ $t('common.reset') }}
+            </button>
           </div>
-          
           <div
             v-show="showColorPicker"
             v-click-outside="closeColorPicker"
@@ -153,7 +158,7 @@
           </div>
         </div>
         <div class="form-hint">
-          This color will be used for your name and profile accents.
+          Used for your display name and profile accents.
         </div>
       </div>
     </div>
@@ -405,7 +410,6 @@ const toast = useToast()
 
 // State
 const localProfile = ref<Partial<User>>({})
-const showColorPicker = ref(false)
 const bannerKey = ref(0) // For forcing banner reload
 
 // ---------------------------------------------------------------------------
@@ -423,6 +427,7 @@ const PROFILE_FIELD_VALUE_MAX = 255
 
 interface EditableField { name: string; value: string }
 const localProfileFields = ref<EditableField[]>([])
+const showColorPicker = ref(false)
 
 const URL_REGEX = /^https?:\/\/[^\s<>]+$/i
 const URL_HREF_REGEX = /^<a [^>]*\bhref=["']([^"']+)["'][^>]*>[\s\S]*<\/a>$/i
@@ -625,7 +630,6 @@ const onDisplayNameEmojiSelect = (suggestion: any) => {
 // }
 
 const onColorChange = () => {
-  // Validate hex color
   const color = localProfile.value.color
   if (color && !color.startsWith('#')) {
     localProfile.value.color = '#' + color
@@ -738,11 +742,9 @@ const formatDate = (dateString?: string) => {
   return format(new Date(dateString), 'MMMM d, yyyy')
 }
 
-// Click outside directive implementation
 const vClickOutside = {
-  beforeMount(el: HTMLElement & { __vueClickOutside__?: any }, binding: any) {
+  beforeMount(el: HTMLElement & { __vueClickOutside__?: (event: MouseEvent) => void }, binding: { value: () => void }) {
     const onClick = (event: MouseEvent) => {
-      // Check if the click is outside the color picker and not on the color preview
       if (el && !el.contains(event.target as Node) &&
           (!colorPreviewRef.value || !colorPreviewRef.value.contains(event.target as Node))) {
         binding.value()
@@ -751,10 +753,12 @@ const vClickOutside = {
     el.__vueClickOutside__ = onClick
     document.addEventListener('click', onClick)
   },
-  unmounted(el: HTMLElement & { __vueClickOutside__?: any }) {
-    document.removeEventListener('click', el.__vueClickOutside__)
-    el.__vueClickOutside__ = null
-  }
+  unmounted(el: HTMLElement & { __vueClickOutside__?: (event: MouseEvent) => void }) {
+    if (el.__vueClickOutside__) {
+      document.removeEventListener('click', el.__vueClickOutside__)
+    }
+    el.__vueClickOutside__ = undefined
+  },
 }
 
 // Watchers
@@ -1000,43 +1004,65 @@ onMounted(async () => {
   gap: 12px;
 }
 
-.color-preview {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  cursor: pointer;
-  border: 2px solid var(--background-quaternary);
-  transition: all 0.15s ease;
-}
-
-.color-preview:hover {
-  transform: scale(1.1);
-}
-
-.color-input {
+/* Composite field: swatch inside the same chrome as form-input */
+.color-hex-field {
+  display: flex;
+  align-items: stretch;
   flex: 1;
-  max-width: 120px;
+  max-width: 200px;
+  height: 38px;
+  box-sizing: border-box;
+  background-color: var(--input-bg);
+  border: 1px solid var(--input-border);
+  border-radius: 4px;
+  overflow: hidden;
+  transition: border-color 0.15s ease;
+}
+
+.color-hex-field:focus-within {
+  border-color: var(--harmony-primary, #0EA5E9);
+}
+
+.color-hex-swatch {
+  width: 36px;
+  flex-shrink: 0;
+  padding: 0;
+  border: none;
+  border-right: 1px solid var(--input-border);
+  cursor: pointer;
+  transition: filter 0.15s ease;
+}
+
+.color-hex-swatch:hover {
+  filter: brightness(1.08);
+}
+
+.color-hex-input {
+  flex: 1;
+  min-width: 0;
+  width: auto;
+  max-width: none;
+  height: 100%;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  padding: 0 10px;
+  font-size: 13px;
+  line-height: 1;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.color-hex-input:focus {
+  outline: none;
+  border-color: transparent;
 }
 
 .color-reset-btn {
-  padding: 8px 16px;
-  background-color: var(--background-quaternary);
-  border: 1px solid var(--input-border);
-  border-radius: 4px;
-  color: var(--text-secondary);
-  cursor: pointer;
-  font-size: 12px;
-  transition: all 0.15s ease;
-}
-
-.color-reset-btn:hover {
-  background-color: var(--background-quaternary);
-  color: var(--text-primary);
-}
-
-/* Color picker popover (wraps the shared ColorPicker component) */
-.color-picker-container {
-  position: relative;
+  flex-shrink: 0;
+  height: 38px;
+  box-sizing: border-box;
+  padding: 0 14px;
+  font-size: 13px;
 }
 
 .color-picker-popover {
@@ -1168,14 +1194,14 @@ onMounted(async () => {
     margin-right: 0;
     margin-bottom: 12px;
   }
-  
+
   .color-preview-row {
-    flex-direction: column;
-    align-items: stretch;
+    flex-wrap: wrap;
   }
-  
-  .color-input {
+
+  .color-hex-field {
     max-width: none;
+    min-width: 0;
   }
 }
 
