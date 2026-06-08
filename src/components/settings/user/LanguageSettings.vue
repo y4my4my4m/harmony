@@ -130,9 +130,9 @@ onMounted(async () => {
 .settings-section {
   margin-bottom: 32px;
   padding: 24px;
-  background-color: var(--h-chat);
+  background-color: var(--background-secondary);
   border-radius: 8px;
-  border: 1px solid var(--h-chat-light);
+  border: 1px solid var(--background-quaternary);
 }
 
 .setting-item {
@@ -166,8 +166,8 @@ onMounted(async () => {
 
 .select-input {
   padding: 8px 12px;
-  background-color: var(--h-chat-darker);
-  border: 1px solid var(--h-chat-light);
+  background-color: var(--background-senary);
+  border: 1px solid var(--background-quaternary);
   border-radius: 4px;
   color: var(--text-primary);
   font-size: 14px;

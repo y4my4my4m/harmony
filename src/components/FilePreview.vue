@@ -129,7 +129,7 @@ const hasUploading = computed(() => {
 
 <style scoped>
 .file-preview-container {
-  background-color: var(--h-chat-light);
+  background-color: var(--background-quaternary);
   border-radius: 8px 8px 0 0;
   padding: 12px;
 }
@@ -208,7 +208,7 @@ const hasUploading = computed(() => {
   height: 48px;
   border-radius: 4px;
   overflow: hidden;
-  background-color: var(--h-chat-dark);
+  background-color: var(--background-tertiary);
   display: flex;
   align-items: center;
   justify-content: center;

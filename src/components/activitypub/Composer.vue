@@ -996,7 +996,7 @@ const vClickOutside = {
 }
 
 .composer-inline-content {
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--border-secondary, var(--border-color));
   border-radius: 12px;
   background-color: var(--background-primary);
   box-shadow: 0 2px 5px 5px #00000011;

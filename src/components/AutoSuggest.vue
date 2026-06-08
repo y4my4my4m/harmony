@@ -201,7 +201,7 @@ watch(() => props.selectedIndex, (newIndex) => {
   background: var(--background-tertiary);
   border-radius: 8px;
   box-shadow: 0 8px 16px rgba(0, 0, 0, 0.24);
-  border: 1px solid var(--h-black-lighter);
+  border: 1px solid var(--background-quinary);
   overflow-y: auto;
   min-width: 200px;
   max-width: 300px;
@@ -220,7 +220,7 @@ watch(() => props.selectedIndex, (newIndex) => {
   text-transform: uppercase;
   color: var(--text-secondary);
   background: var(--background-secondary);
-  border-bottom: 1px solid var(--h-black-lighter);
+  border-bottom: 1px solid var(--background-quinary);
 }
 
 .suggest-item {
@@ -232,7 +232,7 @@ watch(() => props.selectedIndex, (newIndex) => {
 
 .suggest-item:hover,
 .suggest-item.selected {
-  background: var(--h-black-lighter);
+  background: var(--background-quinary);
 }
 
 .suggest-item.selected {
@@ -474,7 +474,7 @@ watch(() => props.selectedIndex, (newIndex) => {
 }
 
 .auto-suggest::-webkit-scrollbar-thumb {
-  background: var(--h-black-lighter);
+  background: var(--background-quinary);
   border-radius: 2px;
 }
 

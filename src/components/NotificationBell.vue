@@ -531,7 +531,7 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   color: var(--text-primary);
-  box-shadow: 0 0 0 3px var(--h-chat-dark);
+  box-shadow: 0 0 0 3px var(--background-tertiary);
   font-size: 8px;
 }
 
@@ -542,7 +542,7 @@ onUnmounted(() => {
   left: 200px;
   width: 420px;
   max-height: calc(100vh - 120px);
-  background: var(--h-chat);
+  background: var(--background-secondary);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 16px;
   box-shadow: 
@@ -556,7 +556,7 @@ onUnmounted(() => {
 
 /* Panel header with subtle brand tint */
 .panel-header {
-  background: linear-gradient(135deg, var(--h-chat-darker) 0%, rgba(var(--h-brand-rgb, 14, 165, 233), 0.08) 100%);
+  background: linear-gradient(135deg, var(--background-senary) 0%, rgba(var(--h-brand-rgb, 14, 165, 233), 0.08) 100%);
   padding: 20px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   position: relative;
@@ -1081,7 +1081,7 @@ onUnmounted(() => {
   
   .notification-badge {
     background: #ff0000;
-    box-shadow: 0 0 0 2px var(--h-chat-dark);
+    box-shadow: 0 0 0 2px var(--background-tertiary);
   }
 }
 

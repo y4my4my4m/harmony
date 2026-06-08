@@ -977,7 +977,7 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
   .message-input {
     display: flex;
     padding: 24px 12px 12px 12px;
-    /* background-color: var(--h-chat); */
+    /* background-color: var(--background-secondary); */
     flex-direction: column;
     flex-shrink: 0; /* Prevent the input from shrinking */
     position: relative; /* For absolute positioning of typing indicator */
@@ -1223,7 +1223,7 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
       margin: 0;
       /* padding: 12px 16px; */
       padding: 0.5rem;
-      background: var(--h-chat, #313338);
+      background: var(--background-secondary, #313338);
       border-top: 1px solid rgba(255, 255, 255, 0.08);
       box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.1);
     }

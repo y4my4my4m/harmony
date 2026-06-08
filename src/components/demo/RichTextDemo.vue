@@ -121,9 +121,9 @@ watch(testText, (newValue) => {
 .demo-section {
   margin-bottom: 40px;
   padding: 20px;
-  border: 1px solid var(--h-black-lighter);
+  border: 1px solid var(--background-quinary);
   border-radius: 8px;
-  background: var(--h-chat, var(--background-tertiary));
+  background: var(--background-secondary, var(--background-tertiary));
 }
 
 .demo-section h3 {
@@ -134,7 +134,7 @@ watch(testText, (newValue) => {
 .text-output, .parsed-output, .highlighted-output {
   margin-top: 20px;
   padding: 15px;
-  border: 1px solid var(--h-black-lighter);
+  border: 1px solid var(--background-quinary);
   border-radius: 4px;
   background: var(--background-tertiary);
 }
@@ -151,9 +151,9 @@ watch(testText, (newValue) => {
   width: 100%;
   min-height: 120px;
   padding: 10px;
-  border: 1px solid var(--h-black-lighter);
+  border: 1px solid var(--background-quinary);
   border-radius: 4px;
-  background: var(--h-black-lighter);
+  background: var(--background-quinary);
   color: var(--text-primary);
   font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
   resize: vertical;
@@ -171,7 +171,7 @@ watch(testText, (newValue) => {
   gap: 10px;
   padding: 5px 10px;
   border-radius: 4px;
-  background: var(--h-black-lighter);
+  background: var(--background-quinary);
 }
 
 .node-type {
@@ -218,7 +218,7 @@ watch(testText, (newValue) => {
   background: var(--background-tertiary);
   padding: 8px;
   border-radius: 4px;
-  border: 1px solid var(--h-black-lighter);
+  border: 1px solid var(--background-quinary);
   color: var(--text-secondary);
 }
 
@@ -232,9 +232,9 @@ watch(testText, (newValue) => {
 select {
   padding: 5px 10px;
   margin-bottom: 10px;
-  border: 1px solid var(--h-black-lighter);
+  border: 1px solid var(--background-quinary);
   border-radius: 4px;
-  background: var(--h-black-lighter);
+  background: var(--background-quinary);
   color: var(--text-primary);
 }
 

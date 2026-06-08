@@ -290,6 +290,7 @@
               @show-reaction-tooltip="showTooltip"
               @hide-reaction-tooltip="hideTooltip"
               @open-emoji-picker="handleOpenEmojiPicker"
+              @layout-change="handleReactionsLayoutChange"
             />
           </div>
 
@@ -449,6 +450,7 @@
           @show-reaction-tooltip="showTooltip"
           @hide-reaction-tooltip="hideTooltip"
           @open-emoji-picker="handleOpenEmojiPicker"
+          @layout-change="handleReactionsLayoutChange"
         />
         
           <!-- Thread Indicator (if this message started a thread) - hidden in thread view -->
@@ -572,7 +574,7 @@ import LoadingSpinner from '@/components/common/LoadingSpinner.vue';
 import { computed, ref, watch, nextTick, onMounted, onUnmounted } from 'vue';
 import { debug } from '@/utils/debug'
 import type { PropType, Ref, ComputedRef } from 'vue';
-import type { Message, MessagePart, User, Emoji, Reaction } from '@/types';
+import type { Message, MessagePart, User, Emoji, Reaction, FileContent } from '@/types';
 import { useServerUsersStore } from '@/stores/useServerUsers';
 import { useChatStore } from '@/stores/useChat';
 import { useDMStore } from '@/stores/useDM';
@@ -585,6 +587,7 @@ import { useNotificationStore } from '@/stores/useNotification';
 import { useActivityPubStore } from '@/stores/useActivityPub';
 import { supabase } from '@/supabase'; 
 import { throttle } from '@/utils/throttle';
+import { getReactionTooltipAnchor } from '@/utils/reactionTooltipPosition';
 import { useServerPermissions } from '@/composables/useServerPermissions';
 import { useUserData } from '@/composables/useUserData';
 import { useHapticSettings } from '@/composables/useHapticSettings';
@@ -2384,8 +2387,9 @@ const showTooltip = async (event: MouseEvent, reaction: Reaction) => {
     };
   });
   
+  const anchor = getReactionTooltipAnchor(event);
   tooltipTimer.value = setTimeout(() => {
-    tooltip.value = { visible: true, content: usersDetails, x: event.clientX, y: event.clientY, emoji: reaction.emoji };
+    tooltip.value = { visible: true, content: usersDetails, x: anchor.x, y: anchor.y, emoji: reaction.emoji };
   }, 500);
 };
 
@@ -2650,7 +2654,9 @@ const canDeleteMessage = (message: Message) => {
     const startEdit = (message: Message) => {
     if (!canEditMessage(message)) return;
     editableMessageId.value = message.id;
-    editableMessageContent.value = messagePartsToMarkdown(message.content);
+    // Exclude file parts from the editable text - attachments are shown and
+    // managed as a separate, individually-removable media list in edit mode.
+    editableMessageContent.value = messagePartsToMarkdown(message.content, { excludeFiles: true });
     hoveredMessageId.value = null;
     nextTick(() => {
       const editInput = document.querySelector(`#edit-input-${message.id}`) as HTMLTextAreaElement;
@@ -2662,10 +2668,13 @@ const canDeleteMessage = (message: Message) => {
     });
   };
 
-const saveEdit = async (messageId: string, newContent?: string) => {
+const saveEdit = async (messageId: string, newContent?: string, retainedFiles: FileContent[] = []) => {
   if (!editableMessageId.value) return;
   const textContent = newContent ?? editableMessageContent.value;
-  if (!textContent.trim()) {
+  // Allow saving a message that has no text as long as at least one attachment
+  // remains. Only cancel (delete-via-empty is handled elsewhere) when nothing
+  // would be left at all.
+  if (!textContent.trim() && retainedFiles.length === 0) {
     cancelEdit();
     return;
   }
@@ -2674,11 +2683,13 @@ const saveEdit = async (messageId: string, newContent?: string) => {
     const emojiDataMap = await resolveEmojisData(textContent);
     const roleDataMap = await resolveRoleMentionsData(textContent, serverChannelStore.currentServerId || undefined);
     const parsedContent = await parseContentToMessageParts(textContent, userDataMap, emojiDataMap, {}, roleDataMap);
-    
+    // Re-append the attachments the user kept, so editing text never drops media.
+    const finalContent = [...parsedContent, ...retainedFiles];
+
     if (props.channelId) {
-      await chatStore.editMessage(messageId, parsedContent);
+      await chatStore.editMessage(messageId, finalContent);
     } else if (props.conversationId) {
-      await dmStore.editMessage(messageId, parsedContent);
+      await dmStore.editMessage(messageId, finalContent);
     }
     cancelEdit();
   } catch (error) {
@@ -2951,16 +2962,25 @@ const getReplyMessagePreview = (replyMessageId: string) => {
 // Uses an anchor-based approach: track the item at the viewport top before
 // the resize, then after re-measurement adjust scrollTop by only the change
 // in that anchor item's start offset (which reflects above-viewport growth).
+const scrollToBottomIfPinned = () => {
+  nextTick(() => {
+    requestAnimationFrame(() => {
+      if (!messageDisplayContainer.value) return;
+      const count = displayItems.value.length;
+      if (count > 0) rowVirtualizer.value.scrollToIndex(count - 1, { align: 'end' });
+    });
+  });
+};
+
 const correctScrollAfterResize = (callback: () => void) => {
   const container = messageDisplayContainer.value;
   if (!container) { callback(); return; }
   
-  if (shouldBeAtBottom.value) {
+  // Pinned to bottom: remeasure first, then re-seat so totalSize includes
+  // the new height (reactions, embeds, images) before we scroll.
+  if (shouldBeAtBottom.value || userWasAtBottom.value) {
     callback();
-    requestAnimationFrame(() => {
-      const count = displayItems.value.length;
-      if (count > 0) rowVirtualizer.value.scrollToIndex(count - 1, { align: 'end' });
-    });
+    scrollToBottomIfPinned();
     return;
   }
   
@@ -3022,6 +3042,12 @@ const handleImageLoaded = (url: string) => {
         rowVirtualizer.value.measureElement(el as HTMLElement);
       });
     });
+  });
+};
+
+const handleReactionsLayoutChange = (messageId: string) => {
+  correctScrollAfterResize(() => {
+    remeasureItem(messageId);
   });
 };
 
@@ -3641,7 +3667,7 @@ defineExpose({ editLastOwnMessage });
 .gap-line {
   flex: 1;
   height: 1px;
-  background-color: var(--h-black-lighter);
+  background-color: var(--background-quinary);
 }
 
 .gap-text {
@@ -3665,7 +3691,7 @@ defineExpose({ editLastOwnMessage });
 .date-separator-line {
   flex: 1;
   height: 1px;
-  /* background-color: var(--h-black-lighter); */
+  /* background-color: var(--background-quinary); */
   background-color: var(--border-color);
 }
 
@@ -3839,7 +3865,7 @@ defineExpose({ editLastOwnMessage });
   gap: 8px;
   padding: 4px 0 8px 0;
   margin-bottom: 8px;
-  border-bottom: 1px solid color-mix(in srgb, var(--h-black-lighter) 30%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--background-quinary) 30%, transparent);
 }
 .tooltip-emoji {
   width: 48px;

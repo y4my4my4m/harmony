@@ -478,7 +478,7 @@ const closeModal = () => {
 
 .media-item {
   position: relative;
-  background: var(--h-chat, #313338);
+  background: var(--background-secondary, #313338);
   overflow: hidden;
   transition: opacity 0.2s;
 }

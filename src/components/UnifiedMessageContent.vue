@@ -14,6 +14,48 @@
         @update:model-value="handleRichEditorUpdate"
         @keydown="handleKeyDown"
       />
+      <!-- Existing attachments: shown as removable thumbnails so editing the
+           text never silently drops media. Removing one here only affects the
+           saved message, not the text input above. -->
+      <div v-if="editableFiles.length > 0" class="edit-attachments">
+        <div
+          v-for="(file, fileIndex) in editableFiles"
+          :key="(file.url || '') + fileIndex"
+          class="edit-attachment"
+          :title="file.fileName || file.url"
+        >
+          <img
+            v-if="isEditFileImage(file)"
+            class="edit-attachment-thumb"
+            :src="displayMediaUrl(file.url)"
+            :alt="file.fileName || 'attachment'"
+          />
+          <video
+            v-else-if="isEditFileVideo(file)"
+            class="edit-attachment-thumb"
+            :src="displayMediaUrl(file.url)"
+            muted
+          />
+          <div v-else class="edit-attachment-file">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+            </svg>
+            <span class="edit-attachment-name">{{ file.fileName || 'file' }}</span>
+          </div>
+          <button
+            type="button"
+            class="edit-attachment-remove"
+            title="Remove attachment"
+            @click.stop="removeEditFile(fileIndex)"
+          >
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5">
+              <line x1="18" y1="6" x2="6" y2="18"/>
+              <line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+      </div>
       <div class="edit-actions">
         <span class="edit-hint">
           escape to <span class="edit-action" @click="handleCancelEdit">cancel</span> • 
@@ -257,7 +299,8 @@
             :class="{ 'sticker-image': isStickerMedia(part.url), 'ai-emoji-image': isAiEmojiMedia(part.url) }"
           />
           <!-- GIF/sticker Favorite Button (AI emoji are treated as plain emoji: no favorite) -->
-          <button 
+          <button
+            type="button"
             v-if="(isAnimatedImage(part.url) || isStickerMedia(part.url)) && !isAiEmojiMedia(part.url)"
             class="gif-favorite-button"
             :class="{ 'favorited': isGifFavorited(part.url), 'visible': hoveredImageUrl === part.url || isGifFavorited(part.url) }"
@@ -309,6 +352,7 @@
           ></video>
           <!-- Clip favorite button (Klipy clips only) -->
           <button
+            type="button"
             v-if="isKlipyMedia(part.url)"
             class="gif-favorite-button"
             :class="{ 'favorited': isGifFavorited(part.url), 'visible': hoveredImageUrl === part.url || isGifFavorited(part.url) }"
@@ -424,7 +468,8 @@
 <script lang="ts">
 import { defineComponent, watch, ref, nextTick, reactive, onMounted, computed } from 'vue';
 import type { PropType } from 'vue';
-import type { EmbedPayload, MessagePart } from '@/types';
+import type { EmbedPayload, MessagePart, FileContent } from '@/types';
+import { extractFileParts } from '@/utils/messageContentUtils';
 import AutoSuggest from '@/components/AutoSuggest.vue';
 import DisplayName from '@/components/DisplayName.vue';
 import CodeBlock from '@/components/common/CodeBlock.vue';
@@ -537,6 +582,10 @@ export default defineComponent({
   emits: ['update:message', 'update:content', 'cancel-edit', 'image-loaded', 'embed-loaded', 'open-lightbox', 'show-user-profile', 'hashtag-click', 'decrypt-message'],
   setup(props, { emit }) {
     const localEditableContent = ref(props.editableContent);
+    // Attachments retained while editing. Initialized from the message's file
+    // parts when edit mode opens; the user can remove individual items without
+    // touching the text input. On save these are merged back into the message.
+    const editableFiles = ref<FileContent[]>([]);
     const editRichEditorRef = ref<InstanceType<typeof RichTextEditor> | null>(null);
     const videoContainers = ref<HTMLElement[]>([]);
     const visualTheme = useVisualTheme();
@@ -914,6 +963,8 @@ export default defineComponent({
     // cursor restore), so our setCursorPosition(end) is the final word.
     watch(() => props.editableMessageId, (newVal) => {
       if (newVal === props.messageId) {
+        // Snapshot the message's current attachments into the editable list.
+        editableFiles.value = extractFileParts(props.content);
         setTimeout(() => {
           const r = editRichEditorRef.value;
           if (r) {
@@ -923,8 +974,22 @@ export default defineComponent({
             if (r.setCursorPosition) r.setCursorPosition(len);
           }
         }, 0);
+      } else {
+        editableFiles.value = [];
       }
     });
+
+    const removeEditFile = (index: number) => {
+      editableFiles.value = editableFiles.value.filter((_, i) => i !== index);
+    };
+
+    const isEditFileImage = (file: FileContent): boolean => {
+      return file.fileType === 'image' || /\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i.test(file.url || '');
+    };
+
+    const isEditFileVideo = (file: FileContent): boolean => {
+      return file.fileType === 'video' || /\.(mp4|webm|mov|m4v)$/i.test(file.url || '');
+    };
 
     const autoResizeEditArea = () => {
       // RichTextEditor handles its own height; no-op for edit mode
@@ -975,20 +1040,16 @@ export default defineComponent({
       autoSuggest.closeSuggestions();
       
       const content = localEditableContent.value.trim();
-      // debug.log('handleSaveEdit called with content:', content);
-      // debug.log('messageId:', props.messageId);
-      // debug.log('editableMessageId:', props.editableMessageId);
-      
-      if (!content) {
-        // debug.log('Content is empty, canceling edit');
+
+      // Allow a file-only message: empty text is fine as long as the user kept
+      // at least one attachment. Only cancel when nothing would remain.
+      if (!content && editableFiles.value.length === 0) {
         handleCancelEdit();
         return;
       }
       
       try {
-        // debug.log('Emitting update:message with messageId:', props.messageId, 'content:', content);
-        emit('update:message', props.messageId, content);
-        // debug.log('update:message emitted successfully');
+        emit('update:message', props.messageId, content, [...editableFiles.value]);
       } catch (e) {
         debug.error('Error in handleSaveEdit:', e);
       }
@@ -1095,6 +1156,10 @@ export default defineComponent({
     return {
       getEmojiUrl,
       localEditableContent,
+      editableFiles,
+      removeEditFile,
+      isEditFileImage,
+      isEditFileVideo,
       editRichEditorRef,
       videoContainers,
       handleSaveEdit,
@@ -1360,11 +1425,15 @@ export default defineComponent({
 }
 
 .image-container {
-  max-width: 400px;
+  display: inline-block;
+  width: fit-content;
+  max-width: min(400px, 100%);
   position: relative;
+  vertical-align: top;
 }
 
 .content-image {
+  display: block;
   max-width: 100%;
   height: auto;
   max-height: 300px;
@@ -1414,9 +1483,12 @@ export default defineComponent({
   position: absolute;
   top: 8px;
   right: 8px;
+  width: 28px;
+  height: 28px;
+  box-sizing: border-box;
   background: rgba(0, 0, 0, 0.5);
   border: none;
-  padding: 6px;
+  padding: 0;
   border-radius: 4px;
   cursor: pointer;
   opacity: 0;
@@ -1425,6 +1497,7 @@ export default defineComponent({
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
   z-index: 10;
   pointer-events: none;
 }
@@ -1474,10 +1547,15 @@ export default defineComponent({
 }
 
 .video-container {
-  max-width: 400px;
+  display: inline-block;
+  width: fit-content;
+  max-width: min(400px, 100%);
+  position: relative;
+  vertical-align: top;
 }
 
 .content-video {
+  display: block;
   max-width: 100%;
   height: auto;
   max-height: 300px;
@@ -1500,6 +1578,7 @@ export default defineComponent({
 }
 
 .image-skeleton {
+  display: block;
   width: 200px;
   height: 150px;
 }
@@ -1585,6 +1664,85 @@ export default defineComponent({
 
 .edit-textarea::placeholder {
   color: var(--text-secondary);
+}
+
+.edit-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.edit-attachment {
+  position: relative;
+  width: 72px;
+  height: 72px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+  background-color: var(--background-tertiary);
+  flex-shrink: 0;
+}
+
+.edit-attachment-thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.edit-attachment-file {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 4px;
+  color: var(--text-secondary);
+}
+
+.edit-attachment-name {
+  font-size: 10px;
+  line-height: 1.2;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.edit-attachment-remove {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background-color: rgba(0, 0, 0, 0.65);
+  color: #fff;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.12s ease, background-color 0.12s ease;
+}
+
+.edit-attachment:hover .edit-attachment-remove {
+  opacity: 1;
+}
+
+.edit-attachment-remove:hover {
+  background-color: var(--status-danger, #ed4245);
+}
+
+/* Touch devices: remove button is always visible (no hover). */
+@media (hover: none) {
+  .edit-attachment-remove {
+    opacity: 1;
+  }
 }
 
 .edit-actions {

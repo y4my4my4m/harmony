@@ -547,7 +547,7 @@
     <div
       v-if="tooltip.visible"
       class="reaction-tooltip"
-      :style="{ top: tooltip.y + 10 + 'px', left: tooltip.x + 'px' }"
+      :style="{ top: `${tooltip.y}px`, left: `${tooltip.x}px` }"
     >
       <div class="tooltip-header">
         <img 
@@ -566,15 +566,17 @@
           size="xs"
           class="tooltip-avatar"
         />
-        <span class="tooltip-username">
-          <DisplayName
-            v-if="(user as any).displayNameParts"
-            :parts="(user as any).displayNameParts"
-            :fallback="user.displayName"
-          />
-          <DisplayName v-else :userId="user.id" :fallback="user.displayName" />
-        </span>
-        <span v-if="user.isRemote && formatDomain(user.domain)" class="tooltip-domain">@{{ formatDomain(user.domain) }}</span>
+        <div class="tooltip-user-meta">
+          <span class="tooltip-username">
+            <DisplayName
+              v-if="(user as any).displayNameParts"
+              :parts="(user as any).displayNameParts"
+              :fallback="user.displayName"
+            />
+            <DisplayName v-else :userId="user.id" :fallback="user.displayName" />
+          </span>
+          <span v-if="user.isRemote && user.handle" class="tooltip-domain">{{ user.handle }}</span>
+        </div>
       </div>
     </div>
     
@@ -614,6 +616,7 @@ import DisplayName from '@/components/DisplayName.vue';
 import { userDataService } from '@/services/userDataService';
 import { unicodeToShortcode } from '@/services/unifiedEmojiService';
 import { getEmojiUrl } from '@/utils/emojiUtils';
+import { getReactionTooltipAnchor } from '@/utils/reactionTooltipPosition';
 import { getOriginalPost } from '@/utils/postReblog';
 import { supabase } from '@/supabase';
 import type { TimelinePost } from '@/types';
@@ -713,6 +716,7 @@ const tooltip = ref({
     userColor?: string;
     isRemote?: boolean;
     domain?: string;
+    handle?: string;
   }[],
   x: 0,
   y: 0,
@@ -1518,6 +1522,12 @@ const formatDomain = (domain: string | undefined): string => {
   return domain;
 };
 
+const formatRemoteHandle = (username: string | undefined, domain: string | undefined): string => {
+  if (!username) return '';
+  const d = formatDomain(domain);
+  return d ? `@${username}@${d}` : `@${username}`;
+};
+
 /**
  * Render a display name with custom emojis as HTML
  * Replaces :emoji: patterns with <img> tags
@@ -1611,20 +1621,22 @@ const handleShowReactionTooltip = (event: MouseEvent, reaction: any) => {
       avatarUrl: reactor.avatar_url || '',
       userColor: '#888888',
       isRemote: true,
-      domain: reactor.domain
+      handle: formatRemoteHandle(reactor.username, reactor.domain),
     };
   });
   
   // Combine local and remote users
   const usersDetails = [...localUsers, ...remoteUsers];
   
+  const anchor = getReactionTooltipAnchor(event);
+
   // Show tooltip after a delay
   tooltipTimer.value = setTimeout(() => {
     tooltip.value = { 
       visible: true, 
       content: usersDetails, 
-      x: event.clientX, 
-      y: event.clientY, 
+      x: anchor.x, 
+      y: anchor.y, 
       emoji: {
         name: reaction.emoji_name,
         url: reaction.emoji_url,
@@ -2979,9 +2991,10 @@ const closeLightbox = () => {
   border: 1px solid var(--border-primary);
   border-radius: var(--radius-md);
   padding: var(--space-3);
-  max-width: 200px;
+  max-width: 300px;
   box-shadow: var(--shadow-large);
   pointer-events: none;
+  transform: translate(-50%, calc(-100% - 8px));
 }
 
 .tooltip-header {
@@ -3007,7 +3020,7 @@ const closeLightbox = () => {
 
 .tooltip-user {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: var(--space-2);
   padding: var(--space-1) 0;
   font-size: var(--font-size-sm);
@@ -3019,13 +3032,24 @@ const closeLightbox = () => {
   flex-shrink: 0;
 }
 
+.tooltip-user-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
 .tooltip-username {
   color: var(--tooltip-text, var(--text-primary));
+  overflow-wrap: anywhere;
+  line-height: 1.3;
 }
 
 .tooltip-domain {
   color: var(--tooltip-text, var(--text-muted));
   font-size: var(--font-size-xs);
-  opacity: 0.7;
+  opacity: 0.75;
+  line-height: 1.2;
 }
 </style>

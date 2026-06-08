@@ -46,7 +46,7 @@ const dontReply = () => {
 
 <style scoped>
     .attachedBars {
-        background-color: var(--h-sidebar);
+        background-color: var(--background-tertiary);
         border-top-left-radius: 8px;
         border-top-right-radius: 8px;
     }
