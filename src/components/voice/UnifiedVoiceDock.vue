@@ -109,8 +109,7 @@
           }]"
           :title="spatialStore.settings.enabled ? 'Spatial Audio: ON' : 'Spatial Audio: OFF'"
         >
-          <Icon name="map" />
-          <span v-if="spatialStore.settings.enabled" class="spatial-badge">3D</span>
+          <Icon name="audio-lines" />
         </button>
 
         <button
@@ -1542,22 +1541,6 @@ onUnmounted(() => {
 
 .control-btn.spatial-enabled:hover {
   background: linear-gradient(145deg, #00e5b8, #00c9a0);
-}
-
-.spatial-badge {
-  position: absolute;
-  top: -4px;
-  right: -4px;
-  background: #00d4aa;
-  color: #000;
-  font-size: 7px;
-  font-weight: 800;
-  padding: 2px 3px;
-  border-radius: 3px;
-  line-height: 1;
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
 }
 
 /* Dock Video Preview (small thumbnail in dock mode) */

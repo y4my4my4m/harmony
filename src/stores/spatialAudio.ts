@@ -51,7 +51,7 @@ export const useSpatialAudioStore = defineStore('spatialAudio', {
       enabled: true, // Enable by default for testing
       maxDistance: 300,
       rolloffFactor: 1,
-      panningModel: 'HRTF', // Use HRTF for true 3D spatial audio
+      panningModel: 'HRTF', // HRTF panning from 2D X/Y layout (PannerNode; Z unused in UI)
       distanceModel: 'inverse',
       enableReverb: false,
       roomSize: 0.5,

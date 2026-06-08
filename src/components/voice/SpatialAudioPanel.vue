@@ -17,7 +17,7 @@
     >
       <div class="header-left">
         <div class="panel-icon">
-          <Icon name="map" />
+          <Icon name="audio-lines" />
         </div>
         <div class="panel-title">
           <h3>Spatial Audio</h3>
@@ -182,11 +182,6 @@
           
           <!-- Speaking Ring -->
           <div v-if="isSpeaking(participant)" class="speaking-ring"></div>
-          
-          <!-- Self Indicator -->
-          <div v-if="participant.userId === currentUserId" class="self-indicator">
-            <Icon name="user" />
-          </div>
         </div>
         
         <!-- Username Label -->
@@ -1154,22 +1149,6 @@ onUnmounted(() => {
   border: 2px solid #00d4aa;
   border-radius: 50%;
   animation: pulse-ring 2s infinite;
-}
-
-.self-indicator {
-  position: absolute;
-  bottom: -2px;
-  right: -2px;
-  width: 18px;
-  height: 18px;
-  background: var(--harmony-primary);
-  border: 2px solid #1e1f22;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--text-primary);
-  font-size: 10px;
 }
 
 .username-label {
