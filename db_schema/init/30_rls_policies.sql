@@ -494,7 +494,17 @@ CREATE POLICY "reactions_delete_own" ON public.reactions
 -- Enable RLS on remaining tables (with permissive policies for now)
 -- ---------------------------------------------------------------------------
 ALTER TABLE public.instance_config ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "instance_config_select_all" ON public.instance_config FOR SELECT USING (true);
+GRANT SELECT ON public.instance_config TO anon, authenticated;
+DROP POLICY IF EXISTS "instance_config_select_all" ON public.instance_config;
+DROP POLICY IF EXISTS "Public can read federation settings" ON public.instance_config;
+DROP POLICY IF EXISTS "Public can read instance settings" ON public.instance_config;
+DROP POLICY IF EXISTS "instance_config_select_admin" ON public.instance_config;
+-- Curated public keys (see public_instance_config_keys() in 12_functions_rpc.sql).
+CREATE POLICY "Public can read instance settings" ON public.instance_config
+    FOR SELECT USING (config_key = ANY (public.public_instance_config_keys()));
+CREATE POLICY "instance_config_select_admin" ON public.instance_config
+    FOR SELECT TO authenticated
+    USING (public.is_current_user_admin());
 
 ALTER TABLE public.emojis ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "emojis_select_all" ON public.emojis;
