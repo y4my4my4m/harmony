@@ -172,7 +172,8 @@ export const useInstanceSettingsStore = defineStore('instanceSettings', {
       this.isLoading = true
 
       try {
-        // Fetch from instance_config table
+        // RLS on instance_config filters to public_instance_config_keys() for
+        // regular users; instance admins see all rows (admin panel).
         const { data, error } = await supabase
           .from('instance_config')
           .select('config_key, config_value')

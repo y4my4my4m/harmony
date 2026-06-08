@@ -1502,6 +1502,54 @@ $$;
 
 GRANT EXECUTE ON FUNCTION public.get_supporter_badges(uuid[]) TO authenticated;
 
+-- ---------------------------------------------------------------------------
+-- Public instance settings (curated instance_config keys)
+-- ---------------------------------------------------------------------------
+-- Safe for anon + authenticated. Excludes admin-only keys (maintainer email,
+-- federation retry knobs, etc.). Keep public_instance_config_keys() in sync
+-- with the instance_config public SELECT policy in 30_rls_policies.sql.
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.public_instance_config_keys()
+RETURNS text[]
+LANGUAGE sql
+IMMUTABLE
+SET search_path = public, pg_temp
+AS $$
+    SELECT ARRAY[
+        'domain',
+        'instance_name',
+        'instance_description',
+        'instance_icon',
+        'terms_url',
+        'privacy_url',
+        'open_registration',
+        'approval_required',
+        'oauth_providers',
+        'enable_inbound_federation',
+        'enable_outbound_federation',
+        'federation_settings',
+        'features',
+        'max_post_length',
+        'max_message_length',
+        'max_server_size',
+        'max_media_attachments_per_post',
+        'max_custom_emojis_per_server',
+        'custom_emoji_transform_quality',
+        'enable_voice_channels',
+        'allow_file_uploads',
+        'allow_custom_emojis_in_display_names',
+        'default_theme_json',
+        'gif_ads_enabled',
+        'gif_klipy_watermark_enabled',
+        'gif_clips_enabled',
+        'gif_memes_enabled',
+        'gif_ai_emojis_enabled',
+        'gif_ai_emoji_generation_enabled'
+    ]::text[];
+$$;
+
+-- Used by the instance_config public SELECT policy in 30_rls_policies.sql.
+
 -- Funding total from donations (SECURITY DEFINER so any user can see aggregate)
 CREATE OR REPLACE FUNCTION public.get_funding_current_total(p_period text DEFAULT 'monthly')
 RETURNS numeric
