@@ -1318,7 +1318,8 @@ onMounted(async () => {
   justify-content: space-between;
   align-items: center;
   padding: 12px;
-  background-color: var(--background-senary);
+  background-color: var(--surface-inset);
+  border: 1px solid var(--input-border);
   border-radius: 4px;
 }
 
@@ -1358,7 +1359,7 @@ onMounted(async () => {
   background-color: #ed4245;
   border: none;
   border-radius: 4px;
-  color: var(--text-primary);
+  color: var(--text-on-primary, #ffffff);
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
@@ -1396,7 +1397,7 @@ onMounted(async () => {
 
 .btn-primary {
   background-color: var(--harmony-primary);
-  color: var(--text-primary);
+  color: var(--text-on-primary, #ffffff);
 }
 
 .btn-primary:hover:not(:disabled) {
@@ -1510,8 +1511,8 @@ onMounted(async () => {
   width: 100%;
   padding: 10px 12px;
   padding-right: 40px;
-  background-color: var(--background-senary);
-  border: 1px solid var(--background-quaternary);
+  background-color: var(--input-bg);
+  border: 1px solid var(--input-border);
   border-radius: 4px;
   color: var(--text-primary);
   font-size: 14px;
@@ -1609,9 +1610,9 @@ onMounted(async () => {
 
 .enroll-step {
   padding: 16px;
-  background-color: var(--background-senary);
+  background-color: var(--surface-inset);
   border-radius: 6px;
-  border: 1px solid var(--background-quaternary);
+  border: 1px solid var(--input-border);
 }
 
 .step-title {
@@ -1675,7 +1676,7 @@ onMounted(async () => {
   font-family: 'Courier New', monospace;
   font-size: 13px;
   color: var(--text-primary);
-  background-color: var(--background-senary);
+  background-color: var(--input-bg);
   padding: 6px 10px;
   border-radius: 3px;
   word-break: break-all;

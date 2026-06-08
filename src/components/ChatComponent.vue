@@ -122,16 +122,15 @@
       @done="handleKickBanDone"
     />
 
-    <!-- File-drop overlay. Rendered LAST inside the positioned .chat-container
-         and as an absolute layer so it always paints above the (virtualized,
-         transform-using) message list. pointer-events:none lets the drop event
-         still reach .chat-container. -->
-    <div v-if="showDragDropArea" class="drag-drop-area">
-      <div class="drag-drop-inner">
-        <div v-if="uploading" class="upload-status">{{ t('chat.uploading') }}</div>
-        <div v-else>{{ t('chat.dropFilesHere') }}</div>
+    <!-- File-drop overlay: full-viewport dim, below toasts, above chat content. -->
+    <Teleport to="body">
+      <div v-if="showDragDropArea" class="drag-drop-area">
+        <div class="drag-drop-inner">
+          <div v-if="uploading" class="upload-status">{{ t('chat.uploading') }}</div>
+          <div v-else>{{ t('chat.dropFilesHere') }}</div>
+        </div>
       </div>
-    </div>
+    </Teleport>
   </div>
 </template>
 
@@ -1167,9 +1166,9 @@
     opacity: 1;
   } */
   .drag-drop-area {
-    position: absolute;
+    position: fixed;
     inset: 0;
-    z-index: 1030;
+    z-index: calc(var(--z-toast) - 1);
     display: flex;
     align-items: center;
     justify-content: center;

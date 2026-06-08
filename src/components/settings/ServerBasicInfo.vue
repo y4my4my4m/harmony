@@ -440,8 +440,8 @@ const updateServerDescription = (event: Event) => {
 .form-textarea {
   width: 100%;
   padding: 12px;
-  background-color: var(--background-senary);
-  border: 1px solid var(--background-quaternary);
+  background-color: var(--input-bg);
+  border: 1px solid var(--input-border);
   border-radius: 4px;
   color: var(--text-primary);
   font-size: 14px;
@@ -460,7 +460,7 @@ const updateServerDescription = (event: Event) => {
 .form-textarea.read-only {
   opacity: 0.7;
   cursor: default;
-  background-color: var(--background-senary);
+  background-color: var(--input-bg);
 }
 
 .form-input.read-only:focus,
@@ -495,7 +495,7 @@ const updateServerDescription = (event: Event) => {
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
-  background-color: var(--background-senary);
+  background-color: var(--surface-inset);
   border-radius: 16px;
   font-size: 14px;
   font-weight: 500;
@@ -529,8 +529,8 @@ const updateServerDescription = (event: Event) => {
   width: 80px;
   height: 80px;
   border-radius: 50%;
-  background-color: var(--background-senary);
-  border: 2px solid var(--background-quaternary);
+  background-color: var(--surface-inset);
+  border: 2px solid var(--input-border);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -565,9 +565,9 @@ const updateServerDescription = (event: Event) => {
 }
 
 .btn-secondary {
-  background-color: var(--background-senary);
+  background-color: var(--background-quaternary);
   color: var(--text-primary);
-  border: 1px solid var(--background-quaternary);
+  border: 1px solid var(--input-border);
 }
 
 .btn-secondary:hover:not(:disabled) {
