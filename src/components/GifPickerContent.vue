@@ -203,58 +203,68 @@
           <p>No {{ mediaNoun }} found</p>
           <span class="empty-hint">Try a different search term</span>
         </div>
-        <div v-else class="gif-results-grid">
-          <template v-for="item in items" :key="item.id">
+        <!-- Ads sit in full-width rows between masonry runs (masonry can't column-span). -->
+        <div v-else class="gif-results-feed">
+          <template v-for="segment in feedSegments" :key="segment.key">
             <GifAdSlot
-              v-if="item.kind === 'ad'"
+              v-if="segment.kind === 'ad'"
               class="gif-ad-tile"
-              :content="item.content"
-              :width="item.width"
-              :height="item.height"
+              :content="segment.ad.content"
+              :width="segment.ad.width"
+              :height="segment.ad.height"
             />
-            <div
+            <masonry-wall
               v-else
-              class="gif-item"
-              @mouseover="hoveredGif = item.id"
-              @mouseleave="isClips ? handleClipItemLeave(item.id, $event) : (hoveredGif = null)"
-              @click="selectGif(item)"
+              :items="segment.items"
+              :column-width="150"
+              :gap="10"
             >
-              <template v-if="isClips">
-                <video
-                  :src="stripFragment(item.media_formats.mp4.url)"
-                  :poster="stripFragment(item.media_formats.gifpreview.url)"
-                  class="gif-video"
-                  muted
-                  loop
-                  playsinline
-                  preload="metadata"
-                  @mouseenter="(e) => playPreview(e)"
-                  @mouseleave="(e) => pausePreview(e)"
-                ></video>
-                <button
-                  class="clip-audio-button"
-                  :class="{ visible: hoveredGif === item.id || isMobile || audioClipId === item.id }"
-                  :title="audioClipId === item.id ? $t('gif.clipMute') : $t('gif.clipUnmute')"
-                  @click.stop="(e) => toggleClipAudio(item.id, e)"
+              <template #default="{ item }">
+                <div
+                  :key="item.id"
+                  class="gif-item"
+                  @mouseover="hoveredGif = item.id"
+                  @mouseleave="isClips ? handleClipItemLeave(item.id, $event) : (hoveredGif = null)"
+                  @click="selectGif(item)"
                 >
-                  <svg v-if="audioClipId === item.id" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
-                  <svg v-else viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
-                </button>
+                  <template v-if="isClips">
+                    <video
+                      :src="stripFragment(item.media_formats.mp4.url)"
+                      :poster="stripFragment(item.media_formats.gifpreview.url)"
+                      class="gif-video"
+                      muted
+                      loop
+                      playsinline
+                      preload="metadata"
+                      @mouseenter="(e) => playPreview(e)"
+                      @mouseleave="(e) => pausePreview(e)"
+                    ></video>
+                    <button
+                      class="clip-audio-button"
+                      :class="{ visible: hoveredGif === item.id || isMobile || audioClipId === item.id }"
+                      :title="audioClipId === item.id ? $t('gif.clipMute') : $t('gif.clipUnmute')"
+                      @click.stop="(e) => toggleClipAudio(item.id, e)"
+                    >
+                      <svg v-if="audioClipId === item.id" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
+                      <svg v-else viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
+                    </button>
+                  </template>
+                  <img v-else :src="getGifImageSource(item.id, item.media_formats.gif.url, item.media_formats.gifpreview.url)" :alt="item.title" :class="{ 'sticker-thumb': isStickerLike }">
+                  <button
+                    v-if="!isAiEmoji"
+                    class="favorite-button"
+                    :class="{ favorited: isFavorited(item.media_formats.gif.url) }"
+                    @click.stop="toggleFavorite(item)"
+                    :title="isFavorited(item.media_formats.gif.url) ? $t('gif.removeFromFavorites') : $t('gif.addToFavorites')"
+                  >
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                      <path v-if="isFavorited(item.media_formats.gif.url)" d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
+                      <path v-else d="M22 9.24l-7.19-.62L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21 12 17.27 18.18 21l-1.63-7.03L22 9.24zM12 15.4l-3.76 2.27 1-4.28-3.32-2.88 4.38-.38L12 6.1l1.71 4.04 4.38.38-3.32 2.88 1 4.28L12 15.4z"/>
+                    </svg>
+                  </button>
+                </div>
               </template>
-              <img v-else :src="getGifImageSource(item.id, item.media_formats.gif.url, item.media_formats.gifpreview.url)" :alt="item.title" :class="{ 'sticker-thumb': isStickerLike }">
-              <button 
-                v-if="!isAiEmoji"
-                class="favorite-button"
-                :class="{ favorited: isFavorited(item.media_formats.gif.url) }"
-                @click.stop="toggleFavorite(item)"
-                :title="isFavorited(item.media_formats.gif.url) ? $t('gif.removeFromFavorites') : $t('gif.addToFavorites')"
-              >
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
-                  <path v-if="isFavorited(item.media_formats.gif.url)" d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
-                  <path v-else d="M22 9.24l-7.19-.62L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21 12 17.27 18.18 21l-1.63-7.03L22 9.24zM12 15.4l-3.76 2.27 1-4.28-3.32-2.88 4.38-.38L12 6.1l1.71 4.04 4.38.38-3.32 2.88 1 4.28L12 15.4z"/>
-                </svg>
-              </button>
-            </div>
+            </masonry-wall>
           </template>
         </div>
         <div v-if="loadingMore" class="loading-more">
@@ -287,7 +297,7 @@ import {
   mediaTypeToKind,
   type KlipyKind,
 } from '@/utils/klipyAttribution';
-import type { Gif, GifResultItem, Emoji, ResolvedEmoji } from '@/types';
+import type { Gif, GifAdItem, GifResultItem, Emoji, ResolvedEmoji } from '@/types';
 
 interface Props {
   showFavorites: boolean;
@@ -508,6 +518,35 @@ const toggleClipAudio = (itemId: string, e: Event) => {
 const applySuggestion = (term: string) => {
   searchQuery.value = term;
 };
+
+/** Masonry can't span columns; split the feed into GIF runs and full-width ad rows. */
+type GifFeedSegment =
+  | { key: string; kind: 'ad'; ad: GifAdItem }
+  | { key: string; kind: 'gifs'; items: Gif[] };
+
+const feedSegments = computed((): GifFeedSegment[] => {
+  const segments: GifFeedSegment[] = [];
+  let batch: Gif[] = [];
+  let batchStart = 0;
+
+  items.value.forEach((item, index) => {
+    if (item.kind === 'ad') {
+      if (batch.length > 0) {
+        segments.push({ key: `gifs-${batchStart}`, kind: 'gifs', items: batch });
+        batch = [];
+      }
+      segments.push({ key: `ad-${item.id}`, kind: 'ad', ad: item });
+      return;
+    }
+    if (batch.length === 0) batchStart = index;
+    batch.push(item);
+  });
+
+  if (batch.length > 0) {
+    segments.push({ key: `gifs-${batchStart}`, kind: 'gifs', items: batch });
+  }
+  return segments;
+});
 
 const applyFeed = (feed: Awaited<ReturnType<typeof gifProvider.trending>>) => {
   items.value = feed.items;
@@ -1003,16 +1042,16 @@ onMounted(async () => {
   scrollbar-gutter: stable;
 }
 
-/* CSS grid (not masonry) so Klipy ads can span the full picker width. */
-.gif-results-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+/* Feed = alternating full-width ad rows + masonry GIF runs. */
+.gif-results-feed {
+  display: flex;
+  flex-direction: column;
   gap: 10px;
   padding-right: 8px;
 }
 
 .gif-ad-tile {
-  grid-column: 1 / -1;
+  width: 100%;
 }
 
 .gif-item {

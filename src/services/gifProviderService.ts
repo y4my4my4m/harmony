@@ -24,11 +24,13 @@ export interface GifFeed {
   meta?: { showAds?: boolean }
 }
 
-interface FetchOptions {
+export interface GifFetchOptions {
   page?: number
   perPage?: number
   locale?: string
   signal?: AbortSignal
+  /** Width of the ad tile in px (picker strip or popup). Improves Klipy size matching. */
+  adSlotWidth?: number
 }
 
 async function authHeaders(): Promise<Record<string, string>> {
@@ -37,7 +39,7 @@ async function authHeaders(): Promise<Record<string, string>> {
   return token ? { Authorization: `Bearer ${token}` } : {}
 }
 
-async function request(path: string, params: URLSearchParams, opts?: FetchOptions): Promise<GifFeed> {
+async function request(path: string, params: URLSearchParams, opts?: GifFetchOptions): Promise<GifFeed> {
   const headers = { Accept: 'application/json', ...(await authHeaders()) }
   const res = await fetch(`${FEDERATION_API}/gifs/${path}?${params}`, {
     method: 'GET',
@@ -56,14 +58,14 @@ async function request(path: string, params: URLSearchParams, opts?: FetchOption
   }
 }
 
-function buildParams(opts?: FetchOptions, mediaType: GifMediaType = 'gifs'): URLSearchParams {
+function buildParams(opts?: GifFetchOptions, mediaType: GifMediaType = 'gifs'): URLSearchParams {
   const params = new URLSearchParams()
   if (opts?.page) params.set('page', String(opts.page))
   if (opts?.perPage) params.set('per_page', String(opts.perPage))
   if (opts?.locale) params.set('locale', opts.locale)
   // Klipy ad params apply to the GIF feed only (ads are disabled for other media).
   if (mediaType === 'gifs' && typeof window !== 'undefined') {
-    for (const [key, value] of Object.entries(collectKlipyAdContext().params)) {
+    for (const [key, value] of Object.entries(collectKlipyAdContext(opts?.adSlotWidth).params)) {
       params.set(key, value)
     }
   }
@@ -78,7 +80,7 @@ function pathPrefix(mediaType: GifMediaType): string {
 }
 
 export const gifProvider = {
-  async trending(opts?: FetchOptions, mediaType: GifMediaType = 'gifs'): Promise<GifFeed> {
+  async trending(opts?: GifFetchOptions, mediaType: GifMediaType = 'gifs'): Promise<GifFeed> {
     try {
       return await request(`${pathPrefix(mediaType)}trending`, buildParams(opts, mediaType), opts)
     } catch (err) {
@@ -87,7 +89,7 @@ export const gifProvider = {
     }
   },
 
-  async search(query: string, opts?: FetchOptions, mediaType: GifMediaType = 'gifs'): Promise<GifFeed> {
+  async search(query: string, opts?: GifFetchOptions, mediaType: GifMediaType = 'gifs'): Promise<GifFeed> {
     const params = buildParams(opts, mediaType)
     params.set('q', query)
     try {
@@ -99,7 +101,7 @@ export const gifProvider = {
   },
 
   /** Klipy search suggestions (no query) / autocomplete (with query). Best-effort. */
-  async suggest(query: string | undefined, opts?: FetchOptions): Promise<string[]> {
+  async suggest(query: string | undefined, opts?: GifFetchOptions): Promise<string[]> {
     const params = new URLSearchParams()
     if (query?.trim()) params.set('q', query.trim())
     if (opts?.locale) params.set('locale', opts.locale)

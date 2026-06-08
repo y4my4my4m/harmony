@@ -1,5 +1,5 @@
 <template>
-  <div class="inline-gif-picker">
+  <div ref="pickerRef" class="inline-gif-picker">
     <div v-if="isLoading && items.length === 0" class="inline-gif-loading">
       <LoadingSpinner :size="20" />
     </div>
@@ -66,11 +66,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted, computed } from 'vue';
+import { ref, watch, onMounted, onUnmounted, computed } from 'vue';
 import { useLayoutState } from '@/composables/useLayoutState';
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue';
 import GifAdSlot from '@/components/GifAdSlot.vue';
 import { gifProvider, type GifMediaType } from '@/services/gifProviderService';
+import { debug } from '@/utils/debug';
 import {
   stripKlipyAttributionFragment,
   withGifMessageUrl,
@@ -181,16 +182,42 @@ const inlineGifSrc = (item: Gif) => {
   return stripKlipyAttributionFragment(url);
 };
 const isLoading = ref(false);
+const pickerRef = ref<HTMLElement | null>(null);
+const adSlotWidth = ref<number | undefined>();
 let searchTimeout: ReturnType<typeof setTimeout> | null = null;
 let currentRequestId = 0;
+let resizeObserver: ResizeObserver | null = null;
+
+const measureAdSlot = () => {
+  adSlotWidth.value = pickerRef.value?.clientWidth || undefined;
+};
+
+const fetchOpts = () => ({
+  perPage: 20,
+  adSlotWidth: props.mediaType === 'gifs' ? adSlotWidth.value : undefined,
+});
+
+const applyFeed = (feed: Awaited<ReturnType<typeof gifProvider.trending>>) => {
+  items.value = feed.items;
+  if (
+    props.mediaType === 'gifs' &&
+    feed.meta?.showAds &&
+    !feed.items.some((i) => i.kind === 'ad')
+  ) {
+    debug.log(
+      'Inline GIF feed: ads enabled but Klipy returned no ad slots. ' +
+        'Klipy documents mobile-only ad delivery — test on a phone/tablet.',
+    );
+  }
+};
 
 const fetchTrending = async () => {
   const requestId = ++currentRequestId;
   isLoading.value = true;
   try {
-    const feed = await gifProvider.trending({ perPage: 20 }, props.mediaType);
+    const feed = await gifProvider.trending(fetchOpts(), props.mediaType);
     if (requestId !== currentRequestId) return;
-    items.value = feed.items;
+    applyFeed(feed);
   } finally {
     if (requestId === currentRequestId) isLoading.value = false;
   }
@@ -204,9 +231,9 @@ const searchGifs = async (q: string) => {
   const requestId = ++currentRequestId;
   isLoading.value = true;
   try {
-    const feed = await gifProvider.search(q, { perPage: 20 }, props.mediaType);
+    const feed = await gifProvider.search(q, fetchOpts(), props.mediaType);
     if (requestId !== currentRequestId) return;
-    items.value = feed.items;
+    applyFeed(feed);
   } finally {
     if (requestId === currentRequestId) isLoading.value = false;
   }
@@ -218,11 +245,21 @@ watch(() => props.query, (q) => {
 });
 
 onMounted(() => {
+  measureAdSlot();
+  if (typeof ResizeObserver !== 'undefined' && pickerRef.value) {
+    resizeObserver = new ResizeObserver(measureAdSlot);
+    resizeObserver.observe(pickerRef.value);
+  }
   if (props.query) {
     searchGifs(props.query);
   } else {
     fetchTrending();
   }
+});
+
+onUnmounted(() => {
+  resizeObserver?.disconnect();
+  resizeObserver = null;
 });
 </script>
 
@@ -334,11 +371,10 @@ onMounted(() => {
   font-size: 13px;
 }
 
-/* Klipy ads need full strip width (common formats are 300×250, 320×50, etc.). */
+/* Klipy ads span the full composer strip (/gif slash command). */
 .inline-gif-ad {
   grid-column: 1 / -1;
-  min-height: 50px;
-  max-height: 250px;
+  width: 100%;
 }
 
 .inline-gif-picker::-webkit-scrollbar {
