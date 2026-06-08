@@ -9,7 +9,12 @@
  */
 
 import { ref, computed, watch } from 'vue'
-import { generateThemePalette, applyThemePalette, applySurfaceSemanticTokens } from '@/utils/colorUtils'
+import {
+  generateThemePalette,
+  applyThemePalette,
+  applySurfaceSemanticTokens,
+  canonicalizeBackgroundTone,
+} from '@/utils/colorUtils'
 import { supabase } from '@/supabase'
 import { useAuthStore } from '@/stores/auth'
 import { useProfileStore } from '@/stores/useProfile'
@@ -170,10 +175,15 @@ export const COMMUNITY_PRESETS: ThemePreset[] = [
       theme: 'custom',
       customThemeMode: 'dark',
       customPrimaryColor: '#e91e8c',
-      customAccentColor: '#e91e8c',
+      customAccentColor: '#f472b6',
       customBackgroundColor: '#e91e8c',
       customBackgroundLightness: 20,
       customBackgroundChroma: 2,
+      customCssOverrides: {
+        '--harmony-primary': '#e91e8c',
+        '--harmony-primary-hover': '#be185d',
+        '--harmony-accent': '#f9a8d4',
+      }
     }
   },
   {
@@ -183,10 +193,15 @@ export const COMMUNITY_PRESETS: ThemePreset[] = [
       theme: 'custom',
       customThemeMode: 'dark',
       customPrimaryColor: '#2d9b4e',
-      customAccentColor: '#2d9b4e',
+      customAccentColor: '#34d399',
       customBackgroundColor: '#2d9b4e',
       customBackgroundLightness: 20,
       customBackgroundChroma: 2,
+      customCssOverrides: {
+        '--harmony-primary': '#2d9b4e',
+        '--harmony-primary-hover': '#22863a',
+        '--harmony-accent': '#6ee7b7',
+      }
     }
   },
   {
@@ -196,10 +211,15 @@ export const COMMUNITY_PRESETS: ThemePreset[] = [
       theme: 'custom',
       customThemeMode: 'dark',
       customPrimaryColor: '#f59e0b',
-      customAccentColor: '#f59e0b',
+      customAccentColor: '#fbbf24',
       customBackgroundColor: '#f59e0b',
       customBackgroundLightness: 20,
       customBackgroundChroma: 1,
+      customCssOverrides: {
+        '--harmony-primary': '#f59e0b',
+        '--harmony-primary-hover': '#d97706',
+        '--harmony-accent': '#fcd34d',
+      }
     }
   }
 ]
@@ -1011,7 +1031,33 @@ export function useVisualTheme() {
    * Apply a community preset
    */
   function applyPreset(preset: ThemePreset) {
-    Object.assign(settings.value, preset.settings)
+    const previousOverrides = { ...(settings.value.customCssOverrides || {}) }
+    const newOverrides = preset.settings.customCssOverrides
+      ? { ...preset.settings.customCssOverrides }
+      : {}
+
+    // Drop stale DOM overrides so presets without overrides don't inherit
+    // harmony-primary etc. from a previously applied preset.
+    for (const varName of Object.keys(previousOverrides)) {
+      if (!(varName in newOverrides)) {
+        document.documentElement.style.removeProperty(varName)
+      }
+    }
+
+    Object.assign(settings.value, {
+      ...preset.settings,
+      customCssOverrides: newOverrides,
+    })
+
+    const mode = (settings.value.customThemeMode || 'dark') as 'light' | 'dark'
+    if (settings.value.customBackgroundColor) {
+      settings.value.customBackgroundColor = canonicalizeBackgroundTone(
+        settings.value.customBackgroundColor,
+        settings.value.customBackgroundLightness ?? 0,
+        settings.value.customBackgroundChroma ?? 0,
+        mode,
+      )
+    }
   }
   
   /**
@@ -1019,6 +1065,15 @@ export function useVisualTheme() {
    */
   function getThemableVariables(): { category: string; vars: string[] }[] {
     return [
+      {
+        category: 'Navigation Rail',
+        vars: [
+          '--nav-rail-button-bg',
+          '--nav-rail-button-icon',
+          '--channel-item-hover-bg',
+          '--channel-item-selected-bg',
+        ]
+      },
       {
         category: 'Brand',
         vars: ['--harmony-primary', '--harmony-primary-hover', '--harmony-primary-light', '--harmony-secondary', '--harmony-accent', '--h-brand']

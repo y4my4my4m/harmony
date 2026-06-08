@@ -12,6 +12,8 @@ import {
   adjustChroma,
   adjustHue,
   generateThemePalette,
+  composeBackgroundToneHex,
+  decomposeBackgroundToneHex,
   generatePreviewColors,
 } from '@/utils/colorUtils'
 
@@ -205,6 +207,55 @@ describe('colorUtils', () => {
       for (const key of requiredKeys) {
         expect(palette).toHaveProperty(key)
       }
+    })
+
+    it('applies background lightness/chroma slider offsets to surfaces', () => {
+      const muted = generateThemePalette('#0EA5E9', 'dark', '#ee1dac', 0, '#0EA5E9', 0)
+      const vivid = generateThemePalette('#0EA5E9', 'dark', '#ee1dac', 10, '#0EA5E9', 25)
+      expect(vivid.bgPrimary).not.toBe(muted.bgPrimary)
+      expect(vivid.bgSecondary).not.toBe(muted.bgSecondary)
+    })
+  })
+
+  describe('background tone sync', () => {
+    it('round-trips compose ↔ decompose', () => {
+      const hex = composeBackgroundToneHex(320, 12, -8, 'dark')
+      const parts = decomposeBackgroundToneHex(hex, 'dark')
+      expect(parts).not.toBeNull()
+      expect(parts!.lightnessOffset).toBe(12)
+      expect(parts!.chromaOffset).toBe(-8)
+      const again = composeBackgroundToneHex(parts!.hue, parts!.lightnessOffset, parts!.chromaOffset, 'dark')
+      expect(again.toLowerCase()).toBe(hex.toLowerCase())
+    })
+
+    it('updates composed hex when sliders change', () => {
+      const a = composeBackgroundToneHex(200, 0, 0, 'dark')
+      const b = composeBackgroundToneHex(200, 20, 15, 'dark')
+      expect(a).not.toBe(b)
+    })
+  })
+
+  describe('tone pick → UI surfaces', () => {
+    it('does not crush mid-dark tone picks to near-black', () => {
+      const hex = '#395277'
+      const decomposed = decomposeBackgroundToneHex(hex, 'dark')
+      const palette = generateThemePalette(
+        '#0EA5E9',
+        'dark',
+        hex,
+        decomposed!.lightnessOffset,
+        '#0EA5E9',
+        decomposed!.chromaOffset,
+      )
+      const primaryL = hexToOklch(palette.bgPrimary)?.l ?? 0
+      expect(primaryL).toBeGreaterThan(12)
+      expect(palette.bgPrimary).not.toBe('#000000')
+    })
+
+    it('uses slider tint for vivid preset hex, not raw swatch chroma', () => {
+      const palette = generateThemePalette('#e91e8c', 'dark', '#e91e8c', 20, '#e91e8c', 2)
+      const surfaceChroma = hexToOklch(palette.bgPrimary)?.c ?? 1
+      expect(surfaceChroma).toBeLessThan(0.04)
     })
   })
 

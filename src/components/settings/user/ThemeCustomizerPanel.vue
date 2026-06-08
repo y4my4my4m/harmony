@@ -12,6 +12,7 @@
         </div>
 
         <div class="theme-panel-body">
+          <div class="theme-panel-scroll">
           <p class="theme-panel-hint">
             Changes preview live on the app behind this panel. Click Apply to keep them.
           </p>
@@ -33,162 +34,222 @@
             </div>
           </div>
 
-          <!-- Colors -->
-          <div class="tp-section">
-            <label class="tp-label">Colors</label>
-
-            <div class="tp-color-field">
-              <span class="tp-color-name">Background tone</span>
-              <ColorPicker
-                :color="working.customBackgroundColor"
-                @update:color="onColor('customBackgroundColor', $event)"
-                @change="onColor('customBackgroundColor', $event)"
-              />
+          <!-- Color sections (collapsible) -->
+          <div class="tp-collapse-list">
+            <!-- Background -->
+            <div class="tp-collapse">
+              <button
+                type="button"
+                class="tp-collapse-header"
+                :class="{ open: expanded.background }"
+                @click="expanded.background = !expanded.background"
+              >
+                <span class="tp-collapse-swatch" :style="{ backgroundColor: working.customBackgroundColor }" />
+                <span class="tp-collapse-label">
+                  <span class="tp-collapse-title">Background</span>
+                  <span class="tp-collapse-hint">Tone, lightness &amp; saturation</span>
+                </span>
+                <span class="tp-collapse-hex">{{ working.customBackgroundColor }}</span>
+                <span class="tp-toggle-arrow" :class="{ open: expanded.background }">&#9660;</span>
+              </button>
+              <div v-show="expanded.background" class="tp-collapse-body">
+                <ColorPicker
+                  :color="working.customBackgroundColor"
+                  @update:color="onColor('customBackgroundColor', $event)"
+                  @change="onColor('customBackgroundColor', $event)"
+                />
+                <div class="tp-slider-block">
+                  <label class="tp-slider-label">Lightness</label>
+                  <div class="tp-slider-row">
+                    <span class="tp-slider-end">Darker</span>
+                    <input
+                      type="range" min="-50" max="50" step="1"
+                      v-model.number="working.customBackgroundLightness"
+                      @input="onBackgroundToneSlidersChange"
+                    />
+                    <span class="tp-slider-end">Lighter</span>
+                  </div>
+                  <div class="tp-slider-value">{{ working.customBackgroundLightness > 0 ? '+' : '' }}{{ working.customBackgroundLightness }}</div>
+                </div>
+                <div class="tp-slider-block">
+                  <label class="tp-slider-label">Saturation</label>
+                  <div class="tp-slider-row">
+                    <span class="tp-slider-end">Muted</span>
+                    <input
+                      type="range" min="-30" max="30" step="1"
+                      v-model.number="working.customBackgroundChroma"
+                      @input="onBackgroundToneSlidersChange"
+                    />
+                    <span class="tp-slider-end">Vivid</span>
+                  </div>
+                  <div class="tp-slider-value">{{ working.customBackgroundChroma > 0 ? '+' : '' }}{{ working.customBackgroundChroma }}</div>
+                </div>
+              </div>
             </div>
 
-            <div class="tp-color-field">
-              <span class="tp-color-name">Primary color</span>
-              <ColorPicker
-                :color="working.customPrimaryColor"
-                @update:color="onColor('customPrimaryColor', $event)"
-                @change="onColor('customPrimaryColor', $event)"
-              />
+            <!-- Primary -->
+            <div class="tp-collapse">
+              <button
+                type="button"
+                class="tp-collapse-header"
+                :class="{ open: expanded.primary }"
+                @click="expanded.primary = !expanded.primary"
+              >
+                <span class="tp-collapse-swatch" :style="{ backgroundColor: working.customPrimaryColor }" />
+                <span class="tp-collapse-label">
+                  <span class="tp-collapse-title">Primary</span>
+                  <span class="tp-collapse-hint">Buttons &amp; key actions</span>
+                </span>
+                <span class="tp-collapse-hex">{{ working.customPrimaryColor }}</span>
+                <span class="tp-toggle-arrow" :class="{ open: expanded.primary }">&#9660;</span>
+              </button>
+              <div v-show="expanded.primary" class="tp-collapse-body">
+                <ColorPicker
+                  :color="working.customPrimaryColor"
+                  @update:color="onColor('customPrimaryColor', $event)"
+                  @change="onColor('customPrimaryColor', $event)"
+                />
+              </div>
             </div>
 
-            <div class="tp-color-field">
-              <span class="tp-color-name">Accent color</span>
-              <ColorPicker
-                :color="working.customAccentColor"
-                @update:color="onColor('customAccentColor', $event)"
-                @change="onColor('customAccentColor', $event)"
-              />
+            <!-- Accent -->
+            <div class="tp-collapse">
+              <button
+                type="button"
+                class="tp-collapse-header"
+                :class="{ open: expanded.accent }"
+                @click="expanded.accent = !expanded.accent"
+              >
+                <span class="tp-collapse-swatch" :style="{ backgroundColor: working.customAccentColor }" />
+                <span class="tp-collapse-label">
+                  <span class="tp-collapse-title">Accent</span>
+                  <span class="tp-collapse-hint">Links &amp; highlights</span>
+                </span>
+                <span class="tp-collapse-hex">{{ working.customAccentColor }}</span>
+                <span class="tp-toggle-arrow" :class="{ open: expanded.accent }">&#9660;</span>
+              </button>
+              <div v-show="expanded.accent" class="tp-collapse-body">
+                <ColorPicker
+                  :color="working.customAccentColor"
+                  @update:color="onColor('customAccentColor', $event)"
+                  @change="onColor('customAccentColor', $event)"
+                />
+              </div>
             </div>
-          </div>
 
-          <!-- Optional separate sidebar tone -->
-          <div class="tp-section">
-            <label class="tp-toggle-row">
-              <span>
-                <span class="tp-label-inline">Separate sidebar color</span>
-                <span class="tp-toggle-hint">Tint the server rail &amp; sidebars with a second hue.</span>
-              </span>
-              <input type="checkbox" v-model="sidebarEnabled" @change="onSidebarToggle" />
-            </label>
-
-            <template v-if="sidebarEnabled">
-              <div class="tp-color-field">
-                <span class="tp-color-name">Sidebar tone</span>
+            <!-- Sidebar (optional second hue) -->
+            <div class="tp-collapse">
+              <button
+                type="button"
+                class="tp-collapse-header"
+                :class="{ open: expanded.sidebar }"
+                @click="expanded.sidebar = !expanded.sidebar"
+              >
+                <span
+                  class="tp-collapse-swatch"
+                  :class="{ disabled: !sidebarEnabled }"
+                  :style="{ backgroundColor: sidebarEnabled ? working.customSidebarColor : 'transparent' }"
+                />
+                <span class="tp-collapse-label">
+                  <span class="tp-collapse-title">Sidebar</span>
+                  <span class="tp-collapse-hint">{{ sidebarEnabled ? 'Separate rail tint' : 'Off — matches background' }}</span>
+                </span>
+                <span v-if="sidebarEnabled" class="tp-collapse-hex">{{ working.customSidebarColor }}</span>
+                <span
+                  class="tp-collapse-enable"
+                  role="checkbox"
+                  :aria-checked="sidebarEnabled"
+                  title="Enable separate sidebar color"
+                  @click.stop="toggleSidebarEnabled"
+                >
+                  <input type="checkbox" v-model="sidebarEnabled" @change="onSidebarToggle" @click.stop />
+                </span>
+                <span class="tp-toggle-arrow" :class="{ open: expanded.sidebar }">&#9660;</span>
+              </button>
+              <div v-show="expanded.sidebar && sidebarEnabled" class="tp-collapse-body">
                 <ColorPicker
                   :color="working.customSidebarColor"
                   @update:color="onColor('customSidebarColor', $event)"
                   @change="onColor('customSidebarColor', $event)"
                 />
               </div>
-            </template>
-          </div>
-
-          <!-- Controls -->
-          <div class="tp-section">
-            <label class="tp-label">Background lightness</label>
-            <div class="tp-slider-row">
-              <span class="tp-slider-end">Darker</span>
-              <input
-                type="range" min="-50" max="50" step="1"
-                v-model.number="working.customBackgroundLightness"
-                @input="applyPreview"
-              />
-              <span class="tp-slider-end">Lighter</span>
             </div>
-            <div class="tp-slider-value">{{ working.customBackgroundLightness > 0 ? '+' : '' }}{{ working.customBackgroundLightness }}</div>
-          </div>
 
-          <div class="tp-section">
-            <label class="tp-label">Background saturation</label>
-            <div class="tp-slider-row">
-              <span class="tp-slider-end">Muted</span>
-              <input
-                type="range" min="-30" max="30" step="1"
-                v-model.number="working.customBackgroundChroma"
-                @input="applyPreview"
-              />
-              <span class="tp-slider-end">Vivid</span>
-            </div>
-            <div class="tp-slider-value">{{ working.customBackgroundChroma > 0 ? '+' : '' }}{{ working.customBackgroundChroma }}</div>
-          </div>
-
-          <!-- Advanced CSS variable overrides -->
-          <div class="tp-section tp-advanced-section">
-            <button type="button" class="tp-advanced-toggle" @click="showAdvancedCss = !showAdvancedCss">
-              {{ showAdvancedCss ? 'Hide' : 'Show' }} Advanced CSS Variables
-              <span v-if="overrideCount > 0" class="tp-override-badge">{{ overrideCount }}</span>
-              <span class="tp-toggle-arrow" :class="{ open: showAdvancedCss }">&#9660;</span>
-            </button>
-
-            <div v-if="showAdvancedCss" class="tp-css-panel">
-              <p class="tp-css-hint">
-                Override individual CSS variables. Changes preview live on top of your theme.
-              </p>
-
-              <div v-if="overrideCount > 0" class="tp-overrides-toolbar">
-                <span>{{ overrideCount }} override{{ overrideCount !== 1 ? 's' : '' }}</span>
-                <button type="button" class="tp-reset-overrides-btn" @click="resetAllOverrides">
-                  Reset all
-                </button>
-              </div>
-
-              <div
-                v-for="group in themableVariables"
-                :key="group.category"
-                class="tp-var-group"
+            <!-- Advanced CSS -->
+            <div class="tp-collapse">
+              <button
+                type="button"
+                class="tp-collapse-header"
+                :class="{ open: expanded.advanced }"
+                @click="expanded.advanced = !expanded.advanced"
               >
-                <h4 class="tp-var-group-title">{{ group.category }}</h4>
-                <div
-                  v-for="varName in group.vars"
-                  :key="varName"
-                  class="tp-var-item"
-                  :class="{ 'has-override': working.customCssOverrides[varName] }"
-                >
-                  <label class="tp-var-name">{{ varName }}</label>
-                  <div class="tp-var-controls">
-                    <div
-                      v-if="isHexCompatible(varName)"
-                      class="tp-var-swatch tp-var-swatch-clickable"
-                      :style="{ backgroundColor: getCssVarValue(varName) || 'transparent' }"
-                      :title="getCssVarValue(varName)"
-                    >
-                      <input
-                        type="color"
-                        class="tp-var-color-input-hidden"
-                        :value="getHexForPicker(varName)"
-                        @input="setCssOverrideFromInput(varName, ($event.target as HTMLInputElement).value)"
-                      />
-                    </div>
-                    <div
-                      v-else
-                      class="tp-var-swatch"
-                      :style="{ backgroundColor: getCssVarValue(varName) || 'transparent' }"
-                      :title="getCssVarValue(varName)"
-                    ></div>
-                    <input
-                      type="text"
-                      class="tp-var-text-input"
-                      :value="working.customCssOverrides[varName] || ''"
-                      :placeholder="getComputedVar(varName)"
-                      @change="setCssOverrideFromInput(varName, ($event.target as HTMLInputElement).value)"
-                    />
-                    <button
-                      v-if="working.customCssOverrides[varName]"
-                      type="button"
-                      class="tp-var-reset-btn"
-                      title="Reset to default"
-                      @click="removeCssOverrideVar(varName)"
-                    >
-                      &#10005;
-                    </button>
-                  </div>
+                <span class="tp-collapse-swatch tp-collapse-swatch-advanced">{ }</span>
+                <span class="tp-collapse-label">
+                  <span class="tp-collapse-title">Advanced CSS</span>
+                  <span class="tp-collapse-hint">Override individual variables</span>
+                </span>
+                <span v-if="overrideCount > 0" class="tp-override-badge">{{ overrideCount }}</span>
+                <span class="tp-toggle-arrow" :class="{ open: expanded.advanced }">&#9660;</span>
+              </button>
+              <div v-show="expanded.advanced" class="tp-collapse-body tp-css-vars">
+                <div v-if="overrideCount > 0" class="tp-overrides-toolbar">
+                  <span>{{ overrideCount }} override{{ overrideCount !== 1 ? 's' : '' }}</span>
+                  <button type="button" class="tp-reset-overrides-btn" @click="resetAllOverrides">
+                    Reset all
+                  </button>
                 </div>
+
+                <template v-for="(group, gi) in themableVariables" :key="group.category">
+                  <div class="tp-var-category-label" :class="{ 'is-first': gi === 0 }">{{ group.category }}</div>
+                  <div
+                    v-for="varName in group.vars"
+                    :key="varName"
+                    class="tp-var-item"
+                    :class="{ 'has-override': working.customCssOverrides[varName] }"
+                  >
+                    <label class="tp-var-name">{{ varName }}</label>
+                    <div class="tp-var-controls">
+                      <div
+                        v-if="isHexCompatible(varName)"
+                        class="tp-var-swatch tp-var-swatch-clickable"
+                        :style="{ backgroundColor: getCssVarValue(varName) || 'transparent' }"
+                        :title="getCssVarValue(varName)"
+                      >
+                        <input
+                          type="color"
+                          class="tp-var-color-input-hidden"
+                          :value="getHexForPicker(varName)"
+                          @input="setCssOverrideFromInput(varName, ($event.target as HTMLInputElement).value)"
+                        />
+                      </div>
+                      <div
+                        v-else
+                        class="tp-var-swatch"
+                        :style="{ backgroundColor: getCssVarValue(varName) || 'transparent' }"
+                        :title="getCssVarValue(varName)"
+                      ></div>
+                      <input
+                        type="text"
+                        class="tp-var-text-input"
+                        :value="working.customCssOverrides[varName] || ''"
+                        :placeholder="getComputedVar(varName)"
+                        @change="setCssOverrideFromInput(varName, ($event.target as HTMLInputElement).value)"
+                      />
+                      <button
+                        v-if="working.customCssOverrides[varName]"
+                        type="button"
+                        class="tp-var-reset-btn"
+                        title="Reset to default"
+                        @click="removeCssOverrideVar(varName)"
+                      >
+                        &#10005;
+                      </button>
+                    </div>
+                  </div>
+                </template>
               </div>
             </div>
+          </div>
           </div>
         </div>
 
@@ -206,7 +267,12 @@ import { reactive, ref, watch, computed } from 'vue'
 import ColorPicker from '@/components/common/ColorPicker.vue'
 import { useThemeEditorPanel } from '@/composables/useThemeEditorPanel'
 import { useVisualTheme } from '@/composables/useVisualTheme'
-import { generateThemePalette, applyThemePalette } from '@/utils/colorUtils'
+import {
+  generateThemePalette,
+  applyThemePalette,
+  decomposeBackgroundToneHex,
+  canonicalizeBackgroundTone,
+} from '@/utils/colorUtils'
 import { debug } from '@/utils/debug'
 
 const { isOpen, close } = useThemeEditorPanel()
@@ -244,7 +310,13 @@ const working = reactive<Working>({
   customCssOverrides: {},
 })
 const sidebarEnabled = ref(false)
-const showAdvancedCss = ref(false)
+const expanded = reactive({
+  background: true,
+  primary: false,
+  accent: false,
+  sidebar: false,
+  advanced: false,
+})
 const themableVariables = visualTheme.getThemableVariables()
 
 const overrideCount = computed(() => Object.keys(working.customCssOverrides).length)
@@ -265,6 +337,25 @@ function seedFromCurrent() {
   sidebarEnabled.value = !!s.customSidebarColor
   working.customSidebarColor = s.customSidebarColor || DEFAULTS.customSidebarColor
   working.customCssOverrides = { ...(s.customCssOverrides || {}) }
+  syncWorkingBackgroundToneFromSliders()
+}
+
+function syncWorkingBackgroundToneFromSliders() {
+  working.customBackgroundColor = canonicalizeBackgroundTone(
+    working.customBackgroundColor,
+    working.customBackgroundLightness,
+    working.customBackgroundChroma,
+    working.customThemeMode,
+  )
+}
+
+function syncWorkingBackgroundToneFromPick(hex: string) {
+  working.customBackgroundColor = hex
+  const decomposed = decomposeBackgroundToneHex(hex, working.customThemeMode)
+  if (decomposed) {
+    working.customBackgroundLightness = decomposed.lightnessOffset
+    working.customBackgroundChroma = decomposed.chromaOffset
+  }
 }
 
 const getComputedVar = (varName: string): string =>
@@ -326,19 +417,41 @@ watch(isOpen, (open) => {
   if (open) {
     seedFromCurrent()
     applyPreview()
+    expanded.background = true
+    expanded.primary = false
+    expanded.accent = false
+    expanded.sidebar = false
+    expanded.advanced = false
   }
 })
 
 const setMode = (mode: 'dark' | 'light') => {
   working.customThemeMode = mode
+  syncWorkingBackgroundToneFromSliders()
   applyPreview()
 }
 
 const onSidebarToggle = () => {
+  if (sidebarEnabled.value) expanded.sidebar = true
+  applyPreview()
+}
+
+const toggleSidebarEnabled = () => {
+  sidebarEnabled.value = !sidebarEnabled.value
+  onSidebarToggle()
+}
+
+const onBackgroundToneSlidersChange = () => {
+  syncWorkingBackgroundToneFromSliders()
   applyPreview()
 }
 
 const onColor = (key: keyof Working, hex: string) => {
+  if (key === 'customBackgroundColor') {
+    syncWorkingBackgroundToneFromPick(hex)
+    applyPreview()
+    return
+  }
   ;(working as any)[key] = hex
   applyPreview()
 }
@@ -408,6 +521,7 @@ const cancelAndClose = () => {
   z-index: 4000;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
   background: var(--background-secondary);
   border-left: 1px solid var(--border-color);
   box-shadow: -8px 0 32px rgba(0, 0, 0, 0.4);
@@ -448,6 +562,15 @@ const cancelAndClose = () => {
 
 .theme-panel-body {
   flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.theme-panel-scroll {
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
   padding: 16px;
   display: flex;
@@ -528,15 +651,131 @@ const cancelAndClose = () => {
   margin-top: 2px;
 }
 
-.tp-color-field {
+.tp-collapse-list {
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
 
-.tp-color-name {
-  font-size: 13px;
+.tp-collapse {
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--background-tertiary);
+}
+
+.tp-collapse-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border: none;
+  background: transparent;
   color: var(--text-primary);
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s ease;
+}
+
+.tp-collapse-header:hover {
+  background: var(--background-quaternary);
+}
+
+.tp-collapse-header.open {
+  border-bottom: 1px solid var(--border-color);
+}
+
+.tp-collapse-swatch {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  flex-shrink: 0;
+}
+
+.tp-collapse-swatch.disabled {
+  background: var(--background-quaternary) !important;
+  opacity: 0.5;
+}
+
+.tp-collapse-swatch-advanced {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--background-quaternary) !important;
+  font-family: monospace;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+.tp-collapse-label {
+  flex: 1;
+  min-width: 0;
+}
+
+.tp-collapse-title {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.tp-collapse-hint {
+  display: block;
+  font-size: 11px;
+  color: var(--text-tertiary);
+  margin-top: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tp-collapse-hex {
+  font-family: 'Courier New', monospace;
+  font-size: 10px;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.tp-collapse-enable {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  padding: 2px;
+}
+
+.tp-collapse-enable input {
+  width: 15px;
+  height: 15px;
+  cursor: pointer;
+  accent-color: var(--harmony-primary);
+}
+
+.tp-collapse-body {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.tp-collapse-body :deep(.color-picker) {
+  width: 100%;
+}
+
+.tp-slider-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tp-slider-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: var(--text-secondary);
 }
 
 .tp-slider-row {
@@ -562,10 +801,12 @@ const cancelAndClose = () => {
 }
 
 .theme-panel-footer {
+  flex-shrink: 0;
   display: flex;
   gap: 8px;
   padding: 12px 16px;
   border-top: 1px solid var(--border-color);
+  background: var(--background-secondary);
 }
 
 .tp-btn {
@@ -608,33 +849,6 @@ const cancelAndClose = () => {
   opacity: 0;
 }
 
-/* Advanced CSS variables */
-.tp-advanced-section {
-  padding-top: 4px;
-  border-top: 1px solid var(--border-color);
-}
-
-.tp-advanced-toggle {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  padding: 10px 12px;
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  background: var(--background-tertiary);
-  color: var(--text-secondary);
-  font-size: 12px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background 0.12s ease, color 0.12s ease;
-}
-
-.tp-advanced-toggle:hover {
-  background: var(--background-quaternary);
-  color: var(--text-primary);
-}
-
 .tp-override-badge {
   display: inline-flex;
   align-items: center;
@@ -647,6 +861,7 @@ const cancelAndClose = () => {
   color: var(--text-on-primary, #fff);
   font-size: 10px;
   font-weight: 700;
+  margin-left: auto;
 }
 
 .tp-toggle-arrow {
@@ -659,24 +874,30 @@ const cancelAndClose = () => {
   transform: rotate(180deg);
 }
 
-.tp-css-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  margin-top: 10px;
+.tp-css-vars {
+  gap: 2px;
 }
 
-.tp-css-hint {
-  margin: 0;
-  font-size: 11px;
+.tp-var-category-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
   color: var(--text-tertiary);
-  line-height: 1.4;
+  padding: 10px 2px 4px;
+  border-top: 1px solid var(--border-color);
+}
+
+.tp-var-category-label.is-first {
+  border-top: none;
+  padding-top: 0;
 }
 
 .tp-overrides-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  margin-bottom: 8px;
   padding: 6px 10px;
   border-radius: 6px;
   background: var(--background-tertiary);
@@ -698,21 +919,6 @@ const cancelAndClose = () => {
 .tp-reset-overrides-btn:hover {
   background: var(--error, #ed4245);
   color: #fff;
-}
-
-.tp-var-group {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.tp-var-group-title {
-  margin: 0 0 4px;
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--text-tertiary);
 }
 
 .tp-var-item {

@@ -297,6 +297,110 @@ export interface ThemePalette {
   isLightTheme: boolean
 }
 
+function clampTone(n: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, n))
+}
+
+/** Reference OKLCH anchors for the background-tone picker ↔ slider sync. */
+const TONE_REF = {
+  // Anchored near typical dark tone picks so decompose doesn't slam sliders negative.
+  dark: { baseL: 40, lStep: 0.6, baseC: 0.07, cStep: 0.004, minL: 18, maxL: 72, maxC: 0.22 },
+  light: { baseL: 75, lStep: 0.6, baseC: 0.08, cStep: 0.004, minL: 40, maxL: 98, maxC: 0.28 },
+} as const
+
+interface UiSurfaceLevels {
+  hue: number
+  tintChroma: number
+  systemBaseLightness: number
+  chatBaseLightness: number
+  sidebarBaseLightness: number
+}
+
+/**
+ * Map background tone into UI surface OKLCH levels.
+ * Hue comes from the tone swatch; lightness/saturation intensity comes ONLY from
+ * the sliders. Using the swatch's raw OKLCH chroma/lightness (as community
+ * presets store vivid marketing hexes) would double-count and oversaturate UI.
+ */
+function deriveUiSurfacesFromTone(
+  backgroundHex: string | undefined,
+  accentHue: number,
+  isLight: boolean,
+  lightnessOffset: number,
+  chromaOffset: number,
+): UiSurfaceLevels {
+  const hue = (backgroundHex ? extractBackgroundHue(backgroundHex) : null) ?? accentHue
+
+  if (isLight) {
+    const systemBaseLightness = clampTone(98 + lightnessOffset * 0.6, 60, 100)
+    return {
+      hue,
+      tintChroma: clampTone(0.02 + chromaOffset * 0.004, 0, 0.15),
+      systemBaseLightness,
+      chatBaseLightness: systemBaseLightness,
+      sidebarBaseLightness: clampTone(96 + lightnessOffset * 0.6, 55, 100),
+    }
+  }
+
+  const systemBaseLightness = clampTone(17 + lightnessOffset * 0.45, 10, 32)
+  return {
+    hue,
+    tintChroma: clampTone(0.015 + chromaOffset * 0.003, 0, 0.12),
+    systemBaseLightness,
+    chatBaseLightness: clampTone(21 + lightnessOffset * 0.5, 12, 36),
+    sidebarBaseLightness: clampTone(18.5 + lightnessOffset * 0.5, 10, 34),
+  }
+}
+
+/** Keep stored tone hex in sync with hue + slider offsets (picker display only). */
+export function canonicalizeBackgroundTone(
+  backgroundHex: string,
+  lightnessOffset: number,
+  chromaOffset: number,
+  mode: 'light' | 'dark',
+): string {
+  const hue = extractBackgroundHue(backgroundHex) ?? 200
+  return composeBackgroundToneHex(hue, lightnessOffset, chromaOffset, mode)
+}
+
+/**
+ * Build the background-tone swatch shown in ColorPicker from hue + slider offsets.
+ * Sliders move → picker updates via this.
+ */
+export function composeBackgroundToneHex(
+  hue: number,
+  lightnessOffset: number,
+  chromaOffset: number,
+  mode: 'light' | 'dark',
+): string {
+  const ref = TONE_REF[mode]
+  const l = clampTone(ref.baseL + lightnessOffset * ref.lStep, ref.minL, ref.maxL)
+  const c = clampTone(ref.baseC + chromaOffset * ref.cStep, 0, ref.maxC)
+  return oklchToHex(l, c, hue)
+}
+
+/**
+ * Read hue + slider offsets from a background-tone pick.
+ * Picker moves → sliders update via this.
+ */
+export function decomposeBackgroundToneHex(
+  hex: string,
+  mode: 'light' | 'dark',
+): { hue: number; lightnessOffset: number; chromaOffset: number } | null {
+  const oklch = hexToOklch(hex)
+  if (!oklch) return null
+  const ref = TONE_REF[mode]
+  return {
+    hue: oklch.h,
+    lightnessOffset: clampTone(Math.round((oklch.l - ref.baseL) / ref.lStep), -50, 50),
+    chromaOffset: clampTone(Math.round((oklch.c - ref.baseC) / ref.cStep), -30, 30),
+  }
+}
+
+export function extractBackgroundHue(hex: string): number | null {
+  return hexToOklch(hex)?.h ?? null
+}
+
 /**
  * Generate theme palette from primary color, accent color, and background settings
  */
@@ -319,14 +423,14 @@ export function generateThemePalette(
   // Use primary color if provided, otherwise use accent
   const primaryColor = primaryHex || accentHex
   
-  // If background color is provided, use its hue for the UI backgrounds
-  let bgHue = baseOklch.h
-  if (backgroundHex) {
-    const bgOklch = hexToOklch(backgroundHex)
-    if (bgOklch) {
-      bgHue = bgOklch.h
-    }
-  }
+  const surfaces = deriveUiSurfacesFromTone(
+    backgroundHex,
+    baseOklch.h,
+    isLight,
+    lightnessOffset,
+    chromaOffset,
+  )
+  const bgHue = surfaces.hue
 
   // Optional separate hue for the structural "sidebar" surfaces (secondary /
   // tertiary tiers). Falls back to the main background hue when not provided,
@@ -345,21 +449,13 @@ export function generateThemePalette(
   const sidebarChromaBoost = sidebarHasOwnHue ? 2.2 : 1
 
   if (isLight) {
-    // Light theme - use background hue for subtle tinting
-    // Lightness offset: -50 to +50, negative = darker, positive = lighter
-    // Chroma offset: -30 to +30, affects color saturation
-    const baseChroma = 0.02
-    const bgTintChroma = Math.max(0, Math.min(0.15, baseChroma + (chromaOffset * 0.004)))
+    const bgTintChroma = surfaces.tintChroma
+    const baseLightness = surfaces.systemBaseLightness
+    const bgPrimaryOklch = { l: baseLightness, c: bgTintChroma, h: bgHue }
+    const bgSecondaryOklch = { l: clampTone(baseLightness - 2, 55, 100), c: bgTintChroma * sidebarChromaBoost, h: sidebarHue }
+    const bgTertiaryOklch = { l: clampTone(baseLightness - 4, 55, 100), c: bgTintChroma * sidebarChromaBoost, h: sidebarHue }
+    const sidebarOklch = { l: surfaces.sidebarBaseLightness, c: bgTintChroma * 1.5 * sidebarChromaBoost, h: sidebarHue }
     
-    // Base lightness levels for light mode (high values)
-    // Scale: at 0 = 98, at -50 = 68, at +50 = 100 (capped)
-    const baseLightness = 98 + (lightnessOffset * 0.6)
-    const bgPrimaryOklch = { l: Math.min(100, Math.max(60, baseLightness)), c: bgTintChroma, h: bgHue }
-    const bgSecondaryOklch = { l: Math.min(100, Math.max(58, baseLightness - 2)), c: bgTintChroma * sidebarChromaBoost, h: sidebarHue }
-    const bgTertiaryOklch = { l: Math.min(100, Math.max(56, baseLightness - 4)), c: bgTintChroma * sidebarChromaBoost, h: sidebarHue }
-    const sidebarOklch = { l: Math.min(100, Math.max(55, baseLightness - 4)), c: bgTintChroma * 1.5 * sidebarChromaBoost, h: sidebarHue }
-    
-    // Generate oklch-based border colors using background hue
     const borderLightness = Math.max(30, baseLightness - 40)
     const borderChroma = bgTintChroma * 0.8
     const borderPrimaryOklch = { l: borderLightness, c: borderChroma, h: bgHue }
@@ -391,32 +487,18 @@ export function generateThemePalette(
       isLightTheme: true,
     }
   } else {
-    // Dark theme - use background hue with low chroma for UI tone
-    // Lightness offset: -50 to +50, negative = darker, positive = lighter
-    // Chroma offset: -30 to +30, affects color saturation
-    const baseChroma = 0.015
-    const bgTintChroma = Math.max(0, Math.min(0.12, baseChroma + (chromaOffset * 0.003)))
+    const bgTintChroma = surfaces.tintChroma
+    const chatBaseLightness = surfaces.chatBaseLightness
+    const sidebarBaseLightness = surfaces.sidebarBaseLightness
+    const systemBaseLightness = surfaces.systemBaseLightness
     
-    // Base lightness levels for dark mode.
-    // `systemBaseLightness` drives the main content + sidebars + settings
-    // surfaces (the --background-* tiers). It was previously 12, which rendered
-    // a default custom theme noticeably darker than the built-in Dark preset
-    // (~17). Realigned so "custom, untouched" matches the polished Dark look.
-    const chatBaseLightness = 21 + (lightnessOffset * 0.5)
-    const sidebarBaseLightness = 18.5 + (lightnessOffset * 0.5)
-    const systemBaseLightness = 17 + (lightnessOffset * 0.45)
+    const bgChatOklch = { l: chatBaseLightness, c: bgTintChroma, h: bgHue }
+    const sidebarOklch = { l: sidebarBaseLightness, c: bgTintChroma * 1.5 * sidebarChromaBoost, h: sidebarHue }
     
-    // Chat/content areas (lighter, more visible)
-    const bgChatOklch = { l: Math.max(3, Math.min(50, chatBaseLightness)), c: bgTintChroma, h: bgHue }
-    const sidebarOklch = { l: Math.max(2, Math.min(45, sidebarBaseLightness)), c: bgTintChroma * 1.5 * sidebarChromaBoost, h: sidebarHue }
+    const systemBgPrimaryOklch = { l: systemBaseLightness, c: bgTintChroma, h: bgHue }
+    const systemBgSecondaryOklch = { l: clampTone(systemBaseLightness - 1.5, 10, 32), c: bgTintChroma * sidebarChromaBoost, h: sidebarHue }
+    const systemBgTertiaryOklch = { l: clampTone(systemBaseLightness - 3.5, 8, 30), c: bgTintChroma * sidebarChromaBoost, h: sidebarHue }
     
-    // System backgrounds (darker, for structure). Secondary/tertiary tiers back
-    // the sidebars, so they follow the optional sidebar hue.
-    const systemBgPrimaryOklch = { l: Math.max(2, Math.min(40, systemBaseLightness)), c: bgTintChroma, h: bgHue }
-    const systemBgSecondaryOklch = { l: Math.max(1, Math.min(38, systemBaseLightness - 1.5)), c: bgTintChroma * sidebarChromaBoost, h: sidebarHue }
-    const systemBgTertiaryOklch = { l: Math.max(1, Math.min(35, systemBaseLightness - 3.5)), c: bgTintChroma * sidebarChromaBoost, h: sidebarHue }
-    
-    // Generate oklch-based border colors using background hue for dark theme
     const borderLightness = Math.min(60, chatBaseLightness + 25)
     const borderChroma = bgTintChroma * 1.2
     const borderPrimaryOklch = { l: borderLightness, c: borderChroma, h: bgHue }
@@ -469,24 +551,23 @@ export function generatePreviewColors(
       : { bgMain: '#313338', bgSidebar: '#2b2d31', bgHeader: '#2f3136' }
   }
   
-  // Calculate chroma based on mode and offset
-  const baseChroma = mode === 'light' ? 0.02 : 0.015
-  const bgTintChroma = Math.max(0, Math.min(mode === 'light' ? 0.15 : 0.12, baseChroma + (chromaOffset * (mode === 'light' ? 0.004 : 0.003))))
+  const isLight = mode === 'light'
+  const surfaces = deriveUiSurfacesFromTone(backgroundHex, bgOklch.h, isLight, lightnessOffset, chromaOffset)
+  const bgHue = surfaces.hue
+  const bgTintChroma = surfaces.tintChroma
   
-  if (mode === 'light') {
-    const baseLightness = 98 + (lightnessOffset * 0.6)
+  if (isLight) {
+    const baseLightness = surfaces.systemBaseLightness
     return {
-      bgMain: oklchToHex(Math.min(100, Math.max(60, baseLightness)), bgTintChroma, bgOklch.h),
-      bgSidebar: oklchToHex(Math.min(100, Math.max(55, baseLightness - 4)), bgTintChroma * 1.5, bgOklch.h),
-      bgHeader: oklchToHex(Math.min(100, Math.max(58, baseLightness - 2)), bgTintChroma, bgOklch.h),
+      bgMain: oklchToHex(baseLightness, bgTintChroma, bgHue),
+      bgSidebar: oklchToHex(surfaces.sidebarBaseLightness, bgTintChroma * 1.5, bgHue),
+      bgHeader: oklchToHex(clampTone(baseLightness - 2, 55, 100), bgTintChroma, bgHue),
     }
   } else {
-    const chatBaseLightness = 19.5 + (lightnessOffset * 0.5)
-    const sidebarBaseLightness = 17 + (lightnessOffset * 0.5)
     return {
-      bgMain: oklchToHex(Math.max(3, Math.min(50, chatBaseLightness)), bgTintChroma, bgOklch.h),
-      bgSidebar: oklchToHex(Math.max(2, Math.min(45, sidebarBaseLightness)), bgTintChroma * 1.5, bgOklch.h),
-      bgHeader: oklchToHex(Math.max(2, Math.min(45, sidebarBaseLightness)), bgTintChroma, bgOklch.h),
+      bgMain: oklchToHex(surfaces.chatBaseLightness, bgTintChroma, bgHue),
+      bgSidebar: oklchToHex(surfaces.sidebarBaseLightness, bgTintChroma * 1.5, bgHue),
+      bgHeader: oklchToHex(surfaces.sidebarBaseLightness, bgTintChroma, bgHue),
     }
   }
 }

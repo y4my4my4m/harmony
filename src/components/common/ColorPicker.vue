@@ -1,5 +1,5 @@
 <template>
-  <div class="color-picker">
+  <div class="color-picker" :class="{ 'color-picker--wide': layout === 'wide' }">
     <div class="color-picker-content">
       <!-- Saturation / Value gradient field -->
       <div
@@ -68,10 +68,13 @@ import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 
 interface Props {
   color?: string
+  /** compact: narrow panels (8-col grid). wide: full-width settings with more swatches. */
+  layout?: 'compact' | 'wide'
 }
 
 const props = withDefaults(defineProps<Props>(), {
   color: '#0EA5E9',
+  layout: 'compact',
 })
 
 const emit = defineEmits<{
@@ -79,11 +82,22 @@ const emit = defineEmits<{
   'change': [color: string]
 }>()
 
-const presetColors = [
+const PRESET_COLORS_COMPACT = [
   '#0EA5E9', '#57f287', '#fee75c', '#eb459e', '#ed4245',
   '#f1c40f', '#e67e22', '#9b59b6', '#3498db', '#2ecc71',
   '#e91e63', '#00bcd4', '#795548', '#607d8b', '#ffffff', '#000000',
 ]
+
+const PRESET_COLORS_WIDE = [
+  ...PRESET_COLORS_COMPACT,
+  '#38bdf8', '#4ade80', '#a3e635', '#fb7185', '#f97316',
+  '#f59e0b', '#d946ef', '#6366f1', '#14b8a6', '#84cc16',
+  '#ec4899', '#8b5cf6', '#22d3ee', '#a78bfa', '#78716c', '#a8a29e',
+]
+
+const presetColors = computed(() =>
+  props.layout === 'wide' ? PRESET_COLORS_WIDE : PRESET_COLORS_COMPACT,
+)
 
 // HSV state (hue 0-360, sat 0-1, val 0-1)
 const hue = ref(0)
@@ -293,12 +307,14 @@ onBeforeUnmount(() => {
   position: absolute;
   inset: 0;
   background: linear-gradient(to right, #fff, rgba(255, 255, 255, 0));
+  pointer-events: none;
 }
 
 .sv-black {
   position: absolute;
   inset: 0;
   background: linear-gradient(to top, #000, rgba(0, 0, 0, 0));
+  pointer-events: none;
 }
 
 .sv-thumb {
@@ -350,6 +366,12 @@ onBeforeUnmount(() => {
   display: grid;
   grid-template-columns: repeat(8, 1fr);
   gap: 8px;
+  justify-items: center;
+}
+
+.color-picker--wide .preset-colors {
+  grid-template-columns: repeat(auto-fill, minmax(26px, 1fr));
+  gap: 10px 8px;
 }
 
 .preset-color {

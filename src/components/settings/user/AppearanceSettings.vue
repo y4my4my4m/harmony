@@ -108,91 +108,135 @@
             <button
               class="mode-btn"
               :class="{ active: settings.customThemeMode === 'dark' }"
-              @click="settings.customThemeMode = 'dark'; onCustomColorChange()"
+              @click="settings.customThemeMode = 'dark'; onCustomThemeModeChange()"
             >
               🌙 Dark
             </button>
             <button
               class="mode-btn"
               :class="{ active: settings.customThemeMode === 'light' }"
-              @click="settings.customThemeMode = 'light'; onCustomColorChange()"
+              @click="settings.customThemeMode = 'light'; onCustomThemeModeChange()"
             >
               ☀️ Light
             </button>
           </div>
         </div>
         
-        <!-- Background Tone Color -->
-        <div class="color-picker-section">
-          <label class="picker-label">Background Tone</label>
-          <p class="picker-help">Sets the color hue for all background elements</p>
-          <ColorPicker 
-            v-model:color="settings.customBackgroundColor"
-            @update:color="onCustomBackgroundChange"
-            @change="onCustomBackgroundChange"
-          />
-        </div>
-        
-        <!-- Background Lightness -->
-        <div class="lightness-section">
-          <label class="picker-label">Background Lightness</label>
-          <p class="picker-help">Adjust how light or dark the backgrounds appear</p>
-          <div class="lightness-slider-container">
-            <span class="lightness-label">Darker</span>
-            <input
-              v-model.number="settings.customBackgroundLightness"
-              type="range"
-              min="-50"
-              max="50"
-              step="1"
-              class="lightness-slider"
-              @input="onLightnessChange"
-            />
-            <span class="lightness-label">Lighter</span>
+        <div class="theme-collapse-list">
+          <!-- Background -->
+          <div class="theme-collapse">
+            <button
+              type="button"
+              class="theme-collapse-header"
+              :class="{ open: colorExpanded.background }"
+              @click="colorExpanded.background = !colorExpanded.background"
+            >
+              <span class="theme-collapse-swatch" :style="{ backgroundColor: settings.customBackgroundColor }" />
+              <span class="theme-collapse-label">
+                <span class="theme-collapse-title">Background</span>
+                <span class="theme-collapse-hint">Tone, lightness &amp; saturation</span>
+              </span>
+              <span class="theme-collapse-hex">{{ settings.customBackgroundColor }}</span>
+              <span class="theme-collapse-arrow" :class="{ open: colorExpanded.background }">&#9660;</span>
+            </button>
+            <div v-show="colorExpanded.background" class="theme-collapse-body">
+              <p class="picker-help">Sets the color hue for all background elements</p>
+              <ColorPicker
+                v-model:color="settings.customBackgroundColor"
+                layout="wide"
+                @update:color="onCustomBackgroundChange"
+                @change="onCustomBackgroundChange"
+              />
+              <div class="theme-slider-block">
+                <label class="picker-label">Lightness</label>
+                <div class="lightness-slider-container">
+                  <span class="lightness-label">Darker</span>
+                  <input
+                    v-model.number="settings.customBackgroundLightness"
+                    type="range"
+                    min="-50"
+                    max="50"
+                    step="1"
+                    class="lightness-slider"
+                    @input="onLightnessChange"
+                  />
+                  <span class="lightness-label">Lighter</span>
+                </div>
+                <div class="lightness-value">{{ settings.customBackgroundLightness > 0 ? '+' : '' }}{{ settings.customBackgroundLightness }}</div>
+              </div>
+              <div class="theme-slider-block">
+                <label class="picker-label">Saturation</label>
+                <div class="chroma-slider-container">
+                  <span class="chroma-label">Muted</span>
+                  <input
+                    v-model.number="settings.customBackgroundChroma"
+                    type="range"
+                    min="-30"
+                    max="30"
+                    step="1"
+                    class="chroma-slider"
+                    @input="onChromaChange"
+                  />
+                  <span class="chroma-label">Vivid</span>
+                </div>
+                <div class="chroma-value">{{ settings.customBackgroundChroma > 0 ? '+' : '' }}{{ settings.customBackgroundChroma }}</div>
+              </div>
+            </div>
           </div>
-          <div class="lightness-value">{{ settings.customBackgroundLightness > 0 ? '+' : '' }}{{ settings.customBackgroundLightness }}</div>
-        </div>
-        
-        <!-- Background Chroma (Saturation) -->
-        <div class="chroma-section">
-          <label class="picker-label">Background Saturation</label>
-          <p class="picker-help">Adjust color intensity of the backgrounds</p>
-          <div class="chroma-slider-container">
-            <span class="chroma-label">Muted</span>
-            <input
-              v-model.number="settings.customBackgroundChroma"
-              type="range"
-              min="-30"
-              max="30"
-              step="1"
-              class="chroma-slider"
-              @input="onChromaChange"
-            />
-            <span class="chroma-label">Vivid</span>
+
+          <!-- Primary -->
+          <div class="theme-collapse">
+            <button
+              type="button"
+              class="theme-collapse-header"
+              :class="{ open: colorExpanded.primary }"
+              @click="colorExpanded.primary = !colorExpanded.primary"
+            >
+              <span class="theme-collapse-swatch" :style="{ backgroundColor: settings.customPrimaryColor }" />
+              <span class="theme-collapse-label">
+                <span class="theme-collapse-title">Primary</span>
+                <span class="theme-collapse-hint">Buttons &amp; key actions</span>
+              </span>
+              <span class="theme-collapse-hex">{{ settings.customPrimaryColor }}</span>
+              <span class="theme-collapse-arrow" :class="{ open: colorExpanded.primary }">&#9660;</span>
+            </button>
+            <div v-show="colorExpanded.primary" class="theme-collapse-body">
+              <p class="picker-help">Main brand color for buttons and key actions</p>
+              <ColorPicker
+                v-model:color="settings.customPrimaryColor"
+                layout="wide"
+                @update:color="onCustomColorChange"
+                @change="onCustomColorChange"
+              />
+            </div>
           </div>
-          <div class="chroma-value">{{ settings.customBackgroundChroma > 0 ? '+' : '' }}{{ settings.customBackgroundChroma }}</div>
-        </div>
-        
-        <!-- Primary Color -->
-        <div class="color-picker-section">
-          <label class="picker-label">Primary Color</label>
-          <p class="picker-help">Main brand color for buttons and key actions</p>
-          <ColorPicker 
-            v-model:color="settings.customPrimaryColor"
-            @update:color="onCustomColorChange"
-            @change="onCustomColorChange"
-          />
-        </div>
-        
-        <!-- Secondary/Accent Color -->
-        <div class="color-picker-section">
-          <label class="picker-label">Secondary Color</label>
-          <p class="picker-help">Used for links, highlights, and accents</p>
-          <ColorPicker 
-            v-model:color="settings.customAccentColor"
-            @update:color="onCustomColorChange"
-            @change="onCustomColorChange"
-          />
+
+          <!-- Accent / Secondary -->
+          <div class="theme-collapse">
+            <button
+              type="button"
+              class="theme-collapse-header"
+              :class="{ open: colorExpanded.accent }"
+              @click="colorExpanded.accent = !colorExpanded.accent"
+            >
+              <span class="theme-collapse-swatch" :style="{ backgroundColor: settings.customAccentColor }" />
+              <span class="theme-collapse-label">
+                <span class="theme-collapse-title">Accent</span>
+                <span class="theme-collapse-hint">Links &amp; highlights</span>
+              </span>
+              <span class="theme-collapse-hex">{{ settings.customAccentColor }}</span>
+              <span class="theme-collapse-arrow" :class="{ open: colorExpanded.accent }">&#9660;</span>
+            </button>
+            <div v-show="colorExpanded.accent" class="theme-collapse-body">
+              <p class="picker-help">Used for links, highlights, and accents</p>
+              <ColorPicker
+                v-model:color="settings.customAccentColor"
+                layout="wide"
+                @update:color="onCustomColorChange"
+                @change="onCustomColorChange"
+              />
+            </div>
+          </div>
         </div>
 
         <!-- Save current theme -->
@@ -233,72 +277,78 @@
         </div>
       </div>
 
-      <!-- Advanced CSS Variable Overrides (available for all themes) -->
-      <div class="advanced-css-section">
-        <button class="toggle-advanced-btn" @click="showAdvancedCss = !showAdvancedCss">
-          {{ showAdvancedCss ? 'Hide' : 'Show' }} Advanced CSS Variables
+      <!-- Advanced CSS (all themes) -->
+      <div class="theme-collapse advanced-css-collapse">
+        <button
+          type="button"
+          class="theme-collapse-header"
+          :class="{ open: showAdvancedCss }"
+          @click="showAdvancedCss = !showAdvancedCss"
+        >
+          <span class="theme-collapse-swatch theme-collapse-swatch-advanced">{ }</span>
+          <span class="theme-collapse-label">
+            <span class="theme-collapse-title">Advanced CSS</span>
+            <span class="theme-collapse-hint">Override individual variables</span>
+          </span>
           <span v-if="overrideCount > 0" class="override-badge">{{ overrideCount }}</span>
-          <span class="toggle-arrow" :class="{ open: showAdvancedCss }">&#9660;</span>
+          <span class="theme-collapse-arrow" :class="{ open: showAdvancedCss }">&#9660;</span>
         </button>
 
-        <div v-if="showAdvancedCss" class="css-overrides-panel">
-          <p class="section-help">Override individual CSS variables for full control. Changes apply in real-time. Overrides persist on top of any theme.</p>
-
+        <div v-show="showAdvancedCss" class="theme-collapse-body css-overrides-panel">
           <div v-if="overrideCount > 0" class="overrides-toolbar">
             <span class="override-summary">{{ overrideCount }} override{{ overrideCount !== 1 ? 's' : '' }} active</span>
             <button class="reset-all-btn" @click="resetAllOverrides" title="Remove all overrides and restore defaults">
-              Reset all overrides
+              Reset all
             </button>
           </div>
 
-          <div
-            v-for="group in themableVariables"
-            :key="group.category"
-            class="css-var-group"
-          >
-            <h5 class="var-group-title">{{ group.category }}</h5>
-            <div class="var-list">
-              <div v-for="varName in group.vars" :key="varName" class="var-item" :class="{ 'has-override': settings.customCssOverrides?.[varName] }">
-                <label class="var-name">{{ varName }}</label>
-                <div class="var-controls">
-                  <div
-                    v-if="isHexCompatible(varName)"
-                    class="var-swatch var-swatch-clickable"
-                    :style="{ backgroundColor: getComputedVar(varName) || 'transparent' }"
-                    :title="getComputedVar(varName)"
-                  >
-                    <input
-                      type="color"
-                      class="var-color-input-hidden"
-                      :value="getHexForPicker(varName)"
-                      @input="setCssOverrideFromInput(varName, ($event.target as HTMLInputElement).value)"
-                    />
-                  </div>
-                  <div
-                    v-else
-                    class="var-swatch"
-                    :style="{ backgroundColor: getComputedVar(varName) || 'transparent' }"
-                    :title="getComputedVar(varName)"
-                  ></div>
+          <template v-for="(group, gi) in themableVariables" :key="group.category">
+            <div class="var-category-label" :class="{ 'is-first': gi === 0 }">{{ group.category }}</div>
+            <div
+              v-for="varName in group.vars"
+              :key="varName"
+              class="var-item"
+              :class="{ 'has-override': settings.customCssOverrides?.[varName] }"
+            >
+              <label class="var-name">{{ varName }}</label>
+              <div class="var-controls">
+                <div
+                  v-if="isHexCompatible(varName)"
+                  class="var-swatch var-swatch-clickable"
+                  :style="{ backgroundColor: getComputedVar(varName) || 'transparent' }"
+                  :title="getComputedVar(varName)"
+                >
                   <input
-                    type="text"
-                    class="var-text-input"
-                    :value="settings.customCssOverrides?.[varName] || ''"
-                    :placeholder="getComputedVar(varName)"
-                    @change="setCssOverrideFromInput(varName, ($event.target as HTMLInputElement).value)"
+                    type="color"
+                    class="var-color-input-hidden"
+                    :value="getHexForPicker(varName)"
+                    @input="setCssOverrideFromInput(varName, ($event.target as HTMLInputElement).value)"
                   />
-                  <button
-                    v-if="settings.customCssOverrides?.[varName]"
-                    class="var-reset-btn"
-                    @click="removeCssOverrideVar(varName)"
-                    title="Reset to default"
-                  >
-                    &#10005;
-                  </button>
                 </div>
+                <div
+                  v-else
+                  class="var-swatch"
+                  :style="{ backgroundColor: getComputedVar(varName) || 'transparent' }"
+                  :title="getComputedVar(varName)"
+                ></div>
+                <input
+                  type="text"
+                  class="var-text-input"
+                  :value="settings.customCssOverrides?.[varName] || ''"
+                  :placeholder="getComputedVar(varName)"
+                  @change="setCssOverrideFromInput(varName, ($event.target as HTMLInputElement).value)"
+                />
+                <button
+                  v-if="settings.customCssOverrides?.[varName]"
+                  class="var-reset-btn"
+                  @click="removeCssOverrideVar(varName)"
+                  title="Reset to default"
+                >
+                  &#10005;
+                </button>
               </div>
             </div>
-          </div>
+          </template>
         </div>
       </div>
     </div>
@@ -706,7 +756,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, reactive, onMounted } from 'vue'
 import { useToast } from 'vue-toastification'
 import { debug } from '@/utils/debug'
 import type { User, Emoji } from '@/types'
@@ -715,7 +765,15 @@ import { useVisualTheme } from '@/composables/useVisualTheme'
 import { useThemeEditorPanel } from '@/composables/useThemeEditorPanel'
 import { useRouter } from 'vue-router'
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings'
-import { generateThemePalette, applyThemePalette, generatePreviewColors } from '@/utils/colorUtils'
+import {
+  generateThemePalette,
+  applyThemePalette,
+  generatePreviewColors,
+  composeBackgroundToneHex,
+  decomposeBackgroundToneHex,
+  extractBackgroundHue,
+  canonicalizeBackgroundTone,
+} from '@/utils/colorUtils'
 import { useEmojiPacks } from '@/services/emojiPackService'
 import { useQuickReactSettings } from '@/composables/useQuickReactSettings'
 
@@ -827,6 +885,11 @@ const customPreviewColors = computed(() => {
 const originalSettings = ref({ ...settings.value })
 // eslint-disable-next-line unused-imports/no-unused-vars
 const showAdvancedCss = ref(false)
+const colorExpanded = reactive({
+  background: true,
+  primary: false,
+  accent: false,
+})
 const savedThemeName = ref('')
 const importFileInput = ref<HTMLInputElement | null>(null)
 const toast = useToast()
@@ -926,7 +989,14 @@ const themableVariables = visualTheme.getThemableVariables()
 
 const applyPresetTheme = (preset: ThemePreset) => {
   visualTheme.applyPreset(preset)
-  Object.assign(settings.value, preset.settings)
+  Object.assign(settings.value, {
+    ...preset.settings,
+    customCssOverrides: preset.settings.customCssOverrides
+      ? { ...preset.settings.customCssOverrides }
+      : {},
+  })
+  syncBackgroundToneFromSliders()
+  previewTheme()
 }
 
 const ALPHA_VAR_NAMES = new Set([
@@ -1034,6 +1104,11 @@ const hasChanges = computed(() => {
 const selectTheme = (themeId: string) => {
   settings.value.theme = themeId as 'dark' | 'light' | 'midnight' | 'custom'
   activeSavedThemeId.value = null
+  if (themeId === 'custom') {
+    colorExpanded.background = true
+    colorExpanded.primary = false
+    colorExpanded.accent = false
+  }
   previewTheme()
 }
 
@@ -1041,7 +1116,29 @@ const onCustomColorChange = () => {
   previewTheme()
 }
 
+const syncBackgroundToneFromSliders = () => {
+  settings.value.customBackgroundColor = canonicalizeBackgroundTone(
+    settings.value.customBackgroundColor,
+    settings.value.customBackgroundLightness,
+    settings.value.customBackgroundChroma,
+    settings.value.customThemeMode,
+  )
+}
+
 const onCustomBackgroundChange = () => {
+  const decomposed = decomposeBackgroundToneHex(
+    settings.value.customBackgroundColor,
+    settings.value.customThemeMode,
+  )
+  if (decomposed) {
+    settings.value.customBackgroundLightness = decomposed.lightnessOffset
+    settings.value.customBackgroundChroma = decomposed.chromaOffset
+  }
+  previewTheme()
+}
+
+const onCustomThemeModeChange = () => {
+  syncBackgroundToneFromSliders()
   previewTheme()
 }
 
@@ -1058,6 +1155,14 @@ const previewTheme = () => {
         settings.value.customBackgroundChroma
       )
       applyThemePalette(palette)
+      const overrides = settings.value.customCssOverrides
+      if (overrides) {
+        for (const [varName, value] of Object.entries(overrides)) {
+          if (varName.startsWith('--') && value) {
+            document.documentElement.style.setProperty(varName, value)
+          }
+        }
+      }
     } catch (error) {
       debug.error('Failed to preview custom theme:', error)
     }
@@ -1067,10 +1172,12 @@ const previewTheme = () => {
 }
 
 const onLightnessChange = () => {
+  syncBackgroundToneFromSliders()
   previewTheme()
 }
 
 const onChromaChange = () => {
+  syncBackgroundToneFromSliders()
   previewTheme()
 }
 
@@ -1788,8 +1895,120 @@ onMounted(async () => {
   letter-spacing: 0.02em;
 }
 
-.color-picker-section {
+.theme-collapse-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   margin-bottom: 24px;
+}
+
+.theme-collapse {
+  border: 1px solid var(--background-quaternary);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--background-senary);
+}
+
+.theme-collapse-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s ease;
+}
+
+.theme-collapse-header:hover {
+  background: var(--background-quaternary);
+}
+
+.theme-collapse-header.open {
+  border-bottom: 1px solid var(--background-quaternary);
+}
+
+.theme-collapse-swatch {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid var(--background-quaternary);
+  flex-shrink: 0;
+}
+
+.theme-collapse-label {
+  flex: 1;
+  min-width: 0;
+}
+
+.theme-collapse-title {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.theme-collapse-hint {
+  display: block;
+  font-size: 11px;
+  color: var(--text-tertiary);
+  margin-top: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.theme-collapse-hex {
+  font-family: 'Courier New', monospace;
+  font-size: 10px;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.theme-collapse-swatch-advanced {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--background-quaternary) !important;
+  font-family: monospace;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+.theme-collapse-arrow {
+  font-size: 9px;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
+}
+
+.theme-collapse-arrow.open {
+  transform: rotate(180deg);
+}
+
+.theme-collapse-body {
+  padding: 12px 14px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.theme-collapse-body :deep(.color-picker) {
+  width: 100%;
+}
+
+.theme-collapse-body .picker-help {
+  margin: 0;
+}
+
+.theme-slider-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .picker-label {
@@ -1807,14 +2026,6 @@ onMounted(async () => {
 }
 
 /* Lightness Slider */
-.lightness-section {
-  margin-bottom: 24px;
-  padding: 16px;
-  background-color: var(--background-senary);
-  border-radius: 8px;
-  border: 1px solid var(--background-quaternary);
-}
-
 .lightness-slider-container {
   display: flex;
   align-items: center;
@@ -1880,14 +2091,6 @@ onMounted(async () => {
 }
 
 /* Chroma (Saturation) Slider */
-.chroma-section {
-  margin-bottom: 24px;
-  padding: 16px;
-  background-color: var(--background-senary);
-  border-radius: 8px;
-  border: 1px solid var(--background-quaternary);
-}
-
 .chroma-slider-container {
   display: flex;
   align-items: center;
@@ -2300,33 +2503,23 @@ onMounted(async () => {
   font-style: italic;
 }
 
-/* Advanced CSS Variables */
-.advanced-css-section {
+.advanced-css-collapse {
   margin-top: 24px;
-  padding-top: 24px;
+}
+
+.var-category-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-tertiary);
+  padding: 10px 2px 4px;
   border-top: 1px solid var(--background-quaternary);
 }
 
-.toggle-advanced-btn {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background: none;
-  border: 1px solid var(--background-quaternary);
-  color: var(--text-secondary);
-  padding: 10px 16px;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 13px;
-  font-weight: 500;
-  width: 100%;
-  justify-content: center;
-  transition: all 0.2s;
-}
-
-.toggle-advanced-btn:hover {
-  background: var(--background-quaternary);
-  color: var(--text-primary);
+.var-category-label.is-first {
+  border-top: none;
+  padding-top: 0;
 }
 
 .override-badge {
@@ -2344,17 +2537,8 @@ onMounted(async () => {
   line-height: 1;
 }
 
-.toggle-arrow {
-  font-size: 10px;
-  transition: transform 0.2s;
-}
-
-.toggle-arrow.open {
-  transform: rotate(180deg);
-}
-
 .css-overrides-panel {
-  margin-top: 16px;
+  gap: 2px;
 }
 
 .overrides-toolbar {
@@ -2387,25 +2571,6 @@ onMounted(async () => {
 .reset-all-btn:hover {
   background: var(--error, #ed4245);
   color: #fff;
-}
-
-.css-var-group {
-  margin-bottom: 20px;
-}
-
-.var-group-title {
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  margin: 0 0 10px;
-}
-
-.var-list {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
 }
 
 .var-item {
