@@ -16,7 +16,7 @@ export interface LoadingStrategy {
   currentServerId?: string
   currentChannelId?: string
   currentConversationId?: string
-  routeType: 'server-channel' | 'dm' | 'dm-list' | 'social' | 'other'
+  routeType: 'server-channel' | 'dm' | 'dm-list' | 'social' | 'settings' | 'other'
 }
 
 export class RouteAwareInitialization {
@@ -83,6 +83,22 @@ export class RouteAwareInitialization {
         shouldLoadAllServerEmojis: false, // ❌ Don't load server emojis in social context
         shouldLoadNotificationsFull: routeName === 'Notifications', // ✅ Full notifications only on notifications page
         routeType: 'social'
+      }
+    }
+
+    // Settings / admin standalone routes - no chat/DM/presence context needed
+    const settingsRoutes = ['UserSettings', 'ServerSettings', 'Admin', 'AdminDashboard']
+    if (
+      settingsRoutes.includes(routeName) ||
+      routePath.startsWith('/settings') ||
+      routePath.startsWith('/admin')
+    ) {
+      return {
+        shouldLoadDMs: false,
+        shouldLoadAllServerPresence: false,
+        shouldLoadAllServerEmojis: false,
+        shouldLoadNotificationsFull: false,
+        routeType: 'settings'
       }
     }
 

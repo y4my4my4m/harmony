@@ -55,7 +55,9 @@ function detectMobileDevice(): boolean {
  */
 const PROFILE_BACKFILL_CHUNK = 30
 
-
+/** Bulk member-list hydration — omit federation_metadata (large JSONB, rarely needed). */
+const PROFILE_BULK_SELECT =
+  'id, username, web_handle, display_name, avatar_url, banner_url, bio, color, status, domain, updated_at, created_at, is_local, custom_status, is_admin, is_moderator'
 
 class UserDataService extends EventTarget {
   private users = new Map<string, UserData>()
@@ -1301,7 +1303,8 @@ class UserDataService extends EventTarget {
     // UUID v4 regex pattern
     const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
     
-    // Filter: load if missing, stale, has Unknown username, or was only populated from presence (lacks federation_metadata)
+    // Filter: load if missing, stale, has Unknown username, or presence snapshot
+    // still needs a DB row for custom display-name emoji shortcodes.
     const missingUserIds = userIds.filter(id => {
       if (!uuidPattern.test(id)) {
         debug.warn(`⚠️ Skipping non-UUID user ID in loadUsersData: ${id}`)
@@ -1309,8 +1312,10 @@ class UserDataService extends EventTarget {
       }
       const existing = this.users.get(id)
       const hasUnknownUsername = !existing?.username || existing.username === 'Unknown' || existing.username === 'unknown'
-      const isPresenceOnly = existing?.source === 'presence'
-      return !existing || this.isUserDataStale(id) || hasUnknownUsername || isPresenceOnly
+      const needsPresenceEnrichment = existing?.source === 'presence' &&
+        typeof existing.displayName === 'string' &&
+        (EMOJI_SHORTCODE_TEST_REGEX.lastIndex = 0, EMOJI_SHORTCODE_TEST_REGEX.test(existing.displayName))
+      return !existing || this.isUserDataStale(id) || hasUnknownUsername || needsPresenceEnrichment
     })
     
     if (missingUserIds.length === 0) return
@@ -1346,31 +1351,43 @@ class UserDataService extends EventTarget {
 
     debug.log(`🔄 Loading user data for ${missingUserIds.length} users`)
 
+    const loadedIds: string[] = []
+
     try {
-      const { data: profiles } = await supabase
-        .from('profiles')
-        .select('id, username, web_handle, display_name, avatar_url, banner_url, bio, color, status, domain, updated_at, created_at, is_local, custom_status, is_admin, is_moderator, federation_metadata')
-        .in('id', missingUserIds)
-      
-      if (profiles) {
+      // The microtask batch coalescer can merge dozens of single-id callers into
+      // one id=in.(...) query. Keep each HTTP request small so reverse proxies
+      // don't 502 (which surfaces in the browser as a bogus CORS error).
+      for (let i = 0; i < missingUserIds.length; i += PROFILE_BACKFILL_CHUNK) {
+        const chunk = missingUserIds.slice(i, i + PROFILE_BACKFILL_CHUNK)
+        const { data: profiles, error } = await supabase
+          .from('profiles')
+          .select(PROFILE_BULK_SELECT)
+          .in('id', chunk)
+
+        if (error) {
+          debug.error('❌ Failed to load user data chunk:', error)
+          continue
+        }
+
+        if (!profiles?.length) continue
+
         profiles.forEach((profile: any) => {
           const existing = this.users.get(profile.id)
           const dn = profile.display_name || profile.username || 'Unknown'
-          const dnEmojis = this.extractDisplayNameEmojis(profile.federation_metadata)
           const userData: UserData = {
             id: profile.id,
             username: profile.username || 'Unknown',
             handle: profile.web_handle ?? undefined,
             displayName: dn,
-            displayNameEmojis: dnEmojis,
-            displayNameParts: this.resolveDisplayNameParts(dn, dnEmojis),
+            displayNameEmojis: existing?.displayNameEmojis,
+            displayNameParts: this.resolveDisplayNameParts(dn, existing?.displayNameEmojis),
             avatarUrl: profile.avatar_url,
             bannerUrl: profile.banner_url,
             bio: profile.bio,
             color: profile.color,
             domain: profile.domain || import.meta.env.VITE_DOMAIN as string,
             isLocal: profile.is_local ?? (
-              !profile.domain || 
+              !profile.domain ||
               profile.domain === import.meta.env.VITE_DOMAIN
             ),
             status: profile.status ?? existing?.status ?? UserStatus.Offline,
@@ -1386,17 +1403,61 @@ class UserDataService extends EventTarget {
             isModerator: profile.is_moderator ?? existing?.isModerator ?? false,
             source: 'database'
           }
-          
+
           this.users.set(profile.id, userData)
+          loadedIds.push(profile.id)
         })
-        
-        debug.log(`✅ Loaded ${profiles.length} user profiles from database`)
-        
-        this.emitEvent('data-refreshed', { userIds: profiles.map((p: any) => p.id) })
       }
-      
+
+      if (loadedIds.length > 0) {
+        debug.log(`✅ Loaded ${loadedIds.length} user profiles from database`)
+        await this.enrichDisplayNameEmojis(loadedIds)
+        this.emitEvent('data-refreshed', { userIds: loadedIds })
+      }
     } catch (error) {
       debug.error('❌ Failed to load user data:', error)
+    }
+  }
+
+  /**
+   * Lazy-load federation_metadata only for profiles whose display name contains
+   * custom-emoji shortcodes. Avoids shipping large JSONB blobs in every bulk
+   * member-list hydration.
+   */
+  private async enrichDisplayNameEmojis(userIds: string[]): Promise<void> {
+    const needEnrich = userIds.filter(id => {
+      const u = this.users.get(id)
+      if (!u || u.displayNameEmojis?.length) return false
+      if (typeof u.displayName !== 'string') return false
+      EMOJI_SHORTCODE_TEST_REGEX.lastIndex = 0
+      return EMOJI_SHORTCODE_TEST_REGEX.test(u.displayName)
+    })
+    if (needEnrich.length === 0) return
+
+    const enrichedIds: string[] = []
+
+    for (let i = 0; i < needEnrich.length; i += PROFILE_BACKFILL_CHUNK) {
+      const chunk = needEnrich.slice(i, i + PROFILE_BACKFILL_CHUNK)
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, federation_metadata')
+        .in('id', chunk)
+
+      if (error || !data?.length) continue
+
+      for (const row of data as Array<{ id: string; federation_metadata: unknown }>) {
+        const dnEmojis = this.extractDisplayNameEmojis(row.federation_metadata)
+        if (!dnEmojis?.length) continue
+        const existing = this.users.get(row.id)
+        if (!existing) continue
+        existing.displayNameEmojis = dnEmojis
+        existing.displayNameParts = this.resolveDisplayNameParts(existing.displayName, dnEmojis)
+        enrichedIds.push(row.id)
+      }
+    }
+
+    if (enrichedIds.length > 0) {
+      this.emitEvent('data-refreshed', { userIds: enrichedIds })
     }
   }
   
