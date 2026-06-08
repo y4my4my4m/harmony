@@ -216,9 +216,11 @@
             />
             <masonry-wall
               v-else
+              class="gif-masonry-segment"
               :items="segment.items"
               :column-width="150"
               :gap="10"
+              :key="segment.key"
             >
               <template #default="{ item }">
                 <div
@@ -1054,6 +1056,10 @@ onMounted(async () => {
 .gif-ad-tile {
   width: 100%;
   flex-shrink: 0;
+}
+
+.gif-masonry-segment {
+  width: 100%;
 }
 
 .gif-item {

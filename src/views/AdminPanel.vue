@@ -1131,6 +1131,9 @@
                 <div class="klipy-setting-text">
                   <span class="klipy-setting-title">GIF ads</span>
                   <span class="klipy-setting-desc">
+                    <strong>Note:</strong> This setting only affects the mobile GIF picker. Desktop users will always not see ads.
+                    This is a limitation of KLIPY as an ad distributor at the moment
+                    <br>
                     Non-supporters see Klipy ads in the mobile GIF picker; ad-free supporters never do. Klipy only
                     fills ads on mobile browsers (including installed PWAs) — desktop never receives ads per their API.
                     When off, nobody sees ads. Also requires an ad-enabled Klipy key and ads enabled in the Klipy
