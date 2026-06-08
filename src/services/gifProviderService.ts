@@ -13,6 +13,7 @@
 import { supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
 import { collectKlipyAdContext } from '@/utils/klipyAdContext'
+import { isMobileUserAgent } from '@/utils/pwaUtils'
 import type { GifResultItem } from '@/types'
 
 const FEDERATION_API = '/api/federation'
@@ -21,7 +22,12 @@ export interface GifFeed {
   items: GifResultItem[]
   page: number
   hasNext: boolean
-  meta?: { showAds?: boolean }
+  meta?: {
+    showAds?: boolean
+    adMobileOnly?: boolean
+    adPlatformEligible?: boolean
+    adTierEligible?: boolean
+  }
 }
 
 export interface GifFetchOptions {
@@ -33,14 +39,20 @@ export interface GifFetchOptions {
   adSlotWidth?: number
 }
 
-async function authHeaders(): Promise<Record<string, string>> {
+async function clientHeaders(): Promise<Record<string, string>> {
   const { data } = await supabase.auth.getSession()
   const token = data.session?.access_token
-  return token ? { Authorization: `Bearer ${token}` } : {}
+  const headers: Record<string, string> = {}
+  if (token) headers.Authorization = `Bearer ${token}`
+  // Klipy ad fill uses the end-user UA; pass explicitly so it survives the proxy hop.
+  if (typeof navigator !== 'undefined' && navigator.userAgent) {
+    headers['X-Client-User-Agent'] = navigator.userAgent
+  }
+  return headers
 }
 
 async function request(path: string, params: URLSearchParams, opts?: GifFetchOptions): Promise<GifFeed> {
-  const headers = { Accept: 'application/json', ...(await authHeaders()) }
+  const headers = { Accept: 'application/json', ...(await clientHeaders()) }
   const res = await fetch(`${FEDERATION_API}/gifs/${path}?${params}`, {
     method: 'GET',
     headers,
@@ -64,7 +76,7 @@ function buildParams(opts?: GifFetchOptions, mediaType: GifMediaType = 'gifs'): 
   if (opts?.perPage) params.set('per_page', String(opts.perPage))
   if (opts?.locale) params.set('locale', opts.locale)
   // Klipy ad params apply to the GIF feed only (ads are disabled for other media).
-  if (mediaType === 'gifs' && typeof window !== 'undefined') {
+  if (mediaType === 'gifs' && typeof window !== 'undefined' && isMobileUserAgent()) {
     for (const [key, value] of Object.entries(collectKlipyAdContext(opts?.adSlotWidth).params)) {
       params.set(key, value)
     }
@@ -106,7 +118,7 @@ export const gifProvider = {
     if (query?.trim()) params.set('q', query.trim())
     if (opts?.locale) params.set('locale', opts.locale)
     try {
-      const headers = { Accept: 'application/json', ...(await authHeaders()) }
+      const headers = { Accept: 'application/json', ...(await clientHeaders()) }
       const res = await fetch(`${FEDERATION_API}/gifs/suggest?${params}`, {
         method: 'GET',
         headers,

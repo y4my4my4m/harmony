@@ -1,53 +1,138 @@
 <template>
-  <div class="gif-ad-slot" :style="slotStyle">
+  <div
+    ref="rootRef"
+    class="gif-ad-slot"
+    :class="`gif-ad-slot--${layout}`"
+    :style="slotStyle"
+  >
     <span class="gif-ad-label">{{ $t('gif.ad') }}</span>
-    <iframe
-      :srcdoc="content"
-      class="gif-ad-frame"
-      sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"
-      referrerpolicy="no-referrer"
-      loading="lazy"
-      scrolling="no"
-      title="Advertisement"
-    ></iframe>
+    <div class="gif-ad-frame-wrap">
+      <iframe
+        :srcdoc="iframeContent"
+        class="gif-ad-frame"
+        :style="iframeStyle"
+        sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"
+        referrerpolicy="no-referrer"
+        loading="lazy"
+        scrolling="no"
+        title="Advertisement"
+      ></iframe>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
-import { KLIPY_AD_MAX_HEIGHT, KLIPY_AD_MIN_SIZE } from '@/utils/klipyAdContext';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { prepareKlipyAdHtml, resolveKlipyAdDimensions } from '@/utils/klipyAdContent';
+import { KLIPY_AD_MAX_HEIGHT } from '@/utils/klipyAdContext';
+
+export type GifAdLayout = 'banner' | 'inline';
 
 /**
- * Renders a Klipy ad. Klipy ads are an HTML blob meant for a WebView; on the web
- * we render it in a sandboxed iframe. The sandbox intentionally omits
- * `allow-same-origin` so the ad cannot reach Harmony's origin, cookies, or DOM.
+ * Renders a Klipy ad (ad-iframe=0 HTML blob) in a sandboxed iframe — the web
+ * equivalent of Klipy's recommended WebView. `banner` = full-width row in the
+ * picker masonry feed; `inline` = wider tile in the /gif horizontal strip.
  */
-const props = defineProps<{
-  content: string;
-  width?: number;
-  height?: number;
-}>();
+const props = withDefaults(
+  defineProps<{
+    content: string;
+    width?: number;
+    height?: number;
+    layout?: GifAdLayout;
+  }>(),
+  { layout: 'banner' },
+);
 
-const slotStyle = computed(() => {
-  const w = props.width && props.width >= KLIPY_AD_MIN_SIZE ? props.width : 300;
-  const h = props.height && props.height >= KLIPY_AD_MIN_SIZE ? props.height : 250;
-  const cappedH = Math.min(h, KLIPY_AD_MAX_HEIGHT);
+const rootRef = ref<HTMLElement | null>(null);
+const containerWidth = ref(0);
+let resizeObserver: ResizeObserver | null = null;
+
+const dims = computed(() => resolveKlipyAdDimensions(props.width, props.height));
+const iframeContent = computed(() => prepareKlipyAdHtml(props.content));
+
+/** Banner: scale the native creative to the container width. Inline: fixed width tile. */
+const displaySize = computed(() => {
+  const { width: nativeW, height: nativeH } = dims.value;
+
+  if (props.layout === 'inline') {
+    // ~2–2.5 gif cells wide in the slash-command strip (cells are 88px).
+    const targetW = Math.min(Math.max(nativeW, 176), 240);
+    const targetH = Math.min(Math.round(targetW * (nativeH / nativeW)), 100);
+    return { width: targetW, height: targetH, scale: 1 };
+  }
+
+  const cw = containerWidth.value || nativeW;
+  const scale = cw / nativeW;
   return {
-    aspectRatio: `${w} / ${cappedH}`,
-    minHeight: `${Math.max(KLIPY_AD_MIN_SIZE, Math.min(cappedH, KLIPY_AD_MAX_HEIGHT))}px`,
-    maxHeight: `${KLIPY_AD_MAX_HEIGHT}px`,
+    width: cw,
+    height: Math.min(Math.round(nativeH * scale), KLIPY_AD_MAX_HEIGHT),
+    scale,
   };
+});
+
+const slotStyle = computed(() => ({
+  width: props.layout === 'inline' ? `${displaySize.value.width}px` : '100%',
+  height: `${displaySize.value.height}px`,
+}));
+
+const iframeStyle = computed(() => {
+  const { width: nativeW, height: nativeH } = dims.value;
+  const { scale } = displaySize.value;
+  if (props.layout === 'inline') {
+    return { width: `${nativeW}px`, height: `${nativeH}px`, transform: `scale(${displaySize.value.width / nativeW})` };
+  }
+  if (scale === 1) {
+    return { width: `${nativeW}px`, height: `${nativeH}px` };
+  }
+  return {
+    width: `${nativeW}px`,
+    height: `${nativeH}px`,
+    transform: `scale(${scale})`,
+  };
+});
+
+onMounted(() => {
+  if (props.layout !== 'banner') return;
+  const measure = () => {
+    containerWidth.value = rootRef.value?.clientWidth ?? 0;
+  };
+  measure();
+  if (typeof ResizeObserver !== 'undefined' && rootRef.value) {
+    resizeObserver = new ResizeObserver(measure);
+    resizeObserver.observe(rootRef.value);
+  }
+});
+
+onUnmounted(() => {
+  resizeObserver?.disconnect();
+  resizeObserver = null;
 });
 </script>
 
 <style scoped>
 .gif-ad-slot {
   position: relative;
-  width: 100%;
+  flex-shrink: 0;
   overflow: hidden;
   border-radius: 4px;
   background: var(--background-senary-alpha);
   border: 1px solid var(--border-secondary);
+}
+
+.gif-ad-slot--banner {
+  width: 100%;
+}
+
+.gif-ad-frame-wrap {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.gif-ad-frame {
+  border: 0;
+  display: block;
+  transform-origin: top left;
 }
 
 .gif-ad-label {
@@ -65,12 +150,5 @@ const slotStyle = computed(() => {
   border-radius: 3px;
   opacity: 0.85;
   pointer-events: none;
-}
-
-.gif-ad-frame {
-  width: 100%;
-  height: 100%;
-  border: 0;
-  display: block;
 }
 </style>

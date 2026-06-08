@@ -301,8 +301,8 @@ export class KlipyService {
         method: 'GET',
         headers: {
           Accept: 'application/json',
-          // Klipy ad fill is influenced by the end-user UA; forward when present.
-          'User-Agent': opts.userAgent || 'HarmonyFederation/1.0',
+          // End-user browser UA from the GIF proxy (required for Klipy ad fill).
+          'User-Agent': opts.userAgent || 'HarmonyFederation/1.0 (no client UA)',
         },
       });
       if (!res.ok) {

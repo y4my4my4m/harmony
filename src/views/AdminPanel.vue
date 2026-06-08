@@ -1131,8 +1131,10 @@
                 <div class="klipy-setting-text">
                   <span class="klipy-setting-title">GIF ads</span>
                   <span class="klipy-setting-desc">
-                    Non-supporters see Klipy ads in the picker; ad-free supporters never do. When off, nobody sees
-                    ads. Also requires an ad-enabled Klipy key and ads enabled in the Klipy Partner Dashboard.
+                    Non-supporters see Klipy ads in the mobile GIF picker; ad-free supporters never do. Klipy only
+                    fills ads on mobile browsers (including installed PWAs) — desktop never receives ads per their API.
+                    When off, nobody sees ads. Also requires an ad-enabled Klipy key and ads enabled in the Klipy
+                    Partner Dashboard.
                     Per-tier ad-free lives under Funding &amp; Supporters.
                   </span>
                 </div>

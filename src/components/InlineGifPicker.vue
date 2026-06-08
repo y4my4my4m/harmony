@@ -10,7 +10,7 @@
       <template v-for="item in items" :key="item.id">
         <GifAdSlot
           v-if="item.kind === 'ad'"
-          class="inline-gif-ad"
+          layout="inline"
           :content="item.content"
           :width="item.width"
           :height="item.height"
@@ -206,7 +206,7 @@ const applyFeed = (feed: Awaited<ReturnType<typeof gifProvider.trending>>) => {
   ) {
     debug.log(
       'Inline GIF feed: ads enabled but Klipy returned no ad slots. ' +
-        'Klipy documents mobile-only ad delivery — test on a phone/tablet.',
+        'Klipy only fills ads on mobile browsers (not desktop).',
     );
   }
 };
@@ -275,11 +275,16 @@ onUnmounted(() => {
   scrollbar-gutter: stable;
 }
 
+/* Horizontal strip: [gif][gif][ wider ad ][gif]… */
 .inline-gif-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
   gap: 4px;
   padding: 6px;
+  overflow-x: auto;
+  overflow-y: hidden;
 }
 
 .inline-gif-item {
@@ -287,7 +292,9 @@ onUnmounted(() => {
   cursor: pointer;
   border-radius: 4px;
   overflow: hidden;
-  aspect-ratio: 1;
+  flex: 0 0 88px;
+  width: 88px;
+  height: 88px;
   transition: transform 0.12s ease;
 }
 
@@ -340,7 +347,9 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  aspect-ratio: 1;
+  flex: 0 0 88px;
+  width: 88px;
+  height: 88px;
   border-radius: 4px;
   font-size: 11px;
   font-weight: 700;
@@ -369,12 +378,6 @@ onUnmounted(() => {
   text-align: center;
   color: var(--text-muted);
   font-size: 13px;
-}
-
-/* Klipy ads span the full composer strip (/gif slash command). */
-.inline-gif-ad {
-  grid-column: 1 / -1;
-  width: 100%;
 }
 
 .inline-gif-picker::-webkit-scrollbar {

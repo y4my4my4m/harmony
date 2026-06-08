@@ -208,6 +208,7 @@
           <template v-for="segment in feedSegments" :key="segment.key">
             <GifAdSlot
               v-if="segment.kind === 'ad'"
+              layout="banner"
               class="gif-ad-tile"
               :content="segment.ad.content"
               :width="segment.ad.width"
@@ -553,7 +554,7 @@ const applyFeed = (feed: Awaited<ReturnType<typeof gifProvider.trending>>) => {
   if (feed.meta?.showAds && !feed.items.some((i) => i.kind === 'ad')) {
     debug.log(
       'GIF feed: ads enabled for this user but Klipy returned no ad slots. ' +
-        'Klipy documents mobile-only ad delivery — test on a phone/tablet. ' +
+        'Klipy only fills ads on mobile browsers (not desktop). ' +
         'Also try search, confirm KLIPY_API_KEY_ADS has ads on in the Klipy dashboard, and restart the federation backend.',
     );
   }
@@ -1052,6 +1053,7 @@ onMounted(async () => {
 
 .gif-ad-tile {
   width: 100%;
+  flex-shrink: 0;
 }
 
 .gif-item {

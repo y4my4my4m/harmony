@@ -30,6 +30,8 @@ import {
   type KlipyAdParams,
 } from '../services/KlipyService.js';
 import { logger } from '../utils/logger.js';
+import { isKlipyAdEligibleUserAgent } from '../utils/klipyAdEligibility.js';
+import { resolveClientUserAgent } from '../utils/clientUserAgent.js';
 
 const router = Router();
 
@@ -292,7 +294,11 @@ async function handle(
 
   // Klipy serves ad objects on the GIF feed only in our setup; other media
   // feeds are kept ad-free (cleaner UX, and it skips the per-request ads lookup).
-  const withAds = mediaType === 'gifs' ? await shouldShowAds(req.profileId) : false;
+  const tierAllowsAds = mediaType === 'gifs' ? await shouldShowAds(req.profileId) : false;
+  const clientUserAgent = resolveClientUserAgent(req.headers);
+  // Klipy documents mobile-only ad delivery with a browser-like User-Agent.
+  const mobileEligible = isKlipyAdEligibleUserAgent(clientUserAgent);
+  const withAds = tierAllowsAds && mobileEligible;
 
   try {
     const feed = await KlipyService.fetchGifs({
@@ -305,14 +311,19 @@ async function handle(
       // Profile id is a stable, non-PII UUID — ideal as Klipy's customer_id.
       customerId: req.profileId || req.user.id,
       withAds,
-      userAgent: req.headers['user-agent'],
+      userAgent: clientUserAgent,
       adParams: withAds ? sanitizeAdParams(req.query as Record<string, unknown>) : undefined,
     });
     res.setHeader('Cache-Control', 'private, max-age=30');
     return res.json({
       ...feed,
-      // Helps diagnose ad setup (keys are never exposed).
-      meta: { showAds: withAds },
+      meta: {
+        showAds: withAds,
+        /** Klipy only fills on mobile browsers; desktop gets the ad-free key. */
+        adMobileOnly: true,
+        adPlatformEligible: mobileEligible,
+        adTierEligible: tierAllowsAds,
+      },
     });
   } catch (err: any) {
     return res.status(502).json({ error: err?.message || 'GIF provider error' });
@@ -329,7 +340,7 @@ router.get('/suggest', requireAuth, async (req, res) => {
   const suggestions = await KlipyService.fetchSuggestions({
     query,
     locale,
-    userAgent: req.headers['user-agent'],
+    userAgent: resolveClientUserAgent(req.headers),
   });
   res.setHeader('Cache-Control', 'private, max-age=60');
   return res.json({ suggestions });
@@ -748,14 +759,14 @@ router.post('/ai-emojis/generate', requireAuth, async (req, res) => {
     // Kick off Klipy generation with our webhook; it returns a job id at once
     // and pushes the result to the callback (we never hold the request open).
     const jobId = await startEmojiGeneration(prompt, {
-      userAgent: req.headers['user-agent'],
+      userAgent: resolveClientUserAgent(req.headers),
       callbackUrl: callbackUrl(),
     });
 
     pendingGenerations.set(jobId, {
       profileId,
       prompt,
-      userAgent: req.headers['user-agent'],
+      userAgent: resolveClientUserAgent(req.headers),
       createdAt: Date.now(),
       finalizing: false,
     });
