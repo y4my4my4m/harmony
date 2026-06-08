@@ -826,7 +826,6 @@ const customPreviewColors = computed(() => {
 
 const originalSettings = ref({ ...settings.value })
 // eslint-disable-next-line unused-imports/no-unused-vars
-const showColorPicker = ref(false)
 const showAdvancedCss = ref(false)
 const savedThemeName = ref('')
 const importFileInput = ref<HTMLInputElement | null>(null)
@@ -992,10 +991,10 @@ const themes = [
     id: 'dark',
     name: 'Dark',
     description: 'A dark theme that\'s easier on the eyes.',
-    preview: 'var(--background-secondary)',
-    headerColor: 'var(--background-tertiary)',
-    sidebarColor: 'var(--background-tertiary)',
-    chatColor: 'var(--background-secondary)'
+    preview: '#17181a',
+    headerColor: '#121214',
+    sidebarColor: '#121214',
+    chatColor: '#17181a',
   },
   {
     id: 'light',

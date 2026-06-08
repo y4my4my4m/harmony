@@ -37,41 +37,32 @@
           <div class="tp-section">
             <label class="tp-label">Colors</label>
 
-            <div class="tp-color-row" @click="toggle('bg')">
-              <span class="tp-color-swatch" :style="{ background: working.customBackgroundColor }"></span>
+            <div class="tp-color-field">
               <span class="tp-color-name">Background tone</span>
-              <span class="tp-color-hex">{{ working.customBackgroundColor }}</span>
+              <ColorPicker
+                :color="working.customBackgroundColor"
+                @update:color="onColor('customBackgroundColor', $event)"
+                @change="onColor('customBackgroundColor', $event)"
+              />
             </div>
-            <ColorPicker
-              v-if="openPicker === 'bg'"
-              :color="working.customBackgroundColor"
-              @update:color="onColor('customBackgroundColor', $event)"
-              @change="onColor('customBackgroundColor', $event)"
-            />
 
-            <div class="tp-color-row" @click="toggle('primary')">
-              <span class="tp-color-swatch" :style="{ background: working.customPrimaryColor }"></span>
+            <div class="tp-color-field">
               <span class="tp-color-name">Primary color</span>
-              <span class="tp-color-hex">{{ working.customPrimaryColor }}</span>
+              <ColorPicker
+                :color="working.customPrimaryColor"
+                @update:color="onColor('customPrimaryColor', $event)"
+                @change="onColor('customPrimaryColor', $event)"
+              />
             </div>
-            <ColorPicker
-              v-if="openPicker === 'primary'"
-              :color="working.customPrimaryColor"
-              @update:color="onColor('customPrimaryColor', $event)"
-              @change="onColor('customPrimaryColor', $event)"
-            />
 
-            <div class="tp-color-row" @click="toggle('accent')">
-              <span class="tp-color-swatch" :style="{ background: working.customAccentColor }"></span>
+            <div class="tp-color-field">
               <span class="tp-color-name">Accent color</span>
-              <span class="tp-color-hex">{{ working.customAccentColor }}</span>
+              <ColorPicker
+                :color="working.customAccentColor"
+                @update:color="onColor('customAccentColor', $event)"
+                @change="onColor('customAccentColor', $event)"
+              />
             </div>
-            <ColorPicker
-              v-if="openPicker === 'accent'"
-              :color="working.customAccentColor"
-              @update:color="onColor('customAccentColor', $event)"
-              @change="onColor('customAccentColor', $event)"
-            />
           </div>
 
           <!-- Optional separate sidebar tone -->
@@ -85,17 +76,14 @@
             </label>
 
             <template v-if="sidebarEnabled">
-              <div class="tp-color-row" @click="toggle('sidebar')">
-                <span class="tp-color-swatch" :style="{ background: working.customSidebarColor }"></span>
+              <div class="tp-color-field">
                 <span class="tp-color-name">Sidebar tone</span>
-                <span class="tp-color-hex">{{ working.customSidebarColor }}</span>
+                <ColorPicker
+                  :color="working.customSidebarColor"
+                  @update:color="onColor('customSidebarColor', $event)"
+                  @change="onColor('customSidebarColor', $event)"
+                />
               </div>
-              <ColorPicker
-                v-if="openPicker === 'sidebar'"
-                :color="working.customSidebarColor"
-                @update:color="onColor('customSidebarColor', $event)"
-                @change="onColor('customSidebarColor', $event)"
-              />
             </template>
           </div>
 
@@ -127,6 +115,81 @@
             </div>
             <div class="tp-slider-value">{{ working.customBackgroundChroma > 0 ? '+' : '' }}{{ working.customBackgroundChroma }}</div>
           </div>
+
+          <!-- Advanced CSS variable overrides -->
+          <div class="tp-section tp-advanced-section">
+            <button type="button" class="tp-advanced-toggle" @click="showAdvancedCss = !showAdvancedCss">
+              {{ showAdvancedCss ? 'Hide' : 'Show' }} Advanced CSS Variables
+              <span v-if="overrideCount > 0" class="tp-override-badge">{{ overrideCount }}</span>
+              <span class="tp-toggle-arrow" :class="{ open: showAdvancedCss }">&#9660;</span>
+            </button>
+
+            <div v-if="showAdvancedCss" class="tp-css-panel">
+              <p class="tp-css-hint">
+                Override individual CSS variables. Changes preview live on top of your theme.
+              </p>
+
+              <div v-if="overrideCount > 0" class="tp-overrides-toolbar">
+                <span>{{ overrideCount }} override{{ overrideCount !== 1 ? 's' : '' }}</span>
+                <button type="button" class="tp-reset-overrides-btn" @click="resetAllOverrides">
+                  Reset all
+                </button>
+              </div>
+
+              <div
+                v-for="group in themableVariables"
+                :key="group.category"
+                class="tp-var-group"
+              >
+                <h4 class="tp-var-group-title">{{ group.category }}</h4>
+                <div
+                  v-for="varName in group.vars"
+                  :key="varName"
+                  class="tp-var-item"
+                  :class="{ 'has-override': working.customCssOverrides[varName] }"
+                >
+                  <label class="tp-var-name">{{ varName }}</label>
+                  <div class="tp-var-controls">
+                    <div
+                      v-if="isHexCompatible(varName)"
+                      class="tp-var-swatch tp-var-swatch-clickable"
+                      :style="{ backgroundColor: getCssVarValue(varName) || 'transparent' }"
+                      :title="getCssVarValue(varName)"
+                    >
+                      <input
+                        type="color"
+                        class="tp-var-color-input-hidden"
+                        :value="getHexForPicker(varName)"
+                        @input="setCssOverrideFromInput(varName, ($event.target as HTMLInputElement).value)"
+                      />
+                    </div>
+                    <div
+                      v-else
+                      class="tp-var-swatch"
+                      :style="{ backgroundColor: getCssVarValue(varName) || 'transparent' }"
+                      :title="getCssVarValue(varName)"
+                    ></div>
+                    <input
+                      type="text"
+                      class="tp-var-text-input"
+                      :value="working.customCssOverrides[varName] || ''"
+                      :placeholder="getComputedVar(varName)"
+                      @change="setCssOverrideFromInput(varName, ($event.target as HTMLInputElement).value)"
+                    />
+                    <button
+                      v-if="working.customCssOverrides[varName]"
+                      type="button"
+                      class="tp-var-reset-btn"
+                      title="Reset to default"
+                      @click="removeCssOverrideVar(varName)"
+                    >
+                      &#10005;
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div class="theme-panel-footer">
@@ -139,7 +202,7 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, watch } from 'vue'
+import { reactive, ref, watch, computed } from 'vue'
 import ColorPicker from '@/components/common/ColorPicker.vue'
 import { useThemeEditorPanel } from '@/composables/useThemeEditorPanel'
 import { useVisualTheme } from '@/composables/useVisualTheme'
@@ -157,6 +220,7 @@ type Working = {
   customPrimaryColor: string
   customAccentColor: string
   customSidebarColor: string
+  customCssOverrides: Record<string, string>
 }
 
 const DEFAULTS: Working = {
@@ -167,19 +231,31 @@ const DEFAULTS: Working = {
   customPrimaryColor: '#0EA5E9',
   customAccentColor: '#0EA5E9',
   customSidebarColor: '#8B5CF6',
+  customCssOverrides: {},
 }
 
-const working = reactive<Working>({ ...DEFAULTS })
-const openPicker = ref<'bg' | 'primary' | 'accent' | 'sidebar' | null>(null)
+const ALPHA_VAR_NAMES = new Set([
+  '--background-primary-alpha', '--background-secondary-alpha', '--background-tertiary-alpha',
+  '--background-senary-alpha',
+])
+
+const working = reactive<Working>({
+  ...DEFAULTS,
+  customCssOverrides: {},
+})
 const sidebarEnabled = ref(false)
+const showAdvancedCss = ref(false)
+const themableVariables = visualTheme.getThemableVariables()
+
+const overrideCount = computed(() => Object.keys(working.customCssOverrides).length)
 
 // Snapshot of the persisted settings when the panel opened, used to revert the
 // live preview if the user closes without applying.
 let original: any = null
 
 function seedFromCurrent() {
-  const s: any = visualTheme.currentSettings.value
-  original = { ...s }
+  const s = visualTheme.currentSettings.value
+  original = structuredClone(s)
   working.customThemeMode = (s.customThemeMode as 'dark' | 'light') || 'dark'
   working.customBackgroundColor = s.customBackgroundColor || DEFAULTS.customBackgroundColor
   working.customBackgroundLightness = typeof s.customBackgroundLightness === 'number' ? s.customBackgroundLightness : 0
@@ -188,6 +264,62 @@ function seedFromCurrent() {
   working.customAccentColor = s.customAccentColor || DEFAULTS.customAccentColor
   sidebarEnabled.value = !!s.customSidebarColor
   working.customSidebarColor = s.customSidebarColor || DEFAULTS.customSidebarColor
+  working.customCssOverrides = { ...(s.customCssOverrides || {}) }
+}
+
+const getComputedVar = (varName: string): string =>
+  getComputedStyle(document.documentElement).getPropertyValue(varName).trim() || ''
+
+const getCssVarValue = (varName: string): string =>
+  working.customCssOverrides[varName] || getComputedVar(varName)
+
+const isHexColor = (value: string): boolean => /^#[0-9a-fA-F]{3,8}$/.test(value.trim())
+
+const isHexCompatible = (varName: string): boolean => {
+  if (ALPHA_VAR_NAMES.has(varName)) return false
+  const current = getCssVarValue(varName)
+  if (!current) return true
+  return isHexColor(current) || !current.includes('(')
+}
+
+const getHexForPicker = (varName: string): string => {
+  const val = getCssVarValue(varName)
+  if (isHexColor(val)) return val.substring(0, 7)
+  return '#000000'
+}
+
+const setCssOverrideFromInput = (varName: string, value: string) => {
+  if (!value) return
+  working.customCssOverrides[varName] = value
+  document.documentElement.style.setProperty(varName, value)
+}
+
+const removeCssOverrideVar = (varName: string) => {
+  delete working.customCssOverrides[varName]
+  document.documentElement.style.removeProperty(varName)
+}
+
+const resetAllOverrides = () => {
+  for (const varName of Object.keys(working.customCssOverrides)) {
+    document.documentElement.style.removeProperty(varName)
+  }
+  working.customCssOverrides = {}
+}
+
+function clearThemableOverrideStyles() {
+  for (const group of themableVariables) {
+    for (const varName of group.vars) {
+      document.documentElement.style.removeProperty(varName)
+    }
+  }
+}
+
+function applyCssOverridesToDom() {
+  for (const [varName, value] of Object.entries(working.customCssOverrides)) {
+    if (varName.startsWith('--') && value) {
+      document.documentElement.style.setProperty(varName, value)
+    }
+  }
 }
 
 watch(isOpen, (open) => {
@@ -197,17 +329,12 @@ watch(isOpen, (open) => {
   }
 })
 
-const toggle = (which: 'bg' | 'primary' | 'accent' | 'sidebar') => {
-  openPicker.value = openPicker.value === which ? null : which
-}
-
 const setMode = (mode: 'dark' | 'light') => {
   working.customThemeMode = mode
   applyPreview()
 }
 
 const onSidebarToggle = () => {
-  if (!sidebarEnabled.value) openPicker.value = openPicker.value === 'sidebar' ? null : openPicker.value
   applyPreview()
 }
 
@@ -228,37 +355,28 @@ const applyPreview = () => {
       sidebarEnabled.value ? working.customSidebarColor : undefined,
     )
     applyThemePalette(palette)
+    applyCssOverridesToDom()
   } catch (e) {
     debug.error('Theme panel preview failed:', e)
   }
 }
 
 const resetWorking = () => {
-  Object.assign(working, DEFAULTS)
+  resetAllOverrides()
+  Object.assign(working, { ...DEFAULTS, customCssOverrides: {} })
   sidebarEnabled.value = false
   applyPreview()
 }
 
 const restoreOriginal = () => {
   if (!original) return
-  if (original.theme === 'custom' && original.customAccentColor) {
-    try {
-      applyThemePalette(generateThemePalette(
-        original.customAccentColor,
-        original.customThemeMode,
-        original.customBackgroundColor,
-        original.customBackgroundLightness || 0,
-        original.customPrimaryColor,
-        original.customBackgroundChroma || 0,
-        original.customSidebarColor || undefined,
-      ))
-    } catch { /* noop */ }
-  } else if (original.theme) {
-    visualTheme.setTheme(original.theme)
-  }
+  clearThemableOverrideStyles()
+  visualTheme.updateSettings(structuredClone(original))
 }
 
 const applyAndPersist = () => {
+  // Clear inline override styles first so removed variables don't linger on :root.
+  clearThemableOverrideStyles()
   visualTheme.updateSettings({
     theme: 'custom',
     customThemeMode: working.customThemeMode,
@@ -268,6 +386,7 @@ const applyAndPersist = () => {
     customBackgroundLightness: working.customBackgroundLightness,
     customBackgroundChroma: working.customBackgroundChroma,
     customSidebarColor: sidebarEnabled.value ? working.customSidebarColor : undefined,
+    customCssOverrides: { ...working.customCssOverrides },
   })
   close()
 }
@@ -409,39 +528,15 @@ const cancelAndClose = () => {
   margin-top: 2px;
 }
 
-.tp-color-row {
+.tp-color-field {
   display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 10px;
-  border-radius: 8px;
-  background: var(--background-tertiary);
-  border: 1px solid var(--border-color);
-  cursor: pointer;
-}
-
-.tp-color-row:hover {
-  background: var(--background-quaternary);
-}
-
-.tp-color-swatch {
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  border: 1px solid var(--border-color);
-  flex-shrink: 0;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .tp-color-name {
-  flex: 1;
   font-size: 13px;
   color: var(--text-primary);
-}
-
-.tp-color-hex {
-  font-family: 'Courier New', monospace;
-  font-size: 12px;
-  color: var(--text-secondary);
 }
 
 .tp-slider-row {
@@ -511,5 +606,204 @@ const cancelAndClose = () => {
 .theme-panel-leave-to {
   transform: translateX(100%);
   opacity: 0;
+}
+
+/* Advanced CSS variables */
+.tp-advanced-section {
+  padding-top: 4px;
+  border-top: 1px solid var(--border-color);
+}
+
+.tp-advanced-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--background-tertiary);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.tp-advanced-toggle:hover {
+  background: var(--background-quaternary);
+  color: var(--text-primary);
+}
+
+.tp-override-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--harmony-primary);
+  color: var(--text-on-primary, #fff);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.tp-toggle-arrow {
+  margin-left: auto;
+  font-size: 9px;
+  transition: transform 0.2s ease;
+}
+
+.tp-toggle-arrow.open {
+  transform: rotate(180deg);
+}
+
+.tp-css-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.tp-css-hint {
+  margin: 0;
+  font-size: 11px;
+  color: var(--text-tertiary);
+  line-height: 1.4;
+}
+
+.tp-overrides-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: var(--background-tertiary);
+  border: 1px solid var(--border-color);
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.tp-reset-overrides-btn {
+  padding: 3px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--error, #ed4245);
+  background: transparent;
+  color: var(--error, #ed4245);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.tp-reset-overrides-btn:hover {
+  background: var(--error, #ed4245);
+  color: #fff;
+}
+
+.tp-var-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tp-var-group-title {
+  margin: 0 0 4px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-tertiary);
+}
+
+.tp-var-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  border-left: 2px solid transparent;
+}
+
+.tp-var-item:hover {
+  background: var(--background-quaternary);
+}
+
+.tp-var-item.has-override {
+  border-left-color: var(--harmony-primary);
+  background: var(--harmony-primary-alpha, rgba(14, 165, 233, 0.06));
+}
+
+.tp-var-name {
+  font-size: 10px;
+  font-family: monospace;
+  color: var(--text-secondary);
+  word-break: break-all;
+}
+
+.tp-var-item.has-override .tp-var-name {
+  color: var(--text-primary);
+}
+
+.tp-var-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tp-var-swatch {
+  width: 18px;
+  height: 18px;
+  border-radius: 3px;
+  border: 1px solid var(--border-color);
+  flex-shrink: 0;
+}
+
+.tp-var-swatch-clickable {
+  position: relative;
+  cursor: pointer;
+}
+
+.tp-var-color-input-hidden {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  border: none;
+  padding: 0;
+  margin: 0;
+}
+
+.tp-var-text-input {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 6px;
+  background: var(--background-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-size: 10px;
+  font-family: monospace;
+}
+
+.tp-var-text-input::placeholder {
+  color: var(--text-muted);
+}
+
+.tp-var-reset-btn {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 2px 4px;
+  border-radius: 4px;
+}
+
+.tp-var-reset-btn:hover {
+  color: var(--error, #ed4245);
+  background: var(--background-modifier-hover);
 }
 </style>

@@ -585,6 +585,42 @@ export function applyThemePalette(palette: ThemePalette): void {
   root.setAttribute('data-theme', 'custom')
   root.setAttribute('data-theme-type', palette.isLightTheme ? 'light' : 'dark')
   
+  applySurfaceSemanticTokens(palette.isLightTheme)
+
   debug.log('🎨 Applied custom theme palette with OKLCH:', palette)
+}
+
+/**
+ * Rail-button and channel-selection colours that used to live on the legacy
+ * --h-black-darker / --h-sidebar-light tokens. Preset themes pass an explicit
+ * variant; custom themes only need the light/dark split.
+ */
+export function applySurfaceSemanticTokens(
+  isLight: boolean,
+  preset?: 'dark' | 'light' | 'midnight',
+): void {
+  const root = document.documentElement
+
+  if (preset === 'midnight') {
+    root.style.setProperty('--nav-rail-button-bg', '#0a0b0d')
+    root.style.setProperty('--nav-rail-button-icon', '#ffffff')
+    root.style.setProperty('--channel-item-hover-bg', '#1f2226')
+    root.style.setProperty('--channel-item-selected-bg', '#1f2226')
+    return
+  }
+
+  if (isLight || preset === 'light') {
+    root.style.setProperty('--nav-rail-button-bg', '#d0d2d5')
+    root.style.setProperty('--nav-rail-button-icon', '#5e6168')
+    root.style.setProperty('--channel-item-hover-bg', '#e3e5e8')
+    root.style.setProperty('--channel-item-selected-bg', '#e3e5e8')
+    return
+  }
+
+  // Default dark preset: pure-black rail pills (legacy --h-black-darker).
+  root.style.setProperty('--nav-rail-button-bg', '#000000')
+  root.style.setProperty('--nav-rail-button-icon', '#ffffff')
+  root.style.setProperty('--channel-item-hover-bg', '#35373c')
+  root.style.setProperty('--channel-item-selected-bg', '#35373c')
 }
 

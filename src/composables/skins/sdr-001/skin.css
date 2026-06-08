@@ -275,6 +275,7 @@
 }
 
 :root[data-skin="sdr-001"] .portal,
+:root[data-skin="sdr-001"] .portal-icon,
 :root[data-skin="sdr-001"] .portal-img,
 :root[data-skin="sdr-001"] .dm-button,
 :root[data-skin="sdr-001"] .dm-button.selected,

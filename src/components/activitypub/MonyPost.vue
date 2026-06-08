@@ -2044,14 +2044,14 @@ const closeLightbox = () => {
 
 <style scoped>
 .mony-post {
-  background-color: var(--background-primary);
-  border: 1px solid var(--border-color);
+  background-color: var(--background-quinary);
+  border-bottom: 1px solid var(--border-color);
   transition: background-color 0.2s;
   border-radius: 12px;
 }
 
 .mony-post:hover {
-  background-color: var(--background-secondary);
+  background-color: var(--background-quaternary);
 }
 
 .mony-post.is-reply {

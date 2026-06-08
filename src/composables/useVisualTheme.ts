@@ -9,7 +9,7 @@
  */
 
 import { ref, computed, watch } from 'vue'
-import { generateThemePalette, applyThemePalette } from '@/utils/colorUtils'
+import { generateThemePalette, applyThemePalette, applySurfaceSemanticTokens } from '@/utils/colorUtils'
 import { supabase } from '@/supabase'
 import { useAuthStore } from '@/stores/auth'
 import { useProfileStore } from '@/stores/useProfile'
@@ -368,6 +368,8 @@ function applyPresetTheme(themeName: 'dark' | 'light' | 'midnight') {
 
   root.setAttribute('data-theme', themeName)
   root.setAttribute('data-theme-type', theme.isLightTheme ? 'light' : 'dark')
+
+  applySurfaceSemanticTokens(theme.isLightTheme, themeName)
   
   debug.log(`🎨 Applied ${themeName} theme`)
 }

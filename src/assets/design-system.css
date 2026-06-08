@@ -191,17 +191,38 @@
   --text-light: #f2f3f5;
 }
 
+/* Server-rail nav pills + channel selection (legacy --h-black-darker / --h-sidebar-light).
+   applyPresetTheme / applyThemePalette overwrite per theme; these are dark defaults. */
+:root {
+  --nav-rail-button-bg: #000000;
+  --nav-rail-button-icon: #f2f3f5;
+  --channel-item-hover-bg: #35373c;
+  --channel-item-selected-bg: #35373c;
+}
+
+/* ActivityPub feed canvas/header – dark matches content surface; light recesses */
+:root {
+  --feed-canvas-bg: var(--background-secondary);
+  --feed-header-bg: var(--background-secondary);
+}
+:root[data-theme-type="light"] {
+  --feed-canvas-bg: var(--background-tertiary);
+  --feed-header-bg: var(--background-tertiary);
+}
+
 /* Theme-aware interaction surfaces (hover/active backgrounds, floating menus).
    Defaults target the dark theme; the light overrides below use dark alphas so
    hover states stay visible on light surfaces. */
 :root {
   --background-modifier-hover: rgba(255, 255, 255, 0.06);
   --background-modifier-active: rgba(255, 255, 255, 0.1);
+  --background-modifier-selected: rgba(255, 255, 255, 0.08);
   --background-floating: #18191c;
 }
 :root[data-theme-type="light"] {
   --background-modifier-hover: rgba(0, 0, 0, 0.06);
   --background-modifier-active: rgba(0, 0, 0, 0.1);
+  --background-modifier-selected: rgba(0, 0, 0, 0.08);
   --background-floating: #ffffff;
 }
 

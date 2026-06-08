@@ -187,7 +187,7 @@ const getIconPath = (iconName: string): string => {
   align-items: center;
   justify-content: space-between;
   padding: 8px 16px;
-  background: var(--background-tertiary);
+  background: var(--background-primary);
   border-bottom: 1px solid var(--border-color);
   height: 48px;
   min-height: 48px;

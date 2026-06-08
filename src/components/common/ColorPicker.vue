@@ -25,7 +25,7 @@
         <div class="hue-thumb" :style="{ left: `${(hue / 360) * 100}%` }"></div>
       </div>
 
-      <!-- Hex + native eyedropper-ish swatch -->
+      <!-- Hex input -->
       <div class="color-section">
         <div class="custom-color-input">
           <input
@@ -36,13 +36,6 @@
             @input="onHexInput"
             @blur="commitHexInput"
             @keydown.enter="commitHexInput"
-          />
-          <input
-            :value="localColor"
-            type="color"
-            class="color-input"
-            title="System color picker"
-            @input="onNativeInput"
           />
         </div>
       </div>
@@ -218,11 +211,6 @@ const commitHexInput = () => {
   } else {
     hexInput.value = localColor.value
   }
-}
-
-const onNativeInput = (e: Event) => {
-  const v = (e.target as HTMLInputElement).value
-  setFromHex(v)
 }
 
 // SV field drag
@@ -403,24 +391,6 @@ onBeforeUnmount(() => {
 .hex-input:focus {
   outline: none;
   border-color: var(--harmony-primary, #0EA5E9);
-}
-
-.color-input {
-  width: 40px;
-  height: 32px;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  background: none;
-}
-
-.color-input::-webkit-color-swatch-wrapper {
-  padding: 0;
-}
-
-.color-input::-webkit-color-swatch {
-  border-radius: 4px;
-  border: 1px solid var(--background-quaternary);
 }
 
 .color-preview-large {
