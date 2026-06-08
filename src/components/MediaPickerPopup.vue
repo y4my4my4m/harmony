@@ -194,7 +194,7 @@ const keyboardOpen = computed(() => {
  */
 const mobilePopupStyle = computed(() => {
   const pad = 12;
-  const gapAboveInput = 8;
+  const gapAboveInput = 20;
   const vv = visualViewportRect.value;
   const width = Math.min(400, Math.round(vv.width - pad * 2));
   const left = vv.left + (vv.width - width) / 2;
