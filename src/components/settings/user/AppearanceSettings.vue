@@ -1904,7 +1904,7 @@ onMounted(async () => {
   border: 1px solid var(--background-quaternary);
   border-radius: 8px;
   overflow: hidden;
-  background: var(--background-senary);
+  background: var(--background-primary);
 }
 
 .theme-collapse-header {
@@ -2310,7 +2310,7 @@ onMounted(async () => {
 
 .btn-primary {
   background-color: var(--harmony-primary);
-  color: var(--text-primary);
+  color: var(--text-on-primary, #ffffff);
 }
 
 .btn-primary:hover:not(:disabled) {
@@ -2319,13 +2319,13 @@ onMounted(async () => {
 
 .btn-secondary {
   background-color: transparent;
-  color: var(--text-secondary, var(--text-secondary));
+  color: var(--text-secondary);
   border: 1px solid var(--background-quaternary);
 }
 
 .btn-secondary:hover:not(:disabled) {
   background-color: var(--background-quaternary);
-  color: var(--text-primary, #ffffff);
+  color: var(--text-primary);
 }
 
 .loading-spinner {

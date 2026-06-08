@@ -352,7 +352,7 @@ const formatDate = (dateString: string | undefined): string => {
 
 .stat-item {
   padding: 12px;
-  background-color: var(--background-senary);
+  background-color: var(--surface-inset);
   border-radius: 6px;
   border: 1px solid var(--background-quaternary);
 }
@@ -424,7 +424,7 @@ const formatDate = (dateString: string | undefined): string => {
 
 .btn-danger {
   background-color: #ed4245;
-  color: var(--text-primary);
+  color: var(--text-on-primary, #ffffff);
 }
 
 .btn-danger:hover:not(:disabled) {
@@ -546,7 +546,7 @@ const formatDate = (dateString: string | undefined): string => {
 .confirmation-input {
   width: 100%;
   padding: 12px;
-  background-color: var(--background-senary);
+  background-color: var(--surface-inset);
   border: 1px solid var(--background-quaternary);
   border-radius: 4px;
   color: var(--text-primary);

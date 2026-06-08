@@ -148,10 +148,16 @@
 
   /* Legacy aliases (map to the canonical --background-* and --text-* vars) */
   --color-background: var(--background-tertiary);
+  --color-background-primary: var(--background-primary);
+  --color-background-tertiary: var(--background-tertiary);
   --color-background-soft: var(--background-secondary);
   --color-background-mute: var(--background-quaternary);
   --color-text: var(--text-primary);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-tertiary: var(--text-muted);
   --color-heading: var(--text-primary);
+  --color-primary: var(--harmony-primary);
   --color-border: var(--border-secondary);
   --color-border-hover: var(--border-hover);
   --border-color: #232529;
@@ -224,6 +230,18 @@
   --background-modifier-active: rgba(0, 0, 0, 0.1);
   --background-modifier-selected: rgba(0, 0, 0, 0.08);
   --background-floating: #ffffff;
+}
+
+/* Form fields and inset list rows. --background-senary is for dark overlays
+   (emoji picker headers, etc.) and must not be used for text inputs. */
+:root {
+  --input-bg: var(--background-tertiary);
+  --input-border: var(--border-primary);
+  --surface-inset: var(--background-senary);
+}
+:root[data-theme-type="light"] {
+  --input-bg: var(--background-primary);
+  --surface-inset: var(--background-quaternary);
 }
 
 /* === BASE RESET & TYPOGRAPHY === */
@@ -628,7 +646,7 @@ strong {
 /* Button Variants */
 .btn-primary {
   background: linear-gradient(135deg, var(--harmony-primary), var(--harmony-primary-hover));
-  color: white;
+  color: var(--text-on-primary, #ffffff);
   box-shadow: var(--shadow-small);
 }
 
@@ -651,7 +669,7 @@ strong {
 
 .btn-success {
   background: linear-gradient(135deg, var(--success), var(--success-hover));
-  color: white;
+  color: var(--text-on-primary, #ffffff);
 }
 
 .btn-success:hover:not(:disabled) {
@@ -661,7 +679,7 @@ strong {
 
 .btn-danger {
   background: linear-gradient(135deg, var(--error), var(--error-hover));
-  color: white;
+  color: var(--text-on-primary, #ffffff);
 }
 
 .btn-danger:hover:not(:disabled) {
@@ -711,8 +729,8 @@ strong {
   font-size: var(--font-size-base);
   line-height: var(--line-height-normal);
   color: var(--text-primary);
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-primary);
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
   border-radius: var(--radius-base);
   transition: all var(--transition-base);
   outline: none;
@@ -1255,4 +1273,162 @@ div.loading:has(> .harmony-spinner) {
   display: inline;
   cursor: default;
   user-select: none;
+}
+
+/* ===== Light-theme corrective overrides =====
+   Scoped Vue styles load after this sheet and often pin --background-senary or
+   --text-primary on filled buttons. These rules use theme + ancestry so they
+   win without touching every settings component individually. */
+:root[data-theme-type="light"] .user-settings .settings-section .form-input,
+:root[data-theme-type="light"] .user-settings .settings-section .form-textarea,
+:root[data-theme-type="light"] .user-settings .settings-section input.form-input,
+:root[data-theme-type="light"] .user-settings .settings-section textarea.form-textarea,
+:root[data-theme-type="light"] .user-settings .keybind-item .keybind-button,
+:root[data-theme-type="light"] .user-settings .setting-item .select-input,
+:root[data-theme-type="light"] .user-settings .secret-code,
+:root[data-theme-type="light"] .user-settings .enroll-step,
+:root[data-theme-type="light"] .user-bots-management .form-group input,
+:root[data-theme-type="light"] .user-bots-management .form-group textarea,
+:root[data-theme-type="light"] .user-bots-management .form-group select {
+  background-color: var(--input-bg) !important;
+  border-color: var(--input-border) !important;
+  color: var(--text-primary) !important;
+}
+
+:root[data-theme-type="light"] .user-settings .profile-preview {
+  background-color: var(--background-secondary) !important;
+}
+
+:root[data-theme-type="light"] .user-settings .color-preview-row .color-reset-btn {
+  background-color: var(--background-quaternary) !important;
+  border-color: var(--input-border) !important;
+  color: var(--text-secondary) !important;
+}
+
+:root[data-theme-type="light"] .user-settings .appearance-settings .theme-collapse {
+  background: var(--background-primary) !important;
+}
+
+:root[data-theme-type="light"] .user-settings .btn.btn-primary,
+:root[data-theme-type="light"] .user-settings .btn.btn-danger,
+:root[data-theme-type="light"] .user-settings .btn.btn-success,
+:root[data-theme-type="light"] .user-settings .unblock-btn,
+:root[data-theme-type="light"] .user-bots-management .btn-primary,
+:root[data-theme-type="light"] .user-bots-management .btn-danger,
+:root[data-theme-type="light"] .encryption-settings .btn.btn-primary {
+  color: var(--text-on-primary, #ffffff) !important;
+}
+
+:root[data-theme-type="light"] .public-servers-modal .modal-subtitle {
+  color: var(--text-secondary) !important;
+}
+
+:root[data-theme-type="light"] .public-servers-modal .public-servers-header {
+  border-bottom-color: var(--border-primary) !important;
+}
+
+:root[data-theme-type="light"] .public-servers-modal .close-button {
+  background: var(--background-modifier-hover) !important;
+  color: var(--text-secondary) !important;
+}
+
+:root[data-theme-type="light"] .public-servers-modal .close-button:hover {
+  background: var(--background-modifier-active) !important;
+  color: var(--text-primary) !important;
+}
+
+:root[data-theme-type="light"] .public-servers-modal .public-servers-search {
+  background: var(--background-secondary) !important;
+  border-bottom-color: var(--border-primary) !important;
+}
+
+:root[data-theme-type="light"] .public-servers-modal .category-toggle-btn {
+  background: var(--background-primary) !important;
+  border-color: var(--border-primary) !important;
+}
+
+:root[data-theme-type="light"] .public-servers-modal .category-title,
+:root[data-theme-type="light"] .public-servers-modal .category-icon {
+  color: var(--text-primary) !important;
+  text-shadow: none !important;
+}
+
+:root[data-theme-type="light"] .public-servers-modal .stats-text,
+:root[data-theme-type="light"] .public-servers-modal .search-indicator,
+:root[data-theme-type="light"] .public-servers-modal .category-indicator {
+  color: var(--text-secondary) !important;
+}
+
+:root[data-theme-type="light"] .public-servers-modal .category-pills-container {
+  background: var(--background-primary) !important;
+  border-color: var(--border-primary) !important;
+}
+
+:root[data-theme-type="light"] .public-servers-modal .category-pill {
+  background: var(--background-quaternary) !important;
+  border-color: var(--border-primary) !important;
+  color: var(--text-primary) !important;
+}
+
+:root[data-theme-type="light"] .public-servers-modal .category-pill--active {
+  color: var(--text-on-primary, #ffffff) !important;
+}
+
+:root[data-theme-type="light"] .public-servers-modal .public-servers-footer {
+  background: var(--background-secondary) !important;
+  border-top-color: var(--border-primary) !important;
+}
+
+:root[data-theme-type="light"] .public-servers-modal .info-text {
+  color: var(--text-secondary) !important;
+}
+
+:root[data-theme-type="light"] .public-servers-modal .create-server-btn {
+  color: var(--text-on-primary, #ffffff) !important;
+}
+
+/* Server settings — same senary / filled-button issues as user settings */
+:root[data-theme-type="light"] .server-settings .settings-section .form-input,
+:root[data-theme-type="light"] .server-settings .settings-section .form-textarea,
+:root[data-theme-type="light"] .server-settings .settings-section input.form-input,
+:root[data-theme-type="light"] .server-settings .settings-section textarea.form-textarea,
+:root[data-theme-type="light"] .server-settings .confirmation-input,
+:root[data-theme-type="light"] .server-settings .search-input,
+:root[data-theme-type="light"] .role-management .form-input,
+:root[data-theme-type="light"] .role-management .color-text,
+:root[data-theme-type="light"] .server-emoji-management .emoji-upload-area {
+  background-color: var(--input-bg) !important;
+  border-color: var(--input-border) !important;
+  color: var(--text-primary) !important;
+}
+
+:root[data-theme-type="light"] .server-settings .info-card,
+:root[data-theme-type="light"] .server-settings .warning-card,
+:root[data-theme-type="light"] .server-settings .discovery-option,
+:root[data-theme-type="light"] .server-settings .stat-item,
+:root[data-theme-type="light"] .server-settings .owner-badge,
+:root[data-theme-type="light"] .server-settings .emoji-item,
+:root[data-theme-type="light"] .server-settings .emoji-count,
+:root[data-theme-type="light"] .server-settings .upload-progress {
+  background-color: var(--surface-inset) !important;
+  border-color: var(--input-border);
+}
+
+:root[data-theme-type="light"] .server-settings .btn.btn-primary,
+:root[data-theme-type="light"] .server-settings .btn.btn-danger,
+:root[data-theme-type="light"] .server-settings .btn.btn-success,
+:root[data-theme-type="light"] .role-management .create-role-btn,
+:root[data-theme-type="light"] .role-management .save-btn,
+:root[data-theme-type="light"] .server-encryption-settings .btn.btn-primary {
+  color: var(--text-on-primary, #ffffff) !important;
+}
+
+:root[data-theme-type="light"] .color-picker .hex-input {
+  background-color: var(--input-bg) !important;
+  border-color: var(--input-border) !important;
+  color: var(--text-primary) !important;
+}
+
+:root[data-theme-type="light"] .color-picker .preview-text {
+  color: var(--text-on-primary, #ffffff) !important;
 }

@@ -666,15 +666,52 @@ export function applyThemePalette(palette: ThemePalette): void {
   root.setAttribute('data-theme', 'custom')
   root.setAttribute('data-theme-type', palette.isLightTheme ? 'light' : 'dark')
   
-  applySurfaceSemanticTokens(palette.isLightTheme)
+  applyDerivedSurfaceSemanticTokens(palette)
 
   debug.log('🎨 Applied custom theme palette with OKLCH:', palette)
 }
 
 /**
- * Rail-button and channel-selection colours that used to live on the legacy
- * --h-black-darker / --h-sidebar-light tokens. Preset themes pass an explicit
- * variant; custom themes only need the light/dark split.
+ * Derive rail-button and channel-selection colours from the custom palette
+ * (legacy --h-black-darker / --h-sidebar-light OKLCH offsets).
+ */
+function applyDerivedSurfaceSemanticTokens(palette: ThemePalette): void {
+  const root = document.documentElement
+  const bgPrimaryOklch = hexToOklch(palette.bgPrimary)
+  const bgTertiaryOklch = hexToOklch(palette.bgTertiary)
+  const bgSidebarOklch = hexToOklch(palette.bgSidebar)
+
+  if (bgTertiaryOklch) {
+    let railL = bgTertiaryOklch.l - 2
+    if (palette.isLightTheme && bgPrimaryOklch) {
+      // Keep pills visibly distinct on pale tints without losing theme hue.
+      railL = Math.min(railL, bgPrimaryOklch.l - 8)
+      railL = clampTone(railL, 55, 92)
+    }
+    root.style.setProperty(
+      '--nav-rail-button-bg',
+      oklchToString(railL, bgTertiaryOklch.c, bgTertiaryOklch.h),
+    )
+    root.style.setProperty(
+      '--nav-rail-button-icon',
+      palette.isLightTheme ? palette.textTertiary : '#f2f3f5',
+    )
+  }
+
+  if (bgSidebarOklch) {
+    const channelBg = oklchToString(
+      bgSidebarOklch.l + 4,
+      bgSidebarOklch.c,
+      bgSidebarOklch.h,
+    )
+    root.style.setProperty('--channel-item-hover-bg', channelBg)
+    root.style.setProperty('--channel-item-selected-bg', channelBg)
+  }
+}
+
+/**
+ * Rail-button and channel-selection colours for built-in preset themes only.
+ * Custom themes use {@link applyDerivedSurfaceSemanticTokens} instead.
  */
 export function applySurfaceSemanticTokens(
   isLight: boolean,

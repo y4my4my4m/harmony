@@ -479,8 +479,8 @@ onUnmounted(() => {
 
 .keybind-button {
   padding: 6px 16px;
-  background-color: var(--background-senary);
-  border: 1px solid var(--background-quaternary);
+  background-color: var(--input-bg);
+  border: 1px solid var(--input-border);
   border-radius: 4px;
   color: var(--text-primary);
   font-size: 12px;

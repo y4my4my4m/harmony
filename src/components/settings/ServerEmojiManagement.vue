@@ -790,13 +790,13 @@ input:checked + .toggle-slider:before {
 }
 
 .emoji-upload-area {
-  border: 2px dashed var(--background-quaternary);
+  border: 2px dashed var(--input-border);
   border-radius: 8px;
   padding: 32px;
   text-align: center;
   cursor: pointer;
   transition: all 0.15s ease;
-  background-color: var(--background-senary);
+  background-color: var(--input-bg);
 }
 
 .emoji-upload-area:hover,
@@ -849,7 +849,7 @@ input:checked + .toggle-slider:before {
 .emoji-count {
   font-size: 12px;
   color: var(--text-muted);
-  background-color: var(--background-senary);
+  background-color: var(--surface-inset);
   padding: 4px 8px;
   border-radius: 12px;
 }
@@ -864,7 +864,7 @@ input:checked + .toggle-slider:before {
 .upload-progress {
   margin-top: 16px;
   padding: 12px;
-  background-color: var(--background-senary);
+  background-color: var(--surface-inset);
   border-radius: 6px;
   border: 1px solid var(--background-quaternary);
 }
@@ -937,9 +937,9 @@ input:checked + .toggle-slider:before {
 }
 
 .btn-secondary {
-  background-color: var(--background-senary);
+  background-color: var(--background-quaternary);
   color: var(--text-secondary);
-  border: 1px solid var(--background-quaternary);
+  border: 1px solid var(--input-border);
 }
 
 .btn-secondary:hover:not(:disabled) {
@@ -949,7 +949,7 @@ input:checked + .toggle-slider:before {
 
 .btn-danger {
   background-color: #ed4245;
-  color: var(--text-primary);
+  color: var(--text-on-primary, #ffffff);
 }
 
 .btn-danger:hover:not(:disabled) {
@@ -989,7 +989,7 @@ input:checked + .toggle-slider:before {
   align-items: center;
   gap: 12px;
   padding: 12px;
-  background-color: var(--background-senary);
+  background-color: var(--surface-inset);
   border-radius: 6px;
   border: 1px solid var(--background-quaternary);
   transition: all 0.15s ease;

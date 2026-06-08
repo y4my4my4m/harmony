@@ -272,7 +272,7 @@ onUnmounted(() => {
   gap: 8px;
   width: 100%;
   background: linear-gradient(135deg, #0EA5E9, #0284C7);
-  color: var(--text-primary);
+  color: var(--text-on-primary, #ffffff);
   border: none;
   border-radius: 8px;
   padding: 12px 16px;
@@ -312,6 +312,8 @@ onUnmounted(() => {
   justify-content: center;
   padding: 12px 16px;
   margin-top: 8px;
+  background: var(--background-quaternary);
+  color: var(--text-on-primary, #ffffff);
 }
 
 /* Mobile responsiveness */

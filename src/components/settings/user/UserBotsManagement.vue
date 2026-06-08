@@ -865,14 +865,14 @@ onMounted(() => {
 .bot-title h4 {
   font-size: 16px;
   font-weight: 600;
-  color: var(--color-text-primary, #ffffff);
+  color: var(--text-primary);
   margin: 0;
 }
 
 .bot-badge {
   padding: 2px 6px;
-  background: var(--color-primary, #0EA5E9);
-  color: var(--text-primary);
+  background: var(--harmony-primary);
+  color: var(--text-on-primary, #ffffff);
   font-size: 10px;
   font-weight: 600;
   border-radius: 4px;
@@ -919,7 +919,7 @@ onMounted(() => {
 .stat-value {
   font-size: 20px;
   font-weight: 600;
-  color: var(--color-text-primary, #ffffff);
+  color: var(--text-primary);
 }
 
 .stat-label {
@@ -949,7 +949,7 @@ onMounted(() => {
 
 .btn-primary {
   background: var(--harmony-primary);
-  color: var(--text-primary);
+  color: var(--text-on-primary, #ffffff);
 }
 
 .btn-primary:hover:not(:disabled) {
@@ -973,7 +973,7 @@ onMounted(() => {
 
 .btn-danger {
   background: #ed4245;
-  color: var(--text-primary);
+  color: var(--text-on-primary, #ffffff);
 }
 
 .btn-danger:hover {
@@ -1038,7 +1038,7 @@ onMounted(() => {
 .modal-header h3 {
   font-size: 20px;
   font-weight: 600;
-  color: var(--color-text-primary, #ffffff);
+  color: var(--text-primary);
   margin: 0;
 }
 
@@ -1070,7 +1070,7 @@ onMounted(() => {
   display: block;
   font-size: 14px;
   font-weight: 600;
-  color: var(--color-text-primary, #ffffff);
+  color: var(--text-primary);
   margin-bottom: 8px;
 }
 
@@ -1079,10 +1079,10 @@ onMounted(() => {
 .form-group select {
   width: 100%;
   padding: 10px 12px;
-  background: var(--color-background-tertiary, #202225);
-  border: 1px solid var(--color-border, var(--background-quinary));
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
   border-radius: 4px;
-  color: var(--color-text-primary, #ffffff);
+  color: var(--text-primary);
   font-size: 14px;
   font-family: inherit;
 }
@@ -1178,10 +1178,10 @@ onMounted(() => {
 .token-display code {
   flex: 1;
   padding: 12px;
-  background: var(--color-background-tertiary, #202225);
-  border: 1px solid var(--color-border, var(--background-quinary));
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
   border-radius: 4px;
-  color: var(--color-text-primary, #ffffff);
+  color: var(--text-primary);
   font-family: 'Consolas', 'Monaco', monospace;
   font-size: 13px;
   overflow-x: auto;
@@ -1202,7 +1202,8 @@ onMounted(() => {
   gap: 12px;
   justify-content: flex-end;
   padding: 20px 24px;
-  border-top: 1px solid var(--color-border, var(--background-quinary));
+  border-top: 1px solid var(--border-primary);
+  background: var(--background-primary);
 }
 
 .message-banner {
@@ -1221,12 +1222,12 @@ onMounted(() => {
 
 .message-banner.success {
   background: #3ba55d;
-  color: var(--text-primary);
+  color: var(--text-on-primary, #ffffff);
 }
 
 .message-banner.error {
   background: #ed4245;
-  color: var(--text-primary);
+  color: var(--text-on-primary, #ffffff);
 }
 
 @keyframes slideIn {

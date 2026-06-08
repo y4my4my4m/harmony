@@ -750,8 +750,8 @@ onMounted(() => {
 }
 
 .btn-primary {
-  background: var(--color-primary);
-  color: var(--text-primary);
+  background: var(--harmony-primary);
+  color: var(--text-on-primary, #ffffff);
   border: none;
 }
 
@@ -827,12 +827,12 @@ onMounted(() => {
 
 .error-banner {
   background: var(--color-danger);
-  color: var(--text-primary);
+  color: var(--text-on-primary, #ffffff);
 }
 
 .success-banner {
   background: var(--color-success);
-  color: var(--text-primary);
+  color: var(--text-on-primary, #ffffff);
 }
 
 .close-btn {

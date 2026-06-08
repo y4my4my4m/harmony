@@ -849,7 +849,7 @@ onMounted(async () => {
   position: relative;
   border-radius: 8px;
   overflow: hidden;
-  background-color: var(--background-senary);
+  background-color: var(--background-secondary);
 }
 
 .profile-banner {
@@ -875,7 +875,7 @@ onMounted(async () => {
   gap: 4px;
   opacity: 0;
   transition: opacity 0.2s ease;
-  color: var(--text-primary);
+  color: #ffffff;
   font-size: 12px;
   font-weight: 500;
 }
@@ -893,7 +893,7 @@ onMounted(async () => {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  color: var(--text-primary);
+  color: #ffffff;
   font-size: 12px;
   font-weight: 500;
   z-index: 1;
@@ -958,8 +958,8 @@ onMounted(async () => {
 .form-textarea {
   width: 100%;
   padding: 12px;
-  background-color: var(--background-senary);
-  border: 1px solid var(--background-quaternary);
+  background-color: var(--input-bg);
+  border: 1px solid var(--input-border);
   border-radius: 4px;
   color: var(--text-primary);
   font-size: 14px;
@@ -1020,8 +1020,8 @@ onMounted(async () => {
 
 .color-reset-btn {
   padding: 8px 16px;
-  background-color: var(--background-senary);
-  border: 1px solid var(--background-quaternary);
+  background-color: var(--background-quaternary);
+  border: 1px solid var(--input-border);
   border-radius: 4px;
   color: var(--text-secondary);
   cursor: pointer;
@@ -1120,7 +1120,7 @@ onMounted(async () => {
 
 .btn-primary {
   background-color: var(--harmony-primary);
-  color: var(--text-primary);
+  color: var(--text-on-primary, #ffffff);
 }
 
 .btn-primary:hover:not(:disabled) {

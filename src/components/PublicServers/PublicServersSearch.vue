@@ -180,8 +180,8 @@ const formatStats = (filtered: number, total: number): string => {
   --filter-row-height: 44px;
 
   padding: 14px 24px 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(32, 34, 37, 0.3);
+  border-bottom: 1px solid var(--border-primary);
+  background: var(--background-secondary);
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -261,8 +261,8 @@ const formatStats = (filtered: number, total: number): string => {
   height: var(--filter-row-height);
   min-height: var(--filter-row-height);
   max-height: var(--filter-row-height);
-  background: linear-gradient(135deg, rgba(32, 34, 37, 0.8), rgba(47, 49, 54, 0.6));
-  border: 1px solid color-mix(in srgb, var(--harmony-primary) 20%, transparent);
+  background: var(--background-primary);
+  border: 1px solid var(--border-primary);
   border-radius: 10px;
   padding: 0 12px;
   cursor: pointer;
@@ -291,7 +291,7 @@ const formatStats = (filtered: number, total: number): string => {
 
 .category-toggle-btn:hover {
   border-color: color-mix(in srgb, var(--harmony-primary) 40%, transparent);
-  background: linear-gradient(135deg, rgba(47, 49, 54, 0.9), rgba(54, 57, 63, 0.7));
+  background: var(--background-quaternary);
   transform: translateY(-2px);
   box-shadow: 0 8px 25px color-mix(in srgb, var(--harmony-primary) 15%, transparent);
 }
@@ -330,7 +330,7 @@ const formatStats = (filtered: number, total: number): string => {
 .category-icon {
   width: 18px;
   height: 18px;
-  color: rgba(255, 255, 255, 0.7);
+  color: var(--text-secondary);
 }
 
 .category-toggle-text {
@@ -346,9 +346,8 @@ const formatStats = (filtered: number, total: number): string => {
 .category-title {
   font-size: 14px;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--text-primary);
   margin: 0;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
 }
 
 .selected-category-preview {
@@ -400,9 +399,9 @@ const formatStats = (filtered: number, total: number): string => {
 
 .category-pills-container {
   padding: 10px 12px;
-  background: rgba(32, 34, 37, 0.4);
+  background: var(--background-primary);
   border-radius: 10px;
-  border: 1px solid color-mix(in srgb, var(--harmony-primary) 10%, transparent);
+  border: 1px solid var(--border-primary);
   margin-top: 0;
 }
 
@@ -413,13 +412,13 @@ const formatStats = (filtered: number, total: number): string => {
 }
 
 .category-pill {
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.02));
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--background-quaternary);
+  border: 1px solid var(--border-primary);
   border-radius: 20px;
   padding: 6px 12px;
   font-size: 12px;
   font-weight: 500;
-  color: rgba(255, 255, 255, 0.8);
+  color: var(--text-primary);
   cursor: pointer;
   transition: all 0.2s ease;
   white-space: nowrap;
@@ -454,7 +453,7 @@ const formatStats = (filtered: number, total: number): string => {
 .category-pill--active {
   background: linear-gradient(135deg, var(--harmony-primary), var(--harmony-secondary));
   border-color: var(--harmony-primary);
-  color: var(--text-primary);
+  color: var(--text-on-primary, #ffffff);
   box-shadow: 0 4px 15px color-mix(in srgb, var(--harmony-primary) 30%, transparent);
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
 }
@@ -534,7 +533,7 @@ const formatStats = (filtered: number, total: number): string => {
 .stats-text {
   font-size: 13px;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--text-secondary);
 }
 
 .stats-secondary {
@@ -544,7 +543,7 @@ const formatStats = (filtered: number, total: number): string => {
 .search-indicator,
 .category-indicator {
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--text-muted);
   font-style: italic;
 }
 

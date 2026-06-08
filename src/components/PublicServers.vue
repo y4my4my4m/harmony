@@ -320,10 +320,10 @@ watch(() => props.forceRefresh, async (shouldForce) => {
 }
 
 .public-servers-modal {
-  background: color-mix(in srgb, var(--background-tertiary), transparent 30%);
+  background: var(--background-primary);
   backdrop-filter: blur(20px);
   border-radius: 20px;
-  border: 1px solid var(--border-primary, rgba(255, 255, 255, 0.1));
+  border: 1px solid var(--border-primary);
   box-shadow: 
     0 32px 64px rgba(0, 0, 0, 0.5),
     0 0 0 1px var(--border-primary, rgba(255, 255, 255, 0.05)),

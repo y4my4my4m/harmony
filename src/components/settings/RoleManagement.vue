@@ -876,7 +876,7 @@ onMounted(() => {
   gap: 8px;
   padding: 9px 14px;
   background: var(--harmony-primary, #0EA5E9);
-  color: var(--text-primary);
+  color: var(--text-on-primary, #ffffff);
   border: none;
   border-radius: 6px;
   font-size: 13px;
@@ -948,7 +948,7 @@ onMounted(() => {
 }
 
 .role-pill:hover {
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--background-modifier-hover);
   color: var(--text-primary);
 }
 
@@ -1174,8 +1174,8 @@ onMounted(() => {
 .form-input {
   width: 100%;
   padding: 10px 12px;
-  background: var(--background-tertiary);
-  border: 1px solid transparent;
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
   border-radius: 6px;
   color: var(--text-primary);
   font-size: 14px;
@@ -1205,8 +1205,8 @@ onMounted(() => {
 .color-text {
   flex: 1;
   padding: 10px 12px;
-  background: var(--background-tertiary);
-  border: 1px solid transparent;
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
   border-radius: 6px;
   color: var(--text-primary);
   font-size: 13px;
@@ -1469,14 +1469,14 @@ onMounted(() => {
 
 .cancel-btn:not(:disabled):hover {
   color: var(--text-primary);
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--background-modifier-hover);
 }
 
 .cancel-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
 .save-btn {
   background: var(--harmony-primary, #0EA5E9);
-  color: var(--text-primary);
+  color: var(--text-on-primary, #ffffff);
   border: none;
   padding: 9px 18px;
   border-radius: 6px;

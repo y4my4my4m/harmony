@@ -628,7 +628,7 @@ watch(hasChanges, (newValue) => {
 
 .btn-primary {
   background-color: var(--harmony-primary);
-  color: var(--text-primary);
+  color: var(--text-on-primary, #ffffff);
 }
 
 .btn-primary:hover:not(:disabled) {

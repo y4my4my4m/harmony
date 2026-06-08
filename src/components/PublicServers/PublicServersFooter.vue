@@ -42,8 +42,8 @@ defineEmits<Emits>()
 .public-servers-footer {
   position: relative;
   padding: 24px 32px;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(32, 34, 37, 0.5);
+  border-top: 1px solid var(--border-primary);
+  background: var(--background-secondary);
 }
 
 .footer-content {
@@ -101,7 +101,7 @@ defineEmits<Emits>()
 
 .info-text {
   font-size: 14px;
-  color: rgba(255, 255, 255, 0.7);
+  color: var(--text-secondary);
   font-weight: 500;
 }
 
@@ -110,7 +110,7 @@ defineEmits<Emits>()
   border: none;
   border-radius: 10px;
   padding: 14px 24px;
-  color: var(--text-primary);
+  color: var(--text-on-primary, #ffffff);
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;

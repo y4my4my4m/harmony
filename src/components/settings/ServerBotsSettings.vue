@@ -484,8 +484,8 @@ onMounted(() => {
 
 .search-input {
   padding: 8px 12px;
-  background-color: var(--background-tertiary);
-  border: 1px solid var(--background-quaternary);
+  background-color: var(--input-bg);
+  border: 1px solid var(--input-border);
   border-radius: 4px;
   color: var(--text-primary);
   font-size: 14px;
@@ -542,7 +542,7 @@ onMounted(() => {
   display: inline-block;
   padding: 2px 6px;
   background-color: var(--harmony-primary);
-  color: var(--text-primary);
+  color: var(--text-on-primary, #ffffff);
   font-size: 10px;
   font-weight: 700;
   border-radius: 3px;
@@ -627,7 +627,7 @@ onMounted(() => {
 
 .btn-primary {
   background-color: var(--harmony-primary);
-  color: var(--text-primary);
+  color: var(--text-on-primary, #ffffff);
 }
 
 .btn-primary:hover:not(:disabled) {
@@ -651,7 +651,7 @@ onMounted(() => {
 
 .btn-danger {
   background-color: #ed4245;
-  color: var(--text-primary);
+  color: var(--text-on-primary, #ffffff);
 }
 
 .btn-danger:hover {
