@@ -12,15 +12,17 @@
     <!-- Tab Navigation Header (horizontally scrollable) -->
     <div class="picker-tabs">
       <div class="picker-tabs-scroll" ref="tabsScrollRef" @wheel="onTabsWheel">
-        <button
-          v-for="tab in tabs"
-          :key="tab.id"
-          class="tab-button"
-          :class="{ active: activeTab === tab.id }"
-          @click="activeTab = tab.id"
-        >
-          {{ tab.label }}
-        </button>
+        <div class="picker-tabs-track" ref="tabsTrackRef" :style="tabsTrackStyle">
+          <button
+            v-for="tab in tabs"
+            :key="tab.id"
+            class="tab-button"
+            :class="{ active: activeTab === tab.id }"
+            @click="activeTab = tab.id"
+          >
+            {{ tab.label }}
+          </button>
+        </div>
       </div>
       <!-- Favorite toggle (media tabs only - Emoji + AI Emoji manage their own) -->
       <button 
@@ -61,6 +63,7 @@
 import { ref, watch, onMounted, onUnmounted, nextTick, computed, type Ref } from 'vue';
 import { usePopupPositioning, type PopupPosition } from '@/composables/usePopupPositioning';
 import { useLayoutState } from '@/composables/useLayoutState';
+import { useElasticHorizontalScroll } from '@/composables/useElasticHorizontalScroll';
 import GifPickerContent from '@/components/GifPickerContent.vue';
 import EmojiPickerContent from '@/components/EmojiPickerContent.vue';
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings';
@@ -93,8 +96,6 @@ const emit = defineEmits<Emits>();
 const instanceSettings = useInstanceSettingsStore();
 const { isMobile } = useLayoutState();
 
-// Tabs: GIFs + Stickers are always available; Clips/Memes/AI Emoji are
-// gated by per-instance admin toggles. Emoji is the built-in picker.
 const tabs = computed<{ id: PickerTab; label: string }[]>(() => {
   const list: { id: PickerTab; label: string }[] = [
     { id: 'gifs', label: 'GIFs' },
@@ -112,54 +113,35 @@ const isEnabledTab = tabs.value.some((t) => t.id === initialTab);
 const activeTab = ref<PickerTab>(isEnabledTab ? initialTab : 'gifs');
 const showFavorites = ref(false);
 const tabsScrollRef = ref<HTMLElement | null>(null);
+const tabsTrackRef = ref<HTMLElement | null>(null);
+
+const { trackStyle: tabsTrackStyle, measure: measureTabs, onWheel: onTabsWheel } =
+  useElasticHorizontalScroll(tabsScrollRef, tabsTrackRef);
 
 watch(activeTab, () => { showFavorites.value = false; });
-
-// Desktop: vertical wheel over the tab strip scrolls it horizontally.
-const onTabsWheel = (e: WheelEvent) => {
-  const el = tabsScrollRef.value;
-  if (!el || el.scrollWidth <= el.clientWidth) return;
-  if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
-  el.scrollLeft += e.deltaY;
-  e.preventDefault();
-};
-
-// Mobile: claim horizontal swipes on the tab strip so the browser doesn't navigate back/forward.
-let tabsTouchStartX = 0;
-let tabsTouchStartY = 0;
-
-const onTabsTouchStart = (e: TouchEvent) => {
-  const t = e.touches[0];
-  if (!t) return;
-  tabsTouchStartX = t.clientX;
-  tabsTouchStartY = t.clientY;
-  e.stopPropagation();
-};
-
-const onTabsTouchMove = (e: TouchEvent) => {
-  const el = tabsScrollRef.value;
-  if (!el || el.scrollWidth <= el.clientWidth) return;
-  const t = e.touches[0];
-  if (!t) return;
-  const dx = t.clientX - tabsTouchStartX;
-  const dy = t.clientY - tabsTouchStartY;
-  if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 4) {
-    e.preventDefault();
-    e.stopPropagation();
-    el.scrollLeft -= dx;
-    tabsTouchStartX = t.clientX;
-    tabsTouchStartY = t.clientY;
-  }
-};
+watch(tabs, () => nextTick(() => measureTabs()));
 
 const popupRef = ref<HTMLElement | null>(null);
 
 const POPUP_DIMENSIONS = { width: 400, height: 500 };
 const triggerElementRef = ref<HTMLElement | null>(null);
+const triggerAnchorTop = ref<number | null>(null);
+
+const updateTriggerAnchor = () => {
+  const trigger = triggerElementRef.value;
+  if (!trigger) {
+    triggerAnchorTop.value = null;
+    return;
+  }
+  triggerAnchorTop.value = trigger.getBoundingClientRect().top;
+};
 
 watch(() => props.triggerElement, (newTrigger) => {
   triggerElementRef.value = newTrigger || null;
-  nextTick(() => updatePosition());
+  nextTick(() => {
+    updateTriggerAnchor();
+    updatePosition();
+  });
 }, { immediate: true });
 
 const { positionStyle, updatePosition } = usePopupPositioning(
@@ -168,7 +150,6 @@ const { positionStyle, updatePosition } = usePopupPositioning(
   { position: props.position, offset: 8, viewport: { padding: 10 } },
 );
 
-/** Tracks the visible viewport (shrinks when the mobile keyboard opens). */
 const visualViewportRect = ref({
   top: 0,
   left: 0,
@@ -190,17 +171,17 @@ const syncVisualViewport = () => {
       width: window.innerWidth,
       height: window.innerHeight,
     };
-    return;
+  } else {
+    visualViewportRect.value = {
+      top: vv.offsetTop,
+      left: vv.offsetLeft,
+      width: vv.width,
+      height: vv.height,
+    };
   }
-  visualViewportRect.value = {
-    top: vv.offsetTop,
-    left: vv.offsetLeft,
-    width: vv.width,
-    height: vv.height,
-  };
+  updateTriggerAnchor();
 };
 
-/** True when the soft keyboard is consuming viewport height. */
 const keyboardOpen = computed(() => {
   if (!isMobile.value) return false;
   return layoutHeight.value - visualViewportRect.value.height > KEYBOARD_OPEN_THRESHOLD;
@@ -208,12 +189,12 @@ const keyboardOpen = computed(() => {
 
 /**
  * Mobile positioning:
- * - Keyboard open → compact panel pinned to the top of the visible viewport.
- * - Keyboard closed → taller bottom-anchored panel that uses more of the screen.
+ * - Keyboard open → compact panel at top of visible viewport.
+ * - Keyboard closed → bottom edge sits just above the message input trigger.
  */
 const mobilePopupStyle = computed(() => {
   const pad = 12;
-  const bottomPad = 16;
+  const gapAboveInput = 8;
   const vv = visualViewportRect.value;
   const width = Math.min(400, Math.round(vv.width - pad * 2));
   const left = vv.left + (vv.width - width) / 2;
@@ -225,8 +206,11 @@ const mobilePopupStyle = computed(() => {
     maxHeight = Math.min(420, Math.round(vv.height - pad * 2));
     top = vv.top + pad;
   } else {
-    maxHeight = Math.min(560, Math.round(vv.height * 0.78));
-    top = vv.top + vv.height - maxHeight - bottomPad;
+    const inputTop = triggerAnchorTop.value ?? vv.top + vv.height - 72;
+    const available = inputTop - vv.top - gapAboveInput - pad;
+    maxHeight = Math.min(500, Math.max(260, Math.round(available)));
+    top = inputTop - gapAboveInput - maxHeight;
+    top = Math.max(vv.top + pad, top);
   }
 
   return {
@@ -266,8 +250,6 @@ const handleKeyDown = (event: KeyboardEvent) => {
   }
 };
 
-let tabsTouchMoveHandler: ((e: TouchEvent) => void) | null = null;
-
 onMounted(() => {
   setTimeout(() => {
     document.addEventListener('click', handleClickOutside);
@@ -278,15 +260,11 @@ onMounted(() => {
   window.visualViewport?.addEventListener('resize', syncVisualViewport);
   window.visualViewport?.addEventListener('scroll', syncVisualViewport);
   window.addEventListener('resize', syncVisualViewport);
+  window.addEventListener('scroll', updateTriggerAnchor, true);
 
   nextTick(() => {
     updatePosition();
-    const el = tabsScrollRef.value;
-    if (el) {
-      tabsTouchMoveHandler = onTabsTouchMove;
-      el.addEventListener('touchstart', onTabsTouchStart, { passive: true });
-      el.addEventListener('touchmove', tabsTouchMoveHandler, { passive: false });
-    }
+    measureTabs();
   });
 });
 
@@ -296,11 +274,7 @@ onUnmounted(() => {
   window.visualViewport?.removeEventListener('resize', syncVisualViewport);
   window.visualViewport?.removeEventListener('scroll', syncVisualViewport);
   window.removeEventListener('resize', syncVisualViewport);
-  const el = tabsScrollRef.value;
-  if (el && tabsTouchMoveHandler) {
-    el.removeEventListener('touchstart', onTabsTouchStart);
-    el.removeEventListener('touchmove', tabsTouchMoveHandler);
-  }
+  window.removeEventListener('scroll', updateTriggerAnchor, true);
 });
 </script>
 
@@ -331,23 +305,17 @@ onUnmounted(() => {
 }
 
 .picker-tabs-scroll {
+  overflow: hidden;
+  flex: 1 1 auto;
+  min-width: 0;
+  touch-action: pan-y pinch-zoom;
+}
+
+.picker-tabs-track {
   display: flex;
   align-items: center;
   gap: 4px;
-  overflow-x: auto;
-  overflow-y: hidden;
-  flex: 1 1 auto;
-  min-width: 0;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-  scroll-behavior: smooth;
-  -webkit-overflow-scrolling: touch;
-  touch-action: pan-x;
-  overscroll-behavior-x: contain;
-}
-
-.picker-tabs-scroll::-webkit-scrollbar {
-  display: none;
+  width: max-content;
 }
 
 .tab-button {
@@ -359,7 +327,7 @@ onUnmounted(() => {
   color: var(--text-secondary);
   cursor: pointer;
   border-radius: 4px;
-  transition: all 0.15s ease;
+  transition: background 0.15s ease, color 0.15s ease;
   white-space: nowrap;
   flex: 0 0 auto;
 }
@@ -407,6 +375,10 @@ onUnmounted(() => {
   .media-picker-popup--mobile {
     border-radius: 12px;
     transition: top 0.22s ease, max-height 0.22s ease;
+  }
+
+  .picker-tabs-scroll {
+    touch-action: none;
   }
 
   .tab-button {
