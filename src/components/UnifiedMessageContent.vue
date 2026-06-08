@@ -204,15 +204,17 @@
             v-if="isImageUrl(part.url)" 
             class="media-container image-container"
           >
-            <div v-if="!imageLoadedState[part.url]" class="media-skeleton image-skeleton"></div>
-            <img
-              :src="part.url"
-              @load="handleImageLoad(part.url)"
-              @click="$emit('open-lightbox', part.url)"
-              v-show="imageLoadedState[part.url]"
-              draggable="false"
-              class="content-image"
-            />
+            <div class="media-frame">
+              <div v-if="!imageLoadedState[part.url]" class="media-skeleton image-skeleton"></div>
+              <img
+                :src="part.url"
+                @load="handleImageLoad(part.url)"
+                @click="$emit('open-lightbox', part.url)"
+                v-show="imageLoadedState[part.url]"
+                draggable="false"
+                class="content-image"
+              />
+            </div>
           </div>
 
           <!-- Video URLs -->
@@ -221,15 +223,17 @@
             class="media-container video-container"
             :ref="el => { if (el) videoContainers[partIndex] = el as HTMLElement }"
           >
-            <video
-              :src="part.url"
-              controls
-              class="content-video"
-              preload="metadata"
-              :data-video-index="partIndex"
-              @play="handleVideoPlay"
-              @pause="handleVideoPause"
-            ></video>
+            <div class="media-frame">
+              <video
+                :src="part.url"
+                controls
+                class="content-video"
+                preload="metadata"
+                :data-video-index="partIndex"
+                @play="handleVideoPlay"
+                @pause="handleVideoPause"
+              ></video>
+            </div>
           </div>
 
           <!-- Audio URLs -->
@@ -288,49 +292,51 @@
           @mouseenter="hoveredImageUrl = part.url"
           @mouseleave="hoveredImageUrl = null"
         >
-          <div v-if="!imageLoadedState[part.url]" class="media-skeleton image-skeleton"></div>
-          <img
-            :src="displayMediaUrl(part.url)"
-            @load="handleImageLoad(part.url)"
-            @click="!isStickerMedia(part.url) && $emit('open-lightbox', part.url)"
-            v-show="imageLoadedState[part.url]"
-            draggable="false"
-            class="content-image"
-            :class="{ 'sticker-image': isStickerMedia(part.url), 'ai-emoji-image': isAiEmojiMedia(part.url) }"
-          />
-          <!-- GIF/sticker Favorite Button (AI emoji are treated as plain emoji: no favorite) -->
-          <button
-            type="button"
-            v-if="(isAnimatedImage(part.url) || isStickerMedia(part.url)) && !isAiEmojiMedia(part.url)"
-            class="gif-favorite-button"
-            :class="{ 'favorited': isGifFavorited(part.url), 'visible': hoveredImageUrl === part.url || isGifFavorited(part.url) }"
-            @click.stop="toggleGifFavorite(part.url)"
-            :title="isGifFavorited(part.url) ? 'Remove from favorites' : 'Add to favorites'"
-          >
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
-              <path v-if="isGifFavorited(part.url)" d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
-              <path v-else d="M22 9.24l-7.19-.62L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21 12 17.27 18.18 21l-1.63-7.03L22 9.24zM12 15.4l-3.76 2.27 1-4.28-3.32-2.88 4.38-.38L12 6.1l1.71 4.04 4.38.38-3.32 2.88 1 4.28L12 15.4z"/>
-            </svg>
-          </button>
-          <!-- KLIPY attribution watermark (optional; only on Klipy media, on hover; never on AI emoji) -->
-          <a
-            v-if="showKlipyWatermark && isKlipyMedia(part.url) && !isAiEmojiMedia(part.url)"
-            class="klipy-watermark"
-            :class="{ 'visible': hoveredImageUrl === part.url }"
-            :href="klipyWatermarkHref(part.url)"
-            target="_blank"
-            rel="noopener noreferrer nofollow"
-            @click.stop
-            title="via KLIPY"
-          >
+          <div class="media-frame">
+            <div v-if="!imageLoadedState[part.url]" class="media-skeleton image-skeleton"></div>
             <img
-              :src="klipyWatermarkLogoUrl"
-              alt="KLIPY"
-              class="klipy-watermark-logo"
-              width="51"
-              height="14"
+              :src="displayMediaUrl(part.url)"
+              @load="handleImageLoad(part.url)"
+              @click="!isStickerMedia(part.url) && $emit('open-lightbox', part.url)"
+              v-show="imageLoadedState[part.url]"
+              draggable="false"
+              class="content-image"
+              :class="{ 'sticker-image': isStickerMedia(part.url), 'ai-emoji-image': isAiEmojiMedia(part.url) }"
             />
-          </a>
+            <!-- GIF/sticker Favorite Button (AI emoji are treated as plain emoji: no favorite) -->
+            <button
+              type="button"
+              v-if="(isAnimatedImage(part.url) || isStickerMedia(part.url)) && !isAiEmojiMedia(part.url)"
+              class="gif-favorite-button"
+              :class="{ 'favorited': isGifFavorited(part.url), 'visible': hoveredImageUrl === part.url || isGifFavorited(part.url) }"
+              @click.stop="toggleGifFavorite(part.url)"
+              :title="isGifFavorited(part.url) ? 'Remove from favorites' : 'Add to favorites'"
+            >
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                <path v-if="isGifFavorited(part.url)" d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
+                <path v-else d="M22 9.24l-7.19-.62L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21 12 17.27 18.18 21l-1.63-7.03L22 9.24zM12 15.4l-3.76 2.27 1-4.28-3.32-2.88 4.38-.38L12 6.1l1.71 4.04 4.38.38-3.32 2.88 1 4.28L12 15.4z"/>
+              </svg>
+            </button>
+            <!-- KLIPY attribution watermark (optional; only on Klipy media, on hover; never on AI emoji) -->
+            <a
+              v-if="showKlipyWatermark && isKlipyMedia(part.url) && !isAiEmojiMedia(part.url)"
+              class="klipy-watermark"
+              :class="{ 'visible': hoveredImageUrl === part.url }"
+              :href="klipyWatermarkHref(part.url)"
+              target="_blank"
+              rel="noopener noreferrer nofollow"
+              @click.stop
+              title="via KLIPY"
+            >
+              <img
+                :src="klipyWatermarkLogoUrl"
+                alt="KLIPY"
+                class="klipy-watermark-logo"
+                width="51"
+                height="14"
+              />
+            </a>
+          </div>
         </div>
 
         <!-- Video files -->
@@ -341,47 +347,49 @@
           @mouseenter="hoveredImageUrl = part.url"
           @mouseleave="hoveredImageUrl = null"
         >
-          <video
-            :src="part.url"
-            controls
-            class="content-video"
-            preload="metadata"
-            :data-video-index="partIndex"
-            @play="handleVideoPlay"
-            @pause="handleVideoPause"
-          ></video>
-          <!-- Clip favorite button (Klipy clips only) -->
-          <button
-            type="button"
-            v-if="isKlipyMedia(part.url)"
-            class="gif-favorite-button"
-            :class="{ 'favorited': isGifFavorited(part.url), 'visible': hoveredImageUrl === part.url || isGifFavorited(part.url) }"
-            @click.stop="toggleGifFavorite(part.url)"
-            :title="isGifFavorited(part.url) ? 'Remove from favorites' : 'Add to favorites'"
-          >
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
-              <path v-if="isGifFavorited(part.url)" d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
-              <path v-else d="M22 9.24l-7.19-.62L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21 12 17.27 18.18 21l-1.63-7.03L22 9.24zM12 15.4l-3.76 2.27 1-4.28-3.32-2.88 4.38-.38L12 6.1l1.71 4.04 4.38.38-3.32 2.88 1 4.28L12 15.4z"/>
-            </svg>
-          </button>
-          <a
-            v-if="showKlipyWatermark && isKlipyMedia(part.url)"
-            class="klipy-watermark"
-            :class="{ 'visible': hoveredImageUrl === part.url }"
-            :href="klipyWatermarkHref(part.url)"
-            target="_blank"
-            rel="noopener noreferrer nofollow"
-            @click.stop
-            title="via KLIPY"
-          >
-            <img
-              :src="klipyWatermarkLogoUrl"
-              alt="KLIPY"
-              class="klipy-watermark-logo"
-              width="51"
-              height="14"
-            />
-          </a>
+          <div class="media-frame">
+            <video
+              :src="part.url"
+              controls
+              class="content-video"
+              preload="metadata"
+              :data-video-index="partIndex"
+              @play="handleVideoPlay"
+              @pause="handleVideoPause"
+            ></video>
+            <!-- Clip favorite button (Klipy clips only) -->
+            <button
+              type="button"
+              v-if="isKlipyMedia(part.url)"
+              class="gif-favorite-button"
+              :class="{ 'favorited': isGifFavorited(part.url), 'visible': hoveredImageUrl === part.url || isGifFavorited(part.url) }"
+              @click.stop="toggleGifFavorite(part.url)"
+              :title="isGifFavorited(part.url) ? 'Remove from favorites' : 'Add to favorites'"
+            >
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                <path v-if="isGifFavorited(part.url)" d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
+                <path v-else d="M22 9.24l-7.19-.62L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21 12 17.27 18.18 21l-1.63-7.03L22 9.24zM12 15.4l-3.76 2.27 1-4.28-3.32-2.88 4.38-.38L12 6.1l1.71 4.04 4.38.38-3.32 2.88 1 4.28L12 15.4z"/>
+              </svg>
+            </button>
+            <a
+              v-if="showKlipyWatermark && isKlipyMedia(part.url)"
+              class="klipy-watermark"
+              :class="{ 'visible': hoveredImageUrl === part.url }"
+              :href="klipyWatermarkHref(part.url)"
+              target="_blank"
+              rel="noopener noreferrer nofollow"
+              @click.stop
+              title="via KLIPY"
+            >
+              <img
+                :src="klipyWatermarkLogoUrl"
+                alt="KLIPY"
+                class="klipy-watermark-logo"
+                width="51"
+                height="14"
+              />
+            </a>
+          </div>
         </div>
         
         <!-- Audio files (voice messages + regular audio) -->
@@ -1418,23 +1426,28 @@ export default defineComponent({
   line-height: 3.5rem;
 }
 
-/* Media containers */
+/* Media containers: block line-break in inline message flow; inner frame shrink-wraps for overlays */
 .media-container {
+  display: block;
   margin: 4px 0;
   max-width: 100%;
 }
 
-.image-container {
+.media-frame {
   display: inline-block;
-  width: fit-content;
-  max-width: min(400px, 100%);
   position: relative;
+  max-width: min(400px, 100%);
   vertical-align: top;
+}
+
+.image-container {
+  max-width: 100%;
 }
 
 .content-image {
   display: block;
-  max-width: 100%;
+  width: auto;
+  max-width: min(400px, 100%);
   height: auto;
   max-height: 300px;
   border-radius: 8px;
@@ -1447,7 +1460,7 @@ export default defineComponent({
 }
 
 /* Stickers render small and inline with no lightbox affordance or hover zoom. */
-.sticker-container {
+.sticker-container .media-frame {
   max-width: 160px;
 }
 
@@ -1463,7 +1476,7 @@ export default defineComponent({
 }
 
 /* Klipy AI emoji render at jumbo-emoji size, like a single custom emoji. */
-.ai-emoji-container {
+.ai-emoji-container .media-frame {
   max-width: 64px;
 }
 
@@ -1547,16 +1560,13 @@ export default defineComponent({
 }
 
 .video-container {
-  display: inline-block;
-  width: fit-content;
-  max-width: min(400px, 100%);
-  position: relative;
-  vertical-align: top;
+  max-width: 100%;
 }
 
 .content-video {
   display: block;
-  max-width: 100%;
+  width: auto;
+  max-width: min(400px, 100%);
   height: auto;
   max-height: 300px;
   border-radius: 8px;
@@ -1767,11 +1777,11 @@ export default defineComponent({
 }
 
 @media (max-width: 768px) {
-  .image-container,
-  .video-container {
+  .media-frame {
     max-width: 100%;
   }
-  
+
+  .content-image,
   .content-video {
     max-width: 100%;
   }
