@@ -203,20 +203,19 @@
           <p>No {{ mediaNoun }} found</p>
           <span class="empty-hint">Try a different search term</span>
         </div>
-        <masonry-wall v-else :items="items" :column-width="150" :gap="10">
-          <template #default="{ item }">
+        <div v-else class="gif-results-grid">
+          <template v-for="item in items" :key="item.id">
             <GifAdSlot
               v-if="item.kind === 'ad'"
-              :key="item.id"
+              class="gif-ad-tile"
               :content="item.content"
               :width="item.width"
               :height="item.height"
             />
-            <div 
+            <div
               v-else
-              :key="item.id" 
-              class="gif-item" 
-              @mouseover="hoveredGif = item.id" 
+              class="gif-item"
+              @mouseover="hoveredGif = item.id"
               @mouseleave="isClips ? handleClipItemLeave(item.id, $event) : (hoveredGif = null)"
               @click="selectGif(item)"
             >
@@ -257,7 +256,7 @@
               </button>
             </div>
           </template>
-        </masonry-wall>
+        </div>
         <div v-if="loadingMore" class="loading-more">
           <LoadingSpinner :size="20" />
         </div>
@@ -515,7 +514,8 @@ const applyFeed = (feed: Awaited<ReturnType<typeof gifProvider.trending>>) => {
   if (feed.meta?.showAds && !feed.items.some((i) => i.kind === 'ad')) {
     debug.log(
       'GIF feed: ads enabled for this user but Klipy returned no ad slots. ' +
-        'Try search, confirm KLIPY_API_KEY_ADS has ads on in the Klipy dashboard, and restart the federation backend.',
+        'Klipy documents mobile-only ad delivery — test on a phone/tablet. ' +
+        'Also try search, confirm KLIPY_API_KEY_ADS has ads on in the Klipy dashboard, and restart the federation backend.',
     );
   }
 };
@@ -1001,6 +1001,18 @@ onMounted(async () => {
   padding: 8px 0 8px 8px;
   min-height: 0;
   scrollbar-gutter: stable;
+}
+
+/* CSS grid (not masonry) so Klipy ads can span the full picker width. */
+.gif-results-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+  padding-right: 8px;
+}
+
+.gif-ad-tile {
+  grid-column: 1 / -1;
 }
 
 .gif-item {

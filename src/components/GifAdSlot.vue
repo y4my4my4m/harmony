@@ -1,5 +1,5 @@
 <template>
-  <div class="gif-ad-slot" :style="{ aspectRatio: width && height ? `${width} / ${height}` : undefined }">
+  <div class="gif-ad-slot" :style="slotStyle">
     <span class="gif-ad-label">{{ $t('gif.ad') }}</span>
     <iframe
       :srcdoc="content"
@@ -14,16 +14,30 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue';
+import { KLIPY_AD_MAX_HEIGHT, KLIPY_AD_MIN_SIZE } from '@/utils/klipyAdContext';
+
 /**
  * Renders a Klipy ad. Klipy ads are an HTML blob meant for a WebView; on the web
  * we render it in a sandboxed iframe. The sandbox intentionally omits
  * `allow-same-origin` so the ad cannot reach Harmony's origin, cookies, or DOM.
  */
-defineProps<{
+const props = defineProps<{
   content: string;
   width?: number;
   height?: number;
 }>();
+
+const slotStyle = computed(() => {
+  const w = props.width && props.width >= KLIPY_AD_MIN_SIZE ? props.width : 300;
+  const h = props.height && props.height >= KLIPY_AD_MIN_SIZE ? props.height : 250;
+  const cappedH = Math.min(h, KLIPY_AD_MAX_HEIGHT);
+  return {
+    aspectRatio: `${w} / ${cappedH}`,
+    minHeight: `${Math.max(KLIPY_AD_MIN_SIZE, Math.min(cappedH, KLIPY_AD_MAX_HEIGHT))}px`,
+    maxHeight: `${KLIPY_AD_MAX_HEIGHT}px`,
+  };
+});
 </script>
 
 <style scoped>
@@ -34,7 +48,6 @@ defineProps<{
   border-radius: 4px;
   background: var(--background-senary-alpha);
   border: 1px solid var(--border-secondary);
-  min-height: 80px;
 }
 
 .gif-ad-label {
@@ -57,7 +70,6 @@ defineProps<{
 .gif-ad-frame {
   width: 100%;
   height: 100%;
-  min-height: 80px;
   border: 0;
   display: block;
 }

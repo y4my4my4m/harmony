@@ -12,6 +12,7 @@
 
 import { supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
+import { collectKlipyAdContext } from '@/utils/klipyAdContext'
 import type { GifResultItem } from '@/types'
 
 const FEDERATION_API = '/api/federation'
@@ -55,11 +56,17 @@ async function request(path: string, params: URLSearchParams, opts?: FetchOption
   }
 }
 
-function buildParams(opts?: FetchOptions): URLSearchParams {
+function buildParams(opts?: FetchOptions, mediaType: GifMediaType = 'gifs'): URLSearchParams {
   const params = new URLSearchParams()
   if (opts?.page) params.set('page', String(opts.page))
   if (opts?.perPage) params.set('per_page', String(opts.perPage))
   if (opts?.locale) params.set('locale', opts.locale)
+  // Klipy ad params apply to the GIF feed only (ads are disabled for other media).
+  if (mediaType === 'gifs' && typeof window !== 'undefined') {
+    for (const [key, value] of Object.entries(collectKlipyAdContext().params)) {
+      params.set(key, value)
+    }
+  }
   return params
 }
 
@@ -73,7 +80,7 @@ function pathPrefix(mediaType: GifMediaType): string {
 export const gifProvider = {
   async trending(opts?: FetchOptions, mediaType: GifMediaType = 'gifs'): Promise<GifFeed> {
     try {
-      return await request(`${pathPrefix(mediaType)}trending`, buildParams(opts), opts)
+      return await request(`${pathPrefix(mediaType)}trending`, buildParams(opts, mediaType), opts)
     } catch (err) {
       if ((err as Error)?.name !== 'AbortError') debug.error(`Failed to fetch trending ${mediaType}:`, err)
       return { items: [], page: 1, hasNext: false }
@@ -81,7 +88,7 @@ export const gifProvider = {
   },
 
   async search(query: string, opts?: FetchOptions, mediaType: GifMediaType = 'gifs'): Promise<GifFeed> {
-    const params = buildParams(opts)
+    const params = buildParams(opts, mediaType)
     params.set('q', query)
     try {
       return await request(`${pathPrefix(mediaType)}search`, params, opts)

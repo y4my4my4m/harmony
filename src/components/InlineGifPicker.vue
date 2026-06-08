@@ -334,6 +334,13 @@ onMounted(() => {
   font-size: 13px;
 }
 
+/* Klipy ads need full strip width (common formats are 300×250, 320×50, etc.). */
+.inline-gif-ad {
+  grid-column: 1 / -1;
+  min-height: 50px;
+  max-height: 250px;
+}
+
 .inline-gif-picker::-webkit-scrollbar {
   width: 6px;
 }
