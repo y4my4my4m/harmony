@@ -24,10 +24,14 @@ import {
   startEmojiGeneration,
   fetchGenerationStatus,
   parseGenerationPayload,
+  KLIPY_AD_QUERY_KEYS,
   type GeneratedEmoji,
   type GifMediaType,
+  type KlipyAdParams,
 } from '../services/KlipyService.js';
 import { logger } from '../utils/logger.js';
+import { isKlipyAdEligibleUserAgent } from '../utils/klipyAdEligibility.js';
+import { resolveClientUserAgent } from '../utils/clientUserAgent.js';
 
 const router = Router();
 
@@ -68,6 +72,111 @@ function sanitizePerPage(raw: unknown): number {
   const n = Number(raw);
   if (!Number.isFinite(n)) return 24;
   return Math.min(Math.max(Math.trunc(n), 1), 50);
+}
+
+/** Map client `ad_*` query keys to Klipy's hyphenated ad parameter names. */
+const CLIENT_AD_KEY_MAP: Record<string, string> = {
+  ad_min_width: 'ad-min-width',
+  ad_max_width: 'ad-max-width',
+  ad_min_height: 'ad-min-height',
+  ad_max_height: 'ad-max-height',
+  ad_app_version: 'ad-app-version',
+  ad_os: 'ad-os',
+  ad_osv: 'ad-osv',
+  ad_hwv: 'ad-hwv',
+  ad_make: 'ad-make',
+  ad_model: 'ad-model',
+  ad_device_w: 'ad-device-w',
+  ad_device_h: 'ad-device-h',
+  ad_ppi: 'ad-ppi',
+  ad_pxratio: 'ad-pxratio',
+  ad_language: 'ad-language',
+  ad_connection_type: 'ad-connection-type',
+  ad_position: 'ad-position',
+};
+
+function clampAdInt(raw: unknown, min: number, max: number, fallback: number): number {
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(max, Math.max(min, Math.round(n)));
+}
+
+function sanitizeAdString(raw: unknown, maxLen: number): string | undefined {
+  if (typeof raw !== 'string') return undefined;
+  const cleaned = raw
+    // eslint-disable-next-line no-control-regex
+    .replace(/[\u0000-\u001f\u007f]/g, '')
+    .trim()
+    .slice(0, maxLen);
+  return cleaned || undefined;
+}
+
+/** Extract and sanitize Klipy ad params from the incoming GIF proxy request. */
+function sanitizeAdParams(query: Record<string, unknown>): KlipyAdParams {
+  const raw: Record<string, unknown> = {};
+  for (const [clientKey, klipyKey] of Object.entries(CLIENT_AD_KEY_MAP)) {
+    if (query[clientKey] !== undefined) raw[klipyKey] = query[clientKey];
+  }
+
+  const out: KlipyAdParams = {};
+  out['ad-min-width'] = String(clampAdInt(raw['ad-min-width'], 50, 4096, 50));
+  out['ad-max-width'] = String(clampAdInt(raw['ad-max-width'], 50, 4096, 384));
+  out['ad-min-height'] = String(clampAdInt(raw['ad-min-height'], 50, 250, 50));
+  out['ad-max-height'] = String(clampAdInt(raw['ad-max-height'], 50, 250, 250));
+
+  // Ensure max >= min after clamping.
+  if (Number(out['ad-max-width']) < Number(out['ad-min-width'])) {
+    out['ad-max-width'] = out['ad-min-width'];
+  }
+  if (Number(out['ad-max-height']) < Number(out['ad-min-height'])) {
+    out['ad-max-height'] = out['ad-min-height'];
+  }
+
+  const appVersion = sanitizeAdString(raw['ad-app-version'], 32);
+  if (appVersion) out['ad-app-version'] = appVersion;
+
+  const os = sanitizeAdString(raw['ad-os'], 16);
+  if (os) out['ad-os'] = os.toLowerCase();
+
+  const osv = sanitizeAdString(raw['ad-osv'], 16);
+  if (osv) out['ad-osv'] = osv;
+
+  const hwv = sanitizeAdString(raw['ad-hwv'], 32);
+  if (hwv) out['ad-hwv'] = hwv;
+
+  const make = sanitizeAdString(raw['ad-make'], 32);
+  if (make) out['ad-make'] = make.toLowerCase();
+
+  const model = sanitizeAdString(raw['ad-model'], 64);
+  if (model) out['ad-model'] = model.toLowerCase();
+
+  out['ad-device-w'] = String(clampAdInt(raw['ad-device-w'], 50, 4096, 0) || 0);
+  out['ad-device-h'] = String(clampAdInt(raw['ad-device-h'], 50, 4096, 0) || 0);
+  if (Number(out['ad-device-w']) === 0) delete out['ad-device-w'];
+  if (Number(out['ad-device-h']) === 0) delete out['ad-device-h'];
+
+  const ppi = clampAdInt(raw['ad-ppi'], 50, 600, 0);
+  if (ppi > 0) out['ad-ppi'] = String(ppi);
+
+  const pxratio = Number(raw['ad-pxratio']);
+  if (Number.isFinite(pxratio) && pxratio > 0 && pxratio <= 10) {
+    out['ad-pxratio'] = String(pxratio);
+  }
+
+  const language = sanitizeAdString(raw['ad-language'], 8);
+  if (language && /^[a-z]{2}$/i.test(language)) out['ad-language'] = language.toUpperCase();
+
+  const conn = clampAdInt(raw['ad-connection-type'], 0, 7, -1);
+  if (conn >= 0) out['ad-connection-type'] = String(conn);
+
+  const position = clampAdInt(raw['ad-position'], 0, 20, -1);
+  if (position >= 0) out['ad-position'] = String(position);
+
+  // Drop keys Klipy doesn't recognize (defense in depth).
+  for (const key of Object.keys(out)) {
+    if (!KLIPY_AD_QUERY_KEYS.has(key)) delete out[key];
+  }
+  return out;
 }
 
 // AI emoji generation guardrails. The Klipy daily cap (20/key) is shared across
@@ -185,7 +294,11 @@ async function handle(
 
   // Klipy serves ad objects on the GIF feed only in our setup; other media
   // feeds are kept ad-free (cleaner UX, and it skips the per-request ads lookup).
-  const withAds = mediaType === 'gifs' ? await shouldShowAds(req.profileId) : false;
+  const tierAllowsAds = mediaType === 'gifs' ? await shouldShowAds(req.profileId) : false;
+  const clientUserAgent = resolveClientUserAgent(req.headers);
+  // Klipy documents mobile-only ad delivery with a browser-like User-Agent.
+  const mobileEligible = isKlipyAdEligibleUserAgent(clientUserAgent);
+  const withAds = tierAllowsAds && mobileEligible;
 
   try {
     const feed = await KlipyService.fetchGifs({
@@ -198,13 +311,19 @@ async function handle(
       // Profile id is a stable, non-PII UUID — ideal as Klipy's customer_id.
       customerId: req.profileId || req.user.id,
       withAds,
-      userAgent: req.headers['user-agent'],
+      userAgent: clientUserAgent,
+      adParams: withAds ? sanitizeAdParams(req.query as Record<string, unknown>) : undefined,
     });
     res.setHeader('Cache-Control', 'private, max-age=30');
     return res.json({
       ...feed,
-      // Helps diagnose ad setup (keys are never exposed).
-      meta: { showAds: withAds },
+      meta: {
+        showAds: withAds,
+        /** Klipy only fills on mobile browsers; desktop gets the ad-free key. */
+        adMobileOnly: true,
+        adPlatformEligible: mobileEligible,
+        adTierEligible: tierAllowsAds,
+      },
     });
   } catch (err: any) {
     return res.status(502).json({ error: err?.message || 'GIF provider error' });
@@ -221,7 +340,7 @@ router.get('/suggest', requireAuth, async (req, res) => {
   const suggestions = await KlipyService.fetchSuggestions({
     query,
     locale,
-    userAgent: req.headers['user-agent'],
+    userAgent: resolveClientUserAgent(req.headers),
   });
   res.setHeader('Cache-Control', 'private, max-age=60');
   return res.json({ suggestions });
@@ -640,14 +759,14 @@ router.post('/ai-emojis/generate', requireAuth, async (req, res) => {
     // Kick off Klipy generation with our webhook; it returns a job id at once
     // and pushes the result to the callback (we never hold the request open).
     const jobId = await startEmojiGeneration(prompt, {
-      userAgent: req.headers['user-agent'],
+      userAgent: resolveClientUserAgent(req.headers),
       callbackUrl: callbackUrl(),
     });
 
     pendingGenerations.set(jobId, {
       profileId,
       prompt,
-      userAgent: req.headers['user-agent'],
+      userAgent: resolveClientUserAgent(req.headers),
       createdAt: Date.now(),
       finalizing: false,
     });

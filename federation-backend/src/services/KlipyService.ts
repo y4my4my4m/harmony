@@ -90,6 +90,30 @@ export function isValidMediaType(value: string): value is GifMediaType {
   return Object.prototype.hasOwnProperty.call(MEDIA_PATH_SLUG, value);
 }
 
+/** Klipy ad query params (hyphenated keys). Sanitized before forwarding upstream. */
+export type KlipyAdParams = Record<string, string>;
+
+/** Params the federation proxy accepts from clients and forwards to Klipy. */
+export const KLIPY_AD_QUERY_KEYS: ReadonlySet<string> = new Set([
+  'ad-min-width',
+  'ad-max-width',
+  'ad-min-height',
+  'ad-max-height',
+  'ad-app-version',
+  'ad-os',
+  'ad-osv',
+  'ad-hwv',
+  'ad-make',
+  'ad-model',
+  'ad-device-w',
+  'ad-device-h',
+  'ad-ppi',
+  'ad-pxratio',
+  'ad-language',
+  'ad-connection-type',
+  'ad-position',
+]);
+
 export interface FetchGifsOptions {
   kind: GifKind;
   /** Which Klipy collection to query. Defaults to 'gifs'. */
@@ -105,6 +129,8 @@ export interface FetchGifsOptions {
   withAds: boolean;
   /** Forwarded to Klipy; ad fill is influenced by the end-user User-Agent. */
   userAgent?: string;
+  /** Device/slot targeting params from the client (already sanitized). */
+  adParams?: KlipyAdParams;
 }
 
 // Size preference order when flattening Klipy's per-size `file` object.
@@ -254,13 +280,19 @@ export class KlipyService {
     if (opts.locale) url.searchParams.set('locale', opts.locale);
     url.searchParams.set('content_filter', opts.contentFilter || 'medium');
 
-    // Ad slot sizing. Only meaningful when the ads key is in use; harmless
-    // otherwise. Bounds follow Klipy's recommended 50..(device width) x 50..250.
+    // Ad slot sizing + device targeting. Only meaningful when the ads key is in
+    // use. Bounds follow Klipy's recommended 50..(device width) x 50..250.
     if (opts.withAds) {
-      url.searchParams.set('ad-min-width', '50');
-      url.searchParams.set('ad-max-width', '401');
-      url.searchParams.set('ad-min-height', '50');
-      url.searchParams.set('ad-max-height', '250');
+      const ad = opts.adParams ?? {};
+      url.searchParams.set('ad-min-width', ad['ad-min-width'] ?? '50');
+      url.searchParams.set('ad-max-width', ad['ad-max-width'] ?? '384');
+      url.searchParams.set('ad-min-height', ad['ad-min-height'] ?? '50');
+      url.searchParams.set('ad-max-height', ad['ad-max-height'] ?? '250');
+      for (const [key, value] of Object.entries(ad)) {
+        if (!KLIPY_AD_QUERY_KEYS.has(key)) continue;
+        if (key.startsWith('ad-min-') || key.startsWith('ad-max-')) continue;
+        url.searchParams.set(key, value);
+      }
     }
 
     let payload: any;
@@ -269,8 +301,8 @@ export class KlipyService {
         method: 'GET',
         headers: {
           Accept: 'application/json',
-          // Klipy ad fill is influenced by the end-user UA; forward when present.
-          'User-Agent': opts.userAgent || 'HarmonyFederation/1.0',
+          // End-user browser UA from the GIF proxy (required for Klipy ad fill).
+          'User-Agent': opts.userAgent || 'HarmonyFederation/1.0 (no client UA)',
         },
       });
       if (!res.ok) {
