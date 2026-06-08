@@ -1,5 +1,5 @@
 <template>
-  <div class="inline-gif-picker">
+  <div ref="pickerRef" class="inline-gif-picker">
     <div v-if="isLoading && items.length === 0" class="inline-gif-loading">
       <LoadingSpinner :size="20" />
     </div>
@@ -10,7 +10,7 @@
       <template v-for="item in items" :key="item.id">
         <GifAdSlot
           v-if="item.kind === 'ad'"
-          class="inline-gif-ad"
+          layout="inline"
           :content="item.content"
           :width="item.width"
           :height="item.height"
@@ -66,11 +66,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted, computed } from 'vue';
+import { ref, watch, onMounted, onUnmounted, computed } from 'vue';
 import { useLayoutState } from '@/composables/useLayoutState';
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue';
 import GifAdSlot from '@/components/GifAdSlot.vue';
 import { gifProvider, type GifMediaType } from '@/services/gifProviderService';
+import { debug } from '@/utils/debug';
 import {
   stripKlipyAttributionFragment,
   withGifMessageUrl,
@@ -181,16 +182,42 @@ const inlineGifSrc = (item: Gif) => {
   return stripKlipyAttributionFragment(url);
 };
 const isLoading = ref(false);
+const pickerRef = ref<HTMLElement | null>(null);
+const adSlotWidth = ref<number | undefined>();
 let searchTimeout: ReturnType<typeof setTimeout> | null = null;
 let currentRequestId = 0;
+let resizeObserver: ResizeObserver | null = null;
+
+const measureAdSlot = () => {
+  adSlotWidth.value = pickerRef.value?.clientWidth || undefined;
+};
+
+const fetchOpts = () => ({
+  perPage: 20,
+  adSlotWidth: props.mediaType === 'gifs' ? adSlotWidth.value : undefined,
+});
+
+const applyFeed = (feed: Awaited<ReturnType<typeof gifProvider.trending>>) => {
+  items.value = feed.items;
+  if (
+    props.mediaType === 'gifs' &&
+    feed.meta?.showAds &&
+    !feed.items.some((i) => i.kind === 'ad')
+  ) {
+    debug.log(
+      'Inline GIF feed: ads enabled but Klipy returned no ad slots. ' +
+        'Klipy only fills ads on mobile browsers (not desktop).',
+    );
+  }
+};
 
 const fetchTrending = async () => {
   const requestId = ++currentRequestId;
   isLoading.value = true;
   try {
-    const feed = await gifProvider.trending({ perPage: 20 }, props.mediaType);
+    const feed = await gifProvider.trending(fetchOpts(), props.mediaType);
     if (requestId !== currentRequestId) return;
-    items.value = feed.items;
+    applyFeed(feed);
   } finally {
     if (requestId === currentRequestId) isLoading.value = false;
   }
@@ -204,9 +231,9 @@ const searchGifs = async (q: string) => {
   const requestId = ++currentRequestId;
   isLoading.value = true;
   try {
-    const feed = await gifProvider.search(q, { perPage: 20 }, props.mediaType);
+    const feed = await gifProvider.search(q, fetchOpts(), props.mediaType);
     if (requestId !== currentRequestId) return;
-    items.value = feed.items;
+    applyFeed(feed);
   } finally {
     if (requestId === currentRequestId) isLoading.value = false;
   }
@@ -218,11 +245,21 @@ watch(() => props.query, (q) => {
 });
 
 onMounted(() => {
+  measureAdSlot();
+  if (typeof ResizeObserver !== 'undefined' && pickerRef.value) {
+    resizeObserver = new ResizeObserver(measureAdSlot);
+    resizeObserver.observe(pickerRef.value);
+  }
   if (props.query) {
     searchGifs(props.query);
   } else {
     fetchTrending();
   }
+});
+
+onUnmounted(() => {
+  resizeObserver?.disconnect();
+  resizeObserver = null;
 });
 </script>
 
@@ -238,11 +275,16 @@ onMounted(() => {
   scrollbar-gutter: stable;
 }
 
+/* Horizontal strip: [gif][gif][ wider ad ][gif]… */
 .inline-gif-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
   gap: 4px;
   padding: 6px;
+  overflow-x: auto;
+  overflow-y: hidden;
 }
 
 .inline-gif-item {
@@ -250,7 +292,9 @@ onMounted(() => {
   cursor: pointer;
   border-radius: 4px;
   overflow: hidden;
-  aspect-ratio: 1;
+  flex: 0 0 88px;
+  width: 88px;
+  height: 88px;
   transition: transform 0.12s ease;
 }
 
@@ -303,7 +347,9 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  aspect-ratio: 1;
+  flex: 0 0 88px;
+  width: 88px;
+  height: 88px;
   border-radius: 4px;
   font-size: 11px;
   font-weight: 700;
