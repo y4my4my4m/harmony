@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest'
-import { extractHttpUrls } from '@/utils/urlSplitting'
+import {
+  extractHttpUrls,
+  isPureGluedUrlBlob,
+  parseUrlMatchContext,
+  splitTextForUrlParts,
+} from '@/utils/urlSplitting'
 import { splitGluedUrlsInParts, groupMediaGalleryParts } from '@/utils/mediaGalleryUtils'
 
 describe('extractHttpUrls', () => {
@@ -22,7 +27,47 @@ describe('extractHttpUrls', () => {
   })
 })
 
+describe('parseUrlMatchContext / splitTextForUrlParts', () => {
+  it('suppresses preview for angle-bracket URLs and omits brackets', () => {
+    const text = 'see <https://example.com> ok'
+    const parts = splitTextForUrlParts(text)
+    expect(parts).toEqual([
+      { type: 'text', text: 'see ' },
+      { type: 'url', url: 'https://example.com', preview: false },
+      { type: 'text', text: ' ok' },
+    ])
+  })
+
+  it('parseUrlMatchContext detects bracket wrap at match site', () => {
+    const text = '<https://a.com>'
+    const idx = text.indexOf('https')
+    const ctx = parseUrlMatchContext(text, idx, 'https://a.com'.length)
+    expect(ctx).toMatchObject({
+      url: 'https://a.com',
+      preview: false,
+      segmentStart: 0,
+      segmentEnd: text.length,
+    })
+  })
+})
+
+describe('isPureGluedUrlBlob', () => {
+  it('is false when angle brackets are present', () => {
+    expect(isPureGluedUrlBlob('<https://a.com>https://b.com')).toBe(false)
+    expect(isPureGluedUrlBlob('see <https://a.com>')).toBe(false)
+  })
+})
+
 describe('splitGluedUrlsInParts', () => {
+  it('does not rewrite prose with angle-bracket URLs', () => {
+    const input = [{ type: 'text', text: 'see <https://example.com> ok' }] as any
+    expect(splitGluedUrlsInParts(input)).toEqual(input)
+  })
+
+  it('does not strip preview:false from existing url parts', () => {
+    const input = [{ type: 'url', url: 'https://example.com', preview: false }] as any
+    expect(splitGluedUrlsInParts(input)).toEqual(input)
+  })
   it('turns a glued url part into separate file parts', () => {
     const a = 'https://db.example.com/a.png'
     const b = 'https://db.example.com/b.png'

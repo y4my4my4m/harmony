@@ -13,7 +13,7 @@ import { debug } from '@/utils/debug'
 import { resolveEmoji, loadEmojiData, isLoaded as unifiedEmojiLoaded } from '@/services/unifiedEmojiService'
 import { stripTrackingParameters, isUrlTrackingStrippingEnabled } from '@/utils/urlTrackerStripper'
 import { useEmojiCacheStore } from '@/stores/useEmojiCache'
-import { parseUrlMatchContext } from '@/utils/urlSplitting'
+import { parseUrlMatchContext, URL_TOKEN_REGEX } from '@/utils/urlSplitting'
 
 // Support both UUID-based emojis (legacy) and shortcode emojis (new)
 import {
@@ -35,8 +35,8 @@ const emojiShortcodeRegex = createShortcodeRegex();
 // call was a hot-path waste because these helpers run per-segment per
 // message (BUGS.md Pattern P-β + code-review M4).
 const MENTION_REGEX = /@([a-zA-Z0-9_-]+)(?:@([a-zA-Z0-9.-]+))?/g;
-const URL_PRESCAN_REGEX = /https?:\/\/[^\s<>"']+?(?=https?:\/\/|\s|$|>)/g;
-const URL_MATCH_REGEX = /(https?:\/\/[^\s<>"']+?(?=https?:\/\/|\s|$|>))/g;
+const URL_PRESCAN_REGEX = URL_TOKEN_REGEX;
+const URL_MATCH_REGEX = new RegExp(`(${URL_TOKEN_REGEX.source})`, 'g');
 const COMBINED_MENTION_HASHTAG_REGEX = /(@role:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}))|(@d!(\d+):([a-zA-Z0-9_.-]+))|(@([a-zA-Z0-9_-]+)(?:@([a-zA-Z0-9.-]+))?)|(?<![&\w])#([\p{L}\p{N}_-]+)/gu;
 const COMBINED_EMOJI_REGEX = /:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[a-zA-Z0-9_+~-]+):/g;
 

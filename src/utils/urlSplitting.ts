@@ -61,3 +61,53 @@ export function parseUrlMatchContext(
 
   return { url: trimmedUrl, preview: !suppressed, segmentStart, segmentEnd };
 }
+
+/** Shared regex for URL tokenization (compose-time and display-time). */
+export const URL_TOKEN_REGEX = GLUED_URL_BODY_REGEX;
+
+/**
+ * Split prose into text/url parts, honouring Discord-style `<https://...>`
+ * suppress-embed syntax. Does not parse emojis or mentions.
+ */
+export function splitTextForUrlParts(
+  text: string,
+): Array<{ type: 'text'; text: string } | { type: 'url'; url: string; preview: boolean }> {
+  if (!text) return [];
+
+  const parts: Array<{ type: 'text'; text: string } | { type: 'url'; url: string; preview: boolean }> = [];
+  URL_TOKEN_REGEX.lastIndex = 0;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = URL_TOKEN_REGEX.exec(text)) !== null) {
+    const { url, preview, segmentStart, segmentEnd } = parseUrlMatchContext(
+      text,
+      match.index,
+      match[0].length,
+    );
+    if (!url) continue;
+
+    if (segmentStart > lastIndex) {
+      const before = text.slice(lastIndex, segmentStart);
+      if (before) parts.push({ type: 'text', text: before });
+    }
+
+    parts.push({ type: 'url', url, preview });
+    lastIndex = segmentEnd;
+  }
+
+  if (lastIndex < text.length) {
+    const tail = text.slice(lastIndex);
+    if (tail) parts.push({ type: 'text', text: tail });
+  }
+
+  return parts;
+}
+
+/** True when text is only multiple URLs concatenated (bridge attachment glue). */
+export function isPureGluedUrlBlob(text: string): boolean {
+  const trimmed = text.trim();
+  if (!trimmed || trimmed.includes('<') || trimmed.includes('>')) return false;
+  const urls = extractHttpUrls(trimmed);
+  return urls.length > 1 && urls.join('') === trimmed.replace(/\s/g, '');
+}

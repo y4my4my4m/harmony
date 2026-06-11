@@ -1,5 +1,5 @@
 import type { MessagePart } from '@/types';
-import { extractHttpUrls } from '@/utils/urlSplitting';
+import { extractHttpUrls, isPureGluedUrlBlob } from '@/utils/urlSplitting';
 
 const IMAGE_EXT = /\.(jpg|jpeg|png|gif|webp|bmp|svg|avif)(\?|$)/i;
 const VIDEO_EXT = /\.(mp4|webm|ogg|avi|mov|wmv|flv|m4v)(\?|$)/i;
@@ -67,9 +67,11 @@ export function splitGluedUrlsInParts(parts: MessagePart[]): MessagePart[] {
 
     if (part.type === 'text') {
       const text = (part as { text?: string }).text || '';
-      const urls = extractHttpUrls(text);
-      if (urls.length > 1 && urls.join('') === text.replace(/\s/g, '')) {
-        for (const u of urls) {
+      // Only repair bridge-style glued attachment blobs. Prose (including
+      // Discord-style `<https://...>`) is left alone — that syntax is handled
+      // at compose time by parseTextForUrls + parseUrlMatchContext.
+      if (isPureGluedUrlBlob(text)) {
+        for (const u of extractHttpUrls(text)) {
           const fileType = inferFileTypeFromUrl(u);
           if (fileType === 'image' || fileType === 'video') {
             result.push({ type: 'file', url: u, fileType } as MessagePart);
@@ -79,58 +81,12 @@ export function splitGluedUrlsInParts(parts: MessagePart[]): MessagePart[] {
         }
         continue;
       }
-
-      if (urls.length > 0) {
-        let lastIndex = 0;
-        let produced = false;
-        GLUED_URL_SCAN.lastIndex = 0;
-        let match: RegExpExecArray | null;
-        while ((match = GLUED_URL_SCAN.exec(text)) !== null) {
-          const raw = match[0];
-          const start = match.index;
-          const { url: trimmed } = trimInlineUrl(raw);
-          if (!trimmed) continue;
-
-          if (start > lastIndex) {
-            const before = text.slice(lastIndex, start);
-            if (before) result.push({ type: 'text', text: before } as MessagePart);
-          }
-
-          const fileType = inferFileTypeFromUrl(trimmed);
-          if (fileType === 'image' || fileType === 'video') {
-            result.push({ type: 'file', url: trimmed, fileType } as MessagePart);
-          } else {
-            result.push({ type: 'url', url: trimmed, preview: true } as MessagePart);
-          }
-
-          lastIndex = start + raw.length;
-          produced = true;
-        }
-
-        if (produced) {
-          if (lastIndex < text.length) {
-            const tail = text.slice(lastIndex);
-            if (tail) result.push({ type: 'text', text: tail } as MessagePart);
-          }
-          continue;
-        }
-      }
     }
 
     result.push(part);
   }
 
   return result;
-}
-
-const GLUED_URL_SCAN = /https?:\/\/[^\s<>"']+?(?=https?:\/\/|\s|$|>)/g;
-
-function trimInlineUrl(raw: string): { url: string } {
-  let cleaned = raw;
-  while (cleaned.length > 0 && /[.,;:!?)>\]}]$/.test(cleaned)) {
-    cleaned = cleaned.slice(0, -1);
-  }
-  return { url: cleaned };
 }
 
 /**
