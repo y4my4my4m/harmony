@@ -86,7 +86,18 @@
         class="unverified-author-badge"
         title="This message was decrypted but the sender's identity could not be cryptographically verified. The sender may be running an older client, or the message may have been tampered with."
       >⚠ unverified author</span>
-      <template v-for="(part, partIndex) in content" :key="partIndex">
+      <template v-for="(part, partIndex) in displayContent" :key="partIndex">
+        <!-- Grouped image/video mosaic (Discord-style) -->
+        <MessageMediaGallery
+          v-if="part && typeof part === 'object' && part.type === 'media_gallery'"
+          :parts="(part as any).parts"
+          :image-loaded="imageLoadedState"
+          :video-index-base="partIndex * 10"
+          @open-lightbox="$emit('open-lightbox', $event)"
+          @image-loaded="handleImageLoad"
+          @video-play="handleVideoPlay"
+          @video-pause="handleVideoPause"
+        />
         <!-- Text content with markdown-style formatting and code blocks -->
         <template 
           v-if="part && typeof part === 'object' && part.type === 'text'"
@@ -489,6 +500,8 @@ import { useFloatingVideo } from '@/composables/useFloatingVideo';
 import { userDataService } from '@/services/userDataService';
 import { getEmojiUrl } from '@/utils/emojiUtils';
 import ProviderEmbedSwitch from '@/components/embeds/ProviderEmbedSwitch.vue';
+import MessageMediaGallery from '@/components/common/MessageMediaGallery.vue';
+import { groupMediaGalleryParts } from '@/utils/mediaGalleryUtils';
 import { parseEmbedUrl, isHarmonyInviteUrl } from '@/utils/embedDetection';
 import { useUnifiedEmoji } from '@/services/unifiedEmojiService';
 import { gifService } from '@/services/GifService';
@@ -516,6 +529,7 @@ export default defineComponent({
     ProviderEmbedSwitch,
     RichTextEditor,
     VoiceMessagePlayer,
+    MessageMediaGallery,
   },
   props: {
     content: {
@@ -618,6 +632,8 @@ export default defineComponent({
     
     // Unified emoji service for emoji pack rendering
     const { resolveEmoji, isNativePack, isLoaded: emojiServiceLoaded } = useUnifiedEmoji();
+
+    const displayContent = computed(() => groupMediaGalleryParts(props.content));
     
     // Internal reactive state for image loading (use prop if provided, otherwise create new)
     const imageLoadedState = reactive<Record<string, boolean>>({ ...props.imageLoaded });
@@ -1162,6 +1178,7 @@ export default defineComponent({
     };
 
     return {
+      displayContent,
       getEmojiUrl,
       localEditableContent,
       editableFiles,
