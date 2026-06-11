@@ -102,9 +102,19 @@ export function groupMediaGalleryParts(parts: MessagePart[]): MessagePart[] {
     const part = normalized[i];
     if (isViewableMediaPart(part)) {
       const group: MessagePart[] = [];
-      while (i < normalized.length && isViewableMediaPart(normalized[i])) {
-        group.push(normalized[i]);
-        i++;
+      while (i < normalized.length) {
+        if (isViewableMediaPart(normalized[i])) {
+          group.push(normalized[i]);
+          i++;
+        } else if (
+          isWhitespaceOnlyTextPart(normalized[i]) &&
+          i + 1 < normalized.length &&
+          isViewableMediaPart(normalized[i + 1])
+        ) {
+          i++;
+        } else {
+          break;
+        }
       }
       if (group.length === 1) {
         result.push(group[0]);
@@ -120,8 +130,17 @@ export function groupMediaGalleryParts(parts: MessagePart[]): MessagePart[] {
   return result;
 }
 
-/** CSS class suffix for gallery layout (1–10 attachments). */
+/** CSS class for gallery layout (1–10 attachments). Must match MessageMediaGallery.vue selectors. */
 export function mediaGalleryLayoutClass(count: number): string {
   const n = Math.max(1, Math.min(count, 10));
-  return `media-gallery-count-${n}`;
+  return `message-media-gallery-count-${n}`;
+}
+
+function isWhitespaceOnlyTextPart(part: MessagePart): boolean {
+  return (
+    !!part &&
+    typeof part === 'object' &&
+    part.type === 'text' &&
+    !String((part as { text?: string }).text || '').trim()
+  );
 }

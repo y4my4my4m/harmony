@@ -155,6 +155,7 @@ function onImageLoad(url: string) {
   grid-template-columns: 1fr 1fr;
 }
 
+/* 3 images: one wide on top, two side-by-side below */
 .message-media-gallery-count-3 {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -163,7 +164,8 @@ function onImageLoad(url: string) {
 }
 
 .message-media-gallery-count-3 .message-media-gallery__item:first-child {
-  grid-row: 1 / 3;
+  grid-column: 1 / 3;
+  grid-row: 1;
 }
 
 .message-media-gallery-count-4 {
@@ -237,16 +239,40 @@ function onImageLoad(url: string) {
   grid-row: span 2;
 }
 
-.message-media-gallery .content-image,
-.message-media-gallery .content-video {
+.message-media-gallery:not(.message-media-gallery-count-1) .content-image,
+.message-media-gallery:not(.message-media-gallery-count-1) .content-video {
   display: block;
   width: 100%;
   height: 100%;
   min-height: 100px;
-  max-height: 240px;
+  max-height: none;
   object-fit: cover;
   cursor: pointer;
   border-radius: 0;
+}
+
+.message-media-gallery-count-2,
+.message-media-gallery-count-3,
+.message-media-gallery-count-4,
+.message-media-gallery-count-5,
+.message-media-gallery-count-6,
+.message-media-gallery-count-7,
+.message-media-gallery-count-8,
+.message-media-gallery-count-9,
+.message-media-gallery-count-10 {
+  grid-auto-rows: minmax(100px, 1fr);
+}
+
+.message-media-gallery-count-2 .message-media-gallery__item,
+.message-media-gallery-count-3 .message-media-gallery__item,
+.message-media-gallery-count-4 .message-media-gallery__item,
+.message-media-gallery-count-5 .message-media-gallery__item,
+.message-media-gallery-count-6 .message-media-gallery__item,
+.message-media-gallery-count-7 .message-media-gallery__item,
+.message-media-gallery-count-8 .message-media-gallery__item,
+.message-media-gallery-count-9 .message-media-gallery__item,
+.message-media-gallery-count-10 .message-media-gallery__item {
+  min-height: 0;
 }
 
 .message-media-gallery .content-video {
