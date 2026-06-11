@@ -93,10 +93,12 @@
           :parts="(part as any).parts"
           :image-loaded="imageLoadedState"
           :video-index-base="partIndex * 10"
+          :can-remove="canEditAttachments"
           @open-lightbox="$emit('open-lightbox', $event)"
           @image-loaded="handleImageLoad"
           @video-play="handleVideoPlay"
           @video-pause="handleVideoPause"
+          @remove-attachment="requestRemoveAttachment"
         />
         <!-- Text content with markdown-style formatting and code blocks -->
         <template 
@@ -304,6 +306,10 @@
           @mouseleave="hoveredImageUrl = null"
         >
           <div class="media-frame">
+            <AttachmentRemoveButton
+              v-if="canEditAttachments"
+              @click="requestRemoveAttachment(part.url)"
+            />
             <div v-if="!imageLoadedState[part.url]" class="media-skeleton image-skeleton"></div>
             <img
               :src="displayMediaUrl(part.url)"
@@ -359,6 +365,10 @@
           @mouseleave="hoveredImageUrl = null"
         >
           <div class="media-frame">
+            <AttachmentRemoveButton
+              v-if="canEditAttachments"
+              @click="requestRemoveAttachment(part.url)"
+            />
             <video
               :src="part.url"
               controls
@@ -408,6 +418,10 @@
           v-else-if="part && typeof part === 'object' && part.type === 'file' && part.fileType === 'audio'"
           class="media-container audio-container"
         >
+          <AttachmentRemoveButton
+            v-if="canEditAttachments"
+            @click="requestRemoveAttachment(part.url)"
+          />
           <VoiceMessagePlayer
             v-if="metadata?.voice_message"
             :src="part.url"
@@ -432,6 +446,10 @@
           v-else-if="part && typeof part === 'object' && part.type === 'file' && !['image', 'video'].includes(part.fileType)"
           class="file-attachment"
         >
+          <AttachmentRemoveButton
+            v-if="canEditAttachments"
+            @click="requestRemoveAttachment(part.url)"
+          />
           <div class="file-icon">📎</div>
           <a
             v-if="sanitizeUrl(part.url)"
@@ -481,6 +499,15 @@
         </span>
       </template>
     </div>
+
+    <ConfirmationModal
+      :show="showRemoveAttachmentConfirm"
+      title="Are you sure?"
+      message="This will remove this attachment from this message permanently."
+      confirm-button-text="Remove Attachment"
+      @close="cancelRemoveAttachment"
+      @confirm="confirmRemoveAttachment"
+    />
   </div>
 </template>
 
@@ -501,6 +528,8 @@ import { userDataService } from '@/services/userDataService';
 import { getEmojiUrl } from '@/utils/emojiUtils';
 import ProviderEmbedSwitch from '@/components/embeds/ProviderEmbedSwitch.vue';
 import MessageMediaGallery from '@/components/common/MessageMediaGallery.vue';
+import AttachmentRemoveButton from '@/components/common/AttachmentRemoveButton.vue';
+import ConfirmationModal from '@/components/ConfirmationModal.vue';
 import { groupMediaGalleryParts } from '@/utils/mediaGalleryUtils';
 import { parseEmbedUrl, isHarmonyInviteUrl } from '@/utils/embedDetection';
 import { useUnifiedEmoji } from '@/services/unifiedEmojiService';
@@ -530,6 +559,8 @@ export default defineComponent({
     RichTextEditor,
     VoiceMessagePlayer,
     MessageMediaGallery,
+    AttachmentRemoveButton,
+    ConfirmationModal,
   },
   props: {
     content: {
@@ -599,9 +630,13 @@ export default defineComponent({
     metadata: {
       type: Object as PropType<Record<string, any> | null>,
       default: null
-    }
+    },
+    canEditAttachments: {
+      type: Boolean,
+      default: false,
+    },
   },
-  emits: ['update:message', 'update:content', 'cancel-edit', 'image-loaded', 'embed-loaded', 'open-lightbox', 'show-user-profile', 'hashtag-click', 'decrypt-message'],
+  emits: ['update:message', 'update:content', 'cancel-edit', 'image-loaded', 'embed-loaded', 'open-lightbox', 'show-user-profile', 'hashtag-click', 'decrypt-message', 'remove-attachment'],
   setup(props, { emit }) {
     const localEditableContent = ref(props.editableContent);
     // Attachments retained while editing. Initialized from the message's file
@@ -634,6 +669,26 @@ export default defineComponent({
     const { resolveEmoji, isNativePack, isLoaded: emojiServiceLoaded } = useUnifiedEmoji();
 
     const displayContent = computed(() => groupMediaGalleryParts(props.content));
+
+    const showRemoveAttachmentConfirm = ref(false);
+    const pendingRemoveAttachmentUrl = ref<string | null>(null);
+
+    const requestRemoveAttachment = (url: string) => {
+      if (!props.canEditAttachments) return;
+      pendingRemoveAttachmentUrl.value = url;
+      showRemoveAttachmentConfirm.value = true;
+    };
+
+    const cancelRemoveAttachment = () => {
+      showRemoveAttachmentConfirm.value = false;
+      pendingRemoveAttachmentUrl.value = null;
+    };
+
+    const confirmRemoveAttachment = () => {
+      if (!pendingRemoveAttachmentUrl.value) return;
+      emit('remove-attachment', props.messageId, pendingRemoveAttachmentUrl.value);
+      cancelRemoveAttachment();
+    };
     
     // Internal reactive state for image loading (use prop if provided, otherwise create new)
     const imageLoadedState = reactive<Record<string, boolean>>({ ...props.imageLoaded });
@@ -1228,7 +1283,12 @@ export default defineComponent({
       isStickerMedia,
       isAiEmojiMedia,
       isGifFavorited,
-      toggleGifFavorite
+      toggleGifFavorite,
+      canEditAttachments: computed(() => props.canEditAttachments),
+      requestRemoveAttachment,
+      showRemoveAttachmentConfirm,
+      cancelRemoveAttachment,
+      confirmRemoveAttachment,
     };
   }
 });
@@ -1621,6 +1681,7 @@ export default defineComponent({
 
 /* File attachments */
 .file-attachment {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -1629,6 +1690,10 @@ export default defineComponent({
   border-radius: 8px;
   margin: 4px 0;
   max-width: 400px;
+}
+
+.audio-container {
+  position: relative;
 }
 
 .file-icon {

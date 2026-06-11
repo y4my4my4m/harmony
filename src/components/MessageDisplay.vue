@@ -371,12 +371,14 @@
               :unrecoverable="item.message.decryption_unrecoverable || false"
               :sender-verified="item.message?.sender_verified"
               :can-decrypt="canDecryptMessages"
+              :can-edit-attachments="canEditAttachments(item.message)"
               @image-loaded="handleImageLoaded"
               @embed-loaded="handleEmbedLoaded(item.message.id)"
               @open-lightbox="handleOpenLightbox"
               @update:message="saveEdit"
               @update:content="editableMessageContent = $event"
               @cancel-edit="cancelEdit"
+              @remove-attachment="removeAttachment"
               @show-user-profile="showUserProfile"
               @decrypt-message="handleDecryptMessage(item.message)"
             />
@@ -407,12 +409,14 @@
               :unrecoverable="item.message.decryption_unrecoverable || false"
               :sender-verified="item.message?.sender_verified"
               :can-decrypt="canDecryptMessages"
+              :can-edit-attachments="canEditAttachments(item.message)"
               @image-loaded="handleImageLoaded"
               @embed-loaded="handleEmbedLoaded(item.message.id)"
               @open-lightbox="handleOpenLightbox"
               @update:message="saveEdit"
               @update:content="editableMessageContent = $event"
               @cancel-edit="cancelEdit"
+              @remove-attachment="removeAttachment"
               @show-user-profile="showUserProfile"
               @decrypt-message="handleDecryptMessage(item.message)"
             />
@@ -575,6 +579,7 @@ import { computed, ref, watch, nextTick, onMounted, onUnmounted } from 'vue';
 import { debug } from '@/utils/debug'
 import type { PropType, Ref, ComputedRef } from 'vue';
 import type { Message, MessagePart, User, Emoji, Reaction, FileContent } from '@/types';
+import { hasSubstantiveMessageContent, removeFilePartByUrl } from '@/utils/messageContentUtils';
 import { useServerUsersStore } from '@/stores/useServerUsers';
 import { useChatStore } from '@/stores/useChat';
 import { useDMStore } from '@/stores/useDM';
@@ -2611,22 +2616,35 @@ const formatDateSeparator = (timestamp: Date): string => {
 // Message Actions (Edit, Delete, React)
 const canEditMessage = (message: Message) => {
   if (!authStore.session?.user || !message) return false;
-  
+
   if (message.id.startsWith('temp-')) return false;
   if (message.sending) return false;
-  
+  if (message.encrypted && !message.decrypted) return false;
+
   const currentProfileId = profileStore.profile?.id;
   const messageUserId = message.user_id;
   const isOwnMessage = messageUserId === currentProfileId;
 
-  // TODO: account for federated-roles
   // On non-local (federated mirror) servers, only allow editing own messages
   if (serverChannelStore.currentServer?.is_local_server === false) {
     return isOwnMessage;
   }
 
-  return isOwnMessage || isCurrentUserServerOwner.value;
+  // DMs: own messages only (matches messages_update RLS when channel_id is null)
+  if (props.conversationId && !props.channelId) {
+    return isOwnMessage;
+  }
+
+  return (
+    isOwnMessage
+    || isCurrentUserServerOwner.value
+    || profileStore.profile?.is_admin
+    || profileStore.profile?.is_moderator
+    || canManageMessages.value
+  );
 };
+
+const canEditAttachments = (message: Message) => canEditMessage(message);
 
 const canDeleteMessage = (message: Message) => {
   if (!authStore.session?.user || !message) return false;
@@ -2700,6 +2718,35 @@ const saveEdit = async (messageId: string, newContent?: string, retainedFiles: F
 const cancelEdit = () => {
   editableMessageId.value = null;
   editableMessageContent.value = '';
+};
+
+const removeAttachment = async (messageId: string, url: string) => {
+  const message = props.messages.find((m) => m.id === messageId);
+  if (!message || !canEditAttachments(message)) return;
+
+  const newContent = removeFilePartByUrl(message.content, url);
+  if (!hasSubstantiveMessageContent(newContent)) {
+    try {
+      if (props.channelId) {
+        await chatStore.deleteMessage(messageId);
+      } else if (props.conversationId) {
+        await dmStore.deleteMessage(messageId);
+      }
+    } catch (error) {
+      debug.error('Error deleting message after removing last attachment:', error);
+    }
+    return;
+  }
+
+  try {
+    if (props.channelId) {
+      await chatStore.editMessage(messageId, newContent);
+    } else if (props.conversationId) {
+      await dmStore.editMessage(messageId, newContent);
+    }
+  } catch (error) {
+    debug.error('Error removing attachment:', error);
+  }
 };
 
 const editLastOwnMessage = () => {
