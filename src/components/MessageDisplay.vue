@@ -532,6 +532,7 @@
     :is-visible="contextMenuVisible"
     :position="contextMenuPosition"
     :message="contextMenuMessage"
+    :server-id="serverChannelStore.currentServerId ?? undefined"
     :channel-id="props.channelId"
     :conversation-id="props.conversationId"
     :current-user-id="props.currentUserId"

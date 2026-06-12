@@ -172,6 +172,7 @@ interface Props {
   isVisible: boolean;
   position: { x: number; y: number };
   message: Message | null;
+  serverId?: string;
   channelId?: string;
   conversationId?: string;
   currentUserId?: string;
@@ -406,12 +407,10 @@ const copyMessageURL = async () => {
   const domain = import.meta.env.VITE_DOMAIN || window.location.host;
   let messageURL = '';
   
-  if (props.channelId) {
-    // Server/channel message URL
-    messageURL = `https://${domain}/channels/${props.channelId}/messages/${props.message.id}`;
+  if (props.serverId && props.channelId) {
+    messageURL = `https://${domain}/chat/${props.serverId}/${props.channelId}?messageId=${props.message.id}`;
   } else if (props.conversationId) {
-    // DM message URL
-    messageURL = `https://${domain}/conversations/${props.conversationId}/messages/${props.message.id}`;
+    messageURL = `https://${domain}/dm/${props.conversationId}?messageId=${props.message.id}`;
   }
   
   try {
