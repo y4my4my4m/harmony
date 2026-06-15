@@ -23,20 +23,23 @@ npm run dev
 # → http://localhost:3002
 ```
 
-### Bot Configuration (Local)
+### Bot configuration (local)
 
-When users run bots locally, they connect **directly** to localhost:
+When the bridge runs on the **same machine** as bot-gateway, connect directly —
+no nginx, no `/bot-gateway` prefix:
 
 ```yaml
-# bot-plugins/discord-bridge/config/bridge-config.yml
+# harmony-discord-bridge/config/bridge-config.yml
 discord:
   token: "DISCORD_BOT_TOKEN"
   guildId: "DISCORD_SERVER_ID"
 
 harmony:
-  token: "HARMONY_BOT_TOKEN"  # From admin panel
-  gatewayUrl: "ws://localhost:3002/gateway"  # ← Direct connection!
-  apiUrl: "http://localhost:3002/api/v1"     # ← No nginx needed!
+  token: "HARMONY_BOT_TOKEN"
+  gatewayUrl: "ws://localhost:3002/gateway"
+  apiUrl: "http://localhost:3002"       # base only; bridge appends /api/v1
+  serverId: "YOUR_HARMONY_SERVER_UUID"
+  baseUrl: "http://localhost:5173"      # Harmony UI (npm run dev)
 
 channelMappings:
   - discord: "discord-channel-id"
@@ -44,7 +47,9 @@ channelMappings:
     bidirectional: true
 ```
 
-**No reverse proxy needed for local dev! 🎉**
+Install the bridge from [harmony-discord-bridge](https://github.com/y4my4my4m/harmony-discord-bridge) (not `bot-plugins/` in this repo).
+
+**No reverse proxy needed for local dev.**
 
 ---
 
@@ -90,16 +95,36 @@ Update bot documentation with production URLs:
 - Health: https://har.mony.lol/bot-gateway/health
 ```
 
-### 3. Bot Configuration (Production)
+### 3. Bot configuration (production)
 
-Users running bots in production:
+**Hostname note:** On har.mony.lol, `har.mony.lol` is the Harmony app and
+bot-gateway (when proxied). `db.mony.lol` is Supabase/storage only — bots do
+**not** connect there.
+
+#### A) Bridge on the same server as bot-gateway (common)
+
+Even in production, use localhost if the bridge process runs on the Harmony host:
 
 ```yaml
-# bot-plugins/discord-bridge/config/bridge-config.yml
 harmony:
   token: "HARMONY_BOT_TOKEN"
-  gatewayUrl: "wss://har.mony.lol/bot-gateway/gateway"  # ← HTTPS/WSS
-  apiUrl: "https://har.mony.lol/bot-gateway/api/v1"     # ← Through nginx
+  gatewayUrl: "ws://localhost:3002/gateway"
+  apiUrl: "http://localhost:3002"
+  serverId: "YOUR_HARMONY_SERVER_UUID"
+  baseUrl: "https://har.mony.lol"
+```
+
+#### B) Bridge on another machine (or only HTTPS exposed)
+
+Use the nginx `/bot-gateway` paths on the **app** domain:
+
+```yaml
+harmony:
+  token: "HARMONY_BOT_TOKEN"
+  gatewayUrl: "wss://har.mony.lol/bot-gateway/gateway"
+  apiUrl: "https://har.mony.lol/bot-gateway"   # base only, no /api/v1
+  serverId: "YOUR_HARMONY_SERVER_UUID"
+  baseUrl: "https://har.mony.lol"
 ```
 
 ### 4. Deploy Bot Gateway
@@ -226,7 +251,8 @@ Response:
 
 ### 4. Test with Discord Bridge
 ```bash
-cd bot-plugins/discord-bridge
+git clone https://github.com/y4my4my4m/harmony-discord-bridge.git
+cd harmony-discord-bridge
 cp config/bridge-config.example.yml config/bridge-config.yml
 nano config/bridge-config.yml  # Add tokens
 npm run dev

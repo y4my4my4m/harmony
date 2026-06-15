@@ -51,6 +51,9 @@ Cross-platform bridge connecting Discord and Harmony servers.
 **Repository:** [github.com/y4my4my4m/harmony-discord-bridge](https://github.com/y4my4my4m/harmony-discord-bridge)
 (standalone — only needs this repo's `bot-gateway`)
 
+**URLs:** standalone repo README. Co-located → `localhost:3002`. Remote →
+`wss://har.mony.lol/bot-gateway/...`. `baseUrl` = Harmony site, not `db.*`.
+
 ## Community Plugins
 
 ### How to Contribute

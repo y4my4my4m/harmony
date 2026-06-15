@@ -24,4 +24,23 @@ describe('parseContentToMessageParts URL previews', () => {
     expect(urls[0]).toMatchObject({ url: 'https://a.com', preview: false })
     expect(urls[1]).toMatchObject({ url: 'https://b.com', preview: true })
   })
+
+  it('handles suppressed and plain URLs in one message', async () => {
+    const parts = await parseContentToMessageParts('<https://a.com/x.png>https://b.com/y.png')
+    const urls = parts.filter((p) => p.type === 'url')
+    expect(urls).toHaveLength(2)
+    expect(urls[0]).toMatchObject({ url: 'https://a.com/x.png', preview: false })
+    expect(urls[1]).toMatchObject({ url: 'https://b.com/y.png', preview: true })
+    expect(parts.map((p) => (p.type === 'text' ? p.text : '')).join('')).not.toContain('<')
+  })
+
+  it('splits glued attachment URLs into separate url parts', async () => {
+    const a = 'https://db.example.com/a.png'
+    const b = 'https://db.example.com/b.png'
+    const parts = await parseContentToMessageParts(`${a}${b}`)
+    const urls = parts.filter((p) => p.type === 'url')
+    expect(urls).toHaveLength(2)
+    expect(urls[0]).toMatchObject({ url: a })
+    expect(urls[1]).toMatchObject({ url: b })
+  })
 })

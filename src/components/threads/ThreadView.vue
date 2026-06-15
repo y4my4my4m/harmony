@@ -192,6 +192,7 @@
                 :messages="messages"
                 :current-user-id="currentUserId"
                 :channel-id="thread?.channel_id"
+                :thread-id="thread?.id"
                 :is-loading="loading"
                 :hide-thread-actions="true"
                 :enable-read-divider="false"

@@ -571,7 +571,13 @@ export class MegolmMessageEncryptionService {
 
     // Same constraint as above - encrypted private signing column is not
     // SELECTable post-20260520 RLS tightening; use the owner-scoped RPC.
-    const { data: keyPairRows } = await supabase.rpc('get_my_key_pair')
+    const { data: keyPairRows, error: keyPairError } = await supabase.rpc('get_my_key_pair')
+    if (keyPairError) {
+      throw new Error(
+        `Could not load your signing identity (${keyPairError.message}). ` +
+        `Signing key was not changed - please retry.`,
+      )
+    }
     const existingRow = (Array.isArray(keyPairRows) ? keyPairRows[0] : null) as
       | { id: string; identity_signing_public_key: string | null; identity_signing_private_key_encrypted: string | null }
       | null
@@ -800,11 +806,11 @@ export class MegolmMessageEncryptionService {
     // the current membership epoch, with AES-GCM AAD over the message metadata.
     // Fall back to v2 (user-level signing key, no epoch/AAD) when no device
     // signing key is available (e.g. tests or pre-device-enrollment clients).
+    await deviceIdentityService.ensureRegistered(this.currentUserId).catch(err =>
+      debug.warn('⚠️ Failed to ensure device registration before encrypt:', err),
+    )
     const deviceSigningKey = await deviceIdentityService.getMyDeviceSigningKey().catch(() => null)
 
-    // Determine if we need to share the session before sending. Cheap
-    // in-memory check; falls through to "no work" when the room is steady.
-    const usersNeedingSession = megolmService.getUsersNeedingSession(roomId, recipientIds)
     const plaintextContent = JSON.stringify(content)
 
     let encryptedMessage: MegolmEncryptedMessage
@@ -816,21 +822,26 @@ export class MegolmMessageEncryptionService {
     if (deviceSigningKey) {
       algorithm = 'megolm_v3'
       senderDeviceId = deviceIdentityService.getDeviceId()
-      epochId = await roomEpochService.getEpoch(roomId)
-      const aadFields: AadFieldsV3 = {
+      // Resolve the outbound session (and its epoch) BEFORE building AAD so the
+      // authenticated metadata matches the session that actually encrypts.
+      const queriedEpoch = await roomEpochService.getEpoch(roomId)
+      const outbound = await megolmService.getOrCreateOutboundSession(roomId, queriedEpoch)
+      epochId = outbound.epoch ?? queriedEpoch
+      const aadBytes = buildAadBytesV3({
         algorithm,
         content_type: contentType,
         epoch_id: epochId,
         room_id: roomId,
         sender_user_id: this.currentUserId,
-      }
-      const aadBytes = buildAadBytesV3(aadFields)
+      })
       encryptedMessage = await megolmService.encryptMessage(roomId, plaintextContent, {
         epoch: epochId,
         additionalData: aadBytes,
       })
-      // The session may have rotated to a newer epoch inside encryptMessage.
-      epochId = encryptedMessage.epoch ?? epochId
+      const finalEpoch = encryptedMessage.epoch ?? epochId
+      if (finalEpoch !== epochId) {
+        throw new Error('Megolm v3 epoch/AAD mismatch - refusing to send')
+      }
       signingKey = deviceSigningKey
     } else {
       // Legacy v2 path: user-level signing key, lazily enrolled, no AAD/epoch.
@@ -854,6 +865,13 @@ export class MegolmMessageEncryptionService {
       }
       signingKey = userSigningKey
     }
+
+    // After encryption: session id is final (may have just been created/rotated).
+    const usersNeedingSession = megolmService.getUsersNeedingSession(
+      roomId,
+      recipientIds,
+      encryptedMessage.sessionId,
+    )
 
     if (usersNeedingSession.length > 0) {
       // Block on session sharing so recipients have the key when the message
@@ -958,9 +976,7 @@ export class MegolmMessageEncryptionService {
    *     malicious DB writer could swap sender_user_id and have clients
    *     happily display Bob's content as if from Alice.
    *
-   * For backwards compatibility this method also accepts a 'megolm_v1'
-   * algorithm tag (no signature), decrypts normally, and reports
-   * `senderVerified: false`.
+   * Legacy `megolm_v1` (unsigned) messages are rejected outright.
    */
   async decryptMessage(
     message: {
@@ -1067,21 +1083,23 @@ export class MegolmMessageEncryptionService {
   ): Promise<boolean> {
     const meta = message.encryption_metadata
     if (!meta) return false
-    const {
-      session_id: sessionId,
-      message_index: messageIndex,
-      sender_user_id: senderUserId,
-      timestamp,
-      signature,
-    } = meta
+    const sessionId = meta.session_id
+    const messageIndex = typeof meta.message_index === 'number'
+      ? meta.message_index
+      : Number(meta.message_index)
+    const senderUserId = meta.sender_user_id
+    const timestamp = typeof meta.timestamp === 'number'
+      ? meta.timestamp
+      : Number(meta.timestamp)
+    const signature = meta.signature
     const roomId = message.channel_id || message.conversation_id || ''
 
     if (
       !signature ||
       !sessionId ||
-      messageIndex === undefined ||
+      !Number.isFinite(messageIndex) ||
       !senderUserId ||
-      !timestamp ||
+      !Number.isFinite(timestamp) ||
       !roomId
     ) {
       debug.warn('⚠️ v2 message missing required fields for verification - rejecting')
@@ -1123,7 +1141,9 @@ export class MegolmMessageEncryptionService {
     const aadFields: AadFieldsV3 = {
       algorithm: 'megolm_v3',
       content_type: meta.content_type || 'application/json',
-      epoch_id: typeof meta.epoch_id === 'number' ? meta.epoch_id : 1,
+      epoch_id: typeof meta.epoch_id === 'number'
+        ? meta.epoch_id
+        : (Number.isFinite(Number(meta.epoch_id)) ? Number(meta.epoch_id) : 1),
       room_id: roomId,
       sender_user_id: meta.sender_user_id || '',
     }
@@ -1153,25 +1173,29 @@ export class MegolmMessageEncryptionService {
   ): Promise<boolean> {
     const meta = message.encryption_metadata
     if (!meta) return false
-    const {
-      session_id: sessionId,
-      message_index: messageIndex,
-      sender_user_id: senderUserId,
-      timestamp,
-      signature,
-      epoch_id: epochId,
-      sender_device_id: senderDeviceId,
-    } = meta
+    const sessionId = meta.session_id
+    const messageIndex = typeof meta.message_index === 'number'
+      ? meta.message_index
+      : Number(meta.message_index)
+    const senderUserId = meta.sender_user_id
+    const timestamp = typeof meta.timestamp === 'number'
+      ? meta.timestamp
+      : Number(meta.timestamp)
+    const signature = meta.signature
+    const epochId = typeof meta.epoch_id === 'number'
+      ? meta.epoch_id
+      : Number(meta.epoch_id)
+    const senderDeviceId = meta.sender_device_id
     const roomId = message.channel_id || message.conversation_id || ''
 
     if (
       !signature ||
       !sessionId ||
-      messageIndex === undefined ||
+      !Number.isFinite(messageIndex) ||
       !senderUserId ||
-      !timestamp ||
+      !Number.isFinite(timestamp) ||
       !roomId ||
-      typeof epochId !== 'number' ||
+      !Number.isFinite(epochId) ||
       !senderDeviceId
     ) {
       debug.warn('⚠️ v3 message missing required fields for verification - rejecting')
@@ -1316,16 +1340,15 @@ export class MegolmMessageEncryptionService {
     if (!this.currentUserId) return
 
     // Get users who need the session (fast in-memory check)
-    const usersNeedingSession = megolmService.getUsersNeedingSession(roomId, recipientIds)
+    const usersNeedingSession = megolmService.getUsersNeedingSession(roomId, recipientIds, sessionId)
 
     if (usersNeedingSession.length === 0) {
       return // All users already have the session
     }
 
-    // Get session key data
-    const sessionData = megolmService.getSessionKeyForSharing(roomId)
-    if (!sessionData) {
-      debug.error('❌ Failed to get session data for sharing')
+    const sessionData = megolmService.getSessionKeyForSharing(roomId, sessionId)
+    if (!sessionData || sessionData.sessionId !== sessionId) {
+      debug.error('❌ Refusing to share mismatched session key')
       return
     }
 
@@ -1369,7 +1392,12 @@ export class MegolmMessageEncryptionService {
         try {
           const encryptedSessionKey = await this.encryptSessionKeyForUser(
             sessionData.sessionKey,
-            publicKey
+            publicKey,
+            {
+              roomId,
+              sessionId,
+              recipientUserId: userId,
+            },
           )
           return { userId, encryptedSessionKey }
         } catch (error) {
@@ -1409,7 +1437,7 @@ export class MegolmMessageEncryptionService {
 
     // Only mark as shared once the write succeeded, so a failed batch is retried.
     for (const { recipient_user_id } of rows) {
-      megolmService.markSessionSharedWith(roomId, recipient_user_id)
+      megolmService.markSessionSharedWith(roomId, recipient_user_id, sessionId)
     }
     debug.log(`✅ Session shared with ${rows.length}/${usersWithKeys} users`)
   }
@@ -1476,11 +1504,17 @@ export class MegolmMessageEncryptionService {
 
   /**
    * Encrypt session key for a recipient using ECDH key agreement (P-256 + HKDF + AES-GCM).
-   * Output is prefixed with 'v2:' as a format version marker.
+   * When share metadata is supplied, output is prefixed with 'v3:' and binds the
+   * ciphertext to (room, session, sender, recipient). Legacy 'v2:' shares omit AAD.
    */
   private async encryptSessionKeyForUser(
     sessionKey: string,
-    recipientPublicKey: string
+    recipientPublicKey: string,
+    shareMeta?: {
+      roomId: string
+      sessionId: string
+      recipientUserId: string
+    },
   ): Promise<string> {
     const myPrivateKey = await this.getMyPrivateKey()
     const recipientKey = await this.importPublicKey(recipientPublicKey)
@@ -1488,17 +1522,47 @@ export class MegolmMessageEncryptionService {
 
     const encoder = new TextEncoder()
     const iv = crypto.getRandomValues(new Uint8Array(12))
+    const gcmParams: AesGcmParams = { name: 'AES-GCM', iv }
+    if (shareMeta && this.currentUserId) {
+      gcmParams.additionalData = this.buildSessionShareAad({
+        roomId: shareMeta.roomId,
+        sessionId: shareMeta.sessionId,
+        senderUserId: this.currentUserId,
+        recipientUserId: shareMeta.recipientUserId,
+      })
+    }
+
     const encrypted = await crypto.subtle.encrypt(
-      { name: 'AES-GCM', iv },
+      gcmParams,
       aesKey,
-      encoder.encode(sessionKey)
+      encoder.encode(sessionKey),
     )
 
     const combined = new Uint8Array(iv.length + encrypted.byteLength)
     combined.set(iv)
     combined.set(new Uint8Array(encrypted), iv.length)
 
-    return 'v2:' + btoa(String.fromCharCode(...combined))
+    const prefix = shareMeta ? 'v3:' : 'v2:'
+    return prefix + btoa(String.fromCharCode(...combined))
+  }
+
+  private buildSessionShareAad(fields: {
+    roomId: string
+    sessionId: string
+    senderUserId: string
+    recipientUserId: string
+  }): Uint8Array {
+    const ordered: Record<string, string> = {
+      recipient_user_id: fields.recipientUserId,
+      room_id: fields.roomId,
+      sender_user_id: fields.senderUserId,
+      session_id: fields.sessionId,
+      version: 'v2',
+    }
+    const sortedKeys = Object.keys(ordered).sort()
+    const sorted: Record<string, string> = {}
+    for (const k of sortedKeys) sorted[k] = ordered[k]
+    return new TextEncoder().encode(JSON.stringify(sorted))
   }
 
   /**
@@ -1572,11 +1636,16 @@ export class MegolmMessageEncryptionService {
 
     // Batch-fetch sender public keys for ECDH decryption
     const senderIds = [...new Set(shares.map((s: any) => s.sender_user_id))]
-    const { data: senderKeys } = await supabase
+    const { data: senderKeys, error: senderKeysError } = await supabase
       .from('user_key_pairs')
       .select('user_id, identity_public_key')
       .in('user_id', senderIds)
       .eq('is_active', true)
+
+    if (senderKeysError) {
+      debug.warn('⚠️ Failed to fetch sender public keys for session shares:', senderKeysError)
+      return 0
+    }
 
     const senderKeyMap = new Map<string, string>()
     for (const k of senderKeys || []) {
@@ -1592,7 +1661,13 @@ export class MegolmMessageEncryptionService {
         }
         const sessionKey = await this.decryptSessionKeyFromSender(
           share.encrypted_session_key,
-          senderPublicKey
+          senderPublicKey,
+          {
+            roomId: share.room_id,
+            sessionId: share.session_id,
+            senderUserId: share.sender_user_id,
+            recipientUserId: this.currentUserId!,
+          },
         )
 
         await megolmService.importInboundSession(
@@ -1623,14 +1698,28 @@ export class MegolmMessageEncryptionService {
 
   /**
    * Decrypt a session key using ECDH with the sender's public key.
+   * v3 shares require matching share metadata for AES-GCM AAD verification.
    */
   private async decryptSessionKeyFromSender(
     encryptedSessionKey: string,
-    senderPublicKey: string
+    senderPublicKey: string,
+    shareMeta?: {
+      roomId: string
+      sessionId: string
+      senderUserId: string
+      recipientUserId: string
+    },
   ): Promise<string> {
-    const payload = encryptedSessionKey.startsWith('v2:')
-      ? encryptedSessionKey.slice(3)
-      : encryptedSessionKey
+    let payload: string
+    let useAad = false
+    if (encryptedSessionKey.startsWith('v3:')) {
+      payload = encryptedSessionKey.slice(3)
+      useAad = true
+    } else if (encryptedSessionKey.startsWith('v2:')) {
+      payload = encryptedSessionKey.slice(3)
+    } else {
+      payload = encryptedSessionKey
+    }
 
     const myPrivateKey = await this.getMyPrivateKey()
     const senderKey = await this.importPublicKey(senderPublicKey)
@@ -1645,8 +1734,16 @@ export class MegolmMessageEncryptionService {
     const iv = combined.slice(0, 12)
     const ciphertext = combined.slice(12)
 
+    const gcmParams: AesGcmParams = { name: 'AES-GCM', iv }
+    if (useAad) {
+      if (!shareMeta) {
+        throw new Error('v3 session share requires metadata for AAD verification')
+      }
+      gcmParams.additionalData = this.buildSessionShareAad(shareMeta)
+    }
+
     const decrypted = await crypto.subtle.decrypt(
-      { name: 'AES-GCM', iv }, aesKey, ciphertext
+      gcmParams, aesKey, ciphertext,
     )
     return new TextDecoder().decode(decrypted)
   }
@@ -1819,10 +1916,14 @@ export class MegolmMessageEncryptionService {
     if (this.currentUserId) {
       await secureSessionKeyStore.clear(this.currentUserId).catch(() => {})
       await identityKeyStore.clear(this.currentUserId).catch(() => {})
+      await signingKeyStore.clear(this.currentUserId).catch(() => {})
       this.clearLegacyStorage()
     }
     megolmService.close()
     recoveryKeyService.clear()
+    this.signingKeyCache.clear()
+    this.backedUpSessionIds.clear()
+    this.identityCreatedAtMs = null
     this.currentUserId = null
     this.initialized = false
   }

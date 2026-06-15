@@ -113,6 +113,46 @@ describe('MegolmService', () => {
       expect(e2.messageIndex).toBe(1)
     })
 
+    it('v3 encrypt pins the outbound session resolved before AAD is built', async () => {
+      const outbound = await service.getOrCreateOutboundSession(TEST_ROOM_ID, 2)
+      const epoch = outbound.epoch ?? 2
+      const aad = new TextEncoder().encode(JSON.stringify({ epoch_id: epoch, room_id: TEST_ROOM_ID }))
+
+      const encrypted = await service.encryptMessage(TEST_ROOM_ID, 'v3 pinned', {
+        epoch,
+        additionalData: aad,
+      })
+
+      expect(encrypted.sessionId).toBe(outbound.sessionId)
+      expect(encrypted.epoch).toBe(epoch)
+      expect(encrypted.messageIndex).toBe(0)
+    })
+
+    it('v3 encrypt rejects AAD epoch that does not match the outbound session', async () => {
+      const outbound = await service.getOrCreateOutboundSession(TEST_ROOM_ID, 2)
+      const aad = new TextEncoder().encode(JSON.stringify({ epoch_id: 99 }))
+
+      await expect(
+        service.encryptMessage(TEST_ROOM_ID, 'bad epoch', {
+          epoch: 99,
+          additionalData: aad,
+        }),
+      ).rejects.toThrow(/epoch/)
+      expect(outbound.sessionId).toBeTruthy()
+    })
+
+    it('concurrent encrypts in the same room get distinct message indexes', async () => {
+      const results = await Promise.all([
+        service.encryptMessage(TEST_ROOM_ID, 'concurrent-a'),
+        service.encryptMessage(TEST_ROOM_ID, 'concurrent-b'),
+        service.encryptMessage(TEST_ROOM_ID, 'concurrent-c'),
+      ])
+
+      const indexes = results.map(r => r.messageIndex).sort((a, b) => a - b)
+      expect(indexes).toEqual([0, 1, 2])
+      expect(new Set(results.map(r => r.sessionId)).size).toBe(1)
+    })
+
     it('decrypts messages at different indices correctly', async () => {
       const messages = ['first', 'second', 'third']
       const encrypted = []

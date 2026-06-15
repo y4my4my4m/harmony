@@ -126,7 +126,7 @@
     <!-- Parent Message (Starter Message) -->
     <div class="parent-message-section" v-if="thread?.parent_message">
       <div class="section-label">Original Message</div>
-      <div class="parent-message">
+      <div class="parent-message" :id="`message-${thread.parent_message.id}`">
         <Avatar 
           :src="getAvatarUrl(thread.parent_message.user_id).value" 
           :alt="getDisplayName(thread.parent_message.user_id).value"
@@ -174,6 +174,7 @@
         :messages="messages"
         :current-user-id="currentUserId"
         :channel-id="thread?.channel_id"
+        :thread-id="props.threadId"
         :is-loading="loading"
         :hide-thread-actions="true"
         :enable-read-divider="false"
@@ -229,7 +230,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { threadService } from '@/services/ThreadService'
 import { supabase } from '@/supabase'
 import { useUserData } from '@/composables/useUserData'
@@ -262,6 +263,7 @@ interface Props {
 }
 
 const props = defineProps<Props>()
+const route = useRoute()
 const router = useRouter()
 
 const { 
@@ -995,6 +997,49 @@ const setupReactionsSubscription = () => {
   debug.log(`📡 Subscribed to thread reactions: ${channelName}`)
 }
 
+async function scrollToThreadMessage(messageId: string) {
+  await nextTick()
+  await new Promise(resolve => setTimeout(resolve, 300))
+
+  const highlight = (el: HTMLElement) => {
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    el.classList.add('highlighted')
+    setTimeout(() => el.classList.remove('highlighted'), 3000)
+  }
+
+  let el = document.getElementById(`message-${messageId}`)
+  if (el) {
+    highlight(el)
+    return
+  }
+
+  let attempts = 0
+  while (!el && hasMore.value && attempts < 10) {
+    await loadMore()
+    await nextTick()
+    await new Promise(resolve => setTimeout(resolve, 200))
+    el = document.getElementById(`message-${messageId}`)
+    attempts++
+  }
+
+  if (el) highlight(el)
+}
+
+watch(() => route.query.messageId, async (messageId) => {
+  if (!messageId || typeof messageId !== 'string') return
+  if (loading.value) {
+    await new Promise<void>((resolve) => {
+      const stop = watch(loading, (isLoading) => {
+        if (!isLoading) {
+          stop()
+          resolve()
+        }
+      })
+    })
+  }
+  await scrollToThreadMessage(messageId)
+}, { immediate: true })
+
 // Watch for threadId changes
 watch(() => props.threadId, () => {
   if (props.threadId) {
@@ -1201,6 +1246,12 @@ onUnmounted(() => {
   color: var(--text-muted);
   margin-bottom: 12px;
   letter-spacing: 0.02em;
+}
+
+.parent-message.highlighted {
+  background-color: rgba(14, 165, 233, 0.15);
+  border-left: 3px solid #0ea5e9;
+  border-radius: 8px;
 }
 
 .parent-message {

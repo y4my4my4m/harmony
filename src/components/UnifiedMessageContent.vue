@@ -86,7 +86,21 @@
         class="unverified-author-badge"
         title="This message was decrypted but the sender's identity could not be cryptographically verified. The sender may be running an older client, or the message may have been tampered with."
       >⚠ unverified author</span>
-      <template v-for="(part, partIndex) in content" :key="partIndex">
+      <template v-for="(part, partIndex) in displayContent" :key="partIndex">
+        <!-- Grouped image/video mosaic (Discord-style) -->
+        <MessageMediaGallery
+          v-if="part && typeof part === 'object' && part.type === 'media_gallery'"
+          :parts="(part as any).parts"
+          :message-id="messageId"
+          :image-loaded="imageLoadedState"
+          :video-index-base="partIndex * 10"
+          :can-remove="canEditAttachments"
+          @open-lightbox="$emit('open-lightbox', $event)"
+          @image-loaded="handleImageLoad"
+          @video-play="handleVideoPlay"
+          @video-pause="handleVideoPause"
+          @remove-attachment="requestRemoveAttachment"
+        />
         <!-- Text content with markdown-style formatting and code blocks -->
         <template 
           v-if="part && typeof part === 'object' && part.type === 'text'"
@@ -293,10 +307,15 @@
           @mouseleave="hoveredImageUrl = null"
         >
           <div class="media-frame">
+            <AttachmentRemoveButton
+              v-if="canEditAttachments"
+              @click="requestRemoveAttachment(part.url)"
+            />
             <div v-if="!imageLoadedState[part.url]" class="media-skeleton image-skeleton"></div>
             <img
               :src="displayMediaUrl(part.url)"
               @load="handleImageLoad(part.url)"
+              @error="onAttachmentMediaError(part.url)"
               @click="!isStickerMedia(part.url) && $emit('open-lightbox', part.url)"
               v-show="imageLoadedState[part.url]"
               draggable="false"
@@ -348,6 +367,10 @@
           @mouseleave="hoveredImageUrl = null"
         >
           <div class="media-frame">
+            <AttachmentRemoveButton
+              v-if="canEditAttachments"
+              @click="requestRemoveAttachment(part.url)"
+            />
             <video
               :src="part.url"
               controls
@@ -356,6 +379,7 @@
               :data-video-index="partIndex"
               @play="handleVideoPlay"
               @pause="handleVideoPause"
+              @error="onAttachmentMediaError(part.url)"
             ></video>
             <!-- Clip favorite button (Klipy clips only) -->
             <button
@@ -397,6 +421,10 @@
           v-else-if="part && typeof part === 'object' && part.type === 'file' && part.fileType === 'audio'"
           class="media-container audio-container"
         >
+          <AttachmentRemoveButton
+            v-if="canEditAttachments"
+            @click="requestRemoveAttachment(part.url)"
+          />
           <VoiceMessagePlayer
             v-if="metadata?.voice_message"
             :src="part.url"
@@ -421,6 +449,10 @@
           v-else-if="part && typeof part === 'object' && part.type === 'file' && !['image', 'video'].includes(part.fileType)"
           class="file-attachment"
         >
+          <AttachmentRemoveButton
+            v-if="canEditAttachments"
+            @click="requestRemoveAttachment(part.url)"
+          />
           <div class="file-icon">📎</div>
           <a
             v-if="sanitizeUrl(part.url)"
@@ -470,6 +502,15 @@
         </span>
       </template>
     </div>
+
+    <ConfirmationModal
+      :show="showRemoveAttachmentConfirm"
+      title="Are you sure?"
+      message="This will remove this attachment from this message permanently."
+      confirm-button-text="Remove Attachment"
+      @close="cancelRemoveAttachment"
+      @confirm="confirmRemoveAttachment"
+    />
   </div>
 </template>
 
@@ -489,6 +530,15 @@ import { useFloatingVideo } from '@/composables/useFloatingVideo';
 import { userDataService } from '@/services/userDataService';
 import { getEmojiUrl } from '@/utils/emojiUtils';
 import ProviderEmbedSwitch from '@/components/embeds/ProviderEmbedSwitch.vue';
+import MessageMediaGallery from '@/components/common/MessageMediaGallery.vue';
+import AttachmentRemoveButton from '@/components/common/AttachmentRemoveButton.vue';
+import ConfirmationModal from '@/components/ConfirmationModal.vue';
+import { groupMediaGalleryParts } from '@/utils/mediaGalleryUtils';
+import {
+  isDiscordCdnUrl,
+  hasExpiredBridgedAttachment,
+  requestAttachmentRefresh,
+} from '@/services/attachmentRefresh';
 import { parseEmbedUrl, isHarmonyInviteUrl } from '@/utils/embedDetection';
 import { useUnifiedEmoji } from '@/services/unifiedEmojiService';
 import { gifService } from '@/services/GifService';
@@ -516,6 +566,9 @@ export default defineComponent({
     ProviderEmbedSwitch,
     RichTextEditor,
     VoiceMessagePlayer,
+    MessageMediaGallery,
+    AttachmentRemoveButton,
+    ConfirmationModal,
   },
   props: {
     content: {
@@ -585,9 +638,13 @@ export default defineComponent({
     metadata: {
       type: Object as PropType<Record<string, any> | null>,
       default: null
-    }
+    },
+    canEditAttachments: {
+      type: Boolean,
+      default: false,
+    },
   },
-  emits: ['update:message', 'update:content', 'cancel-edit', 'image-loaded', 'embed-loaded', 'open-lightbox', 'show-user-profile', 'hashtag-click', 'decrypt-message'],
+  emits: ['update:message', 'update:content', 'cancel-edit', 'image-loaded', 'embed-loaded', 'open-lightbox', 'show-user-profile', 'hashtag-click', 'decrypt-message', 'remove-attachment'],
   setup(props, { emit }) {
     const localEditableContent = ref(props.editableContent);
     // Attachments retained while editing. Initialized from the message's file
@@ -618,6 +675,42 @@ export default defineComponent({
     
     // Unified emoji service for emoji pack rendering
     const { resolveEmoji, isNativePack, isLoaded: emojiServiceLoaded } = useUnifiedEmoji();
+
+    const displayContent = computed(() => groupMediaGalleryParts(props.content));
+
+    // Lazy bridged-attachment refresh: when a message carries an expired Discord
+    // CDN URL, ask the gateway to re-sign it (only acts when the instance is in
+    // 'refresh' mode; coalesced per message). Proactive on render + on load error.
+    const maybeRefreshExpiredAttachments = () => {
+      if (hasExpiredBridgedAttachment(props.content)) {
+        requestAttachmentRefresh(props.messageId);
+      }
+    };
+    const onAttachmentMediaError = (url: string) => {
+      if (isDiscordCdnUrl(url)) requestAttachmentRefresh(props.messageId);
+    };
+    onMounted(maybeRefreshExpiredAttachments);
+    watch(() => props.content, maybeRefreshExpiredAttachments);
+
+    const showRemoveAttachmentConfirm = ref(false);
+    const pendingRemoveAttachmentUrl = ref<string | null>(null);
+
+    const requestRemoveAttachment = (url: string) => {
+      if (!props.canEditAttachments) return;
+      pendingRemoveAttachmentUrl.value = url;
+      showRemoveAttachmentConfirm.value = true;
+    };
+
+    const cancelRemoveAttachment = () => {
+      showRemoveAttachmentConfirm.value = false;
+      pendingRemoveAttachmentUrl.value = null;
+    };
+
+    const confirmRemoveAttachment = () => {
+      if (!pendingRemoveAttachmentUrl.value) return;
+      emit('remove-attachment', props.messageId, pendingRemoveAttachmentUrl.value);
+      cancelRemoveAttachment();
+    };
     
     // Internal reactive state for image loading (use prop if provided, otherwise create new)
     const imageLoadedState = reactive<Record<string, boolean>>({ ...props.imageLoaded });
@@ -1162,6 +1255,8 @@ export default defineComponent({
     };
 
     return {
+      displayContent,
+      onAttachmentMediaError,
       getEmojiUrl,
       localEditableContent,
       editableFiles,
@@ -1211,7 +1306,12 @@ export default defineComponent({
       isStickerMedia,
       isAiEmojiMedia,
       isGifFavorited,
-      toggleGifFavorite
+      toggleGifFavorite,
+      canEditAttachments: computed(() => props.canEditAttachments),
+      requestRemoveAttachment,
+      showRemoveAttachmentConfirm,
+      cancelRemoveAttachment,
+      confirmRemoveAttachment,
     };
   }
 });
@@ -1604,6 +1704,7 @@ export default defineComponent({
 
 /* File attachments */
 .file-attachment {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -1612,6 +1713,10 @@ export default defineComponent({
   border-radius: 8px;
   margin: 4px 0;
   max-width: 400px;
+}
+
+.audio-container {
+  position: relative;
 }
 
 .file-icon {

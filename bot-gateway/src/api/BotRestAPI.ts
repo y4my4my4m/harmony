@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express'
 import { supabase } from '../config/supabase.js'
 import { botAuthMiddleware } from '../auth/BotAuthMiddleware.js'
+import { applyBridgeAttachmentPolicy } from '../utils/mirrorExternalMedia.js'
 
 export interface BotRequest extends Request {
   bot?: {
@@ -100,6 +101,9 @@ export class BotRestAPI {
     
     // Create emoji (for Discord/federated emojis)
     this.router.post('/emojis', this.createEmoji.bind(this))
+
+    // Silent content patch (e.g. refresh attachment URLs without "(edited)")
+    this.router.patch('/messages/:messageId/content-silent', this.silentUpdateMessageContent.bind(this))
     
     // =====================================================
     // USER ENDPOINTS
@@ -112,6 +116,52 @@ export class BotRestAPI {
     this.router.get('/users/@me', this.getCurrentBot.bind(this))
   }
   
+  // =====================================================
+  // MEDIA
+  // =====================================================
+
+  private async silentUpdateMessageContent(req: BotRequest, res: Response) {
+    try {
+      const { messageId } = req.params
+      const { content } = req.body || {}
+      const botId = req.bot!.id
+      if (!Array.isArray(content)) {
+        return res.status(400).json({ error: 'content must be a MessagePart array' })
+      }
+
+      const { data: message } = await supabase
+        .from('messages')
+        .select('bot_id, channel_id, content')
+        .eq('id', messageId)
+        .single()
+
+      if (!message || message.bot_id !== botId) {
+        return res.status(403).json({ error: 'Cannot update messages from other bots or users' })
+      }
+
+      const canSend = await this.checkChannelPermission(botId, message.channel_id, 'send_messages')
+      if (!canSend) {
+        return res.status(403).json({ error: 'Missing permission: send_messages' })
+      }
+
+      const { data: updated, error } = await supabase.rpc('update_message_content_silent', {
+        p_message_id: messageId,
+        p_old_content: message.content,
+        p_content: content,
+      })
+      if (error) {
+        return res.status(400).json({ error: error.message })
+      }
+      if (!updated) {
+        return res.status(409).json({ error: 'Message content changed; re-fetch and retry' })
+      }
+      return res.json({ ok: true })
+    } catch (error: any) {
+      console.error('silentUpdateMessageContent error:', error)
+      return res.status(500).json({ error: error?.message || 'Failed to update message' })
+    }
+  }
+
   // =====================================================
   // MESSAGE ENDPOINTS
   // =====================================================
@@ -134,8 +184,12 @@ export class BotRestAPI {
         return res.status(403).json({ error: 'Missing permission: send_messages' })
       }
       
-      // Format content
-      const messageContent = this.formatContent(content, embeds)
+      // Format content, then apply the instance attachment policy (e.g. mirror
+      // Discord CDN URLs into user_media). Resolved here so bots stay policy-agnostic.
+      const messageContent = await applyBridgeAttachmentPolicy(
+        this.formatContent(content, embeds),
+        botId,
+      )
       
       // Merge metadata with bot flag and any custom metadata from bridge
       const messageMetadata = {
@@ -287,7 +341,10 @@ export class BotRestAPI {
         return res.status(403).json({ error: 'Missing permission: send_messages' })
       }
       
-      const messageContent = this.formatContent(content)
+      const messageContent = await applyBridgeAttachmentPolicy(
+        this.formatContent(content),
+        botId,
+      )
       
       const { data: updated, error } = await supabase
         .from('messages')

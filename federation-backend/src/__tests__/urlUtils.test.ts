@@ -20,7 +20,12 @@ vi.mock('../config/supabase.js', () => ({
   })),
 }))
 
-import { getFullAvatarUrl, getFullBannerUrl } from '../utils/urlUtils.js'
+import {
+  getFullAvatarUrl,
+  getFullBannerUrl,
+  getFullServerIconUrl,
+  isDefaultServerIcon,
+} from '../utils/urlUtils.js'
 
 describe('urlUtils', () => {
   describe('getFullAvatarUrl', () => {
@@ -72,6 +77,36 @@ describe('urlUtils', () => {
       const result = getFullBannerUrl('user-123/banner.webp')
       expect(result).toContain('supabase.harmony.test')
       expect(result).toContain('banners')
+    })
+  })
+
+  describe('isDefaultServerIcon', () => {
+    it('treats null, empty, and DB default as default', () => {
+      expect(isDefaultServerIcon(null)).toBe(true)
+      expect(isDefaultServerIcon('')).toBe(true)
+      expect(isDefaultServerIcon('/default_server.webp')).toBe(true)
+    })
+
+    it('detects mangled storage URLs for the default icon', () => {
+      expect(isDefaultServerIcon(
+        'https://supabase.example/storage/v1/render/image/public/server_icons//default_server.webp?width=96',
+      )).toBe(true)
+    })
+
+    it('does not treat custom storage paths as default', () => {
+      expect(isDefaultServerIcon('a1b2c3d4-e5f6-7890-abcd-ef1234567890/icon.webp')).toBe(false)
+    })
+  })
+
+  describe('getFullServerIconUrl', () => {
+    it('returns null for the default icon', () => {
+      expect(getFullServerIconUrl('/default_server.webp')).toBeNull()
+    })
+
+    it('converts custom storage paths to public URLs', () => {
+      const result = getFullServerIconUrl('server-id/custom.webp')
+      expect(result).toContain('supabase.harmony.test')
+      expect(result).toContain('server_icons')
     })
   })
 })

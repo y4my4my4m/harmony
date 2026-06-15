@@ -8,6 +8,8 @@ import { config, supabase } from './config/supabase.js'
 import { WebSocketGateway } from './gateway/WebSocketGateway.js'
 import { EventDispatcher } from './gateway/EventDispatcher.js'
 import { BotRestAPI } from './api/BotRestAPI.js'
+import { TTLCache } from './utils/TTLCache.js'
+import { getBridgeAttachmentMode, hasDiscordCdnFilePart } from './utils/mirrorExternalMedia.js'
 
 // Create Express app
 const app = express()
@@ -148,6 +150,89 @@ app.get('/bridged-users/:channelId', async (req, res): Promise<void> => {
     has_bridge: hasBridge,
     users: bridgedUsers
   })
+})
+
+// On-demand attachment refresh (bridge_attachment_mode = 'refresh'). When a
+// user views a bridged message whose external CDN URL has expired, the frontend
+// calls this; we forward a REFRESH_ATTACHMENTS request to the owning bot (the
+// bridge), which re-signs the URLs and silently patches the message. Deduped so
+// many simultaneous viewers don't fan out into many Discord API calls.
+const refreshDedupe = new TTLCache<string, true>(5_000, 15_000)
+
+app.post('/attachments/refresh', async (req, res): Promise<void> => {
+  const callerProfileId = await getCallerProfileId(req)
+  if (!callerProfileId) {
+    res.status(401).json({ error: 'Authentication required' })
+    return
+  }
+
+  const messageId = (req.body?.messageId ?? '').toString()
+  if (!messageId) {
+    res.status(400).json({ error: 'messageId is required' })
+    return
+  }
+
+  // Feature must be enabled by the instance admin.
+  if ((await getBridgeAttachmentMode()) !== 'refresh') {
+    res.json({ refreshing: false, reason: 'not_enabled' })
+    return
+  }
+
+  // Already kicked off a refresh for this message very recently — no-op.
+  if (refreshDedupe.get(messageId)) {
+    res.json({ refreshing: true, deduped: true })
+    return
+  }
+
+  const { data: message } = await supabase
+    .from('messages')
+    .select('id, channel_id, bot_id, content')
+    .eq('id', messageId)
+    .maybeSingle()
+
+  // Only bridged (bot-authored) messages with expirable Discord CDN parts qualify.
+  if (!message?.bot_id || !message.channel_id || !hasDiscordCdnFilePart(message.content)) {
+    res.json({ refreshing: false, reason: 'not_applicable' })
+    return
+  }
+
+  // Caller must be a member of the channel's server (same gate as bridged-users).
+  const { data: channel } = await supabase
+    .from('channels')
+    .select('server_id')
+    .eq('id', message.channel_id)
+    .maybeSingle()
+
+  if (!channel?.server_id) {
+    res.status(404).json({ error: 'Channel not found' })
+    return
+  }
+
+  const { data: membership } = await supabase
+    .from('user_servers')
+    .select('user_id')
+    .eq('server_id', channel.server_id)
+    .eq('user_id', callerProfileId)
+    .maybeSingle()
+
+  if (!membership) {
+    res.status(403).json({ error: 'Forbidden' })
+    return
+  }
+
+  if (!gateway.isBotConnected(message.bot_id)) {
+    res.json({ refreshing: false, reason: 'bridge_offline' })
+    return
+  }
+
+  refreshDedupe.set(messageId, true)
+  gateway.sendToBot(message.bot_id, {
+    op: 0,
+    t: 'REFRESH_ATTACHMENTS',
+    d: { messageId: message.id, channelId: message.channel_id, content: message.content },
+  })
+
+  res.json({ refreshing: true })
 })
 
 // Error handling middleware
