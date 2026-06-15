@@ -1,23 +1,3 @@
-/**
- * InteractionService - Simplified user interactions (TRUSTS DATABASE TRIGGERS)
- * 
- * OPTIMIZATION: Simplified to trust your excellent database federation triggers
- * - CoreInteractionService: Pure local database operations
- * - Database triggers: handle_unified_interaction_federation() / handle_follows_federation()
- * - NO manual federation decisions or activity creation needed
- * 
- * PRESERVED APIs: 
- * - ✅ Same method signatures as before
- * - ✅ Same return types and error formats
- * - ✅ Same relationship handling and approval logic
- * - ✅ Same local-first design (immediate UI updates)
- * 
- * SIMPLIFIED ARCHITECTURE:
- * - Trust database triggers for all federation (follows, blocks, etc.)
- * - Eliminate unnecessary federation service calls
- * - Reduce database round trips significantly
- */
-
 import { supabase } from '@/supabase'
 import type { Profile } from '@/types'
 import { debug } from '@/utils/debug'
