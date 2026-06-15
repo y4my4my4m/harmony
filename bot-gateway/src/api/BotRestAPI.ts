@@ -1,10 +1,7 @@
 import { Router, Request, Response } from 'express'
 import { supabase } from '../config/supabase.js'
 import { botAuthMiddleware } from '../auth/BotAuthMiddleware.js'
-import {
-  getBridgeAttachmentMode,
-  mirrorExternalMediaToStorage,
-} from '../utils/mirrorExternalMedia.js'
+import { applyBridgeAttachmentPolicy } from '../utils/mirrorExternalMedia.js'
 
 export interface BotRequest extends Request {
   bot?: {
@@ -105,13 +102,7 @@ export class BotRestAPI {
     // Create emoji (for Discord/federated emojis)
     this.router.post('/emojis', this.createEmoji.bind(this))
 
-    // Instance policy (admin-controlled; bots read-only)
-    this.router.get('/instance/bridge-settings', this.getBridgeSettings.bind(this))
-
-    // Mirror Discord CDN → user_media (only when instance mode is mirror)
-    this.router.post('/media/mirror', this.mirrorMedia.bind(this))
-
-    // Silent content patch (e.g. refresh Discord attachment URLs without "(edited)")
+    // Silent content patch (e.g. refresh attachment URLs without "(edited)")
     this.router.patch('/messages/:messageId/content-silent', this.silentUpdateMessageContent.bind(this))
     
     // =====================================================
@@ -126,47 +117,8 @@ export class BotRestAPI {
   }
   
   // =====================================================
-  // INSTANCE / MEDIA
+  // MEDIA
   // =====================================================
-
-  private async getBridgeSettings(_req: BotRequest, res: Response) {
-    try {
-      const attachmentMode = await getBridgeAttachmentMode()
-      return res.json({ attachmentMode })
-    } catch (error: any) {
-      console.error('getBridgeSettings error:', error)
-      return res.status(500).json({ error: error?.message || 'Failed to load bridge settings' })
-    }
-  }
-
-  private async mirrorMedia(req: BotRequest, res: Response) {
-    try {
-      const botId = req.bot?.id
-      if (!botId) return res.status(401).json({ error: 'Unauthorized' })
-
-      const mode = await getBridgeAttachmentMode()
-      if (mode !== 'mirror') {
-        return res.status(403).json({
-          error: 'Instance attachment mode is not mirror (set by instance admin in Admin Panel)',
-        })
-      }
-
-      const { url, fileName, contentType } = req.body || {}
-      if (!url || typeof url !== 'string') {
-        return res.status(400).json({ error: 'url is required' })
-      }
-
-      const publicUrl = await mirrorExternalMediaToStorage(url, {
-        botId,
-        fileName: typeof fileName === 'string' ? fileName : undefined,
-        contentType: typeof contentType === 'string' ? contentType : undefined,
-      })
-      return res.json({ url: publicUrl })
-    } catch (error: any) {
-      console.error('mirrorMedia error:', error)
-      return res.status(400).json({ error: error?.message || 'Failed to mirror media' })
-    }
-  }
 
   private async silentUpdateMessageContent(req: BotRequest, res: Response) {
     try {
@@ -232,8 +184,12 @@ export class BotRestAPI {
         return res.status(403).json({ error: 'Missing permission: send_messages' })
       }
       
-      // Format content
-      const messageContent = this.formatContent(content, embeds)
+      // Format content, then apply the instance attachment policy (e.g. mirror
+      // Discord CDN URLs into user_media). Resolved here so bots stay policy-agnostic.
+      const messageContent = await applyBridgeAttachmentPolicy(
+        this.formatContent(content, embeds),
+        botId,
+      )
       
       // Merge metadata with bot flag and any custom metadata from bridge
       const messageMetadata = {
@@ -385,7 +341,10 @@ export class BotRestAPI {
         return res.status(403).json({ error: 'Missing permission: send_messages' })
       }
       
-      const messageContent = this.formatContent(content)
+      const messageContent = await applyBridgeAttachmentPolicy(
+        this.formatContent(content),
+        botId,
+      )
       
       const { data: updated, error } = await supabase
         .from('messages')

@@ -62,6 +62,44 @@ export async function mirrorExternalMediaToStorage(
   return publicMediaUrl(storagePath)
 }
 
+/**
+ * Apply the instance-wide bridge attachment policy to a message's content parts.
+ * In `mirror` mode, Discord CDN file parts are copied into `user_media` and their
+ * URLs rewritten to the permanent public URL. Any other mode (or a mirror failure)
+ * leaves the original URL untouched. Resolved server-side so bridge bots never need
+ * to know the instance policy.
+ */
+export async function applyBridgeAttachmentPolicy(
+  parts: any[],
+  botId: string,
+): Promise<any[]> {
+  if (!Array.isArray(parts) || parts.length === 0) return parts
+
+  const mode = await getBridgeAttachmentMode()
+  if (mode !== 'mirror') return parts
+
+  const out: any[] = []
+  for (const part of parts) {
+    const url = part?.url
+    if (part?.type !== 'file' || typeof url !== 'string' || !isAllowedSourceUrl(url)) {
+      out.push(part)
+      continue
+    }
+    try {
+      const mirroredUrl = await mirrorExternalMediaToStorage(url, {
+        botId,
+        fileName: typeof part.fileName === 'string' ? part.fileName : undefined,
+        contentType: typeof part.contentType === 'string' ? part.contentType : undefined,
+      })
+      out.push({ ...part, url: mirroredUrl })
+    } catch (error: any) {
+      console.error(`⚠️ Mirror failed, keeping Discord URL: ${error?.message || error}`)
+      out.push(part)
+    }
+  }
+  return out
+}
+
 export type BridgeAttachmentMode = 'link' | 'mirror'
 
 export async function getBridgeAttachmentMode(): Promise<BridgeAttachmentMode> {
