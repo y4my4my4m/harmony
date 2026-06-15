@@ -1071,9 +1071,11 @@ CREATE POLICY "Members can view server membership events" ON public.server_membe
         server_id IN (SELECT us.server_id FROM public.user_servers us WHERE us.user_id = public.get_current_profile_id())
     );
 
+-- No authenticated INSERT policy: every writer is SECURITY DEFINER
+-- (route_server_membership / route_server_leave triggers; kick/ban/unban RPCs)
+-- and bypasses RLS. An authenticated WITH CHECK (true) policy here would only
+-- let users forge membership events, so it is intentionally absent.
 DROP POLICY IF EXISTS "System can insert membership events" ON public.server_membership_events;
-CREATE POLICY "System can insert membership events" ON public.server_membership_events
-    FOR INSERT TO authenticated WITH CHECK (true);
 
 -- ---------------------------------------------------------------------------
 -- TIMELINE ENTRIES

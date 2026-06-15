@@ -123,9 +123,17 @@ ALTER TABLE public.servers ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Enable read access for all users" ON public.servers
     FOR SELECT USING (true);
 
--- Allow authenticated users to create servers
+-- Allow authenticated users to create servers they own (mirrors the update
+-- policy's ownership check; servers.owner FK -> profiles.id).
 CREATE POLICY "Enable insert for authenticated users only" ON public.servers
-    FOR INSERT TO authenticated WITH CHECK (true);
+    FOR INSERT TO authenticated
+    WITH CHECK (
+        EXISTS (
+            SELECT 1 FROM public.profiles
+            WHERE profiles.id = servers.owner
+              AND profiles.auth_user_id = (select auth.uid())
+        )
+    );
 
 -- Allow server owners to update their servers (join through profiles)
 CREATE POLICY "Server owners can update their servers" ON public.servers
@@ -371,8 +379,11 @@ CREATE POLICY "conversations_select_participant" ON public.conversations
         )
     );
 
+-- Direct inserts must set created_by = self. All real conversation creation
+-- goes through SECURITY DEFINER RPCs (create_or_get_direct_conversation,
+-- create_group_conversation) which bypass RLS, so this strict check is safe.
 CREATE POLICY "conversations_insert_authenticated" ON public.conversations
-    FOR INSERT WITH CHECK (true);
+    FOR INSERT WITH CHECK (created_by = (select public.get_current_profile_id()));
 
 -- ---------------------------------------------------------------------------
 -- CONVERSATION PARTICIPANTS RLS
