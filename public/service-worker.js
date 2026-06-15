@@ -1,7 +1,8 @@
 // Enhanced Service Worker for Discord-like Notifications and PWA Features
 // Version: 3.5 - Canonical imgproxy transform sizes + stale-while-revalidate
-//                cache for emoji/avatar/server icon/banner render URLs so
-//                reaction tooltips and server switches reuse cached images.
+//                cache for emoji/avatar/server icon/banner/attachment render
+//                URLs so reaction tooltips, server switches, and message
+//                galleries reuse cached, downscaled images.
 
 const CACHE_NAME = 'harmony-v5-mobile'
 const NOTIFICATION_CACHE = 'harmony-notifications-v2'
@@ -520,7 +521,7 @@ async function processNotification(data) {
 // Supabase imgproxy render URLs for storage-backed images. Scoped narrowly so we
 // do not intercept arbitrary cross-origin images (the old avatar-loop issue).
 function isStorageTransformRequest(url) {
-  return /\/storage\/v1\/render\/image\/public\/(emojis|avatars|server_icons|server_banners)\//.test(url.pathname)
+  return /\/storage\/v1\/render\/image\/public\/(emojis|avatars|server_icons|server_banners|user_media)\//.test(url.pathname)
 }
 
 // Enhanced fetch handling with offline support - Mobile optimized

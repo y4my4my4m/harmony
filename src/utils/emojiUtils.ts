@@ -1,6 +1,7 @@
 import { supabase } from '@/supabase'
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings'
 import { canonicalEmojiSize } from '@/utils/imageTransformUtils'
+import { isLocalStorageHostname } from '@/utils/storageImageUtils'
 
 const DEFAULT_EMOJI_TRANSFORM_QUALITY = 80
 
@@ -16,26 +17,6 @@ function getEmojiTransformQuality(): number {
   }
   return DEFAULT_EMOJI_TRANSFORM_QUALITY
 }
-
-/** Hostnames that serve our local Supabase storage (for transforms). Set via VITE_STORAGE_DOMAIN (comma-separated). */
-function getLocalStorageHostnames(): Set<string> {
-    const out = new Set<string>();
-    try {
-        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-        if (supabaseUrl) {
-            out.add(new URL(supabaseUrl).hostname);
-        }
-        const storageDomain = import.meta.env.VITE_STORAGE_DOMAIN as string | undefined;
-        if (storageDomain) {
-            storageDomain.split(',').map((h: string) => h.trim()).filter(Boolean).forEach((h: string) => out.add(h));
-        }
-    } catch {
-      /* ignore invalid env URLs */
-    }
-    return out;
-}
-
-const LOCAL_STORAGE_HOSTNAMES = getLocalStorageHostnames();
 
 /**
  * Get the public URL for an emoji, handling both local and remote emojis.
@@ -58,7 +39,7 @@ export function getEmojiUrl(emojiUrl: string | null | undefined, size: number = 
         try {
             const urlObj = new URL(emojiUrl);
             const pathMatch = emojiUrl.match(/\/storage\/v1\/object\/public\/emojis\/(.+)$/);
-            const isLocalStorage = LOCAL_STORAGE_HOSTNAMES.has(urlObj.hostname);
+            const isLocalStorage = isLocalStorageHostname(urlObj.hostname);
 
             if (pathMatch && isLocalStorage) {
                 const emojiPath = pathMatch[1];
