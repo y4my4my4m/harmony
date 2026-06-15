@@ -121,7 +121,6 @@ class UserDataService extends EventTarget {
   }
 
   /**
-   * ✅ PERFORMANCE FIX: Initialize background features after critical path
    * This includes activity tracking which is not needed for initial render
    */
   async initializeBackgroundFeatures(): Promise<void> {
@@ -363,7 +362,6 @@ class UserDataService extends EventTarget {
    */
   private async initializeCurrentUser(userId: string, username: string, avatarUrl?: string, existingProfile?: any): Promise<void> {
     try {
-      // PERFORMANCE FIX: Use existing profile if provided to avoid duplicate database query
       let profile = existingProfile
       
       if (!profile) {
@@ -571,7 +569,7 @@ class UserDataService extends EventTarget {
   /**
    * Setup global presence channel for cross-context online/offline tracking
    * 
-   * SIMPLIFIED: Only track once on subscription, no repeated tracking.
+   * Track presence once per subscription.
    * The presence events are logged but we don't react aggressively to them.
    */
   private async setupGlobalPresence(): Promise<void> {
@@ -1606,7 +1604,7 @@ class UserDataService extends EventTarget {
         : 'offline'
       realtimeApiService.updateStatus(redisStatus as any, userData.customStatus?.text)
       
-      // Save to localStorage as professional backup (like Discord/Slack)
+      // Backup to localStorage
       try {
         userStorage.setItem('user_status', status.toString())
         debug.log('💾 Status backed up to localStorage')
@@ -2274,5 +2272,4 @@ class UserDataService extends EventTarget {
   }
 }
 
-// Export singleton instance
 export const userDataService = new UserDataService()

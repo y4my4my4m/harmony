@@ -1,27 +1,7 @@
-/**
- * PostService - Simplified post management (TRUSTS DATABASE TRIGGERS)
- * 
- * OPTIMIZATION: Simplified to trust your excellent database federation triggers
- * - CorePostService: Pure local database operations
- * - Database triggers: handle_post_federation() / handle_unified_content_federation()
- * - NO manual federation decisions or activity creation needed
- * 
- * PRESERVED APIs: 
- * - ✅ Same method signatures as before
- * - ✅ Same return types and error formats
- * - ✅ Same loading patterns and pagination
- * - ✅ Same local-first design (immediate UI updates)
- * 
- * SIMPLIFIED ARCHITECTURE:
- * - Trust database triggers for all federation
- * - Eliminate unnecessary federation service calls
- * - Reduce database round trips significantly
- */
-
+/** Post operations; delegates to CorePostService. */
 import { supabase } from '@/supabase'
 import type { TimelinePost, MessagePart } from '@/types'
 
-// Import only core service - database handles federation
 import { corePostService } from './core'
 import { debug } from '@/utils/debug'
 
@@ -51,86 +31,48 @@ export class PostService {
     return PostService.instance
   }
 
-  // =====================================================
-  // POST CREATION & MANAGEMENT (SIMPLIFIED: TRUST DATABASE)
-  // =====================================================
-
-  /**
-   * Create a new post (simplified: database triggers handle federation)
-   */
   async createPost(data: CreatePostData): Promise<TimelinePost> {
     try {
-      debug.log(`🚀 Simplified: Creating post with visibility: ${data.visibility}`)
 
-      // Just create the post - database triggers handle federation automatically
       const post = await corePostService.createPost(data)
 
-      debug.log(`✅ Simplified: Post created successfully - database handling federation: ${post.id}`)
       return post
 
     } catch (error) {
-      debug.error('❌ Simplified: Failed to create post:', error)
       throw error
     }
   }
 
-  /**
-   * Update an existing post (simplified: database triggers handle federation)
-   */
   async updatePost(postId: string, updates: UpdatePostData): Promise<TimelinePost> {
     try {
-      debug.log(`🚀 Simplified: Updating post: ${postId}`)
 
-      // Just update the post - database triggers handle federation automatically
       const post = await corePostService.updatePost(postId, updates)
 
-      debug.log(`✅ Simplified: Post updated successfully - database handling federation: ${postId}`)
       return post
 
     } catch (error) {
-      debug.error('❌ Simplified: Failed to update post:', error)
       throw error
     }
   }
 
-  /**
-   * Delete a post (simplified: database triggers handle federation)
-   */
   async deletePost(postId: string): Promise<void> {
     try {
-      debug.log(`🚀 Simplified: Deleting post: ${postId}`)
 
-      // Just delete the post - database triggers handle federation automatically
       await corePostService.deletePost(postId)
 
-      debug.log(`✅ Simplified: Post deleted successfully - database handling federation: ${postId}`)
-
     } catch (error) {
-      debug.error('❌ Simplified: Failed to delete post:', error)
       throw error
     }
   }
 
-  // =====================================================
-  // POST INTERACTIONS (SIMPLIFIED: TRUST DATABASE)
-  // =====================================================
-
-  /**
-   * Toggle like on a post (simplified: database triggers handle federation)
-   * PRESERVES: Exact same API and return type
-   */
   async toggleLike(postId: string): Promise<{ liked: boolean; newCount: number }> {
     try {
-      debug.log(`🚀 Simplified: Toggling like for post: ${postId}`)
 
-      // Just toggle the like - database triggers handle federation automatically
       const result = await corePostService.toggleLike(postId)
 
-      debug.log(`✅ Simplified: Post like toggled - database handling federation: ${result.liked ? 'liked' : 'unliked'}`)
       return result
 
     } catch (error) {
-      debug.error('❌ Simplified: Failed to toggle like:', error)
       throw error
     }
   }
@@ -163,7 +105,6 @@ export class PostService {
 
   /**
    * Toggle reblog/boost on a post (ActivityPub Announce activity)
-   * PRESERVES: Exact same API and return type
    */
   async toggleReblog(postId: string): Promise<{ reblogged: boolean; newCount: number }> {
     try {
@@ -187,22 +128,15 @@ export class PostService {
     }
   }
 
-  /**
-   * Toggle bookmark on a post (simplified: no federation needed)
-   * PRESERVES: Exact same API and return type
-   */
-  async toggleBookmark(postId: string): Promise<{ bookmarked: boolean }> {
+    async toggleBookmark(postId: string): Promise<{ bookmarked: boolean }> {
     try {
-      debug.log(`🚀 Simplified: Toggling bookmark for post: ${postId}`)
 
       // Bookmarks are always local-only (no federation)
       const result = await corePostService.toggleBookmark(postId)
 
-      debug.log(`✅ Simplified: Post bookmark toggled: ${result.bookmarked ? 'bookmarked' : 'unbookmarked'}`)
       return result
 
     } catch (error) {
-      debug.error('❌ Simplified: Failed to toggle bookmark:', error)
       throw error
     }
   }
@@ -230,15 +164,9 @@ export class PostService {
     return corePostService.getPinnedPosts(authorId)
   }
 
-  /**
-   * Toggle reaction on a post (simplified: database triggers handle federation)
-   * PRESERVES: Exact same API and return type
-   */
   async toggleReaction(postId: string, emojiId: string): Promise<{ added: boolean; newCount: number }> {
     try {
-      debug.log(`🚀 Simplified: Toggling reaction for post: ${postId}, emoji: ${emojiId}`)
 
-      // Just toggle the reaction - database triggers handle federation automatically
       const coreResult = await corePostService.toggleReaction(postId, emojiId)
 
       // Check if this is a unicode/shortcode emoji (not a UUID)
@@ -264,11 +192,9 @@ export class PostService {
         newCount: count || 0
       }
 
-      debug.log(`✅ Simplified: Post reaction toggled - database handling federation: ${result.added ? 'added' : 'removed'}`)
       return result
 
     } catch (error) {
-      debug.error('❌ Simplified: Failed to toggle post reaction:', error)
       throw error
     }
   }
@@ -282,14 +208,6 @@ export class PostService {
     return uuidRegex.test(str)
   }
 
-  // =====================================================
-  // POST LOADING (DELEGATED TO CORE SERVICE)
-  // =====================================================
-
-  /**
-   * Load timeline posts (delegated to core service)
-   * PRESERVES: Exact same API, pagination, and performance
-   */
   async loadTimelinePosts(
     timelineType: 'public' | 'home' | 'local' | 'federated' = 'public',
     options: {
@@ -304,12 +222,10 @@ export class PostService {
     nextCursor?: string;
   }> {
     try {
-      debug.log(`🚀 Simplified: Loading ${timelineType} timeline posts`)
       
       // Map federated to public for core service (core doesn't distinguish federated)
       const coreTimelineType = timelineType === 'federated' ? 'public' : timelineType
       
-      // Delegate to core service (no federation needed for reads)
       const posts = await corePostService.loadTimelinePosts(coreTimelineType, options)
       
       // Transform core service response to match expected API
@@ -323,47 +239,29 @@ export class PostService {
         nextCursor
       }
       
-      debug.log(`✅ Simplified: Loaded ${posts.length} timeline posts`)
       return result
 
     } catch (error) {
-      debug.error('❌ Simplified: Failed to load timeline posts:', error)
       throw error
     }
   }
 
-  /**
-   * Load a single post (delegated to core service)
-   * PRESERVES: Exact same API and return type
-   */
   async loadPost(postId: string): Promise<TimelinePost> {
     try {
-      debug.log(`🚀 Simplified: Loading post: ${postId}`)
       
-      // Delegate to core service (no federation needed for reads)
       const post = await corePostService.loadPost(postId)
       
       if (!post) {
         throw this.createError('POST_NOT_FOUND', `Post not found: ${postId}`)
       }
       
-      debug.log(`✅ Simplified: Post loaded successfully`)
       return post
 
     } catch (error) {
-      debug.error('❌ Simplified: Failed to load post:', error)
       throw error
     }
   }
 
-  // =====================================================
-  // REACTION LOADING (DELEGATED TO CORE SERVICE)
-  // =====================================================
-
-  /**
-   * Get post reactions (delegated to core service)
-   * PRESERVES: Exact same API and return type
-   */
   async getPostReactions(postId: string): Promise<Array<{
     emoji_id: string;
     emoji_name: string;
@@ -371,27 +269,16 @@ export class PostService {
     users: Array<{ id: string; username: string; display_name?: string }>;
   }>> {
     try {
-      debug.log(`🚀 Simplified: Loading reactions for post: ${postId}`)
       
-      // Delegate to core service (no federation needed for reads)
       const reactions = await corePostService.getPostReactions(postId)
       
-      debug.log(`✅ Simplified: Loaded ${reactions.length} reaction groups`)
       return reactions
 
     } catch (error) {
-      debug.error('❌ Simplified: Failed to load post reactions:', error)
       throw error
     }
   }
 
-  // =====================================================
-  // UTILITY METHODS (PRESERVED)
-  // =====================================================
-
-  /**
-   * OPTIMIZED: Uses AuthContextService for cached profile ID lookup
-   */
   private async getCurrentUserProfileId(): Promise<string> {
     const { authContextService } = await import('@/services/AuthContextService')
     
@@ -410,5 +297,4 @@ export class PostService {
   }
 }
 
-// Export singleton instance
 export const postService = PostService.getInstance()

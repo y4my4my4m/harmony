@@ -889,7 +889,7 @@ watch(() => authStore.session, async (newSession, oldSession) => {
       debug.error('Failed to cleanup user data:', error)
     }
     
-    // PERFORMANCE FIX: Cleanup state persistence
+    // Cleanup state persistence
     try {
       const { statePersistence } = await import('@/services/StatePersistence')
       await statePersistence.cleanup()

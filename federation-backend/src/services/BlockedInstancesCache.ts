@@ -118,6 +118,5 @@ class BlockedInstancesCacheService {
   }
 }
 
-// Export singleton instance
 export const BlockedInstancesCache = new BlockedInstancesCacheService();
 

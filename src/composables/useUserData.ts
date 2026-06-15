@@ -338,7 +338,7 @@ export function useUserData() {
   }
 
   /**
-   * ✅ PERFORMANCE FIX: Initialize background features after critical path
+   * Initialize background features after critical path.
    */
   const initializeBackgroundFeatures = async () => {
     ensureInitialized()

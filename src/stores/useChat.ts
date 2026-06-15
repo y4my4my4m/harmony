@@ -371,7 +371,6 @@ export const useChatStore = defineStore('chat', {
           void serverUsersStore.fetchMultipleUserProfiles(Array.from(userIds)).catch(() => {});
         }
         
-        // PERFORMANCE FIX: Reactions are already loaded by MessageService
         // Components should use message.reactions directly instead of fetching
 
         // Service returns messages in chronological order (oldest first after reversing)

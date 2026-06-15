@@ -1,24 +1,4 @@
-/**
- * FederationActivityService - Clean ActivityPub activity creation
- * 
- * Handles creation of ActivityPub activities and insertion into ap_activities table:
- * - Reaction activities (Like/Undo for emoji reactions)
- * - Post activities (Create/Update/Delete for posts)
- * - Follow activities (Follow/Undo for user relationships)
- * - Profile activities (Update for profile changes)
- * 
- * INTEGRATION POINTS:
- * - ✅ Inserts into your existing ap_activities table
- * - ✅ Uses your existing content conversion functions
- * - ✅ Compatible with your existing edge function pipeline
- * - ✅ Generates proper ActivityPub JSON for delivery
- * 
- * WORKS WITH YOUR ARCHITECTURE:
- * - Edge functions read from ap_activities → HTTP delivery ✅
- * - Content conversion functions handle format translation ✅
- * - HTTP signatures and delivery handled by edge functions ✅
- */
-
+/** Creates ActivityPub activities for ap_activities. */
 import { supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
 
@@ -418,5 +398,4 @@ export class FederationActivityService {
   }
 }
 
-// Export singleton instance
 export const federationActivityService = FederationActivityService.getInstance()

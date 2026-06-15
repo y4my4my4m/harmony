@@ -1,19 +1,4 @@
-/**
- * CoreMessageService - Pure local message operations
- * 
- * Contains ONLY local database operations with NO federation logic:
- * - Message CRUD operations (create, read, update, delete)
- * - Reaction management (local database only)
- * - Message loading and pagination
- * - Validation and error handling
- * 
- * NO FEDERATION CONCERNS:
- * - No ap_activities insertions
- * - No federation condition checks
- * - No ActivityPub protocol handling
- * - Pure local Supabase operations only
- */
-
+/** Local message CRUD, reactions, and loading. */
 import { supabase } from '@/supabase'
 import type { Message, MessagePart } from '@/types'
 import { userDataService } from '@/services/userDataService'
@@ -361,8 +346,7 @@ export class CoreMessageService {
   }
 
   /**
-   * Send a DM message (pure local database operation)
-   * Note: Federation handling is done by orchestrator service
+   * Send a DM message.
    *
    * @param options.isSystem - If true, stores as system message (no encryption, not federated)
    * @param options.allowPlaintextFallback - If true AND the conversation is
@@ -919,7 +903,6 @@ export class CoreMessageService {
   // =====================================================
 
     /**
-   * ✅ ARCHITECTURE FIX: Populate reactions store cache with batch-loaded data
    * This unifies CoreMessageService and ReactionsStore to work together
    */
   private async populateReactionsStoreCache(reactionsByMessage: Record<string, any[]>): Promise<void> {
@@ -1028,7 +1011,7 @@ export class CoreMessageService {
       // Reverse to get oldest-first for display (since query returns newest-first)
       const orderedMessages = messageList.reverse()
 
-      // PERFORMANCE OPTIMIZATION: Batch load reactions for all messages
+      // Batch load reactions for all messages
       if (orderedMessages.length > 0) {
         const messageIds = orderedMessages.map(m => m.id)
         const reactionsByMessage = await this.getBatchMessageReactions(messageIds)
@@ -1038,7 +1021,6 @@ export class CoreMessageService {
           message.reactions = reactionsByMessage[message.id] || []
         })
         
-        // ARCHITECTURE FIX: Populate reactions store cache with batch-loaded data
         // This ensures components can use reactionsStore.getMessageReactions() seamlessly
         await this.populateReactionsStoreCache(reactionsByMessage)
       }
@@ -1356,7 +1338,7 @@ export class CoreMessageService {
       // Reverse to get oldest-first for display (since query returns newest-first)
       const orderedMessages = messageList.reverse()
 
-      // PERFORMANCE OPTIMIZATION: Batch load reactions for all messages
+      // Batch load reactions for all messages
       if (orderedMessages.length > 0) {
         const messageIds = orderedMessages.map(m => m.id)
         const reactionsByMessage = await this.getBatchMessageReactions(messageIds)
@@ -1366,7 +1348,6 @@ export class CoreMessageService {
           message.reactions = reactionsByMessage[message.id] || []
         })
         
-        // ARCHITECTURE FIX: Populate reactions store cache with batch-loaded data
         // This ensures components can use reactionsStore.getMessageReactions() seamlessly  
         await this.populateReactionsStoreCache(reactionsByMessage)
       }
@@ -1480,5 +1461,4 @@ export class CoreMessageService {
   }
 }
 
-// Export singleton instance
 export const coreMessageService = CoreMessageService.getInstance()
