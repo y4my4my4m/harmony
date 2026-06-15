@@ -626,7 +626,20 @@ DROP TRIGGER IF EXISTS trigger_federate_message_reaction_delete ON public.reacti
 CREATE TRIGGER trigger_federate_message_reaction_delete
     AFTER DELETE ON public.reactions
     FOR EACH ROW
-    EXECUTE FUNCTION public.trigger_queue_message_reaction_federation();
+    EXECUTE FUNCTION public.trigger_queue_message_reaction_delete_federation();
+
+-- Broadcast reaction changes to the per-context message topic (replaces CDC)
+DROP TRIGGER IF EXISTS trigger_broadcast_reaction_insert ON public.reactions;
+CREATE TRIGGER trigger_broadcast_reaction_insert
+    AFTER INSERT ON public.reactions
+    FOR EACH ROW
+    EXECUTE FUNCTION public.broadcast_message_reaction_event();
+
+DROP TRIGGER IF EXISTS trigger_broadcast_reaction_delete ON public.reactions;
+CREATE TRIGGER trigger_broadcast_reaction_delete
+    AFTER DELETE ON public.reactions
+    FOR EACH ROW
+    EXECUTE FUNCTION public.broadcast_message_reaction_event();
 
 -- Queue block for federation
 DROP TRIGGER IF EXISTS trigger_federate_block ON public.user_blocks;

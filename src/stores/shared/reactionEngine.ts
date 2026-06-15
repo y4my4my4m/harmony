@@ -5,6 +5,13 @@ export interface ReactionEngineAdapter<G, E> {
   fetchBatch(entityIds: string[]): Promise<Record<string, G[]>>
   toggleOnServer(entityId: string, emoji: E, currentlyReacted: boolean): Promise<void>
   applyOptimistic(base: G[], emoji: E, operation: 'add' | 'remove'): G[]
+  /**
+   * Apply a realtime broadcast event in place (no refetch), returning the new
+   * group array or null if the payload can't be applied. When provided,
+   * handleRealtimeUpdate uses this instead of refetching - avoiding an RPC per
+   * event per viewer (thundering herd) at scale.
+   */
+  applyRealtimeDelta?(base: G[], payload: any): G[] | null
   matchesEmoji(group: G, emoji: E): boolean
   hasReacted(group: G): boolean
   groupKey(group: G): string
@@ -180,6 +187,31 @@ export function createReactionEngine<G, E>(
     const entityId = adapter.entityIdFromRealtime(payload)
     if (!entityId) return
 
+    // Scalable path: apply the broadcast delta in place, no RPC. Dedup in the
+    // adapter makes our own echoed event a no-op, so this is safe even mid-toggle.
+    if (adapter.applyRealtimeDelta) {
+      // Keep any live optimistic overlay in sync so the viewer's own pending
+      // changes and incoming remote changes coexist.
+      const optimistic = optimisticByEntity.value.get(entityId)
+      if (optimistic) {
+        const updatedOptimistic = adapter.applyRealtimeDelta(optimistic, payload)
+        if (updatedOptimistic) optimisticByEntity.value.set(entityId, updatedOptimistic)
+      }
+
+      const real = reactionsByEntity.value.get(entityId)
+      if (!real) {
+        // No base cached yet - fetch once so later deltas have something to apply to.
+        lastFetched.value.delete(entityId)
+        await fetch(entityId, true)
+        return
+      }
+
+      const updatedReal = adapter.applyRealtimeDelta(real, payload)
+      if (updatedReal) reactionsByEntity.value.set(entityId, updatedReal)
+      return
+    }
+
+    // Legacy refetch path (e.g. post reactions, which fan out only to the author).
     // A reconcile from our own toggle is already pending - let it handle it.
     if (pendingReconcileTimeouts.has(entityId)) return
 

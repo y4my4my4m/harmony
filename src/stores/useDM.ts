@@ -2027,12 +2027,6 @@ export const useDMStore = defineStore('dm', () => {
       }
       dmSubscriptions.value.delete(channelName)
     }
-
-    const reactionsChannelName = `dm-reactions-${conversationId}`
-    if (dmSubscriptions.value.has(reactionsChannelName)) {
-      realtimeConnectionManager.unsubscribe(reactionsChannelName)
-      dmSubscriptions.value.delete(reactionsChannelName)
-    }
   }
 
   /**
@@ -2077,7 +2071,6 @@ export const useDMStore = defineStore('dm', () => {
    */
   const setupConversationSubscription = (conversationId: string) => {
     const channelName = `dm-conversation-${conversationId}`
-    const reactionsChannelName = `dm-reactions-${conversationId}`
 
     // A channel only counts as "already subscribed" if it's registered AND
     // actually connected (or mid-(re)connect). A registered-but-dead channel
@@ -2092,23 +2085,18 @@ export const useDMStore = defineStore('dm', () => {
       return status === 'connected' || status === 'connecting' || status === 'reconnecting'
     }
 
-    if (isLive(channelName) && isLive(reactionsChannelName)) {
+    if (isLive(channelName)) {
       debug.log('📡 Already subscribed to conversation (healthy):', channelName)
       return
     }
 
-    // Tear down any stale/errored registrations so the rebuild below recreates
-    // them with a fresh channel instead of being skipped by the has-subscription
-    // guards further down.
+    // Tear down any stale/errored registration so the rebuild below recreates
+    // it with a fresh channel instead of being skipped by the has-subscription
+    // guard further down.
     if (realtimeConnectionManager.hasSubscription(channelName) && !isLive(channelName)) {
       debug.warn('♻️ Rebuilding stale DM message subscription:', channelName)
       realtimeConnectionManager.unsubscribe(channelName)
       dmSubscriptions.value.delete(channelName)
-    }
-    if (realtimeConnectionManager.hasSubscription(reactionsChannelName) && !isLive(reactionsChannelName)) {
-      debug.warn('♻️ Rebuilding stale DM reactions subscription:', reactionsChannelName)
-      realtimeConnectionManager.unsubscribe(reactionsChannelName)
-      dmSubscriptions.value.delete(reactionsChannelName)
     }
     
     if (currentConversationId.value && currentConversationId.value !== conversationId) {
@@ -2120,10 +2108,16 @@ export const useDMStore = defineStore('dm', () => {
     setupEncryptionKeyListener()
 
     if (!realtimeConnectionManager.hasSubscription(channelName)) {
+      const reactionsStore = useReactionsStore()
       const unsubscribe = realtimeConnectionManager.subscribeToTable({
         channelName,
         table: 'messages',
         filter: `conversation_id=eq.${conversationId}`,
+        // Private so reaction broadcasts (realtime.send) land on this same channel.
+        private: true,
+        broadcasts: [
+          { event: 'reaction_event', handler: (payload) => void reactionsStore.handleRealtimeUpdate(payload) },
+        ],
         
         onInsert: async (payload) => {
           debug.log('🔔 New DM message received:', payload.new)
@@ -2311,28 +2305,6 @@ export const useDMStore = defineStore('dm', () => {
       dmSubscriptions.value.set(channelName, unsubscribe)
     }
 
-    if (!realtimeConnectionManager.hasSubscription(reactionsChannelName)) {
-      const reactionsStore = useReactionsStore()
-      const reactionsUnsubscribe = realtimeConnectionManager.subscribeToTable({
-        channelName: reactionsChannelName,
-        table: 'reactions',
-        filter: `conversation_id=eq.${conversationId}`,
-        onInsert: (payload) => {
-          const messageId = (payload.new as any)?.message_id
-          if (messageId && currentDMMessages.value.some(m => m.id === messageId)) {
-            reactionsStore.handleRealtimeUpdate(payload)
-          }
-        },
-        onDelete: (payload) => {
-          const messageId = (payload.old as any)?.message_id
-          if (messageId && currentDMMessages.value.some(m => m.id === messageId)) {
-            reactionsStore.handleRealtimeUpdate(payload)
-          }
-        },
-      })
-      dmSubscriptions.value.set(reactionsChannelName, reactionsUnsubscribe)
-    }
-    
     debug.log(`📝 Stored DM subscription for ${channelName}, total subscriptions: ${dmSubscriptions.value.size}`)
   }
   

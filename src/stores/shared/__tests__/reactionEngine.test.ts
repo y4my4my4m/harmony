@@ -11,7 +11,7 @@ interface EmojiInput {
 }
 
 /** Build an engine over an in-memory server with spy-able adapter methods. */
-function setup(initial: Record<string, Group[]> = {}) {
+function setup(initial: Record<string, Group[]> = {}, opts: { withDelta?: boolean } = {}) {
   const server: Record<string, Group[]> = JSON.parse(JSON.stringify(initial))
 
   const fetchBatch = vi.fn(async (ids: string[]) => {
@@ -59,6 +59,22 @@ function setup(initial: Record<string, Group[]> = {}) {
     emojiKey: (e) => e.key,
     entityIdFromRealtime: (p) => p?.entityId,
     reconcileDelayMs: 1500,
+  }
+
+  if (opts.withDelta) {
+    adapter.applyRealtimeDelta = (base: Group[], payload: any) => {
+      const result: Group[] = JSON.parse(JSON.stringify(base))
+      const idx = result.findIndex(g => g.key === payload.key)
+      if (payload.op === 'add') {
+        if (idx >= 0) { result[idx].count += 1; if (payload.isCurrentUser) result[idx].reacted = true }
+        else result.push({ key: payload.key, count: 1, reacted: !!payload.isCurrentUser })
+      } else if (idx >= 0) {
+        result[idx].count -= 1
+        if (payload.isCurrentUser) result[idx].reacted = false
+        if (result[idx].count <= 0) result.splice(idx, 1)
+      }
+      return result
+    }
   }
 
   return { engine: createReactionEngine(adapter), server, fetchBatch, toggleOnServer }
@@ -135,5 +151,46 @@ describe('reactionEngine', () => {
     const { engine, fetchBatch } = setup()
     await engine.fetch('temp-abc', true)
     expect(fetchBatch).not.toHaveBeenCalled()
+  })
+
+  describe('realtime delta (broadcast) path', () => {
+    it('applies a remote add in place without refetching', async () => {
+      const { engine, fetchBatch } = setup({ e1: [] }, { withDelta: true })
+      await engine.fetchMultiple(['e1'], true)
+      fetchBatch.mockClear()
+
+      await engine.handleRealtimeUpdate({ entityId: 'e1', key: '🎉', op: 'add', isCurrentUser: false })
+
+      const groups = engine.getReactions.value('e1')
+      expect(groups).toEqual([{ key: '🎉', count: 1, reacted: false }])
+      expect(fetchBatch).not.toHaveBeenCalled()
+    })
+
+    it('applies a remote remove in place', async () => {
+      const { engine } = setup({ e1: [{ key: '👍', count: 2, reacted: false }] }, { withDelta: true })
+      await engine.fetchMultiple(['e1'], true)
+
+      await engine.handleRealtimeUpdate({ entityId: 'e1', key: '👍', op: 'remove', isCurrentUser: false })
+
+      expect(engine.getReactions.value('e1')).toEqual([{ key: '👍', count: 1, reacted: false }])
+    })
+
+    it('fetches once when no base is cached, so later deltas have something to apply to', async () => {
+      const { engine, fetchBatch } = setup({ e1: [{ key: '👍', count: 1, reacted: false }] }, { withDelta: true })
+      await engine.handleRealtimeUpdate({ entityId: 'e1', key: '👍', op: 'add', isCurrentUser: false })
+      expect(fetchBatch).toHaveBeenCalledTimes(1)
+    })
+
+    it('keeps the optimistic overlay consistent with remote deltas', async () => {
+      const { engine } = setup({ e1: [] }, { withDelta: true })
+      await engine.fetchMultiple(['e1'], true) // base cached on load, as in real usage
+      // Our own optimistic add creates an overlay.
+      const p = engine.toggle('e1', { key: '👍' })
+      // A different user reacts with another emoji while our overlay is live.
+      await engine.handleRealtimeUpdate({ entityId: 'e1', key: '🎉', op: 'add', isCurrentUser: false })
+      const keys = engine.getReactions.value('e1').map(g => g.key).sort()
+      expect(keys).toEqual(['🎉', '👍'])
+      await p
+    })
   })
 })

@@ -894,7 +894,6 @@ export const useChatStore = defineStore('chat', {
         this.currentSubscription = null;
       }
       if (this.realtimeChannelId) {
-        realtimeConnectionManager.unsubscribe(`channel-reactions-${this.realtimeChannelId}`);
         realtimeConnectionManager.unsubscribe(`channel-messages-${this.realtimeChannelId}`);
       }
       this.realtimeChannelId = null;
@@ -902,28 +901,18 @@ export const useChatStore = defineStore('chat', {
 
     subscribeToMessages(channelId: string) {
       const channelName = `channel-messages-${channelId}`;
-      const reactionsChannelName = `channel-reactions-${channelId}`;
       const hasMessagesSub = realtimeConnectionManager.hasSubscription(channelName);
-      const hasReactionsSub = realtimeConnectionManager.hasSubscription(reactionsChannelName);
       const boundToThisChannel = this.realtimeChannelId === channelId;
 
-      // Require BOTH subscriptions AND a matching binding. `currentChannelId` is
+      // Require the subscription AND a matching binding. `currentChannelId` is
       // updated early for UI/stale guards, so it must NOT drive teardown - that
       // left the previous channel's realtime active when switching channels.
-      if (hasMessagesSub && hasReactionsSub && boundToThisChannel && this.currentSubscription) {
-        debug.log('📡 Already subscribed to channel + reactions:', channelName);
+      if (hasMessagesSub && boundToThisChannel && this.currentSubscription) {
+        debug.log('📡 Already subscribed to channel:', channelName);
         return;
       }
 
       const reactionsStore = useReactionsStore();
-
-      if (hasMessagesSub && !hasReactionsSub && boundToThisChannel) {
-        debug.log('📡 Messages subscription exists but reactions missing - re-attaching reactions for:', channelId);
-        this.setupEncryptionKeyListener();
-        this._subscribeToChannelReactions(channelId, reactionsChannelName, reactionsStore);
-        this.realtimeChannelId = channelId;
-        return;
-      }
 
       // Stale binding or orphaned subs from a prior channel - rebuild cleanly.
       if (this.currentSubscription || this.realtimeChannelId) {
@@ -943,6 +932,11 @@ export const useChatStore = defineStore('chat', {
         channelName,
         table: 'messages',
         filter: `channel_id=eq.${channelId}`,
+        // Private so reaction broadcasts (realtime.send) land on this same channel.
+        private: true,
+        broadcasts: [
+          { event: 'reaction_event', handler: (payload) => void reactionsStore.handleRealtimeUpdate(payload) },
+        ],
         
         onInsert: async (payload) => {
           debug.log('🟢 Real-time INSERT received:', payload.new?.id);
@@ -1130,37 +1124,7 @@ export const useChatStore = defineStore('chat', {
         }
       });
 
-      this._subscribeToChannelReactions(channelId, reactionsChannelName, reactionsStore);
       this.realtimeChannelId = channelId;
-    },
-
-    _subscribeToChannelReactions(
-      channelId: string,
-      reactionsChannelName: string,
-      reactionsStore: ReturnType<typeof useReactionsStore>,
-    ) {
-      if (realtimeConnectionManager.hasSubscription(reactionsChannelName)) {
-        return;
-      }
-      realtimeConnectionManager.subscribeToTable({
-        channelName: reactionsChannelName,
-        table: 'reactions',
-        filter: `channel_id=eq.${channelId}`,
-        // Forward all reactions for this channel. Thread replies are not in store.messages
-        // but share channel_id; MessageDisplay in ThreadView reads the same reactions store.
-        onInsert: (payload) => {
-          const messageId = (payload.new as any)?.message_id;
-          if (messageId) {
-            void reactionsStore.handleRealtimeUpdate(payload);
-          }
-        },
-        onDelete: (payload) => {
-          const messageId = (payload.old as any)?.message_id;
-          if (messageId) {
-            void reactionsStore.handleRealtimeUpdate(payload);
-          }
-        },
-      });
     },
 
     unsubscribeFromMessages() {

@@ -976,26 +976,33 @@ const cleanupReactionsSubscription = () => {
   }
 }
 
-/** Full thread route does not run ChatView.subscribeToMessages - mirror channel reactions CDC here. */
+/**
+ * Full thread route does not run ChatView.subscribeToMessages, so subscribe to
+ * the parent channel's reaction broadcasts here. Reactions are published to the
+ * channel-messages-{channel_id} topic (broadcast, not CDC); we listen
+ * broadcast-only since this view has its own thread message stream.
+ */
 const setupReactionsSubscription = () => {
   cleanupReactionsSubscription()
-  if (!thread.value?.channel_id || !thread.value?.id) return
+  if (!thread.value?.channel_id) return
 
-  const channelName = `thread-full-reactions-${thread.value.id}`
-  reactionsSubscription.value = realtimeConnectionManager.subscribeToTable({
+  const channelName = `channel-messages-${thread.value.channel_id}`
+
+  // If the channel chat view is already subscribed to this topic, its own
+  // reaction_event handler already feeds the shared reactions store - don't
+  // create (and later tear down) a competing subscription on the same channel.
+  if (realtimeConnectionManager.hasSubscription(channelName)) {
+    debug.log(`📡 Reusing existing channel subscription for thread reactions: ${channelName}`)
+    return
+  }
+
+  reactionsSubscription.value = realtimeConnectionManager.subscribeBroadcast({
     channelName,
-    table: 'reactions',
-    filter: `channel_id=eq.${thread.value.channel_id}`,
-    onInsert: (payload) => {
-      const messageId = (payload.new as any)?.message_id
-      if (messageId) void reactionsStore.handleRealtimeUpdate(payload)
-    },
-    onDelete: (payload) => {
-      const messageId = (payload.old as any)?.message_id
-      if (messageId) void reactionsStore.handleRealtimeUpdate(payload)
-    },
+    broadcasts: [
+      { event: 'reaction_event', handler: (payload) => void reactionsStore.handleRealtimeUpdate(payload) },
+    ],
   })
-  debug.log(`📡 Subscribed to thread reactions: ${channelName}`)
+  debug.log(`📡 Subscribed to thread reactions (broadcast): ${channelName}`)
 }
 
 async function scrollToThreadMessage(messageId: string) {

@@ -603,10 +603,6 @@ DROP POLICY IF EXISTS "federated_instances_manage" ON public.federated_instances
 CREATE POLICY "federated_instances_manage" ON public.federated_instances
     FOR ALL USING (public.is_current_user_admin());
 
-DROP POLICY IF EXISTS "federated_instances_service_role" ON public.federated_instances;
-CREATE POLICY "federated_instances_service_role" ON public.federated_instances
-    TO service_role USING (true);
-
 -- Federation endpoint health
 ALTER TABLE public.federation_endpoint_health ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "federation_endpoint_health_select" ON public.federation_endpoint_health;
@@ -639,10 +635,6 @@ CREATE POLICY "federation_health_select_all" ON public.federation_health
 DROP POLICY IF EXISTS "federation_health_manage" ON public.federation_health;
 CREATE POLICY "federation_health_manage" ON public.federation_health
     FOR ALL USING (public.is_current_user_admin());
-
-DROP POLICY IF EXISTS "federation_health_service_role" ON public.federation_health;
-CREATE POLICY "federation_health_service_role" ON public.federation_health
-    TO service_role USING (true);
 
 ALTER TABLE public.oauth_providers ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "oauth_providers_select_all" ON public.oauth_providers FOR SELECT USING (true);
