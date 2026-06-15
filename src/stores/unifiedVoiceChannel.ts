@@ -705,8 +705,6 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       }
     },
 
-     * Leave voice channel
-     */
     async leaveVoiceChannel(): Promise<boolean> {
       try {
         const authStore = useAuthStore();
@@ -866,8 +864,6 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       }
     },
 
-     * Toggle video on/off
-     */
     async toggleVideo(): Promise<boolean> {
       const themeStore = useThemeStore();
       const enabled = await webrtcManager.toggleVideo();
@@ -892,8 +888,6 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       return enabled;
     },
 
-     * Toggle screen share on/off
-     */
     async toggleScreenShare(): Promise<boolean> {
       const themeStore = useThemeStore();
       const enabled = await webrtcManager.toggleScreenShare();
@@ -1007,8 +1001,6 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       }
     },
 
-     * Toggle deafen on/off
-     */
     async toggleDeafen(): Promise<boolean> {
       const themeStore = useThemeStore();
       // Allow deafen/undeafen even when not connected (preemptive state)
@@ -1032,20 +1024,14 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       }
     },
 
-     * Show/hide voice overlay
-     */
     toggleOverlay(): void {
       this.isOverlayVisible = !this.isOverlayVisible;
     },
 
-     * Change layout mode
-     */
     setLayoutMode(mode: 'grid' | 'speaker' | 'gallery'): void {
       this.layoutMode = mode;
     },
 
-     * Change view mode
-     */
     setViewMode(mode: 'normal' | 'maximized' | 'fullscreen'): void {
       this.viewMode = mode;
       if (mode !== 'fullscreen') {
@@ -1053,23 +1039,17 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       }
     },
 
-     * Enter fullscreen mode for a specific user
-     */
     enterFullscreen(userId: string): void {
       this.viewMode = 'fullscreen';
       this.fullscreenUserId = userId;
     },
 
-     * Exit fullscreen mode
-     */
     exitFullscreen(): void {
       this.viewMode = 'normal';
       this.fullscreenUserId = null;
       this.isFullWindowMode = false;
     },
 
-     * Toggle full window mode (video fills entire viewport in fullscreen)
-     */
     toggleFullWindowMode(): void {
       this.isFullWindowMode = !this.isFullWindowMode;
     },
@@ -1135,8 +1115,6 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       }
     },
 
-     * Load stream settings from localStorage
-     */
     loadStreamSettings(): void {
       try {
         const saved = userStorage.getItem('stream-settings');
@@ -1187,8 +1165,6 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       debug.log(`🔊 Set screenshare volume for user ${userId}: ${clampedVolume}%`);
     },
 
-     * Save user mic volumes to localStorage
-     */
     saveUserVolumes(): void {
       try {
         const volumeObj: Record<string, number> = {};
@@ -1201,8 +1177,6 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       }
     },
     
-     * Save user screenshare volumes to localStorage
-     */
     saveScreenShareVolumes(): void {
       try {
         const volumeObj: Record<string, number> = {};
@@ -1215,8 +1189,6 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       }
     },
 
-     * Load user volumes from localStorage
-     */
     loadUserVolumes(): void {
       try {
         const saved = userStorage.getItem('user-volumes');
@@ -1232,8 +1204,6 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       }
     },
     
-     * Load screenshare volumes from localStorage
-     */
     loadScreenShareVolumes(): void {
       try {
         const saved = userStorage.getItem('user-screenshare-volumes');
@@ -1249,8 +1219,6 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       }
     },
 
-     * Update recent speakers list when someone speaks
-     */
     updateRecentSpeakers(userId: string): void {
       const now = Date.now();
       const existingIndex = this.recentSpeakers.findIndex(s => s.userId === userId);
@@ -1268,20 +1236,14 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       }
     },
 
-     * Clear recent speakers (when leaving channel)
-     */
     clearRecentSpeakers(): void {
       this.recentSpeakers = [];
     },
 
-     * Set call start time (synced across all participants)
-     */
     setCallStartTime(timestamp: Date | null): void {
       this.callStartTime = timestamp;
     },
 
-     * Setup WebRTC event listeners (idempotent - only registers once)
-     */
     setupWebRTCListeners(): void {
       if (webrtcListenersRegistered) return;
       webrtcListenersRegistered = true;
@@ -1543,8 +1505,6 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       });
     },
 
-     * Broadcast call start time to all participants
-     */
     broadcastCallStartTime(): void {
       if (!this.currentChannelId || !this.callStartTime) return;
       
@@ -1556,8 +1516,6 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       });
     },
 
-     * Request call start time from existing participants
-     */
     requestCallStartTime(): void {
       if (!this.currentChannelId) return;
       
@@ -1569,8 +1527,6 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       });
     },
 
-     * Handle call start time from other participants
-     */
     handleCallStartTime(timestamp: string): void {
       if (!this.callStartTime) {
         this.callStartTime = new Date(timestamp);
@@ -1578,8 +1534,6 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       }
     },
 
-     * Get unique tab ID (persistent for this tab session)
-     */
     getTabId(): string {
       let tabId = sessionStorage.getItem('harmony-tab-id');
       if (!tabId) {
@@ -1620,8 +1574,6 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       }
     },
 
-     * Start heartbeat to maintain cross-tab session
-     */
     startVoiceSessionHeartbeat(): void {
       this.stopVoiceSessionHeartbeat();
       
@@ -1637,8 +1589,6 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       }, 2000);
     },
 
-     * Stop heartbeat
-     */
     stopVoiceSessionHeartbeat(): void {
       if (voiceSessionHeartbeat) {
         clearInterval(voiceSessionHeartbeat);
@@ -1646,8 +1596,6 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       }
     },
 
-     * Clear voice channel state from localStorage (manual leave)
-     */
     clearVoiceChannelState(): void {
       // Best-effort: remove both legacy unscoped and current user-scoped
       // versions of the key so previously-persisted leaks are also cleared.
@@ -1658,8 +1606,6 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       debug.log('🗑️ Cleared voice channel state');
     },
 
-     * Attempt to reconnect to previous voice channel
-     */
     async reconnectToVoiceChannel(): Promise<boolean> {
       // Prefer user-scoped storage (current). Fall back to legacy global
       // localStorage entry so existing in-flight sessions still reconnect on
@@ -1885,8 +1831,6 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       debug.log('⌨️ [Keybinds] Voice keybinds integrated with voice channel');
     },
 
-     * Cleanup keybind integration
-     */
     cleanupPushToTalk(): void {
       if (!keybindListenersSetup) return;
       
@@ -1906,8 +1850,6 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       debug.log('⌨️ [Keybinds] Voice keybinds cleanup complete');
     },
 
-     * Reset store state
-     */
     resetState(): void {
       this.currentChannelId = null;
       this.currentServerId = null;
@@ -1939,8 +1881,6 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       this.isEncrypted = false;
     },
 
-     * Get user profile info - uses unified userDataService
-     */
     getUserProfile(userId: string) {
       const { getUserProfile } = useUserData();
       const profile = getUserProfile(userId).value;
@@ -1953,8 +1893,6 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       };
     },
 
-     * Force refresh stream state for UI reactivity
-     */
     refreshStreamState(): void {
       const currentStream = webrtcManager.getLocalStream();
       if (currentStream) {
