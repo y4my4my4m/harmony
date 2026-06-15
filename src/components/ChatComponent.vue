@@ -141,7 +141,7 @@
   import KickBanModal from './moderation/KickBanModal.vue';
   const RecoveryKeySetupWizard = defineAsyncComponent(() => import('@/components/encryption/RecoveryKeySetupWizard.vue'));
   import { useAuthStore } from '@/stores/auth'; 
-  import { useCurrentUser } from '@/composables/useCurrentUser';
+  import { useProfileStore } from '@/stores/useProfile';
   import { useChatStore } from '@/stores/useChat';
   import { useServerChannelStore } from '@/stores/useServerChannel'; 
   import { useDMStore } from '@/stores/useDM';
@@ -292,9 +292,10 @@
   const mediaPickerTriggerElement = computed(() => gifTriggerElement.value || emojiTriggerElement.value);
   
       const messageDisplayRef = ref<InstanceType<typeof MessageDisplay> | null>(null);
-      // App data (messages, reactions, emoji usage) keys on the profile id, not
-      // the auth user id - always use this for matching/writing that data.
-      const { profileId: currentUserId } = useCurrentUser();
+      // App data (messages, reactions, emoji usage) keys on profiles.id, not the
+      // auth user id - always use this for matching/writing that data.
+      const profileStore = useProfileStore();
+      const currentUserId = computed(() => profileStore.profileId);
       const hasActiveUploads = ref(false);
       
       // Computed channel name - use prop or fallback to store lookup
@@ -993,7 +994,7 @@
             // Context guaranteed by the pre-check above.
             const success = await dmStore.sendDMMessage(
               props.conversationId!,
-              authStore.session!.user!.id,
+              currentUserId.value!,
               messageParts,
               replyMessageId || undefined,
               { allowPlaintextFallback },
@@ -1008,7 +1009,7 @@
           await chatStore.sendMessage(
             serverChannelStore.currentServerId!,
             serverChannelStore.currentChannelId!,
-            authStore.session!.user!.id,
+            currentUserId.value!,
             messageParts,
             replyMessageId || '',
             undefined,
@@ -1074,7 +1075,7 @@
             await chatStore.sendMessage(
               serverChannelStore.currentServerId,
               serverChannelStore.currentChannelId,
-              authStore.session!.user.id,
+              currentUserId.value!,
               messageParts,
               '',
               voiceMetadata

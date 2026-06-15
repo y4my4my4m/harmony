@@ -258,7 +258,7 @@ import { supabase } from '@/supabase'
 import { threadService } from '@/services/ThreadService'
 import { useUserData } from '@/composables/useUserData'
 import { useEncryptionFallbackPrompt } from '@/composables/useEncryptionFallbackPrompt'
-import { useCurrentUser } from '@/composables/useCurrentUser'
+import { useProfileStore } from '@/stores/useProfile'
 import { format } from 'date-fns'
 import Avatar from '@/components/common/Avatar.vue'
 import DisplayName from '@/components/DisplayName.vue'
@@ -311,9 +311,10 @@ const { runWithEncryptionFallback } = useEncryptionFallbackPrompt()
 
 const canManageThread = computed(() => canManageChannels.value)
 
-// Current user identity for MessageDisplay / reactions. App data keys on the
-// profile id (not the auth user id), so this must be profiles.id.
-const { profileId: currentUserId } = useCurrentUser()
+// Current user identity for MessageDisplay / reactions. App data keys on
+// profiles.id (not the auth user id), so this must be the profile id.
+const profileStore = useProfileStore()
+const currentUserId = computed(() => profileStore.profileId)
 
 /** Thread id for composer + typing presence (includes draft threads before DB row exists) */
 const effectiveThreadIdForTyping = computed(() => {

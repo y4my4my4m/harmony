@@ -3,7 +3,7 @@ import { ref, computed } from 'vue'
 import { services } from '@/services'
 import type { ReactionGroup, Emoji } from '@/types'
 import { useEmojiCacheStore } from '@/stores/useEmojiCache'
-import { getCurrentProfileId } from '@/composables/useCurrentUser'
+import { useProfileStore } from '@/stores/useProfile'
 import { debug } from '@/utils/debug'
 import { useUnifiedEmoji } from '@/services/unifiedEmojiService'
 
@@ -165,14 +165,10 @@ export const useReactionsStore = defineStore('reactions', () => {
     success: boolean;
     reason?: string;
   }> {
-    // The actor is ALWAYS the current user (you can only toggle your own
-    // reaction). Resolve their PROFILE id - reactions are stored under
-    // `profiles.id`, not the auth user id - so the optimistic entry matches the
-    // server row once it reconciles. Passing the auth id here made a user's own
-    // reaction highlight flicker off ~1.5s after tapping (when optimistic state
-    // synced to the real data). Fall back to the caller-provided id only if the
-    // profile store isn't populated yet (shouldn't happen post-login).
-    const actorId = getCurrentProfileId() || userId
+    // You can only ever toggle your own reaction, so the actor is the current
+    // user's profile id. Reactions are keyed on profiles.id; using the auth id
+    // here made the highlight flicker off when optimistic state reconciled.
+    const actorId = useProfileStore().profileId || userId
     const toggleKey = `${messageId}-${emojiId}-${actorId}`
     
     // Prevent rapid clicking

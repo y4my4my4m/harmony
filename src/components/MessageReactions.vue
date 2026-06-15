@@ -68,7 +68,7 @@
 import { computed, onMounted, ref, watch, nextTick } from 'vue';
 import { debug } from '@/utils/debug'
 import { useReactionsStore } from '@/stores/useReactions';
-import { useCurrentUser } from '@/composables/useCurrentUser';
+import { useProfileStore } from '@/stores/useProfile';
 import { useThemeStore } from '@/stores/useTheme';
 import { useHapticSettings } from '@/composables/useHapticSettings';
 import { useFrequentEmojis } from '@/composables/useFrequentEmojis';
@@ -102,7 +102,7 @@ const getReactionKey = (reactionGroup: any): string => {
 };
 
 const reactionsStore = useReactionsStore();
-const { profileId: currentProfileId } = useCurrentUser();
+const profileStore = useProfileStore();
 const themeStore = useThemeStore();
 const { triggerReaction } = useHapticSettings();
 const { recordEmojiUsage } = useFrequentEmojis();
@@ -123,11 +123,10 @@ const isLoadingReactions = computed(() =>
   reactionsStore.isLoadingReactions(props.message.id)
 );
 
-// Current user identity for reactions. Reactions are stored under the user's
-// PROFILE id (profiles.id), not the auth user id, so the "reacted" highlight
-// must compare against the profile id - otherwise our own reaction lights up
-// optimistically and then flickers off when the server data reconciles.
-const currentUserId = currentProfileId;
+// Reactions are keyed on profiles.id, so the "reacted" highlight must compare
+// against the profile id (using the auth id makes our own reaction flicker off
+// when optimistic state reconciles).
+const currentUserId = computed(() => profileStore.profileId);
 
 // Check if current user has reacted to a specific emoji
 const hasUserReacted = (emojiId: string) => {

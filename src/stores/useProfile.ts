@@ -15,6 +15,13 @@ export const useProfileStore = defineStore('profile', {
     isProfileComplete: (state) => services.profiles.isProfileComplete(state.profile),
     isLoading: (state) => state.loadingState.loading,
     error: (state) => state.loadingState.error,
+    // Canonical current-user identity for app data. Messages, reactions,
+    // memberships, emoji usage etc. are all keyed on `profiles.id` - NOT the
+    // Supabase auth user id. Use this anywhere you need "who am I" for data;
+    // reach for the auth user id (auth store) only for genuine auth concerns.
+    // Reactive, so it works directly in templates/computed (unlike the async
+    // `authContextService.getCurrentProfileId()` used in imperative code).
+    profileId: (state): string | undefined => state.profile?.id,
   },
   actions: {
     async fetchProfile(userId: string, useCache = true) {

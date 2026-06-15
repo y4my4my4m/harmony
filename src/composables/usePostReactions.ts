@@ -1,6 +1,6 @@
 import { computed } from 'vue'
 import { usePostReactionsStore } from '@/stores/postReactions'
-import { useAuthStore } from '@/stores/auth'
+import { useProfileStore } from '@/stores/useProfile'
 import type { TimelinePost } from '@/types'
 import { debug } from '@/utils/debug'
 
@@ -16,7 +16,7 @@ interface Props {
  */
 export function usePostReactions(props: Props) {
   const postReactionsStore = usePostReactionsStore()
-  const authStore = useAuthStore()
+  const profileStore = useProfileStore()
 
   const reactions = computed(() => 
     postReactionsStore.getPostReactions(props.post.id)
@@ -26,8 +26,12 @@ export function usePostReactions(props: Props) {
     postReactionsStore.isLoadingReactions(props.post.id)
   )
 
+  // Post reactions are keyed on profiles.id, and `add_post_emoji_reaction`
+  // authorizes via `id = p_user_id AND auth_user_id = auth.uid()` - so this
+  // MUST be the profile id, not the auth user id (the latter never matches a
+  // profile row and the RPC rejects it as Unauthorized).
   const currentUserId = computed(() => 
-    authStore.session?.user?.id
+    profileStore.profileId
   )
 
   const hasUserReacted = (emojiId: string | null, customContent: string | null) => {

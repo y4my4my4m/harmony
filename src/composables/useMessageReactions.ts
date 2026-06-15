@@ -1,6 +1,6 @@
 import { defineComponent, computed, onMounted, watch } from 'vue';
 import { useReactionsStore } from '@/stores/useReactions';
-import { useCurrentUser } from '@/composables/useCurrentUser';
+import { useProfileStore } from '@/stores/useProfile';
 import type { Message, Emoji } from '@/types';
 import { debug } from '@/utils/debug'
 
@@ -23,7 +23,9 @@ export default defineComponent({
   emits: ['toggle-reaction', 'show-reaction-tooltip', 'hide-reaction-tooltip'],
   setup(props: Props, { emit }: { emit: any }) {
     const reactionsStore = useReactionsStore();
-    const { profileId: currentUserId } = useCurrentUser();
+    const profileStore = useProfileStore();
+    // Reactions are keyed on profiles.id - use the profile id, not the auth id.
+    const currentUserId = computed(() => profileStore.profileId);
 
     // UNIFIED ARCHITECTURE: Always use reactions store (populated by CoreMessageService)
     const reactions = computed(() => 
