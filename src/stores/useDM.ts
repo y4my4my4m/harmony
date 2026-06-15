@@ -12,18 +12,7 @@ import { processMessageDecryption } from '@/utils/messageDecryption'
 import { debug } from '@/utils/debug'
 import { realtimeConnectionManager, type ConnectionStatus } from '@/services/RealtimeConnectionManager'
 import { userEventChannel } from '@/services/UserEventChannel'
-
-// Short random identifier used to make optimistic temp message IDs unique and
-// to tag outgoing messages with a client nonce for reliable realtime
-// reconciliation. Falls back to Math.random when crypto.randomUUID is missing.
-const getRandomId = (): string => {
-  try {
-    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-      return crypto.randomUUID()
-    }
-  } catch { /* crypto unavailable - fall through */ }
-  return `${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`
-}
+import { getRandomId, createTempMessageId, findOptimisticMatchIndex } from '@/stores/shared/optimisticMessages'
 
 // Types for DM functionality
 export interface DMUser {
@@ -1905,7 +1894,7 @@ export const useDMStore = defineStore('dm', () => {
     // the timestamp so two sends fired within the same millisecond can't
     // collide (a collision would make the second optimistic message dedupe
     // against the first and silently disappear until realtime arrived).
-    const tempId = `temp-${Date.now()}-${getRandomId()}`;
+    const tempId = createTempMessageId();
     // `client_nonce` is echoed back on the persisted row (via metadata) and on
     // the realtime INSERT, letting us reconcile the optimistic message reliably
     // even when content differs between optimistic (plaintext) and stored
@@ -2293,25 +2282,9 @@ export const useDMStore = defineStore('dm', () => {
             return
           }
           
-          // Prefer matching the optimistic message on the client nonce we
-          // tagged it with on send: it survives encryption (optimistic holds
-          // plaintext, the realtime row holds ciphertext) so it dedupes
-          // encrypted sends that the content comparison cannot. Fall back to
-          // the user_id + content match for older/bridged rows without a nonce.
-          const incomingNonce = (message.metadata as any)?.client_nonce
-          let tempMessageIndex = -1
-          if (incomingNonce) {
-            tempMessageIndex = currentDMMessages.value.findIndex(m =>
-              m.id.startsWith('temp-') && (m.metadata as any)?.client_nonce === incomingNonce
-            )
-          }
-          if (tempMessageIndex === -1) {
-            const payloadContent = JSON.stringify(message.content)
-            tempMessageIndex = currentDMMessages.value.findIndex(m => 
-              m.id.startsWith('temp-') && m.user_id === message.user_id &&
-              JSON.stringify(m.content) === payloadContent
-            )
-          }
+          // Reconcile against the optimistic row (race fallback for when
+          // realtime beats `_replaceDMTempWithReal`).
+          const tempMessageIndex = findOptimisticMatchIndex(currentDMMessages.value as any, message)
           
           if (tempMessageIndex !== -1) {
             debug.warn('⚠️ Temp message still exists during real-time, replacing now')

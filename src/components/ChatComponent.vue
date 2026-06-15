@@ -141,6 +141,7 @@
   import KickBanModal from './moderation/KickBanModal.vue';
   const RecoveryKeySetupWizard = defineAsyncComponent(() => import('@/components/encryption/RecoveryKeySetupWizard.vue'));
   import { useAuthStore } from '@/stores/auth'; 
+  import { useCurrentUser } from '@/composables/useCurrentUser';
   import { useChatStore } from '@/stores/useChat';
   import { useServerChannelStore } from '@/stores/useServerChannel'; 
   import { useDMStore } from '@/stores/useDM';
@@ -291,7 +292,9 @@
   const mediaPickerTriggerElement = computed(() => gifTriggerElement.value || emojiTriggerElement.value);
   
       const messageDisplayRef = ref<InstanceType<typeof MessageDisplay> | null>(null);
-      const currentUserId = computed(() => authStore.session?.user?.id);
+      // App data (messages, reactions, emoji usage) keys on the profile id, not
+      // the auth user id - always use this for matching/writing that data.
+      const { profileId: currentUserId } = useCurrentUser();
       const hasActiveUploads = ref(false);
       
       // Computed channel name - use prop or fallback to store lookup
@@ -1125,14 +1128,14 @@
         }
         
         if (wasReaction) {
-          if (authStore.session?.user) {
+          if (currentUserId.value) {
             themeStore.playAudio('reaction');
             
             // Track emoji usage when used as reaction
             if (!props.isDM && serverChannelStore.currentServerId) {
               await recordEmojiUsage(
                 emoji.id,
-                authStore.session.user.id,
+                currentUserId.value,
                 serverChannelStore.currentServerId,
                 'reaction',
                 selectedMessageId.value
@@ -1140,7 +1143,7 @@
             }
             
             // Add reaction - works for both DMs and server messages
-            await chatStore.addReaction(selectedMessageId.value, emoji.id, authStore.session.user.id, emoji);
+            await chatStore.addReaction(selectedMessageId.value, emoji.id, currentUserId.value, emoji);
           }
         } else {
           // Append emoji immediately so it appears in the editor without delay
@@ -1148,10 +1151,10 @@
           debug.log("Emoji added in Parent:", messageContent.value);
 
           // Track emoji usage in background (non-blocking)
-          if (authStore.session?.user && !props.isDM && serverChannelStore.currentServerId) {
+          if (currentUserId.value && !props.isDM && serverChannelStore.currentServerId) {
             recordEmojiUsage(
               emoji.id,
-              authStore.session.user.id,
+              currentUserId.value,
               serverChannelStore.currentServerId,
               'message'
             );

@@ -8,18 +8,7 @@ import { ensureMessageEmbeds } from '@/utils/messageEmbedUtils';
 import { processMessageDecryption } from '@/utils/messageDecryption';
 import { debug } from '@/utils/debug';
 import { realtimeConnectionManager, type ConnectionStatus } from '@/services/RealtimeConnectionManager';
-
-// Short random identifier used to make optimistic temp message IDs unique and
-// to tag outgoing messages with a client nonce for reliable realtime
-// reconciliation. Falls back to Math.random when crypto.randomUUID is missing.
-const getRandomId = (): string => {
-  try {
-    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-      return crypto.randomUUID();
-    }
-  } catch { /* crypto unavailable - fall through */ }
-  return `${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`;
-};
+import { getRandomId, createTempMessageId, findOptimisticMatchIndex } from '@/stores/shared/optimisticMessages';
 
 // import { getEmoji } from '@/services/emojiService';
 export const useChatStore = defineStore('chat', {
@@ -750,7 +739,7 @@ export const useChatStore = defineStore('chat', {
       // of the timestamp so two sends fired within the same millisecond can't
       // collide (a collision would make the second optimistic message dedupe
       // against the first and silently disappear until realtime arrived).
-      const tempId = `temp-${Date.now()}-${getRandomId()}`;
+      const tempId = createTempMessageId();
       // `client_nonce` is echoed back on the persisted row (via metadata) and
       // on the realtime INSERT, letting us reconcile the optimistic message
       // reliably even when the content differs between optimistic (plaintext)
@@ -1040,26 +1029,7 @@ export const useChatStore = defineStore('chat', {
           
           // Check if a temp (optimistic) message exists for this row (race
           // condition fallback for when realtime beats `_replaceTempWithReal`).
-          //
-          // Prefer matching on the client nonce we tagged the message with on
-          // send: it survives encryption (optimistic holds plaintext, the
-          // stored/realtime row holds ciphertext) so it dedupes encrypted
-          // sends that the content comparison below cannot. Fall back to the
-          // user_id + content match for older/bridged rows without a nonce.
-          const incomingNonce = (payloadNew.metadata as any)?.client_nonce;
-          let tempMessageIndex = -1;
-          if (incomingNonce) {
-            tempMessageIndex = store.messages.findIndex(m =>
-              m.id.startsWith('temp-') && (m.metadata as any)?.client_nonce === incomingNonce
-            );
-          }
-          if (tempMessageIndex === -1) {
-            const payloadContent = JSON.stringify(payloadNew.content);
-            tempMessageIndex = store.messages.findIndex(m => 
-              m.id.startsWith('temp-') && m.user_id === payloadNew.user_id &&
-              JSON.stringify(m.content) === payloadContent
-            );
-          }
+          const tempMessageIndex = findOptimisticMatchIndex(store.messages as any, payloadNew);
           
           if (tempMessageIndex !== -1) {
             debug.warn('⚠️ Temp message still exists during real-time, replacing now');

@@ -17,7 +17,6 @@ import { noteToContent } from './converters/fromActivityPub.js';
 import { decodeHtmlEntities } from '../utils/contentUtils.js';
 import config from '../config/index.js';
 import { harmonyVoiceMessageFromObject } from '../utils/voiceMessageFederation.js';
-import { isDefaultServerIcon } from '../utils/urlUtils.js';
 
 /**
  * Resolve a thread ID from an AP URL. Tries ap_id match first, then UUID extraction.
@@ -1075,11 +1074,9 @@ async function processUpdateActivity(
     if (object.summary !== undefined) {
       updateData.description = object.summary;
     }
-    // Icon - explicit null means the server removed its icon. The built-in
-    // default value is treated the same as "no icon" (store null) so the local
-    // UI uses its own fallback instead of loading a bogus default asset URL.
+    // Icon - explicit null means the server removed its icon
     if (object.icon?.url) {
-      updateData.icon = isDefaultServerIcon(object.icon.url) ? null : object.icon.url;
+      updateData.icon = object.icon.url;
     } else if (object.icon === null) {
       updateData.icon = null;
     }

@@ -1,6 +1,6 @@
 import { defineComponent, computed, onMounted, watch } from 'vue';
 import { useReactionsStore } from '@/stores/useReactions';
-import { useProfileStore } from '@/stores/useProfile';
+import { useCurrentUser } from '@/composables/useCurrentUser';
 import type { Message, Emoji } from '@/types';
 import { debug } from '@/utils/debug'
 
@@ -23,7 +23,7 @@ export default defineComponent({
   emits: ['toggle-reaction', 'show-reaction-tooltip', 'hide-reaction-tooltip'],
   setup(props: Props, { emit }: { emit: any }) {
     const reactionsStore = useReactionsStore();
-    const profileStore = useProfileStore();
+    const { profileId: currentUserId } = useCurrentUser();
 
     // UNIFIED ARCHITECTURE: Always use reactions store (populated by CoreMessageService)
     const reactions = computed(() => 
@@ -33,12 +33,6 @@ export default defineComponent({
     // Check if reactions are loading
     const isLoadingReactions = computed(() => 
       reactionsStore.isLoadingReactions(props.message.id)
-    );
-
-    // Reactions are keyed by the user's PROFILE id (profiles.id), not the auth
-    // user id, so the highlight check must use the profile id.
-    const currentUserId = computed(() => 
-      profileStore.profile?.id
     );
 
     // Check if current user has reacted to a specific emoji

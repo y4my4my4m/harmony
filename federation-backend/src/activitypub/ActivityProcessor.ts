@@ -15,7 +15,6 @@ import { SignatureService } from './SignatureService.js';
 import config from '../config/index.js';
 import { harmonyVoiceMessageFromObject } from '../utils/voiceMessageFederation.js';
 import { safeFetch } from '../utils/ssrfProtection.js';
-import { isDefaultServerIcon } from '../utils/urlUtils.js';
 
 /**
  * Extract message UUID from a URL like https://domain/messages/{uuid}
@@ -1177,11 +1176,8 @@ export class ActivityProcessor {
       if (object.summary !== undefined) {
         updateData.description = object.summary;
       }
-      // Only touch the icon when the update actually carries one. Treat the
-      // built-in default value as "no icon" (store null) so the local UI falls
-      // back instead of loading a bogus default asset URL (400).
       if (object.icon?.url) {
-        updateData.icon = isDefaultServerIcon(object.icon.url) ? null : object.icon.url;
+        updateData.icon = object.icon.url;
       }
       
       const { error: updateError } = await supabase

@@ -235,6 +235,7 @@ import { threadService } from '@/services/ThreadService'
 import { supabase } from '@/supabase'
 import { useUserData } from '@/composables/useUserData'
 import { useEncryptionFallbackPrompt } from '@/composables/useEncryptionFallbackPrompt'
+import { useCurrentUser } from '@/composables/useCurrentUser'
 import { format } from 'date-fns'
 import Avatar from '@/components/common/Avatar.vue'
 import DisplayName from '@/components/DisplayName.vue'
@@ -244,7 +245,6 @@ import MessageInput from '@/components/MessageInput.vue'
 import MessageDisplay from '@/components/MessageDisplay.vue'
 import EmojiPopup from '@/components/EmojiPopup.vue'
 import MediaPickerPopup from '@/components/MediaPickerPopup.vue'
-import { useAuthStore } from '@/stores/auth'
 import { useChatStore } from '@/stores/useChat'
 import { useReactionsStore } from '@/stores/useReactions'
 import { useServerPermissions } from '@/composables/useServerPermissions'
@@ -272,7 +272,6 @@ const {
   getUserAvatarUrl: getAvatarUrl 
 } = useUserData()
 
-const authStore = useAuthStore()
 const chatStore = useChatStore()
 const reactionsStore = useReactionsStore()
 const { canManageChannels } = useServerPermissions()
@@ -280,8 +279,9 @@ const { runWithEncryptionFallback } = useEncryptionFallbackPrompt()
 
 const canManageThread = computed(() => canManageChannels.value)
 
-// Current user ID for MessageDisplay
-const currentUserId = computed(() => authStore.session?.user?.id)
+// Current user identity for MessageDisplay / reactions. App data keys on the
+// profile id (not the auth user id), so this must be profiles.id.
+const { profileId: currentUserId } = useCurrentUser()
 
 // Reply state
 const replyingToMessageId = ref<string>('')
@@ -688,9 +688,9 @@ const handleToggleEmojiList = (isReaction: boolean, message?: Message, triggerEl
 }
 
 const handleSendEmoji = async (emoji: Emoji) => {
-  if (isPopupForReaction.value && authStore.session?.user) {
+  if (isPopupForReaction.value && currentUserId.value) {
     // Add reaction using chat store
-    await chatStore.addReaction(selectedMessageId.value, emoji.id, authStore.session.user.id, emoji)
+    await chatStore.addReaction(selectedMessageId.value, emoji.id, currentUserId.value, emoji)
   }
   closeReactionEmoji()
 }
