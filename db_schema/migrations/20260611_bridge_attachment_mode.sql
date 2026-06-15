@@ -2,12 +2,12 @@ BEGIN;
 
 -- Instance-admin policy for bridged attachment handling (Discord, Slack, etc.).
 -- NOT exposed via public_instance_config_keys — only admins + bot-gateway (service role).
--- Values: link | mirror
+-- Values: link | refresh | mirror
 INSERT INTO public.instance_config (config_key, config_value, description)
 VALUES (
   'bridge_attachment_mode',
-  '"link"'::jsonb,
-  'How bridged external attachments are stored: link (external CDN URLs may expire), mirror (copy into user_media — uses disk).'
+  '"refresh"'::jsonb,
+  'How bridged external attachments are handled: link (external CDN URLs may expire), refresh (re-sign expired URLs on demand when viewed; silent content update), mirror (copy into user_media — uses disk).'
 )
 ON CONFLICT (config_key) DO NOTHING;
 

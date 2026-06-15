@@ -14,6 +14,14 @@ function isAllowedSourceUrl(url: string): boolean {
   }
 }
 
+/** A message content array has at least one Discord-CDN file part (refresh candidate). */
+export function hasDiscordCdnFilePart(content: unknown): boolean {
+  if (!Array.isArray(content)) return false
+  return content.some(
+    (p) => p?.type === 'file' && typeof p.url === 'string' && isAllowedSourceUrl(p.url),
+  )
+}
+
 function extensionFrom(fileName: string | undefined, contentType: string | undefined, sourceUrl: string): string {
   const fromName = fileName?.split('.').pop()?.toLowerCase()
   if (fromName && /^[a-z0-9]{1,8}$/.test(fromName)) return fromName
@@ -100,7 +108,7 @@ export async function applyBridgeAttachmentPolicy(
   return out
 }
 
-export type BridgeAttachmentMode = 'link' | 'mirror'
+export type BridgeAttachmentMode = 'link' | 'refresh' | 'mirror'
 
 export async function getBridgeAttachmentMode(): Promise<BridgeAttachmentMode> {
   const { data, error } = await supabase
@@ -116,6 +124,6 @@ export async function getBridgeAttachmentMode(): Promise<BridgeAttachmentMode> {
     try { raw = JSON.parse(raw) } catch { /* plain string */ }
   }
   const mode = String(raw).replace(/^"|"$/g, '')
-  if (mode === 'mirror') return mode
+  if (mode === 'refresh' || mode === 'mirror') return mode
   return 'link'
 }

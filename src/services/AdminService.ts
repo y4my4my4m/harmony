@@ -806,7 +806,7 @@ class AdminService {
       let maxMediaAttachmentsPerPost = 20
       let allowFileUploads = true
       let enableVoiceChannels = true
-      let bridgeAttachmentMode: 'link' | 'mirror' = 'link'
+      let bridgeAttachmentMode: 'link' | 'refresh' | 'mirror' = 'link'
       let gifAdsEnabled = true
       let gifKlipyWatermarkEnabled = true
       let gifClipsEnabled = false
@@ -895,7 +895,7 @@ class AdminService {
                   break
                 case 'bridge_attachment_mode': {
                   const m = String(value).replace(/^"|"$/g, '')
-                  if (m === 'mirror' || m === 'link') {
+                  if (m === 'refresh' || m === 'mirror' || m === 'link') {
                     bridgeAttachmentMode = m
                   }
                   break

@@ -27,6 +27,7 @@
           draggable="false"
           v-show="imageLoaded[item.url]"
           @load="onImageLoad(item.url)"
+          @error="onItemError(item.url)"
           @click="!item.isSticker && $emit('open-lightbox', item.url)"
         />
         <video
@@ -38,6 +39,7 @@
           :data-video-index="(videoIndexBase ?? 0) + index"
           @play="$emit('video-play', $event)"
           @pause="$emit('video-pause', $event)"
+          @error="onItemError(item.url)"
         />
       </div>
     </div>
@@ -45,7 +47,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, onMounted, watch } from 'vue';
 import type { MessagePart } from '@/types';
 import {
   isImageMediaUrl,
@@ -54,6 +56,11 @@ import {
 } from '@/utils/mediaGalleryUtils';
 import { stripKlipyAttributionFragment, isStickerMessageUrl, isAiEmojiMessageUrl } from '@/utils/klipyAttribution';
 import AttachmentRemoveButton from '@/components/common/AttachmentRemoveButton.vue';
+import {
+  isDiscordCdnUrl,
+  hasExpiredBridgedAttachment,
+  requestAttachmentRefresh,
+} from '@/services/attachmentRefresh';
 
 export interface GalleryMediaItem {
   url: string;
@@ -67,7 +74,20 @@ const props = defineProps<{
   imageLoaded: Record<string, boolean>;
   videoIndexBase?: number;
   canRemove?: boolean;
+  messageId?: string;
 }>();
+
+const onItemError = (url: string) => {
+  if (isDiscordCdnUrl(url)) requestAttachmentRefresh(props.messageId);
+};
+
+const maybeRefreshExpired = () => {
+  if (hasExpiredBridgedAttachment(props.parts)) {
+    requestAttachmentRefresh(props.messageId);
+  }
+};
+onMounted(maybeRefreshExpired);
+watch(() => props.parts, maybeRefreshExpired);
 
 function partToGalleryItem(part: MessagePart): GalleryMediaItem | null {
   if (!part || typeof part !== 'object') return null;

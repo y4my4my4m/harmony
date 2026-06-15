@@ -91,6 +91,7 @@
         <MessageMediaGallery
           v-if="part && typeof part === 'object' && part.type === 'media_gallery'"
           :parts="(part as any).parts"
+          :message-id="messageId"
           :image-loaded="imageLoadedState"
           :video-index-base="partIndex * 10"
           :can-remove="canEditAttachments"
@@ -314,6 +315,7 @@
             <img
               :src="displayMediaUrl(part.url)"
               @load="handleImageLoad(part.url)"
+              @error="onAttachmentMediaError(part.url)"
               @click="!isStickerMedia(part.url) && $emit('open-lightbox', part.url)"
               v-show="imageLoadedState[part.url]"
               draggable="false"
@@ -377,6 +379,7 @@
               :data-video-index="partIndex"
               @play="handleVideoPlay"
               @pause="handleVideoPause"
+              @error="onAttachmentMediaError(part.url)"
             ></video>
             <!-- Clip favorite button (Klipy clips only) -->
             <button
@@ -531,6 +534,11 @@ import MessageMediaGallery from '@/components/common/MessageMediaGallery.vue';
 import AttachmentRemoveButton from '@/components/common/AttachmentRemoveButton.vue';
 import ConfirmationModal from '@/components/ConfirmationModal.vue';
 import { groupMediaGalleryParts } from '@/utils/mediaGalleryUtils';
+import {
+  isDiscordCdnUrl,
+  hasExpiredBridgedAttachment,
+  requestAttachmentRefresh,
+} from '@/services/attachmentRefresh';
 import { parseEmbedUrl, isHarmonyInviteUrl } from '@/utils/embedDetection';
 import { useUnifiedEmoji } from '@/services/unifiedEmojiService';
 import { gifService } from '@/services/GifService';
@@ -669,6 +677,20 @@ export default defineComponent({
     const { resolveEmoji, isNativePack, isLoaded: emojiServiceLoaded } = useUnifiedEmoji();
 
     const displayContent = computed(() => groupMediaGalleryParts(props.content));
+
+    // Lazy bridged-attachment refresh: when a message carries an expired Discord
+    // CDN URL, ask the gateway to re-sign it (only acts when the instance is in
+    // 'refresh' mode; coalesced per message). Proactive on render + on load error.
+    const maybeRefreshExpiredAttachments = () => {
+      if (hasExpiredBridgedAttachment(props.content)) {
+        requestAttachmentRefresh(props.messageId);
+      }
+    };
+    const onAttachmentMediaError = (url: string) => {
+      if (isDiscordCdnUrl(url)) requestAttachmentRefresh(props.messageId);
+    };
+    onMounted(maybeRefreshExpiredAttachments);
+    watch(() => props.content, maybeRefreshExpiredAttachments);
 
     const showRemoveAttachmentConfirm = ref(false);
     const pendingRemoveAttachmentUrl = ref<string | null>(null);
@@ -1234,6 +1256,7 @@ export default defineComponent({
 
     return {
       displayContent,
+      onAttachmentMediaError,
       getEmojiUrl,
       localEditableContent,
       editableFiles,
