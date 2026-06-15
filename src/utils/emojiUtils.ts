@@ -1,5 +1,6 @@
 import { supabase } from '@/supabase'
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings'
+import { canonicalEmojiSize } from '@/utils/imageTransformUtils'
 
 const DEFAULT_EMOJI_TRANSFORM_QUALITY = 80
 
@@ -61,7 +62,7 @@ export function getEmojiUrl(emojiUrl: string | null | undefined, size: number = 
 
             if (pathMatch && isLocalStorage) {
                 const emojiPath = pathMatch[1];
-                const optimizedSize = Math.min(size, 128);
+                const optimizedSize = canonicalEmojiSize(size);
                 const { data } = supabase.storage
                     .from('emojis')
                     .getPublicUrl(emojiPath, {
@@ -79,7 +80,7 @@ export function getEmojiUrl(emojiUrl: string | null | undefined, size: number = 
     const { data } = supabase.storage
         .from('emojis')
         .getPublicUrl(emojiUrl, {
-            transform: { width: size, height: size, resize: 'contain', quality }
+            transform: { width: canonicalEmojiSize(size), height: canonicalEmojiSize(size), resize: 'contain', quality }
         });
     return data.publicUrl;
 }

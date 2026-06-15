@@ -1,14 +1,14 @@
 // Enhanced Service Worker for Discord-like Notifications and PWA Features
-// Version: 3.4 - App v1.2.0: reactions broadcast architecture, RLS/grants
-//                recovery, emoji cache + inbound-emoji cleanup. Cache names
-//                bumped to force a clean app-shell refresh on existing PWA
-//                installs (avoids stale-session breakage after the release).
+// Version: 3.5 - Canonical imgproxy transform sizes + stale-while-revalidate
+//                cache for emoji/avatar/server icon/banner render URLs so
+//                reaction tooltips and server switches reuse cached images.
 
 const CACHE_NAME = 'harmony-v5-mobile'
 const NOTIFICATION_CACHE = 'harmony-notifications-v2'
 const STATIC_CACHE = 'harmony-static-v3'
 const API_CACHE = 'harmony-api-v3'
 const EMOJI_CACHE = 'harmony-emoji-v2'
+const TRANSFORM_CACHE = 'harmony-transform-v1'
 
 // Cache strategies
 const STATIC_RESOURCES = [
@@ -44,7 +44,8 @@ self.addEventListener('activate', (event) => {
               cacheName !== STATIC_CACHE && 
               cacheName !== API_CACHE && 
               cacheName !== NOTIFICATION_CACHE &&
-              cacheName !== EMOJI_CACHE) {
+              cacheName !== EMOJI_CACHE &&
+              cacheName !== TRANSFORM_CACHE) {
             console.log('🗑️ Service Worker: Deleting old cache:', cacheName)
             return caches.delete(cacheName)
           }
@@ -223,7 +224,7 @@ self.addEventListener('message', (event) => {
     case 'GET_VERSION':
       // Handle version requests
       event.ports[0]?.postMessage({
-        version: '3.4',
+        version: '3.5',
         updated: new Date().toISOString()
       })
       break
@@ -516,6 +517,12 @@ async function processNotification(data) {
 
 // Note: Install and activate event listeners are defined at the top of the file
 
+// Supabase imgproxy render URLs for storage-backed images. Scoped narrowly so we
+// do not intercept arbitrary cross-origin images (the old avatar-loop issue).
+function isStorageTransformRequest(url) {
+  return /\/storage\/v1\/render\/image\/public\/(emojis|avatars|server_icons|server_banners)\//.test(url.pathname)
+}
+
 // Enhanced fetch handling with offline support - Mobile optimized
 self.addEventListener('fetch', (event) => {
   // Skip unsupported schemes
@@ -532,7 +539,14 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
-  // Skip ALL image requests to prevent avatar loops (emoji SVGs handled above)
+  // Storage transform images (emoji/avatar/server icon/banner): serve cached
+  // immediately, refresh in background so uploads still propagate.
+  if (isStorageTransformRequest(requestUrl)) {
+    event.respondWith(transformImageStaleWhileRevalidate(event.request))
+    return
+  }
+
+  // Skip ALL other image requests to prevent avatar loops (transforms handled above)
   if (event.request.destination === 'image' || 
       requestUrl.pathname.match(/\.(jpg|jpeg|png|gif|webp|svg|ico|bmp)$/i)) {
     return
@@ -699,6 +713,32 @@ async function staleWhileRevalidate(request, cacheName) {
   // Otherwise wait for network
   const networkResponse = await fetchPromise
   return networkResponse || new Response('Resource not available', { status: 503 })
+}
+
+// Stale-while-revalidate for imgproxy render URLs. Validates image/* so a 404
+// HTML page never gets pinned in cache (the old avatar-loop failure mode).
+async function transformImageStaleWhileRevalidate(request) {
+  const cachedResponse = await caches.match(request)
+
+  const fetchPromise = fetch(request).then((response) => {
+    const contentType = response.headers.get('content-type') || ''
+    const isImage = contentType.startsWith('image/')
+    if (response.status === 200 && response.ok && isImage) {
+      const responseClone = response.clone()
+      caches.open(TRANSFORM_CACHE).then((cache) => {
+        cache.put(request, responseClone)
+      }).catch(() => {})
+    }
+    return response
+  }).catch(() => null)
+
+  if (cachedResponse) {
+    fetchPromise
+    return cachedResponse
+  }
+
+  const networkResponse = await fetchPromise
+  return networkResponse || new Response('Image unavailable', { status: 503 })
 }
 
 // Cache-first strategy for emoji assets (SVGs and JSON in /assets/emojis/)
