@@ -898,6 +898,7 @@ export interface NotificationToast {
   actions?: ToastAction[];
   duration: number;
   timestamp: Date;
+  notificationId?: string; // Source notification id, enables click-to-navigate
 }
 
 export interface ToastAction {

@@ -2247,13 +2247,38 @@ export const useDMStore = defineStore('dm', () => {
    */
   const setupConversationSubscription = (conversationId: string) => {
     const channelName = `dm-conversation-${conversationId}`
-    
-    // Check if already fully subscribed (messages + reactions)
     const reactionsChannelName = `dm-reactions-${conversationId}`
-    if (realtimeConnectionManager.hasSubscription(channelName) && 
-        realtimeConnectionManager.hasSubscription(reactionsChannelName)) {
-      debug.log('📡 Already subscribed to conversation:', channelName)
+
+    // A channel only counts as "already subscribed" if it's registered AND
+    // actually connected (or mid-(re)connect). A registered-but-dead channel
+    // (error/disconnected) must be rebuilt: otherwise returning to a
+    // conversation - e.g. opening a DM notification for the conversation you
+    // last viewed - reuses a stale socket and realtime messages never arrive
+    // until a full page refresh tears everything down. This disproportionately
+    // hit long-lived sessions (instance owner) that rarely refresh.
+    const isLive = (name: string): boolean => {
+      if (!realtimeConnectionManager.hasSubscription(name)) return false
+      const status = realtimeConnectionManager.getSubscriptionStatus(name)
+      return status === 'connected' || status === 'connecting' || status === 'reconnecting'
+    }
+
+    if (isLive(channelName) && isLive(reactionsChannelName)) {
+      debug.log('📡 Already subscribed to conversation (healthy):', channelName)
       return
+    }
+
+    // Tear down any stale/errored registrations so the rebuild below recreates
+    // them with a fresh channel instead of being skipped by the has-subscription
+    // guards further down.
+    if (realtimeConnectionManager.hasSubscription(channelName) && !isLive(channelName)) {
+      debug.warn('♻️ Rebuilding stale DM message subscription:', channelName)
+      realtimeConnectionManager.unsubscribe(channelName)
+      dmSubscriptions.value.delete(channelName)
+    }
+    if (realtimeConnectionManager.hasSubscription(reactionsChannelName) && !isLive(reactionsChannelName)) {
+      debug.warn('♻️ Rebuilding stale DM reactions subscription:', reactionsChannelName)
+      realtimeConnectionManager.unsubscribe(reactionsChannelName)
+      dmSubscriptions.value.delete(reactionsChannelName)
     }
     
     // Clean up existing subscription for different conversation if needed

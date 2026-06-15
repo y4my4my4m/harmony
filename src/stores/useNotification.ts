@@ -873,7 +873,8 @@ export const useNotificationStore = defineStore('notification', {
             emojiUrl,
             emojiName,
             actorInfo?.actorUserId,
-            actorInfo?.titleSuffix
+            actorInfo?.titleSuffix,
+            notification.id
           )
         }
 
@@ -1022,7 +1023,8 @@ export const useNotificationStore = defineStore('notification', {
       emojiUrl?: string,
       emojiName?: string,
       actorUserId?: string,
-      titleSuffix?: string
+      titleSuffix?: string,
+      notificationId?: string
     ) {
       if (this.isQuietHours && type !== 'server_update') return
       
@@ -1037,7 +1039,8 @@ export const useNotificationStore = defineStore('notification', {
         actorUserId,
         titleSuffix,
         duration,
-        timestamp: new Date()
+        timestamp: new Date(),
+        notificationId
       }
       
       this.toasts.push(toast)
