@@ -54,7 +54,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { debug } from '@/utils/debug'
-import { useAuthStore } from '@/stores/auth';
+import { useProfileStore } from '@/stores/useProfile';
 import { useThemeStore } from '@/stores/useTheme';
 import { usePostReactionsStore } from '@/stores/postReactions';
 import { useHapticSettings } from '@/composables/useHapticSettings';
@@ -106,7 +106,7 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<Emits>();
 
-const authStore = useAuthStore();
+const profileStore = useProfileStore();
 const themeStore = useThemeStore();
 const postReactionsStore = usePostReactionsStore();
 const { triggerReaction } = useHapticSettings();
@@ -184,9 +184,9 @@ const isLoadingReactions = computed(() => {
   return postReactionsStore.isLoadingReactions(props.post.id);
 });
 
-// Get current user ID
+// App data (reactions) keys on profiles.id, not the auth user id.
 const currentUserId = computed(() => 
-  authStore.session?.user?.id
+  profileStore.profileId
 );
 
 // REMOVED: Individual reaction loading - now handled by batch fetch from timeline

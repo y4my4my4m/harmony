@@ -7,7 +7,7 @@
         :key="getReactionKey(reactionGroup)"
         class="reaction"
         :class="{ 
-          'reacted': hasUserReacted(getReactionKey(reactionGroup)),
+          'reacted': reactionGroup.current_user_reacted,
           'loading': isLoadingReactions 
         }"
         @click="handleReactionClick(reactionGroup.emoji, getReactionKey(reactionGroup))"
@@ -129,11 +129,6 @@ const isLoadingReactions = computed(() =>
 const currentUserId = computed(() => profileStore.profileId);
 
 // Check if current user has reacted to a specific emoji
-const hasUserReacted = (emojiId: string) => {
-  if (!currentUserId.value) return false;
-  return reactionsStore.hasUserReacted(props.message.id, emojiId, currentUserId.value);
-};
-
 // Handle reaction toggle ( instant feedback)
 const handleReactionClick = async (emoji: Emoji, emojiId: string) => {
   if (!currentUserId.value) return;

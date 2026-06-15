@@ -418,6 +418,12 @@ export interface ReactionGroup {
   emoji_id: string | null;
   emoji: Emoji;
   count: number;
+  /**
+   * Server-computed: whether the current user is in this reaction group.
+   * This (not a client-side user_id compare) is the source of truth for the
+   * "reacted" highlight - it's immune to auth-id vs profile-id confusion.
+   */
+  current_user_reacted?: boolean;
   reactions: Array<{
     reaction_id: string;
     user_id: string;

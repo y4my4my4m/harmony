@@ -840,6 +840,7 @@ export class CoreMessageService {
             is_native: isNative
           },
           count: reaction.count,
+          current_user_reacted: reaction.current_user_reacted === true,
           reactions: Array.isArray(reaction.reactions) ? reaction.reactions : [],
           message_id_of_reactions: reaction.message_id_of_reactions
         }
@@ -900,6 +901,7 @@ export class CoreMessageService {
             is_native: isNative
           },
           count: reaction.reaction_count || 0,
+          current_user_reacted: reaction.current_user_reacted === true,
           reactions: Array.isArray(reaction.users) ? reaction.users : []
         })
       })
