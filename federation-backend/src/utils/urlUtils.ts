@@ -72,3 +72,32 @@ export function getFullBannerUrl(bannerUrl: string | null | undefined): string |
     width: 1500, height: 500, resize: 'cover', quality: 80,
   });
 }
+
+const DEFAULT_SERVER_ICON = '/default_server.webp';
+
+/**
+ * Whether a server icon value is the built-in default (not a custom upload).
+ * Matches the DB default and any federation-mangled storage URLs for it.
+ */
+export function isDefaultServerIcon(icon: string | null | undefined): boolean {
+  if (!icon || typeof icon !== 'string') return true;
+  const trimmed = icon.trim();
+  if (!trimmed) return true;
+  if (trimmed === DEFAULT_SERVER_ICON) return true;
+  if (trimmed.includes('default_server')) return true;
+  return false;
+}
+
+export function getFullServerIconUrl(icon: string | null | undefined): string | null {
+  if (isDefaultServerIcon(icon)) return null;
+  return getFullStorageUrl(icon, 'server_icons', {
+    width: 96, height: 96, resize: 'contain', quality: 80,
+  });
+}
+
+export function getFullServerBannerUrl(banner: string | null | undefined): string | null {
+  if (!banner || typeof banner !== 'string' || !banner.trim()) return null;
+  return getFullStorageUrl(banner, 'server_banners', {
+    width: 1280, height: 400, resize: 'cover', quality: 80,
+  });
+}

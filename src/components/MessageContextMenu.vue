@@ -160,6 +160,7 @@ import { messageService } from '@/services';
 import { getEmojiUrl } from '@/utils/emojiUtils';
 import { messagePartsToPlainText } from '@/utils/messageContentUtils';
 import { downloadMediaFromUrl, filenameFromUrl } from '@/utils/downloadMedia';
+import { getMessageShareUrl } from '@/utils/messageShareUrl';
 import type { Message } from '@/types';
 import Icon from '@/components/common/Icon.vue';
 import ReactionIcon from '@/components/icons/Reaction.vue';
@@ -174,6 +175,7 @@ interface Props {
   message: Message | null;
   serverId?: string;
   channelId?: string;
+  threadId?: string;
   conversationId?: string;
   currentUserId?: string;
   /** When true, hide the "Create Thread" item (e.g. inside a thread view). */
@@ -403,16 +405,18 @@ const mediaUrlLabel = computed(() => {
 
 const copyMessageURL = async () => {
   if (!props.message) return;
-  
-  const domain = import.meta.env.VITE_DOMAIN || window.location.host;
-  let messageURL = '';
-  
-  if (props.serverId && props.channelId) {
-    messageURL = `https://${domain}/chat/${props.serverId}/${props.channelId}?messageId=${props.message.id}`;
-  } else if (props.conversationId) {
-    messageURL = `https://${domain}/dm/${props.conversationId}?messageId=${props.message.id}`;
-  }
-  
+
+  const threadId = props.threadId || props.message.thread_id;
+  const messageURL = getMessageShareUrl({
+    messageId: props.message.id,
+    serverId: props.serverId,
+    channelId: props.channelId,
+    threadId,
+    conversationId: props.conversationId,
+  });
+
+  if (!messageURL) return;
+
   try {
     await navigator.clipboard.writeText(messageURL);
     debug.log('Message URL copied to clipboard');

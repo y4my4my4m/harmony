@@ -41,6 +41,10 @@ class SecureSessionKeyStore {
       request.onsuccess = () => {
         this.db = request.result
         this.db.onclose = () => { this.db = null }
+        this.db.onversionchange = () => {
+          this.db?.close()
+          this.db = null
+        }
         resolve(this.db)
       }
 
@@ -75,6 +79,7 @@ class SecureSessionKeyStore {
         resolve()
       }
       tx.onerror = () => reject(tx.error)
+      tx.onabort = () => reject(tx.error)
     })
   }
 
@@ -129,6 +134,7 @@ class SecureSessionKeyStore {
           resolve()
         }
         tx.onerror = () => reject(tx.error)
+        tx.onabort = () => reject(tx.error)
       })
     } catch {
       debug.warn('⚠️ Failed to clear session keys from IndexedDB')
@@ -147,6 +153,7 @@ class SecureSessionKeyStore {
         store.clear()
         tx.oncomplete = () => resolve()
         tx.onerror = () => reject(tx.error)
+        tx.onabort = () => reject(tx.error)
       })
     } catch {
       debug.warn('⚠️ Failed to clear all session keys from IndexedDB')
@@ -207,6 +214,10 @@ class IdentityKeyStore {
       request.onsuccess = () => {
         this.db = request.result
         this.db.onclose = () => { this.db = null }
+        this.db.onversionchange = () => {
+          this.db?.close()
+          this.db = null
+        }
         resolve(this.db)
       }
 
@@ -244,6 +255,7 @@ class IdentityKeyStore {
         resolve()
       }
       tx.onerror = () => reject(tx.error)
+      tx.onabort = () => reject(tx.error)
     })
   }
 
@@ -280,6 +292,7 @@ class IdentityKeyStore {
         store.delete(userId)
         tx.oncomplete = () => resolve()
         tx.onerror = () => reject(tx.error)
+        tx.onabort = () => reject(tx.error)
       })
     } catch {
       debug.warn('⚠️ Failed to clear identity key from IndexedDB')
@@ -295,6 +308,7 @@ class IdentityKeyStore {
         store.clear()
         tx.oncomplete = () => resolve()
         tx.onerror = () => reject(tx.error)
+        tx.onabort = () => reject(tx.error)
       })
     } catch {
       debug.warn('⚠️ Failed to clear all identity keys from IndexedDB')
@@ -342,6 +356,10 @@ class SigningKeyStore {
       request.onsuccess = () => {
         this.db = request.result
         this.db.onclose = () => { this.db = null }
+        this.db.onversionchange = () => {
+          this.db?.close()
+          this.db = null
+        }
         resolve(this.db)
       }
 
@@ -379,6 +397,7 @@ class SigningKeyStore {
         resolve()
       }
       tx.onerror = () => reject(tx.error)
+      tx.onabort = () => reject(tx.error)
     })
   }
 
@@ -415,6 +434,7 @@ class SigningKeyStore {
         store.delete(userId)
         tx.oncomplete = () => resolve()
         tx.onerror = () => reject(tx.error)
+        tx.onabort = () => reject(tx.error)
       })
     } catch {
       debug.warn('⚠️ Failed to clear signing key from IndexedDB')
@@ -430,6 +450,7 @@ class SigningKeyStore {
         store.clear()
         tx.oncomplete = () => resolve()
         tx.onerror = () => reject(tx.error)
+        tx.onabort = () => reject(tx.error)
       })
     } catch {
       debug.warn('⚠️ Failed to clear all signing keys from IndexedDB')
@@ -488,6 +509,10 @@ class PinnedKeyStore {
       request.onsuccess = () => {
         this.db = request.result
         this.db.onclose = () => { this.db = null }
+        this.db.onversionchange = () => {
+          this.db?.close()
+          this.db = null
+        }
         resolve(this.db)
       }
 
@@ -524,6 +549,7 @@ class PinnedKeyStore {
         store.put(record)
         tx.oncomplete = () => resolve()
         tx.onerror = () => reject(tx.error)
+        tx.onabort = () => reject(tx.error)
       })
     } catch {
       debug.warn('⚠️ Failed to write pinned key record')
@@ -539,6 +565,7 @@ class PinnedKeyStore {
         store.delete(userId)
         tx.oncomplete = () => resolve()
         tx.onerror = () => reject(tx.error)
+        tx.onabort = () => reject(tx.error)
       })
     } catch {
       debug.warn('⚠️ Failed to clear pinned key record')
@@ -554,6 +581,7 @@ class PinnedKeyStore {
         store.clear()
         tx.oncomplete = () => resolve()
         tx.onerror = () => reject(tx.error)
+        tx.onabort = () => reject(tx.error)
       })
     } catch {
       debug.warn('⚠️ Failed to clear all pinned key records')
@@ -601,6 +629,10 @@ class DeviceKeyStore {
       request.onsuccess = () => {
         this.db = request.result
         this.db.onclose = () => { this.db = null }
+        this.db.onversionchange = () => {
+          this.db?.close()
+          this.db = null
+        }
         resolve(this.db)
       }
       request.onupgradeneeded = (event) => {
@@ -612,30 +644,67 @@ class DeviceKeyStore {
     })
   }
 
-  async storeSigningKey(deviceId: string, privateKey: CryptoKey): Promise<void> {
+  async storeSigningKey(
+    deviceId: string,
+    privateKey: CryptoKey,
+    publicSpki?: string | null,
+  ): Promise<void> {
     const db = await this.open()
     let safeKey = privateKey
     if (privateKey.extractable) {
       const raw = await crypto.subtle.exportKey('pkcs8', privateKey)
       safeKey = await crypto.subtle.importKey('pkcs8', raw, { name: 'ECDSA', namedCurve: 'P-256' }, false, ['sign'])
     }
+
+    const existing = await this.loadSigningKeyPair(deviceId).catch(() => null)
+    const spkiToStore =
+      publicSpki === undefined
+        ? existing?.publicSpki ?? null
+        : publicSpki
+
     return new Promise((resolve, reject) => {
       const tx = db.transaction(DEVICE_STORE_NAME, 'readwrite')
       const store = tx.objectStore(DEVICE_STORE_NAME)
-      store.put({ deviceId, signingPrivateKey: safeKey, storedAt: Date.now() })
+      const entry: Record<string, unknown> = {
+        deviceId,
+        signingPrivateKey: safeKey,
+        storedAt: Date.now(),
+      }
+      if (spkiToStore) {
+        entry.signingPublicSpki = spkiToStore
+      }
+      store.put(entry)
       tx.oncomplete = () => resolve()
       tx.onerror = () => reject(tx.error)
+      tx.onabort = () => reject(tx.error)
     })
   }
 
   async loadSigningKey(deviceId: string): Promise<CryptoKey | null> {
+    const pair = await this.loadSigningKeyPair(deviceId)
+    return pair?.privateKey ?? null
+  }
+
+  async loadSigningKeyPair(
+    deviceId: string,
+  ): Promise<{ privateKey: CryptoKey; publicSpki: string | null } | null> {
     try {
       const db = await this.open()
       return new Promise((resolve, reject) => {
         const tx = db.transaction(DEVICE_STORE_NAME, 'readonly')
         const store = tx.objectStore(DEVICE_STORE_NAME)
         const request = store.get(deviceId)
-        request.onsuccess = () => resolve(request.result?.signingPrivateKey ?? null)
+        request.onsuccess = () => {
+          const row = request.result
+          if (!row?.signingPrivateKey) {
+            resolve(null)
+            return
+          }
+          resolve({
+            privateKey: row.signingPrivateKey as CryptoKey,
+            publicSpki: (row.signingPublicSpki as string | undefined) ?? null,
+          })
+        }
         request.onerror = () => reject(request.error)
       })
     } catch {
@@ -652,9 +721,26 @@ class DeviceKeyStore {
         store.delete(deviceId)
         tx.oncomplete = () => resolve()
         tx.onerror = () => reject(tx.error)
+        tx.onabort = () => reject(tx.error)
       })
     } catch {
       debug.warn('⚠️ Failed to clear device key')
+    }
+  }
+
+  async clearAll(): Promise<void> {
+    try {
+      const db = await this.open()
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(DEVICE_STORE_NAME, 'readwrite')
+        const store = tx.objectStore(DEVICE_STORE_NAME)
+        store.clear()
+        tx.oncomplete = () => resolve()
+        tx.onerror = () => reject(tx.error)
+        tx.onabort = () => reject(tx.error)
+      })
+    } catch {
+      debug.warn('⚠️ Failed to clear all device keys')
     }
   }
 

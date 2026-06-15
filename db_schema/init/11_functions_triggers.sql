@@ -1620,7 +1620,7 @@ CREATE OR REPLACE FUNCTION public.trigger_queue_channel_message_edit_federation(
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, pg_temp
 AS $$
 DECLARE
     v_server_id UUID;
@@ -1628,6 +1628,10 @@ DECLARE
     v_federation_enabled BOOLEAN;
     v_author_is_local BOOLEAN;
 BEGIN
+    IF current_setting('harmony.silent_content_update', true) = 'true' THEN
+        RETURN NEW;
+    END IF;
+
     IF NEW.channel_id IS NOT NULL AND NEW.conversation_id IS NULL THEN
         IF OLD.content IS NOT DISTINCT FROM NEW.content THEN RETURN NEW; END IF;
 

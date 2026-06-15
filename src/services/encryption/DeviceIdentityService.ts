@@ -29,6 +29,9 @@ import {
   exportPublicSigningKey,
   exportPrivateSigningKey,
   importPrivateSigningKey,
+  importPublicSigningKey,
+  signMessage,
+  verifyMessageSignature,
 } from './MessageSigner'
 import { debug } from '@/utils/debug'
 
@@ -119,57 +122,200 @@ class DeviceIdentityService {
   }
 
   /**
-   * Register (or refresh) this device for the given user. Idempotent: it
-   * generates a device signing keypair the first time, caches the private key
-   * locally, and upserts the public key + metadata into user_devices.
+   * Register (or refresh) this device for the given user.
    *
-   * @param trustState initial trust level for a brand-new device row. Existing
-   *        rows keep their trust state (we only touch last_seen / keys).
+   * Identity policy: `device_id` names a signing key, not just a browser
+   * install. Same device_id + same signing key = same device. Same device_id +
+   * different signing key = new cryptographic identity → rotate device_id, insert
+   * a fresh row, and do not inherit verified trust. We never overwrite a
+   * non-null server-published signing key in place (that would orphan older v3
+   * messages signed under the previous key).
+   *
+   * @param trustState initial trust for a genuinely new device row only.
    */
   async ensureRegistered(userId: string, trustState: DeviceTrustState = 'account'): Promise<UserDevice | null> {
-    this.userId = userId
-    const deviceId = this.getDeviceId()
+    if (typeof navigator !== 'undefined' && navigator.locks?.request) {
+      return navigator.locks.request(
+        'harmony-device-registration',
+        () => this.ensureRegisteredInner(userId, trustState),
+      )
+    }
+    return this.ensureRegisteredInner(userId, trustState)
+  }
 
-    // Ensure we have a device signing key locally.
-    let signingPrivate = await deviceKeyStore.loadSigningKey(deviceId)
-    let signingPublicSpki: string | null = null
-    if (!signingPrivate) {
-      const kp = await generateSigningKeyPair()
-      signingPublicSpki = await exportPublicSigningKey(kp.publicKey)
-      const pkcs8 = await exportPrivateSigningKey(kp.privateKey)
-      signingPrivate = await importPrivateSigningKey(pkcs8, false)
-      await deviceKeyStore.storeSigningKey(deviceId, signingPrivate)
+  private async ensureRegisteredInner(
+    userId: string,
+    trustState: DeviceTrustState = 'account',
+  ): Promise<UserDevice | null> {
+    this.userId = userId
+    let deviceId = this.getDeviceId()
+    let isNewIdentity = false
+
+    const existingLookup = await this.fetchDeviceRow(userId, deviceId)
+    if (existingLookup.error) return null
+    let existing = existingLookup.row
+
+    // A revoked row is dead; do not refresh it in place.
+    if (existing?.revoked_at || existing?.trust_state === 'revoked') {
+      debug.warn('⚠️ Current device id is revoked; registering as a new device')
+      deviceId = this.rotateDeviceId()
+      existing = null
+      isNewIdentity = true
     }
 
-    // Look up an existing row.
-    const { data: existing } = await supabase
+    const localPair = await deviceKeyStore.loadSigningKeyPair(deviceId)
+    let signingPrivate = localPair?.privateKey ?? null
+    let signingPublicSpki = localPair?.publicSpki ?? null
+
+    if (signingPrivate && signingPublicSpki) {
+      const localPairValid = await this.localSigningKeyMatchesPublished(
+        signingPrivate,
+        signingPublicSpki,
+        deviceId,
+      )
+      if (!localPairValid) {
+        debug.warn('⚠️ Local cached signing public key does not match private key')
+        signingPublicSpki = null
+      }
+    }
+
+    const serverPublished = existing?.device_signing_public_key ?? null
+
+    if (serverPublished && !signingPrivate) {
+      debug.warn(
+        '⚠️ Server has a published signing key but local private key is missing; ' +
+        'rotating device identity',
+      )
+      deviceId = this.rotateDeviceId()
+      existing = null
+      isNewIdentity = true
+      signingPublicSpki = null
+    } else if (serverPublished && signingPrivate) {
+      const matchesServer = await this.localSigningKeyMatchesPublished(
+        signingPrivate,
+        serverPublished,
+        deviceId,
+      )
+      if (matchesServer) {
+        signingPublicSpki = serverPublished
+        await deviceKeyStore.storeSigningKey(deviceId, signingPrivate, signingPublicSpki)
+      } else {
+        // Local key ≠ server key for this device_id → new identity, not in-place rotation.
+        debug.warn(
+          '⚠️ Local signing key does not match server-published key for this device id; ' +
+          'rotating device identity',
+        )
+        deviceId = this.rotateDeviceId()
+        existing = null
+        isNewIdentity = true
+        signingPrivate = null
+        signingPublicSpki = null
+      }
+    }
+
+    if (!signingPrivate) {
+      const minted = await this.mintSigningKeypair(deviceId)
+      signingPrivate = minted.privateKey
+      signingPublicSpki = minted.publicSpki
+    } else if (!signingPublicSpki) {
+      // Private key with no SPKI and no authoritative server key: first publish for this id.
+      debug.warn('⚠️ Device signing key missing public SPKI - minting a fresh keypair')
+      const minted = await this.mintSigningKeypair(deviceId)
+      signingPrivate = minted.privateKey
+      signingPublicSpki = minted.publicSpki
+    }
+
+    if (existing && !existing.revoked_at && existing.trust_state !== 'revoked') {
+      return this.touchExistingDeviceRow(existing, signingPrivate, signingPublicSpki)
+    }
+
+    // Rotated identities start untrusted (L0): they can sign v3 messages once
+    // published, but must not inherit verified/recovery capabilities.
+    const initialTrust = isNewIdentity ? 'untrusted' : trustState
+    return this.insertNewDeviceRow(userId, deviceId, signingPublicSpki, initialTrust)
+  }
+
+  private async fetchDeviceRow(
+    userId: string,
+    deviceId: string,
+  ): Promise<{ row: UserDevice | null; error: boolean }> {
+    const { data, error } = await supabase
       .from('user_devices')
       .select('*')
       .eq('user_id', userId)
       .eq('device_id', deviceId)
       .maybeSingle()
+    if (error) {
+      debug.warn('⚠️ Failed to load existing device row:', error)
+      return { row: null, error: true }
+    }
+    return { row: (data || null) as UserDevice | null, error: false }
+  }
 
-    // If a row exists but we just (re)generated a signing key because the local
-    // copy was missing, refresh the public key on the row so verification of
-    // this device's future messages succeeds.
-    if (existing) {
-      const patch: Record<string, any> = { last_seen_at: new Date().toISOString() }
-      if (signingPublicSpki && existing.device_signing_public_key !== signingPublicSpki) {
+  /** Mint a new local device id. The previous id's row and messages stay valid. */
+  private rotateDeviceId(): string {
+    const newId = crypto.randomUUID()
+    try {
+      localStorage.setItem(DEVICE_ID_STORAGE_KEY, newId)
+    } catch { /* ephemeral session */ }
+    this.deviceId = newId
+    debug.warn(`🔄 Rotated local device id → ${newId.substring(0, 8)}`)
+    return newId
+  }
+
+  private async mintSigningKeypair(
+    deviceId: string,
+  ): Promise<{ privateKey: CryptoKey; publicSpki: string }> {
+    const kp = await generateSigningKeyPair()
+    const publicSpki = await exportPublicSigningKey(kp.publicKey)
+    const pkcs8 = await exportPrivateSigningKey(kp.privateKey)
+    const privateKey = await importPrivateSigningKey(pkcs8, false)
+    await deviceKeyStore.storeSigningKey(deviceId, privateKey, publicSpki)
+    return { privateKey, publicSpki }
+  }
+
+  /**
+   * Refresh an active device row. Only fills a NULL server signing key; never
+   * overwrites a published key (key history is not tracked per device_id).
+   */
+  private async touchExistingDeviceRow(
+    existing: UserDevice,
+    signingPrivate: CryptoKey,
+    signingPublicSpki: string,
+  ): Promise<UserDevice | null> {
+    const patch: Record<string, unknown> = { last_seen_at: new Date().toISOString() }
+
+    if (!existing.device_signing_public_key && signingPublicSpki) {
+      const canPublish = await this.localSigningKeyMatchesPublished(
+        signingPrivate,
+        signingPublicSpki,
+        existing.device_id,
+      )
+      if (canPublish) {
         patch.device_signing_public_key = signingPublicSpki
       }
-      const { data: updated } = await supabase
-        .from('user_devices')
-        .update(patch)
-        .eq('id', existing.id)
-        .select('*')
-        .maybeSingle()
-      return (updated || existing) as UserDevice
     }
 
-    // New device row. If we loaded an existing private key but had no row, we
-    // still need its public key; derive it is not possible from a non-extractable
-    // private, so only set it when we generated the key this run.
-    const row: Record<string, any> = {
+    const { data: updated, error } = await supabase
+      .from('user_devices')
+      .update(patch)
+      .eq('id', existing.id)
+      .select('*')
+      .maybeSingle()
+    if (error) {
+      debug.warn('⚠️ Failed to refresh device row:', error)
+      return existing
+    }
+    return (updated || existing) as UserDevice
+  }
+
+  private async insertNewDeviceRow(
+    userId: string,
+    deviceId: string,
+    signingPublicSpki: string,
+    trustState: DeviceTrustState,
+  ): Promise<UserDevice | null> {
+    const row: Record<string, unknown> = {
       user_id: userId,
       device_id: deviceId,
       device_signing_public_key: signingPublicSpki,
@@ -190,10 +336,6 @@ class DeviceIdentityService {
     }
     debug.log(`📱 Registered device ${deviceId.substring(0, 8)} (${row.label})`)
 
-    // Brand-new device: if the account already has OTHER active devices, raise a
-    // Discord-style "new login - was this you?" approval request so those devices
-    // can prompt the user (and optionally push a history key-sync bundle). The
-    // first-ever device for an account never prompts (nobody to ask).
     try {
       const others = (await this.listActiveDevices(userId)).filter(d => d.device_id !== deviceId)
       if (others.length > 0) {
@@ -209,6 +351,32 @@ class DeviceIdentityService {
   /** Load this device's signing private key (for signing v3 messages). */
   async getMyDeviceSigningKey(): Promise<CryptoKey | null> {
     return deviceKeyStore.loadSigningKey(this.getDeviceId())
+  }
+
+  /** Check that a published SPKI matches the local non-extractable signing key. */
+  private async localSigningKeyMatchesPublished(
+    privateKey: CryptoKey,
+    publishedSpki: string,
+    deviceId = this.getDeviceId(),
+  ): Promise<boolean> {
+    try {
+      const publicKey = await importPublicSigningKey(publishedSpki)
+      const probe = {
+        algorithm: 'megolm_v3',
+        room_id: 'device-key-probe',
+        session_id: 'probe',
+        message_index: 0,
+        sender_user_id: this.userId || 'probe',
+        ciphertext_hash_b64: 'cHJvYmU=',
+        timestamp: 0,
+        epoch_id: 1,
+        sender_device_id: deviceId,
+      }
+      const signature = await signMessage(probe, privateKey)
+      return verifyMessageSignature(probe, signature, publicKey)
+    } catch {
+      return false
+    }
   }
 
   /** All non-revoked devices for a user. */

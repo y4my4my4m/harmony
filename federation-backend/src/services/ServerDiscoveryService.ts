@@ -11,6 +11,12 @@ import { logger } from '../utils/logger.js';
 import config from '../config/index.js';
 import { validateExternalHostname, safeFetch } from '../utils/ssrfProtection.js';
 import { discoveryLimiter } from '../middleware/rateLimit.js';
+import {
+  getFullAvatarUrl,
+  getFullServerBannerUrl,
+  getFullServerIconUrl,
+  isDefaultServerIcon,
+} from '../utils/urlUtils.js';
 
 const router = Router();
 
@@ -54,7 +60,7 @@ router.get(
         description: serverData.summary || '',
         icon: serverData.icon?.url,
         banner: serverData.image?.url || null,
-        memberCount: serverData.memberCount || 0,
+        memberCount: serverData.memberCount ?? serverData['harmony:memberCount'] ?? 0,
         channels: (serverData['harmony:channels'] || []).map((c: any) => {
           // Map type to simple 'text', 'voice', or 'category'
           let type = 'text';
@@ -136,9 +142,11 @@ router.post(
         return `https://${instance}${url.startsWith('/') ? '' : '/'}${url}`;
       };
 
-      // Fix server icon
+      // Fix server icon — omit default so remote UIs use their own fallback
       if (data.server?.icon) {
-        data.server.icon = makeAbsolute(data.server.icon);
+        data.server.icon = isDefaultServerIcon(data.server.icon)
+          ? null
+          : makeAbsolute(data.server.icon);
       }
 
       // Fix creator avatar if present
@@ -202,24 +210,6 @@ router.get(
 
     const server = invite.server;
     const hostDomain = config.INSTANCE_DOMAIN;
-    const supabaseUrl = config.PUBLIC_SUPABASE_URL || config.SUPABASE_URL;
-
-    // Helper to convert relative URLs to absolute
-    // Handles both regular paths and Supabase storage paths
-    const makeAbsolute = (url: string | null | undefined, bucket?: string): string | null => {
-      if (!url) return null;
-      if (url.startsWith('http://') || url.startsWith('https://')) return url;
-      if (url.startsWith('blob:')) return null;
-      
-      // If bucket is specified, it's a Supabase storage path
-      if (bucket) {
-        // Format: uuid/uuid.webp -> full storage URL
-        return `${supabaseUrl}/storage/v1/render/image/public/${bucket}/${url}?width=96&height=96&resize=contain&quality=80`;
-      }
-      
-      // Regular path - use instance domain
-      return `https://${hostDomain}${url.startsWith('/') ? '' : '/'}${url}`;
-    };
 
     // Get member count
     const { count: memberCount } = await supabase
@@ -281,15 +271,15 @@ router.get(
       createdBy: invite.creator ? {
         username: invite.creator.username,
         displayName: invite.creator.display_name,
-        avatar: makeAbsolute(invite.creator.avatar_url, 'avatars'),
+        avatar: getFullAvatarUrl(invite.creator.avatar_url),
       } : null,
       server: {
         id: serverApId,
         serverId: server.id,
         name: server.name,
         description: server.description || '',
-        icon: makeAbsolute(server.icon, 'server_icons'),
-        banner: makeAbsolute(server.banner, 'server_banners'),
+        icon: getFullServerIconUrl(server.icon),
+        banner: getFullServerBannerUrl(server.banner),
         memberCount: memberCount || 0,
         channels: allChannels,
         inbox: `${serverApId}/inbox`,

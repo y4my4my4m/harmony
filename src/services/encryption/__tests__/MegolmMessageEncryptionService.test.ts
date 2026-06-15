@@ -1,11 +1,12 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import 'fake-indexeddb/auto'
 import { indexedDB } from 'fake-indexeddb'
 
 import { MegolmService } from '../MegolmService'
 import { RecoveryKeyService } from '../RecoveryKeyService'
 import { MegolmMessageEncryptionService } from '../MegolmMessageEncryptionService'
-import { signingKeyStore } from '../SecureSessionKeyStore'
+import { deviceIdentityService } from '../DeviceIdentityService'
+import { deviceKeyStore, signingKeyStore } from '../SecureSessionKeyStore'
 import {
   generateSigningKeyPair,
   exportPublicSigningKey,
@@ -78,6 +79,10 @@ describe('MegolmMessageEncryptionService', () => {
       req.onerror = () => resolve()
     })
 
+    // v2 harness: keep device enrollment out of the default path so these
+    // tests exercise user-level signing keys (megolm_v2_signed).
+    vi.spyOn(deviceIdentityService, 'ensureRegistered').mockResolvedValue(null)
+
     messageService = MegolmMessageEncryptionService.getInstance()
 
     const keys = await recovery.deriveKeysFromMnemonic(TEST_MNEMONIC)
@@ -102,6 +107,8 @@ describe('MegolmMessageEncryptionService', () => {
   })
 
   afterEach(async () => {
+    vi.restoreAllMocks()
+    deviceKeyStore.close()
     megolm.close()
     recovery.clear()
     ;(messageService as any).currentUserId = null
@@ -456,6 +463,68 @@ describe('MegolmMessageEncryptionService', () => {
           },
         })
       ).rejects.toThrow(/megolm_v1|Unsupported legacy/)
+    })
+  })
+
+  describe('v3 device signing (megolm_v3)', () => {
+    const TEST_DEVICE_ID = 'dddddddd-1111-2222-3333-444444444444'
+    let devicePublicSpki: string
+
+    beforeEach(async () => {
+      vi.restoreAllMocks()
+      deviceKeyStore.close()
+
+      const kp = await generateSigningKeyPair()
+      devicePublicSpki = await exportPublicSigningKey(kp.publicKey)
+      const pkcs8 = await exportPrivateSigningKey(kp.privateKey)
+      const privateKey = await importPrivateSigningKey(pkcs8, false)
+      await deviceKeyStore.storeSigningKey(TEST_DEVICE_ID, privateKey, devicePublicSpki)
+
+      vi.spyOn(deviceIdentityService, 'getDeviceId').mockReturnValue(TEST_DEVICE_ID)
+      vi.spyOn(deviceIdentityService, 'getMyDeviceSigningKey').mockResolvedValue(privateKey)
+      vi.spyOn(deviceIdentityService, 'ensureRegistered').mockImplementation(async () => ({
+        id: 'device-row',
+        user_id: TEST_USER_ID,
+        device_id: TEST_DEVICE_ID,
+        device_ecdh_public_key: null,
+        device_signing_public_key: devicePublicSpki,
+        trust_state: 'account',
+        platform: 'web',
+        label: 'test',
+        created_at: new Date().toISOString(),
+        last_seen_at: new Date().toISOString(),
+        revoked_at: null,
+      }))
+
+      ;(supabase.rpc as any).mockImplementation(async (fn: string, args: any) => {
+        if (fn === 'get_device_signing_key' && args?.p_user_id === TEST_USER_ID) {
+          return {
+            data: [{ device_signing_public_key: devicePublicSpki, revoked_at: null }],
+            error: null,
+          }
+        }
+        if (fn === 'get_room_epoch') {
+          return { data: 1, error: null }
+        }
+        return { data: [], error: null }
+      })
+    })
+
+    it('encrypts and decrypts with device-bound v3 signatures', async () => {
+      const content: MessagePart[] = [{ type: 'text', text: 'v3 hello' }]
+      const encrypted = await messageService.encryptMessage(content, TEST_ROOM_ID, [])
+
+      expect(encrypted.encryption_metadata.algorithm).toBe('megolm_v3')
+      expect(encrypted.encryption_metadata.sender_device_id).toBe(TEST_DEVICE_ID)
+
+      const decrypted = await messageService.decryptMessage({
+        content: encrypted.content,
+        channel_id: TEST_ROOM_ID,
+        encryption_metadata: encrypted.encryption_metadata,
+      })
+
+      expect(decrypted.content).toEqual(content)
+      expect(decrypted.senderVerified).toBe(true)
     })
   })
 })

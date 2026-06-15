@@ -534,6 +534,7 @@
     :message="contextMenuMessage"
     :server-id="serverChannelStore.currentServerId ?? undefined"
     :channel-id="props.channelId"
+    :thread-id="props.threadId"
     :conversation-id="props.conversationId"
     :current-user-id="props.currentUserId"
     :hide-thread-actions="props.hideThreadActions"
@@ -648,6 +649,7 @@ const props = defineProps({
   },
   channelId: String,
   conversationId: String,
+  threadId: String,
   // Hide thread creation button (for use inside thread views)
   hideThreadActions: {
     type: Boolean,
