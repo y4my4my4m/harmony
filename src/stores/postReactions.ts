@@ -20,7 +20,6 @@ export interface PostReactionGroup {
   current_user_reacted: boolean
 }
 
-/** Emoji input for a post reaction toggle. */
 interface PostReactionInput {
   id?: string
   native?: string
@@ -38,12 +37,6 @@ function matchesEmoji(group: PostReactionGroup, emoji: PostReactionInput): boole
   )
 }
 
-/**
- * Build the optimistic group array for a post reaction toggle. Deep-clones the
- * base so we never mutate cached real data, keeps `current_user_reacted` +
- * `reaction_count` accurate, and leaves `user_reactions` to the reconcile fetch
- * (so tooltips don't flash partial data).
- */
 function buildOptimisticGroups(
   base: PostReactionGroup[],
   emoji: PostReactionInput,

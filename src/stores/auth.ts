@@ -27,7 +27,6 @@ export const useAuthStore = defineStore('auth', {
     }
   },
   actions: {
-    // Helper to decode JWT payload (without verification - just for reading AAL)
     decodeJWT(token: string): any {
       try {
         const base64Url = token.split('.')[1];
@@ -42,7 +41,6 @@ export const useAuthStore = defineStore('auth', {
       }
     },
 
-    // Helper to get AAL from session - must decode the JWT token
     getAAL(session: Session | null): string {
       if (!session) return 'none';
       
@@ -165,7 +163,6 @@ export const useAuthStore = defineStore('auth', {
       const now = Date.now()
       if (this._sessionCacheTimestamp && (now - this._sessionCacheTimestamp) < this._sessionCacheTimeout) {
         debug.log('⚡ Using cached session (avoiding duplicate getSession call)')
-        // Use existing session from state
         const session = this.session
         if (!session) {
           // If no cached session, still need to fetch - and MUST validate
@@ -194,20 +191,15 @@ export const useAuthStore = defineStore('auth', {
         const session = getSessionData.session
         this._sessionCacheTimestamp = now
         
-        // Check if we're on password reset page or have recovery token in URL
-        // This handles the case where Supabase has already processed the recovery token
-        // before the PASSWORD_RECOVERY event fires
         const currentPath = window.location.pathname;
         const hashParams = new URLSearchParams(window.location.hash.substring(1));
         const queryParams = new URLSearchParams(window.location.search);
         const type = hashParams.get('type') || queryParams.get('type');
         
         if (currentPath === '/reset-password' && (type === 'recovery' || session)) {
-          // This is likely a recovery session - don't treat it as logged in
+          // Recovery session: keep for updateUser, but isPasswordResetMode blocks isLoggedIn.
           debug.log('🔒 Recovery session detected on initialization - entering password reset mode');
           this.isPasswordResetMode = true;
-          // Keep the session - it's needed for updateUser to work
-          // But isLoggedIn will return false because of isPasswordResetMode
           this.session = session;
         } else if (currentPath === '/auth/callback') {
           // OAuth callback path: Supabase's `detectSessionInUrl: true` has
@@ -234,8 +226,7 @@ export const useAuthStore = defineStore('auth', {
           this._pendingMFAVerification = true;
           this.session = null;
         } else if (session) {
-          // Check AAL2 on session restoration
-          // This prevents MFA bypass when another tab creates an AAL1 session
+          // Prevents MFA bypass when another tab creates an AAL1 session
           // and this tab picks it up from localStorage on refresh
           const isValid = await this.validateSessionForMFA(session);
           
@@ -245,7 +236,6 @@ export const useAuthStore = defineStore('auth', {
             // PERFORMANCE: Remember we validated this session to avoid redundant validation
             // on INITIAL_SESSION event that fires immediately after
             this._mfaValidatedForSession = session.access_token;
-            // Set user-scoped storage for the current user
             if (session.user?.id) {
               userStorage.setCurrentUser(session.user.id);
             }
@@ -285,11 +275,10 @@ export const useAuthStore = defineStore('auth', {
         }
       }
 
-      // Initialize notification system for existing session
       if (this.session?.user?.id) {
         // DO NOT force status to online - let userDataService handle status properly
         this.setupOfflineHandlers(this.session.user.id);
-        // Note: Notification system is now initialized by RouteAwareInitialization
+        // Notification init moved to RouteAwareInitialization.
         // to only load unread count initially (full list loads on-demand)
         
         // Home-timeline realtime + followedUsers + blocking data must be
@@ -351,7 +340,6 @@ export const useAuthStore = defineStore('auth', {
         // =====================================================================
         debug.log(`🔐 Auth event: ${event}, AAL: ${this.getAAL(session)}`);
         
-        // Handle PASSWORD_RECOVERY event
         if (event === 'PASSWORD_RECOVERY') {
           debug.log('🔒 PASSWORD_RECOVERY event detected - entering password reset mode');
           this.isPasswordResetMode = true;
@@ -366,7 +354,6 @@ export const useAuthStore = defineStore('auth', {
           return;
         }
         
-        // Handle SIGNED_OUT
         if (event === 'SIGNED_OUT') {
           debug.log('🔐 Auth event: SIGNED_OUT');
           this.isPasswordResetMode = false;
@@ -374,13 +361,11 @@ export const useAuthStore = defineStore('auth', {
           if (currentUserId) {
             await this.setUserOffline(currentUserId);
           }
-          // Clear user-scoped localStorage on logout
           userStorage.clearCurrentUser();
           this.cleanupNotificationSystem();
           return;
         }
         
-        // Handle MFA_CHALLENGE_VERIFIED
         if (event === 'MFA_CHALLENGE_VERIFIED') {
           debug.log('✅ MFA challenge verified - allowing session through');
           this.session = session;
@@ -390,7 +375,6 @@ export const useAuthStore = defineStore('auth', {
           return;
         }
         
-        // Handle new login (SIGNED_IN with different/new user)
         if (event === 'SIGNED_IN' && session) {
           // Skip validation if MFA flow is in progress - the AAL1 session is
           // expected and will be upgraded to AAL2 by verify2FA()
@@ -420,15 +404,9 @@ export const useAuthStore = defineStore('auth', {
           this.isPasswordResetMode = false;
           this.session = session;
           if (session.user?.id) {
-            // Set user-scoped storage for the new user
             userStorage.setCurrentUser(session.user.id);
             this.setupOfflineHandlers(session.user.id);
-            
-            // Re-initialize user settings after login
-            // This ensures theme and other settings load for the new user
             this.initializeUserSettings(session.user.id);
-            
-            // Full ActivityPub init (blocks/mutes + follows + realtime).
             const activityPubStore = useActivityPubStore();
             void activityPubStore.initialize().catch((err) =>
               debug.error('ActivityPub initialize after SIGNED_IN failed:', err)
@@ -437,7 +415,6 @@ export const useAuthStore = defineStore('auth', {
           return;
         }
         
-        // Handle INITIAL_SESSION (app startup)
         if (event === 'INITIAL_SESSION' && session) {
           // The comment used to say "already validated in initializeAuth", but
           // this branch also runs when `this.session` was previously null and
@@ -469,11 +446,8 @@ export const useAuthStore = defineStore('auth', {
             this._mfaValidatedForSession = session.access_token
             this.session = session;
             if (session.user?.id) {
-              // Set user-scoped storage for the current user
               userStorage.setCurrentUser(session.user.id);
               this.setupOfflineHandlers(session.user.id);
-              
-              // Full ActivityPub init on app startup.
               const activityPubStore = useActivityPubStore();
               void activityPubStore.initialize().catch((err) =>
                 debug.error('ActivityPub initialize after INITIAL_SESSION failed:', err)
@@ -534,20 +508,16 @@ export const useAuthStore = defineStore('auth', {
       try {
         debug.log('🔐 Initializing Megolm encryption service...');
         
-        // Initialize the Megolm encryption service
-        // The service internally converts auth_user_id to profile_id
         const { megolmMessageEncryptionService } = await import('@/services/encryption/MegolmMessageEncryptionService');
+        // The service internally converts auth_user_id to profile_id
         await megolmMessageEncryptionService.initialize(authUserId);
         
-        // Check if user has recovery key set up
         const hasRecoveryKey = await megolmMessageEncryptionService.hasRecoveryKey();
         
         if (hasRecoveryKey) {
           debug.log('🔐 User has recovery key set up');
           debug.log('ℹ️ User needs to enter recovery phrase to unlock encryption');
-          
-          // Encryption is set up but NOT unlocked
-          // User must enter recovery phrase in Settings > Encryption to unlock
+          // Recovery key exists but the vault stays locked until the phrase is entered.
         } else {
           debug.log('ℹ️ Encryption service initialized but user has no recovery key yet');
           debug.log('ℹ️ User can set up encryption in Settings > Encryption');
@@ -558,10 +528,8 @@ export const useAuthStore = defineStore('auth', {
     },
 
     setupOfflineHandlers(_userId: string) {
-      // Clean up any existing handlers first
       this.cleanupOfflineHandlers();
       
-      // Handle browser/tab close - cleanup presence
       const handleBeforeUnload = (_event: BeforeUnloadEvent) => {
         // Best-effort Redis offline (keepalive lets it finish after page unload).
         // If this fails, the Redis TTL key auto-expires after 90s.
@@ -572,12 +540,10 @@ export const useAuthStore = defineStore('auth', {
         }
       };
 
-      // Add event listeners for page close only
       window.addEventListener('beforeunload', handleBeforeUnload);
       window.addEventListener('unload', handleBeforeUnload);
       window.addEventListener('pagehide', handleBeforeUnload);
 
-      // Store references for cleanup
       (window as any).__harmonyOfflineHandlers = {
         beforeunload: handleBeforeUnload,
         unload: handleBeforeUnload,
@@ -784,7 +750,6 @@ export const useAuthStore = defineStore('auth', {
     },
 
     async logout() {
-      // Set user offline before logging out
       if (this.session?.user?.id) {
         await this.setUserOffline(this.session.user.id);
       }
@@ -801,7 +766,6 @@ export const useAuthStore = defineStore('auth', {
       const { default: router } = await import('@/router');
       router.push('/login');
 
-      // Clear user-scoped localStorage on logout
       userStorage.clearCurrentUser();
       
       // Clear stores in the background after navigation - order no longer matters
@@ -975,18 +939,16 @@ export const useAuthStore = defineStore('auth', {
     async initializeNotificationSystem(userId: string) {
       try {
         debug.log('🔔 Initializing notification system for user:', userId);
-        
-        // Dynamic import to avoid circular dependencies
+
+        // Dynamic import avoids a circular dependency with useNotification.
         const { useNotificationStore } = await import('@/stores/useNotification');
         const notificationStore = useNotificationStore();
         
-        // Check if already initialized
         if (notificationStore.isInitialized) {
           debug.log('⚠️ Notification system already initialized, skipping...');
           return;
         }
         
-        // Initialize the notification store
         await notificationStore.initialize(userId);
         
         debug.log('✅ Notification system initialized successfully');
@@ -1002,7 +964,6 @@ export const useAuthStore = defineStore('auth', {
       try {
         debug.log('🔔 Cleaning up notification system');
         
-        // Clean up notification broadcast handlers + disconnect user event channel
         Promise.all([
           import('@/stores/useNotification').then(({ useNotificationStore }) => {
             const notificationStore = useNotificationStore();
@@ -1019,7 +980,6 @@ export const useAuthStore = defineStore('auth', {
           debug.error('❌ Error during notification cleanup:', error);
         });
         
-        // Reset view context
         import('@/services/ViewContextTracker').then(({ viewContextTracker }) => {
           viewContextTracker.reset();
         }).catch(error => {
@@ -1047,29 +1007,18 @@ export const useAuthStore = defineStore('auth', {
     async initializeUserSettings(userId: string) {
       try {
         debug.log('🔄 Initializing user settings for:', userId);
-        
-        // PERFORMANCE: Initialize theme from localStorage FIRST (instant, synchronous)
-        // This gives immediate visual feedback while profile loads in background
+
+        // Theme from localStorage first (sync) so the UI doesn't flash while profile loads.
         const { useVisualTheme } = await import('@/composables/useVisualTheme');
         const visualTheme = useVisualTheme();
-        
-        // Initialize theme immediately (loads from localStorage first, then Supabase)
-        // This is non-blocking for the UI - theme applies instantly from localStorage
         const themeInitPromise = visualTheme.initialize();
         
-        // Fetch profile in parallel (non-blocking)
-        // Theme will use cached profile data if available, or fetch from Supabase
         const { useProfileStore } = await import('@/stores/useProfile');
         const profileStore = useProfileStore();
         const profilePromise = profileStore.fetchProfileByAuthUserId(userId);
         
-        // Wait for both to complete (but theme already applied from localStorage)
         await Promise.all([themeInitPromise, profilePromise]);
         
-        // If profile was fetched and has appearance_settings, theme will have loaded it
-        // If not, theme will have used localStorage (which is fine)
-        
-        // Eagerly initialize audio theme in background so sounds are ready on first interaction
         import('./useTheme').then(({ useThemeStore }) => {
           const themeStore = useThemeStore();
           if (!themeStore.isInitialized) {

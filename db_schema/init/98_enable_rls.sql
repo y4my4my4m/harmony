@@ -61,6 +61,8 @@ END
 $$;
 
 -- Enable RLS on all Harmony public tables
+ALTER TABLE public.activity_processing_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.activitypub_processing_stats ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.admin_audit_log ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.announcement_reads ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.ap_activities ENABLE ROW LEVEL SECURITY;
@@ -88,6 +90,7 @@ ALTER TABLE public.encryption_sessions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.federated_instances ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.federated_voice_calls ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.federation_delivery_queue ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.federation_delivery_stats ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.federation_endpoint_health ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.federation_health ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.files ENABLE ROW LEVEL SECURITY;

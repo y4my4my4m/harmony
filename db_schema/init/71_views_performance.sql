@@ -106,7 +106,7 @@ COMMENT ON TABLE public.performance_metrics_hourly IS 'Hourly aggregated perform
 -- ---------------------------------------------------------------------------
 -- SLOW QUERIES SUMMARY VIEW
 -- ---------------------------------------------------------------------------
-CREATE OR REPLACE VIEW public.slow_queries_summary AS
+CREATE OR REPLACE VIEW public.slow_queries_summary WITH (security_invoker = true) AS
 SELECT 
     table_name,
     operation_type,
@@ -126,7 +126,7 @@ COMMENT ON VIEW public.slow_queries_summary IS 'Summary of slow queries in the l
 -- ---------------------------------------------------------------------------
 -- METRICS SUMMARY VIEW
 -- ---------------------------------------------------------------------------
-CREATE OR REPLACE VIEW public.metrics_summary_view AS
+CREATE OR REPLACE VIEW public.metrics_summary_view WITH (security_invoker = true) AS
 SELECT 
     metric_type,
     metric_name,

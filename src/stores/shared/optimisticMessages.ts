@@ -1,21 +1,6 @@
 /**
- * Shared optimistic-message helpers for the channel (`useChat`) and DM
- * (`useDM`) stores.
- *
- * Both stores implement the exact same optimistic-send lifecycle:
- *   1. Insert a temp message immediately (so the UI feels instant).
- *   2. Tag it with a `client_nonce` so the realtime INSERT can be matched back
- *      to the optimistic row and de-duplicated.
- *   3. Reconcile when the persisted row arrives (via the send response or a
- *      realtime event), whichever wins the race.
- *
- * This logic used to be copy-pasted into both stores. It lives here so there is
- * a single, tested source of truth.
- */
-
-/**
- * Collision-resistant random id. Prefers `crypto.randomUUID`, falling back to a
- * Math.random-based id when the Web Crypto API is unavailable.
+ * Shared optimistic-message helpers for useChat and useDM.
+ * client_nonce matching survives encryption (optimistic row is plaintext).
  */
 export function getRandomId(): string {
   try {
@@ -28,13 +13,11 @@ export function getRandomId(): string {
   return `${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`;
 }
 
-/** Temp id for an optimistic message. The `temp-` prefix is load-bearing: the
- * dedup + reconcile paths detect optimistic rows by `id.startsWith('temp-')`. */
+/** `temp-` prefix is load-bearing: dedup/reconcile detect optimistic rows by it. */
 export function createTempMessageId(): string {
   return `temp-${Date.now()}-${getRandomId()}`;
 }
 
-/** Whether a message id belongs to an as-yet-unconfirmed optimistic message. */
 export function isOptimisticId(id: unknown): boolean {
   return typeof id === 'string' && id.startsWith('temp-');
 }
@@ -53,15 +36,8 @@ interface IncomingRow {
 }
 
 /**
- * Find the optimistic (temp) message in `messages` that corresponds to an
- * incoming persisted row, or -1 if none.
- *
- * Matching strategy, in order of reliability:
- *   1. `client_nonce` - survives encryption (the optimistic row holds plaintext
- *      while the persisted/realtime row holds ciphertext), so it dedupes
- *      encrypted sends that a content comparison never could.
- *   2. `user_id` + structural content equality - fallback for older/bridged
- *      rows that predate the nonce.
+ * Match an incoming persisted row to an optimistic temp message.
+ * Prefers client_nonce (survives encryption); falls back to user_id + content.
  */
 export function findOptimisticMatchIndex(
   messages: readonly NonceCarrier[],

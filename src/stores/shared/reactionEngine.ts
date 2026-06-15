@@ -1,44 +1,17 @@
 import { ref, computed, type Ref, type ComputedRef } from 'vue'
 
-/**
- * Shared reaction engine for message reactions (`useReactions`) and post
- * reactions (`postReactions`).
- *
- * Both features need the exact same orchestration: a cached real-data map, an
- * optimistic overlay for instant UI, batch fetching with in-flight dedup, a
- * debounced reconcile that merges server data into the optimistic groups
- * in-place (so Vue's <TransitionGroup> doesn't run leave/enter and flicker),
- * realtime handling, and logout cleanup. That logic used to be copy-pasted into
- * both stores (including two `createOptimisticReactions`).
- *
- * Everything entity-specific (which RPC to call, how a group is shaped, how to
- * build an optimistic group) lives in the adapter. The engine owns the rest.
- *
- *   G = reaction-group shape (ReactionGroup for messages, PostReactionGroup for posts)
- *   E = emoji input shape passed to toggle
- */
+/** Shared reaction orchestration for message and post reaction stores. */
 export interface ReactionEngineAdapter<G, E> {
-  /** Fetch real reaction groups for a batch of entity ids. */
   fetchBatch(entityIds: string[]): Promise<Record<string, G[]>>
-  /** Perform the server-side toggle. `currentlyReacted` is the pre-toggle state. */
   toggleOnServer(entityId: string, emoji: E, currentlyReacted: boolean): Promise<void>
-  /** Produce a new optimistic group array (clone of base) for the operation. */
   applyOptimistic(base: G[], emoji: E, operation: 'add' | 'remove'): G[]
-  /** Whether a group corresponds to the given emoji. */
   matchesEmoji(group: G, emoji: E): boolean
-  /** Server-computed "current user is in this group" flag. */
   hasReacted(group: G): boolean
-  /** Stable identity for a group, used to merge real data into optimistic. */
   groupKey(group: G): string
-  /** Stable identity for an emoji, used for the per-toggle dedup key. */
   emojiKey(emoji: E): string
-  /** Extract the entity id from a realtime payload. */
   entityIdFromRealtime(payload: any): string | undefined
-  /** Reconcile delay after a local toggle (ms). Default 1500. */
   reconcileDelayMs?: number
-  /** Reconcile delay when a realtime event arrives mid-optimistic (ms). Default 1500. */
   realtimeReconcileDelayMs?: number
-  /** Cache TTL for skipping refetch (ms). Default 30000. */
   cacheTtlMs?: number
 }
 
@@ -140,9 +113,8 @@ export function createReactionEngine<G, E>(
   }
 
   /**
-   * Merge the latest server data into the existing optimistic group array
-   * IN PLACE: same array + same group object references, only fields change.
-   * This is what keeps <TransitionGroup> from animating chips on reconcile.
+   * Merge server data into the optimistic group array in place so
+   * <TransitionGroup> doesn't re-animate chips on reconcile.
    */
   function syncOptimisticToReal(entityId: string): boolean {
     const optimistic = optimisticByEntity.value.get(entityId)
@@ -152,12 +124,10 @@ export function createReactionEngine<G, E>(
     const realByKey = new Map<string, G>()
     for (const g of real) realByKey.set(adapter.groupKey(g), g)
 
-    // Drop optimistic groups that no longer exist server-side.
     for (let i = optimistic.length - 1; i >= 0; i--) {
       if (!realByKey.has(adapter.groupKey(optimistic[i]))) optimistic.splice(i, 1)
     }
 
-    // Update existing groups in place; append new ones.
     const optByKey = new Map<string, G>()
     for (const g of optimistic) optByKey.set(adapter.groupKey(g), g)
 

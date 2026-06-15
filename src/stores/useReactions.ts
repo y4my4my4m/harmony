@@ -7,7 +7,6 @@ import { useProfileStore } from '@/stores/useProfile'
 import { useUnifiedEmoji } from '@/services/unifiedEmojiService'
 import { createReactionEngine } from '@/stores/shared/reactionEngine'
 
-/** Emoji input for a message reaction toggle. */
 interface MessageReactionInput {
   emojiId: string
   emojiData?: Emoji
@@ -22,12 +21,6 @@ function matchesEmoji(group: ReactionGroup, emojiId: string): boolean {
     : !group.emoji_id && group.emoji?.name === emojiId
 }
 
-/**
- * Build the optimistic group array for a message reaction toggle. Keeps the
- * emoji-display resolution (cache -> unified emoji) so a brand-new chip renders
- * its image instantly, and maintains `current_user_reacted` + `count` so the
- * highlight and counter are correct before the server reconciles.
- */
 function buildOptimisticGroups(
   base: ReactionGroup[],
   emojiId: string,
@@ -102,8 +95,6 @@ function buildOptimisticGroups(
 export const useReactionsStore = defineStore('reactions', () => {
   const engine = createReactionEngine<ReactionGroup, MessageReactionInput>({
     async fetchBatch(messageIds) {
-      // Single fetch uses the richer singular RPC (carries usernames for
-      // tooltips); batch fetch uses the lean RPC to avoid N+1 on history load.
       if (messageIds.length === 1) {
         const groups = await services.messages.getMessageReactions(messageIds[0])
         return { [messageIds[0]]: groups as unknown as ReactionGroup[] }
@@ -125,12 +116,10 @@ export const useReactionsStore = defineStore('reactions', () => {
     realtimeReconcileDelayMs: 400,
   })
 
-  // Server-boolean model: trailing userId param accepted for back-compat, ignored.
   const hasUserReacted = computed(() =>
     (messageId: string, emojiId: string, _userId?: string): boolean =>
       engine.hasUserReacted.value(messageId, { emojiId }))
 
-  // Public API (message-named wrappers around the shared engine).
   return {
     reactionsByMessage: engine.reactionsByEntity,
     getMessageReactions: engine.getReactions,
