@@ -1,4 +1,4 @@
-import { ref, computed, type Ref, type ComputedRef } from 'vue'
+import { reactive, computed, ref, type ComputedRef } from 'vue'
 
 /** Shared reaction orchestration for message and post reaction stores. */
 export interface ReactionEngineAdapter<G, E> {
@@ -23,7 +23,7 @@ export interface ReactionEngineAdapter<G, E> {
 }
 
 export interface ReactionEngine<G, E> {
-  reactionsByEntity: Ref<Map<string, G[]>>
+  reactionsByEntity: Map<string, G[]>
   getReactions: ComputedRef<(entityId: string) => G[]>
   hasUserReacted: ComputedRef<(entityId: string, emoji: E) => boolean>
   isLoadingReactions: ComputedRef<(entityId: string) => boolean>
@@ -44,11 +44,12 @@ export function createReactionEngine<G, E>(
   const reconcileDelayMs = adapter.reconcileDelayMs ?? 1500
   const realtimeReconcileDelayMs = adapter.realtimeReconcileDelayMs ?? 1500
 
-  const reactionsByEntity = ref(new Map<string, G[]>()) as Ref<Map<string, G[]>>
-  const optimisticByEntity = ref(new Map<string, G[]>()) as Ref<Map<string, G[]>>
-  const lastFetched = ref(new Map<string, number>())
-  const isLoading = ref(new Set<string>())
-  const pendingToggleKeys = ref(new Set<string>())
+  // reactive() tracks Map/Set mutations (.set/.delete/.clear) — ref() does not.
+  const reactionsByEntity = reactive(new Map<string, G[]>())
+  const optimisticByEntity = reactive(new Map<string, G[]>())
+  const lastFetched = reactive(new Map<string, number>())
+  const isLoading = reactive(new Set<string>())
+  const pendingToggleKeys = reactive(new Set<string>())
   const pendingReconcileTimeouts = new Map<string, ReturnType<typeof setTimeout>>()
   let batchFetchInFlight: Promise<void> | null = null
 
@@ -57,7 +58,7 @@ export function createReactionEngine<G, E>(
 
   const getReactions = computed(() => (entityId: string): G[] => {
     if (!entityId) return []
-    return optimisticByEntity.value.get(entityId) ?? reactionsByEntity.value.get(entityId) ?? []
+    return optimisticByEntity.get(entityId) ?? reactionsByEntity.get(entityId) ?? []
   })
 
   const findGroup = (groups: G[], emoji: E): G | undefined =>
@@ -69,22 +70,22 @@ export function createReactionEngine<G, E>(
   })
 
   const isLoadingReactions = computed(() => (entityId: string): boolean =>
-    isLoading.value.has(entityId))
+    isLoading.has(entityId))
 
   async function fetch(entityId: string, force = false): Promise<void> {
     if (!isFetchable(entityId)) return
 
     const now = Date.now()
-    if (!force && now - (lastFetched.value.get(entityId) || 0) < cacheTtlMs) return
-    if (isLoading.value.has(entityId)) return
+    if (!force && now - (lastFetched.get(entityId) || 0) < cacheTtlMs) return
+    if (isLoading.has(entityId)) return
 
     try {
-      isLoading.value.add(entityId)
+      isLoading.add(entityId)
       const result = await adapter.fetchBatch([entityId])
-      reactionsByEntity.value.set(entityId, result[entityId] || [])
-      lastFetched.value.set(entityId, now)
+      reactionsByEntity.set(entityId, result[entityId] || [])
+      lastFetched.set(entityId, now)
     } finally {
-      isLoading.value.delete(entityId)
+      isLoading.delete(entityId)
     }
   }
 
@@ -95,23 +96,23 @@ export function createReactionEngine<G, E>(
     const now = Date.now()
     const idsToFetch = (force
       ? entityIds
-      : entityIds.filter(id => now - (lastFetched.value.get(id) || 0) >= cacheTtlMs)
+      : entityIds.filter(id => now - (lastFetched.get(id) || 0) >= cacheTtlMs)
     ).filter(isFetchable)
 
     if (!idsToFetch.length) return
 
-    idsToFetch.forEach(id => isLoading.value.add(id))
+    idsToFetch.forEach(id => isLoading.add(id))
 
     const run = (async () => {
       try {
         const grouped = await adapter.fetchBatch(idsToFetch)
         // Initialise every requested id (so "no reactions" is cached, not refetched).
         for (const id of idsToFetch) {
-          reactionsByEntity.value.set(id, grouped[id] || [])
-          lastFetched.value.set(id, now)
+          reactionsByEntity.set(id, grouped[id] || [])
+          lastFetched.set(id, now)
         }
       } finally {
-        idsToFetch.forEach(id => isLoading.value.delete(id))
+        idsToFetch.forEach(id => isLoading.delete(id))
       }
     })()
 
@@ -124,9 +125,9 @@ export function createReactionEngine<G, E>(
    * <TransitionGroup> doesn't re-animate chips on reconcile.
    */
   function syncOptimisticToReal(entityId: string): boolean {
-    const optimistic = optimisticByEntity.value.get(entityId)
+    const optimistic = optimisticByEntity.get(entityId)
     if (!optimistic) return false
-    const real = reactionsByEntity.value.get(entityId) || []
+    const real = reactionsByEntity.get(entityId) || []
 
     const realByKey = new Map<string, G>()
     for (const g of real) realByKey.set(adapter.groupKey(g), g)
@@ -150,7 +151,7 @@ export function createReactionEngine<G, E>(
     if (pendingReconcileTimeouts.has(entityId)) return
     const timeoutId = setTimeout(async () => {
       pendingReconcileTimeouts.delete(entityId)
-      lastFetched.value.delete(entityId)
+      lastFetched.delete(entityId)
       await fetch(entityId, true)
       syncOptimisticToReal(entityId)
     }, delayMs)
@@ -159,27 +160,26 @@ export function createReactionEngine<G, E>(
 
   async function toggle(entityId: string, emoji: E): Promise<{ success: boolean; reason?: string }> {
     const toggleKey = `${entityId}-${adapter.emojiKey(emoji)}`
-    if (pendingToggleKeys.value.has(toggleKey)) {
+    if (pendingToggleKeys.has(toggleKey)) {
       return { success: false, reason: 'duplicate_request' }
     }
-    pendingToggleKeys.value.add(toggleKey)
+    pendingToggleKeys.add(toggleKey)
 
     try {
-      const base = reactionsByEntity.value.get(entityId) || []
+      const base = reactionsByEntity.get(entityId) || []
       const currentlyReacted = hasUserReacted.value(entityId, emoji)
       const operation = currentlyReacted ? 'remove' : 'add'
 
-      // Instant optimistic overlay before any network.
-      optimisticByEntity.value.set(entityId, adapter.applyOptimistic(base, emoji, operation))
+      optimisticByEntity.set(entityId, adapter.applyOptimistic(base, emoji, operation))
 
       await adapter.toggleOnServer(entityId, emoji, currentlyReacted)
       scheduleReconcile(entityId, reconcileDelayMs)
       return { success: true }
     } catch (error: any) {
-      optimisticByEntity.value.delete(entityId) // rollback
+      optimisticByEntity.delete(entityId)
       return { success: false, reason: error?.message || 'toggle_failed' }
     } finally {
-      setTimeout(() => pendingToggleKeys.value.delete(toggleKey), 100)
+      setTimeout(() => pendingToggleKeys.delete(toggleKey), 100)
     }
   }
 
@@ -187,69 +187,61 @@ export function createReactionEngine<G, E>(
     const entityId = adapter.entityIdFromRealtime(payload)
     if (!entityId) return
 
-    // Scalable path: apply the broadcast delta in place, no RPC. Dedup in the
-    // adapter makes our own echoed event a no-op, so this is safe even mid-toggle.
     if (adapter.applyRealtimeDelta) {
-      // Keep any live optimistic overlay in sync so the viewer's own pending
-      // changes and incoming remote changes coexist.
-      const optimistic = optimisticByEntity.value.get(entityId)
+      const optimistic = optimisticByEntity.get(entityId)
       if (optimistic) {
         const updatedOptimistic = adapter.applyRealtimeDelta(optimistic, payload)
-        if (updatedOptimistic) optimisticByEntity.value.set(entityId, updatedOptimistic)
+        if (updatedOptimistic) optimisticByEntity.set(entityId, updatedOptimistic)
       }
 
-      const real = reactionsByEntity.value.get(entityId)
+      let real = reactionsByEntity.get(entityId)
       if (!real) {
-        // No base cached yet - fetch once so later deltas have something to apply to.
-        lastFetched.value.delete(entityId)
+        lastFetched.delete(entityId)
         await fetch(entityId, true)
-        return
+        real = reactionsByEntity.get(entityId) || []
       }
 
       const updatedReal = adapter.applyRealtimeDelta(real, payload)
-      if (updatedReal) reactionsByEntity.value.set(entityId, updatedReal)
+      if (updatedReal) reactionsByEntity.set(entityId, updatedReal)
       return
     }
 
-    // Legacy refetch path (e.g. post reactions, which fan out only to the author).
-    // A reconcile from our own toggle is already pending - let it handle it.
     if (pendingReconcileTimeouts.has(entityId)) return
 
-    // Mid-optimistic: schedule a reconcile so other users' reactions still land.
-    if (optimisticByEntity.value.has(entityId)) {
+    if (optimisticByEntity.has(entityId)) {
       scheduleReconcile(entityId, realtimeReconcileDelayMs)
       return
     }
 
-    lastFetched.value.delete(entityId)
+    lastFetched.delete(entityId)
     await fetch(entityId, true)
   }
 
   function bulkSet(data: Record<string, G[]>): void {
     const now = Date.now()
     for (const [entityId, groups] of Object.entries(data)) {
-      reactionsByEntity.value.set(entityId, groups)
-      lastFetched.value.set(entityId, now)
+      reactionsByEntity.set(entityId, groups)
+      lastFetched.set(entityId, now)
     }
   }
 
   function setReactions(entityId: string, groups: G[]): void {
-    reactionsByEntity.value.set(entityId, groups)
-    lastFetched.value.set(entityId, Date.now())
+    reactionsByEntity.set(entityId, groups)
+    lastFetched.set(entityId, Date.now())
   }
 
   function clearOptimisticState(entityId: string): void {
-    optimisticByEntity.value.delete(entityId)
+    optimisticByEntity.delete(entityId)
   }
 
   function dispose(): void {
     for (const t of pendingReconcileTimeouts.values()) clearTimeout(t)
     pendingReconcileTimeouts.clear()
-    reactionsByEntity.value.clear()
-    optimisticByEntity.value.clear()
-    lastFetched.value.clear()
-    isLoading.value.clear()
-    pendingToggleKeys.value.clear()
+    reactionsByEntity.clear()
+    optimisticByEntity.clear()
+    lastFetched.clear()
+    isLoading.clear()
+    pendingToggleKeys.clear()
     batchFetchInFlight = null
   }
 

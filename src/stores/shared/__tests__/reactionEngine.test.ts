@@ -175,10 +175,11 @@ describe('reactionEngine', () => {
       expect(engine.getReactions.value('e1')).toEqual([{ key: '👍', count: 1, reacted: false }])
     })
 
-    it('fetches once when no base is cached, so later deltas have something to apply to', async () => {
+    it('fetches once when no base is cached, then applies the delta', async () => {
       const { engine, fetchBatch } = setup({ e1: [{ key: '👍', count: 1, reacted: false }] }, { withDelta: true })
       await engine.handleRealtimeUpdate({ entityId: 'e1', key: '👍', op: 'add', isCurrentUser: false })
       expect(fetchBatch).toHaveBeenCalledTimes(1)
+      expect(engine.getReactions.value('e1')).toEqual([{ key: '👍', count: 2, reacted: false }])
     })
 
     it('keeps the optimistic overlay consistent with remote deltas', async () => {

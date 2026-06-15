@@ -518,7 +518,7 @@
 import { defineComponent, watch, ref, nextTick, reactive, onMounted, computed } from 'vue';
 import type { PropType } from 'vue';
 import type { EmbedPayload, MessagePart, FileContent } from '@/types';
-import { extractFileParts } from '@/utils/messageContentUtils';
+import { coalesceInlineContentForMarkdown, extractFileParts } from '@/utils/messageContentUtils';
 import AutoSuggest from '@/components/AutoSuggest.vue';
 import DisplayName from '@/components/DisplayName.vue';
 import CodeBlock from '@/components/common/CodeBlock.vue';
@@ -680,8 +680,6 @@ export default defineComponent({
     
     // Unified emoji service for emoji pack rendering
     const { resolveEmoji, isNativePack, isLoaded: emojiServiceLoaded } = useUnifiedEmoji();
-
-    const displayContent = computed(() => groupMediaGalleryParts(props.content));
 
     // Lazy bridged-attachment refresh: when a message carries an expired Discord
     // CDN URL, ask the gateway to re-sign it (only acts when the instance is in
@@ -875,6 +873,13 @@ export default defineComponent({
       if (!url) return false;
       return /\.(mp4|webm|ogg|avi|mov|wmv|flv)$/i.test(url);
     };
+
+    const displayContent = computed(() =>
+      coalesceInlineContentForMarkdown(
+        groupMediaGalleryParts(props.content),
+        (url) => isImageUrl(url) || isVideoUrl(url),
+      ),
+    );
 
     const isAudioUrl = (url: string): boolean => {
       if (!url) return false;
