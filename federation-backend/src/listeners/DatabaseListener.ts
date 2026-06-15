@@ -18,6 +18,7 @@ import { logger } from '../utils/logger.js';
 import { convertContentToHTML, extractActivityPubTags, extractAttachments } from '../utils/contentUtils.js';
 import { linkPreviewService } from '../services/LinkPreviewService.js';
 import { ActivityProcessor } from '../activitypub/ActivityProcessor.js';
+import { getFullServerBannerUrl, getFullServerIconUrl } from '../utils/urlUtils.js';
 
 /**
  * Start listening to database notifications
@@ -1216,15 +1217,8 @@ export async function handleServerUpdated(server: any, _oldServer: any): Promise
     const serverUrl = `https://${hostDomain}/servers/${server.id}`;
     
     // Build Update activity with all profile properties
-    const iconUrl = server.icon && !server.icon.includes('default')
-      ? (server.icon.startsWith('http') ? server.icon : 
-         `${config.PUBLIC_SUPABASE_URL || config.SUPABASE_URL}/storage/v1/render/image/public/server_icons/${server.icon}?width=96&height=96&resize=contain&quality=80`)
-      : undefined;
-    
-    const bannerUrl = server.banner
-      ? (server.banner.startsWith('http') ? server.banner :
-         `${config.PUBLIC_SUPABASE_URL || config.SUPABASE_URL}/storage/v1/object/public/server_banners/${server.banner}`)
-      : undefined;
+    const iconUrl = getFullServerIconUrl(server.icon) ?? undefined;
+    const bannerUrl = getFullServerBannerUrl(server.banner) ?? undefined;
 
     const activity = {
       '@context': [

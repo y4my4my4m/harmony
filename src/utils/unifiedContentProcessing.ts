@@ -13,6 +13,7 @@ import { debug } from '@/utils/debug'
 import { resolveEmoji, loadEmojiData, isLoaded as unifiedEmojiLoaded } from '@/services/unifiedEmojiService'
 import { stripTrackingParameters, isUrlTrackingStrippingEnabled } from '@/utils/urlTrackerStripper'
 import { useEmojiCacheStore } from '@/stores/useEmojiCache'
+import { parseUrlMatchContext, URL_TOKEN_REGEX } from '@/utils/urlSplitting'
 
 // Support both UUID-based emojis (legacy) and shortcode emojis (new)
 import {
@@ -34,8 +35,8 @@ const emojiShortcodeRegex = createShortcodeRegex();
 // call was a hot-path waste because these helpers run per-segment per
 // message (BUGS.md Pattern P-β + code-review M4).
 const MENTION_REGEX = /@([a-zA-Z0-9_-]+)(?:@([a-zA-Z0-9.-]+))?/g;
-const URL_PRESCAN_REGEX = /\bhttps?:\/\/\S+/g;
-const URL_MATCH_REGEX = /(\bhttps?:\/\/\S+)/g;
+const URL_PRESCAN_REGEX = URL_TOKEN_REGEX;
+const URL_MATCH_REGEX = new RegExp(`(${URL_TOKEN_REGEX.source})`, 'g');
 const COMBINED_MENTION_HASHTAG_REGEX = /(@role:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}))|(@d!(\d+):([a-zA-Z0-9_.-]+))|(@([a-zA-Z0-9_-]+)(?:@([a-zA-Z0-9.-]+))?)|(?<![&\w])#([\p{L}\p{N}_-]+)/gu;
 const COMBINED_EMOJI_REGEX = /:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[a-zA-Z0-9_+~-]+):/g;
 
@@ -554,43 +555,6 @@ export function trimTrailingWhitespace(parts: MessagePart[]): MessagePart[] {
   }
   
   return result;
-}
-
-/** Strip trailing punctuation often captured by the URL matcher (\S+). */
-function trimUrlTrailingDelimiter(url: string): { url: string; trimmedChars: number } {
-  let trimmedChars = 0;
-  let cleaned = url;
-  while (cleaned.length > 0 && /[.,;:!?)>\]}]$/.test(cleaned)) {
-    cleaned = cleaned.slice(0, -1);
-    trimmedChars++;
-  }
-  return { url: cleaned, trimmedChars };
-}
-
-/**
- * Discord-style: URLs wrapped in angle brackets (<https://...>) are linked but
- * do not generate embeds/previews. Brackets are omitted from stored content.
- */
-function parseUrlMatchContext(
-  text: string,
-  matchIndex: number,
-  rawLength: number
-): { url: string; preview: boolean; segmentStart: number; segmentEnd: number } {
-  const suppressed = matchIndex > 0 && text[matchIndex - 1] === '<';
-  let segmentStart = matchIndex;
-  let segmentEnd = matchIndex + rawLength;
-
-  const { url: trimmedUrl, trimmedChars } = trimUrlTrailingDelimiter(text.slice(matchIndex, segmentEnd));
-  segmentEnd -= trimmedChars;
-
-  if (suppressed) {
-    segmentStart -= 1;
-    if (segmentEnd < text.length && text[segmentEnd] === '>') {
-      segmentEnd += 1;
-    }
-  }
-
-  return { url: trimmedUrl, preview: !suppressed, segmentStart, segmentEnd };
 }
 
 /**

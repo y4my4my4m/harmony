@@ -127,6 +127,37 @@ export function extractFileParts(parts: MessagePart[]): import('@/types').FileCo
   );
 }
 
+function normalizeAttachmentUrl(url: string): string {
+  return (url || '').split('#')[0].trim();
+}
+
+/** Whether a message still has text, files, or other renderable parts. */
+export function hasSubstantiveMessageContent(parts: MessagePart[]): boolean {
+  if (!Array.isArray(parts)) return false;
+  return parts.some((part) => {
+    if (!part || typeof part !== 'object') return false;
+    if (part.type === 'text') return !!(part.text || '').trim();
+    if (part.type === 'file') return true;
+    return true;
+  });
+}
+
+/** Remove the first file part whose URL matches (Klipy fragment ignored). */
+export function removeFilePartByUrl(parts: MessagePart[], url: string): MessagePart[] {
+  if (!Array.isArray(parts)) return [];
+  const target = normalizeAttachmentUrl(url);
+  let removed = false;
+  return parts.filter((part) => {
+    if (!part || typeof part !== 'object' || part.type !== 'file') return true;
+    const fileUrl = normalizeAttachmentUrl((part as { url?: string }).url || '');
+    if (!removed && fileUrl === target) {
+      removed = true;
+      return false;
+    }
+    return true;
+  });
+}
+
 /**
  * Extract plain text from MessagePart[] for previews
  */

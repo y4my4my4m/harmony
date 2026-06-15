@@ -686,6 +686,12 @@ BEGIN
         RETURN NEW;
     END IF;
 
+    -- Bridge attachment URL refresh: patch content without "(edited)" badge.
+    IF current_setting('harmony.silent_content_update', true) = 'true' THEN
+        NEW.updated_at := OLD.updated_at;
+        RETURN NEW;
+    END IF;
+
     -- UPDATE: only bump when message content is actually edited
     IF OLD.content IS DISTINCT FROM NEW.content THEN
         NEW.updated_at := NOW();
@@ -949,6 +955,53 @@ end;
 $$;
 
 GRANT EXECUTE ON FUNCTION public.update_message_embeds(uuid, jsonb) TO service_role;
+
+-- RPC: bot-gateway calls this to refresh bridged attachment URLs without "(edited)".
+-- Optimistic lock on p_old_content prevents stale full-JSON overwrites; GUC is restored
+-- after the update so later writes in the same transaction are not silenced.
+CREATE OR REPLACE FUNCTION public.update_message_content_silent(
+  p_message_id uuid,
+  p_old_content jsonb,
+  p_content jsonb
+)
+RETURNS boolean
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_prev text;
+  v_count integer;
+BEGIN
+  v_prev := current_setting('harmony.silent_content_update', true);
+  PERFORM set_config('harmony.silent_content_update', 'true', true);
+
+  UPDATE public.messages
+  SET content = p_content
+  WHERE id = p_message_id
+    AND content = p_old_content;
+
+  GET DIAGNOSTICS v_count = ROW_COUNT;
+
+  PERFORM set_config(
+    'harmony.silent_content_update',
+    COALESCE(v_prev, 'false'),
+    true
+  );
+
+  RETURN v_count = 1;
+EXCEPTION WHEN OTHERS THEN
+  PERFORM set_config(
+    'harmony.silent_content_update',
+    COALESCE(v_prev, 'false'),
+    true
+  );
+  RAISE;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.update_message_content_silent(uuid, jsonb, jsonb) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.update_message_content_silent(uuid, jsonb, jsonb) TO service_role;
 
 -- RPC: federation backend calls this to write embeds for posts
 CREATE OR REPLACE FUNCTION public.update_post_embeds(p_post_id uuid, p_embeds jsonb) RETURNS void

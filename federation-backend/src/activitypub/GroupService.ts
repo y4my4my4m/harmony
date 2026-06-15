@@ -18,6 +18,7 @@ import { logger } from '../utils/logger.js';
 import config from '../config/index.js';
 import { SignatureService } from './SignatureService.js';
 import { inboxLimiter } from '../middleware/rateLimit.js';
+import { getFullServerBannerUrl, getFullServerIconUrl } from '../utils/urlUtils.js';
 
 const router = Router();
 
@@ -77,22 +78,17 @@ function serverToGroup(
     // Member count for discovery
     'harmony:memberCount': memberCount,
     
-    // Icon - use full Supabase storage URL for federation
-    icon: server.icon && !server.icon.includes('default') ? {
-      type: 'Image',
-      url: server.icon.startsWith('http') 
-        ? server.icon 
-        : `${config.PUBLIC_SUPABASE_URL || config.SUPABASE_URL}/storage/v1/render/image/public/server_icons/${server.icon}?width=96&height=96&resize=contain&quality=80`,
-      mediaType: 'image/webp',
-    } : undefined,
+    // Icon - omit default so remote instances use their own fallback
+    icon: (() => {
+      const url = getFullServerIconUrl(server.icon);
+      return url ? { type: 'Image', url, mediaType: 'image/webp' } : undefined;
+    })(),
     
     // Banner (ActivityPub uses 'image' for header/banner)
-    image: server.banner ? {
-      type: 'Image',
-      url: server.banner.startsWith('http')
-        ? server.banner
-        : `${config.PUBLIC_SUPABASE_URL || config.SUPABASE_URL}/storage/v1/object/public/server_banners/${server.banner}`,
-    } : undefined,
+    image: (() => {
+      const url = getFullServerBannerUrl(server.banner);
+      return url ? { type: 'Image', url } : undefined;
+    })(),
     
     // Harmony extension: Channel structure
     'harmony:channels': channels.map(c => {

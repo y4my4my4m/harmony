@@ -7,7 +7,7 @@
       </p>
     </div>
 
-    <div class="settings-section">
+    <div class="settings-section" style="padding: 0">
       <div class="profile-preview">
         <div 
           class="profile-banner" 
