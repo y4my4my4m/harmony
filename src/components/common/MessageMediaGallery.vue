@@ -35,7 +35,7 @@
           class="content-video"
           controls
           preload="metadata"
-          :data-video-index="videoIndexBase + index"
+          :data-video-index="(videoIndexBase ?? 0) + index"
           @play="$emit('video-play', $event)"
           @pause="$emit('video-pause', $event)"
         />

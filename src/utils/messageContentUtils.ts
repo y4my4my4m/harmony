@@ -138,7 +138,7 @@ export function hasSubstantiveMessageContent(parts: MessagePart[]): boolean {
     if (!part || typeof part !== 'object') return false;
     if (part.type === 'text') return !!(part.text || '').trim();
     if (part.type === 'file') return true;
-    return part.type !== 'text';
+    return true;
   });
 }
 

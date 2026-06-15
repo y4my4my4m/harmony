@@ -4,7 +4,10 @@ import { extractHttpUrls, isPureGluedUrlBlob } from '@/utils/urlSplitting';
 const IMAGE_EXT = /\.(jpg|jpeg|png|gif|webp|bmp|svg|avif)(\?|$)/i;
 const VIDEO_EXT = /\.(mp4|webm|ogg|avi|mov|wmv|flv|m4v)(\?|$)/i;
 
-export type MediaGalleryPart = MessagePart & { type: 'media_gallery'; parts: MessagePart[] };
+export type MediaGalleryPart = { type: 'media_gallery'; parts: MessagePart[] };
+
+/** A display-content entry: either a raw message part or a grouped media gallery. */
+export type DisplayPart = MessagePart | MediaGalleryPart;
 
 export function isImageMediaUrl(url: string): boolean {
   return !!url && IMAGE_EXT.test(url);
@@ -93,9 +96,9 @@ export function splitGluedUrlsInParts(parts: MessagePart[]): MessagePart[] {
  * Group consecutive image/video parts into a single `media_gallery` pseudo-part
  * for Discord-style mosaic rendering.
  */
-export function groupMediaGalleryParts(parts: MessagePart[]): MessagePart[] {
+export function groupMediaGalleryParts(parts: MessagePart[]): DisplayPart[] {
   const normalized = splitGluedUrlsInParts(parts);
-  const result: MessagePart[] = [];
+  const result: DisplayPart[] = [];
   let i = 0;
 
   while (i < normalized.length) {
