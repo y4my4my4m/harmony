@@ -286,7 +286,6 @@
             <!-- Reactions for system messages -->
             <MessageReactions
               :message="item.message"
-              @toggle-reaction="handleToggleReaction"
               @show-reaction-tooltip="showTooltip"
               @hide-reaction-tooltip="hideTooltip"
               @open-emoji-picker="handleOpenEmojiPicker"
@@ -450,7 +449,6 @@
         <!-- Reactions -->
         <MessageReactions
           :message="item.message"
-          @toggle-reaction="handleToggleReaction"
           @show-reaction-tooltip="showTooltip"
           @hide-reaction-tooltip="hideTooltip"
           @open-emoji-picker="handleOpenEmojiPicker"

@@ -72,12 +72,6 @@ function resolveEmojiForGroup(emojiId: string, providedEmojiData?: Emoji): Emoji
   } as Emoji
 }
 
-/**
- * Apply one reaction add/remove to a group array, returning a new array. Shared
- * by the optimistic toggle and remote broadcast deltas; dedup is keyed on the
- * actor so an echoed event can't double-count, and current_user_reacted only
- * flips for the current user.
- */
 function buildOptimisticGroups(
   base: ReactionGroup[],
   emojiId: string,
@@ -86,7 +80,7 @@ function buildOptimisticGroups(
   isCurrentUser: boolean,
   providedEmojiData?: Emoji,
 ): ReactionGroup[] {
-  const result = structuredClone(base)
+  const result = JSON.parse(JSON.stringify(base)) as ReactionGroup[]
   const index = result.findIndex(g => matchesEmoji(g, emojiId))
   const key = actorKey(actor)
 

@@ -83,7 +83,6 @@ interface Props {
 }
 
 interface Emits {
-  (e: 'toggle-reaction', messageId: string, emoji: Emoji): void;
   (e: 'show-reaction-tooltip', event: MouseEvent, reactionGroup: any): void;
   (e: 'hide-reaction-tooltip'): void;
   (e: 'open-emoji-picker', messageId: string, event: MouseEvent): void;
@@ -144,8 +143,6 @@ const handleReactionClick = async (emoji: Emoji, emojiId: string) => {
     name: emoji.name || emojiId,
     url: emoji.url
   });
-  
-  emit('toggle-reaction', props.message.id, emoji);
   
   const result = await reactionsStore.toggleReaction(props.message.id, emojiId, currentUserId.value, emoji);
   

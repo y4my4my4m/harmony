@@ -35,6 +35,7 @@ import { useAuthStore } from '@/stores/auth';
 import { supabase } from '@/supabase';
 import { useToast } from 'vue-toastification';
 import { federationServerService } from '@/services/federation/FederationServerService';
+import { useUserData } from '@/composables/useUserData';
 import ConfirmationModal from '@/components/ConfirmationModal.vue';
 
 interface Props {
@@ -56,6 +57,7 @@ const router = useRouter();
 const toast = useToast();
 const authStore = useAuthStore();
 const serverChannelStore = useServerChannelStore();
+const { unsubscribeFromContext } = useUserData();
 const { serverSettingsPermissions, channelPermissions } = useServerPermissions();
 
 // Computed permissions
@@ -166,6 +168,7 @@ const leaveServer = async () => {
     }
     
     toast.success('Left server successfully');
+    await unsubscribeFromContext(props.serverId);
     emit('serverLeft');
     
     router.push('/');
