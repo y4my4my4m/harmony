@@ -73,6 +73,11 @@ export const useEmojiCacheStore = defineStore('emojiCache', {
     _pendingEmojiLoads: null as Promise<void> | null,
     _loadingServerIds: new Set<string>() as Set<string>,
 
+    // Personal/instance groups are fetched on every picker open; cache them so
+    // re-opening the picker (or switching servers) doesn't refetch + rebuild.
+    _personalEmojiLoadedAt: 0,
+    _personalEmojiProfileId: null as string | null,
+
     _emojiChannel: null as any,
     
     cacheHits: 0,
@@ -392,7 +397,15 @@ export const useEmojiCacheStore = defineStore('emojiCache', {
      * what surfaces generated emoji as a category and makes user/instance custom
      * emoji resolvable in messages.
      */
-    async loadPersonalEmojis(profileId: string | null) {
+    async loadPersonalEmojis(profileId: string | null, force = false) {
+      // Skip the network round-trip if we loaded the same viewer's personal +
+      // instance emoji recently. Realtime emoji events keep these fresh in
+      // between, so the picker can reopen instantly.
+      const fresh =
+        this._personalEmojiProfileId === profileId &&
+        Date.now() - this._personalEmojiLoadedAt < this.maxCacheAge
+      if (fresh && !force) return
+
       try {
         const requests: Promise<{ data: Emoji[] | null }>[] = [
           // Instance category: only LOCAL (and admin-imported, re-hosted) emoji.
@@ -416,8 +429,11 @@ export const useEmojiCacheStore = defineStore('emojiCache', {
           );
         }
         const results = await Promise.all(requests);
-        const instanceEmojis = (results[0]?.data || []) as Emoji[];
-        const userEmojis = ((profileId ? results[1]?.data : []) || []) as Emoji[];
+        // Custom emoji are image-backed; drop any url-less rows (e.g. malformed
+        // federated imports) so they don't render as broken boxes in the picker.
+        const hasImage = (e: Emoji) => !!e.url && e.url.trim().length > 0;
+        const instanceEmojis = ((results[0]?.data || []) as Emoji[]).filter(hasImage);
+        const userEmojis = (((profileId ? results[1]?.data : []) || []) as Emoji[]).filter(hasImage);
 
         const aiEmojis = userEmojis.filter((e) => (e as any).is_ai_generated === true);
         const ownEmojis = userEmojis.filter((e) => (e as any).is_ai_generated !== true);
@@ -434,6 +450,9 @@ export const useEmojiCacheStore = defineStore('emojiCache', {
         this.updateServerCache(PERSONAL_EMOJI_GROUPS.user, ownEmojis, { name: 'My Emoji' }, false);
         this.updateServerCache(PERSONAL_EMOJI_GROUPS.instance, instanceEmojis, { name: instanceLabel }, false);
         this.rebuildResolvedEmojis();
+
+        this._personalEmojiLoadedAt = Date.now();
+        this._personalEmojiProfileId = profileId;
       } catch (e) {
         debug.error('Failed to load personal/instance emoji:', e);
       }
@@ -515,7 +534,13 @@ export const useEmojiCacheStore = defineStore('emojiCache', {
 
     async handleEmojiUpdate(payload: any) {
       const { eventType, new: newEmoji, old: oldEmoji } = payload;
-      
+
+      // Instance/user-scope emoji (server_id NULL) live in the personal groups,
+      // which the server-keyed handlers below skip. Expire the personal TTL so
+      // the next picker open reflects the change.
+      const changed = newEmoji || oldEmoji;
+      if (changed && !changed.server_id) this._personalEmojiLoadedAt = 0;
+
       switch (eventType) {
         case 'INSERT':
           await this.handleEmojiInsert(newEmoji);
@@ -756,6 +781,8 @@ export const useEmojiCacheStore = defineStore('emojiCache', {
       this.pendingInvalidations.clear();
       this.cacheHits = 0;
       this.cacheMisses = 0;
+      this._personalEmojiLoadedAt = 0;
+      this._personalEmojiProfileId = null;
       
       debug.log('🔄 Emoji cache reset');
     },

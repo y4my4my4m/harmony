@@ -1,14 +1,14 @@
 // Enhanced Service Worker for Discord-like Notifications and PWA Features
-// Version: 3.3 - Durable quick-reply queue (IndexedDB) so typed replies
-//                survive "no client open" / "client just booted" / postMessage
-//                races. Drained by ServiceWorkerManager via the real
-//                messageService (encryption + optimistic UI preserved).
+// Version: 3.4 - App v1.2.0: reactions broadcast architecture, RLS/grants
+//                recovery, emoji cache + inbound-emoji cleanup. Cache names
+//                bumped to force a clean app-shell refresh on existing PWA
+//                installs (avoids stale-session breakage after the release).
 
-const CACHE_NAME = 'harmony-v4-mobile'
+const CACHE_NAME = 'harmony-v5-mobile'
 const NOTIFICATION_CACHE = 'harmony-notifications-v2'
-const STATIC_CACHE = 'harmony-static-v2'
-const API_CACHE = 'harmony-api-v2'
-const EMOJI_CACHE = 'harmony-emoji-v1'
+const STATIC_CACHE = 'harmony-static-v3'
+const API_CACHE = 'harmony-api-v3'
+const EMOJI_CACHE = 'harmony-emoji-v2'
 
 // Cache strategies
 const STATIC_RESOURCES = [
@@ -223,7 +223,7 @@ self.addEventListener('message', (event) => {
     case 'GET_VERSION':
       // Handle version requests
       event.ports[0]?.postMessage({
-        version: '3.3',
+        version: '3.4',
         updated: new Date().toISOString()
       })
       break

@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { computed } from 'vue'
 import { services } from '@/services'
-import type { ReactionGroup, Emoji } from '@/types'
+import type { ReactionGroup, ReactionActor, Emoji } from '@/types'
 import { useEmojiCacheStore } from '@/stores/useEmojiCache'
 import { useProfileStore } from '@/stores/useProfile'
 import { useUnifiedEmoji } from '@/services/unifiedEmojiService'
@@ -12,19 +12,17 @@ interface MessageReactionInput {
   emojiData?: Emoji
 }
 
-/** A reaction actor - the current user (own toggle) or a remote user from a broadcast. */
-interface ReactionActor {
+/** Identity a reaction is attributed to (current user, remote user, or bot). */
+type ActorInput = Pick<ReactionActor, 'bot_id' | 'username' | 'display_name' | 'avatar_url'> & {
   id?: string | null
-  bot_id?: string | null
-  username?: string
-  display_name?: string
-  avatar_url?: string
 }
 
 const isUuid = (str: string): boolean =>
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str)
 
-const actorKey = (actor: ReactionActor): string => (actor.id || actor.bot_id || '') as string
+const actorKey = (actor: ActorInput): string => actor.id || actor.bot_id || ''
+
+const reactionKey = (r: ReactionActor): string => r.user_id || r.bot_id || ''
 
 function matchesEmoji(group: ReactionGroup, emojiId: string): boolean {
   return isUuid(emojiId)
@@ -32,7 +30,7 @@ function matchesEmoji(group: ReactionGroup, emojiId: string): boolean {
     : !group.emoji_id && group.emoji?.name === emojiId
 }
 
-function makeReactionEntry(actor: ReactionActor): any {
+function makeReactionEntry(actor: ActorInput): ReactionActor {
   return {
     reaction_id: `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     user_id: actor.id ?? undefined,
@@ -44,84 +42,83 @@ function makeReactionEntry(actor: ReactionActor): any {
 }
 
 function resolveEmojiForGroup(emojiId: string, providedEmojiData?: Emoji): Emoji {
-  if (providedEmojiData) return providedEmojiData
-
-  const cached = useEmojiCacheStore().getEmojiById(emojiId)
-  if (cached) return cached
-
-  if (!isUuid(emojiId)) {
-    // Unicode/shortcode: resolve display fields, but keep name/content equal to
-    // the raw id so the group's key matches what the server stores in
-    // custom_emoji_content (avoids a TransitionGroup re-key).
-    const { resolveEmoji } = useUnifiedEmoji()
-    const resolved = resolveEmoji(emojiId)
-    return {
-      id: emojiId,
-      name: emojiId,
-      content: emojiId,
-      url: resolved.display.type === 'svg' ? resolved.display.content : '',
-      native: resolved.unicode,
-      unicode: resolved.unicode,
-      server_id: '',
-      uploader: '',
-      usage_count: 0,
-    } as any
+  // Custom emoji are keyed by emoji_id, so the display name doesn't affect
+  // matching. Use the caller's data, backfilling the url from cache so the chip
+  // image renders instantly even when the caller (e.g. a frequent pick) omits it.
+  if (isUuid(emojiId)) {
+    const cached = useEmojiCacheStore().getEmojiById(emojiId)
+    if (providedEmojiData) {
+      return providedEmojiData.url || !cached ? providedEmojiData : { ...providedEmojiData, url: cached.url }
+    }
+    return cached ?? ({ id: emojiId, name: 'unknown', url: '', server_id: '', uploader: '', usage_count: 0 } as Emoji)
   }
 
-  return { id: emojiId, name: 'unknown', url: '', server_id: '', uploader: '', usage_count: 0 } as any
+  // Unicode/shortcode: the server stores the raw id in custom_emoji_content and
+  // echoes it as both emoji.name and emoji.content. The optimistic group must
+  // match that (not the display name like "thumbs up") so matchesEmoji/groupKey
+  // stay stable through reconcile - otherwise the chip can't toggle off and
+  // jumps position when the server row arrives.
+  const resolved = useUnifiedEmoji().resolveEmoji(emojiId)
+  return {
+    id: emojiId,
+    name: emojiId,
+    content: emojiId,
+    url: providedEmojiData?.url || (resolved.display.type === 'svg' ? resolved.display.content : ''),
+    native: resolved.unicode,
+    unicode: resolved.unicode,
+    server_id: '',
+    uploader: '',
+    usage_count: 0,
+  } as Emoji
 }
 
 /**
- * Apply a single reaction add/remove to a group array, returning a new array.
- * Shared by the current user's optimistic toggle and remote broadcast deltas.
- * Dedup is keyed on the actor so a user's own broadcast echo can't double-count,
- * and `current_user_reacted` only flips when the actor is the current user.
+ * Apply one reaction add/remove to a group array, returning a new array. Shared
+ * by the optimistic toggle and remote broadcast deltas; dedup is keyed on the
+ * actor so an echoed event can't double-count, and current_user_reacted only
+ * flips for the current user.
  */
 function buildOptimisticGroups(
   base: ReactionGroup[],
   emojiId: string,
-  actor: ReactionActor,
+  actor: ActorInput,
   operation: 'add' | 'remove',
   isCurrentUser: boolean,
   providedEmojiData?: Emoji,
 ): ReactionGroup[] {
-  const result = JSON.parse(JSON.stringify(base)) as ReactionGroup[]
+  const result = structuredClone(base)
   const index = result.findIndex(g => matchesEmoji(g, emojiId))
   const key = actorKey(actor)
-  const hasActor = (g: ReactionGroup) =>
-    (g.reactions || []).some(r => (r.user_id || (r as any).bot_id) === key)
 
-  if (operation === 'add') {
+  if (operation === 'remove') {
     if (index >= 0) {
-      const existing = result[index]
-      existing.reactions = existing.reactions || []
-      if (!hasActor(existing)) {
-        existing.reactions.push(makeReactionEntry(actor))
-        existing.count = (existing.count || 0) + 1
-        if (isCurrentUser) existing.current_user_reacted = true
-      }
-      return result
+      const group = result[index]
+      group.reactions = (group.reactions ?? []).filter(r => reactionKey(r) !== key)
+      group.count = Math.max(0, (group.count || 1) - 1)
+      if (isCurrentUser) group.current_user_reacted = false
+      if (group.count === 0) result.splice(index, 1)
     }
-
-    result.push({
-      emoji_id: isUuid(emojiId) ? emojiId : null,
-      emoji: resolveEmojiForGroup(emojiId, providedEmojiData),
-      count: 1,
-      current_user_reacted: isCurrentUser,
-      reactions: [makeReactionEntry(actor)],
-    })
-  } else {
-    if (index >= 0) {
-      const existing = result[index]
-      existing.reactions = existing.reactions?.filter(
-        r => (r.user_id || (r as any).bot_id) !== key,
-      ) || []
-      existing.count = Math.max(0, (existing.count || 1) - 1)
-      if (isCurrentUser) existing.current_user_reacted = false
-      if (existing.count === 0) result.splice(index, 1)
-    }
+    return result
   }
 
+  if (index >= 0) {
+    const group = result[index]
+    group.reactions = group.reactions ?? []
+    if (!group.reactions.some(r => reactionKey(r) === key)) {
+      group.reactions.push(makeReactionEntry(actor))
+      group.count = (group.count || 0) + 1
+      if (isCurrentUser) group.current_user_reacted = true
+    }
+    return result
+  }
+
+  result.push({
+    emoji_id: isUuid(emojiId) ? emojiId : null,
+    emoji: resolveEmojiForGroup(emojiId, providedEmojiData),
+    count: 1,
+    current_user_reacted: isCurrentUser,
+    reactions: [makeReactionEntry(actor)],
+  })
   return result
 }
 

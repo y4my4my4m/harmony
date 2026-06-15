@@ -424,10 +424,17 @@ export interface ReactionGroup {
    * "reacted" highlight - it's immune to auth-id vs profile-id confusion.
    */
   current_user_reacted?: boolean;
-  reactions: Array<{
-    reaction_id: string;
-    user_id: string;
-  }>;
+  reactions: ReactionActor[];
+}
+
+/** One participant in a reaction group (a user or a bot), with tooltip fields. */
+export interface ReactionActor {
+  reaction_id: string;
+  user_id?: string;
+  bot_id?: string;
+  username?: string;
+  display_name?: string;
+  avatar_url?: string;
 }
 export interface Message {
   id: string;
