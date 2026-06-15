@@ -128,21 +128,26 @@ END
 $$;
 
 -- ---------------------------------------------------------------------------
--- 3) Wrap auth.*()/current_setting() in RLS policies (auth_rls_initplan).
+-- 3) Wrap auth.*() calls in RLS policies (auth_rls_initplan).
 -- ---------------------------------------------------------------------------
--- Direct auth.uid()/auth.role()/auth.jwt()/current_setting() calls in a policy
--- are re-evaluated per row. Wrapping each in a scalar subquery -- (select ...) --
--- makes the planner evaluate it once per query (InitPlan). These functions are
--- STABLE, so this is semantics-preserving: same access, fewer evaluations.
--- Loops over whatever policies exist (self-heals name drift) and is idempotent
--- (skips expressions already wrapped). Keep in sync with
--- migrations/20260616_optimize_rls_initplan.sql.
-DO $$
+-- Direct uid()/role()/jwt() calls (auth.* with auth in search_path) in a policy
+-- are re-evaluated per row. Wrapping each in a scalar subquery -- (select uid())
+-- -- makes the planner evaluate it once per query (InitPlan). These functions
+-- are STABLE, so this is semantics-preserving: same access, fewer evaluations.
+-- Loops over whatever policies exist (self-heals name drift) and is idempotent:
+--   * skips clauses already wrapped (no nesting on re-run),
+--   * word-boundary match so identifiers that merely contain the substring
+--     (get_current_profile_id, gen_random_uuid, 'service_role', ...) are safe.
+-- Keep in sync with migrations/20260616_optimize_rls_initplan.sql.
+DO $do$
 DECLARE
-    r     record;
-    newq  text;
-    newc  text;
-    stmt  text;
+    r          record;
+    newq       text;
+    newc       text;
+    stmt       text;
+    re_find    constant text := '([^a-zA-Z0-9_.]|^)((auth\.)?(uid|role|jwt))\(\)';
+    re_repl    constant text := '\1(select \2())';
+    re_wrapped constant text := '\(\s*select\s+(auth\.)?(uid|role|jwt)\s*\(';
 BEGIN
     FOR r IN
         SELECT n.nspname                                AS sch,
@@ -158,22 +163,16 @@ BEGIN
         newq := r.qual;
         newc := r.withcheck;
 
-        IF newq IS NOT NULL THEN
-            IF newq !~* '\(\s*select\s+auth\.' THEN
-                newq := regexp_replace(newq, 'auth\.(uid|role|jwt)\s*\(\s*\)', '(select auth.\1())', 'gi');
-            END IF;
-            IF newq !~* '\(\s*select\s+current_setting' THEN
-                newq := regexp_replace(newq, 'current_setting\s*\(([^)]*)\)', '(select current_setting(\1))', 'gi');
-            END IF;
+        IF newq IS NOT NULL
+           AND newq !~* re_wrapped
+           AND newq ~* '([^a-zA-Z0-9_.]|^)(auth\.)?(uid|role|jwt)\(\)' THEN
+            newq := regexp_replace(newq, re_find, re_repl, 'g');
         END IF;
 
-        IF newc IS NOT NULL THEN
-            IF newc !~* '\(\s*select\s+auth\.' THEN
-                newc := regexp_replace(newc, 'auth\.(uid|role|jwt)\s*\(\s*\)', '(select auth.\1())', 'gi');
-            END IF;
-            IF newc !~* '\(\s*select\s+current_setting' THEN
-                newc := regexp_replace(newc, 'current_setting\s*\(([^)]*)\)', '(select current_setting(\1))', 'gi');
-            END IF;
+        IF newc IS NOT NULL
+           AND newc !~* re_wrapped
+           AND newc ~* '([^a-zA-Z0-9_.]|^)(auth\.)?(uid|role|jwt)\(\)' THEN
+            newc := regexp_replace(newc, re_find, re_repl, 'g');
         END IF;
 
         IF (newq IS DISTINCT FROM r.qual) OR (newc IS DISTINCT FROM r.withcheck) THEN
@@ -188,7 +187,7 @@ BEGIN
         END IF;
     END LOOP;
 END
-$$;
+$do$;
 
 DO $$
 BEGIN
