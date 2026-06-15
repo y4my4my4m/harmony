@@ -565,6 +565,31 @@
         replyToUserId.value = '';
       };
 
+      // The reply bar should disappear the instant a message is committed to
+      // being sent - mirroring how MessageInput clears the text editor on
+      // Enter - rather than lingering until the server roundtrip completes.
+      // `consumeReplyTarget` snapshots and clears the reply state up front;
+      // `restoreReplyTarget` puts it back only if the send never went through
+      // (encryption declined / required, missing context, transient error) so
+      // the user doesn't silently lose what they were replying to.
+      type ReplyTargetSnapshot = { id: string; displayName: string; userId: string };
+      const consumeReplyTarget = (): ReplyTargetSnapshot => {
+        const snapshot: ReplyTargetSnapshot = {
+          id: replyToMessageId.value,
+          displayName: replyToUserDisplayName.value,
+          userId: replyToUserId.value,
+        };
+        handleDontReply();
+        return snapshot;
+      };
+      const restoreReplyTarget = (snapshot: ReplyTargetSnapshot | null) => {
+        if (snapshot?.id && !replyToMessageId.value) {
+          replyToMessageId.value = snapshot.id;
+          replyToUserDisplayName.value = snapshot.displayName;
+          replyToUserId.value = snapshot.userId;
+        }
+      };
+
       const handleEditLastMessage = () => {
         messageDisplayRef.value?.editLastOwnMessage();
       };
@@ -829,6 +854,7 @@
         }
 
         let didAttemptSend = false;
+        let savedReply: ReplyTargetSnapshot | null = null;
         try {
           const messageParts: MessagePart[] = [];
           
@@ -864,13 +890,14 @@
           if (messageParts.length > 0) {
             // eslint-disable-next-line unused-imports/no-unused-vars
             didAttemptSend = true;
+
+            // Clear the reply bar up front (before the network roundtrip), the
+            // same way MessageInput already cleared the text editor on Enter.
+            // The snapshot lets us restore it if the send doesn't go through.
+            savedReply = consumeReplyTarget();
+
             const sendOutcome = await sendChannelOrDMWithEncryptionPolicy(messageParts, replyMessageId)
 
-            // Only clear the draft / reply state if the message actually
-            // went through. On 'declined' (encryption cancel) or
-            // 'no-context' (missing channel/conversation/user - rare race),
-            // keep the text and the reply target so the user can retry.
-            //
             // NOTE: we do NOT touch `messageContent.value` here. MessageInput
             // already cleared the input synchronously when the user pressed
             // Enter (via `update:modelValue`). Setting it to '' a second time
@@ -880,10 +907,18 @@
               if (draftKey.value && !messageContent.value.trim()) {
                 draftsStore.clearDraft(draftKey.value);
               }
-              handleDontReply();
+            } else {
+              // 'declined' (encryption cancel) or 'no-context' (missing
+              // channel/conversation/user - rare race): the message was NOT
+              // sent, so put the reply target back for a retry.
+              restoreReplyTarget(savedReply);
             }
           }
         } catch (error: any) {
+          // Hard failure (e.g. ENCRYPTION_REQUIRED, transient send error):
+          // nothing was delivered, so restore the reply target alongside the
+          // draft-restore handling below.
+          restoreReplyTarget(savedReply);
           debug.error('Error sending message:', error);
           const code = (error?.code || '').toString()
           const msg = error?.message || String(error)
@@ -1061,19 +1096,23 @@
           fileType: isVideoMessageUrl(gifUrl) ? 'video' : 'image',
         }];
 
+        // Clear the reply bar up front (before the network roundtrip); restore
+        // it only if the GIF send didn't actually go through.
+        const replyId = replyToMessageId.value || undefined;
+        const savedReply = consumeReplyTarget();
         try {
           const sendOutcome = await sendChannelOrDMWithEncryptionPolicy(
             messageParts,
-            replyToMessageId.value || undefined,
+            replyId,
           );
-          // Only clear reply state on actual success. `'declined'` (user
-          // cancelled fallback) and `'no-context'` (missing channel/DM)
-          // must preserve the reply target so the user can retry.
-          if (sendOutcome === 'ok') {
-            handleDontReply();
+          if (sendOutcome !== 'ok') {
+            // 'declined' (user cancelled fallback) or 'no-context' (missing
+            // channel/DM): the GIF was not sent, so put the reply target back.
+            restoreReplyTarget(savedReply);
           }
         } catch (error) {
           debug.error('Error sending GIF:', error);
+          restoreReplyTarget(savedReply);
         }
       };
 

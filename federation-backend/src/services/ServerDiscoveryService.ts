@@ -58,7 +58,10 @@ router.get(
         id: serverData.id,
         name: serverData.name,
         description: serverData.summary || '',
-        icon: serverData.icon?.url,
+        // A remote may still advertise the built-in default icon (older peers
+        // that don't omit it). Surface null so the local UI uses its own
+        // fallback instead of trying to load a bogus default asset URL (400).
+        icon: isDefaultServerIcon(serverData.icon?.url) ? null : serverData.icon?.url,
         banner: serverData.image?.url || null,
         memberCount: serverData.memberCount ?? serverData['harmony:memberCount'] ?? 0,
         channels: (serverData['harmony:channels'] || []).map((c: any) => {
@@ -1057,7 +1060,10 @@ export class ServerDiscoveryService {
       const serverInsertData: any = {
         name: remoteServer.name,
         description: remoteServer.summary || '',
-        icon: remoteServer.icon?.url,
+        // Don't persist the built-in default icon as if it were a real upload -
+        // store null so the local UI falls back instead of loading a bogus
+        // default asset URL from the remote (which 400s).
+        icon: isDefaultServerIcon(remoteServer.icon?.url) ? null : remoteServer.icon?.url,
         banner: remoteServer.image?.url || null,
         owner: ownerUserId,
         federation_enabled: true,
@@ -1312,7 +1318,9 @@ export class ServerDiscoveryService {
         .update({
           name: remoteServer.name,
           description: remoteServer.summary,
-          icon: remoteServer.icon?.url,
+          // Treat the built-in default icon as "no icon" (store null) so the
+          // local UI uses its own fallback instead of a bogus default URL.
+          icon: isDefaultServerIcon(remoteServer.icon?.url) ? null : remoteServer.icon?.url,
           banner: remoteServer.image?.url || null,
           public: remoteServer.discoverable !== false,
           federation_metadata: {

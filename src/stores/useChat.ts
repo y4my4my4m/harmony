@@ -9,6 +9,18 @@ import { processMessageDecryption } from '@/utils/messageDecryption';
 import { debug } from '@/utils/debug';
 import { realtimeConnectionManager, type ConnectionStatus } from '@/services/RealtimeConnectionManager';
 
+// Short random identifier used to make optimistic temp message IDs unique and
+// to tag outgoing messages with a client nonce for reliable realtime
+// reconciliation. Falls back to Math.random when crypto.randomUUID is missing.
+const getRandomId = (): string => {
+  try {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+      return crypto.randomUUID();
+    }
+  } catch { /* crypto unavailable - fall through */ }
+  return `${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`;
+};
+
 // import { getEmoji } from '@/services/emojiService';
 export const useChatStore = defineStore('chat', {
   state: () => ({
@@ -356,11 +368,18 @@ export const useChatStore = defineStore('chat', {
           }
         });
         
-        // Pre-load all user profiles before updating messages
-        // This ensures no "Loading..." appears in message display
+        // Kick off profile hydration in parallel WITHOUT blocking the first
+        // paint. Previously we awaited this so author names never flashed
+        // "Loading...", but on a cold channel open it meant the entire message
+        // list waited on a profiles round-trip before rendering anything -
+        // the single biggest contributor to the "opens slowly" feel. Author
+        // names are looked up reactively, so they fill in a moment later once
+        // the profiles resolve (most are already cached from the member list /
+        // presence anyway). The cache-hit path already renders without this
+        // preload, so async hydration here is consistent with existing UX.
         if (userIds.size > 0) {
           const serverUsersStore = useServerUsersStore();
-          await serverUsersStore.fetchMultipleUserProfiles(Array.from(userIds));
+          void serverUsersStore.fetchMultipleUserProfiles(Array.from(userIds)).catch(() => {});
         }
         
         // PERFORMANCE FIX: Reactions are already loaded by MessageService
@@ -727,8 +746,18 @@ export const useChatStore = defineStore('chat', {
       extraMetadata?: Record<string, any>,
       options?: { allowPlaintextFallback?: boolean }
     ) {
-      // Create optimistic message
-      const tempId = `temp-${Date.now()}`;
+      // Create optimistic message. The temp ID carries a random suffix on top
+      // of the timestamp so two sends fired within the same millisecond can't
+      // collide (a collision would make the second optimistic message dedupe
+      // against the first and silently disappear until realtime arrived).
+      const tempId = `temp-${Date.now()}-${getRandomId()}`;
+      // `client_nonce` is echoed back on the persisted row (via metadata) and
+      // on the realtime INSERT, letting us reconcile the optimistic message
+      // reliably even when the content differs between optimistic (plaintext)
+      // and stored (ciphertext) - the case that previously produced duplicate
+      // messages on encrypted channels when realtime won the race.
+      const clientNonce = getRandomId();
+      const sendMetadata = { ...(extraMetadata || {}), client_nonce: clientNonce };
       const optimisticMessage = {
         id: tempId,
         created_at: new Date(),
@@ -736,6 +765,7 @@ export const useChatStore = defineStore('chat', {
         user_id: userId,
         content: content as any,
         reply_to: replyTo || undefined,
+        metadata: { ...(extraMetadata || {}), client_nonce: clientNonce },
         sending: true
       };
       
@@ -751,7 +781,7 @@ export const useChatStore = defineStore('chat', {
           channelId, 
           content as any, // MessagePart[]
           replyTo || undefined,
-          extraMetadata,
+          sendMetadata,
           options
         );
         
@@ -822,7 +852,7 @@ export const useChatStore = defineStore('chat', {
 
           try {
             const retryResult = await services.messages.sendChannelMessage(
-              serverId, channelId, content as any, replyTo || undefined, extraMetadata, options
+              serverId, channelId, content as any, replyTo || undefined, sendMetadata, options
             );
             this._replaceTempWithReal(tempId, retryResult, userId, channelId, content);
             return retryResult;
@@ -1008,14 +1038,28 @@ export const useChatStore = defineStore('chat', {
             return;
           }
           
-          // Check if temp message exists (race condition fallback).
-          // Match by user_id AND content similarity to avoid collisions with
-          // multiple rapid sends from the same user.
-          const payloadContent = JSON.stringify(payloadNew.content);
-          const tempMessageIndex = store.messages.findIndex(m => 
-            m.id.startsWith('temp-') && m.user_id === payloadNew.user_id &&
-            JSON.stringify(m.content) === payloadContent
-          );
+          // Check if a temp (optimistic) message exists for this row (race
+          // condition fallback for when realtime beats `_replaceTempWithReal`).
+          //
+          // Prefer matching on the client nonce we tagged the message with on
+          // send: it survives encryption (optimistic holds plaintext, the
+          // stored/realtime row holds ciphertext) so it dedupes encrypted
+          // sends that the content comparison below cannot. Fall back to the
+          // user_id + content match for older/bridged rows without a nonce.
+          const incomingNonce = (payloadNew.metadata as any)?.client_nonce;
+          let tempMessageIndex = -1;
+          if (incomingNonce) {
+            tempMessageIndex = store.messages.findIndex(m =>
+              m.id.startsWith('temp-') && (m.metadata as any)?.client_nonce === incomingNonce
+            );
+          }
+          if (tempMessageIndex === -1) {
+            const payloadContent = JSON.stringify(payloadNew.content);
+            tempMessageIndex = store.messages.findIndex(m => 
+              m.id.startsWith('temp-') && m.user_id === payloadNew.user_id &&
+              JSON.stringify(m.content) === payloadContent
+            );
+          }
           
           if (tempMessageIndex !== -1) {
             debug.warn('⚠️ Temp message still exists during real-time, replacing now');

@@ -172,52 +172,27 @@ export class MessageService {
   async toggleReaction(
     messageId: string,
     emojiId: string
-  ): Promise<{ added: boolean; newCount: number }> {
+  ): Promise<{ added: boolean }> {
     try {
       debug.log(`🚀 MessageService: Toggling reaction for message: ${messageId}, emoji: ${emojiId}`)
 
       // Just toggle the reaction - database triggers handle federation logic automatically
       // (chat reactions stay local, DM reactions may federate based on participants)
+      //
+      // We intentionally do NOT issue a follow-up COUNT query here: the
+      // reactions store already updates the count optimistically and then
+      // reconciles against the authoritative server data (via the per-message
+      // reconcile fetch + realtime), so the extra round-trip only added latency
+      // to every single reaction toggle without being consumed anywhere.
       const result = await coreMessageService.toggleReaction(messageId, emojiId)
 
-      // Check if this is a unicode/shortcode emoji (not a UUID)
-      const isNativeEmoji = !this.isValidUUID(emojiId)
-
-      // Get updated count for the response - query by correct field
-      let countQuery = supabase
-        .from('reactions')
-        .select('*', { count: 'exact', head: true })
-        .eq('message_id', messageId)
-      
-      if (isNativeEmoji) {
-        countQuery = countQuery.eq('custom_emoji_content', emojiId)
-      } else {
-        countQuery = countQuery.eq('emoji_id', emojiId)
-      }
-
-      const { count } = await countQuery
-
-      const response = {
-        added: result.added,
-        newCount: count || 0
-      }
-
-      debug.log(`✅ MessageService: Message reaction toggled - database handling federation: ${response.added ? 'added' : 'removed'}`)
-      return response
+      debug.log(`✅ MessageService: Message reaction toggled - database handling federation: ${result.added ? 'added' : 'removed'}`)
+      return { added: result.added }
 
     } catch (error) {
       debug.error('❌ MessageService: Failed to toggle message reaction:', error)
       throw error
     }
-  }
-
-  /**
-   * Check if a string is a valid UUID
-   * Uses permissive regex to handle Supabase-generated UUIDs which may not strictly follow RFC 4122
-   */
-  private isValidUUID(str: string): boolean {
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-    return uuidRegex.test(str)
   }
 
   /**

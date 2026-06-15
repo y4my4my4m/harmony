@@ -13,6 +13,18 @@ import { debug } from '@/utils/debug'
 import { realtimeConnectionManager, type ConnectionStatus } from '@/services/RealtimeConnectionManager'
 import { userEventChannel } from '@/services/UserEventChannel'
 
+// Short random identifier used to make optimistic temp message IDs unique and
+// to tag outgoing messages with a client nonce for reliable realtime
+// reconciliation. Falls back to Math.random when crypto.randomUUID is missing.
+const getRandomId = (): string => {
+  try {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+      return crypto.randomUUID()
+    }
+  } catch { /* crypto unavailable - fall through */ }
+  return `${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`
+}
+
 // Types for DM functionality
 export interface DMUser {
   id: string
@@ -1592,11 +1604,17 @@ export const useDMStore = defineStore('dm', () => {
         }
       });
 
-      // Pre-load all user profiles before updating messages
-      // This ensures no "Loading..." or "Unknown User" appears in DM display
+      // Kick off profile hydration in parallel WITHOUT blocking the first
+      // paint. Previously we awaited this so author names never flashed
+      // "Loading..." / "Unknown User", but on a cold DM open it meant the
+      // whole message list waited on a profiles round-trip before rendering -
+      // a major contributor to the "opens slowly" feel. Names are looked up
+      // reactively and fill in a moment later once profiles resolve (the DM
+      // participant is typically already cached), and the cache-hit path
+      // already renders without this preload, so this stays consistent.
       if (userIds.size > 0) {
         const serverUsersStore = useServerUsersStore();
-        await serverUsersStore.fetchMultipleUserProfiles(Array.from(userIds));
+        void serverUsersStore.fetchMultipleUserProfiles(Array.from(userIds)).catch(() => {});
       }
 
       // Service already handles reactions loading
@@ -1883,8 +1901,18 @@ export const useDMStore = defineStore('dm', () => {
     replyTo?: string,
     options?: { allowPlaintextFallback?: boolean }
   ): Promise<boolean> => {
-    // Create optimistic message
-    const tempId = `temp-${Date.now()}`;
+    // Create optimistic message. The temp ID carries a random suffix on top of
+    // the timestamp so two sends fired within the same millisecond can't
+    // collide (a collision would make the second optimistic message dedupe
+    // against the first and silently disappear until realtime arrived).
+    const tempId = `temp-${Date.now()}-${getRandomId()}`;
+    // `client_nonce` is echoed back on the persisted row (via metadata) and on
+    // the realtime INSERT, letting us reconcile the optimistic message reliably
+    // even when content differs between optimistic (plaintext) and stored
+    // (ciphertext) - the case that previously produced duplicate messages on
+    // encrypted conversations when realtime won the race.
+    const clientNonce = getRandomId();
+    const sendMetadata = { client_nonce: clientNonce };
     const optimisticMessage = {
       id: tempId,
       created_at: new Date(),
@@ -1892,6 +1920,7 @@ export const useDMStore = defineStore('dm', () => {
       user_id: userId,
       content: content,
       reply_to: replyTo,
+      metadata: { client_nonce: clientNonce },
       sending: true
     };
     
@@ -1906,7 +1935,8 @@ export const useDMStore = defineStore('dm', () => {
         conversationId,
         content,
         replyTo,
-        options ? { allowPlaintextFallback: options.allowPlaintextFallback } : undefined
+        options ? { allowPlaintextFallback: options.allowPlaintextFallback } : undefined,
+        sendMetadata
       )
 
       debug.log('✅ DM message saved to database:', message.id)
@@ -1969,7 +1999,8 @@ export const useDMStore = defineStore('dm', () => {
             conversationId,
             content,
             replyTo,
-            options ? { allowPlaintextFallback: options.allowPlaintextFallback } : undefined
+            options ? { allowPlaintextFallback: options.allowPlaintextFallback } : undefined,
+            sendMetadata
           )
           _replaceDMTempWithReal(tempId, retryResult, userId, conversationId, content)
           return true
@@ -2262,11 +2293,25 @@ export const useDMStore = defineStore('dm', () => {
             return
           }
           
-          const payloadContent = JSON.stringify(message.content)
-          const tempMessageIndex = currentDMMessages.value.findIndex(m => 
-            m.id.startsWith('temp-') && m.user_id === message.user_id &&
-            JSON.stringify(m.content) === payloadContent
-          )
+          // Prefer matching the optimistic message on the client nonce we
+          // tagged it with on send: it survives encryption (optimistic holds
+          // plaintext, the realtime row holds ciphertext) so it dedupes
+          // encrypted sends that the content comparison cannot. Fall back to
+          // the user_id + content match for older/bridged rows without a nonce.
+          const incomingNonce = (message.metadata as any)?.client_nonce
+          let tempMessageIndex = -1
+          if (incomingNonce) {
+            tempMessageIndex = currentDMMessages.value.findIndex(m =>
+              m.id.startsWith('temp-') && (m.metadata as any)?.client_nonce === incomingNonce
+            )
+          }
+          if (tempMessageIndex === -1) {
+            const payloadContent = JSON.stringify(message.content)
+            tempMessageIndex = currentDMMessages.value.findIndex(m => 
+              m.id.startsWith('temp-') && m.user_id === message.user_id &&
+              JSON.stringify(m.content) === payloadContent
+            )
+          }
           
           if (tempMessageIndex !== -1) {
             debug.warn('⚠️ Temp message still exists during real-time, replacing now')
