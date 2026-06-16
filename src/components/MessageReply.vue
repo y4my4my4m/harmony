@@ -9,6 +9,7 @@
                         :profile-user-id="profileUserId"
                         :display-name="authorLabel"
                         :bridge-source="bridgeSource"
+                        :color="usernameColor"
                     />
                 </div>
             </div>
@@ -42,6 +43,7 @@ const {
   profileUserId,
   authorLabel,
   bridgeSource,
+  usernameColor,
 } = useReplyTarget(
   toRef(props, 'replyMessageId'),
   computed(() => ({
@@ -72,7 +74,6 @@ const dontReply = () => {
 
     .user_display_name {
         font-weight: bold;
-        color: #ddd;
     }
 
     .text-sm-normal {

@@ -4,6 +4,10 @@ import { useServerRolesStore } from '@/stores/useServerRoles'
 import { supabase } from '@/supabase'
 import type { Message } from '@/types'
 import {
+  findBridgedUserInCache,
+  resolveBridgedUserColor,
+} from '@/services/bridgedChannelUsersService'
+import {
   getBridgeSource,
   getHarmonyProfileUserId,
   isBridgedAuthorMessage,
@@ -80,7 +84,15 @@ export function useMessageAuthorPresentation(
   const usernameColor = computed(() => {
     const msg = message.value
     if (!msg) return '#dddddd'
-    if (isBridgedAuthorMessage(msg)) return '#5865F2'
+    if (isBridgedAuthorMessage(msg)) {
+      const discordId = msg.metadata?.discord_user?.id
+      if (discordId) {
+        const cached = findBridgedUserInCache(null, discordId)
+        const color = cached ? resolveBridgedUserColor(cached) : undefined
+        if (color) return color
+      }
+      return '#5865F2'
+    }
     if (msg.bot_id) return '#0EA5E9'
     if (msg.user_id) {
       const serverId = toValue(options?.serverId)

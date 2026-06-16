@@ -7,19 +7,18 @@
       :truncate="truncate"
     />
     <template v-else>{{ displayName }}</template>
-    <BridgedSourceIcon v-if="showBridgeIcon && bridgeSource" :source="bridgeSource" />
+    <BridgeSourceBadge v-if="bridgeSource" :source="bridgeSource" />
   </span>
 </template>
 
 <script setup lang="ts">
-import BridgedSourceIcon from '@/components/messages/BridgedSourceIcon.vue'
+import BridgeSourceBadge from '@/components/messages/BridgeSourceBadge.vue'
 import DisplayName from '@/components/DisplayName.vue'
 
 defineProps<{
   profileUserId: string
   displayName: string
   bridgeSource?: string | null
-  showBridgeIcon?: boolean
   truncate?: boolean
   color?: string
 }>()
@@ -30,6 +29,12 @@ defineProps<{
   display: inline-flex;
   align-items: center;
   gap: 3px;
+  min-width: 0;
+}
+
+.message-author-label :deep(.bridge-source-badge),
+.message-author-label :deep(.bridged-source-icon) {
+  flex-shrink: 0;
 }
 
 .message-author-label.truncate {
