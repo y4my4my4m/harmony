@@ -228,7 +228,7 @@ export async function createTestServer(
 export async function createTestChannel(
   admin: SupabaseClient,
   serverId: string,
-  opts: { name?: string; isPrivate?: boolean } = {},
+  opts: { name?: string } = {},
 ): Promise<string> {
   const suffix = Math.random().toString(36).slice(2, 8)
   const { data, error } = await admin
@@ -236,7 +236,6 @@ export async function createTestChannel(
     .insert({
       server_id: serverId,
       name: opts.name || `test-channel-${suffix}`,
-      is_private: opts.isPrivate ?? false,
     })
     .select('id')
     .single()

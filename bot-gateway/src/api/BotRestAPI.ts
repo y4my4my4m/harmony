@@ -688,14 +688,13 @@ export class BotRestAPI {
   private async createChannel(req: BotRequest, res: Response) {
     try {
       const serverId = req.params.serverId
-      const { name, type, category_id, description, order, is_private } =
+      const { name, type, category_id, description, order } =
         req.body as {
           name?: string
           type?: number
           category_id?: string | null
           description?: string | null
           order?: number
-          is_private?: boolean
         }
       const botId = req.bot!.id
 
@@ -720,7 +719,6 @@ export class BotRestAPI {
           category: category_id || null,
           description: description ? description.slice(0, 1024) : null,
           order: typeof order === 'number' ? order : 0,
-          is_private: !!is_private,
         })
         .select('*')
         .single()
