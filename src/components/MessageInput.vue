@@ -9,8 +9,9 @@
     <MessageReply
       v-if="replyMessageId"
       :replyMessageId="replyMessageId"
-      :replyUserDisplayName="replyUserDisplayName"
-      :replyUserId="replyUserId"
+      :channel-id="channelId"
+      :conversation-id="conversationId"
+      :server-id="serverId"
       @update:replyMessageId="handleDontReply"
     />
     <FilePreview
@@ -193,8 +194,7 @@ interface Props {
   emojiListOpen?: boolean;
   modelValue?: string;
   replyMessageId?: string;
-  replyUserDisplayName?: string;
-  replyUserId?: string;
+  serverId?: string;
   channelName?: string;
   username?: string;
   channelId?: string;
@@ -207,8 +207,7 @@ const props = withDefaults(defineProps<Props>(), {
   emojiListOpen: false,
   modelValue: '',
   replyMessageId: '',
-  replyUserDisplayName: '',
-  replyUserId: '',
+  serverId: undefined,
 });
 
 // Dynamic placeholder target (channel or DM user)

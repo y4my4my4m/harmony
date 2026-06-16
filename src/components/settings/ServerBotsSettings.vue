@@ -331,15 +331,35 @@ async function addBot() {
   adding.value = true
 
   try {
-    // Call RPC function to add bot
-    const { error } = await supabase.rpc('add_bot_to_server', {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('Not authenticated')
+
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('auth_user_id', user.id)
+      .single()
+
+    if (profileError || !profile) throw new Error('Profile not found')
+
+    const { data: permissionId, error } = await supabase.rpc('add_bot_to_server', {
       p_bot_id: selectedBot.value.id,
       p_server_id: props.serverId,
-      p_installed_by: (await supabase.auth.getUser()).data.user?.id,
+      p_installed_by: profile.id,
       p_permissions: selectedPermissions.value
     })
 
     if (error) throw error
+
+    // RPC returns the row id; apply the permission flags the UI selected.
+    if (permissionId) {
+      const { error: permError } = await supabase
+        .from('bot_server_permissions')
+        .update(selectedPermissions.value)
+        .eq('id', permissionId)
+
+      if (permError) throw permError
+    }
 
     showMessage('success', `${selectedBot.value.username} added successfully!`)
     closeModal()

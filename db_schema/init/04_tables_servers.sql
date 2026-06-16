@@ -112,8 +112,6 @@ CREATE TABLE IF NOT EXISTS public.channels (
     type smallint DEFAULT 0,
     "order" integer DEFAULT 0,
     
-    -- Permissions
-    is_private boolean DEFAULT false,
     slowmode_seconds integer DEFAULT 0,
     
     -- Federation

@@ -589,7 +589,7 @@ export class BotRestAPI {
         .from('user_servers')
         .select(`
           *,
-          user:profiles!user_servers_user_id_fkey(id, username, display_name, avatar_url, status)
+          user:profiles!user_servers_user_id_fkey(id, username, display_name, avatar_url, status, domain, is_local)
         `)
         .eq('server_id', serverId)
         .limit(Number(limit))
@@ -1252,6 +1252,7 @@ export class BotRestAPI {
         bot: !!message.bot  // Flag to indicate if this is a bot message
       } : null,
       content: this.contentToText(message.content),
+      reply_to: message.reply_to ?? null,
       timestamp: message.created_at,
       edited_timestamp: message.updated_at,
       mentions: this.extractMentions(message.content),
@@ -1287,6 +1288,8 @@ export class BotRestAPI {
         id: member.user.id,
         username: member.user.username,
         display_name: member.user.display_name,
+        domain: member.user.domain ?? null,
+        is_local: member.user.is_local ?? true,
         avatar: this.formatAvatarUrl(member.user.avatar_url)
       } : null,
       nick: member.nickname,

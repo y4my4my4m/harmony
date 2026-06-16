@@ -299,11 +299,9 @@
             <MessageReplyReference
               v-if="item.message.reply_to"
               :reply-to-message-id="item.message.reply_to"
-              :avatar-src="getReplyUserAvatar(item.message.reply_to)"
-              :reply-user-id="getReplyUserId(item.message.reply_to)"
-              :reply-user-display-name="getReplyUserDisplayName(item.message.reply_to)"
-              :username-color="getReplyUserColor(item.message.reply_to)"
-              :preview-text="getReplyMessagePreview(item.message.reply_to)"
+              :channel-id="channelId"
+              :conversation-id="conversationId"
+              :server-id="coloringServerId"
               @open-reply="handleReplyClick"
             />
           
@@ -1338,7 +1336,6 @@ const messageDisplayContainer = ref<HTMLDivElement | null>(null);
 const topSentinelRef = ref<HTMLDivElement | null>(null);
 const imageLoaded: Ref<Record<string, boolean>> = ref({});
 const embedLoaded: Ref<Record<string, number>> = ref({}); // Track embed load count per message
-const replyMessages = ref<Record<string, Message>>({});
 const tooltip = ref({
   visible: false,
   content: [] as {
@@ -1570,12 +1567,16 @@ const currentServerData = computed(() => {
 
 // --- HELPER FUNCTIONS ---
 const getReplyMessage = (replyMessageId: string) => {
-  return props.messages.find(msg => msg.id === replyMessageId) || replyMessages.value[replyMessageId] || null;
+  return props.messages.find(msg => msg.id === replyMessageId)
+    ?? chatStore.replyMessageCache.get(replyMessageId)
+    ?? (props.conversationId ? dmStore.replyMessageCache.get(replyMessageId) : undefined)
+    ?? null;
 };
 
 const getReplyUserId = (replyMessageId: string) => {
   const message = getReplyMessage(replyMessageId);
-  return message?.user_id || 'unknown';
+  if (!message?.user_id || message.bot_id || message.metadata?.discord_user) return '';
+  return message.user_id;
 };
 
 // Track if we should be at bottom (for initial load and new-message scroll)
@@ -2936,8 +2937,7 @@ const unreportMessage = (messageId: string) => {
 
 // Reply Logic
 const replyTo = (message: Message) => {
-  const displayName = getUserDisplayName(message.user_id).value || 'Unknown User';
-  emit('replyingTo', message.id, displayName, message.user_id);
+  emit('replyingTo', message.id);
   hoveredMessageId.value = null;
 };
 
@@ -2956,55 +2956,6 @@ const createThread = (message: Message) => {
   emit('createThread', message);
   hoveredMessageId.value = null;
 };
-
-const fetchReplyMessageIfNeeded = async (replyMessageId: string) => {
-  if (replyMessages.value[replyMessageId] || props.messages.some(msg => msg.id === replyMessageId)) return;
-  try {
-    const message = await chatStore.fetchReplyMessage(replyMessageId);
-    if (message) {
-      replyMessages.value[replyMessageId] = message;
-      // Ensure the reply author's profile is loaded so we don't show "Unknown User"
-      if (message.user_id) {
-        ensureProfilesAvailable([message.user_id]).catch(() => {});
-      }
-    }
-  } catch (error) {
-    debug.error('Error fetching reply message:', error);
-  }
-};
-
-const getReplyUserDisplayName = (replyMessageId: string) => {
-  const message = getReplyMessage(replyMessageId);
-  if (message?.metadata?.discord_user) {
-    const du = message.metadata.discord_user;
-    return du.display_name || du.username || 'Discord User';
-  }
-  if (message?.bot_id) {
-    const bot = botDataCache.value.get(message.bot_id);
-    return bot?.display_name || bot?.username || 'Bot';
-  }
-  const userId = message?.user_id;
-  if (!userId) return 'Unknown User';
-  return getUserDisplayName(userId).value;
-};
-
-const getReplyUserColor = (replyMessageId: string) => {
-  const userId = getReplyUserId(replyMessageId);
-  return userId === 'unknown' ? '#dddddd' : resolveChatUserColor(userId);
-};
-
-const getReplyUserAvatar = (replyMessageId: string) => {
-  const userId = getReplyUserId(replyMessageId);
-  return userId === 'unknown' ? '/default_avatar.webp' : getUserAvatarUrl(userId).value;
-};
-
-const getReplyMessagePreview = (replyMessageId: string) => {
-  const message = props.messages.find(msg => msg.id === replyMessageId) || replyMessages.value[replyMessageId];
-  if (message) return messagePartsToPlainText(message.content);
-  fetchReplyMessageIfNeeded(replyMessageId);
-  return 'Loading...';
-};
-
 
 // Correct scroll position when an item above the viewport resizes.
 // Uses an anchor-based approach: track the item at the viewport top before

@@ -1955,7 +1955,6 @@ BEGIN
        OLD.category      IS NOT DISTINCT FROM NEW.category AND
        OLD.server_id     IS NOT DISTINCT FROM NEW.server_id AND
        OLD."order"       IS NOT DISTINCT FROM NEW."order" AND
-       OLD.is_private    IS NOT DISTINCT FROM NEW.is_private AND
        OLD.slowmode_seconds IS NOT DISTINCT FROM NEW.slowmode_seconds AND
        OLD.ap_id         IS NOT DISTINCT FROM NEW.ap_id
     THEN
