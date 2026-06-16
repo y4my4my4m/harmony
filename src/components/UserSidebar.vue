@@ -793,7 +793,7 @@ function getHighestHoistedRoleForBridged(bridgedUser: BridgedChannelUser): Serve
   return null;
 }
 
-/** Discord users grouped by hoisted role, then by presence for the rest. */
+/** Discord users grouped by hoisted role when online+, otherwise by presence (offline bucket). */
 const bridgedDiscordGrouping = computed(() => {
   const byRoleId: Record<string, BridgedChannelUser[]> = {};
   const byPresence: Record<'online' | 'away' | 'busy' | 'offline', BridgedChannelUser[]> = {
@@ -808,12 +808,12 @@ const bridgedDiscordGrouping = computed(() => {
   }
 
   for (const bridgedUser of filteredBridgedDiscordUsers.value) {
+    const status = bridgedUser.presenceStatus ?? 'offline';
     const hoistedRole = getHighestHoistedRoleForBridged(bridgedUser);
-    if (hoistedRole && byRoleId[hoistedRole.id]) {
+    if (hoistedRole && byRoleId[hoistedRole.id] && status !== 'offline') {
       byRoleId[hoistedRole.id].push(bridgedUser);
       continue;
     }
-    const status = bridgedUser.presenceStatus ?? 'offline';
     if (status === 'online' || status === 'away' || status === 'busy' || status === 'offline') {
       byPresence[status].push(bridgedUser);
     } else {
@@ -1040,12 +1040,13 @@ const sidebarDisplayItems = computed((): SidebarItem[] => {
   ) => {
     for (const bridgedUser of members) {
       const presenceMeta = getBridgedPresenceMeta(bridgedUser);
+      const hoistedRole = getHighestHoistedRoleForBridged(bridgedUser);
       items.push({
         type: 'user',
         key: `bd-${bridgedUser.id}-${groupKey}`,
         groupKey,
         bridgedUser,
-        nameColor: resolveBridgedUserColor(bridgedUser, harmonyRoleColor) ?? null,
+        nameColor: resolveBridgedUserColor(bridgedUser, harmonyRoleColor ?? hoistedRole?.color) ?? null,
         isOffline: opts.isOffline ?? presenceMeta.isOffline,
         showStatus: opts.showStatus ?? presenceMeta.showStatus,
       });

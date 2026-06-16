@@ -306,9 +306,14 @@
         <!-- Action Buttons -->
         <div class="profile-actions">
           <template v-if="isBridgedDiscord">
-            <button type="button" class="secondary-action-btn single-action-btn" @click="copyDiscordId">
-              <Icon name="copy" class="btn-icon" />
-              Copy Discord ID
+            <button
+              type="button"
+              class="secondary-action-btn single-action-btn"
+              :class="{ copied: discordIdCopied }"
+              @click="copyDiscordId"
+            >
+              <Icon :name="discordIdCopied ? 'check' : 'copy'" :size="16" />
+              {{ discordIdCopied ? 'Copied!' : 'Copy Discord ID' }}
             </button>
           </template>
 
@@ -486,6 +491,8 @@ const {
 
 // Reactive state
 const showActionsMenu = ref(false)
+const discordIdCopied = ref(false)
+let discordIdCopiedTimer: ReturnType<typeof setTimeout> | null = null
 const userNote = ref('')
 const instanceInfo = ref<{ status: string; software?: string } | null>(null)
 const isLoadingInstanceInfo = ref(false)
@@ -1016,6 +1023,12 @@ const copyDiscordId = async () => {
   if (!discordId) return
   try {
     await navigator.clipboard.writeText(discordId)
+    discordIdCopied.value = true
+    if (discordIdCopiedTimer) clearTimeout(discordIdCopiedTimer)
+    discordIdCopiedTimer = setTimeout(() => {
+      discordIdCopied.value = false
+      discordIdCopiedTimer = null
+    }, 2000)
   } catch (error) {
     debug.error('Failed to copy Discord ID:', error)
   }
@@ -1414,6 +1427,11 @@ watch(() => ({ show: props.show, userId: props.user?.id }), async (newVal, oldVa
     // Modal closed or no user - cleanup. Reset the dropdown too so the next
     // open of the modal doesn't restore a stale "..." menu state.
     showActionsMenu.value = false
+    discordIdCopied.value = false
+    if (discordIdCopiedTimer) {
+      clearTimeout(discordIdCopiedTimer)
+      discordIdCopiedTimer = null
+    }
     await cleanupProfilePresence()
     instanceInfo.value = null
     fetchedUserStats.value = null
@@ -2174,6 +2192,23 @@ onMounted(() => {
   margin:0;
 }
 
+.secondary-action-btn .icon-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.secondary-action-btn svg {
+  width: 16px;
+  height: 16px;
+  overflow: visible;
+  padding: 0;
+  margin: 0;
+}
+
 .primary-action-btn {
   background: linear-gradient(135deg, #0EA5E9, #0284C7);
   color: var(--text-primary);
@@ -2218,10 +2253,15 @@ onMounted(() => {
   color: var(--text-primary);
 }
 
-.btn-icon {
-  width: 16px;
-  height: 16px;
-  flex-shrink: 0;
+.secondary-action-btn:active:not(.copied) {
+  transform: scale(0.98);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.secondary-action-btn.copied {
+  background: rgba(67, 181, 129, 0.12);
+  border-color: rgba(67, 181, 129, 0.35);
+  color: #43b581;
 }
 
 /* Server invite picker */

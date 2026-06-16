@@ -581,12 +581,12 @@ const formatFileSize = (bytes: number): string => {
 
 /* Mentions */
 .mention {
-  background-color: #3c4270;
+  background-color: var(--harmony-primary-alpha);
   border-radius: 3px;
   padding: 0 2px;
   font-weight: 500;
   cursor: pointer;
-  color: #c9c9ee;
+  color: var(--harmony-primary);
   display: inline-block;
   transition: background-color 0.2s ease;
   user-select: text;
