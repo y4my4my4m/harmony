@@ -62,7 +62,6 @@ class StatePersistenceService {
   private isLoaded = false
   private loadingPromise: Promise<void> | null = null
   
-  // PERFORMANCE FIX: Debounce localStorage writes to reduce overhead
   private saveTimeout: NodeJS.Timeout | null = null
   private pendingSave = false
 
@@ -166,7 +165,6 @@ class StatePersistenceService {
   }
 
   /**
-   * ✅ PERFORMANCE FIX: Debounced save to reduce localStorage writes during initialization
    * Batches multiple rapid state changes into a single write
    */
   private debouncedSave(): void {
@@ -183,10 +181,7 @@ class StatePersistenceService {
     }, 500) // 500ms debounce for better batching during initialization
   }
 
-  /**
-   * ✅ PERFORMANCE FIX: Force immediate save for critical operations
-   */
-  async forceSave(): Promise<void> {
+    async forceSave(): Promise<void> {
     if (this.saveTimeout) {
       clearTimeout(this.saveTimeout)
       this.saveTimeout = null
@@ -195,10 +190,7 @@ class StatePersistenceService {
     await this.saveState()
   }
 
-  /**
-   * ✅ PERFORMANCE FIX: Cleanup method for app shutdown/logout
-   */
-  async cleanup(): Promise<void> {
+    async cleanup(): Promise<void> {
     // Force save any pending changes
     if (this.pendingSave) {
       await this.forceSave()
@@ -237,7 +229,6 @@ class StatePersistenceService {
     if (!this.isLoaded) await this.initialize()
     
     this.state.lastServerId = serverId
-    this.debouncedSave() // ✅ PERFORMANCE FIX: Use debounced save during initialization
     debug.log('📍 Last server saved:', serverId)
   }
 
@@ -264,7 +255,6 @@ class StatePersistenceService {
       delete this.state.lastChannelByServer[serverId]
     }
     
-    this.debouncedSave() // ✅ PERFORMANCE FIX: Use debounced save during initialization
     debug.log('📍 Last channel saved for server', serverId, ':', channelId)
   }
 
@@ -523,7 +513,6 @@ class StatePersistenceService {
       issues
     }
   }
-
 
 }
 

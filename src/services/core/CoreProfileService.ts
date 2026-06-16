@@ -1,28 +1,4 @@
-/**
- * CoreProfileService - Pure local profile operations with ENTERPRISE SECURITY
- * 
- * Contains ONLY local database operations with NO federation logic:
- * - Profile CRUD operations with strict ownership verification
- * - Profile loading with privacy controls
- * - Profile search with security filtering
- * - User statistics with secure aggregation
- * 
- * SECURITY FEATURES:
- * - ✅ Authentication verification on all operations
- * - ✅ Authorization checks (ownership verification)
- * - ✅ Input validation and sanitization
- * - ✅ Privacy controls for sensitive data
- * - ✅ Secure error handling (no data leakage)
- * - ✅ Rate limiting considerations
- * - ✅ SQL injection prevention
- * 
- * NO FEDERATION CONCERNS:
- * - No ActivityPub key generation
- * - No federation metadata updates
- * - No cross-instance profile sync
- * - Pure local Supabase operations only
- */
-
+/** Local profile CRUD and search. */
 import { supabase } from '@/supabase'
 import { authContextService } from '@/services/AuthContextService'
 import type { Profile } from '@/types'
@@ -480,5 +456,4 @@ export class CoreProfileService {
   }
 }
 
-// Export singleton instance
 export const coreProfileService = CoreProfileService.getInstance()

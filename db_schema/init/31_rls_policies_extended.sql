@@ -1071,9 +1071,11 @@ CREATE POLICY "Members can view server membership events" ON public.server_membe
         server_id IN (SELECT us.server_id FROM public.user_servers us WHERE us.user_id = public.get_current_profile_id())
     );
 
+-- No authenticated INSERT policy: every writer is SECURITY DEFINER
+-- (route_server_membership / route_server_leave triggers; kick/ban/unban RPCs)
+-- and bypasses RLS. An authenticated WITH CHECK (true) policy here would only
+-- let users forge membership events, so it is intentionally absent.
 DROP POLICY IF EXISTS "System can insert membership events" ON public.server_membership_events;
-CREATE POLICY "System can insert membership events" ON public.server_membership_events
-    FOR INSERT TO authenticated WITH CHECK (true);
 
 -- ---------------------------------------------------------------------------
 -- TIMELINE ENTRIES
@@ -1093,9 +1095,21 @@ CREATE POLICY "timeline_entries_service_write" ON public.timeline_entries
 -- ---------------------------------------------------------------------------
 -- UNREAD COUNTS
 -- ---------------------------------------------------------------------------
+-- Clients (authenticated) may only read/clear their OWN unread rows. The rows are
+-- populated by SECURITY DEFINER triggers/RPCs (which bypass RLS) and service_role
+-- (which bypasses RLS), so scoping the client policy to the caller's profile id does
+-- not affect server-side writes. unread_counts.user_id is a profiles.id.
 DROP POLICY IF EXISTS "System can manage unread counts" ON public.unread_counts;
-CREATE POLICY "System can manage unread counts" ON public.unread_counts
-    WITH CHECK (true);
+DROP POLICY IF EXISTS "unread_counts_select_own" ON public.unread_counts;
+CREATE POLICY "unread_counts_select_own" ON public.unread_counts
+    FOR SELECT TO authenticated
+    USING (user_id = public.get_current_profile_id());
+
+DROP POLICY IF EXISTS "unread_counts_update_own" ON public.unread_counts;
+CREATE POLICY "unread_counts_update_own" ON public.unread_counts
+    FOR UPDATE TO authenticated
+    USING (user_id = public.get_current_profile_id())
+    WITH CHECK (user_id = public.get_current_profile_id());
 
 -- ---------------------------------------------------------------------------
 -- USER KEY PAIRS

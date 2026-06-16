@@ -1,24 +1,4 @@
-/**
- * FederationActivityService - Clean ActivityPub activity creation
- * 
- * Handles creation of ActivityPub activities and insertion into ap_activities table:
- * - Reaction activities (Like/Undo for emoji reactions)
- * - Post activities (Create/Update/Delete for posts)
- * - Follow activities (Follow/Undo for user relationships)
- * - Profile activities (Update for profile changes)
- * 
- * INTEGRATION POINTS:
- * - ✅ Inserts into your existing ap_activities table
- * - ✅ Uses your existing content conversion functions
- * - ✅ Compatible with your existing edge function pipeline
- * - ✅ Generates proper ActivityPub JSON for delivery
- * 
- * WORKS WITH YOUR ARCHITECTURE:
- * - Edge functions read from ap_activities → HTTP delivery ✅
- * - Content conversion functions handle format translation ✅
- * - HTTP signatures and delivery handled by edge functions ✅
- */
-
+/** Creates ActivityPub activities for ap_activities. */
 import { supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
 
@@ -44,132 +24,9 @@ export class FederationActivityService {
     return this.instance
   }
 
-  // =====================================================
-  // REACTION ACTIVITIES (LIKE/UNDO WITH EMOJI SUPPORT)
-  // =====================================================
-
-  /**
-   * Create reaction activity for message reactions (DMs only)
-   */
-  async createMessageReactionActivity(
-    messageId: string, 
-    emojiId: string, 
-    userId: string, 
-    operation: 'add' | 'remove'
-  ): Promise<ActivityCreationResult> {
-    try {
-      debug.log(`📤 Federation: Creating message reaction activity (${operation})`)
-
-      // Get message and emoji data
-      const messageData = await this.getMessageData(messageId)
-      const emojiData = await this.getEmojiData(emojiId)
-      const actorData = await this.getActorData(userId)
-
-      if (!messageData || !emojiData || !actorData) {
-        return { success: false, error: 'Missing required data for activity creation' }
-      }
-
-      // Generate activity ID and determine type
-      const instanceDomain = await this.getInstanceDomain()
-      const activityId = `${instanceDomain}/activities/${crypto.randomUUID()}`
-      const activityType = operation === 'add' ? 'Like' : 'Undo'
-
-      // Create reaction activity data compatible with your edge functions
-      const activityData = await this.buildReactionActivityData({
-        activityId,
-        activityType,
-        actor: actorData,
-        messageData,
-        emojiData,
-        operation
-      })
-
-      // Use RPC to bypass PostgREST schema cache (PGRST204 "activity_data" column not found)
-      const { data: activityIdResult, error } = await supabase.rpc('insert_ap_activity_outbound', {
-        p_ap_id: activityId,
-        p_ap_type: activityType,
-        p_actor_id: userId,
-        p_actor_ap_id: actorData.federated_id,
-        p_activity_data: activityData,
-        p_object_id: `message-${messageId}`,
-        p_object_type: operation === 'add' ? 'Note' : 'Like'
-      })
-
-      if (error) {
-        debug.error('❌ Federation: Failed to create reaction activity:', error)
-        return { success: false, error: error.message }
-      }
-
-      debug.log(`✅ Federation: Message reaction activity created: ${activityId}`)
-      return { success: true, activityId: activityIdResult }
-
-    } catch (error) {
-      debug.error('❌ Federation: Error creating message reaction activity:', error)
-      return { success: false, error: (error as Error).message }
-    }
-  }
-
-  /**
-   * Create reaction activity for post reactions
-   */
-  async createPostReactionActivity(
-    postId: string, 
-    emojiId: string, 
-    userId: string, 
-    operation: 'add' | 'remove'
-  ): Promise<ActivityCreationResult> {
-    try {
-      debug.log(`📤 Federation: Creating post reaction activity (${operation})`)
-
-      // Get post and emoji data
-      const postData = await this.getPostData(postId)
-      const emojiData = await this.getEmojiData(emojiId)
-      const actorData = await this.getActorData(userId)
-
-      if (!postData || !emojiData || !actorData) {
-        return { success: false, error: 'Missing required data for activity creation' }
-      }
-
-      // Generate activity ID and determine type
-      const instanceDomain = await this.getInstanceDomain()
-      const activityId = `${instanceDomain}/activities/${crypto.randomUUID()}`
-      const activityType = operation === 'add' ? 'Like' : 'Undo'
-
-      // Create reaction activity data
-      const activityData = await this.buildPostReactionActivityData({
-        activityId,
-        activityType,
-        actor: actorData,
-        postData,
-        emojiData,
-        operation
-      })
-
-      // Use RPC to bypass PostgREST schema cache (PGRST204 "activity_data" column not found)
-      const { data: activityIdResult, error } = await supabase
-        .rpc('insert_ap_activity_outbound', {
-          p_ap_id: activityId,
-          p_ap_type: activityType,
-          p_actor_id: userId,
-          p_actor_ap_id: actorData.federated_id,
-          p_activity_data: activityData,
-          p_object_id: postId,
-          p_object_type: operation === 'add' ? 'Note' : 'Like'
-        })
-
-      if (error) {
-        debug.error('❌ Federation: Failed to create post reaction activity:', error)
-        return { success: false, error: error.message }
-      }
-
-      debug.log(`✅ Federation: Post reaction activity created: ${activityId}`)
-      return { success: true, activityId: activityIdResult }
-
-    } catch (error) {
-      debug.error('❌ Federation: Error creating post reaction activity:', error)
-      return { success: false, error: (error as Error).message }
-    }
-  }
+  // Reaction federation (posts, messages, channels) is handled server-side by
+  // DB triggers -> BullMQ -> `resolveOutboundEmoji` (domain-qualified custom
+  // emoji). The client must not build reaction activities; see reactionHandler.
 
   // =====================================================
   // POST ACTIVITIES (CREATE/UPDATE/DELETE)
@@ -361,143 +218,6 @@ export class FederationActivityService {
   // ACTIVITY DATA BUILDERS (COMPATIBLE WITH YOUR EDGE FUNCTIONS)
   // =====================================================
 
-  private async buildReactionActivityData(params: {
-    activityId: string
-    activityType: string
-    actor: any
-    messageData: any
-    emojiData: any
-    operation: 'add' | 'remove'
-  }) {
-    const { activityId, actor, messageData, emojiData, operation } = params
-    const instanceDomain = await this.getInstanceDomain()
-    const isNative = !emojiData.url
-    // Misskey expects `:name:` for custom emojis (no @domain); native emojis
-    // are sent as-is.  The domain is inferred from the actor's host.
-    const emojiContent = isNative
-      ? (emojiData.native || emojiData.name)
-      : `:${emojiData.name.replace(/:/g, '')}:`
-
-    if (operation === 'add') {
-      const activity: any = {
-        '@context': [
-          'https://www.w3.org/ns/activitystreams',
-          {
-            'toot': 'http://joinmastodon.org/ns#',
-            'Emoji': 'toot:Emoji',
-            'misskey': 'https://misskey-hub.net/ns#',
-            '_misskey_reaction': 'misskey:_misskey_reaction',
-          }
-        ],
-        id: activityId,
-        type: 'Like',
-        actor: actor.federated_id,
-        object: `${instanceDomain}/messages/${messageData.id}`,
-        published: new Date().toISOString(),
-        content: emojiContent,
-        _misskey_reaction: emojiContent,
-      }
-
-      if (!isNative && emojiData.url) {
-        activity.tag = [{
-          id: emojiData.url,
-          type: 'Emoji',
-          name: `:${emojiData.name}:`,
-          icon: { type: 'Image', url: emojiData.url }
-        }]
-      }
-
-      return activity
-    } else {
-      return {
-        '@context': [
-          'https://www.w3.org/ns/activitystreams',
-          {
-            'misskey': 'https://misskey-hub.net/ns#',
-            '_misskey_reaction': 'misskey:_misskey_reaction',
-          }
-        ],
-        id: activityId,
-        type: 'Undo',
-        actor: actor.federated_id,
-        object: {
-          type: 'Like',
-          object: `${instanceDomain}/messages/${messageData.id}`,
-          content: emojiContent
-        },
-        published: new Date().toISOString()
-      }
-    }
-  }
-
-  private async buildPostReactionActivityData(params: {
-    activityId: string
-    activityType: string
-    actor: any
-    postData: any
-    emojiData: any
-    operation: 'add' | 'remove'
-  }) {
-    const { activityId, actor, postData, emojiData, operation } = params
-    const instanceDomain = await this.getInstanceDomain()
-    const isNative = !emojiData.url
-    const emojiContent = isNative
-      ? (emojiData.native || emojiData.name)
-      : `:${emojiData.name.replace(/:/g, '')}:`
-    const objectUrl = postData.ap_id || `${instanceDomain}/posts/${postData.id}`
-
-    if (operation === 'add') {
-      const activity: any = {
-        '@context': [
-          'https://www.w3.org/ns/activitystreams',
-          {
-            'toot': 'http://joinmastodon.org/ns#',
-            'Emoji': 'toot:Emoji',
-            'misskey': 'https://misskey-hub.net/ns#',
-            '_misskey_reaction': 'misskey:_misskey_reaction',
-          }
-        ],
-        id: activityId,
-        type: 'Like',
-        actor: actor.federated_id,
-        object: objectUrl,
-        published: new Date().toISOString(),
-        content: emojiContent,
-        _misskey_reaction: emojiContent,
-      }
-
-      if (!isNative && emojiData.url) {
-        activity.tag = [{
-          id: emojiData.url,
-          type: 'Emoji',
-          name: `:${emojiData.name}:`,
-          icon: { type: 'Image', url: emojiData.url }
-        }]
-      }
-
-      return activity
-    } else {
-      return {
-        '@context': [
-          'https://www.w3.org/ns/activitystreams',
-          {
-            'misskey': 'https://misskey-hub.net/ns#',
-            '_misskey_reaction': 'misskey:_misskey_reaction',
-          }
-        ],
-        id: activityId,
-        type: 'Undo',
-        actor: actor.federated_id,
-        object: {
-          type: 'Like',
-          object: objectUrl,
-          content: emojiContent
-        },
-        published: new Date().toISOString()
-      }
-    }
-  }
-
   private async buildPostActivityData(params: {
     activityId: string
     activityType: string
@@ -618,16 +338,6 @@ export class FederationActivityService {
   // DATA FETCHERS (INTEGRATE WITH YOUR DATABASE)
   // =====================================================
 
-  private async getMessageData(messageId: string) {
-    const { data, error } = await supabase
-      .from('messages')
-      .select('id, content, user_id, created_at')
-      .eq('id', messageId)
-      .single()
-
-    return error ? null : data
-  }
-
   private async getPostData(postId: string) {
     const { data, error } = await supabase
       .from('posts')
@@ -636,25 +346,6 @@ export class FederationActivityService {
       .single()
 
     return error ? null : data
-  }
-
-  private isValidUUID(str: string): boolean {
-    return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str)
-  }
-
-  private async getEmojiData(emojiId: string) {
-    if (this.isValidUUID(emojiId)) {
-      const { data, error } = await supabase
-        .from('emojis')
-        .select('id, name, url')
-        .eq('id', emojiId)
-        .single()
-
-      return error ? null : data
-    }
-
-    // Native/unicode emoji - return a synthetic emoji object for federation
-    return { id: null, name: emojiId, url: null, native: emojiId }
   }
 
   private async getActorData(userId: string) {
@@ -707,5 +398,4 @@ export class FederationActivityService {
   }
 }
 
-// Export singleton instance
 export const federationActivityService = FederationActivityService.getInstance()

@@ -16,10 +16,6 @@
  * const { megolmMessageEncryptionService } = await import('@/services/encryption/MegolmMessageEncryptionService')
  */
 
-// =====================================================
-// NEW: MEGOLM-STYLE ENCRYPTION SERVICES (Matrix-inspired)
-// Recommended for new implementations - supports recovery keys and server backups
-// =====================================================
 
 // Lazy exports for Megolm services
 export const getMegolmService = () => import('./MegolmService').then(m => m.megolmService)
@@ -55,11 +51,6 @@ export { recoveryKeyService } from './RecoveryKeyService'
 export { megolmKeyBackupService } from './MegolmKeyBackupService'
 export { megolmMessageEncryptionService } from './MegolmMessageEncryptionService'
 
-// =====================================================
-// LEGACY: SIGNAL PROTOCOL SERVICES (DEPRECATED)
-// These are kept ONLY for WebRTC encryption (voice/video calls)
-// Message encryption has moved to Megolm (above)
-// =====================================================
 
 // WebRTC encryption (still uses Signal Protocol for calls)
 export const getWebRTCEncryptionService = () => import('./WebRTCEncryptionService').then(m => m.webrtcEncryptionService)

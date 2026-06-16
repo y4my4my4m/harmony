@@ -25,39 +25,27 @@ export const useServerChannelStore = defineStore('serverChannel', {
     currentChannelId: null as string | null,
     isInitializing: false as boolean,
     hasInitialized: false as boolean,
-    // Real-time subscriptions
     serverStructureSubscription: null as RealtimeChannel | null,
     userServersSubscription: null as RealtimeChannel | null, // legacy, kept for type compat
     _userServerBroadcastUnsubs: [] as (() => void)[],
     currentUserId: null as string | null,
-    // Request deduplication - prevents concurrent duplicate fetches
     _pendingFetches: {} as Record<string, Promise<void> | undefined>,
-    // Tracks which server's categories/channels are currently loaded in memory
-    // Since categories/channels are shared state, only ONE server's data exists at a time
     _loadedCategoriesServerId: null as string | null,
-    // Flag to auto-open invite modal after navigating to a server
     pendingInviteOpen: false as boolean,
   }),
 
   getters: {
-    // Get resolved emojis from the emoji cache store
     resolvedEmojiList: () => {
       const emojiCache = useEmojiCacheStore();
       return emojiCache.resolvedEmojis;
     },
     
-    // Get emojis for current server
     currentServerEmojis(this): ResolvedEmoji[] {
       const emojiCache = useEmojiCacheStore();
       if (!this.currentServerId) return [];
       return emojiCache.getServerEmojis(this.currentServerId);
     },
     
-    /**
-     * Get a channel by ID - O(n) but channels array is typically small
-     * For voice channel lookups and other direct channel access
-     * Usage: serverChannelStore.getChannelById('channel-id')
-     */
     getChannelById: (state) => (channelId: string): Channel | undefined => {
       return state.channels.find((c: Channel) => c.id === channelId);
     },
@@ -79,26 +67,22 @@ export const useServerChannelStore = defineStore('serverChannel', {
         this.isInitializing = true;
         this.currentUserId = userId;
         
-        // Fetch user's servers and folders in parallel
         await Promise.all([
           this.fetchServersForUser(userId),
           this.fetchFolders(userId)
         ]);
         
-        // Subscribe to real-time updates for user's server list (join/leave)
         // NON-BLOCKING: Don't wait for websocket connection - let it connect in background
         // This prevents 6+ second blocking during initial load
         this.subscribeToUserServers(userId).catch(error => {
           debug.warn('⚠️ Failed to subscribe to user servers (non-blocking):', error)
         })
         
-        // Restore last selected server and channel from persistence
         await this.restorePersistedState();
         
-        // Note: Emoji cache is now initialized by RouteAwareInitialization
+        // Emoji cache init moved to RouteAwareInitialization.
         // to only load emojis for current server initially
         
-        // Mark app as initialized to prevent flash on subsequent loads
         statePersistence.setAppInitialized(true);
         this.hasInitialized = true;
         this.isInitializing = false;
@@ -114,39 +98,32 @@ export const useServerChannelStore = defineStore('serverChannel', {
     async restorePersistedState(): Promise<void> {
       if (this.servers.length === 0) return;
 
-      // Initialize persistence service first
       await statePersistence.initialize()
       
       const lastServerId = statePersistence.getLastServer();
       
-      // Validate that the last server still exists in user's servers
       const serverExists = this.servers.some(server => server.id === lastServerId);
       
       if (lastServerId && serverExists) {
         debug.log('🔄 Restoring last selected server:', lastServerId);
         this.setCurrentServer(lastServerId);
         
-        // Fetch categories and channels for the server first
         await this.fetchCategoriesAndChannels(lastServerId);
         
-        // Restore last channel for this server
         const lastChannelId = statePersistence.getLastChannel(lastServerId);
         if (lastChannelId && this.channels.some(channel => channel.id === lastChannelId)) {
           debug.log('🔄 Restoring last selected channel:', lastChannelId);
           this.setCurrentChannel(lastChannelId);
         } else if (this.channels.length > 0) {
-          // Set default channel if last channel doesn't exist
           const defaultChannel = this.getDefaultChannel();
           if (defaultChannel) {
             this.setCurrentChannel(defaultChannel);
           }
         }
       } else if (this.servers.length > 0) {
-        // No valid last server, select first available server
         debug.log('🔄 No valid last server, selecting first available');
         this.setCurrentServer(this.servers[0].id);
         
-        // Fetch categories and channels for the first server
         await this.fetchCategoriesAndChannels(this.servers[0].id);
         
         if (this.channels.length > 0) {
@@ -157,17 +134,10 @@ export const useServerChannelStore = defineStore('serverChannel', {
         }
       }
       
-      // Mark state persistence as complete
       statePersistence.setRestorationComplete()
     },
 
     getDefaultChannel(): string | null {
-      // Priority order for channel selection:
-      // 1. First text channel in first category
-      // 2. First orphan text channel
-      // 3. Any first channel as fallback
-
-      // Try to find first text channel in first category
       if (this.categories && this.categories.length > 0) {
         for (const category of this.categories) {
           const categoryChannelList = this.categoryChannels[category.id] || [];
@@ -178,20 +148,17 @@ export const useServerChannelStore = defineStore('serverChannel', {
         }
       }
 
-      // Try to find first orphan text channel
       const orphanChannels = this.channels.filter(channel => !channel.category);
       const firstOrphanTextChannel = orphanChannels.find(ch => ch.type === 0);
       if (firstOrphanTextChannel) {
         return firstOrphanTextChannel.id;
       }
 
-      // Fallback to any first available channel
       const firstChannel = this.channels.find(ch => ch.type === 0) || this.channels[0];
       return firstChannel?.id || null;
     },
 
     setCurrentServer(serverId: string): void {
-      // SMART CACHING: Prevent setting the same server twice
       if (this.currentServerId === serverId) {
         debug.log(`💾 Server ${serverId} already selected, skipping duplicate set`);
         return;
@@ -201,11 +168,9 @@ export const useServerChannelStore = defineStore('serverChannel', {
       if (server) {
         this.currentServerId = serverId;
         this.currentServer = server;
-        // Persist state asynchronously without blocking
         statePersistence.setLastServer(serverId).catch(debug.error);
         debug.log('📍 Current server set to:', server.name);
         
-        // Subscribe to real-time updates for this server's structure (channels/categories)
         this.subscribeToServerStructure(serverId).catch(debug.error);
       }
     },
@@ -213,26 +178,20 @@ export const useServerChannelStore = defineStore('serverChannel', {
     setCurrentChannel(channelId: string | null): void {
       this.currentChannelId = channelId;
       if (channelId && this.currentServerId) {
-        // Persist state asynchronously without blocking
         statePersistence.setLastChannel(this.currentServerId, channelId).catch(debug.error);
         const channel = this.channels.find(c => c.id === channelId);
         debug.log('📍 Current channel set to:', channel?.name || channelId);
       }
     },
 
-    /**
-     * OPTIMIZED: Skip fetching if servers already loaded (unless forced)
-     */
     async fetchServersForUser(userId: string, force = false) {
       const fetchKey = `servers-${userId}`;
       
-      // Skip if servers are already loaded and not forcing refresh
       if (this.servers.length > 0 && !force) {
         debug.log(`📋 User servers already loaded (${this.servers.length}), skipping fetch`);
         return;
       }
       
-      // Deduplicate concurrent requests
       if (this._pendingFetches[fetchKey]) {
         debug.log('🔄 Deduplicating user servers fetch');
         return this._pendingFetches[fetchKey];
@@ -242,7 +201,6 @@ export const useServerChannelStore = defineStore('serverChannel', {
         try {
           debug.log('🔄 Fetching servers for user via service-like helper:', userId)
           
-          // Use service-like helper for user server fetching
           const servers = await this._fetchServersForUserHelper(userId)
           
           if (servers) {
@@ -252,7 +210,6 @@ export const useServerChannelStore = defineStore('serverChannel', {
         } catch (error) {
           debug.error('❌ Failed to fetch servers for user via service-like helper:', error)
           
-          // Fallback to direct fetching if helper fails
           try {
             debug.log('🔄 Falling back to direct user server fetching')
             await this._fetchServersForUserFallback(userId)
@@ -349,7 +306,6 @@ export const useServerChannelStore = defineStore('serverChannel', {
       try {
         debug.log('🔄 Fetching all servers via service-like helper');
         
-        // Use service-like helper for database operations
         const servers = await this._fetchServersHelper();
         this.servers = servers || [];
         
@@ -357,7 +313,6 @@ export const useServerChannelStore = defineStore('serverChannel', {
       } catch (error) {
         debug.error('❌ Failed to fetch servers via service-like helper:', error);
         
-        // Fallback to direct query if helper fails
         try {
           debug.log('🔄 Falling back to direct servers fetch');
           await this._fetchServersFallback();
@@ -404,7 +359,6 @@ export const useServerChannelStore = defineStore('serverChannel', {
         return;
       }
       
-      // Deduplicate concurrent requests - return existing promise if in flight
       if (this._pendingFetches[fetchKey]) {
         debug.log('🔄 Deduplicating categories/channels fetch for:', serverId);
         return this._pendingFetches[fetchKey];
@@ -414,10 +368,8 @@ export const useServerChannelStore = defineStore('serverChannel', {
         try {
           debug.log('🔄 Fetching categories and channels via service-like helper:', serverId);
           
-          // Use service-like helper with full abort support
           await this._fetchCategoriesAndChannelsHelper(serverId, signal);
           
-          // Track which server's data is currently in memory
           this._loadedCategoriesServerId = serverId;
           
           debug.log(`✅ Fetched ${this.categories?.length || 0} categories and ${this.channels?.length || 0} channels via service-like helper`);
@@ -429,7 +381,6 @@ export const useServerChannelStore = defineStore('serverChannel', {
           
           debug.error('❌ Failed to fetch categories and channels via service-like helper:', error);
           
-          // Fallback to direct query if helper fails
           try {
             debug.log('🔄 Falling back to direct categories and channels fetch');
             await this._fetchCategoriesAndChannelsFallback(serverId, signal);
@@ -440,7 +391,6 @@ export const useServerChannelStore = defineStore('serverChannel', {
               return;
             }
             debug.error('❌ Fallback categories and channels fetch also failed:', fallbackError);
-            // Ensure state is clean on total failure
             this.categories = [];
             this.channels = [];
             this.categoryChannels = {};
@@ -459,7 +409,6 @@ export const useServerChannelStore = defineStore('serverChannel', {
      * Service-like helper: Fetch categories and channels with abort support
      */
     async _fetchCategoriesAndChannelsHelper(serverId: string, signal?: AbortSignal): Promise<void> {
-      // Fetch categories first
       const { data: categories, error: categoriesError } = await supabase
         .from('channel_categories')
         .select('*')
@@ -472,7 +421,6 @@ export const useServerChannelStore = defineStore('serverChannel', {
         throw new Error(`Categories fetch failed: ${categoriesError.message}`);
       }
 
-      // Fetch channels
       const { data: channels, error: channelsError } = await supabase
         .from('channels')
         .select('*')
@@ -485,7 +433,6 @@ export const useServerChannelStore = defineStore('serverChannel', {
         throw new Error(`Channels fetch failed: ${channelsError.message}`);
       }
 
-      // Update state and process data
       this._processCategoriesAndChannelsData(categories || [], channels || [], serverId);
     },
 
@@ -493,7 +440,6 @@ export const useServerChannelStore = defineStore('serverChannel', {
      * Fallback method for fetching categories and channels
      */
     async _fetchCategoriesAndChannelsFallback(serverId: string, signal?: AbortSignal): Promise<void> {
-      // Fetch categories
       const { data: categories, error: categoriesError } = await supabase
         .from('channel_categories')
         .select('*')
@@ -507,7 +453,6 @@ export const useServerChannelStore = defineStore('serverChannel', {
         throw categoriesError;
       }
 
-      // Fetch channels ordered by order column
       const { data: channels, error: channelsError } = await supabase
         .from('channels')
         .select('*')
@@ -521,7 +466,6 @@ export const useServerChannelStore = defineStore('serverChannel', {
         throw channelsError;
       }
 
-      // Update state and process data
       this._processCategoriesAndChannelsData(categories || [], channels || [], serverId);
     },
 
@@ -533,7 +477,6 @@ export const useServerChannelStore = defineStore('serverChannel', {
       this.channels = channels;
       this.categoryChannels = {};
 
-      // Populate categoryChannels mapping
       this.channels.forEach(channel => {
         if (channel.category) {
           if (!this.categoryChannels[channel.category]) {
@@ -543,12 +486,10 @@ export const useServerChannelStore = defineStore('serverChannel', {
         }
       });
 
-      // Sort channels within each category by order
       Object.keys(this.categoryChannels).forEach(categoryId => {
         this.categoryChannels[categoryId].sort((a, b) => (a.order || 0) - (b.order || 0));
       });
 
-      // Update current server state
       this.setCurrentServer(serverId);
     },
 
@@ -556,7 +497,6 @@ export const useServerChannelStore = defineStore('serverChannel', {
       try {
         debug.log('🔄 Moving channel to category via service-like helper:', { channelId, newCategoryId })
         
-        // Use service-like helper for optimistic channel move with rollback
         const updatedChannel = await this._moveChannelToCategoryHelper(channelId, newCategoryId)
         
         debug.log(`✅ Channel moved successfully via service-like helper: ${channelId} → ${newCategoryId || 'orphan'}`)
@@ -564,7 +504,6 @@ export const useServerChannelStore = defineStore('serverChannel', {
       } catch (error) {
         debug.error('❌ Failed to move channel via service-like helper:', error)
         
-        // Fallback to direct move if helper fails
         try {
           debug.log('🔄 Falling back to direct channel move')
           return await this._moveChannelToCategoryFallback(channelId, newCategoryId)
@@ -579,23 +518,19 @@ export const useServerChannelStore = defineStore('serverChannel', {
      * Service-like helper: Move channel to category with optimistic updates and rollback
      */
     async _moveChannelToCategoryHelper(channelId: string, newCategoryId: string | null) {
-      // Store original state for potential rollback
       const originalChannels = [...this.channels]
       const originalCategoryChannels = { ...this.categoryChannels }
 
       try {
-        // Optimistic update: Update local state immediately
         const channelIndex = this.channels.findIndex(c => c.id === channelId)
         if (channelIndex !== -1) {
           this.channels[channelIndex] = { 
             ...this.channels[channelIndex], 
             category: newCategoryId 
           }
-          // Refresh category channels mapping optimistically
           this.refreshCategoryChannels()
         }
 
-        // Now perform the server update in the background
         const { data, error } = await supabase
           .from('channels')
           .update({ category: newCategoryId })
@@ -609,7 +544,6 @@ export const useServerChannelStore = defineStore('serverChannel', {
 
         return data
       } catch (error) {
-        // Rollback on error: Restore original state
         debug.log('🔄 Rolling back optimistic channel move due to error')
         this.channels = originalChannels
         this.categoryChannels = originalCategoryChannels
@@ -621,23 +555,19 @@ export const useServerChannelStore = defineStore('serverChannel', {
      * Fallback method for moving channel to category
      */
     async _moveChannelToCategoryFallback(channelId: string, newCategoryId: string | null) {
-      // Store original state for potential rollback
       const originalChannels = [...this.channels]
       const originalCategoryChannels = { ...this.categoryChannels }
 
       try {
-        // Optimistic update: Update local state immediately
         const channelIndex = this.channels.findIndex(c => c.id === channelId)
         if (channelIndex !== -1) {
           this.channels[channelIndex] = { 
             ...this.channels[channelIndex], 
             category: newCategoryId 
           }
-          // Refresh category channels mapping optimistically
           this.refreshCategoryChannels()
         }
 
-        // Now perform the server update in the background
         const { data, error } = await supabase
           .from('channels')
           .update({ category: newCategoryId })
@@ -653,7 +583,6 @@ export const useServerChannelStore = defineStore('serverChannel', {
         debug.log(`✅ Successfully moved channel ${channelId} to category ${newCategoryId || 'orphan'}`)
         return data
       } catch (error) {
-        // Rollback on error: Restore original state
         debug.error('❌ Server update failed, rolling back channel move:', error)
         this.channels = originalChannels
         this.categoryChannels = originalCategoryChannels
@@ -665,14 +594,12 @@ export const useServerChannelStore = defineStore('serverChannel', {
       try {
         debug.log('🔄 Updating channel order via service-like helper:', { count: channels.length, categoryId })
         
-        // Use service-like helper for complex channel ordering with rollback
         await this._updateChannelOrderHelper(channels, categoryId)
         
         debug.log(`✅ Channel order updated successfully via service-like helper: ${channels.length} channels`)
       } catch (error) {
         debug.error('❌ Failed to update channel order via service-like helper:', error)
         
-        // Fallback to direct ordering if helper fails
         try {
           debug.log('🔄 Falling back to direct channel ordering')
           await this._updateChannelOrderFallback(channels, categoryId)
@@ -687,22 +614,18 @@ export const useServerChannelStore = defineStore('serverChannel', {
      * Service-like helper: Update channel order with optimistic updates and rollback
      */
     async _updateChannelOrderHelper(channels: Channel[], categoryId: string | null): Promise<void> {
-      // Store original state for potential rollback
       const originalChannels = [...this.channels]
       const originalCategoryChannels = { ...this.categoryChannels }
 
       try {
-        // Optimistic update: Update local state immediately
         const updateMap = new Map(channels.map((channel, index) => [channel.id, { order: index, category: categoryId }]))
         this.channels = this.channels.map(channel => {
           const update = updateMap.get(channel.id)
           return update ? { ...channel, order: update.order, category: update.category } : channel
         })
 
-        // Refresh category channels mapping optimistically
         this.refreshCategoryChannels()
 
-        // Now perform the server update in the background
         for (let i = 0; i < channels.length; i++) {
           const channel = channels[i]
           const { error } = await supabase
@@ -718,7 +641,6 @@ export const useServerChannelStore = defineStore('serverChannel', {
           }
         }
       } catch (error) {
-        // Rollback on error: Restore original state
         debug.log('🔄 Rolling back optimistic channel order due to error')
         this.channels = originalChannels
         this.categoryChannels = originalCategoryChannels
@@ -730,22 +652,18 @@ export const useServerChannelStore = defineStore('serverChannel', {
      * Fallback method for updating channel order
      */
     async _updateChannelOrderFallback(channels: Channel[], categoryId: string | null): Promise<void> {
-      // Store original state for potential rollback
       const originalChannels = [...this.channels]
       const originalCategoryChannels = { ...this.categoryChannels }
 
       try {
-        // Optimistic update: Update local state immediately
         const updateMap = new Map(channels.map((channel, index) => [channel.id, { order: index, category: categoryId }]))
         this.channels = this.channels.map(channel => {
           const update = updateMap.get(channel.id)
           return update ? { ...channel, order: update.order, category: update.category } : channel
         })
 
-        // Refresh category channels mapping optimistically
         this.refreshCategoryChannels()
 
-        // Now perform the server update in the background
         for (let i = 0; i < channels.length; i++) {
           const channel = channels[i]
           const { error } = await supabase
@@ -764,7 +682,6 @@ export const useServerChannelStore = defineStore('serverChannel', {
 
         debug.log(`✅ Successfully updated order for ${channels.length} channels`)
       } catch (error) {
-        // Rollback on error: Restore original state
         debug.error('❌ Server update failed, rolling back changes:', error)
         this.channels = originalChannels
         this.categoryChannels = originalCategoryChannels
@@ -776,14 +693,12 @@ export const useServerChannelStore = defineStore('serverChannel', {
       try {
         debug.log('🔄 Reordering channels in category via service-like helper:', { categoryId, count: newChannelOrder.length })
         
-        // Use service-like helper for channel reordering
         await this._reorderChannelsInCategoryHelper(categoryId, newChannelOrder)
         
         debug.log(`✅ Channels reordered successfully via service-like helper: ${newChannelOrder.length} in ${categoryId || 'orphan'}`)
       } catch (error) {
         debug.error('❌ Failed to reorder channels via service-like helper:', error)
         
-        // Fallback to direct reordering if helper fails
         try {
           debug.log('🔄 Falling back to direct channel reordering')
           await this._reorderChannelsInCategoryFallback(categoryId, newChannelOrder)
@@ -798,7 +713,6 @@ export const useServerChannelStore = defineStore('serverChannel', {
      * Service-like helper: Reorder channels within a category
      */
     async _reorderChannelsInCategoryHelper(categoryId: string | null, newChannelOrder: Channel[]): Promise<void> {
-      // Delegate to the updateChannelOrder helper for consistency
       await this.updateChannelOrder(newChannelOrder, categoryId)
     },
 
@@ -806,7 +720,6 @@ export const useServerChannelStore = defineStore('serverChannel', {
      * Fallback method for reordering channels in category
      */
     async _reorderChannelsInCategoryFallback(categoryId: string | null, newChannelOrder: Channel[]): Promise<void> {
-      // Specifically handle reordering within the same category
       try {
         await this.updateChannelOrder(newChannelOrder, categoryId)
         debug.log(`✅ Reordered ${newChannelOrder.length} channels in category ${categoryId || 'orphan'}`)
@@ -817,7 +730,6 @@ export const useServerChannelStore = defineStore('serverChannel', {
     },
 
     refreshCategoryChannels() {
-      // Rebuild the categoryChannels mapping from current channels
       this.categoryChannels = {};
       
       this.channels.forEach(channel => {
@@ -829,7 +741,6 @@ export const useServerChannelStore = defineStore('serverChannel', {
         }
       });
 
-      // Sort channels within each category by order
       Object.keys(this.categoryChannels).forEach(categoryId => {
         this.categoryChannels[categoryId].sort((a, b) => (a.order || 0) - (b.order || 0));
       });
@@ -839,14 +750,12 @@ export const useServerChannelStore = defineStore('serverChannel', {
       try {
         debug.log('🔄 Updating category order via service-like helper:', { count: categories.length })
         
-        // Use service-like helper for complex category ordering with rollback
         await this._updateCategoryOrderHelper(categories)
         
         debug.log(`✅ Category order updated successfully via service-like helper: ${categories.length} categories`)
       } catch (error) {
         debug.error('❌ Failed to update category order via service-like helper:', error)
         
-        // Fallback to direct ordering if helper fails
         try {
           debug.log('🔄 Falling back to direct category ordering')
           await this._updateCategoryOrderFallback(categories)
@@ -861,17 +770,14 @@ export const useServerChannelStore = defineStore('serverChannel', {
      * Service-like helper: Update category order with optimistic updates and rollback
      */
     async _updateCategoryOrderHelper(categories: Category[]): Promise<void> {
-      // Store original state for potential rollback
       const originalCategories = [...this.categories]
 
       try {
-        // Optimistic update: Update local state immediately AND sort by order
         this.categories = this.categories.map(category => {
           const newIndex = categories.findIndex(c => c.id === category.id)
           return newIndex !== -1 ? { ...category, order: newIndex } : category
-        }).sort((a, b) => (a.order || 0) - (b.order || 0)) // Add sorting here!
+        }).sort((a, b) => (a.order || 0) - (b.order || 0))
 
-        // Now perform the server update in the background using individual updates
         for (let i = 0; i < categories.length; i++) {
           const category = categories[i]
           const { error } = await supabase
@@ -884,7 +790,6 @@ export const useServerChannelStore = defineStore('serverChannel', {
           }
         }
       } catch (error) {
-        // Rollback on error: Restore original state
         debug.log('🔄 Rolling back optimistic category order due to error')
         this.categories = originalCategories
         throw error
@@ -895,17 +800,14 @@ export const useServerChannelStore = defineStore('serverChannel', {
      * Fallback method for updating category order
      */
     async _updateCategoryOrderFallback(categories: Category[]): Promise<void> {
-      // Store original state for potential rollback
       const originalCategories = [...this.categories]
 
       try {
-        // Optimistic update: Update local state immediately AND sort by order
         this.categories = this.categories.map(category => {
           const newIndex = categories.findIndex(c => c.id === category.id)
           return newIndex !== -1 ? { ...category, order: newIndex } : category
-        }).sort((a, b) => (a.order || 0) - (b.order || 0)) // Add sorting here!
+        }).sort((a, b) => (a.order || 0) - (b.order || 0))
 
-        // Now perform the server update in the background using individual updates
         for (let i = 0; i < categories.length; i++) {
           const category = categories[i]
           const { error } = await supabase
@@ -921,7 +823,6 @@ export const useServerChannelStore = defineStore('serverChannel', {
 
         debug.log(`✅ Successfully updated order for ${categories.length} categories`)
       } catch (error) {
-        // Rollback on error: Restore original state
         debug.error('❌ Server update failed, rolling back category changes:', error)
         this.categories = originalCategories
         throw error
@@ -932,16 +833,13 @@ export const useServerChannelStore = defineStore('serverChannel', {
       try {
         debug.log('🔄 Creating category via service-like helper:', { name, serverId });
         
-        // Use service-like helper for category creation
         const newCategory = await this._createCategoryHelper(name, serverId);
         
         if (newCategory) {
           // Check if realtime subscription already added this category (race condition prevention)
           if (!this.categories.some(c => c.id === newCategory.id)) {
             this.categories.push(newCategory);
-            // Sort by order
             this.categories.sort((a, b) => (a.order || 0) - (b.order || 0));
-            // Initialize empty channel array for this category
             if (!this.categoryChannels[newCategory.id]) {
               this.categoryChannels[newCategory.id] = [];
             }
@@ -956,7 +854,6 @@ export const useServerChannelStore = defineStore('serverChannel', {
       } catch (error) {
         debug.error('❌ Failed to create category via service-like helper:', error);
         
-        // Fallback to direct creation if helper fails
         try {
           debug.log('🔄 Falling back to direct category creation');
           return await this._createCategoryFallback(name, serverId);
@@ -974,7 +871,6 @@ export const useServerChannelStore = defineStore('serverChannel', {
     async _createCategoryHelper(name: string, serverId: string): Promise<Category | null> {
       const MAX_CATEGORIES_PER_SERVER = 25;
       
-      // Check category count limit
       const { count: categoryCount, error: countError } = await supabase
         .from('channel_categories')
         .select('*', { count: 'exact', head: true })
@@ -986,7 +882,6 @@ export const useServerChannelStore = defineStore('serverChannel', {
         throw new Error(`Category limit reached: Maximum ${MAX_CATEGORIES_PER_SERVER} categories per server`);
       }
       
-      // Get the highest order value for existing categories in this server
       const { data: existingCategories, error: fetchError } = await supabase
         .from('channel_categories')
         .select('order')
@@ -998,7 +893,6 @@ export const useServerChannelStore = defineStore('serverChannel', {
         debug.warn('Warning: Could not fetch existing categories for ordering, using default');
       }
 
-      // Calculate the next order value (highest + 1, or 0 if no categories exist)
       const nextOrder = existingCategories && existingCategories.length > 0 
         ? (existingCategories[0].order || 0) + 1 
         : 0;
@@ -1023,7 +917,6 @@ export const useServerChannelStore = defineStore('serverChannel', {
     async _createCategoryFallback(name: string, serverId: string): Promise<Category | null> {
       const MAX_CATEGORIES_PER_SERVER = 25;
       
-      // Check category count limit
       const { count: categoryCount, error: countError } = await supabase
         .from('channel_categories')
         .select('*', { count: 'exact', head: true })
@@ -1035,7 +928,6 @@ export const useServerChannelStore = defineStore('serverChannel', {
         throw new Error(`Category limit reached: Maximum ${MAX_CATEGORIES_PER_SERVER} categories per server`);
       }
       
-      // Get the highest order value for existing categories in this server
       const { data: existingCategories, error: fetchError } = await supabase
         .from('channel_categories')
         .select('order')
@@ -1045,10 +937,8 @@ export const useServerChannelStore = defineStore('serverChannel', {
 
       if (fetchError) {
         debug.error('Error fetching existing categories for ordering in fallback:', fetchError);
-        // Continue with default order if fetch fails
       }
 
-      // Calculate the next order value (highest + 1, or 0 if no categories exist)
       const nextOrder = existingCategories && existingCategories.length > 0 
         ? (existingCategories[0].order || 0) + 1 
         : 0;
@@ -1081,7 +971,6 @@ export const useServerChannelStore = defineStore('serverChannel', {
       try {
         debug.log('🔄 Fetching channels via service-like helper:', serverId)
         
-        // Use service-like helper for channel fetching
         const channels = await this._fetchChannelsHelper(serverId)
         
         if (channels) {
@@ -1091,7 +980,6 @@ export const useServerChannelStore = defineStore('serverChannel', {
       } catch (error) {
         debug.error('❌ Failed to fetch channels via service-like helper:', error)
         
-        // Fallback to direct fetching if helper fails
         try {
           debug.log('🔄 Falling back to direct channel fetching')
           await this._fetchChannelsFallback(serverId)
@@ -1138,7 +1026,6 @@ export const useServerChannelStore = defineStore('serverChannel', {
       try {
         debug.log('🔄 Creating server via service-like helper:', serverData.name)
         
-        // Use service-like helper for server creation with user membership
         const newServer = await this._createServerHelper(serverData)
         
         debug.log('✅ Server created successfully via service-like helper:', newServer.id)
@@ -1146,7 +1033,6 @@ export const useServerChannelStore = defineStore('serverChannel', {
       } catch (error) {
         debug.error('❌ Failed to create server via service-like helper:', error)
         
-        // Fallback to direct creation if helper fails
         try {
           debug.log('🔄 Falling back to direct server creation')
           return await this._createServerFallback(serverData)
@@ -1182,7 +1068,6 @@ export const useServerChannelStore = defineStore('serverChannel', {
         this.servers.push(data)
       }
 
-      // Add the new server to the user's server list
       await this.addUserToServer(data.id, serverData.owner)
       
       return data
@@ -1214,7 +1099,6 @@ export const useServerChannelStore = defineStore('serverChannel', {
         this.servers.push(data)
       }
 
-      // Add the new server to the user's server list
       await this.addUserToServer(data.id, serverData.owner)
       
       debug.log('✅ Server created successfully with default structure:', data)
@@ -1225,14 +1109,12 @@ export const useServerChannelStore = defineStore('serverChannel', {
       try {
         debug.log('🔄 Adding user to server via service-like helper:', { serverId, userId })
         
-        // Use service-like helper for user-server membership
         await this._addUserToServerHelper(serverId, userId)
         
         debug.log('✅ User added to server successfully via service-like helper')
       } catch (error) {
         debug.error('❌ Failed to add user to server via service-like helper:', error)
         
-        // Fallback to direct addition if helper fails
         try {
           debug.log('🔄 Falling back to direct user-server addition')
           await this._addUserToServerFallback(serverId, userId)
@@ -1252,7 +1134,6 @@ export const useServerChannelStore = defineStore('serverChannel', {
         .insert([{ server_id: serverId, user_id: userId }])
 
       if (error) {
-        // Handle duplicate membership gracefully
         if (error.code === '23505') { // Unique constraint violation
           debug.log("User is already a member of this server")
           return // Consider it successful since the desired state is achieved
@@ -1272,7 +1153,6 @@ export const useServerChannelStore = defineStore('serverChannel', {
         .insert([{ server_id: serverId, user_id: userId }])
 
       if (error) {
-        // Handle duplicate membership gracefully
         if (error.code === '23505') { // Unique constraint violation
           debug.log("User is already a member of this server")
           // Don't show a toast here since this is typically called internally
@@ -1288,11 +1168,9 @@ export const useServerChannelStore = defineStore('serverChannel', {
       try {
         debug.log('🔄 Updating server via service-like helper:', serverData.id);
         
-        // Use service-like helper for server update
         const updatedServer = await this._updateServerHelper(serverData);
         
         if (updatedServer) {
-          // Update local state with optimistic update
           const serverIndex = this.servers.findIndex(server => server.id === serverData.id);
           if (serverIndex !== -1) {
             this.servers[serverIndex] = { ...this.servers[serverIndex], ...updatedServer };
@@ -1306,7 +1184,6 @@ export const useServerChannelStore = defineStore('serverChannel', {
       } catch (error) {
         debug.error('❌ Failed to update server via service-like helper:', error);
         
-        // Fallback to direct update if helper fails
         try {
           debug.log('🔄 Falling back to direct server update');
           return await this._updateServerFallback(serverData);
@@ -1323,7 +1200,6 @@ export const useServerChannelStore = defineStore('serverChannel', {
     async _updateServerHelper(serverData: { id: string; icon?: string; name?: string; description?: string; public?: boolean }) {
       const updateData: Record<string, any> = {};
       
-      // Build update object conditionally
       if (serverData.icon) updateData.icon = serverData.icon;
       if (serverData.name) updateData.name = serverData.name;
       if (serverData.description !== undefined) updateData.description = serverData.description;
@@ -1364,7 +1240,6 @@ export const useServerChannelStore = defineStore('serverChannel', {
         throw error;
       }
 
-      // Update local state
       const serverIndex = this.servers.findIndex(server => server.id === serverData.id);
       if (serverIndex !== -1) {
         this.servers[serverIndex] = { ...this.servers[serverIndex], ...data };
@@ -1379,7 +1254,6 @@ export const useServerChannelStore = defineStore('serverChannel', {
       }
     },
 
-    // Simplified emoji management - delegate to emoji cache store
     async refreshEmojis() {
       const emojiCache = useEmojiCacheStore();
       const serverIds = this.servers.map(server => server.id);
@@ -1390,31 +1264,26 @@ export const useServerChannelStore = defineStore('serverChannel', {
       return this.servers.find(server => server.id === serverId);
     },
 
-    // Enhanced emoji search using cache
     async searchEmojis(query: string, options: { serverId?: string; limit?: number } = {}) {
       const emojiCache = useEmojiCacheStore();
       return emojiCache.searchEmojisByName(query, options.limit);
     },
 
-    // Get emoji by ID using cache
     getEmojiById(emojiId: string) {
       const emojiCache = useEmojiCacheStore();
       return emojiCache.getEmojiById(emojiId);
     },
 
-    // Handle emoji updates (called by real-time subscriptions)
     async handleEmojiUpdate(payload: any) {
       const emojiCache = useEmojiCacheStore();
       await emojiCache.handleEmojiUpdate(payload);
     },
 
-    // Invalidate emoji cache for a server
     async invalidateEmojiCache(serverId?: string) {
       const emojiCache = useEmojiCacheStore();
       if (serverId) {
         await emojiCache.invalidate({ serverId });
       } else {
-        // Refresh all servers
         const serverIds = this.servers.map(server => server.id);
         await emojiCache.loadEmojisForServers(serverIds);
       }
@@ -1424,7 +1293,6 @@ export const useServerChannelStore = defineStore('serverChannel', {
       try {
         debug.log('🔄 Fetching public servers via service-like helper:', { searchTerm, limit });
         
-        // Use service-like helper for database operations
         const servers = await this._fetchPublicServersHelper(searchTerm, limit);
         this.publicServers = servers || [];
         
@@ -1432,7 +1300,6 @@ export const useServerChannelStore = defineStore('serverChannel', {
       } catch (error) {
         debug.error('❌ Failed to fetch public servers via service-like helper:', error);
         
-        // Fallback to direct query if helper fails
         try {
           debug.log('🔄 Falling back to direct public servers fetch');
           await this._fetchPublicServersFallback(searchTerm, limit);
@@ -1494,17 +1361,14 @@ export const useServerChannelStore = defineStore('serverChannel', {
       try {
         debug.log('🔄 Deleting channel via service-like helper:', channelId);
         
-        // Use service-like helper for channel deletion
         await this._deleteChannelHelper(channelId);
         
-        // Handle complex local state cleanup using service-like helper
         this._removeChannelFromLocalState(channelId);
         
         debug.log('✅ Channel deleted successfully via service-like helper:', channelId);
       } catch (error) {
         debug.error('❌ Failed to delete channel via service-like helper:', error);
         
-        // Fallback to direct deletion if helper fails
         try {
           debug.log('🔄 Falling back to direct channel deletion');
           await this._deleteChannelFallback(channelId);
@@ -1533,28 +1397,23 @@ export const useServerChannelStore = defineStore('serverChannel', {
      * Service-like helper: Remove channel from complex local state
      */
     _removeChannelFromLocalState(channelId: string): void {
-      // Remove channel from local state
       this.channels = this.channels.filter(channel => channel.id !== channelId);
       
-      // Remove from category channels if it was in a category
       Object.keys(this.categoryChannels).forEach(categoryId => {
         this.categoryChannels[categoryId] = this.categoryChannels[categoryId].filter(
           channel => channel.id !== channelId
         );
       });
 
-      // If this was the current channel, navigate to another channel
       // Use router.push to ensure the URL changes and ChatView reloads
       if (this.currentChannelId === channelId) {
         const defaultChannel = this.getDefaultChannel();
         if (defaultChannel && this.currentServerId) {
           this.setCurrentChannel(defaultChannel);
-          // Navigate via router to trigger ChatView's route-based loading
           router.push(`/chat/${this.currentServerId}/${defaultChannel}`).catch(debug.error);
           debug.log('🔄 Navigated to default channel after deletion:', defaultChannel);
         } else {
           this.currentChannelId = null;
-          // Navigate to server root if no channels available
           if (this.currentServerId) {
             router.push(`/chat/${this.currentServerId}`).catch(debug.error);
           }
@@ -1576,7 +1435,6 @@ export const useServerChannelStore = defineStore('serverChannel', {
         throw error;
       }
 
-      // Handle complex local state cleanup using reusable helper
       this._removeChannelFromLocalState(channelId);
     },
 
@@ -1589,20 +1447,16 @@ export const useServerChannelStore = defineStore('serverChannel', {
       try {
         debug.log('🔄 Deleting category via service-like helper:', categoryId, { deleteChannels });
         
-        // Get channels that need to be handled
         const channelsInCategory = this.categoryChannels[categoryId] || [];
         
-        // Use service-like helper for complex category deletion
         await this._deleteCategoryHelper(categoryId, channelsInCategory, deleteChannels);
         
-        // Handle complex local state cleanup using service-like helper
         this._removeCategoryFromLocalState(categoryId, channelsInCategory, deleteChannels);
         
         debug.log('✅ Category deleted successfully via service-like helper:', categoryId);
       } catch (error) {
         debug.error('❌ Failed to delete category via service-like helper:', error);
         
-        // Fallback to direct deletion if helper fails
         try {
           debug.log('🔄 Falling back to direct category deletion');
           await this._deleteCategoryFallback(categoryId, deleteChannels);
@@ -1620,7 +1474,6 @@ export const useServerChannelStore = defineStore('serverChannel', {
     async _deleteCategoryHelper(categoryId: string, channelsInCategory: Channel[], deleteChannels: boolean = false): Promise<void> {
       if (channelsInCategory.length > 0) {
         if (deleteChannels) {
-          // Cascade delete: remove all channels in the category
           const { error: deleteError } = await supabase
             .from('channels')
             .delete()
@@ -1631,7 +1484,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
           }
           debug.log(`🗑️ Deleted ${channelsInCategory.length} channels from category`);
         } else {
-          // Make channels orphans - NOTE: column is 'category', NOT 'category_id'
+          // NOTE: column is 'category', NOT 'category_id'
           const { error: updateError } = await supabase
             .from('channels')
             .update({ category: null })
@@ -1644,7 +1497,6 @@ export const useServerChannelStore = defineStore('serverChannel', {
         }
       }
 
-      // Then delete the category
       const { error } = await supabase
         .from('channel_categories')
         .delete()
@@ -1660,15 +1512,12 @@ export const useServerChannelStore = defineStore('serverChannel', {
      * @param deleteChannels - If true, remove channels from state. If false, make them orphans.
      */
     _removeCategoryFromLocalState(categoryId: string, channelsInCategory: Channel[], deleteChannels: boolean = false): void {
-      // Update local state
       this.categories = this.categories.filter(cat => cat.id !== categoryId);
       
       if (deleteChannels) {
-        // Remove deleted channels from local state
         const channelIds = new Set(channelsInCategory.map(c => c.id));
         this.channels = this.channels.filter(c => !channelIds.has(c.id));
       } else {
-        // Move channels to orphans in local state
         if (channelsInCategory.length > 0) {
           channelsInCategory.forEach(channel => {
             channel.category = null;
@@ -1676,7 +1525,6 @@ export const useServerChannelStore = defineStore('serverChannel', {
         }
       }
       
-      // Remove category from categoryChannels
       delete this.categoryChannels[categoryId];
     },
 
@@ -1685,12 +1533,10 @@ export const useServerChannelStore = defineStore('serverChannel', {
      * @param deleteChannels - If true, cascade delete channels. If false, orphan them.
      */
     async _deleteCategoryFallback(categoryId: string, deleteChannels: boolean = false): Promise<void> {
-      // Get channels that need to be handled
       const channelsInCategory = this.categoryChannels[categoryId] || [];
       
       if (channelsInCategory.length > 0) {
         if (deleteChannels) {
-          // Cascade delete channels
           const { error: deleteError } = await supabase
             .from('channels')
             .delete()
@@ -1701,7 +1547,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
             throw deleteError;
           }
         } else {
-          // Move channels to orphans - NOTE: column is 'category', NOT 'category_id'
+          // NOTE: column is 'category', NOT 'category_id'
           const { error: updateError } = await supabase
             .from('channels')
             .update({ category: null })
@@ -1714,7 +1560,6 @@ export const useServerChannelStore = defineStore('serverChannel', {
         }
       }
 
-      // Then delete the category
       const { error } = await supabase
         .from('channel_categories')
         .delete()
@@ -1725,7 +1570,6 @@ export const useServerChannelStore = defineStore('serverChannel', {
         throw error;
       }
 
-      // Handle complex local state cleanup using reusable helper
       this._removeCategoryFromLocalState(categoryId, channelsInCategory, deleteChannels);
     },
 
@@ -1733,11 +1577,9 @@ export const useServerChannelStore = defineStore('serverChannel', {
       try {
         debug.log('🔄 Updating channel via service-like helper:', channelData.id);
         
-        // Use service-like helper for channel update
         const updatedChannel = await this._updateChannelHelper(channelData);
         
         if (updatedChannel) {
-          // Update complex local state using service-like helper
           this._updateChannelInLocalState(updatedChannel);
           
           debug.log('✅ Channel updated successfully via service-like helper:', channelData.id);
@@ -1745,7 +1587,6 @@ export const useServerChannelStore = defineStore('serverChannel', {
       } catch (error) {
         debug.error('❌ Failed to update channel via service-like helper:', error);
         
-        // Fallback to direct update if helper fails
         try {
           debug.log('🔄 Falling back to direct channel update');
           await this._updateChannelFallback(channelData);
@@ -1782,13 +1623,11 @@ export const useServerChannelStore = defineStore('serverChannel', {
      * Service-like helper: Update channel in complex local state
      */
     _updateChannelInLocalState(updatedChannel: Channel) {
-      // Update local state in main channels array
       const channelIndex = this.channels.findIndex(channel => channel.id === updatedChannel.id);
       if (channelIndex !== -1) {
         this.channels[channelIndex] = { ...this.channels[channelIndex], ...updatedChannel };
       }
 
-      // Update in category channels if it exists
       Object.keys(this.categoryChannels).forEach(categoryId => {
         const categoryChannelIndex = this.categoryChannels[categoryId].findIndex(
           channel => channel.id === updatedChannel.id
@@ -1822,7 +1661,6 @@ export const useServerChannelStore = defineStore('serverChannel', {
         throw error;
       }
 
-      // Update complex local state using reusable helper
       this._updateChannelInLocalState(data);
     },
 
@@ -1830,11 +1668,9 @@ export const useServerChannelStore = defineStore('serverChannel', {
       try {
         debug.log('🔄 Updating category via service-like helper:', categoryData.id);
         
-        // Use service-like helper for category update
         const updatedCategory = await this._updateCategoryHelper(categoryData);
         
         if (updatedCategory) {
-          // Update local state
           const categoryIndex = this.categories.findIndex(category => category.id === categoryData.id);
           if (categoryIndex !== -1) {
             this.categories[categoryIndex] = { ...this.categories[categoryIndex], ...updatedCategory };
@@ -1845,7 +1681,6 @@ export const useServerChannelStore = defineStore('serverChannel', {
       } catch (error) {
         debug.error('❌ Failed to update category via service-like helper:', error);
         
-        // Fallback to direct update if helper fails
         try {
           debug.log('🔄 Falling back to direct category update');
           await this._updateCategoryFallback(categoryData);
@@ -1890,7 +1725,6 @@ export const useServerChannelStore = defineStore('serverChannel', {
         throw error;
       }
 
-      // Update local state
       const categoryIndex = this.categories.findIndex(category => category.id === categoryData.id);
       if (categoryIndex !== -1) {
         this.categories[categoryIndex] = { ...this.categories[categoryIndex], ...data };
@@ -1906,7 +1740,6 @@ export const useServerChannelStore = defineStore('serverChannel', {
      * Call this when entering a server to get live updates
      */
     async subscribeToServerStructure(serverId: string): Promise<void> {
-      // Unsubscribe from previous server if any
       await this.unsubscribeFromServerStructure();
       
       debug.log('🔔 Subscribing to server structure updates for:', serverId);
@@ -2002,16 +1835,13 @@ export const useServerChannelStore = defineStore('serverChannel', {
         return;
       }
       
-      // Add to channels array
       this.channels.push(newChannel);
       
-      // Add to categoryChannels if it has a category
       if (newChannel.category) {
         if (!this.categoryChannels[newChannel.category]) {
           this.categoryChannels[newChannel.category] = [];
         }
         this.categoryChannels[newChannel.category].push(newChannel);
-        // Sort by order
         this.categoryChannels[newChannel.category].sort((a, b) => (a.order || 0) - (b.order || 0));
       }
     },
@@ -2024,22 +1854,18 @@ export const useServerChannelStore = defineStore('serverChannel', {
       const oldChannel = payload.old as Channel;
       debug.log('📝 Real-time: Channel updated:', updatedChannel.name);
       
-      // Update in channels array
       const channelIndex = this.channels.findIndex(c => c.id === updatedChannel.id);
       if (channelIndex !== -1) {
         this.channels[channelIndex] = { ...this.channels[channelIndex], ...updatedChannel };
       }
       
-      // Handle category change
       if (oldChannel.category !== updatedChannel.category) {
-        // Remove from old category
         if (oldChannel.category && this.categoryChannels[oldChannel.category]) {
           this.categoryChannels[oldChannel.category] = this.categoryChannels[oldChannel.category].filter(
             c => c.id !== updatedChannel.id
           );
         }
         
-        // Add to new category
         if (updatedChannel.category) {
           if (!this.categoryChannels[updatedChannel.category]) {
             this.categoryChannels[updatedChannel.category] = [];
@@ -2048,7 +1874,6 @@ export const useServerChannelStore = defineStore('serverChannel', {
           this.categoryChannels[updatedChannel.category].sort((a, b) => (a.order || 0) - (b.order || 0));
         }
       } else if (updatedChannel.category) {
-        // Update within same category
         const catChannelIndex = this.categoryChannels[updatedChannel.category]?.findIndex(
           c => c.id === updatedChannel.id
         );
@@ -2070,17 +1895,14 @@ export const useServerChannelStore = defineStore('serverChannel', {
       const deletedChannel = payload.old as Channel;
       debug.log('🗑️ Real-time: Channel deleted:', deletedChannel.id);
       
-      // Remove from channels array
       this.channels = this.channels.filter(c => c.id !== deletedChannel.id);
       
-      // Remove from categoryChannels
       if (deletedChannel.category && this.categoryChannels[deletedChannel.category]) {
         this.categoryChannels[deletedChannel.category] = this.categoryChannels[deletedChannel.category].filter(
           c => c.id !== deletedChannel.id
         );
       }
       
-      // If this was the current channel, navigate to another
       // Use router.push to ensure the URL changes and ChatView reloads
       if (this.currentChannelId === deletedChannel.id) {
         const defaultChannel = this.getDefaultChannel();
@@ -2110,12 +1932,9 @@ export const useServerChannelStore = defineStore('serverChannel', {
         return;
       }
       
-      // Add to categories array
       this.categories.push(newCategory);
-      // Sort by order
       this.categories.sort((a, b) => (a.order || 0) - (b.order || 0));
       
-      // Initialize empty channel array for this category
       this.categoryChannels[newCategory.id] = [];
     },
 
@@ -2126,7 +1945,6 @@ export const useServerChannelStore = defineStore('serverChannel', {
       const updatedCategory = payload.new as Category;
       debug.log('📝 Real-time: Category updated:', updatedCategory.name);
       
-      // Update in categories array
       const categoryIndex = this.categories.findIndex(c => c.id === updatedCategory.id);
       if (categoryIndex !== -1) {
         this.categories[categoryIndex] = { ...this.categories[categoryIndex], ...updatedCategory };
@@ -2142,16 +1960,13 @@ export const useServerChannelStore = defineStore('serverChannel', {
       const deletedCategory = payload.old as Category;
       debug.log('🗑️ Real-time: Category deleted:', deletedCategory.id);
       
-      // Remove from categories array
       this.categories = this.categories.filter(c => c.id !== deletedCategory.id);
       
-      // Move channels from this category to orphans (no category)
       const orphanedChannels = this.categoryChannels[deletedCategory.id] || [];
       orphanedChannels.forEach(channel => {
         channel.category = null;
       });
       
-      // Remove category from categoryChannels
       delete this.categoryChannels[deletedCategory.id];
     },
 
@@ -2213,7 +2028,6 @@ export const useServerChannelStore = defineStore('serverChannel', {
         return;
       }
       
-      // Fetch server details
       try {
         const { data: server, error } = await supabase
           .from('servers')
@@ -2256,7 +2070,6 @@ export const useServerChannelStore = defineStore('serverChannel', {
      * the active server if the left server was the current one.
      */
     _cleanupServerState(serverId: string): void {
-      // Disconnect from voice chat if connected to a channel on this server
       const voiceStore = useUnifiedVoiceChannelStore();
       const voiceServerId = voiceStore.effectiveServerId;
       if (voiceServerId === serverId) {
@@ -2264,17 +2077,14 @@ export const useServerChannelStore = defineStore('serverChannel', {
         voiceStore.leaveVoiceChannel();
       }
       
-      // Unsubscribe from message channel if viewing a channel on this server
       if (this.currentServerId === serverId) {
         const chatStore = useChatStore();
         chatStore.unsubscribeFromMessages();
         chatStore.clearMessages();
       }
       
-      // Remove server from list
       this.servers = this.servers.filter(s => s.id !== serverId);
       
-      // If this was the current server, switch to another
       if (this.currentServerId === serverId) {
         if (this.servers.length > 0) {
           this.setCurrentServer(this.servers[0].id);
@@ -2296,18 +2106,14 @@ export const useServerChannelStore = defineStore('serverChannel', {
       const updatedServer = payload.new as Server;
       debug.log('📝 Real-time: Server updated:', updatedServer.id, updatedServer.name);
       
-      // Only update if this server is in the user's list
       const serverIndex = this.servers.findIndex(s => s.id === updatedServer.id);
       if (serverIndex === -1) {
-        // Server not in user's list, ignore
         return;
       }
       
-      // Update server in the list
       this.servers[serverIndex] = { ...this.servers[serverIndex], ...updatedServer };
       debug.log('✅ Server updated in list:', updatedServer.name);
       
-      // If this is the current server, also update currentServer
       if (this.currentServerId === updatedServer.id) {
         this.currentServer = { ...this.currentServer, ...updatedServer };
         debug.log('✅ Current server updated:', updatedServer.name);
@@ -2321,18 +2127,14 @@ export const useServerChannelStore = defineStore('serverChannel', {
       const deletedServer = payload.old as Server;
       debug.log('🗑️ Real-time: Server deleted:', deletedServer.id);
       
-      // Check if this server is in the user's list
       const serverExists = this.servers.some(s => s.id === deletedServer.id);
       if (!serverExists) {
-        // Server not in user's list, ignore
         return;
       }
       
-      // Remove server from list
       this.servers = this.servers.filter(s => s.id !== deletedServer.id);
       debug.log('✅ Deleted server removed from list:', deletedServer.name || deletedServer.id);
       
-      // If this was the current server, switch to another
       if (this.currentServerId === deletedServer.id) {
         const toast = useToast();
         toast.info(`Server "${deletedServer.name || 'Unknown'}" has been deleted`);
@@ -2398,7 +2200,6 @@ export const useServerChannelStore = defineStore('serverChannel', {
       try {
         debug.log('📁 Creating folder:', name || '(unnamed)');
         
-        // Use provided position or get next available
         const folderPosition = position !== undefined 
           ? position 
           : (this.folders.length > 0 
@@ -2453,7 +2254,6 @@ export const useServerChannelStore = defineStore('serverChannel', {
           return false;
         }
 
-        // Update local state
         const folderIndex = this.folders.findIndex(f => f.id === folderId);
         if (folderIndex !== -1) {
           this.folders[folderIndex] = { ...this.folders[folderIndex], ...updates };
@@ -2484,7 +2284,6 @@ export const useServerChannelStore = defineStore('serverChannel', {
       try {
         debug.log('🗑️ Deleting folder:', folderId);
 
-        // First, move all servers in this folder to root level
         const serversInFolder = this.servers.filter(s => s.folder_id === folderId);
         for (const server of serversInFolder) {
           await this.moveServerToFolder(server.id, null);
@@ -2502,7 +2301,6 @@ export const useServerChannelStore = defineStore('serverChannel', {
           return false;
         }
 
-        // Remove from local state
         this.folders = this.folders.filter(f => f.id !== folderId);
         
         debug.log('✅ Folder deleted');
@@ -2525,7 +2323,6 @@ export const useServerChannelStore = defineStore('serverChannel', {
 
       debug.log('📁 Moving server to folder:', serverId, folderId);
 
-      // Get next position in target folder/root
       const serversInTarget = this.servers.filter(s => s.folder_id === folderId);
       const maxPosition = serversInTarget.length > 0
         ? Math.max(...serversInTarget.map(s => s.position || 0)) + 1
@@ -2723,7 +2520,6 @@ export const useServerChannelStore = defineStore('serverChannel', {
     getOrganizedServers(): Array<ServerFolder | Server> {
       const result: Array<ServerFolder | Server> = [];
       
-      // Create a map of folder_id to servers
       const serversByFolder = new Map<string | null, Server[]>();
       
       for (const server of this.servers) {
@@ -2734,13 +2530,10 @@ export const useServerChannelStore = defineStore('serverChannel', {
         serversByFolder.get(folderId)!.push(server);
       }
 
-      // Sort servers within each folder by position
       for (const servers of serversByFolder.values()) {
         servers.sort((a, b) => (a.position || 0) - (b.position || 0));
       }
 
-      // Build result: folders (with their servers) and root-level servers
-      // sorted by position
       const foldersWithServers = this.folders.map(folder => ({
         ...folder,
         servers: serversByFolder.get(folder.id) || []
@@ -2748,7 +2541,6 @@ export const useServerChannelStore = defineStore('serverChannel', {
 
       const rootServers = serversByFolder.get(null) || [];
 
-      // Combine and sort by position
       // Folders and root servers are interleaved based on position
       // For simplicity, we'll put all folders first, then root servers
       // A more complex implementation would interleave by position

@@ -167,11 +167,9 @@ export const useNotificationStore = defineStore('notification', {
   getters: {
     sortedNotifications: (state) => {
       return [...state.notifications].sort((a, b) => {
-        // Unread notifications first
         if (a.is_read !== b.is_read) {
           return a.is_read ? 1 : -1
         }
-        // Then by creation date (newest first)
         return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       })
     },
@@ -475,19 +473,14 @@ export const useNotificationStore = defineStore('notification', {
         this.isLoading = true
         debug.log('🔔 Notification Store: Initializing for user:', userId)
         
-        // Check notification permission first
         this.hasPermission = await this.checkNotificationPermission()
         
-        // Load user preferences
         await this.loadPreferences(userId)
         
-        // Load existing notifications
         await this.fetchNotifications(userId)
         
-        // Register handlers on the shared broadcast channel
         this.setupBroadcastNotificationHandlers(userId)
         
-        // Setup DND status check
         this.setupDndCheck()
         
         this.isInitialized = true
@@ -510,13 +503,10 @@ export const useNotificationStore = defineStore('notification', {
       try {
         debug.log('🔔 Notification Store: Initializing with unread notifications')
         
-        // Check notification permission
         this.hasPermission = await this.checkNotificationPermission()
         
-        // Load user preferences (lightweight)
         await this.loadPreferences(userId)
         
-        // Get profile ID for queries
         const profileId = await this.getProfileId(userId)
         
         // Load unread notifications so sidebar badge getters (unreadDMs,
@@ -542,10 +532,8 @@ export const useNotificationStore = defineStore('notification', {
         
         this.updateUnreadCount()
         
-        // Register handlers on the shared broadcast channel
         this.setupBroadcastNotificationHandlers(userId)
         
-        // Setup DND status check
         this.setupDndCheck()
         
         this.isInitialized = true
@@ -582,10 +570,8 @@ export const useNotificationStore = defineStore('notification', {
       try {
         debug.log('🔄 Fetching notifications for user:', userId)
         
-        // Get the profile ID for this auth user ID
         const profileId = await this.getProfileId(userId)
         
-        // Use NotificationService for consistent notification management
         const data = await services.notifications.fetchNotifications(profileId, {
           limit,
           offset
@@ -620,7 +606,6 @@ export const useNotificationStore = defineStore('notification', {
           await this._fetchNotificationsFallback(userId, limit, offset)
         } catch (fallbackError) {
           debug.error('❌ Fallback fetch also failed:', fallbackError)
-          // Create mock notifications for development/testing
           if (import.meta.env.DEV) {
             this.createMockNotifications(userId)
           }
@@ -744,11 +729,9 @@ export const useNotificationStore = defineStore('notification', {
     async _processIncomingNotification(newNotification: Notification) {
       if (!newNotification?.id) return
 
-      // Dedup: skip if already processed recently or already in store
       if (_recentlyProcessedIds.has(newNotification.id)) return
       if (this.notifications.find(n => n.id === newNotification.id)) return
 
-      // Mark as processed and schedule TTL cleanup
       _recentlyProcessedIds.add(newNotification.id)
       setTimeout(() => _recentlyProcessedIds.delete(newNotification.id), DEDUP_TTL_MS)
 
@@ -844,20 +827,16 @@ export const useNotificationStore = defineStore('notification', {
       try {
         debug.log('🔔 Processing notification:', notification.type)
 
-        // Show toast notification if appropriate
         if (uiDecision.showToast) {
-          // Extract emoji data for reaction notifications
           let emojiUrl: string | undefined
           let emojiName: string | undefined
           if (notification.type === 'activitypub_reaction' || notification.type === 'reaction') {
             const data = notification.data
             const reactionData = data.reaction || data
             
-            // Try multiple paths for emoji data
             emojiName = reactionData?.emoji_name || reactionData?.custom_emoji_content || data.emoji_name
             emojiUrl = reactionData?.emoji_url || data.emoji_url
             
-            // Get emoji URL if available
             if (emojiUrl) {
               emojiUrl = getEmojiUrl(emojiUrl, 48)
             }
@@ -873,16 +852,15 @@ export const useNotificationStore = defineStore('notification', {
             emojiUrl,
             emojiName,
             actorInfo?.actorUserId,
-            actorInfo?.titleSuffix
+            actorInfo?.titleSuffix,
+            notification.id
           )
         }
 
-        // Show desktop notification if appropriate
         if (uiDecision.showDesktop && this.shouldShowDesktopNotification(notification.type)) {
           this.showDesktopNotification(notification, formatted)
         }
 
-        // Play sound if appropriate
         if (uiDecision.playSound && this.shouldPlaySound(notification.type)) {
           this.playNotificationSound(notification.type)
         }
@@ -919,7 +897,6 @@ export const useNotificationStore = defineStore('notification', {
           return
         }
 
-        // Use formatter if not provided
         if (!formatted) {
           formatted = NotificationFormatter.formatNotification(notification)
         }
@@ -999,7 +976,6 @@ export const useNotificationStore = defineStore('notification', {
           }
         }
         
-        // Update badge after dismissals
         if (typeof navigator !== 'undefined' && 'setAppBadge' in navigator) {
           const remaining = await registration.getNotifications()
           if (remaining.length > 0) {
@@ -1022,7 +998,8 @@ export const useNotificationStore = defineStore('notification', {
       emojiUrl?: string,
       emojiName?: string,
       actorUserId?: string,
-      titleSuffix?: string
+      titleSuffix?: string,
+      notificationId?: string
     ) {
       if (this.isQuietHours && type !== 'server_update') return
       
@@ -1037,12 +1014,12 @@ export const useNotificationStore = defineStore('notification', {
         actorUserId,
         titleSuffix,
         duration,
-        timestamp: new Date()
+        timestamp: new Date(),
+        notificationId
       }
       
       this.toasts.push(toast)
       
-      // Auto-remove toast after duration
       setTimeout(() => {
         this.removeToast(toast.id)
       }, duration)
@@ -1062,11 +1039,9 @@ export const useNotificationStore = defineStore('notification', {
         const audioAction = NOTIFICATION_SOUND_MAPPING[type]
         if (!audioAction) return
 
-        // Get theme store for audio playback
         const { useThemeStore } = await import('./useTheme')
         const themeStore = useThemeStore()
         
-        // Ensure theme system is initialized
         if (!themeStore.isInitialized) {
           await themeStore.initialize()
         }
@@ -1082,7 +1057,6 @@ export const useNotificationStore = defineStore('notification', {
     updateUnreadCount() {
       this.unreadCount = this.notifications.filter(n => !n.is_read).length
       
-      // Update browser badge if supported
       if (typeof navigator !== 'undefined' && 'setAppBadge' in navigator) {
         if (this.unreadCount > 0) {
           ;(navigator as any).setAppBadge(this.unreadCount)
@@ -1091,7 +1065,6 @@ export const useNotificationStore = defineStore('notification', {
         }
       }
 
-      // Update document title (base title follows the instance name)
       if (typeof document !== 'undefined') {
         const baseTitle = useInstanceSettingsStore().settings.instanceName || 'Harmony'
         if (this.unreadCount > 0) {
@@ -1101,7 +1074,6 @@ export const useNotificationStore = defineStore('notification', {
         }
       }
 
-      // Update favicon badge
       updateFaviconBadge(this.unreadCount)
     },
 
@@ -1124,7 +1096,6 @@ export const useNotificationStore = defineStore('notification', {
 
         if (error && error.code !== 'PGRST116') {
           debug.error('Error loading preferences:', error)
-          // Use defaults if no preferences found
           this.preferences = {
             ...DEFAULT_PREFERENCES,
             id: crypto.randomUUID(),
@@ -1198,7 +1169,6 @@ export const useNotificationStore = defineStore('notification', {
           this.setupDndCheck()
         }
 
-        // Broadcast preferences change to other tabs/devices
         if (this.cachedProfileId) {
           userEventChannel.send('preferences:updated', {})
         }
@@ -1248,11 +1218,9 @@ export const useNotificationStore = defineStore('notification', {
      * NOTIFICATION MANAGEMENT - UI actions only
      */
     async markAsRead(notificationId: string) {
-      // Find notification for optimistic updates
       const notification = this.notifications.find(n => n.id === notificationId)
       
       try {
-        // Optimistic update
         if (notification) {
           notification.is_read = true
           this.updateUnreadCount()
@@ -1292,23 +1260,19 @@ export const useNotificationStore = defineStore('notification', {
     },
 
     async deleteNotification(notificationId: string) {
-      // Find notification and index for optimistic updates
       const index = this.notifications.findIndex(n => n.id === notificationId)
       if (index === -1) return
       
       const notification = this.notifications[index]
       
       try {
-        // Optimistic update
         this.notifications.splice(index, 1)
         this.updateUnreadCount()
         
-        // Use NotificationService for consistent state management
         await services.notifications.deleteNotification(notificationId)
       } catch (error) {
         debug.error('❌ Failed to delete notification:', error)
         
-        // Revert optimistic update on error
         this.notifications.splice(index, 0, notification)
         this.updateUnreadCount()
         this.showToast('server_update', 'Failed to delete notification', 'Please try again', 3000)
@@ -1383,7 +1347,6 @@ export const useNotificationStore = defineStore('notification', {
         const profileId = await this.getProfileId(authUserId)
         if (!profileId) return
 
-        // Optimistic: clear immediately so the panel reacts instantly.
         this.notifications = []
         this.updateUnreadCount()
 
@@ -1512,7 +1475,6 @@ export const useNotificationStore = defineStore('notification', {
 
     handleNotificationClick(notification: Notification) {
       try {
-        // Mark as read and explicitly clicked
         this.markAsRead(notification.id)
         supabase
           .from('notifications')
@@ -1522,7 +1484,6 @@ export const useNotificationStore = defineStore('notification', {
             if (error) debug.warn('Failed to set is_clicked:', error)
           })
         
-        // Get navigation data from formatter
         const navData = NotificationFormatter.getNavigationData(notification)
         
         if (navData) {
@@ -1537,7 +1498,6 @@ export const useNotificationStore = defineStore('notification', {
             }
               
             case 'channel': {
-              // Navigate to server channel
               let path = `/chat/${navData.serverId}/${navData.channelId}`
               if (navData.messageId) {
                 path += `?messageId=${navData.messageId}`
@@ -1547,12 +1507,10 @@ export const useNotificationStore = defineStore('notification', {
             }
               
             case 'server':
-              // Navigate to server
               router.push(`/server/${navData.serverId}`)
               break
 
             case 'activitypub_post':
-              // Navigate to specific ActivityPub post using unified view
               router.push({
                 name: 'PostDetail',
                 params: { postId: navData.postId }
@@ -1560,7 +1518,6 @@ export const useNotificationStore = defineStore('notification', {
               break
 
             case 'profile':
-              // Navigate to user's profile (e.g. new follower)
               router.push({ name: 'UserProfile', params: { handle: (navData.handle || '').replace(/^@/, '') } })
               break
 
@@ -1577,7 +1534,6 @@ export const useNotificationStore = defineStore('notification', {
           if (notification.type.startsWith('activitypub_')) {
             router.push('/social/home')
           } else if (notification.type === 'dm') {
-            // Try to get conversation ID from data
             const conversationId = notification.data?.conversation?.id || notification.data?.conversation_id
             if (conversationId) {
               router.push(`/dm/${conversationId}`)
@@ -1585,7 +1541,6 @@ export const useNotificationStore = defineStore('notification', {
               router.push('/dm')
             }
           } else {
-            // Default to home
             debug.warn('⚠️ Could not determine navigation for notification, going to home')
           }
         }
@@ -1658,20 +1613,15 @@ export const useNotificationStore = defineStore('notification', {
       debug.log('📝 Created mock notifications for development')
     },
 
-    // Helper function to get profile ID from auth user ID with caching
-    // Uses AuthContextService for centralized caching
     async getProfileId(authUserId: string): Promise<string> {
-      // Return cached value if available and auth user hasn't changed
       if (this.cachedProfileId && this.cachedAuthUserId === authUserId) {
         return this.cachedProfileId
       }
 
       try {
-        // Use AuthContextService which caches the auth -> profile ID mapping
         const context = await authContextService.getCurrentContext()
         
         if (context.isAuthenticated) {
-          // Cache the result
           this.cachedProfileId = context.profileId
           this.cachedAuthUserId = authUserId
           return context.profileId
@@ -1683,14 +1633,12 @@ export const useNotificationStore = defineStore('notification', {
         }
       } catch (error) {
         debug.warn('Could not get profile from AuthContextService, using auth user ID:', error)
-        // Cache the fallback
         this.cachedProfileId = authUserId
         this.cachedAuthUserId = authUserId
         return authUserId
       }
     },
 
-    // Clear the profile ID cache (called on logout)
     clearProfileCache() {
       this.cachedProfileId = null
       this.cachedAuthUserId = null

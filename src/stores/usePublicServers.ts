@@ -104,7 +104,6 @@ export const usePublicServersStore = defineStore('publicServers', {
     
     isEmptySearch: (state) => !!state.searchQuery && state.searchResults.length === 0,
 
-    // Check if data is stale (older than 5 minutes)
     isDataStale: (state) => {
       if (!state.lastFetchTime) return true
       return Date.now() - state.lastFetchTime > 5 * 60 * 1000
@@ -113,14 +112,11 @@ export const usePublicServersStore = defineStore('publicServers', {
 
   actions: {
     async fetchPublicServers(force = false): Promise<void> {
-      // Skip if already loading, but be more aggressive on first load or when forced
       if (this.isLoading) {
         return
       }
 
-      // For first-time loads or empty server lists, always fetch
-      // This ensures new users see servers immediately after profile creation
-      const shouldFetch = force || 
+      const shouldFetch = force ||
                          !this.hasLoaded || 
                          this.servers.length === 0 || 
                          this.isDataStale
@@ -134,9 +130,7 @@ export const usePublicServersStore = defineStore('publicServers', {
 
       try {
         debug.log('🔄 Fetching public servers...')
-        
-        // First, get basic server data without complex joins to avoid hanging
-        // Only show LOCAL servers in the public directory (not federated remote servers)
+
         const { data, error } = await supabase
           .from('servers')
           .select(`
@@ -165,7 +159,6 @@ export const usePublicServersStore = defineStore('publicServers', {
 
         debug.log(`📊 Fetched ${data?.length || 0} servers from database`)
 
-        // If no servers found in database, provide some fallback demo servers for development
         if (!data && this.servers.length === 0) {
           debug.log('⚠️ No servers in database, providing demo servers')
           this.servers = [
@@ -199,10 +192,8 @@ export const usePublicServersStore = defineStore('publicServers', {
             }
           ];
         } else {
-          // Process the data and get member counts using batch query (more efficient)
           const serverList = data || []
-          
-          // Batch fetch member counts for all servers at once (single query instead of N queries)
+
           let memberCounts = new Map<string, number>()
           try {
             const { getServerMemberCounts } = await import('@/services/serverMembershipService')
@@ -210,8 +201,7 @@ export const usePublicServersStore = defineStore('publicServers', {
           } catch (memberError) {
             debug.warn('⚠️ Could not batch get member counts:', memberError)
           }
-          
-          // Process servers with cached member counts
+
           this.servers = serverList.map(server => {
             const memberCount = memberCounts.get(server.id) || 0
 
@@ -252,8 +242,7 @@ export const usePublicServersStore = defineStore('publicServers', {
 
       try {
         debug.log(`🔍 Searching for "${this.searchQuery}"...`)
-        
-        // Use simpler query for search to avoid hanging issues
+
         const { data, error } = await supabase
           .from('servers')
           .select(`
@@ -276,10 +265,9 @@ export const usePublicServersStore = defineStore('publicServers', {
           throw error
         }
 
-        // Process search results with fallback member counts
         this.searchResults = (data || []).map(server => ({
           ...server,
-          member_count: Math.floor(Math.random() * 50) + 1, // Fallback for search
+          member_count: Math.floor(Math.random() * 50) + 1,
           category: this.inferCategory(server.name, server.description),
           is_featured: false,
           last_activity: new Date().toISOString(),
@@ -309,19 +297,16 @@ export const usePublicServersStore = defineStore('publicServers', {
       this.error = null
     },
 
-    // Force refresh servers - useful for new user flows and manual refresh
     async forceRefresh(): Promise<void> {
       this.hasLoaded = false
       this.lastFetchTime = null
       await this.fetchPublicServers(true)
     },
 
-    // Check if we need fresh data (for reactive components)
     needsFreshData(): boolean {
       return !this.hasLoaded || this.servers.length === 0 || this.isDataStale
     },
 
-    // Helper method to infer server category from name/description
     inferCategory(name: string, description?: string): string {
       const text = `${name} ${description || ''}`.toLowerCase()
       
@@ -346,7 +331,6 @@ export const usePublicServersStore = defineStore('publicServers', {
       return 'Other'
     },
 
-    // Reset the store state
     reset(): void {
       this.servers = []
       this.searchResults = []

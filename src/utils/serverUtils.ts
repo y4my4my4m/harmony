@@ -1,6 +1,7 @@
 import { supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
 import { validateImageUpload, humanizeUploadError } from '@/utils/uploadValidation'
+import { canonicalBannerSize, canonicalSquareSize } from '@/utils/imageTransformUtils'
 
 // Constants
 const DEFAULT_SERVER_ICON = '/default_server.webp'
@@ -43,12 +44,13 @@ function isOurSupabaseUrl(url: string): boolean {
  * Transform a Supabase storage path with size optimization
  */
 function transformSupabaseStoragePath(path: string, size: number): string {
+  const renderSize = canonicalSquareSize(size)
   const { data } = supabase.storage
     .from(SERVER_ICONS_BUCKET)
     .getPublicUrl(path, {
       transform: {
-        width: size,
-        height: size,
+        width: renderSize,
+        height: renderSize,
         ...TRANSFORM_OPTIONS,
       },
     })
@@ -152,12 +154,16 @@ function transformServerBannerPath(
   path: string,
   options?: { width?: number; height?: number; quality?: number }
 ): string {
+  const { width, height } = canonicalBannerSize(
+    options?.width || 1280,
+    options?.height || 400,
+  )
   const { data } = supabase.storage
     .from(SERVER_BANNERS_BUCKET)
     .getPublicUrl(path, {
       transform: {
-        width: options?.width || 1280,
-        height: options?.height || 400,
+        width,
+        height,
         resize: 'cover' as const,
         quality: options?.quality || 80,
       },

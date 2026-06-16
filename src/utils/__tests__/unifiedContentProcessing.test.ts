@@ -43,4 +43,11 @@ describe('parseContentToMessageParts URL previews', () => {
     expect(urls[0]).toMatchObject({ url: a })
     expect(urls[1]).toMatchObject({ url: b })
   })
+
+  it('keeps fenced code blocks intact when they contain URLs', async () => {
+    const fenced = '```json\n{"url": "https://example.com"}\n```'
+    const parts = await parseContentToMessageParts(`before ${fenced} after`)
+    expect(parts.filter((p) => p.type === 'url')).toHaveLength(0)
+    expect(parts.some((p) => p.type === 'text' && p.text === fenced)).toBe(true)
+  })
 })

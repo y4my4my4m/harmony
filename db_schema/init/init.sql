@@ -141,6 +141,10 @@
 \i 98_enable_rls.sql
 
 \echo ''
+\echo '>>> 99_performance_hardening.sql - Pinning function search_path + FK indexes...'
+\i 99_performance_hardening.sql
+
+\echo ''
 \echo '>>> 99_cron_jobs.sql - Scheduling recurring jobs (pg_cron)...'
 \i 99_cron_jobs.sql
 

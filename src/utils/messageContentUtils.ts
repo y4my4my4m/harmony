@@ -238,6 +238,51 @@ export function stripLeadingSelfMention(
 }
 
 /**
+ * Merge adjacent text + inline url parts back into single text parts so fenced
+ * code blocks render correctly in view mode. Legacy messages may have had URLs
+ * inside ``` blocks split into separate url parts at parse time; edit mode
+ * already worked because it joins parts before the RichTextEditor sees them.
+ */
+export function coalesceInlineContentForMarkdown(
+  parts: MessagePart[],
+  isMediaUrl: (url: string) => boolean = () => false,
+): MessagePart[] {
+  if (!Array.isArray(parts) || parts.length === 0) return parts;
+
+  const result: MessagePart[] = [];
+  let textBuffer = '';
+
+  const flush = () => {
+    if (textBuffer) {
+      result.push({ type: 'text', text: textBuffer });
+      textBuffer = '';
+    }
+  };
+
+  for (const part of parts) {
+    if (!part || typeof part !== 'object') continue;
+
+    if (part.type === 'text') {
+      textBuffer += part.text || '';
+    } else if (part.type === 'url') {
+      const url = part.url || '';
+      if (isMediaUrl(url)) {
+        flush();
+        result.push(part);
+      } else {
+        textBuffer += url;
+      }
+    } else {
+      flush();
+      result.push(part);
+    }
+  }
+
+  flush();
+  return result;
+}
+
+/**
  * Check if message content contains only a single emoji
  */
 export function isSingleEmojiMessage(parts: MessagePart[]): boolean {

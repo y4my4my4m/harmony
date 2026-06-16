@@ -7,7 +7,7 @@
 -- ---------------------------------------------------------------------------
 -- FOLLOW RELATIONSHIPS - Helper view for debugging
 -- ---------------------------------------------------------------------------
-CREATE OR REPLACE VIEW public.follow_relationships AS
+CREATE OR REPLACE VIEW public.follow_relationships WITH (security_invoker = true) AS
 SELECT 
     f.id,
     f.follower_id,
@@ -34,7 +34,7 @@ Use this view for debugging relationship queries.';
 -- ---------------------------------------------------------------------------
 -- USER BOOKMARKS - Bookmarked posts view
 -- ---------------------------------------------------------------------------
-CREATE OR REPLACE VIEW public.user_bookmarks AS
+CREATE OR REPLACE VIEW public.user_bookmarks WITH (security_invoker = true) AS
 SELECT 
     pi.id AS bookmark_id,
     pi.user_id,
@@ -51,7 +51,7 @@ COMMENT ON VIEW public.user_bookmarks IS 'User bookmarks view that automatically
 -- ---------------------------------------------------------------------------
 -- VISIBLE POSTS - Posts visible based on visibility settings
 -- ---------------------------------------------------------------------------
-CREATE OR REPLACE VIEW public.visible_posts AS
+CREATE OR REPLACE VIEW public.visible_posts WITH (security_invoker = true) AS
 SELECT p.*
 FROM public.posts p
 JOIN public.profiles author ON p.author_id = author.id
@@ -64,7 +64,7 @@ COMMENT ON VIEW public.visible_posts IS 'Public posts from non-suspended users';
 -- ---------------------------------------------------------------------------
 -- ACTIVE THREADS VIEW - Non-archived threads with stats
 -- ---------------------------------------------------------------------------
-CREATE OR REPLACE VIEW public.active_threads_view AS
+CREATE OR REPLACE VIEW public.active_threads_view WITH (security_invoker = true) AS
 SELECT 
     t.*,
     c.name AS channel_name,
@@ -82,7 +82,7 @@ COMMENT ON VIEW public.active_threads_view IS 'Active (non-archived) threads wit
 -- ---------------------------------------------------------------------------
 -- PINNED MESSAGES VIEW - Pinned messages with author info
 -- ---------------------------------------------------------------------------
-CREATE OR REPLACE VIEW public.pinned_messages_view AS
+CREATE OR REPLACE VIEW public.pinned_messages_view WITH (security_invoker = true) AS
 SELECT 
     m.*,
     author.username AS author_username,
@@ -102,7 +102,7 @@ COMMENT ON VIEW public.pinned_messages_view IS 'Pinned messages with author and 
 -- ---------------------------------------------------------------------------
 -- FEDERATION STATS VIEW - Aggregated federation statistics
 -- ---------------------------------------------------------------------------
-CREATE OR REPLACE VIEW public.federation_stats AS
+CREATE OR REPLACE VIEW public.federation_stats WITH (security_invoker = true) AS
 SELECT 
     count(*) AS total_activities,
     count(*) FILTER (WHERE status = 'completed') AS completed_activities,
@@ -123,7 +123,7 @@ COMMENT ON VIEW public.federation_stats IS 'Aggregated federation activity stati
 -- ---------------------------------------------------------------------------
 -- Based on federation_health table (71_views_performance.sql), not federated_instances
 DROP VIEW IF EXISTS public.federation_health_metrics;
-CREATE OR REPLACE VIEW public.federation_health_metrics AS
+CREATE OR REPLACE VIEW public.federation_health_metrics WITH (security_invoker = true) AS
 SELECT 
     fh.id,
     fh.timestamp AS recorded_at,
@@ -152,7 +152,7 @@ GRANT SELECT ON public.federation_health_metrics TO service_role;
 -- ---------------------------------------------------------------------------
 -- INSTANCE HEALTH VIEW - Overall instance health summary
 -- ---------------------------------------------------------------------------
-CREATE OR REPLACE VIEW public.instance_health AS
+CREATE OR REPLACE VIEW public.instance_health WITH (security_invoker = true) AS
 SELECT
     (SELECT count(*) FROM public.profiles WHERE is_local = true) AS local_users,
     (SELECT count(*) FROM public.profiles WHERE is_local = false) AS remote_users,
@@ -169,7 +169,7 @@ COMMENT ON VIEW public.instance_health IS 'Overall instance health summary';
 -- ---------------------------------------------------------------------------
 -- ACTIVE STATUSES VIEW - User custom statuses
 -- ---------------------------------------------------------------------------
-CREATE OR REPLACE VIEW public.active_statuses_view AS
+CREATE OR REPLACE VIEW public.active_statuses_view WITH (security_invoker = true) AS
 SELECT 
     p.id AS user_id,
     p.username,
@@ -189,7 +189,7 @@ COMMENT ON VIEW public.active_statuses_view IS 'Users with active custom statuse
 -- ---------------------------------------------------------------------------
 -- TIMELINE POSTS VIEW - Optimized timeline query base with author JSONB
 -- ---------------------------------------------------------------------------
-CREATE OR REPLACE VIEW public.timeline_posts AS
+CREATE OR REPLACE VIEW public.timeline_posts WITH (security_invoker = true) AS
 SELECT 
     p.id,
     p.content,

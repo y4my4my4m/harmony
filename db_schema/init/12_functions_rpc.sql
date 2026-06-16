@@ -306,6 +306,7 @@ RETURNS TABLE(
     emoji_url character varying,
     custom_emoji_content text,
     reaction_count bigint,
+    current_user_reacted boolean,
     users jsonb
 )
 LANGUAGE plpgsql
@@ -320,6 +321,7 @@ BEGIN
         e.url::varchar as emoji_url,
         r.custom_emoji_content,
         COUNT(r.id)::bigint as reaction_count,
+        bool_or(r.user_id = public.get_current_profile_id()) as current_user_reacted,
         jsonb_agg(
             jsonb_build_object(
                 'user_id', r.user_id,
@@ -335,11 +337,11 @@ BEGIN
 END;
 $$;
 
-COMMENT ON FUNCTION public.get_batch_message_reactions(message_ids uuid[]) IS 'Batch fetch reactions for multiple messages including metadata for bridged users';
+COMMENT ON FUNCTION public.get_batch_message_reactions(message_ids uuid[]) IS 'Batch fetch reactions for multiple messages including current_user_reacted + metadata for bridged users';
 
 -- Get reactions for a single message (singular version)
 CREATE OR REPLACE FUNCTION public.get_message_reactions(message_id uuid) 
-RETURNS TABLE(count bigint, emoji jsonb, reactions jsonb, message_id_of_reactions uuid)
+RETURNS TABLE(count bigint, emoji jsonb, reactions jsonb, current_user_reacted boolean, message_id_of_reactions uuid)
 LANGUAGE plpgsql STABLE
 AS $$
 BEGIN
@@ -384,6 +386,7 @@ BEGIN
                 AND (r2.custom_emoji_content IS NOT DISTINCT FROM r.custom_emoji_content)
             )
         ) as reactions,
+        bool_or(r.user_id = public.get_current_profile_id()) as current_user_reacted,
         r.message_id as message_id_of_reactions
     FROM reactions r
     LEFT JOIN emojis e ON r.emoji_id = e.id

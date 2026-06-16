@@ -1,24 +1,4 @@
-/**
- * FederationDecisionService - Clean federation decision logic
- * 
- * Handles all "should this federate?" decisions with professional logic:
- * - User federation preferences checking
- * - Instance federation settings
- * - Content type federation rules  
- * - Local-first design decisions
- * 
- * INTEGRATION POINTS:
- * - ✅ Reads from your existing federation settings in profiles/instance_config
- * - ✅ Uses your existing is_federation_enabled_for_user() function
- * - ✅ Implements your local-first patterns (chat reactions stay local)
- * - ✅ Clean, testable, and orchestratable logic
- * 
- * NO DIRECT OPERATIONS:
- * - No ap_activities insertions (that's FederationActivityService)
- * - No HTTP delivery (that's your edge functions)  
- * - Pure decision logic only
- */
-
+/** Federation eligibility checks. */
 import { supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
 
@@ -492,5 +472,4 @@ export class FederationDecisionService {
   }
 }
 
-// Export singleton instance
 export const federationDecisionService = FederationDecisionService.getInstance()

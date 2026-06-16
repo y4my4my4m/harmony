@@ -1,8 +1,3 @@
-/**
- * ActivityPub Store - Pinia store for managing federated content and state
- * Professional state management for the Monyverse
- */
-
 import { defineStore } from 'pinia';
 import { supabase } from '@/supabase';
 import { activityPubService } from '@/services/activityPubService';
@@ -14,7 +9,6 @@ import { debug } from '@/utils/debug';
 import { userStorage } from '@/utils/userScopedStorage';
 import { userDataService } from '@/services/userDataService';
 import { fetchedReactionsThisSession } from '@/composables/useRemotePostSync';
-// InteractionService removed - using direct database operations
 import type { 
   Post, 
   TimelinePost, 
@@ -37,7 +31,6 @@ import type {
 let _apInitPromise: Promise<void> | null = null
 let _apInitializedProfileId: string | null = null
 
-// User List type for Mastodon-compatible Lists feature
 export interface UserList {
   id: string;
   created_at: string;
@@ -51,7 +44,6 @@ export interface UserList {
   is_local: boolean;
   federated_id: string | null;
   ap_id: string | null;
-  // Computed/joined fields
   members_count?: number;
 }
 
@@ -60,7 +52,6 @@ export interface UserListMember {
   created_at: string;
   list_id: string;
   account_id: string;
-  // Joined profile data
   account?: {
     id: string;
     username: string;
@@ -72,26 +63,21 @@ export interface UserListMember {
 }
 
 interface ActivityPubState {
-  // Feed state
   homeFeed: MonyFeed;
   publicFeed: MonyFeed;
   localFeed: MonyFeed;
   userFeeds: Map<string, MonyFeed>;
   
-  // Conversation state
   conversations: Map<string, ConversationThread>;
   conversationContexts: Map<string, ConversationContext>;
   
-  // User state
   followedUsers: Set<string>;
   blockedUsers: Set<string>;
   mutedUsers: Set<string>;
   
-  // Count tracking for realtime updates
   followingCount: number;
   followersCount: number;
 
-  // Instance state
   knownInstances: any[];
   blockedInstances: Set<string>;
   instanceDomain: string;
@@ -100,28 +86,23 @@ interface ActivityPubState {
   instanceStatsFetchedAt: number | null;
   federationApiUrl: string;
   
-  // Timeline cache state
   hasEverLoadedTimeline: boolean;
   timelineCacheTimestamp: number | null;
   
-  // Suggested follows cache
   suggestedUsers: any[];
   suggestedUsersFetchedAt: number | null;
   
-  // UI state
   isComposerOpen: boolean;
   composerState: PostComposerState;
   selectedPost?: Post;
   currentView: 'home' | 'public' | 'local';
   
-  // Loading states
   isLoadingFeed: boolean;
   isLoadingPost: boolean;
   isLoadingProfile: boolean;
   isPosting: boolean;
   isLoadingConversation: boolean;
   
-  // Realtime subscriptions
   realtimeSubscriptions: Map<string, any>;
   _broadcastUnsubs: Array<() => void>;
 
@@ -143,34 +124,28 @@ interface ActivityPubState {
   // that window so the second handler call bails immediately.
   _inFlightPostIds: Set<string>;
 
-  // Notification integration
   lastNotificationCheck: Date | null;
   unreadCount: number;
   
-  // Mentions feed state
   mentionsFeed: MonyFeed;
   
-  // Bookmarks state
   bookmarks: TimelinePost[];
   hasMoreBookmarks: boolean;
   bookmarksCursor: string | null;
   
-  // Lists state
   lists: UserList[];
   hasMoreLists: boolean;
   listsCursor: string | null;
   listsLoaded: boolean;
   currentListMembers: Map<string, UserListMember[]>;
   
-  // Cache flags for preventing duplicate queries
   followsLoaded: boolean;
   followCountsLoaded: boolean;
 }
 
 export const useActivityPubStore = defineStore('activitypub', {
   state: (): ActivityPubState => ({
-    // Feed state
-    homeFeed: {
+      homeFeed: {
       posts: [],
       has_more: true,
       cursor: undefined
@@ -187,22 +162,18 @@ export const useActivityPubStore = defineStore('activitypub', {
     },
     userFeeds: new Map(),
     
-    // Conversation state
-    conversations: new Map(),
+      conversations: new Map(),
     conversationContexts: new Map(),
     
-    // User state
-    followedUsers: new Set(),
+      followedUsers: new Set(),
     blockedUsers: new Set(),
     mutedUsers: new Set(),
     
-    // Count tracking
     followingCount: 0,
     followersCount: 0,
 
     
-    // Instance state
-    knownInstances: [],
+      knownInstances: [],
     blockedInstances: new Set(),
     instanceDomain: import.meta.env.VITE_DOMAIN || window.location.hostname,
     instanceUserCount: 0,
@@ -210,16 +181,13 @@ export const useActivityPubStore = defineStore('activitypub', {
     instanceStatsFetchedAt: null,
     federationApiUrl: '/api/federation', // Default, can be overridden from instance_config
     
-    // Timeline cache state
-    hasEverLoadedTimeline: false,
+      hasEverLoadedTimeline: false,
     timelineCacheTimestamp: null,
     
-    // Suggested follows cache
-    suggestedUsers: [],
+      suggestedUsers: [],
     suggestedUsersFetchedAt: null,
     
-    // UI state
-    isComposerOpen: false,
+      isComposerOpen: false,
     composerState: {
       content: '',
       visibility: 'public',
@@ -232,120 +200,83 @@ export const useActivityPubStore = defineStore('activitypub', {
     selectedPost: undefined,
     currentView: 'public',
     
-    // Loading states
-    isLoadingFeed: false,
+      isLoadingFeed: false,
     isLoadingPost: false,
     isLoadingProfile: false,
     isPosting: false,
     isLoadingConversation: false,
     
-    // Realtime subscriptions
-    realtimeSubscriptions: new Map(),
+      realtimeSubscriptions: new Map(),
     _broadcastUnsubs: [] as Array<() => void>,
     _inFlightPostIds: new Set<string>(),
     feedViewActiveCount: 0,
 
-    // Notification integration
-    lastNotificationCheck: null,
+      lastNotificationCheck: null,
     unreadCount: 0,
     
-    // Mentions feed state
-    mentionsFeed: {
+      mentionsFeed: {
       posts: [],
       has_more: true,
       cursor: undefined
     },
     
-    // Bookmarks state
-    bookmarks: [],
+      bookmarks: [],
     hasMoreBookmarks: true,
     bookmarksCursor: null,
     
-    // Lists state
-    lists: [],
+      lists: [],
     hasMoreLists: true,
     listsCursor: null,
     listsLoaded: false,
     currentListMembers: new Map(),
     
-    // Cache flags for preventing duplicate queries
-    followsLoaded: false,
+      followsLoaded: false,
     followCountsLoaded: false,
   }),
 
   getters: {
-    /**
-     * Get formatted following count
-     */
     formattedFollowingCount(): string {
       return this.followingCount > 999 ? `${(this.followingCount / 1000).toFixed(1)}K` : this.followingCount.toString();
     },
 
-    /**
-     * Get formatted followers count
-     */
     formattedFollowersCount(): string {
       return this.followersCount > 999 ? `${(this.followersCount / 1000).toFixed(1)}K` : this.followersCount.toString();
     },
 
-    /**
-     * Check if instance stats cache is still valid (5 minutes)
-     */
     isInstanceStatsCacheValid(): boolean {
       if (!this.instanceStatsFetchedAt) return false;
       const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
       return Date.now() - this.instanceStatsFetchedAt < CACHE_DURATION;
     },
 
-    /**
-     * Check if suggested users cache is still valid (10 minutes)
-     */
     isSuggestedUsersCacheValid(): boolean {
       if (!this.suggestedUsersFetchedAt) return false;
       const CACHE_DURATION = 10 * 60 * 1000; // 10 minutes
       return Date.now() - this.suggestedUsersFetchedAt < CACHE_DURATION;
     },
 
-    /**
-     * Get suggested users filtered by followed status
-     */
     filteredSuggestedUsers(): any[] {
       return this.suggestedUsers.filter(user => !this.followedUsers.has(user.id));
     },
 
-    /**
-     * Check if user is following another user
-     */
     isFollowing: (state) => (userId: string) => {
       return state.followedUsers.has(userId);
     },
 
-    /**
-     * Check if user is blocked
-     */
     isBlocked: (state) => (userId: string) => {
       return state.blockedUsers.has(userId);
     },
 
-    /**
-     * Check if user is muted
-     */
     isMuted: (state) => (userId: string) => {
       return state.mutedUsers.has(userId);
     },
 
-    /**
-     * Get current user's federated stats
-     */
     currentUserStats: (state) => ({
       following: state.followingCount,
       followers: state.followersCount,
       posts: state.homeFeed.posts.filter(p => p.author_id === state.followedUsers.values().next().value).length
     }),
 
-    /**
-     * Get timeline posts by feed type
-     */
     getTimelinePosts: (state) => (timeline: 'home' | 'public' | 'local') => {
       switch (timeline) {
         case 'home': return state.homeFeed.posts;
@@ -451,7 +382,6 @@ export const useActivityPubStore = defineStore('activitypub', {
      * Fetch instance stats (user count, post count) and config with caching
      */
     async fetchInstanceStats(force = false) {
-      // Skip if cache is valid and not forcing
       if (this.isInstanceStatsCacheValid && !force) {
         debug.log('📊 Instance stats: using cached values');
         return;
@@ -479,10 +409,8 @@ export const useActivityPubStore = defineStore('activitypub', {
         this.instanceUserCount = usersResult.count || 0;
         this.instancePostCount = postsResult.count || 0;
         
-        // Parse instance config
         if (configResult.data) {
           for (const config of configResult.data) {
-            // Helper to safely parse config values (may be string JSON or already parsed object)
             const parseValue = (val: any) => {
               if (typeof val === 'string') {
                 try {
@@ -504,7 +432,6 @@ export const useActivityPubStore = defineStore('activitypub', {
             }
             if (config.config_key === 'federation_settings') {
               const settings = parseValue(config.config_value);
-              // Allow federation_backend_url to be in federation_settings too
               if (settings?.federation_backend_url) {
                 this.federationApiUrl = settings.federation_backend_url;
               }
@@ -529,7 +456,6 @@ export const useActivityPubStore = defineStore('activitypub', {
      * Fetch suggested users with caching (filters out already-followed users)
      */
     async fetchSuggestedUsers(force = false) {
-      // Skip if cache is valid and not forcing
       if (this.isSuggestedUsersCacheValid && !force) {
         debug.log('👥 Suggested users: using cached values');
         return this.filteredSuggestedUsers;
@@ -592,10 +518,8 @@ export const useActivityPubStore = defineStore('activitypub', {
       try {
         const postsToCache = this.homeFeed.posts.slice(0, 30); // Only cache first 30 posts
         
-        // Strip heavy data to reduce storage size
         const lightPosts = postsToCache.map(post => ({
           ...post,
-          // Remove any embedded blobs or heavy content
           author: post.author ? {
             id: post.author.id,
             username: post.author.username,
@@ -638,10 +562,8 @@ export const useActivityPubStore = defineStore('activitypub', {
      * truth that `auth.logout()` can call without unsafe casts.
      */
     resetUserRelationshipState() {
-      // Allow initialize() to run again for the next user/session.
       _apInitPromise = null;
       _apInitializedProfileId = null;
-      // Relationship sets + cache flags
       this.followedUsers.clear();
       this.blockedUsers.clear();
       this.mutedUsers.clear();
@@ -651,7 +573,6 @@ export const useActivityPubStore = defineStore('activitypub', {
       this.followingCount = 0;
       this.followersCount = 0;
 
-      // Feeds
       const resetFeed = (feed: typeof this.homeFeed) => {
         feed.posts = [];
         feed.has_more = true;
@@ -663,23 +584,19 @@ export const useActivityPubStore = defineStore('activitypub', {
       resetFeed(this.mentionsFeed);
       this.userFeeds.clear();
 
-      // Bookmarks (note: `bookmarks` is `TimelinePost[]`, not `{ posts: [] }`)
       this.bookmarks = [];
       this.hasMoreBookmarks = true;
       this.bookmarksCursor = null;
 
-      // Lists
       this.lists = [];
       this.hasMoreLists = true;
       this.listsCursor = null;
       this.listsLoaded = false;
       this.currentListMembers.clear();
 
-      // DM / conversations
       this.conversations.clear();
       this.conversationContexts.clear();
 
-      // Notification / discovery caches
       this.unreadCount = 0;
       this.lastNotificationCheck = null;
       this.suggestedUsers = [];
@@ -897,9 +814,6 @@ export const useActivityPubStore = defineStore('activitypub', {
 
 
 
-    /**
-     * Handle realtime post creation
-     */
     async handleRealtimePostCreate(post: any) {
       debug.log('📝 New post received via realtime:', post);
       debug.log('📝 Realtime post details:', {
@@ -928,7 +842,6 @@ export const useActivityPubStore = defineStore('activitypub', {
       this._inFlightPostIds.add(post.id);
 
       try {
-        // Check if post already exists in any feed to prevent duplicates
         const existsInPublic = this.publicFeed.posts.some(p => p.id === post.id);
         const existsInLocal = this.localFeed.posts.some(p => p.id === post.id);
         const existsInHome = this.homeFeed.posts.some(p => p.id === post.id);
@@ -938,7 +851,6 @@ export const useActivityPubStore = defineStore('activitypub', {
           return;
         }
 
-        // Realtime data NEVER has author joins, always fetch complete data
         debug.log('🔄 Fetching complete post data with author information...');
         const completePost = await activityPubService.loadPostWithAuthor(post.id);
         
@@ -956,24 +868,20 @@ export const useActivityPubStore = defineStore('activitypub', {
           visibility: completePost.visibility
         });
         
-        // Get current user ID for home feed logic
         const { userDataService } = await import('@/services/userDataService');
         const currentUser = userDataService.getCurrentUser();
         const isOwnPost = currentUser?.id === completePost.author_id;
         let addedToFeed = false;
 
-        // Add to public feed if public
         if (completePost.visibility === 'public') {
           this.publicFeed.posts.unshift(completePost);
           addedToFeed = true;
           debug.log('✅ Added post to public feed:', completePost.id);
-          // Limit feed size
           if (this.publicFeed.posts.length > 100) {
             this.publicFeed.posts = this.publicFeed.posts.slice(0, 100);
           }
         }
 
-        // Add to local feed if local
         if (completePost.is_local && completePost.visibility === 'public') {
           this.localFeed.posts.unshift(completePost);
           addedToFeed = true;
@@ -983,9 +891,6 @@ export const useActivityPubStore = defineStore('activitypub', {
           }
         }
 
-        // Add to home feed if:
-        // 1. Following the author, OR
-        // 2. It's the current user's own post (so they see their own posts in home)
         const shouldAddToHome = isOwnPost || this.followedUsers.has(completePost.author_id);
         debug.log('📝 Home feed check:', {
           isOwnPost,
@@ -996,7 +901,6 @@ export const useActivityPubStore = defineStore('activitypub', {
         if (shouldAddToHome) {
           this.homeFeed.posts.unshift(completePost);
           addedToFeed = true;
-          // Only increment unread for posts from others
           if (!isOwnPost) {
             this.unreadCount++;
           }
@@ -1006,7 +910,6 @@ export const useActivityPubStore = defineStore('activitypub', {
           }
         }
 
-        // Play sound when a new post from someone else is displayed via realtime
         if (addedToFeed && !isOwnPost) {
           this.playNewPostSound();
         }
@@ -1028,13 +931,9 @@ export const useActivityPubStore = defineStore('activitypub', {
       }
     },
 
-    /**
-     * Handle realtime post updates (ignore count-only updates to prevent loops)
-     */
     handleRealtimePostUpdate(post: any) {
       debug.log('📝 Post updated:', post);
 
-      // Check for soft delete (is_deleted = true) - remove from feeds
       if (post.is_deleted) {
         debug.log('🗑️ Post soft-deleted, removing from feeds:', post.id);
         this.removePostFromAllFeeds(post.id);
@@ -1073,9 +972,6 @@ export const useActivityPubStore = defineStore('activitypub', {
       this.updatePostInAllFeeds(post);
     },
 
-    /**
-     * Handle realtime post deletion
-     */
     handleRealtimePostDelete(post: any) {
       debug.log('🗑️ Post deleted:', post);
 
@@ -1106,42 +1002,30 @@ export const useActivityPubStore = defineStore('activitypub', {
       }
     },
 
-    /**
-     * Handle realtime follow creation
-     */
     async handleRealtimeFollowCreate(follow: any) {
       debug.log('👥 New follow relationship:', follow);
       
-      // Get current user PROFILE ID
       const { userDataService } = await import('@/services/userDataService');
       const currentUser = userDataService.getCurrentUser();
       if (!currentUser?.id) return;
 
-      // Update counts based on relationship
       if (follow.follower_id === currentUser.id) {
-        // Current user started following someone
         this.followingCount++;
         this.followedUsers.add(follow.following_id);
       } else if (follow.following_id === currentUser.id) {
-        // Someone started following current user
         this.followersCount++;
-        // Note: Notification is now created by DB trigger (handle_unified_notification_processing)
+        // Notification created by DB trigger (handle_unified_notification_processing).
         // with complete follower profile data - no need for client-side notification creation
       }
     },
 
-    /**
-     * Handle realtime follow updates (status changes)
-     */
     async handleRealtimeFollowUpdate(follow: any) {
       debug.log('👥 Follow relationship updated:', follow);
       
-      // Get current user PROFILE ID
       const { userDataService } = await import('@/services/userDataService');
       const currentUser = userDataService.getCurrentUser();
       if (!currentUser?.id) return;
 
-      // Handle status changes (accepted/rejected)
       if (follow.status === 'accepted') {
         if (follow.follower_id === currentUser.id) {
           this.followedUsers.add(follow.following_id);
@@ -1153,37 +1037,26 @@ export const useActivityPubStore = defineStore('activitypub', {
       }
     },
 
-    /**
-     * Handle realtime follow deletion
-     */
     async handleRealtimeFollowDelete(follow: any) {
       debug.log('👥 Follow relationship deleted:', follow);
       
-      // Get current user PROFILE ID
       const { userDataService } = await import('@/services/userDataService');
       const currentUser = userDataService.getCurrentUser();
       if (!currentUser?.id) return;
 
-      // Update counts based on relationship
       if (follow.follower_id === currentUser.id) {
-        // Current user unfollowed someone
         this.followingCount--;
         this.followedUsers.delete(follow.following_id);
       } else if (follow.following_id === currentUser.id) {
-        // Someone unfollowed current user
         this.followersCount--;
       }
     },
 
-    /**
-     * Handle realtime interaction changes - clean and direct
-     */
     handleRealtimeInteractionChange(payload: any) {
       debug.log('💫💫💫 REALTIME INTERACTION TRIGGER 💫💫💫');
       debug.log('💫 Raw payload:', payload);
       debug.log('💫 DETAILED Interaction payload:', JSON.stringify(payload, null, 2));
       
-      // Also log current user info for debugging
       supabase.auth.getUser().then(user => {
         debug.log('💫 Current user receiving realtime event:', user.data.user?.id);
       });
@@ -1194,27 +1067,20 @@ export const useActivityPubStore = defineStore('activitypub', {
         return;
       }
 
-      // Check event type first
       debug.log('💫 Event type check:', payload.event, 'interaction data:', interaction);
       
-      // For DELETE events, handle with available data
       if (payload.event === 'DELETE') {
         debug.log('💫 DELETE event detected - processing reaction removal');
         
-        // payload.old should contain the deleted row data
         const deletedInteraction = payload.old;
         if (deletedInteraction?.post_id) {
-          // Trigger a refresh of the post reactions from the server
-          // This ensures the UI is updated with the correct state
           debug.log('💫 Refreshing reactions for post:', deletedInteraction.post_id);
           
-          // Import and use the post reactions store to refresh
           import('@/stores/postReactions').then(({ usePostReactionsStore }) => {
             const postReactionsStore = usePostReactionsStore();
             postReactionsStore.handleRealtimeUpdate(payload);
           });
           
-          // Also update counts if we have interaction type
           if (deletedInteraction.interaction_type && deletedInteraction.user_id) {
             this.updatePostInteractionFromRealtime(
               deletedInteraction.post_id,
@@ -1227,7 +1093,6 @@ export const useActivityPubStore = defineStore('activitypub', {
         return;
       }
 
-      // Validate required fields (for INSERT/UPDATE events)
       if (!interaction.post_id) {
         debug.error('❌ Missing post_id in interaction:', interaction);
         return;
@@ -1245,7 +1110,6 @@ export const useActivityPubStore = defineStore('activitypub', {
 
       const eventType = payload.event || payload.eventType;
       
-      // Handle emoji_reaction type specially - trigger postReactions store update
       if (interaction.interaction_type === 'emoji_reaction') {
         import('@/stores/postReactions').then(({ usePostReactionsStore }) => {
           const postReactionsStore = usePostReactionsStore();
@@ -1253,7 +1117,6 @@ export const useActivityPubStore = defineStore('activitypub', {
         });
       }
       
-      // Update both counts AND interaction state based on realtime events
       this.updatePostInteractionFromRealtime(
         interaction.post_id,
         interaction.interaction_type,
@@ -1262,9 +1125,7 @@ export const useActivityPubStore = defineStore('activitypub', {
       );
     },
 
-    // Note: createFollowNotification was removed - notifications are now created
-    // by the database trigger (handle_unified_notification_processing) with
-    // complete follower profile data to avoid duplicate notifications
+    // createFollowNotification removed — DB trigger (handle_unified_notification_processing) handles it.
 
     /**
      * Collect every Post object reference for `postId` that's currently
@@ -1337,7 +1198,6 @@ export const useActivityPubStore = defineStore('activitypub', {
       }
       debug.log(`📊 Updated post ${postId} counts across ${refs.length} feed entries (${interactionType} ${eventType})`);
 
-      // Update timeline cache in background
       this.updateTimelineCache();
     },
 
@@ -1345,7 +1205,6 @@ export const useActivityPubStore = defineStore('activitypub', {
      * Update post interaction from realtime - handles both counts and user state (now with server sync)
      */
     async updatePostInteractionFromRealtime(postId: string, interactionType: string, eventType: string, userId: string) {
-      // Early validation to prevent undefined errors
       if (!postId || postId === 'undefined') {
         debug.error('❌ Invalid postId in realtime update:', postId);
         return;
@@ -1369,7 +1228,6 @@ export const useActivityPubStore = defineStore('activitypub', {
         return;
       }
 
-      // Use cached auth context
       const context = await authContextService.getCurrentContext();
       const isCurrentUser = context.isAuthenticated && context.authUser?.id === userId;
 
@@ -1471,11 +1329,9 @@ export const useActivityPubStore = defineStore('activitypub', {
         }
       });
       
-      // Update in user feeds
       this.userFeeds.forEach(feed => {
         const index = feed.posts.findIndex(p => p.id === post.id);
         if (index !== -1) {
-          // Same merge logic for user feeds
           const existingPost = feed.posts[index];
           feed.posts[index] = {
             ...existingPost,
@@ -1513,7 +1369,6 @@ export const useActivityPubStore = defineStore('activitypub', {
         }
       });
       
-      // Update in user feeds
       this.userFeeds.forEach(feed => {
         const post = feed.posts.find(p => p.id === postId);
         if (post) {
@@ -1549,7 +1404,6 @@ export const useActivityPubStore = defineStore('activitypub', {
         feed.posts = feed.posts.filter(p => p.id !== postId);
       });
       
-      // Remove from user feeds (properly update the map)
       this.userFeeds.forEach((feed, key) => {
         this.userFeeds.set(key, {
           ...feed,
@@ -1601,22 +1455,18 @@ export const useActivityPubStore = defineStore('activitypub', {
      */
     async batchFetchReblogInteractions(posts: TimelinePost[]) {
       try {
-        // Get current user's profile ID
         const profileId = await authContextService.getCurrentProfileId();
         if (!profileId) return posts;
 
-        // Find all posts that are reblogs and have original post data
         const reblogOriginalIds = posts
           .filter(p => p.reblog?.id)
           .map(p => p.reblog!.id);
 
         if (reblogOriginalIds.length === 0) return posts;
 
-        // Remove duplicates
         const uniqueIds = [...new Set(reblogOriginalIds)];
         debug.log(`🔄 Batch loading interactions for ${uniqueIds.length} reblog original posts`);
 
-        // Batch fetch interactions for all original posts
         const { data: interactions, error } = await supabase
           .from('post_interactions')
           .select('post_id, interaction_type')
@@ -1629,7 +1479,6 @@ export const useActivityPubStore = defineStore('activitypub', {
           return posts;
         }
 
-        // Create a map of post_id -> interaction types
         const interactionMap = new Map<string, Set<string>>();
         (interactions || []).forEach(i => {
           if (!interactionMap.has(i.post_id)) {
@@ -1638,7 +1487,6 @@ export const useActivityPubStore = defineStore('activitypub', {
           interactionMap.get(i.post_id)!.add(i.interaction_type);
         });
 
-        // Attach interactions to reblog.is_favorited, etc.
         return posts.map(post => {
           if (post.reblog?.id) {
             const postInteractions = interactionMap.get(post.reblog.id) || new Set();
@@ -1678,7 +1526,6 @@ export const useActivityPubStore = defineStore('activitypub', {
       });
       if (remotePosts.length === 0) return;
 
-      // Map from target ap_id back to timeline post for result lookup
       const apIdToPost = new Map<string, TimelinePost>();
 
       // Optimistic dedup: mark IDs as in-flight BEFORE the HTTP fires so
@@ -1944,25 +1791,19 @@ export const useActivityPubStore = defineStore('activitypub', {
     }) {
       this.isPosting = true;
       try {
-        // Use postData if provided, otherwise use composer state
         const content = postData?.content || this.composerState.content;
         const visibility = postData?.visibility || this.composerState.visibility;
         const contentWarning = postData?.content_warning || postData?.contentWarning || this.composerState.contentWarning;
         const replyTo = postData?.in_reply_to || postData?.replyTo || this.composerState.replyTo;
-        // Handle both snake_case and camelCase media attachments
         const mediaAttachments = postData?.media_attachments || postData?.mediaAttachments || [];
         const sensitive = postData?.is_sensitive ?? postData?.sensitive ?? this.composerState.sensitive;
 
-        // Upload media attachments if any
         const mediaUrls = await this.uploadMediaAttachments(mediaAttachments);
 
-        // Handle content format - content should already be MessagePart[] from component
         let finalContent: MessagePart[];
         if (Array.isArray(content)) {
-          // Content is already parsed MessagePart[] from component
           finalContent = content;
         } else if (typeof content === 'string') {
-          // Fallback: parse string content (legacy support)
           finalContent = await this.formatPostContent(content);
         } else {
           throw new Error('Invalid content format - must be MessagePart[] or string');
@@ -1982,7 +1823,6 @@ export const useActivityPubStore = defineStore('activitypub', {
           language: 'en'
         });
 
-        // Close composer
         this.closeComposer();
 
         // Don't add to feeds manually - let realtime handle it to avoid duplicates
@@ -2046,17 +1886,14 @@ export const useActivityPubStore = defineStore('activitypub', {
      * Convert MediaAttachment with blob URL to File
      */
     async convertMediaAttachmentToFile(attachment: any): Promise<File> {
-      // If it's already a File, return it
       if (attachment instanceof File) {
         return attachment;
       }
 
-      // If it has a stored File reference, use it directly (most reliable)
       if (attachment.file instanceof File) {
         return attachment.file;
       }
 
-      // Fallback: if it has a blob URL, fetch and convert to File
       if (attachment.url && attachment.url.startsWith('blob:')) {
         const response = await fetch(attachment.url);
         const blob = await response.blob();
@@ -2092,7 +1929,6 @@ export const useActivityPubStore = defineStore('activitypub', {
       const authUserId = ctx.authUser.id;
 
       const uploadPromises = attachments.map(async (attachment) => {
-        // Convert to File if needed
         const file = await this.convertMediaAttachmentToFile(attachment);
         
         const fileExt = file.name.split('.').pop() || 'bin';
@@ -2112,7 +1948,6 @@ export const useActivityPubStore = defineStore('activitypub', {
             if (error.message?.includes('row-level security') || error.message?.includes('Unauthorized')) {
               throw new Error('Media upload failed: storage permission denied. Please try again or contact your instance admin.');
             }
-            // Provide more helpful error messages
             if (error.message?.includes('413') || error.message?.includes('too large')) {
               throw new Error(`File "${file.name}" is too large. Maximum file size is 50MB.`);
             }
@@ -2138,7 +1973,6 @@ export const useActivityPubStore = defineStore('activitypub', {
 
       const uploadedMedia = await Promise.all(uploadPromises);
       
-      // Get public URLs for uploaded media
       const mediaWithPublicUrls = uploadedMedia.map(media => {
         const { data: { publicUrl } } = supabase.storage
           .from('user_media')
@@ -2157,10 +1991,8 @@ export const useActivityPubStore = defineStore('activitypub', {
      * Format post content for storage with mention detection and unified format
      */
     async formatPostContent(content: string): Promise<MessagePart[]> {
-      // Use the centralized unified content processing utility
       const { parseContentToMessageParts, resolveMentionsUserData, resolveEmojisData, resolveHashtagsData } = await import('@/utils/unifiedContentProcessing');
       
-      // Efficiently resolve all mention, emoji, and hashtag data in batch
       const [usernameToUserDataMap, emojiDataMap, hashtagDataMap] = await Promise.all([
         resolveMentionsUserData(content),
         resolveEmojisData(content),
@@ -2177,7 +2009,6 @@ export const useActivityPubStore = defineStore('activitypub', {
       try {
         debug.log('🔄 Loading post via PostService:', postId);
         
-        // Use services.posts for consistent loading with service layer
         const post = await services.posts.loadPost(postId);
         
         debug.log('✅ Post loaded via service layer:', post ? 'found' : 'not found');
@@ -2208,7 +2039,6 @@ export const useActivityPubStore = defineStore('activitypub', {
             post.is_reblogged = isActive;
             post.reblogs_count += isActive ? 1 : -1;
           } else if (type === 'bookmark') {
-            // Bookmark state would be tracked separately if needed
             debug.log(`Bookmark ${isActive ? 'added' : 'removed'} for post ${postId}`);
           }
         }
@@ -2283,7 +2113,6 @@ export const useActivityPubStore = defineStore('activitypub', {
       try {
         debug.log('🔇 Muting user:', userId, options);
         
-        // Use InteractionService for the database operation
         const result = await services.interactions.toggleMute(userId);
         
         if (result.muting) {
@@ -2308,7 +2137,6 @@ export const useActivityPubStore = defineStore('activitypub', {
       try {
         debug.log('🔊 Unmuting user:', userId);
         
-        // Use InteractionService for the database operation
         const result = await services.interactions.toggleMute(userId);
         
         if (!result.muting) {
@@ -2333,7 +2161,6 @@ export const useActivityPubStore = defineStore('activitypub', {
       try {
         debug.log('🚫 Blocking user:', userId, options);
         
-        // Use InteractionService for the database operation
         const result = await services.interactions.toggleBlock(userId);
         
         if (result.blocking) {
@@ -2368,7 +2195,6 @@ export const useActivityPubStore = defineStore('activitypub', {
       try {
         debug.log('🔓 Unblocking user:', userId);
         
-        // Use InteractionService for the database operation  
         const result = await services.interactions.toggleBlock(userId);
         
         if (!result.blocking) {
@@ -2393,12 +2219,10 @@ export const useActivityPubStore = defineStore('activitypub', {
       debug.log(`🔍 DEBUG: toggleFavorite called for post ${postId}`);
       
       try {
-        // Use cached auth context
         const authUser = await authContextService.getCurrentAuthUser();
 
         debug.log(`🔍 DEBUG: User authenticated: ${authUser.id}`);
 
-        // Check current state first
         const { data: existing, error: existingError } = await supabase
           .from('post_interactions')
           .select('id')
@@ -2414,25 +2238,19 @@ export const useActivityPubStore = defineStore('activitypub', {
         const isFavorited = !!existing;
         debug.log(`🔍 DEBUG: Current favorite state: ${isFavorited} (existing: ${JSON.stringify(existing)})`);
 
-        // Step 1: Handle local database state FIRST
         if (existing) {
-          // Remove favorite
           debug.log(`🔍 DEBUG: Removing favorite with id: ${existing.id}`);
           await activityPubService.unfavoritePost(postId);
         } else {
-          // Add favorite
           debug.log(`🔍 DEBUG: Adding new favorite`);
           await activityPubService.favoritePost(postId);
         }
 
-        // Step 2: Immediate UI feedback (state only, no count changes)
         const newFavoriteState = !isFavorited;
         this.updatePostInteractionInAllFeeds(postId, 'favorite', newFavoriteState);
 
-        // Step 3: Get the updated post state from server (with correct counts)
         debug.log(`🔄 Refreshing post data after ${newFavoriteState ? 'favoriting' : 'unfavoriting'}`);
         
-        // Get fresh counts from the posts table (more reliable than timeline RPC)
         const { data: postCounts, error: countsError } = await supabase
           .from('posts')
           .select('favorites_count, reblogs_count, replies_count')
@@ -2449,15 +2267,10 @@ export const useActivityPubStore = defineStore('activitypub', {
             after_action: newFavoriteState
           });
           
-          // Update UI with correct server state - only update counts, keep user state consistent
           this.updatePostCountsFromServer(postId, postCounts, newFavoriteState);
         } else {
           debug.error('❌ Failed to get server counts:', countsError);
-          // State is already updated from step 2, no need for fallback
         }
-        
-        // Step 4: Federation is handled automatically by database triggers
-        // No need for manual federation calls
 
         debug.log(`✅ Toggled favorite for post ${postId}: ${isFavorited} -> ${newFavoriteState} (synced with server state)`);
 
@@ -2504,7 +2317,6 @@ export const useActivityPubStore = defineStore('activitypub', {
       feeds.forEach(feed => {
         const post = feed.posts.find(p => p.id === postId);
         if (post) {
-          // Update with server-accurate values
           post.is_favorited = serverPost.is_favorited;
           post.is_reblogged = serverPost.is_reblogged;
           post.is_bookmarked = serverPost.is_bookmarked;
@@ -2531,11 +2343,10 @@ export const useActivityPubStore = defineStore('activitypub', {
       feeds.forEach(feed => {
         const post = feed.posts.find(p => p.id === postId);
         if (post) {
-          // Update with server-accurate counts but keep user state
           post.favorites_count = serverCounts.favorites_count;
           post.reblogs_count = serverCounts.reblogs_count;
           post.replies_count = serverCounts.replies_count;
-          post.is_favorited = userFavoriteState; // User state from our action
+          post.is_favorited = userFavoriteState;
           
           debug.log(`🔄 Updated post ${postId} counts from server:`, {
             favorites_count: post.favorites_count,
@@ -2545,7 +2356,6 @@ export const useActivityPubStore = defineStore('activitypub', {
         }
       });
 
-      // Update in user feeds too
       this.userFeeds.forEach(feed => {
         const post = feed.posts.find(p => p.id === postId);
         if (post) {
@@ -2571,7 +2381,6 @@ export const useActivityPubStore = defineStore('activitypub', {
         }
       });
 
-      // Update in user feeds too
       this.userFeeds.forEach(feed => {
         const post = feed.posts.find(p => p.id === postId);
         if (post) {
@@ -2605,7 +2414,6 @@ export const useActivityPubStore = defineStore('activitypub', {
      */
     async toggleBookmark(postId: string) {
       try {
-        // Use the service which properly uses AuthContextService and profile_id
         const result = await activityPubService.toggleBookmark(postId);
         debug.log(`📍 Toggled bookmark for post ${postId}: -> ${result.bookmarked} (realtime will update UI)`);
       } catch (error) {
@@ -2626,7 +2434,6 @@ export const useActivityPubStore = defineStore('activitypub', {
         const profileId = currentUser.id;
         const limit = options.limit || 20;
         
-        // First, get bookmark interactions
         let query = supabase
           .from('post_interactions')
           .select(`
@@ -2651,7 +2458,6 @@ export const useActivityPubStore = defineStore('activitypub', {
 
         const postIds = bookmarkData.map(item => item.post_id);
 
-        // Fetch posts, filtering out deleted ones
         const { data: postsData, error: postsError } = await supabase
           .from('posts')
           .select(`
@@ -2664,7 +2470,6 @@ export const useActivityPubStore = defineStore('activitypub', {
 
         if (postsError) throw postsError;
 
-        // Fetch user's interactions with these posts
         const { data: userInteractions, error: interactionsError } = await supabase
           .from('post_interactions')
           .select('post_id, interaction_type')
@@ -2676,7 +2481,6 @@ export const useActivityPubStore = defineStore('activitypub', {
           debug.error('Failed to fetch user interactions:', interactionsError);
         }
 
-        // Create a map of interactions per post
         const interactionMap = new Map<string, Set<string>>();
         (userInteractions || []).forEach(interaction => {
           if (!interactionMap.has(interaction.post_id)) {
@@ -2685,26 +2489,23 @@ export const useActivityPubStore = defineStore('activitypub', {
           interactionMap.get(interaction.post_id)!.add(interaction.interaction_type);
         });
 
-        // Map posts to maintain bookmark order and add interaction states
         const postsMap = new Map((postsData || []).map(p => [p.id, p]));
         const orderedPosts = bookmarkData
           .map(item => {
             const post = postsMap.get(item.post_id);
             if (!post) return null;
             
-            // Add interaction states
             const interactions = interactionMap.get(post.id) || new Set();
             return {
               ...post,
               is_favorited: interactions.has('favorite') || interactions.has('emoji_reaction'),
               is_reblogged: interactions.has('reblog'),
-              is_bookmarked: interactions.has('bookmark') // Should always be true for bookmarks
+              is_bookmarked: interactions.has('bookmark')
             };
           })
           .filter(Boolean)
           .slice(0, limit);
         
-        // Find the cursor from the last included bookmark
         const lastIncludedIndex = bookmarkData.findIndex(
           item => item.post_id === orderedPosts[orderedPosts.length - 1]?.id
         );
@@ -2775,7 +2576,6 @@ export const useActivityPubStore = defineStore('activitypub', {
 
         if (error) throw error;
         
-        // Clear local bookmarks state
         this.bookmarks = [];
         this.hasMoreBookmarks = true;
         this.bookmarksCursor = null;
@@ -2793,7 +2593,6 @@ export const useActivityPubStore = defineStore('activitypub', {
      * Load all user lists
      */
     async loadLists(force = false) {
-      // Skip if already loaded unless forced
       if (this.listsLoaded && !force) {
         debug.log('📋 Lists already loaded, skipping');
         return;
@@ -2813,13 +2612,12 @@ export const useActivityPubStore = defineStore('activitypub', {
 
         if (error) throw error;
 
-        // Transform to add members_count
         this.lists = (data || []).map(list => ({
           ...list,
           members_count: list.members?.[0]?.count || 0
         }));
         this.listsLoaded = true;
-        this.hasMoreLists = false; // Lists don't typically paginate
+        this.hasMoreLists = false;
 
         debug.log(`📋 Loaded ${this.lists.length} lists`);
       } catch (error) {
@@ -2865,7 +2663,6 @@ export const useActivityPubStore = defineStore('activitypub', {
 
         if (error) throw error;
 
-        // Add to local state
         const listWithCount: UserList = { ...newList, members_count: 0 };
         this.lists.unshift(listWithCount);
 
@@ -2903,14 +2700,12 @@ export const useActivityPubStore = defineStore('activitypub', {
 
         if (error) throw error;
 
-        // Update local state
         const index = this.lists.findIndex(l => l.id === listId);
         if (index !== -1) {
           this.lists[index] = { ...this.lists[index], ...updatedList };
         }
 
         debug.log('✅ List updated:', updatedList.title);
-        // Return the updated list from local state if found, otherwise return server response
         return index !== -1 ? this.lists[index] : updatedList;
       } catch (error) {
         debug.error('Failed to update list:', error);
@@ -2933,7 +2728,6 @@ export const useActivityPubStore = defineStore('activitypub', {
 
         if (error) throw error;
 
-        // Remove from local state
         this.lists = this.lists.filter(l => l.id !== listId);
         this.currentListMembers.delete(listId);
 
@@ -2948,7 +2742,6 @@ export const useActivityPubStore = defineStore('activitypub', {
      * Get list by ID
      */
     async getList(listId: string): Promise<UserList | null> {
-      // Check local cache first
       const cached = this.lists.find(l => l.id === listId);
       if (cached) return cached;
 
@@ -3029,12 +2822,10 @@ export const useActivityPubStore = defineStore('activitypub', {
 
         if (error) throw error;
 
-        // Update local state
         const members = this.currentListMembers.get(listId) || [];
         members.unshift(data);
         this.currentListMembers.set(listId, members);
 
-        // Update members count
         const list = this.lists.find(l => l.id === listId);
         if (list) {
           list.members_count = (list.members_count || 0) + 1;
@@ -3061,14 +2852,12 @@ export const useActivityPubStore = defineStore('activitypub', {
 
         if (error) throw error;
 
-        // Update local state
         const members = this.currentListMembers.get(listId) || [];
         this.currentListMembers.set(
           listId,
           members.filter(m => m.account_id !== accountId)
         );
 
-        // Update members count
         const list = this.lists.find(l => l.id === listId);
         if (list && list.members_count) {
           list.members_count--;
@@ -3088,7 +2877,6 @@ export const useActivityPubStore = defineStore('activitypub', {
       try {
         const limit = options.limit || 20;
 
-        // First get list members
         let members = this.currentListMembers.get(listId);
         if (!members) {
           members = await this.loadListMembers(listId);
@@ -3100,7 +2888,6 @@ export const useActivityPubStore = defineStore('activitypub', {
 
         const memberIds = members.map(m => m.account_id);
 
-        // Query posts from list members
         let query = supabase
           .from('posts')
           .select(`
@@ -3140,7 +2927,6 @@ export const useActivityPubStore = defineStore('activitypub', {
 
         const profileId = currentUser.id;
 
-        // Check if we already have a reblog interaction for this post
         const { data: existingInteraction, error: interactionError } = await supabase
           .from('post_interactions')
           .select('id')
@@ -3156,7 +2942,6 @@ export const useActivityPubStore = defineStore('activitypub', {
         const isReblogged = !!existingInteraction;
 
         if (existingInteraction) {
-          // Remove reblog interaction and reblog post
           const { data: reblogPost } = await supabase
             .from('posts')
             .select('id')
@@ -3170,13 +2955,11 @@ export const useActivityPubStore = defineStore('activitypub', {
             this.removePostFromAllFeeds(reblogPost.id);
           }
 
-          // Remove the interaction record
           await supabase
             .from('post_interactions')
             .delete()
             .eq('id', existingInteraction.id);
 
-          // Update UI immediately - don't wait for realtime
           this.updatePostInteractionState(postId, 'reblog', false);
 
           // Federation is handled automatically by database triggers
@@ -3185,7 +2968,6 @@ export const useActivityPubStore = defineStore('activitypub', {
           // eslint-disable-next-line unused-imports/no-unused-vars
           const result = await activityPubService.toggleReblog(postId);
           
-          // Update UI immediately
           this.updatePostInteractionState(postId, 'reblog', true);
 
           // Federation is handled automatically by database triggers
@@ -3204,7 +2986,6 @@ export const useActivityPubStore = defineStore('activitypub', {
      */
     async deletePost(postId: string) {
       try {
-        // Get profile ID directly from userDataService - no extra DB query needed!
         const { userDataService } = await import('@/services/userDataService');
         const currentUser = userDataService.getCurrentUser();
         
@@ -3214,7 +2995,6 @@ export const useActivityPubStore = defineStore('activitypub', {
 
         const profileId = currentUser.id;
 
-        // Get the post to verify ownership
         const { data: postData, error: fetchError } = await supabase
           .from('posts')
           .select(`
@@ -3230,7 +3010,6 @@ export const useActivityPubStore = defineStore('activitypub', {
         if (fetchError) throw fetchError;
         if (!postData) throw new Error('Post not found or you do not have permission to delete it');
 
-        // Mark post as deleted in database
         const { error: deleteError } = await supabase
           .from('posts')
           .update({ 
@@ -3244,7 +3023,6 @@ export const useActivityPubStore = defineStore('activitypub', {
 
         // Federation is handled automatically by database triggers
 
-        // Remove from local feeds
         this.removePostFromAllFeeds(postId);
 
       } catch (error) {
@@ -3272,7 +3050,6 @@ export const useActivityPubStore = defineStore('activitypub', {
       * OPTIMIZED: Only loads if not already loaded to prevent duplicate queries
       */
      async loadFollowedUsers(force = false, profileIdOverride?: string) {
-       // Skip if already loaded unless forced
        if (this.followsLoaded && !force) {
          debug.log('📋 Followed users already loaded, skipping');
          return;
@@ -3335,7 +3112,6 @@ export const useActivityPubStore = defineStore('activitypub', {
 
       if (error) throw error;
       
-      // Add all followed users (both local and federated)
       this.followedUsers = new Set(data.map(f => f.following_id));
       this.followingCount = this.followedUsers.size;
     },
@@ -3423,7 +3199,6 @@ export const useActivityPubStore = defineStore('activitypub', {
        try {
          debug.log('🔄 Following user via InteractionService:', userId);
          
-         // Use InteractionService for optimistic follow with federation
          const result = await services.interactions.toggleFollow(userId);
          
          if (result.following) {
@@ -3446,7 +3221,6 @@ export const useActivityPubStore = defineStore('activitypub', {
        try {
          debug.log('🔄 Unfollowing user via InteractionService:', userId);
          
-         // Use InteractionService for optimistic unfollow with federation
          const result = await services.interactions.toggleFollow(userId);
          
          if (!result.following) {
@@ -3469,10 +3243,8 @@ export const useActivityPubStore = defineStore('activitypub', {
        try {
          debug.log('🔄 Toggling follow via InteractionService:', userId);
          
-         // Use InteractionService for optimistic toggle with federation
          const result = await services.interactions.toggleFollow(userId);
          
-         // Update local state based on result
          if (result.following) {
            this.followedUsers.add(userId);
            if (!this.followedUsers.has(userId)) this.followingCount++;
@@ -3664,7 +3436,6 @@ export const useActivityPubStore = defineStore('activitypub', {
        try {
          this.isLoadingConversation = true;
          
-         // Check cache first
          if (this.conversationContexts.has(postId)) {
            return this.conversationContexts.get(postId)!;
          }
@@ -3688,7 +3459,6 @@ export const useActivityPubStore = defineStore('activitypub', {
        try {
          this.isLoadingConversation = true;
          
-         // Check cache first
          if (this.conversations.has(conversationId)) {
            return this.conversations.get(conversationId)!;
          }
@@ -3740,7 +3510,6 @@ export const useActivityPubStore = defineStore('activitypub', {
 
          const reply = await services.posts.createPost(replyData);
          
-         // Clear conversation cache to force refresh
          this.conversationContexts.clear();
          this.conversations.clear();
          
@@ -3758,8 +3527,6 @@ export const useActivityPubStore = defineStore('activitypub', {
        debug.log(`🏪 Store showConversation called with postId: ${postId}`);
        
        try {
-         // Navigate to post detail view
-         debug.log(`🧭 Attempting to navigate to PostDetail route`);
          router.push({
            name: 'PostDetail',
            params: { postId }
@@ -3767,8 +3534,6 @@ export const useActivityPubStore = defineStore('activitypub', {
          debug.log(`✅ Navigation initiated successfully`);
        } catch (error) {
          debug.error(`❌ Navigation failed:`, error);
-         // Fallback: try using window.location
-         debug.log(`🔄 Trying fallback navigation method`);
          window.location.href = `/social/post/${postId}`;
        }
      },
@@ -3783,7 +3548,7 @@ export const useActivityPubStore = defineStore('activitypub', {
          ...this.localFeed.posts,
          ...Array.from(this.userFeeds.values()).flatMap(feed => feed.posts)
        ].filter((post, index, array) => 
-         array.findIndex(p => p.id === post.id) === index // Remove duplicates
+         array.findIndex(p => p.id === post.id) === index
        );
      },
 

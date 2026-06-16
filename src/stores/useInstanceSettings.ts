@@ -1,15 +1,3 @@
-/**
- * Instance Settings Store
- * 
- * Manages instance-level configuration that affects UI behavior:
- * - Federation enabled/disabled (hides federation UI when disabled)
- * - Instance branding
- * - Feature flags
- * 
- * This is separate from AdminService which handles admin-only operations.
- * This store is for PUBLIC instance settings that affect all users.
- */
-
 import { defineStore } from 'pinia'
 import { supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
@@ -105,7 +93,6 @@ const DEFAULT_SETTINGS: InstanceSettings = {
   customEmojiTransformQuality: 80,
 }
 
-// Cache duration: 5 minutes
 const CACHE_DURATION = 5 * 60 * 1000
 
 export const useInstanceSettingsStore = defineStore('instanceSettings', {
@@ -117,25 +104,15 @@ export const useInstanceSettingsStore = defineStore('instanceSettings', {
   }),
 
   getters: {
-    /**
-     * Is federation enabled at instance level?
-     * When false, hide all federation-related UI
-     */
     isFederationEnabled: (state): boolean => {
       return state.settings.federationEnabled && 
              (state.settings.federationInboundEnabled || state.settings.federationOutboundEnabled)
     },
 
-    /**
-     * Can users follow remote users?
-     */
     canFollowRemoteUsers: (state): boolean => {
       return state.settings.federationEnabled && state.settings.federationOutboundEnabled
     },
 
-    /**
-     * Can remote users follow local users?
-     */
     canReceiveRemoteFollows: (state): boolean => {
       return state.settings.federationEnabled && state.settings.federationInboundEnabled
     },
@@ -146,9 +123,6 @@ export const useInstanceSettingsStore = defineStore('instanceSettings', {
     gifAiEmojisEnabled: (state): boolean => state.settings.gifAiEmojisEnabled,
     gifAiEmojiGenerationEnabled: (state): boolean => state.settings.gifAiEmojiGenerationEnabled,
 
-    /**
-     * Is the settings cache still valid?
-     */
     isCacheValid: (state): boolean => {
       if (!state.lastFetchedAt) return false
       return Date.now() - state.lastFetchedAt < CACHE_DURATION
@@ -156,12 +130,7 @@ export const useInstanceSettingsStore = defineStore('instanceSettings', {
   },
 
   actions: {
-    /**
-     * Fetch instance settings from database
-     * Called on app initialization
-     */
     async fetchSettings(force = false): Promise<void> {
-      // Skip if cache is valid and not forcing
       if (!force && this.isCacheValid && this.isLoaded) {
         debug.log('📋 Using cached instance settings')
         return
@@ -187,12 +156,10 @@ export const useInstanceSettingsStore = defineStore('instanceSettings', {
           this.parseConfigData(data)
         }
 
-        // Also try to get federation settings from RPC
         try {
           const { data: fedSettings } = await supabase.rpc('get_public_federation_settings')
           if (fedSettings) {
             this.settings.federationEnabled = fedSettings.federation_enabled ?? true
-            // Parse nested settings if present
             if (fedSettings.enable_inbound_federation !== undefined) {
               this.settings.federationInboundEnabled = fedSettings.enable_inbound_federation
             }
@@ -207,7 +174,6 @@ export const useInstanceSettingsStore = defineStore('instanceSettings', {
         this.isLoaded = true
         this.lastFetchedAt = Date.now()
 
-        // Apply branding (document title + favicon) site-wide.
         this.applyBranding()
 
         debug.log('✅ Instance settings loaded:', {
@@ -225,9 +191,6 @@ export const useInstanceSettingsStore = defineStore('instanceSettings', {
       }
     },
 
-    /**
-     * Parse config data from instance_config table
-     */
     parseConfigData(data: Array<{ config_key: string; config_value: any }>) {
       for (const config of data) {
         const value = this.parseValue(config.config_value)
@@ -324,7 +287,6 @@ export const useInstanceSettingsStore = defineStore('instanceSettings', {
             }
             break
           case 'federation_settings':
-            // Handle nested federation_settings object
             if (value && typeof value === 'object') {
               if (value.federation_enabled !== undefined) {
                 this.settings.federationEnabled = value.federation_enabled
@@ -335,9 +297,6 @@ export const useInstanceSettingsStore = defineStore('instanceSettings', {
       }
     },
 
-    /**
-     * Parse a config value (may be JSON string or already parsed)
-     */
     parseValue(val: any): any {
       if (typeof val === 'string') {
         try {
@@ -362,9 +321,6 @@ export const useInstanceSettingsStore = defineStore('instanceSettings', {
       }
     },
 
-    /**
-     * Clear cache and refetch
-     */
     async refresh(): Promise<void> {
       this.lastFetchedAt = null
       await this.fetchSettings(true)

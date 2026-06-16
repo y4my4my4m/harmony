@@ -1370,7 +1370,7 @@ export class ActivityProcessor {
       if (isCustomEmoji) {
         // Custom emoji with URL - resolve to an emoji_id in the emojis table
         const emojiId = await this.resolveInboundEmojiId(
-          supabase, emoji, emojiName, emojiUrl, user.id,
+          supabase, emojiName, emojiUrl, user.id,
         );
         if (!emojiId) {
           logger.error('❌ Could not find or create emoji for message reaction');
@@ -1427,9 +1427,13 @@ export class ActivityProcessor {
 
     // Handle post reaction (existing logic)
     if (post) {
-      const emojiId = await this.resolveInboundEmojiId(
-        supabase, emoji, emojiName, emojiUrl, user.id,
-      );
+      // Only image-backed custom emoji resolve to an emoji_id; unicode reactions
+      // are grouped purely by custom_emoji_content (matches local behavior and
+      // avoids creating url-less rows in the emojis table).
+      const isCustomEmoji = !!(emojiUrl && emojiName);
+      const emojiId = isCustomEmoji
+        ? await this.resolveInboundEmojiId(supabase, emojiName, emojiUrl, user.id)
+        : null;
       
       // Normalize heart variants so Mastodon plain-Likes group consistently
       let normalizedEmoji = emoji || '❤️';
@@ -2559,62 +2563,33 @@ export class ActivityProcessor {
    */
   private static async resolveInboundEmojiId(
     supabase: any,
-    emoji: string | undefined,
     emojiName: string | undefined,
     emojiUrl: string | undefined,
     userId: string,
   ): Promise<string | null> {
-    // Custom emoji with URL
-    if (emojiUrl && emojiName) {
-      const cleanName = emojiName.replace(/:/g, '');
-      const emojiDomain = new URL(emojiUrl).hostname;
+    // Only image-backed custom emoji get an `emojis` row. Unicode reactions are
+    // stored via `custom_emoji_content` by the caller and must never create a row
+    // here (doing so pollutes the instance emoji picker with url-less entries).
+    if (!emojiUrl || !emojiName) return null;
 
-      try {
-        await supabase.rpc('upsert_remote_emoji', {
-          p_shortcode: cleanName,
-          p_origin_domain: emojiDomain,
-          p_full_code: `:${cleanName}@${emojiDomain}:`,
-          p_url: emojiUrl,
-        });
-      } catch (cacheError) {
-        logger.debug(`Could not cache emoji: ${cacheError}`);
-      }
+    const cleanName = emojiName.replace(/:/g, '');
+    const emojiDomain = new URL(emojiUrl).hostname;
 
-      const { data: existing } = await supabase
-        .from('emojis')
-        .select('id')
-        .eq('url', emojiUrl)
-        .maybeSingle();
-
-      if (existing) return existing.id;
-
-      const { data: created } = await supabase
-        .from('emojis')
-        .insert({
-          name: cleanName,
-          url: emojiUrl,
-          server_id: null,
-          uploader: userId,
-          domain: emojiDomain,
-        })
-        .select('id')
-        .single();
-
-      return created?.id ?? null;
-    }
-
-    // Standard unicode emoji - find or create a global emoji entry
-    let normalizedEmoji = emoji || '❤️';
-    if (!emoji || normalizedEmoji === '❤' || normalizedEmoji === '❤️') {
-      normalizedEmoji = '❤️';
+    try {
+      await supabase.rpc('upsert_remote_emoji', {
+        p_shortcode: cleanName,
+        p_origin_domain: emojiDomain,
+        p_full_code: `:${cleanName}@${emojiDomain}:`,
+        p_url: emojiUrl,
+      });
+    } catch (cacheError) {
+      logger.debug(`Could not cache emoji: ${cacheError}`);
     }
 
     const { data: existing } = await supabase
       .from('emojis')
       .select('id')
-      .eq('name', normalizedEmoji)
-      .is('url', null)
-      .is('server_id', null)
+      .eq('url', emojiUrl)
       .maybeSingle();
 
     if (existing) return existing.id;
@@ -2622,10 +2597,11 @@ export class ActivityProcessor {
     const { data: created } = await supabase
       .from('emojis')
       .insert({
-        name: normalizedEmoji,
-        url: null,
+        name: cleanName,
+        url: emojiUrl,
         server_id: null,
         uploader: userId,
+        domain: emojiDomain,
       })
       .select('id')
       .single();

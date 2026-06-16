@@ -221,7 +221,7 @@
             <div class="media-frame">
               <div v-if="!imageLoadedState[part.url]" class="media-skeleton image-skeleton"></div>
               <img
-                :src="part.url"
+                :src="displayMediaUrl(part.url)"
                 @load="handleImageLoad(part.url)"
                 @click="$emit('open-lightbox', part.url)"
                 v-show="imageLoadedState[part.url]"
@@ -518,7 +518,7 @@
 import { defineComponent, watch, ref, nextTick, reactive, onMounted, computed } from 'vue';
 import type { PropType } from 'vue';
 import type { EmbedPayload, MessagePart, FileContent } from '@/types';
-import { extractFileParts } from '@/utils/messageContentUtils';
+import { coalesceInlineContentForMarkdown, extractFileParts } from '@/utils/messageContentUtils';
 import AutoSuggest from '@/components/AutoSuggest.vue';
 import DisplayName from '@/components/DisplayName.vue';
 import CodeBlock from '@/components/common/CodeBlock.vue';
@@ -534,6 +534,7 @@ import MessageMediaGallery from '@/components/common/MessageMediaGallery.vue';
 import AttachmentRemoveButton from '@/components/common/AttachmentRemoveButton.vue';
 import ConfirmationModal from '@/components/ConfirmationModal.vue';
 import { groupMediaGalleryParts } from '@/utils/mediaGalleryUtils';
+import { getAttachmentThumbnailUrl } from '@/utils/storageImageUtils';
 import {
   isDiscordCdnUrl,
   hasExpiredBridgedAttachment,
@@ -660,7 +661,11 @@ export default defineComponent({
       () => instanceSettings.settings.gifKlipyWatermarkEnabled,
     );
 
-    const displayMediaUrl = (url: string) => stripKlipyAttributionFragment(url);
+    // Inline attachments render downscaled (local user_media jpg/png only);
+    // animated/remote/sticker URLs pass through untouched. Lightbox opens the
+    // raw part.url at full size.
+    const displayMediaUrl = (url: string) =>
+      getAttachmentThumbnailUrl(stripKlipyAttributionFragment(url));
     const klipyWatermarkHref = (url: string) =>
       parseKlipyItemPageUrl(url) || defaultKlipyHomeUrl();
     const klipyWatermarkLogoUrl = KLIPY_WATERMARK_LOGO_URL;
@@ -675,8 +680,6 @@ export default defineComponent({
     
     // Unified emoji service for emoji pack rendering
     const { resolveEmoji, isNativePack, isLoaded: emojiServiceLoaded } = useUnifiedEmoji();
-
-    const displayContent = computed(() => groupMediaGalleryParts(props.content));
 
     // Lazy bridged-attachment refresh: when a message carries an expired Discord
     // CDN URL, ask the gateway to re-sign it (only acts when the instance is in
@@ -870,6 +873,15 @@ export default defineComponent({
       if (!url) return false;
       return /\.(mp4|webm|ogg|avi|mov|wmv|flv)$/i.test(url);
     };
+
+    const displayContent = computed(() =>
+      groupMediaGalleryParts(
+        coalesceInlineContentForMarkdown(
+          props.content,
+          (url) => isImageUrl(url) || isVideoUrl(url),
+        ),
+      ),
+    );
 
     const isAudioUrl = (url: string): boolean => {
       if (!url) return false;

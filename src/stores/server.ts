@@ -126,11 +126,10 @@ export const useServerStore = defineStore('server', {
           .insert([{ server_id: serverId, user_id: userId }]);
 
         if (error) {
-          // Handle duplicate membership gracefully
-          if (error.code === '23505') { // Unique constraint violation
+          if (error.code === '23505') { // unique constraint: already a member
             debug.log("User is already a member of this server");
             toast.info("You're already a member of this server!");
-            return true; // Consider it successful since the desired state is achieved
+            return true;
           }
           throw error;
         }
@@ -164,29 +163,25 @@ export const useServerStore = defineStore('server', {
 
     async deleteServer(serverId: string, userId: string): Promise<boolean> {
       try {
-        // First verify the user is the owner
         const server = await this.getServer(serverId);
         if (!server || server.owner !== userId) {
           throw new Error('Only the server owner can delete the server');
         }
 
-        // Use a transaction to ensure all deletions happen atomically
         const { error } = await supabase.rpc('delete_server_with_cleanup', {
           p_server_id: serverId,
           p_owner_id: userId
         });
 
         if (error) {
-          // If the RPC function doesn't exist, fall back to the original method
-          if (error.code === '42883') { // function does not exist
+          if (error.code === '42883') { // delete_server_with_cleanup RPC not deployed
             debug.warn('Server cleanup function not found, using fallback deletion');
             
-            // Delete the server (this will cascade delete related data due to foreign key constraints)
             const { error: deleteError } = await supabase
               .from('servers')
               .delete()
               .eq('id', serverId)
-              .eq('owner', userId); // Double check ownership in the query
+              .eq('owner', userId);
 
             if (deleteError) throw deleteError;
           } else {
@@ -194,7 +189,6 @@ export const useServerStore = defineStore('server', {
           }
         }
 
-        // Also delete server icon from storage if it exists
         if (server.icon && server.icon !== '/default_server.webp') {
           try {
             const iconPath = server.icon.split('/').pop();
@@ -205,7 +199,7 @@ export const useServerStore = defineStore('server', {
             }
           } catch (iconError) {
             debug.warn('Failed to delete server icon:', iconError);
-            // Don't fail the entire operation if icon deletion fails
+            // Icon cleanup failure shouldn't fail the whole delete.
           }
         }
 
@@ -213,7 +207,7 @@ export const useServerStore = defineStore('server', {
         return true;
       } catch (error) {
         debug.error('Error deleting server:', error);
-        throw error; // Re-throw to allow proper error handling in the component
+        throw error;
       }
     }
   }

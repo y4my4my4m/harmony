@@ -1,19 +1,4 @@
-/**
- * CorePostService - Pure local post operations
- * 
- * Contains ONLY local database operations with NO federation logic:
- * - Post CRUD operations (create, read, update, delete)
- * - Post interactions (like, share, bookmark, reactions)
- * - Timeline loading and pagination
- * - Validation and error handling
- * 
- * NO FEDERATION CONCERNS:
- * - No ap_activities insertions
- * - No federation condition checks
- * - No ActivityPub protocol handling
- * - Pure local Supabase operations only
- */
-
+/** Local post CRUD, interactions, and timelines. */
 import { supabase } from '@/supabase'
 import type { TimelinePost, MessagePart } from '@/types'
 import { debug } from '@/utils/debug'
@@ -136,7 +121,7 @@ export class CorePostService {
         is_sensitive: data.is_sensitive || false,
         language: data.language || 'en',
         is_local: true,
-        is_federated: true, // Keep for compatibility, federation handled by orchestrator
+        is_federated: true,
         metadata: { created_via: 'harmony_client', content_format: 'message_parts_v1' }
       }
 
@@ -754,7 +739,7 @@ export class CorePostService {
 
       const postList = posts || []
 
-      // PERFORMANCE OPTIMIZATION: Batch load reactions for all posts
+      // Batch load reactions for all posts
       if (postList.length > 0) {
         const postIds = postList.map(p => p.id)
         const reactionsByPost = await this.getBatchPostReactions(postIds)
@@ -874,9 +859,9 @@ export class CorePostService {
       favorites_count: post.favorites_count || 0,
       reblogs_count: post.reblogs_count || 0,
       replies_count: post.replies_count || 0,
-      is_favorited: false, // Will be set by orchestrator
-      is_reblogged: false, // Will be set by orchestrator
-      is_bookmarked: false, // Will be set by orchestrator
+      is_favorited: false,
+      is_reblogged: false,
+      is_bookmarked: false,
       content_warning: post.content_warning,
       is_sensitive: post.is_sensitive,
       language: post.language,
@@ -917,5 +902,4 @@ export class CorePostService {
   }
 }
 
-// Export singleton instance
 export const corePostService = CorePostService.getInstance()

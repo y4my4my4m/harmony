@@ -32,6 +32,12 @@ export type PayloadHandler<T extends { [key: string]: any } = any> = (payload: R
 /** Status change handler */
 export type StatusHandler = (status: ConnectionStatus, channelName: string) => void
 
+/** Broadcast event handler (realtime.send payloads, not CDC) */
+export interface BroadcastHandler {
+  event: string
+  handler: (payload: Record<string, any>) => void | Promise<void>
+}
+
 /**
  * Configuration for a single-event subscription (legacy API)
  */
@@ -64,6 +70,18 @@ export interface TableSubscriptionConfig {
   onUpdate?: PayloadHandler
   /** Handler for DELETE events */
   onDelete?: PayloadHandler
+  /**
+   * Subscribe the channel as private (config: { private: true }). Required to
+   * receive server-side realtime.send(..., private => true) broadcasts on the
+   * same channel as the postgres_changes (CDC) stream.
+   */
+  private?: boolean
+  /**
+   * Broadcast event handlers delivered on the same channel via realtime.send().
+   * Lets a feature piggyback broadcast events on the message channel a client
+   * already has open instead of opening a second channel.
+   */
+  broadcasts?: BroadcastHandler[]
   /** Handler for status changes */
   onStatusChange?: StatusHandler
   /**
@@ -95,10 +113,29 @@ export interface MultiTableSubscriptionConfig {
   onReconnected?: () => void | Promise<void>
 }
 
+/**
+ * Configuration for a broadcast-only channel (no postgres_changes / CDC).
+ * Used when a view needs realtime.send() events but has no message stream of
+ * its own to piggyback on (e.g. the full-thread route listening to the parent
+ * channel's reaction broadcasts).
+ */
+export interface BroadcastSubscriptionConfig {
+  /** Unique channel name / topic */
+  channelName: string
+  /** Subscribe as a private channel (default true; broadcasts use private topics) */
+  private?: boolean
+  /** Broadcast event handlers */
+  broadcasts: BroadcastHandler[]
+  /** Handler for status changes */
+  onStatusChange?: StatusHandler
+  /** Called after a successful reconnect */
+  onReconnected?: () => void | Promise<void>
+}
+
 /** Internal managed subscription state */
 interface ManagedSubscription {
-  config: SubscriptionConfig | TableSubscriptionConfig | MultiTableSubscriptionConfig
-  configType: 'single' | 'table' | 'multi'
+  config: SubscriptionConfig | TableSubscriptionConfig | MultiTableSubscriptionConfig | BroadcastSubscriptionConfig
+  configType: 'single' | 'table' | 'multi' | 'broadcast'
   channel: RealtimeChannel | null
   status: ConnectionStatus
   retryCount: number
@@ -349,6 +386,46 @@ class RealtimeConnectionManagerService {
   }
 
   /**
+   * Subscribe to a broadcast-only channel (no postgres_changes / CDC).
+   * For features that need realtime.send() events but have no message stream
+   * of their own to piggyback on.
+   */
+  subscribeBroadcast(config: BroadcastSubscriptionConfig): () => void {
+    if (!this.initialized) this.initialize()
+
+    const { channelName } = config
+
+    if (this.subscriptions.has(channelName)) {
+      // See BUGS.md H29 in subscribeToTable() for context.
+      debug.warn(
+        `⚠️ RealtimeManager: duplicate subscription ${channelName} - tearing down and rebuilding (BUGS.md H29).`,
+      )
+      this.unsubscribe(channelName)
+    }
+
+    const managedSub: ManagedSubscription = {
+      config,
+      configType: 'broadcast',
+      channel: null,
+      status: 'disconnected',
+      retryCount: 0,
+      retryTimeoutId: null,
+      lastConnectedAt: null,
+      lastErrorAt: null,
+      lastError: null,
+      rapidCloseCount: 0,
+      lastClosedAt: null,
+      pendingGapFill: false,
+    }
+
+    this.subscriptions.set(channelName, managedSub)
+    this.connectBroadcastSubscription(channelName)
+    this.startHealthCheck()
+
+    return () => this.unsubscribe(channelName)
+  }
+
+  /**
    * Subscribe to multiple tables on a single channel (Advanced API)
    * More efficient when you need to subscribe to related tables
    * 
@@ -357,7 +434,7 @@ class RealtimeConnectionManagerService {
    *   channelName: 'dm-conversation-123',
    *   tables: [
    *     { table: 'messages', filter: 'conversation_id=eq.123', onInsert: handleMessage },
-   *     { table: 'reactions', onInsert: handleReaction, onDelete: handleReactionRemoved }
+   *     { table: 'message_edits', filter: 'conversation_id=eq.123', onInsert: handleEdit }
    *   ]
    * })
    */
@@ -448,7 +525,10 @@ class RealtimeConnectionManagerService {
     
     debug.log(`🔄 RealtimeManager: Connecting ${channelName} (table subscription)...`)
     
-    let channel = supabase.channel(channelName)
+    let channel = supabase.channel(
+      channelName,
+      config.private ? { config: { private: true } } : undefined,
+    )
     const schema = config.schema || 'public'
     
     // Add INSERT handler
@@ -495,12 +575,57 @@ class RealtimeConnectionManagerService {
         }
       )
     }
+
+    // Broadcast handlers (realtime.send events piggybacked on this channel)
+    channel = this.attachBroadcastHandlers(channel, channelName, config.broadcasts)
     
     // Subscribe and handle status
     channel.subscribe((status, err) => {
       this.handleSubscriptionStatus(channelName, status, err)
     })
     
+    managedSub.channel = channel
+  }
+
+  /** Attach broadcast event listeners to a channel. Returns the channel for chaining. */
+  private attachBroadcastHandlers(
+    channel: RealtimeChannel,
+    channelName: string,
+    broadcasts?: BroadcastHandler[],
+  ): RealtimeChannel {
+    if (!broadcasts?.length) return channel
+    for (const { event, handler } of broadcasts) {
+      channel = channel.on('broadcast', { event } as any, async (message: any) => {
+        try {
+          await handler(message?.payload ?? message)
+        } catch (error) {
+          debug.error(`❌ RealtimeManager: Error in broadcast handler '${event}' for ${channelName}:`, error)
+        }
+      })
+    }
+    return channel
+  }
+
+  private connectBroadcastSubscription(channelName: string): void {
+    const managedSub = this.subscriptions.get(channelName)
+    if (!managedSub || managedSub.configType !== 'broadcast') return
+
+    const config = managedSub.config as BroadcastSubscriptionConfig
+    this.updateSubscriptionStatus(channelName, 'connecting')
+
+    debug.log(`🔄 RealtimeManager: Connecting ${channelName} (broadcast subscription)...`)
+
+    const isPrivate = config.private !== false
+    let channel = supabase.channel(
+      channelName,
+      isPrivate ? { config: { private: true } } : undefined,
+    )
+    channel = this.attachBroadcastHandlers(channel, channelName, config.broadcasts)
+
+    channel.subscribe((status, err) => {
+      this.handleSubscriptionStatus(channelName, status, err)
+    })
+
     managedSub.channel = channel
   }
 
@@ -623,6 +748,9 @@ class RealtimeConnectionManagerService {
         break
       case 'single':
         this.connectSingleSubscription(channelName)
+        break
+      case 'broadcast':
+        this.connectBroadcastSubscription(channelName)
         break
     }
   }

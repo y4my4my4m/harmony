@@ -1,14 +1,4 @@
-/**
- * ProfileService - Simple profile management (LOCAL-FIRST)
- * 
- * SIMPLIFIED: Trust database triggers for federation, focus on local operations
- * - Simple direct Supabase operations
- * - No complex federation service calls  
- * - Trust database triggers for ActivityPub handling
- * 
- * PRESERVED: All existing APIs and return types
- */
-
+/** Profile read/update operations. */
 import { getActivePinia } from 'pinia'
 import { supabase } from '@/supabase'
 import { userDataService } from './userDataService'

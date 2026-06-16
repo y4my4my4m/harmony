@@ -1,4 +1,5 @@
 import { supabase } from '@/supabase'
+import { canonicalSquareSize } from '@/utils/imageTransformUtils'
 
 /**
  * Normalizes avatar URL to ensure consistent display across the application
@@ -6,6 +7,7 @@ import { supabase } from '@/supabase'
  * Always returns the proper public URL for Supabase storage paths with optimization
  */
 export function getAvatarUrl(avatarUrl: string | null | undefined, size: number = 256): string {
+  const renderSize = canonicalSquareSize(size)
   // Return default avatar if no URL provided or if it's not a string
   if (!avatarUrl || typeof avatarUrl !== 'string') {
     return '/default_avatar.webp'
@@ -36,7 +38,7 @@ export function getAvatarUrl(avatarUrl: string | null | undefined, size: number 
         // Optionally add size params if not present
         if (!avatarUrl.includes('width=') && !avatarUrl.includes('height=')) {
           const separator = avatarUrl.includes('?') ? '&' : '?'
-          return `${avatarUrl}${separator}width=${size}&height=${size}&resize=contain&quality=80`
+          return `${avatarUrl}${separator}width=${renderSize}&height=${renderSize}&resize=contain&quality=80`
         }
         return avatarUrl
       }
@@ -46,7 +48,7 @@ export function getAvatarUrl(avatarUrl: string | null | undefined, size: number 
       const { data } = supabase.storage
         .from('avatars')
         .getPublicUrl(avatarPath, {
-          transform: { width: size, height: size, resize: 'contain', quality: 80 }
+          transform: { width: renderSize, height: renderSize, resize: 'contain', quality: 80 }
         })
       return data.publicUrl
     }
@@ -60,7 +62,7 @@ export function getAvatarUrl(avatarUrl: string | null | undefined, size: number 
     const { data } = supabase.storage
       .from('avatars')
       .getPublicUrl(avatarUrl, {
-        transform: { width: 256, height: 256, resize: 'contain', quality: 80 }
+        transform: { width: renderSize, height: renderSize, resize: 'contain', quality: 80 }
       })
 
     return data.publicUrl
