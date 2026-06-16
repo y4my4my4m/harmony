@@ -875,9 +875,11 @@ export default defineComponent({
     };
 
     const displayContent = computed(() =>
-      coalesceInlineContentForMarkdown(
-        groupMediaGalleryParts(props.content),
-        (url) => isImageUrl(url) || isVideoUrl(url),
+      groupMediaGalleryParts(
+        coalesceInlineContentForMarkdown(
+          props.content,
+          (url) => isImageUrl(url) || isVideoUrl(url),
+        ),
       ),
     );
 

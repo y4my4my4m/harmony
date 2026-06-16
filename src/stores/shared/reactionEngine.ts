@@ -1,4 +1,4 @@
-import { reactive, computed, ref, type ComputedRef } from 'vue'
+import { reactive, shallowReactive, computed, type ComputedRef } from 'vue'
 
 /** Shared reaction orchestration for message and post reaction stores. */
 export interface ReactionEngineAdapter<G, E> {
@@ -44,9 +44,9 @@ export function createReactionEngine<G, E>(
   const reconcileDelayMs = adapter.reconcileDelayMs ?? 1500
   const realtimeReconcileDelayMs = adapter.realtimeReconcileDelayMs ?? 1500
 
-  // reactive() tracks Map/Set mutations (.set/.delete/.clear) — ref() does not.
-  const reactionsByEntity = reactive(new Map<string, G[]>())
-  const optimisticByEntity = reactive(new Map<string, G[]>())
+  // shallowReactive() tracks Map mutations without unwrapping generic G[] values.
+  const reactionsByEntity = shallowReactive(new Map<string, G[]>())
+  const optimisticByEntity = shallowReactive(new Map<string, G[]>())
   const lastFetched = reactive(new Map<string, number>())
   const isLoading = reactive(new Set<string>())
   const pendingToggleKeys = reactive(new Set<string>())
@@ -144,6 +144,7 @@ export function createReactionEngine<G, E>(
       if (optG) Object.assign(optG as object, realG as object)
       else optimistic.push(realG)
     }
+    optimisticByEntity.set(entityId, [...optimistic])
     return true
   }
 
