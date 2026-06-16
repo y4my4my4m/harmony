@@ -1,7 +1,7 @@
 import { computed, ref, toValue, watch, type MaybeRefOrGetter, type Ref } from 'vue'
 import { useUserData } from '@/composables/useUserData'
 import { useServerRolesStore } from '@/stores/useServerRoles'
-import supabase from '@/supabase'
+import { supabase } from '@/supabase'
 import type { Message } from '@/types'
 import {
   getBridgeSource,
