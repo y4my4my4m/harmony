@@ -53,7 +53,6 @@ export interface Channel {
   // Optional fields from database
   server_id?: string;
   description?: string;
-  is_private?: boolean;
   ap_id?: string;
   is_remote?: boolean;
   federation_status?: string;

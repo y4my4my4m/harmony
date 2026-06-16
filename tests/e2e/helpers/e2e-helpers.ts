@@ -209,7 +209,6 @@ export async function seedChannel(
     .insert({
       server_id: serverId,
       name: opts.name || `e2e-channel-${suffix}`,
-      is_private: false,
     })
     .select('id')
     .single()

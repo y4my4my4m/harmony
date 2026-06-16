@@ -33,11 +33,9 @@ beforeAll(async () => {
   })
   publicChannelId = await createTestChannel(admin, serverId, {
     name: 'public-channel',
-    isPrivate: false,
   })
   privateChannelId = await createTestChannel(admin, serverId, {
     name: 'private-channel',
-    isPrivate: true,
   })
 
   await addUserToServer(admin, member.profileId, serverId)
