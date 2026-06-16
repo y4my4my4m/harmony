@@ -766,6 +766,5 @@ class PushNotificationServiceClass {
   }
 }
 
-// Export singleton instance
 export const PushNotificationService = new PushNotificationServiceClass();
 

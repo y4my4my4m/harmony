@@ -125,7 +125,16 @@ const removeToast = (toastId: string) => {
 }
 
 const handleToastClick = (toast: NotificationToast) => {
-  // You can add navigation logic here if needed
+  // Navigate to the source notification's target (DM, channel, post, profile…),
+  // reusing the same routing + mark-as-read logic as the notification bell.
+  if (toast.notificationId) {
+    const notification = notificationStore.notifications.find(
+      n => n.id === toast.notificationId
+    )
+    if (notification) {
+      notificationStore.handleNotificationClick(notification)
+    }
+  }
   removeToast(toast.id)
 }
 

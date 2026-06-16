@@ -1,4 +1,3 @@
-// src/stores/useProfileStore.ts
 import { defineStore } from 'pinia';
 import type { Profile } from '@/types';
 import { services, createLoadingState, setLoading, setSuccess, setError } from '@/services';
@@ -15,6 +14,9 @@ export const useProfileStore = defineStore('profile', {
     isProfileComplete: (state) => services.profiles.isProfileComplete(state.profile),
     isLoading: (state) => state.loadingState.loading,
     error: (state) => state.loadingState.error,
+    // App data is keyed on profiles.id, not the Supabase auth user id.
+    // Reactive for templates/computed; imperative code uses authContextService.
+    profileId: (state): string | undefined => state.profile?.id,
   },
   actions: {
     async fetchProfile(userId: string, useCache = true) {
@@ -121,7 +123,6 @@ export const useProfileStore = defineStore('profile', {
       }
     },
 
-    // Helper method to clear loading state
     clearError() {
       if (this.loadingState.error) {
         this.loadingState = {
@@ -131,7 +132,6 @@ export const useProfileStore = defineStore('profile', {
       }
     },
 
-    // Helper method to clear profile
     clearProfile() {
       this.profile = null;
       this.profileFetched = false;

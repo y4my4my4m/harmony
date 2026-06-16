@@ -378,19 +378,20 @@ export async function resolveHashtagsData(content: string): Promise<Record<strin
   return hashtagDataMap;
 }
 
+/** Fenced code blocks must stay intact — URL/mention parsing inside them breaks view-mode markdown. */
+const FENCED_CODE_BLOCK_REGEX = /```[\s\S]*?```/g;
+
 /**
- * Parse content string into unified MessagePart format
- * This is the SINGLE source of truth for all content parsing
- * Used by: chat, DMs, ActivityPub posts, and any text input
+ * Parse one content segment (outside fenced code blocks) into MessageParts.
  */
-export async function parseContentToMessageParts(
+async function parseContentSegment(
   content: string,
-  usernameToUserDataMap: Record<string, { userId: string; isLocal: boolean }> = {},
-  emojiDataMap: Record<string, any> = {},
-  hashtagDataMap: Record<string, { id: string; count: number; last_updated: string; normalized: string }> = {},
-  roleDataMap: Record<string, { name: string; color: string | null }> = {}
+  usernameToUserDataMap: Record<string, { userId: string; isLocal: boolean }>,
+  emojiDataMap: Record<string, any>,
+  hashtagDataMap: Record<string, { id: string; count: number; last_updated: string; normalized: string }>,
+  roleDataMap: Record<string, { name: string; color: string | null }>,
 ): Promise<MessagePart[]> {
-  if (!content) return [{ type: 'text', text: '' }];
+  if (!content) return [];
 
   // Pre-scan for URLs so we can skip @mentions and #hashtags that appear
   // inside them (e.g., https://mastodon.social/@user/12345)
@@ -509,10 +510,54 @@ export async function parseContentToMessageParts(
     const remainingText = content.substring(lastIndex);
     parts.push(...await parseTextForUrls(remainingText, emojiDataMap));
   }
-  
+
+  return parts;
+}
+
+/**
+ * Parse content string into unified MessagePart format
+ * This is the SINGLE source of truth for all content parsing
+ * Used by: chat, DMs, ActivityPub posts, and any text input
+ */
+export async function parseContentToMessageParts(
+  content: string,
+  usernameToUserDataMap: Record<string, { userId: string; isLocal: boolean }> = {},
+  emojiDataMap: Record<string, any> = {},
+  hashtagDataMap: Record<string, { id: string; count: number; last_updated: string; normalized: string }> = {},
+  roleDataMap: Record<string, { name: string; color: string | null }> = {}
+): Promise<MessagePart[]> {
+  if (!content) return [{ type: 'text', text: '' }];
+
+  const parts: MessagePart[] = [];
+  let lastIndex = 0;
+
+  FENCED_CODE_BLOCK_REGEX.lastIndex = 0;
+  let fenceMatch: RegExpExecArray | null;
+  while ((fenceMatch = FENCED_CODE_BLOCK_REGEX.exec(content)) !== null) {
+    if (fenceMatch.index > lastIndex) {
+      parts.push(...await parseContentSegment(
+        content.slice(lastIndex, fenceMatch.index),
+        usernameToUserDataMap,
+        emojiDataMap,
+        hashtagDataMap,
+        roleDataMap,
+      ));
+    }
+    parts.push({ type: 'text', text: fenceMatch[0] });
+    lastIndex = fenceMatch.index + fenceMatch[0].length;
+  }
+
+  if (lastIndex < content.length) {
+    parts.push(...await parseContentSegment(
+      content.slice(lastIndex),
+      usernameToUserDataMap,
+      emojiDataMap,
+      hashtagDataMap,
+      roleDataMap,
+    ));
+  }
+
   // Clean up trailing whitespace from message parts
-  // This ensures emojis/mentions at the end are properly detected as standalone
-  // and reduces JSON payload size
   return trimTrailingWhitespace(parts);
 }
 

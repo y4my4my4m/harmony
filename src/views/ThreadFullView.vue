@@ -235,6 +235,7 @@ import { threadService } from '@/services/ThreadService'
 import { supabase } from '@/supabase'
 import { useUserData } from '@/composables/useUserData'
 import { useEncryptionFallbackPrompt } from '@/composables/useEncryptionFallbackPrompt'
+import { useProfileStore } from '@/stores/useProfile'
 import { format } from 'date-fns'
 import Avatar from '@/components/common/Avatar.vue'
 import DisplayName from '@/components/DisplayName.vue'
@@ -244,7 +245,6 @@ import MessageInput from '@/components/MessageInput.vue'
 import MessageDisplay from '@/components/MessageDisplay.vue'
 import EmojiPopup from '@/components/EmojiPopup.vue'
 import MediaPickerPopup from '@/components/MediaPickerPopup.vue'
-import { useAuthStore } from '@/stores/auth'
 import { useChatStore } from '@/stores/useChat'
 import { useReactionsStore } from '@/stores/useReactions'
 import { useServerPermissions } from '@/composables/useServerPermissions'
@@ -272,7 +272,6 @@ const {
   getUserAvatarUrl: getAvatarUrl 
 } = useUserData()
 
-const authStore = useAuthStore()
 const chatStore = useChatStore()
 const reactionsStore = useReactionsStore()
 const { canManageChannels } = useServerPermissions()
@@ -280,8 +279,10 @@ const { runWithEncryptionFallback } = useEncryptionFallbackPrompt()
 
 const canManageThread = computed(() => canManageChannels.value)
 
-// Current user ID for MessageDisplay
-const currentUserId = computed(() => authStore.session?.user?.id)
+// Current user identity for MessageDisplay / reactions. App data keys on
+// profiles.id (not the auth user id), so this must be the profile id.
+const profileStore = useProfileStore()
+const currentUserId = computed(() => profileStore.profileId)
 
 // Reply state
 const replyingToMessageId = ref<string>('')
@@ -688,9 +689,9 @@ const handleToggleEmojiList = (isReaction: boolean, message?: Message, triggerEl
 }
 
 const handleSendEmoji = async (emoji: Emoji) => {
-  if (isPopupForReaction.value && authStore.session?.user) {
+  if (isPopupForReaction.value && currentUserId.value) {
     // Add reaction using chat store
-    await chatStore.addReaction(selectedMessageId.value, emoji.id, authStore.session.user.id, emoji)
+    await chatStore.addReaction(selectedMessageId.value, emoji.id, currentUserId.value, emoji)
   }
   closeReactionEmoji()
 }
@@ -975,26 +976,33 @@ const cleanupReactionsSubscription = () => {
   }
 }
 
-/** Full thread route does not run ChatView.subscribeToMessages - mirror channel reactions CDC here. */
+/**
+ * Full thread route does not run ChatView.subscribeToMessages, so subscribe to
+ * the parent channel's reaction broadcasts here. Reactions are published to the
+ * channel-messages-{channel_id} topic (broadcast, not CDC); we listen
+ * broadcast-only since this view has its own thread message stream.
+ */
 const setupReactionsSubscription = () => {
   cleanupReactionsSubscription()
-  if (!thread.value?.channel_id || !thread.value?.id) return
+  if (!thread.value?.channel_id) return
 
-  const channelName = `thread-full-reactions-${thread.value.id}`
-  reactionsSubscription.value = realtimeConnectionManager.subscribeToTable({
+  const channelName = `channel-messages-${thread.value.channel_id}`
+
+  // If the channel chat view is already subscribed to this topic, its own
+  // reaction_event handler already feeds the shared reactions store - don't
+  // create (and later tear down) a competing subscription on the same channel.
+  if (realtimeConnectionManager.hasSubscription(channelName)) {
+    debug.log(`📡 Reusing existing channel subscription for thread reactions: ${channelName}`)
+    return
+  }
+
+  reactionsSubscription.value = realtimeConnectionManager.subscribeBroadcast({
     channelName,
-    table: 'reactions',
-    filter: `channel_id=eq.${thread.value.channel_id}`,
-    onInsert: (payload) => {
-      const messageId = (payload.new as any)?.message_id
-      if (messageId) void reactionsStore.handleRealtimeUpdate(payload)
-    },
-    onDelete: (payload) => {
-      const messageId = (payload.old as any)?.message_id
-      if (messageId) void reactionsStore.handleRealtimeUpdate(payload)
-    },
+    broadcasts: [
+      { event: 'reaction_event', handler: (payload) => void reactionsStore.handleRealtimeUpdate(payload) },
+    ],
   })
-  debug.log(`📡 Subscribed to thread reactions: ${channelName}`)
+  debug.log(`📡 Subscribed to thread reactions (broadcast): ${channelName}`)
 }
 
 async function scrollToThreadMessage(messageId: string) {

@@ -7,7 +7,7 @@
         :key="getReactionKey(reactionGroup)"
         class="reaction"
         :class="{ 
-          'reacted': hasUserReacted(getReactionKey(reactionGroup)),
+          'reacted': reactionGroup.current_user_reacted,
           'loading': isLoadingReactions 
         }"
         @click="handleReactionClick(reactionGroup.emoji, getReactionKey(reactionGroup))"
@@ -68,7 +68,7 @@
 import { computed, onMounted, ref, watch, nextTick } from 'vue';
 import { debug } from '@/utils/debug'
 import { useReactionsStore } from '@/stores/useReactions';
-import { useAuthStore } from '@/stores/auth';
+import { useProfileStore } from '@/stores/useProfile';
 import { useThemeStore } from '@/stores/useTheme';
 import { useHapticSettings } from '@/composables/useHapticSettings';
 import { useFrequentEmojis } from '@/composables/useFrequentEmojis';
@@ -83,7 +83,6 @@ interface Props {
 }
 
 interface Emits {
-  (e: 'toggle-reaction', messageId: string, emoji: Emoji): void;
   (e: 'show-reaction-tooltip', event: MouseEvent, reactionGroup: any): void;
   (e: 'hide-reaction-tooltip'): void;
   (e: 'open-emoji-picker', messageId: string, event: MouseEvent): void;
@@ -102,7 +101,7 @@ const getReactionKey = (reactionGroup: any): string => {
 };
 
 const reactionsStore = useReactionsStore();
-const authStore = useAuthStore();
+const profileStore = useProfileStore();
 const themeStore = useThemeStore();
 const { triggerReaction } = useHapticSettings();
 const { recordEmojiUsage } = useFrequentEmojis();
@@ -123,17 +122,12 @@ const isLoadingReactions = computed(() =>
   reactionsStore.isLoadingReactions(props.message.id)
 );
 
-// Get current user ID
-const currentUserId = computed(() => 
-  authStore.session?.user?.id
-);
+// Reactions are keyed on profiles.id, so the "reacted" highlight must compare
+// against the profile id (using the auth id makes our own reaction flicker off
+// when optimistic state reconciles).
+const currentUserId = computed(() => profileStore.profileId);
 
 // Check if current user has reacted to a specific emoji
-const hasUserReacted = (emojiId: string) => {
-  if (!currentUserId.value) return false;
-  return reactionsStore.hasUserReacted(props.message.id, emojiId, currentUserId.value);
-};
-
 // Handle reaction toggle ( instant feedback)
 const handleReactionClick = async (emoji: Emoji, emojiId: string) => {
   if (!currentUserId.value) return;
@@ -149,8 +143,6 @@ const handleReactionClick = async (emoji: Emoji, emojiId: string) => {
     name: emoji.name || emojiId,
     url: emoji.url
   });
-  
-  emit('toggle-reaction', props.message.id, emoji);
   
   const result = await reactionsStore.toggleReaction(props.message.id, emojiId, currentUserId.value, emoji);
   

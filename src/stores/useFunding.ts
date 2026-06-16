@@ -1,25 +1,3 @@
-/**
- * useFundingStore
- *
- * Single source of truth for the instance funding bar (the goal +
- * progress shown in the context bar). Replaces the duplicate
- * `fundingService.getFundingWithProgress()` fetch that previously lived
- * in every layout / component that wanted to display the bar.
- *
- * Behaviour:
- *   - `load({ force? })` fetches the config + computed progress.
- *     Subsequent calls within `STALE_MS` are no-ops unless `force` is set.
- *   - `inflight` deduplicates concurrent callers (e.g. ChatLayout +
- *     SocialLayout both mounting on a fast route swap).
- *   - A 60s background refresh keeps the progress bar live without
- *     hitting the DB on every navigation.
- *
- * Note: the funding bar is intentionally public - `getFundingWithProgress`
- * works without an auth session, so we can prime it as early as
- * `useAuthStore.initializeAuth()` regardless of whether the user is
- * signed in.
- */
-
 import { defineStore } from 'pinia'
 import {
   fundingService,
@@ -27,6 +5,7 @@ import {
 } from '@/services/FundingService'
 import { debug } from '@/utils/debug'
 
+// Instance funding bar: load() dedupes via inflight + STALE_MS; works without auth.
 const STALE_MS = 60_000
 
 export const useFundingStore = defineStore('funding', {
@@ -70,10 +49,6 @@ export const useFundingStore = defineStore('funding', {
       return this.load({ force: true })
     },
 
-    /**
-     * Start a low-frequency background refresh so progress ticks without
-     * router navigation. Safe to call multiple times - second call is a no-op.
-     */
     startAutoRefresh(intervalMs = STALE_MS) {
       if (this.refreshTimer) return
       this.refreshTimer = setInterval(() => {

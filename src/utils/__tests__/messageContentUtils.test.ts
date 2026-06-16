@@ -4,6 +4,7 @@ import {
   DEFAULT_MAX_POST_TEXT_LENGTH,
   MESSAGE_TEXT_HARD_CEILING,
   assertMessageTextWithinLimit,
+  coalesceInlineContentForMarkdown,
   isSingleEmojiMessage,
   messagePartsToMarkdown,
   messagePartsToPlainText,
@@ -76,6 +77,31 @@ describe('messageContentUtils', () => {
 
     it('returns empty string for non-array', () => {
       expect(messagePartsToPlainText('string' as any)).toBe('')
+    })
+  })
+
+  describe('coalesceInlineContentForMarkdown', () => {
+    it('merges text and inline url parts split from inside a code block', () => {
+      const parts = [
+        { type: 'text' as const, text: '```json\n{"link": "' },
+        { type: 'url' as const, url: 'https://example.com', preview: true },
+        { type: 'text' as const, text: '"}\n```' },
+      ]
+      const merged = coalesceInlineContentForMarkdown(parts)
+      expect(merged).toEqual([
+        { type: 'text', text: '```json\n{"link": "https://example.com"}\n```' },
+      ])
+    })
+
+    it('leaves image url parts separate', () => {
+      const parts = [
+        { type: 'text' as const, text: 'look ' },
+        { type: 'url' as const, url: 'https://cdn.example.com/a.png', preview: true },
+      ]
+      const merged = coalesceInlineContentForMarkdown(parts, (url) => /\.png$/i.test(url))
+      expect(merged).toHaveLength(2)
+      expect(merged[0]).toMatchObject({ type: 'text', text: 'look ' })
+      expect(merged[1]).toMatchObject({ type: 'url', url: 'https://cdn.example.com/a.png' })
     })
   })
 

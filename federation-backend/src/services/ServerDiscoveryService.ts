@@ -58,7 +58,7 @@ router.get(
         id: serverData.id,
         name: serverData.name,
         description: serverData.summary || '',
-        icon: serverData.icon?.url,
+        icon: serverData.icon?.url ?? null,
         banner: serverData.image?.url || null,
         memberCount: serverData.memberCount ?? serverData['harmony:memberCount'] ?? 0,
         channels: (serverData['harmony:channels'] || []).map((c: any) => {
@@ -970,6 +970,14 @@ export class ServerDiscoveryService {
         return null;
       }
 
+      // Single inbound-boundary shim: older/non-compliant peers may still
+      // advertise the built-in default icon sentinel. Treat it as "no icon"
+      // here, once, so every discovery consumer (discover / join / sync) sees a
+      // clean object and never persists or surfaces a bogus default asset URL.
+      if (isDefaultServerIcon(server.icon?.url)) {
+        server.icon = undefined;
+      }
+
       logger.info(`✅ Found remote server: ${server.name}`);
       return server;
     } catch (error) {
@@ -1057,7 +1065,7 @@ export class ServerDiscoveryService {
       const serverInsertData: any = {
         name: remoteServer.name,
         description: remoteServer.summary || '',
-        icon: remoteServer.icon?.url,
+        icon: remoteServer.icon?.url ?? null,
         banner: remoteServer.image?.url || null,
         owner: ownerUserId,
         federation_enabled: true,
@@ -1312,7 +1320,7 @@ export class ServerDiscoveryService {
         .update({
           name: remoteServer.name,
           description: remoteServer.summary,
-          icon: remoteServer.icon?.url,
+          icon: remoteServer.icon?.url ?? null,
           banner: remoteServer.image?.url || null,
           public: remoteServer.discoverable !== false,
           federation_metadata: {

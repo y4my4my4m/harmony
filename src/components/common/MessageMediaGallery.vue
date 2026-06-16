@@ -21,7 +21,7 @@
         />
         <img
           v-if="item.fileType === 'image'"
-          :src="item.url"
+          :src="thumbnailFor(item)"
           class="content-image"
           :class="{ 'sticker-image': item.isSticker, 'ai-emoji-image': item.isAiEmoji }"
           draggable="false"
@@ -55,6 +55,7 @@ import {
   mediaGalleryLayoutClass,
 } from '@/utils/mediaGalleryUtils';
 import { stripKlipyAttributionFragment, isStickerMessageUrl, isAiEmojiMessageUrl } from '@/utils/klipyAttribution';
+import { getAttachmentThumbnailUrl } from '@/utils/storageImageUtils';
 import AttachmentRemoveButton from '@/components/common/AttachmentRemoveButton.vue';
 import {
   isDiscordCdnUrl,
@@ -139,6 +140,13 @@ const emit = defineEmits<{
 
 function onImageLoad(url: string) {
   emit('image-loaded', url);
+}
+
+// Inline thumbnail (downscaled for local uploads); lightbox still opens item.url
+// at full size. Stickers/AI emoji stay raw to preserve animation.
+function thumbnailFor(item: GalleryMediaItem): string {
+  if (item.isSticker || item.isAiEmoji) return item.url;
+  return getAttachmentThumbnailUrl(item.url);
 }
 </script>
 

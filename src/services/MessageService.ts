@@ -1,28 +1,8 @@
-/**
- * MessageService - Message operations (local DB + notification/reaction triggers)
- * 
- * Delegates to CoreMessageService; federation is handled by database triggers where applicable.
- * - CoreMessageService: Pure local database operations
- * - Database triggers: trigger_unified_message_federation / handle_unified_content_federation()
- * - NO manual federation decisions or activity creation needed
- * 
- * PRESERVED APIs: 
- * - ✅ Same method signatures as before
- * - ✅ Same return types and error formats
- * - ✅ Same loading patterns and race condition handling
- * - ✅ Same local-first design (immediate UI updates)
- * 
- * SIMPLIFIED ARCHITECTURE:
- * - Trust database triggers for all federation (DMs only - chat stays local)
- * - Eliminate unnecessary federation service calls
- * - Reduce database round trips significantly
- */
-
+/** Message operations; delegates to CoreMessageService. */
 import { supabase } from '@/supabase'
 import type { Message, MessagePart } from '@/types'
 import { debug } from '@/utils/debug'
 
-// Import only core service - database handles federation
 import { coreMessageService, type SendOptions } from './core'
 
 export interface CreateChannelMessageData {
@@ -51,12 +31,8 @@ export class MessageService {
     return MessageService.instance
   }
 
-  // =====================================================
-  // CHANNEL MESSAGES (LOCAL-ONLY: NO FEDERATION)
-  // =====================================================
-
   /**
-   * Send a channel message (local-only: no federation needed)
+   * Send a channel message (server channels are not federated).
    *
    * `options.allowPlaintextFallback` opts into plaintext sending when the
    * channel is encryption-eligible but encryption fails / is unavailable.
@@ -86,12 +62,7 @@ export class MessageService {
     }
   }
 
-  // =====================================================
-  // DM MESSAGES (SIMPLIFIED: TRUST DATABASE TRIGGERS)
-  // =====================================================
-
   /**
-   * Send a DM message (simplified: database triggers handle federation)
    *
    * @param options.isSystem - If true, stores as system message (not federated)
    * @param options.allowPlaintextFallback - explicit, user-confirmed opt-in
@@ -110,7 +81,6 @@ export class MessageService {
 
       const message = await coreMessageService.sendDMMessage(conversationId, content, replyTo, options, extraMetadata)
 
-      debug.log(`✅ MessageService: DM message sent successfully - database handling federation: ${message.id}`)
       return message
 
     } catch (error) {
@@ -119,13 +89,6 @@ export class MessageService {
     }
   }
 
-  // =====================================================
-  // MESSAGE EDITING (SIMPLIFIED: TRUST DATABASE TRIGGERS)
-  // =====================================================
-
-  /**
-   * Edit a message (simplified: database triggers handle federation)
-   */
   async editMessage(messageId: string, newContent: MessagePart[]): Promise<Message> {
     try {
       debug.log(`🚀 MessageService: Editing message: ${messageId}`)
@@ -133,7 +96,6 @@ export class MessageService {
       // Just edit the message - database triggers handle federation automatically
       const message = await coreMessageService.editMessage(messageId, newContent)
 
-      debug.log(`✅ MessageService: Message edited successfully - database handling federation: ${messageId}`)
       return message
 
     } catch (error) {
@@ -142,17 +104,11 @@ export class MessageService {
     }
   }
 
-  /**
-   * Delete a message (simplified: database triggers handle federation)
-   */
   async deleteMessage(messageId: string): Promise<void> {
     try {
       debug.log(`🚀 MessageService: Deleting message: ${messageId}`)
 
-      // Just delete the message - database triggers handle federation automatically
       await coreMessageService.deleteMessage(messageId)
-
-      debug.log(`✅ MessageService: Message deleted successfully - database handling federation: ${messageId}`)
 
     } catch (error) {
       debug.error('❌ MessageService: Failed to delete message:', error)
@@ -160,50 +116,26 @@ export class MessageService {
     }
   }
 
-  // =====================================================
-  // MESSAGE REACTIONS (SIMPLIFIED: TRUST DATABASE TRIGGERS)
-  // =====================================================
-
   /**
-   * Toggle reaction on a message (simplified: database triggers handle federation)
    * Local-first design: chat reactions stay local, DM reactions may federate
-   * PRESERVES: Exact same API and return type
    */
   async toggleReaction(
     messageId: string,
     emojiId: string
-  ): Promise<{ added: boolean; newCount: number }> {
+  ): Promise<{ added: boolean }> {
     try {
       debug.log(`🚀 MessageService: Toggling reaction for message: ${messageId}, emoji: ${emojiId}`)
 
-      // Just toggle the reaction - database triggers handle federation logic automatically
       // (chat reactions stay local, DM reactions may federate based on participants)
+      //
+      // We intentionally do NOT issue a follow-up COUNT query here: the
+      // reactions store already updates the count optimistically and then
+      // reconciles against the authoritative server data (via the per-message
+      // reconcile fetch + realtime), so the extra round-trip only added latency
+      // to every single reaction toggle without being consumed anywhere.
       const result = await coreMessageService.toggleReaction(messageId, emojiId)
 
-      // Check if this is a unicode/shortcode emoji (not a UUID)
-      const isNativeEmoji = !this.isValidUUID(emojiId)
-
-      // Get updated count for the response - query by correct field
-      let countQuery = supabase
-        .from('reactions')
-        .select('*', { count: 'exact', head: true })
-        .eq('message_id', messageId)
-      
-      if (isNativeEmoji) {
-        countQuery = countQuery.eq('custom_emoji_content', emojiId)
-      } else {
-        countQuery = countQuery.eq('emoji_id', emojiId)
-      }
-
-      const { count } = await countQuery
-
-      const response = {
-        added: result.added,
-        newCount: count || 0
-      }
-
-      debug.log(`✅ MessageService: Message reaction toggled - database handling federation: ${response.added ? 'added' : 'removed'}`)
-      return response
+      return { added: result.added }
 
     } catch (error) {
       debug.error('❌ MessageService: Failed to toggle message reaction:', error)
@@ -211,19 +143,6 @@ export class MessageService {
     }
   }
 
-  /**
-   * Check if a string is a valid UUID
-   * Uses permissive regex to handle Supabase-generated UUIDs which may not strictly follow RFC 4122
-   */
-  private isValidUUID(str: string): boolean {
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-    return uuidRegex.test(str)
-  }
-
-  /**
-   * Get message reactions (delegated to core service)
-   * PRESERVES: Exact same API and return type
-   */
   async getMessageReactions(messageId: string): Promise<Array<{
     emoji_id: string;
     emoji_name: string;
@@ -233,7 +152,6 @@ export class MessageService {
     try {
       debug.log(`🚀 MessageService: Loading reactions for message: ${messageId}`)
 
-      // Delegate to core service (no federation needed for reads)
       const reactions = await coreMessageService.getMessageReactions(messageId)
 
       debug.log(`✅ MessageService: Loaded ${reactions.length} reaction groups`)
@@ -247,7 +165,6 @@ export class MessageService {
 
   /**
    * Get batch message reactions (delegated to core service for performance)
-   * PRESERVES: Exact same API and return type
    */
   async getBatchMessageReactions(messageIds: string[]): Promise<{
     [messageId: string]: Array<{
@@ -272,14 +189,6 @@ export class MessageService {
     }
   }
 
-  // =====================================================
-  // MESSAGE LOADING (DELEGATED TO CORE SERVICE)
-  // =====================================================
-
-  /**
-   * Load channel messages (delegated to core service)
-   * PRESERVES: Exact same API, pagination, and performance
-   */
   async loadChannelMessages(
     channelId: string,
     options: {
@@ -296,7 +205,6 @@ export class MessageService {
     try {
       debug.log(`🚀 MessageService: Loading channel messages for: ${channelId}`)
 
-      // Delegate to core service (no federation needed for reads)
       const messages = await coreMessageService.loadChannelMessages(channelId, options)
 
       // Transform core service response to match expected API
@@ -320,10 +228,6 @@ export class MessageService {
     }
   }
 
-  /**
-   * Load conversation messages (delegated to core service)
-   * PRESERVES: Exact same API, pagination, and performance
-   */
   async loadConversationMessages(
     conversationId: string,
     options: {
@@ -340,7 +244,6 @@ export class MessageService {
     try {
       debug.log(`🚀 MessageService: Loading conversation messages for: ${conversationId}`)
 
-      // Delegate to core service (no federation needed for reads)
       const messages = await coreMessageService.loadConversationMessages(conversationId, options)
 
       // Transform core service response to match expected API
@@ -364,15 +267,10 @@ export class MessageService {
     }
   }
 
-  /**
-   * Load a single message (delegated to core service)
-   * PRESERVES: Exact same API and return type
-   */
   async loadMessage(messageId: string): Promise<Message | null> {
     try {
       debug.log(`🚀 MessageService: Loading message: ${messageId}`)
 
-      // Delegate to core service (no federation needed for reads)
       const message = await coreMessageService.loadMessage(messageId)
 
       if (message) {
@@ -389,9 +287,7 @@ export class MessageService {
     }
   }
 
-  // =====================================================
   // MESSAGE PINNING
-  // =====================================================
 
   /**
    * Pin a message in a channel or DM
@@ -547,13 +443,6 @@ export class MessageService {
     }
   }
 
-  // =====================================================
-  // UTILITY METHODS (PRESERVED)
-  // =====================================================
-
-  /**
-   * OPTIMIZED: Uses AuthContextService for cached profile ID lookup
-   */
   private async getCurrentUserProfileId(): Promise<string> {
     const { authContextService } = await import('@/services/AuthContextService')
     
@@ -572,5 +461,4 @@ export class MessageService {
   }
 }
 
-// Export singleton instance
 export const messageService = MessageService.getInstance()

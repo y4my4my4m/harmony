@@ -1588,15 +1588,23 @@ BEGIN
 END;
 $$;
 
--- Queue DM reaction for federation
+-- Queue DM reaction for federation (conversation messages only; channel
+-- reactions are handled exclusively by trigger_queue_channel_reaction_federation).
 CREATE OR REPLACE FUNCTION public.trigger_queue_message_reaction_federation()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
 AS $$
+DECLARE
+    v_is_dm BOOLEAN;
 BEGIN
     IF NEW.metadata ? 'federated' THEN RETURN NEW; END IF;
+
+    SELECT (conversation_id IS NOT NULL) INTO v_is_dm
+    FROM public.messages WHERE id = NEW.message_id;
+    IF v_is_dm IS NOT TRUE THEN RETURN NEW; END IF;
+
     NEW.federation_status := 'queued';
     PERFORM public.queue_federation_job(
         'federate-message-reaction',
@@ -1610,6 +1618,115 @@ BEGIN
         ), 5, 3, 1800
     );
     RETURN NEW;
+END;
+$$;
+
+-- Queue DM reaction removal for federation (OLD-based; bound to AFTER DELETE).
+CREATE OR REPLACE FUNCTION public.trigger_queue_message_reaction_delete_federation()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+    v_is_dm BOOLEAN;
+BEGIN
+    IF OLD.metadata ? 'federated' THEN RETURN OLD; END IF;
+
+    SELECT (conversation_id IS NOT NULL) INTO v_is_dm
+    FROM public.messages WHERE id = OLD.message_id;
+    IF v_is_dm IS NOT TRUE THEN RETURN OLD; END IF;
+
+    PERFORM public.queue_federation_job(
+        'federate-message-reaction',
+        jsonb_build_object(
+            'type', 'delete',
+            'reaction_id', OLD.id,
+            'message_id', OLD.message_id,
+            'user_id', OLD.user_id,
+            'emoji_id', OLD.emoji_id,
+            'custom_emoji_content', OLD.custom_emoji_content
+        ), 5, 3, 1800
+    );
+    RETURN OLD;
+END;
+$$;
+
+-- Broadcast message/DM reaction changes to the per-context message topic.
+-- Replaces the reactions postgres_changes (CDC) subscription: clients receive
+-- a compact reaction_event on the SAME private channel they already use for
+-- message delivery (channel-messages-{id} / dm-conversation-{id}).
+CREATE OR REPLACE FUNCTION public.broadcast_message_reaction_event()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_rec             record;
+  v_channel_id      uuid;
+  v_conversation_id uuid;
+  v_topic           text;
+  v_actor           record;
+  v_emoji           record;
+BEGIN
+  IF TG_OP = 'DELETE' THEN
+    v_rec := OLD;
+  ELSE
+    v_rec := NEW;
+  END IF;
+
+  v_channel_id := v_rec.channel_id;
+  v_conversation_id := v_rec.conversation_id;
+
+  IF v_channel_id IS NULL AND v_conversation_id IS NULL THEN
+    SELECT channel_id, conversation_id
+      INTO v_channel_id, v_conversation_id
+    FROM public.messages WHERE id = v_rec.message_id;
+  END IF;
+
+  IF v_conversation_id IS NOT NULL THEN
+    v_topic := 'dm-conversation-' || v_conversation_id::text;
+  ELSIF v_channel_id IS NOT NULL THEN
+    v_topic := 'channel-messages-' || v_channel_id::text;
+  ELSE
+    RETURN COALESCE(NEW, OLD);
+  END IF;
+
+  SELECT username, display_name, avatar_url
+    INTO v_actor
+  FROM public.profiles WHERE id = v_rec.user_id;
+
+  -- Custom emoji name/url so a new chip renders correctly even when the
+  -- receiver hasn't cached this emoji (e.g. cross-server / federated).
+  IF v_rec.emoji_id IS NOT NULL THEN
+    SELECT name, url INTO v_emoji FROM public.emojis WHERE id = v_rec.emoji_id;
+  END IF;
+
+  PERFORM realtime.send(
+    jsonb_build_object(
+      'type',                 'reaction:' || lower(TG_OP),
+      'op',                   TG_OP,
+      'message_id',           v_rec.message_id,
+      'emoji_id',             v_rec.emoji_id,
+      'emoji_name',           v_emoji.name,
+      'emoji_url',            v_emoji.url,
+      'custom_emoji_content', v_rec.custom_emoji_content,
+      'user_id',              v_rec.user_id,
+      'bot_id',               v_rec.bot_id,
+      'username',             v_actor.username,
+      'display_name',         v_actor.display_name,
+      'avatar_url',           v_actor.avatar_url
+    ),
+    'reaction_event',
+    v_topic,
+    true
+  );
+
+  RETURN COALESCE(NEW, OLD);
+EXCEPTION WHEN OTHERS THEN
+  RAISE WARNING 'broadcast_message_reaction_event failed: %', SQLERRM;
+  RETURN COALESCE(NEW, OLD);
 END;
 $$;
 

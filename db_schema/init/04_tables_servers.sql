@@ -14,7 +14,9 @@ CREATE TABLE IF NOT EXISTS public.servers (
     
     name text NOT NULL,
     description text,
-    icon text DEFAULT '/default_server.webp'::text,
+    -- NULL means "no custom icon"; the UI renders the bundled default asset.
+    -- Never store the default as a sentinel string - it leaks into federation.
+    icon text,
     banner text,
     
     -- Owner

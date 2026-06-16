@@ -59,7 +59,6 @@ export const useDraftsStore = defineStore('drafts', () => {
   function evictOldest() {
     const keys = Object.keys(drafts.value)
     if (keys.length > MAX_DRAFTS) {
-      // Remove the oldest entries (first inserted keys)
       const toRemove = keys.slice(0, keys.length - MAX_DRAFTS)
       for (const k of toRemove) {
         delete drafts.value[k]

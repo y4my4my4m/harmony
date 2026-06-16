@@ -15,7 +15,9 @@ DELETE FROM cron.job_run_details
 WHERE end_time < now() - interval '7 days';
 
 -- 1b. Schedule daily cleanup at 4 AM (idempotent)
-DO $$
+-- NOTE: outer block uses the $do$ tag so the inner $$...$$ cron command string
+-- does not prematurely terminate it.
+DO $do$
 BEGIN
   IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_cron') THEN
     BEGIN PERFORM cron.unschedule('cleanup-cron-job-run-details'); EXCEPTION WHEN OTHERS THEN NULL; END;
@@ -28,7 +30,7 @@ BEGIN
 
     RAISE NOTICE 'Scheduled daily cleanup of cron.job_run_details';
   END IF;
-END $$;
+END $do$;
 
 -- 2. Drop the unused pgboss schema (CASCADE drops all its tables/types)
 DROP SCHEMA IF EXISTS pgboss CASCADE;

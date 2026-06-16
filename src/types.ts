@@ -418,10 +418,23 @@ export interface ReactionGroup {
   emoji_id: string | null;
   emoji: Emoji;
   count: number;
-  reactions: Array<{
-    reaction_id: string;
-    user_id: string;
-  }>;
+  /**
+   * Server-computed: whether the current user is in this reaction group.
+   * This (not a client-side user_id compare) is the source of truth for the
+   * "reacted" highlight - it's immune to auth-id vs profile-id confusion.
+   */
+  current_user_reacted?: boolean;
+  reactions: ReactionActor[];
+}
+
+/** One participant in a reaction group (a user or a bot), with tooltip fields. */
+export interface ReactionActor {
+  reaction_id: string;
+  user_id?: string;
+  bot_id?: string;
+  username?: string;
+  display_name?: string;
+  avatar_url?: string;
 }
 export interface Message {
   id: string;
@@ -892,6 +905,7 @@ export interface NotificationToast {
   actions?: ToastAction[];
   duration: number;
   timestamp: Date;
+  notificationId?: string; // Source notification id, enables click-to-navigate
 }
 
 export interface ToastAction {

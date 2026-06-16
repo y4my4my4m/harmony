@@ -1,30 +1,4 @@
-/**
- * CoreInteractionService - Pure local user interaction operations with ENTERPRISE SECURITY
- * 
- * Contains ONLY local database operations with NO federation logic:
- * - Follow/unfollow operations with strict verification
- * - Block/unblock operations with security controls
- * - Mute/unmute operations with privacy protection
- * - Relationship queries with secure aggregation
- * - Follow request management with authorization
- * 
- * SECURITY FEATURES:
- * - ✅ Authentication verification on all operations
- * - ✅ Authorization checks (ownership verification)
- * - ✅ Input validation and sanitization
- * - ✅ SQL injection prevention with parameterized queries
- * - ✅ Privacy controls for sensitive relationship data
- * - ✅ Secure error handling (no data leakage)
- * - ✅ Rate limiting considerations for bulk operations
- * - ✅ Relationship integrity validation
- * 
- * NO FEDERATION CONCERNS:
- * - No ActivityPub Follow/Undo activities
- * - No cross-instance follow propagation
- * - No federation approval logic
- * - Pure local Supabase operations only
- */
-
+/** Local follow, block, mute, and relationship queries. */
 import { supabase } from '@/supabase'
 import { authContextService } from '@/services/AuthContextService'
 import { debug } from '@/utils/debug'
@@ -794,5 +768,4 @@ export class CoreInteractionService {
   }
 }
 
-// Export singleton instance
 export const coreInteractionService = CoreInteractionService.getInstance()
