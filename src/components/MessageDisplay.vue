@@ -314,12 +314,12 @@
                   :src="getAuthorAvatarUrl(item.message).value"
                   size="sm" 
                   :interactive="true"
-                  @click="getMessageAuthorId(item.message) && showUserProfile(getMessageAuthorId(item.message), $event)"
+                  @click="handleAuthorClick(item.message, $event)"
                 />
           </div>
           <div class="message-main">
             <div class="message-meta">
-              <span class="username" :style="{color: getAuthorColor(item.message).value}" @click="getMessageAuthorId(item.message) && showUserProfile(getMessageAuthorId(item.message), $event)">
+              <span class="username" :style="{color: getAuthorColor(item.message).value}" @click="handleAuthorClick(item.message, $event)">
                 <span class="username-text"><DisplayName v-if="item.message.user_id && !item.message.bot_id && !hasDiscordUserMetadata(item.message)" :user-id="item.message.user_id" /><template v-else>{{ getAuthorDisplayName(item.message).value }}</template></span>
                 <BridgeSourceBadge v-if="hasDiscordUserMetadata(item.message)" source="discord" />
                 <span v-else-if="isMessageFromBot(item.message)" class="bot-badge">BOT</span>
@@ -612,6 +612,7 @@ import Avatar from '@/components/common/Avatar.vue';
 import DisplayName from '@/components/DisplayName.vue';
 import ReactionTooltip from '@/components/messages/ReactionTooltip.vue';
 import BridgeSourceBadge from '@/components/messages/BridgeSourceBadge.vue';
+import { useBridgedDiscordProfile } from '@/composables/useBridgedDiscordProfile';
 import MessageReactions from '@/components/MessageReactions.vue';
 import MessageContextMenu from '@/components/MessageContextMenu.vue';
 import LightboxDownloadButton from '@/components/common/LightboxDownloadButton.vue';
@@ -3318,6 +3319,20 @@ const resolveNonUuidProfile = async (userId: string): Promise<any | null> => {
     } catch { /* invalid URL, ignore */ }
   }
   return null;
+};
+
+const { openFromDiscordMetadata } = useBridgedDiscordProfile();
+
+const handleAuthorClick = (message: Message, event?: MouseEvent) => {
+  event?.stopPropagation();
+  if (hasDiscordUserMetadata(message) && message.metadata?.discord_user) {
+    openFromDiscordMetadata(message.metadata.discord_user, props.channelId);
+    return;
+  }
+  const authorId = getMessageAuthorId(message);
+  if (authorId) {
+    void showUserProfile(authorId, event);
+  }
 };
 
 const showUserProfile = async (userId: string | null | undefined, event?: MouseEvent) => {

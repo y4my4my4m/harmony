@@ -106,6 +106,7 @@
               class="user-item bridged-discord-user"
               :class="{ 'offline-user': item.isOffline }"
               :title="`Discord: @${item.bridgedUser.username}`"
+              @click="showBridgedDiscordUserProfile(item.bridgedUser)"
             >
               <Avatar
                 :src="item.bridgedUser.avatarUrl || '/default_avatar.webp'"
@@ -274,6 +275,7 @@ import { formatCustomStatusDisplay } from '@/utils/customStatusDisplay';
 import { getEmojiUrl } from '@/utils/emojiUtils';
 import ActivityIcon from '@/components/ActivityIcon.vue';
 import { useBridgedChannelUsers } from '@/composables/useBridgedChannelUsers';
+import { useBridgedDiscordProfile } from '@/composables/useBridgedDiscordProfile';
 import type { BridgedChannelUser } from '@/services/bridgedChannelUsersService';
 
 // Props
@@ -696,6 +698,8 @@ const {
   hasBridge: channelHasBridge,
 } = useBridgedChannelUsers(() => serverChannelStore.currentChannelId);
 
+const { open: openBridgedDiscordProfile } = useBridgedDiscordProfile();
+
 // Members are the user IDs that the server-presence subscription has
 // reported for the currently selected server. We deliberately do NOT
 // fall back to `getAllUsers` here - that map contains every profile the
@@ -738,6 +742,53 @@ const filteredBridgedDiscordUsers = computed(() => {
     return displayName.includes(query) || username.includes(query);
   });
 });
+
+function getBridgedUserNameColor(bridgedUser: BridgedChannelUser, fallback = '#5865F2'): string {
+  const coloredRole = bridgedUser.roles?.find(r => r.color);
+  return coloredRole?.color ?? fallback;
+}
+
+function getHighestHoistedRoleForBridged(bridgedUser: BridgedChannelUser): ServerRole | null {
+  const roleIds = bridgedUser.harmonyRoleIds ?? [];
+  if (roleIds.length === 0) return null;
+  for (const role of hoistedRolesSorted.value) {
+    if (roleIds.includes(role.id)) return role;
+  }
+  return null;
+}
+
+/** Discord users grouped by highest hoisted Harmony role; remainder in "Discord". */
+const bridgedDiscordGrouping = computed(() => {
+  const byRoleId: Record<string, BridgedChannelUser[]> = {};
+  const unassigned: BridgedChannelUser[] = [];
+
+  for (const role of hoistedRolesSorted.value) {
+    byRoleId[role.id] = [];
+  }
+
+  for (const bridgedUser of filteredBridgedDiscordUsers.value) {
+    const hoistedRole = getHighestHoistedRoleForBridged(bridgedUser);
+    if (hoistedRole && byRoleId[hoistedRole.id]) {
+      byRoleId[hoistedRole.id].push(bridgedUser);
+    } else {
+      unassigned.push(bridgedUser);
+    }
+  }
+
+  const sortByName = (a: BridgedChannelUser, b: BridgedChannelUser) =>
+    (a.displayName || a.username).localeCompare(b.displayName || b.username);
+
+  for (const members of Object.values(byRoleId)) {
+    members.sort(sortByName);
+  }
+  unassigned.sort(sortByName);
+
+  return { byRoleId, unassigned };
+});
+
+function showBridgedDiscordUserProfile(bridgedUser: BridgedChannelUser) {
+  openBridgedDiscordProfile(bridgedUser);
+}
 
 // Filter users based on search query
 const filteredUsers = computed(() => {
@@ -945,7 +996,7 @@ const sidebarDisplayItems = computed((): SidebarItem[] => {
           key: `bd-${bridgedUser.id}-${groupKey}`,
           groupKey,
           bridgedUser,
-          nameColor: '#5865F2',
+          nameColor: getBridgedUserNameColor(bridgedUser, '#5865F2'),
           isOffline: true,
           showStatus: 'none',
         });
@@ -954,17 +1005,36 @@ const sidebarDisplayItems = computed((): SidebarItem[] => {
   };
 
   if (!isLoadingUsers.value) {
+  const addBridgedUsersToGroup = (
+    groupKey: string,
+    members: BridgedChannelUser[],
+    defaultNameColor?: string | null,
+  ) => {
+    for (const bridgedUser of members) {
+      items.push({
+        type: 'user',
+        key: `bd-${bridgedUser.id}-${groupKey}`,
+        groupKey,
+        bridgedUser,
+        nameColor: getBridgedUserNameColor(bridgedUser, defaultNameColor || '#5865F2'),
+        isOffline: true,
+        showStatus: 'none',
+      });
+    }
+  };
+
   const addGroup = (
     groupKey: string,
     title: string,
     users: User[],
+    bridgedMembers: BridgedChannelUser[] = [],
     opts: { roleColor?: string; nameColor?: string | null; isOffline?: boolean; showStatus?: 'full' | 'partial' | 'none' } = {}
   ) => {
-    if (users.length === 0) return;
+    if (users.length === 0 && bridgedMembers.length === 0) return;
     const collapsed = !!collapsedGroups.value[groupKey];
     items.push({
       type: 'header', key: `h-${groupKey}`, groupKey, title,
-      count: users.length, roleColor: opts.roleColor, isCollapsed: collapsed
+      count: users.length + bridgedMembers.length, roleColor: opts.roleColor, isCollapsed: collapsed
     });
     if (!collapsed) {
       for (const user of users) {
@@ -975,21 +1045,26 @@ const sidebarDisplayItems = computed((): SidebarItem[] => {
           showStatus: opts.showStatus ?? 'full'
         });
       }
+      addBridgedUsersToGroup(groupKey, bridgedMembers, opts.nameColor ?? opts.roleColor ?? '#5865F2');
     }
   };
 
   for (const role of hoistedRolesSorted.value) {
     const roleUsers = groupedUsers.value[`role:${role.id}`] || [];
-    addGroup(`role:${role.id}`, role.name, roleUsers, { roleColor: role.color || '#99AAB5', nameColor: role.color });
+    const bridgedInRole = bridgedDiscordGrouping.value.byRoleId[role.id] || [];
+    addGroup(`role:${role.id}`, role.name, roleUsers, bridgedInRole, {
+      roleColor: role.color || '#99AAB5',
+      nameColor: role.color,
+    });
   }
-  addGroup('online', 'Online', groupedUsers.value.online, { showStatus: 'full' });
-  addGroup('away', 'Away', groupedUsers.value.away, { showStatus: 'partial' });
-  addGroup('busy', 'Busy', groupedUsers.value.busy, { showStatus: 'none' });
-  addGroup('federated', 'Federated', groupedUsers.value.federated, { showStatus: 'full' });
-  addGroup('offline', 'Offline', groupedUsers.value.offline, { isOffline: true, showStatus: 'none' });
+  addGroup('online', 'Online', groupedUsers.value.online, [], { showStatus: 'full' });
+  addGroup('away', 'Away', groupedUsers.value.away, [], { showStatus: 'partial' });
+  addGroup('busy', 'Busy', groupedUsers.value.busy, [], { showStatus: 'none' });
+  addGroup('federated', 'Federated', groupedUsers.value.federated, [], { showStatus: 'full' });
+  addGroup('offline', 'Offline', groupedUsers.value.offline, [], { isOffline: true, showStatus: 'none' });
   }
 
-  addBridgedGroup('discord', 'Discord', filteredBridgedDiscordUsers.value);
+  addBridgedGroup('discord', 'Discord', bridgedDiscordGrouping.value.unassigned);
 
   return items;
 });
@@ -1539,11 +1614,11 @@ const closeInviteModal = () => {
 }
 
 .bridged-discord-user {
-  cursor: default;
+  cursor: pointer;
 }
 
 .bridged-discord-user:hover {
-  background-color: transparent;
+  background-color: var(--background-modifier-hover, rgba(79, 84, 92, 0.32));
 }
 
 .instance-badge {

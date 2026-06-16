@@ -1,12 +1,25 @@
 import { supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
 
+export interface BridgedDiscordRole {
+  id: string
+  name: string
+  color: string | null
+  position: number
+}
+
 /** Ephemeral Discord (or other bridge) member from bot-gateway — not persisted in Harmony DB. */
 export interface BridgedChannelUser {
   id: string
   username: string
   displayName: string
   avatarUrl: string
+  bannerUrl?: string | null
+  accentColor?: string | null
+  harmonyRoleIds?: string[]
+  roles?: BridgedDiscordRole[]
+  joinedAt?: string | null
+  createdAt?: string | null
   source: 'discord'
 }
 
@@ -42,6 +55,31 @@ export function clearBridgedUsersCache(channelId?: string): void {
   } else {
     cache.clear()
     pending.clear()
+  }
+}
+
+/** Look up a bridged user from the in-memory channel cache (no network). */
+export function findBridgedUserInCache(
+  channelId: string,
+  discordUserId: string,
+): BridgedChannelUser | null {
+  const entry = cache.get(channelId)
+  if (!entry) return null
+  return entry.users.find(u => u.id === discordUserId) ?? null
+}
+
+export function discordMetadataToBridgedUser(meta: {
+  id: string
+  username: string
+  display_name?: string
+  avatar_url?: string
+}): BridgedChannelUser {
+  return {
+    id: meta.id,
+    username: meta.username,
+    displayName: meta.display_name || meta.username,
+    avatarUrl: meta.avatar_url || '',
+    source: 'discord',
   }
 }
 

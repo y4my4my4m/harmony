@@ -11,11 +11,24 @@ export interface BotConnection {
 }
 
 // Bridged user info (from Discord bridge)
+export interface BridgedDiscordRole {
+  id: string
+  name: string
+  color: string | null
+  position: number
+}
+
 export interface BridgedUser {
   id: string
   username: string
   displayName: string
   avatarUrl: string
+  bannerUrl?: string | null
+  accentColor?: string | null
+  harmonyRoleIds?: string[]
+  roles?: BridgedDiscordRole[]
+  joinedAt?: string | null
+  createdAt?: string | null
   source: 'discord'
 }
 

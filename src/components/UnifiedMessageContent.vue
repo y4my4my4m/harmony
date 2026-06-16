@@ -547,6 +547,8 @@ import { debug } from '@/utils/debug';
 import { sanitizeUrl } from '@/utils/sanitize';
 import { renderChatMessageText } from '@/utils/chatMessageTextRenderer';
 import { useVisualTheme } from '@/composables/useVisualTheme';
+import { useBridgedDiscordProfile } from '@/composables/useBridgedDiscordProfile';
+import { useServerChannelStore } from '@/stores/useServerChannel';
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings';
 import {
   defaultKlipyHomeUrl,
@@ -655,6 +657,8 @@ export default defineComponent({
     const editRichEditorRef = ref<InstanceType<typeof RichTextEditor> | null>(null);
     const videoContainers = ref<HTMLElement[]>([]);
     const visualTheme = useVisualTheme();
+    const { openFromDiscordMetadata } = useBridgedDiscordProfile();
+    const serverChannelStore = useServerChannelStore();
     const decrypting = ref(false);
     const instanceSettings = useInstanceSettingsStore();
     const showKlipyWatermark = computed(
@@ -1200,9 +1204,15 @@ export default defineComponent({
     const handleMentionClick = (part: any, event: MouseEvent) => {
       event.stopPropagation();
 
-      // Don't try to open profile for bridged/Discord users
       if (isBridgedMention(part)) {
-        debug.log('Bridged mention clicked (Discord user):', part.username);
+        openFromDiscordMetadata(
+          {
+            id: part.userId,
+            username: part.username,
+            display_name: part.displayName || part.username,
+          },
+          serverChannelStore.currentChannelId,
+        );
         return;
       }
 
