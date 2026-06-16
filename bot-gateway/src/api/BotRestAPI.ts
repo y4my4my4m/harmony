@@ -70,9 +70,12 @@ export class BotRestAPI {
     // Create channel / category (bot must have manage_channels)
     this.router.post('/servers/:serverId/channels', this.createChannel.bind(this))
     this.router.post('/servers/:serverId/categories', this.createCategory.bind(this))
+    this.router.patch('/servers/:serverId/categories/:categoryId', this.updateCategory.bind(this))
 
     // List categories (for clone/diff)
     this.router.get('/servers/:serverId/categories', this.getCategories.bind(this))
+
+    this.router.patch('/channels/:channelId', this.updateChannel.bind(this))
 
     // Roles: list + create (bot must have manage_channels - role creation is
     // part of the same admin clone flow as channel creation; there is no
@@ -624,7 +627,7 @@ export class BotRestAPI {
         .from('channels')
         .select('*')
         .eq('server_id', serverId)
-        .order('position')
+        .order('order')
       
       if (error) {
         return res.status(500).json({ error: error.message })
@@ -727,6 +730,88 @@ export class BotRestAPI {
 
       await this.logBotAction(botId, 'channel_created', { server_id: serverId, channel_id: data.id })
       res.status(201).json(this.formatChannel(data))
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || 'Internal server error' })
+    }
+  }
+
+  private async updateCategory(req: BotRequest, res: Response) {
+    try {
+      const serverId = req.params.serverId
+      const categoryId = req.params.categoryId
+      const { name, order } = req.body as { name?: string; order?: number }
+      const botId = req.bot!.id
+
+      const allowed = await this.checkServerPermission(botId, serverId, 'manage_channels')
+      if (!allowed) {
+        return res.status(403).json({ error: 'Missing permission: manage_channels' })
+      }
+
+      const patch: Record<string, unknown> = {}
+      if (typeof name === 'string' && name.trim()) patch.name = name.trim().slice(0, 100)
+      if (typeof order === 'number') patch.order = order
+      if (Object.keys(patch).length === 0) {
+        return res.status(400).json({ error: 'No valid fields to update' })
+      }
+
+      const { data, error } = await supabase
+        .from('channel_categories')
+        .update(patch)
+        .eq('id', categoryId)
+        .eq('server_id', serverId)
+        .select('*')
+        .single()
+
+      if (error) return res.status(500).json({ error: error.message })
+      if (!data) return res.status(404).json({ error: 'Category not found' })
+
+      res.json(data)
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || 'Internal server error' })
+    }
+  }
+
+  private async updateChannel(req: BotRequest, res: Response) {
+    try {
+      const channelId = req.params.channelId
+      const { order, category_id } = req.body as { order?: number; category_id?: string | null }
+      const botId = req.bot!.id
+
+      const { data: existing, error: fetchError } = await supabase
+        .from('channels')
+        .select('id, server_id')
+        .eq('id', channelId)
+        .maybeSingle()
+
+      if (fetchError) return res.status(500).json({ error: fetchError.message })
+      if (!existing?.server_id) return res.status(404).json({ error: 'Channel not found' })
+
+      const allowed = await this.checkServerPermission(
+        botId,
+        existing.server_id,
+        'manage_channels',
+      )
+      if (!allowed) {
+        return res.status(403).json({ error: 'Missing permission: manage_channels' })
+      }
+
+      const patch: Record<string, unknown> = {}
+      if (typeof order === 'number') patch.order = order
+      if (category_id !== undefined) patch.category = category_id || null
+      if (Object.keys(patch).length === 0) {
+        return res.status(400).json({ error: 'No valid fields to update' })
+      }
+
+      const { data, error } = await supabase
+        .from('channels')
+        .update(patch)
+        .eq('id', channelId)
+        .select('*')
+        .single()
+
+      if (error) return res.status(500).json({ error: error.message })
+
+      res.json(this.formatChannel(data))
     } catch (error: any) {
       res.status(500).json({ error: error.message || 'Internal server error' })
     }
@@ -1277,8 +1362,10 @@ export class BotRestAPI {
       type: channel.type === 'text' ? 0 : channel.type === 'voice' ? 2 : 0,
       guild_id: channel.server_id,
       name: channel.name,
-      position: channel.position,
-      parent_id: channel.parent_id
+      position: channel.order ?? 0,
+      order: channel.order ?? 0,
+      parent_id: channel.category,
+      category_id: channel.category,
     }
   }
   
