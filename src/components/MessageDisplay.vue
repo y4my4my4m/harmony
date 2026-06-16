@@ -321,7 +321,7 @@
             <div class="message-meta">
               <span class="username" :style="{color: getAuthorColor(item.message).value}" @click="getMessageAuthorId(item.message) && showUserProfile(getMessageAuthorId(item.message), $event)">
                 <span class="username-text"><DisplayName v-if="item.message.user_id && !item.message.bot_id && !hasDiscordUserMetadata(item.message)" :user-id="item.message.user_id" /><template v-else>{{ getAuthorDisplayName(item.message).value }}</template></span>
-                <span v-if="hasDiscordUserMetadata(item.message)" class="bot-badge discord">DISCORD</span>
+                <BridgeSourceBadge v-if="hasDiscordUserMetadata(item.message)" source="discord" />
                 <span v-else-if="isMessageFromBot(item.message)" class="bot-badge">BOT</span>
                 <span v-if="getInstanceBadge(item.message).value === 'admin'" class="instance-badge admin" title="Instance Admin">
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
@@ -611,6 +611,7 @@ import MoreIcon from '@/components/icons/More.vue';
 import Avatar from '@/components/common/Avatar.vue';
 import DisplayName from '@/components/DisplayName.vue';
 import ReactionTooltip from '@/components/messages/ReactionTooltip.vue';
+import BridgeSourceBadge from '@/components/messages/BridgeSourceBadge.vue';
 import MessageReactions from '@/components/MessageReactions.vue';
 import MessageContextMenu from '@/components/MessageContextMenu.vue';
 import LightboxDownloadButton from '@/components/common/LightboxDownloadButton.vue';

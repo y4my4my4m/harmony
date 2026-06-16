@@ -13,28 +13,13 @@ import type { SuggestionItem, SuggestionPosition } from '@/components/AutoSugges
 import type { ResolvedEmoji } from '@/types';
 import { debug } from '@/utils/debug';
 import { supabase } from '@/supabase';
+import {
+  clearBridgedUsersCache,
+  fetchBridgedChannelUsers,
+  type BridgedChannelUser,
+} from '@/services/bridgedChannelUsersService';
 
-// Bridged user interface (from Discord bridge)
-interface BridgedUser {
-  id: string;
-  username: string;
-  displayName: string;
-  avatarUrl: string;
-  source: 'discord';
-}
-
-// SHARED cache for bridged users across all useAutoSuggest instances
-// This prevents duplicate API calls when multiple components use autosuggest
-interface CachedBridgedUsers {
-  users: BridgedUser[];
-  timestamp: number;
-}
-
-const BRIDGED_USERS_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
-const BRIDGED_USERS_CACHE_MAX_SIZE = 50; // Max channels to cache
-
-const sharedBridgedUsersCache = new Map<string, CachedBridgedUsers>();
-const sharedBridgedUsersPending = new Map<string, Promise<BridgedUser[]>>();
+export { clearBridgedUsersCache };
 
 // Cache for bridge bot checks per server (to avoid repeated DB queries)
 const bridgeBotCheckCache = new Map<string, { hasBridge: boolean; timestamp: number }>();
@@ -42,35 +27,6 @@ const BRIDGE_BOT_CHECK_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
 // Pending requests deduplication - prevents multiple concurrent requests for same server
 const bridgeBotCheckPending = new Map<string, Promise<boolean>>();
-
-// Check if cache entry is still valid
-function isCacheValid(entry: CachedBridgedUsers | undefined): boolean {
-  if (!entry) return false;
-  return Date.now() - entry.timestamp < BRIDGED_USERS_CACHE_TTL;
-}
-
-// Prune old cache entries to prevent memory bloat
-function pruneCache() {
-  if (sharedBridgedUsersCache.size <= BRIDGED_USERS_CACHE_MAX_SIZE) return;
-  
-  // Remove oldest entries first
-  const entries = Array.from(sharedBridgedUsersCache.entries())
-    .sort((a, b) => a[1].timestamp - b[1].timestamp);
-  
-  const toRemove = entries.slice(0, entries.length - BRIDGED_USERS_CACHE_MAX_SIZE);
-  for (const [key] of toRemove) {
-    sharedBridgedUsersCache.delete(key);
-  }
-}
-
-// Clear cache for a specific channel (call when bridge data changes)
-export function clearBridgedUsersCache(channelId?: string) {
-  if (channelId) {
-    sharedBridgedUsersCache.delete(channelId);
-  } else {
-    sharedBridgedUsersCache.clear();
-  }
-}
 
 export interface AutoSuggestTrigger {
   char: string;
@@ -140,7 +96,7 @@ export function useAutoSuggest(
   const activityPubUsers = ref<any[]>([]);
   
   // Bridged users from Discord (fetched from bot-gateway)
-  const bridgedUsers = ref<BridgedUser[]>([]);
+  const bridgedUsers = ref<BridgedChannelUser[]>([]);
   const bridgedUsersLoaded = ref(false);
   const bridgedUsersChannelId = ref<string | null>(null);
 
@@ -607,78 +563,16 @@ export function useAutoSuggest(
     if (!channelId) {
       return;
     }
-    
-    // Check shared cache first (with TTL check)
-    const cached = sharedBridgedUsersCache.get(channelId);
-    if (isCacheValid(cached)) {
-      bridgedUsers.value = cached!.users;
+
+    try {
+      const result = await fetchBridgedChannelUsers(channelId);
+      bridgedUsers.value = result.users;
       bridgedUsersChannelId.value = channelId;
       bridgedUsersLoaded.value = true;
-      debug.log(`🌉 fetchBridgedUsers: Using cached data for ${channelId}, ${bridgedUsers.value.length} users`);
-      return;
+    } catch {
+      bridgedUsers.value = [];
+      bridgedUsersLoaded.value = true;
     }
-    
-    // Check if a request is already pending for this channel
-    if (sharedBridgedUsersPending.has(channelId)) {
-      debug.log(`🌉 fetchBridgedUsers: Request already pending for ${channelId}, waiting...`);
-      try {
-        bridgedUsers.value = await sharedBridgedUsersPending.get(channelId)!;
-        bridgedUsersChannelId.value = channelId;
-        bridgedUsersLoaded.value = true;
-      } catch {
-        bridgedUsers.value = [];
-        bridgedUsersLoaded.value = true;
-      }
-      return;
-    }
-    
-    // Create the fetch promise and store it
-    const fetchPromise = (async (): Promise<BridgedUser[]> => {
-      try {
-        const url = `/bot-gateway/bridged-users/${channelId}`;
-        debug.log(`🌉 fetchBridgedUsers: Fetching from ${url}`);
-
-        // The gateway requires a Supabase user JWT now (BUGS.md C4).
-        // Pass the current session's access token; without it the request
-        // is rejected with 401.
-        const { data: { session } } = await supabase.auth.getSession();
-        const headers: Record<string, string> = {};
-        if (session?.access_token) {
-          headers['Authorization'] = `Bearer ${session.access_token}`;
-        }
-        const response = await fetch(url, { headers });
-
-        if (response.ok) {
-          const data = await response.json();
-          
-          if (data.has_bridge && Array.isArray(data.users)) {
-            const users = data.users as BridgedUser[];
-            sharedBridgedUsersCache.set(channelId, { users, timestamp: Date.now() });
-            pruneCache(); // Prevent unbounded growth
-            debug.log(`🌉 ✅ Loaded ${users.length} bridged Discord users for channel ${channelId}`);
-            return users;
-          } else {
-            sharedBridgedUsersCache.set(channelId, { users: [], timestamp: Date.now() });
-            debug.log(`🌉 Channel ${channelId} has no bridge or no users`);
-            return [];
-          }
-        } else {
-          debug.log(`🌉 ❌ Failed to fetch bridged users: ${response.status}`);
-          return [];
-        }
-      } catch (error) {
-        debug.log('🌉 ❌ Bridge API not available:', error);
-        return [];
-      } finally {
-        sharedBridgedUsersPending.delete(channelId);
-      }
-    })();
-    
-    sharedBridgedUsersPending.set(channelId, fetchPromise);
-    
-    bridgedUsers.value = await fetchPromise;
-    bridgedUsersChannelId.value = channelId;
-    bridgedUsersLoaded.value = true;
   };
 
   // Fetch server roles for @role mentions

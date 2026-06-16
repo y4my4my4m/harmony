@@ -555,6 +555,23 @@
 
       <div class="setting-item">
         <div class="setting-info">
+          <h4 class="setting-label">{{ $t('settings.appearance.bridgeSourceBadge') }}</h4>
+          <p class="setting-description">{{ $t('settings.appearance.bridgeSourceBadgeDesc') }}</p>
+        </div>
+        <div class="setting-control">
+          <select
+            v-model="settings.bridgeSourceBadge"
+            class="setting-select"
+            @change="onSettingChange"
+          >
+            <option value="icon">{{ $t('settings.appearance.bridgeSourceBadgeIcon') }}</option>
+            <option value="text">{{ $t('settings.appearance.bridgeSourceBadgeText') }}</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="setting-item">
+        <div class="setting-info">
           <h4 class="setting-label">{{ $t('settings.appearance.floatingVideo') }}</h4>
           <p class="setting-description">{{ $t('settings.appearance.floatingVideoDesc') }}</p>
         </div>
@@ -853,6 +870,7 @@ const settings = ref({
   emojiPack: currentPackId.value,
   showCustomEmojisInDisplayNames: true,
   greentextEnabled: true,
+  bridgeSourceBadge: 'icon' as 'icon' | 'text',
   fontFamily: 'system' as 'system' | 'pixel',
   glassEffectsEnabled: true,
   activeSkinId: null as string | null,
@@ -1287,6 +1305,7 @@ const saveSettings = () => {
     screenReaderSupport: settings.value.screenReaderSupport,
     showCustomEmojisInDisplayNames: settings.value.showCustomEmojisInDisplayNames,
     greentextEnabled: settings.value.greentextEnabled,
+    bridgeSourceBadge: settings.value.bridgeSourceBadge,
     fontFamily: settings.value.fontFamily,
     glassEffectsEnabled: settings.value.glassEffectsEnabled,
     activeSkinId: settings.value.activeSkinId,
@@ -1334,6 +1353,7 @@ onMounted(async () => {
     emojiPack: currentPackId.value,
     showCustomEmojisInDisplayNames: currentSettings.showCustomEmojisInDisplayNames !== false,
     greentextEnabled: currentSettings.greentextEnabled !== false,
+    bridgeSourceBadge: currentSettings.bridgeSourceBadge === 'text' ? 'text' : 'icon',
     fontFamily: (currentSettings.fontFamily as 'system' | 'pixel') || 'system',
     glassEffectsEnabled: currentSettings.glassEffectsEnabled !== false,
     activeSkinId: currentSettings.activeSkinId ?? null,
