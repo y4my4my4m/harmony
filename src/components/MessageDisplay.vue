@@ -612,7 +612,14 @@ import Avatar from '@/components/common/Avatar.vue';
 import DisplayName from '@/components/DisplayName.vue';
 import ReactionTooltip from '@/components/messages/ReactionTooltip.vue';
 import BridgeSourceBadge from '@/components/messages/BridgeSourceBadge.vue';
-import { useBridgedDiscordProfile } from '@/composables/useBridgedDiscordProfile';
+import {
+  findBridgedUserInCache,
+  resolveBridgedUserColor,
+  bridgedUserToProfileUser,
+  discordMetadataToBridgedUser,
+  fetchBridgedChannelUsers,
+  BRIDGED_DISCORD_USER_ID_PREFIX,
+} from '@/services/bridgedChannelUsersService';
 import MessageReactions from '@/components/MessageReactions.vue';
 import MessageContextMenu from '@/components/MessageContextMenu.vue';
 import LightboxDownloadButton from '@/components/common/LightboxDownloadButton.vue';
@@ -1301,9 +1308,15 @@ const getAuthorAvatarUrl = (message: Message): ComputedRef<string> => {
 
 const getAuthorColor = (message: Message): ComputedRef<string> => {
   return computed(() => {
-    // Check for Discord user metadata first (puppeting) - Discord blurple
     if (message.metadata?.discord_user) {
-      return '#5865F2';
+      const discordUser = message.metadata.discord_user;
+      const cached = props.channelId
+        ? findBridgedUserInCache(props.channelId, discordUser.id)
+        : null;
+      const color = cached
+        ? resolveBridgedUserColor(cached)
+        : undefined;
+      return color || 'var(--text-primary)';
     }
     
     // Regular bot
@@ -3321,12 +3334,15 @@ const resolveNonUuidProfile = async (userId: string): Promise<any | null> => {
   return null;
 };
 
-const { openFromDiscordMetadata } = useBridgedDiscordProfile();
-
 const handleAuthorClick = (message: Message, event?: MouseEvent) => {
   event?.stopPropagation();
   if (hasDiscordUserMetadata(message) && message.metadata?.discord_user) {
-    openFromDiscordMetadata(message.metadata.discord_user, props.channelId);
+    const meta = message.metadata.discord_user;
+    const cached = props.channelId ? findBridgedUserInCache(props.channelId, meta.id) : null;
+    selectedUser.value = bridgedUserToProfileUser(
+      cached ?? discordMetadataToBridgedUser(meta),
+    ) as User;
+    showProfileModal.value = true;
     return;
   }
   const authorId = getMessageAuthorId(message);
@@ -3338,6 +3354,20 @@ const handleAuthorClick = (message: Message, event?: MouseEvent) => {
 const showUserProfile = async (userId: string | null | undefined, event?: MouseEvent) => {
   event?.stopPropagation();
   if (!userId) return;
+
+  if (userId.startsWith(BRIDGED_DISCORD_USER_ID_PREFIX)) {
+    const discordId = userId.slice(BRIDGED_DISCORD_USER_ID_PREFIX.length)
+    let cached = findBridgedUserInCache(props.channelId, discordId)
+    if (!cached && props.channelId) {
+      const result = await fetchBridgedChannelUsers(props.channelId, { force: true })
+      cached = result.users.find(u => u.id === discordId) ?? null
+    }
+    selectedUser.value = bridgedUserToProfileUser(
+      cached ?? discordMetadataToBridgedUser({ id: discordId, username: discordId }),
+    ) as User
+    showProfileModal.value = true
+    return
+  }
 
   let user: any = null;
   if (UUID_PATTERN.test(userId)) {
@@ -3498,6 +3528,12 @@ defineExpose({ editLastOwnMessage });
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
+}
+
+.username :deep(.bridged-source-icon),
+.username :deep(.bridge-source-badge) {
+  margin-left: 6px;
+  vertical-align: middle;
 }
 /* 
 .username-text .display-name::v-deep(span) {

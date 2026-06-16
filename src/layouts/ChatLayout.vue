@@ -173,12 +173,6 @@
     @close="showChannelEditModal = false"
     @updated="showChannelEditModal = false"
   />
-
-  <BridgedDiscordProfileModal
-    :show="bridgedProfileShow"
-    :user="bridgedProfileUser"
-    @close="closeBridgedDiscordProfile"
-  />
 </template>
 
 <script setup lang="ts">
@@ -204,8 +198,6 @@ import { useLayoutState } from '@/composables/useLayoutState'
 import { storeToRefs } from 'pinia'
 import { useFundingStore } from '@/stores/useFunding'
 import FundingModal from '@/components/FundingModal.vue'
-import BridgedDiscordProfileModal from '@/components/BridgedDiscordProfileModal.vue'
-import { useBridgedDiscordProfile } from '@/composables/useBridgedDiscordProfile'
 
 // Props
 interface Props {
@@ -541,12 +533,6 @@ watch(
 const fundingStore = useFundingStore()
 const { config: fundingConfig } = storeToRefs(fundingStore)
 const showFundingModal = ref(false)
-
-const {
-  show: bridgedProfileShow,
-  profileUser: bridgedProfileUser,
-  close: closeBridgedDiscordProfile,
-} = useBridgedDiscordProfile()
 
 onMounted(() => {
   navigateToDefaultIfNeeded()

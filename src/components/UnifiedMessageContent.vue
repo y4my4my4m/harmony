@@ -547,8 +547,7 @@ import { debug } from '@/utils/debug';
 import { sanitizeUrl } from '@/utils/sanitize';
 import { renderChatMessageText } from '@/utils/chatMessageTextRenderer';
 import { useVisualTheme } from '@/composables/useVisualTheme';
-import { useBridgedDiscordProfile } from '@/composables/useBridgedDiscordProfile';
-import { useServerChannelStore } from '@/stores/useServerChannel';
+import { BRIDGED_DISCORD_USER_ID_PREFIX } from '@/services/bridgedChannelUsersService';
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings';
 import {
   defaultKlipyHomeUrl,
@@ -657,8 +656,6 @@ export default defineComponent({
     const editRichEditorRef = ref<InstanceType<typeof RichTextEditor> | null>(null);
     const videoContainers = ref<HTMLElement[]>([]);
     const visualTheme = useVisualTheme();
-    const { openFromDiscordMetadata } = useBridgedDiscordProfile();
-    const serverChannelStore = useServerChannelStore();
     const decrypting = ref(false);
     const instanceSettings = useInstanceSettingsStore();
     const showKlipyWatermark = computed(
@@ -1205,14 +1202,7 @@ export default defineComponent({
       event.stopPropagation();
 
       if (isBridgedMention(part)) {
-        openFromDiscordMetadata(
-          {
-            id: part.userId,
-            username: part.username,
-            display_name: part.displayName || part.username,
-          },
-          serverChannelStore.currentChannelId,
-        );
+        emit('show-user-profile', `${BRIDGED_DISCORD_USER_ID_PREFIX}${part.userId}`, event);
         return;
       }
 

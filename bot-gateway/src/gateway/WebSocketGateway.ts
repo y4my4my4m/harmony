@@ -29,6 +29,8 @@ export interface BridgedUser {
   roles?: BridgedDiscordRole[]
   joinedAt?: string | null
   createdAt?: string | null
+  presenceStatus?: 'online' | 'away' | 'busy' | 'offline'
+  customStatus?: { text: string; emoji: string | null } | null
   source: 'discord'
 }
 
@@ -427,12 +429,29 @@ export class WebSocketGateway {
   getBridgedUsers(channelId: string): BridgedUser[] {
     return this.bridgedUsersByChannel.get(channelId) || []
   }
+
+  /**
+   * Merged bridged users for all mapped channels on a server (deduped by Discord id).
+   */
+  getBridgedUsersForServer(channelIds: string[]): BridgedUser[] {
+    const byDiscordId = new Map<string, BridgedUser>()
+    for (const channelId of channelIds) {
+      for (const user of this.bridgedUsersByChannel.get(channelId) ?? []) {
+        byDiscordId.set(user.id, user)
+      }
+    }
+    return Array.from(byDiscordId.values())
+  }
+
+  hasBridgedUsersForServer(channelIds: string[]): boolean {
+    return channelIds.some(id => (this.bridgedUsersByChannel.get(id)?.length ?? 0) > 0)
+  }
   
   /**
    * Check if a channel has bridged users
    */
   hasChannelBridge(channelId: string): boolean {
-    return this.bridgedUsersByChannel.has(channelId)
+    return (this.bridgedUsersByChannel.get(channelId)?.length ?? 0) > 0
   }
   
   /**

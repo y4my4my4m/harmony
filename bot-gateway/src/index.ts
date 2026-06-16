@@ -135,6 +135,7 @@ app.get('/bridged-users/:channelId', async (req, res): Promise<void> => {
     .select('user_id')
     .eq('server_id', channel.server_id)
     .eq('user_id', callerProfileId)
+    .eq('status', 'accepted')
     .maybeSingle()
 
   if (!membership) {
@@ -149,6 +150,44 @@ app.get('/bridged-users/:channelId', async (req, res): Promise<void> => {
     channel_id: channelId,
     has_bridge: hasBridge,
     users: bridgedUsers
+  })
+})
+
+app.get('/bridged-users/server/:serverId', async (req, res): Promise<void> => {
+  const callerProfileId = await getCallerProfileId(req)
+  if (!callerProfileId) {
+    res.status(401).json({ error: 'Authentication required' })
+    return
+  }
+
+  const { serverId } = req.params
+
+  const { data: membership } = await supabase
+    .from('user_servers')
+    .select('user_id')
+    .eq('server_id', serverId)
+    .eq('user_id', callerProfileId)
+    .eq('status', 'accepted')
+    .maybeSingle()
+
+  if (!membership) {
+    res.status(403).json({ error: 'Forbidden' })
+    return
+  }
+
+  const { data: channels } = await supabase
+    .from('channels')
+    .select('id')
+    .eq('server_id', serverId)
+
+  const channelIds = (channels ?? []).map((c: { id: string }) => c.id)
+  const bridgedUsers = gateway.getBridgedUsersForServer(channelIds)
+  const hasBridge = gateway.hasBridgedUsersForServer(channelIds)
+
+  res.json({
+    server_id: serverId,
+    has_bridge: hasBridge,
+    users: bridgedUsers,
   })
 })
 
@@ -213,6 +252,7 @@ app.post('/attachments/refresh', async (req, res): Promise<void> => {
     .select('user_id')
     .eq('server_id', channel.server_id)
     .eq('user_id', callerProfileId)
+    .eq('status', 'accepted')
     .maybeSingle()
 
   if (!membership) {

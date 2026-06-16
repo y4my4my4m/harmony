@@ -30,7 +30,11 @@ const title = computed(() => {
 .bridged-source-icon {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   flex-shrink: 0;
+  margin-left: 6px;
+  line-height: 0;
   color: #5865F2;
+  vertical-align: middle;
 }
 </style>

@@ -3062,6 +3062,7 @@ export const useDMStore = defineStore('dm', () => {
     isCacheValid,
     loadCachedMessages,
     fetchReplyMessage,
+    replyMessageCache,
     
     editMessage,
     deleteMessage,
