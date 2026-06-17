@@ -35,6 +35,9 @@ export class BotRestAPI {
     
     // Get channel messages
     this.router.get('/channels/:channelId/messages', this.getMessages.bind(this))
+
+    // Lookup a message by bridged Discord message ID (stored in metadata.discord_message_id)
+    this.router.get('/channels/:channelId/messages/lookup', this.lookupMessageByDiscordId.bind(this))
     
     // Get single message
     this.router.get('/messages/:messageId', this.getMessage.bind(this))
@@ -107,6 +110,9 @@ export class BotRestAPI {
 
     // Silent content patch (e.g. refresh attachment URLs without "(edited)")
     this.router.patch('/messages/:messageId/content-silent', this.silentUpdateMessageContent.bind(this))
+
+    // Merge bridge metadata (e.g. discord_message_id) without bumping updated_at
+    this.router.patch('/messages/:messageId/metadata', this.mergeMessageMetadata.bind(this))
     
     // =====================================================
     // USER ENDPOINTS
@@ -232,6 +238,93 @@ export class BotRestAPI {
     }
   }
   
+  private async lookupMessageByDiscordId(req: BotRequest, res: Response) {
+    try {
+      const { channelId } = req.params
+      const discordMessageId = req.query.discord_message_id as string | undefined
+      const botId = req.bot!.id
+
+      if (!discordMessageId) {
+        return res.status(400).json({ error: 'discord_message_id query parameter is required' })
+      }
+
+      const canRead = await this.checkChannelPermission(botId, channelId, 'read_messages')
+      if (!canRead) {
+        return res.status(403).json({ error: 'Missing permission: read_messages' })
+      }
+
+      const { data: message, error } = await supabase
+        .from('messages')
+        .select(`
+          *,
+          user:profiles!messages_user_id_fkey(id, username, display_name, avatar_url),
+          bot:bots!messages_bot_id_fkey(id, username, display_name, avatar_url)
+        `)
+        .eq('channel_id', channelId)
+        .eq('metadata->>discord_message_id', discordMessageId)
+        .eq('is_deleted', false)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      if (error) {
+        return res.status(500).json({ error: error.message })
+      }
+      if (!message) {
+        return res.status(404).json({ error: 'Message not found' })
+      }
+
+      res.json(this.formatMessage(message))
+    } catch (error: any) {
+      res.status(500).json({ error: error.message })
+    }
+  }
+
+  private async mergeMessageMetadata(req: BotRequest, res: Response) {
+    try {
+      const { messageId } = req.params
+      const { metadata } = req.body || {}
+      const botId = req.bot!.id
+
+      if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
+        return res.status(400).json({ error: 'metadata must be a JSON object' })
+      }
+
+      const { data: message, error: fetchError } = await supabase
+        .from('messages')
+        .select('channel_id, metadata')
+        .eq('id', messageId)
+        .single()
+
+      if (fetchError || !message) {
+        return res.status(404).json({ error: 'Message not found' })
+      }
+
+      const canSend = await this.checkChannelPermission(botId, message.channel_id, 'send_messages')
+      if (!canSend) {
+        return res.status(403).json({ error: 'Missing permission: send_messages' })
+      }
+
+      const mergedMetadata = {
+        ...(message.metadata || {}),
+        ...metadata,
+      }
+
+      const { error: updateError } = await supabase
+        .from('messages')
+        .update({ metadata: mergedMetadata })
+        .eq('id', messageId)
+
+      if (updateError) {
+        return res.status(500).json({ error: updateError.message })
+      }
+
+      res.json({ ok: true, metadata: mergedMetadata })
+    } catch (error: any) {
+      res.status(500).json({ error: error.message })
+    }
+  }
+
   private async getMessages(req: BotRequest, res: Response) {
     try {
       const { channelId } = req.params
