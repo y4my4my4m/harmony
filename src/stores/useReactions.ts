@@ -13,16 +13,18 @@ interface MessageReactionInput {
 }
 
 /** Identity a reaction is attributed to (current user, remote user, or bot). */
-type ActorInput = Pick<ReactionActor, 'bot_id' | 'username' | 'display_name' | 'avatar_url'> & {
+type ActorInput = Pick<ReactionActor, 'bot_id' | 'username' | 'display_name' | 'avatar_url' | 'metadata'> & {
   id?: string | null
 }
 
 const isUuid = (str: string): boolean =>
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str)
 
-const actorKey = (actor: ActorInput): string => actor.id || actor.bot_id || ''
+const actorKey = (actor: ActorInput): string =>
+  actor.metadata?.discord_user?.id || actor.id || actor.bot_id || ''
 
-const reactionKey = (r: ReactionActor): string => r.user_id || r.bot_id || ''
+const reactionKey = (r: ReactionActor): string =>
+  r.metadata?.discord_user?.id || r.user_id || r.bot_id || r.reaction_id || ''
 
 function matchesEmoji(group: ReactionGroup, emojiId: string): boolean {
   return isUuid(emojiId)
@@ -30,14 +32,15 @@ function matchesEmoji(group: ReactionGroup, emojiId: string): boolean {
     : !group.emoji_id && group.emoji?.name === emojiId
 }
 
-function makeReactionEntry(actor: ActorInput): ReactionActor {
+function makeReactionEntry(actor: ActorInput, reactionId?: string): ReactionActor {
   return {
-    reaction_id: `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    reaction_id: reactionId || `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     user_id: actor.id ?? undefined,
     bot_id: actor.bot_id ?? undefined,
     username: actor.username,
     display_name: actor.display_name,
     avatar_url: actor.avatar_url,
+    metadata: actor.metadata,
   }
 }
 
@@ -79,6 +82,7 @@ function buildOptimisticGroups(
   operation: 'add' | 'remove',
   isCurrentUser: boolean,
   providedEmojiData?: Emoji,
+  reactionId?: string,
 ): ReactionGroup[] {
   const result = JSON.parse(JSON.stringify(base)) as ReactionGroup[]
   const index = result.findIndex(g => matchesEmoji(g, emojiId))
@@ -99,7 +103,7 @@ function buildOptimisticGroups(
     const group = result[index]
     group.reactions = group.reactions ?? []
     if (!group.reactions.some(r => reactionKey(r) === key)) {
-      group.reactions.push(makeReactionEntry(actor))
+      group.reactions.push(makeReactionEntry(actor, reactionId))
       group.count = (group.count || 0) + 1
       if (isCurrentUser) group.current_user_reacted = true
     }
@@ -111,7 +115,7 @@ function buildOptimisticGroups(
     emoji: resolveEmojiForGroup(emojiId, providedEmojiData),
     count: 1,
     current_user_reacted: isCurrentUser,
-    reactions: [makeReactionEntry(actor)],
+    reactions: [makeReactionEntry(actor, reactionId)],
   })
   return result
 }
@@ -137,6 +141,8 @@ export const useReactionsStore = defineStore('reactions', () => {
       if (!emojiId || !(payload?.user_id || payload?.bot_id)) return null
       const operation = (payload?.op === 'DELETE' || payload?.type === 'reaction:delete') ? 'remove' : 'add'
       const isCurrentUser = !!payload.user_id && payload.user_id === (useProfileStore().profileId || '')
+      const metadata = payload.metadata ?? undefined
+      const discordUserId = metadata?.discord_user?.id as string | undefined
       // Custom (server) emoji carry name/url in the payload so a brand-new chip
       // renders even when this client hasn't cached the emoji.
       const emojiData = payload.emoji_id
@@ -151,10 +157,12 @@ export const useReactionsStore = defineStore('reactions', () => {
           username: payload.username,
           display_name: payload.display_name,
           avatar_url: payload.avatar_url,
+          metadata,
         },
         operation,
         isCurrentUser,
         emojiData,
+        discordUserId ? payload.reaction_id : undefined,
       )
     },
     matchesEmoji: (group, emoji) => matchesEmoji(group, emoji.emojiId),

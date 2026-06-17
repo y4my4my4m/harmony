@@ -440,6 +440,7 @@ export interface ReactionActor {
   username?: string;
   display_name?: string;
   avatar_url?: string;
+  metadata?: Reaction['metadata'];
 }
 export interface Message {
   id: string;

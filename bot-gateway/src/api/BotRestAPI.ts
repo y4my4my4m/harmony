@@ -569,6 +569,7 @@ export class BotRestAPI {
   private async removeReaction(req: BotRequest, res: Response) {
     try {
       const { messageId, emoji } = req.params
+      const { discord_user_id } = req.body ?? {}
       const botId = req.bot!.id
       
       // Get message to check permissions
@@ -600,6 +601,10 @@ export class BotRestAPI {
         query = query.eq('emoji_id', emoji)
       } else {
         query = query.is('emoji_id', null).eq('custom_emoji_content', emoji)
+      }
+
+      if (discord_user_id && typeof discord_user_id === 'string') {
+        query = query.filter('metadata->discord_user->>id', 'eq', discord_user_id)
       }
       
       console.log(`🎭 Removing reaction: ${isUUID ? 'custom' : 'native'} emoji "${emoji}" from message ${messageId}`)
@@ -1569,7 +1574,7 @@ export class BotRestAPI {
         .rpc('create_federated_emoji', {
           p_name: name,
           p_url: url,
-          p_uploader: botId,
+          p_created_by: botId,
           p_domain: domain || null
         })
       
