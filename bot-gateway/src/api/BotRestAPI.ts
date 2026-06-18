@@ -41,6 +41,9 @@ export class BotRestAPI {
     
     // Get single message
     this.router.get('/messages/:messageId', this.getMessage.bind(this))
+
+    // Public invite preview (for Discord bridge embed cards)
+    this.router.get('/invites/:code/preview', this.getInvitePreview.bind(this))
     
     // Edit message
     this.router.patch('/messages/:messageId', this.editMessage.bind(this))
@@ -1527,6 +1530,72 @@ export class BotRestAPI {
       .filter(Boolean)
   }
   
+  // =====================================================
+  // INVITE PREVIEW (public invite cards for bridge embeds)
+  // =====================================================
+
+  private async getInvitePreview(req: BotRequest, res: Response) {
+    try {
+      const { code } = req.params
+      if (!code) {
+        return res.status(400).json({ error: 'Invite code is required' })
+      }
+
+      const { data: rows, error } = await supabase.rpc('lookup_invite_by_code', { p_code: code })
+      if (error) {
+        return res.status(500).json({ error: error.message })
+      }
+
+      const invite = Array.isArray(rows) ? rows[0] : null
+      if (!invite || invite.used) {
+        return res.status(404).json({ error: 'Invite not found or expired' })
+      }
+      if (invite.expires_at && new Date(invite.expires_at) < new Date()) {
+        return res.status(404).json({ error: 'Invite expired' })
+      }
+
+      const { count: memberCount } = await supabase
+        .from('user_servers')
+        .select('*', { count: 'exact', head: true })
+        .eq('server_id', invite.server_id)
+        .eq('status', 'accepted')
+
+      const publicUrl = process.env.PUBLIC_URL || process.env.SUPABASE_URL || ''
+      let serverIconUrl: string | null = null
+      const icon = invite.server_icon as string | null | undefined
+      if (icon) {
+        if (icon.startsWith('http://') || icon.startsWith('https://')) {
+          serverIconUrl = icon
+        } else if (icon.startsWith('/')) {
+          serverIconUrl = publicUrl ? `${publicUrl}${icon}` : icon
+        } else if (publicUrl) {
+          serverIconUrl =
+            `${publicUrl}/storage/v1/render/image/public/server_icons/${icon}?width=128&height=128&resize=contain&quality=80`
+        }
+      }
+
+      const { data: server } = await supabase
+        .from('servers')
+        .select('description')
+        .eq('id', invite.server_id)
+        .maybeSingle()
+
+      const invitePath = `/invite/${invite.code}`
+      const inviteUrl = publicUrl ? `${publicUrl.replace(/\/$/, '')}${invitePath}` : invitePath
+
+      res.json({
+        code: invite.code,
+        invite_url: inviteUrl,
+        server_name: invite.server_name || 'Harmony Server',
+        server_description: server?.description ?? null,
+        server_icon_url: serverIconUrl,
+        member_count: memberCount ?? 0,
+      })
+    } catch (error: any) {
+      res.status(500).json({ error: error.message })
+    }
+  }
+
   // =====================================================
   // EMOJI METHODS
   // =====================================================
