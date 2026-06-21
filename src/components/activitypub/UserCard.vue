@@ -1,6 +1,6 @@
 <!-- UserCard - Display federated user information with actions -->
 <template>
-  <div class="user-card" :class="{ compact: isCompact }">
+  <div class="user-card" :class="{ compact: isCompact, 'has-corner-badge': showRemoteInstanceBadge }">
     <!-- User Avatar and Basic Info -->
     <div class="user-info" @click="handleUserClick">
       <Avatar 
@@ -105,11 +105,12 @@
       </div>
     </div>
 
-    <!-- Domain badge (for federated users) -->
-    <div v-if="!user.is_local && showInstanceBadge" class="domain-badge" :title="`From ${user.domain}`">
-      <Icon name="federation" />
-      <span>{{ user.domain }}</span>
-    </div>
+    <RemoteInstanceBadge
+      v-if="showRemoteInstanceBadge"
+      :domain="user.domain"
+      variant="corner"
+      :compact="isCompact"
+    />
 
     <!-- Report Modal -->
     <ReportModal
@@ -135,6 +136,7 @@ import Avatar from '@/components/common/Avatar.vue';
 import ReportModal from '@/components/moderation/ReportModal.vue';
 import SupporterBadge from '@/components/common/SupporterBadge.vue';
 import DisplayName from '@/components/DisplayName.vue';
+import RemoteInstanceBadge from '@/components/common/RemoteInstanceBadge.vue';
 import { parseDisplayNameOrBioForDisplay } from '@/utils/mentionUtils';
 
 const { t } = useI18n();
@@ -208,6 +210,10 @@ const followButtonText = computed(() => {
 });
 
 const bioHtml = computed(() => parseDisplayNameOrBioForDisplay(props.user.bio, ''));
+
+const showRemoteInstanceBadge = computed(() => {
+  return props.showInstanceBadge && !props.user.is_local && !!props.user.domain;
+});
 
 // Methods
 const formatNumber = (num: number): string => {
@@ -542,19 +548,12 @@ onBeforeUnmount(() => {
   background: rgba(242, 63, 66, 0.1);
 }
 
-.domain-badge {
-  position: absolute;
-  top: 0.75rem;
-  right: 0.75rem;
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-  background: rgba(14, 165, 233, 0.1);
-  color: #38BDF8;
-  padding: 0.25rem 0.5rem;
-  border-radius: 4px;
-  font-size: 0.75rem;
-  font-weight: 500;
+.user-card.has-corner-badge {
+  padding-top: calc(1rem + 2px);
+}
+
+.user-card.compact.has-corner-badge {
+  padding-top: calc(0.75rem + 2px);
 }
 
 .user-name-row {

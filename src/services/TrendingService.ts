@@ -574,6 +574,46 @@ class TrendingService {
     }
   }
 
+  private instanceByDomainCache = new Map<string, any | null>();
+  private instanceByDomainInflight = new Map<string, Promise<any | null>>();
+
+  /**
+   * Lightweight federated_instances row lookup by domain (cached).
+   * Used by badges and anywhere we need icon_url / software without full stats.
+   */
+  async getFederatedInstanceByDomain(domain: string): Promise<any | null> {
+    const normalized = domain.replace(/^https?:\/\//, '').replace(/\/$/, '').toLowerCase();
+    if (this.instanceByDomainCache.has(normalized)) {
+      return this.instanceByDomainCache.get(normalized) ?? null;
+    }
+
+    const pending = this.instanceByDomainInflight.get(normalized);
+    if (pending) return pending;
+
+    const promise = (async () => {
+      try {
+        const { data, error } = await supabase
+          .from('federated_instances')
+          .select('domain, software, description, metadata')
+          .eq('domain', normalized)
+          .maybeSingle();
+
+        if (error) throw error;
+        this.instanceByDomainCache.set(normalized, data ?? null);
+        return data ?? null;
+      } catch (err) {
+        debug.warn('Failed to lookup federated instance:', normalized, err);
+        this.instanceByDomainCache.set(normalized, null);
+        return null;
+      } finally {
+        this.instanceByDomainInflight.delete(normalized);
+      }
+    })();
+
+    this.instanceByDomainInflight.set(normalized, promise);
+    return promise;
+  }
+
   /**
    * Get instance statistics
    */

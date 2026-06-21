@@ -531,6 +531,10 @@ export class ActivityPubService {
     return await trendingService.getFederatedInstances(options);
   }
 
+  async getFederatedInstanceByDomain(domain: string) {
+    return trendingService.getFederatedInstanceByDomain(domain);
+  }
+
   /**
    * Get posts by hashtag
    */
