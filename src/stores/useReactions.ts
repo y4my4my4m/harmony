@@ -147,7 +147,9 @@ export const useReactionsStore = defineStore('reactions', () => {
       // renders even when this client hasn't cached the emoji.
       const emojiData = payload.emoji_id
         ? ({ id: payload.emoji_id, name: payload.emoji_name, url: payload.emoji_url } as Emoji)
-        : undefined
+        : payload.emoji_url
+          ? ({ id: emojiId, name: payload.emoji_name || emojiId, url: payload.emoji_url } as Emoji)
+          : undefined
       return buildOptimisticGroups(
         base,
         emojiId,
