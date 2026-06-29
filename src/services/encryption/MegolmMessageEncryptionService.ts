@@ -212,6 +212,10 @@ export class MegolmMessageEncryptionService {
           await megolmKeyBackupService.processPendingRequestsToMe()
         } catch { /* ignore */ }
 
+        try {
+          await megolmKeyBackupService.processMyFulfilledRequests()
+        } catch { /* ignore */ }
+
         debug.log('✅ Auto-unlocked encryption from IndexedDB keys')
         return true
       }
@@ -307,6 +311,15 @@ export class MegolmMessageEncryptionService {
       }
     } catch (error) {
       debug.warn('⚠️ Failed to process pending key requests:', error)
+    }
+
+    // Import keys for OUR requests that were fulfilled while we were offline
+    // (the realtime key_fulfilled broadcast is ephemeral, so a disconnected
+    // requester would otherwise never consume the delivered key).
+    try {
+      await megolmKeyBackupService.processMyFulfilledRequests()
+    } catch (error) {
+      debug.warn('⚠️ Failed to import fulfilled key requests:', error)
     }
 
     // Store non-extractable CryptoKeys in IndexedDB (mnemonic is NOT persisted)

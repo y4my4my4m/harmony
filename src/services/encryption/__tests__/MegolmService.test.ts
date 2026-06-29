@@ -261,6 +261,30 @@ describe('MegolmService', () => {
       expect(data!.sessionKey).toBeTruthy()
     })
 
+    // Regression: key-request fulfillment (MegolmKeyBackupService.handleIncoming-
+    // KeyRequest) resolves the key it hands back via getSessionKeyForSharing(
+    // roomId, sessionId). The SENDER of a message holds that session in its
+    // OUTBOUND map, so an explicit-sessionId lookup against the current outbound
+    // session must succeed - otherwise the sender can never answer a request for
+    // a message it sent, and the request sits 'pending' forever.
+    it('getSessionKeyForSharing resolves the current outbound session by explicit sessionId', async () => {
+      const outbound = await service.getOrCreateOutboundSession(TEST_ROOM_ID)
+
+      const data = service.getSessionKeyForSharing(TEST_ROOM_ID, outbound.sessionId)
+
+      expect(data).not.toBeNull()
+      expect(data!.sessionId).toBe(outbound.sessionId)
+      expect(data!.sessionKey).toBe(outbound.sessionKey)
+    })
+
+    it('getSessionKeyForSharing returns null for a session id we do not hold', async () => {
+      await service.getOrCreateOutboundSession(TEST_ROOM_ID)
+
+      // A foreign session id must not resolve to our outbound key - fulfillment
+      // would otherwise hand the wrong key to a requester.
+      expect(service.getSessionKeyForSharing(TEST_ROOM_ID, 'some-other-session-id')).toBeNull()
+    })
+
     it('tracks shared-with users', async () => {
       await service.getOrCreateOutboundSession(TEST_ROOM_ID)
       const otherUser = 'other-user-id'
