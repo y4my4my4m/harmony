@@ -30,10 +30,9 @@
         >
           <template v-if="props.encrypted">
             <span 
-              v-for="(char, idx) in part.text.split('')" 
+              v-for="(char, idx) in glyphChars(part.text)" 
               :key="idx"
               class="glyph-char"
-              :style="{ animationDelay: `${idx * 0.05}s` }"
             >{{ char }}</span>
           </template>
           <template v-else>
@@ -249,6 +248,13 @@ const emit = defineEmits<{
   'image-load': [url: string];
   'image-click': [url: string];
 }>();
+
+const MAX_GLYPH_CHARS = 48;
+function glyphChars(text: string): string[] {
+  if (!text) return [];
+  const chars = Array.from(text);
+  return chars.length > MAX_GLYPH_CHARS ? chars.slice(0, MAX_GLYPH_CHARS) : chars;
+}
 
 // Content renderer setup
 const contentOptions: ContentRenderOptions = {

@@ -1143,7 +1143,7 @@ div.loading:has(> .harmony-spinner) {
   text-shadow:
     0 0 5px color-mix(in srgb, var(--harmony-primary) 50%, transparent),
     0 0 10px color-mix(in srgb, var(--harmony-primary) 30%, transparent);
-  transition: all 0.3s ease;
+  transition: color 0.3s ease, opacity 0.3s ease, transform 0.3s ease;
 }
 
 .glyph-char:hover {
@@ -1173,7 +1173,11 @@ div.loading:has(> .harmony-spinner) {
 
 /* Special glow effect for every 5th character */
 .glyph-char:nth-child(5n) {
-  animation: glyphFloat 3s ease-in-out infinite, glyphGlitch 5s ease-in-out infinite, glyphGlow 2s ease-in-out infinite;
+  color: var(--harmony-primary);
+  opacity: 0.85;
+  text-shadow:
+    0 0 8px color-mix(in srgb, var(--harmony-primary) 70%, transparent),
+    0 0 16px color-mix(in srgb, var(--harmony-primary) 45%, transparent);
 }
 
 @keyframes glyphFloat {
@@ -1205,22 +1209,6 @@ div.loading:has(> .harmony-spinner) {
   98% {
     transform: translateY(1px) skew(0.5deg);
     opacity: 0.8;
-  }
-}
-
-@keyframes glyphGlow {
-  0%, 100% {
-    text-shadow:
-      0 0 5px color-mix(in srgb, var(--harmony-primary) 50%, transparent),
-      0 0 10px color-mix(in srgb, var(--harmony-primary) 30%, transparent);
-    color: var(--harmony-secondary);
-  }
-  50% {
-    text-shadow:
-      0 0 10px color-mix(in srgb, var(--harmony-primary) 90%, transparent),
-      0 0 20px color-mix(in srgb, var(--harmony-primary) 60%, transparent),
-      0 0 30px color-mix(in srgb, var(--harmony-primary) 40%, transparent);
-    color: var(--harmony-primary);
   }
 }
 
