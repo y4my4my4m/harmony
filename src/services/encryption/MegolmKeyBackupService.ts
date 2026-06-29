@@ -159,10 +159,23 @@ export class MegolmKeyBackupService {
     }
 
     try {
-      // Look for the session in our inbound sessions (we might have it)
-      const session = megolmService.findInboundSessionBySessionId(request.room_id, request.session_id)
-      
-      if (!session) {
+      // Resolve the session key we'd hand over. Two sources, in priority order:
+      //   1. getSessionKeyForSharing: our OWN outbound session for this room, or
+      //      our own inbound copy of a prior outbound. This is the critical case
+      //      the inbound-only lookup missed - the original SENDER holds the key
+      //      in `outbound`, never `inbound`, so a request for a message WE sent
+      //      was answered with "don't have session" and left pending forever.
+      //   2. findInboundSessionBySessionId: any inbound session we hold from
+      //      another sender (group-room key relay). Preserves prior behavior.
+      // Both return the base session key; the ratchet derives every index, so a
+      // first_known_index of 0 lets the requester decrypt the whole session.
+      const sharable = megolmService.getSessionKeyForSharing(request.room_id, request.session_id)
+      const inbound = sharable
+        ? null
+        : megolmService.findInboundSessionBySessionId(request.room_id, request.session_id)
+      const sessionKey = sharable?.sessionKey ?? inbound?.sessionKey
+
+      if (!sessionKey) {
         debug.log(`ℹ️ Don't have session ${request.session_id.substring(0, 8)}...`)
         return
       }
@@ -199,7 +212,7 @@ export class MegolmKeyBackupService {
 
       // Encrypt the session key for the requester
       const encryptedKey = await this.encryptSessionKeyForUser(
-        session.sessionKey,
+        sessionKey,
         requesterKey.identity_public_key
       )
 
