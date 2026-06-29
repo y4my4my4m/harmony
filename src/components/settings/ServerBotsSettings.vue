@@ -36,7 +36,11 @@
         >
           <div class="bot-card-header">
             <BotAvatar :bot="bot" :size="48" />
-            <span class="bot-badge">BOT</span>
+            <div class="bot-badges">
+              <span v-if="!bot.is_public" class="bot-badge private">PRIVATE</span>
+              <span v-else-if="bot.bot_type === 'bridge'" class="bot-badge bridge">BRIDGE</span>
+              <span class="bot-badge">BOT</span>
+            </div>
           </div>
 
           <div class="bot-info">
@@ -204,6 +208,7 @@ import { ref, computed, onMounted } from 'vue'
 import { debug } from '@/utils/debug'
 import { supabase } from '@/supabase'
 import { formatDistanceToNow } from 'date-fns'
+import { useProfileStore } from '@/stores/useProfile'
 import BotAvatar from '@/components/common/BotAvatar.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 
@@ -212,6 +217,7 @@ interface Props {
 }
 
 const props = defineProps<Props>()
+const profileStore = useProfileStore()
 
 // State
 const loading = ref(true)
@@ -263,12 +269,20 @@ async function loadBots() {
   loading.value = true
 
   try {
-    // Load available public bots
-    const { data: bots, error: botsError } = await supabase
+    // Available = public bots OR bots the current user owns (incl. private /
+    // bridge bots). Owners can install bots they created even when not public;
+    // RLS already permits SELECT on owned bots.
+    const profileId = profileStore.profileId
+    let botsQuery = supabase
       .from('bots')
       .select('*')
-      .eq('is_public', true)
       .eq('is_active', true)
+
+    botsQuery = profileId
+      ? botsQuery.or(`is_public.eq.true,owner_id.eq.${profileId}`)
+      : botsQuery.eq('is_public', true)
+
+    const { data: bots, error: botsError } = await botsQuery
       .order('server_count', { ascending: false })
 
     if (botsError) throw botsError
@@ -331,21 +345,13 @@ async function addBot() {
   adding.value = true
 
   try {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) throw new Error('Not authenticated')
-
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('auth_user_id', user.id)
-      .single()
-
-    if (profileError || !profile) throw new Error('Profile not found')
+    const profileId = profileStore.profileId
+    if (!profileId) throw new Error('Profile not found')
 
     const { data: permissionId, error } = await supabase.rpc('add_bot_to_server', {
       p_bot_id: selectedBot.value.id,
       p_server_id: props.serverId,
-      p_installed_by: profile.id,
+      p_installed_by: profileId,
       p_permissions: selectedPermissions.value
     })
 
@@ -688,6 +694,12 @@ onMounted(() => {
   margin-bottom: 4px;
 }
 
+.bot-badges {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
 .bot-card .bot-badge {
   display: inline-block;
   padding: 2px 8px;
@@ -697,6 +709,14 @@ onMounted(() => {
   font-weight: 700;
   letter-spacing: 0.5px;
   border-radius: 3px;
+}
+
+.bot-card .bot-badge.private {
+  background: var(--color-warning, #d29922);
+}
+
+.bot-card .bot-badge.bridge {
+  background: #5865f2;
 }
 
 /* =========================================================================

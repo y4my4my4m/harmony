@@ -16,6 +16,19 @@
       <p>Loading bridge setup...</p>
     </div>
 
+    <!-- No bridge bot on this server yet: point the owner to install one. -->
+    <div v-else-if="!installedBridgeBot" class="settings-card">
+      <div class="warning-banner">
+        No Discord bridge bot is installed on this server yet.
+        Create one in
+        <router-link to="/settings/bots">User Settings → My Bots</router-link>
+        (<code>bot_type: bridge</code>) — its <strong>View Details</strong> page walks you through the
+        Discord application setup — then add it under
+        <strong>Server Settings → Advanced → Server Bots</strong>.
+        The server-specific pairing code and config appear here once it's installed.
+      </div>
+    </div>
+
     <template v-else>
       <!-- Pairing + server identity -->
       <div class="settings-card">
@@ -81,124 +94,24 @@
         </p>
       </div>
 
-      <!-- Harmony bot -->
+      <!-- Bridge bot installed: confirmation + pointer to bot-level setup -->
       <div class="settings-card">
         <div class="card-header">
-          <h3>1. Harmony bot</h3>
+          <h3>Bridge bot</h3>
         </div>
 
-        <div v-if="installedBridgeBot" class="success-banner">
+        <div class="success-banner">
           <strong>{{ installedBridgeBot.bot.username }}</strong> is installed on this server.
-          Create the bot token in
-          <router-link to="/settings/bots">User Settings → My Bots</router-link>
-          (shown once — paste it into <code>bridge-config.yml</code>).
-        </div>
-
-        <div v-else class="warning-banner">
-          No bridge bot on this server yet. Create one in
-          <router-link to="/settings/bots">User Settings → My Bots</router-link>
-          (<code>bot_type: bridge</code>), then add it below.
-        </div>
-
-        <ul class="checklist">
-          <li v-for="perm in harmonyPermissions" :key="perm.key">
-            <span class="check-icon">{{ perm.required ? '●' : '○' }}</span>
-            <span>
-              <strong>{{ perm.label }}</strong>
-              <span v-if="perm.required" class="badge required">Required</span>
-              <span v-else class="badge optional">For /bridge clone-server</span>
-              — {{ perm.description }}
-            </span>
-          </li>
-        </ul>
-
-        <p class="hint">
-          After creating the bot, add it under <strong>Server Settings → Advanced → Server Bots</strong>
-          with at least Read + Send Messages.
-        </p>
-      </div>
-
-      <!-- Discord setup (#4) -->
-      <div class="settings-card highlight">
-        <div class="card-header">
-          <h3>2. Discord application</h3>
-        </div>
-
-        <p class="intro">
-          Each community needs its <strong>own</strong> Discord application (you keep the bot token).
-          Create one at the
-          <a href="https://discord.com/developers/applications" target="_blank" rel="noopener noreferrer">
-            Discord Developer Portal
-          </a>.
-        </p>
-
-        <div class="form-group">
-          <label for="discord-client-id">Application Client ID</label>
-          <input
-            id="discord-client-id"
-            v-model="discordClientId"
-            type="text"
-            class="text-input"
-            placeholder="Paste from Developer Portal → OAuth2 → Client ID"
-            autocomplete="off"
-            spellcheck="false"
-          />
-        </div>
-
-        <div class="subsection">
-          <h4>Privileged gateway intents</h4>
-          <p class="hint">Bot → Privileged Gateway Intents in the Developer Portal:</p>
-          <ul class="checklist">
-            <li v-for="intent in discordIntents" :key="intent.name">
-              <span class="check-icon">{{ intent.required ? '●' : '○' }}</span>
-              <span>
-                <strong>{{ intent.name }}</strong>
-                <span v-if="intent.required" class="badge required">Required</span>
-                <span v-else class="badge optional">Optional</span>
-                — {{ intent.description }}
-              </span>
-            </li>
-          </ul>
-        </div>
-
-        <div class="subsection">
-          <h4>Bot invite URL</h4>
-          <p class="hint">
-            Scopes: <code>bot</code> + <code>applications.commands</code>.
-            Permissions are pre-filled for bridging (including Manage Webhooks for avatar puppeting).
-          </p>
-
-          <label class="toggle-row">
-            <input v-model="includeClonePermissions" type="checkbox" />
-            <span>Also include Manage Channels (for <code>/bridge clone-server</code>)</span>
-          </label>
-
-          <div v-if="discordInviteUrl" class="invite-box">
-            <code class="invite-url">{{ discordInviteUrl }}</code>
-            <button type="button" class="btn-primary" @click="copyText(discordInviteUrl, 'Invite URL')">
-              Copy invite URL
-            </button>
-            <a :href="discordInviteUrl" target="_blank" rel="noopener noreferrer" class="btn-secondary link-btn">
-              Open in Discord
-            </a>
-          </div>
-          <p v-else class="hint">Enter your Client ID above to generate the invite link.</p>
-        </div>
-
-        <div class="subsection">
-          <h4>After inviting the bot</h4>
-          <ol class="numbered-steps">
-            <li>Developer Portal → <strong>Bot</strong> → <strong>Reset Token</strong> → copy token into <code>discord.token</code></li>
-            <li>Enable <strong>Developer Mode</strong> in Discord → right-click your server → <strong>Copy Server ID</strong> → <code>discord.guildId</code></li>
-            <li>Right-click channels → <strong>Copy Channel ID</strong> for mappings (or use <code>/bridge link</code> later)</li>
-          </ol>
+          Discord application setup (Client ID, intents, invite URL) lives on the bot's
+          <router-link to="/settings/bots">My Bots → View Details</router-link>
+          page. Paste its bot token into the generated <code>bridge-config.yml</code> below.
         </div>
       </div>
 
       <!-- Generated config -->
       <div class="settings-card">
         <div class="card-header">
-          <h3>3. Bridge config</h3>
+          <h3>Bridge config</h3>
         </div>
 
         <p class="hint">
@@ -229,12 +142,9 @@ import { debug } from '@/utils/debug'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import {
   buildBridgeGatewayUrls,
-  buildDiscordInviteUrl,
   generateBridgeConfigYaml,
   resolveHarmonyBaseUrl,
   isBridgeBot,
-  HARMONY_BRIDGE_BOT_PERMISSIONS,
-  DISCORD_BRIDGE_INTENTS,
 } from '@/utils/discordBridgeSetup'
 
 interface Props {
@@ -248,21 +158,10 @@ const loading = ref(true)
 const regenerating = ref(false)
 const pairingCode = ref('')
 const coLocated = ref(false)
-const discordClientId = ref('')
-const includeClonePermissions = ref(true)
 const installedBridgeBot = ref<{ bot: { username: string } } | null>(null)
-
-const harmonyPermissions = HARMONY_BRIDGE_BOT_PERMISSIONS
-const discordIntents = DISCORD_BRIDGE_INTENTS
 
 const baseUrl = computed(() => resolveHarmonyBaseUrl())
 const gatewayUrls = computed(() => buildBridgeGatewayUrls(baseUrl.value, coLocated.value))
-
-const discordInviteUrl = computed(() =>
-  buildDiscordInviteUrl(discordClientId.value, {
-    includeClonePermissions: includeClonePermissions.value,
-  }),
-)
 
 const configYaml = computed(() => {
   if (!pairingCode.value) return '# Loading pairing code…'
@@ -270,7 +169,6 @@ const configYaml = computed(() => {
     pairingCode: pairingCode.value,
     serverId: props.serverId,
     gateway: gatewayUrls.value,
-    includeClonePermissions: includeClonePermissions.value,
   })
 })
 
