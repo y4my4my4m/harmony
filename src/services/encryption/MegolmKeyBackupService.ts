@@ -376,6 +376,20 @@ export class MegolmKeyBackupService {
       // Remove from pending requests
       this.pendingRequests.delete(request.session_id)
 
+      // Mark the request consumed. The fulfilled key reaches us via an ephemeral
+      // realtime broadcast; if we were offline when it fired we recover the row
+      // via processMyFulfilledRequests() on the next unlock. Flipping it to
+      // 'received' stops that catch-up from re-importing the same key forever.
+      // Best-effort: a failed update only costs us a redundant future import.
+      if (request.id && this.userId) {
+        await supabase
+          .from('megolm_key_requests')
+          .update({ status: 'received' })
+          .eq('id', request.id)
+          .eq('requester_user_id', this.userId)
+          .then(() => {}, () => {})
+      }
+
       // Notify callbacks (so UI can retry decryption)
       for (const callback of this.keyReceivedCallbacks) {
         try {
@@ -849,6 +863,48 @@ export class MegolmKeyBackupService {
     }
 
     return fulfilledCount
+  }
+
+  /**
+   * Offline catch-up for the REQUESTER side: import keys for requests WE made
+   * that were fulfilled while we were offline.
+   *
+   * Fulfillment is delivered via an ephemeral `encryption:key_fulfilled`
+   * broadcast; if the requesting client was not connected when it fired the
+   * payload is lost, leaving a `status='fulfilled'` row with a populated
+   * `encrypted_key` that nobody ever consumes. This sweeps those rows on unlock
+   * and imports them, then handleFulfilledRequest flips each to 'received' so
+   * subsequent unlocks don't redo the work.
+   */
+  async processMyFulfilledRequests(): Promise<number> {
+    if (!this.userId) return 0
+
+    const { data, error } = await supabase
+      .from('megolm_key_requests')
+      .select('*')
+      .eq('requester_user_id', this.userId)
+      .eq('status', 'fulfilled')
+      .not('encrypted_key', 'is', null)
+
+    if (error || !data || data.length === 0) {
+      return 0
+    }
+
+    let imported = 0
+    for (const request of data) {
+      try {
+        await this.handleFulfilledRequest(request as unknown as KeyRequest)
+        imported++
+      } catch (err) {
+        debug.warn(`⚠️ Failed to import fulfilled request ${request.id}:`, err)
+      }
+    }
+
+    if (imported > 0) {
+      debug.log(`📥 Imported ${imported} fulfilled key requests (offline catch-up)`)
+    }
+
+    return imported
   }
 
   /**
