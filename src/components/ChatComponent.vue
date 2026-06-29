@@ -58,12 +58,11 @@
       :giphyOpen="giphyOpen"
       :emojiListOpen="emojiListOpen"
       :reply-message-id="replyToMessageId"
-      :reply-user-display-name="replyToUserDisplayName"
-      :reply-user-id="replyToUserId"
-      :channel-name="effectiveChannelName"
-      :username="effectiveDMUsername"
       :channel-id="props.channelId"
       :conversation-id="props.conversationId"
+      :server-id="serverChannelStore.currentServerId ?? undefined"
+      :channel-name="effectiveChannelName"
+      :username="effectiveDMUsername"
       @toggleGiphy="toggleGiphy"
       @toggleEmojiList="toggleEmojiList"
       @sendMessage="handleSendMessage"
@@ -239,8 +238,6 @@
   const isPopupForReaction = ref(false);
   const selectedMessageId = ref('');
   const replyToMessageId = ref('');
-  const replyToUserDisplayName = ref('');
-  const replyToUserId = ref('');
   const messageContent = ref('');
 
   // Draft persistence
@@ -555,18 +552,14 @@
         window.removeEventListener('harmony-insert-mention', handleInsertMention);
       });
 
-      const replyingTo = (messageId: string, displayName: string, userId?: string) => {
+      const replyingTo = (messageId: string) => {
         if (messageId) {
           replyToMessageId.value = messageId;
-          replyToUserDisplayName.value = displayName;
-          replyToUserId.value = userId || '';
         }
       };
 
       const handleDontReply = () => {
         replyToMessageId.value = '';
-        replyToUserDisplayName.value = '';
-        replyToUserId.value = '';
       };
 
       // The reply bar should disappear the instant a message is committed to
@@ -576,12 +569,10 @@
       // `restoreReplyTarget` puts it back only if the send never went through
       // (encryption declined / required, missing context, transient error) so
       // the user doesn't silently lose what they were replying to.
-      type ReplyTargetSnapshot = { id: string; displayName: string; userId: string };
+      type ReplyTargetSnapshot = { id: string };
       const consumeReplyTarget = (): ReplyTargetSnapshot => {
         const snapshot: ReplyTargetSnapshot = {
           id: replyToMessageId.value,
-          displayName: replyToUserDisplayName.value,
-          userId: replyToUserId.value,
         };
         handleDontReply();
         return snapshot;
@@ -589,8 +580,6 @@
       const restoreReplyTarget = (snapshot: ReplyTargetSnapshot | null) => {
         if (snapshot?.id && !replyToMessageId.value) {
           replyToMessageId.value = snapshot.id;
-          replyToUserDisplayName.value = snapshot.displayName;
-          replyToUserId.value = snapshot.userId;
         }
       };
 

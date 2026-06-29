@@ -83,6 +83,7 @@ ALTER TABLE public.channels ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.conversation_encryption_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.conversation_participants ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.conversations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.discord_bridge_pairings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.emoji_usage ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.emojis ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.encryption_audit_log ENABLE ROW LEVEL SECURITY;

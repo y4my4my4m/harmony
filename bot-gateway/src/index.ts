@@ -86,6 +86,50 @@ async function getCallerProfileId(req: express.Request): Promise<string | null> 
   return profile.id as string
 }
 
+// Public bridge onboarding lookup — pairing codes only resolve non-secret metadata.
+app.get('/bridge-setup/:pairingCode', async (req, res): Promise<void> => {
+  const pairingCode = String(req.params.pairingCode ?? '').trim().toUpperCase()
+  if (!/^HRM-[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(pairingCode)) {
+    res.status(400).json({ error: 'Invalid pairing code format' })
+    return
+  }
+
+  const { data, error } = await supabase.rpc('lookup_discord_bridge_pairing_public', {
+    p_pairing_code: pairingCode,
+  })
+
+  if (error) {
+    console.error('bridge-setup lookup failed:', error)
+    res.status(500).json({ error: 'Lookup failed' })
+    return
+  }
+
+  const row = Array.isArray(data) ? data[0] : data
+  const serverId = row?.server_id as string | undefined
+  if (!serverId) {
+    res.status(404).json({ error: 'Pairing code not found' })
+    return
+  }
+
+  const rawDomain = config.instanceDomain
+  const baseUrl = rawDomain.startsWith('http') ? rawDomain.replace(/\/$/, '') : `https://${rawDomain}`
+  const wsBase = baseUrl.startsWith('https://')
+    ? `wss://${baseUrl.slice('https://'.length)}`
+    : baseUrl.startsWith('http://')
+      ? `ws://${baseUrl.slice('http://'.length)}`
+      : baseUrl
+
+  res.json({
+    pairing_code: pairingCode,
+    server_id: serverId,
+    base_url: baseUrl,
+    gateway_url_remote: `${wsBase}/bot-gateway/gateway`,
+    api_url_remote: `${baseUrl}/bot-gateway`,
+    gateway_url_colocated: 'ws://localhost:3002/gateway',
+    api_url_colocated: 'http://localhost:3002',
+  })
+})
+
 // Gateway status - admin-style endpoint; require authentication so we don't leak
 // connected bot inventory to arbitrary callers.
 app.get('/status', async (req, res): Promise<void> => {
@@ -135,6 +179,7 @@ app.get('/bridged-users/:channelId', async (req, res): Promise<void> => {
     .select('user_id')
     .eq('server_id', channel.server_id)
     .eq('user_id', callerProfileId)
+    .eq('status', 'accepted')
     .maybeSingle()
 
   if (!membership) {
@@ -149,6 +194,44 @@ app.get('/bridged-users/:channelId', async (req, res): Promise<void> => {
     channel_id: channelId,
     has_bridge: hasBridge,
     users: bridgedUsers
+  })
+})
+
+app.get('/bridged-users/server/:serverId', async (req, res): Promise<void> => {
+  const callerProfileId = await getCallerProfileId(req)
+  if (!callerProfileId) {
+    res.status(401).json({ error: 'Authentication required' })
+    return
+  }
+
+  const { serverId } = req.params
+
+  const { data: membership } = await supabase
+    .from('user_servers')
+    .select('user_id')
+    .eq('server_id', serverId)
+    .eq('user_id', callerProfileId)
+    .eq('status', 'accepted')
+    .maybeSingle()
+
+  if (!membership) {
+    res.status(403).json({ error: 'Forbidden' })
+    return
+  }
+
+  const { data: channels } = await supabase
+    .from('channels')
+    .select('id')
+    .eq('server_id', serverId)
+
+  const channelIds = (channels ?? []).map((c: { id: string }) => c.id)
+  const bridgedUsers = gateway.getBridgedUsersForServer(channelIds)
+  const hasBridge = gateway.hasBridgedUsersForServer(channelIds)
+
+  res.json({
+    server_id: serverId,
+    has_bridge: hasBridge,
+    users: bridgedUsers,
   })
 })
 
@@ -213,6 +296,7 @@ app.post('/attachments/refresh', async (req, res): Promise<void> => {
     .select('user_id')
     .eq('server_id', channel.server_id)
     .eq('user_id', callerProfileId)
+    .eq('status', 'accepted')
     .maybeSingle()
 
   if (!membership) {

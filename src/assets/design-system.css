@@ -1123,7 +1123,12 @@ div.loading:has(> .harmony-spinner) {
   font-family: 'IBM Plex Mono', 'SFMono-Regular', Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
   letter-spacing: 0.15em;
   user-select: none;
-  background: linear-gradient(90deg, rgba(14, 165, 233, 0.05), rgba(14, 165, 233, 0.1), rgba(14, 165, 233, 0.05));
+  background: linear-gradient(
+    90deg,
+    var(--harmony-primary-alpha-light),
+    var(--harmony-primary-light),
+    var(--harmony-primary-alpha-light)
+  );
   border-radius: 4px;
   padding: 2px 6px;
   display: inline-block;
@@ -1132,22 +1137,22 @@ div.loading:has(> .harmony-spinner) {
 
 .glyph-char {
   display: inline-block;
-  color: #38BDF8;
+  color: var(--harmony-secondary);
   opacity: 0.7;
   animation: glyphFloat 3s ease-in-out infinite, glyphGlitch 5s ease-in-out infinite;
-  text-shadow: 
-    0 0 5px rgba(14, 165, 233, 0.5),
-    0 0 10px rgba(14, 165, 233, 0.3);
+  text-shadow:
+    0 0 5px color-mix(in srgb, var(--harmony-primary) 50%, transparent),
+    0 0 10px color-mix(in srgb, var(--harmony-primary) 30%, transparent);
   transition: all 0.3s ease;
 }
 
 .glyph-char:hover {
-  color: #0EA5E9;
+  color: var(--harmony-primary);
   opacity: 1;
-  text-shadow: 
-    0 0 8px rgba(14, 165, 233, 0.8),
-    0 0 15px rgba(14, 165, 233, 0.5),
-    0 0 20px rgba(14, 165, 233, 0.3);
+  text-shadow:
+    0 0 8px color-mix(in srgb, var(--harmony-primary) 80%, transparent),
+    0 0 15px color-mix(in srgb, var(--harmony-primary) 50%, transparent),
+    0 0 20px color-mix(in srgb, var(--harmony-primary) 30%, transparent);
   transform: scale(1.1);
 }
 
@@ -1205,17 +1210,17 @@ div.loading:has(> .harmony-spinner) {
 
 @keyframes glyphGlow {
   0%, 100% {
-    text-shadow: 
-      0 0 5px rgba(14, 165, 233, 0.5),
-      0 0 10px rgba(14, 165, 233, 0.3);
-    color: #38BDF8;
+    text-shadow:
+      0 0 5px color-mix(in srgb, var(--harmony-primary) 50%, transparent),
+      0 0 10px color-mix(in srgb, var(--harmony-primary) 30%, transparent);
+    color: var(--harmony-secondary);
   }
   50% {
-    text-shadow: 
-      0 0 10px rgba(14, 165, 233, 0.9),
-      0 0 20px rgba(14, 165, 233, 0.6),
-      0 0 30px rgba(14, 165, 233, 0.4);
-    color: #0EA5E9;
+    text-shadow:
+      0 0 10px color-mix(in srgb, var(--harmony-primary) 90%, transparent),
+      0 0 20px color-mix(in srgb, var(--harmony-primary) 60%, transparent),
+      0 0 30px color-mix(in srgb, var(--harmony-primary) 40%, transparent);
+    color: var(--harmony-primary);
   }
 }
 
@@ -1231,7 +1236,7 @@ div.loading:has(> .harmony-spinner) {
 }
 
 .encrypted-click-target:hover {
-  background-color: rgba(14, 165, 233, 0.15);
+  background-color: var(--harmony-primary-alpha);
 }
 
 .encrypted-click-target:hover .glyph-char {
@@ -1240,7 +1245,7 @@ div.loading:has(> .harmony-spinner) {
 }
 
 .encrypted-click-target:active {
-  background-color: rgba(14, 165, 233, 0.25);
+  background-color: var(--harmony-primary-alpha-strong);
 }
 
 /* Decrypting state */

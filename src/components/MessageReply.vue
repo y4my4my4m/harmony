@@ -2,14 +2,15 @@
     <div class="attachedBars">
         <div class="replyBar">
             <div role="button" tabindex="0">
-                <div class="text-sm-normal">Replying to <span class="user_display_name">
-                    <DisplayName
-                        v-if="replyUserId"
-                        :user-id="replyUserId"
-                        :fallback="replyUserDisplayName"
+                <div class="text-sm-normal">
+                    Replying to
+                    <MessageAuthorLabel
+                        class="user_display_name"
+                        :profile-user-id="profileUserId"
+                        :display-name="authorLabel"
+                        :bridge-source="bridgeSource"
+                        :color="usernameColor"
                     />
-                    <template v-else>{{ replyUserDisplayName }}</template>
-                </span>
                 </div>
             </div>
             <div class="actions">
@@ -22,22 +23,35 @@
 </template>
 
 <script setup lang="ts">
+import { computed, toRef } from 'vue'
 import CloseIcon from '@/components/icons/Close.vue'
-import DisplayName from '@/components/DisplayName.vue'
+import MessageAuthorLabel from '@/components/messages/MessageAuthorLabel.vue'
+import { useReplyTarget } from '@/composables/useReplyTarget'
 
-interface Props {
+const props = defineProps<{
   replyMessageId: string
-  replyUserDisplayName?: string
-  replyUserId?: string
-}
-
-withDefaults(defineProps<Props>(), {
-  replyUserDisplayName: 'Deleted User'
-})
+  channelId?: string
+  conversationId?: string
+  serverId?: string
+}>()
 
 const emit = defineEmits<{
   'update:replyMessageId': [value: string]
 }>()
+
+const {
+  profileUserId,
+  authorLabel,
+  bridgeSource,
+  usernameColor,
+} = useReplyTarget(
+  toRef(props, 'replyMessageId'),
+  computed(() => ({
+    channelId: props.channelId,
+    conversationId: props.conversationId,
+    serverId: props.serverId,
+  })),
+)
 
 const dontReply = () => {
   emit('update:replyMessageId', '')
@@ -60,12 +74,11 @@ const dontReply = () => {
 
     .user_display_name {
         font-weight: bold;
-        color: #ddd;
     }
 
     .text-sm-normal {
         font-size: 14px;
-        color: #aaa; /* Dark grey text */
+        color: #aaa;
     }
 
     .actions .closeButton {

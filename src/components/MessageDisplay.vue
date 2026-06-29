@@ -299,11 +299,9 @@
             <MessageReplyReference
               v-if="item.message.reply_to"
               :reply-to-message-id="item.message.reply_to"
-              :avatar-src="getReplyUserAvatar(item.message.reply_to)"
-              :reply-user-id="getReplyUserId(item.message.reply_to)"
-              :reply-user-display-name="getReplyUserDisplayName(item.message.reply_to)"
-              :username-color="getReplyUserColor(item.message.reply_to)"
-              :preview-text="getReplyMessagePreview(item.message.reply_to)"
+              :channel-id="channelId"
+              :conversation-id="conversationId"
+              :server-id="coloringServerId"
               @open-reply="handleReplyClick"
             />
           
@@ -316,14 +314,14 @@
                   :src="getAuthorAvatarUrl(item.message).value"
                   size="sm" 
                   :interactive="true"
-                  @click="getMessageAuthorId(item.message) && showUserProfile(getMessageAuthorId(item.message), $event)"
+                  @click="handleAuthorClick(item.message, $event)"
                 />
           </div>
           <div class="message-main">
             <div class="message-meta">
-              <span class="username" :style="{color: getAuthorColor(item.message).value}" @click="getMessageAuthorId(item.message) && showUserProfile(getMessageAuthorId(item.message), $event)">
+              <span class="username" :style="{color: getAuthorColor(item.message).value}" @click="handleAuthorClick(item.message, $event)">
                 <span class="username-text"><DisplayName v-if="item.message.user_id && !item.message.bot_id && !hasDiscordUserMetadata(item.message)" :user-id="item.message.user_id" /><template v-else>{{ getAuthorDisplayName(item.message).value }}</template></span>
-                <span v-if="hasDiscordUserMetadata(item.message)" class="bot-badge discord">DISCORD</span>
+                <BridgeSourceBadge v-if="hasDiscordUserMetadata(item.message)" source="discord" />
                 <span v-else-if="isMessageFromBot(item.message)" class="bot-badge">BOT</span>
                 <span v-if="getInstanceBadge(item.message).value === 'admin'" class="instance-badge admin" title="Instance Admin">
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
@@ -613,6 +611,15 @@ import MoreIcon from '@/components/icons/More.vue';
 import Avatar from '@/components/common/Avatar.vue';
 import DisplayName from '@/components/DisplayName.vue';
 import ReactionTooltip from '@/components/messages/ReactionTooltip.vue';
+import BridgeSourceBadge from '@/components/messages/BridgeSourceBadge.vue';
+import {
+  findBridgedUserInCache,
+  resolveBridgedUserColor,
+  bridgedUserToProfileUser,
+  discordMetadataToBridgedUser,
+  fetchBridgedChannelUsers,
+  BRIDGED_DISCORD_USER_ID_PREFIX,
+} from '@/services/bridgedChannelUsersService';
 import MessageReactions from '@/components/MessageReactions.vue';
 import MessageContextMenu from '@/components/MessageContextMenu.vue';
 import LightboxDownloadButton from '@/components/common/LightboxDownloadButton.vue';
@@ -1301,9 +1308,15 @@ const getAuthorAvatarUrl = (message: Message): ComputedRef<string> => {
 
 const getAuthorColor = (message: Message): ComputedRef<string> => {
   return computed(() => {
-    // Check for Discord user metadata first (puppeting) - Discord blurple
     if (message.metadata?.discord_user) {
-      return '#5865F2';
+      const discordUser = message.metadata.discord_user;
+      const cached = props.channelId
+        ? findBridgedUserInCache(props.channelId, discordUser.id)
+        : null;
+      const color = cached
+        ? resolveBridgedUserColor(cached)
+        : undefined;
+      return color || 'var(--text-primary)';
     }
     
     // Regular bot
@@ -1338,7 +1351,6 @@ const messageDisplayContainer = ref<HTMLDivElement | null>(null);
 const topSentinelRef = ref<HTMLDivElement | null>(null);
 const imageLoaded: Ref<Record<string, boolean>> = ref({});
 const embedLoaded: Ref<Record<string, number>> = ref({}); // Track embed load count per message
-const replyMessages = ref<Record<string, Message>>({});
 const tooltip = ref({
   visible: false,
   content: [] as {
@@ -1570,12 +1582,16 @@ const currentServerData = computed(() => {
 
 // --- HELPER FUNCTIONS ---
 const getReplyMessage = (replyMessageId: string) => {
-  return props.messages.find(msg => msg.id === replyMessageId) || replyMessages.value[replyMessageId] || null;
+  return props.messages.find(msg => msg.id === replyMessageId)
+    ?? chatStore.replyMessageCache.get(replyMessageId)
+    ?? (props.conversationId ? dmStore.replyMessageCache.get(replyMessageId) : undefined)
+    ?? null;
 };
 
 const getReplyUserId = (replyMessageId: string) => {
   const message = getReplyMessage(replyMessageId);
-  return message?.user_id || 'unknown';
+  if (!message?.user_id || message.bot_id || message.metadata?.discord_user) return '';
+  return message.user_id;
 };
 
 // Track if we should be at bottom (for initial load and new-message scroll)
@@ -2936,8 +2952,7 @@ const unreportMessage = (messageId: string) => {
 
 // Reply Logic
 const replyTo = (message: Message) => {
-  const displayName = getUserDisplayName(message.user_id).value || 'Unknown User';
-  emit('replyingTo', message.id, displayName, message.user_id);
+  emit('replyingTo', message.id);
   hoveredMessageId.value = null;
 };
 
@@ -2956,55 +2971,6 @@ const createThread = (message: Message) => {
   emit('createThread', message);
   hoveredMessageId.value = null;
 };
-
-const fetchReplyMessageIfNeeded = async (replyMessageId: string) => {
-  if (replyMessages.value[replyMessageId] || props.messages.some(msg => msg.id === replyMessageId)) return;
-  try {
-    const message = await chatStore.fetchReplyMessage(replyMessageId);
-    if (message) {
-      replyMessages.value[replyMessageId] = message;
-      // Ensure the reply author's profile is loaded so we don't show "Unknown User"
-      if (message.user_id) {
-        ensureProfilesAvailable([message.user_id]).catch(() => {});
-      }
-    }
-  } catch (error) {
-    debug.error('Error fetching reply message:', error);
-  }
-};
-
-const getReplyUserDisplayName = (replyMessageId: string) => {
-  const message = getReplyMessage(replyMessageId);
-  if (message?.metadata?.discord_user) {
-    const du = message.metadata.discord_user;
-    return du.display_name || du.username || 'Discord User';
-  }
-  if (message?.bot_id) {
-    const bot = botDataCache.value.get(message.bot_id);
-    return bot?.display_name || bot?.username || 'Bot';
-  }
-  const userId = message?.user_id;
-  if (!userId) return 'Unknown User';
-  return getUserDisplayName(userId).value;
-};
-
-const getReplyUserColor = (replyMessageId: string) => {
-  const userId = getReplyUserId(replyMessageId);
-  return userId === 'unknown' ? '#dddddd' : resolveChatUserColor(userId);
-};
-
-const getReplyUserAvatar = (replyMessageId: string) => {
-  const userId = getReplyUserId(replyMessageId);
-  return userId === 'unknown' ? '/default_avatar.webp' : getUserAvatarUrl(userId).value;
-};
-
-const getReplyMessagePreview = (replyMessageId: string) => {
-  const message = props.messages.find(msg => msg.id === replyMessageId) || replyMessages.value[replyMessageId];
-  if (message) return messagePartsToPlainText(message.content);
-  fetchReplyMessageIfNeeded(replyMessageId);
-  return 'Loading...';
-};
-
 
 // Correct scroll position when an item above the viewport resizes.
 // Uses an anchor-based approach: track the item at the viewport top before
@@ -3368,9 +3334,40 @@ const resolveNonUuidProfile = async (userId: string): Promise<any | null> => {
   return null;
 };
 
+const handleAuthorClick = (message: Message, event?: MouseEvent) => {
+  event?.stopPropagation();
+  if (hasDiscordUserMetadata(message) && message.metadata?.discord_user) {
+    const meta = message.metadata.discord_user;
+    const cached = props.channelId ? findBridgedUserInCache(props.channelId, meta.id) : null;
+    selectedUser.value = bridgedUserToProfileUser(
+      cached ?? discordMetadataToBridgedUser(meta),
+    ) as User;
+    showProfileModal.value = true;
+    return;
+  }
+  const authorId = getMessageAuthorId(message);
+  if (authorId) {
+    void showUserProfile(authorId, event);
+  }
+};
+
 const showUserProfile = async (userId: string | null | undefined, event?: MouseEvent) => {
   event?.stopPropagation();
   if (!userId) return;
+
+  if (userId.startsWith(BRIDGED_DISCORD_USER_ID_PREFIX)) {
+    const discordId = userId.slice(BRIDGED_DISCORD_USER_ID_PREFIX.length)
+    let cached = findBridgedUserInCache(props.channelId, discordId)
+    if (!cached && props.channelId) {
+      const result = await fetchBridgedChannelUsers(props.channelId, { force: true })
+      cached = result.users.find(u => u.id === discordId) ?? null
+    }
+    selectedUser.value = bridgedUserToProfileUser(
+      cached ?? discordMetadataToBridgedUser({ id: discordId, username: discordId }),
+    ) as User
+    showProfileModal.value = true
+    return
+  }
 
   let user: any = null;
   if (UUID_PATTERN.test(userId)) {
@@ -3531,6 +3528,12 @@ defineExpose({ editLastOwnMessage });
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
+}
+
+.username :deep(.bridged-source-icon),
+.username :deep(.bridge-source-badge) {
+  margin-left: 6px;
+  vertical-align: middle;
 }
 /* 
 .username-text .display-name::v-deep(span) {

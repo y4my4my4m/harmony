@@ -5,7 +5,8 @@
       compact: isCompact, 
       interactive: isInteractive,
       'no-actions': !showActions,
-      'menu-open': showActionsMenu
+      'menu-open': showActionsMenu,
+      'has-corner-badge': showRemoteInstanceBadge && instanceBadgeVariant === 'corner',
     }" 
     @click="handleClick"
   >
@@ -35,6 +36,11 @@
           <SupporterBadge v-if="user.id" :user-id="user.id" />
         </h3>
         <p class="user-handle">{{ displayHandle }}</p>
+        <RemoteInstanceBadge
+          v-if="showRemoteInstanceBadge && instanceBadgeVariant === 'inline'"
+          :domain="user.domain!"
+          variant="inline"
+        />
       </div>
 
       <!-- Bio (non-compact only) -->
@@ -140,11 +146,12 @@
       </div>
     </div>
 
-    <!-- Instance Badge (federated users only) -->
-    <div v-if="isFederatedUser && !user.is_local && showInstanceBadge" class="instance-badge">
-      <Icon name="federation" />
-      <span>{{ user.domain }}</span>
-    </div>
+    <RemoteInstanceBadge
+      v-if="showRemoteInstanceBadge && instanceBadgeVariant === 'corner'"
+      :domain="user.domain!"
+      variant="corner"
+      :compact="isCompact"
+    />
   </div>
 </template>
 
@@ -161,6 +168,7 @@ import Avatar from './Avatar.vue'
 import DisplayName from '../DisplayName.vue'
 import Icon from './Icon.vue'
 import SupporterBadge from './SupporterBadge.vue'
+import RemoteInstanceBadge from './RemoteInstanceBadge.vue'
 import type { User, FederatedUser } from '@/types'
 
 const { t } = useI18n()
@@ -174,6 +182,8 @@ interface Props {
   showFollowBtn?: boolean
   showMoreActions?: boolean
   showInstanceBadge?: boolean
+  /** corner = top-right pill (default); inline = compact chip under handle (sidebar suggested follows) */
+  instanceBadgeVariant?: 'corner' | 'inline'
   hasStats?: boolean
   maxBioLength?: number
 }
@@ -185,6 +195,7 @@ const props = withDefaults(defineProps<Props>(), {
   showFollowBtn: true,
   showMoreActions: true,
   showInstanceBadge: true,
+  instanceBadgeVariant: 'corner',
   hasStats: true,
   maxBioLength: 120
 })
@@ -216,6 +227,15 @@ const followInProgress = ref(false)
 const isFederatedUser = computed(() => {
   const handle = (props.user as FederatedUser).handle
   return typeof handle === 'string' && handle.length > 0
+})
+
+const showRemoteInstanceBadge = computed(() => {
+  return (
+    props.showInstanceBadge &&
+    isFederatedUser.value &&
+    !props.user.is_local &&
+    !!props.user.domain
+  )
 })
 
 const actionIconSize = computed(() => (props.isCompact ? 'sm' : 'md'))
@@ -833,20 +853,13 @@ const vClickOutside = {
   background: rgba(248, 113, 113, 0.1);
 }
 
-/* ===== INSTANCE BADGE ===== */
-.instance-badge {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1);
-  padding: var(--space-1) var(--space-2);
-  background: rgba(14, 165, 233, 0.1);
-  border: 1px solid rgba(14, 165, 233, 0.2);
-  border-radius: var(--radius-sm);
-  font-size: var(--font-size-xs);
-  color: var(--text-secondary);
-  position: absolute;
-  top: var(--space-2);
-  right: var(--space-2);
+.profile-card.has-corner-badge {
+  /* room for the absolute badge without clipping action menus */
+  padding-top: calc(var(--space-4) + 2px);
+}
+
+.profile-card.compact.has-corner-badge {
+  padding-top: calc(var(--space-3) + 2px);
 }
 
 /* ===== RESPONSIVE ===== */

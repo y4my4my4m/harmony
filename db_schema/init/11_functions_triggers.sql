@@ -1668,7 +1668,8 @@ DECLARE
   v_conversation_id uuid;
   v_topic           text;
   v_actor           record;
-  v_emoji           record;
+  v_emoji_name      text;
+  v_emoji_url       text;
 BEGIN
   IF TG_OP = 'DELETE' THEN
     v_rec := OLD;
@@ -1698,25 +1699,41 @@ BEGIN
   FROM public.profiles WHERE id = v_rec.user_id;
 
   -- Custom emoji name/url so a new chip renders correctly even when the
-  -- receiver hasn't cached this emoji (e.g. cross-server / federated).
+  -- receiver hasn't cached this emoji (e.g. cross-server / federated / bridged).
   IF v_rec.emoji_id IS NOT NULL THEN
-    SELECT name, url INTO v_emoji FROM public.emojis WHERE id = v_rec.emoji_id;
+    SELECT name, url INTO v_emoji_name, v_emoji_url
+    FROM public.emojis WHERE id = v_rec.emoji_id;
+  ELSE
+    v_emoji_name := COALESCE(v_rec.metadata->>'remote_emoji_name', v_rec.custom_emoji_content);
+    v_emoji_url := v_rec.metadata->>'remote_emoji_url';
   END IF;
 
   PERFORM realtime.send(
     jsonb_build_object(
       'type',                 'reaction:' || lower(TG_OP),
       'op',                   TG_OP,
+      'reaction_id',          v_rec.id,
       'message_id',           v_rec.message_id,
       'emoji_id',             v_rec.emoji_id,
-      'emoji_name',           v_emoji.name,
-      'emoji_url',            v_emoji.url,
+      'emoji_name',           v_emoji_name,
+      'emoji_url',            v_emoji_url,
       'custom_emoji_content', v_rec.custom_emoji_content,
       'user_id',              v_rec.user_id,
       'bot_id',               v_rec.bot_id,
-      'username',             v_actor.username,
-      'display_name',         v_actor.display_name,
-      'avatar_url',           v_actor.avatar_url
+      'metadata',             COALESCE(v_rec.metadata, '{}'::jsonb),
+      'username',             COALESCE(
+                                v_rec.metadata->'discord_user'->>'username',
+                                v_actor.username
+                              ),
+      'display_name',         COALESCE(
+                                v_rec.metadata->'discord_user'->>'display_name',
+                                v_rec.metadata->'discord_user'->>'username',
+                                v_actor.display_name
+                              ),
+      'avatar_url',           COALESCE(
+                                v_rec.metadata->'discord_user'->>'avatar_url',
+                                v_actor.avatar_url
+                              )
     ),
     'reaction_event',
     v_topic,
@@ -1955,7 +1972,6 @@ BEGIN
        OLD.category      IS NOT DISTINCT FROM NEW.category AND
        OLD.server_id     IS NOT DISTINCT FROM NEW.server_id AND
        OLD."order"       IS NOT DISTINCT FROM NEW."order" AND
-       OLD.is_private    IS NOT DISTINCT FROM NEW.is_private AND
        OLD.slowmode_seconds IS NOT DISTINCT FROM NEW.slowmode_seconds AND
        OLD.ap_id         IS NOT DISTINCT FROM NEW.ap_id
     THEN
@@ -2163,9 +2179,23 @@ CREATE OR REPLACE FUNCTION public.route_server_leave()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, pg_temp
 AS $$
 BEGIN
+    IF current_setting('harmony.skip_leave_message', true) = '1' THEN
+        RETURN OLD;
+    END IF;
+
+    IF current_setting('harmony.account_delete', true) = '1' THEN
+        RETURN OLD;
+    END IF;
+
+    -- Profile account deletion cascades user_servers rows after the profile
+    -- row is gone; skip the audit event (no valid user_id FK target).
+    IF NOT EXISTS (SELECT 1 FROM profiles WHERE id = OLD.user_id) THEN
+        RETURN OLD;
+    END IF;
+
     IF EXISTS (SELECT 1 FROM servers WHERE id = OLD.server_id) THEN
         INSERT INTO server_membership_events (server_id, user_id, event_type, payload)
         VALUES (OLD.server_id, OLD.user_id, 'leave', '{}'::jsonb);
@@ -2282,6 +2312,107 @@ AS $$
   );
 $$;
 
+CREATE OR REPLACE FUNCTION public.resolve_mention_profile_id(
+  p_part jsonb,
+  p_sender_user_id uuid,
+  p_current_domain text
+) RETURNS uuid
+LANGUAGE plpgsql
+STABLE
+SET search_path = public
+AS $$
+DECLARE
+  v_user_id uuid;
+  v_username text;
+  v_domain text;
+BEGIN
+  IF p_part->>'type' IS DISTINCT FROM 'mention' THEN
+    RETURN NULL;
+  END IF;
+
+  -- Structured userId from bridge slash commands / clients
+  IF (p_part->>'userId') ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$' THEN
+    SELECT id INTO v_user_id
+    FROM profiles
+    WHERE id = (p_part->>'userId')::uuid
+      AND (p_sender_user_id IS NULL OR id <> p_sender_user_id);
+    IF v_user_id IS NOT NULL THEN
+      RETURN v_user_id;
+    END IF;
+  END IF;
+
+  v_username := p_part->>'username';
+  v_domain := p_part->>'domain';
+  IF v_username IS NULL OR v_username = '' THEN
+    RETURN NULL;
+  END IF;
+
+  IF v_domain IS NULL OR v_domain = p_current_domain THEN
+    SELECT id INTO v_user_id
+    FROM profiles
+    WHERE username = v_username
+      AND (domain IS NULL OR domain = p_current_domain)
+      AND is_local = true
+      AND (p_sender_user_id IS NULL OR id <> p_sender_user_id);
+  ELSE
+    SELECT id INTO v_user_id
+    FROM profiles
+    WHERE username = v_username
+      AND domain = v_domain
+      AND (p_sender_user_id IS NULL OR id <> p_sender_user_id);
+  END IF;
+
+  RETURN v_user_id;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.message_notification_sender_json(
+  p_user_id uuid,
+  p_bot_id uuid,
+  p_metadata jsonb,
+  p_sender_profile profiles
+) RETURNS jsonb
+LANGUAGE plpgsql
+STABLE
+SET search_path = public
+AS $$
+DECLARE
+  v_bot bots%ROWTYPE;
+BEGIN
+  IF p_user_id IS NOT NULL THEN
+    RETURN notification_actor_json(p_sender_profile);
+  END IF;
+
+  IF p_metadata IS NOT NULL AND p_metadata ? 'discord_user' THEN
+    RETURN jsonb_build_object(
+      'username', p_metadata->'discord_user'->>'username',
+      'display_name', COALESCE(
+        p_metadata->'discord_user'->>'display_name',
+        p_metadata->'discord_user'->>'username'
+      ),
+      'avatar_url', p_metadata->'discord_user'->>'avatar_url',
+      'is_local', false,
+      'handle', '@' || COALESCE(p_metadata->'discord_user'->>'username', 'discord')
+    );
+  END IF;
+
+  IF p_bot_id IS NOT NULL THEN
+    SELECT * INTO v_bot FROM bots WHERE id = p_bot_id;
+    IF FOUND THEN
+      RETURN jsonb_build_object(
+        'username', v_bot.username,
+        'display_name', COALESCE(v_bot.display_name, v_bot.username),
+        'avatar_url', v_bot.avatar_url,
+        'is_local', false,
+        'handle', '@' || v_bot.username
+      );
+    END IF;
+  END IF;
+
+  RETURN '{}'::jsonb;
+END;
+$$;
+
 -- Handle message federation - sends DM/group-chat/mention notifications
 CREATE OR REPLACE FUNCTION public.handle_message_federation()
 RETURNS trigger
@@ -2302,6 +2433,7 @@ DECLARE
     v_channel_name TEXT;
     v_server_name TEXT;
     content_preview TEXT;
+    v_sender_json jsonb;
 BEGIN
     v_federation_type := determine_message_federation_type(NEW.id);
 
@@ -2315,6 +2447,10 @@ BEGIN
     IF content_preview = '' OR content_preview IS NULL THEN
         content_preview := 'New message';
     END IF;
+
+    v_sender_json := message_notification_sender_json(
+        NEW.user_id, NEW.bot_id, NEW.metadata, v_sender_profile
+    );
 
     -- Channel mention notifications (includes federated messages)
     IF NEW.channel_id IS NOT NULL AND NOT NEW.is_system THEN
@@ -2334,30 +2470,16 @@ BEGIN
             FOR content_part IN SELECT jsonb_array_elements(NEW.content)
             LOOP
                 IF content_part->>'type' = 'mention' THEN
-                    mentioned_username := content_part->>'username';
-                    mentioned_domain  := content_part->>'domain';
-
-                    IF mentioned_domain IS NULL OR mentioned_domain = current_domain THEN
-                        SELECT id INTO mentioned_user_id
-                        FROM profiles
-                        WHERE username = mentioned_username
-                          AND (domain IS NULL OR domain = current_domain)
-                          AND is_local = true
-                          AND id != NEW.user_id;
-                    ELSE
-                        SELECT id INTO mentioned_user_id
-                        FROM profiles
-                        WHERE username = mentioned_username
-                          AND domain = mentioned_domain
-                          AND id != NEW.user_id;
-                    END IF;
+                    mentioned_user_id := resolve_mention_profile_id(
+                        content_part, NEW.user_id, current_domain
+                    );
 
                     IF mentioned_user_id IS NOT NULL THEN
                         PERFORM send_notification_to_user(
                             'mention',
                             mentioned_user_id,
                             jsonb_build_object(
-                                'sender', notification_actor_json(v_sender_profile),
+                                'sender', v_sender_json,
                                 'message', jsonb_build_object(
                                     'id', NEW.id,
                                     'content_preview', content_preview
@@ -2370,8 +2492,11 @@ BEGIN
                                 ),
                                 'message_id', NEW.id,
                                 'mentioned_by', NEW.user_id,
-                                'sender_username', v_sender_profile.username,
-                                'sender_display_name', v_sender_profile.display_name,
+                                'sender_username', COALESCE(v_sender_json->>'username', v_sender_profile.username),
+                                'sender_display_name', COALESCE(
+                                    v_sender_json->>'display_name',
+                                    v_sender_profile.display_name
+                                ),
                                 'server_id', COALESCE(v_server_id::text, NULL),
                                 'server_name', COALESCE(v_server_name, NULL),
                                 'channel_id', COALESCE(v_channel_id::text, NULL),
@@ -2400,12 +2525,12 @@ BEGIN
                     FROM conversation_participants cp
                     JOIN profiles p ON p.id = cp.user_id
                     WHERE cp.conversation_id = NEW.conversation_id
-                    AND cp.user_id != NEW.user_id
+                    AND (NEW.user_id IS NULL OR cp.user_id <> NEW.user_id)
                     AND cp.left_at IS NULL
                     AND p.is_local = true
                 ),
                 jsonb_build_object(
-                    'sender', notification_actor_json(v_sender_profile),
+                    'sender', v_sender_json,
                     'message', jsonb_build_object(
                         'id', NEW.id,
                         'content_preview', content_preview
@@ -2414,8 +2539,11 @@ BEGIN
                         'id', NEW.conversation_id
                     ),
                     'message_id', NEW.id,
-                    'sender_username', v_sender_profile.username,
-                    'sender_display_name', v_sender_profile.display_name,
+                    'sender_username', COALESCE(v_sender_json->>'username', v_sender_profile.username),
+                    'sender_display_name', COALESCE(
+                        v_sender_json->>'display_name',
+                        v_sender_profile.display_name
+                    ),
                     'conversation_id', NEW.conversation_id,
                     'preview', content_preview
                 ),
@@ -2430,12 +2558,12 @@ BEGIN
                     FROM conversation_participants cp
                     JOIN profiles p ON p.id = cp.user_id
                     WHERE cp.conversation_id = NEW.conversation_id
-                    AND cp.user_id != NEW.user_id
+                    AND (NEW.user_id IS NULL OR cp.user_id <> NEW.user_id)
                     AND cp.left_at IS NULL
                     AND p.is_local = true
                 ),
                 jsonb_build_object(
-                    'sender', notification_actor_json(v_sender_profile),
+                    'sender', v_sender_json,
                     'message', jsonb_build_object(
                         'id', NEW.id,
                         'content_preview', content_preview
@@ -2444,8 +2572,11 @@ BEGIN
                         'id', NEW.conversation_id
                     ),
                     'message_id', NEW.id,
-                    'sender_username', v_sender_profile.username,
-                    'sender_display_name', v_sender_profile.display_name,
+                    'sender_username', COALESCE(v_sender_json->>'username', v_sender_profile.username),
+                    'sender_display_name', COALESCE(
+                        v_sender_json->>'display_name',
+                        v_sender_profile.display_name
+                    ),
                     'conversation_id', NEW.conversation_id,
                     'preview', content_preview
                 ),
@@ -2460,12 +2591,12 @@ BEGIN
                     FROM conversation_participants cp
                     JOIN profiles p ON p.id = cp.user_id
                     WHERE cp.conversation_id = NEW.conversation_id
-                    AND cp.user_id != NEW.user_id
+                    AND (NEW.user_id IS NULL OR cp.user_id <> NEW.user_id)
                     AND cp.left_at IS NULL
                     AND p.is_local = true
                 ),
                 jsonb_build_object(
-                    'sender', notification_actor_json(v_sender_profile),
+                    'sender', v_sender_json,
                     'message', jsonb_build_object(
                         'id', NEW.id,
                         'content_preview', content_preview
@@ -2474,8 +2605,11 @@ BEGIN
                         'id', NEW.conversation_id
                     ),
                     'message_id', NEW.id,
-                    'sender_username', v_sender_profile.username,
-                    'sender_display_name', v_sender_profile.display_name,
+                    'sender_username', COALESCE(v_sender_json->>'username', v_sender_profile.username),
+                    'sender_display_name', COALESCE(
+                        v_sender_json->>'display_name',
+                        v_sender_profile.display_name
+                    ),
                     'conversation_id', NEW.conversation_id,
                     'preview', content_preview,
                     'federated', true
@@ -2926,7 +3060,7 @@ BEGIN
     FROM public.user_servers us
     WHERE us.server_id = v_server_id
       AND us.status = 'accepted'
-      AND us.user_id != NEW.user_id
+      AND (NEW.user_id IS NULL OR us.user_id <> NEW.user_id)
       AND NOT EXISTS (
           SELECT 1 FROM public.notification_channels nc
           WHERE nc.user_id = us.user_id
@@ -3137,7 +3271,8 @@ DECLARE
     v_channel_id uuid;
     v_channel_name text;
     v_server_name text;
-    v_sender_profile record;
+    v_sender_profile profiles%ROWTYPE;
+    v_sender_json jsonb;
     v_role_id uuid;
     v_role_is_default boolean;
     v_member_id uuid;
@@ -3163,9 +3298,11 @@ BEGIN
         RETURN NEW;
     END IF;
 
-    SELECT p.id, p.username, p.display_name, p.avatar_url
-    INTO v_sender_profile
-    FROM profiles p WHERE p.id = NEW.user_id;
+    SELECT * INTO v_sender_profile FROM profiles WHERE id = NEW.user_id;
+
+    v_sender_json := message_notification_sender_json(
+        NEW.user_id, NEW.bot_id, NEW.metadata, v_sender_profile
+    );
 
     content_preview := LEFT(
         (SELECT string_agg(elem->>'text', ' ')
@@ -3190,17 +3327,12 @@ BEGIN
                     SELECT us.user_id FROM user_servers us
                     WHERE us.server_id = v_server_id
                       AND us.status = 'accepted'
-                      AND us.user_id != NEW.user_id
+                      AND (NEW.user_id IS NULL OR us.user_id <> NEW.user_id)
                 LOOP
                     PERFORM send_notification_to_user(
                         'mention', v_member_id,
                         jsonb_build_object(
-                            'sender', jsonb_build_object(
-                                'user_id', v_sender_profile.id,
-                                'username', v_sender_profile.username,
-                                'display_name', v_sender_profile.display_name,
-                                'avatar_url', v_sender_profile.avatar_url
-                            ),
+                            'sender', v_sender_json,
                             'message', jsonb_build_object('id', NEW.id, 'content_preview', content_preview),
                             'location', jsonb_build_object(
                                 'server_id', v_server_id::text,
@@ -3210,8 +3342,11 @@ BEGIN
                             ),
                             'message_id', NEW.id,
                             'mentioned_by', NEW.user_id,
-                            'sender_username', v_sender_profile.username,
-                            'sender_display_name', v_sender_profile.display_name,
+                            'sender_username', COALESCE(v_sender_json->>'username', v_sender_profile.username),
+                            'sender_display_name', COALESCE(
+                                v_sender_json->>'display_name',
+                                v_sender_profile.display_name
+                            ),
                             'server_id', v_server_id::text,
                             'server_name', v_server_name,
                             'channel_id', v_channel_id::text,
@@ -3228,17 +3363,12 @@ BEGIN
                     SELECT ur.user_id FROM user_roles ur
                     WHERE ur.role_id = v_role_id
                       AND ur.server_id = v_server_id
-                      AND ur.user_id != NEW.user_id
+                      AND (NEW.user_id IS NULL OR ur.user_id <> NEW.user_id)
                 LOOP
                     PERFORM send_notification_to_user(
                         'mention', v_member_id,
                         jsonb_build_object(
-                            'sender', jsonb_build_object(
-                                'user_id', v_sender_profile.id,
-                                'username', v_sender_profile.username,
-                                'display_name', v_sender_profile.display_name,
-                                'avatar_url', v_sender_profile.avatar_url
-                            ),
+                            'sender', v_sender_json,
                             'message', jsonb_build_object('id', NEW.id, 'content_preview', content_preview),
                             'location', jsonb_build_object(
                                 'server_id', v_server_id::text,
@@ -3248,8 +3378,11 @@ BEGIN
                             ),
                             'message_id', NEW.id,
                             'mentioned_by', NEW.user_id,
-                            'sender_username', v_sender_profile.username,
-                            'sender_display_name', v_sender_profile.display_name,
+                            'sender_username', COALESCE(v_sender_json->>'username', v_sender_profile.username),
+                            'sender_display_name', COALESCE(
+                                v_sender_json->>'display_name',
+                                v_sender_profile.display_name
+                            ),
                             'server_id', v_server_id::text,
                             'server_name', v_server_name,
                             'channel_id', v_channel_id::text,
@@ -3528,7 +3661,7 @@ CREATE OR REPLACE FUNCTION public.handle_member_leave_system_message()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path TO 'public'
+SET search_path = public, pg_temp
 AS $$
 DECLARE
     v_channel_id uuid;
@@ -3536,6 +3669,15 @@ DECLARE
 BEGIN
     -- A kick/ban already inserts "was kicked/banned" - don't also post "has left".
     IF current_setting('harmony.skip_leave_message', true) = '1' THEN
+        RETURN OLD;
+    END IF;
+
+    IF current_setting('harmony.account_delete', true) = '1' THEN
+        RETURN OLD;
+    END IF;
+
+    -- Profile account deletion cascades user_servers after the profile is gone.
+    IF NOT EXISTS (SELECT 1 FROM profiles WHERE id = OLD.user_id) THEN
         RETURN OLD;
     END IF;
 

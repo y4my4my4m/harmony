@@ -712,6 +712,8 @@ export class EventDispatcher {
       author,
       content: this.contentToText(message.content),
       content_raw: message.content, // Also include raw content for debugging
+      is_system: message.is_system === true,
+      reply_to: message.reply_to ?? null,
       timestamp: message.created_at,
       edited_timestamp: message.updated_at,
       mentions: this.extractMentions(message.content),

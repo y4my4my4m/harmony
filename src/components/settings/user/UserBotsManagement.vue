@@ -7,7 +7,32 @@
       </p>
     </div>
 
-    <div v-if="isLoading" class="loading-state">
+    <!-- Bot detail sub-view -->
+    <div v-if="detailBot" class="settings-section bot-detail">
+      <button class="btn-secondary back-btn" @click="detailBot = null">
+        ← Back to bots
+      </button>
+
+      <div class="bot-detail-header">
+        <BotAvatar :bot="detailBot" :size="56" />
+        <div>
+          <div class="bot-title">
+            <h3>{{ detailBot.username }}</h3>
+            <span class="bot-badge">BOT</span>
+            <span v-if="detailBot.bot_type === 'bridge'" class="bot-badge bridge">BRIDGE</span>
+            <span class="bot-badge">{{ detailBot.is_public ? 'Public' : 'Private' }}</span>
+          </div>
+          <p class="bot-bio">{{ detailBot.bio || 'No description' }}</p>
+        </div>
+      </div>
+
+      <BridgeBotGuide v-if="detailBot.bot_type === 'bridge'" />
+      <div v-else class="empty-state">
+        <p>This bot type needs no extra setup. Use <strong>Manage Token</strong> to connect it via the bot gateway.</p>
+      </div>
+    </div>
+
+    <div v-else-if="isLoading" class="loading-state">
       <LoadingSpinner :size="48" />
       <p>Loading your bots...</p>
     </div>
@@ -328,6 +353,7 @@ import { formatDistanceToNow } from 'date-fns'
 import { generateBotToken, hashBotToken } from '@/utils/botUtils'
 import BotAvatar from '@/components/common/BotAvatar.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
+import BridgeBotGuide from '@/components/settings/BridgeBotGuide.vue'
 
 defineProps<{ loading: boolean }>()
 const toast = useToast()
@@ -336,6 +362,7 @@ const toast = useToast()
 const isLoading = ref(false)
 const creating = ref(false)
 const myBots = ref<any[]>([])
+const detailBot = ref<any>(null)
 const showCreateModal = ref(false)
 const showToken = ref(false)
 const currentToken = ref('')
@@ -490,9 +517,7 @@ async function createBot() {
 }
 
 function viewBotDetails(bot: any) {
-  debug.log('Viewing bot:', bot)
-  // TODO: Implement bot details view
-  toast.info('Bot details view coming soon!')
+  detailBot.value = bot
 }
 
 function showTokenModal(bot: any) {
@@ -876,6 +901,30 @@ onMounted(() => {
   font-size: 10px;
   font-weight: 600;
   border-radius: 4px;
+}
+
+.bot-badge.bridge {
+  background: #5865f2;
+}
+
+.bot-detail .back-btn {
+  margin-bottom: 16px;
+}
+
+.bot-detail-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.bot-detail-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
 }
 
 .verified-badge {

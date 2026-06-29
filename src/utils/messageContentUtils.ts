@@ -237,11 +237,20 @@ export function stripLeadingSelfMention(
   return result;
 }
 
+/** True when `text` has an unclosed fenced-code marker (odd ``` count). */
+function isInsideCodeFence(text: string): boolean {
+  const fences = text.match(/```/g);
+  return fences ? fences.length % 2 === 1 : false;
+}
+
 /**
  * Merge adjacent text + inline url parts back into single text parts so fenced
  * code blocks render correctly in view mode. Legacy messages may have had URLs
  * inside ``` blocks split into separate url parts at parse time; edit mode
  * already worked because it joins parts before the RichTextEditor sees them.
+ *
+ * Only URLs that fall inside an open code fence are coalesced — standalone link
+ * parts (YouTube, Spotify, link previews, etc.) must stay as `type: 'url'`.
  */
 export function coalesceInlineContentForMarkdown(
   parts: MessagePart[],
@@ -266,7 +275,7 @@ export function coalesceInlineContentForMarkdown(
       textBuffer += part.text || '';
     } else if (part.type === 'url') {
       const url = part.url || '';
-      if (isMediaUrl(url)) {
+      if (isMediaUrl(url) || !isInsideCodeFence(textBuffer)) {
         flush();
         result.push(part);
       } else {

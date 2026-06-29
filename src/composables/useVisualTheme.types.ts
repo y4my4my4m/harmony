@@ -85,4 +85,9 @@ export interface VisualThemeSettings {
    * declaratively. Persisted across devices via `appearance_settings`.
    */
   skinOptions?: Record<string, Record<string, boolean>>
+  /**
+   * How bridged message authors show their source in chat headers.
+   * `icon` = platform icon (default); `text` = label badge e.g. DISCORD.
+   */
+  bridgeSourceBadge?: 'icon' | 'text'
 }

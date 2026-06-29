@@ -90,8 +90,14 @@
         <div class="quick-stats">
           <div class="stats-header">
             <h4 class="stats-title">{{ $t('activitypub.yourActivity') }}</h4>
-            <button class="stats-refresh" @click="refreshStats" :disabled="isRefreshing">
-              <Icon name="refresh-cw" :class="{ spinning: isRefreshing }" />
+            <button
+              class="stats-refresh"
+              :class="{ spinning: isRefreshing }"
+              @click="refreshStats"
+              :disabled="isRefreshing"
+              :title="$t('activitypub.refresh')"
+            >
+              <Icon name="refresh-cw" />
             </button>
           </div>
           <div class="stats-grid">
@@ -131,6 +137,7 @@ import { useActivityPubStore } from '@/stores/useActivityPub';
 import { useProfileStore } from '@/stores/useProfile';
 import { useAuthStore } from '@/stores/auth';
 import { useNotificationStore } from '@/stores/useNotification';
+import { authContextService } from '@/services/AuthContextService';
 import type { Server, Channel, Category } from '@/types';
 
 // I18n
@@ -299,10 +306,27 @@ const refreshingStats = ref(false);
 const refreshStats = async () => {
   if (refreshingStats.value) return;
   refreshingStats.value = true;
+  const startedAt = Date.now();
   try {
-    await activityPubStore.initialize();
+    const profileId =
+      profileStore.profile?.id ??
+      (await authContextService.getCurrentProfileId().catch(() => null));
+
+    const tasks: Promise<unknown>[] = [];
+    if (profileId) {
+      tasks.push(
+        activityPubStore.loadFollowCounts(true, profileId),
+        activityPubStore.loadFollowedUsers(true, profileId),
+      );
+    }
     if (authStore.session?.user?.id) {
-      await profileStore.fetchProfileByAuthUserId(authStore.session.user.id);
+      tasks.push(profileStore.fetchProfileByAuthUserId(authStore.session.user.id));
+    }
+    await Promise.all(tasks);
+
+    const elapsed = Date.now() - startedAt;
+    if (elapsed < 400) {
+      await new Promise((resolve) => setTimeout(resolve, 400 - elapsed));
     }
   } catch (e) {
     debug.error('Failed to refresh stats:', e);
@@ -669,39 +693,90 @@ onUnmounted(() => {
 .quick-stats {
   display: flex;
   flex-direction: column;
-  justify-content: space-around;
-  padding: 16px;
+  gap: 12px;
+  padding: 12px;
   background: var(--background-primary);
   border-radius: 8px;
   border: 1px solid var(--border-color);
 }
+
 .stats-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 16px;
   width: 100%;
-  padding: 16px;
   color: var(--text-primary);
 }
+
+.stats-title {
+  font-size: 12px;
+  font-weight: 600;
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+}
+
 .stats-refresh {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
   background: none;
   border: none;
+  border-radius: 6px;
   cursor: pointer;
   color: var(--text-secondary);
-  transition: all 0.15s ease;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.stats-refresh:hover:not(:disabled) {
+  background: var(--background-hover);
+  color: var(--text-primary);
+}
+
+.stats-refresh:disabled {
+  cursor: default;
+  opacity: 0.7;
 }
 
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 16px;
+  gap: 8px;
   width: 100%;
-  padding: 16px;
 }
 
 .stat-item {
   text-align: center;
+  cursor: pointer;
+  padding: 4px 0;
+  border-radius: 6px;
+  transition: background 0.15s ease;
+}
+
+.stat-item:hover {
+  background: var(--background-hover);
+}
+
+.stat-change {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-top: 2px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--harmony-primary);
+}
+
+.spinning :deep(.icon-wrap) {
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 .stat-value {

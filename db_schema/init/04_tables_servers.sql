@@ -19,8 +19,9 @@ CREATE TABLE IF NOT EXISTS public.servers (
     icon text,
     banner text,
     
-    -- Owner
-    owner uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    -- Owner. NULL when the owner's profile was deleted; administrators
+    -- manage the server until ownership is claimed/transferred.
+    owner uuid REFERENCES public.profiles(id) ON DELETE SET NULL,
     
     -- Settings
     public boolean DEFAULT false,
@@ -112,8 +113,6 @@ CREATE TABLE IF NOT EXISTS public.channels (
     type smallint DEFAULT 0,
     "order" integer DEFAULT 0,
     
-    -- Permissions
-    is_private boolean DEFAULT false,
     slowmode_seconds integer DEFAULT 0,
     
     -- Federation
@@ -226,7 +225,7 @@ CREATE TABLE IF NOT EXISTS public.threads (
     parent_message_id uuid NOT NULL,
     
     name text NOT NULL,
-    created_by uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    created_by uuid REFERENCES public.profiles(id) ON DELETE SET NULL,
     
     archived boolean DEFAULT false,
     archived_at timestamp with time zone,

@@ -103,6 +103,20 @@ describe('messageContentUtils', () => {
       expect(merged[0]).toMatchObject({ type: 'text', text: 'look ' })
       expect(merged[1]).toMatchObject({ type: 'url', url: 'https://cdn.example.com/a.png' })
     })
+
+    it('leaves embeddable url parts outside code fences separate', () => {
+      const parts = [
+        { type: 'text' as const, text: 'check this out ' },
+        { type: 'url' as const, url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', preview: true },
+      ]
+      const merged = coalesceInlineContentForMarkdown(parts)
+      expect(merged).toHaveLength(2)
+      expect(merged[0]).toMatchObject({ type: 'text', text: 'check this out ' })
+      expect(merged[1]).toMatchObject({
+        type: 'url',
+        url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+      })
+    })
   })
 
   describe('isSingleEmojiMessage', () => {
