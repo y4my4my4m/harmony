@@ -11,7 +11,7 @@
         <div class="banner-gradient" :style="bannerStyle"></div>
         <div class="banner-actions">
           <button 
-            v-if="!isCurrentUser" 
+            v-if="!isCurrentUser && !isBridgedDiscord" 
             @click.stop="showActionsMenu = !showActionsMenu"
             class="action-button"
             :class="{ active: showActionsMenu }"
@@ -80,17 +80,21 @@
           <div class="profile-info">
             <div class="name-section">
               <h1 class="display-name" :style="{ color: userColor }">
-                <DisplayName :userId="user!.id" :fallback="displayName" :color="userColor" />
+                <template v-if="isBridgedDiscord">{{ displayName }}</template>
+                <DisplayName v-else :userId="user!.id" :fallback="displayName" :color="userColor" />
                 <span v-if="getUserVerified(user)" class="verified-badge">
                   <Icon name="check-circle" class="verified-icon" />
                 </span>
               </h1>
-              <p class="username">{{ displayHandle }}</p>
+              <p class="username">
+                {{ displayHandle }}
+                <BridgeSourceBadge v-if="isBridgedDiscord" source="discord" />
+              </p>
             </div>
             
-            <div v-if="isInstanceAdmin(user)" class="role-badge instance-admin-badge">INSTANCE OWNER</div>
-            <div v-else-if="isInstanceModerator(user)" class="role-badge instance-mod-badge">INSTANCE MOD</div>
-            <SupporterBadge v-if="user?.id" :user-id="user.id" />
+            <div v-if="isInstanceAdmin(user) && !isBridgedDiscord" class="role-badge instance-admin-badge">INSTANCE OWNER</div>
+            <div v-else-if="isInstanceModerator(user) && !isBridgedDiscord" class="role-badge instance-mod-badge">INSTANCE MOD</div>
+            <SupporterBadge v-if="user?.id && !isBridgedDiscord" :user-id="user.id" />
 
             <div class="user-badges">
               <div class="roles-container">
@@ -112,6 +116,25 @@
 
         <!-- User Stats -->
         <div class="user-stats">
+          <template v-if="isBridgedDiscord">
+            <div v-if="bridgedProfile?.discord_joined_at" class="stat-item">
+              <span class="stat-value">{{ formatJoinDate(bridgedProfile.discord_joined_at) }}</span>
+              <span class="stat-label">Joined Server</span>
+            </div>
+            <div v-if="bridgedProfile?.created_at" class="stat-item">
+              <span class="stat-value">{{ formatJoinDate(bridgedProfile.created_at) }}</span>
+              <span class="stat-label">Discord Member Since</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-value">{{ userStatusText }}</span>
+              <span class="stat-label">Status</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-value">{{ getUserRoles(user).length || 0 }}</span>
+              <span class="stat-label">Roles</span>
+            </div>
+          </template>
+          <template v-else>
           <div class="stat-item">
             <span class="stat-value">{{ formatJoinDate(user?.created_at) }}</span>
             <span class="stat-label">Member Since</span>
@@ -140,6 +163,7 @@
             <span class="stat-value">{{ getUserRoles(user).length || 0 }}</span>
             <span class="stat-label">Roles</span>
           </div>
+          </template>
         </div>
 
         <!-- Custom Status (global, for any user with one set) -->
@@ -204,7 +228,7 @@
         </div>
 
         <!-- User Activities -->
-        <div class="activities-section">
+        <div v-if="!isBridgedDiscord" class="activities-section">
           <h3 class="section-title">Activity</h3>
           <div class="activity-grid">
             <!-- Chat User Activities -->
@@ -281,8 +305,20 @@
 
         <!-- Action Buttons -->
         <div class="profile-actions">
+          <template v-if="isBridgedDiscord">
+            <button
+              type="button"
+              class="secondary-action-btn single-action-btn"
+              :class="{ copied: discordIdCopied }"
+              @click="copyDiscordId"
+            >
+              <Icon :name="discordIdCopied ? 'check' : 'copy'" :size="16" />
+              {{ discordIdCopied ? 'Copied!' : 'Copy Discord ID' }}
+            </button>
+          </template>
+
           <!-- Current User Actions -->
-          <template v-if="isCurrentUser">
+          <template v-else-if="isCurrentUser">
             <button 
               @click="openSettings"
               class="primary-action-btn single-action-btn"
@@ -397,6 +433,8 @@ import { roleService, type ServerRole, Permission } from '@/services/RoleService
 import BaseModal from './common/BaseModal.vue'
 import Icon from './common/Icon.vue'
 import KickBanModal from './moderation/KickBanModal.vue'
+import BridgeSourceBadge from './messages/BridgeSourceBadge.vue'
+import { isBridgedDiscordProfileUser } from '@/services/bridgedChannelUsersService'
 import type { User, FederatedUser } from '../types'
 import Avatar from './common/Avatar.vue'
 import SupporterBadge from './common/SupporterBadge.vue'
@@ -453,6 +491,8 @@ const {
 
 // Reactive state
 const showActionsMenu = ref(false)
+const discordIdCopied = ref(false)
+let discordIdCopiedTimer: ReturnType<typeof setTimeout> | null = null
 const userNote = ref('')
 const instanceInfo = ref<{ status: string; software?: string } | null>(null)
 const isLoadingInstanceInfo = ref(false)
@@ -643,6 +683,7 @@ async function loadInstanceInfo(domain: string) {
 // Type guard: only truly remote/federated users, not local users with a domain field
 const isFederatedUser = (user: User | FederatedUser | null): user is FederatedUser => {
   if (!user) return false;
+  if (isBridgedDiscordProfileUser(user)) return false;
   const u = user as any;
   // Explicitly remote (is_local === false) is the strongest signal
   if (u.is_local === false) return true;
@@ -697,14 +738,26 @@ function getProfileUrl(user: FederatedUser | User | null): string {
 //      silently swallowed the click.
 // Compare against the cached current-user profile id from userDataService
 // (kept in sync by useUserData) so the check is reactive and id-correct.
+const isBridgedDiscord = computed(() => isBridgedDiscordProfileUser(props.user))
+
+const bridgedProfile = computed((): User | null => {
+  if (!isBridgedDiscord.value || !props.user) return null
+  return props.user as User
+})
+
 const isCurrentUser = computed(() => {
-  if (!props.user?.id) return false
+  if (!props.user?.id || isBridgedDiscord.value) return false
   return props.user.id === getCurrentUser.value?.id
 })
 
 const displayHandle = computed(() => {
   if (!props.user) return '@unknown'
   const u = props.user as any
+
+  if (isBridgedDiscord.value) {
+    const username = u.username || 'unknown'
+    return `@${username}`
+  }
 
   // Remote federated users: @username@domain
   if (isFederatedUser(props.user)) {
@@ -751,6 +804,15 @@ const socialStats = computed(() => {
 
 const userStatus = computed(() => {
   if (!props.user) return 'offline'
+
+  if (isBridgedDiscord.value) {
+    switch (props.user.status) {
+      case 1: return 'online'
+      case 2: return 'away'
+      case 3: return 'busy'
+      default: return 'offline'
+    }
+  }
   
   const fed = props.user as FederatedUser
   
@@ -774,6 +836,15 @@ const userStatus = computed(() => {
 
 const userStatusText = computed(() => {
   if (!props.user) return 'Offline'
+
+  if (isBridgedDiscord.value) {
+    switch (props.user.status) {
+      case 1: return 'Online'
+      case 2: return 'Away'
+      case 3: return 'Do Not Disturb'
+      default: return 'Offline'
+    }
+  }
   
   const fed = props.user as FederatedUser
   
@@ -799,6 +870,12 @@ const userStatusText = computed(() => {
 // Custom status (global, stored on profile)
 const customStatusDisplay = computed(() => {
   if (!props.user) return ''
+  if (isBridgedDiscord.value) {
+    const custom = bridgedProfile.value?.discord_custom_status
+    if (!custom) return ''
+    const parts = [custom.emoji, custom.text].filter(Boolean)
+    return parts.join(' ')
+  }
   const status = getUserCustomStatus(props.user.id).value
   return formatCustomStatusDisplay(status)
 })
@@ -806,21 +883,33 @@ const customStatusDisplay = computed(() => {
 // Reactive computed properties using useUserData
 const displayName = computed(() => {
   if (!props.user) return 'Unknown User'
+  if (isBridgedDiscord.value) {
+    return props.user.display_name || props.user.username || 'Discord User'
+  }
   return getUserDisplayName(props.user.id).value || props.user.display_name || 'Unknown User'
 })
 
 const avatarUrl = computed(() => {
   if (!props.user) return '/default_avatar.webp'
+  if (isBridgedDiscord.value) {
+    return props.user.avatar_url || '/default_avatar.webp'
+  }
   return getUserAvatarUrl(props.user.id).value || props.user.avatar_url || '/default_avatar.webp'
 })
 
 const userColor = computed(() => {
   if (!props.user) return '#ffffff'
+  if (isBridgedDiscord.value) {
+    return props.user.color || '#ffffff'
+  }
   return getUserColor(props.user.id).value || '#ffffff'
 })
 
 const bannerUrl = computed(() => {
   if (!props.user) return null
+  if (isBridgedDiscord.value) {
+    return props.user.banner_url || null
+  }
   return getUserBannerUrl(props.user.id).value || (props.user as any).banner_url || null
 })
 
@@ -835,6 +924,9 @@ const bannerStyle = computed(() => {
       backgroundPosition: 'center',
       backgroundRepeat: 'no-repeat'
     }
+  }
+  if (isBridgedDiscord.value && bridgedProfile.value?.accent_color) {
+    return { backgroundColor: bridgedProfile.value.accent_color }
   }
   return {
     background: userColor.value || '#0EA5E9'
@@ -915,11 +1007,30 @@ const copyUserId = async () => {
   if (!props.user?.id) return
   
   try {
-    await navigator.clipboard.writeText(props.user.id)
+    const value = isBridgedDiscord.value && bridgedProfile.value?.discord_id
+      ? bridgedProfile.value.discord_id
+      : props.user.id
+    await navigator.clipboard.writeText(value)
     // Show toast notification
     showActionsMenu.value = false
   } catch (error) {
     debug.error('Failed to copy user ID:', error)
+  }
+}
+
+const copyDiscordId = async () => {
+  const discordId = bridgedProfile.value?.discord_id
+  if (!discordId) return
+  try {
+    await navigator.clipboard.writeText(discordId)
+    discordIdCopied.value = true
+    if (discordIdCopiedTimer) clearTimeout(discordIdCopiedTimer)
+    discordIdCopiedTimer = setTimeout(() => {
+      discordIdCopied.value = false
+      discordIdCopiedTimer = null
+    }, 2000)
+  } catch (error) {
+    debug.error('Failed to copy Discord ID:', error)
   }
 }
 
@@ -1201,7 +1312,10 @@ const getUserVerified = (user: any) => {
   return user?.verified || user?.profile?.verified
 }
 
-const getUserRoles = (_user: any) => {
+const getUserRoles = (user: any) => {
+  if (isBridgedDiscordProfileUser(user)) {
+    return user?.roles ?? []
+  }
   if (!isInServerContext.value) {
     return []
   }
@@ -1313,6 +1427,11 @@ watch(() => ({ show: props.show, userId: props.user?.id }), async (newVal, oldVa
     // Modal closed or no user - cleanup. Reset the dropdown too so the next
     // open of the modal doesn't restore a stale "..." menu state.
     showActionsMenu.value = false
+    discordIdCopied.value = false
+    if (discordIdCopiedTimer) {
+      clearTimeout(discordIdCopiedTimer)
+      discordIdCopiedTimer = null
+    }
     await cleanupProfilePresence()
     instanceInfo.value = null
     fetchedUserStats.value = null
@@ -1325,6 +1444,14 @@ watch(() => ({ show: props.show, userId: props.user?.id }), async (newVal, oldVa
     showActionsMenu.value = false
     // Modal opened with user or user changed - cleanup old and setup new
     await cleanupProfilePresence()
+
+    if (props.user && isBridgedDiscordProfileUser(props.user)) {
+      if (isMobile.value) {
+        closeMobileSidebars()
+      }
+      return
+    }
+
     await initializeProfilePresence()
     
     // Auto-close mobile profile/status menu when profile modal opens
@@ -1619,6 +1746,10 @@ onMounted(() => {
   color: #b5bac1;
   margin: 0;
   font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
 }
 
 .user-badges {
@@ -2061,6 +2192,23 @@ onMounted(() => {
   margin:0;
 }
 
+.secondary-action-btn .icon-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.secondary-action-btn svg {
+  width: 16px;
+  height: 16px;
+  overflow: visible;
+  padding: 0;
+  margin: 0;
+}
+
 .primary-action-btn {
   background: linear-gradient(135deg, #0EA5E9, #0284C7);
   color: var(--text-primary);
@@ -2105,10 +2253,15 @@ onMounted(() => {
   color: var(--text-primary);
 }
 
-.btn-icon {
-  width: 16px;
-  height: 16px;
-  flex-shrink: 0;
+.secondary-action-btn:active:not(.copied) {
+  transform: scale(0.98);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.secondary-action-btn.copied {
+  background: rgba(67, 181, 129, 0.12);
+  border-color: rgba(67, 181, 129, 0.35);
+  color: #43b581;
 }
 
 /* Server invite picker */

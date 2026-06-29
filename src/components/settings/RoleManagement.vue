@@ -66,7 +66,7 @@
               <span v-if="role.is_admin" class="role-badge admin">Admin</span>
               <span v-else-if="role.is_default" class="role-badge default">Default</span>
               <span v-if="isThisRoleDirty(role.id)" class="role-pill-dot" title="Unsaved changes"></span>
-              <span class="role-pill-count">{{ role.member_count || 0 }}</span>
+              <span class="role-pill-count">{{ getRoleDisplayCount(role) }}</span>
             </button>
           </template>
         </draggable>
@@ -258,13 +258,14 @@
                     <Avatar :src="member.avatar_url" :alt="member.display_name || member.username" size="xs" />
                     <span class="member-name">
                       {{ member.display_name || member.username }}
+                      <span v-if="member.isBridged" class="bridged-member-badge" title="Discord bridge member">Discord</span>
                       <span v-if="isServerOwner(member.id)" class="owner-badge">Owner</span>
                     </span>
                     <button
-                      v-if="canRemoveMember(member.id)"
+                      v-if="canRemoveMember(member)"
                       type="button"
                       class="member-action-icon danger"
-                      @click="removeMember(member.id)"
+                      @click="removeMember(member)"
                       title="Remove from role"
                     >
                       &minus;
@@ -326,6 +327,18 @@ import ToggleSwitch from '@/components/common/ToggleSwitch.vue'
 import Avatar from '@/components/common/Avatar.vue'
 import ColorPicker from '@/components/common/ColorPicker.vue'
 import type { ServerRole } from '@/services/RoleService'
+import {
+  fetchBridgedServerUsers,
+  type BridgedChannelUser,
+} from '@/services/bridgedChannelUsersService'
+
+interface RoleMemberRow {
+  id: string
+  username: string
+  display_name: string
+  avatar_url: string
+  isBridged?: boolean
+}
 
 interface Props {
   serverId: string
@@ -340,9 +353,10 @@ const roles = ref<ServerRole[]>([])
 const selectedRole = ref<ServerRole | null>(null)
 const activeTab = ref('display')
 const memberSearch = ref('')
-const roleMembers = ref<any[]>([])
+const roleMembers = ref<RoleMemberRow[]>([])
 const loadingMembers = ref(false)
 const serverOwnerId = ref<string | null>(null)
+const serverBridgedUsers = ref<BridgedChannelUser[]>([])
 
 // Add member state
 const addMemberSearch = ref('')
@@ -566,19 +580,67 @@ const selectRole = async (role: ServerRole) => {
   addMemberSearch.value = ''
   availableMembers.value = []
   
-  // Load members and server members in parallel
   loadingMembers.value = true
   try {
-    const [members] = await Promise.all([
-      roleService.getRoleMembers(role.id),
-      loadServerMembers()
+    await Promise.all([
+      loadServerMembers(),
+      loadServerBridgedUsers({ force: true }),
     ])
-    roleMembers.value = members
+    const members = await roleService.getRoleMembers(role.id)
+    roleMembers.value = mergeRoleMembers(members, role.id)
   } catch (error) {
     console.error('Failed to load role members:', error)
     roleMembers.value = []
   } finally {
     loadingMembers.value = false
+  }
+}
+
+function bridgedUsersForRole(roleId: string): RoleMemberRow[] {
+  return serverBridgedUsers.value
+    .filter(u => u.harmonyRoleIds?.includes(roleId))
+    .map(u => ({
+      id: `discord:${u.id}`,
+      username: u.username,
+      display_name: u.displayName,
+      avatar_url: u.avatarUrl,
+      isBridged: true,
+    }))
+}
+
+function normalizeHarmonyRoleMembers(
+  members: Array<{ id: string; username: string; display_name?: string; avatar_url?: string }>,
+): RoleMemberRow[] {
+  return members.map(m => ({
+    id: m.id,
+    username: m.username,
+    display_name: m.display_name ?? m.username,
+    avatar_url: m.avatar_url ?? '',
+  }))
+}
+
+function mergeRoleMembers(
+  harmonyMembers: Array<{ id: string; username: string; display_name?: string; avatar_url?: string }>,
+  roleId: string,
+): RoleMemberRow[] {
+  return [...normalizeHarmonyRoleMembers(harmonyMembers), ...bridgedUsersForRole(roleId)].sort((a, b) =>
+    (a.display_name || a.username).localeCompare(b.display_name || b.username),
+  )
+}
+
+function getRoleDisplayCount(role: ServerRole): number {
+  const base = role.member_count || 0
+  const bridged = bridgedUsersForRole(role.id).length
+  return base + bridged
+}
+
+async function loadServerBridgedUsers(options: { force?: boolean } = {}) {
+  try {
+    const result = await fetchBridgedServerUsers(props.serverId, options)
+    serverBridgedUsers.value = result.users
+  } catch (error) {
+    console.error('Failed to load bridged server users:', error)
+    serverBridgedUsers.value = []
   }
 }
 
@@ -665,13 +727,13 @@ const deleteRole = async () => {
   }
 }
 
-const removeMember = async (memberId: string) => {
-  if (!selectedRole.value) return
+const removeMember = async (member: RoleMemberRow) => {
+  if (!selectedRole.value || member.isBridged) return
   
   try {
-    const success = await roleService.removeRole(memberId, selectedRole.value.id)
+    const success = await roleService.removeRole(member.id, selectedRole.value.id)
     if (success) {
-      roleMembers.value = roleMembers.value.filter(m => m.id !== memberId)
+      roleMembers.value = roleMembers.value.filter(m => m.id !== member.id)
     }
   } catch (error: any) {
     console.error('Failed to remove member from role:', error)
@@ -818,19 +880,17 @@ const isServerOwner = (memberId: string): boolean => {
 }
 
 // Check if remove button should be shown for a member
-const canRemoveMember = (memberId: string): boolean => {
-  // Can't remove from default role (this is already handled in template)
+const canRemoveMember = (member: RoleMemberRow): boolean => {
+  if (member.isBridged) return false
   if (selectedRole.value?.is_default) return false
-  
-  // Can't remove owner from admin role
-  if (selectedRole.value?.is_admin && isServerOwner(memberId)) return false
-  
+  if (selectedRole.value?.is_admin && isServerOwner(member.id)) return false
   return true
 }
 
 onMounted(() => {
   loadRoles()
   loadServerOwner()
+  void loadServerBridgedUsers()
 })
 </script>
 
@@ -1343,12 +1403,28 @@ onMounted(() => {
 }
 
 .member-count-pill {
+  margin-left: 6px;
   background: var(--background-tertiary);
   color: var(--text-primary);
   padding: 2px 8px;
   border-radius: 10px;
   font-size: 10px;
   font-weight: 600;
+}
+
+.bridged-member-badge {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 6px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #fff;
+  background: #5865F2;
+  vertical-align: middle;
 }
 
 .member-result-list {

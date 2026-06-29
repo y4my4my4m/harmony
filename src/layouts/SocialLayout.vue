@@ -135,6 +135,7 @@
                 :user="user"
                 :show-follow-btn="true"
                 :is-compact="true"
+                instance-badge-variant="inline"
                 @click="handleUserCardClick as any"
               />
             </div>

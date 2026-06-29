@@ -11,11 +11,26 @@ export interface BotConnection {
 }
 
 // Bridged user info (from Discord bridge)
+export interface BridgedDiscordRole {
+  id: string
+  name: string
+  color: string | null
+  position: number
+}
+
 export interface BridgedUser {
   id: string
   username: string
   displayName: string
   avatarUrl: string
+  bannerUrl?: string | null
+  accentColor?: string | null
+  harmonyRoleIds?: string[]
+  roles?: BridgedDiscordRole[]
+  joinedAt?: string | null
+  createdAt?: string | null
+  presenceStatus?: 'online' | 'away' | 'busy' | 'offline'
+  customStatus?: { text: string; emoji: string | null } | null
   source: 'discord'
 }
 
@@ -321,6 +336,9 @@ export class WebSocketGateway {
     console.log('╠════════════════════════════════════════╣')
     console.log(`║   From bot: ${botConnection.username}`)
     console.log(`║   Channels: ${data.channels.length}`)
+    if (Array.isArray(data.members) && data.members.length > 0) {
+      console.log(`║   Shared Discord members: ${data.members.length}`)
+    }
     
     // Track channels registered by this bot
     if (!this.channelsByBot.has(botConnection.botId)) {
@@ -330,12 +348,14 @@ export class WebSocketGateway {
 
     // Collect candidate harmony channel IDs up-front so we can batch the
     // server lookup and permission check (one DB round-trip instead of N).
+    // Members may be sent once at the root (guild-wide) or per-channel (legacy).
+    const sharedMembers: BridgedUser[] = Array.isArray(data.members) ? data.members as BridgedUser[] : []
     const candidates: Array<{ harmonyChannelId: string; members: BridgedUser[] }> = []
     for (const channelData of data.channels) {
       const { harmonyChannelId, members } = channelData
-      if (typeof harmonyChannelId === 'string' && harmonyChannelId.length > 0 && Array.isArray(members)) {
-        candidates.push({ harmonyChannelId, members: members as BridgedUser[] })
-      }
+      if (typeof harmonyChannelId !== 'string' || harmonyChannelId.length === 0) continue
+      const channelMembers = Array.isArray(members) && members.length > 0 ? members as BridgedUser[] : sharedMembers
+      candidates.push({ harmonyChannelId, members: channelMembers })
     }
 
     if (candidates.length === 0) {
@@ -409,12 +429,29 @@ export class WebSocketGateway {
   getBridgedUsers(channelId: string): BridgedUser[] {
     return this.bridgedUsersByChannel.get(channelId) || []
   }
+
+  /**
+   * Merged bridged users for all mapped channels on a server (deduped by Discord id).
+   */
+  getBridgedUsersForServer(channelIds: string[]): BridgedUser[] {
+    const byDiscordId = new Map<string, BridgedUser>()
+    for (const channelId of channelIds) {
+      for (const user of this.bridgedUsersByChannel.get(channelId) ?? []) {
+        byDiscordId.set(user.id, user)
+      }
+    }
+    return Array.from(byDiscordId.values())
+  }
+
+  hasBridgedUsersForServer(channelIds: string[]): boolean {
+    return channelIds.some(id => (this.bridgedUsersByChannel.get(id)?.length ?? 0) > 0)
+  }
   
   /**
    * Check if a channel has bridged users
    */
   hasChannelBridge(channelId: string): boolean {
-    return this.bridgedUsersByChannel.has(channelId)
+    return (this.bridgedUsersByChannel.get(channelId)?.length ?? 0) > 0
   }
   
   /**

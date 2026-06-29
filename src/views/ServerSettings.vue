@@ -165,6 +165,10 @@
               v-if="permissions.canEditBasicInfo"
               :server-id="serverId"
             />
+            <DiscordBridgeSetup
+              v-if="permissions.canEditBasicInfo"
+              :server-id="serverId"
+            />
           </template>
         </div>
       </div>
@@ -192,6 +196,7 @@ import ServerPrivacySettings from '@/components/settings/ServerPrivacySettings.v
 import ServerAdvancedSettings from '@/components/settings/ServerAdvancedSettings.vue'
 import ServerEncryptionSettings from '@/components/settings/ServerEncryptionSettings.vue'
 import ServerBotsSettings from '@/components/settings/ServerBotsSettings.vue'
+import DiscordBridgeSetup from '@/components/settings/DiscordBridgeSetup.vue'
 import RoleManagement from '@/components/settings/RoleManagement.vue'
 import ServerBans from '@/components/settings/server/ServerBans.vue'
 

@@ -547,6 +547,7 @@ import { debug } from '@/utils/debug';
 import { sanitizeUrl } from '@/utils/sanitize';
 import { renderChatMessageText } from '@/utils/chatMessageTextRenderer';
 import { useVisualTheme } from '@/composables/useVisualTheme';
+import { BRIDGED_DISCORD_USER_ID_PREFIX } from '@/services/bridgedChannelUsersService';
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings';
 import {
   defaultKlipyHomeUrl,
@@ -1200,9 +1201,8 @@ export default defineComponent({
     const handleMentionClick = (part: any, event: MouseEvent) => {
       event.stopPropagation();
 
-      // Don't try to open profile for bridged/Discord users
       if (isBridgedMention(part)) {
-        debug.log('Bridged mention clicked (Discord user):', part.username);
+        emit('show-user-profile', `${BRIDGED_DISCORD_USER_ID_PREFIX}${part.userId}`, event);
         return;
       }
 
@@ -1449,12 +1449,12 @@ export default defineComponent({
 
 /* User mentions */
 .mention {
-  background-color: #3c4270;
+  background-color: var(--harmony-primary-alpha);
   border-radius: 3px;
   padding: 0 2px;
   font-weight: 500;
   cursor: pointer;
-  color: #c9c9ee;
+  color: var(--harmony-primary);
   display: inline-block;
   transition: background-color 0.2s ease;
   user-select: text;
@@ -1931,14 +1931,14 @@ export default defineComponent({
 }
 
 .system-username:hover {
-  color: #0EA5E9;
+  color: var(--harmony-primary);
   text-decoration: underline;
 }
 
 /* Mention styling */
 .mention {
-  color: #0EA5E9;
-  background-color: rgba(14, 165, 233, 0.15);
+  color: var(--harmony-primary);
+  background-color: var(--harmony-primary-alpha);
   border-radius: 3px;
   padding: 0 2px;
   cursor: pointer;
@@ -1951,7 +1951,7 @@ export default defineComponent({
 }
 
 .mention:hover {
-  background-color: rgba(14, 165, 233, 0.3);
+  background-color: var(--harmony-primary-alpha-strong);
   text-decoration: underline;
 }
 

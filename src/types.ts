@@ -122,6 +122,12 @@ export interface User {
   // Server activity fields shown in profile cards.
   message_count?: number;
   voice_time?: number;
+  /** Ephemeral Discord bridge profile (not a Harmony profile row). */
+  bridge_source?: 'discord';
+  discord_id?: string;
+  discord_joined_at?: string | null;
+  discord_custom_status?: { text: string; emoji: string | null } | null;
+  accent_color?: string | null;
 }
 
 /**
@@ -434,6 +440,7 @@ export interface ReactionActor {
   username?: string;
   display_name?: string;
   avatar_url?: string;
+  metadata?: Reaction['metadata'];
 }
 export interface Message {
   id: string;

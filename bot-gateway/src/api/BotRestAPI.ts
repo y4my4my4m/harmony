@@ -35,9 +35,15 @@ export class BotRestAPI {
     
     // Get channel messages
     this.router.get('/channels/:channelId/messages', this.getMessages.bind(this))
+
+    // Lookup a message by bridged Discord message ID (stored in metadata.discord_message_id)
+    this.router.get('/channels/:channelId/messages/lookup', this.lookupMessageByDiscordId.bind(this))
     
     // Get single message
     this.router.get('/messages/:messageId', this.getMessage.bind(this))
+
+    // Public invite preview (for Discord bridge embed cards)
+    this.router.get('/invites/:code/preview', this.getInvitePreview.bind(this))
     
     // Edit message
     this.router.patch('/messages/:messageId', this.editMessage.bind(this))
@@ -70,9 +76,12 @@ export class BotRestAPI {
     // Create channel / category (bot must have manage_channels)
     this.router.post('/servers/:serverId/channels', this.createChannel.bind(this))
     this.router.post('/servers/:serverId/categories', this.createCategory.bind(this))
+    this.router.patch('/servers/:serverId/categories/:categoryId', this.updateCategory.bind(this))
 
     // List categories (for clone/diff)
     this.router.get('/servers/:serverId/categories', this.getCategories.bind(this))
+
+    this.router.patch('/channels/:channelId', this.updateChannel.bind(this))
 
     // Roles: list + create (bot must have manage_channels - role creation is
     // part of the same admin clone flow as channel creation; there is no
@@ -104,6 +113,9 @@ export class BotRestAPI {
 
     // Silent content patch (e.g. refresh attachment URLs without "(edited)")
     this.router.patch('/messages/:messageId/content-silent', this.silentUpdateMessageContent.bind(this))
+
+    // Merge bridge metadata (e.g. discord_message_id) without bumping updated_at
+    this.router.patch('/messages/:messageId/metadata', this.mergeMessageMetadata.bind(this))
     
     // =====================================================
     // USER ENDPOINTS
@@ -229,6 +241,93 @@ export class BotRestAPI {
     }
   }
   
+  private async lookupMessageByDiscordId(req: BotRequest, res: Response) {
+    try {
+      const { channelId } = req.params
+      const discordMessageId = req.query.discord_message_id as string | undefined
+      const botId = req.bot!.id
+
+      if (!discordMessageId) {
+        return res.status(400).json({ error: 'discord_message_id query parameter is required' })
+      }
+
+      const canRead = await this.checkChannelPermission(botId, channelId, 'read_messages')
+      if (!canRead) {
+        return res.status(403).json({ error: 'Missing permission: read_messages' })
+      }
+
+      const { data: message, error } = await supabase
+        .from('messages')
+        .select(`
+          *,
+          user:profiles!messages_user_id_fkey(id, username, display_name, avatar_url),
+          bot:bots!messages_bot_id_fkey(id, username, display_name, avatar_url)
+        `)
+        .eq('channel_id', channelId)
+        .eq('metadata->>discord_message_id', discordMessageId)
+        .eq('is_deleted', false)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      if (error) {
+        return res.status(500).json({ error: error.message })
+      }
+      if (!message) {
+        return res.status(404).json({ error: 'Message not found' })
+      }
+
+      res.json(this.formatMessage(message))
+    } catch (error: any) {
+      res.status(500).json({ error: error.message })
+    }
+  }
+
+  private async mergeMessageMetadata(req: BotRequest, res: Response) {
+    try {
+      const { messageId } = req.params
+      const { metadata } = req.body || {}
+      const botId = req.bot!.id
+
+      if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
+        return res.status(400).json({ error: 'metadata must be a JSON object' })
+      }
+
+      const { data: message, error: fetchError } = await supabase
+        .from('messages')
+        .select('channel_id, metadata')
+        .eq('id', messageId)
+        .single()
+
+      if (fetchError || !message) {
+        return res.status(404).json({ error: 'Message not found' })
+      }
+
+      const canSend = await this.checkChannelPermission(botId, message.channel_id, 'send_messages')
+      if (!canSend) {
+        return res.status(403).json({ error: 'Missing permission: send_messages' })
+      }
+
+      const mergedMetadata = {
+        ...(message.metadata || {}),
+        ...metadata,
+      }
+
+      const { error: updateError } = await supabase
+        .from('messages')
+        .update({ metadata: mergedMetadata })
+        .eq('id', messageId)
+
+      if (updateError) {
+        return res.status(500).json({ error: updateError.message })
+      }
+
+      res.json({ ok: true, metadata: mergedMetadata })
+    } catch (error: any) {
+      res.status(500).json({ error: error.message })
+    }
+  }
+
   private async getMessages(req: BotRequest, res: Response) {
     try {
       const { channelId } = req.params
@@ -473,6 +572,7 @@ export class BotRestAPI {
   private async removeReaction(req: BotRequest, res: Response) {
     try {
       const { messageId, emoji } = req.params
+      const { discord_user_id } = req.body ?? {}
       const botId = req.bot!.id
       
       // Get message to check permissions
@@ -504,6 +604,10 @@ export class BotRestAPI {
         query = query.eq('emoji_id', emoji)
       } else {
         query = query.is('emoji_id', null).eq('custom_emoji_content', emoji)
+      }
+
+      if (discord_user_id && typeof discord_user_id === 'string') {
+        query = query.filter('metadata->discord_user->>id', 'eq', discord_user_id)
       }
       
       console.log(`🎭 Removing reaction: ${isUUID ? 'custom' : 'native'} emoji "${emoji}" from message ${messageId}`)
@@ -589,7 +693,7 @@ export class BotRestAPI {
         .from('user_servers')
         .select(`
           *,
-          user:profiles!user_servers_user_id_fkey(id, username, display_name, avatar_url, status)
+          user:profiles!user_servers_user_id_fkey(id, username, display_name, avatar_url, status, domain, is_local)
         `)
         .eq('server_id', serverId)
         .limit(Number(limit))
@@ -624,7 +728,7 @@ export class BotRestAPI {
         .from('channels')
         .select('*')
         .eq('server_id', serverId)
-        .order('position')
+        .order('order')
       
       if (error) {
         return res.status(500).json({ error: error.message })
@@ -727,6 +831,88 @@ export class BotRestAPI {
 
       await this.logBotAction(botId, 'channel_created', { server_id: serverId, channel_id: data.id })
       res.status(201).json(this.formatChannel(data))
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || 'Internal server error' })
+    }
+  }
+
+  private async updateCategory(req: BotRequest, res: Response) {
+    try {
+      const serverId = req.params.serverId
+      const categoryId = req.params.categoryId
+      const { name, order } = req.body as { name?: string; order?: number }
+      const botId = req.bot!.id
+
+      const allowed = await this.checkServerPermission(botId, serverId, 'manage_channels')
+      if (!allowed) {
+        return res.status(403).json({ error: 'Missing permission: manage_channels' })
+      }
+
+      const patch: Record<string, unknown> = {}
+      if (typeof name === 'string' && name.trim()) patch.name = name.trim().slice(0, 100)
+      if (typeof order === 'number') patch.order = order
+      if (Object.keys(patch).length === 0) {
+        return res.status(400).json({ error: 'No valid fields to update' })
+      }
+
+      const { data, error } = await supabase
+        .from('channel_categories')
+        .update(patch)
+        .eq('id', categoryId)
+        .eq('server_id', serverId)
+        .select('*')
+        .single()
+
+      if (error) return res.status(500).json({ error: error.message })
+      if (!data) return res.status(404).json({ error: 'Category not found' })
+
+      res.json(data)
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || 'Internal server error' })
+    }
+  }
+
+  private async updateChannel(req: BotRequest, res: Response) {
+    try {
+      const channelId = req.params.channelId
+      const { order, category_id } = req.body as { order?: number; category_id?: string | null }
+      const botId = req.bot!.id
+
+      const { data: existing, error: fetchError } = await supabase
+        .from('channels')
+        .select('id, server_id')
+        .eq('id', channelId)
+        .maybeSingle()
+
+      if (fetchError) return res.status(500).json({ error: fetchError.message })
+      if (!existing?.server_id) return res.status(404).json({ error: 'Channel not found' })
+
+      const allowed = await this.checkServerPermission(
+        botId,
+        existing.server_id,
+        'manage_channels',
+      )
+      if (!allowed) {
+        return res.status(403).json({ error: 'Missing permission: manage_channels' })
+      }
+
+      const patch: Record<string, unknown> = {}
+      if (typeof order === 'number') patch.order = order
+      if (category_id !== undefined) patch.category = category_id || null
+      if (Object.keys(patch).length === 0) {
+        return res.status(400).json({ error: 'No valid fields to update' })
+      }
+
+      const { data, error } = await supabase
+        .from('channels')
+        .update(patch)
+        .eq('id', channelId)
+        .select('*')
+        .single()
+
+      if (error) return res.status(500).json({ error: error.message })
+
+      res.json(this.formatChannel(data))
     } catch (error: any) {
       res.status(500).json({ error: error.message || 'Internal server error' })
     }
@@ -1252,6 +1438,7 @@ export class BotRestAPI {
         bot: !!message.bot  // Flag to indicate if this is a bot message
       } : null,
       content: this.contentToText(message.content),
+      reply_to: message.reply_to ?? null,
       timestamp: message.created_at,
       edited_timestamp: message.updated_at,
       mentions: this.extractMentions(message.content),
@@ -1276,8 +1463,10 @@ export class BotRestAPI {
       type: channel.type === 'text' ? 0 : channel.type === 'voice' ? 2 : 0,
       guild_id: channel.server_id,
       name: channel.name,
-      position: channel.position,
-      parent_id: channel.parent_id
+      position: channel.order ?? 0,
+      order: channel.order ?? 0,
+      parent_id: channel.category,
+      category_id: channel.category,
     }
   }
   
@@ -1287,6 +1476,8 @@ export class BotRestAPI {
         id: member.user.id,
         username: member.user.username,
         display_name: member.user.display_name,
+        domain: member.user.domain ?? null,
+        is_local: member.user.is_local ?? true,
         avatar: this.formatAvatarUrl(member.user.avatar_url)
       } : null,
       nick: member.nickname,
@@ -1340,6 +1531,72 @@ export class BotRestAPI {
   }
   
   // =====================================================
+  // INVITE PREVIEW (public invite cards for bridge embeds)
+  // =====================================================
+
+  private async getInvitePreview(req: BotRequest, res: Response) {
+    try {
+      const { code } = req.params
+      if (!code) {
+        return res.status(400).json({ error: 'Invite code is required' })
+      }
+
+      const { data: rows, error } = await supabase.rpc('lookup_invite_by_code', { p_code: code })
+      if (error) {
+        return res.status(500).json({ error: error.message })
+      }
+
+      const invite = Array.isArray(rows) ? rows[0] : null
+      if (!invite || invite.used) {
+        return res.status(404).json({ error: 'Invite not found or expired' })
+      }
+      if (invite.expires_at && new Date(invite.expires_at) < new Date()) {
+        return res.status(404).json({ error: 'Invite expired' })
+      }
+
+      const { count: memberCount } = await supabase
+        .from('user_servers')
+        .select('*', { count: 'exact', head: true })
+        .eq('server_id', invite.server_id)
+        .eq('status', 'accepted')
+
+      const publicUrl = process.env.PUBLIC_URL || process.env.SUPABASE_URL || ''
+      let serverIconUrl: string | null = null
+      const icon = invite.server_icon as string | null | undefined
+      if (icon) {
+        if (icon.startsWith('http://') || icon.startsWith('https://')) {
+          serverIconUrl = icon
+        } else if (icon.startsWith('/')) {
+          serverIconUrl = publicUrl ? `${publicUrl}${icon}` : icon
+        } else if (publicUrl) {
+          serverIconUrl =
+            `${publicUrl}/storage/v1/render/image/public/server_icons/${icon}?width=128&height=128&resize=contain&quality=80`
+        }
+      }
+
+      const { data: server } = await supabase
+        .from('servers')
+        .select('description')
+        .eq('id', invite.server_id)
+        .maybeSingle()
+
+      const invitePath = `/invite/${invite.code}`
+      const inviteUrl = publicUrl ? `${publicUrl.replace(/\/$/, '')}${invitePath}` : invitePath
+
+      res.json({
+        code: invite.code,
+        invite_url: inviteUrl,
+        server_name: invite.server_name || 'Harmony Server',
+        server_description: server?.description ?? null,
+        server_icon_url: serverIconUrl,
+        member_count: memberCount ?? 0,
+      })
+    } catch (error: any) {
+      res.status(500).json({ error: error.message })
+    }
+  }
+
+  // =====================================================
   // EMOJI METHODS
   // =====================================================
   
@@ -1386,7 +1643,7 @@ export class BotRestAPI {
         .rpc('create_federated_emoji', {
           p_name: name,
           p_url: url,
-          p_uploader: botId,
+          p_created_by: botId,
           p_domain: domain || null
         })
       

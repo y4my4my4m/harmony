@@ -1,5 +1,9 @@
 <template>
-  <div class="unified-profile-card" :class="{ compact: isCompact, interactive: isInteractive }" @click="handleClick">
+  <div
+    class="unified-profile-card"
+    :class="{ compact: isCompact, interactive: isInteractive, 'has-corner-badge': showRemoteInstanceBadge && instanceBadgeVariant === 'corner' }"
+    @click="handleClick"
+  >
     <!-- Avatar and Basic Info -->
     <div class="profile-avatar-section">
       <div class="avatar-wrapper">
@@ -24,6 +28,11 @@
           <template v-else>{{ displayName }}</template>
         </h3>
         <p class="user-handle">{{ displayHandle }}</p>
+        <RemoteInstanceBadge
+          v-if="showRemoteInstanceBadge && instanceBadgeVariant === 'inline'"
+          :domain="user.domain!"
+          variant="inline"
+        />
       </div>
 
       <!-- Bio/About (for non-compact view) -->
@@ -147,11 +156,12 @@
       </div>
     </div>
 
-    <!-- Instance Badge (for federated users) -->
-    <div v-if="isFederatedUser(user) && !user.is_local && showInstanceBadge" class="instance-badge">
-      <Icon name="federation" />
-      <span>{{ user.domain }}</span>
-    </div>
+    <RemoteInstanceBadge
+      v-if="showRemoteInstanceBadge && instanceBadgeVariant === 'corner'"
+      :domain="user.domain!"
+      variant="corner"
+      :compact="isCompact"
+    />
   </div>
 </template>
 
@@ -167,6 +177,7 @@ import Avatar from './Avatar.vue'
 import DisplayName from '@/components/DisplayName.vue'
 import Icon from './Icon.vue'
 import SupporterBadge from './SupporterBadge.vue'
+import RemoteInstanceBadge from './RemoteInstanceBadge.vue'
 import type { User, FederatedUser } from '@/types'
 
 const { t } = useI18n()
@@ -179,6 +190,7 @@ interface Props {
   showFollowBtn?: boolean
   showMoreActions?: boolean
   showInstanceBadge?: boolean
+  instanceBadgeVariant?: 'corner' | 'inline'
   showRoles?: boolean
   hasStats?: boolean
   maxBioLength?: number
@@ -191,6 +203,7 @@ const props = withDefaults(defineProps<Props>(), {
   showFollowBtn: true,
   showMoreActions: true,
   showInstanceBadge: true,
+  instanceBadgeVariant: 'corner',
   showRoles: false,
   hasStats: true,
   maxBioLength: 120
@@ -270,6 +283,15 @@ const userRoles = computed(() => {
 
 const hasInstanceBadge = computed(() => {
   return props.user.is_admin || props.user.is_moderator || false
+})
+
+const showRemoteInstanceBadge = computed(() => {
+  return (
+    props.showInstanceBadge &&
+    isFederatedUser(props.user) &&
+    !props.user.is_local &&
+    !!props.user.domain
+  )
 })
 
 const hasSpecialBadge = computed(() => {
@@ -491,6 +513,16 @@ const vClickOutside = {
   display: flex;
   align-items: center;
   gap: var(--space-3);
+}
+
+.unified-profile-card.has-corner-badge {
+  padding-top: calc(var(--space-4) + 2px);
+}
+
+.unified-profile-card.compact.has-corner-badge {
+  flex-direction: column;
+  align-items: stretch;
+  padding-top: calc(var(--space-3) + 2px);
 }
 
 .profile-avatar-section {
@@ -741,22 +773,6 @@ const vClickOutside = {
 .action-item.danger:hover {
   background: var(--error-secondary);
   color: var(--error-primary);
-}
-
-/* Federation/domain badge (absolute top-right) */
-.instance-badge:not(.admin):not(.mod) {
-  position: absolute;
-  top: var(--space-3);
-  right: var(--space-3);
-  display: flex;
-  align-items: center;
-  gap: var(--space-1);
-  padding: var(--space-1) var(--space-2);
-  background: var(--background-tertiary);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-sm);
-  font-size: var(--font-size-xs);
-  color: var(--text-secondary);
 }
 
 .user-roles .instance-admin-badge {

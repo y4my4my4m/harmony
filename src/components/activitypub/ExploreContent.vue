@@ -165,6 +165,7 @@
                 :user="user.user || user"
                 :show-more-actions="true"
                 :is-compact="true"
+                instance-badge-variant="inline"
                 @click="$emit('show-user-profile', user.user || user)"
               />
             </div>
