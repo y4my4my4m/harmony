@@ -280,7 +280,7 @@ CREATE TABLE IF NOT EXISTS public.reports (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now(),
     
-    reporter_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    reporter_id uuid REFERENCES public.profiles(id) ON DELETE SET NULL,
     reported_user_id uuid REFERENCES public.profiles(id) ON DELETE CASCADE,
     reported_post_id uuid REFERENCES public.posts(id) ON DELETE SET NULL,
     reported_message_id uuid REFERENCES public.messages(id) ON DELETE SET NULL,
@@ -880,6 +880,25 @@ CREATE INDEX IF NOT EXISTS idx_announcement_reads_user
 GRANT SELECT ON public.instance_announcements TO authenticated;
 GRANT INSERT, UPDATE, DELETE ON public.instance_announcements TO authenticated;
 GRANT SELECT, INSERT, UPDATE ON public.announcement_reads TO authenticated;
+
+-- ---------------------------------------------------------------------------
+-- DISCORD BRIDGE PAIRING (self-hosted bridge onboarding)
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.discord_bridge_pairings (
+    server_id uuid PRIMARY KEY REFERENCES public.servers(id) ON DELETE CASCADE,
+    pairing_code text NOT NULL,
+    -- Audit field only; the pairing belongs to the server, not the creator. NULL
+    -- when the creator's account is deleted so the bridge keeps working.
+    created_by uuid REFERENCES public.profiles(id) ON DELETE SET NULL,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT discord_bridge_pairings_code_format CHECK (pairing_code ~ '^HRM-[A-Z0-9]{4}-[A-Z0-9]{4}$')
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_discord_bridge_pairings_code
+    ON public.discord_bridge_pairings (pairing_code);
+
+COMMENT ON TABLE public.discord_bridge_pairings IS 'Pairing codes linking Harmony servers to self-hosted Discord bridges';
 
 DO $$
 BEGIN

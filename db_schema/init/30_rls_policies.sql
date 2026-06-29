@@ -772,6 +772,35 @@ DROP POLICY IF EXISTS "invites_delete_creator" ON public.invites;
 CREATE POLICY "invites_delete_creator" ON public.invites FOR DELETE
     USING (created_by = public.get_current_profile_id());
 
+-- Discord bridge pairing: server owners only
+ALTER TABLE public.discord_bridge_pairings ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Server owners manage discord bridge pairing" ON public.discord_bridge_pairings;
+CREATE POLICY "Server owners manage discord bridge pairing"
+    ON public.discord_bridge_pairings
+    FOR ALL
+    TO authenticated
+    USING (
+        EXISTS (
+            SELECT 1 FROM public.servers s
+            WHERE s.id = discord_bridge_pairings.server_id
+              AND (
+                  s.owner = public.get_current_profile_id()
+                  OR public.has_permission(public.get_current_profile_id(), s.id, 'MANAGE_SERVER')
+              )
+        )
+    )
+    WITH CHECK (
+        EXISTS (
+            SELECT 1 FROM public.servers s
+            WHERE s.id = discord_bridge_pairings.server_id
+              AND (
+                  s.owner = public.get_current_profile_id()
+                  OR public.has_permission(public.get_current_profile_id(), s.id, 'MANAGE_SERVER')
+              )
+        )
+    );
+
 ALTER TABLE public.voice_channel_participants ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "voice_participants_select_all" ON public.voice_channel_participants FOR SELECT USING (true);
 -- Local users manage their own presence row directly from the client. Federated

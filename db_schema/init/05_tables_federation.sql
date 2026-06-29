@@ -279,7 +279,7 @@ COMMENT ON TABLE public.server_federation_events IS 'Federation events for serve
 CREATE TABLE IF NOT EXISTS public.server_membership_events (
     id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
     server_id uuid NOT NULL REFERENCES public.servers(id) ON DELETE CASCADE,
-    user_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    user_id uuid REFERENCES public.profiles(id) ON DELETE SET NULL,
     event_type text NOT NULL,
     payload jsonb DEFAULT '{}'::jsonb,
     created_at timestamp with time zone DEFAULT now()

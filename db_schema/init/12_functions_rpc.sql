@@ -318,7 +318,7 @@ BEGIN
         r.message_id,
         r.emoji_id,
         COALESCE(e.name, r.custom_emoji_content)::varchar as emoji_name,
-        e.url::varchar as emoji_url,
+        COALESCE(e.url::text, MAX(r.metadata->>'remote_emoji_url'))::varchar as emoji_url,
         r.custom_emoji_content,
         COUNT(r.id)::bigint as reaction_count,
         bool_or(r.user_id = public.get_current_profile_id()) as current_user_reacted,
@@ -358,13 +358,16 @@ BEGIN
                     'is_native', false
                 )
             ELSE
-                -- Native unicode emoji - use custom_emoji_content
+                -- Unicode or URL-only remote emoji (e.g. Discord bridge)
                 jsonb_build_object(
                     'id', r.custom_emoji_content,
-                    'name', r.custom_emoji_content,
-                    'url', NULL,
+                    'name', COALESCE(
+                        NULLIF(MAX(r.metadata->>'remote_emoji_name'), ''),
+                        r.custom_emoji_content
+                    ),
+                    'url', MAX(r.metadata->>'remote_emoji_url'),
                     'content', r.custom_emoji_content,
-                    'is_native', true
+                    'is_native', (MAX(r.metadata->>'remote_emoji_url') IS NULL)
                 )
         END as emoji,
         (
@@ -1149,25 +1152,164 @@ BEGIN
 END;
 $$;
 
--- Create federated emoji
--- Note: emojis table uses created_by (not uploader), and doesn't have updated_at, usage_count, last_used
+-- Create federated emoji (instance-scoped; used by bots / Discord bridge / federation)
 CREATE OR REPLACE FUNCTION public.create_federated_emoji(
     p_name text,
     p_url text,
     p_created_by uuid,
     p_domain text DEFAULT NULL
 )
-RETURNS TABLE(id uuid, created_at timestamptz, name text, url text, server_id uuid, created_by uuid, domain text)
+RETURNS TABLE(id uuid, created_at timestamptz, name text, url text, server_id uuid, uploader uuid, domain text, scope text)
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
 AS $$
 BEGIN
     RETURN QUERY
-    INSERT INTO emojis (name, url, created_by, domain)
-    VALUES (p_name, p_url, p_created_by, p_domain)
-    RETURNING emojis.id, emojis.created_at, emojis.name, emojis.url, emojis.server_id, 
-              emojis.created_by, emojis.domain;
+    INSERT INTO emojis (name, url, uploader, domain, scope, server_id)
+    VALUES (
+        p_name,
+        p_url,
+        COALESCE(
+            (SELECT owner_id FROM bots WHERE id = p_created_by),
+            CASE
+                WHEN EXISTS (SELECT 1 FROM profiles WHERE id = p_created_by) THEN p_created_by
+                ELSE NULL
+            END
+        ),
+        p_domain,
+        'instance',
+        NULL
+    )
+    RETURNING emojis.id, emojis.created_at, emojis.name::text, emojis.url::text, emojis.server_id,
+              emojis.uploader, emojis.domain, emojis.scope;
+END;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- DISCORD BRIDGE PAIRING RPCs
+-- ---------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION public.generate_discord_bridge_pairing_code()
+RETURNS text
+LANGUAGE plpgsql
+SET search_path = public
+AS $$
+DECLARE
+    v_code text;
+BEGIN
+    LOOP
+        v_code := 'HRM-'
+            || upper(substr(md5(random()::text || clock_timestamp()::text), 1, 4))
+            || '-'
+            || upper(substr(md5(random()::text || clock_timestamp()::text), 1, 4));
+        EXIT WHEN NOT EXISTS (
+            SELECT 1 FROM public.discord_bridge_pairings WHERE pairing_code = v_code
+        );
+    END LOOP;
+    RETURN v_code;
+END;
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.generate_discord_bridge_pairing_code() FROM PUBLIC;
+
+CREATE OR REPLACE FUNCTION public.get_or_create_discord_bridge_pairing(p_server_id uuid)
+RETURNS text
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+    v_caller uuid;
+    v_code text;
+BEGIN
+    v_caller := public.get_current_profile_id();
+    IF v_caller IS NULL THEN
+        RAISE EXCEPTION 'Unauthorized: Authentication required';
+    END IF;
+
+    IF NOT (
+        EXISTS (SELECT 1 FROM public.servers WHERE id = p_server_id AND owner = v_caller)
+        OR public.has_permission(v_caller, p_server_id, 'MANAGE_SERVER')
+    ) THEN
+        RAISE EXCEPTION 'Unauthorized: Only server owners or managers can manage Discord bridge pairing';
+    END IF;
+
+    SELECT pairing_code INTO v_code
+    FROM public.discord_bridge_pairings
+    WHERE server_id = p_server_id;
+
+    IF v_code IS NOT NULL THEN
+        RETURN v_code;
+    END IF;
+
+    v_code := public.generate_discord_bridge_pairing_code();
+
+    INSERT INTO public.discord_bridge_pairings (server_id, pairing_code, created_by)
+    VALUES (p_server_id, v_code, v_caller)
+    ON CONFLICT (server_id) DO NOTHING;
+
+    SELECT pairing_code INTO v_code
+    FROM public.discord_bridge_pairings
+    WHERE server_id = p_server_id;
+
+    RETURN v_code;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.regenerate_discord_bridge_pairing(p_server_id uuid)
+RETURNS text
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+    v_caller uuid;
+    v_code text;
+BEGIN
+    v_caller := public.get_current_profile_id();
+    IF v_caller IS NULL THEN
+        RAISE EXCEPTION 'Unauthorized: Authentication required';
+    END IF;
+
+    IF NOT (
+        EXISTS (SELECT 1 FROM public.servers WHERE id = p_server_id AND owner = v_caller)
+        OR public.has_permission(v_caller, p_server_id, 'MANAGE_SERVER')
+    ) THEN
+        RAISE EXCEPTION 'Unauthorized: Only server owners or managers can manage Discord bridge pairing';
+    END IF;
+
+    v_code := public.generate_discord_bridge_pairing_code();
+
+    INSERT INTO public.discord_bridge_pairings (server_id, pairing_code, created_by, updated_at)
+    VALUES (p_server_id, v_code, v_caller, now())
+    ON CONFLICT (server_id) DO UPDATE
+        SET pairing_code = EXCLUDED.pairing_code,
+            updated_at = now();
+
+    RETURN v_code;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.lookup_discord_bridge_pairing_public(p_pairing_code text)
+RETURNS TABLE (server_id uuid)
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+    v_code text;
+BEGIN
+    v_code := upper(trim(p_pairing_code));
+    IF v_code IS NULL OR v_code = '' OR v_code !~ '^HRM-[A-Z0-9]{4}-[A-Z0-9]{4}$' THEN
+        RETURN;
+    END IF;
+
+    RETURN QUERY
+    SELECT dbp.server_id
+    FROM public.discord_bridge_pairings dbp
+    WHERE dbp.pairing_code = v_code;
 END;
 $$;
 
@@ -1228,6 +1370,9 @@ GRANT EXECUTE ON FUNCTION public.create_notification_with_spam_prevention(uuid, 
 GRANT EXECUTE ON FUNCTION public.count_pinned_messages(uuid, uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.get_emoji_metadata_bulk(uuid[]) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.create_federated_emoji(text, text, uuid, text) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.get_or_create_discord_bridge_pairing(uuid) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.regenerate_discord_bridge_pairing(uuid) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.lookup_discord_bridge_pairing_public(text) TO anon, authenticated, service_role;
 -- Session functions
 GRANT EXECUTE ON FUNCTION public.end_user_session(uuid, text) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.update_session_heartbeat(text, text) TO authenticated;

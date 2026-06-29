@@ -107,7 +107,7 @@
 
     <RemoteInstanceBadge
       v-if="showRemoteInstanceBadge"
-      :domain="user.domain"
+      :domain="user.domain || ''"
       variant="corner"
       :compact="isCompact"
     />
