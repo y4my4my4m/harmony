@@ -5,6 +5,17 @@ import { isLocalStorageHostname } from '@/utils/storageImageUtils'
 
 const DEFAULT_EMOJI_TRANSFORM_QUALITY = 80
 
+const DISCORD_CUSTOM_EMOJI_RE = /^discord:[^:]*:(\d+)$/
+
+export function discordCustomEmojiUrlFromIdentifier(
+  identifier: string | null | undefined,
+): string | null {
+  if (!identifier) return null
+  const match = DISCORD_CUSTOM_EMOJI_RE.exec(identifier)
+  if (!match) return null
+  return `https://cdn.discordapp.com/emojis/${match[1]}.png`
+}
+
 function getEmojiTransformQuality(): number {
   try {
     const store = useInstanceSettingsStore()

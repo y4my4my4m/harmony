@@ -4,6 +4,7 @@ import type { Message, MessagePart } from '@/types'
 import { userDataService } from '@/services/userDataService'
 import { authContextService } from '@/services/AuthContextService'
 import { debug } from '@/utils/debug'
+import { discordCustomEmojiUrlFromIdentifier } from '@/utils/emojiUtils'
 import {
   DEFAULT_MAX_MESSAGE_TEXT_LENGTH,
   MESSAGE_TEXT_HARD_CEILING,
@@ -810,16 +811,20 @@ export class CoreMessageService {
       }
 
       const transformedReactions = reactions?.map((reaction: any) => {
-        // Native emoji (is_native=true) have no entry in the emojis table,
-        // so emoji_id must be null - findReactionGroup relies on this to
-        // distinguish UUID-based custom emoji from string-based native emoji.
-        const isNative = reaction.emoji?.is_native === true
+        // Prefer the url the RPC surfaced from metadata.remote_emoji_url (correct
+        // png/gif ext). Rebuild from a discord:name:id identifier only as a
+        // fallback for rows predating metadata storage. Native = no image url.
+        const url =
+          reaction.emoji?.url ||
+          discordCustomEmojiUrlFromIdentifier(reaction.emoji?.content) ||
+          ''
+        const isNative = !url
         return {
           emoji_id: isNative ? null : reaction.emoji.id,
           emoji: {
             id: reaction.emoji.id,
             name: reaction.emoji.name,
-            url: reaction.emoji.url || '',
+            url,
             content: reaction.emoji.content,
             is_native: isNative
           },
@@ -874,13 +879,20 @@ export class CoreMessageService {
           groupedReactions[messageId] = []
         }
         
-        const isNative = !reaction.emoji_id && !!reaction.custom_emoji_content
+        // The batch RPC surfaces emoji_url from metadata.remote_emoji_url too;
+        // the previous code marked every emoji_id-less reaction native, which
+        // suppressed the image even when a url existed. Native = no image url.
+        const url =
+          reaction.emoji_url ||
+          discordCustomEmojiUrlFromIdentifier(reaction.custom_emoji_content) ||
+          ''
+        const isNative = !url
         groupedReactions[messageId].push({
           emoji_id: reaction.emoji_id || null,
           emoji: {
             id: reaction.emoji_id || reaction.custom_emoji_content,
             name: reaction.emoji_name || reaction.custom_emoji_content || 'unknown',
-            url: reaction.emoji_url || '',
+            url,
             content: reaction.custom_emoji_content,
             is_native: isNative
           },
