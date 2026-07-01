@@ -219,6 +219,7 @@
               <img
                 :src="displayMediaUrl(part.url)"
                 @load="handleImageLoad(part.url)"
+                @error="onAttachmentMediaError(part.url)"
                 @click="$emit('open-lightbox', part.url)"
                 v-show="imageLoadedState[part.url]"
                 draggable="false"
@@ -242,6 +243,7 @@
                 :data-video-index="partIndex"
                 @play="handleVideoPlay"
                 @pause="handleVideoPause"
+                @error="onAttachmentMediaError(part.url)"
               ></video>
             </div>
           </div>
@@ -256,6 +258,7 @@
               controls
               preload="metadata"
               class="content-audio"
+              @error="onAttachmentMediaError(part.url)"
             ></audio>
           </div>
 
