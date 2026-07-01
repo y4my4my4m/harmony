@@ -1116,100 +1116,19 @@ div.loading:has(> .harmony-spinner) {
 
 /* =====================================================
    ENCRYPTED MESSAGE GLYPHS
-   Mystical animated glyphs for encrypted content
    ===================================================== */
 
 .encrypted-glyphs {
-  font-family: 'IBM Plex Mono', 'SFMono-Regular', Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
-  letter-spacing: 0.15em;
-  user-select: none;
+  border-radius: 4px;
+  padding: 2px 6px;
+  display: inline-block;
+  position: relative;
   background: linear-gradient(
     90deg,
     var(--harmony-primary-alpha-light),
     var(--harmony-primary-light),
     var(--harmony-primary-alpha-light)
   );
-  border-radius: 4px;
-  padding: 2px 6px;
-  display: inline-block;
-  position: relative;
-}
-
-.glyph-char {
-  display: inline-block;
-  color: var(--harmony-secondary);
-  opacity: 0.7;
-  animation: glyphFloat 3s ease-in-out infinite, glyphGlitch 5s ease-in-out infinite;
-  text-shadow:
-    0 0 5px color-mix(in srgb, var(--harmony-primary) 50%, transparent),
-    0 0 10px color-mix(in srgb, var(--harmony-primary) 30%, transparent);
-  transition: color 0.3s ease, opacity 0.3s ease, transform 0.3s ease;
-}
-
-.glyph-char:hover {
-  color: var(--harmony-primary);
-  opacity: 1;
-  text-shadow:
-    0 0 8px color-mix(in srgb, var(--harmony-primary) 80%, transparent),
-    0 0 15px color-mix(in srgb, var(--harmony-primary) 50%, transparent),
-    0 0 20px color-mix(in srgb, var(--harmony-primary) 30%, transparent);
-  transform: scale(1.1);
-}
-
-/* Staggered animation timing for organic feel */
-.glyph-char:nth-child(3n) {
-  animation-duration: 2.5s, 4.5s;
-}
-
-.glyph-char:nth-child(3n+1) {
-  animation-duration: 3.5s, 5.5s;
-  animation-delay: 0.5s, 1s;
-}
-
-.glyph-char:nth-child(3n+2) {
-  animation-duration: 2.8s, 4.8s;
-  animation-delay: 0.3s, 0.7s;
-}
-
-/* Special glow effect for every 5th character */
-.glyph-char:nth-child(5n) {
-  color: var(--harmony-primary);
-  opacity: 0.85;
-  text-shadow:
-    0 0 8px color-mix(in srgb, var(--harmony-primary) 70%, transparent),
-    0 0 16px color-mix(in srgb, var(--harmony-primary) 45%, transparent);
-}
-
-@keyframes glyphFloat {
-  0%, 100% {
-    transform: translateY(0px);
-  }
-  50% {
-    transform: translateY(-2px);
-  }
-}
-
-@keyframes glyphGlitch {
-  0%, 90%, 100% {
-    transform: translateY(0) skew(0deg);
-    opacity: 0.7;
-  }
-  92% {
-    transform: translateY(-2px) skew(-1deg);
-    opacity: 0.5;
-  }
-  94% {
-    transform: translateY(2px) skew(1deg);
-    opacity: 0.9;
-  }
-  96% {
-    transform: translateY(-1px) skew(-0.5deg);
-    opacity: 0.6;
-  }
-  98% {
-    transform: translateY(1px) skew(0.5deg);
-    opacity: 0.8;
-  }
 }
 
 /* Clickable encrypted message target */
@@ -1225,11 +1144,6 @@ div.loading:has(> .harmony-spinner) {
 
 .encrypted-click-target:hover {
   background-color: var(--harmony-primary-alpha);
-}
-
-.encrypted-click-target:hover .glyph-char {
-  animation-play-state: paused;
-  opacity: 0.9;
 }
 
 .encrypted-click-target:active {
@@ -1256,16 +1170,17 @@ div.loading:has(> .harmony-spinner) {
   to { transform: rotate(360deg); }
 }
 
-.glyph-char.decrypting {
-  opacity: 0.3;
-  animation: none;
-}
-
 /* Non-clickable encrypted message (no encryption setup) */
 .encrypted-no-decrypt {
   display: inline;
   cursor: default;
   user-select: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .decrypt-spinner {
+    animation: none;
+  }
 }
 
 /* ===== Light-theme corrective overrides =====

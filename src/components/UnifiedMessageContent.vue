@@ -74,7 +74,7 @@
     </div>
     
     <!-- Display mode -->
-    <div v-else class="content-display" :class="{ 'system-message-content': isSystem, 'encrypted-glyphs': encrypted && !decrypted }">
+    <div v-else class="content-display" :class="{ 'system-message-content': isSystem }">
       <!--
         Unverified-author badge. Only shown for messages that WERE encrypted,
         WERE successfully decrypted, but whose sender signature could not be
@@ -111,42 +111,38 @@
                  exists. No click-to-decrypt - retrying would never succeed. -->
             <span
               v-if="unrecoverable"
-              class="encrypted-no-decrypt encrypted-unrecoverable"
+              class="encrypted-no-decrypt encrypted-unrecoverable encrypted-glyphs"
               title="This message was encrypted with a previous key that no longer exists on this account, so it can't be decrypted."
             >
               <span class="unrecoverable-lock" aria-hidden="true">🔒</span>
-              <span
-                v-for="(char, charIdx) in generateGlyphs(part.text || 'encrypted')"
-                :key="`${partIndex}-${charIdx}`"
-                class="glyph-char glyph-lost"
-              >{{ char }}</span>
+              <EncryptedGlyphPreview
+                :content="part.text || 'encrypted'"
+                :message-id="messageId"
+                lost
+              />
             </span>
             <!-- Clickable version (user has encryption set up) -->
             <span 
               v-else-if="canDecrypt"
-              class="encrypted-click-target"
+              class="encrypted-click-target encrypted-glyphs"
               @click="handleDecryptClick"
               :title="decrypting ? 'Decrypting...' : 'Click to decrypt'"
             >
               <span v-if="decrypting" class="decrypt-loading">
                 <span class="decrypt-spinner">🔓</span>
               </span>
-              <span 
-                v-for="(char, charIdx) in generateGlyphs(part.text || 'encrypted')" 
-                :key="`${partIndex}-${charIdx}`"
-                class="glyph-char"
-                :class="{ 'decrypting': decrypting }"
-                :style="{ animationDelay: `${charIdx * 0.05}s` }"
-              >{{ char }}</span>
+              <EncryptedGlyphPreview
+                :content="part.text || 'encrypted'"
+                :message-id="messageId"
+                :decrypting="decrypting"
+              />
             </span>
             <!-- Non-clickable version (user doesn't have encryption) -->
-            <span v-else class="encrypted-no-decrypt">
-              <span 
-                v-for="(char, charIdx) in generateGlyphs(part.text || 'encrypted')" 
-                :key="`${partIndex}-${charIdx}`"
-                class="glyph-char"
-                :style="{ animationDelay: `${charIdx * 0.05}s` }"
-              >{{ char }}</span>
+            <span v-else class="encrypted-no-decrypt encrypted-glyphs">
+              <EncryptedGlyphPreview
+                :content="part.text || 'encrypted'"
+                :message-id="messageId"
+              />
             </span>
           </template>
           <!-- Normal text -->
@@ -529,6 +525,7 @@ import { useAutoSuggest } from '@/composables/useAutoSuggest';
 import { useFloatingVideo } from '@/composables/useFloatingVideo';
 import { userDataService } from '@/services/userDataService';
 import { getEmojiUrl } from '@/utils/emojiUtils';
+import EncryptedGlyphPreview from '@/components/encryption/EncryptedGlyphPreview.vue';
 import ProviderEmbedSwitch from '@/components/embeds/ProviderEmbedSwitch.vue';
 import MessageMediaGallery from '@/components/common/MessageMediaGallery.vue';
 import AttachmentRemoveButton from '@/components/common/AttachmentRemoveButton.vue';
@@ -571,6 +568,7 @@ export default defineComponent({
     MessageMediaGallery,
     AttachmentRemoveButton,
     ConfirmationModal,
+    EncryptedGlyphPreview,
   },
   props: {
     content: {
@@ -867,12 +865,12 @@ export default defineComponent({
     // Helper functions
     const isImageUrl = (url: string): boolean => {
       if (!url) return false;
-      return /\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i.test(url);
+      return /\.(jpg|jpeg|png|gif|webp|bmp|svg)(?:[?#].*)?$/i.test(url);
     };
 
     const isVideoUrl = (url: string): boolean => {
       if (!url) return false;
-      return /\.(mp4|webm|ogg|avi|mov|wmv|flv)$/i.test(url);
+      return /\.(mp4|webm|ogg|avi|mov|wmv|flv|m4v)(?:[?#].*)?$/i.test(url);
     };
 
     const displayContent = computed(() =>
@@ -886,7 +884,7 @@ export default defineComponent({
 
     const isAudioUrl = (url: string): boolean => {
       if (!url) return false;
-      return /\.(mp3|wav|ogg|flac|aac|m4a|opus|webm)$/i.test(url);
+      return /\.(mp3|wav|ogg|flac|aac|m4a|opus|webm)(?:[?#].*)?$/i.test(url);
     };
 
     const getFileName = (url: string): string => {
@@ -1098,11 +1096,11 @@ export default defineComponent({
     };
 
     const isEditFileImage = (file: FileContent): boolean => {
-      return file.fileType === 'image' || /\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i.test(file.url || '');
+      return file.fileType === 'image' || /\.(jpg|jpeg|png|gif|webp|bmp|svg)(?:[?#].*)?$/i.test(file.url || '');
     };
 
     const isEditFileVideo = (file: FileContent): boolean => {
-      return file.fileType === 'video' || /\.(mp4|webm|mov|m4v)$/i.test(file.url || '');
+      return file.fileType === 'video' || /\.(mp4|webm|mov|m4v)(?:[?#].*)?$/i.test(file.url || '');
     };
 
     const autoResizeEditArea = () => {
@@ -1222,34 +1220,6 @@ export default defineComponent({
       }
     };
 
-    // Generate cool glyph characters for encrypted messages
-    // Uses message content hash for consistent but unique glyphs per message
-    const GLYPH_CHARS = '█▓▒░▄▀■□▪▫●○◘◙▬¤§¶ƒαßΓπΣσµτΦΘΩδ∞φε∩≡±≥≤⌠⌡÷≈°∙·√ⁿ²■';
-    
-    // Simple hash function for seeding
-    const hashString = (str: string): number => {
-      let hash = 0;
-      for (let i = 0; i < str.length; i++) {
-        const char = str.charCodeAt(i);
-        hash = ((hash << 5) - hash) + char;
-        hash = hash & hash;
-      }
-      return Math.abs(hash);
-    };
-    
-    const generateGlyphs = (content: string): string[] => {
-      const displayLength = Math.min(Math.max(Math.floor(content.length / 4), 12), 64);
-      const seed = hashString(content + props.messageId);
-      const glyphs: string[] = [];
-      
-      for (let i = 0; i < displayLength; i++) {
-        // Pseudo-random based on seed and position
-        const charIndex = ((seed * (i + 1) * 31) % GLYPH_CHARS.length);
-        glyphs.push(GLYPH_CHARS[charIndex]);
-      }
-      return glyphs;
-    };
-
     const handleDecryptClick = (event: MouseEvent) => {
       event.stopPropagation();
       if (decrypting.value) return;
@@ -1306,7 +1276,6 @@ export default defineComponent({
       resolveEmbedPayload,
       decrypting,
       handleDecryptClick,
-      generateGlyphs,
       // GIF favorites
       hoveredImageUrl,
       isAnimatedImage,
@@ -2019,11 +1988,5 @@ export default defineComponent({
   margin-right: 4px;
   font-size: 0.85em;
   opacity: 0.8;
-}
-
-.encrypted-unrecoverable .glyph-lost {
-  animation: none;
-  color: var(--text-muted, var(--text-secondary, #888));
-  filter: grayscale(1);
 }
 </style>
