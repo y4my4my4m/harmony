@@ -29,11 +29,7 @@
           }"
         >
           <template v-if="props.encrypted">
-            <span 
-              v-for="(char, idx) in glyphChars(part.text)" 
-              :key="idx"
-              class="glyph-char"
-            >{{ char }}</span>
+            <EncryptedGlyphPreview :content="part.text" />
           </template>
           <template v-else>
             <span v-html="renderTextWithMarkdown(part.text)"></span>
@@ -208,6 +204,7 @@ import { getEmojiUrl } from '@/utils/emojiUtils';
 import { useUnifiedEmoji } from '@/services/unifiedEmojiService';
 import { escapeHtml, sanitizeMessageHtml } from '@/utils/sanitize';
 import DisplayName from '@/components/DisplayName.vue';
+import EncryptedGlyphPreview from '@/components/encryption/EncryptedGlyphPreview.vue';
 
 interface Props {
   content: MessagePart[] | string | any;
@@ -248,13 +245,6 @@ const emit = defineEmits<{
   'image-load': [url: string];
   'image-click': [url: string];
 }>();
-
-const MAX_GLYPH_CHARS = 48;
-function glyphChars(text: string): string[] {
-  if (!text) return [];
-  const chars = Array.from(text);
-  return chars.length > MAX_GLYPH_CHARS ? chars.slice(0, MAX_GLYPH_CHARS) : chars;
-}
 
 // Content renderer setup
 const contentOptions: ContentRenderOptions = {
