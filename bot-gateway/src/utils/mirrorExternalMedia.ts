@@ -18,7 +18,10 @@ function isAllowedSourceUrl(url: string): boolean {
 export function hasDiscordCdnFilePart(content: unknown): boolean {
   if (!Array.isArray(content)) return false
   return content.some(
-    (p) => p?.type === 'file' && typeof p.url === 'string' && isAllowedSourceUrl(p.url),
+    (p) =>
+      (p?.type === 'file' || p?.type === 'url') &&
+      typeof p.url === 'string' &&
+      isAllowedSourceUrl(p.url),
   )
 }
 
@@ -89,7 +92,11 @@ export async function applyBridgeAttachmentPolicy(
   const out: any[] = []
   for (const part of parts) {
     const url = part?.url
-    if (part?.type !== 'file' || typeof url !== 'string' || !isAllowedSourceUrl(url)) {
+    if (
+      (part?.type !== 'file' && part?.type !== 'url') ||
+      typeof url !== 'string' ||
+      !isAllowedSourceUrl(url)
+    ) {
       out.push(part)
       continue
     }

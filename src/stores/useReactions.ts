@@ -5,6 +5,7 @@ import type { ReactionGroup, ReactionActor, Emoji } from '@/types'
 import { useEmojiCacheStore } from '@/stores/useEmojiCache'
 import { useProfileStore } from '@/stores/useProfile'
 import { useUnifiedEmoji } from '@/services/unifiedEmojiService'
+import { discordCustomEmojiUrlFromIdentifier } from '@/utils/emojiUtils'
 import { createReactionEngine } from '@/stores/shared/reactionEngine'
 
 interface MessageReactionInput {
@@ -54,6 +55,23 @@ function resolveEmojiForGroup(emojiId: string, providedEmojiData?: Emoji): Emoji
       return providedEmojiData.url || !cached ? providedEmojiData : { ...providedEmojiData, url: cached.url }
     }
     return cached ?? ({ id: emojiId, name: 'unknown', url: '', server_id: '', uploader: '', usage_count: 0 } as Emoji)
+  }
+
+  // Bridged Discord custom emoji (discord:name:id): rebuild the permanent CDN
+  // url so the chip renders as an image instead of being (mis)resolved to a
+  // unicode/twemoji glyph derived from the identifier's codepoints.
+  const discordEmojiUrl = discordCustomEmojiUrlFromIdentifier(emojiId)
+  if (discordEmojiUrl) {
+    return {
+      id: emojiId,
+      name: providedEmojiData?.name || emojiId,
+      content: emojiId,
+      url: providedEmojiData?.url || discordEmojiUrl,
+      is_native: false,
+      server_id: '',
+      uploader: '',
+      usage_count: 0,
+    } as Emoji
   }
 
   // Unicode/shortcode: the server stores the raw id in custom_emoji_content and
