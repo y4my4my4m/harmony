@@ -47,11 +47,17 @@ export function isExpiredDiscordCdnUrl(url: string | null | undefined): boolean 
   return expiry <= Date.now() + EXPIRY_SKEW_MS
 }
 
-/** Any `file` part whose URL is an expired Discord CDN link. */
+/**
+ * Any `file` or `url` part whose URL is an expired Discord CDN link.
+ * Bridged attachments can arrive as either: proper `file` parts, or inline
+ * `url` parts (e.g. a Discord CDN link pasted/echoed into message text). Both
+ * render inline media, so both need proactive re-signing.
+ */
 export function hasExpiredBridgedAttachment(parts: unknown): boolean {
   if (!Array.isArray(parts)) return false
   return parts.some(
-    (p: any) => p?.type === 'file' && isExpiredDiscordCdnUrl(p?.url),
+    (p: any) =>
+      (p?.type === 'file' || p?.type === 'url') && isExpiredDiscordCdnUrl(p?.url),
   )
 }
 
