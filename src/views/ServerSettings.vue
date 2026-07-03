@@ -226,7 +226,9 @@ const selectedFile = ref<File | null>(null)
 const selectedBannerFile = ref<File | null>(null)
 const emojis = ref<Emoji[]>([])
 const activeSection = ref('overview')
-const showSidebar = ref(false)
+// Mobile entry starts with the nav open (matches UserSettings) so users can
+// orient themselves before a section fills the screen.
+const showSidebar = ref(typeof window !== 'undefined' && window.innerWidth <= 768)
 const windowWidth = ref(typeof window !== 'undefined' ? window.innerWidth : 1024)
 
 // Server state

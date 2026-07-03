@@ -37,6 +37,45 @@
     <RunOnLoginInstructionsModal v-model="showRunOnLoginModal" @enabled="onRunOnLoginEnabled" />
 
     <div class="settings-section">
+      <h3 class="section-title">Beta Features</h3>
+
+      <div class="setting-item">
+        <div class="setting-info">
+          <h4 class="setting-label">Today dashboard</h4>
+          <p class="setting-description">
+            A daily digest of channels with unread activity, threads you're part of,
+            and trending posts. Adds a sun icon to the server sidebar.
+          </p>
+        </div>
+        <div class="setting-control">
+          <ToggleSwitch
+            :model-value="todayDashboardEnabled"
+            @update:model-value="setTodayDashboardEnabled"
+          />
+        </div>
+      </div>
+
+      <div class="setting-item" :class="{ 'disabled-option': !todayDashboardEnabled }">
+        <div class="setting-info">
+          <h4 class="setting-label">On-device AI summaries</h4>
+          <p class="setting-description">
+            Summarize the Today digest with your browser's built-in AI model
+            (Chrome's Gemini Nano). Runs entirely on your device - nothing is sent
+            to a server.
+            <span v-if="!onDeviceAiSupported"> Not supported by this browser.</span>
+          </p>
+        </div>
+        <div class="setting-control">
+          <ToggleSwitch
+            :model-value="todayAiSummariesEnabled"
+            :disabled="!todayDashboardEnabled || !onDeviceAiSupported"
+            @update:model-value="setTodayAiSummariesEnabled"
+          />
+        </div>
+      </div>
+    </div>
+
+    <div class="settings-section">
       <h3 class="section-title">Developer Settings</h3>
 
       <div class="setting-item">
@@ -160,6 +199,8 @@ import ToggleSwitch from '@/components/common/ToggleSwitch.vue'
 import PWAInstallPrompt from '@/components/PWAInstallPrompt.vue'
 import RunOnLoginInstructionsModal from '@/components/RunOnLoginInstructionsModal.vue'
 import { useDeveloperTools } from '@/composables/useDeveloperTools'
+import { useTodayDashboard } from '@/composables/useTodayDashboard'
+import { todayDigestService } from '@/services/TodayDigestService'
 import {
   getChromiumBrowserLabel,
   getRunOnLoginUrl,
@@ -180,6 +221,13 @@ const emit = defineEmits<{
 
 const toast = useToast()
 const { developerToolsEnabled, setDeveloperToolsEnabled } = useDeveloperTools()
+const {
+  todayDashboardEnabled,
+  todayAiSummariesEnabled,
+  setTodayDashboardEnabled,
+  setTodayAiSummariesEnabled,
+} = useTodayDashboard()
+const onDeviceAiSupported = todayDigestService.isOnDeviceAiSupported()
 
 const reportBugUrl = 'https://github.com/y4my4my4m/harmony/issues/'
 
