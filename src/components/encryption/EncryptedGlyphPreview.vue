@@ -52,45 +52,17 @@ const delay = computed(() => {
   Glyph count is capped (<=48) and the message list is virtualized, so only
   on-screen rows exist.
 */
+/* NOTE: no overflow/clip on this box - overflow other than visible moves an
+   inline-block's baseline to its bottom edge and the glyphs ride high. */
 .egp {
   display: inline-block;
   position: relative;
-  overflow: hidden;
-  contain: layout style;
   font-family: 'IBM Plex Mono', 'SFMono-Regular', Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
   letter-spacing: 0.12em;
   user-select: none;
   /* Whole-string glitch blip — one transform on the container, cheap. */
   animation: egpGlitch 7s steps(1, end) infinite;
   animation-delay: var(--egp-delay, 0s);
-}
-
-/* Scanner sweep: gradient painted once, then translateX on the compositor. */
-.egp::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 0;
-  width: 36px;
-  pointer-events: none;
-  background: linear-gradient(
-    100deg,
-    transparent,
-    color-mix(in srgb, var(--harmony-primary) 22%, transparent) 45%,
-    color-mix(in srgb, #ffffff 30%, transparent) 50%,
-    color-mix(in srgb, var(--harmony-primary) 22%, transparent) 55%,
-    transparent
-  );
-  transform: translateX(-40px);
-  animation: egpSweep 5.5s ease-in-out infinite;
-  animation-delay: var(--egp-delay, 0s);
-}
-
-@keyframes egpSweep {
-  0%, 55% { transform: translateX(-40px); opacity: 0; }
-  60% { opacity: 1; }
-  85%, 100% { transform: translateX(400px); opacity: 0; }
 }
 
 .egp-char {
@@ -147,9 +119,6 @@ const delay = computed(() => {
   animation-play-state: paused;
   transition: opacity 0.15s ease;
 }
-:global(.encrypted-click-target:hover) .egp::after {
-  animation-duration: 1.6s;
-}
 
 /* Decrypting: freeze + dim while the spinner shows. */
 .egp-decrypting { animation: none; }
@@ -168,20 +137,10 @@ const delay = computed(() => {
   animation: none;
 }
 
-.egp-decrypting::after,
-.egp-lost::after {
-  animation: none;
-  opacity: 0;
-}
-
 @media (prefers-reduced-motion: reduce) {
   .egp,
-  .egp-char,
-  .egp::after {
+  .egp-char {
     animation: none;
-  }
-  .egp::after {
-    opacity: 0;
   }
 }
 </style>
