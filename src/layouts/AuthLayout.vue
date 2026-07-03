@@ -15,6 +15,7 @@
 .auth-layout {
   width: 100vw;
   height: 100vh;
+  height: 100dvh; /* mobile: exclude browser chrome so content isn't clipped */
   display: flex;
   align-items: center;
   justify-content: center;

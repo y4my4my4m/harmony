@@ -12,39 +12,21 @@ Items previously listed as fixed have been removed; this list reflects the state
 
 ### Pattern A - Auth UUID vs Profile UUID confusion
 
-`profiles.id` (`gen_random_uuid()`) and `auth.users.id` (Supabase auth UUID) are different. Most call sites have been migrated to `authContextService.getCurrentProfileId()`, but at least one remains:
+`profiles.id` (`gen_random_uuid()`) and `auth.users.id` (Supabase auth UUID) are different. The July 2026 sweep fixed the ActivityPub service reads (`getTimeline`, `getPublicTimeline`, `getEnhancedPublicTimeline`, `getFederatedTimeline`, `getLocalTimeline`, `getPostWithContext`, `getUserPosts`), the store's home/local feed + `toggleFavorite` existing-favorite lookup, `TrendingService.getTrendingUsers` self-exclusion, and `AdminService.checkAdminOrModPermissions`.
 
-| Site | File / lines | Effect |
-|------|--------------|--------|
-| `checkAdminOrModPermissions` | `src/services/AdminService.ts:1184-1188` | Filters by `id` instead of `auth_user_id`; callers passing the auth UUID get a false-negative permission check |
-
-**Sweep:** audit every `session?.user?.id` / `user.id` reference; replace with `authContextService.getCurrentProfileId()` wherever the destination column FKs to `profiles(id)`.
+**Sweep (ongoing):** audit remaining `session?.user?.id` / `user.id` references; replace with `authContextService.getCurrentProfileId()` wherever the destination column FKs to `profiles(id)`.
 
 ### Pattern B - Logout / cleanup incompleteness
 
-`auth.ts:logout()` now resets voice state, ActivityPub graph, reactions, permission caches, DND interval, and presence cleanup. One known gap remains:
-
-| Resource | File / lines | Effect |
-|----------|--------------|--------|
-| Server users cache | `src/stores/useServerUsers.ts:258-277` | `cleanup()` tears down channels but does **not** clear `userProfiles`, `usersInVoiceChannels`, or `onlineUsers` Maps/Sets - previous user's profiles/voice membership leak to the next session on a shared device |
+`auth.ts:logout()` now resets voice state, ActivityPub graph, reactions, permission caches, DND interval, and presence cleanup. `useServerUsers.cleanup()` now also clears `userProfiles`, `usersInVoiceChannels`, `voiceChannelCallStartTimes`, and `onlineUsers` (fixed July 2026). No known gaps remain; re-audit when adding new long-lived stores.
 
 ### Pattern C - MFA bypass via recovery code
 
-`validateSessionForMFA()` is now invoked on every session-cache, INITIAL_SESSION, TOKEN_REFRESHED, and OAuth callback path. The remaining bypass:
-
-| Path | Location | Risk |
-|------|----------|------|
-| Recovery-code login | `src/components/AuthComponent.vue:682-685` | `supabase.auth.mfa.unenroll()` is called with an AAL1 session; one recovery code disables MFA without an AAL2 step-up |
+Fixed July 2026: recovery-code login now calls the atomic SECURITY DEFINER RPC `redeem_recovery_code_and_disable_mfa` (migration `20260703_recovery_code_mfa_unenroll_rpc.sql`, also in init), which verifies AND consumes the code server-side before deleting `auth.mfa_factors`. The client-side `verify_recovery_code` + AAL1 `mfa.unenroll()` flow is gone. `validateSessionForMFA()` remains on every session path.
 
 ### Init / migration parity
 
-Several security migrations under `db_schema/migrations/20260520_*` are **not** mirrored in `db_schema/init/`. Fresh databases bootstrapped from `db_schema/init/init.sql` are missing these fixes until they are ported:
-
-- `20260520_user_key_pairs_restrict_private_columns.sql` (see C8)
-- `20260520_profile_admin_escalation_trigger.sql` (see C9)
-- `20260520_invites_restrict_select_to_owner_and_rpc.sql` (see C10)
-
-**Action:** apply those migrations after `init.sql` on any fresh deploy until they are inlined.
+All three 20260520 security migrations are now mirrored in `db_schema/init/` (C8/C9 were already inlined; C10 - invites SELECT restriction + `lookup_invite_by_code` - was ported July 2026). Keep new security migrations mirrored into init in the same commit.
 
 ---
 
@@ -76,33 +58,7 @@ For self-recipients the AES-GCM content key is stored as cleartext inside `encry
 
 **Fix:** never store cleartext keys in message metadata; always wrap with Signal, or omit the self entry and rely on local/session state.
 
-### C8. E2EE - `user_key_pairs` RLS exposes wrapped private keys (init only)
-
-**File:** `db_schema/init/31_rls_policies_extended.sql:1036-1045`
-
-Init still has a row-wide SELECT policy. Postgres RLS cannot hide columns, so `identity_private_key_encrypted` and `identity_signing_private_key_encrypted` are readable by any logged-in user via direct API queries. Megolm wraps these with recovery-key AES-GCM, but ciphertext is harvestable for offline attack; legacy Signal rows may be plaintext (see C6).
-
-**Fix landed in:** `db_schema/migrations/20260520_user_key_pairs_restrict_private_columns.sql` - needs to be ported to init.
-
-### C9. Auth - profile privilege escalation via self-update (init only)
-
-**File:** `db_schema/init/30_rls_policies.sql:29-30`
-
-`profiles_update_own` allows `UPDATE` on own row with no column restrictions. Any authenticated user can call Supabase with `{ is_admin: true, is_moderator: true }` on their own profile.
-
-**Fix landed in:** `db_schema/migrations/20260520_profile_admin_escalation_trigger.sql` (`prevent_profile_moderation_self_update_trigger`). Needs to be ported to init.
-
-### C10. Auth - server invites readable by any authenticated user (init only)
-
-**File:** `db_schema/init/30_rls_policies.sql:675`
-
-`invites_select_all` is `FOR SELECT USING (true)`. Any logged-in user can `SELECT * FROM invites` and harvest codes, expiration, and `max_uses`.
-
-**Fix landed in:** `db_schema/migrations/20260520_invites_restrict_select_to_owner_and_rpc.sql` (restricts SELECT, adds `lookup_invite_by_code` RPC; client already uses RPC at `inviteService.ts:122-123`). Needs to be ported to init.
-
-### C11. Auth - recovery-code login disables MFA
-
-See Pattern C above. One recovery code currently removes MFA without AAL2 step-up.
+*(C8, C9, C10 - init/migration parity - and C11 - recovery-code MFA bypass - were fixed July 2026; see the Pattern C / Init parity notes above.)*
 
 ---
 
@@ -131,13 +87,11 @@ See Pattern C above. One recovery code currently removes MFA without AAL2 step-u
 
 | # | Bug | Location |
 |---|-----|----------|
-| H13 | `POST /resolve-post` accepts arbitrary URL; no upfront SSRF check | `federation-backend/src/activitypub/ActorService.ts:442-497` |
-| H14 | `POST /fetch-posts` accepts arbitrary `outbox_url` from body | `federation-backend/src/activitypub/ActorService.ts:513-534` |
-| H15 | Many hot paths now use `safeFetch`; admin endpoints H13/H14 and some legacy `fetch()` sites remain | `federation-backend/src/activitypub/ActorService.ts` (multiple) |
+| H15 | Many hot paths now use `safeFetch`; some legacy `fetch()` sites remain | `federation-backend/src/activitypub/ActorService.ts` (multiple) |
 | H16 | `instanceProbe` follows attacker-controlled NodeInfo `href` | `federation-backend/src/routes/instanceProbe.ts` |
 | H17 | Inbox always re-processes activities (never marked `completed`; no dedup against `was_updated`) | `federation-backend/src/activitypub/InboxHandler.ts:411-413` |
-| H18 | No HTTP `Date` skew check (signature replay window) | `federation-backend/src/activitypub/SignatureService.ts:228-345` |
-| H19 | Body integrity not enforced when Digest omitted from signed headers | `federation-backend/src/activitypub/SignatureService.ts:262-271` |
+
+*(H13/H14 fixed July 2026: `/resolve-post` validates the URL upfront via `validateExternalUrl`; `/fetch-posts` requires `outbox_url` to match the stored remote profile row. H18 fixed: ±5 min Date-header skew window in `SignatureService.verifySignature`. H19 fixed: requests with a body must carry a signature-covered, matching Digest header.)*
 
 ### WebRTC / voice
 
@@ -150,7 +104,7 @@ See Pattern C above. One recovery code currently removes MFA without AAL2 step-u
 
 | # | Bug | Location |
 |---|-----|----------|
-| H28 | File uploads have no client-side size/MIME limit (incl. SVG with embedded script) | `src/services/fileService.ts`, `src/components/MessageInput.vue` |
+| H28 | ~~File uploads have no client-side size/MIME limit~~ Fixed July 2026: `fileService` now pre-validates via `validateImageUpload` and rejects SVG outright. Residual: audit other upload entry points (`MessageInput.vue` drag/drop paths that bypass `fileService`) | `src/services/fileService.ts` |
 
 ### Realtime / store state
 
@@ -170,10 +124,9 @@ See Pattern C above. One recovery code currently removes MFA without AAL2 step-u
 | # | Bug | Location |
 |---|-----|----------|
 | H43 | `useFloatingVideo.registerVideo` calls `onUnmounted` outside `setup()` (silently no-ops; observers leak per chat message/embed) | `src/composables/useFloatingVideo.ts:95-97` |
-| H44 | App-wide haptic listeners never removed (four `document.click` handlers stack on remount) | `src/App.vue:105-112` |
-| H45 *(unverified)* | ActivityPub user search: `AbortController` created but signal never passed to API | `src/composables/useAutoSuggest.ts` |
-| H46 *(unverified)* | User search modal: no abort/sequence guard → stale results overwrite newer | `src/components/activitypub/UserSearchModal.vue:208-269` |
 | H47 *(unverified)* | `useMessageSearch` debounce + AbortController not cleared on dispose | `src/composables/useMessageSearch.ts` |
+
+*(H44 fixed July 2026: single delegated haptic click handler, removed on unmount. H45: stale-query guard now also covers the error path. H46 fixed: monotonic sequence guard in `UserSearchModal`.)*
 
 ### Reports / IDs
 
@@ -198,7 +151,7 @@ See Pattern C above. One recovery code currently removes MFA without AAL2 step-u
 - **M7-M10.** `PostReactionsRealtime` refCount mismatch, typing-indicator subscription gap, `UserEventChannel` reconnect, `userDataService` user-list update skip *(some unverified)*
 - **M14.** `useServerChannel` server-structure channel has no reconnect on error
 - **M15.** Logout/presence ordering: Redis offline before Supabase teardown
-- **M16-M18.** Concurrent `fetchMultiplePostReactions` race; `toggleReaction` mutates shared optimistic objects; `reactionsByPost` / `lastFetched` grow without eviction
+- ~~**M16-M18.**~~ Fixed July 2026 in `src/stores/shared/reactionEngine.ts`: concurrent batch fetches serialize instead of dropping ids; `toggle` layers on existing optimistic state; LRU-style eviction caps the cache at 500 entities
 - **M20.** `verify2FA` timeout doesn't cancel in-flight MFA verify
 - **M21.** `loadBlockingData()` not awaited on some login paths - `src/stores/auth.ts:397, 441`
 - **M22.** `StatePersistence.STATE_VERSION` defined but never persisted/checked
@@ -247,7 +200,7 @@ See Pattern C above. One recovery code currently removes MFA without AAL2 step-u
 - **L4.** Thread views lack `onReconnected` gap-fill - `ThreadFullView.vue`
 - **L5.** `MonyFeed.vue` calls dead `initializeRealtime`/`cleanupRealtime` API (cast `as any`) - `src/components/activitypub/MonyFeed.vue:347-356`
 - **L7-L11.** `useUndoRedo` pointer drift; notification getter re-entrancy; `spatialAudio` / voice Maps not cleared on logout; etc. *(unverified)*
-- **L12.** `http:` allowed in `validateExternalUrl` - `federation-backend/src/utils/ssrfProtection.ts:92-93`
+- ~~**L12.**~~ Fixed July 2026: `http:` in `validateExternalUrl` now allowed only when `NODE_ENV !== 'production'`
 - **L13.** Inbox GET exposes stored remote activities without auth - `federation-backend/src/activitypub/InboxHandler.ts:60+`
 - **L14.** SHA-256 token hashing (DB docs say bcrypt) - `bot-gateway/src/auth/BotAuthMiddleware.ts:34`
 - **L15.** Dev error responses may leak internal messages - `bot-gateway/src/index.ts:88-93`

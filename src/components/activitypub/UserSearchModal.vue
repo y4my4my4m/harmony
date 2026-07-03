@@ -221,10 +221,16 @@ const handleSearchInput = () => {
 
 let searchTimeout: number;
 
+// Monotonic sequence guard: a slow older search must not overwrite the
+// results of a newer one (type "ali", then "alice" - the "ali" response can
+// land last and clobber the "alice" results).
+let searchSeq = 0;
+
 const performSearch = async () => {
   const query = searchQuery.value.trim();
   if (!query || query.length < 2) return;
 
+  const seq = ++searchSeq;
   isSearching.value = true;
   searchResults.value = [];
   hasMoreResults.value = false;
@@ -232,12 +238,13 @@ const performSearch = async () => {
   try {
     // Check if it's a handle search (@username@domain)
     const handleMatch = query.match(/^@?([^@]+)@([^@]+)$/);
-    
+
     if (handleMatch) {
       // Direct handle lookup
       const [, username, domain] = handleMatch;
       try {
         const user = await activityPubService.getUserByHandle(`${username}@${domain}`);
+        if (seq !== searchSeq) return; // stale response
         if (user) {
           searchResults.value = [user];
           addToRecentSearches(user);
@@ -245,27 +252,30 @@ const performSearch = async () => {
       } catch (error) {
         debug.error('Failed to resolve user:', error);
         // Fallback to regular search
-        await performRegularSearch(query);
+        await performRegularSearch(query, seq);
       }
     } else {
-      await performRegularSearch(query);
+      await performRegularSearch(query, seq);
     }
   } catch (error) {
     debug.error('Search failed:', error);
   } finally {
-    isSearching.value = false;
+    if (seq === searchSeq) {
+      isSearching.value = false;
+    }
   }
 };
 
-const performRegularSearch = async (query: string) => {
+const performRegularSearch = async (query: string, seq: number) => {
   try {
     // Use the activityPubService to search for users
     const results = await activityPubService.searchUsers(query, 20);
+    if (seq !== searchSeq) return; // stale response
     searchResults.value = results;
     hasMoreResults.value = results.length >= 20; // More results might be available if we got the full limit
   } catch (error) {
     debug.error('Regular search failed:', error);
-    searchResults.value = [];
+    if (seq === searchSeq) searchResults.value = [];
   }
 };
 

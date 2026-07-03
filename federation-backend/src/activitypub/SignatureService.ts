@@ -250,6 +250,23 @@ export class SignatureService {
         return { verified: false, error: 'Missing signature components' };
       }
 
+      // Replay-window check (BUGS.md H18): if the request carries a Date
+      // header (Mastodon-compatible implementations always sign it), reject
+      // requests outside a ±5 minute skew window. Without this, a captured
+      // signed request stays valid forever.
+      const dateHeader = headers['date'] || headers['Date'];
+      if (dateHeader) {
+        const requestTime = Date.parse(dateHeader);
+        const MAX_SKEW_MS = 5 * 60 * 1000;
+        if (Number.isNaN(requestTime)) {
+          return { verified: false, error: 'Unparseable Date header' };
+        }
+        if (Math.abs(Date.now() - requestTime) > MAX_SKEW_MS) {
+          logger.warn(`Request Date outside allowed skew: ${dateHeader}`);
+          return { verified: false, error: 'Request Date outside allowed clock skew (possible replay)' };
+        }
+      }
+
       // Extract actor URL from keyId (e.g., https://example.com/users/alice#main-key -> https://example.com/users/alice)
       const actorUrl = keyId.split('#')[0];
 
@@ -261,9 +278,20 @@ export class SignatureService {
         return { verified: false, actorUrl, error: 'Could not fetch public key' };
       }
 
-      // Verify Digest header if present and body is provided
+      // Body integrity (BUGS.md H19): for requests WITH a body, require a
+      // Digest header that is COVERED BY the signature, then verify it.
+      // Otherwise the signature only authenticates headers and the body can
+      // be swapped freely.
       const digestHeader = headers['digest'] || headers['Digest'];
-      if (digestHeader && body) {
+      if (body) {
+        if (!digestHeader) {
+          logger.warn(`Missing Digest header on signed request with body from ${actorUrl}`);
+          return { verified: false, actorUrl, error: 'Missing Digest header - body not covered by signature' };
+        }
+        if (!signedHeaders.toLowerCase().split(' ').includes('digest')) {
+          logger.warn(`Digest header not covered by signature from ${actorUrl}`);
+          return { verified: false, actorUrl, error: 'Digest header not included in signed headers' };
+        }
         const expectedDigest = this.createDigest(body);
         if (digestHeader !== expectedDigest) {
           logger.warn(`Digest mismatch for ${actorUrl}: expected ${expectedDigest}, got ${digestHeader}`);

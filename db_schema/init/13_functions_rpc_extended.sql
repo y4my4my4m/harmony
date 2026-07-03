@@ -5060,3 +5060,112 @@ COMMENT ON FUNCTION public.check_and_increment_bot_rate_limit(uuid, text, intege
 -- authenticated context.
 GRANT EXECUTE ON FUNCTION public.check_and_increment_bot_rate_limit(uuid, text, integer, integer) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.check_and_increment_bot_rate_limit(uuid, text, integer, integer) TO service_role;
+
+-- ---------------------------------------------------------------------------
+-- Function: lookup_invite_by_code (ported from
+-- 20260520_invites_restrict_select_to_owner_and_rpc.sql - C10)
+--
+-- Single-code invite lookup for the accept / preview flows. SELECT on
+-- public.invites is restricted to the creator and instance admins, so this
+-- SECURITY DEFINER RPC is the only public path - one specific code per call,
+-- no enumeration.
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.lookup_invite_by_code(p_code text)
+RETURNS TABLE (
+    id uuid,
+    code text,
+    server_id uuid,
+    created_by uuid,
+    uses integer,
+    max_uses integer,
+    used boolean,
+    temporary boolean,
+    expires_at timestamptz,
+    created_at timestamptz,
+    server_name text,
+    server_icon text
+)
+LANGUAGE sql
+SECURITY DEFINER
+STABLE
+SET search_path = public, pg_temp
+AS $$
+    SELECT
+        i.id,
+        i.code,
+        i.server_id,
+        i.created_by,
+        i.uses,
+        i.max_uses,
+        i.used,
+        i.temporary,
+        i.expires_at,
+        i.created_at,
+        s.name AS server_name,
+        s.icon AS server_icon
+    FROM public.invites i
+    LEFT JOIN public.servers s ON s.id = i.server_id
+    WHERE i.code = p_code
+    LIMIT 1;
+$$;
+
+COMMENT ON FUNCTION public.lookup_invite_by_code(text) IS
+    'Public-facing invite-code → invite-row lookup. Bypasses RLS so the accept-flow can validate an invite before the user joins. Single-row, no enumeration.';
+
+GRANT EXECUTE ON FUNCTION public.lookup_invite_by_code(text) TO anon, authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Function: redeem_recovery_code_and_disable_mfa (ported from
+-- 20260703_recovery_code_mfa_unenroll_rpc.sql - C11)
+--
+-- Atomic recovery-code redemption: verifies AND consumes an unused recovery
+-- code for the calling user, then removes their MFA factors server-side.
+-- Replaces the client-side verify + AAL1 mfa.unenroll flow.
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.redeem_recovery_code_and_disable_mfa(p_code text)
+RETURNS boolean
+    LANGUAGE plpgsql
+    SECURITY DEFINER
+    SET search_path TO 'public', 'pg_catalog'
+    AS $$
+DECLARE
+  v_user_id uuid;
+  v_code_hash text;
+  v_code_id uuid;
+BEGIN
+  v_user_id := auth.uid();
+  IF v_user_id IS NULL THEN
+    RAISE EXCEPTION 'Unauthorized: requires an authenticated session'
+      USING ERRCODE = '42501';
+  END IF;
+
+  IF p_code IS NULL OR length(p_code) < 8 THEN
+    RETURN false;
+  END IF;
+
+  v_code_hash := encode(extensions.digest(p_code::bytea, 'sha256'), 'hex');
+
+  UPDATE public.mfa_recovery_codes
+  SET used_at = NOW()
+  WHERE id = (
+    SELECT id FROM public.mfa_recovery_codes
+    WHERE user_id = v_user_id
+      AND code_hash = v_code_hash
+      AND used_at IS NULL
+    LIMIT 1
+    FOR UPDATE SKIP LOCKED
+  )
+  RETURNING id INTO v_code_id;
+
+  IF v_code_id IS NULL THEN
+    RETURN false;
+  END IF;
+
+  DELETE FROM auth.mfa_factors WHERE user_id = v_user_id;
+
+  RETURN true;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.redeem_recovery_code_and_disable_mfa(text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.redeem_recovery_code_and_disable_mfa(text) TO authenticated;

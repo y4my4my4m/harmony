@@ -180,24 +180,32 @@ async function deliverToMentionedUsers(
   author: any,
   supabase: any
 ): Promise<void> {
-  const mentions = post.content.filter((part: any) => part.type === 'mention');
+  const remoteMentions = post.content.filter(
+    (part: any) => part.type === 'mention' && !part.isLocal && part.domain,
+  );
+  if (remoteMentions.length === 0) return;
 
-  for (const mention of mentions) {
-    if (!mention.isLocal && mention.domain) {
-      // Get mentioned user's inbox
-      const { data: mentionedUser } = await supabase
-        .from('profiles')
-        .select('inbox_url')
-        .eq('username', mention.username)
-        .eq('domain', mention.domain)
-        .single();
+  // One batched lookup instead of a query per mention (N+1), then deliver in
+  // parallel - a post mentioning N remote users used to serialize N round-trips.
+  const orFilter = remoteMentions
+    .map((m: any) => `and(username.eq.${m.username},domain.eq.${m.domain})`)
+    .join(',');
+  const { data: mentionedUsers } = await supabase
+    .from('profiles')
+    .select('username, domain, inbox_url')
+    .or(orFilter);
 
-      if (mentionedUser?.inbox_url) {
-        logger.info(`📧 Delivering to mentioned user: ${mention.username}@${mention.domain}`);
-        await DeliveryQueue.sendToInbox(mentionedUser.inbox_url, activity, author.id);
-      }
-    }
+  const inboxByHandle = new Map<string, string>();
+  for (const u of mentionedUsers || []) {
+    if (u.inbox_url) inboxByHandle.set(`${u.username}@${u.domain}`, u.inbox_url);
   }
+
+  await Promise.all(remoteMentions.map(async (mention: any) => {
+    const inbox = inboxByHandle.get(`${mention.username}@${mention.domain}`);
+    if (!inbox) return;
+    logger.info(`📧 Delivering to mentioned user: ${mention.username}@${mention.domain}`);
+    await DeliveryQueue.sendToInbox(inbox, activity, author.id);
+  }));
 }
 
 /**

@@ -659,7 +659,11 @@ export function useAutoSuggest(
       }
       debug.error('[DEBUG] searchActivityPubUsers: ERROR:', error);
       debug.error('Failed to search ActivityPub users:', error);
-      activityPubUsers.value = [];
+      // Only clear results if the failure belongs to the CURRENT query - a
+      // stale timed-out search must not wipe fresh results.
+      if (query === currentSearchQuery) {
+        activityPubUsers.value = [];
+      }
     }
   };
 
