@@ -342,15 +342,16 @@
                   title="Pinned message"
                 >📌</span>
                 <!-- Encryption indicators -->
-                <span 
-                  v-if="item.message.decrypted" 
+                <span
+                  v-if="item.message.decrypted"
                   class="encryption-dot decrypted"
                   :title="'End-to-end encrypted'"
                 ></span>
-                <span 
-                  v-else-if="item.message.encrypted" 
+                <span
+                  v-else-if="item.message.encrypted"
                   class="encryption-indicator locked"
-                  :title="'End-to-end encrypted - You cannot decrypt this message'"
+                  :class="{ unrecoverable: item.message.decryption_unrecoverable }"
+                  :title="encryptionLockTooltip(item.message)"
                 >🔒</span>
               </span>
             </div>
@@ -1130,15 +1131,39 @@ const handleThreadBroadcast = () => {
   loadChannelThreads();
 };
 
-// Check encryption status once on mount and load threads
-onMounted(async () => {
+// Re-check unlock state whenever the encryption service signals progress.
+// The mount-time check races the service's lazy init/auto-unlock: on a
+// direct page load into a DM this component mounts BEFORE auto-unlock
+// completes, cached `false`, and click-to-decrypt never enabled (while
+// navigating chat -> DM happened to work because encryption was already
+// unlocked by then). `megolm-key-received` fires on auto-unlock, manual
+// unlock, and every received key.
+const refreshCanDecrypt = async () => {
   try {
     const { megolmMessageEncryptionService } = await import('@/services/encryption/MegolmMessageEncryptionService');
     canDecryptMessages.value = megolmMessageEncryptionService.isUnlocked();
   } catch {
     canDecryptMessages.value = false;
   }
-  
+};
+
+// The timestamp lock explains WHY a message is still encrypted instead of a
+// generic "you cannot decrypt this".
+const encryptionLockTooltip = (message: any): string => {
+  if (message.decryption_unrecoverable) {
+    return "This message can't be decrypted: it was encrypted before your current encryption identity was created (e.g. before a key reset), and the key that could unlock it no longer exists on this account.";
+  }
+  if (canDecryptMessages.value) {
+    return 'End-to-end encrypted - click the message text to decrypt';
+  }
+  return 'End-to-end encrypted - unlock encryption (Settings → Privacy & Encryption) to decrypt';
+};
+
+// Check encryption status on mount and load threads
+onMounted(async () => {
+  await refreshCanDecrypt();
+  window.addEventListener('megolm-key-received', refreshCanDecrypt);
+
   loadChannelThreads();
   window.addEventListener('server-structure:thread-change', handleThreadBroadcast);
   // Bot owners can change avatar/display_name in settings; UserBotsManagement
@@ -2220,6 +2245,7 @@ watch(virtualRows, () => {
 
 // Cleanup on unmount
 onUnmounted(() => {
+  window.removeEventListener('megolm-key-received', refreshCanDecrypt);
   window.removeEventListener('server-structure:thread-change', handleThreadBroadcast);
   window.removeEventListener('bot:updated', handleBotUpdated as EventListener);
 
@@ -4317,6 +4343,20 @@ defineExpose({ editLastOwnMessage });
 .encryption-indicator.locked:hover {
   opacity: 1;
   filter: drop-shadow(0 0 6px rgba(237, 66, 69, 0.8));
+  transform: scale(1.1);
+}
+
+/* Permanently unrecoverable: key predates current identity. Muted and
+   static (no pulse) - there is nothing actionable, the tooltip explains. */
+.encryption-indicator.locked.unrecoverable {
+  animation: none;
+  opacity: 0.45;
+  filter: grayscale(1) drop-shadow(0 0 2px rgba(128, 128, 128, 0.4));
+}
+
+.encryption-indicator.locked.unrecoverable:hover {
+  opacity: 0.8;
+  filter: grayscale(1) drop-shadow(0 0 4px rgba(128, 128, 128, 0.6));
   transform: scale(1.1);
 }
 
