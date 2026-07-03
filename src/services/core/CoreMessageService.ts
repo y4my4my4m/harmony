@@ -863,50 +863,93 @@ export class CoreMessageService {
         throw this.createError('BATCH_FETCH_REACTIONS_FAILED', error.message, error)
       }
 
-      // Group reactions by message_id
-      const groupedReactions: Record<string, any[]> = {}
-      
-      // Initialize all message IDs with empty arrays
-      messageIds.forEach(messageId => {
-        groupedReactions[messageId] = []
-      })
-
-      // Group reactions by message
-      reactions?.forEach((reaction: any) => {
-        const messageId = reaction.message_id
-        
-        if (!groupedReactions[messageId]) {
-          groupedReactions[messageId] = []
-        }
-        
-        // The batch RPC surfaces emoji_url from metadata.remote_emoji_url too;
-        // the previous code marked every emoji_id-less reaction native, which
-        // suppressed the image even when a url existed. Native = no image url.
-        const url =
-          reaction.emoji_url ||
-          discordCustomEmojiUrlFromIdentifier(reaction.custom_emoji_content) ||
-          ''
-        const isNative = !url
-        groupedReactions[messageId].push({
-          emoji_id: reaction.emoji_id || null,
-          emoji: {
-            id: reaction.emoji_id || reaction.custom_emoji_content,
-            name: reaction.emoji_name || reaction.custom_emoji_content || 'unknown',
-            url,
-            content: reaction.custom_emoji_content,
-            is_native: isNative
-          },
-          count: reaction.reaction_count || 0,
-          current_user_reacted: reaction.current_user_reacted === true,
-          reactions: Array.isArray(reaction.users) ? reaction.users : []
-        })
-      })
+      const groupedReactions = this.groupReactionRows(messageIds, reactions || [])
 
       debug.log(`✅ Core: Batch fetched reactions for ${messageIds.length} messages (${reactions?.length || 0} reaction groups)`)
       return groupedReactions
     } catch (error) {
       debug.error('❌ Core: Error in getBatchMessageReactions:', error)
       throw error
+    }
+  }
+
+  /**
+   * Map raw reaction rows (shape of get_batch_message_reactions /
+   * get_message_page.reactions) into per-message reaction groups.
+   */
+  private groupReactionRows(messageIds: string[], rows: any[]): Record<string, any[]> {
+    const groupedReactions: Record<string, any[]> = {}
+
+    // Initialize all message IDs with empty arrays
+    messageIds.forEach(messageId => {
+      groupedReactions[messageId] = []
+    })
+
+    rows.forEach((reaction: any) => {
+      const messageId = reaction.message_id
+
+      if (!groupedReactions[messageId]) {
+        groupedReactions[messageId] = []
+      }
+
+      // The batch RPC surfaces emoji_url from metadata.remote_emoji_url too;
+      // the previous code marked every emoji_id-less reaction native, which
+      // suppressed the image even when a url existed. Native = no image url.
+      const url =
+        reaction.emoji_url ||
+        discordCustomEmojiUrlFromIdentifier(reaction.custom_emoji_content) ||
+        ''
+      const isNative = !url
+      groupedReactions[messageId].push({
+        emoji_id: reaction.emoji_id || null,
+        emoji: {
+          id: reaction.emoji_id || reaction.custom_emoji_content,
+          name: reaction.emoji_name || reaction.custom_emoji_content || 'unknown',
+          url,
+          content: reaction.custom_emoji_content,
+          is_native: isNative
+        },
+        count: reaction.reaction_count || 0,
+        current_user_reacted: reaction.current_user_reacted === true,
+        reactions: Array.isArray(reaction.users) ? reaction.users : []
+      })
+    })
+
+    return groupedReactions
+  }
+
+  /**
+   * Fast path: load a message page (messages + reactions) in ONE round trip
+   * via the get_message_page RPC. Returns null when the RPC is unavailable
+   * (e.g. migration not applied on a self-hosted instance) so callers can
+   * fall back to the legacy multi-query load.
+   */
+  private async tryLoadMessagePage(params: {
+    channelId?: string
+    conversationId?: string
+    limit: number
+    before?: string
+  }): Promise<{ messages: any[]; reactionsByMessage: Record<string, any[]> } | null> {
+    try {
+      const { data, error } = await supabase.rpc('get_message_page', {
+        p_channel_id: params.channelId ?? null,
+        p_conversation_id: params.conversationId ?? null,
+        p_limit: params.limit,
+        p_before: params.before ?? null
+      })
+
+      if (error) {
+        debug.warn('⚠️ Core: get_message_page RPC unavailable, using legacy multi-query load:', error.message)
+        return null
+      }
+
+      const messages: any[] = data?.messages || []
+      const messageIds = messages.map((m: any) => m.id)
+      const reactionsByMessage = this.groupReactionRows(messageIds, data?.reactions || [])
+      return { messages, reactionsByMessage }
+    } catch (error) {
+      debug.warn('⚠️ Core: get_message_page RPC failed, using legacy multi-query load:', error)
+      return null
     }
   }
 
@@ -954,6 +997,12 @@ export class CoreMessageService {
       before?: string
       after?: string
       signal?: AbortSignal
+      /**
+       * Whether the channel is remote (federated). Callers that already hold
+       * the channel/server in a store should pass this to skip two lookup
+       * round trips. When undefined, falls back to resolving from the DB.
+       */
+      isRemote?: boolean
     } = {}
   ): Promise<Message[]> {
     try {
@@ -961,30 +1010,59 @@ export class CoreMessageService {
 
       debug.log(`🔄 Core: Loading messages for channel: ${channelId}`, { limit, before, after })
 
-      // Check if this is a remote channel by looking up the server
-      const { data: channel } = await supabase
-        .from('channels')
-        .select('id, is_remote, server_id')
-        .eq('id', channelId)
-        .maybeSingle()
+      let isRemoteChannel = options.isRemote
 
-      // If channel has is_remote flag or we need to check the server
-      let isRemoteChannel = channel?.is_remote === true
-
-      // Also check if the server is remote
-      if (!isRemoteChannel && channel?.server_id) {
-        const { data: server } = await supabase
-          .from('servers')
-          .select('is_local_server')
-          .eq('id', channel.server_id)
+      if (isRemoteChannel === undefined) {
+        // Check if this is a remote channel by looking up the server
+        const { data: channel } = await supabase
+          .from('channels')
+          .select('id, is_remote, server_id')
+          .eq('id', channelId)
           .maybeSingle()
-        
-        isRemoteChannel = server?.is_local_server === false
+
+        // If channel has is_remote flag or we need to check the server
+        isRemoteChannel = channel?.is_remote === true
+
+        // Also check if the server is remote
+        if (!isRemoteChannel && channel?.server_id) {
+          const { data: server } = await supabase
+            .from('servers')
+            .select('is_local_server')
+            .eq('id', channel.server_id)
+            .maybeSingle()
+
+          isRemoteChannel = server?.is_local_server === false
+        }
       }
 
       if (isRemoteChannel) {
         debug.log(`🌐 Channel ${channelId} is remote, fetching via federation backend`)
         return await this.loadRemoteChannelMessages(channelId, options)
+      }
+
+      if (signal?.aborted) {
+        throw this.createError('ABORTED', 'Request was aborted')
+      }
+
+      // Fast path: messages + reactions in a single round trip. The RPC does
+      // not support the `after` param (only used by realtime catch-up), so
+      // those calls keep the legacy path.
+      if (!after) {
+        const page = await this.tryLoadMessagePage({ channelId, limit, before })
+        if (page) {
+          const orderedMessages = page.messages
+          if (orderedMessages.length > 0) {
+            orderedMessages.forEach((message: any) => {
+              message.reactions = page.reactionsByMessage[message.id] || []
+            })
+            await this.populateReactionsStoreCache(page.reactionsByMessage)
+          }
+
+          debug.log(`✅ Core: Loaded ${orderedMessages.length} messages with reactions (single round trip) for channel: ${channelId}`)
+
+          const { processMessageDecryption } = await import('@/utils/messageDecryption')
+          return await processMessageDecryption(orderedMessages)
+        }
       }
 
       // Local channel - use existing query
@@ -1319,6 +1397,31 @@ export class CoreMessageService {
       const { limit = 50, before, after, signal } = options
 
       debug.log(`🔄 Core: Loading messages for conversation: ${conversationId}`)
+
+      if (signal?.aborted) {
+        throw this.createError('ABORTED', 'Request was aborted')
+      }
+
+      // Fast path: messages + reactions in a single round trip (see
+      // loadChannelMessages). `after` is only used by realtime catch-up and
+      // keeps the legacy path.
+      if (!after) {
+        const page = await this.tryLoadMessagePage({ conversationId, limit, before })
+        if (page) {
+          const orderedMessages = page.messages
+          if (orderedMessages.length > 0) {
+            orderedMessages.forEach((message: any) => {
+              message.reactions = page.reactionsByMessage[message.id] || []
+            })
+            await this.populateReactionsStoreCache(page.reactionsByMessage)
+          }
+
+          debug.log(`✅ Core: Loaded ${orderedMessages.length} messages with reactions (single round trip) for conversation: ${conversationId}`)
+
+          const { processMessageDecryption } = await import('@/utils/messageDecryption')
+          return await processMessageDecryption(orderedMessages)
+        }
+      }
 
       let query = supabase
         .from('messages')

@@ -4,6 +4,7 @@ import { services } from '@/services';
 import type { Message, ChannelCache, CacheMetadata, Emoji, MessagePart } from '@/types';
 import { useReactionsStore } from '@/stores/useReactions';
 import { useServerUsersStore } from '@/stores/useServerUsers';
+import { useServerChannelStore } from '@/stores/useServerChannel';
 import { ensureMessageEmbeds } from '@/utils/messageEmbedUtils';
 import { processMessageDecryption } from '@/utils/messageDecryption';
 import { debug } from '@/utils/debug';
@@ -263,13 +264,26 @@ export const useChatStore = defineStore('chat', {
         }
         
         debug.log('📤 Loading older messages with params:', { channelId, limit: 20, beforeTimestamp });
-        
+
+        // Resolve is_remote from the already-loaded channel/server state so the
+        // service can skip its channels + servers lookup round trips. When the
+        // channel isn't in the store (direct URL open before structure loads),
+        // leave undefined and let the service resolve it from the DB.
+        let isRemote: boolean | undefined;
+        const serverChannelStore = useServerChannelStore();
+        const channel = serverChannelStore.channels.find(c => c.id === channelId);
+        if (channel) {
+          const server = serverChannelStore.servers.find(s => s.id === channel.server_id);
+          isRemote = channel.is_remote === true || server?.is_local_server === false;
+        }
+
         const { messages, hasMore } = await services.messages.loadChannelMessages(
           channelId,
           {
             limit: 20,
             before: beforeTimestamp,
-            signal
+            signal,
+            isRemote
           }
         );
 
