@@ -358,33 +358,48 @@ export class MegolmKeyBackupService {
   }
 
   /**
-   * Handle a fulfilled key request (we requested a key and got it)
+   * Handle a fulfilled key request (we requested a key and got it).
+   *
+   * Returns true only when the key was imported AND the row was flipped to
+   * 'received' - the offline sweep uses this to quarantine rows that fail
+   * permanently (e.g. sealed to a previous identity key) instead of retrying
+   * them on every unlock forever.
+   *
+   * `prefetchedSenderKey` lets the batch sweep pass the fulfiller's public
+   * key in (one query for all rows) instead of fetching per row.
    */
-  private async handleFulfilledRequest(request: KeyRequest): Promise<void> {
+  private async handleFulfilledRequest(
+    request: KeyRequest,
+    prefetchedSenderKey?: string | null,
+  ): Promise<boolean> {
     debug.log(`📬 Key request fulfilled! Session ${request.session_id.substring(0, 8)}...`)
 
     if (!request.encrypted_key) {
       debug.log('⚠️ Fulfilled request has no encrypted key')
-      return
+      return false
     }
 
     try {
-      // Fetch fulfiller's (sender's) public key for ECDH decryption
-      const { data: senderKey } = await supabase
-        .from('user_key_pairs')
-        .select('identity_public_key')
-        .eq('user_id', request.sender_user_id)
-        .eq('is_active', true)
-        .maybeSingle()
+      // Fulfiller's (sender's) public key for ECDH decryption
+      let senderPublicKey = prefetchedSenderKey ?? null
+      if (senderPublicKey === null && prefetchedSenderKey === undefined) {
+        const { data: senderKey } = await supabase
+          .from('user_key_pairs')
+          .select('identity_public_key')
+          .eq('user_id', request.sender_user_id)
+          .eq('is_active', true)
+          .maybeSingle()
+        senderPublicKey = senderKey?.identity_public_key ?? null
+      }
 
-      if (!senderKey?.identity_public_key) {
+      if (!senderPublicKey) {
         debug.warn(`⚠️ No public key for sender ${request.sender_user_id.substring(0, 8)}, cannot decrypt`)
-        return
+        return false
       }
 
       const sessionKey = await this.decryptSessionKeyFromSender(
         request.encrypted_key,
-        senderKey.identity_public_key
+        senderPublicKey
       )
 
       // Import the session
@@ -426,11 +441,13 @@ export class MegolmKeyBackupService {
 
       // Create backup with the new session
       this.triggerAutoBackup().catch(() => {})
+      return true
     } catch (error) {
       debug.error('❌ Error importing fulfilled key:', error)
       // Re-arm the dedup so a follow-up decrypt attempt can issue a fresh
       // request instead of being stuck behind this failed import.
       this.pendingRequests.delete(request.session_id)
+      return false
     }
   }
 
@@ -922,14 +939,53 @@ export class MegolmKeyBackupService {
       return 0
     }
 
+    // Batch-fetch every fulfiller's public key in ONE query. Previously each
+    // row fetched it individually inside handleFulfilledRequest - with N
+    // stale rows from the same fulfiller that was N identical user_key_pairs
+    // queries per unlock (observed: 170).
+    const senderIds = [...new Set(data.map(r => r.sender_user_id).filter(Boolean))]
+    const senderKeyMap = new Map<string, string>()
+    if (senderIds.length > 0) {
+      const { data: keys, error: keysError } = await supabase
+        .from('user_key_pairs')
+        .select('user_id, identity_public_key')
+        .in('user_id', senderIds)
+        .eq('is_active', true)
+      if (keysError) {
+        debug.warn('⚠️ Batch fulfiller-key fetch failed, aborting sweep (will retry next unlock):', keysError)
+        return 0
+      }
+      for (const k of keys || []) {
+        if (k.identity_public_key) senderKeyMap.set(k.user_id, k.identity_public_key)
+      }
+    }
+
     let imported = 0
     for (const request of data) {
-      try {
-        await this.handleFulfilledRequest(request as unknown as KeyRequest)
+      const ok = await this.handleFulfilledRequest(
+        request as unknown as KeyRequest,
+        senderKeyMap.get(request.sender_user_id) ?? null,
+      )
+      if (ok) {
         imported++
-      } catch (err) {
-        debug.warn(`⚠️ Failed to import fulfilled request ${request.id}:`, err)
+        continue
       }
+
+      // Quarantine: at this point we're unlocked with our identity key
+      // available, so a failed import is deterministic (typically the key was
+      // sealed to a PREVIOUS identity after a key reset) and would fail again
+      // on every future unlock - these rows were being re-swept forever,
+      // hammering the DB on each session start. Mark them expired; if the
+      // session is ever needed again, the on-demand key-request flow issues a
+      // fresh request (and the fulfillment-side share repair makes the new
+      // seal durable).
+      await supabase
+        .from('megolm_key_requests')
+        .update({ status: 'expired' })
+        .eq('id', request.id)
+        .eq('requester_user_id', this.userId)
+        .then(() => {}, () => {})
+      debug.warn(`🗑️ Quarantined undecryptable fulfilled key request ${String(request.id).substring(0, 8)} (marked expired)`)
     }
 
     if (imported > 0) {
