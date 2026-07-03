@@ -23,8 +23,8 @@ const isDebugEnabled = (): boolean => {
 // Cache the result at module load time for performance
 const DEBUG_ENABLED = isDebugEnabled()
 
-// Error logging is always enabled in development
-const ERROR_LOGGING_ENABLED = import.meta.env.DEV
+// Errors always log, including production - silent failures are undiagnosable.
+const ERROR_LOGGING_ENABLED = true
 
 /**
  * Main debug object - provides console methods that only execute in debug mode

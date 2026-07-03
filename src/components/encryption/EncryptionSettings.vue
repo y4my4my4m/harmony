@@ -438,10 +438,20 @@ async function syncKeys() {
   isSyncing.value = true
   try {
     const { megolmMessageEncryptionService } = await import('@/services/encryption/MegolmMessageEncryptionService')
+
+    let restoredCount = 0
+    try {
+      const { megolmKeyBackupService } = await import('@/services/encryption/MegolmKeyBackupService')
+      const restored = await megolmKeyBackupService.restoreFromBackup()
+      restoredCount = restored.outboundCount + restored.inboundCount
+    } catch (restoreErr: any) {
+      toast.error(`Key backup restore failed: ${restoreErr?.message || restoreErr}`, { timeout: 10000 })
+    }
+
     const claimed = await megolmMessageEncryptionService.claimPendingSessionShares()
-    
-    if (claimed > 0) {
-      toast.success(`Synced ${claimed} new session keys`)
+
+    if (restoredCount > 0 || claimed > 0) {
+      toast.success(`Synced ${restoredCount} backup sessions, ${claimed} new session keys`)
     } else {
       toast.info('No new keys to sync')
     }

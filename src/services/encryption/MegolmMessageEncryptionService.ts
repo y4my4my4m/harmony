@@ -137,24 +137,19 @@ export class MegolmMessageEncryptionService {
    */
   async initialize(authUserId: string): Promise<void> {
     // Get profile ID from database
-    try {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('auth_user_id', authUserId)
-        .single()
-      
-      if (profile?.id) {
-        this.currentUserId = profile.id
-        debug.log(`🔐 MegolmMessageEncryptionService: Using profile ID ${this.currentUserId}`)
-      } else {
-        this.currentUserId = authUserId
-        debug.warn(`⚠️ No profile found for auth user ${authUserId}`)
-      }
-    } catch (error) {
-      debug.warn('⚠️ Failed to get profile ID:', error)
-      this.currentUserId = authUserId
+    // Never fall back to the auth UUID: it poisons the per-user session DB
+    // name, backup blob userId, and share rows. Fail and retry next init.
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('auth_user_id', authUserId)
+      .single()
+
+    if (profileError || !profile?.id) {
+      debug.error('❌ Cannot resolve profile id for encryption init:', profileError)
+      throw new Error('Could not resolve your profile for encryption - please retry')
     }
+    this.currentUserId = profile.id
 
     // Initialize backup service (includes realtime key request subscriptions)
     if (this.currentUserId) {
@@ -316,7 +311,7 @@ export class MegolmMessageEncryptionService {
       const result = await megolmKeyBackupService.restoreFromBackup()
       debug.log(`📥 Restored ${result.outboundCount + result.inboundCount} sessions from backup`)
     } catch (error) {
-      debug.log('ℹ️ No backup to restore or restore failed:', error)
+      debug.error('❌ Backup restore failed during recovery unlock:', error)
     }
 
     // Claim any pending session shares
