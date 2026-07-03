@@ -310,1078 +310,13 @@
         </div>
       </div>
 
+
+
       <!-- Configuration -->
-      <div class="admin-module config-module">
-        <div class="module-header">
-          <Icon name="settings" :size="20" />
-          <h2>Configuration</h2>
-        </div>
-        <div class="config-tabs">
-          <button
-            v-for="tab in [
-              { key: 'general', label: 'General', icon: 'settings' },
-              { key: 'federation', label: 'Federation', icon: 'globe' },
-              { key: 'branding', label: 'Branding', icon: 'image' },
-              { key: 'oauth', label: 'Authentication', icon: 'shield' },
-              { key: 'webrtc', label: 'Voice & Video', icon: 'mic' },
-            ]"
-            :key="tab.key"
-            :class="['config-tab-btn', { active: configTab === tab.key }]"
-            @click="configTab = tab.key as any"
-          >
-            <Icon :name="tab.icon" :size="16" />
-            {{ tab.label }}
-          </button>
-        </div>
-        <div class="config-sections">
-          <!-- General / Chat Settings -->
-          <div v-if="configTab === 'general'" class="config-section">
-            <h3>Chat Settings</h3>
-            <div class="setting-group">
-              <label>Max Server Size</label>
-              <input v-model.number="config.chat.maxServerSize" type="number" class="cyber-input" />
-            </div>
-            <div class="setting-group">
-              <label>Max Message Length</label>
-              <input v-model.number="config.chat.maxMessageLength" type="number" class="cyber-input" />
-            </div>
-            <div class="setting-group">
-              <label>Max Media Attachments per Post/Message</label>
-              <input v-model.number="config.chat.maxMediaAttachmentsPerPost" type="number" class="cyber-input" min="1" />
-              <span class="setting-hint">Maximum images/videos/files per post or chat message. Default: 20.</span>
-            </div>
-            <div class="setting-row">
-              <label class="toggle-label">
-                <input type="checkbox" v-model="config.chat.allowFileUploads" />
-                <span class="toggle-slider"></span>
-                <span class="toggle-text">Allow File Uploads</span>
-              </label>
-              <label class="toggle-label">
-                <input type="checkbox" v-model="config.chat.enableVoiceChannels" />
-                <span class="toggle-slider"></span>
-                <span class="toggle-text">Enable Voice Channels</span>
-              </label>
-            </div>
-
-            <h3 style="margin-top: 24px;">Bridge attachments</h3>
-            <p class="setting-hint" style="margin-bottom: 12px;">
-              Instance-wide policy for bridged images/files from external platforms (Discord, etc.). Bot owners cannot override this.
-            </p>
-            <div class="setting-group">
-              <label>Attachment handling</label>
-              <select v-model="config.chat.bridgeAttachmentMode" class="cyber-input">
-                <option value="link">Link only (external CDN URLs — may expire)</option>
-                <option value="refresh">Refresh on demand (re-sign expired URLs when viewed; no extra disk)</option>
-                <option value="mirror">Mirror to storage (permanent; uses disk — grows with traffic)</option>
-              </select>
-              <span class="setting-hint" v-if="config.chat.bridgeAttachmentMode === 'mirror'">
-                Warning: every bridged attachment is copied into <code>user_media</code>. Busy bridged channels can consume significant storage.
-              </span>
-              <span class="setting-hint" v-else-if="config.chat.bridgeAttachmentMode === 'refresh'">
-                Requires a connected bridge + bot-gateway. Expired attachment URLs are re-signed on demand when a user views them (no disk use, no “edited” badge).
-              </span>
-            </div>
-
-            <h3 style="margin-top: 24px;">Media picker (Klipy)</h3>
-            <p class="setting-hint" style="margin-bottom: 16px;">
-              GIF/media search is proxied through the federation backend. API keys live in the backend
-              environment (<code>KLIPY_API_KEY_ADS</code> / <code>KLIPY_API_KEY_NOADS</code>), not here.
-            </p>
-
-            <div class="klipy-settings">
-              <div class="klipy-group-label">Ads &amp; attribution</div>
-
-              <div class="klipy-setting">
-                <div class="klipy-setting-text">
-                  <span class="klipy-setting-title">GIF ads</span>
-                  <span class="klipy-setting-desc">
-                    <strong>Note:</strong> This setting only affects the mobile GIF picker. Desktop users will always not see ads.
-                    This is a limitation of KLIPY as an ad distributor at the moment
-                    <br>
-                    Non-supporters see Klipy ads in the mobile GIF picker; ad-free supporters never do. Klipy only
-                    fills ads on mobile browsers (including installed PWAs) — desktop never receives ads per their API.
-                    When off, nobody sees ads. Also requires an ad-enabled Klipy key and ads enabled in the Klipy
-                    Partner Dashboard.
-                    Per-tier ad-free lives under Funding &amp; Supporters.
-                  </span>
-                </div>
-                <label class="toggle-label klipy-toggle">
-                  <input type="checkbox" v-model="config.chat.gifAdsEnabled" />
-                  <span class="toggle-slider"></span>
-                </label>
-              </div>
-
-              <div class="klipy-setting">
-                <div class="klipy-setting-text">
-                  <span class="klipy-setting-title">KLIPY watermark on sent media</span>
-                  <span class="klipy-setting-desc">
-                    Adds a small KLIPY badge to shared GIFs/stickers. The “Search KLIPY” picker label is always
-                    shown (required attribution); this watermark is optional but recommended.
-                  </span>
-                </div>
-                <label class="toggle-label klipy-toggle">
-                  <input type="checkbox" v-model="config.chat.gifKlipyWatermarkEnabled" />
-                  <span class="toggle-slider"></span>
-                </label>
-              </div>
-
-              <div class="klipy-group-label">Optional collections</div>
-              <p class="klipy-group-hint">
-                GIFs and Stickers are always available. Enabling these adds picker tabs and slash commands; when
-                off they are hidden everywhere.
-              </p>
-
-              <div class="klipy-setting">
-                <div class="klipy-setting-text">
-                  <span class="klipy-setting-title">Clips <code>/clip</code></span>
-                  <span class="klipy-setting-desc">Short looping videos (with optional audio).</span>
-                </div>
-                <label class="toggle-label klipy-toggle">
-                  <input type="checkbox" v-model="config.chat.gifClipsEnabled" />
-                  <span class="toggle-slider"></span>
-                </label>
-              </div>
-
-              <div class="klipy-setting">
-                <div class="klipy-setting-text">
-                  <span class="klipy-setting-title">Memes <code>/meme</code></span>
-                  <span class="klipy-setting-desc">Klipy's meme collection.</span>
-                </div>
-                <label class="toggle-label klipy-toggle">
-                  <input type="checkbox" v-model="config.chat.gifMemesEnabled" />
-                  <span class="toggle-slider"></span>
-                </label>
-              </div>
-
-              <div class="klipy-setting">
-                <div class="klipy-setting-text">
-                  <span class="klipy-setting-title">AI Emoji browse <code>/aiemoji</code></span>
-                  <span class="klipy-setting-desc">
-                    Browse Klipy's AI emoji. Picking one inserts it into the composer as an emoji (it is not
-                    hosted here — it behaves like a remote emoji and counts toward frequently-used).
-                  </span>
-                </div>
-                <label class="toggle-label klipy-toggle">
-                  <input type="checkbox" v-model="config.chat.gifAiEmojisEnabled" />
-                  <span class="toggle-slider"></span>
-                </label>
-              </div>
-
-              <div class="klipy-group-label">AI emoji generation</div>
-
-              <div class="klipy-setting">
-                <div class="klipy-setting-text">
-                  <span class="klipy-setting-title">Allow AI emoji generation</span>
-                  <span class="klipy-setting-desc">
-                    Members generate their own custom emoji from a text prompt; these are hosted on this instance
-                    and appear in the emoji picker's “AI Generated” category. Klipy caps generation at 20/day per
-                    instance (shared) plus a per-user daily limit.
-                  </span>
-                </div>
-                <label class="toggle-label klipy-toggle">
-                  <input type="checkbox" v-model="config.chat.gifAiEmojiGenerationEnabled" />
-                  <span class="toggle-slider"></span>
-                </label>
-              </div>
-            </div>
-
-            <h3 style="margin-top: 24px;">Trending & Discovery</h3>
-            <div class="setting-group">
-              <label>Trending Posts</label>
-              <div class="setting-control-row">
-                <button type="button" class="primary-btn-sm refresh-trending-btn" @click="refreshTrendingPosts" :disabled="loadingStates.trendingRefresh">
-                  <Icon v-if="loadingStates.trendingRefresh" name="loader" :size="16" class="spin" />
-                  <Icon v-else name="refresh-cw" :size="16" />
-                  {{ loadingStates.trendingRefresh ? 'Refreshing...' : 'Refresh Trending Now' }}
-                </button>
-                <span class="setting-hint">Manually recalculate trending posts. Normally runs every 15 minutes.</span>
-              </div>
-            </div>
-
-            <button @click="saveConfig" class="save-btn" :disabled="!configChanged" style="margin-top: 16px;">
-              <Icon name="save" :size="16" />
-              Save Changes
-            </button>
-          </div>
-
-          <!-- Federation Settings -->
-          <div v-if="configTab === 'federation'" class="config-section">
-            <h3>Federation Settings</h3>
-            <div class="setting-group">
-              <label>Max Post Length</label>
-              <input v-model.number="config.federation.maxPostLength" type="number" class="cyber-input" />
-            </div>
-            <div class="setting-group">
-              <label>Delivery Retry Attempts</label>
-              <input v-model.number="config.federation.retryAttempts" type="number" class="cyber-input" />
-            </div>
-            <div class="setting-group">
-              <label>Max Custom Emojis per Server</label>
-              <input v-model.number="config.federation.maxCustomEmojisPerServer" type="number" class="cyber-input" min="0" />
-              <span class="setting-hint">Maximum custom emojis allowed per server. 0 = unlimited.</span>
-            </div>
-            <div class="setting-group">
-              <label>Custom Emoji Image Quality</label>
-              <input
-                v-model.number="config.federation.customEmojiTransformQuality"
-                type="number"
-                class="cyber-input"
-                min="1"
-                max="100"
-              />
-              <span class="setting-hint">
-                JPEG/WebP quality (20-100) for resized custom emoji images from storage. Default 80. Lower values reduce bandwidth at the cost of artifacts.
-              </span>
-            </div>
-            <div class="setting-group">
-              <label class="toggle-label">
-                <input type="checkbox" v-model="config.federation.allowCustomEmojisInDisplayNames" />
-                <span class="toggle-slider"></span>
-                <span class="toggle-text">Allow Custom Emojis in Display Names</span>
-              </label>
-              <span class="setting-hint">
-                When off, emojis won't display in names and users can't add them.
-              </span>
-            </div>
-            <div class="setting-row">
-              <label class="toggle-label">
-                <input type="checkbox" v-model="config.federation.enableOutbound" />
-                <span class="toggle-slider"></span>
-                <span class="toggle-text">Enable Outbound Federation</span>
-              </label>
-              <label class="toggle-label">
-                <input type="checkbox" v-model="config.federation.enableInbound" />
-                <span class="toggle-slider"></span>
-                <span class="toggle-text">Enable Inbound Federation</span>
-              </label>
-            </div>
-
-            <button @click="saveConfig" class="save-btn" :disabled="!configChanged" style="margin-top: 16px;">
-              <Icon name="save" :size="16" />
-              Save Changes
-            </button>
-          </div>
-
-          <!-- Instance Branding -->
-          <div v-if="configTab === 'branding'" class="config-section">
-            <h3>Instance Branding</h3>
-            <div class="setting-group">
-              <label>Instance Name</label>
-              <input 
-                v-model="instanceConfig.name" 
-                type="text" 
-                class="cyber-input"
-                placeholder="Harmony Instance"
-                @input="instanceBrandingChanged = true"
-              />
-              <span class="setting-hint">
-                This name appears on the login/register page. Changes will be visible to all users.
-              </span>
-            </div>
-            <div class="setting-group">
-              <label>Instance Description</label>
-              <textarea 
-                v-model="instanceConfig.description" 
-                class="cyber-input"
-                rows="3"
-                placeholder="A federated social platform"
-                @input="instanceBrandingChanged = true"
-              ></textarea>
-              <span class="setting-hint">
-                This description appears as the subtitle on the login/register page.
-              </span>
-            </div>
-
-            <div class="config-subsection">
-              <h4>Appearance</h4>
-              <div class="setting-group">
-                <label>Instance Icon</label>
-                <div class="instance-appearance-row">
-                  <div
-                    class="instance-icon-preview"
-                    @click="($refs.instanceIconInput as HTMLInputElement)?.click()"
-                  >
-                    <img
-                      v-if="instanceIconPreviewUrl"
-                      :src="instanceIconPreviewUrl"
-                      alt="Instance icon"
-                      class="instance-icon-img"
-                    />
-                    <Icon v-else name="image" :size="24" />
-                  </div>
-                  <div class="instance-appearance-controls">
-                    <button type="button" class="save-btn" @click="($refs.instanceIconInput as HTMLInputElement)?.click()">
-                      Upload Icon
-                    </button>
-                    <button
-                      v-if="instanceConfig.iconUrl || instanceIconFile"
-                      type="button"
-                      class="save-btn"
-                      style="background: #ed4245;"
-                      @click="instanceIconFile = null; instanceConfig.iconUrl = ''; instanceBrandingChanged = true"
-                    >
-                      Remove
-                    </button>
-                  </div>
-                </div>
-                <input
-                  ref="instanceIconInput"
-                  type="file"
-                  accept="image/*"
-                  style="display: none;"
-                  @change="handleInstanceIconChange"
-                />
-                <span class="setting-hint">
-                  Your instance's logo. Shown to other federated instances and in the instances directory.
-                </span>
-              </div>
-
-              <div class="setting-group">
-                <label>Instance Banner</label>
-                <div
-                  class="instance-banner-preview"
-                  :style="instanceBannerPreviewUrl ? { backgroundImage: `url(${instanceBannerPreviewUrl})` } : {}"
-                  @click="($refs.instanceBannerInput as HTMLInputElement)?.click()"
-                >
-                  <div v-if="!instanceBannerPreviewUrl" class="instance-banner-placeholder">
-                    <Icon name="image" :size="20" />
-                    <span>Click to upload banner</span>
-                  </div>
-                  <div v-else class="instance-banner-overlay">
-                    <span>Change banner</span>
-                  </div>
-                </div>
-                <div v-if="instanceConfig.bannerUrl || instanceBannerFile" style="margin-top: 8px;">
-                  <button
-                    type="button"
-                    class="save-btn"
-                    style="background: #ed4245;"
-                    @click="instanceBannerFile = null; instanceConfig.bannerUrl = ''; instanceBrandingChanged = true"
-                  >
-                    Remove Banner
-                  </button>
-                </div>
-                <input
-                  ref="instanceBannerInput"
-                  type="file"
-                  accept="image/*"
-                  style="display: none;"
-                  @change="handleInstanceBannerChange"
-                />
-                <span class="setting-hint">
-                  A hero image for your instance. Shown in the instances directory and exposed via NodeInfo.
-                </span>
-              </div>
-
-              <div class="setting-group">
-                <label>Theme Color</label>
-                <div style="display: flex; align-items: center; gap: 12px;">
-                  <ColorPicker
-                    :color="instanceConfig.themeColor || '#0EA5E9'"
-                    @update:color="instanceConfig.themeColor = $event; instanceBrandingChanged = true"
-                    @change="instanceConfig.themeColor = $event; instanceBrandingChanged = true"
-                  />
-                </div>
-                <span class="setting-hint">
-                  Your instance's accent color. Exposed via NodeInfo for other instances to use.
-                </span>
-              </div>
-
-              <div class="setting-group">
-                <label>Default Theme for New Users</label>
-                <span class="setting-hint" style="margin-bottom: 8px;">
-                  Import a theme JSON file (exported from Appearance settings) to set as the default for new and non-signed-in users.
-                </span>
-                <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
-                  <button type="button" class="save-btn" @click="($refs.defaultThemeInput as HTMLInputElement)?.click()">
-                    Import Theme JSON
-                  </button>
-                  <button 
-                    v-if="instanceConfig.defaultThemeJson"
-                    type="button" 
-                    class="delete-btn"
-                    @click="clearDefaultTheme"
-                  >
-                    Clear Default Theme
-                  </button>
-                  <span v-if="instanceConfig.defaultThemeJson" class="setting-hint" style="margin: 0;">
-                    Default theme is set
-                  </span>
-                </div>
-                <input
-                  ref="defaultThemeInput"
-                  type="file"
-                  accept=".json"
-                  style="display: none;"
-                  @change="handleDefaultThemeImport"
-                />
-              </div>
-            </div>
-
-            <div class="config-subsection">
-              <h4>Legal & Contact</h4>
-              <div class="setting-group">
-                <label>Terms of Service URL</label>
-                <input
-                  v-model="instanceConfig.termsUrl"
-                  type="url"
-                  class="cyber-input"
-                  placeholder="https://example.com/terms"
-                  @input="instanceBrandingChanged = true"
-                />
-                <span class="setting-hint">
-                  Link to your Terms of Service. Shown on the registration page. Leave empty to hide.
-                </span>
-              </div>
-              <div class="setting-group">
-                <label>Privacy Policy URL</label>
-                <input
-                  v-model="instanceConfig.privacyUrl"
-                  type="url"
-                  class="cyber-input"
-                  placeholder="https://example.com/privacy"
-                  @input="instanceBrandingChanged = true"
-                />
-                <span class="setting-hint">
-                  Link to your Privacy Policy. Shown on the registration page. Leave empty to hide.
-                </span>
-              </div>
-              <div class="setting-group">
-                <label>Maintainer Name</label>
-                <input
-                  v-model="instanceConfig.maintainerName"
-                  type="text"
-                  class="cyber-input"
-                  placeholder="Admin"
-                  @input="instanceBrandingChanged = true"
-                />
-                <span class="setting-hint">
-                  Public contact name for this instance's administrator.
-                </span>
-              </div>
-              <div class="setting-group">
-                <label>Maintainer Email</label>
-                <input
-                  v-model="instanceConfig.maintainerEmail"
-                  type="email"
-                  class="cyber-input"
-                  placeholder="admin@example.com"
-                  @input="instanceBrandingChanged = true"
-                />
-                <span class="setting-hint">
-                  Public contact email. Exposed via NodeInfo for federation transparency.
-                </span>
-              </div>
-            </div>
-
-            <button 
-              @click="saveInstanceBranding" 
-              class="save-btn" 
-              :disabled="!instanceBrandingChanged || savingBranding"
-              style="margin-top: 16px;"
-            >
-              <Icon name="save" :size="16" />
-              {{ savingBranding ? 'Saving...' : 'Save Branding' }}
-            </button>
-          </div>
-
-          <!-- OAuth Providers -->
-          <div v-if="configTab === 'oauth'" class="config-section">
-            <h3>OAuth Providers</h3>
-            <p class="setting-hint" style="margin-bottom: 16px;">
-              Enable or disable OAuth login providers. When disabled, the provider will not appear on the login/register page.
-            </p>
-            <div style="display: flex; flex-direction: column; gap: 12px;">
-              <label class="toggle-label" style="justify-content: space-between; width: 100%;">
-                <div style="display: flex; align-items: center; gap: 12px;">
-                  <span style="font-weight: 500;">Google</span>
-                  <span style="font-size: 12px; color: var(--text-secondary);">Allow users to sign in with Google</span>
-                </div>
-                <input 
-                  type="checkbox" 
-                  v-model="oauthProviders.google"
-                  @change="oauthProvidersChanged = true"
-                />
-                <span class="toggle-slider"></span>
-              </label>
-              <label class="toggle-label" style="justify-content: space-between; width: 100%;">
-                <div style="display: flex; align-items: center; gap: 12px;">
-                  <span style="font-weight: 500;">Twitch</span>
-                  <span style="font-size: 12px; color: var(--text-secondary);">Allow users to sign in with Twitch</span>
-                </div>
-                <input 
-                  type="checkbox" 
-                  v-model="oauthProviders.twitch"
-                  @change="oauthProvidersChanged = true"
-                />
-                <span class="toggle-slider"></span>
-              </label>
-              <label class="toggle-label" style="justify-content: space-between; width: 100%;">
-                <div style="display: flex; align-items: center; gap: 12px;">
-                  <span style="font-weight: 500;">GitHub</span>
-                  <span style="font-size: 12px; color: var(--text-secondary);">Allow users to sign in with GitHub</span>
-                </div>
-                <input 
-                  type="checkbox" 
-                  v-model="oauthProviders.github"
-                  @change="oauthProvidersChanged = true"
-                />
-                <span class="toggle-slider"></span>
-              </label>
-            </div>
-            <button 
-              @click="saveOAuthProviders" 
-              class="save-btn" 
-              :disabled="!oauthProvidersChanged || savingOAuthProviders"
-              style="margin-top: 16px;"
-            >
-              <Icon name="save" :size="16" />
-              {{ savingOAuthProviders ? 'Saving...' : 'Save OAuth Settings' }}
-            </button>
-          </div>
-
-          <!-- WebRTC / Voice Settings -->
-          <div v-if="configTab === 'webrtc'" class="config-section">
-            <h3>WebRTC / Voice Settings</h3>
-            <div class="setting-group">
-              <label>WebRTC Mode</label>
-              <select v-model="config.webrtc.mode" class="cyber-input">
-                <option value="hybrid">Hybrid (SFU with P2P fallback)</option>
-                <option value="sfu">SFU Only (LiveKit)</option>
-                <option value="p2p">P2P Only (Peer-to-Peer)</option>
-              </select>
-              <span class="setting-hint">
-                Hybrid uses LiveKit server when available, falls back to P2P
-              </span>
-            </div>
-            <div class="setting-group">
-              <label>LiveKit Server URL</label>
-              <input 
-                v-model="config.webrtc.livekitUrl" 
-                type="text" 
-                class="cyber-input"
-                placeholder="wss://livekit.yourdomain.com"
-              />
-              <span class="setting-hint">
-                WebSocket URL for the LiveKit server (configured in backend .env)
-              </span>
-            </div>
-            <div class="setting-group">
-              <label>Max Stage Listeners</label>
-              <input 
-                v-model.number="config.webrtc.maxStageListeners" 
-                type="number" 
-                class="cyber-input"
-              />
-              <span class="setting-hint">
-                Maximum audience size for stage events (speaker mode)
-              </span>
-            </div>
-            <div class="setting-row">
-              <label class="toggle-label">
-                <input type="checkbox" v-model="config.webrtc.allowFederatedVoice" />
-                <span class="toggle-slider"></span>
-                Allow Federated Voice Calls
-                <span class="setting-hint-inline">
-                  Enable voice/video calls with users from other instances
-                </span>
-              </label>
-            </div>
-
-            <button @click="saveConfig" class="save-btn" :disabled="!configChanged" style="margin-top: 16px;">
-              <Icon name="save" :size="16" />
-              Save Changes
-            </button>
-          </div>
-        </div>
-      </div>
+      <InstanceConfig />
 
       <!-- Funding Management -->
-      <div class="admin-module funding-module">
-        <div class="module-header">
-          <Icon name="heart" :size="20" />
-          <h2>Funding & Supporters</h2>
-          <button @click="saveFundingConfig" class="save-btn" :disabled="!fundingChanged">
-            <Icon name="save" :size="16" />
-            Save Changes
-          </button>
-        </div>
-        <div class="funding-content">
-          <!-- Funding Config -->
-          <div class="funding-section">
-            <h3>Funding Goal</h3>
-            <div class="setting-row">
-              <label class="toggle-label">
-                <input type="checkbox" v-model="fundingEnabled" />
-                <span class="toggle-slider"></span>
-                Enable funding
-              </label>
-            </div>
-            <div v-if="fundingEnabled" class="funding-fields">
-              <div class="setting-row">
-                <label class="toggle-label">
-                  <input type="checkbox" v-model="fundingShowInBar" />
-                  <span class="toggle-slider"></span>
-                  Show in context bar
-                </label>
-              </div>
-              <div class="setting-row">
-                <label class="toggle-label">
-                  <input type="checkbox" v-model="fundingShowProgress" />
-                  <span class="toggle-slider"></span>
-                  Show progress bar
-                </label>
-              </div>
-              <div class="funding-form-row">
-                <div class="funding-field">
-                  <label>Goal amount</label>
-                  <input type="number" v-model.number="fundingGoalAmount" class="cyber-input" min="0" step="1" />
-                </div>
-                <div class="funding-field">
-                  <label>Currency</label>
-                  <select v-model="fundingCurrency" class="cyber-select">
-                    <option value="USD">USD</option>
-                    <option value="EUR">EUR</option>
-                    <option value="GBP">GBP</option>
-                    <option value="JPY">JPY</option>
-                  </select>
-                </div>
-                <div class="funding-field">
-                  <label>Period</label>
-                  <select v-model="fundingPeriod" class="cyber-select">
-                    <option value="monthly">Monthly (resets each month)</option>
-                    <option value="all">All time</option>
-                  </select>
-                  <span class="setting-hint" style="display: block; margin-top: 4px;">
-                    Total is computed from donation history; period controls which donations count.
-                  </span>
-                </div>
-              </div>
-              <div class="funding-field" style="margin-top: 8px;">
-                <label>Description</label>
-                <input type="text" v-model="fundingDescription" class="cyber-input" placeholder="What the funding is for..." />
-              </div>
-              <div class="funding-field" style="margin-top: 8px;">
-                <label>Thank you message</label>
-                <input type="text" v-model="fundingThankYou" class="cyber-input" placeholder="Message shown to supporters" />
-              </div>
-
-              <!-- Funding Links -->
-              <div class="funding-links-section" style="margin-top: 16px;">
-                <label style="font-size: 12px; color: var(--text-secondary); font-weight: 600; display: block; margin-bottom: 8px;">Donation Links</label>
-                <div v-if="fundingLinks.length > 0" class="funding-links-list">
-                  <div v-for="(link, i) in fundingLinks" :key="i" class="funding-link-row">
-                    <select v-model="link.platform" class="cyber-select" style="width: 160px;">
-                      <option v-for="opt in FUNDING_PLATFORMS" :key="opt" :value="opt">{{ platformLabel(opt) }}</option>
-                    </select>
-                    <input v-model="link.url" class="cyber-input" placeholder="https://..." style="flex: 1;" />
-                    <input v-model="link.label" class="cyber-input" placeholder="Label (optional)" style="width: 140px;" />
-                    <button class="mod-btn delete-btn" @click="fundingLinks.splice(i, 1)" title="Remove link">
-                      <Icon name="delete" :size="14" />
-                    </button>
-                  </div>
-                </div>
-                <div class="funding-link-row" style="margin-top: 6px;">
-                  <select v-model="newLinkPlatform" class="cyber-select" style="width: 160px;">
-                    <option value="" disabled>Platform...</option>
-                    <option v-for="opt in FUNDING_PLATFORMS" :key="opt" :value="opt">{{ platformLabel(opt) }}</option>
-                  </select>
-                  <input v-model="newLinkUrl" class="cyber-input" placeholder="https://..." style="flex: 1;" />
-                  <input v-model="newLinkLabel" class="cyber-input" placeholder="Label (optional)" style="width: 140px;" />
-                  <button class="action-btn" @click="addFundingLink" :disabled="!newLinkPlatform || !newLinkUrl" style="white-space: nowrap;">
-                    <Icon name="plus" :size="14" /> Add
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Ko-fi Webhook (automation) -->
-          <div class="funding-section">
-            <h3>Ko-fi Webhook <span class="section-badge">Automation</span></h3>
-            <p class="section-description" style="margin-bottom: 12px;">
-              Auto-record donations from Ko-fi. Requires a Ko-fi Gold subscription.
-              Paste your verification token from
-              <a href="https://ko-fi.com/manage/webhooks" target="_blank" rel="noopener noreferrer">Ko-fi Settings → API</a>
-              and set the Webhook URL to:
-            </p>
-            <div class="webhook-url-display">
-              <code>{{ kofiWebhookUrl }}</code>
-              <button class="mod-btn" @click="copyKofiWebhookUrl" title="Copy URL">
-                <Icon name="copy" :size="14" />
-              </button>
-            </div>
-            <div class="funding-form-row" style="margin-top: 12px;">
-              <div class="funding-field" style="flex: 1;">
-                <label>Verification Token</label>
-                <input
-                  v-model="kofiWebhookToken"
-                  :type="showKofiToken ? 'text' : 'password'"
-                  class="cyber-input"
-                  placeholder="Paste from Ko-fi Settings → API"
-                  autocomplete="off"
-                />
-              </div>
-              <div class="funding-field" style="align-self: flex-end;">
-                <button class="mod-btn" type="button" @click="showKofiToken = !showKofiToken" :title="showKofiToken ? 'Hide' : 'Show'">
-                  <Icon :name="showKofiToken ? 'eye-off' : 'eye'" :size="14" />
-                </button>
-              </div>
-            </div>
-            <label class="funding-field" style="margin-top: 8px; display: flex; align-items: center; gap: 8px;">
-              <input type="checkbox" v-model="kofiAutoAssignTier" />
-              <span>Auto-assign supporter tier based on donation amount</span>
-            </label>
-            <p class="section-hint">
-              Donors include their handle (<code>@username@{{ instanceDomain }}</code>) anywhere in their Ko-fi
-              message - the webhook auto-attributes it and recomputes their tier based on cumulative cycle
-              donations. Donations without a matched handle land in the <strong>Pending Donations</strong>
-              queue below, and you (and instance moderators) get a notification.
-            </p>
-          </div>
-
-          <!-- Pending Donations -->
-          <div class="funding-section" v-if="pendingDonations.length > 0 || pendingDonationCount > 0">
-            <h3>
-              Pending Donations
-              <span v-if="pendingDonationCount > 0" class="pending-count-badge">{{ pendingDonationCount }}</span>
-            </h3>
-            <p class="section-description" style="margin-bottom: 12px;">
-              Webhook donations that couldn't be auto-matched to a user. Search for the recipient or dismiss.
-            </p>
-            <div v-if="pendingDonations.length > 0" class="pending-donations-list">
-              <div v-for="pending in pendingDonations" :key="pending.id" class="pending-donation-item">
-                <div class="pending-donation-header">
-                  <span class="pending-amount">{{ pending.currency }} {{ pending.amount.toFixed(2) }}</span>
-                  <span class="pending-platform">{{ pending.platform }}</span>
-                  <span class="pending-date">{{ formatDate(pending.received_at) }}</span>
-                </div>
-                <div class="pending-donation-meta">
-                  <span v-if="pending.donor_name"><strong>From:</strong> {{ pending.donor_name }}</span>
-                  <span v-if="pending.donor_email" class="pending-email">{{ pending.donor_email }}</span>
-                </div>
-                <div v-if="pending.donor_message" class="pending-message">
-                  &ldquo;{{ pending.donor_message }}&rdquo;
-                </div>
-                <div class="pending-resolve-row">
-                  <input
-                    v-model="pendingResolveSearch[pending.id]"
-                    class="cyber-input"
-                    placeholder="Search user by username..."
-                    @input="onPendingResolveSearch(pending.id)"
-                    style="flex: 1;"
-                  />
-                  <button class="report-action-btn resolve" :disabled="!pendingResolveUserId[pending.id]" @click="resolvePending(pending)">
-                    <Icon name="check" :size="14" /> Attribute
-                  </button>
-                  <button class="report-action-btn dismiss" @click="dismissPending(pending.id)">
-                    <Icon name="x" :size="14" /> Dismiss
-                  </button>
-                </div>
-                <div v-if="pendingResolveSuggestions[pending.id]?.length" class="pending-suggestions">
-                  <div
-                    v-for="user in pendingResolveSuggestions[pending.id]"
-                    :key="user.id"
-                    class="pending-suggestion"
-                    :class="{ active: pendingResolveUserId[pending.id] === user.id }"
-                    @click="pendingResolveUserId[pending.id] = user.id; pendingResolveSearch[pending.id] = user.handle"
-                  >
-                    <Avatar :src="user.avatar_url" :alt="user.username" size="xs" />
-                    <span>{{ user.handle }}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Supporter Tiers -->
-          <div class="funding-section">
-            <h3>Supporter Tiers</h3>
-            <div class="tiers-list" v-if="supporterTiers.length > 0">
-              <div v-for="tier in supporterTiers" :key="tier.id" class="tier-item">
-                <template v-if="editingTierId === tier.id">
-                  <div class="tier-icon-picker" style="position: relative;">
-                    <input v-model="editTierIcon" class="cyber-input" style="width: 60px;" />
-                    <button
-                      ref="editTierEmojiButtonRef"
-                      type="button"
-                      class="mod-btn emoji-picker-btn"
-                      @click.stop="showEditTierEmojiPicker = !showEditTierEmojiPicker"
-                      title="Pick emoji"
-                    >
-                      <SupporterBadgeIcon v-if="editTierIcon" :icon="editTierIcon" />
-                      <span v-else>😀</span>
-                    </button>
-                    <EmojiPopup
-                      v-if="showEditTierEmojiPicker"
-                      @click.stop
-                      @sendEmoji="handleEditTierEmoji"
-                      :closeEmojiList="() => showEditTierEmojiPicker = false"
-                      :emojiIconClicked="true"
-                      :position="'below'"
-                      :triggerElement="((editTierEmojiButtonRef as any) as HTMLElement | null) || undefined"
-                      @resetEmojiIconClicked="() => {}"
-                    />
-                  </div>
-                  <input v-model="editTierName" class="cyber-input" style="flex: 1;" />
-                  <input v-model.number="editTierMinAmount" type="number" class="cyber-input" style="width: 90px;" min="0" />
-                  <input v-model="editTierColor" type="color" class="color-input" />
-                  <label class="tier-ads-toggle" title="Supporters on this tier see no GIF ads">
-                    <input type="checkbox" v-model="editTierRemovesAds" />
-                    <span>Ad-free GIFs</span>
-                  </label>
-                  <button class="mod-btn" @click="saveEditTier(tier.id)" title="Save"><Icon name="check" :size="14" /></button>
-                  <button class="mod-btn" @click="editingTierId = null; showEditTierEmojiPicker = false" title="Cancel"><Icon name="x" :size="14" /></button>
-                </template>
-                <template v-else>
-                  <span class="tier-icon" :style="tier.badge_color ? { color: tier.badge_color } : {}">
-                    <SupporterBadgeIcon :icon="tier.badge_icon" />
-                  </span>
-                  <div class="tier-info">
-                    <span class="tier-name">{{ tier.name }}</span>
-                    <span class="tier-amount">Min: {{ tier.min_amount }}</span>
-                    <span v-if="tier.removes_ads" class="tier-adfree-badge" title="Supporters on this tier see no GIF ads">Ad-free GIFs</span>
-                    <span v-if="tier.perks" class="tier-perks">{{ tier.perks }}</span>
-                  </div>
-                  <div class="tier-actions">
-                    <button class="mod-btn" @click="startEditTier(tier)" title="Edit tier"><Icon name="edit" :size="14" /></button>
-                    <button class="mod-btn delete-btn" @click="deleteTier(tier.id)" title="Delete tier"><Icon name="delete" :size="14" /></button>
-                  </div>
-                </template>
-              </div>
-            </div>
-            <div v-else class="empty-hint">No tiers configured</div>
-            <div class="add-tier-form">
-              <input v-model="newTierName" class="cyber-input" placeholder="Tier name" />
-              <input v-model.number="newTierMinAmount" type="number" class="cyber-input" placeholder="Min amount" min="0" style="width: 120px;" />
-              <div class="tier-icon-picker" style="position: relative;">
-                <input v-model="newTierIcon" class="cyber-input" placeholder="Icon" style="width: 60px;" />
-                <button
-                  ref="newTierEmojiButtonRef"
-                  type="button"
-                  class="mod-btn emoji-picker-btn"
-                  @click.stop="showNewTierEmojiPicker = !showNewTierEmojiPicker"
-                  title="Pick emoji"
-                >
-                  <SupporterBadgeIcon v-if="newTierIcon" :icon="newTierIcon" />
-                  <span v-else>😀</span>
-                </button>
-                <EmojiPopup
-                  v-if="showNewTierEmojiPicker"
-                  @click.stop
-                  @sendEmoji="handleNewTierEmoji"
-                  :closeEmojiList="() => showNewTierEmojiPicker = false"
-                  :emojiIconClicked="true"
-                  :position="'above'"
-                  :triggerElement="((newTierEmojiButtonRef as any) as HTMLElement | null) || undefined"
-                  @resetEmojiIconClicked="() => {}"
-                />
-              </div>
-              <input v-model="newTierColor" type="color" class="color-input" title="Badge color" />
-              <label class="tier-ads-toggle" title="Supporters on this tier see no GIF ads">
-                <input type="checkbox" v-model="newTierRemovesAds" />
-                <span>Ad-free GIFs</span>
-              </label>
-              <button class="action-btn" @click="addTier" :disabled="!newTierName || !newTierMinAmount">
-                <Icon name="plus" :size="16" /> Add
-              </button>
-            </div>
-          </div>
-
-          <!-- Supporters -->
-          <div class="funding-section">
-            <h3>Active Supporters</h3>
-            <div class="supporters-list" v-if="supporters.length > 0">
-              <div v-for="supporter in supporters" :key="supporter.id" class="supporter-item">
-                <Avatar :src="supporter.user?.avatar_url" :alt="supporter.user?.username" size="sm" />
-                <div class="supporter-info">
-                  <span class="supporter-name">
-                    <DisplayName v-if="supporter.user_id" :user-id="supporter.user_id" :fallback="supporter.user?.display_name || supporter.user?.username" />
-                    <template v-else>{{ supporter.user?.display_name || supporter.user?.username }}</template>
-                  </span>
-                  <span class="supporter-meta">
-                    {{ supporter.tier?.name || 'No tier' }}
-                    <template v-if="supporter.amount"> &middot; {{ supporter.amount }}</template>
-                    <template v-if="supporter.platform"> &middot; {{ supporter.platform }}</template>
-                  </span>
-                </div>
-                <div class="supporter-actions">
-                  <button class="mod-btn" @click="startEditSupporter(supporter)" title="Edit supporter"><Icon name="edit" :size="14" /></button>
-                  <button class="mod-btn" @click="openRecordDonation(supporter)" title="Record donation">
-                    <Icon name="dollar-sign" :size="14" />
-                  </button>
-                  <button class="mod-btn delete-btn" @click="removeSupporter(supporter.user_id)" title="Remove supporter"><Icon name="delete" :size="14" /></button>
-                </div>
-              </div>
-            </div>
-            <div v-else class="empty-hint">No active supporters</div>
-
-            <!-- Add Supporter -->
-            <div class="add-supporter-form">
-              <div class="supporter-search-wrapper" style="position: relative; flex: 1; min-width: 100px;">
-                <input
-                  ref="supporterSearchInputRef"
-                  v-model="addSupporterSearch"
-                  class="cyber-input"
-                  placeholder="Username to add as supporter..."
-                  @input="onSupporterSearchInput"
-                  @keydown="onSupporterSearchKeydown"
-                  @focus="supporterSearchFocused = true"
-                  @blur="onSupporterSearchBlur"
-                  autocomplete="off"
-                />
-                <div
-                  v-if="supporterSearchFocused && supporterSuggestions.length > 0"
-                  class="supporter-suggestions"
-                >
-                  <div
-                    v-for="(s, idx) in supporterSuggestions"
-                    :key="s.id"
-                    class="supporter-suggestion-item"
-                    :class="{ selected: idx === supporterSelectedIdx }"
-                    @mousedown.prevent="selectSupporterSuggestion(s)"
-                  >
-                    <Avatar :src="s.avatar_url" :alt="s.username" size="xs" />
-                    <div class="supporter-suggestion-text">
-                      <DisplayName :userId="s.id" :fallback="s.display_name || s.username" :truncate="true" class="supporter-suggestion-name" />
-                      <span class="supporter-suggestion-handle">{{ s.handle }}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <select v-model="addSupporterTierId" class="cyber-select" style="width: 140px;">
-                <option value="">No tier</option>
-                <option v-for="t in supporterTiers" :key="t.id" :value="t.id">{{ t.name }}</option>
-              </select>
-              <input v-model.number="addSupporterAmount" type="number" class="cyber-input" placeholder="Amount" min="0" style="width: 100px;" />
-              <input v-model="addSupporterPlatform" class="cyber-input" placeholder="Platform" style="width: 110px;" />
-              <button class="action-btn" @click="addNewSupporter" :disabled="!addSupporterSearch">
-                <Icon name="plus" :size="16" /> Add
-              </button>
-            </div>
-          </div>
-
-          <!-- Edit Supporter Modal (inline) -->
-          <div v-if="editingSupporterData" class="funding-section edit-supporter-panel">
-            <h3>Edit Supporter: <DisplayName v-if="editingSupporterData.user_id" :user-id="editingSupporterData.user_id" :fallback="editingSupporterData.user?.display_name || editingSupporterData.user?.username" /><template v-else>{{ editingSupporterData.user?.display_name || editingSupporterData.user?.username }}</template></h3>
-            <div class="funding-form-row">
-              <div class="funding-field">
-                <label>Tier</label>
-                <select v-model="editSupporterTierId" class="cyber-select">
-                  <option value="">No tier</option>
-                  <option v-for="t in supporterTiers" :key="t.id" :value="t.id">{{ t.name }}</option>
-                </select>
-              </div>
-              <div class="funding-field">
-                <label>Amount</label>
-                <input v-model.number="editSupporterAmount" type="number" class="cyber-input" min="0" />
-              </div>
-              <div class="funding-field">
-                <label>Platform</label>
-                <input v-model="editSupporterPlatform" class="cyber-input" />
-              </div>
-            </div>
-            <div class="report-action-buttons" style="margin-top: 8px;">
-              <button class="report-action-btn resolve" @click="saveEditSupporter">Save</button>
-              <button class="report-action-btn dismiss" @click="editingSupporterData = null">Cancel</button>
-            </div>
-          </div>
-
-          <!-- Record Donation Modal (inline) -->
-          <div v-if="recordDonationSupporter" class="funding-section edit-supporter-panel">
-            <h3>Record Donation for <DisplayName v-if="recordDonationSupporter.user_id" :user-id="recordDonationSupporter.user_id" :fallback="recordDonationSupporter.user?.display_name || recordDonationSupporter.user?.username" /><template v-else>{{ recordDonationSupporter.user?.display_name || recordDonationSupporter.user?.username }}</template></h3>
-            <div class="funding-form-row">
-              <div class="funding-field">
-                <label>Amount</label>
-                <input v-model.number="recordDonationAmount" type="number" class="cyber-input" min="0" step="0.01" />
-              </div>
-              <div class="funding-field">
-                <label>Currency</label>
-                <select v-model="recordDonationCurrency" class="cyber-select">
-                  <option value="USD">USD</option><option value="EUR">EUR</option><option value="GBP">GBP</option><option value="JPY">JPY</option>
-                </select>
-              </div>
-              <div class="funding-field">
-                <label>Platform</label>
-                <input v-model="recordDonationPlatform" class="cyber-input" placeholder="e.g. Patreon, Ko-fi" />
-              </div>
-            </div>
-            <div class="funding-field" style="margin-top: 8px;">
-              <label>Note</label>
-              <input v-model="recordDonationNote" class="cyber-input" placeholder="Optional note..." />
-            </div>
-            <div class="report-action-buttons" style="margin-top: 8px;">
-              <button class="report-action-btn resolve" @click="saveRecordDonation" :disabled="!recordDonationAmount">Record</button>
-              <button class="report-action-btn dismiss" @click="recordDonationSupporter = null">Cancel</button>
-            </div>
-          </div>
-
-          <!-- Donation History -->
-          <div class="funding-section">
-            <h3>Donation History</h3>
-            <div v-if="donationStats.donationCount > 0" class="donation-stats-row">
-              <div class="donation-stat">
-                <span class="donation-stat-value">{{ donationStats.totalDonated.toFixed(2) }}</span>
-                <span class="donation-stat-label">Total donated</span>
-              </div>
-              <div class="donation-stat">
-                <span class="donation-stat-value">{{ donationStats.donationCount }}</span>
-                <span class="donation-stat-label">Donations</span>
-              </div>
-              <div class="donation-stat">
-                <span class="donation-stat-value">{{ donationStats.uniqueDonors }}</span>
-                <span class="donation-stat-label">Unique donors</span>
-              </div>
-            </div>
-            <div v-if="donationHistory.length > 0" class="donations-list">
-              <div v-for="donation in donationHistory" :key="donation.id" class="donation-item">
-                <Avatar v-if="donation.user" :src="donation.user.avatar_url" :alt="donation.user.username" size="xs" />
-                <span class="donation-user" v-if="donation.user">
-                  <DisplayName v-if="donation.user_id" :user-id="donation.user_id" :fallback="donation.user.display_name || donation.user.username" />
-                  <template v-else>{{ donation.user.display_name || donation.user.username }}</template>
-                </span>
-                <span class="donation-amount">{{ donation.currency }} {{ donation.amount }}</span>
-                <span class="donation-date">{{ formatDate(donation.donated_at) }}</span>
-                <span v-if="donation.platform" class="donation-platform">{{ donation.platform }}</span>
-                <span v-if="donation.note" class="donation-note">{{ donation.note }}</span>
-                <div class="donation-actions">
-                  <button class="mod-btn" @click="startEditDonation(donation)" title="Edit"><Icon name="edit" :size="12" /></button>
-                  <button class="mod-btn delete-btn" @click="deleteDonation(donation.id)" title="Delete"><Icon name="delete" :size="12" /></button>
-                </div>
-              </div>
-            </div>
-            <div v-else class="empty-hint">No donations recorded</div>
-
-            <!-- Edit Donation (inline) -->
-            <div v-if="editingDonation" class="edit-donation-panel">
-              <div class="funding-form-row">
-                <div class="funding-field">
-                  <label>Amount</label>
-                  <input v-model.number="editDonationAmount" type="number" class="cyber-input" min="0" step="0.01" />
-                </div>
-                <div class="funding-field">
-                  <label>Currency</label>
-                  <select v-model="editDonationCurrency" class="cyber-select">
-                    <option value="USD">USD</option><option value="EUR">EUR</option><option value="GBP">GBP</option><option value="JPY">JPY</option>
-                  </select>
-                </div>
-                <div class="funding-field">
-                  <label>Platform</label>
-                  <input v-model="editDonationPlatform" class="cyber-input" />
-                </div>
-                <div class="funding-field">
-                  <label>Note</label>
-                  <input v-model="editDonationNote" class="cyber-input" />
-                </div>
-              </div>
-              <div class="report-action-buttons" style="margin-top: 8px;">
-                <button class="report-action-btn resolve" @click="saveEditDonation">Save</button>
-                <button class="report-action-btn dismiss" @click="editingDonation = null">Cancel</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+      <FundingSupporters />
 
       <!-- Performance Monitoring -->
       <div class="admin-module performance-module">
@@ -1409,35 +344,24 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { debug } from '@/utils/debug'
 import { useAuthStore } from '@/stores/auth'
-import { useInstanceSettingsStore } from '@/stores/useInstanceSettings'
 import { useRouter } from 'vue-router'
 import { useToast } from 'vue-toastification'
 import Icon from '@/components/common/Icon.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
-import Avatar from '@/components/common/Avatar.vue'
-import ColorPicker from '@/components/common/ColorPicker.vue'
-import DisplayName from '@/components/DisplayName.vue'
 import EmojiImporter from '@/components/admin/EmojiImporter.vue'
 import PerformanceMonitoring from '@/components/admin/PerformanceMonitoring.vue'
 import FederationManagement from '@/components/admin/FederationManagement.vue'
 import UserManagement from '@/components/admin/UserManagement.vue'
 import ReportsModeration from '@/components/admin/ReportsModeration.vue'
-import { supabase } from '@/supabase'
+import InstanceConfig from '@/components/admin/InstanceConfig.vue'
+import FundingSupporters from '@/components/admin/FundingSupporters.vue'
 import { adminService, type AdminActivity } from '@/services/AdminService'
-import { fundingService, FUNDING_PLATFORMS, type FundingPlatformKey, type SupporterTier, type Supporter, type DonationRecord, type PendingDonation } from '@/services/FundingService'
-import { trendingService } from '@/services/TrendingService'
 import { announcementService, type Announcement } from '@/services/AnnouncementService'
 import { usePublicServersStore } from '@/stores/usePublicServers'
 import { getServerIconUrl } from '@/utils/serverUtils'
-import { validateImageUpload, humanizeUploadError } from '@/utils/uploadValidation'
-import { activityPubService } from '@/services/activityPubService'
-import EmojiPopup from '@/components/EmojiPopup.vue'
-import { getEmojiShortcodeForInsert } from '@/services/emojiShortcodeResolver'
-import SupporterBadgeIcon from '@/components/common/SupporterBadgeIcon.vue'
-import type { Emoji } from '@/types'
 
 const authStore = useAuthStore()
 const router = useRouter()
@@ -1469,106 +393,11 @@ const loading = ref(false)
 const activityFilter = ref('all')
 const newBlockDomain = ref('')
 const newBlockReason = ref('')
-const configChanged = ref(false)
-const instanceBrandingChanged = ref(false)
-const savingBranding = ref(false)
-const configTab = ref<'general' | 'federation' | 'branding' | 'oauth' | 'webrtc'>('general')
 
-// Funding management data
-const fundingChanged = ref(false)
-const fundingEnabled = ref(false)
-const fundingShowInBar = ref(false)
-const fundingShowProgress = ref(true)
-const fundingGoalAmount = ref<number>(0)
-const fundingCurrency = ref('USD')
-const fundingCurrentAmount = ref<number>(0)
-const fundingPeriod = ref<'all' | 'monthly'>('monthly')
-const fundingDescription = ref('')
-const fundingThankYou = ref('')
-const fundingLinks = ref<{ platform: string; url: string; label: string }[]>([])
-const newLinkPlatform = ref('')
-const newLinkUrl = ref('')
-const newLinkLabel = ref('')
-
-// Ko-fi webhook config
-const kofiWebhookToken = ref('')
-const kofiAutoAssignTier = ref(true)
-const showKofiToken = ref(false)
-const kofiWebhookUrl = computed(() => {
-  // Federation backend exposes /webhooks/kofi. Prefer explicit federation URL,
-  // fall back to current origin.
-  const base = (import.meta.env.VITE_FEDERATION_URL as string | undefined)
-    || (typeof window !== 'undefined' ? window.location.origin : '')
-  return `${base.replace(/\/$/, '')}/webhooks/kofi`
-})
-const instanceDomain = computed(() =>
-  (import.meta.env.VITE_DOMAIN as string | undefined) || 'your-domain'
-)
-
-// Pending donations (webhooks awaiting admin resolution)
-const pendingDonations = ref<PendingDonation[]>([])
-const pendingDonationCount = ref(0)
-const pendingResolveSearch = ref<Record<string, string>>({})
-const pendingResolveUserId = ref<Record<string, string | null>>({})
-const pendingResolveSuggestions = ref<Record<string, Array<{ id: string; username: string; handle: string; avatar_url?: string }>>>({})
-const pendingResolveTimers: Record<string, ReturnType<typeof setTimeout>> = {}
-const supporterTiers = ref<SupporterTier[]>([])
-const supporters = ref<Supporter[]>([])
-const donationHistory = ref<DonationRecord[]>([])
-const donationStats = ref<{ totalDonated: number; donationCount: number; uniqueDonors: number }>({ totalDonated: 0, donationCount: 0, uniqueDonors: 0 })
-const newTierName = ref('')
-const newTierMinAmount = ref<number>(0)
-const newTierIcon = ref('⭐')
-const newTierColor = ref('#0EA5E9')
-const newTierRemovesAds = ref(false)
-
-// Tier editing
-const editingTierId = ref<string | null>(null)
-const editTierName = ref('')
-const editTierMinAmount = ref<number>(0)
-const editTierIcon = ref('')
-const editTierColor = ref('#0EA5E9')
-const editTierRemovesAds = ref(false)
-
-const showNewTierEmojiPicker = ref(false)
-const showEditTierEmojiPicker = ref(false)
-const newTierEmojiButtonRef = ref<HTMLElement | null>(null)
-const editTierEmojiButtonRef = ref<HTMLElement | null>(null)
-
-// Supporter CRUD
-const addSupporterSearch = ref('')
-const addSupporterSelectedUserId = ref<string | null>(null)
-const addSupporterTierId = ref('')
-const addSupporterAmount = ref<number>(0)
-const addSupporterPlatform = ref('')
-const supporterSearchInputRef = ref<HTMLInputElement | null>(null)
-const supporterSearchFocused = ref(false)
-const supporterSelectedIdx = ref(0)
-const supporterSuggestions = ref<Array<{ id: string; username: string; display_name: string; avatar_url?: string; handle: string; is_local: boolean }>>([])
-let supporterSearchTimeout: ReturnType<typeof setTimeout> | null = null
-const editingSupporterData = ref<Supporter | null>(null)
-const editSupporterTierId = ref('')
-const editSupporterAmount = ref<number>(0)
-const editSupporterPlatform = ref('')
-
-// Record donation
-const recordDonationSupporter = ref<Supporter | null>(null)
-const recordDonationAmount = ref<number>(0)
-const recordDonationCurrency = ref('USD')
-const recordDonationPlatform = ref('')
-const recordDonationNote = ref('')
-
-// Donation editing
-const editingDonation = ref<DonationRecord | null>(null)
-const editDonationAmount = ref<number>(0)
-const editDonationCurrency = ref('USD')
-const editDonationPlatform = ref('')
-const editDonationNote = ref('')
 
 
 // Loading states
 const loadingStates = ref({
-  trendingRefresh: false,
   announcements: false,
   featuredServers: false,
 })
@@ -1656,67 +485,6 @@ const systemHealth = ref({
   memory: { used: 0, total: '16GB' }
 })
 
-// Instance configuration
-const instanceConfig = ref({
-  name: 'Harmony Instance',
-  domain: import.meta.env.VITE_DOMAIN as string,
-  description: 'A federated social platform',
-  termsUrl: '',
-  privacyUrl: '',
-  openRegistration: true,
-  approvalRequired: false,
-  iconUrl: '',
-  bannerUrl: '',
-  themeColor: '#0EA5E9',
-  maintainerName: '',
-  maintainerEmail: '',
-  defaultThemeJson: '' as string,
-})
-const instanceIconFile = ref<File | null>(null)
-const instanceBannerFile = ref<File | null>(null)
-
-// OAuth provider configuration
-const oauthProviders = ref({
-  google: false,
-  twitch: false,
-  github: false
-})
-const oauthProvidersChanged = ref(false)
-const savingOAuthProviders = ref(false)
-
-// Configuration
-const config = ref({
-  chat: {
-    maxServerSize: 1000,
-    maxMessageLength: 2000,
-    maxMediaAttachmentsPerPost: 20,
-    allowFileUploads: true,
-    enableVoiceChannels: true,
-    gifAdsEnabled: true,
-    gifKlipyWatermarkEnabled: true,
-    gifClipsEnabled: false,
-    gifMemesEnabled: false,
-    gifAiEmojisEnabled: false,
-    gifAiEmojiGenerationEnabled: false,
-    bridgeAttachmentMode: 'link' as 'link' | 'refresh' | 'mirror',
-  },
-  federation: {
-    maxPostLength: 500,
-    retryAttempts: 3,
-    maxCustomEmojisPerServer: 0,
-    customEmojiTransformQuality: 80,
-    allowCustomEmojisInDisplayNames: true,
-    enableOutbound: true,
-    enableInbound: true
-  },
-  webrtc: {
-    mode: 'hybrid' as 'sfu' | 'p2p' | 'hybrid',
-    livekitUrl: '',
-    allowFederatedVoice: true,
-    maxStageListeners: 100000
-  }
-})
-
 // Users data
 const blockedInstances = ref([
   { domain: 'bad-instance.com', reason: 'Spam and harassment' },
@@ -1766,17 +534,6 @@ const filteredRecentActivity = computed(() => {
 })
 
 
-// Watch for config changes
-watch(config, () => {
-  configChanged.value = true
-}, { deep: true })
-
-// Watch for funding config changes
-watch(
-  [fundingEnabled, fundingShowInBar, fundingShowProgress, fundingGoalAmount, fundingCurrency, fundingCurrentAmount, fundingPeriod, fundingDescription, fundingThankYou, fundingLinks, kofiWebhookToken, kofiAutoAssignTier],
-  () => { fundingChanged.value = true },
-  { deep: true }
-)
 
 // Methods
 const loadInitialData = async () => {
@@ -1789,14 +546,12 @@ const loadInitialData = async () => {
     await Promise.allSettled([
       loadSystemStats(),
       loadSystemHealth(),
-      loadInstanceConfig(),
     ])
 
     void Promise.allSettled([
       loadRecentActivity(),
       loadAnnouncements(),
       loadFeaturedServers(),
-      loadFundingData()
     ])
   } catch (error) {
     debug.error('Failed to load admin data:', error)
@@ -2028,530 +783,8 @@ const loadSystemHealth = async () => {
   }
 }
 
-const loadInstanceConfig = async () => {
-  try {
-    const cfg = await adminService.getInstanceConfig()
-    if (cfg) {
-      if (cfg.chat) {
-        config.value.chat = { ...config.value.chat, ...cfg.chat }
-      }
-      if (cfg.federation) {
-        config.value.federation = { ...config.value.federation, ...cfg.federation }
-      }
-      if (cfg.webrtc) {
-        config.value.webrtc = { ...config.value.webrtc, ...cfg.webrtc }
-      }
-    }
-    if (cfg?.instance) {
-      instanceConfig.value = {
-        name: cfg.instance.name || 'Harmony Instance',
-        domain: cfg.instance.domain || import.meta.env.VITE_DOMAIN as string,
-        description: cfg.instance.description || 'A federated social platform',
-        termsUrl: cfg.instance.termsUrl || '',
-        privacyUrl: cfg.instance.privacyUrl || '',
-        openRegistration: cfg.instance.registrationOpen ?? true,
-        approvalRequired: cfg.instance.requiresApproval ?? false,
-        iconUrl: cfg.instance.iconUrl || '',
-        bannerUrl: cfg.instance.bannerUrl || '',
-        themeColor: cfg.instance.themeColor || '#0EA5E9',
-        maintainerName: cfg.instance.maintainerName || '',
-        maintainerEmail: cfg.instance.maintainerEmail || '',
-        defaultThemeJson: cfg.instance.defaultThemeJson || '',
-      }
-      
-      // Load OAuth providers
-      if (cfg.instance.oauthProviders) {
-        const providers = cfg.instance.oauthProviders
-        if (Array.isArray(providers)) {
-          // If it's an array like ["google", "github"]
-          oauthProviders.value = {
-            google: providers.includes('google'),
-            twitch: providers.includes('twitch'),
-            github: providers.includes('github')
-          }
-        } else if (typeof providers === 'object' && providers !== null) {
-          // If it's an object like { google: true, twitch: false }
-          oauthProviders.value = {
-            google: providers.google === true || providers.google === 'true',
-            twitch: providers.twitch === true || providers.twitch === 'true',
-            github: providers.github === true || providers.github === 'true'
-          }
-        }
-      } else {
-        // If no config or empty, all providers are disabled
-        oauthProviders.value = {
-          google: false,
-          twitch: false,
-          github: false
-        }
-      }
-      oauthProvidersChanged.value = false
-    }
-  } catch (error) {
-    debug.error('Failed to load instance config:', error)
-    // Keep defaults if loading fails
-  }
-}
-
-// Funding management methods
-const loadFundingData = async () => {
-  const config = await fundingService.getFundingConfig()
-  if (config) {
-    fundingEnabled.value = config.enabled
-    fundingShowInBar.value = config.show_in_context_bar
-    fundingShowProgress.value = config.show_progress_bar
-    fundingGoalAmount.value = config.goal_amount || 0
-    fundingCurrency.value = config.goal_currency
-    fundingCurrentAmount.value = config.current_amount
-    fundingPeriod.value = config.funding_period === 'all' ? 'all' : 'monthly'
-    fundingDescription.value = config.goal_description || ''
-    fundingThankYou.value = config.thank_you_message || ''
-    fundingLinks.value = config.funding_links || []
-    kofiWebhookToken.value = config.kofi_webhook_token || ''
-    kofiAutoAssignTier.value = config.kofi_auto_assign_tier !== false
-  }
-  supporterTiers.value = await fundingService.getTiers()
-  supporters.value = await fundingService.getSupporters()
-  donationHistory.value = await fundingService.getDonationHistory()
-  donationStats.value = await fundingService.getDonationStats()
-  pendingDonations.value = await fundingService.getPendingDonations()
-  pendingDonationCount.value = pendingDonations.value.filter(p => !p.resolved_at).length
-  // Reset after populating to avoid false dirty state from watchers
-  fundingChanged.value = false
-}
-
-const PLATFORM_LABELS: Record<FundingPlatformKey, string> = {
-  'ko-fi': 'Ko-fi',
-  'patreon': 'Patreon',
-  'github-sponsors': 'GitHub Sponsors',
-  'liberapay': 'Liberapay',
-  'open-collective': 'Open Collective',
-  'paypal': 'PayPal',
-  'buymeacoffee': 'Buy Me a Coffee',
-  'custom': 'Custom',
-}
-const platformLabel = (key: string): string => PLATFORM_LABELS[key as FundingPlatformKey] || key
-
-const copyKofiWebhookUrl = async () => {
-  try {
-    await navigator.clipboard.writeText(kofiWebhookUrl.value)
-    toast.success('Webhook URL copied')
-  } catch {
-    toast.error('Failed to copy')
-  }
-}
-
-// Pending donations: search for the right user to attribute to.
-const onPendingResolveSearch = (pendingId: string) => {
-  if (pendingResolveTimers[pendingId]) clearTimeout(pendingResolveTimers[pendingId])
-  pendingResolveTimers[pendingId] = setTimeout(async () => {
-    const query = (pendingResolveSearch.value[pendingId] || '').trim().replace(/^@+/, '')
-    if (query.length < 2) {
-      pendingResolveSuggestions.value[pendingId] = []
-      return
-    }
-    try {
-      const users = await activityPubService.searchUsers(query, 5)
-      pendingResolveSuggestions.value[pendingId] = users.map((u: any) => ({
-        id: u.id,
-        username: u.username,
-        handle: u.handle || (u.is_local ? `@${u.username}` : `@${u.username}@${u.domain}`),
-        avatar_url: u.avatar_url,
-      }))
-    } catch (e) {
-      debug.error('Pending donation user search failed:', e)
-    }
-  }, 250)
-}
-
-const resolvePending = async (pending: PendingDonation) => {
-  const userId = pendingResolveUserId.value[pending.id]
-  if (!userId) return
-  // Tier is resolved server-side from the user's cumulative cycle total
-  // (recompute_supporter_tier). No need to compute it here.
-  const ok = await fundingService.resolvePendingDonation(pending.id, userId)
-  if (ok) {
-    toast.success('Donation attributed')
-    await adminService.logAdminAction({ action: 'pending_donation_resolve', targetType: 'pending_donation', targetId: pending.id, details: { userId } })
-    pendingDonations.value = pendingDonations.value.filter(p => p.id !== pending.id)
-    pendingDonationCount.value = pendingDonations.value.filter(p => !p.resolved_at).length
-    donationHistory.value = await fundingService.getDonationHistory()
-    supporters.value = await fundingService.getSupporters()
-  } else {
-    toast.error('Failed to attribute donation')
-  }
-}
-
-const dismissPending = async (pendingId: string) => {
-  if (!confirm('Dismiss this donation? It will not be attributed to any user.')) return
-  const ok = await fundingService.dismissPendingDonation(pendingId)
-  if (ok) {
-    toast.success('Donation dismissed')
-    await adminService.logAdminAction({ action: 'pending_donation_dismiss', targetType: 'pending_donation', targetId: pendingId })
-    pendingDonations.value = pendingDonations.value.filter(p => p.id !== pendingId)
-    pendingDonationCount.value = pendingDonations.value.filter(p => !p.resolved_at).length
-  } else {
-    toast.error('Failed to dismiss')
-  }
-}
-
-const addFundingLink = () => {
-  if (!newLinkPlatform.value || !newLinkUrl.value) return
-  fundingLinks.value.push({
-    platform: newLinkPlatform.value,
-    url: newLinkUrl.value,
-    label: newLinkLabel.value || newLinkPlatform.value,
-  })
-  newLinkPlatform.value = ''
-  newLinkUrl.value = ''
-  newLinkLabel.value = ''
-}
-
-const saveFundingConfig = async () => {
-  const success = await fundingService.updateFundingConfig({
-    enabled: fundingEnabled.value,
-    show_in_context_bar: fundingShowInBar.value,
-    show_progress_bar: fundingShowProgress.value,
-    goal_amount: fundingGoalAmount.value || null,
-    goal_currency: fundingCurrency.value,
-    current_amount: fundingCurrentAmount.value,
-    funding_period: fundingPeriod.value,
-    goal_description: fundingDescription.value || null,
-    thank_you_message: fundingThankYou.value || null,
-    funding_links: fundingLinks.value,
-    kofi_webhook_token: kofiWebhookToken.value.trim() || null,
-    kofi_auto_assign_tier: kofiAutoAssignTier.value,
-  } as any)
-  if (success) {
-    fundingChanged.value = false
-    toast.success('Funding settings saved')
-  } else {
-    toast.error('Failed to save funding settings')
-  }
-}
-
-const addTier = async () => {
-  if (!newTierName.value || !newTierMinAmount.value) return
-  const tier = await fundingService.createTier({
-    name: newTierName.value,
-    min_amount: newTierMinAmount.value,
-    badge_icon: newTierIcon.value || null,
-    badge_color: newTierColor.value || null,
-    perks: null,
-    display_order: supporterTiers.value.length,
-    removes_ads: newTierRemovesAds.value,
-  })
-  if (tier) {
-    await adminService.logAdminAction({ action: 'tier_create', targetType: 'tier', targetId: tier.id, details: { name: tier.name } })
-    supporterTiers.value.push(tier)
-    newTierName.value = ''
-    newTierMinAmount.value = 0
-    newTierIcon.value = '⭐'
-    newTierRemovesAds.value = false
-    toast.success('Tier created')
-  }
-}
-
-// Tier CRUD
-const startEditTier = (tier: SupporterTier) => {
-  editingTierId.value = tier.id
-  editTierName.value = tier.name
-  editTierMinAmount.value = tier.min_amount
-  editTierIcon.value = tier.badge_icon || '⭐'
-  editTierColor.value = tier.badge_color || '#0EA5E9'
-  editTierRemovesAds.value = tier.removes_ads ?? false
-}
-
-const saveEditTier = async (tierId: string) => {
-  const success = await fundingService.updateTier(tierId, {
-    name: editTierName.value,
-    min_amount: editTierMinAmount.value,
-    badge_icon: editTierIcon.value,
-    badge_color: editTierColor.value,
-    removes_ads: editTierRemovesAds.value,
-  })
-  if (success) {
-    await adminService.logAdminAction({ action: 'tier_update', targetType: 'tier', targetId: tierId, details: { name: editTierName.value } })
-    editingTierId.value = null
-    supporterTiers.value = await fundingService.getTiers()
-    toast.success('Tier updated')
-  }
-}
-
-const handleNewTierEmoji = (emoji: Emoji & { display_name?: string }) => {
-  newTierIcon.value = getEmojiShortcodeForInsert(emoji)
-  showNewTierEmojiPicker.value = false
-}
-
-const handleEditTierEmoji = (emoji: Emoji & { display_name?: string }) => {
-  editTierIcon.value = getEmojiShortcodeForInsert(emoji)
-  showEditTierEmojiPicker.value = false
-}
-
-const deleteTier = async (tierId: string) => {
-  if (!confirm('Delete this tier? Supporters on this tier will keep their status but lose the tier badge.')) return
-  const success = await fundingService.deleteTier(tierId)
-  if (success) {
-    await adminService.logAdminAction({ action: 'tier_delete', targetType: 'tier', targetId: tierId })
-    supporterTiers.value = supporterTiers.value.filter(t => t.id !== tierId)
-    toast.success('Tier deleted')
-  }
-}
-
-// Supporter search & autocomplete
-const onSupporterSearchInput = () => {
-  addSupporterSelectedUserId.value = null
-  supporterSelectedIdx.value = 0
-  if (supporterSearchTimeout) clearTimeout(supporterSearchTimeout)
-  const q = addSupporterSearch.value.trim()
-  if (q.length < 2) {
-    supporterSuggestions.value = []
-    return
-  }
-  supporterSearchTimeout = setTimeout(async () => {
-    try {
-      const byKey = new Map<string, typeof supporterSuggestions.value[0]>()
-      const currentDomain = (import.meta.env.VITE_DOMAIN as string || '').toLowerCase()
-      const currentHost = currentDomain.split(':')[0]
-
-      // Domain is "ours" (localhost, 127.0.0.1, or matches instance)
-      const isOurDomain = (d: string | null | undefined) => {
-        if (!d) return true
-        const host = d.split(':')[0].toLowerCase()
-        return host === 'localhost' || host === '127.0.0.1' || host === currentHost
-      }
-
-      // Canonical key: our-instance users = username only, remote = username@domain
-      const canonicalKey = (username: string, domain?: string | null, isLocal?: boolean) => {
-        const un = username.toLowerCase()
-        if (isLocal || isOurDomain(domain)) return un
-        return `${un}@${(domain || '').toLowerCase()}`
-      }
-
-      // Normalize handle to always have leading @
-      const normalizeHandle = (handle: string) => {
-        const h = (handle || '').trim()
-        return h.startsWith('@') ? h : `@${h}`
-      }
-
-      const byId = new Set<string>()
-
-      // Local profiles first (preferred - has proper display_name/emoji resolution)
-      const { data: locals } = await supabase
-        .from('profiles')
-        .select('id, username, display_name, avatar_url, domain')
-        .or(`username.ilike.%${q}%,display_name.ilike.%${q}%`)
-        .limit(8)
-      if (locals) {
-        for (const u of locals) {
-          const isLocal = isOurDomain(u.domain)
-          const handle = isLocal ? `@${u.username}` : `@${u.username}@${u.domain}`
-          const key = canonicalKey(u.username, u.domain, isLocal)
-          byKey.set(key, {
-            id: u.id,
-            username: u.username,
-            display_name: u.display_name || u.username,
-            avatar_url: u.avatar_url,
-            handle,
-            is_local: isLocal,
-          })
-          byId.add(u.id)
-        }
-      }
-
-      // Federated users (skip if we already have them - local + RPC both hit profiles)
-      try {
-        const federated = await activityPubService.searchUsers(q, 6)
-        const localUsernames = new Set(Array.from(byKey.values()).filter(r => r.is_local).map(r => r.username.toLowerCase()))
-        for (const f of federated) {
-          const fid = f.id ?? (f as { user_id?: string }).user_id
-          if (fid && byId.has(fid)) continue
-          const isLocal = typeof f.is_local === 'boolean' ? f.is_local : isOurDomain(f.domain)
-          const key = canonicalKey(f.username, f.domain, isLocal)
-          if (byKey.has(key)) continue
-          if (localUsernames.has(f.username.toLowerCase())) continue
-          const rawHandle = f.handle || (isLocal ? `@${f.username}` : `@${f.username}@${f.domain || ''}`)
-          byKey.set(key, {
-            id: fid ?? f.id,
-            username: f.username,
-            display_name: f.display_name || f.username,
-            avatar_url: f.avatar_url,
-            handle: normalizeHandle(rawHandle),
-            is_local: isLocal,
-          })
-          if (fid) byId.add(fid)
-        }
-      } catch { /* federated search may not be available */ }
-
-      supporterSuggestions.value = Array.from(byKey.values()).slice(0, 8)
-    } catch (e) {
-      debug.error('Supporter search error:', e)
-    }
-  }, 250)
-}
-
-const selectSupporterSuggestion = (s: typeof supporterSuggestions.value[0]) => {
-  addSupporterSearch.value = s.handle
-  addSupporterSelectedUserId.value = s.id
-  supporterSuggestions.value = []
-  supporterSearchFocused.value = false
-}
-
-const onSupporterSearchKeydown = (e: KeyboardEvent) => {
-  const list = supporterSuggestions.value
-  if (!list.length) return
-  if (e.key === 'ArrowDown') {
-    e.preventDefault()
-    supporterSelectedIdx.value = (supporterSelectedIdx.value + 1) % list.length
-  } else if (e.key === 'ArrowUp') {
-    e.preventDefault()
-    supporterSelectedIdx.value = (supporterSelectedIdx.value - 1 + list.length) % list.length
-  } else if (e.key === 'Enter' && list.length > 0) {
-    e.preventDefault()
-    selectSupporterSuggestion(list[supporterSelectedIdx.value])
-  } else if (e.key === 'Escape') {
-    supporterSuggestions.value = []
-  }
-}
-
-const onSupporterSearchBlur = () => {
-  setTimeout(() => { supporterSearchFocused.value = false }, 150)
-}
-
-// Supporter CRUD
-const addNewSupporter = async () => {
-  if (!addSupporterSearch.value) return
-
-  let userId: string | undefined = addSupporterSelectedUserId.value ?? undefined
-  if (!userId) {
-    // Fallback: try to find by username
-    const { data: users } = await supabase.from('profiles').select('id').ilike('username', addSupporterSearch.value.replace(/^@/, '')).limit(1)
-    if (!users?.length) {
-      toast.error('User not found')
-      return
-    }
-    userId = users[0].id
-  }
-
-  const success = await fundingService.addSupporter(userId!, addSupporterTierId.value || undefined, addSupporterAmount.value || undefined, addSupporterPlatform.value || undefined)
-  if (success) {
-    await adminService.logAdminAction({ action: 'supporter_add', targetType: 'supporter', targetId: userId!, details: { username: addSupporterSearch.value } })
-    supporters.value = await fundingService.getSupporters()
-    addSupporterSearch.value = ''
-    addSupporterSelectedUserId.value = null
-    addSupporterTierId.value = ''
-    addSupporterAmount.value = 0
-    addSupporterPlatform.value = ''
-    toast.success('Supporter added')
-  }
-}
-
-const startEditSupporter = (supporter: Supporter) => {
-  editingSupporterData.value = supporter
-  editSupporterTierId.value = supporter.tier_id || ''
-  editSupporterAmount.value = supporter.amount || 0
-  editSupporterPlatform.value = supporter.platform || ''
-}
-
-const saveEditSupporter = async () => {
-  if (!editingSupporterData.value) return
-  const userId = editingSupporterData.value.user_id
-  const success = await fundingService.updateSupporter(userId, {
-    tier_id: editSupporterTierId.value || null,
-    amount: editSupporterAmount.value || null,
-    platform: editSupporterPlatform.value || null,
-  })
-  if (success) {
-    await adminService.logAdminAction({ action: 'supporter_update', targetType: 'supporter', targetId: userId })
-    editingSupporterData.value = null
-    supporters.value = await fundingService.getSupporters()
-    toast.success('Supporter updated')
-  }
-}
-
-const removeSupporter = async (userId: string) => {
-  if (!confirm('Remove this supporter?')) return
-  const success = await fundingService.removeSupporter(userId)
-  if (success) {
-    await adminService.logAdminAction({ action: 'supporter_remove', targetType: 'supporter', targetId: userId })
-    supporters.value = supporters.value.filter(s => s.user_id !== userId)
-    toast.success('Supporter removed')
-  }
-}
-
-// Donation CRUD
-const openRecordDonation = (supporter: Supporter) => {
-  recordDonationSupporter.value = supporter
-  recordDonationAmount.value = 0
-  recordDonationCurrency.value = fundingCurrency.value
-  recordDonationPlatform.value = supporter.platform || ''
-  recordDonationNote.value = ''
-}
-
-const saveRecordDonation = async () => {
-  if (!recordDonationSupporter.value || !recordDonationAmount.value) return
-  const s = recordDonationSupporter.value
-  const success = await fundingService.addDonation(s.id, s.user_id, recordDonationAmount.value, recordDonationCurrency.value, recordDonationPlatform.value || undefined, recordDonationNote.value || undefined)
-  if (success) {
-    await adminService.logAdminAction({ action: 'donation_record', targetType: 'donation', targetId: s.user_id, details: { amount: recordDonationAmount.value, currency: recordDonationCurrency.value } })
-    recordDonationSupporter.value = null
-    donationHistory.value = await fundingService.getDonationHistory()
-    donationStats.value = await fundingService.getDonationStats()
-    toast.success('Donation recorded')
-  }
-}
-
-const startEditDonation = (donation: DonationRecord) => {
-  editingDonation.value = donation
-  editDonationAmount.value = donation.amount
-  editDonationCurrency.value = donation.currency
-  editDonationPlatform.value = donation.platform || ''
-  editDonationNote.value = donation.note || ''
-}
-
-const saveEditDonation = async () => {
-  if (!editingDonation.value) return
-  const success = await fundingService.updateDonation(editingDonation.value.id, {
-    amount: editDonationAmount.value,
-    currency: editDonationCurrency.value,
-    platform: editDonationPlatform.value || null,
-    note: editDonationNote.value || null,
-  })
-  if (success) {
-    await adminService.logAdminAction({ action: 'donation_update', targetType: 'donation', targetId: editingDonation.value.id })
-    editingDonation.value = null
-    donationHistory.value = await fundingService.getDonationHistory()
-    donationStats.value = await fundingService.getDonationStats()
-    toast.success('Donation updated')
-  }
-}
-
-const deleteDonation = async (donationId: string) => {
-  if (!confirm('Delete this donation record?')) return
-  const success = await fundingService.deleteDonation(donationId)
-  if (success) {
-    await adminService.logAdminAction({ action: 'donation_delete', targetType: 'donation', targetId: donationId })
-    donationHistory.value = donationHistory.value.filter(d => d.id !== donationId)
-    donationStats.value = await fundingService.getDonationStats()
-    toast.success('Donation deleted')
-  }
-}
-
 const refreshData = async () => {
   await loadInitialData()
-}
-
-const refreshTrendingPosts = async () => {
-  loadingStates.value.trendingRefresh = true
-  try {
-    await trendingService.updateTrendingScores()
-    toast.success('Trending posts refreshed')
-  } catch (error: any) {
-    debug.error('Failed to refresh trending:', error)
-    toast.error(error.message || 'Failed to refresh trending posts')
-  } finally {
-    loadingStates.value.trendingRefresh = false
-  }
 }
 
 const exportLogs = () => {
@@ -2610,271 +843,6 @@ const unblockInstance = async (domain: string) => {
   }
 }
 
-const saveConfig = async () => {
-  if (!authStore.session?.user?.id) {
-    toast.error('You must be logged in to save configuration')
-    return
-  }
-
-  try {
-    const userId = authStore.session.user.id
-    
-    // Save federation settings
-    const fedSuccess = await adminService.updateFederationSettings({
-      userId,
-      inboundEnabled: config.value.federation.enableInbound,
-      outboundEnabled: config.value.federation.enableOutbound,
-      federationEnabled: config.value.federation.enableInbound || config.value.federation.enableOutbound
-    })
-
-    if (!fedSuccess) {
-      toast.error('Failed to save federation settings')
-      return
-    }
-
-    await adminService.setInstanceConfigs({
-      max_server_size: config.value.chat.maxServerSize,
-      max_message_length: config.value.chat.maxMessageLength,
-      max_media_attachments_per_post: config.value.chat.maxMediaAttachmentsPerPost ?? 20,
-      allow_file_uploads: config.value.chat.allowFileUploads,
-      enable_voice_channels: config.value.chat.enableVoiceChannels,
-      bridge_attachment_mode: config.value.chat.bridgeAttachmentMode,
-      gif_ads_enabled: config.value.chat.gifAdsEnabled,
-      gif_klipy_watermark_enabled: config.value.chat.gifKlipyWatermarkEnabled,
-      gif_clips_enabled: config.value.chat.gifClipsEnabled,
-      gif_memes_enabled: config.value.chat.gifMemesEnabled,
-      gif_ai_emojis_enabled: config.value.chat.gifAiEmojisEnabled,
-      gif_ai_emoji_generation_enabled: config.value.chat.gifAiEmojiGenerationEnabled,
-      max_post_length: config.value.federation.maxPostLength,
-      federation_retry_attempts: config.value.federation.retryAttempts,
-      max_custom_emojis_per_server: config.value.federation.maxCustomEmojisPerServer ?? 0,
-      custom_emoji_transform_quality: Math.min(
-        100,
-        Math.max(1, Math.round(Number(config.value.federation.customEmojiTransformQuality) || 100))
-      ),
-      allow_custom_emojis_in_display_names: config.value.federation.allowCustomEmojisInDisplayNames,
-    }, userId)
-
-    await adminService.updateWebRTCSettings({
-      mode: config.value.webrtc.mode,
-      livekitUrl: config.value.webrtc.livekitUrl,
-      allowFederatedVoice: config.value.webrtc.allowFederatedVoice,
-      maxStageListeners: config.value.webrtc.maxStageListeners
-    })
-
-    configChanged.value = false
-    toast.success('Configuration saved successfully')
-    debug.log('Configuration saved:', config.value)
-    
-    // Refresh instance settings store so UI updates
-    const instanceSettings = useInstanceSettingsStore()
-    await instanceSettings.fetchSettings(true)
-  } catch (error: any) {
-    debug.error('Failed to save configuration:', error)
-    toast.error(error.message || 'Failed to save configuration')
-  }
-}
-
-const instanceIconPreviewUrl = computed(() => {
-  if (instanceIconFile.value) return URL.createObjectURL(instanceIconFile.value)
-  if (instanceConfig.value.iconUrl) {
-    if (instanceConfig.value.iconUrl.startsWith('http')) return instanceConfig.value.iconUrl
-    const { data } = supabase.storage.from('server_icons').getPublicUrl(instanceConfig.value.iconUrl)
-    return data.publicUrl
-  }
-  return null
-})
-
-const instanceBannerPreviewUrl = computed(() => {
-  if (instanceBannerFile.value) return URL.createObjectURL(instanceBannerFile.value)
-  if (instanceConfig.value.bannerUrl) {
-    if (instanceConfig.value.bannerUrl.startsWith('http')) return instanceConfig.value.bannerUrl
-    const { data } = supabase.storage.from('server_banners').getPublicUrl(instanceConfig.value.bannerUrl)
-    return data.publicUrl
-  }
-  return null
-})
-
-const handleInstanceIconChange = (event: Event) => {
-  const input = event.target as HTMLInputElement
-  const file = input.files?.[0]
-  if (file && file.size > 5 * 1024 * 1024) {
-    toast.error('Icon file too large (max 5MB)')
-    return
-  }
-  if (file) {
-    instanceIconFile.value = file
-    instanceBrandingChanged.value = true
-  }
-  if (input) input.value = ''
-}
-
-const handleInstanceBannerChange = (event: Event) => {
-  const input = event.target as HTMLInputElement
-  const file = input.files?.[0]
-  if (file && file.size > 10 * 1024 * 1024) {
-    toast.error('Banner file too large (max 10MB)')
-    return
-  }
-  if (file) {
-    instanceBannerFile.value = file
-    instanceBrandingChanged.value = true
-  }
-  if (input) input.value = ''
-}
-
-const saveInstanceBranding = async () => {
-  if (!authStore.session?.user?.id) {
-    toast.error('You must be logged in to save instance branding')
-    return
-  }
-
-  savingBranding.value = true
-  try {
-    // Upload icon if a new file was selected
-    if (instanceIconFile.value) {
-      const iconValidationError = await validateImageUpload(instanceIconFile.value, 'server_icons')
-      if (iconValidationError) {
-        toast.error(iconValidationError)
-        savingBranding.value = false
-        return
-      }
-      const ext = instanceIconFile.value.name.split('.').pop()
-      const filePath = `instance/instance_icon.${ext}`
-      const { error: uploadErr } = await supabase.storage
-        .from('server_icons')
-        .upload(filePath, instanceIconFile.value, { upsert: true })
-      if (uploadErr) {
-        toast.error(humanizeUploadError(uploadErr, 'server_icons'))
-        savingBranding.value = false
-        return
-      }
-      const { data: urlData } = supabase.storage.from('server_icons').getPublicUrl(filePath)
-      instanceConfig.value.iconUrl = urlData.publicUrl
-      instanceIconFile.value = null
-    }
-
-    // Upload banner if a new file was selected
-    if (instanceBannerFile.value) {
-      const bannerValidationError = await validateImageUpload(instanceBannerFile.value, 'server_banners')
-      if (bannerValidationError) {
-        toast.error(bannerValidationError)
-        savingBranding.value = false
-        return
-      }
-      const ext = instanceBannerFile.value.name.split('.').pop()
-      const filePath = `instance/instance_banner.${ext}`
-      const { error: uploadErr } = await supabase.storage
-        .from('server_banners')
-        .upload(filePath, instanceBannerFile.value, { upsert: true })
-      if (uploadErr) {
-        toast.error(humanizeUploadError(uploadErr, 'server_banners'))
-        savingBranding.value = false
-        return
-      }
-      const { data: urlData } = supabase.storage.from('server_banners').getPublicUrl(filePath)
-      instanceConfig.value.bannerUrl = urlData.publicUrl
-      instanceBannerFile.value = null
-    }
-
-    // Batch-save all branding config in a single RPC call
-    await adminService.setInstanceConfigs({
-      instance_name: instanceConfig.value.name,
-      instance_description: instanceConfig.value.description,
-      terms_url: instanceConfig.value.termsUrl,
-      privacy_url: instanceConfig.value.privacyUrl,
-      instance_icon: instanceConfig.value.iconUrl,
-      instance_banner: instanceConfig.value.bannerUrl,
-      theme_color: instanceConfig.value.themeColor,
-      maintainer_name: instanceConfig.value.maintainerName,
-      maintainer_email: instanceConfig.value.maintainerEmail,
-    }, authStore.session.user.id)
-
-    instanceBrandingChanged.value = false
-    toast.success('Instance branding saved successfully')
-    debug.log('Instance branding saved:', instanceConfig.value)
-  } catch (error: any) {
-    debug.error('Failed to save instance branding:', error)
-    toast.error(error.message || 'Failed to save instance branding')
-  } finally {
-    savingBranding.value = false
-  }
-}
-
-const handleDefaultThemeImport = async (event: Event) => {
-  const file = (event.target as HTMLInputElement).files?.[0]
-  if (!file) return
-  try {
-    const text = await file.text()
-    const parsed = JSON.parse(text)
-    if (!parsed || typeof parsed !== 'object') {
-      toast.error('Invalid theme JSON file')
-      return
-    }
-    instanceConfig.value.defaultThemeJson = text
-    instanceBrandingChanged.value = true
-
-    if (authStore.session?.user?.id) {
-      await adminService.setInstanceConfigs({
-        default_theme_json: text,
-      }, authStore.session.user.id)
-      toast.success('Default theme imported and saved')
-    }
-  } catch {
-    toast.error('Failed to parse theme JSON file')
-  }
-  const input = event.target as HTMLInputElement
-  if (input) input.value = ''
-}
-
-const clearDefaultTheme = async () => {
-  instanceConfig.value.defaultThemeJson = ''
-  instanceBrandingChanged.value = true
-  if (authStore.session?.user?.id) {
-    try {
-      await adminService.setInstanceConfigs({
-        default_theme_json: '',
-      }, authStore.session.user.id)
-      toast.success('Default theme cleared')
-    } catch {
-      toast.error('Failed to clear default theme')
-    }
-  }
-}
-
-const saveOAuthProviders = async () => {
-  if (!authStore.session?.user?.id) {
-    toast.error('You must be logged in to save OAuth provider settings')
-    return
-  }
-
-  savingOAuthProviders.value = true
-  try {
-    // Build array of enabled providers
-    const enabledProviders: string[] = []
-    if (oauthProviders.value.google) enabledProviders.push('google')
-    if (oauthProviders.value.twitch) enabledProviders.push('twitch')
-    if (oauthProviders.value.github) enabledProviders.push('github')
-
-    // Save OAuth providers as an array
-    await adminService.setInstanceConfig(
-      'oauth_providers',
-      enabledProviders, // Pass as array, Supabase will convert to JSONB
-      authStore.session.user.id,
-      'Enabled OAuth providers'
-    )
-
-    oauthProvidersChanged.value = false
-    toast.success('OAuth provider settings saved successfully')
-    debug.log('OAuth providers saved:', enabledProviders)
-  } catch (error: any) {
-    debug.error('Failed to save OAuth provider settings:', error)
-    toast.error(error.message || 'Failed to save OAuth provider settings')
-  } finally {
-    savingOAuthProviders.value = false
-  }
-}
-
 // Utility functions
 const formatUptime = (timestamp: number) => {
   const diff = Date.now() - timestamp
@@ -2888,10 +856,6 @@ const formatNumber = (num: number | undefined) => {
   if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M'
   if (num >= 1000) return (num / 1000).toFixed(1) + 'K'
   return num.toString()
-}
-
-const formatDate = (date: string) => {
-  return new Date(date).toLocaleDateString()
 }
 
 const formatTime = (date: Date) => {
@@ -3007,6 +971,8 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .admin-header {
   display: flex;
   justify-content: space-between;
@@ -3015,6 +981,8 @@ const getActivityIcon = (type: string) => {
   padding-bottom: 16px;
   border-bottom: 1px solid var(--border-color);
 }
+
+
 
 
 
@@ -3030,6 +998,8 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .admin-title h1 {
   font-size: 28px;
   font-weight: 700;
@@ -3039,6 +1009,8 @@ const getActivityIcon = (type: string) => {
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
+
+
 
 
 
@@ -3060,11 +1032,15 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .system-status.healthy {
   background: rgba(0, 255, 136, 0.1);
   color: #00ff88;
   border: 1px solid rgba(0, 255, 136, 0.3);
 }
+
+
 
 
 
@@ -3080,11 +1056,15 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .system-status.error {
   background: rgba(255, 69, 58, 0.1);
   color: #ff453a;
   border: 1px solid rgba(255, 69, 58, 0.3);
 }
+
+
 
 
 
@@ -3102,6 +1082,8 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 @keyframes pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.5; }
@@ -3111,10 +1093,14 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .admin-actions {
   display: flex;
   gap: 12px;
 }
+
+
 
 
 
@@ -3139,11 +1125,15 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .action-btn:hover {
   background: var(--background-tertiary);
   border-color: var(--accent-color);
   transform: translateY(-1px);
 }
+
+
 
 
 
@@ -3159,12 +1149,16 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .admin-grid {
   display: grid;
   /* min(600px, 100%) lets tracks collapse below 600px instead of overflowing */
   grid-template-columns: repeat(auto-fit, minmax(min(600px, 100%), 1fr));
   gap: 24px;
 }
+
+
 
 
 
@@ -3183,11 +1177,15 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .admin-module:hover {
   border-color: var(--accent-color);
   box-shadow: 0 8px 32px rgba(0, 212, 255, 0.1);
   transform: translateY(-2px);
 }
+
+
 
 
 
@@ -3206,6 +1204,8 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .module-header h2 {
   font-size: 18px;
   font-weight: 600;
@@ -3217,12 +1217,16 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 16px;
   padding: 24px;
 }
+
+
 
 
 
@@ -3243,10 +1247,14 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .stat-card:hover {
   border-color: var(--accent-color);
   box-shadow: 0 4px 16px rgba(0, 212, 255, 0.1);
 }
+
+
 
 
 
@@ -3263,9 +1271,13 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .stat-content {
   flex: 1;
 }
+
+
 
 
 
@@ -3282,11 +1294,15 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .stat-label {
   font-size: 14px;
   color: var(--text-secondary);
   margin-bottom: 4px;
 }
+
+
 
 
 
@@ -3301,9 +1317,13 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .stat-change.positive {
   color: #00ff88;
 }
+
+
 
 
 
@@ -3315,63 +1335,6 @@ const getActivityIcon = (type: string) => {
 }
 
 
-
-
-
-.setting-group {
-  margin-bottom: 16px;
-}
-
-
-
-
-
-.setting-group label {
-  display: block;
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--text-secondary);
-  margin-bottom: 8px;
-}
-
-
-
-
-
-.setting-control-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-
-
-
-
-.setting-control-row .setting-hint {
-  margin-bottom: 0;
-}
-
-
-
-
-
-.refresh-trending-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
-
-
-
-
-
-.refresh-trending-btn:disabled {
-  opacity: 0.7;
-  cursor: not-allowed;
-  transform: none;
-}
 
 
 
@@ -3392,11 +1355,15 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .cyber-input:focus, .cyber-textarea:focus, .cyber-select:focus {
   outline: none;
   border-color: var(--accent-color);
   box-shadow: 0 0 0 3px rgba(0, 212, 255, 0.1);
 }
+
+
 
 
 
@@ -3408,14 +1375,6 @@ const getActivityIcon = (type: string) => {
 }
 
 
-
-
-
-.setting-row {
-  display: flex;
-  gap: 24px;
-  align-items: center;
-}
 
 
 
@@ -3435,6 +1394,8 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 /* Override parent label styles so toggles stay horizontal and text doesn't truncate */
 .setting-group .toggle-label,
 .announcement-form .form-row.checks .toggle-label {
@@ -3446,9 +1407,13 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .toggle-label .toggle-slider {
   flex-shrink: 0;
 }
+
+
 
 
 
@@ -3463,9 +1428,13 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .toggle-label input[type="checkbox"] {
   display: none;
 }
+
+
 
 
 
@@ -3480,6 +1449,8 @@ const getActivityIcon = (type: string) => {
   border-radius: 24px;
   transition: all 0.2s ease;
 }
+
+
 
 
 
@@ -3501,10 +1472,14 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .toggle-label input[type="checkbox"]:checked + .toggle-slider {
   background: var(--accent-color);
   border-color: var(--accent-color);
 }
+
+
 
 
 
@@ -3519,139 +1494,14 @@ const getActivityIcon = (type: string) => {
 
 
 
-/* Klipy media-picker settings: one self-documented row per toggle. */
-.klipy-settings {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  border: 1px solid var(--border-color);
-  border-radius: 10px;
-  padding: 8px 16px 16px;
-  background: var(--background-secondary-alpha, rgba(0, 0, 0, 0.12));
-}
-
-
-
-
-
-.klipy-group-label {
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--text-secondary);
-  margin-top: 16px;
-  padding-top: 12px;
-  border-top: 1px solid var(--border-secondary);
-}
-
-
-
-
-
-.klipy-settings > .klipy-group-label:first-child {
-  margin-top: 4px;
-  padding-top: 0;
-  border-top: none;
-}
-
-
-
-
-
-.klipy-group-hint {
-  font-size: 12.5px;
-  line-height: 1.5;
-  color: var(--text-secondary);
-  margin: 0 0 4px;
-}
-
-
-
-
-
-.klipy-setting {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 12px 0;
-  border-bottom: 1px solid var(--border-secondary);
-}
-
-
-
-
-
-.klipy-setting:last-child {
-  border-bottom: none;
-}
-
-
-
-
-
-.klipy-setting-text {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  min-width: 0;
-}
-
-
-
-
-
-.klipy-setting-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-primary);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-
-
-
-
-.klipy-setting-title code {
-  font-size: 11.5px;
-  font-weight: 500;
-  padding: 1px 6px;
-  border-radius: 4px;
-  background: var(--background-tertiary);
-  color: var(--text-secondary);
-}
-
-
-
-
-
-.klipy-setting-desc {
-  font-size: 12.5px;
-  line-height: 1.5;
-  color: var(--text-secondary);
-}
-
-
-
-
-
-.klipy-toggle {
-  flex-shrink: 0;
-  margin-top: 2px;
-}
-
-
-
 
 
 /* Blocked Instances */
 .blocked-instances {
   space-y: 16px;
 }
+
+
 
 
 
@@ -3672,10 +1522,14 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .instance-info .domain {
   font-weight: 600;
   color: var(--text-primary);
 }
+
+
 
 
 
@@ -3687,6 +1541,8 @@ const getActivityIcon = (type: string) => {
   color: var(--text-secondary);
   margin-top: 4px;
 }
+
+
 
 
 
@@ -3706,12 +1562,16 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 /* Federation Management Styles */
 .module-actions {
   display: flex;
   gap: 8px;
   margin-left: auto;
 }
+
+
 
 
 
@@ -3735,6 +1595,8 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .primary-btn-sm {
   padding: 6px 12px;
   font-size: 12px;
@@ -3744,10 +1606,14 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .primary-btn:hover, .primary-btn-sm:hover {
   background: #0099cc;
   transform: translateY(-1px);
 }
+
+
 
 
 
@@ -3767,6 +1633,8 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .meta-tag.domain {
   color: var(--harmony-primary, #7c8aff);
   background: rgba(124, 138, 255, 0.12);
@@ -3776,10 +1644,14 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .meta-tag.failures {
   color: #ff453a;
   background: rgba(255, 69, 58, 0.12);
 }
+
+
 
 
 
@@ -3799,11 +1671,15 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .status-indicator.ok {
   background: rgba(0, 255, 136, 0.1);
   border: 1px solid rgba(0, 255, 136, 0.3);
   color: #00ff88;
 }
+
+
 
 
 
@@ -3819,6 +1695,8 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .maintenance-card .action-btn.primary {
   background: var(--accent-primary);
   border-color: var(--accent-primary);
@@ -3828,9 +1706,13 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .spin {
   animation: spin 1s linear infinite;
 }
+
+
 
 
 
@@ -3845,9 +1727,13 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .error-text {
   color: #ff453a;
 }
+
+
 
 
 
@@ -3864,11 +1750,15 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .filter-controls {
   display: flex;
   gap: 12px;
   align-items: center;
 }
+
+
 
 
 
@@ -3887,6 +1777,8 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .badge {
   padding: 2px 8px;
   border-radius: 12px;
@@ -3894,6 +1786,8 @@ const getActivityIcon = (type: string) => {
   font-weight: 600;
   text-transform: uppercase;
 }
+
+
 
 
 
@@ -3908,10 +1802,14 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .badge.blocked {
   background: rgba(255, 69, 58, 0.2);
   color: #ff453a;
 }
+
+
 
 
 
@@ -3926,10 +1824,14 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .badge.success {
   background: rgba(0, 255, 136, 0.2);
   color: #00ff88;
 }
+
+
 
 
 
@@ -3944,9 +1846,13 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .detail-item {
   white-space: nowrap;
 }
+
+
 
 
 
@@ -3966,10 +1872,14 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .action-btn-sm:hover {
   border-color: var(--accent-color);
   color: var(--accent-color);
 }
+
+
 
 
 
@@ -3984,10 +1894,14 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .danger-btn-sm:hover {
   border-color: rgba(255, 69, 58, 0.5);
   color: #ff453a;
 }
+
+
 
 
 
@@ -4001,6 +1915,8 @@ const getActivityIcon = (type: string) => {
   padding: 20px;
   border-top: 1px solid var(--border-color);
 }
+
+
 
 
 
@@ -4020,10 +1936,14 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .pagination-btn:hover:not(:disabled) {
   border-color: var(--accent-color);
   color: var(--accent-color);
 }
+
+
 
 
 
@@ -4038,10 +1958,14 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .pagination-info {
   color: var(--text-secondary);
   font-size: 14px;
 }
+
+
 
 
 
@@ -4063,10 +1987,14 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .tab-btn.active {
   background: var(--accent-color);
   color: var(--text-primary);
 }
+
+
 
 
 
@@ -4087,6 +2015,8 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .detail-row {
   display: flex;
   gap: 8px;
@@ -4098,10 +2028,14 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .detail-row strong {
   min-width: 80px;
   color: var(--text-secondary);
 }
+
+
 
 
 
@@ -4120,9 +2054,13 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .spinning {
   animation: spin 1s linear infinite;
 }
+
+
 
 
 
@@ -4137,6 +2075,8 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .search-bar .icon {
   position: absolute;
   left: 12px;
@@ -4144,36 +2084,6 @@ const getActivityIcon = (type: string) => {
 }
 
 
-
-
-
-.mod-btn {
-  padding: 6px 8px;
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  background: var(--background-secondary);
-  color: var(--text-secondary);
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-
-
-
-
-.mod-btn:hover {
-  border-color: var(--accent-color);
-  color: var(--text-primary);
-}
-
-
-
-
-
-.delete-btn:hover {
-  border-color: #ff453a;
-  color: #ff453a;
-}
 
 
 
@@ -4191,10 +2101,14 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .badge.suspended {
   background: rgba(255, 193, 7, 0.2);
   color: #ffc107;
 }
+
+
 
 
 
@@ -4209,10 +2123,14 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .badge.moderator {
   background: rgba(46, 204, 113, 0.2);
   color: #2ecc71;
 }
+
+
 
 
 
@@ -4230,6 +2148,8 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .metric-card {
   padding: 20px;
   background: var(--background-tertiary);
@@ -4241,9 +2161,13 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .metric-card.placeholder-metric {
   opacity: 0.5;
 }
+
+
 
 
 
@@ -4263,11 +2187,15 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .metric-status {
   width: 12px;
   height: 12px;
   border-radius: 50%;
 }
+
+
 
 
 
@@ -4281,6 +2209,8 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .metric-status.warning {
   background: #ffc107;
 }
@@ -4289,9 +2219,13 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .metric-status.error {
   background: #ff453a;
 }
+
+
 
 
 
@@ -4308,10 +2242,14 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .metric-detail {
   font-size: 12px;
   color: var(--text-secondary);
 }
+
+
 
 
 
@@ -4328,6 +2266,8 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .activity-item {
   display: flex;
   gap: 16px;
@@ -4339,9 +2279,13 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .activity-item:last-child {
   border-bottom: none;
 }
+
+
 
 
 
@@ -4361,10 +2305,14 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .activity-icon.federation {
   background: rgba(0, 212, 255, 0.1);
   color: #00d4ff;
 }
+
+
 
 
 
@@ -4379,6 +2327,8 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .activity-icon.moderation {
   background: rgba(255, 69, 58, 0.1);
   color: #ff453a;
@@ -4388,10 +2338,14 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .activity-icon.other {
   background: rgba(128, 128, 128, 0.1);
   color: var(--text-secondary);
 }
+
+
 
 
 
@@ -4410,6 +2364,8 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .announcement-form {
   margin: 0 24px 20px;
   padding: 20px;
@@ -4421,7 +2377,11 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .announcement-form h4 { margin: 0 0 16px 0; }
+
+
 
 
 
@@ -4431,12 +2391,18 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .announcement-form .form-row label { display: block; font-size: 13px; margin-bottom: 4px; color: var(--text-secondary); }
 
 
 
 
+
+
 .announcement-form .form-row.checks { display: flex; gap: 16px; flex-wrap: wrap; }
+
+
 
 
 
@@ -4452,8 +2418,11 @@ const getActivityIcon = (type: string) => {
 @media (max-width: 640px) {
 
 
+
   .announcement-form .form-row.two-col { grid-template-columns: 1fr; }
 }
+
+
 
 
 
@@ -4463,7 +2432,11 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .announcement-form .form-row.two-col label { margin-bottom: 4px; }
+
+
 
 
 
@@ -4478,12 +2451,18 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .announcement-form .form-actions { display: flex; gap: 8px; margin-top: 16px; }
 
 
 
 
+
+
 .announcements-list { padding: 0 24px 24px; }
+
+
 
 
 
@@ -4502,7 +2481,11 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .announcement-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+
 
 
 
@@ -4512,7 +2495,11 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .announcement-title { font-weight: 600; color: var(--text-primary); }
+
+
 
 
 
@@ -4522,7 +2509,11 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .announcement-actions { display: flex; gap: 4px; }
+
+
 
 
 
@@ -4534,7 +2525,11 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .featured-servers-list { display: flex; flex-direction: column; gap: 8px; padding: 0 24px 24px; }
+
+
 
 
 
@@ -4553,7 +2548,11 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .featured-server-item:hover { border-color: var(--accent-color); }
+
+
 
 
 
@@ -4562,6 +2561,8 @@ const getActivityIcon = (type: string) => {
   border-color: rgba(255, 193, 7, 0.5);
   background: rgba(255, 193, 7, 0.05);
 }
+
+
 
 
 
@@ -4576,12 +2577,16 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .server-icon {
   width: 100%;
   height: 100%;
   border-radius: 8px;
   object-fit: cover;
 }
+
+
 
 
 
@@ -4599,7 +2604,11 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .server-details { flex: 1; min-width: 0; }
+
+
 
 
 
@@ -4609,7 +2618,11 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .server-details .server-meta { font-size: 13px; color: var(--text-secondary); }
+
+
 
 
 
@@ -4619,7 +2632,11 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .featured-server-item .action-btn-sm.pin-btn { color: var(--accent-color); }
+
+
 
 
 
@@ -4629,7 +2646,11 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .featured-server-item .action-btn-sm { display: flex; align-items: center; gap: 6px; }
+
+
 
 
 
@@ -4643,11 +2664,15 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .activity-message {
   font-size: 14px;
   color: var(--text-primary);
   margin-bottom: 4px;
 }
+
+
 
 
 
@@ -4664,11 +2689,15 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 /* Emoji Importer Module */
 .emoji-module {
   grid-column: span 2; /* Full width like other major modules */
   max-height: 1130px;
 }
+
+
 
 
 
@@ -4683,10 +2712,14 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 /* Performance Monitoring Module */
 .performance-module {
   grid-column: 1 / -1; /* Full width */
 }
+
+
 
 
 
@@ -4699,17 +2732,6 @@ const getActivityIcon = (type: string) => {
 }
 
 
-
-
-
-/* Configuration Module */
-.config-tabs {
-  display: flex;
-  gap: 4px;
-  padding: 12px 24px 0;
-  border-bottom: 1px solid var(--border-color);
-  overflow-x: auto;
-}
 
 
 
@@ -4735,11 +2757,15 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .config-tab-btn:hover {
   color: var(--text-primary);
   background: var(--background-tertiary);
   border-radius: 6px 6px 0 0;
 }
+
+
 
 
 
@@ -4751,217 +2777,6 @@ const getActivityIcon = (type: string) => {
 }
 
 
-
-
-
-.config-sections {
-  padding: 24px;
-}
-
-
-
-
-
-.config-section {
-  margin-bottom: 0;
-}
-
-
-
-
-
-.config-section h3 {
-  font-size: 16px;
-  font-weight: 600;
-  margin-bottom: 16px;
-  color: var(--text-primary);
-}
-
-
-
-
-
-.config-subsection {
-  margin-top: 24px;
-  padding-top: 20px;
-  border-top: 1px solid var(--border-color);
-}
-
-
-
-
-
-.config-subsection h4 {
-  font-size: 14px;
-  font-weight: 600;
-  margin-bottom: 14px;
-  color: var(--text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-
-
-
-
-/* Instance appearance (icon/banner) */
-.instance-appearance-row {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  margin-bottom: 8px;
-}
-
-
-
-
-
-.instance-icon-preview {
-  width: 64px;
-  height: 64px;
-  border-radius: 12px;
-  background: var(--background-tertiary);
-  border: 2px dashed var(--border-color);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  overflow: hidden;
-  flex-shrink: 0;
-  transition: border-color 0.2s;
-  color: var(--text-secondary);
-}
-
-
-
-
-
-.instance-icon-preview:hover {
-  border-color: var(--harmony-primary);
-}
-
-
-
-
-
-.instance-icon-img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-
-
-
-
-.instance-appearance-controls {
-  display: flex;
-  gap: 8px;
-}
-
-
-
-
-
-.instance-banner-preview {
-  width: 100%;
-  height: 100px;
-  border-radius: 8px;
-  background: var(--background-tertiary);
-  background-size: cover;
-  background-position: center;
-  border: 2px dashed var(--border-color);
-  cursor: pointer;
-  position: relative;
-  overflow: hidden;
-  transition: border-color 0.2s;
-}
-
-
-
-
-
-.instance-banner-preview:hover {
-  border-color: var(--harmony-primary);
-}
-
-
-
-
-
-.instance-banner-placeholder {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  height: 100%;
-  color: var(--text-secondary);
-  font-size: 13px;
-}
-
-
-
-
-
-.instance-banner-overlay {
-  position: absolute;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
-  font-size: 14px;
-  font-weight: 500;
-  opacity: 0;
-  transition: opacity 0.2s;
-}
-
-
-
-
-
-.instance-banner-preview:hover .instance-banner-overlay {
-  opacity: 1;
-}
-
-
-
-
-
-.save-btn {
-  padding: 8px 16px;
-  background: var(--accent-color);
-  border: none;
-  border-radius: 6px;
-  color: var(--text-primary);
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-
-
-
-
-.save-btn:hover {
-  background: #0099cc;
-  transform: translateY(-1px);
-}
-
-
-
-
-
-.save-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  transform: none;
-}
 
 
 
@@ -4985,6 +2800,7 @@ const getActivityIcon = (type: string) => {
 @media (max-width: 768px) {
 
 
+
   .admin-grid {
     display: flex;
     flex-direction: column;
@@ -4993,14 +2809,17 @@ const getActivityIcon = (type: string) => {
   }
 
 
+
   .admin-module {
     max-width: calc(100vw - 32px);
   }
 
 
+
   .admin-panel {
     padding: 16px;
   }
+
 
 
 
@@ -5012,6 +2831,7 @@ const getActivityIcon = (type: string) => {
 
 
 
+
   .admin-title {
     flex-direction: column;
     align-items: flex-start;
@@ -5020,18 +2840,12 @@ const getActivityIcon = (type: string) => {
 
 
 
+
   /* Two-up stats read better than a single tall column on phones. */
   .stats-grid {
     grid-template-columns: 1fr 1fr;
   }
 
-
-
-  .setting-row {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 16px;
-  }
 
 
 
@@ -5043,9 +2857,11 @@ const getActivityIcon = (type: string) => {
 @media (max-width: 480px) {
 
 
+
   .admin-panel {
     padding: 12px;
   }
+
 
 
   .admin-module {
@@ -5053,9 +2869,11 @@ const getActivityIcon = (type: string) => {
   }
 
 
+
   .stats-grid {
     grid-template-columns: 1fr;
   }
+
 
 
   /* Full-width tap targets for the header actions. */
@@ -5065,11 +2883,13 @@ const getActivityIcon = (type: string) => {
   }
 
 
+
   .admin-actions .action-btn {
     width: 100%;
     justify-content: center;
     min-height: 44px;
   }
+
 
 
   /* Wide rows (instance lists, user rows) scroll instead of overflowing. */
@@ -5087,6 +2907,8 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .server-icon {
   width: 48px;
   height: 48px;
@@ -5094,6 +2916,8 @@ const getActivityIcon = (type: string) => {
   overflow: hidden;
   flex-shrink: 0;
 }
+
+
 
 
 
@@ -5109,6 +2933,8 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .server-name {
   font-weight: 600;
   color: var(--text-primary);
@@ -5117,6 +2943,8 @@ const getActivityIcon = (type: string) => {
   align-items: center;
   gap: 8px;
 }
+
+
 
 
 
@@ -5136,6 +2964,8 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .server-meta {
   display: flex;
   gap: 16px;
@@ -5147,7 +2977,11 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .report-type-badge.user { background: rgba(14, 165, 233, 0.2); color: #38BDF8; }
+
+
 
 
 
@@ -5157,12 +2991,18 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .report-type-badge.message { background: rgba(254, 231, 92, 0.2); color: #fee75c; }
 
 
 
 
+
+
 .report-type-badge.server { background: rgba(235, 69, 158, 0.2); color: #eb459e; }
+
+
 
 
 
@@ -5178,57 +3018,13 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .report-proof :deep(.report-link:hover) {
   opacity: 0.8;
 }
 
 
-
-
-
-.report-action-btn.danger {
-  background: rgba(237, 66, 69, 0.2);
-  color: #ed4245;
-}
-
-
-
-
-
-.report-action-btn.danger:hover {
-  background: rgba(237, 66, 69, 0.4);
-}
-
-
-
-
-
-.report-action-buttons {
-  display: flex;
-  gap: 8px;
-}
-
-
-
-
-
-.report-action-btn {
-  padding: 6px 14px;
-  border: none;
-  border-radius: 6px;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: opacity 0.15s;
-}
-
-
-
-
-
-.report-action-btn:hover {
-  opacity: 0.85;
-}
 
 
 
@@ -5243,45 +3039,14 @@ const getActivityIcon = (type: string) => {
 
 
 
-.report-action-btn.resolve {
-  background: rgba(87, 242, 135, 0.3);
-  color: #57f287;
-}
-
-
-
-
-
-.report-action-btn.dismiss {
-  background: rgba(255, 255, 255, 0.1);
-  color: var(--text-secondary);
-}
-
-
-
-
-
-.report-action-btn.warning {
-  background: rgba(250, 166, 26, 0.2);
-  color: #faa61a;
-}
-
-
-
-
-
-.report-action-btn.warning:hover {
-  background: rgba(250, 166, 26, 0.4);
-}
-
-
-
 
 
 .badge.sensitive {
   background: rgba(250, 166, 26, 0.2);
   color: #faa61a;
 }
+
+
 
 
 
@@ -5296,10 +3061,14 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .badge.silenced {
   background: rgba(250, 166, 26, 0.2);
   color: #faa61a;
 }
+
+
 
 
 
@@ -5314,389 +3083,13 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .mod-btn.warning-btn:hover {
   background: rgba(250, 166, 26, 0.3);
 }
 
 
-
-
-
-/* Funding Management */
-.funding-content {
-  padding: 0 20px 20px;
-}
-
-
-
-
-
-.funding-section {
-  margin-bottom: 24px;
-  padding-top :24px;
-}
-
-
-
-
-
-.funding-section h3 {
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--text-primary);
-  margin: 0 0 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-
-
-
-
-.section-badge {
-  font-size: 10px;
-  padding: 2px 8px;
-  border-radius: 10px;
-  background: rgba(14, 165, 233, 0.15);
-  color: var(--harmony-primary);
-  text-transform: none;
-  letter-spacing: 0;
-  font-weight: 600;
-}
-
-
-
-
-
-.section-description {
-  font-size: 13px;
-  color: var(--text-secondary);
-  margin: 0 0 8px;
-  line-height: 1.5;
-}
-
-
-
-
-
-.section-description a {
-  color: var(--harmony-primary);
-}
-
-
-
-
-
-.section-hint {
-  font-size: 12px;
-  color: var(--text-tertiary, var(--text-secondary));
-  margin: 8px 0 0;
-  line-height: 1.5;
-  font-style: italic;
-}
-
-
-
-
-
-.section-hint code {
-  background: var(--background-secondary);
-  padding: 1px 5px;
-  border-radius: 3px;
-  font-size: 11px;
-  font-style: normal;
-}
-
-
-
-
-
-.webhook-url-display {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  background: var(--background-secondary);
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  font-family: 'Consolas', 'Monaco', monospace;
-  font-size: 12px;
-}
-
-
-
-
-
-.webhook-url-display code {
-  flex: 1;
-  color: var(--text-primary);
-  word-break: break-all;
-}
-
-
-
-
-
-.pending-count-badge {
-  font-size: 11px;
-  padding: 2px 8px;
-  border-radius: 10px;
-  background: var(--status-danger, #ed4245);
-  color: #fff;
-  text-transform: none;
-  letter-spacing: 0;
-  font-weight: 700;
-}
-
-
-
-
-
-.pending-donations-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-
-
-
-
-.pending-donation-item {
-  padding: 12px;
-  background: var(--background-secondary);
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-
-
-
-
-.pending-donation-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-
-
-
-
-.pending-amount {
-  font-size: 16px;
-  font-weight: 700;
-  color: var(--harmony-primary);
-}
-
-
-
-
-
-.pending-platform {
-  font-size: 11px;
-  padding: 2px 8px;
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.08);
-  color: var(--text-secondary);
-  text-transform: capitalize;
-}
-
-
-
-
-
-.pending-date {
-  font-size: 12px;
-  color: var(--text-tertiary, var(--text-secondary));
-  margin-left: auto;
-}
-
-
-
-
-
-.pending-donation-meta {
-  display: flex;
-  gap: 12px;
-  font-size: 13px;
-  color: var(--text-secondary);
-}
-
-
-
-
-
-.pending-email {
-  color: var(--text-tertiary, var(--text-secondary));
-}
-
-
-
-
-
-.pending-message {
-  padding: 8px 12px;
-  background: var(--background-tertiary);
-  border-left: 3px solid var(--harmony-primary);
-  border-radius: 4px;
-  font-size: 13px;
-  color: var(--text-secondary);
-  font-style: italic;
-}
-
-
-
-
-
-.pending-resolve-row {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
-
-
-
-
-.pending-suggestions {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding-top: 4px;
-}
-
-
-
-
-
-.pending-suggestion {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 10px;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 13px;
-  color: var(--text-secondary);
-  transition: background 0.15s;
-}
-
-
-
-
-
-.pending-suggestion:hover,
-.pending-suggestion.active {
-  background: rgba(14, 165, 233, 0.15);
-  color: var(--text-primary);
-}
-
-
-
-
-
-.funding-fields {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-top: 8px;
-}
-
-
-
-
-
-.funding-form-row {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-
-
-
-
-.funding-field {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  flex: 1;
-  min-width: 120px;
-}
-
-
-
-
-
-.funding-field label {
-  font-size: 12px;
-  color: var(--text-secondary);
-  font-weight: 600;
-}
-
-
-
-
-
-.tiers-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin-bottom: 12px;
-}
-
-
-
-
-
-.tier-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 12px;
-  background: var(--background-tertiary);
-  border-radius: 6px;
-}
-
-
-
-
-
-.tier-icon {
-  font-size: 18px;
-}
-
-
-
-
-
-.tier-icon-picker {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-
-
-
-
-.emoji-picker-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 32px;
-  height: 32px;
-  font-size: 16px;
-  padding: 2px 4px;
-  cursor: pointer;
-}
 
 
 
@@ -5713,44 +3106,6 @@ const getActivityIcon = (type: string) => {
 
 
 
-.tier-info {
-  flex: 1;
-  min-width: 0;
-}
-
-
-
-
-
-.tier-name {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-primary);
-  display: block;
-}
-
-
-
-
-
-.tier-amount {
-  font-size: 12px;
-  color: var(--text-secondary);
-}
-
-
-
-
-
-.add-tier-form {
-  display: flex;
-  gap: 8px;
-  align-items: flex-end;
-  flex-wrap: wrap;
-}
-
-
-
 
 
 .add-tier-form .cyber-input {
@@ -5762,187 +3117,6 @@ const getActivityIcon = (type: string) => {
 
 
 
-.color-input {
-  width: 36px;
-  height: 36px;
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  background: var(--background-tertiary);
-  cursor: pointer;
-  padding: 2px;
-}
-
-
-
-
-
-.supporters-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-
-
-
-
-.supporter-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 12px;
-  background: var(--background-tertiary);
-  border-radius: 6px;
-}
-
-
-
-
-
-.supporter-actions {
-  display: flex;
-  gap: 4px;
-  flex-shrink: 0;
-}
-
-
-
-
-
-.supporter-info {
-  flex: 1;
-  min-width: 0;
-}
-
-
-
-
-
-.supporter-name {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-primary);
-  display: block;
-}
-
-
-
-
-
-.supporter-meta {
-  font-size: 12px;
-  color: var(--text-secondary);
-}
-
-
-
-
-
-.donation-stats-row {
-  display: flex;
-  gap: 16px;
-  margin-bottom: 12px;
-}
-
-
-
-
-
-.donation-stat {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 12px 16px;
-  background: var(--background-tertiary);
-  border-radius: 8px;
-  flex: 1;
-}
-
-
-
-
-
-.donation-stat-value {
-  font-size: 20px;
-  font-weight: 700;
-  color: var(--accent-color);
-}
-
-
-
-
-
-.donation-stat-label {
-  font-size: 11px;
-  color: var(--text-secondary);
-  text-transform: uppercase;
-}
-
-
-
-
-
-.donations-list {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  max-height: 200px;
-  overflow-y: auto;
-}
-
-
-
-
-
-.donation-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 6px 10px;
-  font-size: 13px;
-  color: var(--text-secondary);
-}
-
-
-
-
-
-.donation-amount {
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-
-
-
-
-.donation-note {
-  font-style: italic;
-  opacity: 0.7;
-}
-
-
-
-
-
-.funding-links-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-
-
-
-
-.funding-link-row {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
-
-
 
 
 .funding-link-row .cyber-input {
@@ -5950,16 +3124,6 @@ const getActivityIcon = (type: string) => {
 }
 
 
-
-
-
-.add-supporter-form {
-  display: flex;
-  gap: 8px;
-  align-items: flex-end;
-  flex-wrap: wrap;
-  margin-top: 12px;
-}
 
 
 
@@ -5974,41 +3138,13 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .supporter-search-wrapper .cyber-input {
   width: 100%;
 }
 
 
-
-
-
-.supporter-suggestions {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
-  z-index: 100;
-  background: var(--background-tertiary);
-  border: 1px solid var(--background-quinary);
-  border-radius: 8px;
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.24);
-  max-height: 220px;
-  overflow-y: auto;
-  margin-top: 4px;
-}
-
-
-
-
-
-.supporter-suggestion-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  cursor: pointer;
-  transition: background-color 0.1s ease;
-}
 
 
 
@@ -6023,38 +3159,6 @@ const getActivityIcon = (type: string) => {
 
 
 
-.supporter-suggestion-text {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
-
-
-
-
-.supporter-suggestion-name {
-  font-weight: 500;
-  color: var(--text-primary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-
-
-
-
-.supporter-suggestion-handle {
-  font-size: 12px;
-  color: var(--text-secondary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-
-
 
 
 .supporter-suggestion-item.selected .supporter-suggestion-handle {
@@ -6062,110 +3166,6 @@ const getActivityIcon = (type: string) => {
 }
 
 
-
-
-
-.edit-supporter-panel {
-  background: var(--background-tertiary);
-  border: 1px solid var(--accent-color);
-  border-radius: 8px;
-  padding: 16px;
-}
-
-
-
-
-
-.edit-donation-panel {
-  background: var(--background-tertiary);
-  border: 1px solid var(--accent-color);
-  border-radius: 8px;
-  padding: 12px;
-  margin-top: 8px;
-}
-
-
-
-
-
-.donation-user {
-  font-weight: 600;
-  color: var(--text-primary);
-  font-size: 13px;
-}
-
-
-
-
-
-.donation-actions {
-  display: flex;
-  gap: 4px;
-  margin-left: auto;
-  flex-shrink: 0;
-}
-
-
-
-
-
-.tier-perks {
-  font-size: 11px;
-  color: var(--text-secondary);
-  font-style: italic;
-}
-
-
-
-
-
-.tier-ads-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 12px;
-  color: var(--text-secondary);
-  white-space: nowrap;
-  cursor: pointer;
-}
-
-
-
-
-
-.tier-ads-toggle input {
-  cursor: pointer;
-}
-
-
-
-
-
-.tier-adfree-badge {
-  font-size: 10px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  color: var(--harmony-primary, #0ea5e9);
-  border: 1px solid var(--harmony-primary-alpha, rgba(14, 165, 233, 0.4));
-  border-radius: 4px;
-  padding: 1px 5px;
-  width: fit-content;
-}
-
-
-
-
-
-.empty-hint {
-  font-size: 13px;
-  color: var(--text-secondary);
-  padding: 12px;
-  text-align: center;
-  background: var(--background-tertiary);
-  border-radius: 6px;
-  margin-bottom: 12px;
-}
 
 
 
