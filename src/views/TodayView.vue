@@ -20,12 +20,21 @@
       </div>
 
       <div v-else-if="digest" class="today-grid">
-        <!-- On-device AI summary (optional) -->
-        <section v-if="aiSummary || highlights.length > 0" class="today-card span-full">
-          <div class="card-header">
+        <!-- On-device AI summary (optional). The card renders as soon as the
+             feature is on - a spinner while the model works beats the card
+             popping in seconds after the page settled. -->
+        <section
+          v-if="todayAiSummariesEnabled && (aiPending || aiSummary || highlights.length > 0)"
+          class="today-card span-full"
+        >
+          <div class="today-card-header">
             <Icon name="sparkles" :size="16" />
             <h2>Summary</h2>
             <span class="on-device-badge" title="Generated locally - nothing leaves your device">On-device</span>
+          </div>
+          <div v-if="aiPending && !aiSummary && highlights.length === 0" class="ai-pending">
+            <LoadingSpinner :size="16" />
+            <span>Summarizing on this device…</span>
           </div>
           <p v-if="aiSummary" class="ai-summary-text">{{ aiSummary }}</p>
           <ul v-if="highlights.length > 0" class="highlight-list">
@@ -33,6 +42,7 @@
               <button class="channel-pill" @click="goToChannelId(h.serverId, h.channelId)">
                 #{{ h.channelName }}
               </button>
+              <span class="highlight-server">{{ h.serverName }}</span>
               <span class="highlight-text">{{ h.summary }}</span>
             </li>
           </ul>
@@ -40,7 +50,7 @@
 
         <!-- Mentions -->
         <section v-if="digest.unreadMentions > 0" class="today-card mentions-card span-full" @click="goToMentions">
-          <div class="card-header">
+          <div class="today-card-header">
             <Icon name="at-sign" :size="16" />
             <h2>Mentions</h2>
           </div>
@@ -51,7 +61,7 @@
 
         <!-- Active channels, grouped by server -->
         <section class="today-card span-full">
-          <div class="card-header">
+          <div class="today-card-header">
             <Icon name="hash" :size="16" />
             <h2>Catch up</h2>
             <span class="card-hint">busiest unread channels across your servers</span>
@@ -86,7 +96,7 @@
 
         <!-- Threads -->
         <section v-if="digest.activeThreads.length > 0" class="today-card">
-          <div class="card-header">
+          <div class="today-card-header">
             <Icon name="thread" :size="16" />
             <h2>Your threads</h2>
           </div>
@@ -106,7 +116,7 @@
 
         <!-- From people you follow -->
         <section v-if="digest.followedPosts.length > 0" class="today-card">
-          <div class="card-header">
+          <div class="today-card-header">
             <Icon name="users" :size="16" />
             <h2>From people you follow</h2>
           </div>
@@ -134,7 +144,7 @@
 
         <!-- Trending posts -->
         <section v-if="digest.trendingPosts.length > 0" class="today-card">
-          <div class="card-header">
+          <div class="today-card-header">
             <Icon name="trending-up" :size="16" />
             <h2>Trending in the Fediverse</h2>
           </div>
@@ -195,6 +205,7 @@ const loading = ref(false)
 const digest = ref<TodayDigest | null>(null)
 const aiSummary = ref<string | null>(null)
 const highlights = ref<ChannelHighlight[]>([])
+const aiPending = ref(false)
 
 const greeting = computed(() => {
   const hour = new Date().getHours()
@@ -225,6 +236,11 @@ const channelsByServer = computed<ServerGroup[]>(() => {
       groups.set(channel.serverId, group)
     }
     group.channels.push(channel)
+  }
+  // Mentioned channels lead within each server group.
+  for (const group of groups.values()) {
+    group.channels.sort((a, b) =>
+      b.unreadMentions - a.unreadMentions || b.unreadMessages - a.unreadMessages)
   }
   return [...groups.values()]
 })
@@ -259,20 +275,22 @@ const writeAiCache = (entry: AiCacheEntry) => {
 
 const runAi = (snapshot: TodayDigest, signature: string) => {
   const entry: AiCacheEntry = { signature, summary: null, highlights: [], at: Date.now() }
-  todayDigestService.summarizeDigest(snapshot)
+  aiPending.value = true
+  const summaryRun = todayDigestService.summarizeDigest(snapshot)
     .then(summary => {
       aiSummary.value = summary
       entry.summary = summary
       writeAiCache(entry)
     })
-    .catch(() => {})
-  todayDigestService.getChannelHighlights(snapshot.activeChannels)
+  const highlightsRun = todayDigestService.getChannelHighlights(snapshot.activeChannels)
     .then(result => {
       highlights.value = result
       entry.highlights = result
       writeAiCache(entry)
     })
-    .catch(() => {})
+  Promise.allSettled([summaryRun, highlightsRun]).then(() => {
+    aiPending.value = false
+  })
 }
 
 const loadDigest = async (force = false) => {
@@ -446,6 +464,8 @@ onMounted(() => loadDigest())
   flex: 1;
   overflow-y: auto;
   padding: 20px;
+  /* Clear the floating user-profile bar so the last card is fully reachable. */
+  padding-bottom: 112px;
 }
 
 .today-grid {
@@ -487,7 +507,7 @@ onMounted(() => loadDigest())
   padding: 16px 20px;
 }
 
-.card-header {
+.today-card-header {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -495,7 +515,7 @@ onMounted(() => loadDigest())
   color: var(--text-secondary);
 }
 
-.card-header h2 {
+.today-card-header h2 {
   font-size: 14px;
   font-weight: 600;
   margin: 0;
@@ -541,12 +561,27 @@ onMounted(() => loadDigest())
   flex-wrap: wrap;
 }
 
+.highlight-server {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
 .highlight-text {
   font-size: 13.5px;
   line-height: 1.5;
   color: var(--text-secondary);
   flex: 1;
   min-width: 200px;
+}
+
+.ai-pending {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  padding: 4px 0;
 }
 
 /* Mentions */
@@ -722,7 +757,7 @@ onMounted(() => loadDigest())
   }
 
   .today-scroll {
-    padding: 12px;
+    padding: 12px 12px 112px;
   }
 
   .today-card {
