@@ -1399,6 +1399,32 @@ onMounted(() => {
   overflow-x: auto;
 }
 
+.config-tab-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 16px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.config-tab-btn:hover {
+  color: var(--text-primary);
+  background: var(--background-tertiary);
+  border-radius: 6px 6px 0 0;
+}
+
+.config-tab-btn.active {
+  color: var(--accent-color);
+  border-bottom-color: var(--accent-color);
+}
 
 
 
