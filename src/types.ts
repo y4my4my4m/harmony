@@ -313,6 +313,9 @@ export interface EmbedPayload {
   html?: string;
   width?: number;
   height?: number;
+  /** The preview is essentially just media (GIF page etc.) - render the
+      image itself, not a link card. */
+  mediaOnly?: boolean;
   harmony?: HarmonyEmbedSummary;
   fediverse?: FediverseEmbedSummary;
   oEmbed?: Record<string, any>;

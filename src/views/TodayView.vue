@@ -24,38 +24,35 @@
              feature is on - a spinner while the model works beats the card
              popping in seconds after the page settled. -->
         <section
-          v-if="todayAiSummariesEnabled && (aiPending || aiSummary || highlights.length > 0)"
+          v-if="trendingAuthors.length > 0 || (todayAiSummariesEnabled && (highlightsPending || highlights.length > 0))"
           class="today-card span-full"
         >
           <div class="today-card-header">
             <Icon name="sparkles" :size="16" />
             <h2>Summary</h2>
-            <span class="on-device-badge" title="Generated locally - nothing leaves your device">On-device</span>
+            <span
+              v-if="todayAiSummariesEnabled"
+              class="on-device-badge"
+              title="Channel summaries are generated locally - nothing leaves your device"
+            >On-device AI</span>
           </div>
-          <div v-if="aiPending && !aiSummary && highlights.length === 0" class="ai-pending">
-            <LoadingSpinner :size="16" />
-            <span>Summarizing on this device…</span>
-          </div>
-          <div v-else-if="highlightsPending && highlights.length === 0" class="ai-pending">
+          <!-- Deterministic, id-based: rendered straight from the digest's
+               structured author data, never matched out of model prose. -->
+          <p v-if="trendingAuthors.length > 0" class="ai-summary-text">
+            <template v-for="(author, i) in trendingAuthors" :key="author.id">
+              <span v-if="i > 0">{{ i === trendingAuthors.length - 1 ? ' and ' : ', ' }}</span>
+              <button
+                class="user-chip"
+                :style="author.color ? { color: author.color } : undefined"
+                @click="openUserProfile(author)"
+              >{{ author.displayName }}</button>
+            </template>
+            <span> {{ trendingAuthors.length === 1 ? 'has' : 'have' }} posts trending across the fediverse.</span>
+          </p>
+          <div v-if="highlightsPending && highlights.length === 0" class="ai-pending">
             <LoadingSpinner :size="16" />
             <span>Summarizing channel conversations…</span>
           </div>
-          <p v-if="aiSummary" class="ai-summary-text">
-            <template v-for="(segment, i) in summarySegments" :key="i">
-              <button
-                v-if="segment.channel"
-                class="channel-pill inline-channel-pill"
-                @click="goToChannelId(segment.channel.serverId, segment.channel.channelId)"
-              >#{{ segment.channel.channelName }}</button>
-              <button
-                v-else-if="segment.user"
-                class="user-chip"
-                :style="segment.user.color ? { color: segment.user.color } : undefined"
-                @click="openUserProfile(segment.user)"
-              >{{ segment.text }}</button>
-              <template v-else>{{ segment.text }}</template>
-            </template>
-          </p>
           <!-- Same server-grouped presentation as Catch up -->
           <div v-for="group in highlightsByServer" :key="group.serverId" class="server-group">
             <div class="server-group-header">
@@ -255,9 +252,7 @@ const { todayAiSummariesEnabled } = useTodayDashboard()
 
 const loading = ref(false)
 const digest = ref<TodayDigest | null>(null)
-const aiSummary = ref<string | null>(null)
 const highlights = ref<ChannelHighlight[]>([])
-const aiPending = ref(false)
 const highlightsPending = ref(false)
 
 const greeting = computed(() => {
@@ -305,22 +300,18 @@ interface SummaryAuthor {
   isLocal?: boolean
 }
 
-interface SummarySegment {
-  text: string
-  channel: ActiveChannelEntry | null
-  user: SummaryAuthor | null
-}
-
-const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-
-/** Authors from the digest posts, keyed by the names the model may echo. */
-const summaryAuthorsByName = computed<Map<string, SummaryAuthor>>(() => {
-  const byName = new Map<string, SummaryAuthor>()
-  const posts = [...(digest.value?.trendingPosts || []), ...(digest.value?.followedPosts || [])]
-  for (const post of posts) {
+/**
+ * Authors with posts trending right now - straight from the digest's
+ * structured post data, keyed by profile id. No name matching against model
+ * prose: the "who's trending" line is rendered deterministically from these
+ * objects, and the on-device model only ever summarizes conversation content.
+ */
+const trendingAuthors = computed<SummaryAuthor[]>(() => {
+  const byId = new Map<string, SummaryAuthor>()
+  for (const post of digest.value?.trendingPosts || []) {
     const raw = (post as any).author
-    if (!raw?.id) continue
-    const author: SummaryAuthor = {
+    if (!raw?.id || byId.has(raw.id)) continue
+    byId.set(raw.id, {
       id: raw.id,
       displayName: raw.display_name || raw.username || 'Unknown',
       username: raw.username,
@@ -328,83 +319,9 @@ const summaryAuthorsByName = computed<Map<string, SummaryAuthor>>(() => {
       color: raw.color,
       domain: raw.domain,
       isLocal: raw.is_local,
-    }
-    const candidates = new Set<string>()
-    if (raw.display_name) {
-      candidates.add(String(raw.display_name))
-      // The model often shortens "Malika (arc auntiefication)" to "Malika".
-      const firstWord = String(raw.display_name).split(/[\s(]/)[0]
-      if (firstWord.length >= 3) candidates.add(firstWord)
-    }
-    if (raw.username && String(raw.username).length >= 3) candidates.add(String(raw.username))
-    for (const name of candidates) {
-      const key = name.toLowerCase()
-      if (!byName.has(key)) byName.set(key, author)
-    }
+    })
   }
-  return byName
-})
-
-/** Split plain text on known author names, producing user segments. */
-const splitByAuthors = (text: string): SummarySegment[] => {
-  const byName = summaryAuthorsByName.value
-  if (!text || byName.size === 0) return text ? [{ text, channel: null, user: null }] : []
-
-  const escaped = [...byName.keys()]
-    .sort((a, b) => b.length - a.length)
-    .map(escapeRegExp)
-  const pattern = new RegExp(`\\b(${escaped.join('|')})\\b`, 'gi')
-
-  const segments: SummarySegment[] = []
-  let lastIndex = 0
-  for (const match of text.matchAll(pattern)) {
-    const index = match.index ?? 0
-    if (index > lastIndex) segments.push({ text: text.slice(lastIndex, index), channel: null, user: null })
-    segments.push({ text: match[0], channel: null, user: byName.get(match[0].toLowerCase()) || null })
-    lastIndex = index + match[0].length
-  }
-  if (lastIndex < text.length) segments.push({ text: text.slice(lastIndex), channel: null, user: null })
-  return segments
-}
-
-/**
- * The model writes channel and author names as plain prose. Split the
- * free-text summary against the known names from the digest that fed it:
- * channels render as clickable "#channel" pills, post authors as avatar +
- * profile-colored chips that open their profile.
- */
-const summarySegments = computed<SummarySegment[]>(() => {
-  const text = aiSummary.value
-  if (!text) return []
-
-  const channels = digest.value?.activeChannels || []
-  if (channels.length === 0) return splitByAuthors(text)
-
-  const byName = new Map<string, ActiveChannelEntry>()
-  for (const c of channels) {
-    if (!byName.has(c.channelName.toLowerCase())) byName.set(c.channelName.toLowerCase(), c)
-  }
-
-  const escaped = [...byName.keys()]
-    .sort((a, b) => b.length - a.length) // longest first so e.g. "money" doesn't shadow "money-talk"
-    .map(escapeRegExp)
-  // Consume an optional leading "#" (with optional space, some models write
-  // "# gaming"): the pill supplies its own "#", so leaving the model's in the
-  // text produced "# #gaming".
-  const pattern = new RegExp(`#\\s?(${escaped.join('|')})\\b|\\b(${escaped.join('|')})\\b`, 'gi')
-
-  const segments: SummarySegment[] = []
-  let lastIndex = 0
-  for (const match of text.matchAll(pattern)) {
-    const index = match.index ?? 0
-    const name = (match[1] || match[2] || '').toLowerCase()
-    if (index > lastIndex) segments.push(...splitByAuthors(text.slice(lastIndex, index)))
-    segments.push({ text: match[0], channel: byName.get(name) || null, user: null })
-    lastIndex = index + match[0].length
-  }
-  if (lastIndex < text.length) segments.push(...splitByAuthors(text.slice(lastIndex)))
-
-  return segments
+  return [...byId.values()].slice(0, 4)
 })
 
 const channelsByServer = computed<ServerGroup[]>(() => {
@@ -432,12 +349,11 @@ const channelsByServer = computed<ServerGroup[]>(() => {
 
 const AI_CACHE_KEY = 'today-ai-cache'
 const AI_CACHE_MAX_AGE_MS = 12 * 3600_000
-const AI_CACHE_VERSION = 2
+const AI_CACHE_VERSION = 3
 
 interface AiCacheEntry {
   version: number
   signature: string
-  summary: string | null
   highlights: ChannelHighlight[]
   at: number
 }
@@ -460,27 +376,16 @@ const writeAiCache = (entry: AiCacheEntry) => {
 }
 
 const runAi = (snapshot: TodayDigest, signature: string) => {
-  const entry: AiCacheEntry = { version: AI_CACHE_VERSION, signature, summary: null, highlights: [], at: Date.now() }
-  aiPending.value = true
   highlightsPending.value = true
-  const summaryRun = todayDigestService.summarizeDigest(snapshot)
-    .then(summary => {
-      aiSummary.value = summary
-      entry.summary = summary
-      writeAiCache(entry)
-    })
-  const highlightsRun = todayDigestService.getChannelHighlights(snapshot.activeChannels)
+  todayDigestService.getChannelHighlights(snapshot.activeChannels)
     .then(result => {
       highlights.value = result
-      entry.highlights = result
-      writeAiCache(entry)
+      writeAiCache({ version: AI_CACHE_VERSION, signature, highlights: result, at: Date.now() })
     })
+    .catch(() => {})
     .finally(() => {
       highlightsPending.value = false
     })
-  Promise.allSettled([summaryRun, highlightsRun]).then(() => {
-    aiPending.value = false
-  })
 }
 
 const loadDigest = async (force = false) => {
@@ -489,7 +394,6 @@ const loadDigest = async (force = false) => {
     digest.value = await todayDigestService.getDigest()
 
     // AI output is strictly additive; never block the digest on it.
-    aiSummary.value = null
     highlights.value = []
     if (todayAiSummariesEnabled.value && digest.value) {
       const snapshot = digest.value
@@ -502,12 +406,10 @@ const loadDigest = async (force = false) => {
         cached.signature === signature
 
       if (cacheUsable) {
-        aiSummary.value = cached.summary
         highlights.value = cached.highlights
       } else if (!force && cached && Date.now() - cached.at < AI_CACHE_MAX_AGE_MS) {
-        // Inputs drifted (new messages since): show the cached text instantly,
-        // refresh it in the background.
-        aiSummary.value = cached.summary
+        // Inputs drifted (new messages since): show the cached highlights
+        // instantly, refresh them in the background.
         highlights.value = cached.highlights
         runAi(snapshot, signature)
       } else {
