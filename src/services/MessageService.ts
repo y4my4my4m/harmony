@@ -196,6 +196,8 @@ export class MessageService {
       before?: string;
       after?: string;
       signal?: AbortSignal;
+      /** Skip the remote-channel DB lookups when the caller already knows. */
+      isRemote?: boolean;
     } = {}
   ): Promise<{
     messages: Message[];

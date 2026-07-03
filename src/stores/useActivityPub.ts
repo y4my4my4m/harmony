@@ -1487,21 +1487,33 @@ export const useActivityPubStore = defineStore('activitypub', {
           interactionMap.get(i.post_id)!.add(i.interaction_type);
         });
 
-        return posts.map(post => {
-          if (post.reblog?.id) {
-            const postInteractions = interactionMap.get(post.reblog.id) || new Set();
-            return {
-              ...post,
-              reblog: {
-                ...post.reblog,
-                is_favorited: postInteractions.has('favorite') || postInteractions.has('emoji_reaction'),
-                is_reblogged: postInteractions.has('reblog'),
-                is_bookmarked: postInteractions.has('bookmark')
-              }
-            };
-          }
-          return post;
+        const applyFlags = (post: TimelinePost) => {
+          if (!post.reblog?.id) return;
+          const postInteractions = interactionMap.get(post.reblog.id) || new Set();
+          post.reblog = {
+            ...post.reblog,
+            is_favorited: postInteractions.has('favorite') || postInteractions.has('emoji_reaction'),
+            is_reblogged: postInteractions.has('reblog'),
+            is_bookmarked: postInteractions.has('bookmark')
+          };
+        };
+
+        // Patch the passed array (covers callers that assign to a feed AFTER
+        // awaiting this), then patch the reactive feed arrays by id so posts
+        // already painted update through Vue's proxies. Callers paint first
+        // and fire this without awaiting - flags fill in a moment later.
+        posts.forEach(applyFlags);
+        const feeds = [this.homeFeed, this.publicFeed, this.localFeed, this.mentionsFeed];
+        const patchedIds = new Set(uniqueIds);
+        feeds.forEach(feed => {
+          feed.posts.forEach(p => {
+            if (p.reblog?.id && patchedIds.has(p.reblog.id)) {
+              applyFlags(p);
+            }
+          });
         });
+
+        return posts;
       } catch (error) {
         debug.error('Failed to batch fetch reblog interactions:', error);
         return posts;
@@ -1620,16 +1632,14 @@ export const useActivityPubStore = defineStore('activitypub', {
           { limit: 20, before }
         );
 
-        // Show posts immediately; reactions/author/remote-reaction enrichment
-        // fills in reactively from their stores. Blocking initial paint on
-        // three extra fetch layers made every feed switch feel like a loading
-        // screen.
-        const processedPosts = await this.batchFetchReblogInteractions(posts);
-
+        // Show posts immediately; reactions/author/remote-reaction/reblog
+        // enrichment fills in reactively from their stores. Blocking initial
+        // paint on extra fetch layers made every feed switch feel like a
+        // loading screen.
         if (before) {
-          this.homeFeed.posts.push(...processedPosts);
+          this.homeFeed.posts.push(...posts);
         } else {
-          this.homeFeed.posts = processedPosts;
+          this.homeFeed.posts = posts;
           this.unreadCount = 0;
           this.saveTimelineToCache();
         }
@@ -1638,8 +1648,9 @@ export const useActivityPubStore = defineStore('activitypub', {
           const postReactionsStore = usePostReactionsStore();
           void postReactionsStore.fetchMultiplePostReactions(posts.map((p) => p.id), true);
         }
-        void this.ensureAuthorProfilesCached(processedPosts);
-        void this.batchFetchRemoteReactions(processedPosts);
+        void this.batchFetchReblogInteractions(posts);
+        void this.ensureAuthorProfilesCached(posts);
+        void this.batchFetchRemoteReactions(posts);
 
         this.homeFeed.has_more = fullPage;
         this.homeFeed.cursor = posts[posts.length - 1]?.created_at;
@@ -1705,20 +1716,19 @@ export const useActivityPubStore = defineStore('activitypub', {
         });
 
         // Paint first, enrich in background (see loadHomeFeed).
-        const processedPosts = await this.batchFetchReblogInteractions(posts);
-
         if (before) {
-          this.publicFeed.posts.push(...processedPosts);
+          this.publicFeed.posts.push(...posts);
         } else {
-          this.publicFeed.posts = processedPosts;
+          this.publicFeed.posts = posts;
         }
 
         if (posts.length > 0) {
           const postReactionsStore = usePostReactionsStore();
           void postReactionsStore.fetchMultiplePostReactions(posts.map((p) => p.id), true);
         }
-        void this.ensureAuthorProfilesCached(processedPosts);
-        void this.batchFetchRemoteReactions(processedPosts);
+        void this.batchFetchReblogInteractions(posts);
+        void this.ensureAuthorProfilesCached(posts);
+        void this.batchFetchRemoteReactions(posts);
 
         this.publicFeed.has_more = fullPage;
         this.publicFeed.cursor = posts[posts.length - 1]?.created_at;
@@ -1750,20 +1760,19 @@ export const useActivityPubStore = defineStore('activitypub', {
         );
 
         // Paint first, enrich in background (see loadHomeFeed).
-        const processedPosts = await this.batchFetchReblogInteractions(posts);
+        if (before) {
+          this.localFeed.posts.push(...posts);
+        } else {
+          this.localFeed.posts = posts;
+        }
 
         if (posts.length > 0) {
           const postReactionsStore = usePostReactionsStore();
           void postReactionsStore.fetchMultiplePostReactions(posts.map((p) => p.id), true);
         }
-        void this.ensureAuthorProfilesCached(processedPosts);
-        void this.batchFetchRemoteReactions(processedPosts);
-
-        if (before) {
-          this.localFeed.posts.push(...processedPosts);
-        } else {
-          this.localFeed.posts = processedPosts;
-        }
+        void this.batchFetchReblogInteractions(posts);
+        void this.ensureAuthorProfilesCached(posts);
+        void this.batchFetchRemoteReactions(posts);
 
         this.localFeed.has_more = fullPage;
         this.localFeed.cursor = posts[posts.length - 1]?.created_at;
