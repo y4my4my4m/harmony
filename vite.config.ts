@@ -91,6 +91,15 @@ export default defineConfig({
       output: {
         // Better code splitting - split by route and vendor
         manualChunks: (id) => {
+          // Rollup's virtual commonjs interop helpers are imported by BOTH
+          // vendor and vue-vendor (a CJS package in vendor requires
+          // vue-router, so its augmented-namespace wrapper is emitted inside
+          // vue-vendor). If the helpers live in vendor that wrapper import
+          // closes a vendor -> vue-vendor -> vendor cycle; giving them their
+          // own leaf chunk keeps the graph acyclic.
+          if (id.includes('commonjsHelpers')) {
+            return 'commonjs-helpers'
+          }
           // Vendor chunks
           if (id.includes('node_modules')) {
             // Match exact package directories. The previous loose
