@@ -284,8 +284,44 @@
             v-else
             class="url-link url-link--unsafe"
           >{{ part.url }}</span>
+          <!-- Media-only embeds (GIF pages: tenor / giphy / klipy): the
+               resolved image IS the content, so render it exactly like a
+               direct image URL - no link-preview card chrome. -->
+          <div
+            v-if="embedMedia(part)?.kind === 'image'"
+            class="media-container image-container"
+          >
+            <div class="media-frame">
+              <div v-if="!imageLoadedState[embedMedia(part)!.url]" class="media-skeleton image-skeleton"></div>
+              <img
+                :src="embedMedia(part)!.url"
+                @load="handleImageLoad(embedMedia(part)!.url)"
+                @click="$emit('open-lightbox', embedMedia(part)!.url)"
+                v-show="imageLoadedState[embedMedia(part)!.url]"
+                draggable="false"
+                class="content-image"
+              />
+            </div>
+          </div>
+          <div
+            v-else-if="embedMedia(part)?.kind === 'video'"
+            class="media-container video-container"
+          >
+            <div class="media-frame">
+              <video
+                :src="embedMedia(part)!.url"
+                controls
+                loop
+                muted
+                autoplay
+                playsinline
+                class="content-video"
+                preload="metadata"
+              ></video>
+            </div>
+          </div>
           <ProviderEmbedSwitch
-            v-if="resolveEmbedPayload(part) && !isImageUrl(part.url) && !isVideoUrl(part.url) && !isAudioUrl(part.url)"
+            v-else-if="resolveEmbedPayload(part) && !isImageUrl(part.url) && !isVideoUrl(part.url) && !isAudioUrl(part.url)"
             :payload="resolveEmbedPayload(part)!"
             :message-id="messageId"
             :key="`${messageId}-embed-${part.embedId || part.url}`"
@@ -958,6 +994,25 @@ export default defineComponent({
       return null;
     };
 
+    /**
+     * When an embed's resolved media IS the content (GIF pages like klipy /
+     * tenor / giphy), render it as real media instead of a link card.
+     *
+     * Decision is made HERE, from the media file itself, not only from the
+     * backend's mediaOnly flag: embeds are persisted in message metadata and
+     * cached for 24h server-side, so already-stored payloads (and hosts the
+     * backend heuristic doesn't know) must still upgrade to media rendering.
+     */
+    const embedMedia = (part: MessagePart): { kind: 'image' | 'video'; url: string } | null => {
+      const payload = resolveEmbedPayload(part);
+      const media = payload?.image;
+      if (!media) return null;
+
+      if (/\.(mp4|webm|mov)(\?|#|$)/i.test(media)) return { kind: 'video', url: media };
+      if (payload.mediaOnly || /\.gif(\?|#|$)/i.test(media)) return { kind: 'image', url: media };
+      return null;
+    };
+
     // Format mention display based on structured mention data
     const formatMentionDisplay = (mentionPart: any): string => {
       try {
@@ -1308,6 +1363,7 @@ export default defineComponent({
       isBridgedMention,
       getMentionTooltip,
       resolveEmbedPayload,
+      embedMedia,
       decrypting,
       handleDecryptClick,
       // GIF favorites

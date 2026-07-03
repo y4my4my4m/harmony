@@ -396,64 +396,6 @@ class TodayDigestService {
       .trim()
   }
 
-  /**
-   * Summarize the digest on-device. Returns null when the API is missing,
-   * the model isn't downloaded, or summarization fails - callers treat the
-   * summary as strictly optional.
-   */
-  async summarizeDigest(digest: TodayDigest): Promise<string | null> {
-    const Summarizer = (globalThis as any).Summarizer
-    if (typeof Summarizer?.availability !== 'function') return null
-
-    try {
-      const availability = await Summarizer.availability()
-      if (availability !== 'available') {
-        debug.log(`Today digest: on-device model not ready (${availability})`)
-        return null
-      }
-
-      const summarizer = await Summarizer.create({
-        type: 'tldr',
-        format: 'plain-text',
-        length: 'short',
-      })
-
-      try {
-        const text = this.digestToPlainText(digest)
-        if (!text) return null
-        const summary = await summarizer.summarize(text, {
-          context: 'Activity digest for a chat and social app user. Address the reader directly.',
-        })
-        return typeof summary === 'string' && summary.trim() ? summary.trim() : null
-      } finally {
-        summarizer.destroy?.()
-      }
-    } catch (error) {
-      debug.warn('Today digest: on-device summarization failed:', error)
-      return null
-    }
-  }
-
-  private digestToPlainText(digest: TodayDigest): string {
-    const parts: string[] = []
-
-    if (digest.unreadMentions > 0) {
-      parts.push(`You have ${digest.unreadMentions} unread mentions waiting.`)
-    }
-    for (const p of digest.trendingPosts) {
-      const author = (p as any).author?.display_name || (p as any).author?.username
-      if (author) parts.push(`A post by ${author} is trending across the fediverse.`)
-    }
-    for (const p of digest.followedPosts) {
-      const author = (p as any).author?.display_name || (p as any).author?.username
-      const replies = (p as any).replies_count || 0
-      if (author && replies > 3) {
-        parts.push(`${author}, whom you follow, posted something with an active discussion (${replies} replies).`)
-      }
-    }
-
-    return parts.join('\n')
-  }
 }
 
 export const todayDigestService = new TodayDigestService()
