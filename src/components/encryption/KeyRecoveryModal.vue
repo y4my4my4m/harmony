@@ -738,8 +738,15 @@ async function restoreEncryption() {
 
 /* Responsive */
 @media (max-width: 600px) {
+  /* 2-up, not 3: three mono inputs overflow narrow viewports */
   .phrase-input-grid {
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px 10px;
+  }
+
+  .word-input input {
+    min-width: 0;
+    width: 100%;
   }
 
   .recovery-tabs {
