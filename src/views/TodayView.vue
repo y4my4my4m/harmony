@@ -47,6 +47,15 @@
                 class="channel-pill inline-channel-pill"
                 @click="goToChannelId(segment.channel.serverId, segment.channel.channelId)"
               >#{{ segment.channel.channelName }}</button>
+              <button
+                v-else-if="segment.user"
+                class="user-chip"
+                :style="segment.user.color ? { color: segment.user.color } : undefined"
+                @click="openUserProfile(segment.user)"
+              >
+                <Avatar :src="segment.user.avatarUrl" :alt="segment.user.displayName" size="mini" class="user-chip-avatar" />
+                <span class="user-chip-name">{{ segment.text }}</span>
+              </button>
               <template v-else>{{ segment.text }}</template>
             </template>
           </p>
@@ -215,6 +224,12 @@
         <button class="retry-btn" @click="loadDigest(true)">Retry</button>
       </div>
     </div>
+
+    <UserProfileModal
+      :show="showProfileModal"
+      :user="profileModalUser"
+      @close="showProfileModal = false"
+    />
   </div>
 </template>
 
@@ -224,6 +239,7 @@ import { useRouter } from 'vue-router'
 import Icon from '@/components/common/Icon.vue'
 import Avatar from '@/components/common/Avatar.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
+import UserProfileModal from '@/components/UserProfileModal.vue'
 import { getServerIconUrl } from '@/utils/serverUtils'
 import {
   todayDigestService,
@@ -282,17 +298,90 @@ const highlightsByServer = computed<HighlightGroup[]>(() => {
   return [...groups.values()]
 })
 
+interface SummaryAuthor {
+  id: string
+  displayName: string
+  username?: string
+  avatarUrl?: string
+  color?: string | null
+  domain?: string
+  isLocal?: boolean
+}
+
 interface SummarySegment {
   text: string
   channel: ActiveChannelEntry | null
+  user: SummaryAuthor | null
 }
 
+const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+/** Authors from the digest posts, keyed by the names the model may echo. */
+const summaryAuthorsByName = computed<Map<string, SummaryAuthor>>(() => {
+  const byName = new Map<string, SummaryAuthor>()
+  const posts = [...(digest.value?.trendingPosts || []), ...(digest.value?.followedPosts || [])]
+  for (const post of posts) {
+    const raw = (post as any).author
+    if (!raw?.id) continue
+    const author: SummaryAuthor = {
+      id: raw.id,
+      displayName: raw.display_name || raw.username || 'Unknown',
+      username: raw.username,
+      avatarUrl: raw.avatar_url,
+      color: raw.color,
+      domain: raw.domain,
+      isLocal: raw.is_local,
+    }
+    const candidates = new Set<string>()
+    if (raw.display_name) {
+      candidates.add(String(raw.display_name))
+      // The model often shortens "Malika (arc auntiefication)" to "Malika".
+      const firstWord = String(raw.display_name).split(/[\s(]/)[0]
+      if (firstWord.length >= 3) candidates.add(firstWord)
+    }
+    if (raw.username && String(raw.username).length >= 3) candidates.add(String(raw.username))
+    for (const name of candidates) {
+      const key = name.toLowerCase()
+      if (!byName.has(key)) byName.set(key, author)
+    }
+  }
+  return byName
+})
+
+/** Split plain text on known author names, producing user segments. */
+const splitByAuthors = (text: string): SummarySegment[] => {
+  const byName = summaryAuthorsByName.value
+  if (!text || byName.size === 0) return text ? [{ text, channel: null, user: null }] : []
+
+  const escaped = [...byName.keys()]
+    .sort((a, b) => b.length - a.length)
+    .map(escapeRegExp)
+  const pattern = new RegExp(`\\b(${escaped.join('|')})\\b`, 'gi')
+
+  const segments: SummarySegment[] = []
+  let lastIndex = 0
+  for (const match of text.matchAll(pattern)) {
+    const index = match.index ?? 0
+    if (index > lastIndex) segments.push({ text: text.slice(lastIndex, index), channel: null, user: null })
+    segments.push({ text: match[0], channel: null, user: byName.get(match[0].toLowerCase()) || null })
+    lastIndex = index + match[0].length
+  }
+  if (lastIndex < text.length) segments.push({ text: text.slice(lastIndex), channel: null, user: null })
+  return segments
+}
+
+/**
+ * The model writes channel and author names as plain prose. Split the
+ * free-text summary against the known names from the digest that fed it:
+ * channels render as clickable "#channel" pills, post authors as avatar +
+ * profile-colored chips that open their profile.
+ */
 const summarySegments = computed<SummarySegment[]>(() => {
   const text = aiSummary.value
   if (!text) return []
 
   const channels = digest.value?.activeChannels || []
-  if (channels.length === 0) return [{ text, channel: null }]
+  if (channels.length === 0) return splitByAuthors(text)
 
   const byName = new Map<string, ActiveChannelEntry>()
   for (const c of channels) {
@@ -301,7 +390,7 @@ const summarySegments = computed<SummarySegment[]>(() => {
 
   const escaped = [...byName.keys()]
     .sort((a, b) => b.length - a.length) // longest first so e.g. "money" doesn't shadow "money-talk"
-    .map(name => name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+    .map(escapeRegExp)
   // Consume an optional leading "#" (with optional space, some models write
   // "# gaming"): the pill supplies its own "#", so leaving the model's in the
   // text produced "# #gaming".
@@ -312,11 +401,11 @@ const summarySegments = computed<SummarySegment[]>(() => {
   for (const match of text.matchAll(pattern)) {
     const index = match.index ?? 0
     const name = (match[1] || match[2] || '').toLowerCase()
-    if (index > lastIndex) segments.push({ text: text.slice(lastIndex, index), channel: null })
-    segments.push({ text: match[0], channel: byName.get(name) || null })
+    if (index > lastIndex) segments.push(...splitByAuthors(text.slice(lastIndex, index)))
+    segments.push({ text: match[0], channel: byName.get(name) || null, user: null })
     lastIndex = index + match[0].length
   }
-  if (lastIndex < text.length) segments.push({ text: text.slice(lastIndex), channel: null })
+  if (lastIndex < text.length) segments.push(...splitByAuthors(text.slice(lastIndex)))
 
   return segments
 })
@@ -434,6 +523,22 @@ const loadDigest = async (force = false) => {
   } finally {
     loading.value = false
   }
+}
+
+const showProfileModal = ref(false)
+const profileModalUser = ref<any>(null)
+
+const openUserProfile = (author: SummaryAuthor) => {
+  profileModalUser.value = {
+    id: author.id,
+    username: author.username || author.displayName,
+    display_name: author.displayName,
+    avatar_url: author.avatarUrl,
+    color: author.color,
+    domain: author.domain,
+    is_local: author.isLocal,
+  }
+  showProfileModal.value = true
 }
 
 const goBack = () => router.back()
@@ -885,4 +990,27 @@ onMounted(() => loadDigest())
     display: none;
   }
 }
+
+.user-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 2px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+  color: var(--harmony-primary);
+  vertical-align: baseline;
+}
+
+.user-chip:hover .user-chip-name {
+  text-decoration: underline;
+}
+
+.user-chip-avatar {
+  flex-shrink: 0;
+}
+
 </style>

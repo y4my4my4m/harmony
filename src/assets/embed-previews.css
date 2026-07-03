@@ -549,3 +549,26 @@ a:hover > .link-embed-card--thumbnail,
   }
 }
 
+
+/* Media-first card (GIF pages etc.): the image IS the content, so it stacks
+   above the meta line at natural aspect instead of a cropped 100px square. */
+.link-embed-card--media {
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.link-embed-card--media .link-embed-card__media {
+  flex: none;
+  width: auto;
+  max-width: 100%;
+  aspect-ratio: auto;
+  height: auto;
+}
+
+.link-embed-card--media .link-embed-card__media img {
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 320px;
+  object-fit: contain;
+}
