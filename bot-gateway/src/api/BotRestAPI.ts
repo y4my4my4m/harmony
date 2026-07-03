@@ -243,17 +243,33 @@ export class BotRestAPI {
     }
   }
 
-  /** Ask the federation backend to enrich a message's link previews. Best-effort. */
+  /**
+   * Ask the federation backend to enrich a message's link previews.
+   * Best-effort. Auth: INTERNAL_API_SECRET when configured (scoped secret,
+   * preferred), otherwise the service-role key. Only send either over
+   * localhost or HTTPS - never a plain-http remote URL.
+   */
   private triggerLinkPreviewEnrichment(messageId: string): void {
     const federationUrl = process.env.FEDERATION_BACKEND_URL || 'http://localhost:3001'
-    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-    if (!serviceKey) return
+    const secret = process.env.INTERNAL_API_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY
+    if (!secret) return
+
+    try {
+      const parsed = new URL(federationUrl)
+      const isLocal = parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1'
+      if (parsed.protocol !== 'https:' && !isLocal) {
+        console.warn('Refusing to send internal secret over plain http to a remote FEDERATION_BACKEND_URL')
+        return
+      }
+    } catch {
+      return
+    }
 
     fetch(`${federationUrl}/link-preview/enrich-message`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${serviceKey}`,
+        Authorization: `Bearer ${secret}`,
       },
       body: JSON.stringify({ messageId }),
     }).catch((err) => {

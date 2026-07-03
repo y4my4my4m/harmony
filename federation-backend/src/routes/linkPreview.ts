@@ -1,10 +1,25 @@
 import { Router } from 'express';
+import { timingSafeEqual } from 'node:crypto';
 import { fetchLinkPreview } from '../services/LinkPreviewService.js';
 import { getSupabaseClient, getSupabaseClientWithAuth } from '../config/supabase.js';
 import config from '../config/index.js';
 import { logger } from '../utils/logger.js';
 
 const router = Router();
+
+/**
+ * Constant-time secret comparison for the internal enrich endpoint.
+ * Prefer a dedicated INTERNAL_API_SECRET (scoped: leaking it only allows
+ * triggering link enrichment); fall back to the service-role key so
+ * zero-config deployments keep working.
+ */
+function isInternalCallerAuthorized(token: string): boolean {
+  const expected = process.env.INTERNAL_API_SECRET || config.SUPABASE_SERVICE_ROLE_KEY;
+  if (!token || !expected) return false;
+  const a = Buffer.from(token);
+  const b = Buffer.from(expected);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
 
 /**
  * Internal service-to-service trigger: enrich one stored message's link
@@ -16,7 +31,7 @@ const router = Router();
 router.post('/enrich-message', async (req, res) => {
   const authHeader = req.headers.authorization;
   const token = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : '';
-  if (!token || token !== config.SUPABASE_SERVICE_ROLE_KEY) {
+  if (!isInternalCallerAuthorized(token)) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
