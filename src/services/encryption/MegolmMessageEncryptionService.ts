@@ -482,9 +482,31 @@ export class MegolmMessageEncryptionService {
       | null
 
     if (existingKey && !forceNew) {
-      if (cachedKey) return
+      if (cachedKey) {
+        // VERIFY the cached private still pairs with the PUBLISHED public key
+        // before trusting it. A key reset from another tab/device replaces
+        // the user_key_pairs row; peers then wrap keys to the NEW public
+        // while this browser unwraps with the OLD private - every fulfilled
+        // key request fails with an opaque GCM error, forever. When the
+        // pairing can't be confirmed (mismatch, or a legacy record without a
+        // recorded public half), fall through and re-restore from the DB
+        // row, which is authoritative (it's what peers encrypt to).
+        const cachedPublic = await identityKeyStore.loadPublicKey(this.currentUserId)
+        if (cachedPublic && cachedPublic === existingKey.identity_public_key) {
+          return
+        }
+        if (cachedPublic) {
+          debug.warn(
+            '⚠️ Local identity key does NOT match the published public key ' +
+            '(key reset from another device?) - re-restoring from DB so ECDH pairs again',
+          )
+        } else {
+          debug.log('🔎 Cached identity key has no recorded public half - re-restoring from DB to guarantee pairing')
+        }
+      }
 
-      // Key pair in DB but not in IndexedDB - decrypt from DB using recovery key.
+      // Key pair in DB but not (verifiably) in IndexedDB - decrypt from DB
+      // using the recovery key.
       // Let failures PROPAGATE: silently continuing left us with no identity key
       // in IndexedDB, so every later ECDH (claiming shares, sharing our session)
       // threw "Identity private key not found" and all messages showed as glyphs
@@ -507,8 +529,8 @@ export class MegolmMessageEncryptionService {
           'pkcs8', privateKeyBytes,
           { name: 'ECDH', namedCurve: 'P-256' }, false, ['deriveBits']
         )
-        await identityKeyStore.store(this.currentUserId, privateKey)
-        debug.log('✅ Restored identity key from DB to IndexedDB')
+        await identityKeyStore.store(this.currentUserId, privateKey, existingKey.identity_public_key)
+        debug.log('✅ Restored identity key from DB to IndexedDB (pairing verified against published public key)')
         return
       }
 
@@ -572,12 +594,13 @@ export class MegolmMessageEncryptionService {
       throw new Error('Failed to create identity key pair')
     }
 
-    // Store non-extractable CryptoKey in IndexedDB
+    // Store non-extractable CryptoKey in IndexedDB, with the matching public
+    // half so future unlocks can verify the pairing against user_key_pairs.
     const nonExtractablePrivateKey = await crypto.subtle.importKey(
       'pkcs8', privateKeyRaw,
       { name: 'ECDH', namedCurve: 'P-256' }, false, ['deriveBits']
     )
-    await identityKeyStore.store(this.currentUserId, nonExtractablePrivateKey)
+    await identityKeyStore.store(this.currentUserId, nonExtractablePrivateKey, publicKeyBase64)
 
     debug.log('✅ Identity key pair created')
   }
@@ -2173,6 +2196,21 @@ export class MegolmMessageEncryptionService {
    */
   async getIdentityCreatedAt(): Promise<number | null> {
     if (this.identityCreatedAtMs !== null) return this.identityCreatedAtMs
+    // Dedup concurrent callers: every page decrypt asks for the identity
+    // epoch, and several pages can be in flight during boot - without this
+    // each fired its own get_my_key_pair RPC before the first cached.
+    if (this.identityCreatedAtFetch) return this.identityCreatedAtFetch
+    this.identityCreatedAtFetch = this._getIdentityCreatedAt()
+    try {
+      return await this.identityCreatedAtFetch
+    } finally {
+      this.identityCreatedAtFetch = null
+    }
+  }
+
+  private identityCreatedAtFetch: Promise<number | null> | null = null
+
+  private async _getIdentityCreatedAt(): Promise<number | null> {
     try {
       const { data } = await supabase.rpc('get_my_key_pair')
       const row = (Array.isArray(data) ? data[0] : null) as { created_at?: string } | null

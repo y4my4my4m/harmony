@@ -1308,17 +1308,33 @@ export default defineComponent({
       }
     };
 
+    // Stop the spinner as soon as the parent's decrypt attempt settles
+    // (success or failure). The 5s timeout below stays as a fallback for
+    // paths that never fire the event.
+    const handleDecryptFinished = (event: Event) => {
+      const detail = (event as CustomEvent).detail as { messageId?: string } | undefined;
+      if (detail?.messageId === props.messageId) {
+        decrypting.value = false;
+      }
+    };
+    onMounted(() => {
+      window.addEventListener('harmony-decrypt-finished', handleDecryptFinished);
+    });
+    onUnmounted(() => {
+      window.removeEventListener('harmony-decrypt-finished', handleDecryptFinished);
+    });
+
     const handleDecryptClick = (event: MouseEvent) => {
       event.stopPropagation();
       if (decrypting.value) return;
-      
+
       debug.log('🔓 Click to decrypt message:', props.messageId);
       decrypting.value = true;
-      
+
       // Emit event to parent to handle decryption
       emit('decrypt-message', props.messageId);
-      
-      // Reset decrypting state after a timeout (in case decryption fails silently)
+
+      // Fallback reset (in case the finished event never fires)
       setTimeout(() => {
         decrypting.value = false;
       }, 5000);
