@@ -2,6 +2,7 @@
   <div class="server-sidebar" data-testid="server-sidebar">
     <!-- Fixed header section - never scrolls -->
     <div class="fixed-header">
+
       <div
         class="portal"
         @click="togglePublicServers"
@@ -9,6 +10,25 @@
         @mouseleave="hideSidebarTooltip"
       >
       <span class="portal-icon" role="img" aria-label="Harmony Portal"></span>
+      </div>
+
+      <!-- Today Button (beta, only when enabled in Advanced settings) -->
+      <div
+        v-if="todayDashboardEnabled"
+        class="header-item-wrapper"
+        @mouseenter="showSidebarTooltip($event, 'Today')"
+        @mouseleave="hideSidebarTooltip"
+      >
+        <div class="server-pill" :class="{ 'visible': isTodaySelected }"></div>
+        <div
+          class="dm-button today-button"
+          :class="{ 'selected': isTodaySelected }"
+          @click="goToToday"
+        >
+          <svg viewBox="0 0 24 24" class="dm-icon">
+            <path d="M12,7A5,5 0 0,1 17,12A5,5 0 0,1 12,17A5,5 0 0,1 7,12A5,5 0 0,1 12,7M12,9A3,3 0 0,0 9,12A3,3 0 0,0 12,15A3,3 0 0,0 15,12A3,3 0 0,0 12,9M12,2L14.39,5.42C13.65,5.15 12.84,5 12,5C11.16,5 10.35,5.15 9.61,5.42L12,2M3.34,7L7.5,6.65C6.9,7.16 6.36,7.78 5.94,8.5C5.5,9.24 5.25,10 5.11,10.79L3.34,7M3.36,17L5.12,13.23C5.26,14 5.53,14.78 5.95,15.5C6.37,16.24 6.91,16.86 7.5,17.37L3.36,17M20.65,7L18.88,10.79C18.74,10 18.47,9.23 18.05,8.5C17.63,7.78 17.1,7.15 16.5,6.64L20.65,7M20.64,17L16.5,17.36C17.09,16.85 17.62,16.22 18.04,15.5C18.46,14.77 18.73,14 18.87,13.21L20.64,17M12,22L9.59,18.56C10.33,18.83 11.14,19 12,19C12.82,19 13.63,18.83 14.37,18.56L12,22Z" fill="currentColor"/>
+          </svg>
+        </div>
       </div>
       <!-- <div
         class="portal"
@@ -39,19 +59,19 @@
         </div>
       </div>
 
-      <!-- Monyverse Button -->
+      <!-- Fediverse Button -->
       <div
         class="header-item-wrapper"
-        @mouseenter="showSidebarTooltip($event, 'Monyverse')"
+        @mouseenter="showSidebarTooltip($event, 'Fediverse')"
         @mouseleave="hideSidebarTooltip"
       >
-        <div class="server-pill" :class="{ 'visible': isMonyverseSelected, 'has-unread': unreadCount > 0 && !isMonyverseSelected }"></div>
+        <div class="server-pill" :class="{ 'visible': isFediverseSelected, 'has-unread': unreadCount > 0 && !isFediverseSelected }"></div>
         <div
-          class="monyverse-button"
-          :class="{ 'selected': isMonyverseSelected }"
-          @click="goToMonyverse"
+          class="fediverse-button"
+          :class="{ 'selected': isFediverseSelected }"
+          @click="goToFediverse"
         >
-          <div class="monyverse-icon">#</div>
+          <div class="fediverse-icon">#</div>
           <div v-if="unreadCount > 0" class="unread-badge">
             {{ unreadCount > 99 ? '99+' : unreadCount }}
           </div>
@@ -190,6 +210,12 @@
         </svg>
         <span>Mark as Read</span>
       </div>
+      <div class="context-menu-item" @click="openInviteFromContextMenu">
+        <svg width="16" height="16" viewBox="0 0 24 24">
+          <path fill="currentColor" d="M15,14C12.33,14 7,15.33 7,18V20H23V18C23,15.33 17.67,14 15,14M6,10V7H4V10H1V12H4V15H6V12H9V10M15,12A4,4 0 0,0 19,8A4,4 0 0,0 15,4A4,4 0 0,0 11,8A4,4 0 0,0 15,12Z"/>
+        </svg>
+        <span>Invite People</span>
+      </div>
       <div class="context-menu-divider"></div>
       <div class="context-menu-item" @click="createFolderFromServer">
         <svg width="16" height="16" viewBox="0 0 24 24">
@@ -227,6 +253,14 @@
       :folder="editingFolder"
       @close="closeFolderModal"
       @saved="handleFolderSaved"
+    />
+
+    <!-- Invite Modal (opened from the server context menu) -->
+    <InviteModal
+      :show="showInviteModal"
+      :server-id="inviteServer?.id"
+      :server-data="inviteServer || undefined"
+      @close="showInviteModal = false"
     />
 
     <!-- Funding button (bottom of sidebar) -->
@@ -280,8 +314,10 @@ import ServerIcon from '@/components/common/ServerIcon.vue';
 import ServerFolder from '@/components/ServerFolder.vue';
 import ServerFolderContextMenu from '@/components/ServerFolderContextMenu.vue';
 import ServerFolderSettingsModal from '@/components/ServerFolderSettingsModal.vue';
+import InviteModal from '@/components/InviteModal.vue';
 import FundingModal from '@/components/FundingModal.vue';
 import { fundingService } from '@/services/FundingService';
+import { useTodayDashboard } from '@/composables/useTodayDashboard';
 import { debug } from '@/utils/debug';
 import type { Server, ServerFolder as ServerFolderType } from '@/types';
 
@@ -331,6 +367,15 @@ const showServerContextMenu = ref(false);
 const contextMenuPosition = ref({ x: 0, y: 0 });
 const selectedFolder = ref<ServerFolderType | null>(null);
 const selectedServer = ref<Server | null>(null);
+const showInviteModal = ref(false);
+const inviteServer = ref<Server | null>(null);
+
+const openInviteFromContextMenu = () => {
+  inviteServer.value = selectedServer.value;
+  showInviteModal.value = false;
+  closeServerContextMenu();
+  showInviteModal.value = !!inviteServer.value;
+};
 
 // Folder modal state
 const showFolderModal = ref(false);
@@ -339,6 +384,7 @@ const editingFolder = ref<ServerFolderType | null>(null);
 // Composables and Stores
 const serverChannelStore = useServerChannelStore();
 const activityPubStore = useActivityPubStore();
+const { todayDashboardEnabled } = useTodayDashboard();
 const notificationStore = useNotificationStore();
 const { getServerUnreadMessages } = useUnreadCounts();
 const router = useRouter();
@@ -360,7 +406,9 @@ const isDMSelected = computed(() => {
   return route.name === 'DM' || route.name === 'DMHome' || route.name === 'DMConversation';
 });
 
-const isMonyverseSelected = computed(() => {
+const isTodaySelected = computed(() => route.name === 'Today');
+
+const isFediverseSelected = computed(() => {
   return isActivityPubRoute(route.name as string);
 });
 
@@ -403,7 +451,7 @@ const hasServerUnread = (serverId: string): boolean => {
 };
 
 const activeServerId = computed(() => {
-  if (isDMSelected.value || isMonyverseSelected.value) return null;
+  if (isDMSelected.value || isFediverseSelected.value || isTodaySelected.value) return null;
   return serverChannelStore.currentServerId;
 });
 
@@ -431,24 +479,50 @@ const togglePublicServers = () => {
 
 const selectServer = async (serverId?: string) => {
   if (!serverId) return;
-  
+
   emit('switch-to-chat');
-  
+
+  // setCurrentServer synchronously swaps in this server's cached channel
+  // structure (or clears it), so the previous server's channels never linger.
   serverChannelStore.setCurrentServer(serverId);
+
+  const hasCachedStructure =
+    serverChannelStore._loadedCategoriesServerId === serverId &&
+    serverChannelStore.channels.length > 0;
+
+  if (hasCachedStructure) {
+    // Instant path: navigate immediately off the snapshot, refresh behind it.
+    const defaultChannelId = serverChannelStore.getDefaultChannel();
+    if (defaultChannelId) {
+      router.push({ name: 'ChatChannel', params: { serverId, channelId: defaultChannelId } });
+    } else {
+      router.push({ name: 'Chat' });
+    }
+    void serverChannelStore.fetchCategoriesAndChannels(serverId, undefined, true);
+    return;
+  }
+
+  // First visit: the structure is already cleared - also clear the message
+  // pane and land on the bare chat route so the user sees a clean loading
+  // state instead of the previous server's content.
+  const { useChatStore } = await import('@/stores/useChat');
+  useChatStore().clearMessages();
+  router.push({ name: 'Chat' });
+
   await serverChannelStore.fetchCategoriesAndChannels(serverId);
-  
+
+  // The user may have clicked another server while this one loaded.
+  if (serverChannelStore.currentServerId !== serverId) return;
+
   const defaultChannelId = serverChannelStore.getDefaultChannel();
-  
   if (defaultChannelId) {
-    router.push({ 
-      name: 'ChatChannel', 
-      params: { 
-        serverId: serverId, 
-        channelId: defaultChannelId 
-      } 
+    router.push({
+      name: 'ChatChannel',
+      params: {
+        serverId: serverId,
+        channelId: defaultChannelId
+      }
     });
-  } else {
-    router.push({ name: 'Chat' });
   }
 };
 
@@ -457,7 +531,11 @@ const goToDMs = () => {
   router.push({ name: 'DMHome' });
 };
 
-const goToMonyverse = () => {
+const goToToday = () => {
+  router.push({ name: 'Today' });
+};
+
+const goToFediverse = () => {
   activityPubStore.clearUnreadCount();
   emit('switch-to-activitypub');
   router.push({ name: 'SocialHome' });
@@ -1221,8 +1299,8 @@ const removeServerFromFolder = async () => {
   color: var(--text-on-primary, #ffffff);
 }
 
-/* Monyverse Button */
-.monyverse-button {
+/* Fediverse Button */
+.fediverse-button {
   width: 48px;
   height: 48px;
   background-color: var(--nav-rail-button-bg, var(--background-secondary));
@@ -1238,7 +1316,7 @@ const removeServerFromFolder = async () => {
   justify-content: center;
 }
 
-.monyverse-icon {
+.fediverse-icon {
   font-size: 24px;
   font-weight: bold;
   color: var(--nav-rail-button-icon, var(--icon-primary));
@@ -1246,17 +1324,17 @@ const removeServerFromFolder = async () => {
   transition: color 0.2s ease;
 }
 
-.monyverse-button:hover {
+.fediverse-button:hover {
   background: var(--harmony-primary, #0284C7);
   transform: translateX(5px);
 }
 
-.monyverse-button.selected {
+.fediverse-button.selected {
   background: var(--harmony-primary, #0284C7);
   border-radius: 50%;
 }
-.monyverse-button:hover .monyverse-icon,
-.monyverse-button.selected .monyverse-icon {
+.fediverse-button:hover .fediverse-icon,
+.fediverse-button.selected .fediverse-icon {
   color: var(--text-on-primary, #ffffff);
 }
 
@@ -1435,7 +1513,7 @@ const removeServerFromFolder = async () => {
 }
 
 /* .dm-button.selected,
-.monyverse-button.selected,
+.fediverse-button.selected,
 .portal.selected {
 } */
  

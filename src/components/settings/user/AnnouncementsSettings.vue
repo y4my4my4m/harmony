@@ -146,7 +146,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
-import DOMPurify from 'dompurify'
+import { renderAnnouncementHtml } from '@/utils/announcementContent'
 import { announcementService, type Announcement } from '@/services/AnnouncementService'
 import { useAnnouncementUnreadCount } from '@/composables/useAnnouncementUnreadCount'
 import { userDataService } from '@/services/userDataService'
@@ -172,14 +172,7 @@ const loadError = ref(false)
 const isMarkingAll = ref(false)
 const markingIds = ref<Set<string>>(new Set())
 
-const sanitizeContent = (html: string): string =>
-  DOMPurify.sanitize(html || '', {
-    ALLOWED_TAGS: [
-      'p', 'br', 'a', 'span', 'em', 'strong', 'b', 'i', 'del', 'pre', 'code',
-      'blockquote', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
-    ],
-    ALLOWED_ATTR: ['href', 'rel', 'target', 'class', 'title'],
-  })
+const sanitizeContent = renderAnnouncementHtml
 
 const ICON_MAP: Record<string, string> = {
   info: 'ℹ️',

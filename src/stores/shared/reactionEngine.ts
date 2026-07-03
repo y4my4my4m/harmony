@@ -89,9 +89,21 @@ export function createReactionEngine<G, E>(
     }
   }
 
-  async function fetchMultiple(entityIds: string[], force = false): Promise<void> {
+  async function fetchMultiple(entityIds: string[], force = false, requestedAt = Date.now()): Promise<void> {
     if (!entityIds.length) return
-    if (batchFetchInFlight) return batchFetchInFlight
+
+    // Serialize batches instead of DROPPING the new ids: previously a second
+    // call while one was in flight returned the FIRST batch's promise and the
+    // new ids were never fetched - freshly scrolled-in posts showed no
+    // reactions until the TTL expired. Ids the in-flight batch already
+    // refreshed (lastFetched >= requestedAt) are satisfied and skipped, so
+    // identical concurrent batches still collapse into one RPC.
+    if (batchFetchInFlight) {
+      await batchFetchInFlight.catch(() => {})
+      const remaining = entityIds.filter(id => (lastFetched.get(id) || 0) < requestedAt)
+      if (!remaining.length) return
+      return fetchMultiple(remaining, force, requestedAt)
+    }
 
     const now = Date.now()
     const idsToFetch = (force
@@ -111,13 +123,32 @@ export function createReactionEngine<G, E>(
           reactionsByEntity.set(id, grouped[id] || [])
           lastFetched.set(id, now)
         }
+        evictStaleEntries()
       } finally {
         idsToFetch.forEach(id => isLoading.delete(id))
       }
     })()
 
-    batchFetchInFlight = run.then(() => { batchFetchInFlight = null })
+    batchFetchInFlight = run.then(() => { batchFetchInFlight = null }, () => { batchFetchInFlight = null })
     return run
+  }
+
+  // Bound memory in long sessions: past this many cached entities, drop the
+  // least-recently-fetched ones (they refetch on next view anyway).
+  const MAX_CACHED_ENTITIES = 500
+  function evictStaleEntries(): void {
+    if (reactionsByEntity.size <= MAX_CACHED_ENTITIES) return
+    const byAge = [...lastFetched.entries()].sort((a, b) => a[1] - b[1])
+    const toEvict = reactionsByEntity.size - MAX_CACHED_ENTITIES
+    let evicted = 0
+    for (const [id] of byAge) {
+      if (evicted >= toEvict) break
+      // Never evict entities with live optimistic state or a pending reconcile.
+      if (optimisticByEntity.has(id) || pendingReconcileTimeouts.has(id)) continue
+      reactionsByEntity.delete(id)
+      lastFetched.delete(id)
+      evicted++
+    }
   }
 
   /**
@@ -167,7 +198,10 @@ export function createReactionEngine<G, E>(
     pendingToggleKeys.add(toggleKey)
 
     try {
-      const base = reactionsByEntity.get(entityId) || []
+      // Layer on top of any existing optimistic state - building from the raw
+      // server groups would silently discard a still-unreconciled previous
+      // toggle (add 👍 then ❤️ quickly → 👍 vanished until reconcile).
+      const base = optimisticByEntity.get(entityId) ?? reactionsByEntity.get(entityId) ?? []
       const currentlyReacted = hasUserReacted.value(entityId, emoji)
       const operation = currentlyReacted ? 'remove' : 'add'
 

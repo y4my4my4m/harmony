@@ -91,16 +91,31 @@ export default defineConfig({
       output: {
         // Better code splitting - split by route and vendor
         manualChunks: (id) => {
+          // Rollup's virtual commonjs interop helpers are imported by BOTH
+          // vendor and vue-vendor (a CJS package in vendor requires
+          // vue-router, so its augmented-namespace wrapper is emitted inside
+          // vue-vendor). If the helpers live in vendor that wrapper import
+          // closes a vendor -> vue-vendor -> vendor cycle; giving them their
+          // own leaf chunk keeps the graph acyclic.
+          if (id.includes('commonjsHelpers')) {
+            return 'commonjs-helpers'
+          }
           // Vendor chunks
           if (id.includes('node_modules')) {
-            // Large libraries get their own chunks
-            if (id.includes('vue') || id.includes('@vue')) {
+            // Match exact package directories. The previous loose
+            // `includes('vue')` swept every "vue-*" ecosystem package
+            // (toastification, i18n, tanstack vue-virtual, ...) into
+            // vue-vendor while their own dependencies landed in vendor,
+            // producing a vendor <-> vue-vendor import cycle. Only the core
+            // runtime stack (which imports nothing from vendor) lives here,
+            // so imports flow one way: vendor -> vue-vendor.
+            if (/node_modules\/(?:vue|@vue|vue-router|pinia|vue-demi)\//.test(id)) {
               return 'vue-vendor'
             }
-            if (id.includes('supabase')) {
+            if (id.includes('node_modules/@supabase/')) {
               return 'supabase-vendor'
             }
-            if (id.includes('@privacyresearch')) {
+            if (id.includes('node_modules/@privacyresearch/')) {
               return 'crypto-vendor'
             }
             // Other node_modules

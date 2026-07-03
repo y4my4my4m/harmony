@@ -31,6 +31,11 @@ export const useServerChannelStore = defineStore('serverChannel', {
     currentUserId: null as string | null,
     _pendingFetches: {} as Record<string, Promise<void> | undefined>,
     _loadedCategoriesServerId: null as string | null,
+    _structureCacheByServer: {} as Record<string, {
+      categories: Category[]
+      channels: Channel[]
+      categoryChannels: Record<string, Channel[]>
+    }>,
     pendingInviteOpen: false as boolean,
   }),
 
@@ -168,9 +173,16 @@ export const useServerChannelStore = defineStore('serverChannel', {
       if (server) {
         this.currentServerId = serverId;
         this.currentServer = server;
+
+        // Swap the channel structure synchronously: cached snapshot when we
+        // have one (instant switch-back), empty otherwise - either way the
+        // previous server's channels must never linger on screen while the
+        // network fetch runs.
+        this.activateCachedServerStructure(serverId);
+
         statePersistence.setLastServer(serverId).catch(debug.error);
         debug.log('📍 Current server set to:', server.name);
-        
+
         this.subscribeToServerStructure(serverId).catch(debug.error);
       }
     },
@@ -369,9 +381,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
           debug.log('🔄 Fetching categories and channels via service-like helper:', serverId);
           
           await this._fetchCategoriesAndChannelsHelper(serverId, signal);
-          
-          this._loadedCategoriesServerId = serverId;
-          
+
           debug.log(`✅ Fetched ${this.categories?.length || 0} categories and ${this.channels?.length || 0} channels via service-like helper`);
         } catch (error) {
           if (signal?.aborted) {
@@ -384,17 +394,20 @@ export const useServerChannelStore = defineStore('serverChannel', {
           try {
             debug.log('🔄 Falling back to direct categories and channels fetch');
             await this._fetchCategoriesAndChannelsFallback(serverId, signal);
-            this._loadedCategoriesServerId = serverId;
           } catch (fallbackError) {
             if (signal?.aborted) {
               debug.log('🛑 Categories and channels fallback fetch aborted');
               return;
             }
             debug.error('❌ Fallback categories and channels fetch also failed:', fallbackError);
-            this.categories = [];
-            this.channels = [];
-            this.categoryChannels = {};
-            this._loadedCategoriesServerId = null;
+            // Only clear the live structure if this failure belongs to the
+            // server currently on screen.
+            if (!this.currentServerId || this.currentServerId === serverId) {
+              this.categories = [];
+              this.channels = [];
+              this.categoryChannels = {};
+              this._loadedCategoriesServerId = null;
+            }
           }
         } finally {
           delete this._pendingFetches[fetchKey];
@@ -473,24 +486,54 @@ export const useServerChannelStore = defineStore('serverChannel', {
      * Service-like helper: Process categories and channels data
      */
     _processCategoriesAndChannelsData(categories: Category[], channels: Channel[], serverId: string): void {
-      this.categories = categories;
-      this.channels = channels;
-      this.categoryChannels = {};
-
-      this.channels.forEach(channel => {
+      const categoryChannels: Record<string, Channel[]> = {};
+      channels.forEach(channel => {
         if (channel.category) {
-          if (!this.categoryChannels[channel.category]) {
-            this.categoryChannels[channel.category] = [];
-          }
-          this.categoryChannels[channel.category].push(channel);
+          (categoryChannels[channel.category] ||= []).push(channel);
         }
       });
-
-      Object.keys(this.categoryChannels).forEach(categoryId => {
-        this.categoryChannels[categoryId].sort((a, b) => (a.order || 0) - (b.order || 0));
+      Object.keys(categoryChannels).forEach(categoryId => {
+        categoryChannels[categoryId].sort((a, b) => (a.order || 0) - (b.order || 0));
       });
 
+      // Always snapshot for instant future switches.
+      this._structureCacheByServer[serverId] = { categories, channels, categoryChannels };
+
+      // Stale-fetch guard: if the user has already switched to a different
+      // server, don't overwrite that server's (possibly cached) structure or
+      // yank the selection back here.
+      if (this.currentServerId && this.currentServerId !== serverId) {
+        debug.log(`⏭️ Skipping stale structure apply for ${serverId} (now on ${this.currentServerId})`);
+        return;
+      }
+
+      this.categories = categories;
+      this.channels = channels;
+      this.categoryChannels = categoryChannels;
+      this._loadedCategoriesServerId = serverId;
+
       this.setCurrentServer(serverId);
+    },
+
+    /**
+     * Synchronously swap in the cached structure for a server, or clear the
+     * live structure when nothing is cached yet. Returns whether a cached
+     * snapshot was applied.
+     */
+    activateCachedServerStructure(serverId: string): boolean {
+      const cached = this._structureCacheByServer[serverId];
+      if (cached) {
+        this.categories = cached.categories;
+        this.channels = cached.channels;
+        this.categoryChannels = cached.categoryChannels;
+        this._loadedCategoriesServerId = serverId;
+        return true;
+      }
+      this.categories = [];
+      this.channels = [];
+      this.categoryChannels = {};
+      this._loadedCategoriesServerId = null;
+      return false;
     },
 
     async moveChannelToCategory(channelId: string, newCategoryId: string | null) {

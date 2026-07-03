@@ -84,6 +84,22 @@
             :style="menuPosition"
             @click.stop
           >
+            <!-- Mobile: pinned/threads buttons are hidden from the header
+                 and exposed here instead. -->
+            <template v-if="isMobile">
+              <div v-if="pinnedCount > 0" class="context-menu-item" @click="handleMenuPinned">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12,2L15.09,8.26L22,9.27L17,14.14L18.18,21.02L12,17.77L5.82,21.02L7,14.14L2,9.27L8.91,8.26L12,2Z"/>
+                </svg>
+                <span>Pinned Messages ({{ pinnedCount }})</span>
+              </div>
+              <div class="context-menu-item" @click="handleMenuThreads">
+                <Icon name="thread" :size="16" />
+                <span>View Threads</span>
+              </div>
+              <div class="context-menu-divider"></div>
+            </template>
+
             <div class="context-menu-item" @click="handleMarkAsRead">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M0.41,13.41L6,19L7.41,17.58L1.83,12M22.24,5.58L11.66,16.17L7.5,12L6.07,13.41L11.66,19L23.66,7M18,7L16.59,5.58L10.24,11.93L11.66,13.34L18,7Z"/>
@@ -310,6 +326,16 @@ const setNotificationLevel = async (level: 'all' | 'mentions' | 'none') => {
 
 const handlePinnedClick = () => {
   emit('show-pinned')
+}
+
+const handleMenuPinned = () => {
+  showOptionsMenu.value = false
+  emit('show-pinned')
+}
+
+const handleMenuThreads = () => {
+  showOptionsMenu.value = false
+  emit('show-threads')
 }
 
 const handleSearchClick = () => {
@@ -615,7 +641,14 @@ onUnmounted(() => {
     width: 40px;
     height: 40px;
   }
-  
+
+  /* Mobile keeps search + members + overflow; pinned and threads move
+     into the overflow menu. */
+  .pinned-btn,
+  .threads-btn {
+    display: none;
+  }
+
   .channel-details {
     flex-wrap: wrap;
     align-items: flex-start;

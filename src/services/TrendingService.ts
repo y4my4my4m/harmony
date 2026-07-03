@@ -369,10 +369,12 @@ class TrendingService {
     try {
       const { limit = 10, instance, includeLocal = true, includeFederated = true } = options;
 
-      // Get current user id to exclude from trending users
+      // Get current user's PROFILE id to exclude from trending users
+      // (profiles.id, not the auth UUID - they differ, and comparing the auth
+      // UUID meant you'd see yourself in your own "suggested follows").
       const { authContextService } = await import('@/services/AuthContextService');
       const context = await authContextService.getCurrentContext();
-      const currentUserId = context.authUser?.id;
+      const currentUserId = context.profileId;
 
       let query = supabase
         .from('profiles')

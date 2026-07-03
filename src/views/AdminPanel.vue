@@ -2724,12 +2724,19 @@ watch(
 const loadInitialData = async () => {
   loading.value = true
   try {
-    await Promise.all([
+    // Core dashboard data gates the global spinner; every slower/secondary
+    // section streams in behind its own per-section loadingStates flag so one
+    // slow federation query doesn't hold the whole panel on a spinner.
+    // allSettled: one failed loader must not abort the rest.
+    await Promise.allSettled([
       loadSystemStats(),
       loadUsers(),
       loadUserCounts(),
       loadSystemHealth(),
       loadInstanceConfig(),
+    ])
+
+    void Promise.allSettled([
       loadRecentActivity(),
       loadAnnouncements(),
       loadFeaturedServers(),
@@ -6410,37 +6417,73 @@ const handleAddInstance = () => {
   .admin-panel {
     padding: 16px;
   }
-  
+
   .admin-header {
     flex-direction: column;
     gap: 16px;
     align-items: flex-start;
   }
-  
+
   .admin-title {
     flex-direction: column;
     align-items: flex-start;
     gap: 8px;
   }
-  
+
+  /* Two-up stats read better than a single tall column on phones. */
+  .stats-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
   .setting-row {
     flex-direction: column;
     align-items: flex-start;
     gap: 16px;
   }
-  
+
   .add-block {
     flex-direction: column;
   }
-  
+
   .user-item {
     flex-direction: column;
     align-items: flex-start;
     gap: 12px;
   }
-  
+
   .user-actions {
     align-self: flex-end;
+  }
+}
+
+@media (max-width: 480px) {
+  .admin-panel {
+    padding: 12px;
+  }
+  .admin-module {
+    max-width: calc(100vw - 24px);
+  }
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+  /* Full-width tap targets for the header actions. */
+  .admin-actions {
+    width: 100%;
+    flex-direction: column;
+  }
+  .admin-actions .action-btn {
+    width: 100%;
+    justify-content: center;
+    min-height: 44px;
+  }
+  /* Wide rows (instance lists, user rows) scroll instead of overflowing. */
+  .users-list,
+  .servers-list,
+  .reports-list,
+  .supporters-list,
+  .discovery-content {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
   }
 }
 

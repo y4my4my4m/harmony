@@ -1578,6 +1578,7 @@ watch(() => props.currentServer?.id, () => {
 
 .categories-container {
   flex: 1;
+  padding-bottom: 96px;
 }
 
 /* Channel Thread Items ( nested under channels) */

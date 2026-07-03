@@ -635,6 +635,7 @@ import { threadService } from '@/services/ThreadService';
 import type { ThreadWithDetails } from '@/services/ThreadService';
 import { messagePartsToMarkdown, messagePartsToPlainText, isSingleEmojiMessage as checkSingleEmoji, stripLeadingSelfMention } from '@/utils/messageContentUtils';
 import { parseContentToMessageParts, resolveMentionsUserData, resolveEmojisData, resolveRoleMentionsData } from '@/utils/unifiedContentProcessing';
+import { buildChatParseOptions } from '@/utils/chatParseOptions';
 import { useReactionsStore } from '@/stores/useReactions';
 import { usePostReactionsStore } from '@/stores/postReactions';
 import { useVirtualizer } from '@tanstack/vue-virtual';
@@ -1519,6 +1520,15 @@ const rowVirtualizer = useVirtualizer<HTMLDivElement, Element>(
     estimateSize: () => 60,
     overscan: 15,
     initialOffset: frozenInitialOffset.value,
+    // Stable per-item keys. Without this the measurement cache is keyed by
+    // INDEX: prepending a history page shifts every row's index, so each row
+    // inherits a stale height from the row previously at that index. The
+    // cascade of corrective re-measurements as rows re-render is what made
+    // the viewport visibly bounce while loading history. With stable keys,
+    // existing measurements survive the prepend and only the genuinely new
+    // rows measure in (and the virtualizer's built-in scroll adjustment
+    // compensates for those above the viewport).
+    getItemKey: (index: number) => displayItems.value[index]?.key ?? index,
   })) as any
 );
 
@@ -2717,7 +2727,7 @@ const saveEdit = async (messageId: string, newContent?: string, retainedFiles: F
     const userDataMap = await resolveMentionsUserData(textContent);
     const emojiDataMap = await resolveEmojisData(textContent);
     const roleDataMap = await resolveRoleMentionsData(textContent, serverChannelStore.currentServerId || undefined);
-    const parsedContent = await parseContentToMessageParts(textContent, userDataMap, emojiDataMap, {}, roleDataMap);
+    const parsedContent = await parseContentToMessageParts(textContent, userDataMap, emojiDataMap, {}, roleDataMap, buildChatParseOptions(!!props.conversationId));
     // Re-append the attachments the user kept, so editing text never drops media.
     const finalContent = [...parsedContent, ...retainedFiles];
 

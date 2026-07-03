@@ -91,7 +91,10 @@ export class MegolmKeyBackupService {
 
   private keyReceivedCallbacks: Set<KeyReceivedCallback> = new Set()
 
-  private pendingRequests: Map<string, string> = new Map()
+  // sessionId → { requestId, createdAt }. Entries expire (KEY_REQUEST_RETRY_MS)
+  // so an unanswered/failed request can be re-issued without a full reload.
+  private pendingRequests: Map<string, { requestId: string; createdAt: number }> = new Map()
+  private readonly KEY_REQUEST_RETRY_MS = 2 * 60_000
 
   private constructor() {}
 
@@ -403,6 +406,9 @@ export class MegolmKeyBackupService {
       this.triggerAutoBackup().catch(() => {})
     } catch (error) {
       debug.error('❌ Error importing fulfilled key:', error)
+      // Re-arm the dedup so a follow-up decrypt attempt can issue a fresh
+      // request instead of being stuck behind this failed import.
+      this.pendingRequests.delete(request.session_id)
     }
   }
 
@@ -741,11 +747,15 @@ export class MegolmKeyBackupService {
       throw new Error('Not initialized')
     }
 
-    // Check if we already have a pending request for this session
-    const existingRequestId = this.pendingRequests.get(sessionId)
-    if (existingRequestId) {
-      debug.log(`ℹ️ Already have pending request for session ${sessionId.substring(0, 8)}...`)
-      return existingRequestId
+    // Dedup with expiry: a request that got no answer (sender offline, failed
+    // fulfillment, failed import) must not block re-requests forever.
+    const existing = this.pendingRequests.get(sessionId)
+    if (existing) {
+      if (Date.now() - existing.createdAt < this.KEY_REQUEST_RETRY_MS) {
+        debug.log(`ℹ️ Already have pending request for session ${sessionId.substring(0, 8)}...`)
+        return existing.requestId
+      }
+      this.pendingRequests.delete(sessionId)
     }
 
     const requestId = crypto.randomUUID()
@@ -793,7 +803,7 @@ export class MegolmKeyBackupService {
     }
 
     // Track pending request
-    this.pendingRequests.set(sessionId, requestId)
+    this.pendingRequests.set(sessionId, { requestId, createdAt: Date.now() })
 
     debug.log(`📤 Created key request ${requestId.substring(0, 8)}... for session ${sessionId.substring(0, 8)}... from ${senderUserId?.substring(0, 8) || 'unknown'}`)
     return requestId
@@ -922,8 +932,8 @@ export class MegolmKeyBackupService {
     }
 
     // Remove from pending
-    for (const [sessionId, id] of this.pendingRequests) {
-      if (id === requestId) {
+    for (const [sessionId, entry] of this.pendingRequests) {
+      if (entry.requestId === requestId) {
         this.pendingRequests.delete(sessionId)
         break
       }

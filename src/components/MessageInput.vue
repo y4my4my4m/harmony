@@ -496,7 +496,11 @@ const updateText = (newText: string, cursorPosition?: number) => {
     emit('update:modelValue', newText);
   }
 };
-const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText);
+// '#' channel autocomplete only in server channels - in DMs '#' is plain text.
+const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText, {
+  mode: 'chat',
+  enableChannels: !!props.channelId && !props.conversationId,
+});
 
 // Maps the active media slash command to the inline picker's media type.
 const INLINE_MEDIA_COMMANDS: Record<string, GifMediaType> = {

@@ -153,8 +153,28 @@
 
         <!-- Options Menu -->
         <div v-if="showOptionsMenu" class="actions-menu" v-click-outside="closeActionsMenu" ref="optionsMenuRef">
+          <!-- On mobile the header only shows the call and overflow buttons;
+               the remaining actions live here instead. -->
+          <button
+            v-if="isMobile"
+            class="action-item"
+            @click="handleMenuVideoCall"
+          >
+            <Icon :name="isInVideoCall ? 'video-off' : 'video'" :size="16" />
+            <span>{{ isInVideoCall ? 'Turn Off Camera' : 'Start Video Call' }}</span>
+          </button>
+
+          <button
+            v-if="isMobile"
+            class="action-item"
+            @click="handleMenuAddUser"
+          >
+            <Icon name="user-plus" :size="16" />
+            <span>Add People</span>
+          </button>
+
           <!-- Group Settings (only for group chats) -->
-          <button 
+          <button
             v-if="conversation.type === 'group'"
             class="action-item"
             @click="openGroupSettings"
@@ -162,9 +182,9 @@
             <Icon name="settings" :size="16" />
             <span>Group Settings</span>
           </button>
-          
+
           <!-- Search in Conversation -->
-          <button class="action-item" @click="handleSearchClick">
+          <button class="action-item" @click="handleMenuSearch">
             <Icon name="search" :size="16" />
             <span>Search Messages</span>
           </button>
@@ -785,6 +805,21 @@ const formatLastSeen = (lastSeen?: string): string => {
 
 const handleSearchClick = () => {
   showSearchModal.value = true
+}
+
+const handleMenuSearch = () => {
+  showOptionsMenu.value = false
+  showSearchModal.value = true
+}
+
+const handleMenuVideoCall = () => {
+  showOptionsMenu.value = false
+  toggleVideoCall()
+}
+
+const handleMenuAddUser = () => {
+  showOptionsMenu.value = false
+  emit('add-user')
 }
 
 const handleSearchMessageClick = (_message: any) => {
@@ -1475,17 +1510,25 @@ const getDefaultGroupName = (): string => {
   .mobile-menu-btn {
     display: flex;
   }
-  
+
   .dm-header {
     padding: 12px;
     height: 64px;
   }
-  
+
   .action-btn {
     width: 40px;
     height: 40px;
   }
-  
+
+  /* Only the call button and the overflow menu stay in the header;
+     video / add-people / search move into the overflow menu. */
+  .add-user-btn,
+  .video-btn,
+  .search-btn {
+    display: none;
+  }
+
   .voice-icon,
   .search-icon,
   .more-icon {
