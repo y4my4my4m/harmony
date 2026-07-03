@@ -52,10 +52,7 @@
                 class="user-chip"
                 :style="segment.user.color ? { color: segment.user.color } : undefined"
                 @click="openUserProfile(segment.user)"
-              >
-                <span class="user-chip-name">{{ segment.text }}</span>
-                <Avatar :src="segment.user.avatarUrl" :alt="segment.user.displayName" size="mini" class="user-chip-avatar" />
-              </button>
+              >{{ segment.text }}</button>
               <template v-else>{{ segment.text }}</template>
             </template>
           </p>
@@ -991,27 +988,21 @@ onMounted(() => loadDigest())
   }
 }
 
+/* Inline author reference: plain text button so it inherits the prose
+   baseline naturally - bold, profile-colored, opens the profile modal. */
 .user-chip {
-  display: inline-flex;
-  flex-direction: row-reverse;
-  align-items: center;
-  gap: 4px;
-  padding: 0 2px;
+  display: inline;
+  padding: 0;
   background: none;
   border: none;
   cursor: pointer;
   font: inherit;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--harmony-primary);
-  vertical-align: baseline;
 }
 
-.user-chip:hover .user-chip-name {
+.user-chip:hover {
   text-decoration: underline;
-}
-
-.user-chip-avatar {
-  flex-shrink: 0;
 }
 
 </style>
