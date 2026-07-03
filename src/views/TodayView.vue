@@ -53,8 +53,8 @@
                 :style="segment.user.color ? { color: segment.user.color } : undefined"
                 @click="openUserProfile(segment.user)"
               >
-                <Avatar :src="segment.user.avatarUrl" :alt="segment.user.displayName" size="mini" class="user-chip-avatar" />
                 <span class="user-chip-name">{{ segment.text }}</span>
+                <Avatar :src="segment.user.avatarUrl" :alt="segment.user.displayName" size="mini" class="user-chip-avatar" />
               </button>
               <template v-else>{{ segment.text }}</template>
             </template>
@@ -993,6 +993,7 @@ onMounted(() => loadDigest())
 
 .user-chip {
   display: inline-flex;
+  flex-direction: row-reverse;
   align-items: center;
   gap: 4px;
   padding: 0 2px;
