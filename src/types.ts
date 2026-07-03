@@ -1284,7 +1284,7 @@ export interface ActivityPubActivityObject {
   cc?: string[];
 }
 
-// Federated user type for ActivityPub/Monyverse users
+// Federated user type for ActivityPub/Fediverse users
 export interface FederatedUser extends Profile {
   handle: string; // @username or @username@domain
   posts_count?: number;

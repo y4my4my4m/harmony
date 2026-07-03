@@ -40,7 +40,7 @@ export class ServerPage {
     await dismissAnnouncements(this.page)
   }
 
-  async goToMonyverse() {
+  async goToFediverse() {
     await this.page.goto('/social/home')
     await dismissAnnouncements(this.page)
   }

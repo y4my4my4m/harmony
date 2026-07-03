@@ -59,19 +59,19 @@
         </div>
       </div>
 
-      <!-- Monyverse Button -->
+      <!-- Fediverse Button -->
       <div
         class="header-item-wrapper"
-        @mouseenter="showSidebarTooltip($event, 'Monyverse')"
+        @mouseenter="showSidebarTooltip($event, 'Fediverse')"
         @mouseleave="hideSidebarTooltip"
       >
-        <div class="server-pill" :class="{ 'visible': isMonyverseSelected, 'has-unread': unreadCount > 0 && !isMonyverseSelected }"></div>
+        <div class="server-pill" :class="{ 'visible': isFediverseSelected, 'has-unread': unreadCount > 0 && !isFediverseSelected }"></div>
         <div
-          class="monyverse-button"
-          :class="{ 'selected': isMonyverseSelected }"
-          @click="goToMonyverse"
+          class="fediverse-button"
+          :class="{ 'selected': isFediverseSelected }"
+          @click="goToFediverse"
         >
-          <div class="monyverse-icon">#</div>
+          <div class="fediverse-icon">#</div>
           <div v-if="unreadCount > 0" class="unread-badge">
             {{ unreadCount > 99 ? '99+' : unreadCount }}
           </div>
@@ -384,7 +384,7 @@ const isDMSelected = computed(() => {
 
 const isTodaySelected = computed(() => route.name === 'Today');
 
-const isMonyverseSelected = computed(() => {
+const isFediverseSelected = computed(() => {
   return isActivityPubRoute(route.name as string);
 });
 
@@ -427,7 +427,7 @@ const hasServerUnread = (serverId: string): boolean => {
 };
 
 const activeServerId = computed(() => {
-  if (isDMSelected.value || isMonyverseSelected.value || isTodaySelected.value) return null;
+  if (isDMSelected.value || isFediverseSelected.value || isTodaySelected.value) return null;
   return serverChannelStore.currentServerId;
 });
 
@@ -485,7 +485,7 @@ const selectServer = async (serverId?: string) => {
   useChatStore().clearMessages();
   router.push({ name: 'Chat' });
 
-  await serverChannelStore.fetchCategoriesAndChannels(serverId);
+  await seFediverseelStore.fetchCategoriesAndChannels(serverId);
 
   // The user may have clicked another server while this one loaded.
   if (serverChannelStore.currentServerId !== serverId) return;
@@ -1249,7 +1249,7 @@ const removeServerFromFolder = async () => {
   display: flex;
   align-items: center;
   justify-content: center;
-}
+}Fediverse
 
 .dm-icon {
   width: 24px;
@@ -1276,7 +1276,7 @@ const removeServerFromFolder = async () => {
 }
 
 /* Monyverse Button */
-.monyverse-button {
+.fediverse-button {
   width: 48px;
   height: 48px;
   background-color: var(--nav-rail-button-bg, var(--background-secondary));
@@ -1292,7 +1292,7 @@ const removeServerFromFolder = async () => {
   justify-content: center;
 }
 
-.monyverse-icon {
+.fediverse-icon {
   font-size: 24px;
   font-weight: bold;
   color: var(--nav-rail-button-icon, var(--icon-primary));
@@ -1300,17 +1300,17 @@ const removeServerFromFolder = async () => {
   transition: color 0.2s ease;
 }
 
-.monyverse-button:hover {
+.fediverse-button:hover {
   background: var(--harmony-primary, #0284C7);
   transform: translateX(5px);
 }
 
-.monyverse-button.selected {
+.fediverse-button.selected {
   background: var(--harmony-primary, #0284C7);
   border-radius: 50%;
 }
-.monyverse-button:hover .monyverse-icon,
-.monyverse-button.selected .monyverse-icon {
+.fediverse-button:hover .fediverse-icon,
+.fediverse-button.selected .fediverse-icon {
   color: var(--text-on-primary, #ffffff);
 }
 
@@ -1489,7 +1489,7 @@ const removeServerFromFolder = async () => {
 }
 
 /* .dm-button.selected,
-.monyverse-button.selected,
+.fediverse-button.selected,
 .portal.selected {
 } */
  

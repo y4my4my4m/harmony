@@ -520,7 +520,7 @@ const placeholder = computed(() => {
   if (props.type === 'edit') {
     return t('activitypub.editYourPost');
   }
-  return t('activitypub.whatsHappeningInMonyverse');
+  return t('activitypub.whatsHappeningInFediverse');
 });
 
 const headerTitle = computed(() => {

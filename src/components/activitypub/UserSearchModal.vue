@@ -54,7 +54,7 @@
           <!-- Loading State -->
           <div v-if="isSearching" class="loading-state">
             <LoadingSpinner :size="32" />
-            <p>{{ $t('activitypub.searchingMonyverse') }}</p>
+            <p>{{ $t('activitypub.searchingFediverse') }}</p>
           </div>
 
           <!-- Empty State -->
@@ -317,7 +317,7 @@ const addToRecentSearches = (user: FederatedUser) => {
   
   // Save to localStorage
   try {
-    localStorage.setItem('monyverse_recent_searches', JSON.stringify(recentSearches.value));
+    localStorage.setItem('fediverse_recent_searches', JSON.stringify(recentSearches.value));
   } catch (error) {
     debug.warn('Failed to save recent searches:', error);
   }
@@ -325,7 +325,7 @@ const addToRecentSearches = (user: FederatedUser) => {
 
 const loadRecentSearches = () => {
   try {
-    const saved = localStorage.getItem('monyverse_recent_searches');
+    const saved = localStorage.getItem('fediverse_recent_searches');
     if (saved) {
       recentSearches.value = JSON.parse(saved);
     }

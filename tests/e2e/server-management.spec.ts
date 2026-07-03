@@ -24,7 +24,7 @@ test.describe('Server Management', () => {
 
   test('Social page loads from navigation', async ({ alicePage }) => {
     const server = new ServerPage(alicePage)
-    await server.goToMonyverse()
+    await server.goToFediverse()
     await expect(alicePage).toHaveURL(/\/social/, { timeout: 10000 })
   })
 
