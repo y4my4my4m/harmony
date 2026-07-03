@@ -36,7 +36,16 @@
             <LoadingSpinner :size="16" />
             <span>Summarizing on this device…</span>
           </div>
-          <p v-if="aiSummary" class="ai-summary-text">{{ aiSummary }}</p>
+          <p v-if="aiSummary" class="ai-summary-text">
+            <template v-for="(segment, i) in summarySegments" :key="i">
+              <button
+                v-if="segment.channel"
+                class="channel-pill inline-channel-pill"
+                @click="goToChannelId(segment.channel.serverId, segment.channel.channelId)"
+              >#{{ segment.channel.channelName }}</button>
+              <template v-else>{{ segment.text }}</template>
+            </template>
+          </p>
           <!-- Same server-grouped presentation as Catch up -->
           <div v-for="group in highlightsByServer" :key="group.serverId" class="server-group">
             <div class="server-group-header">
@@ -268,6 +277,41 @@ const highlightsByServer = computed<HighlightGroup[]>(() => {
   return [...groups.values()]
 })
 
+interface SummarySegment {
+  text: string
+  channel: ActiveChannelEntry | null
+}
+
+const summarySegments = computed<SummarySegment[]>(() => {
+  const text = aiSummary.value
+  if (!text) return []
+
+  const channels = digest.value?.activeChannels || []
+  if (channels.length === 0) return [{ text, channel: null }]
+
+  const byName = new Map<string, ActiveChannelEntry>()
+  for (const c of channels) {
+    if (!byName.has(c.channelName.toLowerCase())) byName.set(c.channelName.toLowerCase(), c)
+  }
+
+  const escaped = [...byName.keys()]
+    .sort((a, b) => b.length - a.length) // longest first so e.g. "money" doesn't shadow "money-talk"
+    .map(name => name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+  const pattern = new RegExp(`\\b(${escaped.join('|')})\\b`, 'gi')
+
+  const segments: SummarySegment[] = []
+  let lastIndex = 0
+  for (const match of text.matchAll(pattern)) {
+    const index = match.index ?? 0
+    if (index > lastIndex) segments.push({ text: text.slice(lastIndex, index), channel: null })
+    segments.push({ text: match[0], channel: byName.get(match[0].toLowerCase()) || null })
+    lastIndex = index + match[0].length
+  }
+  if (lastIndex < text.length) segments.push({ text: text.slice(lastIndex), channel: null })
+
+  return segments
+})
+
 const channelsByServer = computed<ServerGroup[]>(() => {
   const groups = new Map<string, ServerGroup>()
   for (const channel of digest.value?.activeChannels || []) {
@@ -291,13 +335,12 @@ const channelsByServer = computed<ServerGroup[]>(() => {
   return [...groups.values()]
 })
 
-// On-device summarization isn't free (model spin-up per section), so AI
-// output is cached per digest signature. Normal opens reuse it; the refresh
-// button (force) always re-runs the model.
 const AI_CACHE_KEY = 'today-ai-cache'
 const AI_CACHE_MAX_AGE_MS = 12 * 3600_000
+const AI_CACHE_VERSION = 2
 
 interface AiCacheEntry {
+  version: number
   signature: string
   summary: string | null
   highlights: ChannelHighlight[]
@@ -307,7 +350,9 @@ interface AiCacheEntry {
 const readAiCache = (): AiCacheEntry | null => {
   try {
     const raw = userStorage.getItem(AI_CACHE_KEY)
-    return raw ? JSON.parse(raw) as AiCacheEntry : null
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as AiCacheEntry
+    return parsed.version === AI_CACHE_VERSION ? parsed : null
   } catch {
     return null
   }
@@ -320,7 +365,7 @@ const writeAiCache = (entry: AiCacheEntry) => {
 }
 
 const runAi = (snapshot: TodayDigest, signature: string) => {
-  const entry: AiCacheEntry = { signature, summary: null, highlights: [], at: Date.now() }
+  const entry: AiCacheEntry = { version: AI_CACHE_VERSION, signature, summary: null, highlights: [], at: Date.now() }
   aiPending.value = true
   const summaryRun = todayDigestService.summarizeDigest(snapshot)
     .then(summary => {
@@ -589,6 +634,13 @@ onMounted(() => loadDigest())
   margin: 0 0 8px;
   font-size: 14px;
   line-height: 1.55;
+}
+
+.inline-channel-pill {
+  padding: 1px 8px;
+  font-size: 13px;
+  vertical-align: baseline;
+  margin: 0 1px;
 }
 
 .highlight-list {
