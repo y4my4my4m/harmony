@@ -233,12 +233,32 @@ export class BotRestAPI {
       
       // Log action
       await this.logBotAction(botId, 'message_sent', { channel_id: channelId, message_id: message.id })
-      
+
+      this.triggerLinkPreviewEnrichment(message.id)
+
       res.status(201).json(this.formatMessage(message))
     } catch (error: any) {
       console.error('Send message error:', error)
       res.status(500).json({ error: error.message || 'Internal server error' })
     }
+  }
+
+  /** Ask the federation backend to enrich a message's link previews. Best-effort. */
+  private triggerLinkPreviewEnrichment(messageId: string): void {
+    const federationUrl = process.env.FEDERATION_BACKEND_URL || 'http://localhost:3001'
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+    if (!serviceKey) return
+
+    fetch(`${federationUrl}/link-preview/enrich-message`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${serviceKey}`,
+      },
+      body: JSON.stringify({ messageId }),
+    }).catch((err) => {
+      console.warn(`Link preview enrichment trigger failed for ${messageId}:`, err?.message || err)
+    })
   }
   
   private async lookupMessageByDiscordId(req: BotRequest, res: Response) {

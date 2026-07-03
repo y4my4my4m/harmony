@@ -284,8 +284,27 @@
             v-else
             class="url-link url-link--unsafe"
           >{{ part.url }}</span>
+          <!-- Media-only embeds (GIF pages: tenor / giphy / klipy): the
+               resolved image IS the content, so render it exactly like a
+               direct image URL - no link-preview card chrome. -->
+          <div
+            v-if="mediaOnlyEmbedImage(part)"
+            class="media-container image-container"
+          >
+            <div class="media-frame">
+              <div v-if="!imageLoadedState[mediaOnlyEmbedImage(part)!]" class="media-skeleton image-skeleton"></div>
+              <img
+                :src="mediaOnlyEmbedImage(part)!"
+                @load="handleImageLoad(mediaOnlyEmbedImage(part)!)"
+                @click="$emit('open-lightbox', mediaOnlyEmbedImage(part)!)"
+                v-show="imageLoadedState[mediaOnlyEmbedImage(part)!]"
+                draggable="false"
+                class="content-image"
+              />
+            </div>
+          </div>
           <ProviderEmbedSwitch
-            v-if="resolveEmbedPayload(part) && !isImageUrl(part.url) && !isVideoUrl(part.url) && !isAudioUrl(part.url)"
+            v-else-if="resolveEmbedPayload(part) && !isImageUrl(part.url) && !isVideoUrl(part.url) && !isAudioUrl(part.url)"
             :payload="resolveEmbedPayload(part)!"
             :message-id="messageId"
             :key="`${messageId}-embed-${part.embedId || part.url}`"
@@ -958,6 +977,12 @@ export default defineComponent({
       return null;
     };
 
+    /** Image URL for media-only embeds (GIF pages), null for regular cards. */
+    const mediaOnlyEmbedImage = (part: MessagePart): string | null => {
+      const payload = resolveEmbedPayload(part);
+      return payload?.mediaOnly && payload.image ? payload.image : null;
+    };
+
     // Format mention display based on structured mention data
     const formatMentionDisplay = (mentionPart: any): string => {
       try {
@@ -1308,6 +1333,7 @@ export default defineComponent({
       isBridgedMention,
       getMentionTooltip,
       resolveEmbedPayload,
+      mediaOnlyEmbedImage,
       decrypting,
       handleDecryptClick,
       // GIF favorites

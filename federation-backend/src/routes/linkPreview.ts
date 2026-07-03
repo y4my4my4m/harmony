@@ -1,8 +1,50 @@
 import { Router } from 'express';
 import { fetchLinkPreview } from '../services/LinkPreviewService.js';
-import { getSupabaseClientWithAuth } from '../config/supabase.js';
+import { getSupabaseClient, getSupabaseClientWithAuth } from '../config/supabase.js';
+import config from '../config/index.js';
+import { logger } from '../utils/logger.js';
 
 const router = Router();
+
+/**
+ * Internal service-to-service trigger: enrich one stored message's link
+ * previews immediately. Called by the bot-gateway right after inserting a
+ * bridged message, so its previews don't depend on the federation sweep /
+ * realtime subscription picking the row up.
+ * Auth: caller must present the service-role key (the bot-gateway has it).
+ */
+router.post('/enrich-message', async (req, res) => {
+  const authHeader = req.headers.authorization;
+  const token = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : '';
+  if (!token || token !== config.SUPABASE_SERVICE_ROLE_KEY) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const { messageId } = req.body || {};
+  if (!messageId || typeof messageId !== 'string') {
+    return res.status(400).json({ error: 'messageId is required' });
+  }
+
+  try {
+    const supabase = getSupabaseClient();
+    const { data: message } = await supabase
+      .from('messages')
+      .select('*')
+      .eq('id', messageId)
+      .single();
+
+    if (!message) {
+      return res.status(404).json({ error: 'Message not found' });
+    }
+
+    const { enrichMessageLinkPreviews } = await import('../listeners/DatabaseListener.js');
+    await enrichMessageLinkPreviews(message);
+    return res.json({ success: true });
+  } catch (error: any) {
+    logger.warn(`enrich-message failed for ${messageId}:`, error);
+    return res.status(500).json({ error: error.message || 'Enrichment failed' });
+  }
+});
 
 router.post('/', async (req, res) => {
   try {

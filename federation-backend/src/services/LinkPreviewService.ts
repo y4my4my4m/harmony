@@ -46,6 +46,9 @@ export interface EmbedPayload {
   html?: string;
   width?: number;
   height?: number;
+  /** The preview is essentially just media (GIF page etc.) - clients should
+      render the image itself, not a link card. */
+  mediaOnly?: boolean;
   fetchedAt: string;
   expiresAt: string;
   harmony?: {
@@ -76,6 +79,10 @@ const TTL_BY_PROVIDER: Record<EmbedProvider, number> = {
 };
 
 const USER_AGENT = 'HarmonyLinkPreview/1.0 (+https://har.mony.lol)';
+
+// Pages whose preview is really just the media (GIF sites). Combined with a
+// .gif og:image heuristic to set EmbedPayload.mediaOnly.
+const GIF_PAGE_HOSTS = new Set(['tenor.com', 'giphy.com', 'klipy.com']);
 
 const NON_AP_DOMAINS = new Set([
   'google.com', 'google.co.jp', 'google.co.uk', 'google.de', 'google.fr',
@@ -203,6 +210,17 @@ class LinkPreviewService {
     if (!payload.provider || payload.provider === 'generic') {
       payload.provider = provider;
     }
+    // GIF pages: the image IS the content - clients render it as bare media
+    // instead of a link card (Discord behavior).
+    if (!payload.mediaOnly && payload.image && payload.provider === 'generic') {
+      try {
+        const host = new URL(normalizedUrl).hostname.toLowerCase().replace(/^www\./, '');
+        if (GIF_PAGE_HOSTS.has(host) || /\.gif(\?|#|$)/i.test(payload.image)) {
+          payload.mediaOnly = true;
+        }
+      } catch { /* keep card rendering */ }
+    }
+
     const effectiveProvider = payload.provider;
     payload.fetchedAt = new Date().toISOString();
     payload.expiresAt = new Date(Date.now() + TTL_BY_PROVIDER[effectiveProvider]).toISOString();
@@ -284,6 +302,7 @@ class LinkPreviewService {
       title: media.title,
       siteName: 'Klipy',
       image: media.mediaUrl,
+      mediaOnly: true,
       width: media.width,
       height: media.height,
       fetchedAt: new Date().toISOString(),
