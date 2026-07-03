@@ -384,18 +384,32 @@ const FENCED_CODE_BLOCK_REGEX = /```[\s\S]*?```/g;
 /**
  * Parse one content segment (outside fenced code blocks) into MessageParts.
  */
-/** Parse an own-origin /chat/<serverId>/<channelId> URL against known channels. */
+/**
+ * Parse an own-instance /chat/<serverId>/<channelId> URL against known
+ * channels. Message share links (?messageId=...) keep the message id so the
+ * rendered reference jumps to the exact message.
+ */
 function matchChannelUrl(
   url: string,
   channelsById: Map<string, { id: string; serverId: string; name: string }>,
-): { id: string; serverId: string; name: string } | null {
+): { id: string; serverId: string; name: string; messageId?: string } | null {
   try {
     const parsed = new URL(url);
-    if (typeof window !== 'undefined' && parsed.origin !== window.location.origin) return null;
+    // Share links use https://VITE_DOMAIN, which can differ from the dev
+    // window origin - accept either.
+    const configuredDomain = (import.meta as any).env?.VITE_DOMAIN as string | undefined;
+    const sameOrigin =
+      (typeof window !== 'undefined' && parsed.origin === window.location.origin) ||
+      (configuredDomain && parsed.host === configuredDomain);
+    if (!sameOrigin) return null;
+
     const m = parsed.pathname.match(/^\/chat\/([0-9a-f-]{36})\/([0-9a-f-]{36})\/?$/i);
     if (!m) return null;
     const channel = channelsById.get(m[2]);
-    return channel && channel.serverId === m[1] ? channel : null;
+    if (!channel || channel.serverId !== m[1]) return null;
+
+    const messageId = parsed.searchParams.get('messageId') || undefined;
+    return messageId ? { ...channel, messageId } : channel;
   } catch {
     return null;
   }
@@ -634,6 +648,7 @@ export async function parseContentToMessageParts(
           channelId: linked.id,
           serverId: linked.serverId,
           name: linked.name,
+          messageId: linked.messageId,
         };
       }
     }

@@ -438,17 +438,18 @@ class TodayDigestService {
     const parts: string[] = []
 
     if (digest.unreadMentions > 0) {
-      parts.push(`You have ${digest.unreadMentions} unread mentions.`)
-    }
-    for (const c of digest.activeChannels) {
-      parts.push(`Channel #${c.channelName} in ${c.serverName} has ${c.unreadMessages} unread messages.`)
-    }
-    for (const t of digest.activeThreads) {
-      parts.push(`Thread "${t.name}" you participate in has ${t.messageCount} messages.`)
+      parts.push(`You have ${digest.unreadMentions} unread mentions waiting.`)
     }
     for (const p of digest.trendingPosts) {
       const author = (p as any).author?.display_name || (p as any).author?.username
-      if (author) parts.push(`A post by ${author} is trending.`)
+      if (author) parts.push(`A post by ${author} is trending across the fediverse.`)
+    }
+    for (const p of digest.followedPosts) {
+      const author = (p as any).author?.display_name || (p as any).author?.username
+      const replies = (p as any).replies_count || 0
+      if (author && replies > 3) {
+        parts.push(`${author}, whom you follow, posted something with an active discussion (${replies} replies).`)
+      }
     }
 
     return parts.join('\n')

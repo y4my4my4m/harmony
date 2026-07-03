@@ -1204,7 +1204,13 @@ export default defineComponent({
       event.stopPropagation();
       if (!part?.channelId || !part?.serverId) return;
       const { default: router } = await import('@/router');
-      router.push({ name: 'ChatChannel', params: { serverId: part.serverId, channelId: part.channelId } });
+      router.push({
+        name: 'ChatChannel',
+        params: { serverId: part.serverId, channelId: part.channelId },
+        // Share-link references jump to the exact message (ChatView watches
+        // the messageId query param).
+        query: part.messageId ? { messageId: part.messageId } : undefined,
+      });
     };
     
     // Check if a mention is from a bridged platform (e.g., Discord)

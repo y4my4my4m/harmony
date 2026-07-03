@@ -210,6 +210,12 @@
         </svg>
         <span>Mark as Read</span>
       </div>
+      <div class="context-menu-item" @click="openInviteFromContextMenu">
+        <svg width="16" height="16" viewBox="0 0 24 24">
+          <path fill="currentColor" d="M15,14C12.33,14 7,15.33 7,18V20H23V18C23,15.33 17.67,14 15,14M6,10V7H4V10H1V12H4V15H6V12H9V10M15,12A4,4 0 0,0 19,8A4,4 0 0,0 15,4A4,4 0 0,0 11,8A4,4 0 0,0 15,12Z"/>
+        </svg>
+        <span>Invite People</span>
+      </div>
       <div class="context-menu-divider"></div>
       <div class="context-menu-item" @click="createFolderFromServer">
         <svg width="16" height="16" viewBox="0 0 24 24">
@@ -247,6 +253,14 @@
       :folder="editingFolder"
       @close="closeFolderModal"
       @saved="handleFolderSaved"
+    />
+
+    <!-- Invite Modal (opened from the server context menu) -->
+    <InviteModal
+      :show="showInviteModal"
+      :server-id="inviteServer?.id"
+      :server-data="inviteServer || undefined"
+      @close="showInviteModal = false"
     />
 
     <!-- Funding button (bottom of sidebar) -->
@@ -300,6 +314,7 @@ import ServerIcon from '@/components/common/ServerIcon.vue';
 import ServerFolder from '@/components/ServerFolder.vue';
 import ServerFolderContextMenu from '@/components/ServerFolderContextMenu.vue';
 import ServerFolderSettingsModal from '@/components/ServerFolderSettingsModal.vue';
+import InviteModal from '@/components/InviteModal.vue';
 import FundingModal from '@/components/FundingModal.vue';
 import { fundingService } from '@/services/FundingService';
 import { useTodayDashboard } from '@/composables/useTodayDashboard';
@@ -352,6 +367,15 @@ const showServerContextMenu = ref(false);
 const contextMenuPosition = ref({ x: 0, y: 0 });
 const selectedFolder = ref<ServerFolderType | null>(null);
 const selectedServer = ref<Server | null>(null);
+const showInviteModal = ref(false);
+const inviteServer = ref<Server | null>(null);
+
+const openInviteFromContextMenu = () => {
+  inviteServer.value = selectedServer.value;
+  showInviteModal.value = false;
+  closeServerContextMenu();
+  showInviteModal.value = !!inviteServer.value;
+};
 
 // Folder modal state
 const showFolderModal = ref(false);

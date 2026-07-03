@@ -369,6 +369,8 @@ export interface ChannelMentionContent {
   channelId: string;
   serverId: string;
   name: string; // channel name without #
+  /** Set when the reference came from a message share link - clicking jumps to the message. */
+  messageId?: string;
 }
 
 export interface FileContent {

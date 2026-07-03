@@ -36,6 +36,10 @@
             <LoadingSpinner :size="16" />
             <span>Summarizing on this device…</span>
           </div>
+          <div v-else-if="highlightsPending && highlights.length === 0" class="ai-pending">
+            <LoadingSpinner :size="16" />
+            <span>Summarizing channel conversations…</span>
+          </div>
           <p v-if="aiSummary" class="ai-summary-text">
             <template v-for="(segment, i) in summarySegments" :key="i">
               <button
@@ -241,6 +245,7 @@ const digest = ref<TodayDigest | null>(null)
 const aiSummary = ref<string | null>(null)
 const highlights = ref<ChannelHighlight[]>([])
 const aiPending = ref(false)
+const highlightsPending = ref(false)
 
 const greeting = computed(() => {
   const hour = new Date().getHours()
@@ -297,14 +302,18 @@ const summarySegments = computed<SummarySegment[]>(() => {
   const escaped = [...byName.keys()]
     .sort((a, b) => b.length - a.length) // longest first so e.g. "money" doesn't shadow "money-talk"
     .map(name => name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
-  const pattern = new RegExp(`\\b(${escaped.join('|')})\\b`, 'gi')
+  // Consume an optional leading "#" (with optional space, some models write
+  // "# gaming"): the pill supplies its own "#", so leaving the model's in the
+  // text produced "# #gaming".
+  const pattern = new RegExp(`#\\s?(${escaped.join('|')})\\b|\\b(${escaped.join('|')})\\b`, 'gi')
 
   const segments: SummarySegment[] = []
   let lastIndex = 0
   for (const match of text.matchAll(pattern)) {
     const index = match.index ?? 0
+    const name = (match[1] || match[2] || '').toLowerCase()
     if (index > lastIndex) segments.push({ text: text.slice(lastIndex, index), channel: null })
-    segments.push({ text: match[0], channel: byName.get(match[0].toLowerCase()) || null })
+    segments.push({ text: match[0], channel: byName.get(name) || null })
     lastIndex = index + match[0].length
   }
   if (lastIndex < text.length) segments.push({ text: text.slice(lastIndex), channel: null })
@@ -367,6 +376,7 @@ const writeAiCache = (entry: AiCacheEntry) => {
 const runAi = (snapshot: TodayDigest, signature: string) => {
   const entry: AiCacheEntry = { version: AI_CACHE_VERSION, signature, summary: null, highlights: [], at: Date.now() }
   aiPending.value = true
+  highlightsPending.value = true
   const summaryRun = todayDigestService.summarizeDigest(snapshot)
     .then(summary => {
       aiSummary.value = summary
@@ -378,6 +388,9 @@ const runAi = (snapshot: TodayDigest, signature: string) => {
       highlights.value = result
       entry.highlights = result
       writeAiCache(entry)
+    })
+    .finally(() => {
+      highlightsPending.value = false
     })
   Promise.allSettled([summaryRun, highlightsRun]).then(() => {
     aiPending.value = false
@@ -638,7 +651,9 @@ onMounted(() => loadDigest())
 
 .inline-channel-pill {
   padding: 1px 8px;
-  font-size: 13px;
+  font: inherit;
+  font-size: 0.93em;
+  line-height: 1.3;
   vertical-align: baseline;
   margin: 0 1px;
 }
