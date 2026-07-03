@@ -634,7 +634,7 @@ import MessageFloatingActions from '@/components/messages/MessageFloatingActions
 import MessageReplyReference from '@/components/messages/MessageReplyReference.vue';
 import { threadService } from '@/services/ThreadService';
 import type { ThreadWithDetails } from '@/services/ThreadService';
-import { messagePartsToMarkdown, messagePartsToPlainText, isSingleEmojiMessage as checkSingleEmoji, stripLeadingSelfMention } from '@/utils/messageContentUtils';
+import { messagePartsToMarkdown, isSingleEmojiMessage as checkSingleEmoji, stripLeadingSelfMention } from '@/utils/messageContentUtils';
 import { parseContentToMessageParts, resolveMentionsUserData, resolveEmojisData, resolveRoleMentionsData } from '@/utils/unifiedContentProcessing';
 import { buildChatParseOptions } from '@/utils/chatParseOptions';
 import { useReactionsStore } from '@/stores/useReactions';

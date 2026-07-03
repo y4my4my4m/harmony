@@ -6,6 +6,16 @@ import { canonicalSquareSize } from '@/utils/imageTransformUtils'
  * Handles both full URLs and path-only formats
  * Always returns the proper public URL for Supabase storage paths with optimization
  */
+// Storage paths arrive in inconsistent shapes: already percent-encoded
+// (getPublicUrl double-encodes them -> 400) or with a trailing slash (-> 400).
+function cleanStoragePath(path: string): string {
+  let p = path.replace(/\/+$/, '')
+  if (/%[0-9A-Fa-f]{2}/.test(p)) {
+    try { p = decodeURIComponent(p) } catch { /* keep original */ }
+  }
+  return p
+}
+
 export function getAvatarUrl(avatarUrl: string | null | undefined, size: number = 256): string {
   const renderSize = canonicalSquareSize(size)
   // Return default avatar if no URL provided or if it's not a string
@@ -22,32 +32,35 @@ export function getAvatarUrl(avatarUrl: string | null | undefined, size: number 
 
   // If it's already a full URL, check if it's a Supabase storage URL
   if (avatarUrl.startsWith('http://') || avatarUrl.startsWith('https://')) {
-    // Check if this is a Supabase storage URL for avatars
-    const pathMatch = avatarUrl.match(/\/storage\/v1\/object\/public\/avatars\/(.+)$/)
+    let urlObj: URL
+    try {
+      urlObj = new URL(avatarUrl)
+    } catch {
+      return '/default_avatar.webp'
+    }
+    const localSupabaseUrl = import.meta.env.VITE_SUPABASE_URL || ''
+    const localSupabaseHost = localSupabaseUrl ? new URL(localSupabaseUrl).hostname : ''
+    const isRemote = !!localSupabaseHost && urlObj.hostname !== localSupabaseHost
+
+    // Remote render/image URLs 400 when that instance has transforms disabled;
+    // the raw object URL always works.
+    if (isRemote && urlObj.pathname.includes('/storage/v1/render/image/public/')) {
+      urlObj.pathname = urlObj.pathname
+        .replace('/storage/v1/render/image/public/', '/storage/v1/object/public/')
+        .replace(/\/+$/, '')
+      urlObj.search = ''
+      return urlObj.toString()
+    }
+
+    const pathMatch = urlObj.pathname.match(/\/storage\/v1\/object\/public\/avatars\/(.+?)\/*$/)
     if (pathMatch) {
-      // Check if this is a REMOTE URL (federated user from another instance)
-      // If the URL domain doesn't match our local Supabase URL, it's a remote user
-      // We should NOT transform it - return as-is (or add size params if not present)
-      const urlObj = new URL(avatarUrl)
-      const localSupabaseUrl = import.meta.env.VITE_SUPABASE_URL || ''
-      const localSupabaseHost = localSupabaseUrl ? new URL(localSupabaseUrl).hostname : ''
-      
-      // If the URL is from a different domain, it's a remote/federated user
-      if (localSupabaseHost && urlObj.hostname !== localSupabaseHost) {
-        // Remote URL - return as-is (it already has the correct domain)
-        // Optionally add size params if not present
-        if (!avatarUrl.includes('width=') && !avatarUrl.includes('height=')) {
-          const separator = avatarUrl.includes('?') ? '&' : '?'
-          return `${avatarUrl}${separator}width=${renderSize}&height=${renderSize}&resize=contain&quality=80`
-        }
+      if (isRemote) {
         return avatarUrl
       }
-      
       // Local Supabase URL - extract path and use local storage transformation
-      const avatarPath = pathMatch[1]
       const { data } = supabase.storage
         .from('avatars')
-        .getPublicUrl(avatarPath, {
+        .getPublicUrl(cleanStoragePath(pathMatch[1]), {
           transform: { width: renderSize, height: renderSize, resize: 'contain', quality: 80 }
         })
       return data.publicUrl
@@ -58,10 +71,9 @@ export function getAvatarUrl(avatarUrl: string | null | undefined, size: number 
 
   // If it's a Supabase storage path (contains user ID folder structure)
   if (avatarUrl.includes('/') && !avatarUrl.startsWith('/')) {
-    // Use public URL since avatars bucket is now public
     const { data } = supabase.storage
       .from('avatars')
-      .getPublicUrl(avatarUrl, {
+      .getPublicUrl(cleanStoragePath(avatarUrl), {
         transform: { width: renderSize, height: renderSize, resize: 'contain', quality: 80 }
       })
 

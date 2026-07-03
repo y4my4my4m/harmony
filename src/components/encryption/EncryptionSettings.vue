@@ -79,7 +79,7 @@
           </div>
         </div>
         
-        <button 
+        <button
           @click="syncKeys"
           :disabled="isSyncing"
           class="btn btn-secondary"
@@ -87,6 +87,26 @@
           <span v-if="isSyncing">Syncing...</span>
           <span v-else class="sync-label"><Icon name="refresh-cw" :size="16" /> Sync Keys</span>
         </button>
+      </div>
+
+      <!-- Diagnostics -->
+      <div v-if="encryptionStatus.hasRecoveryKey" class="subsection">
+        <h4 class="subsection-title">Diagnostics</h4>
+        <p class="subsection-description">
+          Checks your identity keys, server backup and device trust in one pass.
+        </p>
+        <button @click="runDiagnostics" :disabled="isDiagnosing" class="btn btn-secondary">
+          {{ isDiagnosing ? 'Checking...' : 'Run diagnosis' }}
+        </button>
+        <ul v-if="diagnostics.length" class="diagnostic-list">
+          <li v-for="d in diagnostics" :key="d.label" class="diagnostic-row">
+            <span class="diagnostic-state" :class="d.ok === true ? 'ok' : d.ok === false ? 'fail' : 'na'">
+              {{ d.ok === true ? '✓' : d.ok === false ? '✗' : '–' }}
+            </span>
+            <span class="diagnostic-label">{{ d.label }}</span>
+            <span class="diagnostic-detail">{{ d.detail }}</span>
+          </li>
+        </ul>
       </div>
       
       <!-- Devices -->
@@ -434,6 +454,21 @@ function formatTime(isoString: string): string {
 }
 
 // Sync keys
+const diagnostics = ref<Array<{ label: string; ok: boolean | null; detail: string }>>([])
+const isDiagnosing = ref(false)
+
+async function runDiagnostics() {
+  isDiagnosing.value = true
+  try {
+    const { megolmMessageEncryptionService } = await import('@/services/encryption/MegolmMessageEncryptionService')
+    diagnostics.value = await megolmMessageEncryptionService.runDiagnostics()
+  } catch (error: any) {
+    toast.error(error?.message || 'Diagnosis failed')
+  } finally {
+    isDiagnosing.value = false
+  }
+}
+
 async function syncKeys() {
   isSyncing.value = true
   try {
@@ -445,7 +480,15 @@ async function syncKeys() {
       const restored = await megolmKeyBackupService.restoreFromBackup()
       restoredCount = restored.outboundCount + restored.inboundCount
     } catch (restoreErr: any) {
-      toast.error(`Key backup restore failed: ${restoreErr?.message || restoreErr}`, { timeout: 10000 })
+      const msg = String(restoreErr?.message || restoreErr)
+      if (msg.includes('invalid recovery key')) {
+        toast.warning(
+          'Your server key backup was created under a different recovery phrase and can\'t be opened with the current one. New messages are unaffected.',
+          { timeout: 10000 },
+        )
+      } else {
+        toast.error(`Key backup restore failed: ${msg}`, { timeout: 10000 })
+      }
     }
 
     const claimed = await megolmMessageEncryptionService.claimPendingSessionShares()
@@ -1021,6 +1064,45 @@ onMounted(() => {
 
 .btn-danger:hover:not(:disabled) {
   background: #c0392b;
+}
+
+.diagnostic-list {
+  list-style: none;
+  margin: 16px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.diagnostic-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--bg-secondary, #2a2a3e);
+  font-size: 13px;
+}
+
+.diagnostic-state {
+  font-weight: 700;
+  width: 14px;
+  flex-shrink: 0;
+}
+.diagnostic-state.ok { color: var(--success, #2ecc71); }
+.diagnostic-state.fail { color: var(--danger, #e74c3c); }
+.diagnostic-state.na { color: var(--text-secondary, #999); }
+
+.diagnostic-label {
+  font-weight: 600;
+  flex-shrink: 0;
+  min-width: 110px;
+}
+
+.diagnostic-detail {
+  color: var(--text-secondary, #999);
+  min-width: 0;
 }
 </style>
 

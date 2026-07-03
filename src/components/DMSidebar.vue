@@ -94,10 +94,16 @@
            refresh happen in the background (stale-while-revalidate). -->
       <div
         v-if="(dmStore.loadingConversations || dmStore.isInitializing) && sortedConversations.length === 0"
-        class="loading-state"
+        class="conversations-skeleton"
+        aria-busy="true"
       >
-        <LoadingSpinner :size="24" />
-        <span>{{ $t('dm.loadingConversations') }}</span>
+        <div v-for="i in 7" :key="i" class="conv-skeleton-row">
+          <div class="conv-skeleton-avatar"></div>
+          <div class="conv-skeleton-lines">
+            <div class="conv-skeleton-line" :style="{ width: `${45 + (i * 13) % 40}%` }"></div>
+            <div class="conv-skeleton-line dim" :style="{ width: `${60 + (i * 17) % 30}%` }"></div>
+          </div>
+        </div>
       </div>
       
       <div v-else-if="sortedConversations.length === 0" class="empty-state">
@@ -212,7 +218,6 @@
 // TODO: Consider virtualizing conversation list for users with many DMs
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import Icon from '@/components/common/Icon.vue'
-import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import { useDMStore, type DMUser, type DMConversation } from '@/stores/useDM'
 import { useActivityPubStore } from '@/stores/useActivityPub'
 import { useUserData } from '@/composables/useUserData'
@@ -672,6 +677,59 @@ onUnmounted(() => {
   padding: 40px 20px;
   color: var(--text-muted);
   gap: 12px;
+}
+
+.conversations-skeleton {
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.conv-skeleton-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px;
+}
+
+.conv-skeleton-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--background-modifier-hover, rgba(255, 255, 255, 0.06));
+  animation: convSkeletonPulse 1.4s ease-in-out infinite;
+}
+
+.conv-skeleton-lines {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.conv-skeleton-line {
+  height: 10px;
+  border-radius: 5px;
+  background: var(--background-modifier-hover, rgba(255, 255, 255, 0.06));
+  animation: convSkeletonPulse 1.4s ease-in-out infinite;
+}
+
+.conv-skeleton-line.dim {
+  opacity: 0.6;
+}
+
+@keyframes convSkeletonPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .conv-skeleton-avatar,
+  .conv-skeleton-line {
+    animation: none;
+  }
 }
 
 .empty-state {
