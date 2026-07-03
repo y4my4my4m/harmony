@@ -514,7 +514,7 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, watch, ref, nextTick, reactive, onMounted, computed } from 'vue';
+import { defineComponent, watch, ref, nextTick, reactive, onMounted, onUnmounted, computed } from 'vue';
 import type { PropType } from 'vue';
 import type { EmbedPayload, MessagePart, FileContent } from '@/types';
 import { coalesceInlineContentForMarkdown, extractFileParts } from '@/utils/messageContentUtils';
@@ -829,21 +829,30 @@ export default defineComponent({
     };
     
     // Register videos for floating on mount and load GIF favorites
+    const floatingObserverCleanups: Array<() => void> = [];
+
     onMounted(() => {
       // Load GIF favorites
       loadGifFavorites();
-      
+
       nextTick(() => {
         // Register all video containers
         videoContainers.value.forEach((container, index) => {
           if (container && props.messageId) {
             const originalParent = container.parentElement as HTMLElement;
             if (originalParent) {
-              registerVideo(container as unknown as HTMLElement, originalParent, `${props.messageId}-video-${index}`, 'video');
+              floatingObserverCleanups.push(
+                registerVideo(container as unknown as HTMLElement, originalParent, `${props.messageId}-video-${index}`, 'video')
+              );
             }
           }
         });
       });
+    });
+
+    onUnmounted(() => {
+      floatingObserverCleanups.forEach(cleanup => cleanup());
+      floatingObserverCleanups.length = 0;
     });
     
     const getCurrentText = () => localEditableContent.value;

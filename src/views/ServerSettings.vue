@@ -486,6 +486,7 @@ watch(hasChanges, (newValue) => {
   display: flex;
   flex-direction: column;
   height: 100vh;
+  height: 100dvh;
   background-color: var(--background-tertiary);
   color: var(--text-primary);
 }

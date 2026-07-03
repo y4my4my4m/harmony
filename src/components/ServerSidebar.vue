@@ -426,7 +426,7 @@ const hasServerUnread = (serverId: string): boolean => {
 };
 
 const activeServerId = computed(() => {
-  if (isDMSelected.value || isMonyverseSelected.value) return null;
+  if (isDMSelected.value || isMonyverseSelected.value || isTodaySelected.value) return null;
   return serverChannelStore.currentServerId;
 });
 

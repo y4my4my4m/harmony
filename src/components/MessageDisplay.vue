@@ -1519,6 +1519,15 @@ const rowVirtualizer = useVirtualizer<HTMLDivElement, Element>(
     estimateSize: () => 60,
     overscan: 15,
     initialOffset: frozenInitialOffset.value,
+    // Stable per-item keys. Without this the measurement cache is keyed by
+    // INDEX: prepending a history page shifts every row's index, so each row
+    // inherits a stale height from the row previously at that index. The
+    // cascade of corrective re-measurements as rows re-render is what made
+    // the viewport visibly bounce while loading history. With stable keys,
+    // existing measurements survive the prepend and only the genuinely new
+    // rows measure in (and the virtualizer's built-in scroll adjustment
+    // compensates for those above the viewport).
+    getItemKey: (index: number) => displayItems.value[index]?.key ?? index,
   })) as any
 );
 

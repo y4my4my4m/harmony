@@ -798,9 +798,23 @@ const loadUserPosts = async (retryCount = 0) => {
     debug.log(`📝 Loading posts for user: ${user.value.username} (ID: ${user.value.id})${retryCount > 0 ? ` (retry ${retryCount})` : ''}`);
     
     // Use consistent getUserPosts method for all users
-    const posts = await activityPubService.getUserPosts(user.value.id, { limit: 20 });
-    userPosts.value = posts as TimelinePost[] || [];
-    
+    const posts = (await activityPubService.getUserPosts(user.value.id, { limit: 20 })) as TimelinePost[] || [];
+
+    // Retries poll while the backend backfills a freshly-imported remote
+    // profile; only swap the array (and refetch reactions) when the post set
+    // actually changed, so unchanged polls don't repaint the list.
+    const changed =
+      posts.length !== userPosts.value.length ||
+      posts.some((p, i) => p.id !== userPosts.value[i]?.id);
+    if (changed) {
+      userPosts.value = posts;
+      if (posts.length > 0) {
+        const postReactionsStore = usePostReactionsStore();
+        postReactionsStore.fetchMultiplePostReactions(posts.map(p => p.id), true);
+        activityPubStore.batchFetchRemoteReactions(posts);
+      }
+    }
+
     // For remote users, always enable "load more" since we can fetch from their outbox
     // For local users, enable if we got a full page
     if (!user.value.is_local && remoteOutboxUrl.value) {
@@ -810,14 +824,6 @@ const loadUserPosts = async (retryCount = 0) => {
       hasMorePostsRef.value = posts && posts.length >= 20;
     }
     debug.log(`📊 Loaded ${userPosts.value.length} posts for ${user.value.username}`);
-
-    // Batch-load reactions to prevent N+1 per-post queries
-    if (userPosts.value.length > 0) {
-      const postReactionsStore = usePostReactionsStore();
-      const postIds = userPosts.value.map(p => p.id);
-      postReactionsStore.fetchMultiplePostReactions(postIds, true);
-      activityPubStore.batchFetchRemoteReactions(userPosts.value);
-    }
     
     // For remote users with no posts initially, poll a few times as background fetch may still be running
     if (!user.value.is_local && userPosts.value.length === 0 && retryCount < 3) {
@@ -827,12 +833,13 @@ const loadUserPosts = async (retryCount = 0) => {
       }, 2000);
       return; // Don't set isLoadingPosts to false yet
     }
-    
-    // Update post count for current user with actual loaded posts
-    if (isCurrentUser.value && user.value) {
+
+    // Only correct the displayed post count upward - the loaded page is
+    // capped at 20, so its length must never overwrite a larger DB count.
+    if (isCurrentUser.value && user.value && userPosts.value.length > (user.value.posts_count || 0)) {
       user.value.posts_count = userPosts.value.length;
     }
-    
+
     // Safe debugging with error handling
     try {
       debug.log('📋 Posts sample:', userPosts.value.slice(0, 3).map(p => ({ 
@@ -871,12 +878,9 @@ const loadFollowing = async () => {
     followingUsers.value = following || [];
     
     debug.log(`📊 Loaded ${followingUsers.value.length} following for ${user.value?.username || 'unknown'}`);
-    debug.log('👥 Following users:', followingUsers.value.map(u => u?.display_name || u?.username || 'Unknown'));
-    
-    // Update following count with actual loaded data
-    if (user.value) {
-      user.value.following_count = followingUsers.value.length;
-    }
+
+    // Trust profiles.following_count from the DB; the list here is capped at
+    // 50 by the page size, so its length is not the real count.
   } catch (error) {
     debug.error('❌ Failed to load following:', error);
     followingUsers.value = [];
@@ -947,19 +951,32 @@ const loadMorePosts = async () => {
         
         if (response.ok) {
           const result = await response.json();
-          hasMorePostsRef.value = result.has_more;
           oldestRemotePostId.value = result.oldest_id;
           debug.log(`📬 Federation response: has_more=${result.has_more}, next_page=${result.next_page}`);
-          
-          // Refresh local posts from database
+
+          // Merge newly-imported posts instead of replacing the whole list.
+          // A wholesale replace re-rendered every visible note on each page
+          // fetch, and on freshly-created federated profiles (short page →
+          // scroll handler keeps firing) that looked like the feed reloading
+          // over and over.
           const posts = await activityPubService.getUserPosts(user.value.id, { limit: 100 });
-          if (posts && posts.length > 0) {
-            userPosts.value = posts as TimelinePost[];
-            debug.log(`📊 Refreshed ${posts.length} total posts after remote fetch`);
-            
+          const knownIds = new Set(userPosts.value.map(p => p.id));
+          const newPosts = ((posts as TimelinePost[]) || []).filter(p => !knownIds.has(p.id));
+
+          if (newPosts.length > 0) {
+            userPosts.value = [...userPosts.value, ...newPosts]
+              .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+            hasMorePostsRef.value = result.has_more;
+            debug.log(`📊 Merged ${newPosts.length} new posts (total ${userPosts.value.length})`);
+
             const postReactionsStore = usePostReactionsStore();
-            postReactionsStore.fetchMultiplePostReactions(posts.map(p => p.id), true);
-            activityPubStore.batchFetchRemoteReactions(posts as TimelinePost[]);
+            postReactionsStore.fetchMultiplePostReactions(newPosts.map(p => p.id), true);
+            activityPubStore.batchFetchRemoteReactions(newPosts);
+          } else {
+            // Remote fetch produced nothing new - stop the scroll handler from
+            // re-firing this request in a loop.
+            hasMorePostsRef.value = false;
+            debug.log('📭 Remote fetch returned no new posts - stopping pagination');
           }
         } else {
           debug.warn('Failed to fetch remote posts:', response.status);
@@ -1240,6 +1257,7 @@ onUnmounted(() => {
 
 .user-profile-wrapper {
   height: 100vh;
+  height: 100dvh;
   display: flex;
   flex-direction: column;
   background: var(--background-primary);
