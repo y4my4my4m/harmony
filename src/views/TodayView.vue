@@ -8,7 +8,7 @@
         <h1>{{ greeting }}</h1>
         <span class="beta-badge">Beta</span>
       </div>
-      <button class="refresh-btn" @click="loadDigest" :disabled="loading" aria-label="Refresh">
+      <button class="refresh-btn" @click="loadDigest(true)" :disabled="loading" aria-label="Refresh">
         <Icon name="refresh-cw" :size="18" :class="{ spinning: loading }" />
       </button>
     </header>
@@ -104,6 +104,34 @@
           </button>
         </section>
 
+        <!-- From people you follow -->
+        <section v-if="digest.followedPosts.length > 0" class="today-card">
+          <div class="card-header">
+            <Icon name="users" :size="16" />
+            <h2>From people you follow</h2>
+          </div>
+          <button
+            v-for="post in digest.followedPosts"
+            :key="post.id"
+            class="digest-row"
+            @click="goToPost(post)"
+          >
+            <Avatar
+              :src="postAuthorAvatar(post)"
+              :alt="postAuthorName(post)"
+              size="sm"
+              class="row-avatar"
+            />
+            <div class="row-main">
+              <span class="row-title">{{ postAuthorName(post) }}</span>
+              <span class="row-subtitle post-preview">{{ postPreview(post) }}</span>
+            </div>
+            <span class="row-stat">
+              <Icon name="heart" :size="12" /> {{ post.favorites_count || 0 }}
+            </span>
+          </button>
+        </section>
+
         <!-- Trending posts -->
         <section v-if="digest.trendingPosts.length > 0" class="today-card">
           <div class="card-header">
@@ -135,7 +163,7 @@
 
       <div v-else class="today-error">
         <p>Couldn't load your digest.</p>
-        <button class="retry-btn" @click="loadDigest">Retry</button>
+        <button class="retry-btn" @click="loadDigest(true)">Retry</button>
       </div>
     </div>
   </div>
@@ -156,6 +184,7 @@ import {
   type ChannelHighlight,
 } from '@/services/TodayDigestService'
 import { useTodayDashboard } from '@/composables/useTodayDashboard'
+import { userStorage } from '@/utils/userScopedStorage'
 import type { TimelinePost } from '@/types'
 import { debug } from '@/utils/debug'
 
@@ -200,7 +229,53 @@ const channelsByServer = computed<ServerGroup[]>(() => {
   return [...groups.values()]
 })
 
-const loadDigest = async () => {
+// On-device summarization isn't free (model spin-up per section), so AI
+// output is cached per digest signature. Normal opens reuse it; the refresh
+// button (force) always re-runs the model.
+const AI_CACHE_KEY = 'today-ai-cache'
+const AI_CACHE_MAX_AGE_MS = 12 * 3600_000
+
+interface AiCacheEntry {
+  signature: string
+  summary: string | null
+  highlights: ChannelHighlight[]
+  at: number
+}
+
+const readAiCache = (): AiCacheEntry | null => {
+  try {
+    const raw = userStorage.getItem(AI_CACHE_KEY)
+    return raw ? JSON.parse(raw) as AiCacheEntry : null
+  } catch {
+    return null
+  }
+}
+
+const writeAiCache = (entry: AiCacheEntry) => {
+  try {
+    userStorage.setItem(AI_CACHE_KEY, JSON.stringify(entry))
+  } catch { /* storage full - cache is best-effort */ }
+}
+
+const runAi = (snapshot: TodayDigest, signature: string) => {
+  const entry: AiCacheEntry = { signature, summary: null, highlights: [], at: Date.now() }
+  todayDigestService.summarizeDigest(snapshot)
+    .then(summary => {
+      aiSummary.value = summary
+      entry.summary = summary
+      writeAiCache(entry)
+    })
+    .catch(() => {})
+  todayDigestService.getChannelHighlights(snapshot.activeChannels)
+    .then(result => {
+      highlights.value = result
+      entry.highlights = result
+      writeAiCache(entry)
+    })
+    .catch(() => {})
+}
+
+const loadDigest = async (force = false) => {
   loading.value = true
   try {
     digest.value = await todayDigestService.getDigest()
@@ -210,12 +285,26 @@ const loadDigest = async () => {
     highlights.value = []
     if (todayAiSummariesEnabled.value && digest.value) {
       const snapshot = digest.value
-      todayDigestService.summarizeDigest(snapshot)
-        .then(summary => { aiSummary.value = summary })
-        .catch(() => {})
-      todayDigestService.getChannelHighlights(snapshot.activeChannels)
-        .then(result => { highlights.value = result })
-        .catch(() => {})
+      const signature = todayDigestService.digestSignature(snapshot)
+      const cached = readAiCache()
+      const cacheUsable =
+        !force &&
+        cached !== null &&
+        Date.now() - cached.at < AI_CACHE_MAX_AGE_MS &&
+        cached.signature === signature
+
+      if (cacheUsable) {
+        aiSummary.value = cached.summary
+        highlights.value = cached.highlights
+      } else if (!force && cached && Date.now() - cached.at < AI_CACHE_MAX_AGE_MS) {
+        // Inputs drifted (new messages since): show the cached text instantly,
+        // refresh it in the background.
+        aiSummary.value = cached.summary
+        highlights.value = cached.highlights
+        runAi(snapshot, signature)
+      } else {
+        runAi(snapshot, signature)
+      }
     }
   } catch (error) {
     debug.error('Failed to load today digest:', error)
@@ -277,7 +366,7 @@ const formatRelativeTime = (iso: string | null): string => {
   return `${Math.floor(hours / 24)}d ago`
 }
 
-onMounted(loadDigest)
+onMounted(() => loadDigest())
 </script>
 
 <style scoped>

@@ -49,16 +49,18 @@ export interface TodayDigest {
   activeChannels: ActiveChannelEntry[]
   activeThreads: ActiveThreadEntry[]
   trendingPosts: TimelinePost[]
+  followedPosts: TimelinePost[]
 }
 
 class TodayDigestService {
   async getDigest(): Promise<TodayDigest> {
     const profileId = await authContextService.getCurrentProfileId()
 
-    const [channels, threads, trending, mentions] = await Promise.all([
+    const [channels, threads, trending, followed, mentions] = await Promise.all([
       this.getActiveChannels(profileId),
       this.getActiveThreads(profileId),
       this.getTrendingPosts(),
+      this.getFollowedPosts(profileId),
       this.getUnreadMentionCount(profileId),
     ])
 
@@ -67,7 +69,23 @@ class TodayDigestService {
       activeChannels: channels,
       activeThreads: threads,
       trendingPosts: trending,
+      followedPosts: followed,
     }
+  }
+
+  /**
+   * A stable fingerprint of the digest's inputs. The view caches AI output
+   * against this: same signature → same summary, no model re-run.
+   */
+  digestSignature(digest: TodayDigest): string {
+    const parts = [
+      ...digest.activeChannels.map(c => `${c.channelId}:${c.unreadMessages}:${c.unreadMentions}`),
+      ...digest.activeThreads.map(t => `${t.threadId}:${t.messageCount}`),
+      ...digest.trendingPosts.map(p => p.id),
+      ...digest.followedPosts.map(p => p.id),
+      String(digest.unreadMentions),
+    ]
+    return parts.join('|')
   }
 
   // Cap: 12 unread channels ACROSS ALL SERVERS, mention-heavy first. The
@@ -147,6 +165,50 @@ class TodayDigestService {
       }))
   }
 
+  /**
+   * Recent posts from people the user follows (last 48h), ranked by
+   * engagement so the section surfaces what mattered, not just what's newest.
+   */
+  private async getFollowedPosts(profileId: string, limit = 5): Promise<TimelinePost[]> {
+    const { data: follows, error: followsError } = await supabase
+      .from('follows')
+      .select('following_id')
+      .eq('follower_id', profileId)
+      .eq('status', 'accepted')
+      .limit(400)
+
+    if (followsError || !follows || follows.length === 0) return []
+
+    const since = new Date(Date.now() - 48 * 3600_000).toISOString()
+    const { data: posts, error } = await supabase
+      .from('posts')
+      .select(`
+        *,
+        author:profiles!posts_author_id_fkey(
+          id, username, display_name, avatar_url, color, domain, is_local
+        )
+      `)
+      .in('author_id', follows.map(f => f.following_id))
+      .in('visibility', ['public', 'unlisted'])
+      .or('is_deleted.is.null,is_deleted.eq.false')
+      .is('in_reply_to', null)
+      .gt('created_at', since)
+      .order('created_at', { ascending: false })
+      .limit(40)
+
+    if (error) {
+      debug.warn('Today digest: failed to load followed posts:', error)
+      return []
+    }
+
+    const engagement = (p: any) =>
+      (p.favorites_count || 0) + (p.reblogs_count || 0) * 2 + (p.replies_count || 0)
+
+    return ((posts as TimelinePost[]) || [])
+      .sort((a, b) => engagement(b) - engagement(a))
+      .slice(0, limit)
+  }
+
   private async getTrendingPosts(limit = 5): Promise<TimelinePost[]> {
     try {
       const trending = await trendingService.getTrendingPosts({ limit, timeRange: '24h' })
@@ -192,7 +254,7 @@ class TodayDigestService {
       return []
     }
 
-    const targets = channels.slice(0, maxChannels)
+    const targets = await this.rankChannelsForHighlights(channels, maxChannels)
     const highlights: ChannelHighlight[] = []
 
     for (const channel of targets) {
@@ -228,6 +290,42 @@ class TodayDigestService {
     }
 
     return highlights
+  }
+
+  /**
+   * Pick which channels deserve an AI highlight. Raw unread volume is a weak
+   * signal (one hyperactive server drowns everything); weight instead by:
+   *   - mentions (someone wanted YOU there)
+   *   - channels the user recently posted in themselves (their actual circles)
+   *   - unread volume as the tie-breaker
+   */
+  private async rankChannelsForHighlights(
+    channels: ActiveChannelEntry[],
+    maxChannels: number,
+  ): Promise<ActiveChannelEntry[]> {
+    let myRecentChannelIds = new Set<string>()
+    try {
+      const profileId = await authContextService.getCurrentProfileId()
+      const { data } = await supabase
+        .from('messages')
+        .select('channel_id')
+        .eq('user_id', profileId)
+        .not('channel_id', 'is', null)
+        .order('created_at', { ascending: false })
+        .limit(50)
+      myRecentChannelIds = new Set((data || []).map((m: any) => m.channel_id))
+    } catch {
+      /* fall back to unread-only ranking */
+    }
+
+    const score = (c: ActiveChannelEntry) =>
+      c.unreadMentions * 100 +
+      (myRecentChannelIds.has(c.channelId) ? 50 : 0) +
+      Math.min(c.unreadMessages, 40)
+
+    return [...channels]
+      .sort((a, b) => score(b) - score(a))
+      .slice(0, maxChannels)
   }
 
   /** "Name: text" lines from recent plaintext messages, oldest first. */
