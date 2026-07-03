@@ -230,7 +230,15 @@ class IdentityKeyStore {
     })
   }
 
-  async store(userId: string, privateKey: CryptoKey): Promise<void> {
+  /**
+   * `publicKeyBase64` (the matching PUBLIC half, raw base64 as published in
+   * user_key_pairs) lets ensureIdentityKeyPair verify on unlock that this
+   * cached private still pairs with the published public key. Without it, a
+   * key reset from another tab/device leaves a stale private here that fails
+   * every ECDH unwrap - fulfilled key requests become permanently
+   * unimportable with opaque GCM errors.
+   */
+  async store(userId: string, privateKey: CryptoKey, publicKeyBase64?: string): Promise<void> {
     const db = await this.open()
 
     // Re-import as non-extractable if needed
@@ -249,7 +257,7 @@ class IdentityKeyStore {
     return new Promise((resolve, reject) => {
       const tx = db.transaction(IDENTITY_STORE_NAME, 'readwrite')
       const store = tx.objectStore(IDENTITY_STORE_NAME)
-      store.put({ userId, privateKey: safeKey, storedAt: Date.now() })
+      store.put({ userId, privateKey: safeKey, publicKeyBase64: publicKeyBase64 ?? null, storedAt: Date.now() })
       tx.oncomplete = () => {
         debug.log('🔐 Identity key stored securely in IndexedDB (non-extractable)')
         resolve()
@@ -257,6 +265,25 @@ class IdentityKeyStore {
       tx.onerror = () => reject(tx.error)
       tx.onabort = () => reject(tx.error)
     })
+  }
+
+  /**
+   * The public half recorded alongside the cached private key, or null for
+   * records written before public-key tracking (treated as "unverified").
+   */
+  async loadPublicKey(userId: string): Promise<string | null> {
+    try {
+      const db = await this.open()
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(IDENTITY_STORE_NAME, 'readonly')
+        const store = tx.objectStore(IDENTITY_STORE_NAME)
+        const request = store.get(userId)
+        request.onsuccess = () => resolve(request.result?.publicKeyBase64 ?? null)
+        request.onerror = () => reject(request.error)
+      })
+    } catch {
+      return null
+    }
   }
 
   async load(userId: string): Promise<CryptoKey | null> {

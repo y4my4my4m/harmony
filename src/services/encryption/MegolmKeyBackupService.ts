@@ -281,14 +281,7 @@ export class MegolmKeyBackupService {
       return false
     }
     try {
-      const { data: requesterSigningRow } = await supabase
-        .from('user_key_pairs')
-        .select('identity_signing_public_key')
-        .eq('user_id', request.requester_user_id)
-        .eq('is_active', true)
-        .maybeSingle()
-
-      const spki = (requesterSigningRow as any)?.identity_signing_public_key as string | undefined
+      const spki = await this.getRequesterSigningKey(request.requester_user_id)
       if (!spki) {
         debug.warn('🚫 Requester has no published signing key - cannot verify request')
         return false
@@ -331,6 +324,43 @@ export class MegolmKeyBackupService {
     return true
   }
 
+  // Requester signing keys, TTL-cached: fulfilling a batch of key requests
+  // from the same user verified each one with its own user_key_pairs query.
+  // Negative results cached too (requester without a published key would
+  // otherwise re-query per request).
+  private requesterKeyCache = new Map<string, { spki: string | null; cachedAt: number }>()
+  private requesterKeyFetches = new Map<string, Promise<string | null>>()
+  private static readonly REQUESTER_KEY_TTL_MS = 5 * 60_000
+
+  private async getRequesterSigningKey(requesterUserId: string): Promise<string | null> {
+    const cached = this.requesterKeyCache.get(requesterUserId)
+    if (cached && Date.now() - cached.cachedAt < MegolmKeyBackupService.REQUESTER_KEY_TTL_MS) {
+      return cached.spki
+    }
+    const inFlight = this.requesterKeyFetches.get(requesterUserId)
+    if (inFlight) return inFlight
+
+    const fetchPromise = (async (): Promise<string | null> => {
+      const { data, error } = await supabase
+        .from('user_key_pairs')
+        .select('identity_signing_public_key')
+        .eq('user_id', requesterUserId)
+        .eq('is_active', true)
+        .maybeSingle()
+      if (error) return null // transient: don't cache
+      const spki = ((data as any)?.identity_signing_public_key as string | undefined) ?? null
+      this.requesterKeyCache.set(requesterUserId, { spki, cachedAt: Date.now() })
+      return spki
+    })()
+
+    this.requesterKeyFetches.set(requesterUserId, fetchPromise)
+    try {
+      return await fetchPromise
+    } finally {
+      this.requesterKeyFetches.delete(requesterUserId)
+    }
+  }
+
   /**
    * Best-effort short fingerprint of our own active signing public key, used to
    * annotate outgoing key requests. Returns undefined on any failure.
@@ -340,6 +370,8 @@ export class MegolmKeyBackupService {
   // identical self-lookups during one DM load).
   private myFingerprintCache: { userId: string; value: string | undefined; cachedAt: number } | null = null
   private static readonly MY_FINGERPRINT_TTL_MS = 5 * 60_000
+
+  private myFingerprintFetch: Promise<string | undefined> | null = null
 
   private async getMySigningFingerprint(): Promise<string | undefined> {
     if (!this.userId) return undefined
@@ -351,6 +383,19 @@ export class MegolmKeyBackupService {
     ) {
       return cached.value
     }
+    // Dedup concurrent lookups (several key requests can be created in one
+    // decrypt burst before the first fingerprint query resolves and caches).
+    if (this.myFingerprintFetch) return this.myFingerprintFetch
+    this.myFingerprintFetch = this._getMySigningFingerprint()
+    try {
+      return await this.myFingerprintFetch
+    } finally {
+      this.myFingerprintFetch = null
+    }
+  }
+
+  private async _getMySigningFingerprint(): Promise<string | undefined> {
+    if (!this.userId) return undefined
     try {
       const { data } = await supabase
         .from('user_key_pairs')

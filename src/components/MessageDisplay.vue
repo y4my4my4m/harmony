@@ -3230,6 +3230,13 @@ const handleDecryptMessage = async (message: Message) => {
         6000,
       );
     } catch { /* toast best-effort */ }
+  } finally {
+    // Tell the glyph component the attempt settled so its spinner stops NOW.
+    // It previously relied only on a fixed 5s timeout, so a fast failure
+    // showed the error toast while the lock kept spinning for seconds.
+    window.dispatchEvent(new CustomEvent('harmony-decrypt-finished', {
+      detail: { messageId: message.id },
+    }));
   }
 };
 
