@@ -234,6 +234,15 @@ export class MegolmMessageEncryptionService {
         } catch { /* ignore */ }
 
         debug.log('✅ Auto-unlocked encryption from IndexedDB keys')
+
+        // Tell the UI encryption is now usable. Components that mounted
+        // BEFORE this point (e.g. a direct page load straight into a DM)
+        // checked isUnlocked() too early and cached `false` - without this
+        // event their click-to-decrypt affordances never enable. Parity with
+        // initializeWithRecoveryKey, which already fires the same event.
+        if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+          window.dispatchEvent(new CustomEvent('megolm-key-received', { detail: { roomId: '*', sessionId: '*' } }))
+        }
         return true
       }
 
@@ -1397,21 +1406,14 @@ export class MegolmMessageEncryptionService {
       if (errMsg.includes('No inbound session') || errMsg.includes('No outbound session')) {
         debug.log(`ℹ️ Missing session ${sessionId.substring(0, 8)}... for room ${roomId.substring(0, 8)}..., fetching...`)
 
-        // 1) Claim any pending (unclaimed) session shares from server
-        const claimed = await this.claimPendingSessionShares()
+        // Recovery is deduped PER SESSION: a page decrypt runs messages in
+        // parallel, and every message of a missing session used to run its
+        // own claim RPC + share re-fetch + key request - K undecryptable
+        // messages meant K copies of the whole recovery dance blocking first
+        // paint. All messages of one session now await one shared attempt.
+        const recovered = await this.recoverMissingSession(roomId, senderId, sessionId)
 
-        // 2) If nothing unclaimed matched, re-fetch OUR share row for this exact
-        //    session even if it was already claimed. A claimed-but-lost share is
-        //    the common "keeps failing" case: this device (or a wiped browser
-        //    profile) no longer holds the key locally, but the wrapped key still
-        //    sits in megolm_session_shares. Without this, the only recovery was
-        //    a key request that needs the sender online.
-        let reimported = false
-        if (!megolmService.hasInboundSession(roomId, senderId, sessionId)) {
-          reimported = await this.reimportShareForSession(roomId, sessionId)
-        }
-
-        if (claimed > 0 || reimported) {
+        if (recovered) {
           // Retry decryption after importing shares
           try {
             const decryptedJson = await megolmService.decryptMessage(roomId, senderId, encryptedMessage, additionalData)
@@ -1422,8 +1424,9 @@ export class MegolmMessageEncryptionService {
           }
         }
 
-        // No shares available - request the key from the sender
-        // The sender will receive this via realtime and auto-fulfill if they have the key
+        // No shares available - request the key from the sender.
+        // (createKeyRequest dedups per session, so parallel failures here
+        // produce ONE request row.)
         debug.log(`📤 Requesting session key from sender ${senderId.substring(0, 8)}...`)
         megolmKeyBackupService.createKeyRequest(roomId, sessionId, senderId)
           .catch(err => debug.warn('⚠️ Key request failed:', err))
@@ -1431,6 +1434,45 @@ export class MegolmMessageEncryptionService {
       }
       throw error
     }
+  }
+
+  // In-flight recovery attempts keyed by roomId:sessionId. Entries are kept
+  // for a short TTL after settling so a burst (page decrypt) shares one
+  // attempt, while a user-triggered retry a moment later can try again.
+  private sessionRecoveryAttempts = new Map<string, Promise<boolean>>()
+
+  /**
+   * One shared attempt to recover a missing inbound session from the server:
+   * claim unclaimed shares, then re-import our own (possibly already-claimed)
+   * share row for this exact session. Returns whether anything was imported.
+   */
+  private recoverMissingSession(roomId: string, senderId: string, sessionId: string): Promise<boolean> {
+    const key = `${roomId}:${sessionId}`
+    const existing = this.sessionRecoveryAttempts.get(key)
+    if (existing) return existing
+
+    const attempt = (async (): Promise<boolean> => {
+      // 1) Claim any pending (unclaimed) session shares from server
+      const claimed = await this.claimPendingSessionShares()
+
+      // 2) If nothing unclaimed matched, re-fetch OUR share row for this exact
+      //    session even if it was already claimed. A claimed-but-lost share is
+      //    the common "keeps failing" case: this device (or a wiped browser
+      //    profile) no longer holds the key locally, but the wrapped key still
+      //    sits in megolm_session_shares. Without this, the only recovery was
+      //    a key request that needs the sender online.
+      let reimported = false
+      if (!megolmService.hasInboundSession(roomId, senderId, sessionId)) {
+        reimported = await this.reimportShareForSession(roomId, sessionId)
+      }
+      return claimed > 0 || reimported
+    })()
+
+    this.sessionRecoveryAttempts.set(key, attempt)
+    void attempt.finally(() => {
+      setTimeout(() => this.sessionRecoveryAttempts.delete(key), 30_000)
+    })
+    return attempt
   }
 
   /**
@@ -1885,7 +1927,25 @@ export class MegolmMessageEncryptionService {
    * Claim pending session shares (from other users)
    * OPTIMIZED: Single RPC call + batch public-key fetch + parallel processing
    */
+  // Concurrent claim sweeps share one RPC: several missing sessions in one
+  // page decrypt each trigger recovery, and each recovery starts with a
+  // claim - without dedup that's N identical get_unclaimed_session_shares
+  // calls racing each other.
+  private claimSharesInFlight: Promise<number> | null = null
+
   async claimPendingSessionShares(): Promise<number> {
+    if (!this.currentUserId) return 0
+    if (this.claimSharesInFlight) return this.claimSharesInFlight
+
+    const promise = this._claimPendingSessionShares()
+    this.claimSharesInFlight = promise
+    void promise.finally(() => {
+      if (this.claimSharesInFlight === promise) this.claimSharesInFlight = null
+    })
+    return promise
+  }
+
+  private async _claimPendingSessionShares(): Promise<number> {
     if (!this.currentUserId) return 0
 
     const { data: shares, error } = await supabase

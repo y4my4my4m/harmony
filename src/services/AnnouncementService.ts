@@ -1,5 +1,6 @@
 import { supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
+import { authContextService } from '@/services/AuthContextService'
 
 export interface Announcement {
   id: string
@@ -51,7 +52,7 @@ class AnnouncementService {
     options: { popupOnly?: boolean } = {}
   ): Promise<Announcement[]> {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
+      const { authUser: user } = await authContextService.getCurrentContext()
       if (!user) return []
 
       const { data, error } = await supabase.rpc('get_unread_announcements', {
@@ -93,7 +94,7 @@ class AnnouncementService {
 
   async createAnnouncement(params: CreateAnnouncementParams): Promise<Announcement | null> {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
+      const { authUser: user } = await authContextService.getCurrentContext()
       if (!user) throw new Error('Not authenticated')
 
       const { data, error } = await supabase
@@ -150,7 +151,7 @@ class AnnouncementService {
 
   async markAsRead(announcementId: string): Promise<boolean> {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
+      const { authUser: user } = await authContextService.getCurrentContext()
       if (!user) return false
 
       const { error } = await supabase
@@ -170,7 +171,7 @@ class AnnouncementService {
 
   async markAllAsRead(announcementIds: string[]): Promise<boolean> {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
+      const { authUser: user } = await authContextService.getCurrentContext()
       if (!user) return false
 
       const inserts = announcementIds.map(id => ({

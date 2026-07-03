@@ -747,7 +747,7 @@ export class ActivityPubService {
    * Delete a post
    */
   async deletePost(postId: string): Promise<void> {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { authUser: user } = await (await import('@/services/AuthContextService')).authContextService.getCurrentContext();
     if (!user) throw new Error('User not authenticated');
 
     // Get original post to verify ownership and get author info
@@ -788,7 +788,7 @@ export class ActivityPubService {
    * Follow a user
    */
   async followUser(targetUserId: string): Promise<Follow> {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { authUser: user } = await (await import('@/services/AuthContextService')).authContextService.getCurrentContext();
     if (!user) throw new Error('User not authenticated');
 
     if (user.id === targetUserId) {
@@ -836,7 +836,7 @@ export class ActivityPubService {
    * Unfollow a user
    */
   async unfollowUser(targetUserId: string): Promise<void> {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { authUser: user } = await (await import('@/services/AuthContextService')).authContextService.getCurrentContext();
     if (!user) throw new Error('User not authenticated');
 
     const { error } = await supabase
@@ -916,7 +916,7 @@ export class ActivityPubService {
    * Check if user is following another user
    */
   async isFollowing(targetUserId: string): Promise<boolean> {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { authUser: user } = await (await import('@/services/AuthContextService')).authContextService.getCurrentContext();
     if (!user) return false;
 
     const { data, error } = await supabase
@@ -939,7 +939,7 @@ export class ActivityPubService {
    * Toggle favorite (like) status for a post
    */
   async toggleFavorite(postId: string): Promise<{ favorited: boolean; interaction?: PostInteraction }> {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { authUser: user } = await (await import('@/services/AuthContextService')).authContextService.getCurrentContext();
     if (!user) throw new Error('User not authenticated');
 
     // Check if already favorited - use maybeSingle to handle 0 rows gracefully
@@ -976,7 +976,7 @@ export class ActivityPubService {
    * Favorite (like) a post
    */
   async favoritePost(postId: string): Promise<PostInteraction> {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { authUser: user } = await (await import('@/services/AuthContextService')).authContextService.getCurrentContext();
     if (!user) throw new Error('User not authenticated');
 
     const ap_id = `${this.instanceUrl}/activities/${crypto.randomUUID()}`;
@@ -1010,7 +1010,7 @@ export class ActivityPubService {
    * Unfavorite a post
    */
   async unfavoritePost(postId: string): Promise<void> {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { authUser: user } = await (await import('@/services/AuthContextService')).authContextService.getCurrentContext();
     if (!user) throw new Error('User not authenticated');
 
     const { error } = await supabase
@@ -1028,7 +1028,7 @@ export class ActivityPubService {
    * Always operates on the ORIGINAL post, not a reblog
    */
   async toggleReblog(postId: string): Promise<{ reblogged: boolean; reblogPost?: any }> {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { authUser: user } = await (await import('@/services/AuthContextService')).authContextService.getCurrentContext();
     if (!user) throw new Error('User not authenticated');
 
     // Get the user's profile ID
@@ -1101,7 +1101,7 @@ export class ActivityPubService {
    * Always reblogs the ORIGINAL post, not a reblog of a reblog (like Twitter)
    */
   async reblogPost(postId: string): Promise<any> {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { authUser: user } = await (await import('@/services/AuthContextService')).authContextService.getCurrentContext();
     if (!user) throw new Error('User not authenticated');
 
     // Get the user's profile ID
@@ -1204,7 +1204,7 @@ export class ActivityPubService {
     contentWarning?: string,
     isSensitive: boolean = false
   ): Promise<any> {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { authUser: user } = await (await import('@/services/AuthContextService')).authContextService.getCurrentContext();
     if (!user) throw new Error('User not authenticated');
 
     // Get the user's profile ID
@@ -1312,7 +1312,7 @@ export class ActivityPubService {
    * Un-reblog a post - removes the reblog post
    */
   async unreblogPost(reblogPostId: string): Promise<void> {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { authUser: user } = await (await import('@/services/AuthContextService')).authContextService.getCurrentContext();
     if (!user) throw new Error('User not authenticated');
 
     // Get the user's profile ID
@@ -1334,7 +1334,7 @@ export class ActivityPubService {
    * Toggle bookmark status for a post
    */
   async toggleBookmark(postId: string): Promise<{ bookmarked: boolean; interaction?: PostInteraction }> {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { authUser: user } = await (await import('@/services/AuthContextService')).authContextService.getCurrentContext();
     if (!user) throw new Error('User not authenticated');
 
     // Get the user's profile ID
@@ -1364,7 +1364,7 @@ export class ActivityPubService {
    * Bookmark a post
    */
   async bookmarkPost(postId: string): Promise<PostInteraction> {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { authUser: user } = await (await import('@/services/AuthContextService')).authContextService.getCurrentContext();
     if (!user) throw new Error('User not authenticated');
 
     // Get the user's profile ID
@@ -1401,7 +1401,7 @@ export class ActivityPubService {
    * Remove bookmark from post
    */
   async unbookmarkPost(postId: string): Promise<void> {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { authUser: user } = await (await import('@/services/AuthContextService')).authContextService.getCurrentContext();
     if (!user) throw new Error('User not authenticated');
 
     // Get the user's profile ID
@@ -2003,7 +2003,7 @@ export class ActivityPubService {
     is_reblogged: boolean;
     is_bookmarked: boolean;
   }> {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { authUser: user } = await (await import('@/services/AuthContextService')).authContextService.getCurrentContext();
     if (!user) return { is_favorited: false, is_reblogged: false, is_bookmarked: false };
 
     // Get the user's profile ID
@@ -2043,7 +2043,7 @@ export class ActivityPubService {
     is_sensitive?: boolean;
     media_attachments?: any[];
   }): Promise<Post> {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { authUser: user } = await (await import('@/services/AuthContextService')).authContextService.getCurrentContext();
     if (!user) throw new Error('User not authenticated');
 
     // Get the user's profile ID
@@ -2112,7 +2112,7 @@ export class ActivityPubService {
    * Accept a follow request
    */
   async acceptFollowRequest(followId: string): Promise<void> {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { authUser: user } = await (await import('@/services/AuthContextService')).authContextService.getCurrentContext();
     if (!user) throw new Error('User not authenticated');
 
     // Get the user's profile ID
@@ -2160,7 +2160,7 @@ export class ActivityPubService {
    * Reject a follow request
    */
   async rejectFollowRequest(followId: string): Promise<void> {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { authUser: user } = await (await import('@/services/AuthContextService')).authContextService.getCurrentContext();
     if (!user) throw new Error('User not authenticated');
 
     // Get the user's profile ID
@@ -2205,7 +2205,7 @@ export class ActivityPubService {
    * Undo an action (unfollow, unfavorite, etc.)
    */
   async undoActivity(originalActivityId: string): Promise<void> {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { authUser: user } = await (await import('@/services/AuthContextService')).authContextService.getCurrentContext();
     if (!user) throw new Error('User not authenticated');
 
     // Get the original activity
@@ -2248,7 +2248,7 @@ export class ActivityPubService {
     deafened?: boolean;
     video_enabled?: boolean;
   }): Promise<void> {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { authUser: user } = await (await import('@/services/AuthContextService')).authContextService.getCurrentContext();
     if (!user) throw new Error('User not authenticated');
 
     // Get server and channel info
@@ -2298,7 +2298,7 @@ export class ActivityPubService {
    * Leave a voice channel (federated)
    */
   async leaveVoiceChannel(serverId: string, channelId: string): Promise<void> {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { authUser: user } = await (await import('@/services/AuthContextService')).authContextService.getCurrentContext();
     if (!user) throw new Error('User not authenticated');
 
     // Similar to joinVoiceChannel but with VoiceLeave type
@@ -2330,7 +2330,7 @@ export class ActivityPubService {
     screen_sharing?: boolean;
     speaking?: boolean;
   }): Promise<void> {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { authUser: user } = await (await import('@/services/AuthContextService')).authContextService.getCurrentContext();
     if (!user) throw new Error('User not authenticated');
 
     await this.createActivity({
@@ -2360,7 +2360,7 @@ export class ActivityPubService {
    * Join a federated server
    */
   async joinFederatedServer(serverDomain: string, inviteCode?: string): Promise<void> {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { authUser: user } = await (await import('@/services/AuthContextService')).authContextService.getCurrentContext();
     if (!user) throw new Error('User not authenticated');
 
     // Create Join activity for federation
@@ -2390,7 +2390,7 @@ export class ActivityPubService {
    * Leave a federated server
    */
   async leaveFederatedServer(serverDomain: string): Promise<void> {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { authUser: user } = await (await import('@/services/AuthContextService')).authContextService.getCurrentContext();
     if (!user) throw new Error('User not authenticated');
 
     await this.createActivity({

@@ -335,8 +335,22 @@ export class MegolmKeyBackupService {
    * Best-effort short fingerprint of our own active signing public key, used to
    * annotate outgoing key requests. Returns undefined on any failure.
    */
+  // Own signing fingerprint changes only on key rotation; cache it so every
+  // key request creation doesn't re-query user_key_pairs (observed: dozens of
+  // identical self-lookups during one DM load).
+  private myFingerprintCache: { userId: string; value: string | undefined; cachedAt: number } | null = null
+  private static readonly MY_FINGERPRINT_TTL_MS = 5 * 60_000
+
   private async getMySigningFingerprint(): Promise<string | undefined> {
     if (!this.userId) return undefined
+    const cached = this.myFingerprintCache
+    if (
+      cached &&
+      cached.userId === this.userId &&
+      Date.now() - cached.cachedAt < MegolmKeyBackupService.MY_FINGERPRINT_TTL_MS
+    ) {
+      return cached.value
+    }
     try {
       const { data } = await supabase
         .from('user_key_pairs')
@@ -345,13 +359,19 @@ export class MegolmKeyBackupService {
         .eq('is_active', true)
         .maybeSingle()
       const spki = (data as any)?.identity_signing_public_key as string | undefined
-      if (!spki) return undefined
-      const bytes = Uint8Array.from(atob(spki), c => c.charCodeAt(0))
-      const digest = await crypto.subtle.digest('SHA-256', bytes)
-      return Array.from(new Uint8Array(digest))
-        .map(b => b.toString(16).padStart(2, '0'))
-        .join('')
-        .slice(0, 16)
+      let value: string | undefined
+      if (spki) {
+        const bytes = Uint8Array.from(atob(spki), c => c.charCodeAt(0))
+        const digest = await crypto.subtle.digest('SHA-256', bytes)
+        value = Array.from(new Uint8Array(digest))
+          .map(b => b.toString(16).padStart(2, '0'))
+          .join('')
+          .slice(0, 16)
+      }
+      // Cache negatives too - a user with no signing key would otherwise
+      // re-query on every request creation.
+      this.myFingerprintCache = { userId: this.userId, value, cachedAt: Date.now() }
+      return value
     } catch {
       return undefined
     }
@@ -371,6 +391,10 @@ export class MegolmKeyBackupService {
   private async handleFulfilledRequest(
     request: KeyRequest,
     prefetchedSenderKey?: string | null,
+    // The offline sweep batches status updates itself (one PATCH per row was
+    // 14s of serial requests for a large backlog) - it passes true to skip
+    // the per-row flip below.
+    deferStatusFlip = false,
   ): Promise<boolean> {
     debug.log(`📬 Key request fulfilled! Session ${request.session_id.substring(0, 8)}...`)
 
@@ -421,7 +445,7 @@ export class MegolmKeyBackupService {
       // via processMyFulfilledRequests() on the next unlock. Flipping it to
       // 'received' stops that catch-up from re-importing the same key forever.
       // Best-effort: a failed update only costs us a redundant future import.
-      if (request.id && this.userId) {
+      if (!deferStatusFlip && request.id && this.userId) {
         await supabase
           .from('megolm_key_requests')
           .update({ status: 'received' })
@@ -799,6 +823,12 @@ export class MegolmKeyBackupService {
 
     const requestId = crypto.randomUUID()
 
+    // Reserve the dedup slot SYNCHRONOUSLY. It used to be set only after the
+    // insert, so parallel decrypt failures for the same session (one page can
+    // hold many messages of one session) raced past the check above and each
+    // inserted its own request row. Rolled back on insert failure below.
+    this.pendingRequests.set(sessionId, { requestId, createdAt: Date.now() })
+
     // Sign the request so the fulfiller can verify it actually came from us
     // before wrapping the session key. Best-effort: if we have no signing key
     // yet, we still send an unsigned request (the fulfiller decides whether to
@@ -838,11 +868,13 @@ export class MegolmKeyBackupService {
       })
 
     if (error) {
+      // Roll back the synchronous dedup reservation so a retry can re-issue.
+      const reserved = this.pendingRequests.get(sessionId)
+      if (reserved?.requestId === requestId) {
+        this.pendingRequests.delete(sessionId)
+      }
       throw new Error(`Failed to create key request: ${error.message}`)
     }
-
-    // Track pending request
-    this.pendingRequests.set(sessionId, { requestId, createdAt: Date.now() })
 
     debug.log(`📤 Created key request ${requestId.substring(0, 8)}... for session ${sessionId.substring(0, 8)}... from ${senderUserId?.substring(0, 8) || 'unknown'}`)
     return requestId
@@ -960,39 +992,52 @@ export class MegolmKeyBackupService {
       }
     }
 
-    let imported = 0
+    const importedIds: string[] = []
+    const failedIds: string[] = []
     for (const request of data) {
       const ok = await this.handleFulfilledRequest(
         request as unknown as KeyRequest,
         senderKeyMap.get(request.sender_user_id) ?? null,
+        true, // defer status flips - batched below
       )
-      if (ok) {
-        imported++
-        continue
-      }
+      if (ok) importedIds.push(request.id)
+      else failedIds.push(request.id)
+    }
 
-      // Quarantine: at this point we're unlocked with our identity key
-      // available, so a failed import is deterministic (typically the key was
-      // sealed to a PREVIOUS identity after a key reset) and would fail again
-      // on every future unlock - these rows were being re-swept forever,
-      // hammering the DB on each session start. Mark them expired; if the
-      // session is ever needed again, the on-demand key-request flow issues a
-      // fresh request (and the fulfillment-side share repair makes the new
-      // seal durable).
+    // Batch the status flips: ONE update per outcome instead of one PATCH per
+    // row (a large backlog produced 60+ serial PATCHes on unlock).
+    if (importedIds.length > 0) {
+      await supabase
+        .from('megolm_key_requests')
+        .update({ status: 'received' })
+        .in('id', importedIds)
+        .eq('requester_user_id', this.userId)
+        .then(() => {}, () => {})
+    }
+
+    // Quarantine failures: at this point we're unlocked with our identity key
+    // available, so a failed import is deterministic (typically the key was
+    // sealed to a PREVIOUS identity after a key reset) and would fail again
+    // on every future unlock - these rows were being re-swept forever,
+    // hammering the DB on each session start. Mark them expired; if the
+    // session is ever needed again, the on-demand key-request flow issues a
+    // fresh request (and the fulfillment-side share repair makes the new
+    // seal durable).
+    if (failedIds.length > 0) {
       await supabase
         .from('megolm_key_requests')
         .update({ status: 'expired' })
-        .eq('id', request.id)
+        .in('id', failedIds)
         .eq('requester_user_id', this.userId)
         .then(() => {}, () => {})
-      debug.warn(`🗑️ Quarantined undecryptable fulfilled key request ${String(request.id).substring(0, 8)} (marked expired)`)
+      debug.warn(`🗑️ Quarantined ${failedIds.length} undecryptable fulfilled key requests (marked expired)`)
     }
 
-    if (imported > 0) {
-      debug.log(`📥 Imported ${imported} fulfilled key requests (offline catch-up)`)
+    if (importedIds.length > 0) {
+      debug.log(`📥 Imported ${importedIds.length} fulfilled key requests (offline catch-up)`)
     }
 
-    return imported
+    return importedIds.length
   }
 
   /**
