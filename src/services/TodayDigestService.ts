@@ -33,6 +33,7 @@ export interface ChannelHighlight {
   serverId: string
   channelName: string
   serverName: string
+  serverIcon: string | null
   summary: string
 }
 
@@ -279,6 +280,7 @@ class TodayDigestService {
             serverId: channel.serverId,
             channelName: channel.channelName,
             serverName: channel.serverName,
+            serverIcon: channel.serverIcon,
             summary: summary.trim(),
           })
         }

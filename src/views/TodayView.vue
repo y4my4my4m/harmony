@@ -37,15 +37,25 @@
             <span>Summarizing on this device…</span>
           </div>
           <p v-if="aiSummary" class="ai-summary-text">{{ aiSummary }}</p>
-          <ul v-if="highlights.length > 0" class="highlight-list">
-            <li v-for="h in highlights" :key="h.channelId" class="highlight-item">
-              <button class="channel-pill" @click="goToChannelId(h.serverId, h.channelId)">
-                #{{ h.channelName }}
-              </button>
-              <span class="highlight-server">{{ h.serverName }}</span>
-              <span class="highlight-text">{{ h.summary }}</span>
-            </li>
-          </ul>
+          <!-- Same server-grouped presentation as Catch up -->
+          <div v-for="group in highlightsByServer" :key="group.serverId" class="server-group">
+            <div class="server-group-header">
+              <img
+                :src="getServerIconUrl(group.serverIcon, 48)"
+                :alt="group.serverName"
+                class="server-icon"
+              />
+              <span class="server-name">{{ group.serverName }}</span>
+            </div>
+            <ul class="highlight-list">
+              <li v-for="h in group.highlights" :key="h.channelId" class="highlight-item">
+                <button class="channel-pill" @click="goToChannelId(h.serverId, h.channelId)">
+                  #{{ h.channelName }}
+                </button>
+                <span class="highlight-text">{{ h.summary }}</span>
+              </li>
+            </ul>
+          </div>
         </section>
 
         <!-- Mentions -->
@@ -221,6 +231,26 @@ interface ServerGroup {
   serverIcon: string | null
   channels: ActiveChannelEntry[]
 }
+
+interface HighlightGroup {
+  serverId: string
+  serverName: string
+  serverIcon: string | null
+  highlights: ChannelHighlight[]
+}
+
+const highlightsByServer = computed<HighlightGroup[]>(() => {
+  const groups = new Map<string, HighlightGroup>()
+  for (const h of highlights.value) {
+    let group = groups.get(h.serverId)
+    if (!group) {
+      group = { serverId: h.serverId, serverName: h.serverName, serverIcon: h.serverIcon, highlights: [] }
+      groups.set(h.serverId, group)
+    }
+    group.highlights.push(h)
+  }
+  return [...groups.values()]
+})
 
 const channelsByServer = computed<ServerGroup[]>(() => {
   const groups = new Map<string, ServerGroup>()
@@ -559,12 +589,6 @@ onMounted(() => loadDigest())
   align-items: baseline;
   gap: 8px;
   flex-wrap: wrap;
-}
-
-.highlight-server {
-  font-size: 11px;
-  color: var(--text-muted);
-  white-space: nowrap;
 }
 
 .highlight-text {
