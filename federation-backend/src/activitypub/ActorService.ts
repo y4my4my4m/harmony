@@ -8,7 +8,7 @@ import { ActivityProcessor } from './ActivityProcessor.js';
 import { SignatureService } from './SignatureService.js';
 import { logger } from '../utils/logger.js';
 import config from '../config/index.js';
-import { validateExternalHostname, safeFetch } from '../utils/ssrfProtection.js';
+import { validateExternalHostname, validateExternalUrl, safeFetch } from '../utils/ssrfProtection.js';
 import { discoveryLimiter } from '../middleware/rateLimit.js';
 
 const router = Router();
@@ -511,6 +511,15 @@ router.post(
       return res.status(400).json({ error: 'url is required' });
     }
 
+    // SSRF gate (BUGS.md H13): reject internal/private targets before any
+    // fetch. safeFetch re-validates downstream, but failing here returns a
+    // clean 400 instead of leaking timing/behavior differences.
+    try {
+      validateExternalUrl(url);
+    } catch {
+      return res.status(400).json({ error: 'Invalid or disallowed url' });
+    }
+
     const supabase = getSupabaseClient();
 
     // Build a set of URL variants to check - fediverse platforms use different
@@ -583,7 +592,25 @@ router.post(
     }
 
     const supabase = getSupabaseClient();
-    
+
+    // SSRF gate (BUGS.md H14): never fetch a caller-supplied URL. The outbox
+    // URL is server-known state - require it to match the profile row, which
+    // reduces the client input to a mere confirmation.
+    const { data: profileRow } = await supabase
+      .from('profiles')
+      .select('outbox_url, is_local')
+      .eq('id', user_id)
+      .maybeSingle();
+
+    if (!profileRow || profileRow.is_local || !profileRow.outbox_url || profileRow.outbox_url !== outbox_url) {
+      return res.status(400).json({ error: 'outbox_url does not match the stored profile' });
+    }
+    try {
+      validateExternalUrl(outbox_url);
+    } catch {
+      return res.status(400).json({ error: 'Invalid or disallowed outbox_url' });
+    }
+
     logger.info(`📬 Fetch posts request for user ${user_id} (load_more=${!!max_id})`);
 
     try {

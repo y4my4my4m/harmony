@@ -520,7 +520,7 @@ const placeholder = computed(() => {
   if (props.type === 'edit') {
     return t('activitypub.editYourPost');
   }
-  return t('activitypub.whatsHappeningInMonyverse');
+  return t('activitypub.whatsHappeningInFediverse');
 });
 
 const headerTitle = computed(() => {
@@ -1513,29 +1513,45 @@ const vClickOutside = {
     display: none;
   }
 
-  /* Compact the toolbar so the action icons stay pinned left and the
-     Post/Cancel group sits inline on the same row whenever it fits. The icons
-     are made a touch smaller with tighter gaps to win back the horizontal
-     space the buttons need; the action group only wraps to its own (still
-     right-aligned) line when there genuinely isn't room (e.g. the narrowest
-     phones with both Cancel + Post in the modal). */
+  /* One-line toolbar on mobile: action icons pinned left, counter + Post
+     pinned right, never wrapping. The icon group is the flexible part - it
+     shrinks and (in the worst case) scrolls horizontally, so the counter and
+     the Post button always stay on the same row. */
   .compose-options {
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     align-items: center;
     column-gap: 0.25rem;
-    row-gap: 0.5rem;
+  }
+
+  /* Break the toolbar out of the input column so it spans the full card
+     width, starting under the avatar. Offset = avatar (48px md) +
+     .composer-user padding-right (8px) + .composer-body gap (0.5rem). */
+  .composer-inline-content .compose-options {
+    margin-left: calc(-1 * (48px + 8px + 0.5rem));
+  }
+
+  /* Inline reply variant uses the sm (40px) avatar. */
+  .composer-inline-content .composer-body:has(.avatar-sm) .compose-options {
+    margin-left: calc(-1 * (40px + 8px + 0.5rem));
   }
 
   .option-group {
     flex-wrap: nowrap;
     flex: 1 1 auto;
     min-width: 0;
-    gap: 0.125rem;
+    gap: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .option-group::-webkit-scrollbar {
+    display: none;
   }
 
   .option-button {
-    width: 34px;
-    height: 34px;
+    width: 32px;
+    height: 32px;
+    flex-shrink: 0;
   }
 
   .action-group {
@@ -1545,13 +1561,17 @@ const vClickOutside = {
     gap: 0.35rem;
   }
 
+  .character-counter {
+    font-size: 0.75rem;
+  }
+
   .post-button {
-    padding: 0.5rem 0.9rem;
+    padding: 0.45rem 0.8rem;
     flex-shrink: 0;
   }
 
   .cancel-button {
-    padding: 0.5rem 0.75rem;
+    padding: 0.45rem 0.6rem;
     flex-shrink: 0;
   }
 }

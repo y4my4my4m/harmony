@@ -1610,25 +1610,21 @@ export const useActivityPubStore = defineStore('activitypub', {
 
       this.isLoadingFeed = true;
       try {
-        const authUser = await authContextService.getCurrentAuthUser();
+        // getUserTimeline matches follows.follower_id / post_interactions.user_id,
+        // both of which FK to profiles(id) - the auth UUID matches nothing there.
+        const profileId = await authContextService.getCurrentProfileId();
 
         const { posts, fullPage } = await activityPubService.getUserTimeline(
-          authUser.id,
+          profileId,
           'home',
           { limit: 20, before }
         );
 
-        if (posts.length > 0) {
-          const postReactionsStore = usePostReactionsStore();
-          const postIds = posts.map((p) => p.id);
-          await postReactionsStore.fetchMultiplePostReactions(postIds, true);
-        }
-
+        // Show posts immediately; reactions/author/remote-reaction enrichment
+        // fills in reactively from their stores. Blocking initial paint on
+        // three extra fetch layers made every feed switch feel like a loading
+        // screen.
         const processedPosts = await this.batchFetchReblogInteractions(posts);
-        await Promise.all([
-          this.ensureAuthorProfilesCached(processedPosts),
-          this.batchFetchRemoteReactions(processedPosts),
-        ]);
 
         if (before) {
           this.homeFeed.posts.push(...processedPosts);
@@ -1637,6 +1633,13 @@ export const useActivityPubStore = defineStore('activitypub', {
           this.unreadCount = 0;
           this.saveTimelineToCache();
         }
+
+        if (posts.length > 0) {
+          const postReactionsStore = usePostReactionsStore();
+          void postReactionsStore.fetchMultiplePostReactions(posts.map((p) => p.id), true);
+        }
+        void this.ensureAuthorProfilesCached(processedPosts);
+        void this.batchFetchRemoteReactions(processedPosts);
 
         this.homeFeed.has_more = fullPage;
         this.homeFeed.cursor = posts[posts.length - 1]?.created_at;
@@ -1657,7 +1660,7 @@ export const useActivityPubStore = defineStore('activitypub', {
         if (!context.isAuthenticated) return;
 
         const { posts, fullPage } = await activityPubService.getUserTimeline(
-          context.authUser.id,
+          context.profileId,
           'home',
           { limit: 20 }
         );
@@ -1701,22 +1704,21 @@ export const useActivityPubStore = defineStore('activitypub', {
           before,
         });
 
-        if (posts.length > 0) {
-          const postReactionsStore = usePostReactionsStore();
-          await postReactionsStore.fetchMultiplePostReactions(posts.map((p) => p.id), true);
-        }
-
+        // Paint first, enrich in background (see loadHomeFeed).
         const processedPosts = await this.batchFetchReblogInteractions(posts);
-        await Promise.all([
-          this.ensureAuthorProfilesCached(processedPosts),
-          this.batchFetchRemoteReactions(processedPosts),
-        ]);
 
         if (before) {
           this.publicFeed.posts.push(...processedPosts);
         } else {
           this.publicFeed.posts = processedPosts;
         }
+
+        if (posts.length > 0) {
+          const postReactionsStore = usePostReactionsStore();
+          void postReactionsStore.fetchMultiplePostReactions(posts.map((p) => p.id), true);
+        }
+        void this.ensureAuthorProfilesCached(processedPosts);
+        void this.batchFetchRemoteReactions(processedPosts);
 
         this.publicFeed.has_more = fullPage;
         this.publicFeed.cursor = posts[posts.length - 1]?.created_at;
@@ -1740,23 +1742,22 @@ export const useActivityPubStore = defineStore('activitypub', {
       if (this.isLoadingFeed) return
       this.isLoadingFeed = true;
       try {
-        const authUser = await authContextService.getCurrentAuthUser();
+        const profileId = await authContextService.getCurrentProfileId();
         const { posts, fullPage } = await activityPubService.getUserTimeline(
-          authUser.id,
+          profileId,
           'local',
           { limit: 20, before }
         );
 
+        // Paint first, enrich in background (see loadHomeFeed).
+        const processedPosts = await this.batchFetchReblogInteractions(posts);
+
         if (posts.length > 0) {
           const postReactionsStore = usePostReactionsStore();
-          await postReactionsStore.fetchMultiplePostReactions(posts.map((p) => p.id), true);
+          void postReactionsStore.fetchMultiplePostReactions(posts.map((p) => p.id), true);
         }
-
-        const processedPosts = await this.batchFetchReblogInteractions(posts);
-        await Promise.all([
-          this.ensureAuthorProfilesCached(processedPosts),
-          this.batchFetchRemoteReactions(processedPosts),
-        ]);
+        void this.ensureAuthorProfilesCached(processedPosts);
+        void this.batchFetchRemoteReactions(processedPosts);
 
         if (before) {
           this.localFeed.posts.push(...processedPosts);
@@ -1825,9 +1826,14 @@ export const useActivityPubStore = defineStore('activitypub', {
 
         this.closeComposer();
 
-        // Don't add to feeds manually - let realtime handle it to avoid duplicates
-        // The database triggers will create timeline_entries, and realtime will update the UI
-        // This prevents the double-post issue
+        // Optimistic insert: show the author their own post immediately instead
+        // of waiting on the realtime round-trip (which can lag or drop). Reuses
+        // the realtime create handler, whose in-flight + exists-in-feed dedup
+        // makes the later broadcast for the same id a no-op.
+        if (post?.id) {
+          this.handleRealtimePostCreate(post).catch(err =>
+            debug.warn('Optimistic post insert failed (realtime will retry):', err));
+        }
 
         return post;
       } catch (error) {
@@ -2219,14 +2225,15 @@ export const useActivityPubStore = defineStore('activitypub', {
       debug.log(`🔍 DEBUG: toggleFavorite called for post ${postId}`);
       
       try {
-        const authUser = await authContextService.getCurrentAuthUser();
-
-        debug.log(`🔍 DEBUG: User authenticated: ${authUser.id}`);
+        // post_interactions.user_id FKs to profiles(id); the auth UUID never
+        // matches, which made `existing` always null → favorites could be
+        // added but never removed.
+        const profileId = await authContextService.getCurrentProfileId();
 
         const { data: existing, error: existingError } = await supabase
           .from('post_interactions')
           .select('id')
-          .eq('user_id', authUser.id)
+          .eq('user_id', profileId)
           .eq('post_id', postId)
           .eq('interaction_type', 'favorite')
           .maybeSingle();
@@ -3435,18 +3442,27 @@ export const useActivityPubStore = defineStore('activitypub', {
      async getConversationContext(postId: string): Promise<ConversationContext | null> {
        try {
          this.isLoadingConversation = true;
-         
-         if (this.conversationContexts.has(postId)) {
-           return this.conversationContexts.get(postId)!;
+
+         // Serve cache but refresh in the background when stale so new replies
+         // appear without a manual reload. Never cache a null/failed fetch.
+         const cached = this.conversationContexts.get(postId);
+         const fetchedAt = (this as any)._contextFetchedAt?.get(postId) ?? 0;
+         const isFresh = Date.now() - fetchedAt < 30_000;
+         if (cached && isFresh) {
+           return cached;
          }
 
          const context = await activityPubService.getConversationContext(postId);
-         this.conversationContexts.set(postId, context);
-         
-         return context;
+         if (context) {
+           this.conversationContexts.set(postId, context);
+           if (!(this as any)._contextFetchedAt) (this as any)._contextFetchedAt = new Map();
+           (this as any)._contextFetchedAt.set(postId, Date.now());
+         }
+
+         return context ?? cached ?? null;
        } catch (error) {
          debug.error('Failed to get conversation context:', error);
-         return null;
+         return this.conversationContexts.get(postId) ?? null;
        } finally {
          this.isLoadingConversation = false;
        }

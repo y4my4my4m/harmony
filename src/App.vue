@@ -66,9 +66,12 @@ import RunOnLoginPrompt from '@/components/RunOnLoginPrompt.vue'
 import PublicServers from '@/components/PublicServers.vue'
 import AnnouncementPopup from '@/components/announcements/AnnouncementPopup.vue'
 import ThemeCustomizerPanel from '@/components/settings/user/ThemeCustomizerPanel.vue'
-import { onMounted } from 'vue'
+import { onMounted, onUnmounted } from 'vue'
 import { hapticManager } from '@/utils/hapticFeedback'
 import { initializeAppSettings } from '@/services/AppInitService'
+
+let hapticClickHandler: ((e: Event) => void) | null = null
+let identityChangedHandler: ((e: Event) => void) | null = null
 
 const router = useRouter()
 const route = useRoute()
@@ -110,21 +113,28 @@ onMounted(() => {
     debug.error('❌ Failed to initialize app settings:', err)
   })
   
-  // Add haptic feedback to common interactive elements
-  const addHapticToElements = (selector: string, pattern: string = 'light') => {
-    document.addEventListener('click', (e) => {
-      const element = (e.target as HTMLElement).closest(selector)
-      if (element && hapticManager.enabled) {
+  // Haptic feedback for interactive elements: ONE delegated listener that
+  // resolves the strongest matching pattern. The previous version stacked four
+  // document-level click listeners per mount and never removed them (H44) -
+  // remounts kept piling handlers on, and a single tap could fire several
+  // haptic triggers.
+  const hapticSelectors: Array<{ selector: string; pattern: string }> = [
+    { selector: '.card-interactive', pattern: 'medium' },
+    { selector: 'a[href]', pattern: 'selection' },
+    { selector: 'button', pattern: 'light' },
+    { selector: '.interactive-element', pattern: 'light' },
+  ]
+  hapticClickHandler = (e: Event) => {
+    if (!hapticManager.enabled) return
+    const target = e.target as HTMLElement
+    for (const { selector, pattern } of hapticSelectors) {
+      if (target.closest(selector)) {
         hapticManager.trigger({ pattern: pattern as any })
+        return
       }
-    })
+    }
   }
-
-  // Add haptic feedback to buttons and interactive elements
-  addHapticToElements('button', 'light')
-  addHapticToElements('.interactive-element', 'light')
-  addHapticToElements('a[href]', 'selection')
-  addHapticToElements('.card-interactive', 'medium')
+  document.addEventListener('click', hapticClickHandler)
   
   // Initialize status lifecycle debugger in development
   if (import.meta.env.DEV) {
@@ -137,11 +147,23 @@ onMounted(() => {
   // Gentle, non-blocking notice when a contact's encryption identity changes
   // (TOFU). We deliberately do NOT show a blocking verification modal - just a
   // dismissible toast, framed in plain language for non-technical users.
-  window.addEventListener('harmony-identity-changed', (e: Event) => {
+  identityChangedHandler = (e: Event) => {
     handleIdentityChanged(e as CustomEvent).catch(err =>
       debug.warn('⚠️ Failed to surface identity-change notice:', err),
     )
-  })
+  }
+  window.addEventListener('harmony-identity-changed', identityChangedHandler)
+})
+
+onUnmounted(() => {
+  if (hapticClickHandler) {
+    document.removeEventListener('click', hapticClickHandler)
+    hapticClickHandler = null
+  }
+  if (identityChangedHandler) {
+    window.removeEventListener('harmony-identity-changed', identityChangedHandler)
+    identityChangedHandler = null
+  }
 })
 
 async function handleIdentityChanged(e: CustomEvent) {

@@ -271,10 +271,10 @@
    only paints the chrome.
 
    Bug fix: unify sharp 2px corners across ALL rail tiles - portal,
-   DM, monyverse, and server items, plus their inner images and the
+   DM, fediverse, and server items, plus their inner images and the
    selected-state of buttons. The default styles use `border-radius:
    50%` for `.portal` / `.server-item` and `12px` for `.dm-button` /
-   `.monyverse-button`, plus toggle to 50% on selection. They all
+   `.fediverse-button`, plus toggle to 50% on selection. They all
    collapse to 2px under SDR-001 so we don't get circular avatars
    sitting in square boxes (or vice versa). */
 :root[data-skin="sdr-001"] .servers-sidebar,
@@ -289,8 +289,8 @@
 :root[data-skin="sdr-001"] .portal-img,
 :root[data-skin="sdr-001"] .dm-button,
 :root[data-skin="sdr-001"] .dm-button.selected,
-:root[data-skin="sdr-001"] .monyverse-button,
-:root[data-skin="sdr-001"] .monyverse-button.selected,
+:root[data-skin="sdr-001"] .fediverse-button,
+:root[data-skin="sdr-001"] .fediverse-button.selected,
 :root[data-skin="sdr-001"] .server-item,
 :root[data-skin="sdr-001"] .server-item img,
 :root[data-skin="sdr-001"] .servers-list .server-item img,

@@ -116,11 +116,11 @@ export class ActivityPubService {
     timelineType: 'home' | 'public' | 'local' = 'home',
     options: TimelineOptions = {}
   ): Promise<TimelinePost[]> {
-    // Use cached auth user ID
-    const userId = await this.getCurrentAuthUserId();
+    // timeline_entries.user_id FKs to profiles(id)
+    const userId = await this.getCurrentProfileId();
 
     const limit = options.limit || 20;
-    
+
     let query = supabase
       .from('timeline_entries')
       .select(`
@@ -148,8 +148,8 @@ export class ActivityPubService {
    * Get public timeline - clean and professional
    */
   async getPublicTimeline(options: TimelineOptions = {}): Promise<TimelinePost[]> {
-    // Use cached auth user ID
-    const userId = await this.getCurrentAuthUserId();
+    // post_interactions.user_id FKs to profiles(id)
+    const userId = await this.getCurrentProfileId();
 
     const limit = options.limit || 20;
 
@@ -197,8 +197,8 @@ export class ActivityPubService {
    * Get public timeline with enhanced federation support and user interaction states
    */
   async getEnhancedPublicTimeline(options: TimelineOptions = {}): Promise<TimelineResult> {
-    // Use cached auth user ID
-    const userId = await this.getCurrentAuthUserId();
+    // post_interactions.user_id FKs to profiles(id)
+    const userId = await this.getCurrentProfileId();
 
     const limit = options.limit || 20;
     
@@ -257,16 +257,15 @@ export class ActivityPubService {
    * Uses RPC for proper server-side filtering of deleted posts and suspended users
    */
   async getFederatedTimeline(options: TimelineOptions = {}): Promise<TimelinePost[]> {
-    // Use cached auth context
-    const user = await this.getCurrentAuthUser();
-    if (!user) throw new Error('User not authenticated');
+    // RPC compares p_user_id against post_interactions.user_id (profiles FK)
+    const profileId = await this.getCurrentProfileId();
 
     const limit = options.limit || 20;
-    
+
     try {
       // Use RPC for proper server-side filtering (is_deleted, suspended users, etc.)
       const { data, error } = await supabase.rpc('get_federated_timeline', {
-        p_user_id: user.id,
+        p_user_id: profileId,
         p_limit: limit,
         p_max_id: options.max_id || null
       });
@@ -286,18 +285,17 @@ export class ActivityPubService {
    * Uses RPC for proper server-side filtering
    */
   async getLocalTimeline(options: TimelineOptions = {}): Promise<TimelinePost[]> {
-    // Use cached auth context
-    const user = await this.getCurrentAuthUser();
-    if (!user) throw new Error('User not authenticated');
+    // RPC compares p_user_id against timeline_entries/post_interactions (profiles FK)
+    const profileId = await this.getCurrentProfileId();
 
     const limit = options.limit || 20;
 
     debug.log('🔄 Loading local timeline via RPC');
-    
+
     try {
       // Use existing RPC that properly handles local timeline
       const { data, error } = await supabase.rpc('get_enhanced_timeline_posts', {
-        p_user_id: user.id,
+        p_user_id: profileId,
         p_timeline_type: 'local',
         p_limit: limit,
         p_max_id: options.max_id || null
@@ -348,9 +346,9 @@ export class ActivityPubService {
     postId: string, 
     options: PostContextOptions = {}
   ): Promise<PostWithContext> {
-    // Use cached auth context
-    const user = await this.getCurrentAuthUser();
-    if (!user) throw new Error('User not authenticated');
+    // RPC computes is_favorited/is_reblogged/is_bookmarked against
+    // post_interactions.user_id (profiles FK) - must be the PROFILE id.
+    const profileId = await this.getCurrentProfileId();
 
     const {
       context = 'minimal',
@@ -368,7 +366,7 @@ export class ActivityPubService {
         p_include_interactions: includeInteractions,
         p_max_depth: maxDepth,
         p_post_id: postId,
-        p_user_id: user.id
+        p_user_id: profileId
       });
 
       if (error) {
@@ -706,9 +704,10 @@ export class ActivityPubService {
    */
   async getUserPosts(userId: string, options: TimelineOptions = {}): Promise<Post[]> {
     const limit = options.limit || 20;
-    const currentUser = await this.getCurrentAuthUser().catch(() => null);
+    // post_interactions.user_id FKs to profiles(id)
+    const currentProfileId = await this.getCurrentProfileId().catch(() => null);
 
-    const selectClause = currentUser
+    const selectClause = currentProfileId
       ? `*, ${POST_AUTHOR_EMBED}, my_interactions:post_interactions!left(interaction_type)`
       : `*, ${POST_AUTHOR_EMBED}`;
 
@@ -721,8 +720,8 @@ export class ActivityPubService {
       .order('created_at', { ascending: false })
       .limit(limit);
 
-    if (currentUser) {
-      query = query.eq('my_interactions.user_id', currentUser.id);
+    if (currentProfileId) {
+      query = query.eq('my_interactions.user_id', currentProfileId);
     }
     if (options.before) {
       query = query.lt('created_at', options.before);
@@ -1917,6 +1916,20 @@ export class ActivityPubService {
   private async getCurrentAuthUserId(): Promise<string> {
     const user = await this.getCurrentAuthUser();
     return user.id;
+  }
+
+  /**
+   * Get the current user's PROFILE id (profiles.id).
+   *
+   * Pattern A guard: `post_interactions.user_id`, `timeline_entries.user_id`,
+   * `follows.follower_id` and the timeline/context RPCs all FK to profiles(id),
+   * NOT auth.users(id). Passing the auth UUID there silently matches nothing,
+   * which surfaced as "my favorites/boosts/bookmarks disappear on refresh" and
+   * an empty home timeline. Always use this for those columns.
+   */
+  private async getCurrentProfileId(): Promise<string> {
+    const { authContextService } = await import('@/services/AuthContextService');
+    return await authContextService.getCurrentProfileId();
   }
 
   /**

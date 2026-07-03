@@ -367,6 +367,18 @@ const router = createRouter({
       component: () => import('@/views/AdminPanel.vue'),
       meta: { requiresAuth: true, requiresAdmin: true }
     },
+    // "Today" dashboard (beta, gated by a per-user setting)
+    {
+      path: '/today',
+      name: 'Today',
+      component: () => import('@/views/TodayView.vue'),
+      meta: { requiresAuth: true },
+      beforeEnter: async () => {
+        const { useTodayDashboard } = await import('@/composables/useTodayDashboard')
+        const { todayDashboardEnabled } = useTodayDashboard()
+        return todayDashboardEnabled.value ? true : { path: '/' }
+      }
+    },
     {
       path: '/new-profile',
       name: 'NewProfile',

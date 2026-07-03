@@ -398,6 +398,14 @@ export function useContentRenderer(
           return `<span class="mention" ${dataAttrs}>${escapedDisplayText}</span>`;
         }
         
+        case 'channel_mention': {
+          // Server-chat channel reference. HTML mode has no router access,
+          // so this renders as a styled non-navigating token; the component
+          // renderer (UnifiedMessageContent) handles navigation.
+          const safeName = escapeHtml(String(part.name || ''));
+          return `<span class="mention channel-mention">#${safeName}</span>`;
+        }
+
         case 'hashtag': {
           // `part.name` is user-controlled. Escape on both the data attribute
           // (HTML attribute context) and the visible text.

@@ -748,7 +748,22 @@ CREATE POLICY "thread_members_service_role" ON public.thread_members
     FOR ALL TO service_role USING (true);
 
 ALTER TABLE public.invites ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "invites_select_all" ON public.invites FOR SELECT USING (true);
+
+-- C10 (ported from 20260520_invites_restrict_select_to_owner_and_rpc.sql):
+-- a row-wide `USING (true)` SELECT let any logged-in user harvest every
+-- invite code on the instance. SELECT is restricted to the creator and
+-- instance admins; code-based lookup goes through the single-row
+-- SECURITY DEFINER RPC `lookup_invite_by_code` (see 13_functions_rpc_extended.sql).
+DROP POLICY IF EXISTS "invites_select_all" ON public.invites;
+DROP POLICY IF EXISTS "invites_select_public" ON public.invites;
+
+DROP POLICY IF EXISTS "invites_select_creator" ON public.invites;
+CREATE POLICY "invites_select_creator" ON public.invites
+    FOR SELECT USING (created_by = public.get_current_profile_id());
+
+DROP POLICY IF EXISTS "invites_select_instance_admin" ON public.invites;
+CREATE POLICY "invites_select_instance_admin" ON public.invites
+    FOR SELECT USING (public.is_current_user_admin());
 
 -- Server members can create invites
 DROP POLICY IF EXISTS "invites_insert_members" ON public.invites;

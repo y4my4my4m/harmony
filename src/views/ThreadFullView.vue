@@ -249,6 +249,7 @@ import { useChatStore } from '@/stores/useChat'
 import { useReactionsStore } from '@/stores/useReactions'
 import { useServerPermissions } from '@/composables/useServerPermissions'
 import { parseContentToMessageParts, resolveMentionsUserData, resolveEmojisData } from '@/utils/unifiedContentProcessing'
+import { buildChatParseOptions } from '@/utils/chatParseOptions'
 import { debug } from '@/utils/debug'
 import { isVideoMessageUrl } from '@/utils/klipyAttribution'
 import { realtimeConnectionManager } from '@/services/RealtimeConnectionManager'
@@ -564,7 +565,7 @@ const parseMessageInput = async (input: string): Promise<MessagePart[]> => {
   debug.log('🔧 Emoji data map size:', Object.keys(emojiDataMap).length)
   
   // Parse with unified system (now with emoji data)
-  const result = await parseContentToMessageParts(input, userDataMap, emojiDataMap)
+  const result = await parseContentToMessageParts(input, userDataMap, emojiDataMap, {}, {}, buildChatParseOptions(false))
   
   debug.log('🔧 Final parsed message parts:', result)
   return result

@@ -31,12 +31,12 @@ const bridgeBotCheckPending = new Map<string, Promise<boolean>>();
 export interface AutoSuggestTrigger {
   char: string;
   pattern: RegExp;
-  type: 'emoji' | 'mention' | 'command';
+  type: 'emoji' | 'mention' | 'command' | 'channel';
 }
 
 export interface AutoSuggestState {
   isActive: boolean;
-  triggerType: 'emoji' | 'mention' | 'command' | null;
+  triggerType: 'emoji' | 'mention' | 'command' | 'channel' | null;
   query: string;
   triggerPosition: number;
   selectedIndex: number;
@@ -47,6 +47,8 @@ export interface AutoSuggestConfig {
   mode: 'chat' | 'activitypub';
   enableEmojis?: boolean;
   enableMentions?: boolean;
+  /** '#' suggests the current server's channels (server chat only, not DMs). */
+  enableChannels?: boolean;
   maxSuggestions?: number;
 }
 
@@ -74,6 +76,7 @@ export function useAutoSuggest(
   const finalConfig = {
     enableEmojis: true,
     enableMentions: true,
+    enableChannels: false,
     maxSuggestions: 10,
     ...config,
     mode: config.mode || 'chat'
@@ -139,6 +142,16 @@ export function useAutoSuggest(
       char: '/',
       pattern: /^\/([a-zA-Z]*)$/,
       type: 'command'
+    });
+  }
+
+  if (finalConfig.enableChannels && finalConfig.mode === 'chat') {
+    triggers.push({
+      char: '#',
+      // Same shape as the parser's hashtag/channel token so what autocomplete
+      // inserts is exactly what parseContentToMessageParts resolves.
+      pattern: /(?:^|\s)#([\p{L}\p{N}_-]*)$/u,
+      type: 'channel'
     });
   }
 
@@ -453,6 +466,27 @@ export function useAutoSuggest(
       }));
   });
 
+  // Channels of the current server the user can access (membership-scoped:
+  // the store only holds channels of servers the user belongs to).
+  const channelSuggestions = computed((): SuggestionItem[] => {
+    if (!finalConfig.enableChannels || state.value.triggerType !== 'channel') return [];
+    const serverId = serverChannelStore.currentServerId;
+    if (!serverId) return [];
+
+    const query = state.value.query.toLowerCase();
+    return serverChannelStore.channels
+      .filter(c => c.type === 0 && c.name.toLowerCase().includes(query))
+      .slice(0, finalConfig.maxSuggestions)
+      .map(c => ({
+        id: c.id,
+        name: c.name,
+        display_name: `#${c.name}`,
+        description: c.description,
+        isChannel: true,
+        serverId: c.server_id || serverId,
+      }));
+  });
+
   const suggestions = computed((): SuggestionItem[] => {
     switch (state.value.triggerType) {
       case 'emoji':
@@ -461,6 +495,8 @@ export function useAutoSuggest(
         return mentionSuggestions.value;
       case 'command':
         return commandSuggestions.value;
+      case 'channel':
+        return channelSuggestions.value;
       default:
         return [];
     }
@@ -473,6 +509,8 @@ export function useAutoSuggest(
         return 'Emojis';
       case 'command':
         return 'Commands';
+      case 'channel':
+        return 'Channels';
       case 'mention':
         if (finalConfig.mode === 'chat') {
           const currentServerId = serverChannelStore.currentServerId;
@@ -659,7 +697,11 @@ export function useAutoSuggest(
       }
       debug.error('[DEBUG] searchActivityPubUsers: ERROR:', error);
       debug.error('Failed to search ActivityPub users:', error);
-      activityPubUsers.value = [];
+      // Only clear results if the failure belongs to the CURRENT query - a
+      // stale timed-out search must not wipe fresh results.
+      if (query === currentSearchQuery) {
+        activityPubUsers.value = [];
+      }
     }
   };
 
@@ -935,7 +977,9 @@ export function useAutoSuggest(
         return clearedText.trim() ? clearedText : '';
       }
       
-      if (state.value.triggerType === 'emoji') {
+      if (state.value.triggerType === 'channel') {
+        insertText = `#${suggestion.name} `;
+      } else if (state.value.triggerType === 'emoji') {
         // Standard/unified emojis: insert unicode character directly
         // Custom server emojis: keep :shortcode: format
         if (suggestion.emoji?.source === 'unified' && (suggestion.native || suggestion.emoji?.native)) {

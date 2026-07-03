@@ -1119,6 +1119,7 @@ onBeforeUnmount(() => {
 .base-layout {
   width: 100%;
   height: 100vh;
+  height: 100dvh; /* mobile: exclude browser chrome so content isn't clipped */
   display: flex;
   background: var(--background-primary);
   position: relative;
@@ -1210,6 +1211,7 @@ onBeforeUnmount(() => {
     top: 0;
     left: 0;
     height: 100vh;
+    height: 100dvh;
     z-index: 200;
     transform: translateX(-100%);
     padding-top: 0;

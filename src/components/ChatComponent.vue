@@ -156,6 +156,7 @@
   import ThreadView from '@/components/threads/ThreadView.vue';
   import type { FilePreviewData } from '@/components/FilePreview.vue';
   import { parseContentToMessageParts, resolveMentionsUserData, resolveEmojisData, resolveRoleMentionsData } from '@/utils/unifiedContentProcessing';
+  import { buildChatParseOptions } from '@/utils/chatParseOptions';
   import { threadService } from '@/services/ThreadService';
   import { coreMessageService } from '@/services/core/CoreMessageService';
   import { useEncryptionFallbackPrompt } from '@/composables/useEncryptionFallbackPrompt';
@@ -799,13 +800,14 @@
       // Use unified content parsing system (DRY)
       const parseMessageInput = async (input: string): Promise<MessagePart[]> => {
         debug.log('🔧 Using unified content parsing for:', input);
-        
+
         const userDataMap = await resolveMentionsUserData(input);
         const emojiDataMap = await resolveEmojisData(input);
         const roleDataMap = await resolveRoleMentionsData(input, serverChannelStore.currentServerId || undefined);
-        
-        const result = await parseContentToMessageParts(input, userDataMap, emojiDataMap, {}, roleDataMap);
-        
+
+        const result = await parseContentToMessageParts(
+          input, userDataMap, emojiDataMap, {}, roleDataMap, buildChatParseOptions(props.isDM));
+
         debug.log('🔧 Final parsed message parts:', result);
         return result;
       };

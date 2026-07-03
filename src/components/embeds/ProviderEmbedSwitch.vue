@@ -266,29 +266,34 @@ onMounted(() => {
   }
 });
 
+let cleanupFloatingObserver: (() => void) | null = null;
+
 onUnmounted(() => {
   // Cleanup YouTube message listener
   if (props.payload.provider === 'youtube') {
     window.removeEventListener('message', handleYouTubeMessage);
   }
+  cleanupFloatingObserver?.();
+  cleanupFloatingObserver = null;
 });
 
 function setupYouTubePlayer() {
   if (!youtubeContainer.value || !youtubeIframe.value) return;
-  
+
   // Listen for YouTube Player API messages
   window.addEventListener('message', handleYouTubeMessage);
-  
+
   // Subscribe to YouTube player events immediately
   sendListeningEvent();
-  
+
   // Register the whole embed wrapper for floating so the header + video float together
   if (props.messageId) {
     const floatTarget = embedWrapper.value || youtubeContainer.value;
     if (!floatTarget) return;
     const originalParent = floatTarget.parentElement as HTMLElement;
     if (originalParent) {
-      registerVideo(floatTarget as unknown as HTMLElement, originalParent, props.messageId, 'youtube');
+      cleanupFloatingObserver?.();
+      cleanupFloatingObserver = registerVideo(floatTarget as unknown as HTMLElement, originalParent, props.messageId, 'youtube');
     }
   }
 }

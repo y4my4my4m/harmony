@@ -1,13 +1,31 @@
 import { supabase } from '@/supabase';
 import { v4 as uuidv4 } from 'uuid';
 import { debug } from '@/utils/debug'
+import { validateImageUpload } from '@/utils/uploadValidation'
 
 export interface UploadProgressCallback {
   (progress: number): void;
 }
 
+/**
+ * Client-side pre-upload gate (BUGS.md H28). The bucket enforces size limits
+ * server-side, but without this the user only saw a generic failure after the
+ * whole upload - and SVGs (which can embed script and are served from our
+ * origin) sailed through with no MIME check at all.
+ */
+async function validateChatUpload(file: File): Promise<void> {
+    if (file.type === 'image/svg+xml' || /\.svg$/i.test(file.name || '')) {
+        throw new Error('SVG uploads are not allowed (they can contain embedded scripts). Please convert to PNG or WebP.');
+    }
+    const validationError = await validateImageUpload(file, 'user_media');
+    if (validationError) {
+        throw new Error(validationError);
+    }
+}
+
 async function handleFileDrop(userId: string, file: any) {
     try {
+        await validateChatUpload(file);
         // Generate a unique filename
         const uniqueFileName = `${uuidv4()}.${file.name.split('.').pop()}`;
         const filePath = `${userId}/${uniqueFileName}`;
@@ -39,6 +57,7 @@ async function handleFileUploadWithProgress(
     onProgress?: UploadProgressCallback
 ): Promise<string | null> {
     try {
+        await validateChatUpload(file);
         // Generate a unique filename
         const uniqueFileName = `${uuidv4()}.${file.name.split('.').pop()}`;
         const filePath = `${userId}/${uniqueFileName}`;

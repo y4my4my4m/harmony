@@ -390,27 +390,40 @@ const getIconPath = (iconName: string): string => {
   .mobile-menu-btn {
     display: flex;
   }
-  
+
+  /* Standard mobile app-bar height; 48px left the 36px buttons with almost
+     no breathing room. */
+  .mony-header {
+    height: 56px;
+    min-height: 56px;
+    padding: 8px 12px;
+    gap: 8px;
+  }
+
   .header-left,
   .header-actions {
     width: auto;
   }
-  
+
+  .header-actions {
+    gap: 4px;
+  }
+
   .feed-switcher {
     gap: 2px;
-    padding: 2px;
+    padding: 3px;
   }
-  
+
   .feed-tab {
-    padding: 6px 8px;
+    padding: 6px 10px;
     font-size: 12px;
   }
-  
+
   .action-btn {
     width: 36px;
     height: 36px;
   }
-  
+
   .search-icon,
   .composer-icon,
   .refresh-icon,
@@ -423,20 +436,26 @@ const getIconPath = (iconName: string): string => {
 /* Extra small mobile */
 @media (max-width: 480px) {
   .mony-header {
-    padding: 8px 12px;
+    padding: 8px;
   }
-  
+
   .feed-switcher {
     gap: 1px;
   }
-  
+
   .feed-tab {
-    padding: 4px 6px;
+    padding: 6px 8px;
   }
-  
+
   .tab-icon {
     width: 14px;
     height: 14px;
+  }
+
+  /* Timeline refreshes on tab switch and via new-post realtime; the manual
+     refresh button is the first to go when width runs out. */
+  .refresh-btn {
+    display: none;
   }
 }
 </style>

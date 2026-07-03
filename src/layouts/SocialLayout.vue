@@ -703,6 +703,7 @@ const formatNumber = (num: number): string => {
 .social-layout {
   width: 100%;
   height: 100vh;
+  height: 100dvh; /* mobile: exclude browser chrome so content isn't clipped */
   display: flex;
   flex-direction: column;
   position: relative;

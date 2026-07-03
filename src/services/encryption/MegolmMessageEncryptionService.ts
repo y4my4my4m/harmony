@@ -216,6 +216,16 @@ export class MegolmMessageEncryptionService {
           await megolmKeyBackupService.processMyFulfilledRequests()
         } catch { /* ignore */ }
 
+        // Parity with initializeWithRecoveryKey: sweep shares delivered while
+        // this device was offline so first render doesn't fall into the
+        // per-message slow path.
+        try {
+          const claimedCount = await this.claimPendingSessionShares()
+          if (claimedCount > 0) {
+            debug.log(`📥 Claimed ${claimedCount} pending session shares on auto-unlock`)
+          }
+        } catch { /* ignore */ }
+
         debug.log('✅ Auto-unlocked encryption from IndexedDB keys')
         return true
       }
@@ -1308,14 +1318,26 @@ export class MegolmMessageEncryptionService {
       return decryptedContent
     } catch (error: any) {
       // SLOW PATH: Key not in memory, try to get it from server
-      if (error.message.includes('No inbound session') || error.message.includes('No outbound session')) {
+      const errMsg = error?.message || String(error)
+      if (errMsg.includes('No inbound session') || errMsg.includes('No outbound session')) {
         debug.log(`ℹ️ Missing session ${sessionId.substring(0, 8)}... for room ${roomId.substring(0, 8)}..., fetching...`)
-        
-        // Try to claim pending session shares from server
+
+        // 1) Claim any pending (unclaimed) session shares from server
         const claimed = await this.claimPendingSessionShares()
-        
-        if (claimed > 0) {
-          // Retry decryption after claiming shares
+
+        // 2) If nothing unclaimed matched, re-fetch OUR share row for this exact
+        //    session even if it was already claimed. A claimed-but-lost share is
+        //    the common "keeps failing" case: this device (or a wiped browser
+        //    profile) no longer holds the key locally, but the wrapped key still
+        //    sits in megolm_session_shares. Without this, the only recovery was
+        //    a key request that needs the sender online.
+        let reimported = false
+        if (!megolmService.hasInboundSession(roomId, senderId, sessionId)) {
+          reimported = await this.reimportShareForSession(roomId, sessionId)
+        }
+
+        if (claimed > 0 || reimported) {
+          // Retry decryption after importing shares
           try {
             const decryptedJson = await megolmService.decryptMessage(roomId, senderId, encryptedMessage, additionalData)
             const decryptedContent: MessagePart[] = JSON.parse(decryptedJson)
@@ -1324,7 +1346,7 @@ export class MegolmMessageEncryptionService {
             // Still failed - request key from sender
           }
         }
-        
+
         // No shares available - request the key from the sender
         // The sender will receive this via realtime and auto-fulfill if they have the key
         debug.log(`📤 Requesting session key from sender ${senderId.substring(0, 8)}...`)
@@ -1334,6 +1356,71 @@ export class MegolmMessageEncryptionService {
       }
       throw error
     }
+  }
+
+  /**
+   * Re-import our own share row(s) for one exact (room, session), REGARDLESS of
+   * is_claimed. Recovers sessions whose share was claimed by a previous
+   * install/tab whose IndexedDB is gone. RLS scopes the SELECT to rows where we
+   * are the recipient, so this leaks nothing.
+   */
+  private async reimportShareForSession(roomId: string, sessionId: string): Promise<boolean> {
+    if (!this.currentUserId) return false
+
+    const { data: shares, error } = await supabase
+      .from('megolm_session_shares')
+      .select('room_id, session_id, sender_user_id, encrypted_session_key, first_known_index')
+      .eq('recipient_user_id', this.currentUserId)
+      .eq('room_id', roomId)
+      .eq('session_id', sessionId)
+
+    if (error || !shares || shares.length === 0) return false
+
+    const senderIds = [...new Set(shares.map(s => s.sender_user_id).filter(Boolean))]
+    if (senderIds.length === 0) return false
+    const { data: senderKeys } = await supabase
+      .from('user_key_pairs')
+      .select('user_id, identity_public_key')
+      .in('user_id', senderIds)
+      .eq('is_active', true)
+
+    const senderKeyMap = new Map<string, string>()
+    for (const k of senderKeys || []) {
+      if (k.identity_public_key) senderKeyMap.set(k.user_id, k.identity_public_key)
+    }
+
+    let imported = false
+    for (const share of shares) {
+      const senderPublicKey = senderKeyMap.get(share.sender_user_id)
+      if (!senderPublicKey) continue
+      try {
+        const sessionKey = await this.decryptSessionKeyFromSender(
+          share.encrypted_session_key,
+          senderPublicKey,
+          {
+            roomId: share.room_id,
+            sessionId: share.session_id,
+            senderUserId: share.sender_user_id,
+            recipientUserId: this.currentUserId,
+          },
+        )
+        await megolmService.importInboundSession(
+          share.room_id,
+          share.sender_user_id,
+          share.session_id,
+          sessionKey,
+          share.first_known_index ?? 0,
+        )
+        imported = true
+      } catch (err) {
+        debug.warn(`⚠️ Failed to re-import claimed share for session ${sessionId.substring(0, 8)}:`, err)
+      }
+    }
+    if (imported) {
+      debug.log(`✅ Re-imported claimed share for session ${sessionId.substring(0, 8)}...`)
+      megolmKeyBackupService.triggerAutoBackup().catch(() => {})
+    }
+    return imported
   }
 
 
@@ -1429,6 +1516,11 @@ export class MegolmMessageEncryptionService {
         recipient_user_id: userId,
         encrypted_session_key: encryptedSessionKey,
         first_known_index: 0,
+        // Re-sharing must re-arm the claim: a stale is_claimed=true from a
+        // previous install would hide the fresh key from
+        // get_unclaimed_session_shares() forever.
+        is_claimed: false,
+        claimed_at: null as string | null,
       }))
 
     if (rows.length === 0) {

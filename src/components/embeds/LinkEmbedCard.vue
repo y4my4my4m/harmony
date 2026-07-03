@@ -5,6 +5,7 @@
       'link-embed-card--has-image': !!payload.image && variant !== 'compact',
       'link-embed-card--compact': variant === 'compact',
       'link-embed-card--thumbnail': variant === 'thumbnail',
+      'link-embed-card--media': isMediaCard,
     }"
   >
     <!-- Big thumbnail: only the default variant. The compact variant is
@@ -72,6 +73,14 @@ const emit = defineEmits<{
 // (which never renders the thumbnail), so the parent's load listener fires
 // without waiting on an image that will never paint.
 const imageLoaded = ref(!props.payload.image || props.variant === 'compact');
+
+// Media-first layout (Discord-style): when the preview is essentially just
+// an image - e.g. a GIF page with a title and no description - the image IS
+// the content, so it renders at natural size instead of a 100px cropped
+// square thumbnail.
+const isMediaCard = computed(() =>
+  props.variant === 'default' && !!props.payload.image && !props.payload.description
+);
 
 const displaySiteName = computed(() => {
   if (props.payload.siteName) {

@@ -1220,11 +1220,14 @@ class AdminService {
    */
   async checkAdminOrModPermissions(userId: string): Promise<boolean> {
     try {
+      // BUGS.md Pattern A: callers historically pass either the auth UUID or
+      // the profile id. Accept both so an auth UUID doesn't silently produce
+      // a false-negative permission check.
       const { data, error } = await supabase
         .from('profiles')
         .select('is_admin, is_moderator')
-        .eq('id', userId)
-        .single();
+        .or(`id.eq.${userId},auth_user_id.eq.${userId}`)
+        .maybeSingle();
 
       if (error) throw error;
 

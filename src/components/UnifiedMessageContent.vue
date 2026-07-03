@@ -188,11 +188,19 @@
         >@{{ (part.roleName || 'Unknown Role').replace(/^@/, '') }}</span>
         
         <!-- Hashtags -->
-        <span 
-          v-else-if="part && typeof part === 'object' && part.type === 'hashtag'" 
-          class="hashtag" 
+        <span
+          v-else-if="part && typeof part === 'object' && part.type === 'hashtag'"
+          class="hashtag"
           @click="handleHashtagClick(part.name, $event)"
           :title="`Used ${part.count || 0} times`"
+        >#{{ part.name }}</span>
+
+        <!-- Channel references (server chat, Discord-style) -->
+        <span
+          v-else-if="part && typeof part === 'object' && part.type === 'channel_mention'"
+          class="mention channel-mention"
+          :title="`Go to #${part.name}`"
+          @click="handleChannelMentionClick(part, $event)"
         >#{{ part.name }}</span>
         
         <!-- Custom emojis -->
@@ -514,7 +522,7 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, watch, ref, nextTick, reactive, onMounted, computed } from 'vue';
+import { defineComponent, watch, ref, nextTick, reactive, onMounted, onUnmounted, computed } from 'vue';
 import type { PropType } from 'vue';
 import type { EmbedPayload, MessagePart, FileContent } from '@/types';
 import { coalesceInlineContentForMarkdown, extractFileParts } from '@/utils/messageContentUtils';
@@ -829,21 +837,30 @@ export default defineComponent({
     };
     
     // Register videos for floating on mount and load GIF favorites
+    const floatingObserverCleanups: Array<() => void> = [];
+
     onMounted(() => {
       // Load GIF favorites
       loadGifFavorites();
-      
+
       nextTick(() => {
         // Register all video containers
         videoContainers.value.forEach((container, index) => {
           if (container && props.messageId) {
             const originalParent = container.parentElement as HTMLElement;
             if (originalParent) {
-              registerVideo(container as unknown as HTMLElement, originalParent, `${props.messageId}-video-${index}`, 'video');
+              floatingObserverCleanups.push(
+                registerVideo(container as unknown as HTMLElement, originalParent, `${props.messageId}-video-${index}`, 'video')
+              );
             }
           }
         });
       });
+    });
+
+    onUnmounted(() => {
+      floatingObserverCleanups.forEach(cleanup => cleanup());
+      floatingObserverCleanups.length = 0;
     });
     
     const getCurrentText = () => localEditableContent.value;
@@ -1182,6 +1199,19 @@ export default defineComponent({
       // For example, you might want to emit an event to notify the parent component
       emit('hashtag-click', hashtag);
     };
+
+    const handleChannelMentionClick = async (part: any, event: MouseEvent) => {
+      event.stopPropagation();
+      if (!part?.channelId || !part?.serverId) return;
+      const { default: router } = await import('@/router');
+      router.push({
+        name: 'ChatChannel',
+        params: { serverId: part.serverId, channelId: part.channelId },
+        // Share-link references jump to the exact message (ChatView watches
+        // the messageId query param).
+        query: part.messageId ? { messageId: part.messageId } : undefined,
+      });
+    };
     
     // Check if a mention is from a bridged platform (e.g., Discord)
     const isBridgedMention = (part: any): boolean => {
@@ -1273,6 +1303,7 @@ export default defineComponent({
       renderTextSegments,
       getFileName,
       handleHashtagClick,
+      handleChannelMentionClick,
       handleMentionClick,
       isBridgedMention,
       getMentionTooltip,

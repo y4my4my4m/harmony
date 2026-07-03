@@ -3,7 +3,7 @@
  * Manages floating video state for YouTube and native video elements
  */
 
-import { ref, computed, onUnmounted } from 'vue'
+import { ref, computed } from 'vue'
 
 interface VideoElement {
   element: HTMLElement
@@ -55,8 +55,8 @@ export function useFloatingVideo() {
     originalParent: HTMLElement,
     messageId: string,
     type: 'youtube' | 'video'
-  ) => {
-    if (!isEnabled.value) return
+  ): (() => void) => {
+    if (!isEnabled.value) return () => {}
 
     // Setup intersection observer to detect when video leaves viewport
     const observer = new IntersectionObserver(
@@ -86,17 +86,25 @@ export function useFloatingVideo() {
       }
     )
 
+    // Re-registration (e.g. content re-render) must not stack observers.
+    const previous = (element as any).__floatingVideoObserver as IntersectionObserver | undefined
+    previous?.disconnect()
+
     observer.observe(element)
 
     // Store observer on element for cleanup
     ;(element as any).__floatingVideoObserver = observer
 
-    // Cleanup on unmount
-    onUnmounted(() => {
+    // registerVideo is called from async callbacks (nextTick after mount),
+    // where onUnmounted() has no component instance and silently no-ops -
+    // that leaked one observer per rendered video (BUGS.md H43). The caller
+    // owns the lifecycle: invoke the returned cleanup in its own unmount hook.
+    return () => {
       observer.disconnect()
-    })
-
-    return observer
+      if ((element as any).__floatingVideoObserver === observer) {
+        delete (element as any).__floatingVideoObserver
+      }
+    }
   }
 
   /**

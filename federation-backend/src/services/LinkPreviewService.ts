@@ -5,6 +5,7 @@ import { logger } from '../utils/logger.js';
 import { SignatureService } from '../activitypub/SignatureService.js';
 import { validateExternalUrl, safeFetch } from '../utils/ssrfProtection.js';
 import { decodeHtmlEntities } from '../utils/contentUtils.js';
+import { fetchKlipyMediaBySlug } from './KlipyService.js';
 
 export type EmbedProvider = 'harmony-post' | 'fediverse-post' | 'youtube' | 'spotify' | 'reddit' | 'generic';
 
@@ -189,7 +190,10 @@ class LinkPreviewService {
     } else if (provider === 'reddit') {
       payload = await this.fetchRedditPreview(normalizedUrl);
     } else {
-      payload = await this.fetchGenericPreview(normalizedUrl);
+      const klipyPayload = await this.fetchKlipyPreview(normalizedUrl);
+      // x.com serves scrapers a login wall; FxTwitter exposes the real tweet.
+      const twitterPayload = klipyPayload ? null : await this.fetchTwitterPreview(normalizedUrl);
+      payload = klipyPayload ?? twitterPayload ?? await this.fetchGenericPreview(normalizedUrl);
     }
 
     payload.cacheKey = cacheKey;
@@ -248,6 +252,105 @@ class LinkPreviewService {
     // Everything else goes through generic, which auto-discovers AP via
     // <link rel="alternate" type="application/activity+json"> in the HTML.
     return 'generic';
+  }
+
+  /**
+   * klipy.com/<collection>/<slug> pages → direct animated media via the
+   * Klipy API. Returns null for non-klipy URLs or lookup failures so the
+   * caller can fall through to the generic scraper.
+   */
+  private async fetchKlipyPreview(url: string): Promise<EmbedPayload | null> {
+    let parsed: URL;
+    try {
+      parsed = new URL(url);
+    } catch {
+      return null;
+    }
+
+    const host = parsed.hostname.toLowerCase();
+    if (host !== 'klipy.com' && host !== 'www.klipy.com') return null;
+
+    const m = parsed.pathname.match(/^\/(gifs|stickers|clips|static-memes|ai-gifs)\/([a-z0-9-]+)\/?$/i);
+    if (!m) return null;
+
+    const media = await fetchKlipyMediaBySlug(m[1].toLowerCase(), m[2]);
+    if (!media) return null;
+
+    return {
+      cacheKey: '',
+      url,
+      normalizedUrl: url,
+      provider: 'generic',
+      title: media.title,
+      siteName: 'Klipy',
+      image: media.mediaUrl,
+      width: media.width,
+      height: media.height,
+      fetchedAt: new Date().toISOString(),
+      expiresAt: new Date(Date.now() + TTL_BY_PROVIDER.generic).toISOString(),
+    };
+  }
+
+  /**
+   * x.com / twitter.com status URLs → FxTwitter API. Twitter serves scrapers
+   * a login wall, so the generic OG fetch yields a useless stub. Returns
+   * null for non-tweet URLs or API failures (falls through to generic).
+   */
+  private async fetchTwitterPreview(url: string): Promise<EmbedPayload | null> {
+    let parsed: URL;
+    try {
+      parsed = new URL(url);
+    } catch {
+      return null;
+    }
+
+    const host = parsed.hostname.toLowerCase().replace(/^(www|mobile)\./, '');
+    // Includes the Discord-culture "embed fixer" mirrors - people paste
+    // those out of habit; they all share Twitter's /user/status/id shape.
+    const TWEET_HOSTS = new Set([
+      'x.com', 'twitter.com',
+      'vxtwitter.com', 'fxtwitter.com', 'fixupx.com', 'fixvx.com',
+      'twittpr.com', 'girlcockx.com', 'nitter.net',
+    ]);
+    if (!TWEET_HOSTS.has(host)) return null;
+
+    const m = parsed.pathname.match(/^\/([A-Za-z0-9_]+|i)\/status(?:es)?\/(\d+)/);
+    if (!m) return null;
+
+    try {
+      const res = await fetch(`https://api.fxtwitter.com/${m[1]}/status/${m[2]}`, {
+        headers: { Accept: 'application/json', 'User-Agent': 'HarmonyFederation/1.0 (link preview)' },
+        signal: AbortSignal.timeout(8000),
+      });
+      if (!res.ok) return null;
+      const data: any = await res.json();
+      const tweet = data?.tweet;
+      if (data?.code !== 200 || !tweet) return null;
+
+      const author = tweet.author || {};
+      const media = tweet.media || {};
+      const photo = Array.isArray(media.photos) && media.photos[0]?.url ? media.photos[0] : null;
+      const video = Array.isArray(media.videos) && media.videos[0]?.thumbnail_url ? media.videos[0] : null;
+
+      return {
+        cacheKey: '',
+        url,
+        normalizedUrl: url,
+        provider: 'generic',
+        title: author.name ? `${author.name} (@${author.screen_name})` : undefined,
+        description: typeof tweet.text === 'string' ? tweet.text.slice(0, 500) : undefined,
+        siteName: 'X (Twitter)',
+        image: photo?.url || video?.thumbnail_url || undefined,
+        width: photo?.width,
+        height: photo?.height,
+        icon: author.avatar_url,
+        fetchedAt: new Date().toISOString(),
+        expiresAt: new Date(Date.now() + TTL_BY_PROVIDER.generic).toISOString(),
+      };
+    } catch (err) {
+      logger.debug(`FxTwitter lookup failed for ${url}:`, err);
+      return null;
+    }
   }
 
   private async buildHarmonyEmbed(url: string): Promise<EmbedPayload> {

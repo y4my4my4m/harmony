@@ -507,6 +507,34 @@ export class MegolmService {
   }
 
   /**
+   * Reload an inbound session from IndexedDB into memory.
+   *
+   * The in-memory map is populated once at initialize(); a session imported by
+   * ANOTHER tab (or by a claim that raced this tab's load) exists in IndexedDB
+   * but not in this tab's memory, which used to surface as a spurious
+   * "No inbound session" → futile key request. Cheap single-key read.
+   */
+  private async reloadInboundSessionFromDB(
+    roomId: string,
+    senderUserId: string,
+    sessionId: string,
+  ): Promise<MegolmInboundSession | undefined> {
+    if (!this.db) return undefined
+    try {
+      const stored = await this.getFromStore<MegolmInboundSession>(STORES.INBOUND, sessionId)
+      if (!stored) return undefined
+      const decrypted = await this.decryptSession(stored)
+      if (decrypted.roomId !== roomId || decrypted.senderUserId !== senderUserId) return undefined
+      const key = `${roomId}:${senderUserId}:${sessionId}`
+      this.inboundSessions.set(key, decrypted)
+      debug.log(`📥 Reloaded inbound session ${sessionId.substring(0, 8)}... from IndexedDB (cross-tab)`)
+      return decrypted
+    } catch {
+      return undefined
+    }
+  }
+
+  /**
    * Check if we have an inbound session
    */
   hasInboundSession(roomId: string, senderUserId: string, sessionId: string): boolean {
@@ -644,7 +672,13 @@ export class MegolmService {
     debug.log(`🔓 Looking for inbound session ${encryptedMessage.sessionId.substring(0, 8)}... from ${senderUserId.substring(0, 8)}...`)
     
     let inboundSession = this.getInboundSession(roomId, senderUserId, encryptedMessage.sessionId)
-    
+
+    // Memory miss: another tab may have imported/claimed this session after our
+    // initial load. Re-check IndexedDB before treating the key as missing.
+    if (!inboundSession) {
+      inboundSession = await this.reloadInboundSessionFromDB(roomId, senderUserId, encryptedMessage.sessionId)
+    }
+
     // Fallback: for own messages, also try the current outbound session if inbound not found
     // (handles edge case during migration when old outbound sessions weren't stored as inbound)
     if (!inboundSession && senderUserId === this.userId) {

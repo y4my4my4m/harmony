@@ -89,7 +89,11 @@ export function validateExternalUrl(urlString: string): URL {
     throw new Error(`Invalid URL: ${urlString}`);
   }
 
-  if (url.protocol !== 'https:' && url.protocol !== 'http:') {
+  // BUGS.md L12: plain http is only acceptable for local development
+  // (federating with a dockerized peer). In production it invites
+  // downgrade/MITM of fetched actors and posts.
+  const allowHttp = process.env.NODE_ENV !== 'production';
+  if (url.protocol !== 'https:' && !(allowHttp && url.protocol === 'http:')) {
     throw new Error(`Blocked protocol: ${url.protocol}`);
   }
 

@@ -5060,3 +5060,269 @@ COMMENT ON FUNCTION public.check_and_increment_bot_rate_limit(uuid, text, intege
 -- authenticated context.
 GRANT EXECUTE ON FUNCTION public.check_and_increment_bot_rate_limit(uuid, text, integer, integer) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.check_and_increment_bot_rate_limit(uuid, text, integer, integer) TO service_role;
+
+-- ---------------------------------------------------------------------------
+-- Function: lookup_invite_by_code (ported from
+-- 20260520_invites_restrict_select_to_owner_and_rpc.sql - C10)
+--
+-- Single-code invite lookup for the accept / preview flows. SELECT on
+-- public.invites is restricted to the creator and instance admins, so this
+-- SECURITY DEFINER RPC is the only public path - one specific code per call,
+-- no enumeration.
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.lookup_invite_by_code(p_code text)
+RETURNS TABLE (
+    id uuid,
+    code text,
+    server_id uuid,
+    created_by uuid,
+    uses integer,
+    max_uses integer,
+    used boolean,
+    temporary boolean,
+    expires_at timestamptz,
+    created_at timestamptz,
+    server_name text,
+    server_icon text
+)
+LANGUAGE sql
+SECURITY DEFINER
+STABLE
+SET search_path = public, pg_temp
+AS $$
+    SELECT
+        i.id,
+        i.code,
+        i.server_id,
+        i.created_by,
+        i.uses,
+        i.max_uses,
+        i.used,
+        i.temporary,
+        i.expires_at,
+        i.created_at,
+        s.name AS server_name,
+        s.icon AS server_icon
+    FROM public.invites i
+    LEFT JOIN public.servers s ON s.id = i.server_id
+    WHERE i.code = p_code
+    LIMIT 1;
+$$;
+
+COMMENT ON FUNCTION public.lookup_invite_by_code(text) IS
+    'Public-facing invite-code → invite-row lookup. Bypasses RLS so the accept-flow can validate an invite before the user joins. Single-row, no enumeration.';
+
+GRANT EXECUTE ON FUNCTION public.lookup_invite_by_code(text) TO anon, authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Function: redeem_recovery_code_and_disable_mfa (ported from
+-- 20260703_recovery_code_mfa_unenroll_rpc.sql - C11)
+--
+-- Atomic recovery-code redemption: verifies AND consumes an unused recovery
+-- code for the calling user, then removes their MFA factors server-side.
+-- Replaces the client-side verify + AAL1 mfa.unenroll flow.
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.redeem_recovery_code_and_disable_mfa(p_code text)
+RETURNS boolean
+    LANGUAGE plpgsql
+    SECURITY DEFINER
+    SET search_path TO 'public', 'pg_catalog'
+    AS $$
+DECLARE
+  v_user_id uuid;
+  v_profile_id uuid;
+  v_code_hash text;
+  v_code_id uuid;
+BEGIN
+  v_user_id := auth.uid();
+  IF v_user_id IS NULL THEN
+    RAISE EXCEPTION 'Unauthorized: requires an authenticated session'
+      USING ERRCODE = '42501';
+  END IF;
+
+  IF p_code IS NULL OR length(p_code) < 8 THEN
+    RETURN false;
+  END IF;
+
+  -- mfa_recovery_codes.user_id FKs to profiles(id); save_recovery_codes
+  -- writes rows under the PROFILE id, so the lookup must too (Pattern A).
+  v_profile_id := public.get_current_profile_id();
+  IF v_profile_id IS NULL THEN
+    RETURN false;
+  END IF;
+
+  v_code_hash := encode(extensions.digest(p_code::bytea, 'sha256'), 'hex');
+
+  UPDATE public.mfa_recovery_codes
+  SET used_at = NOW()
+  WHERE id = (
+    SELECT id FROM public.mfa_recovery_codes
+    WHERE user_id = v_profile_id
+      AND code_hash = v_code_hash
+      AND used_at IS NULL
+    LIMIT 1
+    FOR UPDATE SKIP LOCKED
+  )
+  RETURNING id INTO v_code_id;
+
+  IF v_code_id IS NULL THEN
+    RETURN false;
+  END IF;
+
+  DELETE FROM auth.mfa_factors WHERE user_id = v_user_id;
+
+  RETURN true;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.redeem_recovery_code_and_disable_mfa(text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.redeem_recovery_code_and_disable_mfa(text) TO authenticated;
+
+
+-- ---------------------------------------------------------------------------
+-- Function: delete_my_account (ported from 20260703_account_deletion_rpc.sql)
+--
+-- Self-service account deletion: MFA step-up enforced server-side, profile
+-- anonymized to a tombstone (content keeps rendering as "Deleted User"),
+-- personal data purged, auth.users row removed last.
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.delete_my_account()
+RETURNS jsonb
+    LANGUAGE plpgsql
+    SECURITY DEFINER
+    SET search_path TO 'public', 'pg_catalog'
+    AS $$
+DECLARE
+  v_auth_id uuid;
+  v_profile_id uuid;
+  v_aal text;
+  v_has_verified_mfa boolean;
+  v_blocking_servers text[];
+BEGIN
+  v_auth_id := auth.uid();
+  IF v_auth_id IS NULL THEN
+    RAISE EXCEPTION 'Unauthorized: requires an authenticated session'
+      USING ERRCODE = '42501';
+  END IF;
+
+  -- MFA step-up gate (server-side, cannot be bypassed by a modified client).
+  SELECT EXISTS (
+    SELECT 1 FROM auth.mfa_factors
+    WHERE user_id = v_auth_id AND status = 'verified'
+  ) INTO v_has_verified_mfa;
+
+  IF v_has_verified_mfa THEN
+    v_aal := current_setting('request.jwt.claims', true)::jsonb ->> 'aal';
+    IF v_aal IS DISTINCT FROM 'aal2' THEN
+      RETURN jsonb_build_object('error', 'mfa_required');
+    END IF;
+  END IF;
+
+  SELECT id INTO v_profile_id
+  FROM public.profiles
+  WHERE auth_user_id = v_auth_id;
+
+  IF v_profile_id IS NOT NULL THEN
+    -- Refuse while the caller owns servers that other people are members of.
+    SELECT array_agg(s.name) INTO v_blocking_servers
+    FROM public.servers s
+    WHERE s.owner = v_profile_id
+      AND EXISTS (
+        SELECT 1 FROM public.user_servers us
+        WHERE us.server_id = s.id
+          AND us.user_id <> v_profile_id
+      );
+
+    IF v_blocking_servers IS NOT NULL AND array_length(v_blocking_servers, 1) > 0 THEN
+      RETURN jsonb_build_object(
+        'error', 'transfer_ownership_required',
+        'servers', to_jsonb(v_blocking_servers)
+      );
+    END IF;
+
+    -- Solo servers (caller is the only member) go away with the account.
+    DELETE FROM public.servers s
+    WHERE s.owner = v_profile_id;
+
+    -- Purge personal data. Content tables (messages, posts, channels,
+    -- conversations) are intentionally NOT touched - they keep pointing at
+    -- the anonymized profile.
+    DELETE FROM public.user_key_pairs        WHERE user_id = v_profile_id;
+    DELETE FROM public.megolm_session_shares WHERE sender_user_id = v_profile_id OR recipient_user_id = v_profile_id;
+    DELETE FROM public.megolm_key_requests   WHERE requester_user_id = v_profile_id OR sender_user_id = v_profile_id;
+    DELETE FROM public.megolm_key_backups    WHERE user_id = v_profile_id;
+    DELETE FROM public.recovery_key_metadata WHERE user_id = v_profile_id;
+    DELETE FROM public.mfa_recovery_codes    WHERE user_id = v_profile_id;
+    DELETE FROM public.follows               WHERE follower_id = v_profile_id OR following_id = v_profile_id;
+    DELETE FROM public.timeline_entries      WHERE user_id = v_profile_id;
+    DELETE FROM public.unread_counts         WHERE user_id = v_profile_id;
+    DELETE FROM public.post_interactions     WHERE user_id = v_profile_id;
+    DELETE FROM public.invites               WHERE created_by = v_profile_id;
+    DELETE FROM public.user_servers          WHERE user_id = v_profile_id;
+
+    -- Optional tables (deployments differ); ignore when absent.
+    BEGIN
+      DELETE FROM public.user_devices WHERE user_id = v_profile_id;
+    EXCEPTION WHEN undefined_table THEN NULL;
+    END;
+    BEGIN
+      DELETE FROM public.push_subscriptions WHERE user_id = v_profile_id;
+    EXCEPTION WHEN undefined_table THEN NULL;
+    END;
+    BEGIN
+      DELETE FROM public.notifications WHERE user_id = v_profile_id;
+    EXCEPTION WHEN undefined_table THEN NULL;
+    END;
+    BEGIN
+      DELETE FROM public.user_blocks WHERE blocker_id = v_profile_id OR blocked_user_id = v_profile_id;
+    EXCEPTION WHEN undefined_table THEN NULL;
+    END;
+    BEGIN
+      DELETE FROM public.user_private_keys WHERE user_id = v_profile_id;
+    EXCEPTION WHEN undefined_table THEN NULL;
+    END;
+
+    -- Anonymize. auth_user_id = NULL detaches the row from auth.users BEFORE
+    -- the auth delete below, so the CASCADE cannot reach it. The generated
+    -- username satisfies profiles_username_check and is unique per domain.
+    UPDATE public.profiles SET
+      username = 'deleted_' || replace(substr(v_profile_id::text, 1, 13), '-', ''),
+      display_name = 'Deleted User',
+      avatar_url = '/default_avatar.webp',
+      banner_url = NULL,
+      bio = NULL,
+      color = NULL,
+      status = 0,
+      custom_status = NULL,
+      profile_fields = '[]'::jsonb,
+      appearance_settings = NULL,
+      public_key = NULL,
+      federated_id = NULL,
+      inbox_url = NULL,
+      outbox_url = NULL,
+      followers_url = NULL,
+      following_url = NULL,
+      featured_url = NULL,
+      shared_inbox_url = NULL,
+      federation_metadata = '{}'::jsonb,
+      is_admin = false,
+      is_moderator = false,
+      federation_enabled = false,
+      federation_discoverable = false,
+      followers_count = 0,
+      following_count = 0,
+      auth_user_id = NULL,
+      updated_at = now()
+    WHERE id = v_profile_id;
+  END IF;
+
+  -- Finally remove the auth user. Cascades auth-side rows (sessions,
+  -- identities, mfa_factors) via Supabase's own FKs.
+  DELETE FROM auth.users WHERE id = v_auth_id;
+
+  RETURN jsonb_build_object('success', true);
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.delete_my_account() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.delete_my_account() TO authenticated;

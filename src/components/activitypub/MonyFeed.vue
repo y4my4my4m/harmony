@@ -1,4 +1,4 @@
-<!-- ActivityPub Feed Component - The heart of the Monyverse -->
+<!-- ActivityPub Feed Component - The heart of the Fediverse -->
 <template>
   <div class="mony-feed" data-testid="timeline-feed">
     <!-- Feed Header -->
@@ -69,7 +69,7 @@
         <!-- End of Feed -->
         <div v-else-if="currentFeed.posts.length > 0" class="end-of-feed">
           <Icon name="sparkles" />
-          <span>You're all caught up in the Monyverse!</span>
+          <span>You're all caught up in the Fediverse!</span>
         </div>
 
         <!-- Empty State -->
@@ -81,7 +81,7 @@
           <p>{{ emptyStateMessage }}</p>
           <button v-if="currentView === 'home'" class="discover-button" @click="switchFeed('public')">
             <Icon name="globe" :size="16" />
-            <span>Discover the Monyverse</span>
+            <span>Discover the Fediverse</span>
           </button>
         </div>
       </div>
@@ -178,7 +178,7 @@ const feedTabs = computed(() => [
   },
   {
     type: 'public' as const,
-    label: 'Monyverse',
+    label: 'Fediverse',
     icon: 'globe',
     badge: null
   },
@@ -209,7 +209,7 @@ const currentFeed = computed<any>(() => {
 const emptyStateTitle = computed(() => {
   switch (currentView.value) {
     case 'home': return 'Welcome to your Mony feed!';
-    case 'public': return 'The Monyverse awaits!';
+    case 'public': return 'The Fediverse awaits!';
     case 'local': return 'Local community hub';
     default: return t('activitypub.noMoniesHereYet');
   }
@@ -218,7 +218,7 @@ const emptyStateTitle = computed(() => {
 const emptyStateMessage = computed(() => {
   switch (currentView.value) {
     case 'home': return t('activitypub.followUsersToSeeMonies');
-    case 'public': return 'Discover what\'s happening across the federated monyverse.';
+    case 'public': return 'Discover what\'s happening across the federated fediverse.';
     case 'local': return 'Connect with users on your local Harmony instance.';
     default: return 'Be the first to share something!';
   }

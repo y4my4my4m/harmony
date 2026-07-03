@@ -207,7 +207,7 @@ export const useServerUsersStore = defineStore('serverUsers', {
 
     cleanup() {
       this.cleanupMembershipTracking()
-      
+
       if (this.presenceChannel) {
         this.presenceChannel.unsubscribe()
         this.presenceChannel = null
@@ -220,7 +220,15 @@ export const useServerUsersStore = defineStore('serverUsers', {
         this.offlineBroadcastChannel.unsubscribe()
         this.offlineBroadcastChannel = null
       }
-      
+
+      // BUGS.md Pattern B: also drop cached user state. Leaving profiles /
+      // voice membership / presence populated leaked the previous account's
+      // data into the next session on a shared device.
+      this.userProfiles = {}
+      this.usersInVoiceChannels = {}
+      this.voiceChannelCallStartTimes = {}
+      this.onlineUsers.clear()
+
       this.currentServerId = null
     },
 

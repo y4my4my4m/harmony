@@ -363,6 +363,16 @@ export interface HashtagContent {
   normalized?: string; // normalized name for searching (optional)
 }
 
+/** Discord-style #channel reference inside a server chat message. */
+export interface ChannelMentionContent {
+  type: 'channel_mention';
+  channelId: string;
+  serverId: string;
+  name: string; // channel name without #
+  /** Set when the reference came from a message share link - clicking jumps to the message. */
+  messageId?: string;
+}
+
 export interface FileContent {
   type: 'file';
   url: string;
@@ -391,7 +401,7 @@ export interface SystemContent {
 
 export type EncryptedPayloadMap = Record<string, string>
 
-export type MessagePart = TextContent | UrlContent | EmbedContent | MentionContent | RoleMentionContent | EmojiContent | HashtagContent | FileContent | SystemContent;
+export type MessagePart = TextContent | UrlContent | EmbedContent | MentionContent | RoleMentionContent | EmojiContent | HashtagContent | ChannelMentionContent | FileContent | SystemContent;
 
 export interface Reaction {
   id: string;
@@ -1284,7 +1294,7 @@ export interface ActivityPubActivityObject {
   cc?: string[];
 }
 
-// Federated user type for ActivityPub/Monyverse users
+// Federated user type for ActivityPub/Fediverse users
 export interface FederatedUser extends Profile {
   handle: string; // @username or @username@domain
   posts_count?: number;

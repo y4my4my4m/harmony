@@ -174,6 +174,60 @@ function resolveKey(withAds: boolean): string | undefined {
   return noAdsKey || adsKey;
 }
 
+/** Maps a public klipy.com web path segment back to the API path slug. */
+const WEB_PATH_TO_API_SLUG: Record<string, string> = {
+  'gifs': 'gifs',
+  'stickers': 'stickers',
+  'clips': 'clips',
+  'static-memes': 'static-memes',
+  'ai-gifs': 'emojis',
+};
+
+export interface KlipyMediaBySlug {
+  title?: string;
+  mediaUrl: string;
+  width?: number;
+  height?: number;
+}
+
+export async function fetchKlipyMediaBySlug(webPathSegment: string, slug: string): Promise<KlipyMediaBySlug | null> {
+  const apiSlug = WEB_PATH_TO_API_SLUG[webPathSegment];
+  const key = resolveKey(false);
+  if (!apiSlug || !key || !/^[a-z0-9-]+$/i.test(slug)) return null;
+
+  try {
+    const url = `${config.KLIPY_BASE_URL}/api/v1/${key}/${apiSlug}/${encodeURIComponent(slug)}?customer_id=link-preview`;
+    const res = await fetch(url, { headers: { Accept: 'application/json' } });
+    if (!res.ok) return null;
+    const payload: any = await res.json();
+    const data = payload?.data;
+    const file = data?.file as KlipyFile | undefined;
+    if (!file) return null;
+
+    const mediaUrl = pickUrl(file, DISPLAY_SIZES, 'gif')
+      || pickUrl(file, DISPLAY_SIZES, 'webp')
+      || pickUrl(file, DISPLAY_SIZES, 'mp4');
+    if (!mediaUrl) return null;
+
+    // Dimensions for the size the gif URL came from, when present.
+    let width: number | undefined;
+    let height: number | undefined;
+    for (const size of DISPLAY_SIZES) {
+      const entry = (file as any)?.[size]?.gif || (file as any)?.[size]?.webp;
+      if (entry?.url && entry.width && entry.height) {
+        width = entry.width;
+        height = entry.height;
+        break;
+      }
+    }
+
+    return { title: typeof data?.title === 'string' ? data.title : undefined, mediaUrl, width, height };
+  } catch (err) {
+    logger.warn(`Klipy slug lookup failed for ${webPathSegment}/${slug}:`, err);
+    return null;
+  }
+}
+
 function normalizeGif(raw: any, mediaType: GifMediaType = 'gifs'): NormalizedGif | null {
   const file = raw?.file as KlipyFile | undefined;
   const isVideo = VIDEO_MEDIA.has(mediaType);

@@ -269,7 +269,12 @@ const loading = ref(false)
 const bannerUploading = ref(false)
 const profile = ref<User | null>(null)
 const activeSection = ref(props.section || 'account')
-const showSidebar = ref(false)
+// On mobile, entering settings without a specific section starts with the
+// nav open so users see where they are before a section takes over the
+// screen. Deep links to a section keep it closed.
+const showSidebar = ref(
+  typeof window !== 'undefined' && window.innerWidth <= 768 && !props.section
+)
 const windowWidth = ref(typeof window !== 'undefined' ? window.innerWidth : 1024)
 
 // Computed properties

@@ -198,7 +198,7 @@ export const getViewModeFromRoute = (routeName: string | null | undefined): View
   
   // ActivityPub routes - updated to match actual router route names
   const activityPubRoutes = [
-    'Social', 'Monyverse', 'Explore', // Legacy routes
+    'Social', 'Fediverse', 'Explore', // Legacy routes
     'SocialHome', 'SocialLocal', 'SocialPublic', // Timeline routes
     'UserProfile', 'Followers', 'Following', // Profile routes
     'Lists', 'Mentions', 'Bookmarks', // Social feature routes

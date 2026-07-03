@@ -37,6 +37,45 @@
     <RunOnLoginInstructionsModal v-model="showRunOnLoginModal" @enabled="onRunOnLoginEnabled" />
 
     <div class="settings-section">
+      <h3 class="section-title">Beta Features</h3>
+
+      <div class="setting-item">
+        <div class="setting-info">
+          <h4 class="setting-label">Today dashboard</h4>
+          <p class="setting-description">
+            A daily digest of channels with unread activity, threads you're part of,
+            and trending posts. Adds a sun icon to the server sidebar.
+          </p>
+        </div>
+        <div class="setting-control">
+          <ToggleSwitch
+            :model-value="todayDashboardEnabled"
+            @update:model-value="setTodayDashboardEnabled"
+          />
+        </div>
+      </div>
+
+      <div class="setting-item" :class="{ 'disabled-option': !todayDashboardEnabled }">
+        <div class="setting-info">
+          <h4 class="setting-label">On-device AI summaries</h4>
+          <p class="setting-description">
+            Summarize the Today digest with your browser's built-in AI model
+            (Chrome's Gemini Nano). Runs entirely on your device - nothing is sent
+            to a server.
+            <span v-if="!onDeviceAiSupported"> Not supported by this browser.</span>
+          </p>
+        </div>
+        <div class="setting-control">
+          <ToggleSwitch
+            :model-value="todayAiSummariesEnabled"
+            :disabled="!todayDashboardEnabled || !onDeviceAiSupported"
+            @update:model-value="setTodayAiSummariesEnabled"
+          />
+        </div>
+      </div>
+    </div>
+
+    <div class="settings-section">
       <h3 class="section-title">Developer Settings</h3>
 
       <div class="setting-item">
@@ -127,28 +166,84 @@
     <div class="settings-section danger-zone">
       <h3 class="section-title danger">Danger Zone</h3>
 
-      <div class="setting-item disabled-option">
+      <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label danger">
-            {{ $t('common.delete') }} Account
-            <span class="coming-soon-badge">Coming soon</span>
-          </h4>
+          <h4 class="setting-label danger">{{ $t('common.delete') }} Account</h4>
           <p class="setting-description">
-            Self-service account deletion (with MFA step-up + cascading
-            cleanup of profiles, messages, encryption keys and federation
-            data) is being wired up. In the meantime, contact the
-            instance operator on
-            <a href="https://har.mony.lol" target="_blank" rel="noopener noreferrer">har.mony.lol</a>
-            to request deletion.
+            Permanently delete your account. Your messages and posts remain
+            visible but are attributed to an anonymous "Deleted User"; your
+            profile, encryption keys, devices and login are removed and cannot
+            be recovered.
           </p>
         </div>
         <div class="setting-control">
-          <button class="btn btn-danger" disabled>
+          <button class="btn btn-danger" @click="openDeleteModal">
             {{ $t('common.delete') }} Account
           </button>
         </div>
       </div>
     </div>
+
+    <!-- Account deletion confirmation modal -->
+    <Teleport to="body">
+      <div v-if="showDeleteModal" class="delete-modal-overlay" @click.self="closeDeleteModal">
+        <div class="delete-modal">
+          <h3 class="delete-modal-title">Delete your account?</h3>
+
+          <p class="delete-modal-text">
+            This is permanent. Your login, profile, encryption keys and devices
+            are deleted. Messages and posts you wrote stay visible, attributed
+            to "Deleted User".
+          </p>
+
+          <div v-if="blockingServers.length > 0" class="delete-modal-error">
+            You still own {{ blockingServers.length === 1 ? 'a server' : 'servers' }} with other
+            members: <strong>{{ blockingServers.join(', ') }}</strong>.
+            Transfer ownership or delete {{ blockingServers.length === 1 ? 'it' : 'them' }} first.
+          </div>
+
+          <div class="delete-modal-field">
+            <label for="delete-confirm-input">Type <strong>DELETE</strong> to confirm</label>
+            <input
+              id="delete-confirm-input"
+              v-model="deleteConfirmText"
+              type="text"
+              autocomplete="off"
+              spellcheck="false"
+              placeholder="DELETE"
+            />
+          </div>
+
+          <div v-if="deletionMfaRequired" class="delete-modal-field">
+            <label for="delete-mfa-input">Authenticator code</label>
+            <input
+              id="delete-mfa-input"
+              v-model="deleteMfaCode"
+              type="text"
+              inputmode="numeric"
+              maxlength="6"
+              autocomplete="one-time-code"
+              placeholder="6-digit code"
+            />
+          </div>
+
+          <p v-if="deleteError" class="delete-modal-error">{{ deleteError }}</p>
+
+          <div class="delete-modal-actions">
+            <button class="btn btn-secondary" @click="closeDeleteModal" :disabled="isDeleting">
+              {{ $t('common.cancel') }}
+            </button>
+            <button
+              class="btn btn-danger"
+              :disabled="!canConfirmDeletion || isDeleting"
+              @click="confirmDeletion"
+            >
+              {{ isDeleting ? 'Deleting…' : 'Delete Account Forever' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -160,6 +255,9 @@ import ToggleSwitch from '@/components/common/ToggleSwitch.vue'
 import PWAInstallPrompt from '@/components/PWAInstallPrompt.vue'
 import RunOnLoginInstructionsModal from '@/components/RunOnLoginInstructionsModal.vue'
 import { useDeveloperTools } from '@/composables/useDeveloperTools'
+import { useTodayDashboard } from '@/composables/useTodayDashboard'
+import { todayDigestService } from '@/services/TodayDigestService'
+import { accountDeletionService } from '@/services/AccountDeletionService'
 import {
   getChromiumBrowserLabel,
   getRunOnLoginUrl,
@@ -180,6 +278,13 @@ const emit = defineEmits<{
 
 const toast = useToast()
 const { developerToolsEnabled, setDeveloperToolsEnabled } = useDeveloperTools()
+const {
+  todayDashboardEnabled,
+  todayAiSummariesEnabled,
+  setTodayDashboardEnabled,
+  setTodayAiSummariesEnabled,
+} = useTodayDashboard()
+const onDeviceAiSupported = todayDigestService.isOnDeviceAiSupported()
 
 const reportBugUrl = 'https://github.com/y4my4my4m/harmony/issues/'
 
@@ -201,6 +306,77 @@ const canShowRunOnLogin = computed(() => isPWA() && isChromiumDesktop())
 
 const onRunOnLoginEnabled = () => {
   runOnLoginEnabled.value = true
+}
+
+// --- Account deletion ---
+const showDeleteModal = ref(false)
+const deleteConfirmText = ref('')
+const deleteMfaCode = ref('')
+const deletionMfaRequired = ref(false)
+const blockingServers = ref<string[]>([])
+const deleteError = ref('')
+const isDeleting = ref(false)
+
+const canConfirmDeletion = computed(() =>
+  deleteConfirmText.value === 'DELETE' &&
+  (!deletionMfaRequired.value || deleteMfaCode.value.length === 6)
+)
+
+const openDeleteModal = async () => {
+  deleteConfirmText.value = ''
+  deleteMfaCode.value = ''
+  deleteError.value = ''
+  blockingServers.value = []
+  deletionMfaRequired.value = await accountDeletionService.isMfaEnabled()
+  showDeleteModal.value = true
+}
+
+const closeDeleteModal = () => {
+  if (isDeleting.value) return
+  showDeleteModal.value = false
+}
+
+const confirmDeletion = async () => {
+  if (!canConfirmDeletion.value || isDeleting.value) return
+  isDeleting.value = true
+  deleteError.value = ''
+  blockingServers.value = []
+
+  try {
+    // Step-up first: the RPC rejects aal1 sessions for MFA-enrolled accounts.
+    if (deletionMfaRequired.value) {
+      const mfaError = await accountDeletionService.verifyMfaCode(deleteMfaCode.value)
+      if (mfaError) {
+        deleteError.value = mfaError
+        return
+      }
+    }
+
+    const result = await accountDeletionService.deleteAccount()
+
+    switch (result.status) {
+      case 'success': {
+        toast.success('Your account has been deleted.')
+        // The auth user is gone; drop all local state and leave.
+        const { useAuthStore } = await import('@/stores/auth')
+        await useAuthStore().logout().catch(() => {})
+        window.location.href = '/login'
+        break
+      }
+      case 'transfer_ownership_required':
+        blockingServers.value = result.servers
+        break
+      case 'mfa_required':
+        deletionMfaRequired.value = true
+        deleteError.value = 'Enter your authenticator code to continue.'
+        break
+      case 'error':
+        deleteError.value = result.message
+        break
+    }
+  } finally {
+    isDeleting.value = false
+  }
 }
 
 // eslint-disable-next-line unused-imports/no-unused-vars
@@ -481,6 +657,86 @@ const exportData = () => {
 }
 
 .modal-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+}
+</style>
+<style scoped>
+/* Account deletion modal */
+.delete-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1100;
+  padding: 16px;
+}
+
+.delete-modal {
+  background: var(--background-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 24px;
+  max-width: 440px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.delete-modal-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: #ed4245;
+}
+
+.delete-modal-text {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.delete-modal-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.delete-modal-field label {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.delete-modal-field input {
+  padding: 10px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  background: var(--background-tertiary);
+  color: var(--text-primary);
+  font-size: 14px;
+}
+
+.delete-modal-field input:focus {
+  outline: none;
+  border-color: #ed4245;
+}
+
+.delete-modal-error {
+  margin: 0;
+  font-size: 13px;
+  color: #ed4245;
+  background: rgba(237, 66, 69, 0.08);
+  border: 1px solid rgba(237, 66, 69, 0.3);
+  border-radius: 6px;
+  padding: 10px 12px;
+}
+
+.delete-modal-actions {
   display: flex;
   gap: 12px;
   justify-content: flex-end;

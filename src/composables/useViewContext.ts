@@ -139,7 +139,7 @@ export function useViewContextTracking() {
 
   // ActivityPub route names (from router)
   const activityPubRoutes = [
-    'Social', 'Monyverse', 'Explore', // Legacy routes
+    'Social', 'Fediverse', 'Explore', // Legacy routes
     'SocialHome', 'SocialLocal', 'SocialPublic', // Timeline routes
     'UserProfile', 'Followers', 'Following', // Profile routes
     'Lists', 'Notifications', 'Bookmarks', // Social feature routes

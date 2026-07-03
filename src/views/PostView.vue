@@ -808,6 +808,7 @@ onMounted(loadPostWithContext);
   display: flex;
   flex-direction: column;
   height: 100vh;
+  height: 100dvh;
   padding-bottom: 40px;
 }
 

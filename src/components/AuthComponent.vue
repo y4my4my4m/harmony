@@ -664,23 +664,26 @@ const handle2FAVerification = async () => {
     if (useRecoveryCode.value) {
       const { data: sessionData } = await supabase.auth.getSession()
       const userId = sessionData.session?.user?.id
-      
+
       if (!userId) {
         throw new Error('User session not found')
       }
 
-      const { data: isValid, error } = await supabase.rpc('verify_recovery_code', {
-        p_user_id: userId,
+      // Atomic server-side redeem: verifies AND consumes the recovery code,
+      // then removes the MFA factors in the same transaction. The old flow
+      // (verify_recovery_code + client-side mfa.unenroll from an AAL1
+      // session) made the client the security boundary - see BUGS.md C11.
+      const { data: redeemed, error } = await supabase.rpc('redeem_recovery_code_and_disable_mfa', {
         p_code: twoFactorCode.value
       })
 
       if (error) throw error
-      if (!isValid) {
+      if (!redeemed) {
         throw new Error('Invalid or already used recovery code')
       }
 
-      await supabase.auth.mfa.unenroll({ factorId: pendingFactorId.value })
-      
+      // Refresh so the client picks up the factor-less auth state.
+      await supabase.auth.refreshSession().catch(() => {})
       const { data: refreshedSession } = await supabase.auth.getSession()
       authStore.session = refreshedSession.session
       

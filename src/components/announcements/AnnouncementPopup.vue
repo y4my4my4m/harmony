@@ -77,7 +77,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import DOMPurify from 'dompurify'
+import { renderAnnouncementHtml } from '@/utils/announcementContent'
 import { announcementService, type Announcement } from '@/services/AnnouncementService'
 import { userDataService } from '@/services/userDataService'
 import DisplayName from '@/components/DisplayName.vue'
@@ -86,12 +86,7 @@ const router = useRouter()
 
 const announcements = ref<Announcement[]>([])
 
-const sanitizeContent = (html: string): string => {
-  return DOMPurify.sanitize(html || '', {
-    ALLOWED_TAGS: ['p', 'br', 'a', 'span', 'em', 'strong', 'b', 'i', 'del', 'pre', 'code', 'blockquote', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'],
-    ALLOWED_ATTR: ['href', 'rel', 'target', 'class', 'title'],
-  })
-}
+const sanitizeContent = renderAnnouncementHtml
 
 const getIconEmoji = (icon: string): string => {
   const icons: Record<string, string> = {

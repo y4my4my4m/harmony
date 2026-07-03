@@ -544,6 +544,7 @@ onMounted(() => {
 .chat-layout {
   width: 100%;
   height: 100vh;
+  height: 100dvh; /* mobile: keyboard/URL bar no longer hides the input */
   display: flex;
   flex-direction: column;
   position: relative;
