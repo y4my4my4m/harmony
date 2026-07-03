@@ -265,6 +265,109 @@
   border-top: 1px solid var(--border-color);
 }
 
+.pagination-btn {
+  padding: 8px 16px;
+  background: var(--background-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.pagination-btn:hover:not(:disabled) {
+  border-color: var(--accent-color);
+  color: var(--accent-color);
+}
+
+.pagination-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.pagination-info {
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.action-btn-sm, .danger-btn-sm {
+  padding: 6px 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: var(--background-tertiary);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.action-btn-sm:hover {
+  border-color: var(--accent-color);
+  color: var(--accent-color);
+}
+
+.action-btn-sm.trusted {
+  border-color: rgba(0, 255, 136, 0.5);
+  color: #00ff88;
+}
+
+.danger-btn-sm:hover {
+  border-color: rgba(255, 69, 58, 0.5);
+  color: #ff453a;
+}
+
+.danger-btn {
+  padding: 8px 16px;
+  border: 1px solid rgba(255, 69, 58, 0.4);
+  border-radius: 6px;
+  background: rgba(255, 69, 58, 0.08);
+  color: #ff453a;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.danger-btn:hover:not(:disabled) {
+  background: rgba(255, 69, 58, 0.16);
+}
+
+.danger-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.cyber-btn-sm {
+  padding: 6px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: var(--background-tertiary);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 13px;
+  transition: all 0.2s ease;
+}
+
+.cyber-btn-sm:hover {
+  border-color: var(--accent-color);
+  color: var(--accent-color);
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+.spinning {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.delete-btn:hover {
+  border-color: rgba(255, 69, 58, 0.5);
+  color: #ff453a;
+}
+
 
 
 .empty-state {

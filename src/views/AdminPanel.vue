@@ -1227,10 +1227,6 @@ const formatNumber = (num: number | undefined) => {
 
 
 
-.meta-tag.domain {
-  color: var(--harmony-primary, #7c8aff);
-  background: rgba(124, 138, 255, 0.12);
-}
 
 
 
@@ -1240,10 +1236,6 @@ const formatNumber = (num: number | undefined) => {
 
 
 
-.meta-tag.failures {
-  color: #ff453a;
-  background: rgba(255, 69, 58, 0.12);
-}
 
 
 
@@ -1253,56 +1245,12 @@ const formatNumber = (num: number | undefined) => {
 
 
 
-.status-indicator {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 12px 16px;
-  border-radius: 8px;
-  font-size: 14px;
-  width:100%;
-}
 
 
 
 
 
 
-
-
-
-.status-indicator.ok {
-  background: rgba(0, 255, 136, 0.1);
-  border: 1px solid rgba(0, 255, 136, 0.3);
-  color: #00ff88;
-}
-
-
-
-
-
-
-
-
-
-.status-indicator.needs_attention {
-  background: rgba(255, 193, 7, 0.1);
-  border: 1px solid rgba(255, 193, 7, 0.3);
-  color: #ffc107;
-}
-
-
-
-
-
-
-
-
-
-.maintenance-card .action-btn.primary {
-  background: var(--accent-primary);
-  border-color: var(--accent-primary);
-}
 
 
 
