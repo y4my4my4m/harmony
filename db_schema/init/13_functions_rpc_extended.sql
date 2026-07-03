@@ -1135,6 +1135,101 @@ $$;
 -- ---------------------------------------------------------------------------
 
 -- ---------------------------------------------------------------------------
+-- Function: get_home_timeline_page
+-- ---------------------------------------------------------------------------
+-- Single round-trip home feed: server-side follows join instead of the
+-- client's follows-then-posts waterfall with the whole follow list inlined in
+-- the request URL (see migration 20260704_get_home_timeline_page.sql).
+-- Caller resolved via get_current_profile_id(). SECURITY INVOKER so posts RLS
+-- applies.
+CREATE OR REPLACE FUNCTION public.get_home_timeline_page(
+    p_limit integer DEFAULT 20,
+    p_before timestamptz DEFAULT NULL
+) RETURNS jsonb
+LANGUAGE sql
+STABLE
+SET search_path = public
+AS $$
+WITH me AS (
+    SELECT public.get_current_profile_id() AS id
+),
+authors AS (
+    SELECT f.following_id AS author_id
+    FROM public.follows f
+    WHERE f.follower_id = (SELECT id FROM me)
+      AND f.status IN ('accepted', 'pending')
+    UNION
+    SELECT (SELECT id FROM me)
+),
+page AS (
+    SELECT p.*
+    FROM public.posts p
+    WHERE p.author_id IN (SELECT author_id FROM authors)
+      AND (p.is_deleted IS NULL OR p.is_deleted = false)
+      AND (p_before IS NULL OR p.created_at < p_before)
+    ORDER BY p.created_at DESC
+    LIMIT LEAST(GREATEST(COALESCE(p_limit, 20), 1), 100)
+)
+SELECT COALESCE(
+    jsonb_agg(
+        to_jsonb(page.*) || jsonb_build_object(
+            'author', a.author,
+            'my_interactions', COALESCE(i.my_interactions, '[]'::jsonb)
+        )
+        ORDER BY page.created_at DESC
+    ),
+    '[]'::jsonb
+)
+FROM page
+LEFT JOIN LATERAL (
+    SELECT jsonb_build_object(
+        'id', pr.id,
+        'username', pr.username,
+        'display_name', pr.display_name,
+        'avatar_url', pr.avatar_url,
+        'color', pr.color,
+        'domain', pr.domain,
+        'is_local', pr.is_local,
+        'is_suspended', pr.is_suspended,
+        'supporter_membership', COALESCE((
+            SELECT jsonb_agg(
+                jsonb_build_object(
+                    'is_active', s.is_active,
+                    'tier', CASE WHEN t.id IS NULL THEN NULL ELSE
+                        jsonb_build_object(
+                            'name', t.name,
+                            'badge_icon', t.badge_icon,
+                            'badge_color', t.badge_color
+                        ) END
+                )
+            )
+            FROM public.instance_supporters s
+            LEFT JOIN public.instance_supporter_tiers t ON t.id = s.tier_id
+            WHERE s.user_id = pr.id
+        ), '[]'::jsonb)
+    ) AS author
+    FROM public.profiles pr
+    WHERE pr.id = page.author_id
+) a ON true
+LEFT JOIN LATERAL (
+    SELECT jsonb_agg(
+        jsonb_build_object(
+            'interaction_type', pi.interaction_type,
+            'emoji_id', pi.emoji_id
+        )
+    ) AS my_interactions
+    FROM public.post_interactions pi
+    WHERE pi.post_id = page.id
+      AND pi.user_id = (SELECT id FROM me)
+) i ON true
+$$;
+
+COMMENT ON FUNCTION public.get_home_timeline_page(integer, timestamptz) IS
+'Single round-trip home feed: posts from accepted/pending follows + own posts, with author embed and caller interaction states. Caller resolved via get_current_profile_id(). SECURITY INVOKER so posts RLS applies.';
+
+GRANT EXECUTE ON FUNCTION public.get_home_timeline_page(integer, timestamptz) TO authenticated;
+
+-- ---------------------------------------------------------------------------
 -- Function: get_enhanced_timeline_posts
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.get_enhanced_timeline_posts(p_user_id uuid, p_timeline_type text DEFAULT 'home'::text, p_limit integer DEFAULT 20, p_max_id text DEFAULT NULL::text) RETURNS TABLE(id text, created_at timestamp with time zone, updated_at timestamp with time zone, content jsonb, content_warning text, language text, author_id text, ap_id text, ap_type text, url text, reply_context jsonb, conversation_id text, visibility text, is_local boolean, is_federated boolean, replies_count integer, reblogs_count integer, favorites_count integer, media_attachments jsonb, metadata jsonb, is_sensitive boolean, is_deleted boolean, deleted_at timestamp with time zone, author jsonb, is_favorited boolean, is_reblogged boolean, is_bookmarked boolean, reblog jsonb, reblog_author jsonb)
