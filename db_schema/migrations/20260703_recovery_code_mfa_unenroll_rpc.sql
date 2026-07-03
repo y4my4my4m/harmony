@@ -24,6 +24,7 @@ RETURNS boolean
     AS $$
 DECLARE
   v_user_id uuid;
+  v_profile_id uuid;
   v_code_hash text;
   v_code_id uuid;
 BEGIN
@@ -37,6 +38,13 @@ BEGIN
     RETURN false;
   END IF;
 
+  -- mfa_recovery_codes.user_id FKs to profiles(id); save_recovery_codes
+  -- writes rows under the PROFILE id, so the lookup must too (Pattern A).
+  v_profile_id := public.get_current_profile_id();
+  IF v_profile_id IS NULL THEN
+    RETURN false;
+  END IF;
+
   v_code_hash := encode(extensions.digest(p_code::bytea, 'sha256'), 'hex');
 
   -- Verify and consume atomically: the row lock from UPDATE ... RETURNING
@@ -45,7 +53,7 @@ BEGIN
   SET used_at = NOW()
   WHERE id = (
     SELECT id FROM public.mfa_recovery_codes
-    WHERE user_id = v_user_id
+    WHERE user_id = v_profile_id
       AND code_hash = v_code_hash
       AND used_at IS NULL
     LIMIT 1
