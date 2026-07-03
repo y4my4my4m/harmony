@@ -24,9 +24,18 @@ export function getLastDecryptionError(): string | null {
  * Process messages and attempt to decrypt encrypted ones
  */
 export async function processMessageDecryption(messages: Message[]): Promise<Message[]> {
+  // FIRST: bail before touching the encryption stack at all. Previously the
+  // encrypted-page check sat BELOW the lazy service initialization, so even a
+  // fully plaintext channel load awaited encryption boot (auto-unlock, key
+  // sweeps, device registration...) before painting - the main "first load
+  // takes forever" contributor on unencrypted servers.
+  if (!messages.some(m => m.encrypted && m.encryption_metadata)) {
+    return messages
+  }
+
   // Load Megolm encryption service
   let encryptionService: any = null
-  
+
   try {
     const module = await import('@/services/encryption/MegolmMessageEncryptionService')
     encryptionService = module.megolmMessageEncryptionService

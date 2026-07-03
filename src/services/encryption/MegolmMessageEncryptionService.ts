@@ -213,13 +213,15 @@ export class MegolmMessageEncryptionService {
           }
         } catch { /* ignore */ }
 
-        try {
-          await megolmKeyBackupService.processPendingRequestsToMe()
-        } catch { /* ignore */ }
-
-        try {
-          await megolmKeyBackupService.processMyFulfilledRequests()
-        } catch { /* ignore */ }
+        // Offline catch-up sweeps run in the BACKGROUND. They were awaited
+        // here, which put them (and their per-row work) on the critical path
+        // of initialize() - and processMessageDecryption awaits initialize(),
+        // so the first message load of the session stalled behind them
+        // (observed: ~170 stale fulfilled key-request rows = ~30s cold load).
+        // Late-arriving keys fire keyReceivedCallbacks / megolm-key-received,
+        // which re-decrypt anything already painted.
+        void megolmKeyBackupService.processPendingRequestsToMe().catch(() => {})
+        void megolmKeyBackupService.processMyFulfilledRequests().catch(() => {})
 
         // Parity with initializeWithRecoveryKey: sweep shares delivered while
         // this device was offline so first render doesn't fall into the
@@ -318,24 +320,18 @@ export class MegolmMessageEncryptionService {
       debug.warn('⚠️ Failed to claim pending session shares:', error)
     }
 
-    // Process any pending key requests to us (from while we were offline)
-    try {
-      const fulfilledCount = await megolmKeyBackupService.processPendingRequestsToMe()
-      if (fulfilledCount > 0) {
-        debug.log(`📤 Fulfilled ${fulfilledCount} pending key requests`)
-      }
-    } catch (error) {
-      debug.warn('⚠️ Failed to process pending key requests:', error)
-    }
-
-    // Import keys for OUR requests that were fulfilled while we were offline
-    // (the realtime key_fulfilled broadcast is ephemeral, so a disconnected
-    // requester would otherwise never consume the delivered key).
-    try {
-      await megolmKeyBackupService.processMyFulfilledRequests()
-    } catch (error) {
-      debug.warn('⚠️ Failed to import fulfilled key requests:', error)
-    }
+    // Offline catch-up sweeps (fulfilling requests addressed to us; importing
+    // keys fulfilled FOR us while offline - the key_fulfilled broadcast is
+    // ephemeral) run in the BACKGROUND so the unlock UI isn't blocked on
+    // per-row work. Each imported key fires keyReceivedCallbacks, and the
+    // megolm-key-received event below re-decrypts what's already on screen.
+    void megolmKeyBackupService.processPendingRequestsToMe()
+      .then(fulfilledCount => {
+        if (fulfilledCount > 0) debug.log(`📤 Fulfilled ${fulfilledCount} pending key requests`)
+      })
+      .catch(error => debug.warn('⚠️ Failed to process pending key requests:', error))
+    void megolmKeyBackupService.processMyFulfilledRequests()
+      .catch(error => debug.warn('⚠️ Failed to import fulfilled key requests:', error))
 
     // Store non-extractable CryptoKeys in IndexedDB (mnemonic is NOT persisted)
     await this.storeSessionKeys(derivedKeys)

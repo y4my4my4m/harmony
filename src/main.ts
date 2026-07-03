@@ -91,38 +91,41 @@ async function initializeApp() {
   }
 
   try {
-    // Wait for initial locale to load (ensures translations are available)
-    await waitForInitialLocale()
-    debug.log('🌐 Initial locale loaded')
-    
-    // Register service worker before PWA/install checks (push + installability)
-    const swSupported = await serviceWorkerManager.initialize()
-    debug.log('🔔 Service Worker supported:', swSupported)
+    // The three pre-mount requirements are independent - run them in
+    // PARALLEL. They used to run serially (locale -> SW -> PWA -> auth ->
+    // emoji packs), which pushed first data fetch out by their summed
+    // latency on every cold start.
+    //   - locale: translations must exist before first render
+    //   - SW -> PWA: registration must precede install/push checks (kept as
+    //     one sequential chain, but concurrent with the rest)
+    //   - auth: session must be adopted before router guards run
+    const swChain = (async () => {
+      const swSupported = await serviceWorkerManager.initialize()
+      debug.log('🔔 Service Worker supported:', swSupported)
+      await pwaManager.initialize()
+      debug.log('🚀 PWA Manager initialized')
+      if (swSupported && Notification.permission === 'default') {
+        serviceWorkerManager.requestNotificationPermission().catch((err) => {
+          debug.warn('⚠️ Notification permission request failed:', err)
+        })
+      }
+    })()
 
-    // Initialize PWA features (install prompt listener, diagnostics)
-    await pwaManager.initialize()
-    debug.log('🚀 PWA Manager initialized')
-
-    if (swSupported && Notification.permission === 'default') {
-      serviceWorkerManager.requestNotificationPermission().catch((err) => {
-        debug.warn('⚠️ Notification permission request failed:', err)
-      })
-    }
-    
-    // Initialize auth store first to check for existing sessions (CRITICAL - must be before mount)
     const authStore = useAuthStore()
-    await authStore.initializeAuth()
-    debug.log('✅ Auth initialized')
+    await Promise.all([
+      waitForInitialLocale().then(() => debug.log('🌐 Initial locale loaded')),
+      swChain.catch((err) => debug.warn('⚠️ SW/PWA init failed (non-fatal):', err)),
+      authStore.initializeAuth().then(() => debug.log('✅ Auth initialized')),
+    ])
 
-    try {
-      await detectAvailablePacks()
-      debug.log('📦 Emoji packs detected')
-    } catch (err) {
-      debug.warn('⚠️ Emoji pack detection failed, using builtin packs:', err)
-    }
-
-    // Mount the app AFTER auth (emoji detection is best-effort above)
+    // Mount the app AFTER auth
     mountApp()
+
+    // Emoji pack detection probes external pack availability - best-effort
+    // and NOT needed for first paint; run it after mount in the background.
+    detectAvailablePacks()
+      .then(() => debug.log('📦 Emoji packs detected'))
+      .catch((err) => debug.warn('⚠️ Emoji pack detection failed, using builtin packs:', err))
 
     try {
       reactionCacheManager.startCleanup()
