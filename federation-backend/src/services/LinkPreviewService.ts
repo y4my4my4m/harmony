@@ -5,6 +5,7 @@ import { logger } from '../utils/logger.js';
 import { SignatureService } from '../activitypub/SignatureService.js';
 import { validateExternalUrl, safeFetch } from '../utils/ssrfProtection.js';
 import { decodeHtmlEntities } from '../utils/contentUtils.js';
+import { fetchKlipyMediaBySlug } from './KlipyService.js';
 
 export type EmbedProvider = 'harmony-post' | 'fediverse-post' | 'youtube' | 'spotify' | 'reddit' | 'generic';
 
@@ -189,7 +190,8 @@ class LinkPreviewService {
     } else if (provider === 'reddit') {
       payload = await this.fetchRedditPreview(normalizedUrl);
     } else {
-      payload = await this.fetchGenericPreview(normalizedUrl);
+      const klipyPayload = await this.fetchKlipyPreview(normalizedUrl);
+      payload = klipyPayload ?? await this.fetchGenericPreview(normalizedUrl);
     }
 
     payload.cacheKey = cacheKey;
@@ -248,6 +250,43 @@ class LinkPreviewService {
     // Everything else goes through generic, which auto-discovers AP via
     // <link rel="alternate" type="application/activity+json"> in the HTML.
     return 'generic';
+  }
+
+  /**
+   * klipy.com/<collection>/<slug> pages → direct animated media via the
+   * Klipy API. Returns null for non-klipy URLs or lookup failures so the
+   * caller can fall through to the generic scraper.
+   */
+  private async fetchKlipyPreview(url: string): Promise<EmbedPayload | null> {
+    let parsed: URL;
+    try {
+      parsed = new URL(url);
+    } catch {
+      return null;
+    }
+
+    const host = parsed.hostname.toLowerCase();
+    if (host !== 'klipy.com' && host !== 'www.klipy.com') return null;
+
+    const m = parsed.pathname.match(/^\/(gifs|stickers|clips|static-memes|ai-gifs)\/([a-z0-9-]+)\/?$/i);
+    if (!m) return null;
+
+    const media = await fetchKlipyMediaBySlug(m[1].toLowerCase(), m[2]);
+    if (!media) return null;
+
+    return {
+      cacheKey: '',
+      url,
+      normalizedUrl: url,
+      provider: 'generic',
+      title: media.title,
+      siteName: 'Klipy',
+      image: media.mediaUrl,
+      width: media.width,
+      height: media.height,
+      fetchedAt: new Date().toISOString(),
+      expiresAt: new Date(Date.now() + TTL_BY_PROVIDER.generic).toISOString(),
+    };
   }
 
   private async buildHarmonyEmbed(url: string): Promise<EmbedPayload> {
