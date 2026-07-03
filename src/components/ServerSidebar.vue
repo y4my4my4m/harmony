@@ -485,7 +485,7 @@ const selectServer = async (serverId?: string) => {
   useChatStore().clearMessages();
   router.push({ name: 'Chat' });
 
-  await seFediverseelStore.fetchCategoriesAndChannels(serverId);
+  await serverChannelStore.fetchCategoriesAndChannels(serverId);
 
   // The user may have clicked another server while this one loaded.
   if (serverChannelStore.currentServerId !== serverId) return;
@@ -511,7 +511,7 @@ const goToToday = () => {
   router.push({ name: 'Today' });
 };
 
-const goToMonyverse = () => {
+const goToFediverse = () => {
   activityPubStore.clearUnreadCount();
   emit('switch-to-activitypub');
   router.push({ name: 'SocialHome' });
@@ -1249,7 +1249,7 @@ const removeServerFromFolder = async () => {
   display: flex;
   align-items: center;
   justify-content: center;
-}Fediverse
+}
 
 .dm-icon {
   width: 24px;

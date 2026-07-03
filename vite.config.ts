@@ -93,14 +93,20 @@ export default defineConfig({
         manualChunks: (id) => {
           // Vendor chunks
           if (id.includes('node_modules')) {
-            // Large libraries get their own chunks
-            if (id.includes('vue') || id.includes('@vue')) {
+            // Match exact package directories. The previous loose
+            // `includes('vue')` swept every "vue-*" ecosystem package
+            // (toastification, i18n, tanstack vue-virtual, ...) into
+            // vue-vendor while their own dependencies landed in vendor,
+            // producing a vendor <-> vue-vendor import cycle. Only the core
+            // runtime stack (which imports nothing from vendor) lives here,
+            // so imports flow one way: vendor -> vue-vendor.
+            if (/node_modules\/(?:vue|@vue|vue-router|pinia|vue-demi)\//.test(id)) {
               return 'vue-vendor'
             }
-            if (id.includes('supabase')) {
+            if (id.includes('node_modules/@supabase/')) {
               return 'supabase-vendor'
             }
-            if (id.includes('@privacyresearch')) {
+            if (id.includes('node_modules/@privacyresearch/')) {
               return 'crypto-vendor'
             }
             // Other node_modules
