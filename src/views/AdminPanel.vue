@@ -21,7 +21,21 @@
       </div>
     </div>
 
-    <div class="admin-grid">
+    <nav class="admin-tabs" role="tablist">
+      <button
+        v-for="tab in adminTabs"
+        :key="tab.key"
+        role="tab"
+        :aria-selected="activeAdminTab === tab.key"
+        :class="['admin-tab-btn', { active: activeAdminTab === tab.key }]"
+        @click="activeAdminTab = tab.key"
+      >
+        <Icon :name="tab.icon" :size="15" />
+        {{ tab.label }}
+      </button>
+    </nav>
+
+    <div v-if="activeAdminTab === 'overview'" class="admin-grid">
       <!-- System Overview -->
       <div class="admin-module overview-module">
         <div class="module-header">
@@ -118,25 +132,37 @@
         </div>
       </div>
 
-      <!-- Federation Management -->
-      <FederationManagement />
-
-      <!-- User Management -->
-      <UserManagement />
-
-      <!-- Reports & Moderation -->
-      <ReportsModeration />
-
       <!-- Recent Activity -->
       <ActivityLog />
+    </div>
 
-      <!-- Announcements -->
+    <div v-else-if="activeAdminTab === 'federation'" class="admin-grid single">
+      <FederationManagement />
+    </div>
+
+    <div v-else-if="activeAdminTab === 'users'" class="admin-grid single">
+      <UserManagement />
+    </div>
+
+    <div v-else-if="activeAdminTab === 'reports'" class="admin-grid single">
+      <ReportsModeration />
+    </div>
+
+    <div v-else-if="activeAdminTab === 'content'" class="admin-grid">
       <AnnouncementsAdmin />
-
-      <!-- Featured Communities -->
       <FeaturedCommunities />
+    </div>
 
-      <!-- Recent Activity -->
+    <div v-else-if="activeAdminTab === 'config'" class="admin-grid single">
+      <InstanceConfig />
+    </div>
+
+    <div v-else-if="activeAdminTab === 'funding'" class="admin-grid single">
+      <FundingSupporters />
+    </div>
+
+    <div v-else-if="activeAdminTab === 'tools'" class="admin-grid">
+      <!-- Performance Monitoring -->
       <div class="admin-module performance-module">
         <div class="module-header">
           <Icon name="activity" :size="20" />
@@ -162,23 +188,46 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch, defineAsyncComponent } from 'vue'
 import { debug } from '@/utils/debug'
 import { useAuthStore } from '@/stores/auth'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import Icon from '@/components/common/Icon.vue'
-import EmojiImporter from '@/components/admin/EmojiImporter.vue'
-import PerformanceMonitoring from '@/components/admin/PerformanceMonitoring.vue'
-import FederationManagement from '@/components/admin/FederationManagement.vue'
-import UserManagement from '@/components/admin/UserManagement.vue'
-import ReportsModeration from '@/components/admin/ReportsModeration.vue'
 import ActivityLog from '@/components/admin/ActivityLog.vue'
-import AnnouncementsAdmin from '@/components/admin/AnnouncementsAdmin.vue'
-import FeaturedCommunities from '@/components/admin/FeaturedCommunities.vue'
+
+// Modules load lazily per tab so opening the panel only fetches Overview.
+const EmojiImporter = defineAsyncComponent(() => import('@/components/admin/EmojiImporter.vue'))
+const PerformanceMonitoring = defineAsyncComponent(() => import('@/components/admin/PerformanceMonitoring.vue'))
+const FederationManagement = defineAsyncComponent(() => import('@/components/admin/FederationManagement.vue'))
+const UserManagement = defineAsyncComponent(() => import('@/components/admin/UserManagement.vue'))
+const ReportsModeration = defineAsyncComponent(() => import('@/components/admin/ReportsModeration.vue'))
+const AnnouncementsAdmin = defineAsyncComponent(() => import('@/components/admin/AnnouncementsAdmin.vue'))
+const FeaturedCommunities = defineAsyncComponent(() => import('@/components/admin/FeaturedCommunities.vue'))
+const InstanceConfig = defineAsyncComponent(() => import('@/components/admin/InstanceConfig.vue'))
+const FundingSupporters = defineAsyncComponent(() => import('@/components/admin/FundingSupporters.vue'))
 import { adminService } from '@/services/AdminService'
 
 const authStore = useAuthStore()
 const router = useRouter()
+const route = useRoute()
+
+const adminTabs = [
+  { key: 'overview', label: 'Overview', icon: 'dashboard' },
+  { key: 'federation', label: 'Federation', icon: 'federation' },
+  { key: 'users', label: 'Users', icon: 'users' },
+  { key: 'reports', label: 'Reports', icon: 'flag' },
+  { key: 'content', label: 'Content', icon: 'megaphone' },
+  { key: 'config', label: 'Config', icon: 'settings' },
+  { key: 'funding', label: 'Funding', icon: 'heart' },
+  { key: 'tools', label: 'Tools', icon: 'wrench' },
+] as const
+type AdminTabKey = typeof adminTabs[number]['key']
+
+const initialTab = adminTabs.find(t => t.key === route.query.tab) ? route.query.tab as AdminTabKey : 'overview'
+const activeAdminTab = ref<AdminTabKey>(initialTab)
+watch(activeAdminTab, (tab) => {
+  router.replace({ query: { ...route.query, tab: tab === 'overview' ? undefined : tab } }).catch(() => {})
+})
 
 // Security check - only allow admins
 onMounted(async () => {
@@ -580,6 +629,45 @@ const formatNumber = (num: number | undefined) => {
 
 
 
+
+.admin-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 12px;
+}
+
+.admin-tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 14px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--background-secondary);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.admin-tab-btn:hover {
+  color: var(--text-primary);
+  border-color: var(--accent-color);
+}
+
+.admin-tab-btn.active {
+  color: var(--accent-color);
+  border-color: var(--accent-color);
+  background: color-mix(in srgb, var(--accent-color) 10%, transparent);
+}
+
+.admin-grid.single {
+  grid-template-columns: 1fr;
+}
 
 .admin-grid {
   display: grid;
