@@ -527,4 +527,104 @@ describe('MegolmMessageEncryptionService', () => {
       expect(decrypted.senderVerified).toBe(true)
     })
   })
+
+  // ─── Session share repair (key-request fulfillment side effect) ──
+
+  describe('repairSessionShareForUser', () => {
+    const RECIPIENT_ID = 'cccccccc-1111-2222-3333-444444444444'
+    const SESSION_ID = 'dddddddd-1111-2222-3333-444444444444'
+    const SESSION_KEY = 'dGVzdC1zZXNzaW9uLWtleQ=='
+
+    let recipientPublicB64: string | null
+    let upsertedRows: any[]
+    let upsertOptions: any
+
+    beforeEach(async () => {
+      upsertedRows = []
+      upsertOptions = null
+      recipientPublicB64 = null
+
+      // Our own ECDH identity keypair - repair seals the session key with
+      // ECDH(our private, recipient public), loaded from identityKeyStore.
+      const myKp = await crypto.subtle.generateKey(
+        { name: 'ECDH', namedCurve: 'P-256' }, false, ['deriveKey', 'deriveBits'],
+      ) as CryptoKeyPair
+      const { identityKeyStore } = await import('../SecureSessionKeyStore')
+      await identityKeyStore.store(TEST_USER_ID, myKp.privateKey)
+
+      // Recipient's CURRENT identity public key, as the DB would return it.
+      const recipientKp = await crypto.subtle.generateKey(
+        { name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveKey', 'deriveBits'],
+      ) as CryptoKeyPair
+      const raw = await crypto.subtle.exportKey('raw', recipientKp.publicKey)
+      recipientPublicB64 = btoa(String.fromCharCode(...new Uint8Array(raw)))
+
+      ;(supabase.from as any).mockImplementation((table: string) => {
+        if (table === 'user_key_pairs') {
+          const filters: Record<string, any> = {}
+          const builder: any = {
+            select: () => builder,
+            eq: (field: string, value: any) => { filters[field] = value; return builder },
+            maybeSingle: () => Promise.resolve(
+              filters['user_id'] === RECIPIENT_ID && recipientPublicB64
+                ? { data: { identity_public_key: recipientPublicB64 }, error: null }
+                : { data: null, error: null },
+            ),
+          }
+          return builder
+        }
+        if (table === 'megolm_session_shares') {
+          return {
+            upsert: (rows: any, options: any) => {
+              upsertedRows.push(rows)
+              upsertOptions = options
+              return Promise.resolve({ error: null })
+            },
+          }
+        }
+        return {
+          select: () => ({
+            eq: () => ({ eq: () => ({ maybeSingle: () => Promise.resolve({ data: null, error: null }) }) }),
+          }),
+        }
+      })
+    })
+
+    afterEach(async () => {
+      const { identityKeyStore } = await import('../SecureSessionKeyStore')
+      await identityKeyStore.clear(TEST_USER_ID).catch(() => {})
+    })
+
+    it('writes a fresh v3 share sealed to the recipient current key and re-arms the claim', async () => {
+      const ok = await messageService.repairSessionShareForUser(
+        TEST_ROOM_ID, SESSION_ID, RECIPIENT_ID, SESSION_KEY,
+      )
+
+      expect(ok).toBe(true)
+      expect(upsertedRows).toHaveLength(1)
+      const row = upsertedRows[0]
+      expect(row.room_id).toBe(TEST_ROOM_ID)
+      expect(row.session_id).toBe(SESSION_ID)
+      expect(row.sender_user_id).toBe(TEST_USER_ID)
+      expect(row.recipient_user_id).toBe(RECIPIENT_ID)
+      // AAD-bound v3 sealing, never plaintext
+      expect(row.encrypted_session_key.startsWith('v3:')).toBe(true)
+      expect(row.encrypted_session_key).not.toContain(SESSION_KEY)
+      // Claim must be re-armed so get_unclaimed_session_shares surfaces it
+      expect(row.is_claimed).toBe(false)
+      expect(row.claimed_at).toBeNull()
+      expect(upsertOptions?.onConflict).toBe('room_id,session_id,recipient_user_id')
+    })
+
+    it('returns false and writes nothing when the recipient has no active identity key', async () => {
+      recipientPublicB64 = null // simulate: no active user_key_pairs row
+
+      const ok = await messageService.repairSessionShareForUser(
+        TEST_ROOM_ID, SESSION_ID, RECIPIENT_ID, SESSION_KEY,
+      )
+
+      expect(ok).toBe(false)
+      expect(upsertedRows).toHaveLength(0)
+    })
+  })
 })

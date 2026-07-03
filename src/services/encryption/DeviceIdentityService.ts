@@ -410,21 +410,51 @@ class DeviceIdentityService {
    * (userId, deviceId), used to verify v3 messages. Returns null if the device
    * is unknown or revoked - the caller treats that as a verification failure.
    */
+  // TTL cache for device signing keys. This sits on the per-message v3
+  // verification hot path - without it a cold channel load fires one RPC per
+  // message. Negative results (unknown/revoked device) are cached too, so a
+  // page of messages from an unknown device doesn't re-query N times; the
+  // flip side is that a freshly revoked device stays verifiable for up to
+  // the TTL on clients that already have its key cached.
+  private deviceSigningKeyCache = new Map<string, { spki: string | null; cachedAt: number }>()
+  private deviceSigningKeyFetches = new Map<string, Promise<string | null>>()
+  private static readonly DEVICE_KEY_CACHE_TTL_MS = 5 * 60_000
+
   async getDeviceSigningPublicKey(userId: string, deviceId: string): Promise<string | null> {
-    // user_devices SELECT is owner-only at the RLS layer, so cross-user lookups
-    // (verifying another sender's v3 messages) go through a SECURITY DEFINER RPC
-    // that returns ONLY the public signing key + revoked flag - never the rest of
-    // the device row (label / platform / last_seen / trust_state).
-    const { data, error } = await supabase.rpc('get_device_signing_key', {
-      p_user_id: userId,
-      p_device_id: deviceId,
-    })
-    if (error) return null
-    const row = (Array.isArray(data) ? data[0] : data) as
-      | { device_signing_public_key: string | null; revoked_at: string | null }
-      | undefined
-    if (!row || row.revoked_at) return null
-    return row.device_signing_public_key || null
+    const cacheKey = `${userId}:${deviceId}`
+    const cached = this.deviceSigningKeyCache.get(cacheKey)
+    if (cached && Date.now() - cached.cachedAt < DeviceIdentityService.DEVICE_KEY_CACHE_TTL_MS) {
+      return cached.spki
+    }
+
+    // Dedup concurrent lookups (a page decrypt verifies many messages at once).
+    const inFlight = this.deviceSigningKeyFetches.get(cacheKey)
+    if (inFlight) return inFlight
+
+    const fetchPromise = (async (): Promise<string | null> => {
+      // user_devices SELECT is owner-only at the RLS layer, so cross-user lookups
+      // (verifying another sender's v3 messages) go through a SECURITY DEFINER RPC
+      // that returns ONLY the public signing key + revoked flag - never the rest of
+      // the device row (label / platform / last_seen / trust_state).
+      const { data, error } = await supabase.rpc('get_device_signing_key', {
+        p_user_id: userId,
+        p_device_id: deviceId,
+      })
+      if (error) return null // transient failure: don't cache
+      const row = (Array.isArray(data) ? data[0] : data) as
+        | { device_signing_public_key: string | null; revoked_at: string | null }
+        | undefined
+      const spki = (!row || row.revoked_at) ? null : (row.device_signing_public_key || null)
+      this.deviceSigningKeyCache.set(cacheKey, { spki, cachedAt: Date.now() })
+      return spki
+    })()
+
+    this.deviceSigningKeyFetches.set(cacheKey, fetchPromise)
+    try {
+      return await fetchPromise
+    } finally {
+      this.deviceSigningKeyFetches.delete(cacheKey)
+    }
   }
 
   /**

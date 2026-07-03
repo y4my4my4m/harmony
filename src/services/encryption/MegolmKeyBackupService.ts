@@ -235,6 +235,28 @@ export class MegolmKeyBackupService {
       }
 
       debug.log(`✅ Fulfilled key request ${request.id.substring(0, 8)}...`)
+
+      // Durable repair of the offline path: the fulfillment above only helps
+      // the requesting device right now. Also write a fresh
+      // megolm_session_shares row sealed to the requester's CURRENT identity
+      // key, so their other devices / future claims recover this session from
+      // the DB without us being online again (fixes the "key reset -> stuck
+      // on online-only key requests" state). Authorization already passed
+      // above (signature + server-side room membership). Best-effort: the
+      // realtime fulfillment succeeded regardless.
+      // Dynamic import: MegolmMessageEncryptionService imports this service
+      // statically, so the reverse edge must be lazy to avoid a cycle.
+      try {
+        const { megolmMessageEncryptionService } = await import('./MegolmMessageEncryptionService')
+        await megolmMessageEncryptionService.repairSessionShareForUser(
+          request.room_id,
+          request.session_id,
+          request.requester_user_id,
+          sessionKey,
+        )
+      } catch (repairErr) {
+        debug.warn('⚠️ Session-share repair after fulfillment failed (non-fatal):', repairErr)
+      }
     } catch (error) {
       debug.error('❌ Error handling key request:', error)
     }

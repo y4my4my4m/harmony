@@ -102,7 +102,12 @@ export class MegolmMessageEncryptionService {
   // Cached signing public keys, keyed by sender user id. SPKI fetches are
   // batched in the same query as ECDH keys; this cache absorbs verification
   // for the hot decrypt path. Time-bounded so device rotations propagate.
-  private signingKeyCache = new Map<string, CachedSigningKey>()
+  // null = negative entry: sender has no signing key on file. Cached with the
+  // same TTL - without it, every message from a legacy (unsigned) sender
+  // re-fires the user_key_pairs query on the decrypt hot path (observed as
+  // 180+ identical requests on a cold channel load).
+  private signingKeyCache = new Map<string, { entry: CachedSigningKey | null; cachedAt: number }>()
+  private signingKeyFetches = new Map<string, Promise<CachedSigningKey | null>>()
   private static readonly SIGNING_KEY_CACHE_TTL_MS = 5 * 60_000
 
   // Session ids we've already triggered a key-backup for this run. Sending under
@@ -706,38 +711,112 @@ export class MegolmMessageEncryptionService {
    * Fetch a sender's signing public key, with TTL cache.
    * Used during message verification on the decrypt hot path.
    */
-  private async getSenderSigningPublicKey(senderUserId: string): Promise<CachedSigningKey | null> {
-    const cached = this.signingKeyCache.get(senderUserId)
-    if (cached && Date.now() - cached.cachedAt < MegolmMessageEncryptionService.SIGNING_KEY_CACHE_TTL_MS) {
-      return cached
-    }
+  /**
+   * Batch-prime the signing key cache for a set of senders in ONE query.
+   * Called before a page of messages is verified, so per-message
+   * getSenderSigningPublicKey calls hit the cache instead of each firing
+   * their own user_key_pairs lookup (cold cache: N unique senders would
+   * otherwise mean N queries). Negative results are cached too. Best-effort:
+   * on failure the per-sender path below still works as fallback.
+   */
+  async prefetchSigningKeys(userIds: string[]): Promise<void> {
+    const now = Date.now()
+    const missing = [...new Set(userIds)].filter(id => {
+      const cached = this.signingKeyCache.get(id)
+      return !(cached && now - cached.cachedAt < MegolmMessageEncryptionService.SIGNING_KEY_CACHE_TTL_MS)
+    })
+    if (missing.length === 0) return
 
     const { data, error } = await supabase
       .from('user_key_pairs')
-      .select('identity_signing_public_key')
-      .eq('user_id', senderUserId)
+      .select('user_id, identity_signing_public_key')
+      .in('user_id', missing)
       .eq('is_active', true)
-      .maybeSingle()
 
     if (error) {
-      debug.warn(`⚠️ Failed to fetch signing key for ${senderUserId.substring(0, 8)}:`, error)
-      return null
+      debug.warn('⚠️ Batch signing-key prefetch failed (per-sender fallback will retry):', error)
+      return
     }
-    const spki = data?.identity_signing_public_key as string | undefined
-    if (!spki) return null
 
+    const spkiByUser = new Map<string, string | null>()
+    for (const row of data || []) {
+      spkiByUser.set(row.user_id, (row as any).identity_signing_public_key || null)
+    }
+
+    await Promise.all(missing.map(async (userId) => {
+      const spki = spkiByUser.get(userId)
+      if (!spki) {
+        // No row or no signing key: cache the negative result.
+        this.signingKeyCache.set(userId, { entry: null, cachedAt: Date.now() })
+        return
+      }
+      try {
+        const publicKey = await importPublicSigningKey(spki)
+        const fingerprint = await this.signingKeyFingerprint(spki)
+        const entry: CachedSigningKey = { publicKey, fingerprint, cachedAt: Date.now() }
+        this.signingKeyCache.set(userId, { entry, cachedAt: entry.cachedAt })
+        this.checkAndPinSigningKey(userId, fingerprint).catch(() => {})
+      } catch {
+        // Import failed: leave uncached so the per-sender path logs details.
+      }
+    }))
+
+    debug.log(`🔑 Prefetched signing keys for ${missing.length} senders in one query`)
+  }
+
+  private async getSenderSigningPublicKey(senderUserId: string): Promise<CachedSigningKey | null> {
+    const cached = this.signingKeyCache.get(senderUserId)
+    if (cached && Date.now() - cached.cachedAt < MegolmMessageEncryptionService.SIGNING_KEY_CACHE_TTL_MS) {
+      return cached.entry
+    }
+
+    // Dedup concurrent lookups: a cold channel load decrypts a whole page of
+    // messages in parallel, and without this every one of them missed the
+    // cache and fired its own user_key_pairs query.
+    const inFlight = this.signingKeyFetches.get(senderUserId)
+    if (inFlight) return inFlight
+
+    const fetchPromise = (async (): Promise<CachedSigningKey | null> => {
+      const { data, error } = await supabase
+        .from('user_key_pairs')
+        .select('identity_signing_public_key')
+        .eq('user_id', senderUserId)
+        .eq('is_active', true)
+        .maybeSingle()
+
+      if (error) {
+        // Transient failure: don't cache, next call may succeed.
+        debug.warn(`⚠️ Failed to fetch signing key for ${senderUserId.substring(0, 8)}:`, error)
+        return null
+      }
+      const spki = data?.identity_signing_public_key as string | undefined
+      if (!spki) {
+        // Sender has no signing key (legacy/unsigned). Cache the negative
+        // result so per-message verification doesn't re-query for the TTL.
+        this.signingKeyCache.set(senderUserId, { entry: null, cachedAt: Date.now() })
+        return null
+      }
+
+      try {
+        const publicKey = await importPublicSigningKey(spki)
+        const fingerprint = await this.signingKeyFingerprint(spki)
+        const entry: CachedSigningKey = { publicKey, fingerprint, cachedAt: Date.now() }
+        this.signingKeyCache.set(senderUserId, { entry, cachedAt: entry.cachedAt })
+        // TOFU: pin on first sight, gently notify (non-blocking) on change.
+        // Fire-and-forget so verification stays fast.
+        this.checkAndPinSigningKey(senderUserId, fingerprint).catch(() => {})
+        return entry
+      } catch (err) {
+        debug.warn(`⚠️ Failed to import signing key for ${senderUserId.substring(0, 8)}:`, err)
+        return null
+      }
+    })()
+
+    this.signingKeyFetches.set(senderUserId, fetchPromise)
     try {
-      const publicKey = await importPublicSigningKey(spki)
-      const fingerprint = await this.signingKeyFingerprint(spki)
-      const entry: CachedSigningKey = { publicKey, fingerprint, cachedAt: Date.now() }
-      this.signingKeyCache.set(senderUserId, entry)
-      // TOFU: pin on first sight, gently notify (non-blocking) on change.
-      // Fire-and-forget so verification stays fast.
-      this.checkAndPinSigningKey(senderUserId, fingerprint).catch(() => {})
-      return entry
-    } catch (err) {
-      debug.warn(`⚠️ Failed to import signing key for ${senderUserId.substring(0, 8)}:`, err)
-      return null
+      return await fetchPromise
+    } finally {
+      this.signingKeyFetches.delete(senderUserId)
     }
   }
 
@@ -1545,6 +1624,89 @@ export class MegolmMessageEncryptionService {
       megolmService.markSessionSharedWith(roomId, recipient_user_id, sessionId)
     }
     debug.log(`✅ Session shared with ${rows.length}/${usersWithKeys} users`)
+  }
+
+  /**
+   * Durably repair the offline share path for ONE recipient of ONE session.
+   *
+   * Called after a realtime key request is fulfilled. The realtime fulfillment
+   * only rescues the requesting device right now; this writes a fresh
+   * megolm_session_shares row sealed to the recipient's CURRENT identity key,
+   * so their other devices (and any future claim) recover the session from the
+   * DB without us being online again. This closes the gap where a recipient
+   * who reset their keys was permanently stuck on the online-only key-request
+   * fallback: the old share row is sealed to their dead key, and `sharedWith`
+   * bookkeeping stops ensureSessionShared from ever re-sharing.
+   *
+   * Security: identical sealing to the normal share path - ECDH(our identity
+   * private, recipient identity public) -> AES-GCM with AAD binding
+   * (room, session, sender, recipient), so the server never sees the key and
+   * the row can't be replayed into another context. Callers MUST have already
+   * authorized the recipient (signature + server-side room membership - see
+   * isKeyRequestAuthorized); this method does not re-check.
+   *
+   * Best-effort by design: when we're a relay (not the original sender), RLS
+   * lets us INSERT a new share but not overwrite the original sender's
+   * existing row - the upsert fails and we return false, which is fine
+   * because the realtime fulfillment already delivered the key.
+   */
+  async repairSessionShareForUser(
+    roomId: string,
+    sessionId: string,
+    recipientUserId: string,
+    sessionKey: string,
+    firstKnownIndex = 0,
+  ): Promise<boolean> {
+    if (!this.currentUserId) return false
+
+    try {
+      // Deliberately uncached fetch of the recipient's CURRENT active key:
+      // repair exists precisely because the recipient may have rotated keys,
+      // so a stale cached key would re-create the broken state.
+      const { data, error } = await supabase
+        .from('user_key_pairs')
+        .select('identity_public_key')
+        .eq('user_id', recipientUserId)
+        .eq('is_active', true)
+        .maybeSingle()
+
+      if (error || !data?.identity_public_key) {
+        debug.log(`ℹ️ Share repair skipped - no active identity key for ${recipientUserId.substring(0, 8)}`)
+        return false
+      }
+
+      const encryptedSessionKey = await this.encryptSessionKeyForUser(
+        sessionKey,
+        data.identity_public_key,
+        { roomId, sessionId, recipientUserId },
+      )
+
+      const { error: upsertError } = await supabase
+        .from('megolm_session_shares')
+        .upsert({
+          room_id: roomId,
+          session_id: sessionId,
+          sender_user_id: this.currentUserId,
+          recipient_user_id: recipientUserId,
+          encrypted_session_key: encryptedSessionKey,
+          first_known_index: firstKnownIndex,
+          // Re-arm the claim so get_unclaimed_session_shares() surfaces it.
+          is_claimed: false,
+          claimed_at: null as string | null,
+        }, { onConflict: 'room_id,session_id,recipient_user_id' })
+
+      if (upsertError) {
+        debug.log(`ℹ️ Share repair upsert rejected (relay case or RLS) - non-fatal:`, upsertError.message)
+        return false
+      }
+
+      await megolmService.markSessionSharedWith(roomId, recipientUserId, sessionId)
+      debug.log(`🔧 Repaired session share for ${recipientUserId.substring(0, 8)} (session ${sessionId.substring(0, 8)})`)
+      return true
+    } catch (err) {
+      debug.warn('⚠️ Session share repair failed (non-fatal):', err)
+      return false
+    }
   }
 
   /**
