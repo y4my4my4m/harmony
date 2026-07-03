@@ -119,430 +119,7 @@
       </div>
 
       <!-- Federation Management -->
-      <div class="admin-module federation-module">
-        <div class="module-header">
-          <Icon name="federation" :size="20" />
-          <h2>Federation Management</h2>
-          <div class="module-actions">
-            <button @click="handleAddInstance" class="primary-btn">
-              <Icon name="plus" :size="16" />
-              Add Instance
-            </button>
-            <button @click="refreshFederationData" class="action-btn" :disabled="loadingStates.federationStats">
-              <Icon name="refresh-cw" :size="16" />
-              Refresh
-            </button>
-          </div>
-        </div>
-
-        <!-- Federation Stats -->
-        <div class="federation-stats">
-          <div class="stat-card">
-            <div class="stat-value">{{ formatNumber(instanceStats?.total_instances) }}</div>
-            <div class="stat-label">Total Instances</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-value">{{ formatNumber(instanceStats?.active_instances) }}</div>
-            <div class="stat-label">Active (7 days)</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-value">{{ formatNumber(instanceStats?.trusted_instances) }}</div>
-            <div class="stat-label">Trusted</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-value">{{ formatNumber(instanceStats?.blocked_instances) }}</div>
-            <div class="stat-label">Blocked</div>
-          </div>
-        </div>
-
-        <!-- Endpoint Health Stats -->
-        <div class="federation-section" v-if="federationStats">
-          <div class="section-header">
-            <h3>Endpoint Health</h3>
-            <div class="health-indicator" :class="getEndpointHealthClass(federationStats.endpoint_health)">
-              {{ federationStats.endpoint_health.success_rate }}% success rate
-            </div>
-          </div>
-          <div class="federation-stats">
-            <div class="stat-card">
-              <div class="stat-value">{{ formatNumber(federationStats.endpoint_health.total_endpoints) }}</div>
-              <div class="stat-label">Total Endpoints</div>
-            </div>
-            <div class="stat-card">
-              <div class="stat-value" :class="{ 'error-text': federationStats.endpoint_health.dead_endpoints > 0 }">
-                {{ formatNumber(federationStats.endpoint_health.dead_endpoints) }}
-              </div>
-              <div class="stat-label">Dead Endpoints</div>
-            </div>
-            <div class="stat-card">
-              <div class="stat-value">{{ formatNumber(federationStats.endpoint_health.healthy_endpoints) }}</div>
-              <div class="stat-label">Healthy</div>
-            </div>
-            <div class="stat-card">
-              <div class="stat-value">{{ formatNumber(federationStats.endpoint_health.endpoints_with_failures) }}</div>
-              <div class="stat-label">With Failures</div>
-            </div>
-          </div>
-          <div class="endpoint-details" v-if="federationStats.endpoint_health.dead_endpoints > 0">
-            <div class="warning-banner">
-              <Icon name="alert-triangle" :size="16" />
-              <span>{{ federationStats.endpoint_health.dead_endpoints }} endpoint(s) marked as dead and removed from follows</span>
-              <button
-                class="danger-btn purge-btn"
-                :disabled="loadingStates.purgingDead"
-                @click="purgeDeadEndpoints"
-              >
-                <Icon v-if="!loadingStates.purgingDead" name="trash" :size="14" />
-                <span v-if="loadingStates.purgingDead" class="spinner-small"></span>
-                Purge All
-              </button>
-            </div>
-            <div class="dead-endpoints-list" v-if="deadEndpointsList.length > 0">
-              <div
-                v-for="ep in deadEndpointsList"
-                :key="ep.id"
-                class="dead-endpoint-row"
-              >
-                <div class="dead-endpoint-info">
-                  <div class="dead-endpoint-url" :title="ep.endpoint_url">{{ ep.endpoint_url }}</div>
-                  <div class="dead-endpoint-meta">
-                    <span class="meta-tag domain">{{ ep.domain }}</span>
-                    <span class="meta-tag" v-if="ep.last_http_status">HTTP {{ ep.last_http_status }}</span>
-                    <span class="meta-tag failures">{{ ep.total_failures }} failures</span>
-                    <span class="meta-tag" v-if="ep.last_failure_at">Last fail: {{ formatTimeAgo(ep.last_failure_at) }}</span>
-                  </div>
-                  <div class="dead-endpoint-error" v-if="ep.last_error_message" :title="ep.last_error_message">
-                    {{ ep.last_error_message }}
-                  </div>
-                </div>
-                <button
-                  class="purge-single-btn"
-                  :disabled="purgingEndpointIds.has(ep.id)"
-                  @click="purgeSingleEndpoint(ep)"
-                  title="Remove this endpoint"
-                >
-                  <span v-if="purgingEndpointIds.has(ep.id)" class="spinner-small"></span>
-                  <Icon v-else name="trash" :size="14" />
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Federation Maintenance -->
-        <div class="federation-section">
-          <div class="section-header-row">
-            <h3>Federation Maintenance</h3>
-            <button @click="refreshKeyConsistency" class="action-btn" :disabled="loadingStates.keyConsistency">
-              <Icon name="refresh-cw" :size="16" />
-            </button>
-          </div>
-          
-          <!-- Key Consistency Report -->
-          <div class="maintenance-status" v-if="keyConsistency">
-            <div class="status-indicator" :class="keyConsistency.status">
-              <Icon :name="keyConsistency.status === 'ok' ? 'check-circle' : 'alert-triangle'" :size="16" />
-              <span v-if="keyConsistency.status === 'ok'">All local users have valid key pairs</span>
-              <span v-else>
-                {{ keyConsistency.users_missing_keys }} user(s) missing keys, 
-                {{ keyConsistency.users_with_inconsistent_keys }} with inconsistent state
-              </span>
-            </div>
-          </div>
-          
-          <!-- Maintenance Actions -->
-          <div class="maintenance-actions">
-            <div class="maintenance-card">
-              <div class="maintenance-info">
-                <h4>Key Generation Sweep</h4>
-                <p>Generate missing RSA keys for local users who don't have them</p>
-              </div>
-              <button 
-                @click="runKeyGenerationSweep" 
-                class="action-btn primary"
-                :disabled="loadingStates.keySweep"
-              >
-                <Icon v-if="loadingStates.keySweep" name="loader" :size="16" class="spin" />
-                <Icon v-else name="key" :size="16" />
-                Run Sweep
-              </button>
-            </div>
-            
-            <div class="maintenance-card">
-              <div class="maintenance-info">
-                <h4>Orphan Cleanup</h4>
-                <p>Fix users with inconsistent key states (public without private or vice versa)</p>
-              </div>
-              <button 
-                @click="runOrphanCleanup" 
-                class="action-btn"
-                :disabled="loadingStates.orphanCleanup"
-              >
-                <Icon v-if="loadingStates.orphanCleanup" name="loader" :size="16" class="spin" />
-                <Icon v-else name="trash-2" :size="16" />
-                Run Cleanup
-              </button>
-            </div>
-          </div>
-          
-          <!-- Scheduled Jobs Info -->
-          <div class="scheduled-info">
-            <Icon name="clock" :size="14" />
-            <span>Maintenance jobs run automatically: Key sweep at 03:00 UTC, Orphan cleanup at 04:00 UTC</span>
-          </div>
-        </div>
-
-        <!-- Instance Management -->
-        <div class="federation-section">
-          <div class="section-controls">
-            <h3>Instance Directory</h3>
-            <div class="filter-controls">
-              <select v-model="instanceFilter" @change="loadFederatedInstances" class="cyber-select">
-                <option value="all">All Instances</option>
-                <option value="active">Active</option>
-                <option value="trusted">Trusted</option>
-                <option value="blocked">Blocked</option>
-              </select>
-              <input
-                v-model="instanceSearch"
-                @input="debouncedSearchInstances"
-                placeholder="Search instances..."
-                class="cyber-input"
-              />
-            </div>
-          </div>
-
-          <!-- Loading State -->
-          <div v-if="loadingStates.instances" class="loading-state">
-            <LoadingSpinner :size="20" />
-            <span>Loading instances...</span>
-          </div>
-
-          <!-- Instance List -->
-          <div v-else class="instance-list">
-            <div
-              v-for="instance in federatedInstances"
-              :key="instance.id"
-              class="instance-item"
-              :class="{ 
-                'blocked': instance.is_blocked, 
-                'trusted': instance.is_trusted,
-                'inactive': isInstanceInactive(instance)
-              }"
-            >
-              <div class="instance-main">
-                <div class="instance-info">
-                  <div class="instance-domain">
-                    <strong>{{ instance.domain }}</strong>
-                    <div class="instance-badges">
-                      <span v-if="instance.is_trusted" class="badge trusted">Trusted</span>
-                      <span v-if="instance.is_blocked" class="badge blocked">Blocked</span>
-                      <span v-if="isInstanceInactive(instance)" class="badge inactive">Inactive</span>
-                    </div>
-                  </div>
-                  <div class="instance-details">
-                    <span v-if="instance.software" class="detail-item">
-                      {{ instance.software }} {{ instance.version }}
-                    </span>
-                    <span class="detail-item">
-                      {{ formatNumber(instance.user_count) }} users
-                    </span>
-                    <span class="detail-item">
-                      {{ formatNumber(instance.status_count) }} posts
-                    </span>
-                    <span class="detail-item">
-                      Last seen: {{ formatRelativeTime(instance.last_seen_at) }}
-                    </span>
-                  </div>
-                  <div v-if="instance.description" class="instance-description">
-                    {{ instance.description }}
-                  </div>
-                </div>
-                <div class="instance-actions">
-                  <button 
-                    @click="refreshInstance(instance.id)" 
-                    class="action-btn-sm"
-                    title="Refresh instance info"
-                  >
-                    <Icon name="refresh-cw" :size="14" />
-                  </button>
-                  <button 
-                    v-if="!instance.is_trusted && !instance.is_blocked"
-                    @click="toggleInstanceTrust(instance.id, true)" 
-                    class="action-btn-sm"
-                    title="Mark as trusted"
-                  >
-                    <Icon name="check" :size="14" />
-                  </button>
-                  <button 
-                    v-if="instance.is_trusted"
-                    @click="toggleInstanceTrust(instance.id, false)" 
-                    class="action-btn-sm trusted"
-                    title="Remove trust"
-                  >
-                    <Icon name="check" :size="14" />
-                  </button>
-                  <button 
-                    v-if="!instance.is_blocked"
-                    @click="toggleInstanceBlock(instance.id, true)" 
-                    class="danger-btn-sm"
-                    title="Block instance"
-                  >
-                    <Icon name="shield" :size="14" />
-                  </button>
-                  <button 
-                    v-if="instance.is_blocked"
-                    @click="toggleInstanceBlock(instance.id, false)" 
-                    class="action-btn-sm"
-                    title="Unblock instance"
-                  >
-                    <Icon name="shield-off" :size="14" />
-                  </button>
-                  <button 
-                    @click="deleteInstance(instance.id)" 
-                    class="danger-btn-sm"
-                    title="Delete instance"
-                  >
-                    <Icon name="trash" :size="14" />
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Pagination -->
-          <div v-if="instancePagination.total > instancePagination.limit" class="pagination">
-            <button 
-              @click="loadPreviousInstances" 
-              :disabled="instancePagination.offset === 0"
-              class="pagination-btn"
-            >
-              Previous
-            </button>
-            <span class="pagination-info">
-              {{ instancePagination.offset + 1 }}-{{ Math.min(instancePagination.offset + instancePagination.limit, instancePagination.total) }} 
-              of {{ instancePagination.total }}
-            </span>
-            <button 
-              @click="loadNextInstances" 
-              :disabled="instancePagination.offset + instancePagination.limit >= instancePagination.total"
-              class="pagination-btn"
-            >
-              Next
-            </button>
-          </div>
-        </div>
-
-        <!-- Discovery Section -->
-        <div class="federation-section">
-          <h3>Instance Discovery</h3>
-          <div class="discovery-tabs">
-            <button 
-              @click="discoveryTab = 'discovered'" 
-              :class="{ active: discoveryTab === 'discovered' }"
-              class="tab-btn"
-            >
-              From Interactions
-            </button>
-            <button 
-              @click="discoveryTab = 'search'" 
-              :class="{ active: discoveryTab === 'search' }"
-              class="tab-btn"
-            >
-              Search & Add
-            </button>
-          </div>
-
-          <!-- Discovered Instances -->
-          <div v-if="discoveryTab === 'discovered'" class="discovery-content">
-            <div v-if="discoveredInstances.length === 0" class="empty-state">
-              <Icon name="search" :size="32" />
-              <p>No instances discovered from user interactions yet.</p>
-              <button @click="loadDiscoveredInstances" class="primary-btn">
-                Scan for Interactions
-              </button>
-            </div>
-            <div v-else class="discovered-list">
-              <div
-                v-for="discovered in discoveredInstances"
-                :key="discovered.domain"
-                class="discovered-item"
-              >
-                <div class="discovered-info">
-                  <strong>{{ discovered.domain }}</strong>
-                  <span class="interaction-count">{{ discovered.interaction_count }} interactions</span>
-                </div>
-                <button 
-                  @click="addDiscoveredInstance(discovered.domain)" 
-                  class="primary-btn-sm"
-                >
-                  <Icon name="plus" :size="14" />
-                  Add
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <!-- Search & Add -->
-          <div v-if="discoveryTab === 'search'" class="discovery-content">
-            <div class="search-form">
-              <input
-                v-model="newInstanceDomain"
-                @keyup.enter="discoverInstance"
-                placeholder="Enter domain (e.g., mastodon.social)"
-                class="cyber-input"
-              />
-              <button 
-                @click="discoverInstance" 
-                :disabled="!newInstanceDomain || loadingStates.discovering"
-                class="primary-btn"
-              >
-                <Icon v-if="loadingStates.discovering" name="loader" :size="16" class="spinning" />
-                <Icon v-else name="search" :size="16" />
-                {{ loadingStates.discovering ? 'Discovering...' : 'Discover' }}
-              </button>
-            </div>
-
-            <!-- Discovery Result -->
-            <div v-if="discoveryResult" class="discovery-result">
-              <div class="result-header">
-                <h4>{{ discoveryResult.domain }}</h4>
-                <div class="result-badges">
-                  <span v-if="discoveryResult.federation_enabled" class="badge success">Federation Enabled</span>
-                  <span v-if="discoveryResult.api_available" class="badge info">API Available</span>
-                </div>
-              </div>
-              <div class="result-details">
-                <div v-if="discoveryResult.software" class="detail-row">
-                  <strong>Software:</strong> {{ discoveryResult.software }} {{ discoveryResult.version }}
-                </div>
-                <div v-if="discoveryResult.description" class="detail-row">
-                  <strong>Description:</strong> {{ discoveryResult.description }}
-                </div>
-                <div class="detail-row">
-                  <strong>Users:</strong> {{ formatNumber(discoveryResult.user_count) }}
-                </div>
-                <div class="detail-row">
-                  <strong>Posts:</strong> {{ formatNumber(discoveryResult.status_count) }}
-                </div>
-                <div v-if="discoveryResult.admin_contact" class="detail-row">
-                  <strong>Admin:</strong> {{ discoveryResult.admin_contact }}
-                </div>
-              </div>
-              <div class="result-actions">
-                <label class="checkbox-label">
-                  <input type="checkbox" v-model="addAsTrusted" />
-                  Add as trusted instance
-                </label>
-                <button @click="addInstanceFromDiscovery" class="primary-btn">
-                  <Icon name="plus" :size="16" />
-                  Add Instance
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+      <FederationManagement />
 
       <!-- User Management -->
       <div class="admin-module users-module">
@@ -2247,8 +1824,9 @@ import ColorPicker from '@/components/common/ColorPicker.vue'
 import DisplayName from '@/components/DisplayName.vue'
 import EmojiImporter from '@/components/admin/EmojiImporter.vue'
 import PerformanceMonitoring from '@/components/admin/PerformanceMonitoring.vue'
+import FederationManagement from '@/components/admin/FederationManagement.vue'
 import { supabase } from '@/supabase'
-import { adminService, type AdminUser, type AdminActivity, type FederatedInstance, type InstanceStats, type InstanceSearchResult, type FederationStats, type DeadEndpoint } from '@/services/AdminService'
+import { adminService, type AdminUser, type AdminActivity } from '@/services/AdminService'
 import { reportService, type ReportWithDetails } from '@/services/ReportService'
 import { fundingService, FUNDING_PLATFORMS, type FundingPlatformKey, type SupporterTier, type Supporter, type DonationRecord, type PendingDonation } from '@/services/FundingService'
 import { messageService } from '@/services/MessageService'
@@ -2404,55 +1982,14 @@ const editDonationCurrency = ref('USD')
 const editDonationPlatform = ref('')
 const editDonationNote = ref('')
 
-// Federation management data
-const instanceStats = ref<InstanceStats>({
-  total_instances: 0,
-  blocked_instances: 0,
-  trusted_instances: 0,
-  active_instances: 0,
-  recently_discovered: 0
-})
-
-const federationStats = ref<FederationStats | null>(null)
-const deadEndpointsList = ref<DeadEndpoint[]>([])
-const purgingEndpointIds = ref<Set<string>>(new Set())
-const federatedInstances = ref<FederatedInstance[]>([])
-const discoveredInstances = ref<{ domain: string; user_count: number; interaction_count: number }[]>([])
-const discoveryResult = ref<InstanceSearchResult | null>(null)
-// eslint-disable-next-line unused-imports/no-unused-vars
-const showAddInstanceModal = ref(false)
-const instanceFilter = ref<'all' | 'blocked' | 'trusted' | 'active'>('all')
-const instanceSearch = ref('')
-const discoveryTab = ref('discovered')
-const newInstanceDomain = ref('')
-const addAsTrusted = ref(false)
 
 // Loading states
 const loadingStates = ref({
-  federationStats: false,
-  instances: false,
-  discovering: false,
-  keyConsistency: false,
-  keySweep: false,
-  orphanCleanup: false,
   trendingRefresh: false,
   announcements: false,
   featuredServers: false,
-  purgingDead: false,
 })
 
-// Key consistency state
-const keyConsistency = ref<{
-  users_missing_keys: number;
-  users_with_inconsistent_keys: number;
-  inconsistent_users: Array<{
-    user_id: string;
-    username: string;
-    has_public_key: boolean;
-    has_private_key: boolean;
-  }>;
-  status: 'ok' | 'needs_attention';
-} | null>(null)
 
 // Announcements
 const announcements = ref<Announcement[]>([])
@@ -2526,12 +2063,6 @@ const userServers = ref<{
 }[]>([])
 const loadingServers = ref(false)
 
-// Pagination for instances
-const instancePagination = ref({
-  offset: 0,
-  limit: 20,
-  total: 0
-})
 
 // System stats
 const systemStats = ref({
@@ -2726,10 +2257,6 @@ const loadInitialData = async () => {
       loadRecentActivity(),
       loadAnnouncements(),
       loadFeaturedServers(),
-      loadInstanceStats(),
-      loadFederatedInstances(),
-      loadFederationStats(),
-      refreshKeyConsistency(),
       loadReports(),
       loadPendingReportsCount(),
       loadFundingData()
@@ -4300,323 +3827,6 @@ const getActivityIcon = (type: string) => {
   }
 }
 
-// Federation management methods
-const refreshFederationData = async () => {
-  loadingStates.value.federationStats = true
-  try {
-    await Promise.all([
-      loadInstanceStats(),
-      loadFederatedInstances(),
-      loadFederationStats()
-    ])
-  } catch (error) {
-    debug.error('Failed to refresh federation data:', error)
-  } finally {
-    loadingStates.value.federationStats = false
-  }
-}
-
-const loadFederationStats = async () => {
-  try {
-    const [stats, deadEndpoints] = await Promise.all([
-      adminService.getFederationStats(),
-      adminService.getDeadEndpoints()
-    ])
-    federationStats.value = stats
-    deadEndpointsList.value = deadEndpoints
-  } catch (error) {
-    debug.error('Failed to load federation stats:', error)
-  }
-}
-
-const getEndpointHealthClass = (health: FederationStats['endpoint_health']) => {
-  if (health.dead_endpoints > 0) return 'error'
-  if (health.success_rate < 80) return 'warning'
-  return 'healthy'
-}
-
-const purgeDeadEndpoints = async () => {
-  if (!confirm(`Permanently remove all ${federationStats.value?.endpoint_health.dead_endpoints} dead endpoint(s) and their failed deliveries? This cannot be undone.`)) return
-  loadingStates.value.purgingDead = true
-  try {
-    const result = await adminService.purgeDeadEndpoints()
-    debug.log(`Purged ${result.purgedEndpoints} dead endpoints and ${result.purgedDeliveries} failed deliveries`)
-    await loadFederationStats()
-  } catch (error) {
-    debug.error('Failed to purge dead endpoints:', error)
-  } finally {
-    loadingStates.value.purgingDead = false
-  }
-}
-
-const purgeSingleEndpoint = async (endpoint: DeadEndpoint) => {
-  purgingEndpointIds.value.add(endpoint.id)
-  try {
-    await adminService.purgeSingleEndpoint(endpoint.id, endpoint.endpoint_url)
-    deadEndpointsList.value = deadEndpointsList.value.filter(e => e.id !== endpoint.id)
-    if (federationStats.value) {
-      federationStats.value.endpoint_health.dead_endpoints--
-      federationStats.value.endpoint_health.total_endpoints--
-    }
-  } catch (error) {
-    debug.error('Failed to purge endpoint:', error)
-  } finally {
-    purgingEndpointIds.value.delete(endpoint.id)
-  }
-}
-
-const formatTimeAgo = (dateStr: string | null): string => {
-  if (!dateStr) return 'Never'
-  const date = new Date(dateStr)
-  const now = new Date()
-  const diffMs = now.getTime() - date.getTime()
-  const diffMin = Math.floor(diffMs / 60000)
-  if (diffMin < 1) return 'Just now'
-  if (diffMin < 60) return `${diffMin}m ago`
-  const diffHrs = Math.floor(diffMin / 60)
-  if (diffHrs < 24) return `${diffHrs}h ago`
-  const diffDays = Math.floor(diffHrs / 24)
-  if (diffDays < 30) return `${diffDays}d ago`
-  return date.toLocaleDateString()
-}
-
-// Federation maintenance methods
-const refreshKeyConsistency = async () => {
-  loadingStates.value.keyConsistency = true
-  try {
-    keyConsistency.value = await adminService.getKeyConsistencyReport()
-  } catch (error) {
-    debug.error('Failed to load key consistency:', error)
-  } finally {
-    loadingStates.value.keyConsistency = false
-  }
-}
-
-const runKeyGenerationSweep = async () => {
-  loadingStates.value.keySweep = true
-  try {
-    const result = await adminService.runKeyGenerationSweep()
-    if (result.success) {
-      debug.log('Key generation sweep queued:', result.message)
-      // Refresh consistency after a short delay to see results
-      setTimeout(() => refreshKeyConsistency(), 3000)
-    } else {
-      debug.error('Key generation sweep failed:', result.message)
-    }
-  } catch (error) {
-    debug.error('Failed to run key sweep:', error)
-  } finally {
-    loadingStates.value.keySweep = false
-  }
-}
-
-const runOrphanCleanup = async () => {
-  loadingStates.value.orphanCleanup = true
-  try {
-    const result = await adminService.runOrphanedKeyCleanup()
-    if (result.success) {
-      debug.log('Orphan cleanup queued:', result.message)
-      setTimeout(() => refreshKeyConsistency(), 3000)
-    } else {
-      debug.error('Orphan cleanup failed:', result.message)
-    }
-  } catch (error) {
-    debug.error('Failed to run orphan cleanup:', error)
-  } finally {
-    loadingStates.value.orphanCleanup = false
-  }
-}
-
-const loadInstanceStats = async () => {
-  try {
-    const stats = await adminService.getInstanceStats()
-    instanceStats.value = stats
-  } catch (error) {
-    debug.error('Failed to load instance stats:', error)
-  }
-}
-
-const loadFederatedInstances = async () => {
-  loadingStates.value.instances = true
-  try {
-    const instances = await adminService.getFederatedInstances({
-      filter: instanceFilter.value,
-      limit: instancePagination.value.limit,
-      offset: instancePagination.value.offset,
-      search: instanceSearch.value
-    })
-    federatedInstances.value = instances.instances
-    instancePagination.value.total = instances.total
-  } catch (error) {
-    debug.error('Failed to load federated instances:', error)
-  } finally {
-    loadingStates.value.instances = false
-  }
-}
-
-const debouncedSearchInstances = (() => {
-  let timeout: NodeJS.Timeout
-  return () => {
-    clearTimeout(timeout)
-    timeout = setTimeout(() => {
-      instancePagination.value.offset = 0
-      loadFederatedInstances()
-    }, 300)
-  }
-})()
-
-const loadPreviousInstances = () => {
-  if (instancePagination.value.offset >= instancePagination.value.limit) {
-    instancePagination.value.offset -= instancePagination.value.limit
-    loadFederatedInstances()
-  }
-}
-
-const loadNextInstances = () => {
-  if (instancePagination.value.offset + instancePagination.value.limit < instancePagination.value.total) {
-    instancePagination.value.offset += instancePagination.value.limit
-    loadFederatedInstances()
-  }
-}
-
-const isInstanceInactive = (instance: FederatedInstance) => {
-  if (!instance.last_seen_at) return true
-  const daysSinceLastSeen = (Date.now() - new Date(instance.last_seen_at).getTime()) / (1000 * 60 * 60 * 24)
-  return daysSinceLastSeen > 7
-}
-
-const formatRelativeTime = (dateString: string) => {
-  if (!dateString) return 'Never'
-  const date = new Date(dateString)
-  const now = new Date()
-  const diffMs = now.getTime() - date.getTime()
-  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
-  
-  if (diffDays === 0) return 'Today'
-  if (diffDays === 1) return 'Yesterday'
-  if (diffDays < 7) return `${diffDays} days ago`
-  if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`
-  return `${Math.floor(diffDays / 30)} months ago`
-}
-
-const refreshInstance = async (instanceId: string) => {
-  try {
-    await adminService.refreshInstanceInfo(instanceId)
-    await loadFederatedInstances()
-  } catch (error) {
-    debug.error('Failed to refresh instance:', error)
-    alert('Failed to refresh instance info')
-  }
-}
-
-const toggleInstanceTrust = async (instanceId: string, trusted: boolean) => {
-  try {
-    await adminService.updateInstanceTrust(instanceId, trusted, authStore.session?.user?.id || '')
-    await loadFederatedInstances()
-    await loadInstanceStats()
-  } catch (error) {
-    debug.error('Failed to update instance trust:', error)
-    alert('Failed to update instance trust')
-  }
-}
-
-const toggleInstanceBlock = async (instanceId: string, blocked: boolean) => {
-  try {
-    const reason = blocked ? prompt('Block reason:') || 'Admin decision' : 'Admin unblock'
-    await adminService.updateInstanceBlock(instanceId, blocked, reason, authStore.session?.user?.id || '')
-    await loadFederatedInstances()
-    await loadInstanceStats()
-  } catch (error) {
-    debug.error('Failed to update instance block status:', error)
-    alert('Failed to update instance block status')
-  }
-}
-
-const deleteInstance = async (instanceId: string) => {
-  if (!confirm('Are you sure you want to delete this instance? This will remove all federation data.')) {
-    return
-  }
-  
-  try {
-    await adminService.deleteInstance(instanceId, authStore.session?.user?.id || '')
-    await loadFederatedInstances()
-    await loadInstanceStats()
-  } catch (error) {
-    debug.error('Failed to delete instance:', error)
-    alert('Failed to delete instance')
-  }
-}
-
-const loadDiscoveredInstances = async () => {
-  try {
-    const discovered = await adminService.getDiscoveredInstances()
-    discoveredInstances.value = discovered
-  } catch (error) {
-    debug.error('Failed to load discovered instances:', error)
-  }
-}
-
-const addDiscoveredInstance = async (domain: string) => {
-  try {
-    await adminService.addInstanceFromDomain(domain, false, authStore.session?.user?.id || '')
-    await loadFederatedInstances()
-    await loadInstanceStats()
-    // Remove from discovered list
-    discoveredInstances.value = discoveredInstances.value.filter(i => i.domain !== domain)
-  } catch (error) {
-    debug.error('Failed to add discovered instance:', error)
-    alert('Failed to add instance')
-  }
-}
-
-const discoverInstance = async () => {
-  if (!newInstanceDomain.value) return
-  
-  loadingStates.value.discovering = true
-  try {
-    const result = await adminService.discoverInstance(newInstanceDomain.value)
-    discoveryResult.value = result
-  } catch (error) {
-    debug.error('Failed to discover instance:', error)
-    alert('Failed to discover instance. Check if the domain is valid and supports ActivityPub.')
-  } finally {
-    loadingStates.value.discovering = false
-  }
-}
-
-const addInstanceFromDiscovery = async () => {
-  if (!discoveryResult.value) return
-  
-  try {
-    await adminService.addInstanceFromDomain(
-      discoveryResult.value.domain, 
-      addAsTrusted.value,
-      authStore.session?.user?.id || ''
-    )
-    await loadFederatedInstances()
-    await loadInstanceStats()
-    
-    // Reset form
-    newInstanceDomain.value = ''
-    discoveryResult.value = null
-    addAsTrusted.value = false
-    
-    alert('Instance added successfully!')
-  } catch (error) {
-    debug.error('Failed to add instance:', error)
-    alert('Failed to add instance')
-  }
-}
-
-// Handle Add Instance button click
-const handleAddInstance = () => {
-  // Switch to search tab and focus on input
-  discoveryTab.value = 'search'
-  // Reset form state
-  newInstanceDomain.value = ''
-  discoveryResult.value = null
-  addAsTrusted.value = false
-}
 </script>
 
 <style scoped>
@@ -4629,6 +3839,8 @@ const handleAddInstance = () => {
   overflow-y: auto;
 }
 
+
+
 .admin-header {
   display: flex;
   justify-content: space-between;
@@ -4638,11 +3850,15 @@ const handleAddInstance = () => {
   border-bottom: 1px solid var(--border-color);
 }
 
+
+
 .admin-title {
   display: flex;
   align-items: center;
   gap: 12px;
 }
+
+
 
 .admin-title h1 {
   font-size: 28px;
@@ -4653,6 +3869,8 @@ const handleAddInstance = () => {
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
+
+
 
 .system-status {
   display: flex;
@@ -4666,11 +3884,15 @@ const handleAddInstance = () => {
   letter-spacing: 0.5px;
 }
 
+
+
 .system-status.healthy {
   background: rgba(0, 255, 136, 0.1);
   color: #00ff88;
   border: 1px solid rgba(0, 255, 136, 0.3);
 }
+
+
 
 .system-status.warning {
   background: rgba(255, 193, 7, 0.1);
@@ -4678,11 +3900,15 @@ const handleAddInstance = () => {
   border: 1px solid rgba(255, 193, 7, 0.3);
 }
 
+
+
 .system-status.error {
   background: rgba(255, 69, 58, 0.1);
   color: #ff453a;
   border: 1px solid rgba(255, 69, 58, 0.3);
 }
+
+
 
 .status-indicator {
   width: 8px;
@@ -4692,15 +3918,21 @@ const handleAddInstance = () => {
   animation: pulse 2s infinite;
 }
 
+
+
 @keyframes pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.5; }
 }
 
+
+
 .admin-actions {
   display: flex;
   gap: 12px;
 }
+
+
 
 .action-btn {
   display: flex;
@@ -4717,11 +3949,15 @@ const handleAddInstance = () => {
   transition: all 0.2s ease;
 }
 
+
+
 .action-btn:hover {
   background: var(--background-tertiary);
   border-color: var(--accent-color);
   transform: translateY(-1px);
 }
+
+
 
 .action-btn:disabled {
   opacity: 0.5;
@@ -4729,12 +3965,16 @@ const handleAddInstance = () => {
   transform: none;
 }
 
+
+
 .admin-grid {
   display: grid;
   /* min(600px, 100%) lets tracks collapse below 600px instead of overflowing */
   grid-template-columns: repeat(auto-fit, minmax(min(600px, 100%), 1fr));
   gap: 24px;
 }
+
+
 
 .admin-module {
   background: var(--background-secondary);
@@ -4745,11 +3985,15 @@ const handleAddInstance = () => {
   transition: all 0.3s ease;
 }
 
+
+
 .admin-module:hover {
   border-color: var(--accent-color);
   box-shadow: 0 8px 32px rgba(0, 212, 255, 0.1);
   transform: translateY(-2px);
 }
+
+
 
 .module-header {
   display: flex;
@@ -4760,6 +4004,8 @@ const handleAddInstance = () => {
   border-bottom: 1px solid var(--border-color);
 }
 
+
+
 .module-header h2 {
   font-size: 18px;
   font-weight: 600;
@@ -4767,12 +4013,16 @@ const handleAddInstance = () => {
   flex: 1;
 }
 
+
+
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 16px;
   padding: 24px;
 }
+
+
 
 .stat-card {
   display: flex;
@@ -4785,10 +4035,14 @@ const handleAddInstance = () => {
   transition: all 0.2s ease;
 }
 
+
+
 .stat-card:hover {
   border-color: var(--accent-color);
   box-shadow: 0 4px 16px rgba(0, 212, 255, 0.1);
 }
+
+
 
 .stat-icon {
   padding: 12px;
@@ -4797,9 +4051,13 @@ const handleAddInstance = () => {
   color: #00d4ff;
 }
 
+
+
 .stat-content {
   flex: 1;
 }
+
+
 
 .stat-value {
   font-size: 24px;
@@ -4808,40 +4066,41 @@ const handleAddInstance = () => {
   margin-bottom: 4px;
 }
 
+
+
 .stat-label {
   font-size: 14px;
   color: var(--text-secondary);
   margin-bottom: 4px;
 }
 
+
+
 .stat-change {
   font-size: 12px;
   font-weight: 500;
 }
 
+
+
 .stat-change.positive {
   color: #00ff88;
 }
+
+
 
 /* Federation Module */
 .federation-content {
   padding: 24px;
 }
 
-.federation-section {
-  margin-bottom: 32px;
-}
 
-.federation-section h3 {
-  font-size: 16px;
-  font-weight: 600;
-  margin-bottom: 16px;
-  color: var(--text-primary);
-}
 
 .setting-group {
   margin-bottom: 16px;
 }
+
+
 
 .setting-group label {
   display: block;
@@ -4851,6 +4110,8 @@ const handleAddInstance = () => {
   margin-bottom: 8px;
 }
 
+
+
 .setting-control-row {
   display: flex;
   align-items: center;
@@ -4858,9 +4119,13 @@ const handleAddInstance = () => {
   flex-wrap: wrap;
 }
 
+
+
 .setting-control-row .setting-hint {
   margin-bottom: 0;
 }
+
+
 
 .refresh-trending-btn {
   display: inline-flex;
@@ -4868,11 +4133,15 @@ const handleAddInstance = () => {
   gap: 8px;
 }
 
+
+
 .refresh-trending-btn:disabled {
   opacity: 0.7;
   cursor: not-allowed;
   transform: none;
 }
+
+
 
 .cyber-input, .cyber-textarea, .cyber-select {
   width: 100%;
@@ -4885,22 +4154,30 @@ const handleAddInstance = () => {
   transition: all 0.2s ease;
 }
 
+
+
 .cyber-input:focus, .cyber-textarea:focus, .cyber-select:focus {
   outline: none;
   border-color: var(--accent-color);
   box-shadow: 0 0 0 3px rgba(0, 212, 255, 0.1);
 }
 
+
+
 .cyber-textarea {
   resize: vertical;
   min-height: 80px;
 }
+
+
 
 .setting-row {
   display: flex;
   gap: 24px;
   align-items: center;
 }
+
+
 
 .toggle-label {
   display: flex;
@@ -4912,6 +4189,8 @@ const handleAddInstance = () => {
   cursor: pointer;
 }
 
+
+
 /* Override parent label styles so toggles stay horizontal and text doesn't truncate */
 .setting-group .toggle-label,
 .announcement-form .form-row.checks .toggle-label {
@@ -4919,18 +4198,26 @@ const handleAddInstance = () => {
   margin-bottom: 0;
 }
 
+
+
 .toggle-label .toggle-slider {
   flex-shrink: 0;
 }
+
+
 
 .toggle-label .toggle-text {
   flex-shrink: 0;
   white-space: nowrap;
 }
 
+
+
 .toggle-label input[type="checkbox"] {
   display: none;
 }
+
+
 
 .toggle-slider {
   position: relative;
@@ -4941,6 +4228,8 @@ const handleAddInstance = () => {
   border-radius: 24px;
   transition: all 0.2s ease;
 }
+
+
 
 .toggle-slider:before {
   content: '';
@@ -4954,15 +4243,21 @@ const handleAddInstance = () => {
   transition: all 0.2s ease;
 }
 
+
+
 .toggle-label input[type="checkbox"]:checked + .toggle-slider {
   background: var(--accent-color);
   border-color: var(--accent-color);
 }
 
+
+
 .toggle-label input[type="checkbox"]:checked + .toggle-slider:before {
   left: 22px;
   background: white;
 }
+
+
 
 /* Klipy media-picker settings: one self-documented row per toggle. */
 .klipy-settings {
@@ -4975,6 +4270,8 @@ const handleAddInstance = () => {
   background: var(--background-secondary-alpha, rgba(0, 0, 0, 0.12));
 }
 
+
+
 .klipy-group-label {
   font-size: 12px;
   font-weight: 700;
@@ -4986,11 +4283,15 @@ const handleAddInstance = () => {
   border-top: 1px solid var(--border-secondary);
 }
 
+
+
 .klipy-settings > .klipy-group-label:first-child {
   margin-top: 4px;
   padding-top: 0;
   border-top: none;
 }
+
+
 
 .klipy-group-hint {
   font-size: 12.5px;
@@ -4998,6 +4299,8 @@ const handleAddInstance = () => {
   color: var(--text-secondary);
   margin: 0 0 4px;
 }
+
+
 
 .klipy-setting {
   display: flex;
@@ -5008,9 +4311,13 @@ const handleAddInstance = () => {
   border-bottom: 1px solid var(--border-secondary);
 }
 
+
+
 .klipy-setting:last-child {
   border-bottom: none;
 }
+
+
 
 .klipy-setting-text {
   display: flex;
@@ -5018,6 +4325,8 @@ const handleAddInstance = () => {
   gap: 3px;
   min-width: 0;
 }
+
+
 
 .klipy-setting-title {
   font-size: 14px;
@@ -5029,6 +4338,8 @@ const handleAddInstance = () => {
   flex-wrap: wrap;
 }
 
+
+
 .klipy-setting-title code {
   font-size: 11.5px;
   font-weight: 500;
@@ -5038,21 +4349,29 @@ const handleAddInstance = () => {
   color: var(--text-secondary);
 }
 
+
+
 .klipy-setting-desc {
   font-size: 12.5px;
   line-height: 1.5;
   color: var(--text-secondary);
 }
 
+
+
 .klipy-toggle {
   flex-shrink: 0;
   margin-top: 2px;
 }
 
+
+
 /* Blocked Instances */
 .blocked-instances {
   space-y: 16px;
 }
+
+
 
 .blocked-instance {
   display: flex;
@@ -5065,10 +4384,14 @@ const handleAddInstance = () => {
   margin-bottom: 12px;
 }
 
+
+
 .instance-info .domain {
   font-weight: 600;
   color: var(--text-primary);
 }
+
+
 
 .instance-info .reason {
   display: block;
@@ -5076,6 +4399,8 @@ const handleAddInstance = () => {
   color: var(--text-secondary);
   margin-top: 4px;
 }
+
+
 
 .unblock-btn {
   padding: 8px 12px;
@@ -5087,12 +4412,16 @@ const handleAddInstance = () => {
   transition: all 0.2s ease;
 }
 
+
+
 /* Federation Management Styles */
 .module-actions {
   display: flex;
   gap: 8px;
   margin-left: auto;
 }
+
+
 
 .primary-btn, .primary-btn-sm {
   display: flex;
@@ -5108,105 +4437,21 @@ const handleAddInstance = () => {
   transition: all 0.2s ease;
 }
 
+
+
 .primary-btn-sm {
   padding: 6px 12px;
   font-size: 12px;
 }
+
+
 
 .primary-btn:hover, .primary-btn-sm:hover {
   background: #0099cc;
   transform: translateY(-1px);
 }
 
-.federation-module {
-  grid-column: 1 / -1; /* Span full width */
-}
 
-.federation-section {
-  padding: 24px;
-  border-bottom: 1px solid var(--border-color);
-}
-
-.federation-section:last-child {
-  border-bottom: none;
-}
-
-.section-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
-}
-
-.section-header h3 {
-  margin: 0;
-}
-
-.health-indicator {
-  padding: 4px 12px;
-  border-radius: 12px;
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.health-indicator.healthy {
-  background: rgba(0, 255, 136, 0.2);
-  color: #00ff88;
-}
-
-.health-indicator.warning {
-  background: rgba(255, 193, 7, 0.2);
-  color: #ffc107;
-}
-
-.health-indicator.error {
-  background: rgba(255, 69, 58, 0.2);
-  color: #ff453a;
-}
-
-.endpoint-details {
-  margin-top: 16px;
-}
-
-.warning-banner {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 12px 16px;
-  background: rgba(255, 193, 7, 0.1);
-  border: 1px solid rgba(255, 193, 7, 0.3);
-  border-radius: 8px;
-  color: #ffc107;
-  font-size: 14px;
-  flex-wrap: wrap;
-}
-
-.purge-btn {
-  margin-left: auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 5px 12px;
-  border-radius: 6px;
-  font-size: 0.8125rem;
-  font-weight: 600;
-  cursor: pointer;
-  border: 1px solid rgba(255, 69, 58, 0.4);
-  background: rgba(255, 69, 58, 0.15);
-  color: #ff453a;
-  transition: all 0.2s ease;
-  white-space: nowrap;
-}
-
-.purge-btn:hover:not(:disabled) {
-  background: rgba(255, 69, 58, 0.3);
-  border-color: rgba(255, 69, 58, 0.6);
-}
-
-.purge-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
 
 .spinner-small {
   width: 14px;
@@ -5218,128 +4463,21 @@ const handleAddInstance = () => {
   animation: spin 0.8s linear infinite;
 }
 
-.dead-endpoints-list {
-  margin-top: 10px;
-  max-height: 280px;
-  overflow-y: auto;
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  background: var(--background-secondary);
-  scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
-}
 
-.dead-endpoint-row {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 10px 14px;
-  border-bottom: 1px solid var(--border-color);
-  transition: background 0.15s ease;
-}
-
-.dead-endpoint-row:last-child {
-  border-bottom: none;
-}
-
-.dead-endpoint-row:hover {
-  background: var(--background-modifier-hover);
-}
-
-.dead-endpoint-info {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.dead-endpoint-url {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 0.8rem;
-  color: var(--text-primary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.dead-endpoint-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  align-items: center;
-}
-
-.meta-tag {
-  font-size: 0.7rem;
-  padding: 1px 6px;
-  border-radius: 4px;
-  background: rgba(255, 255, 255, 0.06);
-  color: var(--text-secondary);
-  white-space: nowrap;
-}
 
 .meta-tag.domain {
   color: var(--harmony-primary, #7c8aff);
   background: rgba(124, 138, 255, 0.12);
 }
 
+
+
 .meta-tag.failures {
   color: #ff453a;
   background: rgba(255, 69, 58, 0.12);
 }
 
-.dead-endpoint-error {
-  font-size: 0.75rem;
-  color: var(--text-muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 100%;
-}
 
-.purge-single-btn {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 30px;
-  height: 30px;
-  border-radius: 6px;
-  border: 1px solid transparent;
-  background: transparent;
-  color: var(--text-muted);
-  cursor: pointer;
-  transition: all 0.2s ease;
-  margin-top: 2px;
-}
-
-.purge-single-btn:hover:not(:disabled) {
-  background: rgba(255, 69, 58, 0.15);
-  border-color: rgba(255, 69, 58, 0.3);
-  color: #ff453a;
-}
-
-.purge-single-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-/* Federation Maintenance Styles */
-.section-header-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
-}
-
-.section-header-row h3 {
-  margin: 0;
-}
-
-.maintenance-status {
-  margin-bottom: 20px;
-}
 
 .status-indicator {
   display: flex;
@@ -5351,11 +4489,15 @@ const handleAddInstance = () => {
   width:100%;
 }
 
+
+
 .status-indicator.ok {
   background: rgba(0, 255, 136, 0.1);
   border: 1px solid rgba(0, 255, 136, 0.3);
   color: #00ff88;
 }
+
+
 
 .status-indicator.needs_attention {
   background: rgba(255, 193, 7, 0.1);
@@ -5363,72 +4505,33 @@ const handleAddInstance = () => {
   color: #ffc107;
 }
 
-.maintenance-actions {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 16px;
-  margin-bottom: 16px;
-}
 
-.maintenance-card {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px;
-  background: var(--surface-primary);
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-}
-
-.maintenance-info h4 {
-  margin: 0 0 4px 0;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.maintenance-info p {
-  margin: 0;
-  font-size: 12px;
-  color: var(--text-muted);
-}
 
 .maintenance-card .action-btn.primary {
   background: var(--accent-primary);
   border-color: var(--accent-primary);
 }
 
-.scheduled-info {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  background: rgba(255, 255, 255, 0.03);
-  border-radius: 6px;
-  font-size: 12px;
-  color: var(--text-muted);
-}
+
 
 .spin {
   animation: spin 1s linear infinite;
 }
+
+
 
 @keyframes spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
 }
 
+
+
 .error-text {
   color: #ff453a;
 }
 
-.federation-stats {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 16px;
-  padding: 24px;
-  border-bottom: 1px solid var(--border-color);
-}
+
 
 .section-controls {
   display: flex;
@@ -5437,11 +4540,15 @@ const handleAddInstance = () => {
   margin-bottom: 20px;
 }
 
+
+
 .filter-controls {
   display: flex;
   gap: 12px;
   align-items: center;
 }
+
+
 
 .loading-state {
   display: flex;
@@ -5452,58 +4559,7 @@ const handleAddInstance = () => {
   color: var(--text-secondary);
 }
 
-.instance-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
 
-.instance-item {
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  transition: all 0.2s ease;
-}
-
-.instance-item:hover {
-  border-color: var(--accent-color);
-}
-
-.instance-item.blocked {
-  border-color: rgba(255, 69, 58, 0.5);
-  background: rgba(255, 69, 58, 0.05);
-}
-
-.instance-item.trusted {
-  border-color: rgba(0, 255, 136, 0.5);
-  background: rgba(0, 255, 136, 0.05);
-}
-
-.instance-item.inactive {
-  opacity: 0.6;
-}
-
-.instance-main {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  padding: 16px;
-}
-
-.instance-info {
-  flex: 1;
-}
-
-.instance-domain {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 8px;
-}
-
-.instance-badges {
-  display: flex;
-  gap: 6px;
-}
 
 .badge {
   padding: 2px 8px;
@@ -5513,55 +4569,48 @@ const handleAddInstance = () => {
   text-transform: uppercase;
 }
 
+
+
 .badge.trusted {
   background: rgba(0, 255, 136, 0.2);
   color: #00ff88;
 }
+
+
 
 .badge.blocked {
   background: rgba(255, 69, 58, 0.2);
   color: #ff453a;
 }
 
+
+
 .badge.inactive {
   background: rgba(156, 163, 175, 0.2);
   color: #9ca3af;
 }
+
+
 
 .badge.success {
   background: rgba(0, 255, 136, 0.2);
   color: #00ff88;
 }
 
+
+
 .badge.info {
   background: rgba(0, 212, 255, 0.2);
   color: #00d4ff;
 }
 
-.instance-details {
-  display: flex;
-  gap: 16px;
-  margin-bottom: 8px;
-  font-size: 12px;
-  color: var(--text-secondary);
-}
+
 
 .detail-item {
   white-space: nowrap;
 }
 
-.instance-description {
-  font-size: 13px;
-  color: var(--text-secondary);
-  line-height: 1.4;
-  max-width: 400px;
-}
 
-.instance-actions {
-  display: flex;
-  gap: 6px;
-  flex-shrink: 0;
-}
 
 .action-btn-sm, .danger-btn-sm {
   padding: 6px 8px;
@@ -5573,20 +4622,28 @@ const handleAddInstance = () => {
   transition: all 0.2s ease;
 }
 
+
+
 .action-btn-sm:hover {
   border-color: var(--accent-color);
   color: var(--accent-color);
 }
+
+
 
 .action-btn-sm.trusted {
   border-color: rgba(0, 255, 136, 0.5);
   color: #00ff88;
 }
 
+
+
 .danger-btn-sm:hover {
   border-color: rgba(255, 69, 58, 0.5);
   color: #ff453a;
 }
+
+
 
 .pagination {
   display: flex;
@@ -5596,6 +4653,8 @@ const handleAddInstance = () => {
   padding: 20px;
   border-top: 1px solid var(--border-color);
 }
+
+
 
 .pagination-btn {
   padding: 8px 16px;
@@ -5607,29 +4666,28 @@ const handleAddInstance = () => {
   transition: all 0.2s ease;
 }
 
+
+
 .pagination-btn:hover:not(:disabled) {
   border-color: var(--accent-color);
   color: var(--accent-color);
 }
+
+
 
 .pagination-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
 
+
+
 .pagination-info {
   color: var(--text-secondary);
   font-size: 14px;
 }
 
-.discovery-tabs {
-  display: flex;
-  gap: 2px;
-  margin-bottom: 20px;
-  background: var(--background-tertiary);
-  border-radius: 8px;
-  padding: 4px;
-}
+
 
 .tab-btn {
   flex: 1;
@@ -5643,14 +4701,14 @@ const handleAddInstance = () => {
   transition: all 0.2s ease;
 }
 
+
+
 .tab-btn.active {
   background: var(--accent-color);
   color: var(--text-primary);
 }
 
-.discovery-content {
-  min-height: 200px;
-}
+
 
 .empty-state {
   display: flex;
@@ -5663,72 +4721,7 @@ const handleAddInstance = () => {
   color: var(--text-secondary);
 }
 
-.discovered-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
 
-.discovered-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px 16px;
-  background: var(--background-tertiary);
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-}
-
-.discovered-info {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.interaction-count {
-  font-size: 12px;
-  color: var(--text-secondary);
-}
-
-.search-form {
-  display: flex;
-  gap: 12px;
-  margin-bottom: 20px;
-}
-
-.search-form input {
-  flex: 1;
-}
-
-.discovery-result {
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  overflow: hidden;
-}
-
-.result-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px;
-  background: var(--background-tertiary);
-  border-bottom: 1px solid var(--border-color);
-}
-
-.result-header h4 {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 600;
-}
-
-.result-badges {
-  display: flex;
-  gap: 8px;
-}
-
-.result-details {
-  padding: 16px;
-}
 
 .detail-row {
   display: flex;
@@ -5737,19 +4730,14 @@ const handleAddInstance = () => {
   font-size: 14px;
 }
 
+
+
 .detail-row strong {
   min-width: 80px;
   color: var(--text-secondary);
 }
 
-.result-actions {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px;
-  background: var(--background-tertiary);
-  border-top: 1px solid var(--border-color);
-}
+
 
 .checkbox-label {
   display: flex;
@@ -5760,20 +4748,28 @@ const handleAddInstance = () => {
   cursor: pointer;
 }
 
+
+
 .spinning {
   animation: spin 1s linear infinite;
 }
+
+
 
 /* Users Module */
 .users-content {
   padding: 24px;
 }
 
+
+
 .user-filters {
   display: flex;
   gap: 8px;
   margin-bottom: 24px;
 }
+
+
 
 .filter-btn {
   padding: 8px 16px;
@@ -5787,11 +4783,15 @@ const handleAddInstance = () => {
   transition: all 0.2s ease;
 }
 
+
+
 .filter-btn:hover, .filter-btn.active {
   background: var(--accent-color);
   border-color: var(--accent-color);
   color: var(--text-primary);
 }
+
+
 
 .search-bar {
   display: flex;
@@ -5800,16 +4800,22 @@ const handleAddInstance = () => {
   position: relative;
 }
 
+
+
 .search-bar .cyber-input {
   padding-left: 36px;
   max-width: 200px;
 }
+
+
 
 .search-bar .icon {
   position: absolute;
   left: 12px;
   color: var(--text-secondary);
 }
+
+
 
 .users-list {
   display: flex;
@@ -5818,6 +4824,8 @@ const handleAddInstance = () => {
   max-height: 600px;
   overflow-y: auto;
 }
+
+
 
 .user-item {
   display: flex;
@@ -5831,19 +4839,27 @@ const handleAddInstance = () => {
   margin: 8px 0;
 }
 
+
+
 .user-item:hover {
   border-color: var(--accent-color);
 }
 
+
+
 .user-info {
   flex: 1;
 }
+
+
 
 .user-name {
   font-weight: 600;
   color: var(--text-primary);
   margin-bottom: 4px;
 }
+
+
 
 .user-meta {
   font-size: 12px;
@@ -5853,12 +4869,16 @@ const handleAddInstance = () => {
   align-items: center;
 }
 
+
+
 .user-stats {
   display: flex;
   gap: 16px;
   font-size: 12px;
   color: var(--text-secondary);
 }
+
+
 
 .user-stat {
   background: none;
@@ -5871,16 +4891,22 @@ const handleAddInstance = () => {
   transition: all 0.2s ease;
 }
 
+
+
 .user-stat.clickable:hover {
   background: rgba(0, 212, 255, 0.1);
   color: #00d4ff;
   transform: translateY(-1px);
 }
 
+
+
 .user-actions {
   display: flex;
   gap: 8px;
 }
+
+
 
 .mod-btn {
   padding: 6px 8px;
@@ -5892,30 +4918,42 @@ const handleAddInstance = () => {
   transition: all 0.2s ease;
 }
 
+
+
 .mod-btn:hover {
   border-color: var(--accent-color);
   color: var(--text-primary);
 }
+
+
 
 .suspend-btn:hover {
   border-color: #ffc107;
   color: #ffc107;
 }
 
+
+
 .delete-btn:hover {
   border-color: #ff453a;
   color: #ff453a;
 }
+
+
 
 .unsuspend-btn {
   border-color: rgba(0, 255, 136, 0.3);
   color: #00ff88;
 }
 
+
+
 .unsuspend-btn:hover {
   border-color: #00ff88;
   background: rgba(0, 255, 136, 0.1);
 }
+
+
 
 /* Suspended user styling */
 .user-item.user-suspended {
@@ -5924,11 +4962,15 @@ const handleAddInstance = () => {
   border-color: rgba(255, 193, 7, 0.3);
 }
 
+
+
 .user-name {
   display: flex;
   align-items: center;
   gap: 8px;
 }
+
+
 
 .user-name .badge {
   font-size: 10px;
@@ -5938,30 +4980,42 @@ const handleAddInstance = () => {
   text-transform: uppercase;
 }
 
+
+
 .badge.suspended {
   background: rgba(255, 193, 7, 0.2);
   color: #ffc107;
 }
+
+
 
 .badge.admin {
   background: rgba(0, 212, 255, 0.2);
   color: #00d4ff;
 }
 
+
+
 .badge.moderator {
   background: rgba(46, 204, 113, 0.2);
   color: #2ecc71;
 }
+
+
 
 .promote-btn {
   color: #2ecc71 !important;
   &:hover { background: rgba(46, 204, 113, 0.2) !important; }
 }
 
+
+
 .demote-btn {
   color: #e67e22 !important;
   &:hover { background: rgba(230, 126, 34, 0.2) !important; }
 }
+
+
 
 .suspension-reason {
   font-style: italic;
@@ -5972,6 +5026,8 @@ const handleAddInstance = () => {
   white-space: nowrap;
 }
 
+
+
 /* Health Module */
 .health-metrics {
   display: grid;
@@ -5980,6 +5036,8 @@ const handleAddInstance = () => {
   padding: 24px;
 }
 
+
+
 .metric-card {
   padding: 20px;
   background: var(--background-tertiary);
@@ -5987,9 +5045,13 @@ const handleAddInstance = () => {
   border-radius: 8px;
 }
 
+
+
 .metric-card.placeholder-metric {
   opacity: 0.5;
 }
+
+
 
 .metric-header {
   display: flex;
@@ -6001,23 +5063,33 @@ const handleAddInstance = () => {
   color: var(--text-secondary);
 }
 
+
+
 .metric-status {
   width: 12px;
   height: 12px;
   border-radius: 50%;
 }
 
+
+
 .metric-status.healthy {
   background: #00ff88;
 }
+
+
 
 .metric-status.warning {
   background: #ffc107;
 }
 
+
+
 .metric-status.error {
   background: #ff453a;
 }
+
+
 
 .metric-value {
   font-size: 24px;
@@ -6026,10 +5098,14 @@ const handleAddInstance = () => {
   margin-bottom: 4px;
 }
 
+
+
 .metric-detail {
   font-size: 12px;
   color: var(--text-secondary);
 }
+
+
 
 /* Activity Module */
 .activity-feed {
@@ -6038,6 +5114,8 @@ const handleAddInstance = () => {
   overflow-y: auto;
 }
 
+
+
 .activity-item {
   display: flex;
   gap: 16px;
@@ -6045,9 +5123,13 @@ const handleAddInstance = () => {
   border-bottom: 1px solid var(--border-color);
 }
 
+
+
 .activity-item:last-child {
   border-bottom: none;
 }
+
+
 
 .activity-icon {
   display: flex;
@@ -6059,25 +5141,35 @@ const handleAddInstance = () => {
   font-size: 14px;
 }
 
+
+
 .activity-icon.federation {
   background: rgba(0, 212, 255, 0.1);
   color: #00d4ff;
 }
+
+
 
 .activity-icon.security {
   background: rgba(255, 193, 7, 0.1);
   color: #ffc107;
 }
 
+
+
 .activity-icon.moderation {
   background: rgba(255, 69, 58, 0.1);
   color: #ff453a;
 }
 
+
+
 .activity-icon.other {
   background: rgba(128, 128, 128, 0.1);
   color: var(--text-secondary);
 }
+
+
 
 /* Announcements module */
 .module-hint {
@@ -6088,6 +5180,8 @@ const handleAddInstance = () => {
   text-align: center;
   line-height: 1.5;
 }
+
+
 .announcement-form {
   margin: 0 24px 20px;
   padding: 20px;
@@ -6095,10 +5189,20 @@ const handleAddInstance = () => {
   border-radius: 8px;
   border: 1px solid var(--border-color);
 }
+
+
 .announcement-form h4 { margin: 0 0 16px 0; }
+
+
 .announcement-form .form-row { margin-bottom: 12px; }
+
+
 .announcement-form .form-row label { display: block; font-size: 13px; margin-bottom: 4px; color: var(--text-secondary); }
+
+
 .announcement-form .form-row.checks { display: flex; gap: 16px; flex-wrap: wrap; }
+
+
 .announcement-form .form-row.two-col {
   /* Two-up layout for the scheduling inputs so the form doesn't get
      unnecessarily tall. Collapses to a stack on narrow viewports. */
@@ -6106,19 +5210,33 @@ const handleAddInstance = () => {
   grid-template-columns: 1fr 1fr;
   gap: 16px;
 }
+
 @media (max-width: 640px) {
+
   .announcement-form .form-row.two-col { grid-template-columns: 1fr; }
 }
+
+
 .announcement-form .form-row.two-col > div { display: flex; flex-direction: column; }
+
+
 .announcement-form .form-row.two-col label { margin-bottom: 4px; }
+
+
 .announcement-form .form-hint {
   margin: 4px 0 0 0;
   font-size: 11px;
   color: var(--text-muted, #949ba4);
   line-height: 1.35;
 }
+
+
 .announcement-form .form-actions { display: flex; gap: 8px; margin-top: 16px; }
+
+
 .announcements-list { padding: 0 24px 24px; }
+
+
 .announcement-item {
   display: flex;
   justify-content: space-between;
@@ -6129,15 +5247,31 @@ const handleAddInstance = () => {
   margin-bottom: 8px;
   border: 1px solid var(--border-color);
 }
+
+
 .announcement-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+
 .announcement-icon { font-size: 18px; }
+
+
 .announcement-title { font-weight: 600; color: var(--text-primary); }
+
+
 .announcement-item .badge.inactive { background: var(--background-quaternary); color: var(--text-muted); }
+
+
 .announcement-actions { display: flex; gap: 4px; }
+
+
 
 /* Featured Communities Module */
 .featured-module .module-hint { margin: 0 24px 16px; font-size: 13px; color: var(--text-secondary); }
+
+
 .featured-servers-list { display: flex; flex-direction: column; gap: 8px; padding: 0 24px 24px; }
+
+
 .featured-server-item {
   display: flex;
   align-items: center;
@@ -6148,23 +5282,33 @@ const handleAddInstance = () => {
   border: 1px solid var(--border-color);
   transition: all 0.2s ease;
 }
+
+
 .featured-server-item:hover { border-color: var(--accent-color); }
+
+
 .featured-server-item.featured {
   border-color: rgba(255, 193, 7, 0.5);
   background: rgba(255, 193, 7, 0.05);
 }
+
+
 .server-icon-wrap {
   position: relative;
   flex-shrink: 0;
   width: 40px;
   height: 40px;
 }
+
+
 .server-icon {
   width: 100%;
   height: 100%;
   border-radius: 8px;
   object-fit: cover;
 }
+
+
 .featured-badge {
   position: absolute;
   bottom: -4px;
@@ -6174,23 +5318,43 @@ const handleAddInstance = () => {
   border-radius: 50%;
   padding: 2px;
 }
+
+
 .server-details { flex: 1; min-width: 0; }
+
+
 .server-details .server-name { font-weight: 600; color: var(--text-primary); }
+
+
 .server-details .server-meta { font-size: 13px; color: var(--text-secondary); }
+
+
 .featured-order { margin-left: 8px; opacity: 0.8; }
+
+
 .featured-server-item .action-btn-sm.pin-btn { color: var(--accent-color); }
+
+
 .featured-server-item .action-btn-sm.unpin-btn { color: var(--text-secondary); }
+
+
 .featured-server-item .action-btn-sm { display: flex; align-items: center; gap: 6px; }
+
+
 
 .activity-content {
   flex: 1;
 }
+
+
 
 .activity-message {
   font-size: 14px;
   color: var(--text-primary);
   margin-bottom: 4px;
 }
+
+
 
 .activity-meta {
   display: flex;
@@ -6199,27 +5363,37 @@ const handleAddInstance = () => {
   color: var(--text-secondary);
 }
 
+
+
 /* Emoji Importer Module */
 .emoji-module {
   grid-column: span 2; /* Full width like other major modules */
   max-height: 1130px;
 }
 
+
+
 .emoji-content {
   padding: 0;
   overflow-y: auto;
 }
+
+
 
 /* Performance Monitoring Module */
 .performance-module {
   grid-column: 1 / -1; /* Full width */
 }
 
+
+
 .performance-content {
   padding: 0;
   max-height: 800px;
   overflow-y: auto;
 }
+
+
 
 /* Configuration Module */
 .config-tabs {
@@ -6229,6 +5403,8 @@ const handleAddInstance = () => {
   border-bottom: 1px solid var(--border-color);
   overflow-x: auto;
 }
+
+
 
 .config-tab-btn {
   display: flex;
@@ -6246,24 +5422,34 @@ const handleAddInstance = () => {
   white-space: nowrap;
 }
 
+
+
 .config-tab-btn:hover {
   color: var(--text-primary);
   background: var(--background-tertiary);
   border-radius: 6px 6px 0 0;
 }
 
+
+
 .config-tab-btn.active {
   color: var(--accent-color);
   border-bottom-color: var(--accent-color);
 }
 
+
+
 .config-sections {
   padding: 24px;
 }
 
+
+
 .config-section {
   margin-bottom: 0;
 }
+
+
 
 .config-section h3 {
   font-size: 16px;
@@ -6272,11 +5458,15 @@ const handleAddInstance = () => {
   color: var(--text-primary);
 }
 
+
+
 .config-subsection {
   margin-top: 24px;
   padding-top: 20px;
   border-top: 1px solid var(--border-color);
 }
+
+
 
 .config-subsection h4 {
   font-size: 14px;
@@ -6287,6 +5477,8 @@ const handleAddInstance = () => {
   letter-spacing: 0.5px;
 }
 
+
+
 /* Instance appearance (icon/banner) */
 .instance-appearance-row {
   display: flex;
@@ -6294,6 +5486,8 @@ const handleAddInstance = () => {
   gap: 16px;
   margin-bottom: 8px;
 }
+
+
 
 .instance-icon-preview {
   width: 64px;
@@ -6311,9 +5505,13 @@ const handleAddInstance = () => {
   color: var(--text-secondary);
 }
 
+
+
 .instance-icon-preview:hover {
   border-color: var(--harmony-primary);
 }
+
+
 
 .instance-icon-img {
   width: 100%;
@@ -6321,10 +5519,14 @@ const handleAddInstance = () => {
   object-fit: cover;
 }
 
+
+
 .instance-appearance-controls {
   display: flex;
   gap: 8px;
 }
+
+
 
 .instance-banner-preview {
   width: 100%;
@@ -6340,9 +5542,13 @@ const handleAddInstance = () => {
   transition: border-color 0.2s;
 }
 
+
+
 .instance-banner-preview:hover {
   border-color: var(--harmony-primary);
 }
+
+
 
 .instance-banner-placeholder {
   display: flex;
@@ -6353,6 +5559,8 @@ const handleAddInstance = () => {
   color: var(--text-secondary);
   font-size: 13px;
 }
+
+
 
 .instance-banner-overlay {
   position: absolute;
@@ -6368,9 +5576,13 @@ const handleAddInstance = () => {
   transition: opacity 0.2s;
 }
 
+
+
 .instance-banner-preview:hover .instance-banner-overlay {
   opacity: 1;
 }
+
+
 
 .save-btn {
   padding: 8px 16px;
@@ -6387,16 +5599,22 @@ const handleAddInstance = () => {
   gap: 8px;
 }
 
+
+
 .save-btn:hover {
   background: #0099cc;
   transform: translateY(-1px);
 }
+
+
 
 .save-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
   transform: none;
 }
+
+
 
 /* Responsive Design */
 @media (max-width: 1200px) {
@@ -6414,18 +5632,22 @@ const handleAddInstance = () => {
 }
 
 @media (max-width: 768px) {
+
   .admin-grid {
     display: flex;
     flex-direction: column;
     flex-wrap: wrap;
     gap: 16px;
   }
+
   .admin-module {
     max-width: calc(100vw - 32px);
   }
+
   .admin-panel {
     padding: 16px;
   }
+
 
   .admin-header {
     flex-direction: column;
@@ -6433,16 +5655,19 @@ const handleAddInstance = () => {
     align-items: flex-start;
   }
 
+
   .admin-title {
     flex-direction: column;
     align-items: flex-start;
     gap: 8px;
   }
 
+
   /* Two-up stats read better than a single tall column on phones. */
   .stats-grid {
     grid-template-columns: 1fr 1fr;
   }
+
 
   .setting-row {
     flex-direction: column;
@@ -6450,9 +5675,11 @@ const handleAddInstance = () => {
     gap: 16px;
   }
 
+
   .add-block {
     flex-direction: column;
   }
+
 
   .user-item {
     flex-direction: column;
@@ -6460,31 +5687,38 @@ const handleAddInstance = () => {
     gap: 12px;
   }
 
+
   .user-actions {
     align-self: flex-end;
   }
 }
 
 @media (max-width: 480px) {
+
   .admin-panel {
     padding: 12px;
   }
+
   .admin-module {
     max-width: calc(100vw - 24px);
   }
+
   .stats-grid {
     grid-template-columns: 1fr;
   }
+
   /* Full-width tap targets for the header actions. */
   .admin-actions {
     width: 100%;
     flex-direction: column;
   }
+
   .admin-actions .action-btn {
     width: 100%;
     justify-content: center;
     min-height: 44px;
   }
+
   /* Wide rows (instance lists, user rows) scroll instead of overflowing. */
   .users-list,
   .servers-list,
@@ -6495,6 +5729,8 @@ const handleAddInstance = () => {
     -webkit-overflow-scrolling: touch;
   }
 }
+
+
 
 /* Modal Styles */
 .modal-overlay {
@@ -6511,6 +5747,8 @@ const handleAddInstance = () => {
   backdrop-filter: blur(4px);
 }
 
+
+
 .modal-content {
   background: var(--background-secondary);
   border: 1px solid var(--border-color);
@@ -6523,6 +5761,8 @@ const handleAddInstance = () => {
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
 }
 
+
+
 .modal-header {
   display: flex;
   justify-content: space-between;
@@ -6532,6 +5772,8 @@ const handleAddInstance = () => {
   background: linear-gradient(135deg, rgba(0, 212, 255, 0.05), rgba(0, 255, 136, 0.05));
 }
 
+
+
 .modal-header h3 {
   margin: 0;
   display: flex;
@@ -6540,6 +5782,8 @@ const handleAddInstance = () => {
   font-size: 18px;
   font-weight: 600;
 }
+
+
 
 .close-btn {
   background: transparent;
@@ -6551,10 +5795,14 @@ const handleAddInstance = () => {
   transition: all 0.2s ease;
 }
 
+
+
 .close-btn:hover {
   background: var(--background-tertiary);
   color: var(--text-primary);
 }
+
+
 
 .modal-body {
   padding: 24px;
@@ -6562,11 +5810,15 @@ const handleAddInstance = () => {
   flex: 1;
 }
 
+
+
 .servers-list {
   display: flex;
   flex-direction: column;
   gap: 12px;
 }
+
+
 
 .server-item {
   display: flex;
@@ -6579,9 +5831,13 @@ const handleAddInstance = () => {
   transition: all 0.2s ease;
 }
 
+
+
 .server-item:hover {
   border-color: var(--accent-color);
 }
+
+
 
 .server-icon {
   width: 48px;
@@ -6591,11 +5847,15 @@ const handleAddInstance = () => {
   flex-shrink: 0;
 }
 
+
+
 .server-icon img {
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
+
+
 
 .server-icon-placeholder {
   width: 100%;
@@ -6609,10 +5869,14 @@ const handleAddInstance = () => {
   font-weight: 700;
 }
 
+
+
 .server-info {
   flex: 1;
   min-width: 0;
 }
+
+
 
 .server-name {
   font-weight: 600;
@@ -6622,6 +5886,8 @@ const handleAddInstance = () => {
   align-items: center;
   gap: 8px;
 }
+
+
 
 .badge.owner {
   background: rgba(255, 193, 7, 0.2);
@@ -6633,6 +5899,8 @@ const handleAddInstance = () => {
   text-transform: uppercase;
 }
 
+
+
 .server-meta {
   display: flex;
   gap: 16px;
@@ -6640,15 +5908,21 @@ const handleAddInstance = () => {
   color: var(--text-secondary);
 }
 
+
+
 .member-count {
   display: flex;
   align-items: center;
   gap: 4px;
 }
 
+
+
 .server-actions {
   flex-shrink: 0;
 }
+
+
 
 /* Reports & Moderation */
 .reports-badge {
@@ -6661,6 +5935,8 @@ const handleAddInstance = () => {
   margin-left: auto;
 }
 
+
+
 .report-filters {
   display: flex;
   gap: 4px;
@@ -6668,12 +5944,16 @@ const handleAddInstance = () => {
   flex-wrap: wrap;
 }
 
+
+
 .reports-list {
   display: flex;
   flex-direction: column;
   gap: 8px;
   padding: 0 20px 20px;
 }
+
+
 
 .report-item {
   background: var(--background-tertiary);
@@ -6683,13 +5963,19 @@ const handleAddInstance = () => {
   transition: border-color 0.15s;
 }
 
+
+
 .report-item:hover {
   border-color: var(--accent-color);
 }
 
+
+
 .report-item.expanded {
   border-color: var(--accent-color);
 }
+
+
 
 .report-summary {
   display: flex;
@@ -6698,6 +5984,8 @@ const handleAddInstance = () => {
   padding: 12px 16px;
   flex-wrap: wrap;
 }
+
+
 
 .report-type-badge {
   font-size: 10px;
@@ -6708,10 +5996,20 @@ const handleAddInstance = () => {
   flex-shrink: 0;
 }
 
+
+
 .report-type-badge.user { background: rgba(14, 165, 233, 0.2); color: #38BDF8; }
+
+
 .report-type-badge.post { background: rgba(87, 242, 135, 0.2); color: #57f287; }
+
+
 .report-type-badge.message { background: rgba(254, 231, 92, 0.2); color: #fee75c; }
+
+
 .report-type-badge.server { background: rgba(235, 69, 158, 0.2); color: #eb459e; }
+
+
 
 .report-users {
   display: flex;
@@ -6720,6 +6018,8 @@ const handleAddInstance = () => {
   flex: 1;
   min-width: 0;
 }
+
+
 
 .report-reporter,
 .report-reported {
@@ -6730,10 +6030,14 @@ const handleAddInstance = () => {
   color: var(--text-primary);
 }
 
+
+
 .report-arrow {
   color: var(--text-secondary);
   font-size: 12px;
 }
+
+
 
 .report-reason {
   font-size: 13px;
@@ -6745,6 +6049,8 @@ const handleAddInstance = () => {
   min-width: 80px;
 }
 
+
+
 .report-meta {
   display: flex;
   align-items: center;
@@ -6754,11 +6060,15 @@ const handleAddInstance = () => {
   flex-shrink: 0;
 }
 
+
+
 .report-source {
   background: rgba(255, 255, 255, 0.1);
   padding: 1px 6px;
   border-radius: 4px;
 }
+
+
 
 .report-status-badge {
   font-size: 10px;
@@ -6769,10 +6079,20 @@ const handleAddInstance = () => {
   flex-shrink: 0;
 }
 
+
+
 .report-status-badge.pending { background: rgba(254, 231, 92, 0.2); color: #fee75c; }
+
+
 .report-status-badge.investigating { background: rgba(14, 165, 233, 0.2); color: #38BDF8; }
+
+
 .report-status-badge.resolved { background: rgba(87, 242, 135, 0.2); color: #57f287; }
+
+
 .report-status-badge.dismissed { background: rgba(255, 255, 255, 0.1); color: var(--text-secondary); }
+
+
 
 .report-detail {
   border-top: 1px solid var(--border-color);
@@ -6781,6 +6101,8 @@ const handleAddInstance = () => {
   flex-direction: column;
   gap: 12px;
 }
+
+
 
 .report-detail label {
   display: flex;
@@ -6792,11 +6114,15 @@ const handleAddInstance = () => {
   letter-spacing: 0.5px;
 }
 
+
+
 .report-detail p {
   margin: 0;
   font-size: 14px;
   color: var(--text-primary);
 }
+
+
 
 .report-proof blockquote {
   margin: 0;
@@ -6810,21 +6136,29 @@ const handleAddInstance = () => {
   word-break: break-word;
 }
 
+
+
 .report-proof :deep(.report-link) {
   color: var(--accent-color);
   text-decoration: underline;
   word-break: break-all;
 }
 
+
+
 .report-proof :deep(.report-link:hover) {
   opacity: 0.8;
 }
+
+
 
 .report-actions-panel {
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
+
+
 
 .resolution-textarea {
   width: 100%;
@@ -6838,6 +6172,8 @@ const handleAddInstance = () => {
   resize: vertical;
 }
 
+
+
 .report-punitive-actions {
   display: flex;
   gap: 8px;
@@ -6846,19 +6182,27 @@ const handleAddInstance = () => {
   margin-bottom: 4px;
 }
 
+
+
 .report-action-btn.danger {
   background: rgba(237, 66, 69, 0.2);
   color: #ed4245;
 }
 
+
+
 .report-action-btn.danger:hover {
   background: rgba(237, 66, 69, 0.4);
 }
+
+
 
 .report-action-buttons {
   display: flex;
   gap: 8px;
 }
+
+
 
 .report-action-btn {
   padding: 6px 14px;
@@ -6870,33 +6214,47 @@ const handleAddInstance = () => {
   transition: opacity 0.15s;
 }
 
+
+
 .report-action-btn:hover {
   opacity: 0.85;
 }
+
+
 
 .report-action-btn.investigating {
   background: rgba(14, 165, 233, 0.3);
   color: #38BDF8;
 }
 
+
+
 .report-action-btn.resolve {
   background: rgba(87, 242, 135, 0.3);
   color: #57f287;
 }
+
+
 
 .report-action-btn.dismiss {
   background: rgba(255, 255, 255, 0.1);
   color: var(--text-secondary);
 }
 
+
+
 .report-action-btn.warning {
   background: rgba(250, 166, 26, 0.2);
   color: #faa61a;
 }
 
+
+
 .report-action-btn.warning:hover {
   background: rgba(250, 166, 26, 0.4);
 }
+
+
 
 .federation-badge {
   background: rgba(88, 101, 242, 0.2);
@@ -6908,6 +6266,8 @@ const handleAddInstance = () => {
   margin-left: 4px;
 }
 
+
+
 .report-user-link {
   cursor: pointer;
   display: inline-flex;
@@ -6915,10 +6275,14 @@ const handleAddInstance = () => {
   gap: 2px;
 }
 
+
+
 .report-user-link:hover {
   text-decoration: underline;
   color: var(--accent-color);
 }
+
+
 
 .report-external-link {
   display: inline-flex;
@@ -6929,15 +6293,21 @@ const handleAddInstance = () => {
   transition: opacity 0.15s;
 }
 
+
+
 .report-external-link:hover {
   opacity: 1;
   color: var(--accent-color);
 }
 
+
+
 .report-source-local {
   font-size: 11px;
   color: var(--text-tertiary);
 }
+
+
 
 .report-post-meta {
   display: flex;
@@ -6945,26 +6315,36 @@ const handleAddInstance = () => {
   margin-top: 6px;
 }
 
+
+
 .badge.sensitive {
   background: rgba(250, 166, 26, 0.2);
   color: #faa61a;
 }
+
+
 
 .badge.cw {
   background: rgba(88, 101, 242, 0.2);
   color: #7c8af5;
 }
 
+
+
 .badge.silenced {
   background: rgba(250, 166, 26, 0.2);
   color: #faa61a;
 }
+
+
 
 .report-post-links {
   display: flex;
   gap: 8px;
   margin-top: 8px;
 }
+
+
 
 .report-link-btn {
   display: inline-flex;
@@ -6981,19 +6361,27 @@ const handleAddInstance = () => {
   transition: all 0.15s;
 }
 
+
+
 .report-link-btn:hover {
   background: rgba(255, 255, 255, 0.12);
   color: var(--text-primary);
 }
+
+
 
 .mod-btn.warning-btn {
   background: rgba(250, 166, 26, 0.15);
   color: #faa61a;
 }
 
+
+
 .mod-btn.warning-btn:hover {
   background: rgba(250, 166, 26, 0.3);
 }
+
+
 
 .reports-empty {
   display: flex;
@@ -7005,15 +6393,21 @@ const handleAddInstance = () => {
   font-size: 14px;
 }
 
+
+
 /* Funding Management */
 .funding-content {
   padding: 0 20px 20px;
 }
 
+
+
 .funding-section {
   margin-bottom: 24px;
   padding-top :24px;
 }
+
+
 
 .funding-section h3 {
   font-size: 14px;
@@ -7027,6 +6421,8 @@ const handleAddInstance = () => {
   gap: 8px;
 }
 
+
+
 .section-badge {
   font-size: 10px;
   padding: 2px 8px;
@@ -7038,6 +6434,8 @@ const handleAddInstance = () => {
   font-weight: 600;
 }
 
+
+
 .section-description {
   font-size: 13px;
   color: var(--text-secondary);
@@ -7045,9 +6443,13 @@ const handleAddInstance = () => {
   line-height: 1.5;
 }
 
+
+
 .section-description a {
   color: var(--harmony-primary);
 }
+
+
 
 .section-hint {
   font-size: 12px;
@@ -7057,6 +6459,8 @@ const handleAddInstance = () => {
   font-style: italic;
 }
 
+
+
 .section-hint code {
   background: var(--background-secondary);
   padding: 1px 5px;
@@ -7064,6 +6468,8 @@ const handleAddInstance = () => {
   font-size: 11px;
   font-style: normal;
 }
+
+
 
 .webhook-url-display {
   display: flex;
@@ -7077,11 +6483,15 @@ const handleAddInstance = () => {
   font-size: 12px;
 }
 
+
+
 .webhook-url-display code {
   flex: 1;
   color: var(--text-primary);
   word-break: break-all;
 }
+
+
 
 .pending-count-badge {
   font-size: 11px;
@@ -7094,11 +6504,15 @@ const handleAddInstance = () => {
   font-weight: 700;
 }
 
+
+
 .pending-donations-list {
   display: flex;
   flex-direction: column;
   gap: 12px;
 }
+
+
 
 .pending-donation-item {
   padding: 12px;
@@ -7110,17 +6524,23 @@ const handleAddInstance = () => {
   gap: 8px;
 }
 
+
+
 .pending-donation-header {
   display: flex;
   align-items: center;
   gap: 12px;
 }
 
+
+
 .pending-amount {
   font-size: 16px;
   font-weight: 700;
   color: var(--harmony-primary);
 }
+
+
 
 .pending-platform {
   font-size: 11px;
@@ -7131,11 +6551,15 @@ const handleAddInstance = () => {
   text-transform: capitalize;
 }
 
+
+
 .pending-date {
   font-size: 12px;
   color: var(--text-tertiary, var(--text-secondary));
   margin-left: auto;
 }
+
+
 
 .pending-donation-meta {
   display: flex;
@@ -7144,9 +6568,13 @@ const handleAddInstance = () => {
   color: var(--text-secondary);
 }
 
+
+
 .pending-email {
   color: var(--text-tertiary, var(--text-secondary));
 }
+
+
 
 .pending-message {
   padding: 8px 12px;
@@ -7158,11 +6586,15 @@ const handleAddInstance = () => {
   font-style: italic;
 }
 
+
+
 .pending-resolve-row {
   display: flex;
   gap: 8px;
   align-items: center;
 }
+
+
 
 .pending-suggestions {
   display: flex;
@@ -7170,6 +6602,8 @@ const handleAddInstance = () => {
   gap: 2px;
   padding-top: 4px;
 }
+
+
 
 .pending-suggestion {
   display: flex;
@@ -7183,11 +6617,15 @@ const handleAddInstance = () => {
   transition: background 0.15s;
 }
 
+
+
 .pending-suggestion:hover,
 .pending-suggestion.active {
   background: rgba(14, 165, 233, 0.15);
   color: var(--text-primary);
 }
+
+
 
 .funding-fields {
   display: flex;
@@ -7196,11 +6634,15 @@ const handleAddInstance = () => {
   margin-top: 8px;
 }
 
+
+
 .funding-form-row {
   display: flex;
   gap: 12px;
   flex-wrap: wrap;
 }
+
+
 
 .funding-field {
   display: flex;
@@ -7210,11 +6652,15 @@ const handleAddInstance = () => {
   min-width: 120px;
 }
 
+
+
 .funding-field label {
   font-size: 12px;
   color: var(--text-secondary);
   font-weight: 600;
 }
+
+
 
 .tiers-list {
   display: flex;
@@ -7222,6 +6668,8 @@ const handleAddInstance = () => {
   gap: 6px;
   margin-bottom: 12px;
 }
+
+
 
 .tier-item {
   display: flex;
@@ -7232,15 +6680,21 @@ const handleAddInstance = () => {
   border-radius: 6px;
 }
 
+
+
 .tier-icon {
   font-size: 18px;
 }
+
+
 
 .tier-icon-picker {
   display: flex;
   align-items: center;
   gap: 4px;
 }
+
+
 
 .emoji-picker-btn {
   display: inline-flex;
@@ -7253,6 +6707,8 @@ const handleAddInstance = () => {
   cursor: pointer;
 }
 
+
+
 .icon-preview-img {
   height: 1.2em;
   width: auto;
@@ -7260,10 +6716,14 @@ const handleAddInstance = () => {
   object-fit: contain;
 }
 
+
+
 .tier-info {
   flex: 1;
   min-width: 0;
 }
+
+
 
 .tier-name {
   font-size: 14px;
@@ -7272,10 +6732,14 @@ const handleAddInstance = () => {
   display: block;
 }
 
+
+
 .tier-amount {
   font-size: 12px;
   color: var(--text-secondary);
 }
+
+
 
 .add-tier-form {
   display: flex;
@@ -7284,10 +6748,14 @@ const handleAddInstance = () => {
   flex-wrap: wrap;
 }
 
+
+
 .add-tier-form .cyber-input {
   flex: 1;
   min-width: 100px;
 }
+
+
 
 .color-input {
   width: 36px;
@@ -7299,11 +6767,15 @@ const handleAddInstance = () => {
   padding: 2px;
 }
 
+
+
 .supporters-list {
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
+
+
 
 .supporter-item {
   display: flex;
@@ -7314,16 +6786,22 @@ const handleAddInstance = () => {
   border-radius: 6px;
 }
 
+
+
 .supporter-actions {
   display: flex;
   gap: 4px;
   flex-shrink: 0;
 }
 
+
+
 .supporter-info {
   flex: 1;
   min-width: 0;
 }
+
+
 
 .supporter-name {
   font-size: 14px;
@@ -7332,16 +6810,22 @@ const handleAddInstance = () => {
   display: block;
 }
 
+
+
 .supporter-meta {
   font-size: 12px;
   color: var(--text-secondary);
 }
+
+
 
 .donation-stats-row {
   display: flex;
   gap: 16px;
   margin-bottom: 12px;
 }
+
+
 
 .donation-stat {
   display: flex;
@@ -7353,17 +6837,23 @@ const handleAddInstance = () => {
   flex: 1;
 }
 
+
+
 .donation-stat-value {
   font-size: 20px;
   font-weight: 700;
   color: var(--accent-color);
 }
 
+
+
 .donation-stat-label {
   font-size: 11px;
   color: var(--text-secondary);
   text-transform: uppercase;
 }
+
+
 
 .donations-list {
   display: flex;
@@ -7372,6 +6862,8 @@ const handleAddInstance = () => {
   max-height: 200px;
   overflow-y: auto;
 }
+
+
 
 .donation-item {
   display: flex;
@@ -7382,15 +6874,21 @@ const handleAddInstance = () => {
   color: var(--text-secondary);
 }
 
+
+
 .donation-amount {
   font-weight: 600;
   color: var(--text-primary);
 }
 
+
+
 .donation-note {
   font-style: italic;
   opacity: 0.7;
 }
+
+
 
 .funding-links-list {
   display: flex;
@@ -7398,15 +6896,21 @@ const handleAddInstance = () => {
   gap: 6px;
 }
 
+
+
 .funding-link-row {
   display: flex;
   gap: 8px;
   align-items: center;
 }
 
+
+
 .funding-link-row .cyber-input {
   min-width: 0;
 }
+
+
 
 .add-supporter-form {
   display: flex;
@@ -7416,14 +6920,20 @@ const handleAddInstance = () => {
   margin-top: 12px;
 }
 
+
+
 .add-supporter-form .cyber-input {
   flex: 1;
   min-width: 100px;
 }
 
+
+
 .supporter-search-wrapper .cyber-input {
   width: 100%;
 }
+
+
 
 .supporter-suggestions {
   position: absolute;
@@ -7440,6 +6950,8 @@ const handleAddInstance = () => {
   margin-top: 4px;
 }
 
+
+
 .supporter-suggestion-item {
   display: flex;
   align-items: center;
@@ -7449,16 +6961,22 @@ const handleAddInstance = () => {
   transition: background-color 0.1s ease;
 }
 
+
+
 .supporter-suggestion-item:hover,
 .supporter-suggestion-item.selected {
   background: var(--harmony-primary);
 }
+
+
 
 .supporter-suggestion-text {
   display: flex;
   flex-direction: column;
   min-width: 0;
 }
+
+
 
 .supporter-suggestion-name {
   font-weight: 500;
@@ -7468,6 +6986,8 @@ const handleAddInstance = () => {
   text-overflow: ellipsis;
 }
 
+
+
 .supporter-suggestion-handle {
   font-size: 12px;
   color: var(--text-secondary);
@@ -7476,9 +6996,13 @@ const handleAddInstance = () => {
   text-overflow: ellipsis;
 }
 
+
+
 .supporter-suggestion-item.selected .supporter-suggestion-handle {
   color: rgba(255, 255, 255, 0.6);
 }
+
+
 
 .edit-supporter-panel {
   background: var(--background-tertiary);
@@ -7486,6 +7010,8 @@ const handleAddInstance = () => {
   border-radius: 8px;
   padding: 16px;
 }
+
+
 
 .edit-donation-panel {
   background: var(--background-tertiary);
@@ -7495,11 +7021,15 @@ const handleAddInstance = () => {
   margin-top: 8px;
 }
 
+
+
 .donation-user {
   font-weight: 600;
   color: var(--text-primary);
   font-size: 13px;
 }
+
+
 
 .donation-actions {
   display: flex;
@@ -7508,11 +7038,15 @@ const handleAddInstance = () => {
   flex-shrink: 0;
 }
 
+
+
 .tier-perks {
   font-size: 11px;
   color: var(--text-secondary);
   font-style: italic;
 }
+
+
 
 .tier-ads-toggle {
   display: inline-flex;
@@ -7524,9 +7058,13 @@ const handleAddInstance = () => {
   cursor: pointer;
 }
 
+
+
 .tier-ads-toggle input {
   cursor: pointer;
 }
+
+
 
 .tier-adfree-badge {
   font-size: 10px;
@@ -7540,6 +7078,8 @@ const handleAddInstance = () => {
   width: fit-content;
 }
 
+
+
 .empty-hint {
   font-size: 13px;
   color: var(--text-secondary);
@@ -7549,6 +7089,8 @@ const handleAddInstance = () => {
   border-radius: 6px;
   margin-bottom: 12px;
 }
+
+
 
 /* Dark theme variables (these should be in your global CSS) */
 :root {
