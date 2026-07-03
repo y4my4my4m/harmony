@@ -2672,35 +2672,21 @@ const userFilters = computed(() => [
   { key: 'suspended', label: 'Suspended', count: userCounts.value.suspended }
 ])
 
-const filteredUsers = computed(() => {
-  let filtered = users.value
+// Filtering/search happens server-side in adminService.getUsers so pagination
+// totals match the filtered set; this list is served as-is.
+const filteredUsers = computed(() => users.value)
 
-  // Apply filter
-  if (activeUserFilter.value !== 'all') {
-    switch (activeUserFilter.value) {
-      case 'local':
-        filtered = filtered.filter(u => u.is_local)
-        break
-      case 'federated':
-        filtered = filtered.filter(u => !u.is_local)
-        break
-      case 'suspended':
-        filtered = filtered.filter(u => u.is_suspended)
-        break
-    }
-  }
-
-  // Apply search
-  if (userSearch.value) {
-    const search = userSearch.value.toLowerCase()
-    filtered = filtered.filter(u => 
-      u.username.toLowerCase().includes(search) ||
-      u.display_name?.toLowerCase().includes(search) ||
-      u.domain?.toLowerCase().includes(search)
-    )
-  }
-
-  return filtered
+let userSearchDebounce: ReturnType<typeof setTimeout> | null = null
+watch(activeUserFilter, () => {
+  userPagination.value.offset = 0
+  loadUsers()
+})
+watch(userSearch, () => {
+  if (userSearchDebounce) clearTimeout(userSearchDebounce)
+  userSearchDebounce = setTimeout(() => {
+    userPagination.value.offset = 0
+    loadUsers()
+  }, 300)
 })
 
 // Watch for config changes
@@ -2978,7 +2964,11 @@ const loadUsers = async () => {
   try {
     const result = await adminService.getUsers(
       userPagination.value.limit,
-      userPagination.value.offset
+      userPagination.value.offset,
+      {
+        filter: activeUserFilter.value as 'all' | 'local' | 'federated' | 'suspended',
+        search: userSearch.value,
+      }
     )
     users.value = result.users
     userPagination.value.total = result.total
@@ -3828,48 +3818,65 @@ const toggleModerator = async (user: any) => {
   }
 }
 
+// Patch the row in place instead of reloading the whole page of users; drop
+// the row when it no longer matches the active server-side filter.
+const patchUserRow = (userId: string, patch: Record<string, any> | null) => {
+  if (patch === null) {
+    users.value = users.value.filter((u: any) => u.id !== userId)
+    userPagination.value.total = Math.max(0, userPagination.value.total - 1)
+    return
+  }
+  const row: any = users.value.find((u: any) => u.id === userId)
+  if (row) Object.assign(row, patch)
+  const f = activeUserFilter.value
+  if ((f === 'suspended' && patch.is_suspended === false)) {
+    patchUserRow(userId, null)
+  }
+  loadUserCounts().catch(() => {})
+}
+
 const moderateUser = async (user: any, action: string) => {
   try {
     if (action === 'suspend') {
       const reason = prompt('Suspension reason:')
       if (!reason) return
       await adminService.moderateUser(user.id, 'suspend', reason, authStore.session?.user?.id || '')
-      await loadUsers()
-      await loadRecentActivity()
+      patchUserRow(user.id, { is_suspended: true, suspension_reason: reason })
+      loadRecentActivity().catch(() => {})
       toast.success(`User ${user.username} has been suspended.`)
     } else if (action === 'unsuspend') {
       if (!confirm(`Are you sure you want to unsuspend user ${user.username}?`)) return
       await adminService.moderateUser(user.id, 'unsuspend', 'Admin unsuspend', authStore.session?.user?.id || '')
-      await loadUsers()
-      await loadRecentActivity()
+      patchUserRow(user.id, { is_suspended: false, suspension_reason: null })
+      loadRecentActivity().catch(() => {})
       toast.success(`User ${user.username} has been unsuspended.`)
     } else if (action === 'delete') {
       if (!confirm(`Are you sure you want to delete user ${user.username}? This cannot be undone.`)) return
       await adminService.moderateUser(user.id, 'delete', 'Admin deletion', authStore.session?.user?.id || '')
-      await loadUsers()
-      await loadRecentActivity()
+      patchUserRow(user.id, null)
+      loadRecentActivity().catch(() => {})
       toast.success(`User ${user.username} has been deleted.`)
     } else if (action === 'force_sensitive') {
       const reason = prompt('Reason for marking all media as sensitive:')
       if (!reason) return
       await adminService.moderateUser(user.id, 'force_sensitive', reason, authStore.session?.user?.id || '')
-      await loadUsers()
+      patchUserRow(user.id, { force_sensitive: true })
       toast.success(`All future media from ${user.username} will be marked sensitive.`)
     } else if (action === 'unforce_sensitive') {
       if (!confirm(`Remove force-sensitive from ${user.username}?`)) return
       await adminService.moderateUser(user.id, 'unforce_sensitive', '', authStore.session?.user?.id || '')
-      await loadUsers()
+      patchUserRow(user.id, { force_sensitive: false })
       toast.success(`Force-sensitive removed from ${user.username}.`)
     } else if (action === 'silence') {
       const reason = prompt('Reason for silencing (hidden from public timelines):')
       if (!reason) return
       await adminService.moderateUser(user.id, 'silence', reason, authStore.session?.user?.id || '')
-      await loadUsers()
+      patchUserRow(user.id, { is_silenced: true, silenced_reason: reason })
       toast.success(`User ${user.username} has been silenced.`)
     } else if (action === 'unsilence') {
       if (!confirm(`Remove silence from ${user.username}?`)) return
       await adminService.moderateUser(user.id, 'unsilence', '', authStore.session?.user?.id || '')
-      await loadUsers()
+      patchUserRow(user.id, { is_silenced: false, silenced_reason: null })
       toast.success(`User ${user.username} has been unsilenced.`)
     }
   } catch (error: any) {
@@ -4724,7 +4731,8 @@ const handleAddInstance = () => {
 
 .admin-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(600px, 1fr));
+  /* min(600px, 100%) lets tracks collapse below 600px instead of overflowing */
+  grid-template-columns: repeat(auto-fit, minmax(min(600px, 100%), 1fr));
   gap: 24px;
 }
 
@@ -4733,6 +4741,7 @@ const handleAddInstance = () => {
   border: 1px solid var(--border-color);
   border-radius: 12px;
   overflow: hidden;
+  min-width: 0;
   transition: all 0.3s ease;
 }
 
@@ -5415,7 +5424,7 @@ const handleAddInstance = () => {
 
 .federation-stats {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   gap: 16px;
   padding: 24px;
   border-bottom: 1px solid var(--border-color);

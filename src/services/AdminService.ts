@@ -405,40 +405,64 @@ class AdminService {
   /**
    * Get users with admin-relevant information (paginated)
    */
-  async getUsers(limit: number = 25, offset: number = 0): Promise<{ users: AdminUser[]; total: number }> {
+  async getUsers(
+    limit: number = 25,
+    offset: number = 0,
+    options: { filter?: 'all' | 'local' | 'federated' | 'suspended'; search?: string } = {}
+  ): Promise<{ users: AdminUser[]; total: number }> {
     try {
-      const { count: total } = await supabase
-        .from('profiles')
-        .select('*', { count: 'exact', head: true });
+      const { filter = 'all', search = '' } = options;
 
-      const { data, error } = await supabase
-        .from('profiles')
-        .select(`
-          id,
-          username,
-          display_name,
-          avatar_url,
-          created_at,
-          updated_at,
-          domain,
-          is_local,
-          is_admin,
-          is_moderator,
-          is_suspended,
-          suspended_at,
-          suspension_reason,
-          force_sensitive,
-          is_silenced,
-          silenced_at,
-          silenced_reason,
-          federated_id
-        `)
+      // Filter and search apply to BOTH the count and the page query, so the
+      // pagination total matches the filtered set.
+      const applyFilters = (q: any): any => {
+        let query = q;
+        if (filter === 'local') query = query.eq('is_local', true);
+        else if (filter === 'federated') query = query.eq('is_local', false);
+        else if (filter === 'suspended') query = query.eq('is_suspended', true);
+        if (search) {
+          const term = search.replace(/[%_,]/g, '');
+          if (term) {
+            query = query.or(`username.ilike.%${term}%,display_name.ilike.%${term}%,domain.ilike.%${term}%`);
+          }
+        }
+        return query;
+      };
+
+      const { count: total } = await applyFilters(
+        supabase.from('profiles').select('*', { count: 'exact', head: true })
+      );
+
+      const { data, error } = await applyFilters(
+        supabase
+          .from('profiles')
+          .select(`
+            id,
+            username,
+            display_name,
+            avatar_url,
+            created_at,
+            updated_at,
+            domain,
+            is_local,
+            is_admin,
+            is_moderator,
+            is_suspended,
+            suspended_at,
+            suspension_reason,
+            force_sensitive,
+            is_silenced,
+            silenced_at,
+            silenced_reason,
+            federated_id
+          `)
+      )
         .order('created_at', { ascending: false })
         .range(offset, offset + limit - 1);
 
       if (error) throw error;
 
-      const users = data || [];
+      const users: any[] = data || [];
       if (users.length === 0) {
         return { users: [], total: total || 0 };
       }

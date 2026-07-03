@@ -2137,6 +2137,83 @@ export class MegolmMessageEncryptionService {
   /**
    * Check if user has recovery key set up
    */
+  /**
+   * Structured self-test of the whole encryption stack, for the settings UI.
+   * ok: true = pass, false = fail, null = not applicable / unknown.
+   */
+  async runDiagnostics(): Promise<Array<{ label: string; ok: boolean | null; detail: string }>> {
+    const results: Array<{ label: string; ok: boolean | null; detail: string }> = []
+    const add = (label: string, ok: boolean | null, detail: string) => results.push({ label, ok, detail })
+
+    add('Encryption unlocked', this.isUnlocked(), this.isUnlocked() ? 'Keys are loaded in this session' : 'Enter your recovery phrase to unlock')
+
+    if (!this.currentUserId) {
+      add('Profile', false, 'Encryption service has no resolved profile id')
+      return results
+    }
+
+    // Identity pairing: local private key must match the published public key.
+    try {
+      const { data } = await supabase.rpc('get_my_key_pair')
+      const row = (Array.isArray(data) ? data[0] : null) as { identity_public_key?: string; identity_signing_public_key?: string } | null
+      if (!row?.identity_public_key) {
+        add('Identity key', false, 'No published identity key - run encryption setup')
+      } else {
+        const localPrivate = await identityKeyStore.load(this.currentUserId)
+        const localPublic = await identityKeyStore.loadPublicKey(this.currentUserId)
+        if (!localPrivate) {
+          add('Identity key', false, 'Published key exists but no local private key - unlock with your recovery phrase')
+        } else if (localPublic && localPublic === row.identity_public_key) {
+          add('Identity key', true, 'Local private key matches the published public key')
+        } else {
+          add('Identity key', localPublic ? false : null, localPublic
+            ? 'Local key does NOT match the published key - re-unlock to repair'
+            : 'Pairing unverified (legacy record) - re-unlock to verify')
+        }
+      }
+      add('Signing key', !!row?.identity_signing_public_key, row?.identity_signing_public_key
+        ? 'Message signing key published'
+        : 'No signing key - minted automatically on next unlock')
+    } catch (e: any) {
+      add('Identity key', false, `Lookup failed: ${e?.message || e}`)
+    }
+
+    // Backup: exists + decryptable with the CURRENT phrase-derived key.
+    try {
+      const { data: backupRow } = await supabase
+        .from('megolm_key_backups')
+        .select('encrypted_data, session_count, last_updated')
+        .eq('user_id', this.currentUserId)
+        .maybeSingle()
+      if (!backupRow) {
+        add('Key backup', null, 'No server backup yet - created automatically as you use encryption')
+      } else if (!recoveryKeyService.isLoaded()) {
+        add('Key backup', null, `Backup exists (${backupRow.session_count} sessions) - unlock to verify it`)
+      } else {
+        try {
+          const json = await recoveryKeyService.decryptFromBackup(backupRow.encrypted_data)
+          const parsed = JSON.parse(json)
+          const count = (parsed?.sessions?.outbound?.length || 0) + (parsed?.sessions?.inbound?.length || 0)
+          add('Key backup', true, `Backup decrypts with your current phrase (${count} sessions)`)
+        } catch {
+          add('Key backup', false, 'Backup exists but does NOT decrypt with your current recovery phrase (created under an older phrase)')
+        }
+      }
+    } catch (e: any) {
+      add('Key backup', false, `Backup check failed: ${e?.message || e}`)
+    }
+
+    // Device trust
+    try {
+      const device = await deviceIdentityService.getMyDeviceRow(this.currentUserId)
+      if (!device) add('Device trust', null, 'This device is not registered yet')
+      else if (device.revoked_at) add('Device trust', false, 'This device was revoked')
+      else add('Device trust', ['verified', 'recovery'].includes(device.trust_state), `Trust level: ${device.trust_state}`)
+    } catch { add('Device trust', null, 'Could not read device state') }
+
+    return results
+  }
+
   async hasRecoveryKey(): Promise<boolean> {
     if (!this.currentUserId) {
       debug.log('🔐 hasRecoveryKey: No user ID')

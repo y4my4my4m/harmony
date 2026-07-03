@@ -64,9 +64,12 @@
 
     <!-- User Groups (virtualized) -->
     <div class="user-groups" ref="sidebarGroupsRef" v-if="props.visible">
-      <div v-if="isLoadingUsers && sidebarDisplayItems.length === 0" class="loading-indicator">
-        <LoadingSpinner :size="24" />
-        <span>{{ $t('server.loadingUsers') }}</span>
+      <div v-if="isLoadingUsers && sidebarDisplayItems.length === 0" class="members-skeleton" aria-busy="true">
+        <div class="member-skeleton-header"></div>
+        <div v-for="i in 9" :key="i" class="member-skeleton-row">
+          <div class="member-skeleton-avatar"></div>
+          <div class="member-skeleton-line" :style="{ width: `${40 + (i * 19) % 45}%` }"></div>
+        </div>
       </div>
 
       <div v-else-if="sidebarDisplayItems.length > 0" :style="{ height: `${sidebarTotalSize}px`, position: 'relative' }">
@@ -271,7 +274,6 @@ import UserContextMenu from '@/components/UserContextMenu.vue';
 import KickBanModal from '@/components/moderation/KickBanModal.vue';
 import InviteModal from './InviteModal.vue';
 import Avatar from '@/components/common/Avatar.vue';
-import LoadingSpinner from '@/components/common/LoadingSpinner.vue';
 import DisplayName from '@/components/DisplayName.vue';
 import { useServerChannelStore } from '@/stores/useServerChannel';
 import { showInstanceStaffBadge } from '@/utils/instanceBadge';
@@ -1453,15 +1455,56 @@ const closeInviteModal = () => {
 }
 
 /* Loading Indicator */
-.loading-indicator {
+.members-skeleton {
+  padding: 12px 8px;
   display: flex;
   flex-direction: column;
+  gap: 6px;
+}
+
+.member-skeleton-header {
+  height: 10px;
+  width: 40%;
+  border-radius: 5px;
+  margin: 4px 8px 10px;
+  background: var(--background-modifier-hover, rgba(255, 255, 255, 0.06));
+  animation: memberSkeletonPulse 1.4s ease-in-out infinite;
+}
+
+.member-skeleton-row {
+  display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 12px;
-  padding: 24px 16px;
-  color: var(--text-secondary);
-  font-size: 14px;
+  gap: 10px;
+  padding: 5px 8px;
+}
+
+.member-skeleton-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--background-modifier-hover, rgba(255, 255, 255, 0.06));
+  animation: memberSkeletonPulse 1.4s ease-in-out infinite;
+}
+
+.member-skeleton-line {
+  height: 10px;
+  border-radius: 5px;
+  background: var(--background-modifier-hover, rgba(255, 255, 255, 0.06));
+  animation: memberSkeletonPulse 1.4s ease-in-out infinite;
+}
+
+@keyframes memberSkeletonPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .member-skeleton-header,
+  .member-skeleton-avatar,
+  .member-skeleton-line {
+    animation: none;
+  }
 }
 
 .user-group {

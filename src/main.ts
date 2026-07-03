@@ -54,6 +54,12 @@ app.use(Toast, {
   timeout: 2500,
   pauseOnHover: true,
   closeOnClick: true,
+  // Warnings/errors go top-center with longer timeouts so they don't get
+  // buried under routine info/success toasts in the corner.
+  toastDefaults: {
+    error: { position: 'top-center', timeout: 8000 },
+    warning: { position: 'top-center', timeout: 8000 },
+  },
 });
 
 const pinia = createPinia();

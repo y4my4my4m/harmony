@@ -1394,7 +1394,6 @@ export default defineComponent({
       isAiEmojiMedia,
       isGifFavorited,
       toggleGifFavorite,
-      canEditAttachments: computed(() => props.canEditAttachments),
       requestRemoveAttachment,
       showRemoveAttachmentConfirm,
       cancelRemoveAttachment,
