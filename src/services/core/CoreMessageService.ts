@@ -1168,10 +1168,20 @@ export class CoreMessageService {
       params.append('limit', String(limit))
       if (before) params.append('before', before)
 
+      // The federation backend proxies to the remote instance, so latency is
+      // unbounded - a slow/dead remote must not hang the channel open forever.
+      // AbortSignal.any is missing from the TS lib in use; feature-detect it.
+      const timeoutSignal = AbortSignal.timeout(10000)
+      const abortSignalAny: ((signals: AbortSignal[]) => AbortSignal) | undefined = (AbortSignal as any).any
+      const signal = options.signal && abortSignalAny
+        ? abortSignalAny([options.signal, timeoutSignal])
+        : timeoutSignal
+
       const response = await fetch(`/api/federation/channels/${channelId}/messages?${params}`, {
         headers: {
           'Accept': 'application/json',
         },
+        signal,
       })
 
       if (!response.ok) {

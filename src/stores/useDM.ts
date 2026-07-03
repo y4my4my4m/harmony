@@ -612,6 +612,15 @@ export const useDMStore = defineStore('dm', () => {
       loadingConversations.value = true
       debug.log('📬 fetchUserConversationsMetadata: Starting fetch for user:', userId)
 
+      // Single-round-trip fast path: profiles/unread/mute come embedded, so
+      // none of the follow-up queries below (nor the loadStrategy profile
+      // hydration) are needed. Legacy waterfall below is the fallback.
+      const rpcConversations = await _fetchConversationsViaRpc()
+      if (rpcConversations) {
+        conversations.value = preserveCurrentConversation(rpcConversations)
+        return
+      }
+
       const { data: participations, error: participationError } = await supabase
         .from('conversation_participants')
         .select(`
@@ -1012,17 +1021,101 @@ export const useDMStore = defineStore('dm', () => {
     }
   }
 
+  const _normalizeProfileToDMUser = (profile: any): DMUser => {
+    const isFederated = !profile.is_local && profile.domain
+    return {
+      ..._normalizeUserObject(profile),
+      handle: isFederated ? `@${profile.username}@${profile.domain}` : `@${profile.username}`,
+      is_online: false, // Updated by global presence system in UI
+    }
+  }
+
+  // Fast path: the whole DM sidebar (conversations + participants with
+  // profiles + last message + unread + mute) in ONE round trip via the
+  // get_user_conversations RPC. Returns null when the RPC is unavailable
+  // (e.g. migration not applied on a self-hosted instance) so callers can
+  // fall back to the legacy multi-query load.
+  const _fetchConversationsViaRpc = async (): Promise<DMConversation[] | null> => {
+    try {
+      const { data, error } = await supabase.rpc('get_user_conversations')
+      if (error) {
+        debug.warn('⚠️ get_user_conversations RPC unavailable, using legacy multi-query load:', error.message)
+        return null
+      }
+
+      const rows: any[] = Array.isArray(data) ? data : []
+      const processed: DMConversation[] = []
+
+      for (const row of rows) {
+        const lastMessage = row.last_message || undefined
+        const lastActivity = lastMessage?.created_at || row.updated_at || row.created_at
+
+        // Drop conversations the user dismissed, unless there's newer activity.
+        if (isConversationHidden(row.hidden_at, lastActivity)) continue
+
+        const type = row.type || 'direct'
+        const others: any[] = Array.isArray(row.other_participants) ? row.other_participants : []
+        const profiles = others.map(o => o?.profile).filter(Boolean)
+
+        const conversation: DMConversation = {
+          id: row.conversation_id,
+          created_at: row.created_at,
+          type,
+          name: row.name || undefined,
+          icon_url: type === 'group' ? row.metadata?.icon_url : undefined,
+          created_by: row.created_by || undefined,
+          hidden_at: row.hidden_at ?? null,
+          last_activity: lastActivity,
+          participant_count: others.length + 1, // +1 for current user
+          unread_count: row.unread_messages || 0,
+          is_muted: row.is_muted === true,
+          last_message: lastMessage ? ({
+            id: lastMessage.id,
+            user_id: lastMessage.user_id,
+            content: lastMessage.content,
+            created_at: new Date(lastMessage.created_at),
+            channel_id: '', // Empty string for DMs
+            conversation_id: row.conversation_id,
+            reactions: [],
+            metadata: lastMessage.metadata || {}
+          } as unknown as Message) : undefined,
+        }
+
+        if (type === 'group') {
+          conversation.participants = profiles.map(_normalizeProfileToDMUser)
+        } else if (profiles[0]) {
+          conversation.other_user = _normalizeProfileToDMUser(profiles[0])
+        }
+
+        processed.push(conversation)
+      }
+
+      debug.log(`📬 Loaded ${processed.length} conversations via single-round-trip RPC`)
+      return processed
+    } catch (error) {
+      debug.warn('⚠️ get_user_conversations RPC failed, using legacy multi-query load:', error)
+      return null
+    }
+  }
+
   const fetchUserConversations = async (userId: string) => {
     if (pendingConversationListFetch.value) {
       debug.log('🔄 Conversation list fetch already in progress, waiting...')
       await pendingConversationListFetch.value
       return
     }
-    
+
     const fetchPromise = (async () => {
     try {
       loadingConversations.value = true
-      
+
+      // Single-round-trip fast path; legacy waterfall below is the fallback.
+      const rpcConversations = await _fetchConversationsViaRpc()
+      if (rpcConversations) {
+        conversations.value = preserveCurrentConversation(rpcConversations)
+        return
+      }
+
       const rawConversations = await _fetchRawConversations(userId)
       if (!rawConversations || rawConversations.length === 0) {
         conversations.value = preserveCurrentConversation([])

@@ -1784,6 +1784,33 @@ export class ActivityPubService {
     let query: any = supabase.from('posts');
 
     if (timelineType === 'home') {
+      // Fast path: server-side follows join in ONE round trip. Also avoids
+      // inlining the entire follow list into the request URL, which degrades
+      // with follow count. Falls back to the legacy two-query path when the
+      // RPC is unavailable (self-hosted instance without the migration).
+      const { data: rpcData, error: rpcError } = await supabase.rpc('get_home_timeline_page', {
+        p_limit: limit,
+        p_before: options.before ?? null,
+      });
+      if (!rpcError && Array.isArray(rpcData)) {
+        const rawData: any[] = rpcData;
+        const posts = rawData
+          .filter((post: any) => !post.author?.is_suspended)
+          .map((post: any) => {
+            const interactions = post.my_interactions || [];
+            return {
+              ...post,
+              is_bookmarked: interactions.some((i: any) => i.interaction_type === 'bookmark'),
+              is_favorited: interactions.some((i: any) => i.interaction_type === 'favorite' || i.interaction_type === 'emoji_reaction'),
+              is_reblogged: interactions.some((i: any) => i.interaction_type === 'reblog'),
+            };
+          });
+        // Raw count for pagination - suspended-user filtering shrinks
+        // posts.length and would incorrectly stop pagination.
+        return { posts: posts as TimelinePost[], fullPage: rawData.length >= limit };
+      }
+      debug.warn('get_home_timeline_page RPC unavailable, using legacy two-query load:', rpcError?.message);
+
       // Get following list - include both accepted AND pending follows
       // Pending follows should still show PUBLIC posts (they're public anyway)
       const { data: follows } = await supabase

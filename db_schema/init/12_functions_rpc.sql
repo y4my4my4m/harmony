@@ -442,6 +442,128 @@ COMMENT ON FUNCTION public.get_message_page(uuid, uuid, integer, timestamptz) IS
 
 GRANT EXECUTE ON FUNCTION public.get_message_page(uuid, uuid, integer, timestamptz) TO authenticated;
 
+-- Single round-trip DM sidebar load: conversations + other participants (with
+-- profiles) + last message + unread counts + mute state, newest activity
+-- first. Replaces the client's 4-6 query waterfall (see migration
+-- 20260704_get_user_conversations.sql for full rationale). Caller resolved
+-- server-side via get_current_profile_id() - no user-id parameter, which also
+-- removes the auth-UUID vs profiles.id confusion for this path.
+-- SECURITY INVOKER so RLS on every joined table applies.
+CREATE OR REPLACE FUNCTION public.get_user_conversations()
+RETURNS jsonb
+LANGUAGE sql
+STABLE
+SET search_path = public
+AS $$
+WITH me AS (
+    SELECT public.get_current_profile_id() AS id
+),
+parts AS (
+    SELECT
+        cp.conversation_id,
+        cp.role,
+        cp.joined_at,
+        cp.hidden_at,
+        c.created_at,
+        c.updated_at,
+        c.type,
+        c.name,
+        c.created_by,
+        c.is_active,
+        c.metadata
+    FROM public.conversation_participants cp
+    JOIN public.conversations c ON c.id = cp.conversation_id
+    WHERE cp.user_id = (SELECT id FROM me)
+      AND cp.left_at IS NULL
+)
+SELECT COALESCE(
+    jsonb_agg(
+        jsonb_build_object(
+            'conversation_id', p.conversation_id,
+            'created_at', p.created_at,
+            'updated_at', p.updated_at,
+            'type', COALESCE(p.type, 'direct'),
+            'name', p.name,
+            'created_by', p.created_by,
+            'is_active', p.is_active,
+            'metadata', p.metadata,
+            'hidden_at', p.hidden_at,
+            'user_role', p.role,
+            'user_joined_at', p.joined_at,
+            'other_participants', COALESCE(op.others, '[]'::jsonb),
+            'last_message', CASE WHEN lm.id IS NULL THEN NULL ELSE
+                jsonb_build_object(
+                    'id', lm.id,
+                    'user_id', lm.user_id,
+                    'content', lm.content,
+                    'created_at', lm.created_at,
+                    'metadata', lm.metadata
+                ) END,
+            'unread_messages', COALESCE(uc.unread_messages, 0),
+            'unread_mentions', COALESCE(uc.unread_mentions, 0),
+            'is_muted', COALESCE(nc.muted, false)
+        )
+        ORDER BY COALESCE(lm.created_at, p.updated_at, p.created_at) DESC
+    ),
+    '[]'::jsonb
+)
+FROM parts p
+LEFT JOIN LATERAL (
+    SELECT m.id, m.user_id, m.content, m.created_at, m.metadata
+    FROM public.messages m
+    WHERE m.conversation_id = p.conversation_id
+    ORDER BY m.created_at DESC
+    LIMIT 1
+) lm ON true
+LEFT JOIN LATERAL (
+    SELECT jsonb_agg(
+        jsonb_build_object(
+            'user_id', cp2.user_id,
+            'role', cp2.role,
+            'joined_at', cp2.joined_at,
+            'profile', jsonb_build_object(
+                'id', pr.id,
+                'username', pr.username,
+                'display_name', pr.display_name,
+                'avatar_url', pr.avatar_url,
+                'domain', pr.domain,
+                'is_local', pr.is_local,
+                'federated_id', pr.federated_id
+            )
+        )
+        ORDER BY cp2.joined_at ASC
+    ) AS others
+    FROM public.conversation_participants cp2
+    JOIN public.profiles pr ON pr.id = cp2.user_id
+    WHERE cp2.conversation_id = p.conversation_id
+      AND cp2.user_id <> (SELECT id FROM me)
+      AND cp2.left_at IS NULL
+) op ON true
+-- LATERAL LIMIT 1 instead of plain joins: neither table has a unique
+-- constraint on (user_id, conversation_id), and a duplicate row would
+-- otherwise duplicate the conversation in the sidebar.
+LEFT JOIN LATERAL (
+    SELECT u.unread_messages, u.unread_mentions
+    FROM public.unread_counts u
+    WHERE u.conversation_id = p.conversation_id
+      AND u.user_id = (SELECT id FROM me)
+    LIMIT 1
+) uc ON true
+LEFT JOIN LATERAL (
+    SELECT n.muted
+    FROM public.notification_channels n
+    WHERE n.conversation_id = p.conversation_id
+      AND n.user_id = (SELECT id FROM me)
+      AND n.channel_id IS NULL
+    LIMIT 1
+) nc ON true
+$$;
+
+COMMENT ON FUNCTION public.get_user_conversations() IS
+'Single round-trip DM sidebar load: conversations + other participants (with profiles) + last message + unread counts + mute state, newest activity first. Caller resolved via get_current_profile_id(). SECURITY INVOKER so RLS applies.';
+
+GRANT EXECUTE ON FUNCTION public.get_user_conversations() TO authenticated;
+
 -- Get reactions for a single message (singular version)
 CREATE OR REPLACE FUNCTION public.get_message_reactions(message_id uuid) 
 RETURNS TABLE(count bigint, emoji jsonb, reactions jsonb, current_user_reacted boolean, message_id_of_reactions uuid)
