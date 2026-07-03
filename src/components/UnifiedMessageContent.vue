@@ -188,11 +188,19 @@
         >@{{ (part.roleName || 'Unknown Role').replace(/^@/, '') }}</span>
         
         <!-- Hashtags -->
-        <span 
-          v-else-if="part && typeof part === 'object' && part.type === 'hashtag'" 
-          class="hashtag" 
+        <span
+          v-else-if="part && typeof part === 'object' && part.type === 'hashtag'"
+          class="hashtag"
           @click="handleHashtagClick(part.name, $event)"
           :title="`Used ${part.count || 0} times`"
+        >#{{ part.name }}</span>
+
+        <!-- Channel references (server chat, Discord-style) -->
+        <span
+          v-else-if="part && typeof part === 'object' && part.type === 'channel_mention'"
+          class="mention channel-mention"
+          :title="`Go to #${part.name}`"
+          @click="handleChannelMentionClick(part, $event)"
         >#{{ part.name }}</span>
         
         <!-- Custom emojis -->
@@ -1191,6 +1199,13 @@ export default defineComponent({
       // For example, you might want to emit an event to notify the parent component
       emit('hashtag-click', hashtag);
     };
+
+    const handleChannelMentionClick = async (part: any, event: MouseEvent) => {
+      event.stopPropagation();
+      if (!part?.channelId || !part?.serverId) return;
+      const { default: router } = await import('@/router');
+      router.push({ name: 'ChatChannel', params: { serverId: part.serverId, channelId: part.channelId } });
+    };
     
     // Check if a mention is from a bridged platform (e.g., Discord)
     const isBridgedMention = (part: any): boolean => {
@@ -1282,6 +1297,7 @@ export default defineComponent({
       renderTextSegments,
       getFileName,
       handleHashtagClick,
+      handleChannelMentionClick,
       handleMentionClick,
       isBridgedMention,
       getMentionTooltip,

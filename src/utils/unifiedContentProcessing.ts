@@ -384,12 +384,30 @@ const FENCED_CODE_BLOCK_REGEX = /```[\s\S]*?```/g;
 /**
  * Parse one content segment (outside fenced code blocks) into MessageParts.
  */
+/** Parse an own-origin /chat/<serverId>/<channelId> URL against known channels. */
+function matchChannelUrl(
+  url: string,
+  channelsById: Map<string, { id: string; serverId: string; name: string }>,
+): { id: string; serverId: string; name: string } | null {
+  try {
+    const parsed = new URL(url);
+    if (typeof window !== 'undefined' && parsed.origin !== window.location.origin) return null;
+    const m = parsed.pathname.match(/^\/chat\/([0-9a-f-]{36})\/([0-9a-f-]{36})\/?$/i);
+    if (!m) return null;
+    const channel = channelsById.get(m[2]);
+    return channel && channel.serverId === m[1] ? channel : null;
+  } catch {
+    return null;
+  }
+}
+
 async function parseContentSegment(
   content: string,
   usernameToUserDataMap: Record<string, { userId: string; isLocal: boolean }>,
   emojiDataMap: Record<string, any>,
   hashtagDataMap: Record<string, { id: string; count: number; last_updated: string; normalized: string }>,
   roleDataMap: Record<string, { name: string; color: string | null }>,
+  parseOptions: ContentParseOptions = {},
 ): Promise<MessagePart[]> {
   if (!content) return [];
 
@@ -475,30 +493,52 @@ async function parseContentSegment(
         isLocal: isLocal
       });
     } else if (match[9]) {
-      // Hashtag (#tagname)
+      // '#word' - meaning depends on context (parseOptions.hashtags):
+      //   'social' (default) - ActivityPub hashtag part
+      //   'channels'         - server chat: #name of an accessible channel
+      //                        becomes a channel_mention; anything else is
+      //                        plain text
+      //   'none'             - DMs: always plain text
       const hashtagName = match[9];
       const normalizedName = hashtagName.toLowerCase();
-      
-      // Look up hashtag data from provided map
-      const hashtagData = hashtagDataMap[normalizedName];
-      
-      if (hashtagData) {
-        parts.push({
-          type: 'hashtag',
-          name: hashtagName, // preserve original case
-          id: hashtagData.id,
-          count: hashtagData.count,
-          last_updated: hashtagData.last_updated,
-          normalized: hashtagData.normalized
-        });
+      const hashtagMode = parseOptions.hashtags ?? 'social';
+
+      if (hashtagMode === 'channels') {
+        const channel = parseOptions.channelDataMap?.[normalizedName];
+        if (channel) {
+          parts.push({
+            type: 'channel_mention',
+            channelId: channel.id,
+            serverId: channel.serverId,
+            name: hashtagName,
+          });
+        } else {
+          parts.push({ type: 'text', text: match[0] });
+        }
+      } else if (hashtagMode === 'none') {
+        parts.push({ type: 'text', text: match[0] });
       } else {
-        // Hashtag not in database yet, create placeholder (will be created on post save)
-        parts.push({
-          type: 'hashtag',
-          name: hashtagName,
-          id: 'new', // placeholder for new hashtags
-          normalized: normalizedName
-        });
+        // Look up hashtag data from provided map
+        const hashtagData = hashtagDataMap[normalizedName];
+
+        if (hashtagData) {
+          parts.push({
+            type: 'hashtag',
+            name: hashtagName, // preserve original case
+            id: hashtagData.id,
+            count: hashtagData.count,
+            last_updated: hashtagData.last_updated,
+            normalized: hashtagData.normalized
+          });
+        } else {
+          // Hashtag not in database yet, create placeholder (will be created on post save)
+          parts.push({
+            type: 'hashtag',
+            name: hashtagName,
+            id: 'new', // placeholder for new hashtags
+            normalized: normalizedName
+          });
+        }
       }
     }
     
@@ -519,12 +559,30 @@ async function parseContentSegment(
  * This is the SINGLE source of truth for all content parsing
  * Used by: chat, DMs, ActivityPub posts, and any text input
  */
+/**
+ * Context-dependent parsing behavior.
+ *
+ * hashtags:
+ *   'social'   (default) '#word' becomes an ActivityPub hashtag part
+ *   'channels' server chat: '#name' of a channel in channelDataMap becomes a
+ *              clickable channel_mention; unknown names stay plain text
+ *   'none'     DMs: '#word' is always plain text
+ *
+ * channelDataMap: lowercase channel name → channel, restricted by the CALLER
+ * to channels the sender can access.
+ */
+export interface ContentParseOptions {
+  hashtags?: 'social' | 'channels' | 'none';
+  channelDataMap?: Record<string, { id: string; serverId: string; name: string }>;
+}
+
 export async function parseContentToMessageParts(
   content: string,
   usernameToUserDataMap: Record<string, { userId: string; isLocal: boolean }> = {},
   emojiDataMap: Record<string, any> = {},
   hashtagDataMap: Record<string, { id: string; count: number; last_updated: string; normalized: string }> = {},
-  roleDataMap: Record<string, { name: string; color: string | null }> = {}
+  roleDataMap: Record<string, { name: string; color: string | null }> = {},
+  parseOptions: ContentParseOptions = {}
 ): Promise<MessagePart[]> {
   if (!content) return [{ type: 'text', text: '' }];
 
@@ -541,6 +599,7 @@ export async function parseContentToMessageParts(
         emojiDataMap,
         hashtagDataMap,
         roleDataMap,
+        parseOptions,
       ));
     }
     parts.push({ type: 'text', text: fenceMatch[0] });
@@ -554,7 +613,30 @@ export async function parseContentToMessageParts(
       emojiDataMap,
       hashtagDataMap,
       roleDataMap,
+      parseOptions,
     ));
+  }
+
+  // Own-origin channel links become channel references (like Discord):
+  // pasting <origin>/chat/<serverId>/<channelId> renders as "#channel-name"
+  // when the channel is one the sender can access.
+  if (parseOptions.hashtags === 'channels' && parseOptions.channelDataMap) {
+    const byId = new Map(
+      Object.values(parseOptions.channelDataMap).map(c => [c.id, c]),
+    );
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i];
+      if (part.type !== 'url') continue;
+      const linked = matchChannelUrl(part.url, byId);
+      if (linked) {
+        parts[i] = {
+          type: 'channel_mention',
+          channelId: linked.id,
+          serverId: linked.serverId,
+          name: linked.name,
+        };
+      }
+    }
   }
 
   // Clean up trailing whitespace from message parts

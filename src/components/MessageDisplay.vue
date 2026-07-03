@@ -635,6 +635,7 @@ import { threadService } from '@/services/ThreadService';
 import type { ThreadWithDetails } from '@/services/ThreadService';
 import { messagePartsToMarkdown, messagePartsToPlainText, isSingleEmojiMessage as checkSingleEmoji, stripLeadingSelfMention } from '@/utils/messageContentUtils';
 import { parseContentToMessageParts, resolveMentionsUserData, resolveEmojisData, resolveRoleMentionsData } from '@/utils/unifiedContentProcessing';
+import { buildChatParseOptions } from '@/utils/chatParseOptions';
 import { useReactionsStore } from '@/stores/useReactions';
 import { usePostReactionsStore } from '@/stores/postReactions';
 import { useVirtualizer } from '@tanstack/vue-virtual';
@@ -2726,7 +2727,7 @@ const saveEdit = async (messageId: string, newContent?: string, retainedFiles: F
     const userDataMap = await resolveMentionsUserData(textContent);
     const emojiDataMap = await resolveEmojisData(textContent);
     const roleDataMap = await resolveRoleMentionsData(textContent, serverChannelStore.currentServerId || undefined);
-    const parsedContent = await parseContentToMessageParts(textContent, userDataMap, emojiDataMap, {}, roleDataMap);
+    const parsedContent = await parseContentToMessageParts(textContent, userDataMap, emojiDataMap, {}, roleDataMap, buildChatParseOptions(!!props.conversationId));
     // Re-append the attachments the user kept, so editing text never drops media.
     const finalContent = [...parsedContent, ...retainedFiles];
 
