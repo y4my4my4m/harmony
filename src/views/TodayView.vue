@@ -146,9 +146,17 @@
               <span class="row-title">{{ postAuthorName(post) }}</span>
               <span class="row-subtitle post-preview">{{ postPreview(post) }}</span>
             </div>
-            <span class="row-stat">
-              <Icon name="heart" :size="12" /> {{ post.favorites_count || 0 }}
-            </span>
+            <div class="row-stats">
+              <span class="row-stat" title="Replies">
+                <Icon name="message-circle" :size="12" /> {{ post.replies_count || 0 }}
+              </span>
+              <span class="row-stat" title="Reblogs">
+                <Icon name="repeat" :size="12" /> {{ post.reblogs_count || 0 }}
+              </span>
+              <span class="row-stat" title="Favorites">
+                <Icon name="heart" :size="12" /> {{ post.favorites_count || 0 }}
+              </span>
+            </div>
           </button>
         </section>
 
@@ -174,9 +182,17 @@
               <span class="row-title">{{ postAuthorName(post) }}</span>
               <span class="row-subtitle post-preview">{{ postPreview(post) }}</span>
             </div>
-            <span class="row-stat">
-              <Icon name="heart" :size="12" /> {{ post.favorites_count || 0 }}
-            </span>
+            <div class="row-stats">
+              <span class="row-stat" title="Replies">
+                <Icon name="message-circle" :size="12" /> {{ post.replies_count || 0 }}
+              </span>
+              <span class="row-stat" title="Reblogs">
+                <Icon name="repeat" :size="12" /> {{ post.reblogs_count || 0 }}
+              </span>
+              <span class="row-stat" title="Favorites">
+                <Icon name="heart" :size="12" /> {{ post.favorites_count || 0 }}
+              </span>
+            </div>
           </button>
         </section>
       </div>
@@ -709,7 +725,10 @@ onMounted(() => loadDigest())
   display: flex;
   align-items: center;
   gap: 10px;
-  width: 100%;
+  /* Bleed the hover background into the card padding on both sides.
+     width: 100% with a negative left margin left an 8px dead strip on the
+     right; the width must grow by both margins. */
+  width: calc(100% + 16px);
   padding: 8px;
   margin: 0 -8px;
   background: none;
@@ -762,6 +781,13 @@ onMounted(() => loadDigest())
 
 .row-chevron {
   color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.row-stats {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   flex-shrink: 0;
 }
 

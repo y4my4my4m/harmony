@@ -202,12 +202,31 @@ class TodayDigestService {
       return []
     }
 
-    const engagement = (p: any) =>
-      (p.favorites_count || 0) + (p.reblogs_count || 0) * 2 + (p.replies_count || 0)
-
     return ((posts as TimelinePost[]) || [])
-      .sort((a, b) => engagement(b) - engagement(a))
+      .sort((a, b) => this.relevanceScore(b) - this.relevanceScore(a))
       .slice(0, limit)
+  }
+
+  /**
+   * Engagement-psychology ranking for the followed-posts section.
+   *
+   * - Replies weigh most: an active conversation is an invitation to
+   *   participate, which retains far better than passively-likeable content.
+   * - Reblogs next: endorsement + spread.
+   * - Favorites sublinear: the cheapest signal, with diminishing returns -
+   *   2000 replies / 20 favorites should beat 21 favorites / 2 replies.
+   * - Exponential time decay (18h half-life) so yesterday's viral post
+   *   doesn't pin the list while today's discussion is happening.
+   */
+  private relevanceScore(p: any): number {
+    const replies = Math.pow(Math.max(0, p.replies_count || 0), 0.9) * 3
+    const reblogs = Math.pow(Math.max(0, p.reblogs_count || 0), 0.8) * 2
+    const favorites = Math.pow(Math.max(0, p.favorites_count || 0), 0.7)
+
+    const ageHours = Math.max(0, (Date.now() - new Date(p.created_at).getTime()) / 3600_000)
+    const decay = Math.pow(0.5, ageHours / 18)
+
+    return (replies + reblogs + favorites + 0.1) * decay
   }
 
   private async getTrendingPosts(limit = 5): Promise<TimelinePost[]> {
