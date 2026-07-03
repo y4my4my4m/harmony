@@ -90,6 +90,23 @@ export async function processMessageDecryption(messages: Message[]): Promise<Mes
     return messages // Fast path: nothing to decrypt
   }
 
+  // Batch-prime the signing key cache for every sender on this page in ONE
+  // query, so per-message signature verification doesn't fan out to one
+  // user_key_pairs lookup per sender. Best-effort: verification has its own
+  // per-sender fallback with the same caching.
+  try {
+    const senderIds = [...new Set(
+      encryptedMessages
+        .map(m => (m.encryption_metadata as any)?.sender_user_id)
+        .filter((id: unknown): id is string => typeof id === 'string' && id.length > 0)
+    )]
+    if (senderIds.length > 0 && typeof encryptionService.prefetchSigningKeys === 'function') {
+      await encryptionService.prefetchSigningKeys(senderIds)
+    }
+  } catch (error) {
+    debug.warn('⚠️ Signing key prefetch failed (non-fatal):', error)
+  }
+
   // "Identity epoch": messages encrypted before our current identity was created
   // are sealed to a key that no longer exists. A missing session key for them is
   // permanent (no point asking the sender / retrying), so we flag them distinctly.
