@@ -122,342 +122,10 @@
       <FederationManagement />
 
       <!-- User Management -->
-      <div class="admin-module users-module">
-        <div class="module-header">
-          <Icon name="users" :size="20" />
-          <h2>User Management</h2>
-          <div class="search-bar">
-            <Icon name="search" :size="16" />
-            <input v-model="userSearch" placeholder="Search users..." class="cyber-input" />
-          </div>
-        </div>
-        <div class="users-content">
-          <div class="user-filters">
-            <button 
-              v-for="filter in userFilters" 
-              :key="filter.key"
-              @click="activeUserFilter = filter.key"
-              :class="['filter-btn', { active: activeUserFilter === filter.key }]"
-            >
-              {{ filter.label }} ({{ filter.count }})
-            </button>
-          </div>
-          <div class="users-list">
-            <div 
-              v-for="user in filteredUsers" 
-              :key="user.id" 
-              class="user-item"
-              :class="{ 'user-suspended': user.is_suspended }"
-            >
-              <Avatar 
-                :src="user.avatar_url" 
-                :alt="user.display_name || user.username"
-                size="md"
-              />
-              <div class="user-info">
-                <div class="user-name">
-                  <DisplayName :user-id="user.id" :fallback="user.display_name || user.username" />
-                  <span v-if="user.is_suspended" class="badge suspended">Suspended</span>
-                  <span v-if="user.is_admin" class="badge admin">Admin</span>
-                  <span v-if="user.is_moderator && !user.is_admin" class="badge moderator">Mod</span>
-                  <span v-if="user.force_sensitive" class="badge sensitive" title="All media from this user is force-marked sensitive">F-Sensitive</span>
-                  <span v-if="user.is_silenced" class="badge silenced" title="This user is silenced (hidden from public timelines)">Silenced</span>
-                </div>
-                <div class="user-meta">
-                  {{ user.handle }}
-                  <span class="user-joined">Joined {{ formatDate(user.created_at) }}</span>
-                  <span v-if="user.is_suspended && user.suspension_reason" class="suspension-reason">
-                    - {{ user.suspension_reason }}
-                  </span>
-                </div>
-              </div>
-              <div class="user-stats">
-                <button @click="navigateToUserPosts(user)" class="user-stat clickable">
-                  {{ user.postCount }} posts
-                </button>
-                <button 
-                  v-if="user.is_local" 
-                  @click="navigateToUserServers(user)" 
-                  class="user-stat clickable"
-                >
-                  {{ user.serverCount }} servers
-                </button>
-                <span v-else class="user-stat">federated</span>
-              </div>
-              <div class="user-actions">
-                <button
-                  v-if="!user.is_admin"
-                  @click="toggleModerator(user)"
-                  class="mod-btn"
-                  :class="user.is_moderator ? 'demote-btn' : 'promote-btn'"
-                  :title="user.is_moderator ? 'Remove Moderator' : 'Make Moderator'"
-                >
-                  <Icon :name="user.is_moderator ? 'shield-off' : 'shield'" :size="16" />
-                </button>
-                <button
-                  @click="moderateUser(user, user.force_sensitive ? 'unforce_sensitive' : 'force_sensitive')"
-                  class="mod-btn"
-                  :class="user.force_sensitive ? 'unsuspend-btn' : 'warning-btn'"
-                  :title="user.force_sensitive ? 'Remove force-sensitive' : 'Force all media as sensitive'"
-                >
-                  <Icon :name="user.force_sensitive ? 'eye' : 'eye-off'" :size="16" />
-                </button>
-                <button
-                  @click="moderateUser(user, user.is_silenced ? 'unsilence' : 'silence')"
-                  class="mod-btn"
-                  :class="user.is_silenced ? 'unsuspend-btn' : 'warning-btn'"
-                  :title="user.is_silenced ? 'Remove silence' : 'Silence (hide from public timelines)'"
-                >
-                  <Icon :name="user.is_silenced ? 'volume-2' : 'volume-x'" :size="16" />
-                </button>
-                <button 
-                  v-if="user.is_suspended"
-                  @click="moderateUser(user, 'unsuspend')" 
-                  class="mod-btn unsuspend-btn"
-                  title="Unsuspend user"
-                >
-                  <Icon name="check" :size="16" />
-                </button>
-                <button 
-                  v-else
-                  @click="moderateUser(user, 'suspend')" 
-                  class="mod-btn suspend-btn"
-                  title="Suspend user"
-                >
-                  <Icon name="suspend" :size="16" />
-                </button>
-                <button 
-                  @click="moderateUser(user, 'delete')" 
-                  class="mod-btn delete-btn"
-                  title="Delete user"
-                >
-                  <Icon name="delete" :size="16" />
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- User Pagination -->
-        <div v-if="userPagination.total > userPagination.limit" class="pagination">
-          <button
-            @click="loadPreviousUsers"
-            :disabled="userPagination.offset === 0"
-            class="pagination-btn"
-          >Previous</button>
-          <span class="pagination-info">
-            {{ userPagination.offset + 1 }}-{{ Math.min(userPagination.offset + userPagination.limit, userPagination.total) }}
-            of {{ userPagination.total }}
-          </span>
-          <button
-            @click="loadNextUsers"
-            :disabled="userPagination.offset + userPagination.limit >= userPagination.total"
-            class="pagination-btn"
-          >Next</button>
-        </div>
-      </div>
+      <UserManagement />
 
       <!-- Reports & Moderation -->
-      <div class="admin-module reports-module">
-        <div class="module-header">
-          <Icon name="flag" :size="20" />
-          <h2>Reports & Moderation</h2>
-          <span v-if="pendingReportsCount > 0" class="reports-badge">{{ pendingReportsCount }} pending</span>
-        </div>
-
-        <div class="report-filters">
-          <button
-            v-for="filter in reportFilters"
-            :key="filter.key"
-            @click="activeReportFilter = filter.key"
-            :class="['filter-btn', { active: activeReportFilter === filter.key }]"
-          >
-            {{ filter.label }}
-          </button>
-        </div>
-
-        <div class="reports-list" v-if="reports.length > 0">
-          <div
-            v-for="report in reports"
-            :key="report.id"
-            class="report-item"
-            :class="{ expanded: expandedReportId === report.id }"
-            @click="toggleReportExpand(report.id)"
-          >
-            <div class="report-summary">
-              <div class="report-type-badge" :class="report.report_type">
-                {{ report.report_type }}
-              </div>
-              <div class="report-users">
-                <div class="report-reporter">
-                  <Avatar :src="report.reporter_avatar_url" :alt="report.reporter_username" size="xs" />
-                  <span class="report-user-link" @click.stop="navigateToReportUser(report, 'reporter')">
-                    <DisplayName v-if="report.reporter_id" :user-id="(report.reporter_id ?? undefined)" :fallback="(report.reporter_display_name || report.reporter_username) ?? undefined" />
-                    <template v-else>{{ report.reporter_display_name || report.reporter_username }}</template>
-                    <span v-if="!report.reporter_is_local && report.reporter_domain" class="federation-badge" title="Federated user">
-                      @{{ report.reporter_domain }}
-                    </span>
-                  </span>
-                </div>
-                <span class="report-arrow">&#8594;</span>
-                <div class="report-reported" v-if="report.reported_user_id || report.reported_user_username">
-                  <Avatar :src="report.reported_user_avatar_url" :alt="report.reported_user_username ?? undefined" size="xs" />
-                  <span class="report-user-link" @click.stop="navigateToReportUser(report, 'reported')">
-                    <DisplayName v-if="report.reported_user_id" :user-id="(report.reported_user_id ?? undefined)" :fallback="(report.reported_user_display_name || report.reported_user_username) ?? undefined" />
-                    <template v-else>{{ report.reported_user_display_name || report.reported_user_username }}</template>
-                    <span v-if="!report.reported_user_is_local && report.reported_user_domain" class="federation-badge" title="Federated user">
-                      @{{ report.reported_user_domain }}
-                    </span>
-                  </span>
-                  <a
-                    v-if="!report.reported_user_is_local && report.reported_user_domain"
-                    :href="`https://${report.reported_user_domain}/@${report.reported_user_username}`"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    class="report-external-link"
-                    title="View on remote instance"
-                    @click.stop
-                  >
-                    <Icon name="external-link" :size="14" />
-                  </a>
-                </div>
-              </div>
-              <div class="report-reason">{{ report.reason }}</div>
-              <div class="report-meta">
-                <span v-if="report.source !== 'local'" class="report-source federation-badge">{{ report.source_instance || report.source }}</span>
-                <span v-else class="report-source-local">local</span>
-                <time class="report-time">{{ formatDate(report.created_at) }}</time>
-              </div>
-              <div class="report-status-badge" :class="report.status">{{ report.status }}</div>
-            </div>
-
-            <div v-if="expandedReportId === report.id" class="report-detail" @click.stop>
-              <div v-if="report.comment" class="report-comment">
-                <label>Reporter's comment</label>
-                <p>{{ report.comment }}</p>
-              </div>
-
-              <div v-if="report.reported_message_preview" class="report-proof">
-                <label>Reported message</label>
-                <blockquote v-html="linkifyReportPreview(report.reported_message_preview)"></blockquote>
-              </div>
-
-              <div v-if="report.reported_post_preview" class="report-proof">
-                <label>Reported post</label>
-                <blockquote v-html="linkifyReportPreview(report.reported_post_preview)"></blockquote>
-                <div class="report-post-meta">
-                  <span v-if="report.reported_post_is_sensitive" class="badge sensitive">Sensitive</span>
-                  <span v-if="report.reported_post_content_warning" class="badge cw">CW: {{ report.reported_post_content_warning }}</span>
-                </div>
-                <div class="report-post-links">
-                  <button
-                    v-if="report.reported_post_id"
-                    class="report-link-btn"
-                    @click.stop="navigateToPost(report.reported_post_id!)"
-                  >
-                    <Icon name="eye" :size="14" /> View post
-                  </button>
-                  <a
-                    v-if="report.reported_post_url || report.reported_post_ap_id"
-                    :href="report.reported_post_url || report.reported_post_ap_id!"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    class="report-link-btn"
-                    @click.stop
-                  >
-                    <Icon name="external-link" :size="14" /> View on remote instance
-                  </a>
-                </div>
-              </div>
-
-              <div v-if="report.resolution_note" class="report-resolution">
-                <label>Resolution note</label>
-                <p>{{ report.resolution_note }}</p>
-              </div>
-
-              <div v-if="report.status === 'pending' || report.status === 'investigating'" class="report-actions-panel">
-                <div class="report-punitive-actions">
-                  <button
-                    v-if="report.reported_post_id"
-                    class="report-action-btn warning"
-                    @click.stop="markPostSensitive(report)"
-                  >{{ report.reported_post_is_sensitive ? 'Unmark Sensitive' : 'Mark Sensitive' }}</button>
-                  <button
-                    v-if="report.reported_post_id"
-                    class="report-action-btn warning"
-                    @click.stop="setPostContentWarning(report)"
-                  >{{ report.reported_post_content_warning ? 'Edit CW' : 'Add CW' }}</button>
-                  <button
-                    v-if="report.reported_post_id"
-                    class="report-action-btn danger"
-                    @click.stop="deleteReportedPost(report)"
-                  >Delete Post</button>
-                  <button
-                    v-if="report.reported_message_id"
-                    class="report-action-btn danger"
-                    @click.stop="deleteReportedMessage(report)"
-                  >Delete Message</button>
-                  <button
-                    v-if="extractStorageUrls(report).length > 0"
-                    class="report-action-btn danger"
-                    @click.stop="deleteReportedMedia(report)"
-                  >Delete Media ({{ extractStorageUrls(report).length }})</button>
-                </div>
-                <div class="report-punitive-actions">
-                  <button
-                    v-if="report.reported_user_id"
-                    class="report-action-btn warning"
-                    @click.stop="forceSensitiveReportedUser(report)"
-                  >Force Sensitive Account</button>
-                  <button
-                    v-if="report.reported_user_id"
-                    class="report-action-btn warning"
-                    @click.stop="silenceReportedUser(report)"
-                  >Silence Account</button>
-                  <button
-                    v-if="report.reported_user_id"
-                    class="report-action-btn danger"
-                    @click.stop="suspendReportedUser(report)"
-                  >Suspend User</button>
-                </div>
-
-                <textarea
-                  v-model="reportResolutionNote"
-                  placeholder="Add resolution notes..."
-                  class="cyber-input resolution-textarea"
-                  rows="2"
-                  @click.stop
-                ></textarea>
-                <label class="toggle-label report-show-resolver" title="If checked, the reporter will see who resolved this (default off for harassment/backlash prevention)">
-                  <input type="checkbox" v-model="reportShowResolver" @click.stop />
-                  <span class="toggle-slider"></span>
-                  <span>Show my name to reporter</span>
-                </label>
-                <div class="report-action-buttons">
-                  <button
-                    v-if="report.status === 'pending'"
-                    class="report-action-btn investigating"
-                    @click.stop="updateReport(report.id, 'investigating')"
-                  >Mark Investigating</button>
-                  <button
-                    class="report-action-btn resolve"
-                    @click.stop="updateReport(report.id, 'resolved')"
-                  >Resolve</button>
-                  <button
-                    class="report-action-btn dismiss"
-                    @click.stop="updateReport(report.id, 'dismissed')"
-                  >Dismiss</button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div v-else class="reports-empty">
-          <Icon name="check-circle" :size="32" />
-          <p>No reports{{ activeReportFilter !== 'all' ? ` with status "${activeReportFilter}"` : '' }}</p>
-        </div>
-      </div>
+      <ReportsModeration />
 
       <!-- Recent Activity -->
       <div class="admin-module activity-module">
@@ -1737,82 +1405,12 @@
         </div>
       </div>
     </div>
-
-    <!-- User Servers Modal -->
-    <Teleport to="body">
-      <div v-if="showServersModal" class="modal-overlay" @click.self="closeServersModal">
-        <div class="modal-content servers-modal">
-          <div class="modal-header">
-            <h3>
-              <Icon name="server" :size="20" />
-              Servers for <DisplayName v-if="selectedUserForServers?.id" :user-id="selectedUserForServers.id" :fallback="selectedUserForServers?.display_name || selectedUserForServers?.username" /><template v-else>{{ selectedUserForServers?.display_name || selectedUserForServers?.username }}</template>
-            </h3>
-            <button @click="closeServersModal" class="close-btn">
-              <Icon name="close" :size="20" />
-            </button>
-          </div>
-          <div class="modal-body">
-            <div v-if="loadingServers" class="loading-state">
-              <LoadingSpinner :size="20" />
-              <span>Loading servers...</span>
-            </div>
-            <div v-else-if="userServers.length === 0" class="empty-state">
-              <Icon name="server" :size="32" />
-              <p>This user is not a member of any servers.</p>
-            </div>
-            <div v-else class="servers-list">
-              <div 
-                v-for="server in userServers" 
-                :key="server.id" 
-                class="server-item"
-              >
-                <div class="server-icon">
-                  <img 
-                    v-if="server.icon_url" 
-                    :src="getServerIconUrl(server.icon_url)" 
-                    :alt="server.name"
-                  />
-                  <div v-else class="server-icon-placeholder">
-                    {{ server.name.charAt(0).toUpperCase() }}
-                  </div>
-                </div>
-                <div class="server-info">
-                  <div class="server-name">
-                    {{ server.name }}
-                    <span v-if="server.is_owner" class="badge owner">Owner</span>
-                  </div>
-                  <div class="server-meta">
-                    <span class="member-count">
-                      <Icon name="users" :size="12" />
-                      {{ server.member_count }} members
-                    </span>
-                    <span class="join-date">
-                      Joined {{ formatDate(server.joined_at) }}
-                    </span>
-                  </div>
-                </div>
-                <div class="server-actions">
-                  <button 
-                    @click="navigateToServer(server.id)" 
-                    class="action-btn-sm"
-                    title="View server"
-                  >
-                    <Icon name="arrow-right" :size="14" />
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </Teleport>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { debug } from '@/utils/debug'
-import { escapeHtml } from '@/utils/sanitize'
 import { useAuthStore } from '@/stores/auth'
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings'
 import { useRouter } from 'vue-router'
@@ -1825,17 +1423,16 @@ import DisplayName from '@/components/DisplayName.vue'
 import EmojiImporter from '@/components/admin/EmojiImporter.vue'
 import PerformanceMonitoring from '@/components/admin/PerformanceMonitoring.vue'
 import FederationManagement from '@/components/admin/FederationManagement.vue'
+import UserManagement from '@/components/admin/UserManagement.vue'
+import ReportsModeration from '@/components/admin/ReportsModeration.vue'
 import { supabase } from '@/supabase'
-import { adminService, type AdminUser, type AdminActivity } from '@/services/AdminService'
-import { reportService, type ReportWithDetails } from '@/services/ReportService'
+import { adminService, type AdminActivity } from '@/services/AdminService'
 import { fundingService, FUNDING_PLATFORMS, type FundingPlatformKey, type SupporterTier, type Supporter, type DonationRecord, type PendingDonation } from '@/services/FundingService'
-import { messageService } from '@/services/MessageService'
 import { trendingService } from '@/services/TrendingService'
 import { announcementService, type Announcement } from '@/services/AnnouncementService'
 import { usePublicServersStore } from '@/stores/usePublicServers'
 import { getServerIconUrl } from '@/utils/serverUtils'
 import { validateImageUpload, humanizeUploadError } from '@/utils/uploadValidation'
-import { userDataService } from '@/services/userDataService'
 import { activityPubService } from '@/services/activityPubService'
 import EmojiPopup from '@/components/EmojiPopup.vue'
 import { getEmojiShortcodeForInsert } from '@/services/emojiShortcodeResolver'
@@ -1862,12 +1459,13 @@ onMounted(async () => {
   }
 
   await loadInitialData()
+  window.addEventListener('admin:activity-changed', onActivityChanged)
 })
+
+const onActivityChanged = () => { void loadRecentActivity() }
 
 // Reactive data
 const loading = ref(false)
-const userSearch = ref('')
-const activeUserFilter = ref('all')
 const activityFilter = ref('all')
 const newBlockDomain = ref('')
 const newBlockReason = ref('')
@@ -1875,21 +1473,6 @@ const configChanged = ref(false)
 const instanceBrandingChanged = ref(false)
 const savingBranding = ref(false)
 const configTab = ref<'general' | 'federation' | 'branding' | 'oauth' | 'webrtc'>('general')
-
-// Reports & Moderation data
-const reports = ref<ReportWithDetails[]>([])
-const pendingReportsCount = ref(0)
-const activeReportFilter = ref<string>('all')
-const expandedReportId = ref<string | null>(null)
-const reportResolutionNote = ref('')
-const reportShowResolver = ref(false)
-const reportFilters = [
-  { key: 'all', label: 'All' },
-  { key: 'pending', label: 'Pending' },
-  { key: 'investigating', label: 'Investigating' },
-  { key: 'resolved', label: 'Resolved' },
-  { key: 'dismissed', label: 'Dismissed' },
-]
 
 // Funding management data
 const fundingChanged = ref(false)
@@ -2050,18 +1633,6 @@ const featuredServersList = ref<Array<{
 const featuredServerToggling = ref<Set<string>>(new Set())
 
 // User servers modal
-const showServersModal = ref(false)
-const selectedUserForServers = ref<AdminUser | null>(null)
-const userServers = ref<{
-  id: string;
-  name: string;
-  icon_url: string | null;
-  member_count: number;
-  owner_id: string;
-  is_owner: boolean;
-  joined_at: string;
-}[]>([])
-const loadingServers = ref(false)
 
 
 // System stats
@@ -2147,8 +1718,6 @@ const config = ref({
 })
 
 // Users data
-const users = ref<AdminUser[]>([])
-const userCounts = ref({ total: 0, local: 0, federated: 0, suspended: 0 })
 const blockedInstances = ref([
   { domain: 'bad-instance.com', reason: 'Spam and harassment' },
   { domain: 'another-bad.net', reason: 'Policy violations' }
@@ -2196,39 +1765,11 @@ const filteredRecentActivity = computed(() => {
   return list
 })
 
-const userFilters = computed(() => [
-  { key: 'all', label: 'All Users', count: userCounts.value.total },
-  { key: 'local', label: 'Local', count: userCounts.value.local },
-  { key: 'federated', label: 'Federated', count: userCounts.value.federated },
-  { key: 'suspended', label: 'Suspended', count: userCounts.value.suspended }
-])
-
-// Filtering/search happens server-side in adminService.getUsers so pagination
-// totals match the filtered set; this list is served as-is.
-const filteredUsers = computed(() => users.value)
-
-let userSearchDebounce: ReturnType<typeof setTimeout> | null = null
-watch(activeUserFilter, () => {
-  userPagination.value.offset = 0
-  loadUsers()
-})
-watch(userSearch, () => {
-  if (userSearchDebounce) clearTimeout(userSearchDebounce)
-  userSearchDebounce = setTimeout(() => {
-    userPagination.value.offset = 0
-    loadUsers()
-  }, 300)
-})
 
 // Watch for config changes
 watch(config, () => {
   configChanged.value = true
 }, { deep: true })
-
-// Watch for report filter changes
-watch(activeReportFilter, () => {
-  loadReports()
-})
 
 // Watch for funding config changes
 watch(
@@ -2247,8 +1788,6 @@ const loadInitialData = async () => {
     // allSettled: one failed loader must not abort the rest.
     await Promise.allSettled([
       loadSystemStats(),
-      loadUsers(),
-      loadUserCounts(),
       loadSystemHealth(),
       loadInstanceConfig(),
     ])
@@ -2257,8 +1796,6 @@ const loadInitialData = async () => {
       loadRecentActivity(),
       loadAnnouncements(),
       loadFeaturedServers(),
-      loadReports(),
-      loadPendingReportsCount(),
       loadFundingData()
     ])
   } catch (error) {
@@ -2474,49 +2011,6 @@ const loadSystemStats = async () => {
       postsToday: 0
     }
   }
-}
-
-const userPagination = ref({ offset: 0, limit: 25, total: 0 })
-
-const loadUserCounts = async () => {
-  try {
-    userCounts.value = await adminService.getUserCounts()
-  } catch (error) {
-    debug.error('Failed to load user counts:', error)
-    userCounts.value = { total: 0, local: 0, federated: 0, suspended: 0 }
-  }
-}
-
-const loadUsers = async () => {
-  try {
-    const result = await adminService.getUsers(
-      userPagination.value.limit,
-      userPagination.value.offset,
-      {
-        filter: activeUserFilter.value as 'all' | 'local' | 'federated' | 'suspended',
-        search: userSearch.value,
-      }
-    )
-    users.value = result.users
-    userPagination.value.total = result.total
-    // Prime user cache so DisplayName can resolve custom emojis in admin list
-    if (result.users.length > 0) {
-      userDataService.ensureUsersLoaded(result.users.map((u) => u.id)).catch(() => {})
-    }
-  } catch (error) {
-    debug.error('Failed to load users:', error)
-    users.value = []
-  }
-}
-
-const loadNextUsers = () => {
-  userPagination.value.offset += userPagination.value.limit
-  loadUsers()
-}
-
-const loadPreviousUsers = () => {
-  userPagination.value.offset = Math.max(0, userPagination.value.offset - userPagination.value.limit)
-  loadUsers()
 }
 
 const loadSystemHealth = async () => {
@@ -3043,220 +2537,6 @@ const deleteDonation = async (donationId: string) => {
   }
 }
 
-// Reports & Moderation methods
-const loadReports = async () => {
-  try {
-    const statusParam = activeReportFilter.value === 'all' ? null : activeReportFilter.value
-    const result = await reportService.getReports({ status: statusParam })
-    reports.value = result.reports
-    const ids = result.reports
-      .flatMap((r) => [r.reporter_id, r.reported_user_id].filter(Boolean) as string[])
-    if (ids.length > 0) {
-      userDataService.ensureUsersLoaded(ids).catch(() => {})
-    }
-  } catch (error) {
-    debug.error('Failed to load reports:', error)
-  }
-}
-
-const loadPendingReportsCount = async () => {
-  pendingReportsCount.value = await reportService.getPendingReportsCount()
-}
-
-const toggleReportExpand = (id: string) => {
-  expandedReportId.value = expandedReportId.value === id ? null : id
-  reportResolutionNote.value = ''
-  reportShowResolver.value = false
-}
-
-const updateReport = async (reportId: string, status: 'investigating' | 'resolved' | 'dismissed') => {
-  const options = (status === 'resolved' || status === 'dismissed') ? { showResolver: reportShowResolver.value } : undefined
-  const success = await reportService.updateReportStatus(reportId, status, reportResolutionNote.value || undefined, options)
-  if (success) {
-    toast.success(`Report ${status}`)
-    reportResolutionNote.value = ''
-    expandedReportId.value = null
-    await loadReports()
-    await loadPendingReportsCount()
-  } else {
-    toast.error('Failed to update report')
-  }
-}
-
-const linkifyReportPreview = (text: string): string => {
-  const escaped = escapeHtml(text)
-  return escaped.replace(
-    /(https?:\/\/[^\s\]]+)/g,
-    '<a href="$1" target="_blank" rel="noopener noreferrer" class="report-link" onclick="event.stopPropagation()">$1</a>'
-  )
-}
-
-const extractStorageUrls = (report: ReportWithDetails): string[] => {
-  const preview = report.reported_message_preview || report.reported_post_preview || ''
-  const supabaseHost = import.meta.env.VITE_SUPABASE_URL || ''
-  const urls: string[] = []
-  const urlRegex = /https?:\/\/[^\s\]]+/g
-  let match
-  while ((match = urlRegex.exec(preview)) !== null) {
-    const url = match[0]
-    if (url.includes('/storage/') || (supabaseHost && url.startsWith(supabaseHost))) {
-      urls.push(url)
-    }
-  }
-  return urls
-}
-
-const deleteReportedMedia = async (report: ReportWithDetails) => {
-  const urls = extractStorageUrls(report)
-  if (urls.length === 0) return
-  if (!confirm(`Delete ${urls.length} media file(s) from storage? This cannot be undone.\n\n${urls.join('\n')}`)) return
-
-  let deleted = 0
-  for (const url of urls) {
-    try {
-      const pathMatch = url.match(/\/storage\/v1\/object\/public\/([^?]+)/)
-      if (pathMatch) {
-        const fullPath = pathMatch[1]
-        const slashIdx = fullPath.indexOf('/')
-        const bucket = fullPath.substring(0, slashIdx)
-        const filePath = fullPath.substring(slashIdx + 1)
-        const { error } = await supabase.storage.from(bucket).remove([filePath])
-        if (!error) deleted++
-        else debug.error(`Failed to delete ${filePath}:`, error)
-      }
-    } catch (error) {
-      debug.error('Failed to delete media:', error)
-    }
-  }
-
-  if (deleted > 0) {
-    await adminService.logAdminAction({ action: 'media_delete', targetType: 'storage', details: { count: deleted, urls } })
-    toast.success(`Deleted ${deleted} media file(s)`)
-  } else {
-    toast.error('Failed to delete media files')
-  }
-}
-
-const deleteReportedMessage = async (report: ReportWithDetails) => {
-  if (!report.reported_message_id) return
-  if (!confirm('Delete this message? This cannot be undone.')) return
-  try {
-    await messageService.deleteMessage(report.reported_message_id)
-    toast.success('Message deleted')
-    await updateReport(report.id, 'resolved')
-  } catch (error) {
-    debug.error('Failed to delete message:', error)
-    toast.error('Failed to delete message')
-  }
-}
-
-const suspendReportedUser = async (report: ReportWithDetails) => {
-  if (!report.reported_user_id) return
-  const reason = prompt('Suspension reason:')
-  if (!reason) return
-  try {
-    await adminService.moderateUser(report.reported_user_id, 'suspend', reason, authStore.session?.user?.id || '')
-    toast.success(`User ${report.reported_user_display_name || report.reported_user_username} suspended`)
-    await updateReport(report.id, 'resolved')
-    await loadUsers()
-  } catch (error) {
-    debug.error('Failed to suspend user:', error)
-    toast.error('Failed to suspend user')
-  }
-}
-
-const markPostSensitive = async (report: ReportWithDetails) => {
-  if (!report.reported_post_id) return
-  try {
-    const action = report.reported_post_is_sensitive ? 'unmark_sensitive' : 'mark_sensitive'
-    await adminService.moderatePost(report.reported_post_id, action)
-    report.reported_post_is_sensitive = !report.reported_post_is_sensitive
-    toast.success(report.reported_post_is_sensitive ? 'Post marked as sensitive' : 'Post unmarked as sensitive')
-  } catch (error) {
-    debug.error('Failed to toggle sensitive:', error)
-    toast.error('Failed to update post sensitivity')
-  }
-}
-
-const setPostContentWarning = async (report: ReportWithDetails) => {
-  if (!report.reported_post_id) return
-  const cw = prompt('Content warning text (leave empty to remove):', report.reported_post_content_warning || '')
-  if (cw === null) return
-  try {
-    if (cw.trim()) {
-      await adminService.moderatePost(report.reported_post_id, 'set_cw', cw.trim())
-      report.reported_post_content_warning = cw.trim()
-      toast.success('Content warning set')
-    } else {
-      await adminService.moderatePost(report.reported_post_id, 'remove_cw')
-      report.reported_post_content_warning = null
-      toast.success('Content warning removed')
-    }
-  } catch (error) {
-    debug.error('Failed to set content warning:', error)
-    toast.error('Failed to update content warning')
-  }
-}
-
-const deleteReportedPost = async (report: ReportWithDetails) => {
-  if (!report.reported_post_id) return
-  if (!confirm('Delete this post? This cannot be undone.')) return
-  try {
-    await adminService.moderatePost(report.reported_post_id, 'delete')
-    toast.success('Post deleted')
-    await updateReport(report.id, 'resolved')
-  } catch (error) {
-    debug.error('Failed to delete post:', error)
-    toast.error('Failed to delete post')
-  }
-}
-
-const forceSensitiveReportedUser = async (report: ReportWithDetails) => {
-  if (!report.reported_user_id) return
-  const reason = prompt('Reason for marking all media as sensitive:')
-  if (!reason) return
-  try {
-    await adminService.moderateUser(report.reported_user_id, 'force_sensitive', reason, authStore.session?.user?.id || '')
-    toast.success(`All future media from ${report.reported_user_display_name || report.reported_user_username} will be marked sensitive`)
-  } catch (error) {
-    debug.error('Failed to force sensitive:', error)
-    toast.error('Failed to force-sensitive account')
-  }
-}
-
-const silenceReportedUser = async (report: ReportWithDetails) => {
-  if (!report.reported_user_id) return
-  const reason = prompt('Reason for silencing (hiding from public timelines):')
-  if (!reason) return
-  try {
-    await adminService.moderateUser(report.reported_user_id, 'silence', reason, authStore.session?.user?.id || '')
-    toast.success(`User ${report.reported_user_display_name || report.reported_user_username} silenced`)
-  } catch (error) {
-    debug.error('Failed to silence user:', error)
-    toast.error('Failed to silence user')
-  }
-}
-
-const navigateToReportUser = (report: ReportWithDetails, which: 'reporter' | 'reported') => {
-  let username: string | null
-  let domain: string | null
-  if (which === 'reporter') {
-    username = report.reporter_username
-    domain = report.reporter_domain
-  } else {
-    username = report.reported_user_username
-    domain = report.reported_user_domain
-  }
-  if (!username) return
-  const localDomain = import.meta.env.VITE_DOMAIN as string
-  const handle = (domain && domain !== localDomain) ? `${username}@${domain}` : username
-  router.push({ name: 'UserProfile', params: { handle } })
-}
-
-const navigateToPost = (postId: string) => {
-  router.push(`/post/${postId}`)
-}
-
 const refreshData = async () => {
   await loadInitialData()
 }
@@ -3328,122 +2608,6 @@ const unblockInstance = async (domain: string) => {
     debug.error('Failed to unblock instance:', error)
     alert('Failed to unblock instance. Check console for details.')
   }
-}
-
-const toggleModerator = async (user: any) => {
-  const newStatus = !user.is_moderator
-  const label = newStatus ? 'promote to moderator' : 'remove moderator from'
-  if (!confirm(`Are you sure you want to ${label} ${user.username}?`)) return
-
-  try {
-    await adminService.setModeratorStatus(user.id, newStatus)
-    user.is_moderator = newStatus
-    await loadRecentActivity()
-  } catch (error) {
-    debug.error('Failed to toggle moderator status:', error)
-    alert('Failed to update moderator status.')
-  }
-}
-
-// Patch the row in place instead of reloading the whole page of users; drop
-// the row when it no longer matches the active server-side filter.
-const patchUserRow = (userId: string, patch: Record<string, any> | null) => {
-  if (patch === null) {
-    users.value = users.value.filter((u: any) => u.id !== userId)
-    userPagination.value.total = Math.max(0, userPagination.value.total - 1)
-    return
-  }
-  const row: any = users.value.find((u: any) => u.id === userId)
-  if (row) Object.assign(row, patch)
-  const f = activeUserFilter.value
-  if ((f === 'suspended' && patch.is_suspended === false)) {
-    patchUserRow(userId, null)
-  }
-  loadUserCounts().catch(() => {})
-}
-
-const moderateUser = async (user: any, action: string) => {
-  try {
-    if (action === 'suspend') {
-      const reason = prompt('Suspension reason:')
-      if (!reason) return
-      await adminService.moderateUser(user.id, 'suspend', reason, authStore.session?.user?.id || '')
-      patchUserRow(user.id, { is_suspended: true, suspension_reason: reason })
-      loadRecentActivity().catch(() => {})
-      toast.success(`User ${user.username} has been suspended.`)
-    } else if (action === 'unsuspend') {
-      if (!confirm(`Are you sure you want to unsuspend user ${user.username}?`)) return
-      await adminService.moderateUser(user.id, 'unsuspend', 'Admin unsuspend', authStore.session?.user?.id || '')
-      patchUserRow(user.id, { is_suspended: false, suspension_reason: null })
-      loadRecentActivity().catch(() => {})
-      toast.success(`User ${user.username} has been unsuspended.`)
-    } else if (action === 'delete') {
-      if (!confirm(`Are you sure you want to delete user ${user.username}? This cannot be undone.`)) return
-      await adminService.moderateUser(user.id, 'delete', 'Admin deletion', authStore.session?.user?.id || '')
-      patchUserRow(user.id, null)
-      loadRecentActivity().catch(() => {})
-      toast.success(`User ${user.username} has been deleted.`)
-    } else if (action === 'force_sensitive') {
-      const reason = prompt('Reason for marking all media as sensitive:')
-      if (!reason) return
-      await adminService.moderateUser(user.id, 'force_sensitive', reason, authStore.session?.user?.id || '')
-      patchUserRow(user.id, { force_sensitive: true })
-      toast.success(`All future media from ${user.username} will be marked sensitive.`)
-    } else if (action === 'unforce_sensitive') {
-      if (!confirm(`Remove force-sensitive from ${user.username}?`)) return
-      await adminService.moderateUser(user.id, 'unforce_sensitive', '', authStore.session?.user?.id || '')
-      patchUserRow(user.id, { force_sensitive: false })
-      toast.success(`Force-sensitive removed from ${user.username}.`)
-    } else if (action === 'silence') {
-      const reason = prompt('Reason for silencing (hidden from public timelines):')
-      if (!reason) return
-      await adminService.moderateUser(user.id, 'silence', reason, authStore.session?.user?.id || '')
-      patchUserRow(user.id, { is_silenced: true, silenced_reason: reason })
-      toast.success(`User ${user.username} has been silenced.`)
-    } else if (action === 'unsilence') {
-      if (!confirm(`Remove silence from ${user.username}?`)) return
-      await adminService.moderateUser(user.id, 'unsilence', '', authStore.session?.user?.id || '')
-      patchUserRow(user.id, { is_silenced: false, silenced_reason: null })
-      toast.success(`User ${user.username} has been unsilenced.`)
-    }
-  } catch (error: any) {
-    debug.error('Failed to moderate user:', error)
-    toast.error(`Failed to ${action} user: ${error.message || 'Unknown error'}`)
-  }
-}
-
-const navigateToUserPosts = (user: any) => {
-  const handle = (user.domain && user.domain !== import.meta.env.VITE_DOMAIN as string)
-    ? `${user.username}@${user.domain}`
-    : user.username
-  router.push({ name: 'UserProfile', params: { handle } })
-}
-
-const navigateToUserServers = async (user: AdminUser) => {
-  // Open modal and load user's servers
-  selectedUserForServers.value = user
-  showServersModal.value = true
-  loadingServers.value = true
-  
-  try {
-    userServers.value = await adminService.getUserServers(user.id)
-  } catch (error) {
-    debug.error('Failed to load user servers:', error)
-    userServers.value = []
-  } finally {
-    loadingServers.value = false
-  }
-}
-
-const closeServersModal = () => {
-  showServersModal.value = false
-  selectedUserForServers.value = null
-  userServers.value = []
-}
-
-const navigateToServer = (serverId: string) => {
-  closeServersModal()
-  router.push(`/chat/${serverId}`)
 }
 
 const saveConfig = async () => {
@@ -3841,6 +3005,8 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .admin-header {
   display: flex;
   justify-content: space-between;
@@ -3852,11 +3018,15 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .admin-title {
   display: flex;
   align-items: center;
   gap: 12px;
 }
+
+
 
 
 
@@ -3869,6 +3039,8 @@ const getActivityIcon = (type: string) => {
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
+
+
 
 
 
@@ -3886,11 +3058,15 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .system-status.healthy {
   background: rgba(0, 255, 136, 0.1);
   color: #00ff88;
   border: 1px solid rgba(0, 255, 136, 0.3);
 }
+
+
 
 
 
@@ -3902,11 +3078,15 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .system-status.error {
   background: rgba(255, 69, 58, 0.1);
   color: #ff453a;
   border: 1px solid rgba(255, 69, 58, 0.3);
 }
+
+
 
 
 
@@ -3920,6 +3100,8 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 @keyframes pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.5; }
@@ -3927,10 +3109,14 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .admin-actions {
   display: flex;
   gap: 12px;
 }
+
+
 
 
 
@@ -3951,11 +3137,15 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .action-btn:hover {
   background: var(--background-tertiary);
   border-color: var(--accent-color);
   transform: translateY(-1px);
 }
+
+
 
 
 
@@ -3967,12 +3157,16 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .admin-grid {
   display: grid;
   /* min(600px, 100%) lets tracks collapse below 600px instead of overflowing */
   grid-template-columns: repeat(auto-fit, minmax(min(600px, 100%), 1fr));
   gap: 24px;
 }
+
+
 
 
 
@@ -3987,11 +3181,15 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .admin-module:hover {
   border-color: var(--accent-color);
   box-shadow: 0 8px 32px rgba(0, 212, 255, 0.1);
   transform: translateY(-2px);
 }
+
+
 
 
 
@@ -4006,6 +3204,8 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .module-header h2 {
   font-size: 18px;
   font-weight: 600;
@@ -4015,12 +3215,16 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 16px;
   padding: 24px;
 }
+
+
 
 
 
@@ -4037,10 +3241,14 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .stat-card:hover {
   border-color: var(--accent-color);
   box-shadow: 0 4px 16px rgba(0, 212, 255, 0.1);
 }
+
+
 
 
 
@@ -4053,9 +3261,13 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .stat-content {
   flex: 1;
 }
+
+
 
 
 
@@ -4068,11 +3280,15 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .stat-label {
   font-size: 14px;
   color: var(--text-secondary);
   margin-bottom: 4px;
 }
+
+
 
 
 
@@ -4083,9 +3299,13 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .stat-change.positive {
   color: #00ff88;
 }
+
+
 
 
 
@@ -4096,9 +3316,13 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .setting-group {
   margin-bottom: 16px;
 }
+
+
 
 
 
@@ -4112,6 +3336,8 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .setting-control-row {
   display: flex;
   align-items: center;
@@ -4121,9 +3347,13 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .setting-control-row .setting-hint {
   margin-bottom: 0;
 }
+
+
 
 
 
@@ -4135,11 +3365,15 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .refresh-trending-btn:disabled {
   opacity: 0.7;
   cursor: not-allowed;
   transform: none;
 }
+
+
 
 
 
@@ -4156,11 +3390,15 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .cyber-input:focus, .cyber-textarea:focus, .cyber-select:focus {
   outline: none;
   border-color: var(--accent-color);
   box-shadow: 0 0 0 3px rgba(0, 212, 255, 0.1);
 }
+
+
 
 
 
@@ -4171,11 +3409,15 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .setting-row {
   display: flex;
   gap: 24px;
   align-items: center;
 }
+
+
 
 
 
@@ -4191,6 +3433,8 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 /* Override parent label styles so toggles stay horizontal and text doesn't truncate */
 .setting-group .toggle-label,
 .announcement-form .form-row.checks .toggle-label {
@@ -4200,9 +3444,13 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .toggle-label .toggle-slider {
   flex-shrink: 0;
 }
+
+
 
 
 
@@ -4213,9 +3461,13 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .toggle-label input[type="checkbox"] {
   display: none;
 }
+
+
 
 
 
@@ -4228,6 +3480,8 @@ const getActivityIcon = (type: string) => {
   border-radius: 24px;
   transition: all 0.2s ease;
 }
+
+
 
 
 
@@ -4245,6 +3499,8 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .toggle-label input[type="checkbox"]:checked + .toggle-slider {
   background: var(--accent-color);
   border-color: var(--accent-color);
@@ -4252,10 +3508,14 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .toggle-label input[type="checkbox"]:checked + .toggle-slider:before {
   left: 22px;
   background: white;
 }
+
+
 
 
 
@@ -4272,6 +3532,8 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .klipy-group-label {
   font-size: 12px;
   font-weight: 700;
@@ -4285,11 +3547,15 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .klipy-settings > .klipy-group-label:first-child {
   margin-top: 4px;
   padding-top: 0;
   border-top: none;
 }
+
+
 
 
 
@@ -4299,6 +3565,8 @@ const getActivityIcon = (type: string) => {
   color: var(--text-secondary);
   margin: 0 0 4px;
 }
+
+
 
 
 
@@ -4313,9 +3581,13 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .klipy-setting:last-child {
   border-bottom: none;
 }
+
+
 
 
 
@@ -4325,6 +3597,8 @@ const getActivityIcon = (type: string) => {
   gap: 3px;
   min-width: 0;
 }
+
+
 
 
 
@@ -4340,6 +3614,8 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .klipy-setting-title code {
   font-size: 11.5px;
   font-weight: 500;
@@ -4351,11 +3627,15 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .klipy-setting-desc {
   font-size: 12.5px;
   line-height: 1.5;
   color: var(--text-secondary);
 }
+
+
 
 
 
@@ -4366,10 +3646,14 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 /* Blocked Instances */
 .blocked-instances {
   space-y: 16px;
 }
+
+
 
 
 
@@ -4386,10 +3670,14 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .instance-info .domain {
   font-weight: 600;
   color: var(--text-primary);
 }
+
+
 
 
 
@@ -4399,6 +3687,8 @@ const getActivityIcon = (type: string) => {
   color: var(--text-secondary);
   margin-top: 4px;
 }
+
+
 
 
 
@@ -4414,12 +3704,16 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 /* Federation Management Styles */
 .module-actions {
   display: flex;
   gap: 8px;
   margin-left: auto;
 }
+
+
 
 
 
@@ -4439,6 +3733,8 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .primary-btn-sm {
   padding: 6px 12px;
   font-size: 12px;
@@ -4446,10 +3742,14 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .primary-btn:hover, .primary-btn-sm:hover {
   background: #0099cc;
   transform: translateY(-1px);
 }
+
+
 
 
 
@@ -4465,6 +3765,8 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .meta-tag.domain {
   color: var(--harmony-primary, #7c8aff);
   background: rgba(124, 138, 255, 0.12);
@@ -4472,10 +3774,14 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .meta-tag.failures {
   color: #ff453a;
   background: rgba(255, 69, 58, 0.12);
 }
+
+
 
 
 
@@ -4491,11 +3797,15 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .status-indicator.ok {
   background: rgba(0, 255, 136, 0.1);
   border: 1px solid rgba(0, 255, 136, 0.3);
   color: #00ff88;
 }
+
+
 
 
 
@@ -4507,6 +3817,8 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .maintenance-card .action-btn.primary {
   background: var(--accent-primary);
   border-color: var(--accent-primary);
@@ -4514,9 +3826,13 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .spin {
   animation: spin 1s linear infinite;
 }
+
+
 
 
 
@@ -4527,9 +3843,13 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .error-text {
   color: #ff453a;
 }
+
+
 
 
 
@@ -4542,11 +3862,15 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .filter-controls {
   display: flex;
   gap: 12px;
   align-items: center;
 }
+
+
 
 
 
@@ -4561,6 +3885,8 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .badge {
   padding: 2px 8px;
   border-radius: 12px;
@@ -4571,10 +3897,14 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .badge.trusted {
   background: rgba(0, 255, 136, 0.2);
   color: #00ff88;
 }
+
+
 
 
 
@@ -4585,10 +3915,14 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .badge.inactive {
   background: rgba(156, 163, 175, 0.2);
   color: #9ca3af;
 }
+
+
 
 
 
@@ -4599,6 +3933,8 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .badge.info {
   background: rgba(0, 212, 255, 0.2);
   color: #00d4ff;
@@ -4606,9 +3942,13 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .detail-item {
   white-space: nowrap;
 }
+
+
 
 
 
@@ -4624,10 +3964,14 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .action-btn-sm:hover {
   border-color: var(--accent-color);
   color: var(--accent-color);
 }
+
+
 
 
 
@@ -4638,10 +3982,14 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .danger-btn-sm:hover {
   border-color: rgba(255, 69, 58, 0.5);
   color: #ff453a;
 }
+
+
 
 
 
@@ -4653,6 +4001,8 @@ const getActivityIcon = (type: string) => {
   padding: 20px;
   border-top: 1px solid var(--border-color);
 }
+
+
 
 
 
@@ -4668,10 +4018,14 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .pagination-btn:hover:not(:disabled) {
   border-color: var(--accent-color);
   color: var(--accent-color);
 }
+
+
 
 
 
@@ -4682,10 +4036,14 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .pagination-info {
   color: var(--text-secondary);
   font-size: 14px;
 }
+
+
 
 
 
@@ -4703,10 +4061,14 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .tab-btn.active {
   background: var(--accent-color);
   color: var(--text-primary);
 }
+
+
 
 
 
@@ -4723,6 +4085,8 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .detail-row {
   display: flex;
   gap: 8px;
@@ -4732,10 +4096,14 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .detail-row strong {
   min-width: 80px;
   color: var(--text-secondary);
 }
+
+
 
 
 
@@ -4750,55 +4118,13 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .spinning {
   animation: spin 1s linear infinite;
 }
 
 
-
-/* Users Module */
-.users-content {
-  padding: 24px;
-}
-
-
-
-.user-filters {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 24px;
-}
-
-
-
-.filter-btn {
-  padding: 8px 16px;
-  background: var(--background-tertiary);
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  color: var(--text-secondary);
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-
-
-.filter-btn:hover, .filter-btn.active {
-  background: var(--accent-color);
-  border-color: var(--accent-color);
-  color: var(--text-primary);
-}
-
-
-
-.search-bar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  position: relative;
-}
 
 
 
@@ -4809,6 +4135,8 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .search-bar .icon {
   position: absolute;
   left: 12px;
@@ -4816,95 +4144,6 @@ const getActivityIcon = (type: string) => {
 }
 
 
-
-.users-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  max-height: 600px;
-  overflow-y: auto;
-}
-
-
-
-.user-item {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  padding: 16px;
-  background: var(--background-tertiary);
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  transition: all 0.2s ease;
-  margin: 8px 0;
-}
-
-
-
-.user-item:hover {
-  border-color: var(--accent-color);
-}
-
-
-
-.user-info {
-  flex: 1;
-}
-
-
-
-.user-name {
-  font-weight: 600;
-  color: var(--text-primary);
-  margin-bottom: 4px;
-}
-
-
-
-.user-meta {
-  font-size: 12px;
-  color: var(--text-secondary);
-  display: flex;
-  gap: 12px;
-  align-items: center;
-}
-
-
-
-.user-stats {
-  display: flex;
-  gap: 16px;
-  font-size: 12px;
-  color: var(--text-secondary);
-}
-
-
-
-.user-stat {
-  background: none;
-  border: none;
-  color: inherit;
-  font-size: inherit;
-  cursor: pointer;
-  padding: 2px 6px;
-  border-radius: 4px;
-  transition: all 0.2s ease;
-}
-
-
-
-.user-stat.clickable:hover {
-  background: rgba(0, 212, 255, 0.1);
-  color: #00d4ff;
-  transform: translateY(-1px);
-}
-
-
-
-.user-actions {
-  display: flex;
-  gap: 8px;
-}
 
 
 
@@ -4920,17 +4159,14 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .mod-btn:hover {
   border-color: var(--accent-color);
   color: var(--text-primary);
 }
 
 
-
-.suspend-btn:hover {
-  border-color: #ffc107;
-  color: #ffc107;
-}
 
 
 
@@ -4940,35 +4176,6 @@ const getActivityIcon = (type: string) => {
 }
 
 
-
-.unsuspend-btn {
-  border-color: rgba(0, 255, 136, 0.3);
-  color: #00ff88;
-}
-
-
-
-.unsuspend-btn:hover {
-  border-color: #00ff88;
-  background: rgba(0, 255, 136, 0.1);
-}
-
-
-
-/* Suspended user styling */
-.user-item.user-suspended {
-  opacity: 0.25;
-  background: rgba(255, 193, 7, 0.05);
-  border-color: rgba(255, 193, 7, 0.3);
-}
-
-
-
-.user-name {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
 
 
 
@@ -4982,10 +4189,14 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .badge.suspended {
   background: rgba(255, 193, 7, 0.2);
   color: #ffc107;
 }
+
+
 
 
 
@@ -4996,35 +4207,14 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .badge.moderator {
   background: rgba(46, 204, 113, 0.2);
   color: #2ecc71;
 }
 
 
-
-.promote-btn {
-  color: #2ecc71 !important;
-  &:hover { background: rgba(46, 204, 113, 0.2) !important; }
-}
-
-
-
-.demote-btn {
-  color: #e67e22 !important;
-  &:hover { background: rgba(230, 126, 34, 0.2) !important; }
-}
-
-
-
-.suspension-reason {
-  font-style: italic;
-  color: #ffc107;
-  max-width: 200px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 
 
 
@@ -5038,6 +4228,8 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .metric-card {
   padding: 20px;
   background: var(--background-tertiary);
@@ -5047,9 +4239,13 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .metric-card.placeholder-metric {
   opacity: 0.5;
 }
+
+
 
 
 
@@ -5065,11 +4261,15 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .metric-status {
   width: 12px;
   height: 12px;
   border-radius: 50%;
 }
+
+
 
 
 
@@ -5079,15 +4279,21 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .metric-status.warning {
   background: #ffc107;
 }
 
 
 
+
+
 .metric-status.error {
   background: #ff453a;
 }
+
+
 
 
 
@@ -5100,10 +4306,14 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .metric-detail {
   font-size: 12px;
   color: var(--text-secondary);
 }
+
+
 
 
 
@@ -5116,6 +4326,8 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .activity-item {
   display: flex;
   gap: 16px;
@@ -5125,9 +4337,13 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .activity-item:last-child {
   border-bottom: none;
 }
+
+
 
 
 
@@ -5143,10 +4359,14 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .activity-icon.federation {
   background: rgba(0, 212, 255, 0.1);
   color: #00d4ff;
 }
+
+
 
 
 
@@ -5157,6 +4377,8 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .activity-icon.moderation {
   background: rgba(255, 69, 58, 0.1);
   color: #ff453a;
@@ -5164,10 +4386,14 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .activity-icon.other {
   background: rgba(128, 128, 128, 0.1);
   color: var(--text-secondary);
 }
+
+
 
 
 
@@ -5182,6 +4408,8 @@ const getActivityIcon = (type: string) => {
 }
 
 
+
+
 .announcement-form {
   margin: 0 24px 20px;
   padding: 20px;
@@ -5191,16 +4419,26 @@ const getActivityIcon = (type: string) => {
 }
 
 
+
+
 .announcement-form h4 { margin: 0 0 16px 0; }
+
+
 
 
 .announcement-form .form-row { margin-bottom: 12px; }
 
 
+
+
 .announcement-form .form-row label { display: block; font-size: 13px; margin-bottom: 4px; color: var(--text-secondary); }
 
 
+
+
 .announcement-form .form-row.checks { display: flex; gap: 16px; flex-wrap: wrap; }
+
+
 
 
 .announcement-form .form-row.two-col {
@@ -5213,14 +4451,21 @@ const getActivityIcon = (type: string) => {
 
 @media (max-width: 640px) {
 
+
   .announcement-form .form-row.two-col { grid-template-columns: 1fr; }
 }
+
+
 
 
 .announcement-form .form-row.two-col > div { display: flex; flex-direction: column; }
 
 
+
+
 .announcement-form .form-row.two-col label { margin-bottom: 4px; }
+
+
 
 
 .announcement-form .form-hint {
@@ -5231,10 +4476,16 @@ const getActivityIcon = (type: string) => {
 }
 
 
+
+
 .announcement-form .form-actions { display: flex; gap: 8px; margin-top: 16px; }
 
 
+
+
 .announcements-list { padding: 0 24px 24px; }
+
+
 
 
 .announcement-item {
@@ -5249,19 +4500,31 @@ const getActivityIcon = (type: string) => {
 }
 
 
+
+
 .announcement-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+
 
 
 .announcement-icon { font-size: 18px; }
 
 
+
+
 .announcement-title { font-weight: 600; color: var(--text-primary); }
+
+
 
 
 .announcement-item .badge.inactive { background: var(--background-quaternary); color: var(--text-muted); }
 
 
+
+
 .announcement-actions { display: flex; gap: 4px; }
+
+
 
 
 
@@ -5269,7 +4532,11 @@ const getActivityIcon = (type: string) => {
 .featured-module .module-hint { margin: 0 24px 16px; font-size: 13px; color: var(--text-secondary); }
 
 
+
+
 .featured-servers-list { display: flex; flex-direction: column; gap: 8px; padding: 0 24px 24px; }
+
+
 
 
 .featured-server-item {
@@ -5284,13 +4551,19 @@ const getActivityIcon = (type: string) => {
 }
 
 
+
+
 .featured-server-item:hover { border-color: var(--accent-color); }
+
+
 
 
 .featured-server-item.featured {
   border-color: rgba(255, 193, 7, 0.5);
   background: rgba(255, 193, 7, 0.05);
 }
+
+
 
 
 .server-icon-wrap {
@@ -5301,12 +4574,16 @@ const getActivityIcon = (type: string) => {
 }
 
 
+
+
 .server-icon {
   width: 100%;
   height: 100%;
   border-radius: 8px;
   object-fit: cover;
 }
+
+
 
 
 .featured-badge {
@@ -5320,25 +4597,41 @@ const getActivityIcon = (type: string) => {
 }
 
 
+
+
 .server-details { flex: 1; min-width: 0; }
+
+
 
 
 .server-details .server-name { font-weight: 600; color: var(--text-primary); }
 
 
+
+
 .server-details .server-meta { font-size: 13px; color: var(--text-secondary); }
+
+
 
 
 .featured-order { margin-left: 8px; opacity: 0.8; }
 
 
+
+
 .featured-server-item .action-btn-sm.pin-btn { color: var(--accent-color); }
+
+
 
 
 .featured-server-item .action-btn-sm.unpin-btn { color: var(--text-secondary); }
 
 
+
+
 .featured-server-item .action-btn-sm { display: flex; align-items: center; gap: 6px; }
+
+
 
 
 
@@ -5348,11 +4641,15 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .activity-message {
   font-size: 14px;
   color: var(--text-primary);
   margin-bottom: 4px;
 }
+
+
 
 
 
@@ -5365,11 +4662,15 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 /* Emoji Importer Module */
 .emoji-module {
   grid-column: span 2; /* Full width like other major modules */
   max-height: 1130px;
 }
+
+
 
 
 
@@ -5380,10 +4681,14 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 /* Performance Monitoring Module */
 .performance-module {
   grid-column: 1 / -1; /* Full width */
 }
+
+
 
 
 
@@ -5395,6 +4700,8 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 /* Configuration Module */
 .config-tabs {
   display: flex;
@@ -5403,6 +4710,8 @@ const getActivityIcon = (type: string) => {
   border-bottom: 1px solid var(--border-color);
   overflow-x: auto;
 }
+
+
 
 
 
@@ -5424,11 +4733,15 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .config-tab-btn:hover {
   color: var(--text-primary);
   background: var(--background-tertiary);
   border-radius: 6px 6px 0 0;
 }
+
+
 
 
 
@@ -5439,15 +4752,21 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .config-sections {
   padding: 24px;
 }
 
 
 
+
+
 .config-section {
   margin-bottom: 0;
 }
+
+
 
 
 
@@ -5460,11 +4779,15 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .config-subsection {
   margin-top: 24px;
   padding-top: 20px;
   border-top: 1px solid var(--border-color);
 }
+
+
 
 
 
@@ -5479,6 +4802,8 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 /* Instance appearance (icon/banner) */
 .instance-appearance-row {
   display: flex;
@@ -5486,6 +4811,8 @@ const getActivityIcon = (type: string) => {
   gap: 16px;
   margin-bottom: 8px;
 }
+
+
 
 
 
@@ -5507,9 +4834,13 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .instance-icon-preview:hover {
   border-color: var(--harmony-primary);
 }
+
+
 
 
 
@@ -5521,10 +4852,14 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .instance-appearance-controls {
   display: flex;
   gap: 8px;
 }
+
+
 
 
 
@@ -5544,9 +4879,13 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .instance-banner-preview:hover {
   border-color: var(--harmony-primary);
 }
+
+
 
 
 
@@ -5559,6 +4898,8 @@ const getActivityIcon = (type: string) => {
   color: var(--text-secondary);
   font-size: 13px;
 }
+
+
 
 
 
@@ -5578,9 +4919,13 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .instance-banner-preview:hover .instance-banner-overlay {
   opacity: 1;
 }
+
+
 
 
 
@@ -5601,10 +4946,14 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .save-btn:hover {
   background: #0099cc;
   transform: translateY(-1px);
 }
+
+
 
 
 
@@ -5613,6 +4962,8 @@ const getActivityIcon = (type: string) => {
   cursor: not-allowed;
   transform: none;
 }
+
+
 
 
 
@@ -5633,6 +4984,7 @@ const getActivityIcon = (type: string) => {
 
 @media (max-width: 768px) {
 
+
   .admin-grid {
     display: flex;
     flex-direction: column;
@@ -5640,13 +4992,16 @@ const getActivityIcon = (type: string) => {
     gap: 16px;
   }
 
+
   .admin-module {
     max-width: calc(100vw - 32px);
   }
 
+
   .admin-panel {
     padding: 16px;
   }
+
 
 
   .admin-header {
@@ -5656,6 +5011,7 @@ const getActivityIcon = (type: string) => {
   }
 
 
+
   .admin-title {
     flex-direction: column;
     align-items: flex-start;
@@ -5663,10 +5019,12 @@ const getActivityIcon = (type: string) => {
   }
 
 
+
   /* Two-up stats read better than a single tall column on phones. */
   .stats-grid {
     grid-template-columns: 1fr 1fr;
   }
+
 
 
   .setting-row {
@@ -5676,36 +5034,29 @@ const getActivityIcon = (type: string) => {
   }
 
 
+
   .add-block {
     flex-direction: column;
-  }
-
-
-  .user-item {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 12px;
-  }
-
-
-  .user-actions {
-    align-self: flex-end;
   }
 }
 
 @media (max-width: 480px) {
 
+
   .admin-panel {
     padding: 12px;
   }
+
 
   .admin-module {
     max-width: calc(100vw - 24px);
   }
 
+
   .stats-grid {
     grid-template-columns: 1fr;
   }
+
 
   /* Full-width tap targets for the header actions. */
   .admin-actions {
@@ -5713,11 +5064,13 @@ const getActivityIcon = (type: string) => {
     flex-direction: column;
   }
 
+
   .admin-actions .action-btn {
     width: 100%;
     justify-content: center;
     min-height: 44px;
   }
+
 
   /* Wide rows (instance lists, user rows) scroll instead of overflowing. */
   .users-list,
@@ -5732,111 +5085,6 @@ const getActivityIcon = (type: string) => {
 
 
 
-/* Modal Styles */
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.7);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  backdrop-filter: blur(4px);
-}
-
-
-
-.modal-content {
-  background: var(--background-secondary);
-  border: 1px solid var(--border-color);
-  border-radius: 12px;
-  max-width: 600px;
-  width: 90%;
-  max-height: 80vh;
-  display: flex;
-  flex-direction: column;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
-}
-
-
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 20px 24px;
-  border-bottom: 1px solid var(--border-color);
-  background: linear-gradient(135deg, rgba(0, 212, 255, 0.05), rgba(0, 255, 136, 0.05));
-}
-
-
-
-.modal-header h3 {
-  margin: 0;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  font-size: 18px;
-  font-weight: 600;
-}
-
-
-
-.close-btn {
-  background: transparent;
-  border: none;
-  color: var(--text-secondary);
-  cursor: pointer;
-  padding: 4px;
-  border-radius: 4px;
-  transition: all 0.2s ease;
-}
-
-
-
-.close-btn:hover {
-  background: var(--background-tertiary);
-  color: var(--text-primary);
-}
-
-
-
-.modal-body {
-  padding: 24px;
-  overflow-y: auto;
-  flex: 1;
-}
-
-
-
-.servers-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-
-
-.server-item {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  padding: 16px;
-  background: var(--background-tertiary);
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  transition: all 0.2s ease;
-}
-
-
-
-.server-item:hover {
-  border-color: var(--accent-color);
-}
-
 
 
 .server-icon {
@@ -5849,6 +5097,8 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .server-icon img {
   width: 100%;
   height: 100%;
@@ -5856,25 +5106,6 @@ const getActivityIcon = (type: string) => {
 }
 
 
-
-.server-icon-placeholder {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: linear-gradient(135deg, rgba(0, 212, 255, 0.2), rgba(0, 255, 136, 0.2));
-  color: var(--accent-color);
-  font-size: 20px;
-  font-weight: 700;
-}
-
-
-
-.server-info {
-  flex: 1;
-  min-width: 0;
-}
 
 
 
@@ -5886,6 +5117,8 @@ const getActivityIcon = (type: string) => {
   align-items: center;
   gap: 8px;
 }
+
+
 
 
 
@@ -5901,6 +5134,8 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .server-meta {
   display: flex;
   gap: 16px;
@@ -5910,231 +5145,26 @@ const getActivityIcon = (type: string) => {
 
 
 
-.member-count {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-
-
-.server-actions {
-  flex-shrink: 0;
-}
-
-
-
-/* Reports & Moderation */
-.reports-badge {
-  background: #ed4245;
-  color: #fff;
-  font-size: 11px;
-  font-weight: 700;
-  padding: 2px 8px;
-  border-radius: 10px;
-  margin-left: auto;
-}
-
-
-
-.report-filters {
-  display: flex;
-  gap: 4px;
-  padding: 16px 20px;
-  flex-wrap: wrap;
-}
-
-
-
-.reports-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 0 20px 20px;
-}
-
-
-
-.report-item {
-  background: var(--background-tertiary);
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  cursor: pointer;
-  transition: border-color 0.15s;
-}
-
-
-
-.report-item:hover {
-  border-color: var(--accent-color);
-}
-
-
-
-.report-item.expanded {
-  border-color: var(--accent-color);
-}
-
-
-
-.report-summary {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 16px;
-  flex-wrap: wrap;
-}
-
-
-
-.report-type-badge {
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  padding: 3px 8px;
-  border-radius: 4px;
-  flex-shrink: 0;
-}
-
 
 
 .report-type-badge.user { background: rgba(14, 165, 233, 0.2); color: #38BDF8; }
 
 
+
+
 .report-type-badge.post { background: rgba(87, 242, 135, 0.2); color: #57f287; }
+
+
 
 
 .report-type-badge.message { background: rgba(254, 231, 92, 0.2); color: #fee75c; }
 
 
+
+
 .report-type-badge.server { background: rgba(235, 69, 158, 0.2); color: #eb459e; }
 
 
-
-.report-users {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex: 1;
-  min-width: 0;
-}
-
-
-
-.report-reporter,
-.report-reported {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 13px;
-  color: var(--text-primary);
-}
-
-
-
-.report-arrow {
-  color: var(--text-secondary);
-  font-size: 12px;
-}
-
-
-
-.report-reason {
-  font-size: 13px;
-  color: var(--text-secondary);
-  flex: 1;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  min-width: 80px;
-}
-
-
-
-.report-meta {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 11px;
-  color: var(--text-secondary);
-  flex-shrink: 0;
-}
-
-
-
-.report-source {
-  background: rgba(255, 255, 255, 0.1);
-  padding: 1px 6px;
-  border-radius: 4px;
-}
-
-
-
-.report-status-badge {
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  padding: 3px 8px;
-  border-radius: 4px;
-  flex-shrink: 0;
-}
-
-
-
-.report-status-badge.pending { background: rgba(254, 231, 92, 0.2); color: #fee75c; }
-
-
-.report-status-badge.investigating { background: rgba(14, 165, 233, 0.2); color: #38BDF8; }
-
-
-.report-status-badge.resolved { background: rgba(87, 242, 135, 0.2); color: #57f287; }
-
-
-.report-status-badge.dismissed { background: rgba(255, 255, 255, 0.1); color: var(--text-secondary); }
-
-
-
-.report-detail {
-  border-top: 1px solid var(--border-color);
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-
-
-.report-detail label {
-  display: flex;
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  color: var(--text-secondary);
-  margin-bottom: 4px;
-  letter-spacing: 0.5px;
-}
-
-
-
-.report-detail p {
-  margin: 0;
-  font-size: 14px;
-  color: var(--text-primary);
-}
-
-
-
-.report-proof blockquote {
-  margin: 0;
-  padding: 8px 12px;
-  border-left: 3px solid var(--accent-color);
-  background: rgba(0, 0, 0, 0.2);
-  border-radius: 0 6px 6px 0;
-  font-size: 14px;
-  color: var(--text-primary);
-  white-space: pre-wrap;
-  word-break: break-word;
-}
 
 
 
@@ -6146,41 +5176,13 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .report-proof :deep(.report-link:hover) {
   opacity: 0.8;
 }
 
 
-
-.report-actions-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-
-
-.resolution-textarea {
-  width: 100%;
-  background: var(--background-secondary);
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  color: var(--text-primary);
-  padding: 8px 10px;
-  font-size: 13px;
-  font-family: inherit;
-  resize: vertical;
-}
-
-
-
-.report-punitive-actions {
-  display: flex;
-  gap: 8px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid var(--border-color);
-  margin-bottom: 4px;
-}
 
 
 
@@ -6191,9 +5193,13 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .report-action-btn.danger:hover {
   background: rgba(237, 66, 69, 0.4);
 }
+
+
 
 
 
@@ -6201,6 +5207,8 @@ const getActivityIcon = (type: string) => {
   display: flex;
   gap: 8px;
 }
+
+
 
 
 
@@ -6216,9 +5224,13 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .report-action-btn:hover {
   opacity: 0.85;
 }
+
+
 
 
 
@@ -6229,10 +5241,14 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .report-action-btn.resolve {
   background: rgba(87, 242, 135, 0.3);
   color: #57f287;
 }
+
+
 
 
 
@@ -6243,10 +5259,14 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .report-action-btn.warning {
   background: rgba(250, 166, 26, 0.2);
   color: #faa61a;
 }
+
+
 
 
 
@@ -6255,65 +5275,6 @@ const getActivityIcon = (type: string) => {
 }
 
 
-
-.federation-badge {
-  background: rgba(88, 101, 242, 0.2);
-  color: #7c8af5;
-  padding: 1px 6px;
-  border-radius: 4px;
-  font-size: 11px;
-  font-weight: 500;
-  margin-left: 4px;
-}
-
-
-
-.report-user-link {
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-}
-
-
-
-.report-user-link:hover {
-  text-decoration: underline;
-  color: var(--accent-color);
-}
-
-
-
-.report-external-link {
-  display: inline-flex;
-  align-items: center;
-  color: var(--text-secondary);
-  margin-left: 4px;
-  opacity: 0.7;
-  transition: opacity 0.15s;
-}
-
-
-
-.report-external-link:hover {
-  opacity: 1;
-  color: var(--accent-color);
-}
-
-
-
-.report-source-local {
-  font-size: 11px;
-  color: var(--text-tertiary);
-}
-
-
-
-.report-post-meta {
-  display: flex;
-  gap: 8px;
-  margin-top: 6px;
-}
 
 
 
@@ -6324,10 +5285,14 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .badge.cw {
   background: rgba(88, 101, 242, 0.2);
   color: #7c8af5;
 }
+
+
 
 
 
@@ -6338,36 +5303,6 @@ const getActivityIcon = (type: string) => {
 
 
 
-.report-post-links {
-  display: flex;
-  gap: 8px;
-  margin-top: 8px;
-}
-
-
-
-.report-link-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 10px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 6px;
-  color: var(--text-secondary);
-  font-size: 12px;
-  cursor: pointer;
-  text-decoration: none;
-  transition: all 0.15s;
-}
-
-
-
-.report-link-btn:hover {
-  background: rgba(255, 255, 255, 0.12);
-  color: var(--text-primary);
-}
-
 
 
 .mod-btn.warning-btn {
@@ -6377,21 +5312,13 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .mod-btn.warning-btn:hover {
   background: rgba(250, 166, 26, 0.3);
 }
 
 
-
-.reports-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  padding: 40px 20px;
-  color: var(--text-secondary);
-  font-size: 14px;
-}
 
 
 
@@ -6402,10 +5329,14 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .funding-section {
   margin-bottom: 24px;
   padding-top :24px;
 }
+
+
 
 
 
@@ -6423,6 +5354,8 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .section-badge {
   font-size: 10px;
   padding: 2px 8px;
@@ -6436,6 +5369,8 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .section-description {
   font-size: 13px;
   color: var(--text-secondary);
@@ -6445,9 +5380,13 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .section-description a {
   color: var(--harmony-primary);
 }
+
+
 
 
 
@@ -6461,6 +5400,8 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .section-hint code {
   background: var(--background-secondary);
   padding: 1px 5px;
@@ -6468,6 +5409,8 @@ const getActivityIcon = (type: string) => {
   font-size: 11px;
   font-style: normal;
 }
+
+
 
 
 
@@ -6485,11 +5428,15 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .webhook-url-display code {
   flex: 1;
   color: var(--text-primary);
   word-break: break-all;
 }
+
+
 
 
 
@@ -6506,11 +5453,15 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .pending-donations-list {
   display: flex;
   flex-direction: column;
   gap: 12px;
 }
+
+
 
 
 
@@ -6526,6 +5477,8 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .pending-donation-header {
   display: flex;
   align-items: center;
@@ -6534,11 +5487,15 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .pending-amount {
   font-size: 16px;
   font-weight: 700;
   color: var(--harmony-primary);
 }
+
+
 
 
 
@@ -6553,11 +5510,15 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .pending-date {
   font-size: 12px;
   color: var(--text-tertiary, var(--text-secondary));
   margin-left: auto;
 }
+
+
 
 
 
@@ -6570,9 +5531,13 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .pending-email {
   color: var(--text-tertiary, var(--text-secondary));
 }
+
+
 
 
 
@@ -6588,11 +5553,15 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .pending-resolve-row {
   display: flex;
   gap: 8px;
   align-items: center;
 }
+
+
 
 
 
@@ -6602,6 +5571,8 @@ const getActivityIcon = (type: string) => {
   gap: 2px;
   padding-top: 4px;
 }
+
+
 
 
 
@@ -6619,11 +5590,15 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .pending-suggestion:hover,
 .pending-suggestion.active {
   background: rgba(14, 165, 233, 0.15);
   color: var(--text-primary);
 }
+
+
 
 
 
@@ -6636,11 +5611,15 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .funding-form-row {
   display: flex;
   gap: 12px;
   flex-wrap: wrap;
 }
+
+
 
 
 
@@ -6654,11 +5633,15 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .funding-field label {
   font-size: 12px;
   color: var(--text-secondary);
   font-weight: 600;
 }
+
+
 
 
 
@@ -6668,6 +5651,8 @@ const getActivityIcon = (type: string) => {
   gap: 6px;
   margin-bottom: 12px;
 }
+
+
 
 
 
@@ -6682,9 +5667,13 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .tier-icon {
   font-size: 18px;
 }
+
+
 
 
 
@@ -6693,6 +5682,8 @@ const getActivityIcon = (type: string) => {
   align-items: center;
   gap: 4px;
 }
+
+
 
 
 
@@ -6709,6 +5700,8 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .icon-preview-img {
   height: 1.2em;
   width: auto;
@@ -6718,10 +5711,14 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .tier-info {
   flex: 1;
   min-width: 0;
 }
+
+
 
 
 
@@ -6734,10 +5731,14 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .tier-amount {
   font-size: 12px;
   color: var(--text-secondary);
 }
+
+
 
 
 
@@ -6750,10 +5751,14 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .add-tier-form .cyber-input {
   flex: 1;
   min-width: 100px;
 }
+
+
 
 
 
@@ -6769,11 +5774,15 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .supporters-list {
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
+
+
 
 
 
@@ -6788,6 +5797,8 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .supporter-actions {
   display: flex;
   gap: 4px;
@@ -6796,10 +5807,14 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .supporter-info {
   flex: 1;
   min-width: 0;
 }
+
+
 
 
 
@@ -6812,10 +5827,14 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .supporter-meta {
   font-size: 12px;
   color: var(--text-secondary);
 }
+
+
 
 
 
@@ -6824,6 +5843,8 @@ const getActivityIcon = (type: string) => {
   gap: 16px;
   margin-bottom: 12px;
 }
+
+
 
 
 
@@ -6839,11 +5860,15 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .donation-stat-value {
   font-size: 20px;
   font-weight: 700;
   color: var(--accent-color);
 }
+
+
 
 
 
@@ -6855,6 +5880,8 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .donations-list {
   display: flex;
   flex-direction: column;
@@ -6862,6 +5889,8 @@ const getActivityIcon = (type: string) => {
   max-height: 200px;
   overflow-y: auto;
 }
+
+
 
 
 
@@ -6876,6 +5905,8 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .donation-amount {
   font-weight: 600;
   color: var(--text-primary);
@@ -6883,10 +5914,14 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .donation-note {
   font-style: italic;
   opacity: 0.7;
 }
+
+
 
 
 
@@ -6898,6 +5933,8 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .funding-link-row {
   display: flex;
   gap: 8px;
@@ -6906,9 +5943,13 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .funding-link-row .cyber-input {
   min-width: 0;
 }
+
+
 
 
 
@@ -6922,6 +5963,8 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .add-supporter-form .cyber-input {
   flex: 1;
   min-width: 100px;
@@ -6929,9 +5972,13 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .supporter-search-wrapper .cyber-input {
   width: 100%;
 }
+
+
 
 
 
@@ -6952,6 +5999,8 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .supporter-suggestion-item {
   display: flex;
   align-items: center;
@@ -6963,10 +6012,14 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .supporter-suggestion-item:hover,
 .supporter-suggestion-item.selected {
   background: var(--harmony-primary);
 }
+
+
 
 
 
@@ -6975,6 +6028,8 @@ const getActivityIcon = (type: string) => {
   flex-direction: column;
   min-width: 0;
 }
+
+
 
 
 
@@ -6988,6 +6043,8 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .supporter-suggestion-handle {
   font-size: 12px;
   color: var(--text-secondary);
@@ -6998,9 +6055,13 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .supporter-suggestion-item.selected .supporter-suggestion-handle {
   color: rgba(255, 255, 255, 0.6);
 }
+
+
 
 
 
@@ -7010,6 +6071,8 @@ const getActivityIcon = (type: string) => {
   border-radius: 8px;
   padding: 16px;
 }
+
+
 
 
 
@@ -7023,11 +6086,15 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .donation-user {
   font-weight: 600;
   color: var(--text-primary);
   font-size: 13px;
 }
+
+
 
 
 
@@ -7040,11 +6107,15 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .tier-perks {
   font-size: 11px;
   color: var(--text-secondary);
   font-style: italic;
 }
+
+
 
 
 
@@ -7060,9 +6131,13 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .tier-ads-toggle input {
   cursor: pointer;
 }
+
+
 
 
 
@@ -7080,6 +6155,8 @@ const getActivityIcon = (type: string) => {
 
 
 
+
+
 .empty-hint {
   font-size: 13px;
   color: var(--text-secondary);
@@ -7089,6 +6166,8 @@ const getActivityIcon = (type: string) => {
   border-radius: 6px;
   margin-bottom: 12px;
 }
+
+
 
 
 
