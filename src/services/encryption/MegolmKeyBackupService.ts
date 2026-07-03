@@ -647,6 +647,52 @@ export class MegolmKeyBackupService {
     // Export all sessions from MegolmService
     const sessions = await megolmService.exportAllSessions()
 
+    // MERGE with the existing server backup instead of blind overwrite.
+    // A freshly wiped/new device holds few or no sessions; upserting its tiny
+    // export used to DESTROY the only remaining copy of the user's history
+    // keys the moment auto-backup fired. Union by (roomId, sessionId),
+    // preferring the in-memory copy (fresher ratchet bookkeeping).
+    try {
+      const { data: existing } = await supabase
+        .from('megolm_key_backups')
+        .select('encrypted_data, session_count')
+        .eq('user_id', this.userId)
+        .maybeSingle()
+
+      if (existing?.encrypted_data) {
+        try {
+          const priorJson = await recoveryKeyService.decryptFromBackup(existing.encrypted_data)
+          const prior = JSON.parse(priorJson) as MegolmBackupData
+          if (prior?.userId === this.userId && prior?.sessions) {
+            const haveOutbound = new Set(sessions.outbound.map(s => `${s.roomId}:${s.sessionId}`))
+            for (const s of prior.sessions.outbound || []) {
+              if (!haveOutbound.has(`${s.roomId}:${s.sessionId}`)) sessions.outbound.push(s)
+            }
+            const haveInbound = new Set(sessions.inbound.map(s => `${s.roomId}:${s.sessionId}`))
+            for (const s of prior.sessions.inbound || []) {
+              if (!haveInbound.has(`${s.roomId}:${s.sessionId}`)) sessions.inbound.push(s)
+            }
+          }
+        } catch {
+          // The server backup can't be decrypted with the CURRENT recovery
+          // key (older key generation). Refuse to replace a LARGER backup
+          // with a smaller one - even undecryptable today, it may become
+          // recoverable (user finds the old phrase). An intentional reset
+          // clears it explicitly via deleteBackup().
+          const localCount = sessions.outbound.length + sessions.inbound.length
+          if ((existing.session_count ?? 0) > localCount) {
+            debug.warn(
+              `⚠️ Skipping backup write: server backup has ${existing.session_count} sessions ` +
+              `(undecryptable with current key) vs ${localCount} local - overwriting would destroy history keys`,
+            )
+            return
+          }
+        }
+      }
+    } catch (mergeErr) {
+      debug.warn('⚠️ Backup merge check failed, writing local sessions only:', mergeErr)
+    }
+
     // Create backup data
     const backupData: MegolmBackupData = {
       version: 1,

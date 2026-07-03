@@ -226,7 +226,23 @@ class DeviceIdentityService {
     }
 
     if (existing && !existing.revoked_at && existing.trust_state !== 'revoked') {
-      return this.touchExistingDeviceRow(existing, signingPrivate, signingPublicSpki)
+      const row = await this.touchExistingDeviceRow(existing, signingPrivate, signingPublicSpki)
+      // Recovery-phrase unlock is ROOT trust (stronger proof than another
+      // device tapping approve). A device that registered earlier in the boot
+      // as 'account'/'untrusted' and THEN completed recovery gets upgraded
+      // here - otherwise it stays low-trust forever, can't act as an
+      // approver, and keeps seeing its own "waiting for approval" card.
+      if (
+        trustState === 'recovery' &&
+        row &&
+        (row.trust_state === 'account' || row.trust_state === 'untrusted')
+      ) {
+        await this.setTrustState(deviceId, 'recovery').catch(err =>
+          debug.warn('⚠️ Failed to elevate device trust after recovery unlock:', err),
+        )
+        row.trust_state = 'recovery'
+      }
+      return row
     }
 
     // Rotated identities start untrusted (L0): they can sign v3 messages once

@@ -34,6 +34,9 @@ async function upsertApproval(req: DeviceApprovalRequest) {
   if (req.requesting_device_id === deviceIdentityService.getDeviceId()) {
     ownPendingRequest.value = req
     ownPendingDismissed.value = false
+    // Already unlocked (e.g. recovery completed before this event landed)?
+    // Then the card has nothing left to offer - drop it immediately.
+    void maybeClearOwnPendingAfterUnlock()
     return
   }
   if (!currentUserId) return
@@ -52,9 +55,28 @@ function removeApproval(id: string) {
 async function refreshOwnPending(userId: string) {
   try {
     ownPendingRequest.value = await deviceIdentityService.getOwnPendingApproval(userId)
+    await maybeClearOwnPendingAfterUnlock()
   } catch {
     ownPendingRequest.value = null
   }
+}
+
+/**
+ * The waiting card exists to unlock encrypted history via peer approval.
+ * A recovery-phrase unlock is STRONGER proof and already restored the keys,
+ * so once encryption is unlocked the card is pointless (and confusing -
+ * "This wasn't me" on the very session that just recovered). Hide it locally.
+ * The pending row stays on the server so OTHER devices still get their
+ * "new login - was this you?" security prompt.
+ */
+async function maybeClearOwnPendingAfterUnlock() {
+  if (!ownPendingRequest.value) return
+  try {
+    const { megolmMessageEncryptionService } = await import('@/services/encryption/MegolmMessageEncryptionService')
+    if (megolmMessageEncryptionService.isUnlocked()) {
+      ownPendingRequest.value = null
+    }
+  } catch { /* keep the card on any failure */ }
 }
 
 async function onApprovedForThisDevice(payload: Record<string, any>) {
@@ -130,6 +152,13 @@ export function useDeviceApprovals() {
       userEventChannel.on('device:approved', (p) => { onApprovedForThisDevice(p) }),
       userEventChannel.on('device:denied', (p) => { onDeniedForThisDevice(p) }),
     )
+
+    // Encryption unlock (auto-unlock or recovery phrase) fires this event;
+    // clear our own waiting card the moment history is recoverable without
+    // peer approval.
+    const onUnlockSignal = () => { maybeClearOwnPendingAfterUnlock().catch(() => {}) }
+    window.addEventListener('megolm-key-received', onUnlockSignal)
+    offFns.push(() => window.removeEventListener('megolm-key-received', onUnlockSignal))
   }
 
   async function approve(req: DeviceApprovalRequest) {
