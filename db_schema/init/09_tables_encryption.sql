@@ -83,15 +83,13 @@ CREATE TABLE IF NOT EXISTS public.megolm_session_shares (
     
     -- Share status. is_claimed mirrors (claimed_at IS NOT NULL) for fast lookup
     -- by get_unclaimed_session_shares() / claim_session_share().
-    shared_at timestamp with time zone DEFAULT now(),
     claimed_at timestamp with time zone,
     is_claimed boolean DEFAULT false,
-    
+
     -- The encrypted session key for this recipient
     encrypted_session_key text NOT NULL,
-    
+
     -- What index was shared
-    forwarded_count integer DEFAULT 0,
     first_known_index integer DEFAULT 0,
     
     -- Conflict target used by the client upsert (one share per recipient/session).
@@ -112,10 +110,8 @@ CREATE TABLE IF NOT EXISTS public.megolm_key_requests (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now(),
     
-    -- Request identity (legacy; the client now keys off the PK `id`).
-    request_id text,
-    
-    -- Legacy mirror of requester_user_id kept for backwards compatibility.
+    -- Legacy mirror of requester_user_id kept for backwards compatibility
+    -- (the client still writes it on insert).
     user_id uuid REFERENCES public.profiles(id) ON DELETE CASCADE,
     
     -- Requester
@@ -140,12 +136,7 @@ CREATE TABLE IF NOT EXISTS public.megolm_key_requests (
     -- Fulfillment payload (ECDH-wrapped session key for the requester).
     encrypted_key text,
     fulfilled_at timestamp with time zone,
-    
-    -- Response tracking
-    responded_by_user_id uuid REFERENCES public.profiles(id) ON DELETE SET NULL,
-    responded_by_device_id text,
-    responded_at timestamp with time zone,
-    
+
     CONSTRAINT megolm_key_requests_status_check CHECK (status IN ('pending', 'sent', 'received', 'cancelled', 'ignored', 'fulfilled', 'expired'))
 );
 
@@ -173,15 +164,7 @@ CREATE TABLE IF NOT EXISTS public.megolm_key_backups (
     version integer DEFAULT 1,
     session_count integer DEFAULT 0,
     backup_hash text,
-    last_updated timestamp with time zone DEFAULT now(),
-    
-    -- Legacy / Matrix-compatible columns (nullable; not written by the client).
-    backup_version integer,
-    auth_data jsonb,
-    algorithm text DEFAULT 'm.megolm_backup.v1.curve25519-aes-sha2'::text,
-    is_current boolean DEFAULT true,
-    key_count integer DEFAULT 0,
-    etag text
+    last_updated timestamp with time zone DEFAULT now()
 );
 
 CREATE INDEX IF NOT EXISTS idx_megolm_key_backups_user ON public.megolm_key_backups(user_id);

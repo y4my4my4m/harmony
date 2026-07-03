@@ -31,6 +31,14 @@
       />
     </Teleport>
 
+    <Teleport to="body">
+      <KeyRecoveryModal
+        v-if="showKeyRecoveryModal"
+        @close="showKeyRecoveryModal = false"
+        @restored="handleEncryptionUnlocked"
+      />
+    </Teleport>
+
     <!-- Send error feedback -->
     <div v-if="sendError" class="encryption-status-bar error" @click="sendError = null">
       <span class="encryption-status-icon">⚠️</span>
@@ -43,7 +51,14 @@
         <span class="encryption-status-icon">{{ encryptionStatus.icon }}</span>
         <span class="encryption-status-text">{{ encryptionStatus.text }}</span>
         <button
-          v-if="encryptionStatus.showSetup"
+          v-if="encryptionStatus.showUnlock"
+          class="encryption-setup-btn"
+          @click="showKeyRecoveryModal = true"
+        >
+          {{ t('chat.unlockNow') }}
+        </button>
+        <button
+          v-else-if="encryptionStatus.showSetup"
           class="encryption-setup-btn"
           @click="showEncryptionSetupWizard = true"
         >
@@ -139,6 +154,7 @@
   import MessageInput from './MessageInput.vue';
   import KickBanModal from './moderation/KickBanModal.vue';
   const RecoveryKeySetupWizard = defineAsyncComponent(() => import('@/components/encryption/RecoveryKeySetupWizard.vue'));
+  const KeyRecoveryModal = defineAsyncComponent(() => import('@/components/encryption/KeyRecoveryModal.vue'));
   import { useAuthStore } from '@/stores/auth'; 
   import { useProfileStore } from '@/stores/useProfile';
   import { useChatStore } from '@/stores/useChat';
@@ -330,8 +346,9 @@
       const emojiIconClicked = ref(false);
 
       // Encryption status tracking
-      const encryptionStatusData = ref<{ level: string; icon: string; text: string; showSetup?: boolean } | null>(null)
+      const encryptionStatusData = ref<{ level: string; icon: string; text: string; showSetup?: boolean; showUnlock?: boolean } | null>(null)
       const showEncryptionSetupWizard = ref(false)
+      const showKeyRecoveryModal = ref(false)
 
       const encryptionStatus = computed(() => encryptionStatusData.value)
 
@@ -377,12 +394,15 @@
           } else {
             const hasKey = svc.isInitialized() ? await svc.hasRecoveryKey() : false
             if (hasKey) {
+              // Keys exist - offer UNLOCK (recovery phrase), never setup:
+              // setup would mint a new identity and orphan encrypted history.
               encryptionStatusData.value = {
                 level: 'locked',
                 icon: '🔓',
                 text: mode === 'required'
-                  ? 'Encryption required - unlock in Settings > Encryption'
-                  : 'Encryption available but locked - messages sent as plaintext'
+                  ? 'Encryption required - unlock to read and send messages'
+                  : 'Encryption available but locked - messages sent as plaintext',
+                showUnlock: true
               }
             } else if (mode === 'required') {
               encryptionStatusData.value = {
@@ -446,11 +466,21 @@
               }
             }
           } else {
-            encryptionStatusData.value = {
-              level: 'locked',
-              icon: '🔓',
-              text: 'Encryption enabled - unlock in Settings > Encryption',
-              showSetup: true
+            const hasKey = svc.isInitialized() ? await svc.hasRecoveryKey() : false
+            if (hasKey) {
+              encryptionStatusData.value = {
+                level: 'locked',
+                icon: '🔓',
+                text: 'Encryption enabled - unlock to read encrypted messages',
+                showUnlock: true
+              }
+            } else {
+              encryptionStatusData.value = {
+                level: 'locked',
+                icon: '🔓',
+                text: 'Encryption enabled - set up your keys to participate',
+                showSetup: true
+              }
             }
           }
         } catch {
@@ -460,6 +490,11 @@
 
       function handleEncryptionSetupComplete() {
         showEncryptionSetupWizard.value = false
+        checkEncryptionStatus()
+      }
+
+      function handleEncryptionUnlocked() {
+        showKeyRecoveryModal.value = false
         checkEncryptionStatus()
       }
 

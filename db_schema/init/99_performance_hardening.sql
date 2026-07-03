@@ -75,7 +75,6 @@ DECLARE
         'CREATE INDEX IF NOT EXISTS idx_invites_channel_id ON public.invites(channel_id)',
         'CREATE INDEX IF NOT EXISTS idx_invites_created_by ON public.invites(created_by)',
         'CREATE INDEX IF NOT EXISTS idx_invites_server_id ON public.invites(server_id)',
-        'CREATE INDEX IF NOT EXISTS idx_megolm_key_requests_responded_by ON public.megolm_key_requests(responded_by_user_id)',
         'CREATE INDEX IF NOT EXISTS idx_megolm_key_requests_user_id ON public.megolm_key_requests(user_id)',
         'CREATE INDEX IF NOT EXISTS idx_megolm_session_shares_sender_user_id ON public.megolm_session_shares(sender_user_id)',
         'CREATE INDEX IF NOT EXISTS idx_message_search_index_server_id ON public.message_search_index(server_id)',
