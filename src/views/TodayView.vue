@@ -13,27 +13,35 @@
       </button>
     </header>
 
-    <div class="today-content">
+    <div class="today-scroll">
       <div v-if="loading && !digest" class="today-loading">
         <LoadingSpinner :size="32" />
         <span>Gathering your day...</span>
       </div>
 
-      <template v-else-if="digest">
+      <div v-else-if="digest" class="today-grid">
         <!-- On-device AI summary (optional) -->
-        <section v-if="aiSummary" class="today-card ai-summary-card">
+        <section v-if="aiSummary || highlights.length > 0" class="today-card span-full">
           <div class="card-header">
-            <Icon name="sparkles" :size="18" />
+            <Icon name="sparkles" :size="16" />
             <h2>Summary</h2>
             <span class="on-device-badge" title="Generated locally - nothing leaves your device">On-device</span>
           </div>
-          <p class="ai-summary-text">{{ aiSummary }}</p>
+          <p v-if="aiSummary" class="ai-summary-text">{{ aiSummary }}</p>
+          <ul v-if="highlights.length > 0" class="highlight-list">
+            <li v-for="h in highlights" :key="h.channelId" class="highlight-item">
+              <button class="channel-pill" @click="goToChannelId(h.serverId, h.channelId)">
+                #{{ h.channelName }}
+              </button>
+              <span class="highlight-text">{{ h.summary }}</span>
+            </li>
+          </ul>
         </section>
 
         <!-- Mentions -->
-        <section v-if="digest.unreadMentions > 0" class="today-card mentions-card" @click="goToMentions">
+        <section v-if="digest.unreadMentions > 0" class="today-card mentions-card span-full" @click="goToMentions">
           <div class="card-header">
-            <Icon name="at-sign" :size="18" />
+            <Icon name="at-sign" :size="16" />
             <h2>Mentions</h2>
           </div>
           <p class="mentions-text">
@@ -41,36 +49,45 @@
           </p>
         </section>
 
-        <!-- Active channels -->
-        <section class="today-card">
+        <!-- Active channels, grouped by server -->
+        <section class="today-card span-full">
           <div class="card-header">
-            <Icon name="hash" :size="18" />
+            <Icon name="hash" :size="16" />
             <h2>Catch up</h2>
+            <span class="card-hint">busiest unread channels across your servers</span>
           </div>
-          <div v-if="digest.activeChannels.length === 0" class="empty-hint">
+          <div v-if="channelsByServer.length === 0" class="empty-hint">
             All caught up - no unread channels.
           </div>
-          <button
-            v-for="channel in digest.activeChannels"
-            :key="channel.channelId"
-            class="digest-row"
-            @click="goToChannel(channel)"
-          >
-            <div class="row-main">
-              <span class="row-title">#{{ channel.channelName }}</span>
-              <span class="row-subtitle">{{ channel.serverName }}</span>
+          <div v-for="group in channelsByServer" :key="group.serverId" class="server-group">
+            <div class="server-group-header">
+              <img
+                :src="getServerIconUrl(group.serverIcon, 48)"
+                :alt="group.serverName"
+                class="server-icon"
+              />
+              <span class="server-name">{{ group.serverName }}</span>
             </div>
-            <div class="row-meta">
-              <span v-if="channel.unreadMentions > 0" class="mention-badge">@{{ channel.unreadMentions }}</span>
-              <span class="unread-count">{{ channel.unreadMessages }} new</span>
+            <div class="channel-pills">
+              <button
+                v-for="channel in group.channels"
+                :key="channel.channelId"
+                class="channel-pill"
+                :class="{ 'has-mentions': channel.unreadMentions > 0 }"
+                @click="goToChannel(channel)"
+              >
+                <span class="pill-name">#{{ channel.channelName }}</span>
+                <span v-if="channel.unreadMentions > 0" class="pill-mentions">@{{ channel.unreadMentions }}</span>
+                <span class="pill-count">{{ channel.unreadMessages }}</span>
+              </button>
             </div>
-          </button>
+          </div>
         </section>
 
         <!-- Threads -->
         <section v-if="digest.activeThreads.length > 0" class="today-card">
           <div class="card-header">
-            <Icon name="thread" :size="18" />
+            <Icon name="thread" :size="16" />
             <h2>Your threads</h2>
           </div>
           <button
@@ -81,19 +98,17 @@
           >
             <div class="row-main">
               <span class="row-title">{{ thread.name }}</span>
-              <span class="row-subtitle">{{ formatRelativeTime(thread.lastMessageAt) }}</span>
+              <span class="row-subtitle">{{ thread.messageCount }} messages · {{ formatRelativeTime(thread.lastMessageAt) }}</span>
             </div>
-            <div class="row-meta">
-              <span class="unread-count">{{ thread.messageCount }} messages</span>
-            </div>
+            <Icon name="chevron-right" :size="16" class="row-chevron" />
           </button>
         </section>
 
         <!-- Trending posts -->
         <section v-if="digest.trendingPosts.length > 0" class="today-card">
           <div class="card-header">
-            <Icon name="trending-up" :size="18" />
-            <h2>Trending in the Monyverse</h2>
+            <Icon name="trending-up" :size="16" />
+            <h2>Trending in the Fediverse</h2>
           </div>
           <button
             v-for="post in digest.trendingPosts"
@@ -101,18 +116,22 @@
             class="digest-row"
             @click="goToPost(post)"
           >
+            <Avatar
+              :src="postAuthorAvatar(post)"
+              :alt="postAuthorName(post)"
+              size="sm"
+              class="row-avatar"
+            />
             <div class="row-main">
               <span class="row-title">{{ postAuthorName(post) }}</span>
               <span class="row-subtitle post-preview">{{ postPreview(post) }}</span>
             </div>
-            <div class="row-meta">
-              <span class="unread-count">
-                <Icon name="heart" :size="12" /> {{ post.favorites_count || 0 }}
-              </span>
-            </div>
+            <span class="row-stat">
+              <Icon name="heart" :size="12" /> {{ post.favorites_count || 0 }}
+            </span>
           </button>
         </section>
-      </template>
+      </div>
 
       <div v-else class="today-error">
         <p>Couldn't load your digest.</p>
@@ -126,8 +145,16 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import Icon from '@/components/common/Icon.vue'
+import Avatar from '@/components/common/Avatar.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
-import { todayDigestService, type TodayDigest, type ActiveChannelEntry, type ActiveThreadEntry } from '@/services/TodayDigestService'
+import { getServerIconUrl } from '@/utils/serverUtils'
+import {
+  todayDigestService,
+  type TodayDigest,
+  type ActiveChannelEntry,
+  type ActiveThreadEntry,
+  type ChannelHighlight,
+} from '@/services/TodayDigestService'
 import { useTodayDashboard } from '@/composables/useTodayDashboard'
 import type { TimelinePost } from '@/types'
 import { debug } from '@/utils/debug'
@@ -138,6 +165,7 @@ const { todayAiSummariesEnabled } = useTodayDashboard()
 const loading = ref(false)
 const digest = ref<TodayDigest | null>(null)
 const aiSummary = ref<string | null>(null)
+const highlights = ref<ChannelHighlight[]>([])
 
 const greeting = computed(() => {
   const hour = new Date().getHours()
@@ -147,16 +175,46 @@ const greeting = computed(() => {
   return 'Good evening'
 })
 
+interface ServerGroup {
+  serverId: string
+  serverName: string
+  serverIcon: string | null
+  channels: ActiveChannelEntry[]
+}
+
+const channelsByServer = computed<ServerGroup[]>(() => {
+  const groups = new Map<string, ServerGroup>()
+  for (const channel of digest.value?.activeChannels || []) {
+    let group = groups.get(channel.serverId)
+    if (!group) {
+      group = {
+        serverId: channel.serverId,
+        serverName: channel.serverName,
+        serverIcon: channel.serverIcon,
+        channels: [],
+      }
+      groups.set(channel.serverId, group)
+    }
+    group.channels.push(channel)
+  }
+  return [...groups.values()]
+})
+
 const loadDigest = async () => {
   loading.value = true
   try {
     digest.value = await todayDigestService.getDigest()
 
-    // Summary is strictly additive; never block the digest on it.
+    // AI output is strictly additive; never block the digest on it.
     aiSummary.value = null
+    highlights.value = []
     if (todayAiSummariesEnabled.value && digest.value) {
-      todayDigestService.summarizeDigest(digest.value)
+      const snapshot = digest.value
+      todayDigestService.summarizeDigest(snapshot)
         .then(summary => { aiSummary.value = summary })
+        .catch(() => {})
+      todayDigestService.getChannelHighlights(snapshot.activeChannels)
+        .then(result => { highlights.value = result })
         .catch(() => {})
     }
   } catch (error) {
@@ -171,7 +229,11 @@ const goBack = () => router.back()
 const goToMentions = () => router.push('/social/mentions')
 
 const goToChannel = (channel: ActiveChannelEntry) => {
-  router.push({ name: 'ChatChannel', params: { serverId: channel.serverId, channelId: channel.channelId } })
+  goToChannelId(channel.serverId, channel.channelId)
+}
+
+const goToChannelId = (serverId: string, channelId: string) => {
+  router.push({ name: 'ChatChannel', params: { serverId, channelId } })
 }
 
 const goToThread = (thread: ActiveThreadEntry) => {
@@ -185,6 +247,10 @@ const goToPost = (post: TimelinePost) => {
 const postAuthorName = (post: TimelinePost): string => {
   const author = (post as any).author
   return author?.display_name || author?.username || 'Unknown'
+}
+
+const postAuthorAvatar = (post: TimelinePost): string | undefined => {
+  return (post as any).author?.avatar_url || undefined
 }
 
 const postPreview = (post: TimelinePost): string => {
@@ -227,8 +293,8 @@ onMounted(loadDigest)
 .today-header {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px 16px;
+  gap: 8px;
+  padding: 10px 16px;
   border-bottom: 1px solid var(--border-color);
   flex-shrink: 0;
 }
@@ -238,6 +304,7 @@ onMounted(loadDigest)
   display: flex;
   align-items: center;
   gap: 8px;
+  min-width: 0;
 }
 
 .today-title h1 {
@@ -269,6 +336,7 @@ onMounted(loadDigest)
   border-radius: 6px;
   color: var(--text-secondary);
   cursor: pointer;
+  flex-shrink: 0;
 }
 
 .back-btn:hover,
@@ -285,16 +353,23 @@ onMounted(loadDigest)
   to { transform: rotate(360deg); }
 }
 
-.today-content {
+.today-scroll {
   flex: 1;
   overflow-y: auto;
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
+  padding: 20px;
+}
+
+.today-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 16px;
-  max-width: 720px;
-  width: 100%;
+  align-items: start;
+  max-width: 1100px;
   margin: 0 auto;
+}
+
+.span-full {
+  grid-column: 1 / -1;
 }
 
 .today-loading,
@@ -320,14 +395,14 @@ onMounted(loadDigest)
   background: var(--background-secondary);
   border: 1px solid var(--border-color);
   border-radius: 12px;
-  padding: 16px;
+  padding: 16px 20px;
 }
 
 .card-header {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 12px;
+  margin-bottom: 14px;
   color: var(--text-secondary);
 }
 
@@ -336,11 +411,16 @@ onMounted(loadDigest)
   font-weight: 600;
   margin: 0;
   color: var(--text-primary);
-  flex: 1;
-  text-align: left;
+}
+
+.card-hint {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-left: auto;
 }
 
 .on-device-badge {
+  margin-left: auto;
   font-size: 10px;
   font-weight: 600;
   padding: 2px 6px;
@@ -349,12 +429,38 @@ onMounted(loadDigest)
   color: var(--text-secondary);
 }
 
+/* Summary */
 .ai-summary-text {
-  margin: 0;
+  margin: 0 0 8px;
   font-size: 14px;
-  line-height: 1.5;
+  line-height: 1.55;
 }
 
+.highlight-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.highlight-item {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.highlight-text {
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  flex: 1;
+  min-width: 200px;
+}
+
+/* Mentions */
 .mentions-card {
   cursor: pointer;
 }
@@ -374,14 +480,90 @@ onMounted(loadDigest)
   padding: 4px 0;
 }
 
+/* Catch up: server groups + channel pills */
+.server-group {
+  padding: 10px 0;
+}
+
+.server-group + .server-group {
+  border-top: 1px solid var(--border-color);
+}
+
+.server-group-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.server-icon {
+  width: 24px;
+  height: 24px;
+  border-radius: 8px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.server-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.channel-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.channel-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 14px;
+  border: 1px solid var(--border-color);
+  background: var(--background-tertiary);
+  color: var(--text-primary);
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.channel-pill:hover {
+  border-color: var(--harmony-primary);
+}
+
+.channel-pill.has-mentions {
+  border-color: var(--harmony-primary-alpha, var(--harmony-primary));
+}
+
+.pill-name {
+  font-weight: 500;
+}
+
+.pill-mentions {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 8px;
+  background: var(--harmony-danger, #ef4444);
+  color: #fff;
+}
+
+.pill-count {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* Rows (threads / trending) */
 .digest-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  gap: 10px;
   width: 100%;
-  padding: 10px 12px;
-  margin: 0 -4px;
+  padding: 8px;
+  margin: 0 -8px;
   background: none;
   border: none;
   border-radius: 8px;
@@ -394,11 +576,16 @@ onMounted(loadDigest)
   background: var(--background-tertiary);
 }
 
+.row-avatar {
+  flex-shrink: 0;
+}
+
 .row-main {
   display: flex;
   flex-direction: column;
   gap: 2px;
   min-width: 0;
+  flex: 1;
 }
 
 .row-title {
@@ -425,39 +612,36 @@ onMounted(loadDigest)
   overflow: hidden;
 }
 
-.row-meta {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+.row-chevron {
+  color: var(--text-muted);
   flex-shrink: 0;
 }
 
-.mention-badge {
-  font-size: 11px;
-  font-weight: 700;
-  padding: 2px 6px;
-  border-radius: 10px;
-  background: var(--harmony-danger, #ef4444);
-  color: #fff;
-}
-
-.unread-count {
+.row-stat {
   display: inline-flex;
   align-items: center;
   gap: 4px;
   font-size: 12px;
   color: var(--text-secondary);
   white-space: nowrap;
+  flex-shrink: 0;
 }
 
-@media (max-width: 480px) {
-  .today-content {
+@media (max-width: 800px) {
+  .today-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .today-scroll {
     padding: 12px;
-    gap: 12px;
   }
 
   .today-card {
-    padding: 12px;
+    padding: 14px 16px;
+  }
+
+  .card-hint {
+    display: none;
   }
 }
 </style>

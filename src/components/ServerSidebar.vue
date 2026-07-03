@@ -1275,7 +1275,7 @@ const removeServerFromFolder = async () => {
   color: var(--text-on-primary, #ffffff);
 }
 
-/* Monyverse Button */
+/* Fediverse Button */
 .fediverse-button {
   width: 48px;
   height: 48px;

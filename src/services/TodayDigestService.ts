@@ -23,8 +23,17 @@ export interface ActiveChannelEntry {
   serverId: string
   channelName: string
   serverName: string
+  serverIcon: string | null
   unreadMessages: number
   unreadMentions: number
+}
+
+export interface ChannelHighlight {
+  channelId: string
+  serverId: string
+  channelName: string
+  serverName: string
+  summary: string
 }
 
 export interface ActiveThreadEntry {
@@ -61,7 +70,11 @@ class TodayDigestService {
     }
   }
 
-  private async getActiveChannels(profileId: string, limit = 6): Promise<ActiveChannelEntry[]> {
+  // Cap: 12 unread channels ACROSS ALL SERVERS, mention-heavy first. The
+  // view groups them per server; a busy server can therefore occupy several
+  // slots but never crowds out another server's mentions (mentions sort
+  // first regardless of origin).
+  private async getActiveChannels(profileId: string, limit = 12): Promise<ActiveChannelEntry[]> {
     const { data, error } = await supabase
       .from('unread_counts')
       .select(`
@@ -70,7 +83,7 @@ class TodayDigestService {
         unread_messages,
         unread_mentions,
         channels ( name ),
-        servers ( name )
+        servers ( name, icon )
       `)
       .eq('user_id', profileId)
       .not('channel_id', 'is', null)
@@ -91,6 +104,7 @@ class TodayDigestService {
         serverId: row.server_id,
         channelName: row.channels.name,
         serverName: row.servers?.name || '',
+        serverIcon: row.servers?.icon || null,
         unreadMessages: row.unread_messages || 0,
         unreadMentions: row.unread_mentions || 0,
       }))
@@ -160,6 +174,107 @@ class TodayDigestService {
 
   isOnDeviceAiSupported(): boolean {
     return typeof (globalThis as any).Summarizer?.availability === 'function'
+  }
+
+  /**
+   * Per-channel sub-summaries ("A and B discussed X"), built from the last
+   * ~30 plaintext messages of the busiest unread channels and summarized
+   * on-device. Encrypted messages are skipped entirely - their ciphertext
+   * never reaches the model. Empty when the model is unavailable.
+   */
+  async getChannelHighlights(channels: ActiveChannelEntry[], maxChannels = 3): Promise<ChannelHighlight[]> {
+    const Summarizer = (globalThis as any).Summarizer
+    if (typeof Summarizer?.availability !== 'function') return []
+
+    try {
+      if (await Summarizer.availability() !== 'available') return []
+    } catch {
+      return []
+    }
+
+    const targets = channels.slice(0, maxChannels)
+    const highlights: ChannelHighlight[] = []
+
+    for (const channel of targets) {
+      const transcript = await this.getChannelTranscript(channel.channelId)
+      if (!transcript) continue
+
+      let summarizer: any = null
+      try {
+        summarizer = await Summarizer.create({
+          type: 'tldr',
+          format: 'plain-text',
+          length: 'short',
+        })
+        const summary = await summarizer.summarize(transcript, {
+          context:
+            'Chat channel transcript, oldest first. One or two sentences: say who talked about what. ' +
+            'Refer to people by name.',
+        })
+        if (typeof summary === 'string' && summary.trim()) {
+          highlights.push({
+            channelId: channel.channelId,
+            serverId: channel.serverId,
+            channelName: channel.channelName,
+            serverName: channel.serverName,
+            summary: summary.trim(),
+          })
+        }
+      } catch (error) {
+        debug.warn(`Today digest: highlight failed for #${channel.channelName}:`, error)
+      } finally {
+        summarizer?.destroy?.()
+      }
+    }
+
+    return highlights
+  }
+
+  /** "Name: text" lines from recent plaintext messages, oldest first. */
+  private async getChannelTranscript(channelId: string, limit = 30): Promise<string | null> {
+    const { data: messages, error } = await supabase
+      .from('messages')
+      .select('user_id, content, encrypted, created_at')
+      .eq('channel_id', channelId)
+      .or('is_deleted.is.null,is_deleted.eq.false')
+      .order('created_at', { ascending: false })
+      .limit(limit)
+
+    if (error || !messages || messages.length === 0) return null
+
+    const userIds = [...new Set(messages.map((m: any) => m.user_id).filter(Boolean))]
+    const nameById = new Map<string, string>()
+    if (userIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, display_name, username')
+        .in('id', userIds)
+      for (const p of profiles || []) {
+        nameById.set(p.id, p.display_name || p.username || 'Someone')
+      }
+    }
+
+    const lines: string[] = []
+    for (const msg of [...messages].reverse()) {
+      if ((msg as any).encrypted) continue
+      const text = this.extractText((msg as any).content)
+      if (!text) continue
+      const name = nameById.get((msg as any).user_id) || 'Someone'
+      lines.push(`${name}: ${text.slice(0, 300)}`)
+    }
+
+    if (lines.length < 3) return null
+    return lines.join('\n').slice(0, 6000)
+  }
+
+  private extractText(content: unknown): string {
+    if (typeof content === 'string') return content
+    if (!Array.isArray(content)) return ''
+    return content
+      .filter((part: any) => part?.type === 'text' && typeof part.text === 'string')
+      .map((part: any) => part.text)
+      .join(' ')
+      .trim()
   }
 
   /**
