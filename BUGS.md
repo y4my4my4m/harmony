@@ -93,6 +93,28 @@ For self-recipients the AES-GCM content key is stored as cleartext inside `encry
 
 *(H13/H14 fixed July 2026: `/resolve-post` validates the URL upfront via `validateExternalUrl`; `/fetch-posts` requires `outbox_url` to match the stored remote profile row. H18 fixed: ±5 min Date-header skew window in `SignatureService.verifySignature`. H19 fixed: requests with a body must carry a signature-covered, matching Digest header.)*
 
+### Federation server-inbox authorization (Discord-clone path) — FIXED July 2026
+
+The server inbox authenticates the sender but **allowed same-domain delegation**, so any authenticated remote user could act as any other user on their host. The microblog path (`ActivityProcessor`) had C1/C2 ownership guards; the server path (`ServerInboxHandler`) did not. Fixed by gating each mutating handler on the actor's standing in the server:
+
+| # | Was | Fix |
+|---|-----|-----|
+| C1b | `processReactionActivity` accepted reactions from non-members | require accepted `user_servers` membership |
+| C2b | `processDeleteActivity` soft-deleted **any** message by ap_id | require author ownership **or** owner/admin/`MANAGE_MESSAGES` |
+| C2c | `processUpdateActivity` (Note) rewrote **any** message | require author ownership (author-only, even mods can't) |
+| C2d | `processAddActivity` / `Remove` / `Update` channel-CRUD ungated | require host Group actor (strict) or owner/admin/`MANAGE_CHANNELS` |
+| C2e | `processRemoveActivity` user-kick ungated | self-removal, or owner/admin/`KICK_MEMBERS` |
+| C1c | `Create`/`Update` `ChatThread` routed to `handleThreadActivity` before any check | require accepted `user_servers` membership before routing |
+
+Helpers `actorIsAcceptedMember` / `actorIsServerModerator` / `actorOwnsMessage` in `ServerInboxHandler.ts` (unit-tested in `src/__tests__/serverInboxAuthz.test.ts`).
+
+Not a bug (checked): `processBlock` / `processFlag` take `actor` straight from the activity, but they run only on the **user** inbox, which enforces strict `verifyActorMatch(actor, signer)` (no same-domain delegation) with `REQUIRE_VALID_SIGNATURES` defaulting to `true`. The signer is therefore bound to `actor`; no per-handler re-check needed.
+
+Also fixed (same pass):
+- **Follow Accept/Reject no-op:** `processAccept`/`processReject` matched `follows.ap_activity_id` (nonexistent column); the write uses `ap_id`. Corrected to `ap_id`, so remote Accept/Reject now resolves.
+- **`manually_approves_followers` ignored:** inbound Follow was always auto-accepted. Now stored `pending` (no Accept emitted) when the target requires approval.
+- **Unescaped PostgREST `.or()` on attacker URLs:** `fetchAndCreateRemotePost` / `relinkPendingChildren` interpolated raw `ap_id`/`url` into `.or(...)` filter trees. Now quoted via `utils/postgrestFilter.ts::pgrstOrValue`.
+
 ### WebRTC / voice
 
 | # | Bug | Location |

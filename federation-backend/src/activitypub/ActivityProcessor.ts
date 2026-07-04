@@ -15,6 +15,7 @@ import { SignatureService } from './SignatureService.js';
 import config from '../config/index.js';
 import { harmonyVoiceMessageFromObject } from '../utils/voiceMessageFederation.js';
 import { safeFetch } from '../utils/ssrfProtection.js';
+import { pgrstOrValue } from '../utils/postgrestFilter.js';
 
 /**
  * Extract message UUID from a URL like https://domain/messages/{uuid}
@@ -207,14 +208,38 @@ export class ActivityProcessor {
       return;
     }
 
-    // Create follow relationship (auto-accept)
+    // Respect the target's follow-approval preference. When they manually
+    // approve followers we store the request as `pending` and do NOT emit an
+    // Accept - the local user approves later (which sends the Accept then).
+    const { data: followingUser } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', following.id)
+      .single();
+
+    // Duplicate Follow from an existing accepted follower must never downgrade
+    // the relationship to pending (Mastodon re-sends Follow after migrations);
+    // re-accept and resend the Accept instead.
+    const { data: existingFollow } = await supabase
+      .from('follows')
+      .select('status, accepted_at')
+      .eq('follower_id', follower.id)
+      .eq('following_id', following.id)
+      .maybeSingle();
+    const alreadyAccepted = existingFollow?.status === 'accepted';
+
+    const requiresApproval = !alreadyAccepted && followingUser?.manually_approves_followers === true;
+    const status = requiresApproval ? 'pending' : 'accepted';
+
     const { error: followError } = await supabase.from('follows').upsert({
       follower_id: follower.id,
       following_id: following.id,
-      status: 'accepted',
+      status,
       ap_id: activity.id,
       is_local: false,
-      accepted_at: new Date().toISOString()
+      accepted_at: requiresApproval
+        ? null
+        : (alreadyAccepted && existingFollow?.accepted_at) || new Date().toISOString(),
     }, {
       onConflict: 'follower_id,following_id'
     }).select();
@@ -224,28 +249,27 @@ export class ActivityProcessor {
       return;
     }
 
+    if (requiresApproval) {
+      logger.info(`Follow request pending approval: ${followerUrl} → ${followingUrl}`);
+      return;
+    }
+
     logger.info(`Follow created and auto-accepted: ${followerUrl} → ${followingUrl}`);
 
     // Send Accept activity back to follower
-    const { data: followingUser } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', following.id)
-      .single();
-    
     if (followingUser && followingUser.is_local) {
       const { createAcceptActivity } = await import('./converters/toActivityPub.js');
       const { DeliveryQueue } = await import('./DeliveryQueue.js');
-      
+
       const acceptActivity = createAcceptActivity(followingUser, activity);
-      
+
       // Get follower's inbox
       const { data: followerUser } = await supabase
         .from('profiles')
         .select('inbox_url')
         .eq('id', follower.id)
         .single();
-      
+
       if (followerUser?.inbox_url) {
         await DeliveryQueue.sendToInbox(followerUser.inbox_url, acceptActivity, followingUser.id);
         logger.info(`✅ Sent Accept activity to ${followerUrl}`);
@@ -262,10 +286,12 @@ export class ActivityProcessor {
     if (!activity.object) return;
 
     if (activity.object.type === 'Follow') {
+      // follows stores the originating Follow activity id in `ap_id` (see
+      // processFollow); the column is `ap_id`, not `ap_activity_id`.
       await supabase
         .from('follows')
-        .update({ status: 'accepted' })
-        .eq('ap_activity_id', activity.object.id);
+        .update({ status: 'accepted', accepted_at: new Date().toISOString() })
+        .eq('ap_id', activity.object.id);
 
       logger.info(`Follow accepted: ${activity.object.id}`);
     } else if (activity.object.type === 'Join') {
@@ -322,7 +348,7 @@ export class ActivityProcessor {
       await supabase
         .from('follows')
         .delete()
-        .eq('ap_activity_id', activity.object.id);
+        .eq('ap_id', activity.object.id);
 
       logger.info(`Follow rejected: ${activity.object.id}`);
     } else if (activity.object.type === 'Join') {
@@ -754,7 +780,7 @@ export class ActivityProcessor {
     if (candidateUrls.length === 0) return;
 
     const orFilter = candidateUrls
-      .map((u) => `metadata->>in_reply_to_ap_url.eq.${u}`)
+      .map((u) => `metadata->>in_reply_to_ap_url.eq.${pgrstOrValue(u)}`)
       .join(',');
 
     const { data: orphans, error: queryError } = await supabase
@@ -827,7 +853,7 @@ export class ActivityProcessor {
       const { data: existing } = await supabase
         .from('posts')
         .select('id, ap_id, url, in_reply_to, conversation_root_id')
-        .or(`ap_id.eq.${postUrl},url.eq.${postUrl}`)
+        .or(`ap_id.eq.${pgrstOrValue(postUrl)},url.eq.${pgrstOrValue(postUrl)}`)
         .eq('is_deleted', false)
         .limit(1)
         .maybeSingle();
@@ -887,7 +913,7 @@ export class ActivityProcessor {
         const { data: existingByApId } = await supabase
           .from('posts')
           .select('id, in_reply_to, conversation_root_id')
-          .or(`ap_id.eq.${apId},url.eq.${apUrl}`)
+          .or(`ap_id.eq.${pgrstOrValue(apId)},url.eq.${pgrstOrValue(apUrl)}`)
           .eq('is_deleted', false)
           .limit(1)
           .maybeSingle();
