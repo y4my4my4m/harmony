@@ -369,6 +369,13 @@ CREATE TRIGGER trigger_update_post_reaction_counts
     FOR EACH ROW
     EXECUTE FUNCTION public.update_post_reaction_counts();
 
+-- Maintain replies_count on the parent post
+DROP TRIGGER IF EXISTS trg_update_post_reply_count ON public.posts;
+CREATE TRIGGER trg_update_post_reply_count
+    AFTER INSERT OR UPDATE OF in_reply_to, is_deleted OR DELETE ON public.posts
+    FOR EACH ROW
+    EXECUTE FUNCTION public.update_post_reply_count();
+
 -- Check post emoji reaction limit
 DROP TRIGGER IF EXISTS trigger_check_emoji_reaction_limit ON public.post_interactions;
 CREATE TRIGGER trigger_check_emoji_reaction_limit

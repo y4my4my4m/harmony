@@ -300,14 +300,17 @@ export class CorePostService {
         liked = true
       }
 
-      // Get updated count
-      const { count: newCount } = await supabase
-        .from('post_interactions')
-        .select('*', { count: 'exact', head: true })
-        .match({ post_id: postId, interaction_type: 'favorite' })
+      // posts.favorites_count is authoritative: federated base count plus the
+      // local interactions trigger. Counting post_interactions rows here
+      // collapsed remote posts' counts to local-only (554 favorites -> "1").
+      const { data: postRow } = await supabase
+        .from('posts')
+        .select('favorites_count')
+        .eq('id', postId)
+        .single()
 
       debug.log(`✅ Core: Like ${liked ? 'added' : 'removed'} successfully`)
-      return { liked, newCount: newCount || 0 }
+      return { liked, newCount: postRow?.favorites_count ?? 0 }
     } catch (error) {
       debug.error('❌ Core: Failed to toggle like:', error)
       throw error
@@ -365,14 +368,16 @@ export class CorePostService {
         shared = true
       }
 
-      // Get updated count
-      const { count: newCount } = await supabase
-        .from('post_interactions')
-        .select('*', { count: 'exact', head: true })
-        .match({ post_id: postId, interaction_type: 'reblog' })
+      // Same as toggleLike: posts.reblogs_count carries the federated base,
+      // counting local interaction rows would zero out remote posts' counts.
+      const { data: postRow } = await supabase
+        .from('posts')
+        .select('reblogs_count')
+        .eq('id', postId)
+        .single()
 
       debug.log(`✅ Core: Share ${shared ? 'added' : 'removed'} successfully`)
-      return { shared, newCount: newCount || 0 }
+      return { shared, newCount: postRow?.reblogs_count ?? 0 }
     } catch (error) {
       debug.error('❌ Core: Failed to toggle share:', error)
       throw error

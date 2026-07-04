@@ -2322,6 +2322,9 @@ export const useActivityPubStore = defineStore('activitypub', {
           debug.log(`🔄 Updated ${interactionType} state for post ${postId} in feed: ${isActive} (counts will be synced from server)`);
         }
       });
+      // Persist so navigating away and back doesn't restore the pre-toggle
+      // snapshot from the localStorage timeline cache.
+      this.saveTimelineToCache();
     },
 
     /**
@@ -2381,6 +2384,8 @@ export const useActivityPubStore = defineStore('activitypub', {
           post.is_favorited = userFavoriteState;
         }
       });
+
+      this.saveTimelineToCache();
     },
 
     /**
