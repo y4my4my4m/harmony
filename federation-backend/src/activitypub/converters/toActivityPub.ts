@@ -14,6 +14,24 @@ function normalizeShortcodeBoundaries(text: string): string {
 }
 
 /**
+ * Media type from a URL's file extension. Storage may serve uploads as
+ * application/octet-stream, so remotes need this hint on icon/image.
+ */
+function imageMediaTypeFromUrl(url: string): string | undefined {
+  const ext = url.split('?')[0].split('.').pop()?.toLowerCase();
+  switch (ext) {
+    case 'jpg':
+    case 'jpeg': return 'image/jpeg';
+    case 'png': return 'image/png';
+    case 'gif': return 'image/gif';
+    case 'webp': return 'image/webp';
+    case 'avif': return 'image/avif';
+    case 'svg': return 'image/svg+xml';
+    default: return undefined;
+  }
+}
+
+/**
  * Convert internal post format to ActivityPub Note
  * Supports quote posts via quoteUrl (Fediverse) and _misskey_quote (Misskey)
  */
@@ -163,6 +181,7 @@ export function profileToActor(profile: any): any {
   if (avatarUrl) {
     actor.icon = {
       type: 'Image',
+      mediaType: imageMediaTypeFromUrl(avatarUrl),
       url: avatarUrl,
     };
   }
@@ -172,6 +191,7 @@ export function profileToActor(profile: any): any {
   if (bannerUrl) {
     actor.image = {
       type: 'Image',
+      mediaType: imageMediaTypeFromUrl(bannerUrl),
       url: bannerUrl,
     };
   }

@@ -68,9 +68,11 @@ export function getFullEmojiUrl(emojiUrl: string | null | undefined): string | n
 }
 
 export function getFullBannerUrl(bannerUrl: string | null | undefined): string | null {
-  return getFullStorageUrl(bannerUrl, 'banners', {
-    width: 1500, height: 500, resize: 'cover', quality: 80,
-  });
+  // Raw public URL, no transform: the render endpoint 422s ("Invalid source
+  // image") on some uploaded banners, so remote instances fetching the actor's
+  // image got a 400 and dropped the header. Remotes resize on their side;
+  // mirrors getPublicBannerUrl in src/utils/bannerUtils.ts.
+  return getFullStorageUrl(bannerUrl, 'banners');
 }
 
 const DEFAULT_SERVER_ICON = '/default_server.webp';
@@ -97,7 +99,6 @@ export function getFullServerIconUrl(icon: string | null | undefined): string | 
 
 export function getFullServerBannerUrl(banner: string | null | undefined): string | null {
   if (!banner || typeof banner !== 'string' || !banner.trim()) return null;
-  return getFullStorageUrl(banner, 'server_banners', {
-    width: 1280, height: 400, resize: 'cover', quality: 80,
-  });
+  // Raw public URL, no transform: same render-endpoint 422 class as user banners.
+  return getFullStorageUrl(banner, 'server_banners');
 }
