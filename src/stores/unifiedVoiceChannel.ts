@@ -804,8 +804,8 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         const wasFederated = this.isFederatedChannel;
         const channelId = this.currentChannelId;
         const serverId = this.currentServerId;
-        
         debug.log('👋 Leaving voice channel', wasFederated ? '(federated)' : '(local)');
+        this.isConnected = false;
         
         this.cleanupFederatedSubscription();
         if (this.pendingFederatedJoin?.timeout) {
@@ -886,17 +886,11 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     },
 
     async toggleVideo(): Promise<boolean> {
-      const themeStore = useThemeStore();
       const enabled = await webrtcManager.toggleVideo();
-      
+
       this.localState = webrtcManager.getLocalState();
       this.localStream = webrtcManager.getLocalStream();
-      
-      // Give UI time to update before playing sound
-      setTimeout(() => {
-        themeStore.playAudio(enabled ? 'camera_on' : 'camera_off');
-      }, 100);
-      
+
       debug.log('📹 Video toggled, local stream updated:', {
         enabled,
         streamId: this.localStream?.id,
@@ -910,17 +904,11 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     },
 
     async toggleScreenShare(): Promise<boolean> {
-      const themeStore = useThemeStore();
       const enabled = await webrtcManager.toggleScreenShare();
-      
+
       this.localState = webrtcManager.getLocalState();
       this.localStream = webrtcManager.getLocalStream();
-      
-      // Give UI time to update before playing sound
-      setTimeout(() => {
-        themeStore.playAudio(enabled ? 'screenshare_on' : 'screenshare_off');
-      }, 100);
-      
+
       debug.log('📺 Screen share toggled, local stream updated:', {
         enabled,
         streamId: this.localStream?.id,
@@ -1456,7 +1444,19 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
           isScreenSharing: state.isScreenSharing,
           isMuted: state.isMuted
         });
+
+        const wasSharing = this.localState.isScreenSharing;
+        const hadVideo = this.localState.isVideoEnabled;
         this.localState = state;
+
+        if (!this.isConnected) return;
+        const themeStore = useThemeStore();
+        if (wasSharing !== state.isScreenSharing) {
+          themeStore.playAudio(state.isScreenSharing ? 'screenshare_on' : 'screenshare_off');
+        }
+        if (hadVideo !== state.isVideoEnabled) {
+          themeStore.playAudio(state.isVideoEnabled ? 'camera_on' : 'camera_off');
+        }
       });
       
       webrtcManager.on('local-stream-changed', (stream: any) => {
