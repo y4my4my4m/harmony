@@ -128,17 +128,17 @@
         </button>
         
         <div v-if="showActionsMenu" class="actions-menu" v-click-outside="closeActionsMenu">
-          <button @click="handleViewProfile" class="action-item">
+          <button @click.stop="handleViewProfile" class="action-item">
             <Icon name="user" />
             <span>View Profile</span>
           </button>
           
-          <button @click="handleMute" class="action-item">
+          <button @click.stop="handleMute" class="action-item">
             <Icon name="volume-x" />
             <span>{{ isMuted ? 'Unmute' : 'Mute' }}</span>
           </button>
           
-          <button @click="handleBlock" class="action-item danger">
+          <button @click.stop="handleBlock" class="action-item danger">
             <Icon name="user-x" />
             <span>{{ isBlocked ? 'Unblock' : 'Block' }}</span>
           </button>
