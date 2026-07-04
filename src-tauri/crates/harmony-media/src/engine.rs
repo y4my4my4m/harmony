@@ -1,0 +1,587 @@
+use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
+
+use livekit::options::TrackPublishOptions;
+use livekit::prelude::*;
+use serde::{Deserialize, Serialize};
+use tokio::sync::{mpsc, oneshot};
+
+use crate::events::{AudioLevel, MediaEvent, UserMediaState};
+
+pub type EventSink = Arc<dyn Fn(MediaEvent) + Send + Sync>;
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DeviceInfo {
+  pub id: String,
+  pub label: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DeviceList {
+  pub inputs: Vec<DeviceInfo>,
+  pub outputs: Vec<DeviceInfo>,
+  pub cameras: Vec<DeviceInfo>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EngineSnapshot {
+  pub connected: bool,
+  pub local: Option<UserMediaState>,
+  pub users: Vec<UserMediaState>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum VolumeSource {
+  Mic,
+  Screen,
+}
+
+enum Command {
+  Connect {
+    ws_url: String,
+    token: String,
+    channel_id: String,
+    user_id: String,
+    reply: oneshot::Sender<Result<(), String>>,
+  },
+  Disconnect {
+    reply: oneshot::Sender<()>,
+  },
+  GetState {
+    reply: oneshot::Sender<EngineSnapshot>,
+  },
+  SetMuted {
+    muted: bool,
+    reply: oneshot::Sender<bool>,
+  },
+  SetDeafened {
+    deafened: bool,
+    reply: oneshot::Sender<bool>,
+  },
+  ListDevices {
+    reply: oneshot::Sender<Result<DeviceList, String>>,
+  },
+  SetInputDevice {
+    device_id: String,
+    reply: oneshot::Sender<Result<(), String>>,
+  },
+  SetOutputDevice {
+    device_id: String,
+    reply: oneshot::Sender<Result<(), String>>,
+  },
+  SetUserVolume {
+    user_id: String,
+    source: VolumeSource,
+    volume: u16,
+    reply: oneshot::Sender<Result<(), String>>,
+  },
+  Broadcast {
+    payload: String,
+    topic: Option<String>,
+    reply: oneshot::Sender<Result<(), String>>,
+  },
+}
+
+pub struct MediaEngine {
+  tx: mpsc::Sender<Command>,
+}
+
+impl MediaEngine {
+  pub fn new(sink: EventSink) -> Self {
+    let (tx, rx) = mpsc::channel(64);
+    std::thread::Builder::new()
+      .name("harmony-media".into())
+      .spawn(move || {
+        let rt = tokio::runtime::Builder::new_multi_thread()
+          .worker_threads(2)
+          .enable_all()
+          .build()
+          .expect("media runtime");
+        rt.block_on(actor_loop(rx, sink));
+      })
+      .expect("spawn media thread");
+    Self { tx }
+  }
+
+  async fn send<T>(&self, make: impl FnOnce(oneshot::Sender<T>) -> Command) -> Result<T, String> {
+    let (reply_tx, reply_rx) = oneshot::channel();
+    self
+      .tx
+      .send(make(reply_tx))
+      .await
+      .map_err(|_| "media engine stopped".to_string())?;
+    reply_rx.await.map_err(|_| "media engine dropped reply".to_string())
+  }
+
+  pub async fn connect(
+    &self,
+    ws_url: String,
+    token: String,
+    channel_id: String,
+    user_id: String,
+  ) -> Result<(), String> {
+    self
+      .send(|reply| Command::Connect { ws_url, token, channel_id, user_id, reply })
+      .await?
+  }
+
+  pub async fn disconnect(&self) -> Result<(), String> {
+    self.send(|reply| Command::Disconnect { reply }).await
+  }
+
+  pub async fn get_state(&self) -> Result<EngineSnapshot, String> {
+    self.send(|reply| Command::GetState { reply }).await
+  }
+
+  pub async fn set_muted(&self, muted: bool) -> Result<bool, String> {
+    self.send(|reply| Command::SetMuted { muted, reply }).await
+  }
+
+  pub async fn set_deafened(&self, deafened: bool) -> Result<bool, String> {
+    self.send(|reply| Command::SetDeafened { deafened, reply }).await
+  }
+
+  pub async fn list_devices(&self) -> Result<DeviceList, String> {
+    self.send(|reply| Command::ListDevices { reply }).await?
+  }
+
+  pub async fn set_input_device(&self, device_id: String) -> Result<(), String> {
+    self.send(|reply| Command::SetInputDevice { device_id, reply }).await?
+  }
+
+  pub async fn set_output_device(&self, device_id: String) -> Result<(), String> {
+    self.send(|reply| Command::SetOutputDevice { device_id, reply }).await?
+  }
+
+  pub async fn set_user_volume(
+    &self,
+    user_id: String,
+    source: VolumeSource,
+    volume: u16,
+  ) -> Result<(), String> {
+    self
+      .send(|reply| Command::SetUserVolume { user_id, source, volume, reply })
+      .await?
+  }
+
+  pub async fn broadcast(&self, payload: String, topic: Option<String>) -> Result<(), String> {
+    self.send(|reply| Command::Broadcast { payload, topic, reply }).await?
+  }
+}
+
+struct CallState {
+  room: Room,
+  events: mpsc::UnboundedReceiver<RoomEvent>,
+  channel_id: String,
+  user_id: String,
+  audio: PlatformAudio,
+  mic_pub: Option<LocalTrackPublication>,
+  muted: bool,
+  deafened: bool,
+  remote_audio: HashMap<(String, VolumeSource), RemoteAudioTrack>,
+  // 0..=200; 0 degrades to track disable (no per-track gain in bindings yet)
+  volumes: HashMap<(String, VolumeSource), u16>,
+  speaking: HashSet<String>,
+}
+
+impl CallState {
+  fn local_state(&self) -> UserMediaState {
+    let speaking = self.speaking.contains(&self.user_id);
+    UserMediaState {
+      user_id: self.user_id.clone(),
+      is_audio_enabled: !self.muted,
+      is_video_enabled: false,
+      is_screen_sharing: false,
+      is_muted: self.muted,
+      is_deafened: self.deafened,
+      is_speaking: speaking,
+      audio_level: if speaking { 50 } else { 0 },
+      has_screen_share_audio: false,
+    }
+  }
+
+  fn remote_state(&self, p: &RemoteParticipant) -> UserMediaState {
+    let identity = p.identity().to_string();
+    let speaking = self.speaking.contains(&identity);
+    let mut state = UserMediaState {
+      user_id: identity,
+      is_audio_enabled: false,
+      is_video_enabled: false,
+      is_screen_sharing: false,
+      is_muted: true,
+      is_deafened: false,
+      is_speaking: speaking,
+      audio_level: if speaking { 50 } else { 0 },
+      has_screen_share_audio: false,
+    };
+    for (_, publication) in p.track_publications() {
+      match publication.source() {
+        TrackSource::Microphone => {
+          state.is_muted = publication.is_muted();
+          state.is_audio_enabled = !publication.is_muted();
+        }
+        TrackSource::Camera => state.is_video_enabled = !publication.is_muted(),
+        TrackSource::Screenshare => state.is_screen_sharing = !publication.is_muted(),
+        TrackSource::ScreenshareAudio => state.has_screen_share_audio = !publication.is_muted(),
+        TrackSource::Unknown => {}
+      }
+    }
+    state
+  }
+
+  fn all_users(&self) -> Vec<UserMediaState> {
+    self
+      .room
+      .remote_participants()
+      .values()
+      .map(|p| self.remote_state(p))
+      .collect()
+  }
+
+  fn audio_track_enabled(&self, key: &(String, VolumeSource)) -> bool {
+    !self.deafened && self.volumes.get(key).copied().unwrap_or(100) > 0
+  }
+
+  fn apply_audio_enabled(&self, key: &(String, VolumeSource)) {
+    if let Some(track) = self.remote_audio.get(key) {
+      if self.audio_track_enabled(key) {
+        track.enable();
+      } else {
+        track.disable();
+      }
+    }
+  }
+}
+
+async fn actor_loop(mut rx: mpsc::Receiver<Command>, sink: EventSink) {
+  let mut call: Option<CallState> = None;
+
+  enum Step {
+    Cmd(Command),
+    Room(RoomEvent),
+    RoomClosed,
+  }
+
+  loop {
+    let step = if let Some(active) = call.as_mut() {
+      tokio::select! {
+        cmd = rx.recv() => match cmd {
+          Some(c) => Step::Cmd(c),
+          None => break,
+        },
+        ev = active.events.recv() => match ev {
+          Some(e) => Step::Room(e),
+          None => Step::RoomClosed,
+        },
+      }
+    } else {
+      match rx.recv().await {
+        Some(c) => Step::Cmd(c),
+        None => break,
+      }
+    };
+
+    match step {
+      Step::Cmd(cmd) => handle_command(cmd, &mut call, &sink).await,
+      Step::Room(ev) => handle_room_event(ev, &mut call, &sink),
+      Step::RoomClosed => {
+        call = None;
+        sink(MediaEvent::Disconnected { reason: "room closed".into() });
+      }
+    }
+  }
+
+  if let Some(active) = call.take() {
+    let _ = active.room.close().await;
+  }
+}
+
+async fn handle_command(cmd: Command, call: &mut Option<CallState>, sink: &EventSink) {
+  match cmd {
+    Command::Connect { ws_url, token, channel_id, user_id, reply } => {
+      if let Some(old) = call.take() {
+        let _ = old.room.close().await;
+        sink(MediaEvent::Disconnected { reason: "rejoining".into() });
+      }
+      match do_connect(ws_url, token, channel_id, user_id, sink).await {
+        Ok(state) => {
+          sink(MediaEvent::Connected { channel_id: state.channel_id.clone() });
+          sink(MediaEvent::StateSynced {
+            local: state.local_state(),
+            users: state.all_users(),
+          });
+          *call = Some(state);
+          let _ = reply.send(Ok(()));
+        }
+        Err(e) => {
+          sink(MediaEvent::Error { code: "connect-failed".into(), message: e.clone() });
+          let _ = reply.send(Err(e));
+        }
+      }
+    }
+    Command::Disconnect { reply } => {
+      if let Some(active) = call.take() {
+        let _ = active.room.close().await;
+        sink(MediaEvent::Disconnected { reason: "local".into() });
+      }
+      let _ = reply.send(());
+    }
+    Command::GetState { reply } => {
+      let snapshot = match call.as_ref() {
+        Some(active) => EngineSnapshot {
+          connected: true,
+          local: Some(active.local_state()),
+          users: active.all_users(),
+        },
+        None => EngineSnapshot { connected: false, local: None, users: vec![] },
+      };
+      let _ = reply.send(snapshot);
+    }
+    Command::SetMuted { muted, reply } => {
+      let result = if let Some(active) = call.as_mut() {
+        active.muted = muted;
+        if let Some(publication) = &active.mic_pub {
+          if muted {
+            publication.mute();
+          } else {
+            publication.unmute();
+          }
+        }
+        sink(MediaEvent::LocalState(active.local_state()));
+        muted
+      } else {
+        muted
+      };
+      let _ = reply.send(result);
+    }
+    Command::SetDeafened { deafened, reply } => {
+      let result = if let Some(active) = call.as_mut() {
+        active.deafened = deafened;
+        let keys: Vec<_> = active.remote_audio.keys().cloned().collect();
+        for key in keys {
+          active.apply_audio_enabled(&key);
+        }
+        sink(MediaEvent::LocalState(active.local_state()));
+        deafened
+      } else {
+        deafened
+      };
+      let _ = reply.send(result);
+    }
+    Command::ListDevices { reply } => {
+      let result = list_devices(call.as_ref());
+      let _ = reply.send(result);
+    }
+    Command::SetInputDevice { device_id, reply } => {
+      let result = match call.as_ref() {
+        Some(active) => active
+          .audio
+          .switch_recording_device(&RecordingDeviceId::from_unchecked_guid(&device_id))
+          .map_err(|e| e.to_string()),
+        None => Err("not connected".into()),
+      };
+      let _ = reply.send(result);
+    }
+    Command::SetOutputDevice { device_id, reply } => {
+      let result = match call.as_ref() {
+        Some(active) => active
+          .audio
+          .switch_playout_device(&PlayoutDeviceId::from_unchecked_guid(&device_id))
+          .map_err(|e| e.to_string()),
+        None => Err("not connected".into()),
+      };
+      let _ = reply.send(result);
+    }
+    Command::SetUserVolume { user_id, source, volume, reply } => {
+      let result = match call.as_mut() {
+        Some(active) => {
+          let key = (user_id, source);
+          active.volumes.insert(key.clone(), volume.min(200));
+          active.apply_audio_enabled(&key);
+          Ok(())
+        }
+        None => Err("not connected".into()),
+      };
+      let _ = reply.send(result);
+    }
+    Command::Broadcast { payload, topic, reply } => {
+      let result = match call.as_ref() {
+        Some(active) => active
+          .room
+          .local_participant()
+          .publish_data(DataPacket {
+            payload: payload.into_bytes(),
+            topic,
+            reliable: true,
+            ..Default::default()
+          })
+          .await
+          .map_err(|e| e.to_string()),
+        None => Err("not connected".into()),
+      };
+      let _ = reply.send(result);
+    }
+  }
+}
+
+async fn do_connect(
+  ws_url: String,
+  token: String,
+  channel_id: String,
+  user_id: String,
+  _sink: &EventSink,
+) -> Result<CallState, String> {
+  let audio = PlatformAudio::new().map_err(|e| format!("platform audio: {e}"))?;
+  let _ = audio.set_echo_cancellation(true, true);
+  let _ = audio.set_noise_suppression(true, true);
+  let _ = audio.set_auto_gain_control(true, true);
+
+  let mut options = RoomOptions::default();
+  options.adaptive_stream = true;
+  options.dynacast = true;
+  let (room, events) = Room::connect(&ws_url, &token, options)
+    .await
+    .map_err(|e| format!("room connect: {e}"))?;
+
+  let mic_track = LocalAudioTrack::create_audio_track("microphone", audio.rtc_source());
+  let mut publish_options = TrackPublishOptions::default();
+  publish_options.source = TrackSource::Microphone;
+  publish_options.dtx = true;
+  publish_options.red = true;
+  let mic_pub = room
+    .local_participant()
+    .publish_track(LocalTrack::Audio(mic_track), publish_options)
+    .await
+    .map_err(|e| format!("publish mic: {e}"))?;
+
+  Ok(CallState {
+    room,
+    events,
+    channel_id,
+    user_id,
+    audio,
+    mic_pub: Some(mic_pub),
+    muted: false,
+    deafened: false,
+    remote_audio: HashMap::new(),
+    volumes: HashMap::new(),
+    speaking: HashSet::new(),
+  })
+}
+
+fn list_devices(call: Option<&CallState>) -> Result<DeviceList, String> {
+  // reuse the call's ADM if connected, else a temporary handle
+  let temp;
+  let audio = match call {
+    Some(active) => &active.audio,
+    None => {
+      temp = PlatformAudio::new().map_err(|e| format!("platform audio: {e}"))?;
+      &temp
+    }
+  };
+  Ok(DeviceList {
+    inputs: audio
+      .recording_devices()
+      .map(|d| DeviceInfo { id: d.id.as_str().to_string(), label: d.name })
+      .collect(),
+    outputs: audio
+      .playout_devices()
+      .map(|d| DeviceInfo { id: d.id.as_str().to_string(), label: d.name })
+      .collect(),
+    cameras: vec![],
+  })
+}
+
+fn handle_room_event(ev: RoomEvent, call: &mut Option<CallState>, sink: &EventSink) {
+  let Some(active) = call.as_mut() else { return };
+  match ev {
+    RoomEvent::ParticipantConnected(p) => {
+      sink(MediaEvent::UserJoined(active.remote_state(&p)));
+    }
+    RoomEvent::ParticipantDisconnected(p) => {
+      let identity = p.identity().to_string();
+      active.remote_audio.retain(|(id, _), _| *id != identity);
+      active.speaking.remove(&identity);
+      sink(MediaEvent::UserLeft { user_id: identity });
+    }
+    RoomEvent::TrackSubscribed { track, publication, participant } => {
+      if let RemoteTrack::Audio(audio_track) = track {
+        let source = match publication.source() {
+          TrackSource::ScreenshareAudio => VolumeSource::Screen,
+          _ => VolumeSource::Mic,
+        };
+        let key = (participant.identity().to_string(), source);
+        active.remote_audio.insert(key.clone(), audio_track);
+        active.apply_audio_enabled(&key);
+      }
+      sink(MediaEvent::UserState(active.remote_state(&participant)));
+    }
+    RoomEvent::TrackUnsubscribed { track, publication, participant } => {
+      if matches!(track, RemoteTrack::Audio(_)) {
+        let source = match publication.source() {
+          TrackSource::ScreenshareAudio => VolumeSource::Screen,
+          _ => VolumeSource::Mic,
+        };
+        active.remote_audio.remove(&(participant.identity().to_string(), source));
+      }
+      sink(MediaEvent::UserState(active.remote_state(&participant)));
+    }
+    RoomEvent::TrackPublished { participant, .. }
+    | RoomEvent::TrackUnpublished { participant, .. } => {
+      sink(MediaEvent::UserState(active.remote_state(&participant)));
+    }
+    RoomEvent::TrackMuted { participant, .. } | RoomEvent::TrackUnmuted { participant, .. } => {
+      match participant {
+        Participant::Remote(p) => sink(MediaEvent::UserState(active.remote_state(&p))),
+        Participant::Local(_) => sink(MediaEvent::LocalState(active.local_state())),
+      }
+    }
+    RoomEvent::ActiveSpeakersChanged { speakers } => {
+      let now: HashSet<String> = speakers.iter().map(|p| p.identity().to_string()).collect();
+      let mut levels: Vec<AudioLevel> = Vec::new();
+      for id in now.difference(&active.speaking) {
+        levels.push(AudioLevel { user_id: id.clone(), level: 50 });
+      }
+      for id in active.speaking.difference(&now) {
+        levels.push(AudioLevel { user_id: id.clone(), level: 0 });
+      }
+      active.speaking = now;
+      if !levels.is_empty() {
+        sink(MediaEvent::AudioLevels { levels });
+      }
+    }
+    RoomEvent::ConnectionStateChanged(state) => {
+      let label = match state {
+        ConnectionState::Connected => "connected",
+        ConnectionState::Reconnecting => "reconnecting",
+        ConnectionState::Disconnected => "disconnected",
+      };
+      sink(MediaEvent::ConnectionState { state: label.into() });
+    }
+    RoomEvent::Reconnecting => {
+      sink(MediaEvent::ConnectionState { state: "reconnecting".into() });
+    }
+    RoomEvent::Reconnected => {
+      sink(MediaEvent::ConnectionState { state: "connected".into() });
+    }
+    RoomEvent::DataReceived { payload, topic, participant, .. } => {
+      if let Ok(text) = String::from_utf8(payload.to_vec()) {
+        sink(MediaEvent::Data {
+          user_id: participant.map(|p| p.identity().to_string()),
+          topic,
+          payload: text,
+        });
+      }
+    }
+    RoomEvent::Disconnected { reason } => {
+      let reason = format!("{reason:?}");
+      *call = None;
+      sink(MediaEvent::Disconnected { reason });
+    }
+    _ => {}
+  }
+}

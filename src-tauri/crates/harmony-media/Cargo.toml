@@ -1,0 +1,13 @@
+[package]
+name = "harmony-media"
+version = "0.1.0"
+edition = "2021"
+license = "AGPL-3.0"
+publish = false
+
+[dependencies]
+livekit = { version = "0.7.49", features = ["native-tls"] }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+log = "0.4"
