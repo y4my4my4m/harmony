@@ -165,22 +165,13 @@ export class PWAManager {
   }
 
   /**
-   * Setup enhanced focus management for better keyboard navigation
+   * Escape blurs the focused element for native-like keyboard dismissal
    */
   private setupFocusManagement(): void {
     let lastFocusedElement: HTMLElement | null = null
 
     document.addEventListener('focusin', (e) => {
       lastFocusedElement = e.target as HTMLElement
-      if (e.target instanceof HTMLElement) {
-        e.target.classList.add('keyboard-focused')
-      }
-    })
-
-    document.addEventListener('focusout', (e) => {
-      if (e.target instanceof HTMLElement) {
-        e.target.classList.remove('keyboard-focused')
-      }
     })
 
     document.addEventListener('keydown', (e) => {
