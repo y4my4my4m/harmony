@@ -1388,12 +1388,37 @@ async function _fetchRemotePostReactionsImpl(
         shares: post.shares?.totalItems || post.sharesCount || 0,
       };
       if (postId && (counts.likes > 0 || counts.replies > 0 || counts.shares > 0)) {
+        const [{ count: pendingFavs }, { count: pendingShares }, { count: pendingReplies }] =
+          await Promise.all([
+            supabase
+              .from('post_interactions')
+              .select('*', { count: 'exact', head: true })
+              .eq('post_id', postId)
+              .eq('is_local', true)
+              .in('interaction_type', ['favorite', 'emoji_reaction'])
+              // PostgREST neq drops NULL rows; legacy rows may have NULL status
+              .or('federation_status.is.null,federation_status.neq.completed'),
+            supabase
+              .from('post_interactions')
+              .select('*', { count: 'exact', head: true })
+              .eq('post_id', postId)
+              .eq('is_local', true)
+              .eq('interaction_type', 'reblog')
+              .or('federation_status.is.null,federation_status.neq.completed'),
+            supabase
+              .from('posts')
+              .select('*', { count: 'exact', head: true })
+              .eq('in_reply_to', postId)
+              .eq('is_local', true)
+              .eq('is_deleted', false)
+              .or('federation_status.is.null,federation_status.neq.completed'),
+          ]);
         await supabase
           .from('posts')
           .update({
-            favorites_count: counts.likes,
-            replies_count: counts.replies,
-            reblogs_count: counts.shares,
+            favorites_count: counts.likes + (pendingFavs || 0),
+            replies_count: counts.replies + (pendingReplies || 0),
+            reblogs_count: counts.shares + (pendingShares || 0),
           })
           .eq('id', postId);
       }
