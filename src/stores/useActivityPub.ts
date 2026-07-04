@@ -256,7 +256,11 @@ export const useActivityPubStore = defineStore('activitypub', {
     },
 
     filteredSuggestedUsers(): any[] {
-      return this.suggestedUsers.filter(user => !this.followedUsers.has(user.id));
+      return this.suggestedUsers.filter(user =>
+        !this.followedUsers.has(user.id) &&
+        !this.mutedUsers.has(user.id) &&
+        !this.blockedUsers.has(user.id)
+      );
     },
 
     isFollowing: (state) => (userId: string) => {
