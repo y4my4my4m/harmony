@@ -569,8 +569,8 @@
         <div class="tooltip-user-meta">
           <span class="tooltip-username">
             <DisplayName
-              v-if="(user as any).displayNameParts"
-              :parts="(user as any).displayNameParts"
+              v-if="user.displayNameParts"
+              :parts="user.displayNameParts"
               :fallback="user.displayName"
             />
             <DisplayName v-else :userId="user.id" :fallback="user.displayName" />
@@ -619,7 +619,7 @@ import { getEmojiUrl } from '@/utils/emojiUtils';
 import { getReactionTooltipAnchor } from '@/utils/reactionTooltipPosition';
 import { getOriginalPost } from '@/utils/postReblog';
 import { supabase } from '@/supabase';
-import type { TimelinePost } from '@/types';
+import type { TimelinePost, DisplayNamePart } from '@/types';
 
 // Components
 import MonyContent from './MonyContent.vue';
@@ -640,6 +640,7 @@ import EmojiPopup from '@/components/EmojiPopup.vue';
 import VueEasyLightbox from 'vue-easy-lightbox';
 import { useToast } from 'vue-toastification';
 import router from '@/router';
+import { useConfirmDialog } from '@/composables/useConfirmDialog'
 
 // Props
 interface Props {
@@ -657,6 +658,8 @@ const props = withDefaults(defineProps<Props>(), {
   embedded: false,
   showPinnedHeader: false,
 });
+
+const { confirm } = useConfirmDialog()
 
 // Emits
 const emit = defineEmits<{
@@ -708,11 +711,12 @@ const currentLightboxImage = ref<string>('');
 // Tooltip state for reaction tooltips
 const tooltip = ref({
   visible: false,
-  content: [] as { 
-    id: string; 
-    displayName: string; 
+  content: [] as {
+    id: string;
+    displayName: string;
+    displayNameParts?: DisplayNamePart[];
     displayNameEmojis?: Array<{name: string, url: string}>;
-    avatarUrl: string; 
+    avatarUrl: string;
     userColor?: string;
     isRemote?: boolean;
     domain?: string;
@@ -720,7 +724,7 @@ const tooltip = ref({
   }[],
   x: 0,
   y: 0,
-  emoji: null as any,
+  emoji: null as { name?: string; url?: string; unicode?: string } | null,
 });
 const tooltipTimer = ref<NodeJS.Timeout | null>(null);
 
@@ -792,22 +796,26 @@ const {
           remote_reactions: result.remote_reactions,
           remote_reactions_fetched_at: new Date().toISOString(),
         });
+        // Post objects are store-shared refs; mutating keeps every rendered copy in sync.
         if (!props.post.metadata) {
-          (props.post as any).metadata = {};
+          // eslint-disable-next-line vue/no-mutating-props
+          props.post.metadata = {};
         }
-        (props.post.metadata as any).remote_reactions = result.remote_reactions;
-        (props.post.metadata as any).remote_reactions_fetched_at = new Date().toISOString();
+        // eslint-disable-next-line vue/no-mutating-props
+        props.post.metadata.remote_reactions = result.remote_reactions;
+        // eslint-disable-next-line vue/no-mutating-props
+        props.post.metadata.remote_reactions_fetched_at = new Date().toISOString();
       }
       // For reblogs, update the reblog sub-object (displayInteractionCounts reads from there)
       const target = (isReblog.value && props.post.reblog) ? props.post.reblog : props.post;
       if (result.favorites_count !== undefined) {
-        (target as any).favorites_count = result.favorites_count;
+        target.favorites_count = result.favorites_count;
       }
       if (result.replies_count !== undefined) {
-        (target as any).replies_count = result.replies_count;
+        target.replies_count = result.replies_count;
       }
       if (result.reblogs_count !== undefined) {
-        (target as any).reblogs_count = result.reblogs_count;
+        target.reblogs_count = result.reblogs_count;
       }
     },
     onRefresh: (postId: string) => emit('refresh', postId),
@@ -897,7 +905,7 @@ const displayAuthor = computed(() => {
 });
 
 const authorSupporterBadge = computed(() => {
-  const membership = (displayAuthor.value as any)?.supporter_membership;
+  const membership = displayAuthor.value?.supporter_membership;
   if (membership === undefined) return undefined;
   return badgeFromMembership(membership);
 });
@@ -1905,8 +1913,8 @@ const handleQuoteReblog = () => {
   const originalPost = props.post.reblog || props.post;
   const originalAuthor = props.post.reblog_author || props.post.author;
   activityPubStore.openComposer({
-    quotePost: originalPost as any,
-    quoteAuthor: originalAuthor as any,
+    quotePost: originalPost,
+    quoteAuthor: originalAuthor,
   });
 };
 
@@ -1973,7 +1981,8 @@ const handleAdminToggleSensitive = async () => {
     await adminService.moderatePost(postId, action);
     activityPubStore.updatePostFieldInAllFeeds(postId, 'is_sensitive', newVal);
     if (isReblog.value && props.post.reblog) {
-      (props.post.reblog as any).is_sensitive = newVal;
+      // eslint-disable-next-line vue/no-mutating-props -- store-shared ref, see above
+      props.post.reblog.is_sensitive = newVal;
     }
     notificationStore.showToast('server_update', 'Post updated', newVal ? 'Post marked as sensitive.' : 'Post unmarked as sensitive.', 3000);
   } catch (error: any) {
@@ -1992,14 +2001,16 @@ const handleAdminSetCW = async () => {
       await adminService.moderatePost(postId, 'set_cw', cw.trim());
       activityPubStore.updatePostFieldInAllFeeds(postId, 'content_warning', cw.trim());
       if (isReblog.value && props.post.reblog) {
-        (props.post.reblog as any).content_warning = cw.trim();
+        // eslint-disable-next-line vue/no-mutating-props -- store-shared ref, see above
+        props.post.reblog.content_warning = cw.trim();
       }
       notificationStore.showToast('server_update', 'Content warning set', '', 3000);
     } else {
       await adminService.moderatePost(postId, 'remove_cw');
       activityPubStore.updatePostFieldInAllFeeds(postId, 'content_warning', null);
       if (isReblog.value && props.post.reblog) {
-        (props.post.reblog as any).content_warning = null;
+        // eslint-disable-next-line vue/no-mutating-props -- store-shared ref, see above
+        props.post.reblog.content_warning = null;
       }
       notificationStore.showToast('server_update', 'Content warning removed', '', 3000);
     }
@@ -2011,7 +2022,7 @@ const handleAdminSetCW = async () => {
 const handleAdminDeletePost = async () => {
   showMenu.value = false;
   const postId = originalPostId.value;
-  if (!confirm('Delete this post as admin? This cannot be undone.')) return;
+  if (!(await confirm({ title: 'Delete post (admin)', message: 'Delete this post as admin? This cannot be undone.', confirmButtonText: 'Delete', dangerAction: true }))) return;
   try {
     await adminService.moderatePost(postId, 'delete');
     activityPubStore.updatePostFieldInAllFeeds(postId, 'is_deleted', true);
@@ -2310,7 +2321,7 @@ const closeLightbox = () => {
 }
 
 .reply-parent-post:hover {
-  border-color: #4b5563;
+  border-color: var(--border-secondary, #4b5563);
 }
 
 .reply-parent-header {
@@ -2408,7 +2419,7 @@ const closeLightbox = () => {
 }
 
 .content-warning {
-  background-color: #374151;
+  background-color: var(--background-tertiary, #374151);
   border-radius: 0.5rem;
   padding: 1rem;
   margin-bottom: 1rem;
@@ -2424,7 +2435,7 @@ const closeLightbox = () => {
 }
 
 .cw-toggle {
-  background-color: #4b5563;
+  background-color: var(--background-hover, #4b5563);
   color: var(--text-primary);
   border: none;
   padding: 0.5rem 1rem;
@@ -2763,7 +2774,7 @@ const closeLightbox = () => {
 }
 
 .quoted-post {
-  border: 1px solid #374151;
+  border: 1px solid var(--border-primary, #374151);
   border-radius: 0.75rem;
   padding: 1rem;
   background-color: rgba(0, 0, 0, 0.2);

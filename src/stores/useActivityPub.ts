@@ -2610,9 +2610,7 @@ export const useActivityPubStore = defineStore('activitypub', {
       }
     },
 
-    // =============================================
     // LISTS MANAGEMENT (Mastodon-compatible)
-    // =============================================
 
     /**
      * Load all user lists
@@ -3450,9 +3448,7 @@ export const useActivityPubStore = defineStore('activitypub', {
      /**
       * Cleanup store - clean and simple
       */
-     // =============================================
      // CONVERSATION MANAGEMENT
-     // =============================================
 
      /**
       * Get conversation context for a post

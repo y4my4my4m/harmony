@@ -767,7 +767,7 @@ const formatFileSize = (bytes: number): string => {
 }
 
 .url-link:hover {
-  color: #2563eb;
+  color: var(--harmony-primary, #2563eb);
 }
 
 .content-html :deep(.url-link) {
@@ -776,7 +776,7 @@ const formatFileSize = (bytes: number): string => {
 }
 
 .content-html :deep(.url-link:hover) {
-  color: #2563eb;
+  color: var(--harmony-primary, #2563eb);
 }
 
 .content-html :deep(.media-container) {

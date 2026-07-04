@@ -28,9 +28,7 @@ export class FederationActivityService {
   // DB triggers -> BullMQ -> `resolveOutboundEmoji` (domain-qualified custom
   // emoji). The client must not build reaction activities; see reactionHandler.
 
-  // =====================================================
   // POST ACTIVITIES (CREATE/UPDATE/DELETE)
-  // =====================================================
 
   /**
    * Create post activity (Create/Update/Delete)
@@ -99,9 +97,7 @@ export class FederationActivityService {
     }
   }
 
-  // =====================================================
   // FOLLOW ACTIVITIES (FOLLOW/UNDO)
-  // =====================================================
 
   /**
    * Create follow activity
@@ -161,9 +157,7 @@ export class FederationActivityService {
     }
   }
 
-  // =====================================================
   // PROFILE ACTIVITIES (UPDATE)
-  // =====================================================
 
   /**
    * Create profile update activity
@@ -214,9 +208,7 @@ export class FederationActivityService {
     }
   }
 
-  // =====================================================
   // ACTIVITY DATA BUILDERS (COMPATIBLE WITH YOUR EDGE FUNCTIONS)
-  // =====================================================
 
   private async buildPostActivityData(params: {
     activityId: string
@@ -334,9 +326,7 @@ export class FederationActivityService {
     }
   }
 
-  // =====================================================
   // DATA FETCHERS (INTEGRATE WITH YOUR DATABASE)
-  // =====================================================
 
   private async getPostData(postId: string) {
     const { data, error } = await supabase

@@ -151,8 +151,10 @@ import { useToast } from 'vue-toastification'
 import { generateBotToken, hashBotToken } from '@/utils/botUtils'
 import BotAvatar from '@/components/common/BotAvatar.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
+import { useConfirmDialog } from '@/composables/useConfirmDialog'
 
 const toast = useToast()
+const { confirm } = useConfirmDialog()
 const authStore = useAuthStore()
 
 const loading = ref(true)
@@ -289,7 +291,7 @@ async function createBot() {
 }
 
 async function regenerateToken(bot: any) {
-  if (!confirm(`Regenerate token for ${bot.username}? This will invalidate the old token.`)) {
+  if (!(await confirm({ title: 'Regenerate token', message: `Regenerate token for ${bot.username}? This will invalidate the old token.`, confirmButtonText: 'Regenerate', dangerAction: true }))) {
     return
   }
   
@@ -336,7 +338,7 @@ function viewBot(bot: any) {
 }
 
 async function deleteBot(bot: any) {
-  if (!confirm(`Delete ${bot.username}? This action cannot be undone.`)) {
+  if (!(await confirm({ title: 'Delete bot', message: `Delete ${bot.username}? This action cannot be undone.`, confirmButtonText: 'Delete', dangerAction: true }))) {
     return
   }
   

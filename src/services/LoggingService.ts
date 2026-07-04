@@ -12,9 +12,7 @@
 import { debug } from '@/utils/debug'
 import { supabase } from '@/supabase'
 
-// =============================================
 // Types
-// =============================================
 
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error'
 
@@ -70,9 +68,7 @@ export interface LoggingConfig {
   excludePatterns: RegExp[] // Patterns to exclude from logging
 }
 
-// =============================================
 // Constants
-// =============================================
 
 const LOG_LEVELS: Record<LogLevel, number> = {
   debug: 0,
@@ -105,9 +101,7 @@ const STORAGE_KEY = 'harmony_log_buffer'
 const CONSENT_KEY = 'harmony_logging_consent'
 const SESSION_ID_KEY = 'harmony_session_id'
 
-// =============================================
 // Logging Service Class
-// =============================================
 
 class LoggingService {
   private config: LoggingConfig
@@ -126,9 +120,7 @@ class LoggingService {
     this.startFlushTimer()
   }
 
-  // =============================================
   // Configuration
-  // =============================================
 
   private loadConfig(): LoggingConfig {
     try {
@@ -165,9 +157,7 @@ class LoggingService {
     return this.config.userConsent
   }
 
-  // =============================================
   // Session Management
-  // =============================================
 
   private getOrCreateSessionId(): string {
     try {
@@ -182,9 +172,7 @@ class LoggingService {
     }
   }
 
-  // =============================================
   // Core Logging Methods
-  // =============================================
 
   private shouldLog(level: LogLevel): boolean {
     if (!this.config.enabled) return false
@@ -278,9 +266,7 @@ class LoggingService {
     this.saveBufferToStorage()
   }
 
-  // =============================================
   // Public Logging Methods
-  // =============================================
 
   debug(message: string, data?: Record<string, any>): void {
     if (!this.shouldLog('debug')) return
@@ -313,9 +299,7 @@ class LoggingService {
     this.addToBuffer(entry)
   }
 
-  // =============================================
   // Category-Specific Logging
-  // =============================================
 
   logNavigation(from: string, to: string, duration?: number): void {
     if (!this.config.includeNavigation) return
@@ -401,9 +385,7 @@ class LoggingService {
     this.addToBuffer(entry)
   }
 
-  // =============================================
   // Storage Management
-  // =============================================
 
   private saveBufferToStorage(): void {
     try {
@@ -436,9 +418,7 @@ class LoggingService {
     }
   }
 
-  // =============================================
   // Server Sync (Optional)
-  // =============================================
 
   private startFlushTimer(): void {
     if (this.flushTimer) {
@@ -480,9 +460,7 @@ class LoggingService {
     }
   }
 
-  // =============================================
   // Global Error Handlers
-  // =============================================
 
   private setupGlobalErrorHandlers(): void {
     // Unhandled errors
@@ -514,9 +492,7 @@ class LoggingService {
     }
   }
 
-  // =============================================
   // Performance Observers
-  // =============================================
 
   private setupPerformanceObservers(): void {
     if (!this.config.includePerformance) return
@@ -581,9 +557,7 @@ class LoggingService {
     })
   }
 
-  // =============================================
   // Export/Debug
-  // =============================================
 
   getBuffer(): LogEntry[] {
     return [...this.buffer]
@@ -604,9 +578,7 @@ class LoggingService {
     URL.revokeObjectURL(url)
   }
 
-  // =============================================
   // Cleanup
-  // =============================================
 
   destroy(): void {
     if (this.flushTimer) {
@@ -616,9 +588,7 @@ class LoggingService {
   }
 }
 
-// =============================================
 // Singleton Export
-// =============================================
 
 export const loggingService = new LoggingService()
 

@@ -284,9 +284,7 @@ import Icon from '@/components/common/Icon.vue';
 import Avatar from '../common/Avatar.vue';
 import DisplayName from '@/components/DisplayName.vue';
 
-// =============================================================================
 // PROPS & EMITS
-// =============================================================================
 
 interface Props {
   isUnderOverlay?: boolean;
@@ -298,9 +296,7 @@ withDefaults(defineProps<Props>(), {
   isUnderDock: false
 });
 
-// =============================================================================
 // STORES & STATE
-// =============================================================================
 
 const spatialStore = useSpatialAudioStore();
 const voiceStore = useUnifiedVoiceChannelStore();
@@ -423,9 +419,7 @@ const localVisualPositions = ref<Map<string, { x: number, y: number }>>(new Map(
 // Local settings for smooth updates
 const localSettings = ref({ ...spatialStore.settings });
 
-// =============================================================================
 // COMPUTED PROPERTIES
-// =============================================================================
 
 const currentUserId = computed(() => authStore.session?.user?.id || '');
 
@@ -435,9 +429,7 @@ const otherParticipants = computed(() =>
   allParticipants.value.filter(p => p.userId !== currentUserId.value)
 );
 
-// =============================================================================
 // POSITION MANAGEMENT
-// =============================================================================
 
 const getPosition = (userId: string) => {
   // During drag, use local visual position for smooth movement
@@ -480,9 +472,7 @@ const getDistanceOpacity = (userId: string): number => {
   return Math.max(0.2, 1 - (distance / maxDistance));
 };
 
-// =============================================================================
 // USER INTERACTION
-// =============================================================================
 
 const isSpeaking = (participant: any): boolean => {
   return participant.isSpeaking || (participant.audioLevel > 20 && !participant.isMuted);
@@ -498,9 +488,7 @@ const getUserProfile = (userId: string) => {
   };
 };
 
-// =============================================================================
 // DRAG & DROP
-// =============================================================================
 
 // Debounce timer for spatial audio updates during drag
 let spatialUpdateTimer: number | null = null;
@@ -580,9 +568,7 @@ const handleGridMouseUp = () => {
   }
 };
 
-// =============================================================================
 // TOUCH EVENT HANDLERS (Mobile support)
-// =============================================================================
 
 const handleAvatarTouchStart = (event: TouchEvent, userId: string) => {
   // Prevent sidebar swipe gestures from interfering
@@ -675,9 +661,7 @@ const handleAvatarRightClick = (event: MouseEvent, userId: string) => {
   debug.log('Right clicked on user:', userId);
 };
 
-// =============================================================================
 // PANEL ACTIONS
-// =============================================================================
 
 const toggleSettings = () => {
   showSettings.value = !showSettings.value;
@@ -722,9 +706,7 @@ const randomizePositions = () => {
   }
 };
 
-// =============================================================================
 // LIFECYCLE & WATCHERS
-// =============================================================================
 
 const updateGridSize = () => {
   if (gridContainer.value) {

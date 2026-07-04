@@ -17,7 +17,7 @@ import { asyncHandler } from '../middleware/errorHandler.js';
 import { logger } from '../utils/logger.js';
 import config from '../config/index.js';
 import { SignatureService } from './SignatureService.js';
-import { inboxLimiter } from '../middleware/rateLimit.js';
+import { inboxLimiter, instanceInboxLimiter } from '../middleware/rateLimit.js';
 import { getFullServerBannerUrl, getFullServerIconUrl } from '../utils/urlUtils.js';
 
 const router = Router();
@@ -597,6 +597,7 @@ router.get(
 router.post(
   '/servers/:serverId/inbox',
   inboxLimiter,
+  instanceInboxLimiter,
   asyncHandler(async (req: Request, res: Response) => {
     const { serverId } = req.params;
     const activity = req.body;
@@ -647,8 +648,61 @@ router.post(
       }
     }
 
+    // Store + claim for idempotency, same machinery as the user inbox: a
+    // redelivered activity must not run its side effects twice. Activities
+    // that can't be stored (missing id, ap_type outside the DB constraint)
+    // are processed without a claim rather than dropped.
+    const supabase = getSupabaseClient();
+    let claimedForProcessing = false;
+    if (typeof activity.id === 'string' && activity.id) {
+      let originDomain: string | null = null;
+      try {
+        originDomain = actorUrl ? new URL(actorUrl).hostname.toLowerCase() : null;
+      } catch {
+        originDomain = null;
+      }
+      const normalizedType = activity.type === 'EmojiReact' ? 'EmojiReaction' : activity.type;
+      const { error: storeError } = await supabase.rpc('upsert_ap_activity', {
+        p_ap_id: activity.id,
+        p_ap_type: normalizedType,
+        p_actor_ap_id: actorUrl,
+        p_activity_data: activity,
+        p_origin_domain: originDomain,
+        p_to_addresses: Array.isArray(activity.to) ? activity.to : [activity.to].filter(Boolean),
+        p_cc_addresses: Array.isArray(activity.cc) ? activity.cc : [activity.cc].filter(Boolean),
+        p_is_local: false,
+      });
+      if (storeError) {
+        logger.warn(`Could not store server inbox activity ${activity.id}: ${storeError.message}`);
+      } else {
+        const { data: claimed, error: claimError } = await supabase.rpc('claim_ap_activity', {
+          p_ap_id: activity.id,
+        });
+        if (!claimError && claimed === false) {
+          logger.info(`↩️ Skipping already-processed server inbox activity ${activity.id}`);
+          res.status(202).json({ message: 'Activity already processed' });
+          return;
+        }
+        claimedForProcessing = !claimError;
+      }
+    }
+
     const { processServerInboxActivity } = await import('./ServerInboxHandler.js');
-    await processServerInboxActivity(serverId, activity);
+    try {
+      await processServerInboxActivity(serverId, activity);
+    } catch (error) {
+      if (claimedForProcessing) {
+        await supabase.rpc('complete_ap_activity', {
+          p_ap_id: activity.id,
+          p_success: false,
+          p_error: error instanceof Error ? error.message : String(error),
+        });
+      }
+      throw error;
+    }
+    if (claimedForProcessing) {
+      await supabase.rpc('complete_ap_activity', { p_ap_id: activity.id, p_success: true });
+    }
 
     res.status(202).json({ message: 'Activity accepted' });
   })

@@ -53,9 +53,7 @@ export class CoreProfileService {
     return this.instance
   }
 
-  // =====================================================
   // PROFILE LOADING (SECURE & PRIVACY-AWARE)
-  // =====================================================
 
   /**
    * Load profile by ID with privacy controls (pure local, secure)
@@ -213,9 +211,7 @@ export class CoreProfileService {
     }
   }
 
-  // =====================================================
   // PROFILE MANAGEMENT (SECURE OWNERSHIP VERIFICATION)
-  // =====================================================
 
   /**
    * Update current user profile (SECURE ownership verification)
@@ -311,9 +307,7 @@ export class CoreProfileService {
     }
   }
 
-  // =====================================================
   // USER STATISTICS (SECURE AGGREGATION)
-  // =====================================================
 
   /**
    * Get user statistics with secure aggregation
@@ -364,9 +358,7 @@ export class CoreProfileService {
     }
   }
 
-  // =====================================================
   // SECURITY HELPER METHODS
-  // =====================================================
 
   private sanitizeProfileData(data: ProfileData): ProfileData {
     return {

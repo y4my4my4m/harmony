@@ -238,9 +238,7 @@ import { useThemeStore } from '@/stores/useTheme'
 import { useAudioThemeCommon } from '@/composables/useAudioThemeCommon'
 import Icon from '@/components/common/Icon.vue'
 
-// =============================================================================
 // PROPS & EMITS
-// =============================================================================
 
 interface Props {
   showTestButton?: boolean
@@ -268,9 +266,7 @@ const emit = defineEmits<{
   tested: [themeId: string]
 }>()
 
-// =============================================================================
 // STORE & STATE
-// =============================================================================
 
 const themeStore = useThemeStore()
 
@@ -309,9 +305,7 @@ const volumePresets = [
   { label: 'Max', value: 100 }
 ]
 
-// =============================================================================
 // COMPUTED
-// =============================================================================
 
 const displayedThemes = computed(() => {
   const themeList = themes.value
@@ -333,9 +327,7 @@ const volumeSliderStyle = computed(() => ({
   '--volume-percentage': `${localVolume.value}%`
 }))
 
-// =============================================================================
 // METHODS - Wrapper methods that emit events
-// =============================================================================
 
 const selectTheme = async (themeId: string): Promise<void> => {
   const success = await baseSelectTheme(themeId)
@@ -386,9 +378,7 @@ const updateCacheInfo = (): void => {
   cacheInfo.value = themeStore.getCacheInfo()
 }
 
-// =============================================================================
 // LIFECYCLE
-// =============================================================================
 
 onMounted(async () => {
   if (!themeStore.isInitialized) {

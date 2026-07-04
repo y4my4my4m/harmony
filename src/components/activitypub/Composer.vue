@@ -329,7 +329,7 @@ import { useI18n } from 'vue-i18n';
 import { useToast } from 'vue-toastification';
 import { useProfileStore } from '@/stores/useProfile';
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings';
-import type { TimelinePost, Post, FederatedUser } from '@/types';
+import type { TimelinePost, Post, FederatedUser, ActivityPubPost, PostAuthor } from '@/types';
 
 // Composables
 import { useComposerActions } from '@/composables/useComposerActions';
@@ -360,8 +360,10 @@ interface Props {
   mode: 'modal' | 'inline';
   type: 'post' | 'reply' | 'quote' | 'edit';
   replyToPost?: TimelinePost;
-  quotePost?: TimelinePost;
-  quoteAuthor?: FederatedUser;
+  // Quoting a reblog targets the inner post - a bare ActivityPubPost without
+  // the enhanced interaction fields (matches PostComposerState).
+  quotePost?: TimelinePost | ActivityPubPost;
+  quoteAuthor?: FederatedUser | PostAuthor;
   editPost?: TimelinePost;
   isOpen?: boolean;
   defaultVisibility?: Post['visibility'];
@@ -1291,12 +1293,12 @@ const vClickOutside = {
 }
 
 .option-button:hover {
-  background-color: #374151;
+  background-color: var(--background-tertiary, #374151);
   color: var(--text-primary);
 }
 
 .option-button.active {
-  color: #2563eb;
+  color: var(--harmony-primary, #2563eb);
   background-color: rgba(37, 99, 235, 0.1);
 }
 
@@ -1370,7 +1372,7 @@ const vClickOutside = {
 .cancel-button {
   padding: 0.5rem 1rem;
   background: none;
-  border: 1px solid #374151;
+  border: 1px solid var(--border-primary, #374151);
   border-radius: 0.5rem;
   color: #9ca3af;
   cursor: pointer;
@@ -1378,7 +1380,7 @@ const vClickOutside = {
 }
 
 .cancel-button:hover {
-  background-color: #374151;
+  background-color: var(--background-tertiary, #374151);
   color: var(--text-primary);
 }
 

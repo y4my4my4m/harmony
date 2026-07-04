@@ -50,16 +50,6 @@ export function useChannelPermissions() {
     return hasManageChannelsPermission.value
   })
 
-  const canViewChannel = (_channelId: string) => {
-    // Basic implementation - can be extended with channel-specific permissions
-    return true
-  }
-
-  const canAccessChannel = (_channelId: string) => {
-    // Basic implementation - can be extended with channel-specific permissions
-    return true
-  }
-
   const getDragCursor = (itemType: 'channel' | 'category', isDragging = false) => {
     if (itemType === 'channel') {
       if (!canDragAndDrop.value) {
@@ -108,9 +98,7 @@ export function useChannelPermissions() {
     canCreateCategories,
     canMoveChannelsBetweenCategories,
     canDragAndDrop,
-    canViewChannel,
-    canAccessChannel,
-    
+
     // Drag & Drop utilities
     getDragCursor,
     validateDragAndDrop,

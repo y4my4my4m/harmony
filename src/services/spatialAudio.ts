@@ -45,9 +45,7 @@
 import { useSpatialAudioStore } from '@/stores/spatialAudio';
 import { debug } from '@/utils/debug'
 
-// =============================================================================
 // TYPES
-// =============================================================================
 
 interface SpatialAudioNode {
   userId: string;
@@ -66,9 +64,7 @@ interface ImpulseResponseCache {
   [roomSize: string]: AudioBuffer;
 }
 
-// =============================================================================
 // SPATIAL AUDIO SERVICE
-// =============================================================================
 
 export class SpatialAudioService {
   private audioContext: AudioContext | null = null;
@@ -85,9 +81,7 @@ export class SpatialAudioService {
   private readonly updateThrottleMs = 16; // ~60fps updates
   private animationFrameId: number | null = null;
 
-  // =============================================================================
   // INITIALIZATION
-  // =============================================================================
 
   /**
    * Initialize spatial audio system with optimized audio context
@@ -183,9 +177,7 @@ export class SpatialAudioService {
     }
   }
 
-  // =============================================================================
   // USER MANAGEMENT
-  // =============================================================================
 
   /**
    * Set the listener (local user) for spatial audio calculations
@@ -401,9 +393,7 @@ export class SpatialAudioService {
     }
   }
 
-  // =============================================================================
   // SPATIAL EFFECTS
-  // =============================================================================
 
   /**
    * Update spatial effects for all users with optimized performance
@@ -632,9 +622,7 @@ export class SpatialAudioService {
     }
   }
 
-  // =============================================================================
   // POSITION MANAGEMENT
-  // =============================================================================
 
   /**
    * Update user position and trigger spatial effects recalculation
@@ -678,9 +666,7 @@ export class SpatialAudioService {
     }
   }
 
-  // =============================================================================
   // AUDIO NODE CREATION
-  // =============================================================================
 
   /**
    * Create optimized panner node based on settings and browser capabilities
@@ -838,9 +824,7 @@ export class SpatialAudioService {
     }
   }
 
-  // =============================================================================
   // CONTROL METHODS
-  // =============================================================================
 
   /**
    * Enable spatial audio effects with proper initialization
@@ -1124,9 +1108,7 @@ export class SpatialAudioService {
     });
   }
 
-  // =============================================================================
   // CLEANUP
-  // =============================================================================
 
   /**
    * Destroy spatial audio service and cleanup all resources

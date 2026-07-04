@@ -2117,9 +2117,7 @@ class AdminService {
     if (error) throw error;
   }
 
-  // ============================================================================
   // FEDERATION MAINTENANCE
-  // ============================================================================
 
   /**
    * Get key consistency report for local users

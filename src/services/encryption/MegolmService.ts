@@ -129,9 +129,7 @@ export class MegolmService {
     return MegolmService.instance
   }
 
-  // =====================================================
   // INITIALIZATION
-  // =====================================================
 
   async initialize(userId: string, encryptionKey: CryptoKey): Promise<void> {
     this.userId = userId
@@ -302,9 +300,7 @@ export class MegolmService {
     debug.log(`📦 Loaded ${this.outboundSessions.size} outbound, ${this.inboundSessions.size} inbound sessions into memory`)
   }
 
-  // =====================================================
   // OUTBOUND SESSION MANAGEMENT
-  // =====================================================
 
   /**
    * Get or create an outbound session for a room.
@@ -468,9 +464,7 @@ export class MegolmService {
     return run()
   }
 
-  // =====================================================
   // INBOUND SESSION MANAGEMENT
-  // =====================================================
 
   /**
    * Import an inbound session (received from another user)
@@ -569,9 +563,7 @@ export class MegolmService {
     return sessions
   }
 
-  // =====================================================
   // ENCRYPTION / DECRYPTION
-  // =====================================================
 
   /**
    * Encrypt a message using the room's outbound session.
@@ -775,9 +767,7 @@ export class MegolmService {
     )
   }
 
-  // =====================================================
   // SESSION SHARING
-  // =====================================================
 
   /**
    * Session key material for sharing. When `sessionId` is supplied the lookup is
@@ -856,9 +846,7 @@ export class MegolmService {
     return allUserIds.filter(id => !sharedWith.includes(id) && id !== this.userId)
   }
 
-  // =====================================================
   // EXPORT / IMPORT FOR BACKUP
-  // =====================================================
 
   /**
    * Export all sessions for backup
@@ -938,9 +926,7 @@ export class MegolmService {
     debug.log(`📥 Imported ${data.outbound.length} outbound, ${data.inbound.length} inbound sessions`)
   }
 
-  // =====================================================
   // PERSISTENCE HELPERS
-  // =====================================================
 
   /** Best-effort outbound save (e.g. sharedWith bookkeeping). */
   private async saveOutboundSession(session: MegolmOutboundSession): Promise<void> {
@@ -1045,9 +1031,7 @@ export class MegolmService {
     return sessionCopy
   }
 
-  // =====================================================
   // INDEXEDDB HELPERS
-  // =====================================================
 
   private async getAllFromStore<T>(storeName: string): Promise<T[]> {
     if (!this.db) return []
@@ -1104,9 +1088,7 @@ export class MegolmService {
     }
   }
 
-  // =====================================================
   // UTILITY METHODS
-  // =====================================================
 
   private arrayBufferToBase64(buffer: ArrayBuffer): string {
     const bytes = new Uint8Array(buffer)

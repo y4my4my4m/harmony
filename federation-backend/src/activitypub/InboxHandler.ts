@@ -6,7 +6,7 @@ import { ActivityProcessor } from './ActivityProcessor.js';
 import { FederatedInstanceService } from '../services/FederatedInstanceService.js';
 import { logger } from '../utils/logger.js';
 import config from '../config/index.js';
-import { inboxLimiter } from '../middleware/rateLimit.js';
+import { inboxLimiter, instanceInboxLimiter } from '../middleware/rateLimit.js';
 import { pgrstEscape } from '../utils/postgrestFilter.js';
 
 const router = Router();
@@ -43,6 +43,7 @@ async function resolveBearerProfileId(req: Request): Promise<string | null> {
 router.post(
   '/inbox',
   inboxLimiter,
+  instanceInboxLimiter,
   asyncHandler(async (req: Request, res: Response) => {
     logger.info(`📮 POST to /inbox (shared inbox) from ${req.ip}`);
     logger.info(`Headers:`, {
@@ -62,6 +63,7 @@ router.post(
 router.post(
   '/users/:username/inbox',
   inboxLimiter,
+  instanceInboxLimiter,
   asyncHandler(async (req: Request, res: Response) => {
     logger.info(`📮 POST to /users/${req.params.username}/inbox from ${req.ip}`);
     logger.info(`Headers:`, {
@@ -124,8 +126,37 @@ router.get(
     const baseUrl = `https://${config.INSTANCE_DOMAIN}`;
     const inboxUrl = `${baseUrl}/users/${username}/inbox`;
 
+    // AUTHORIZATION: inbox contents (and their counts) are private. ActivityPub
+    // delivery is POST-based, so remote servers never need to GET another
+    // user's inbox. Only the owner (or an admin) sees real data; everyone else
+    // gets an empty, correctly-shaped collection instead of an error, which
+    // avoids leaking whether the inbox exists or how active it is.
+    const authedProfileId = await resolveBearerProfileId(req);
+    const isOwner = authedProfileId !== null && authedProfileId === user.id;
+    let isAdmin = false;
+    if (authedProfileId && !isOwner) {
+      const { data: adminProfile } = await supabase
+        .from('profiles')
+        .select('is_admin')
+        .eq('id', authedProfileId)
+        .maybeSingle();
+      isAdmin = !!adminProfile?.is_admin;
+    }
+    const isAuthorized = isOwner || isAdmin;
+
     // If no page/cursor, return collection metadata
     if (!page && !cursor) {
+      if (!isAuthorized) {
+        res.setHeader('Content-Type', 'application/activity+json');
+        res.json({
+          '@context': 'https://www.w3.org/ns/activitystreams',
+          id: inboxUrl,
+          type: 'OrderedCollection',
+          totalItems: 0,
+          first: `${inboxUrl}?cursor=start&limit=${limit}`,
+        });
+        return;
+      }
       // Query activities where user's federated_id is in to_addresses or cc_addresses
       // Use PostgreSQL array contains operator (cs) via or() filter
       // Escape double quotes for PostgreSQL array syntax (array values are double-quoted)
@@ -145,7 +176,7 @@ router.get(
 
       res.setHeader('Content-Type', 'application/activity+json');
       // Allow caching for 5 minutes
-      res.setHeader('Cache-Control', 'public, max-age=300');
+      res.setHeader('Cache-Control', 'private, max-age=300');
       res.json({
         '@context': 'https://www.w3.org/ns/activitystreams',
         id: inboxUrl,
@@ -156,23 +187,7 @@ router.get(
       return;
     }
 
-    // AUTHORIZATION: the paginated branch returns full `activity_data`, which is
-    // private inbox content. ActivityPub delivery is POST-based, so remote
-    // servers never need to GET another user's inbox items. Require the caller
-    // to be the inbox owner (or admin). Unauthorized callers get an empty,
-    // owner-only OrderedCollectionPage rather than someone else's activities.
-    const authedProfileId = await resolveBearerProfileId(req);
-    const isOwner = authedProfileId !== null && authedProfileId === user.id;
-    let isAdmin = false;
-    if (authedProfileId && !isOwner) {
-      const { data: adminProfile } = await supabase
-        .from('profiles')
-        .select('is_admin')
-        .eq('id', authedProfileId)
-        .maybeSingle();
-      isAdmin = !!adminProfile?.is_admin;
-    }
-    if (!isOwner && !isAdmin) {
+    if (!isAuthorized) {
       res.setHeader('Content-Type', 'application/activity+json');
       res.json({
         '@context': 'https://www.w3.org/ns/activitystreams',
@@ -276,7 +291,7 @@ router.get(
 
     res.setHeader('Content-Type', 'application/activity+json');
     // Allow caching for 5 minutes
-    res.setHeader('Cache-Control', 'public, max-age=300');
+    res.setHeader('Cache-Control', 'private, max-age=300');
     res.json(response);
   })
 );
@@ -472,13 +487,39 @@ async function handleInbox(
     return;
   }
 
-  // Process activity
+  // Idempotency: only the first delivery of an activity may run side effects.
+  // Redeliveries (retries, relays) find the row completed/processing and are
+  // acknowledged without re-processing.
+  const { data: claimed, error: claimError } = await supabase.rpc('claim_ap_activity', {
+    p_ap_id: activity.id,
+  });
+  if (claimError) {
+    logger.error('Failed to claim activity for processing:', claimError);
+    res.status(500).json({ error: 'Failed to claim activity' });
+    return;
+  }
+  if (!claimed) {
+    logger.info(`↩️ Skipping already-processed ${activity.type} activity ${activity.id}`);
+    res.status(202).json({ message: 'Activity already processed' });
+    return;
+  }
+
   try {
     await ActivityProcessor.processIncomingActivity(activity);
     logger.info(`✅ Processed ${activity.type} activity`);
+    await supabase.rpc('complete_ap_activity', { p_ap_id: activity.id, p_success: true });
     res.status(202).json({ message: 'Activity accepted' });
   } catch (error) {
     logger.error('Failed to process activity:', error);
+    await supabase
+      .rpc('complete_ap_activity', {
+        p_ap_id: activity.id,
+        p_success: false,
+        p_error: error instanceof Error ? error.message : String(error),
+      })
+      .then(({ error: rpcError }) => {
+        if (rpcError) logger.error('Failed to mark activity failed:', rpcError);
+      });
     // Still return success to sender (we've stored it)
     res.status(202).json({ message: 'Activity accepted' });
   }

@@ -355,18 +355,14 @@ const SpatialAudioPanel = defineAsyncComponent(() => import('./SpatialAudioPanel
 const RecentSpeakers = defineAsyncComponent(() => import('./RecentSpeakers.vue'));
 const ScreensharePIP = defineAsyncComponent(() => import('./ScreensharePIP.vue'));
 
-// =============================================================================
 // STORE INSTANCES
-// =============================================================================
 // The original used `any` to avoid leaking private store types, which is preserved here.
 const voiceStore: any = useUnifiedVoiceChannelStore();
 const spatialStore = useSpatialAudioStore();
 const authStore = useAuthStore();
 const { getUser } = useUserData();
 
-// =============================================================================
 // STATE
-// =============================================================================
 const currentMode = ref<'dock' | 'minimized' | 'overlay'>('dock');
 const showSettings = ref(false);
 const showParticipantsDropdown = ref(false);
@@ -398,9 +394,7 @@ let dockShouldPreventClick = false;
 // Default dock position (centered at bottom)
 const DEFAULT_DOCK_POSITION = { left: 0, bottom: 80 }; // left: 0 means centered (handled by CSS transform)
 
-// =============================================================================
 // COMPUTED PROPERTIES
-// =============================================================================
 const channelName = computed(() => {
   // Use effective channel name which includes optimistic state
   return voiceStore.effectiveChannelName || 'Voice Channel';
@@ -567,9 +561,7 @@ const activeVideoUserName = computed(() => {
   return profile?.displayName || profile?.username || 'User';
 });
 
-// =============================================================================
 // METHODS
-// =============================================================================
 const expandToOverlay = () => {
   currentMode.value = 'overlay';
   voiceStore.isOverlayVisible = true;
@@ -628,9 +620,7 @@ const activatePIPForActiveVideo = () => {
   }
 };
 
-// =============================================================================
 // DRAG FUNCTIONALITY FOR MINIMIZED DOCK
-// =============================================================================
 const STORAGE_KEY_MINIMIZED_POSITION = 'voice-dock-minimized-position';
 const STORAGE_KEY_DOCK_POSITION = 'voice-dock-position';
 
@@ -898,9 +888,7 @@ const handleMinimizedClick = (e: MouseEvent) => {
   expandToDock();
 };
 
-// =============================================================================
 // DRAG FUNCTIONALITY FOR STANDARD DOCK
-// =============================================================================
 
 const startDockDrag = (e: MouseEvent | TouchEvent) => {
   // Don't start drag if clicking on interactive elements (buttons, etc.)
@@ -1088,9 +1076,7 @@ const handleDockClick = (e: MouseEvent) => {
   }
 };
 
-// =============================================================================
 // WATCHERS
-// =============================================================================
 
 // Track last attached user to prevent flashing from repeated attachments
 let lastAttachedUserId: string | null = null;
@@ -1184,9 +1170,7 @@ watch(
   { immediate: true }
 );
 
-// =============================================================================
 // LIFECYCLE & EVENT LISTENERS
-// =============================================================================
 // Close participants dropdown when clicking outside
 let handleClickOutside: ((e: MouseEvent) => void) | null = null;
 

@@ -102,9 +102,7 @@ export class ActivityPubService {
     }
   }
 
-  // =============================================
   // POST MANAGEMENT
-  // =============================================
 
   // NOTE: createPost is now handled by CorePostService/PostService
   // This dead code was removed - use services.posts.createPost() instead
@@ -334,9 +332,7 @@ export class ActivityPubService {
     }
   }
 
-  // =============================================
   // POST CONTEXT METHODS (NEW ARCHITECTURE)
-  // =============================================
 
   /**
    * Get post with configurable context - main method that replaces separate post/thread methods
@@ -488,9 +484,7 @@ export class ActivityPubService {
     }
   }
 
-  // =============================================
   // EXPLORE AND DISCOVERY METHODS
-  // =============================================
 
   /**
    * Get trending hashtags
@@ -780,9 +774,7 @@ export class ActivityPubService {
     // Federation is handled automatically by database triggers
   }
 
-  // =============================================
   // FOLLOW MANAGEMENT
-  // =============================================
 
   /**
    * Follow a user
@@ -975,9 +967,7 @@ export class ActivityPubService {
     return !!data;
   }
 
-  // =============================================
   // POST INTERACTIONS
-  // =============================================
 
   /**
    * Toggle favorite (like) status for a post
@@ -1461,9 +1451,7 @@ export class ActivityPubService {
     if (error) throw error;
   }
 
-  // =============================================
   // USER SEARCH AND DISCOVERY
-  // =============================================
 
   /**
    * Search for federated users
@@ -1949,9 +1937,7 @@ export class ActivityPubService {
     return this.searchUsers(query, limit);
   }
 
-  // =============================================
   // UTILITY METHODS
-  // =============================================
 
   /**
    * Get the user's profile ID from their auth user ID
@@ -2074,9 +2060,7 @@ export class ActivityPubService {
     return state;
   }
 
-  // =============================================
   // ENHANCED ACTIVITY HANDLING
-  // =============================================
 
   /**
    * Update (edit) a post
@@ -2280,9 +2264,7 @@ export class ActivityPubService {
     });
   }
 
-  // =============================================
   // VOICE CHAT FEDERATION (Harmony Extensions)
-  // =============================================
 
   /**
    * Join a voice channel (federated)
@@ -2396,9 +2378,7 @@ export class ActivityPubService {
     });
   }
 
-  // =============================================
   // SERVER FEDERATION (Harmony Extensions)
-  // =============================================
 
   /**
    * Join a federated server
@@ -2455,9 +2435,7 @@ export class ActivityPubService {
     });
   }
 
-  // =============================================
   // ACTIVITY CREATION HELPER
-  // =============================================
 
   /**
    * Create and queue an ActivityPub activity

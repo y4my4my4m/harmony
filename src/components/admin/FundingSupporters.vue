@@ -503,8 +503,10 @@ import { supabase } from '@/supabase'
 import { getEmojiShortcodeForInsert } from '@/services/emojiShortcodeResolver'
 import type { Emoji } from '@/types'
 import { formatDate } from './adminFormat'
+import { useConfirmDialog } from '@/composables/useConfirmDialog'
 
 const toast = useToast()
+const { confirm } = useConfirmDialog()
 
 // Funding management data
 const fundingChanged = ref(false)
@@ -694,7 +696,7 @@ const resolvePending = async (pending: PendingDonation) => {
 }
 
 const dismissPending = async (pendingId: string) => {
-  if (!confirm('Dismiss this donation? It will not be attributed to any user.')) return
+  if (!(await confirm({ title: 'Dismiss donation', message: 'Dismiss this donation? It will not be attributed to any user.', confirmButtonText: 'Dismiss', dangerAction: true }))) return
   const ok = await fundingService.dismissPendingDonation(pendingId)
   if (ok) {
     toast.success('Donation dismissed')
@@ -800,7 +802,7 @@ const handleEditTierEmoji = (emoji: Emoji & { display_name?: string }) => {
 }
 
 const deleteTier = async (tierId: string) => {
-  if (!confirm('Delete this tier? Supporters on this tier will keep their status but lose the tier badge.')) return
+  if (!(await confirm({ title: 'Delete tier', message: 'Delete this tier? Supporters on this tier will keep their status but lose the tier badge.', confirmButtonText: 'Delete', dangerAction: true }))) return
   const success = await fundingService.deleteTier(tierId)
   if (success) {
     await adminService.logAdminAction({ action: 'tier_delete', targetType: 'tier', targetId: tierId })
@@ -981,7 +983,7 @@ const saveEditSupporter = async () => {
 }
 
 const removeSupporter = async (userId: string) => {
-  if (!confirm('Remove this supporter?')) return
+  if (!(await confirm({ title: 'Remove supporter', message: 'Remove this supporter?', confirmButtonText: 'Remove', dangerAction: true }))) return
   const success = await fundingService.removeSupporter(userId)
   if (success) {
     await adminService.logAdminAction({ action: 'supporter_remove', targetType: 'supporter', targetId: userId })
@@ -1038,7 +1040,7 @@ const saveEditDonation = async () => {
 }
 
 const deleteDonation = async (donationId: string) => {
-  if (!confirm('Delete this donation record?')) return
+  if (!(await confirm({ title: 'Delete donation', message: 'Delete this donation record?', confirmButtonText: 'Delete', dangerAction: true }))) return
   const success = await fundingService.deleteDonation(donationId)
   if (success) {
     await adminService.logAdminAction({ action: 'donation_delete', targetType: 'donation', targetId: donationId })

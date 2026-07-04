@@ -143,9 +143,7 @@ export class AudioThemeService {
     return AudioThemeService.instance
   }
 
-  // =============================================================================
   // THEME MANAGEMENT
-  // =============================================================================
 
   /**
    * Initialize built-in audio themes
@@ -456,9 +454,7 @@ export class AudioThemeService {
     return this.themes.get(themeId) || null
   }
 
-  // =============================================================================
   // THEME SWITCHING
-  // =============================================================================
 
   /**
    * Set active theme with hot swapping
@@ -495,9 +491,7 @@ export class AudioThemeService {
     }
   }
 
-  // =============================================================================
   // AUDIO PLAYBACK
-  // =============================================================================
 
   /**
    * Play audio for a specific action with intelligent fallback
@@ -654,9 +648,7 @@ export class AudioThemeService {
     return this.preloadAudio(path)
   }
 
-  // =============================================================================
   // AUDIO CACHING & PRELOADING
-  // =============================================================================
 
   /**
    * Preload audio file with timeout
@@ -753,9 +745,7 @@ export class AudioThemeService {
     this.loadedThemes.delete(themeId)
   }
 
-  // =============================================================================
   // SETTINGS MANAGEMENT
-  // =============================================================================
 
   /**
    * Load settings from localStorage
@@ -814,9 +804,7 @@ export class AudioThemeService {
     return { ...this.settings }
   }
 
-  // =============================================================================
   // TESTING & DEBUGGING
-  // =============================================================================
 
   /**
    * Test audio playback for action
@@ -853,9 +841,7 @@ export class AudioThemeService {
     this.emit('cacheCleared')
   }
 
-  // =============================================================================
   // EVENT SYSTEM
-  // =============================================================================
 
   /**
    * Add event listener
@@ -896,9 +882,7 @@ export class AudioThemeService {
     }
   }
 
-  // =============================================================================
   // CLEANUP
-  // =============================================================================
 
   /**
    * Cleanup resources

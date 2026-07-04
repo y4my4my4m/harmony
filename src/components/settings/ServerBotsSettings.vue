@@ -211,12 +211,14 @@ import { formatDistanceToNow } from 'date-fns'
 import { useProfileStore } from '@/stores/useProfile'
 import BotAvatar from '@/components/common/BotAvatar.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
+import { useConfirmDialog } from '@/composables/useConfirmDialog'
 
 interface Props {
   serverId: string
 }
 
 const props = defineProps<Props>()
+const { confirm } = useConfirmDialog()
 const profileStore = useProfileStore()
 
 // State
@@ -428,7 +430,7 @@ async function updatePermissions() {
 }
 
 async function removeBot(installation: any) {
-  const confirmed = confirm(`Remove ${installation.bot.username} from this server?`)
+  const confirmed = await confirm({ title: 'Remove bot', message: `Remove ${installation.bot.username} from this server?`, confirmButtonText: 'Remove', dangerAction: true })
   if (!confirmed) return
 
   try {

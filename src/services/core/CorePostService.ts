@@ -42,9 +42,7 @@ export class CorePostService {
     return this.instance
   }
 
-  // =====================================================
   // POST CREATION & MANAGEMENT (PURE LOCAL)
-  // =====================================================
 
   /**
    * Create a post (pure local database operation)
@@ -245,9 +243,7 @@ export class CorePostService {
     }
   }
 
-  // =====================================================
   // POST INTERACTIONS (PURE LOCAL)
-  // =====================================================
 
   /**
    * Toggle like on a post (pure local)
@@ -641,9 +637,7 @@ export class CorePostService {
     }
   }
 
-  // =====================================================
   // POST LOADING (PURE LOCAL)
-  // =====================================================
 
   /**
    * Get reactions for multiple posts using optimized database function (pure local)
@@ -817,9 +811,7 @@ export class CorePostService {
     }
   }
 
-  // =====================================================
   // HELPER METHODS (PURE LOCAL)
-  // =====================================================
 
   private async getCurrentUserProfileId(): Promise<string> {
     try {

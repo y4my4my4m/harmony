@@ -331,6 +331,8 @@ import {
   fetchBridgedServerUsers,
   type BridgedChannelUser,
 } from '@/services/bridgedChannelUsersService'
+import { useConfirmDialog } from '@/composables/useConfirmDialog'
+import { useToast } from 'vue-toastification'
 
 interface RoleMemberRow {
   id: string
@@ -345,6 +347,8 @@ interface Props {
 }
 
 const props = defineProps<Props>()
+const toast = useToast()
+const { confirm } = useConfirmDialog()
 
 // State
 const loading = ref(false)
@@ -706,7 +710,7 @@ const isProtectedRole = computed(() => {
 const deleteRole = async () => {
   if (!selectedRole.value || isProtectedRole.value) return
   
-  if (!confirm(`Are you sure you want to delete the "${selectedRole.value.name}" role?`)) {
+  if (!(await confirm({ title: 'Delete role', message: `Are you sure you want to delete the "${selectedRole.value.name}" role?`, confirmButtonText: 'Delete', dangerAction: true }))) {
     return
   }
   
@@ -723,7 +727,7 @@ const deleteRole = async () => {
     }
   } catch (error: any) {
     console.error('Failed to delete role:', error)
-    alert(error.message || 'Failed to delete role')
+    toast.error(error.message || 'Failed to delete role')
   }
 }
 
@@ -739,9 +743,9 @@ const removeMember = async (member: RoleMemberRow) => {
     console.error('Failed to remove member from role:', error)
     // Show user-friendly error message
     if (error.message?.includes('server owner')) {
-      alert('Cannot remove Admin role from the server owner')
+      toast.error('Cannot remove Admin role from the server owner')
     } else {
-      alert(error.message || 'Failed to remove member from role')
+      toast.error(error.message || 'Failed to remove member from role')
     }
   }
 }
@@ -831,7 +835,7 @@ const addMemberToRole = async (memberId: string) => {
     }
   } catch (error: any) {
     console.error('Failed to add member to role:', error)
-    alert(error.message || 'Failed to add member to role')
+    toast.error(error.message || 'Failed to add member to role')
   }
 }
 

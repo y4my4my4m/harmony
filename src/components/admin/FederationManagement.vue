@@ -433,8 +433,12 @@ import Icon from '@/components/common/Icon.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import { adminService, type FederatedInstance, type InstanceStats, type InstanceSearchResult, type FederationStats, type DeadEndpoint } from '@/services/AdminService'
 import { formatNumber, formatTimeAgo, formatRelativeTime } from './adminFormat'
+import { useToast } from 'vue-toastification'
+import { useConfirmDialog } from '@/composables/useConfirmDialog'
 
 const authStore = useAuthStore()
+const toast = useToast()
+const { confirm } = useConfirmDialog()
 
 // Federation management data
 const instanceStats = ref<InstanceStats>({
@@ -523,7 +527,13 @@ const getEndpointHealthClass = (health: FederationStats['endpoint_health']) => {
 }
 
 const purgeDeadEndpoints = async () => {
-  if (!confirm(`Permanently remove all ${federationStats.value?.endpoint_health.dead_endpoints} dead endpoint(s) and their failed deliveries? This cannot be undone.`)) return
+  const ok = await confirm({
+    title: 'Purge dead endpoints',
+    message: `Permanently remove all ${federationStats.value?.endpoint_health.dead_endpoints} dead endpoint(s) and their failed deliveries? This cannot be undone.`,
+    confirmButtonText: 'Purge',
+    dangerAction: true,
+  })
+  if (!ok) return
   loadingStates.value.purgingDead = true
   try {
     const result = await adminService.purgeDeadEndpoints()
@@ -663,7 +673,7 @@ const refreshInstance = async (instanceId: string) => {
     await loadFederatedInstances()
   } catch (error) {
     debug.error('Failed to refresh instance:', error)
-    alert('Failed to refresh instance info')
+    toast.error('Failed to refresh instance info')
   }
 }
 
@@ -674,7 +684,7 @@ const toggleInstanceTrust = async (instanceId: string, trusted: boolean) => {
     await loadInstanceStats()
   } catch (error) {
     debug.error('Failed to update instance trust:', error)
-    alert('Failed to update instance trust')
+    toast.error('Failed to update instance trust')
   }
 }
 
@@ -686,14 +696,18 @@ const toggleInstanceBlock = async (instanceId: string, blocked: boolean) => {
     await loadInstanceStats()
   } catch (error) {
     debug.error('Failed to update instance block status:', error)
-    alert('Failed to update instance block status')
+    toast.error('Failed to update instance block status')
   }
 }
 
 const deleteInstance = async (instanceId: string) => {
-  if (!confirm('Are you sure you want to delete this instance? This will remove all federation data.')) {
-    return
-  }
+  const ok = await confirm({
+    title: 'Delete instance',
+    message: 'Are you sure you want to delete this instance? This will remove all federation data.',
+    confirmButtonText: 'Delete',
+    dangerAction: true,
+  })
+  if (!ok) return
   
   try {
     await adminService.deleteInstance(instanceId, authStore.session?.user?.id || '')
@@ -701,7 +715,7 @@ const deleteInstance = async (instanceId: string) => {
     await loadInstanceStats()
   } catch (error) {
     debug.error('Failed to delete instance:', error)
-    alert('Failed to delete instance')
+    toast.error('Failed to delete instance')
   }
 }
 
@@ -723,7 +737,7 @@ const addDiscoveredInstance = async (domain: string) => {
     discoveredInstances.value = discoveredInstances.value.filter(i => i.domain !== domain)
   } catch (error) {
     debug.error('Failed to add discovered instance:', error)
-    alert('Failed to add instance')
+    toast.error('Failed to add instance')
   }
 }
 
@@ -736,7 +750,7 @@ const discoverInstance = async () => {
     discoveryResult.value = result
   } catch (error) {
     debug.error('Failed to discover instance:', error)
-    alert('Failed to discover instance. Check if the domain is valid and supports ActivityPub.')
+    toast.error('Failed to discover instance. Check if the domain is valid and supports ActivityPub.')
   } finally {
     loadingStates.value.discovering = false
   }
@@ -759,10 +773,10 @@ const addInstanceFromDiscovery = async () => {
     discoveryResult.value = null
     addAsTrusted.value = false
     
-    alert('Instance added successfully!')
+    toast.success('Instance added successfully!')
   } catch (error) {
     debug.error('Failed to add instance:', error)
-    alert('Failed to add instance')
+    toast.error('Failed to add instance')
   }
 }
 

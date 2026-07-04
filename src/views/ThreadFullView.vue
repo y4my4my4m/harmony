@@ -256,6 +256,7 @@ import { realtimeConnectionManager } from '@/services/RealtimeConnectionManager'
 import type { Message, MessagePart, Emoji, Gif } from '@/types'
 import type { ThreadWithDetails } from '@/services/ThreadService'
 import type { FilePreviewData } from '@/components/FilePreview.vue'
+import { useConfirmDialog } from '@/composables/useConfirmDialog'
 
 // Props
 interface Props {
@@ -264,6 +265,7 @@ interface Props {
 }
 
 const props = defineProps<Props>()
+const { confirm } = useConfirmDialog()
 const route = useRoute()
 const router = useRouter()
 
@@ -530,7 +532,7 @@ const unlockThread = async () => {
 const deleteThread = async () => {
   showOptions.value = false
   if (!thread.value) return
-  if (!confirm(`Are you sure you want to delete "${thread.value.name}"? This cannot be undone.`)) return
+  if (!(await confirm({ title: 'Delete thread', message: `Are you sure you want to delete "${thread.value.name}"? This cannot be undone.`, confirmButtonText: 'Delete', dangerAction: true }))) return
   try {
     await threadService.deleteThread(thread.value.id)
     goBack()

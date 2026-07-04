@@ -105,9 +105,7 @@ export class MegolmKeyBackupService {
     return MegolmKeyBackupService.instance
   }
 
-  // =====================================================
   // INITIALIZATION
-  // =====================================================
 
   async initialize(userId: string): Promise<void> {
     // Clean up old subscriptions if re-initializing
@@ -520,9 +518,7 @@ export class MegolmKeyBackupService {
     }
   }
 
-  // =====================================================
   // ECDH Key Exchange Helpers
-  // =====================================================
 
   private async getMyPrivateKey(): Promise<CryptoKey> {
     if (!this.userId) throw new Error('Not initialized')
@@ -628,9 +624,7 @@ export class MegolmKeyBackupService {
     this.pendingRequests.clear()
   }
 
-  // =====================================================
   // BACKUP OPERATIONS
-  // =====================================================
 
   /**
    * Create or update the encrypted backup on server
@@ -851,9 +845,7 @@ export class MegolmKeyBackupService {
     debug.log('✅ Backup deleted')
   }
 
-  // =====================================================
   // AUTO-BACKUP
-  // =====================================================
 
   /**
    * Enable/disable automatic backup after session changes
@@ -884,9 +876,7 @@ export class MegolmKeyBackupService {
     }, this.AUTO_BACKUP_DEBOUNCE_MS)
   }
 
-  // =====================================================
   // CROSS-DEVICE KEY SHARING (with Realtime)
-  // =====================================================
 
   /**
    * Request a session key from the sender
@@ -1219,9 +1209,7 @@ export class MegolmKeyBackupService {
     debug.log(`✅ Fulfilled key request ${requestId}`)
   }
 
-  // =====================================================
   // UTILITY METHODS
-  // =====================================================
 
   /**
    * Calculate SHA-256 hash of data

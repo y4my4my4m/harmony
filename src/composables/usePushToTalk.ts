@@ -10,9 +10,7 @@
 import { computed, ref } from 'vue'
 import { useKeybinds, type KeybindModifiers } from './useKeybinds'
 
-// =============================================================================
 // TYPES (Re-exported for backward compatibility)
-// =============================================================================
 
 export type InputMode = 'voice_activity' | 'push_to_talk'
 
@@ -31,9 +29,7 @@ export interface PTTModifiers {
   meta: boolean
 }
 
-// =============================================================================
 // COMPOSABLE
-// =============================================================================
 
 /**
  * Push-to-Talk composable - wraps the unified keybind system

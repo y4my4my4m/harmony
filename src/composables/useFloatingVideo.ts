@@ -21,6 +21,12 @@ const floatingPosition = ref({ x: 0, y: 0 })
 const isDragging = ref(false)
 const isUserSetting = ref(true) // Default: enabled
 
+// Per-element bookkeeping. WeakMaps keyed by the video element so entries
+// vanish with the element instead of living as ad-hoc expando properties.
+const videoObservers = new WeakMap<HTMLElement, IntersectionObserver>()
+const dragState = new WeakMap<HTMLElement, { dragHandle: HTMLElement; onMouseDown: (e: MouseEvent) => void }>()
+const resizeHandleState = new WeakMap<HTMLElement, HTMLElement[]>()
+
 // Load user preference
 if (typeof localStorage !== 'undefined') {
   const saved = localStorage.getItem('floatingVideoEnabled')
@@ -87,13 +93,10 @@ export function useFloatingVideo() {
     )
 
     // Re-registration (e.g. content re-render) must not stack observers.
-    const previous = (element as any).__floatingVideoObserver as IntersectionObserver | undefined
-    previous?.disconnect()
+    videoObservers.get(element)?.disconnect()
 
     observer.observe(element)
-
-    // Store observer on element for cleanup
-    ;(element as any).__floatingVideoObserver = observer
+    videoObservers.set(element, observer)
 
     // registerVideo is called from async callbacks (nextTick after mount),
     // where onUnmounted() has no component instance and silently no-ops -
@@ -101,8 +104,8 @@ export function useFloatingVideo() {
     // owns the lifecycle: invoke the returned cleanup in its own unmount hook.
     return () => {
       observer.disconnect()
-      if ((element as any).__floatingVideoObserver === observer) {
-        delete (element as any).__floatingVideoObserver
+      if (videoObservers.get(element) === observer) {
+        videoObservers.delete(element)
       }
     }
   }
@@ -141,10 +144,7 @@ export function useFloatingVideo() {
     }
 
     // Temporarily disconnect observer to prevent feedback loop
-    const observer = (element as any).__floatingVideoObserver
-    if (observer) {
-      observer.disconnect()
-    }
+    videoObservers.get(element)?.disconnect()
 
     // Get the actual video/iframe element to determine aspect ratio
     const videoEl = element.querySelector('video') || element.querySelector('iframe')
@@ -258,9 +258,6 @@ export function useFloatingVideo() {
     `
     element.appendChild(interactionOverlay)
     
-    // Store message ID on the element
-    ;(element as any).__floatingMessageId = messageId
-
     // Add close button
     addCloseButton(element)
     
@@ -316,9 +313,6 @@ export function useFloatingVideo() {
     const overlay = element.querySelector('.floating-video-interaction-overlay')
     if (overlay) overlay.remove()
     
-    // Clear floating message ID
-    delete (element as any).__floatingMessageId
-
     // Remove floating styles
     element.classList.remove('floating-video')
     element.style.position = ''
@@ -347,10 +341,7 @@ export function useFloatingVideo() {
     removeDragHandlers(element)
 
     // Reconnect observer to continue watching for scroll events
-    const observer = (element as any).__floatingVideoObserver
-    if (observer) {
-      observer.observe(element)
-    }
+    videoObservers.get(element)?.observe(element)
 
     currentFloatingVideo.value = null
   }
@@ -528,25 +519,19 @@ export function useFloatingVideo() {
     element.addEventListener('mousedown', onMouseDown)
     dragHandle.addEventListener('mousedown', onMouseDown)
 
-    // Store handlers for cleanup
-    ;(element as any).__floatingDragHandlers = {
-      dragHandle,
-      onMouseDown
-    }
+    dragState.set(element, { dragHandle, onMouseDown })
   }
 
   /**
    * Remove drag handlers
    */
   const removeDragHandlers = (element: HTMLElement) => {
-    const handlers = (element as any).__floatingDragHandlers
+    const handlers = dragState.get(element)
     if (handlers) {
-      if (handlers.dragHandle) {
-        handlers.dragHandle.remove()
-      }
+      handlers.dragHandle.remove()
       element.removeEventListener('mousedown', handlers.onMouseDown)
       element.style.cursor = ''
-      delete (element as any).__floatingDragHandlers
+      dragState.delete(element)
     }
   }
 
@@ -605,8 +590,7 @@ export function useFloatingVideo() {
       handles.forEach(h => h.style.opacity = '0')
     })
 
-    // Store handles for cleanup
-    ;(element as any).__resizeHandles = handles
+    resizeHandleState.set(element, handles)
   }
 
   /**
@@ -716,10 +700,10 @@ export function useFloatingVideo() {
    * Remove resize handles
    */
   const removeResizeHandles = (element: HTMLElement) => {
-    const handles = (element as any).__resizeHandles
+    const handles = resizeHandleState.get(element)
     if (handles) {
-      handles.forEach((handle: HTMLElement) => handle.remove())
-      delete (element as any).__resizeHandles
+      handles.forEach(handle => handle.remove())
+      resizeHandleState.delete(element)
     }
   }
 

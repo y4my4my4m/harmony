@@ -80,9 +80,7 @@ export class CoreMessageService {
     return this.instance
   }
 
-  // =====================================================
   // MESSAGE CREATION (PURE LOCAL)
-  // =====================================================
 
   /**
    * Fetch the admin-configured max message length from `instance_config`.
@@ -516,9 +514,7 @@ export class CoreMessageService {
     }
   }
 
-  // =====================================================
   // MESSAGE EDITING (PURE LOCAL)
-  // =====================================================
 
   /**
    * Edit a message (pure local update)
@@ -667,9 +663,7 @@ export class CoreMessageService {
     }
   }
 
-  // =====================================================
   // REACTION MANAGEMENT (PURE LOCAL)
-  // =====================================================
 
   /**
    * Toggle emoji reaction on a message (pure local database operation)
@@ -953,9 +947,7 @@ export class CoreMessageService {
     }
   }
 
-  // =====================================================
   // REACTIONS STORE INTEGRATION
-  // =====================================================
 
     /**
    * This unifies CoreMessageService and ReactionsStore to work together
@@ -976,9 +968,7 @@ export class CoreMessageService {
     }
   }
 
-  // =====================================================
   // MESSAGE LOADING (PURE LOCAL)
-  // =====================================================
 
   /**
    * Load channel messages with pagination
@@ -1519,9 +1509,7 @@ export class CoreMessageService {
     }
   }
 
-  // =====================================================
   // HELPER METHODS (PURE LOCAL)
-  // =====================================================
 
   /**
    * Get current user's profile ID

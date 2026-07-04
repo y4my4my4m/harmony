@@ -339,17 +339,13 @@ const easterEggState = ref<EasterEggState>({
 // Full window mode is now in the store
 const isFullWindowMode = computed(() => voiceStore.isFullWindowMode);
 
-// =============================================================================
 // ADAPTIVE GRID
-// =============================================================================
 
 const { gridStyle, gridClass: adaptiveGridClass } = useAdaptiveGrid(
   () => voiceStore.allParticipants.length
 );
 
-// =============================================================================
 // COMPUTED PROPERTIES
-// =============================================================================
 
 const connectionStats = computed(() => voiceStore.connectionStats);
     
@@ -407,9 +403,7 @@ const connectionStats = computed(() => voiceStore.connectionStats);
     // Track previous screenshare state to detect when it stops
     const previousScreenShareState = ref<boolean | null>(null);
     
-    // =============================================================================
     // WATCHERS
-    // =============================================================================
     
     // Watch for fullscreen participant's video/screenshare state changes
     // Exit fullscreen when the user stops sharing their screen or disables video
@@ -476,9 +470,7 @@ const connectionStats = computed(() => voiceStore.connectionStats);
       { deep: true }
     );
 
-    // =============================================================================
     // METHODS
-    // =============================================================================
     
     const handleBackdropClick = () => {
       minimizeOverlay();
@@ -547,9 +539,7 @@ const connectionStats = computed(() => voiceStore.connectionStats);
       }
     };
     
-    // =============================================================================
     // LIFECYCLE
-    // =============================================================================
     
     // Konami code and easter egg
     const konamiEnabled = ref(true)

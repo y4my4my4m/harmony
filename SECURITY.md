@@ -54,6 +54,8 @@ Chat E2EE uses a Megolm-style scheme (per-room session keys, non-extractable `Cr
 
 **Secrecy properties (please don't report these as bugs).** Each message is encrypted under a distinct key derived from the room session key and the message index, so no two messages reuse a key. This is intentionally *not* Signal-style forward secrecy: per-message keys are derived deterministically from the long-lived session key, so anyone who obtains a session key can derive the keys for every message in that session (past and future) until the session rotates. Session rotation (every 100 messages or 7 days) bounds the blast radius. Sender authenticity for current messages is provided by per-message ECDSA signatures (`megolm_v2_signed` and later), verified before decryption.
 
+**Voice/video.** LiveKit rooms support media E2EE: the room media key is generated client-side, wrapped for each recipient via the Megolm message path, and exchanged over signaling (`livekitWebRTC.ts`), so the SFU never sees it. Peer-to-peer (non-LiveKit) calls are protected by standard WebRTC transport encryption (DTLS-SRTP) only — there is no additional application-layer media E2EE on that path, and the UI does not claim otherwise. (An earlier Signal-Protocol-based client stack, including a non-functional P2P frame-encryption layer, was removed in July 2026.)
+
 ## Federation-Specific Notes
 
 The ActivityPub layer sits in `federation-backend/`. Common concern areas:

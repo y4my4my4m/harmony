@@ -204,9 +204,7 @@ function setEmojiPack(pack: EmojiPack): void {
   debug.log(`📦 Switched to emoji pack: ${pack}`)
 }
 
-// ==============================================
 // CONVERSION UTILITIES
-// ==============================================
 
 /**
  * Convert shortcode to unicode emoji
@@ -387,9 +385,7 @@ function unicodeToSvgUrl(unicode: string): string | null {
   return null
 }
 
-// ==============================================
 // EMOJI RESOLUTION (for display)
-// ==============================================
 
 export interface ResolvedEmoji {
   unicode: string          // The actual unicode character (always stored)
@@ -491,9 +487,7 @@ function normalizeToUnicode(input: string): string {
   return input
 }
 
-// ==============================================
 // SEARCH
-// ==============================================
 
 /**
  * Search emojis by query
@@ -544,9 +538,7 @@ function getAllEmojis(): EmojiEntry[] {
   return emojiData.value?.emojis || []
 }
 
-// ==============================================
 // COMPOSABLE
-// ==============================================
 
 /**
  * Unified emoji composable

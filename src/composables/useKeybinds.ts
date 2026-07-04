@@ -17,9 +17,7 @@
 import { ref, computed, readonly } from 'vue'
 import { debug } from '@/utils/debug'
 
-// =============================================================================
 // TYPES
-// =============================================================================
 
 export interface KeybindModifiers {
   ctrl: boolean
@@ -72,9 +70,7 @@ export type KeybindAction =
 type KeybindHandler = () => void
 type HoldKeyHandler = (isPressed: boolean) => void
 
-// =============================================================================
 // CONSTANTS
-// =============================================================================
 
 const STORAGE_KEY = 'harmony-keybinds'
 
@@ -172,9 +168,7 @@ const DEFAULT_KEYBINDS: Record<KeybindAction, Omit<KeybindDefinition, 'key' | 'm
   },
 }
 
-// =============================================================================
 // STATE (Singleton)
-// =============================================================================
 
 const keybinds = ref<Map<KeybindAction, KeybindDefinition>>(new Map())
 const handlers = ref<Map<KeybindAction, KeybindHandler | HoldKeyHandler>>(new Map())
@@ -190,9 +184,7 @@ const releaseDelay = ref(200) // ms
 // Debounce timer for hold release
 const releaseTimers: Map<KeybindAction, ReturnType<typeof setTimeout>> = new Map()
 
-// =============================================================================
 // HELPERS
-// =============================================================================
 
 /**
  * Mouse button name mappings
@@ -298,9 +290,7 @@ function shouldSkipEvent(event: KeyboardEvent): boolean {
   return false
 }
 
-// =============================================================================
 // INITIALIZATION
-// =============================================================================
 
 function initializeKeybinds(): void {
   if (isInitialized.value) return
@@ -386,9 +376,7 @@ function saveKeybinds(): void {
   }
 }
 
-// =============================================================================
 // EVENT HANDLERS
-// =============================================================================
 
 function handleKeyDown(event: KeyboardEvent): void {
   if (shouldSkipEvent(event)) return
@@ -492,9 +480,7 @@ function handleWindowBlur(): void {
   releaseTimers.clear()
 }
 
-// =============================================================================
 // MOUSE EVENT HANDLERS
-// =============================================================================
 
 function handleMouseDown(event: MouseEvent): void {
   // Only handle extra buttons (3, 4, 5, etc.) - not left/right/middle click for normal use
@@ -579,9 +565,7 @@ function handleMouseUp(event: MouseEvent): void {
   }
 }
 
-// =============================================================================
 // COMPOSABLE
-// =============================================================================
 
 export function useKeybinds() {
   // Initialize on first use
@@ -792,9 +776,7 @@ export function useKeybinds() {
   }
 }
 
-// =============================================================================
 // BACKWARD COMPATIBILITY
-// =============================================================================
 
 /**
  * Legacy composable for PTT - wraps the new unified system

@@ -311,11 +311,9 @@ export const useAuthStore = defineStore('auth', {
         const currentUserId = this.session?.user?.id;
         const newUserId = session?.user?.id;
         
-        // =====================================================================
         // If already logged in with same user, IGNORE most events
         // This prevents re-validation on tab visibility changes, token refresh, etc.
         // Supabase fires SIGNED_IN when tab becomes visible - we must ignore it
-        // =====================================================================
         if (currentUserId && newUserId === currentUserId) {
           // Same user - only handle actual logout or user data changes
           if (event === 'SIGNED_OUT') {
@@ -335,9 +333,7 @@ export const useAuthStore = defineStore('auth', {
           return;
         }
         
-        // =====================================================================
         // Not logged in, or different user - process the event
-        // =====================================================================
         debug.log(`🔐 Auth event: ${event}, AAL: ${this.getAAL(session)}`);
         
         if (event === 'PASSWORD_RECOVERY') {

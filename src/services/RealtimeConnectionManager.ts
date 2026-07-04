@@ -16,9 +16,7 @@ import { supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
 import type { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/supabase-js'
 
-// ============================================================================
 // Types
-// ============================================================================
 
 /** Connection status for subscriptions */
 export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'reconnecting' | 'error'
@@ -158,9 +156,7 @@ interface ManagedSubscription {
   pendingGapFill: boolean
 }
 
-// ============================================================================
 // Configuration
-// ============================================================================
 
 const RETRY_CONFIG = {
   baseDelay: 1000,      // 1 second initial delay
@@ -174,9 +170,7 @@ const RETRY_CONFIG = {
 const HEALTH_CHECK_INTERVAL = 60000  // 60 seconds - just a safety net, not aggressive
 const STALE_CONNECTION_THRESHOLD = 5 * 60 * 1000  // 5 minutes - very conservative
 
-// ============================================================================
 // RealtimeConnectionManager Service
-// ============================================================================
 
 /**
  * Threshold above which a returning-to-foreground tab is presumed to have a
@@ -210,9 +204,7 @@ class RealtimeConnectionManagerService {
    */
   private hiddenAt: number | null = null
 
-  // ============================================================================
   // Lifecycle Methods
-  // ============================================================================
 
   /**
    * Initialize the connection manager
@@ -322,9 +314,7 @@ class RealtimeConnectionManagerService {
     this.initialized = false
   }
 
-  // ============================================================================
   // Subscription Methods
-  // ============================================================================
 
   /**
    * Subscribe to a table with multiple event handlers (Professional API)
@@ -512,9 +502,7 @@ class RealtimeConnectionManagerService {
     return () => this.unsubscribe(channelName)
   }
 
-  // ============================================================================
   // Connection Methods
-  // ============================================================================
 
   private connectTableSubscription(channelName: string): void {
     const managedSub = this.subscriptions.get(channelName)
@@ -755,9 +743,7 @@ class RealtimeConnectionManagerService {
     }
   }
 
-  // ============================================================================
   // Status Management
-  // ============================================================================
 
   private handleSubscriptionStatus(channelName: string, status: string, err?: Error): void {
     const managedSub = this.subscriptions.get(channelName)
@@ -922,9 +908,7 @@ class RealtimeConnectionManagerService {
     }
   }
 
-  // ============================================================================
   // Reconnection Logic
-  // ============================================================================
 
   private scheduleReconnect(channelName: string): void {
     const managedSub = this.subscriptions.get(channelName)
@@ -1066,9 +1050,7 @@ class RealtimeConnectionManagerService {
     }
   }
 
-  // ============================================================================
   // Unsubscription
-  // ============================================================================
 
   /**
    * Unsubscribe from a specific channel
@@ -1110,9 +1092,7 @@ class RealtimeConnectionManagerService {
     }
   }
 
-  // ============================================================================
   // Health Check
-  // ============================================================================
 
   private startHealthCheck(): void {
     if (this.healthCheckInterval) return
@@ -1175,9 +1155,7 @@ class RealtimeConnectionManagerService {
     }
   }
 
-  // ============================================================================
   // Public Status API
-  // ============================================================================
 
   /**
    * Add a global status change listener
@@ -1262,9 +1240,7 @@ class RealtimeConnectionManagerService {
   }
 }
 
-// ============================================================================
 // Export
-// ============================================================================
 
 /** Singleton instance - use this for all realtime subscriptions */
 export const realtimeConnectionManager = new RealtimeConnectionManagerService()

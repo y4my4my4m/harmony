@@ -185,9 +185,7 @@ import Icon from '@/components/common/Icon.vue';
 import Avatar from '@/components/common/Avatar.vue';
 import VoiceUserContextMenu from './VoiceUserContextMenu.vue';
 
-// =============================================================================
 // PROPS & EMITS
-// =============================================================================
 
 const props = defineProps<{
   userState: UserMediaState;
@@ -198,16 +196,12 @@ const emit = defineEmits<{
   (e: 'toggle-screen-share'): void;
 }>();
 
-// =============================================================================
 // STORES & COMPOSABLES
-// =============================================================================
 
 const voiceStore = useUnifiedVoiceChannelStore();
 const { getUserProfile } = useUserData();
 
-// =============================================================================
 // REFS
-// =============================================================================
 
 const videoElement = ref<HTMLVideoElement | null>(null);
 
@@ -215,9 +209,7 @@ const videoElement = ref<HTMLVideoElement | null>(null);
 const showContextMenu = ref(false);
 const contextMenuPosition = ref({ x: 0, y: 0 });
 
-// =============================================================================
 // COMPUTED PROPERTIES
-// =============================================================================
 
 // Get user profile data
 const userProfile = computed(() => {
@@ -386,9 +378,7 @@ const voiceRingOffset = computed(() => {
   return circumference - progress * circumference;
 });
 
-// =============================================================================
 // METHODS
-// =============================================================================
 
 // Audio bar heights for visualization
 const getBarHeight = (barIndex: number) => {
@@ -449,9 +439,7 @@ const handleContextMenu = (event: MouseEvent) => {
   showContextMenu.value = true;
 };
 
-// =============================================================================
 // WATCHERS
-// =============================================================================
 
 // Function to attach video to element
 // Track last attached state to prevent unnecessary re-attachments

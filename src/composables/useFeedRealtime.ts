@@ -16,8 +16,8 @@
  * Receive routing:
  *   - By default, events route into the central `useActivityPub` store
  *     handlers (`handleRealtimePostCreate/Update/Delete`) which update
- *     `homeFeed` / `publicFeed` / `localFeed`. This is the right default
- *     for `MonyFeed.vue` which consumes those store feeds directly.
+ *     `homeFeed` / `publicFeed` / `localFeed` — the right default for views
+ *     that consume those store feeds directly.
  *   - Views that maintain their OWN posts array (UserProfileView,
  *     HashtagView) pass an `options` object with custom handlers so they
  *     can mutate their local state. The store handlers are NOT called
@@ -94,7 +94,7 @@ export function useFeedRealtime(
 
     // If the caller passed custom handlers, route to those exclusively -
     // they own their local state. Otherwise fall back to the store
-    // handlers (default for MonyFeed which consumes store feeds).
+    // handlers (default for views that consume the store feeds).
     const useCustom = !!(handlers.onCreate || handlers.onUpdate || handlers.onDelete)
 
     switch (data.type) {

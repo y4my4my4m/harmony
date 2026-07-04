@@ -646,9 +646,7 @@ class DMCallSignalingService {
     }
   }
 
-  // =============================================================================
   // FEDERATED CALL METHODS
-  // =============================================================================
 
   /**
    * Initiate a federated call (to a user on a remote instance)

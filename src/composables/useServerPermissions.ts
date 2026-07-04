@@ -324,11 +324,6 @@ export function useServerPermissions() {
     isLocalServer.value && hasCurrentUserPermission(Permission.MANAGE_ROLES)
   )
 
-  const canViewServerSettings = computed(() => {
-    // Allow viewing settings but with read-only access for non-privileged users
-    return true
-  })
-
   // Check if user can perform destructive actions
   const canPerformDestructiveActions = computed(() => 
     isCurrentUserServerOwner.value || hasCurrentUserPermission(Permission.MANAGE_SERVER)
@@ -353,7 +348,6 @@ export function useServerPermissions() {
     hasCurrentUserPermission(Permission.TIMEOUT_MEMBERS)
   )
 
-  // Specific permission checks for UI components
   const serverSettingsPermissions = computed(() => ({
     canEditBasicInfo: canManageServer.value,
     canChangeServerName: canManageServer.value,
@@ -363,7 +357,9 @@ export function useServerPermissions() {
     canUploadEmojis: canManageEmojis.value,
     canDeleteEmojis: canManageEmojis.value,
     canManageCrossServerEmojis: canManageServer.value,
-    canViewSettings: canViewServerSettings.value,
+    // Intentional: every member may open the settings view read-only (it
+    // doubles as the server overview); all mutations are gated individually.
+    canViewSettings: true,
     canSaveChanges: canManageServer.value,
     canDeleteServer: isCurrentUserServerOwner.value,
     canManageRoles: canManageRoles.value
@@ -484,13 +480,12 @@ export function useServerPermissions() {
     canManageChannels,
     canManageEmojis,
     canManageRoles,
-    canViewServerSettings,
     canPerformDestructiveActions,
     canManageMessages,
     canPinMessages,
     canCreateThreads,
     canModerateMembers,
-    
+
     // Component-specific permissions
     serverSettingsPermissions,
     channelPermissions,

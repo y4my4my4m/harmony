@@ -89,9 +89,7 @@ export function canonicalizeKeyRequest(fields: KeyRequestFields): string {
   return JSON.stringify(sorted)
 }
 
-// =====================================================
 // CANONICAL ENCODING
-// =====================================================
 
 /**
  * Deterministic JSON encoding with sorted keys. Numbers are encoded as JSON
@@ -180,9 +178,7 @@ export async function hashCiphertextB64(ciphertextBase64: string): Promise<strin
   return btoa(bin)
 }
 
-// =====================================================
 // KEY MGMT
-// =====================================================
 
 /**
  * Generate a fresh ECDSA P-256 signing keypair. The private key is
@@ -239,9 +235,7 @@ export async function exportPrivateSigningKey(privateKey: CryptoKey): Promise<st
   return btoa(bin)
 }
 
-// =====================================================
 // SIGN / VERIFY
-// =====================================================
 
 export async function signMessage(
   fields: SignedMessageFields,

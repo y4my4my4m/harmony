@@ -1,9 +1,7 @@
 import { supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
 
-// =============================================
 // Permission Definitions (Discord-style)
-// =============================================
 
 export enum Permission {
   // General Permissions
@@ -102,9 +100,7 @@ export const PERMISSION_CATEGORIES = {
   },
 } as const
 
-// =============================================
 // Permission Bit Mapping (for bigint storage)
-// =============================================
 
 // Each permission maps to a specific bit position in the bigint
 export const PERMISSION_BITS: Record<Permission, number> = {
@@ -211,9 +207,7 @@ export const PERMISSION_DESCRIPTIONS: Record<Permission, string> = {
   [Permission.MOVE_MEMBERS]: 'Allows members to move other members between voice channels.',
 }
 
-// =============================================
 // Role Types
-// =============================================
 
 export interface ServerRole {
   id: string
@@ -282,9 +276,7 @@ export interface UpdateRoleParams {
   unicode_emoji?: string
 }
 
-// =============================================
 // Role Service Class
-// =============================================
 
 class RoleService {
   private roleCache = new Map<string, ServerRole[]>() // serverId -> roles
@@ -296,9 +288,7 @@ class RoleService {
   private pendingPermissionsRequests = new Map<string, Promise<Record<Permission, boolean>>>()
   private pendingServerRolesRequests = new Map<string, Promise<ServerRole[]>>()
 
-  // =============================================
   // Role CRUD Operations
-  // =============================================
 
   /**
    * Get all roles for a server
@@ -544,9 +534,7 @@ class RoleService {
     }
   }
 
-  // =============================================
   // User Role Assignments
-  // =============================================
 
   /**
    * Get roles assigned to a user in a server
@@ -756,9 +744,7 @@ class RoleService {
     }
   }
 
-  // =============================================
   // Permission Calculations
-  // =============================================
 
   /**
    * Get effective permissions for a user in a server/channel
@@ -853,9 +839,7 @@ class RoleService {
     return requiredPermissions.every(p => permissions[p] === true)
   }
 
-  // =============================================
   // Channel Permission Overrides
-  // =============================================
 
   /**
    * Get permission overrides for a channel
@@ -997,9 +981,7 @@ class RoleService {
     }
   }
 
-  // =============================================
   // Helper Methods
-  // =============================================
 
   /**
    * Get the highest role for a user (for display purposes)

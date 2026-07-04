@@ -264,9 +264,7 @@ const overLimitBuzz = ref(false);
 // Get store for channel ID (more reliable than props on direct page load)
 const serverChannelStore = useServerChannelStore()
 
-// =========================================================================
 // Send permission gating (channel-level role permissions)
-// =========================================================================
 // must be declared AFTER `authStore` / `serverChannelStore` above
 // because the immediate-watch resolves synchronously and would otherwise hit a
 // temporal-dead-zone (`Cannot access 'authStore' before initialization`).

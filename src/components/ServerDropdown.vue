@@ -11,15 +11,6 @@
         {{ $t('server.leaveServer') }}
       </li>
     </ul>
-
-    <ConfirmationModal
-      :show="confirmDialogVisible"
-      :title="confirmDialogTitle"
-      :message="confirmDialogMessage"
-      :confirm-button-text="confirmDialogConfirmText"
-      @confirm="handleConfirm"
-      @close="handleClose"
-    />
   </div>
 </template>
   
@@ -36,7 +27,6 @@ import { supabase } from '@/supabase';
 import { useToast } from 'vue-toastification';
 import { federationServerService } from '@/services/federation/FederationServerService';
 import { useUserData } from '@/composables/useUserData';
-import ConfirmationModal from '@/components/ConfirmationModal.vue';
 
 interface Props {
   serverId?: string
@@ -100,15 +90,7 @@ const generateInviteLink = () => {
   closeDropdown();
 };
 
-const {
-  confirm,
-  confirmDialogVisible,
-  confirmDialogTitle,
-  confirmDialogMessage,
-  confirmDialogConfirmText,
-  handleConfirm,
-  handleClose,
-} = useConfirmDialog()
+const { confirm } = useConfirmDialog()
 
 const confirmLeaveServer = async () => {
   const server = serverChannelStore.currentServer;

@@ -128,9 +128,7 @@ export class MegolmMessageEncryptionService {
     return MegolmMessageEncryptionService.instance
   }
 
-  // =====================================================
   // INITIALIZATION
-  // =====================================================
 
   /**
    * Initialize the service for a user
@@ -897,9 +895,7 @@ export class MegolmMessageEncryptionService {
     } catch { /* non-fatal */ }
   }
 
-  // =====================================================
   // ENCRYPTION / DECRYPTION
-  // =====================================================
 
   /**
    * Encrypt a message for a room (channel or conversation).
@@ -1559,9 +1555,7 @@ export class MegolmMessageEncryptionService {
   }
 
 
-  // =====================================================
   // SESSION SHARING
-  // =====================================================
 
   /**
    * Ensure our session is shared with all recipients
@@ -2089,9 +2083,7 @@ export class MegolmMessageEncryptionService {
     return new TextDecoder().decode(decrypted)
   }
 
-  // =====================================================
   // STATUS & UTILITIES
-  // =====================================================
 
   /**
    * Get encryption status

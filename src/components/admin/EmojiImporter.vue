@@ -184,6 +184,7 @@ import { ref, computed, onMounted } from 'vue';
 import { supabase } from '@/supabase';
 import { debug } from '@/utils/debug';
 import Icon from '@/components/common/Icon.vue';
+import { useToast } from 'vue-toastification'
 
 interface RemoteEmoji {
   id: string;
@@ -203,6 +204,7 @@ interface RemoteEmoji {
 
 // State
 const emojis = ref<RemoteEmoji[]>([]);
+const toast = useToast()
 const isLoading = ref(false);
 const selectedDomain = ref('');
 const sortBy = ref('usage_count');
@@ -366,7 +368,7 @@ const confirmImport = async () => {
     
     if (error) {
       debug.error('Failed to import emoji:', error);
-      alert(`Failed to import emoji: ${error.message}`);
+      toast.error(`Failed to import emoji: ${error.message}`);
       return;
     }
     
@@ -384,7 +386,7 @@ const confirmImport = async () => {
     
   } catch (error) {
     debug.error('Error importing emoji:', error);
-    alert('An error occurred while importing the emoji.');
+    toast.error('An error occurred while importing the emoji.');
   } finally {
     isImporting.value = false;
     if (selectedEmoji.value) {

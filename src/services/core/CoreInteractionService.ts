@@ -63,9 +63,7 @@ export class CoreInteractionService {
     return this.instance
   }
 
-  // =====================================================
   // FOLLOW MANAGEMENT (SECURE LOCAL OPERATIONS)
-  // =====================================================
 
   /**
    * Follow/unfollow a user (pure local, secure)
@@ -266,9 +264,7 @@ export class CoreInteractionService {
     }
   }
 
-  // =====================================================
   // BLOCK MANAGEMENT (SECURE OPERATIONS)
-  // =====================================================
 
   /**
    * Block/unblock a user (secure with relationship cleanup)
@@ -347,9 +343,7 @@ export class CoreInteractionService {
     }
   }
 
-  // =====================================================
   // MUTE MANAGEMENT (SECURE OPERATIONS)
-  // =====================================================
 
   /**
    * Mute/unmute a user (pure local, affects notifications only)
@@ -424,9 +418,7 @@ export class CoreInteractionService {
     }
   }
 
-  // =====================================================
   // RELATIONSHIP QUERIES (SECURE AGGREGATION)
-  // =====================================================
 
   /**
    * Get user relationships with secure batch processing
@@ -758,9 +750,7 @@ export class CoreInteractionService {
     }
   }
 
-  // =====================================================
   // SECURITY HELPER METHODS
-  // =====================================================
 
   /**
    * Get current user's profile ID

@@ -199,12 +199,14 @@ import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import { debug } from '@/utils/debug'
 import { supabase } from '@/supabase'
 import { userDataService } from '@/services/userDataService'
+import { useConfirmDialog } from '@/composables/useConfirmDialog'
 
 interface Props {
   serverId: string
 }
 
 const props = defineProps<Props>()
+const { confirm } = useConfirmDialog()
 
 // State
 const loading = ref(true)
@@ -406,10 +408,13 @@ async function saveSettings() {
   try {
     // Validate required mode
     if (currentMode.value === 'required' && memberStats.value.percentage < 50) {
-      const confirmed = confirm(
-        `Warning: Only ${memberStats.value.percentage}% of members have encryption keys set up. ` +
-        'Required mode will prevent users without keys from participating. Continue?'
-      )
+      const confirmed = await confirm({
+        title: 'Enable required encryption',
+        message: `Warning: Only ${memberStats.value.percentage}% of members have encryption keys set up. ` +
+          'Required mode will prevent users without keys from participating. Continue?',
+        confirmButtonText: 'Continue',
+        dangerAction: true,
+      })
       if (!confirmed) {
         saving.value = false
         return

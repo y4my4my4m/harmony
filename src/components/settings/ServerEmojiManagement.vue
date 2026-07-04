@@ -254,8 +254,10 @@ import { useInstanceSettingsStore } from '@/stores/useInstanceSettings'
 import { getEmojiUrl } from '@/utils/emojiUtils'
 import { validateImageUpload } from '@/utils/uploadValidation'
 import type { Emoji } from '@/types'
+import { useConfirmDialog } from '@/composables/useConfirmDialog'
 
 const { t } = useI18n()
+const { confirm } = useConfirmDialog()
 const instanceSettings = useInstanceSettingsStore()
 
 // Use instance config limit; 0 = unlimited, fallback to 50 when not loaded
@@ -402,7 +404,7 @@ const confirmDeleteEmoji = async (emoji: Emoji) => {
     return
   }
 
-  if (!confirm(t('server.confirmDeleteEmoji', { name: emoji.name }))) {
+  if (!(await confirm({ title: t('server.deleteEmoji', 'Delete emoji'), message: t('server.confirmDeleteEmoji', { name: emoji.name }), confirmButtonText: t('common.delete', 'Delete'), dangerAction: true }))) {
     return
   }
 
@@ -536,7 +538,7 @@ const bulkDeleteSelected = async () => {
     count: selectedEmojis.value.length, 
     plural: selectedEmojis.value.length > 1 ? 's' : '' 
   })
-  if (!confirm(confirmMessage)) return
+  if (!(await confirm({ title: t('server.deleteEmoji', 'Delete emojis'), message: confirmMessage, confirmButtonText: t('common.delete', 'Delete'), dangerAction: true }))) return
 
   try {
     deletingEmoji.value = 'bulk'

@@ -354,9 +354,11 @@ import { generateBotToken, hashBotToken } from '@/utils/botUtils'
 import BotAvatar from '@/components/common/BotAvatar.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import BridgeBotGuide from '@/components/settings/BridgeBotGuide.vue'
+import { useConfirmDialog } from '@/composables/useConfirmDialog'
 
 defineProps<{ loading: boolean }>()
 const toast = useToast()
+const { confirm } = useConfirmDialog()
 
 // State
 const isLoading = ref(false)
@@ -549,7 +551,7 @@ function closeCreateModal() {
 async function regenerateToken() {
   if (!currentBot.value) return
 
-  const confirmed = confirm('Regenerate token? This will immediately invalidate the old token.')
+  const confirmed = await confirm({ title: 'Regenerate token', message: 'Regenerate token? This will immediately invalidate the old token.', confirmButtonText: 'Regenerate', dangerAction: true })
   if (!confirmed) return
 
   try {
@@ -706,7 +708,7 @@ async function saveEditBot() {
 }
 
 async function deleteBot(bot: any) {
-  const confirmed = confirm(`Delete "${bot.username}"? This cannot be undone.`)
+  const confirmed = await confirm({ title: 'Delete bot', message: `Delete "${bot.username}"? This cannot be undone.`, confirmButtonText: 'Delete', dangerAction: true })
   if (!confirmed) return
 
   try {

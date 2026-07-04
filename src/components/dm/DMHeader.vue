@@ -316,8 +316,10 @@ import { dmCallPermissions } from '@/services/DMCallPermissions'
 import { authContextService } from '@/services/AuthContextService'
 import { supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
+import { useConfirmDialog } from '@/composables/useConfirmDialog'
 
 const router = useRouter()
+const { confirm } = useConfirmDialog()
 const toast = useToast()
 const voiceStore = useUnifiedVoiceChannelStore()
 const authStore = useAuthStore()
@@ -450,11 +452,12 @@ async function toggleEncryption() {
 
   // Warn about federated users when enabling encryption
   if (newState && isFederatedUser.value) {
-    const confirmed = confirm(
-      'The other user is on a federated server that may not support Harmony\'s end-to-end encryption. ' +
-      'Encrypted messages may not be readable by them.\n\n' +
-      'Do you still want to enable encryption?'
-    )
+    const confirmed = await confirm({
+      title: 'Enable encryption',
+      message: 'The other user is on a federated server that may not support Harmony\'s end-to-end encryption. ' +
+        'Encrypted messages may not be readable by them. Do you still want to enable encryption?',
+      confirmButtonText: 'Enable',
+    })
     if (!confirmed) {
       closeActionsMenu()
       return

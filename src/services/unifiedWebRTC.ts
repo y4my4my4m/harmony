@@ -4,24 +4,7 @@ import { debug } from '@/utils/debug';
 import { userStorage } from '@/utils/userScopedStorage';
 import { VoiceSettingsService } from './VoiceSettingsService';
 
-// Lazy load encryption service to avoid loading native modules in browser
-let webrtcEncryptionService: any = null
-async function getWebRTCEncryptionService() {
-  if (!webrtcEncryptionService) {
-    try {
-      const module = await import('@/services/encryption/WebRTCEncryptionService')
-      webrtcEncryptionService = module.webrtcEncryptionService
-    } catch (error) {
-      debug.warn('⚠️ WebRTC encryption service not available:', error)
-      webrtcEncryptionService = null
-    }
-  }
-  return webrtcEncryptionService
-}
-
-// =============================================================================
 // TYPES & INTERFACES
-// =============================================================================
 
 export interface UserMediaState {
   userId: string;
@@ -65,9 +48,7 @@ export interface ChannelState {
   channelId: string;
 }
 
-// =============================================================================
 // MAIN WEBRTC SERVICE
-// =============================================================================
 
 export class UnifiedWebRTCService {
   private channelId: string | null = null;
@@ -122,9 +103,6 @@ export class UnifiedWebRTCService {
   private selectedInputDevice: string | null = null;
   private selectedOutputDevice: string | null = null;
   private selectedVideoDevice: string | null = null;
-  
-  // Encryption
-  private encryptionEnabled = false;
   
   constructor() {
     this.setupCleanup();
@@ -227,9 +205,7 @@ export class UnifiedWebRTCService {
     debug.log('📊 [P2P] Stream quality updated:', this.streamQualitySettings);
   }
 
-  // =============================================================================
   // PUBLIC API
-  // =============================================================================
 
   /**
    * Update input device and restart audio stream
@@ -1062,9 +1038,7 @@ export class UnifiedWebRTCService {
     return this.localMediaState.isDeafened;
   }
 
-  // =============================================================================
   // GETTERS
-  // =============================================================================
 
   getLocalStream(): MediaStream | null {
     return this.localStream;
@@ -1107,9 +1081,7 @@ export class UnifiedWebRTCService {
     return connection ? connection.audioElement : null;
   }
 
-  // =============================================================================
   // EVENT SYSTEM
-  // =============================================================================
 
   on(event: string, callback: Function): void {
     if (!this.eventListeners.has(event)) {
@@ -1141,9 +1113,7 @@ export class UnifiedWebRTCService {
     }
   }
 
-  // =============================================================================
   // PRIVATE METHODS
-  // =============================================================================
 
   /**
    * Calculate speaking state based on audio level and mute status
@@ -1385,21 +1355,7 @@ export class UnifiedWebRTCService {
     
     // Store their media state
     this.allUserStates.set(userId, mediaState);
-    
-    // Add participant to encryption if enabled
-    if (this.encryptionEnabled && this.currentUserId) {
-      try {
-        const encryptionService = await getWebRTCEncryptionService()
-        if (encryptionService) {
-          // Initialize encryption for new participant
-          await encryptionService.addParticipant(userId);
-          debug.log('🔐 Encryption initialized for new participant:', userId);
-        }
-      } catch (error) {
-        debug.error('❌ Failed to initialize encryption for participant:', error);
-      }
-    }
-    
+
     // Create peer connection
     await this.createPeerConnection(userId, true); // We initiate since they just joined
     
@@ -1408,15 +1364,7 @@ export class UnifiedWebRTCService {
 
   private async handleUserLeft(userId: string): Promise<void> {
     debug.log('👋 User left:', userId);
-    
-    // Remove from encryption if enabled
-    if (this.encryptionEnabled) {
-      const encryptionService = await getWebRTCEncryptionService()
-      if (encryptionService) {
-        encryptionService.removeParticipant(userId);
-      }
-    }
-    
+
     const connection = this.connections.get(userId);
     if (connection) {
       this.cleanupRemoteAudio(connection);
@@ -1499,8 +1447,6 @@ export class UnifiedWebRTCService {
   private async createPeerConnection(userId: string, isInitiator: boolean): Promise<void> {
     debug.log('🔗 Creating peer connection with:', userId, 'as initiator:', isInitiator);
     
-    // encodedInsertableStreams is a non-standard Chromium-only RTCConfiguration
-    // field for E2EE; cast to any since it isn't in the lib.dom type.
     const pc = new RTCPeerConnection({
       iceServers: [
         { urls: 'stun:stun.l.google.com:19302' },
@@ -1509,8 +1455,7 @@ export class UnifiedWebRTCService {
         { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
       ],
       iceCandidatePoolSize: 10,
-      encodedInsertableStreams: this.encryptionEnabled
-    } as any);
+    });
     
     const connection: UserConnection = {
       userId,
@@ -1849,9 +1794,7 @@ export class UnifiedWebRTCService {
     });
   }
 
-  // =============================================================================
   // AUDIO SETTINGS MANAGEMENT
-  // =============================================================================
 
   /**
    * Get selected devices
@@ -2006,8 +1949,6 @@ export class UnifiedWebRTCService {
   }
 }
 
-// =============================================================================
 // SINGLETON EXPORT
-// =============================================================================
 
 export const unifiedWebRTC = new UnifiedWebRTCService();

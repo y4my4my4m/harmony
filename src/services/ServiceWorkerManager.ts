@@ -5,12 +5,10 @@
 
 import { debug } from '@/utils/debug'
 
-// ============================================================================
 // Quick-reply queue (IndexedDB) - shared schema with public/service-worker.js.
 // The SW persists notification-input replies here so they survive
 // "no client open" / "client just booted" / postMessage races, and the
 // frontend drains them via the real messageService below.
-// ============================================================================
 
 const QUICK_REPLY_DB_NAME = 'harmony-sw'
 const QUICK_REPLY_DB_VERSION = 1

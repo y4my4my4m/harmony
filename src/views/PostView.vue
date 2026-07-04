@@ -184,6 +184,7 @@ import type {
   PostWithContext, 
   PostContextType 
 } from '@/types';
+import { useConfirmDialog } from '@/composables/useConfirmDialog'
 
 // Props
 interface Props {
@@ -203,6 +204,8 @@ const props = withDefaults(defineProps<Props>(), {
   highlightReply: undefined,
   timestamp: null
 });
+
+const { confirm } = useConfirmDialog()
 
 // Composables
 const router = useRouter();
@@ -609,7 +612,7 @@ const handleReplyCreated = async (newReply?: TimelinePost) => {
 };
 
 const handleDelete = async (postId: string) => {
-  if (!confirm('Are you sure you want to delete this post?')) return;
+  if (!(await confirm({ title: 'Delete post', message: 'Are you sure you want to delete this post?', confirmButtonText: 'Delete', dangerAction: true }))) return;
   
   try {
     await activityPubService.deletePost(postId);

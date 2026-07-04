@@ -2,7 +2,7 @@
 
 This file tracks **unfixed defects** in the Harmony codebase, including security findings. It is the canonical "if you ship a Harmony instance, here is what you should know" list.
 
-Items previously listed as fixed have been removed; this list reflects the state of `master` after the most recent audit pass (May 2026). The full historical audit (including items now resolved) lives in the [archive repository](https://github.com/y4my4my4m/harmony-archive).
+Items previously listed as fixed have been removed; this list reflects the state of the tree after the July 2026 professionalization pass (`chore/professionalize` branch). The full historical audit (including items now resolved) lives in the [archive repository](https://github.com/y4my4my4m/harmony-archive).
 
 > ⚠️  **Operators / self-hosters:** several items below are exploitable security bugs without further context. If you run a public instance, please review the **Critical** and **High → Federation SSRF / Encryption / Auth** sections in detail before opening federation to the wider fediverse, and consider applying the migrations referenced under "Init / migration parity" before standing up a fresh database.
 
@@ -32,31 +32,7 @@ All three 20260520 security migrations are now mirrored in `db_schema/init/` (C8
 
 ## Critical (security / data corruption - fix ASAP)
 
-### C5. E2EE - WebRTC media keys never agreed between peers
-
-**File:** `src/services/encryption/WebRTCEncryptionService.ts:109-147`
-
-When a Signal session exists, each side derives media keys from local `call-key-${Date.now()}`. The `encryptMessage` result is never exchanged over signaling. Temporary-key fallback uses `temp-${participantId}-${Date.now()}`, also local-only. Alice and Bob therefore use **different** AES keys; decrypt fails or media is effectively unprotected while the UI shows E2EE enabled.
-
-**Fix:** exchange key material over authenticated signaling (derive from a completed Signal session, or use DTLS-SRTP with verified fingerprints). Do not call E2EE "active" until both sides confirm the same key.
-
-### C6. E2EE - Signal identity private keys stored on server in plaintext
-
-**Files:**
-- `src/services/encryption/MessageEncryptionService.ts:162-167`
-- `src/components/encryption/KeySetupWizard.vue:236-243`
-
-`setupEncryption` passes `identityKeyPair.privateKey` (raw base64) into `initialize_user_encryption` without wrapping with the user password or recovery key. Any DB/RLS leak exposes long-term Signal identity keys for affected users.
-
-**Fix:** encrypt the private key client-side before RPC (mirror `MegolmMessageEncryptionService.encryptPrivateKeyForStorage`), or retire the wizard in favor of Megolm + recovery-key setup and migrate existing rows.
-
-### C7. E2EE - hybrid "self" entries store AES content key in plaintext message metadata
-
-**File:** `src/services/encryption/MessageEncryptionService.ts:348-354`
-
-For self-recipients the AES-GCM content key is stored as cleartext inside `encryption_metadata.encrypted_keys`. Any reader of the message row (channel members, server, DB) can decrypt. Defeats E2EE for hybrid legacy messages that include the sender in `encrypted_for`.
-
-**Fix:** never store cleartext keys in message metadata; always wrap with Signal, or omit the self entry and rely on local/session state.
+*(C5, C6, C7 - resolved July 2026: the legacy Signal-Protocol client stack was deleted outright (`MessageEncryptionService`, `SignalProtocolService(Browser)`, `EncryptionKeyStore(Browser)`, `WebRTCEncryptionService`, `FrameEncryptor`, `KeySetupWizard.vue`). The live app is Megolm-only. P2P calls now honestly rely on DTLS-SRTP transport encryption — the dormant, broken frame-encryption layer and its false E2EE indicator are gone. LiveKit voice E2EE (Megolm-wrapped room keys) is unaffected.)*
 
 *(C8, C9, C10 - init/migration parity - and C11 - recovery-code MFA bypass - were fixed July 2026; see the Pattern C / Init parity notes above.)*
 
@@ -66,20 +42,20 @@ For self-recipients the AES-GCM content key is stored as cleartext inside `encry
 
 ### Permissions & calls
 
+*(H2/H3 resolved July 2026: the dead `canViewChannel`/`canAccessChannel` stubs were deleted; `canViewSettings: true` is now documented as intentional — the settings view doubles as a read-only server overview, with every mutation gated individually.)*
+
 | # | Bug | Location |
 |---|-----|----------|
-| H2 | `useChannelPermissions.canViewChannel` / `canAccessChannel` always return `true` | `src/composables/useChannelPermissions.ts:53-60` |
-| H3 | `useServerPermissions.canViewServerSettings` hardcoded `true` | `src/composables/useServerPermissions.ts:328-331` |
 | H6 | `isUserBusy` only queries server voice; ignores DM/LiveKit | `src/services/DMCallPermissions.ts:184-196` |
 | H7 | DM call **decline** path only toasts; ring/teardown still tied to `DMHeader` mount | `src/services/GlobalDMCallListener.ts:196-198`, `src/components/dm/DMHeader.vue:608-621` |
 | H8 | Recovery-code login disables MFA without AAL2 step-up (= C11) | `src/components/AuthComponent.vue:682-685` |
 
-### Encryption (legacy Signal path)
+### Encryption
+
+*(H9/H10 resolved July 2026: the files were part of the deleted Signal stack.)*
 
 | # | Bug | Location |
 |---|-----|----------|
-| H9  | `isTrustedIdentity` always returns `true` (Signal TOFU disabled) | `src/services/encryption/EncryptionKeyStore.ts:230-237` |
-| H10 | Password-derived AES key stored extractable in `sessionStorage` | `src/services/encryption/EncryptionKeyStore.ts:119-169` |
 | H11 | Megolm signing keys are server-authoritative (no client pinning) | `src/services/encryption/MegolmMessageEncryptionService.ts:590-595` |
 | H12 | Megolm send allowed without per-message signature (v1 downgrade) | `src/services/encryption/MegolmMessageEncryptionService.ts:682-695` |
 
@@ -89,9 +65,8 @@ For self-recipients the AES-GCM content key is stored as cleartext inside `encry
 |---|-----|----------|
 | H15 | Many hot paths now use `safeFetch`; some legacy `fetch()` sites remain | `federation-backend/src/activitypub/ActorService.ts` (multiple) |
 | H16 | `instanceProbe` follows attacker-controlled NodeInfo `href` | `federation-backend/src/routes/instanceProbe.ts` |
-| H17 | Inbox always re-processes activities (never marked `completed`; no dedup against `was_updated`) | `federation-backend/src/activitypub/InboxHandler.ts:411-413` |
 
-*(H13/H14 fixed July 2026: `/resolve-post` validates the URL upfront via `validateExternalUrl`; `/fetch-posts` requires `outbox_url` to match the stored remote profile row. H18 fixed: ±5 min Date-header skew window in `SignatureService.verifySignature`. H19 fixed: requests with a body must carry a signature-covered, matching Digest header.)*
+*(H17 fixed July 2026: `claim_ap_activity`/`complete_ap_activity` RPCs (migration `20260705_ap_inbox_idempotency.sql`) gate processing on both the user and server inboxes; redeliveries are acknowledged without re-running side effects. H13/H14 fixed July 2026: `/resolve-post` validates the URL upfront via `validateExternalUrl`; `/fetch-posts` requires `outbox_url` to match the stored remote profile row. H18 fixed: ±5 min Date-header skew window in `SignatureService.verifySignature`. H19 fixed: requests with a body must carry a signature-covered, matching Digest header.)*
 
 ### Federation server-inbox authorization (Discord-clone path) — FIXED July 2026
 
@@ -145,10 +120,9 @@ Also fixed (same pass):
 
 | # | Bug | Location |
 |---|-----|----------|
-| H43 | `useFloatingVideo.registerVideo` calls `onUnmounted` outside `setup()` (silently no-ops; observers leak per chat message/embed) | `src/composables/useFloatingVideo.ts:95-97` |
 | H47 *(unverified)* | `useMessageSearch` debounce + AbortController not cleared on dispose | `src/composables/useMessageSearch.ts` |
 
-*(H44 fixed July 2026: single delegated haptic click handler, removed on unmount. H45: stale-query guard now also covers the error path. H46 fixed: monotonic sequence guard in `UserSearchModal`.)*
+*(H43 fixed July 2026: caller-owned cleanup + per-element WeakMap bookkeeping in `useFloatingVideo`. H44 fixed July 2026: single delegated haptic click handler, removed on unmount. H45: stale-query guard now also covers the error path. H46 fixed: monotonic sequence guard in `UserSearchModal`.)*
 
 ### Reports / IDs
 
@@ -189,10 +163,9 @@ Also fixed (same pass):
 
 ### Federation
 
-- **M29.** Server inbox has no `ap_activities` dedup layer
+*(M29/M31/M32 fixed July 2026: server inbox now stores + claims activities through the same idempotency RPCs as the user inbox; a second inbox limiter is keyed by the sending actor's domain (IP as aggregate cap, per-limiter Redis key prefixes so limiters no longer share buckets); AP inbox bodies are capped at 1 MB.)*
+
 - **M30.** Race: duplicate posts on concurrent identical Create deliveries
-- **M31.** Inbox rate limit keyed by IP only, not remote instance
-- **M32.** 10 MB JSON body limit on inbox (should be ≤1 MB for AP)
 - **M33.** Reply-chain fetch cap without cycle detection
 - **M34.** Follow replay spams Accept to follower inbox
 - **M35.** `backfill-posts.ts` blindly overwrites post content
@@ -220,11 +193,11 @@ Also fixed (same pass):
 - **L1.** Debug logging may leak encryption metadata fragments - `MessageEncryptionService.ts:501`
 - **L2.** HKDF ratchet uses fixed all-zero salt - `MegolmService.ts`
 - **L4.** Thread views lack `onReconnected` gap-fill - `ThreadFullView.vue`
-- **L5.** `MonyFeed.vue` calls dead `initializeRealtime`/`cleanupRealtime` API (cast `as any`) - `src/components/activitypub/MonyFeed.vue:347-356`
+- ~~**L5.**~~ Resolved July 2026: `MonyFeed.vue` was dead (never routed/imported, referenced nonexistent child components) and was deleted.
 - **L7-L11.** `useUndoRedo` pointer drift; notification getter re-entrancy; `spatialAudio` / voice Maps not cleared on logout; etc. *(unverified)*
 - ~~**L12.**~~ Fixed July 2026: `http:` in `validateExternalUrl` now allowed only when `NODE_ENV !== 'production'`
-- **L13.** Inbox GET exposes stored remote activities without auth - `federation-backend/src/activitypub/InboxHandler.ts:60+`
-- **L14.** SHA-256 token hashing (DB docs say bcrypt) - `bot-gateway/src/auth/BotAuthMiddleware.ts:34`
+- ~~**L13.**~~ Fixed July 2026: both the metadata and paginated inbox GET branches require the owner (or an admin); others get an empty collection, and responses are `Cache-Control: private`.
+- ~~**L14.**~~ Resolved July 2026 (docs): SHA-256 is deliberate — bot tokens carry 256 bits of entropy, so a slow hash adds nothing and the digest doubles as the lookup key. The misleading bcrypt comment was removed.
 - **L15.** Dev error responses may leak internal messages - `bot-gateway/src/index.ts:88-93`
 - **L16.** Verbose logging of message metadata/content - `bot-gateway/src/api/BotRestAPI.ts:105-106`
 - **L17.** Bridge shutdown doesn't clear periodic user-refresh interval
@@ -244,7 +217,7 @@ The full performance audit (cross-cutting patterns P-α ... P-η plus per-area i
 - **P-δ** - sequential `await` in loops where `IN(...)` / `Promise.all` would batch (federated mention resolution, follower inbox collection, Megolm session sharing)
 - **P-ε** - unbounded Maps in long-running services (Discord ↔ Harmony id map, fediverse embed cache, federation L1 cache promotion)
 - **P-ζ** - per-request crypto signer / public-key parse on the federation hot path; missing `https.Agent({ keepAlive: true })` for outbound delivery
-- **P-η** - main-thread crypto: insertable-stream frame encryption (PC3 moved this to a worker but the keying issue C5 is independent), Megolm signature verify per decrypt, HRTF panners, 100k PBKDF2 iterations on weak devices
+- **P-η** - main-thread crypto: Megolm signature verify per decrypt (the Signal-based insertable-stream frame encryption and its worker were removed in July 2026), HRTF panners, 100k PBKDF2 iterations on weak devices
 
 The two sharpest user-facing wins are still **PC2** (route-level code splitting for `AdminPanel.vue`, ~6 800 lines, eagerly imported) and **P-γ** (replacing the bot-gateway 1 s poll with `NOTIFY` / Realtime).
 

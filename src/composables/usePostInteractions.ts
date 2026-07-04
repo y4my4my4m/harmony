@@ -19,9 +19,7 @@ export function usePostInteractions() {
   const isBookmarkLoading = ref(false)
   const isPinLoading = ref(false)
 
-  // =============================================
   // USER INTERACTIONS
-  // =============================================
 
   /**
    * Toggle follow status for a user
@@ -105,9 +103,7 @@ export function usePostInteractions() {
     }
   }
 
-  // =============================================
   // POST INTERACTIONS
-  // =============================================
 
   /**
    * Toggle favorite (like) status for a post
@@ -242,9 +238,7 @@ export function usePostInteractions() {
     }
   }
 
-  // =============================================
   // UTILITY FUNCTIONS
-  // =============================================
 
   /**
    * Check if currently following a user

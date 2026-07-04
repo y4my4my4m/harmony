@@ -40,9 +40,7 @@ import {
   type VoiceKeyEnvelope,
 } from './encryption/VoiceE2EEService';
 
-// =============================================================================
 // FEDERATED IDENTITY HELPERS
-// =============================================================================
 
 // Cache for federated ID to profile UUID mappings
 const federatedIdToUuidCache = new Map<string, string>();
@@ -239,9 +237,7 @@ async function resolveFederatedId(federatedId: string, originalIdentity: string)
 // Set LiveKit log level based on environment
 setLogLevel(import.meta.env.DEV ? LogLevel.debug : LogLevel.warn);
 
-// =============================================================================
 // TYPES
-// =============================================================================
 
 export interface UserMediaState {
   userId: string;
@@ -268,9 +264,7 @@ interface TokenResponse {
   identity: string;
 }
 
-// =============================================================================
 // LIVEKIT WEBRTC SERVICE
-// =============================================================================
 
 export class LiveKitWebRTCService {
   private room: Room | null = null;
@@ -377,9 +371,7 @@ export class LiveKitWebRTCService {
     }
   }
   
-  // =============================================================================
   // CONFIGURATION
-  // =============================================================================
   
   /**
    * Get LiveKit configuration from the backend
@@ -432,9 +424,7 @@ export class LiveKitWebRTCService {
     return config.enabled && !!config.wsUrl;
   }
   
-  // =============================================================================
   // TOKEN MANAGEMENT
-  // =============================================================================
   
   /**
    * Get a room token from the backend
@@ -496,9 +486,7 @@ export class LiveKitWebRTCService {
     return response.json();
   }
   
-  // =============================================================================
   // CHANNEL MANAGEMENT
-  // =============================================================================
   
   /**
    * Join a voice channel using LiveKit SFU
@@ -765,9 +753,7 @@ export class LiveKitWebRTCService {
     this.emit('channel-left', { channelId: oldChannelId });
   }
   
-  // =============================================================================
   // MEDIA CONTROLS
-  // =============================================================================
   
   /**
    * Publish local audio track
@@ -1169,9 +1155,7 @@ export class LiveKitWebRTCService {
     return this.localMediaState.isDeafened;
   }
   
-  // =============================================================================
   // STREAM QUALITY CONTROL
-  // =============================================================================
   
   /**
    * Update stream quality settings (resolution, framerate, and audio bitrate)
@@ -1274,9 +1258,7 @@ export class LiveKitWebRTCService {
     }
   }
   
-  // =============================================================================
   // VOLUME CONTROL
-  // =============================================================================
   
   /**
    * Mute/unmute all remote mic audio elements.
@@ -1367,9 +1349,7 @@ export class LiveKitWebRTCService {
            !!this.findAudioElementByResolvedId(participantId, 'screenshare');
   }
   
-  // =============================================================================
   // STREAM ACCESS
-  // =============================================================================
   
   /**
    * Get local media stream (combined audio/video)
@@ -1559,9 +1539,7 @@ export class LiveKitWebRTCService {
     return result;
   }
   
-  // =============================================================================
   // ROOM EVENT HANDLING
-  // =============================================================================
   
   /**
    * Sync existing participants in the room (called after connecting)
@@ -2112,9 +2090,7 @@ export class LiveKitWebRTCService {
     }
   }
   
-  // =============================================================================
   // DEVICE MANAGEMENT
-  // =============================================================================
   
   /**
    * Load audio settings from centralized VoiceSettingsService
@@ -2196,9 +2172,7 @@ export class LiveKitWebRTCService {
     }
   }
   
-  // =============================================================================
   // E2EE (End-to-End Encryption)
-  // =============================================================================
   
   /**
    * Build the E2EE options passed to the `Room` constructor.
@@ -2473,9 +2447,7 @@ export class LiveKitWebRTCService {
     }
   }
 
-  // =============================================================================
   // EVENT SYSTEM
-  // =============================================================================
   
   /**
    * Subscribe to an event
@@ -2516,9 +2488,7 @@ export class LiveKitWebRTCService {
     }
   }
   
-  // =============================================================================
   // UTILITY METHODS
-  // =============================================================================
   
   /**
    * Check if currently connected to a channel
@@ -2547,9 +2517,7 @@ export class LiveKitWebRTCService {
   }
 }
 
-// =============================================================================
 // SINGLETON INSTANCE
-// =============================================================================
 
 export const livekitWebRTC = new LiveKitWebRTCService();
 export default livekitWebRTC;
