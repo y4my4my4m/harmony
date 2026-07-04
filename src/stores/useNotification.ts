@@ -79,6 +79,7 @@ const NOTIFICATION_SOUND_MAPPING: Record<NotificationType, AudioAction> = {
   activitypub_mention: 'mention',
   activitypub_reply: 'reply',
   activitypub_follow_request: 'friend_request',
+  activitypub_follow_accepted: 'friend_request',
   report_update: 'server_update',
   error: 'server_update',
 }
@@ -229,7 +230,7 @@ export const useNotificationStore = defineStore('notification', {
         const isApMention = n.type === 'activitypub_mention'
         const isDM = n.type === 'dm'
         const isReaction = n.type === 'reaction'
-        const isFollow = n.type === 'activitypub_follow' || n.type === 'activitypub_follow_request'
+        const isFollow = n.type === 'activitypub_follow' || n.type === 'activitypub_follow_request' || n.type === 'activitypub_follow_accepted'
         const isSocial = typeof n.type === 'string' && n.type.startsWith('activitypub_')
 
         if (isMention || isApMention) mentionsAll++
@@ -303,7 +304,7 @@ export const useNotificationStore = defineStore('notification', {
           case 'social':
             return notification.type.startsWith('activitypub_')
           case 'follows':
-            return notification.type === 'activitypub_follow' || notification.type === 'activitypub_follow_request'
+            return notification.type === 'activitypub_follow' || notification.type === 'activitypub_follow_request' || notification.type === 'activitypub_follow_accepted'
           default:
             return true
         }
@@ -389,6 +390,7 @@ export const useNotificationStore = defineStore('notification', {
           case 'activitypub_reply':
             return state.preferences.activitypub_desktop_notifications && state.preferences.activitypub_desktop_replies
           case 'activitypub_follow_request':
+          case 'activitypub_follow_accepted':
             return state.preferences.activitypub_desktop_notifications && state.preferences.activitypub_desktop_follows
           
           default:
@@ -425,6 +427,7 @@ export const useNotificationStore = defineStore('notification', {
           case 'activitypub_reply':
             return state.preferences.activitypub_sound_notifications && state.preferences.activitypub_sound_replies
           case 'activitypub_follow_request':
+          case 'activitypub_follow_accepted':
             return state.preferences.activitypub_sound_notifications && state.preferences.activitypub_sound_follows
           
           default:

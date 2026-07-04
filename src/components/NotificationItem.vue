@@ -153,6 +153,18 @@
           </button>
         </template>
         
+        <!-- For follow requests -->
+        <template v-if="notification.type === 'activitypub_follow_request'">
+          <button @click="acceptFollowRequest" :disabled="isProcessingFollowRequest" class="quick-action-btn accept">
+            <AcceptIcon class="quick-action-icon" />
+            Accept
+          </button>
+          <button @click="rejectFollowRequest" :disabled="isProcessingFollowRequest" class="quick-action-btn decline">
+            <DeclineIcon class="quick-action-icon" />
+            Reject
+          </button>
+        </template>
+
         <!-- For DMs / group chat messages -->
         <template v-if="notification.type === 'dm' || notification.type === 'chat_message'">
           <button @click="replyToDM" class="quick-action-btn reply">
@@ -438,7 +450,7 @@ const shouldShowReactionDisplay = computed(() => {
 })
 
 const hasQuickActions = computed(() => {
-  return ['server_invite', 'dm', 'chat_message', 'mention', 'reply'].includes(props.notification.type)
+  return ['server_invite', 'dm', 'chat_message', 'mention', 'reply', 'activitypub_follow_request'].includes(props.notification.type)
 })
 
 // Methods
@@ -464,6 +476,38 @@ const acceptInvite = () => {
 const declineInvite = () => {
   debug.log('Declining server invite:', props.notification.data?.invite_id)
   emit('dismiss', props.notification.id)
+}
+
+const isProcessingFollowRequest = ref(false)
+
+const acceptFollowRequest = async () => {
+  const followerId = props.notification.data?.follower?.id || props.notification.data?.follower_id
+  if (!followerId || isProcessingFollowRequest.value) return
+  isProcessingFollowRequest.value = true
+  try {
+    const { interactionService } = await import('@/services/InteractionService')
+    await interactionService.acceptFollowRequest(followerId)
+    emit('dismiss', props.notification.id)
+  } catch (error) {
+    debug.error('Failed to accept follow request:', error)
+  } finally {
+    isProcessingFollowRequest.value = false
+  }
+}
+
+const rejectFollowRequest = async () => {
+  const followerId = props.notification.data?.follower?.id || props.notification.data?.follower_id
+  if (!followerId || isProcessingFollowRequest.value) return
+  isProcessingFollowRequest.value = true
+  try {
+    const { interactionService } = await import('@/services/InteractionService')
+    await interactionService.rejectFollowRequest(followerId)
+    emit('dismiss', props.notification.id)
+  } catch (error) {
+    debug.error('Failed to reject follow request:', error)
+  } finally {
+    isProcessingFollowRequest.value = false
+  }
 }
 
 const replyToDM = () => {
