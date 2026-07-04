@@ -313,6 +313,23 @@ export function createAcceptActivity(actor: any, followActivity: any): any {
 }
 
 /**
+ * Create a Reject activity (for follow requests)
+ */
+export function createRejectActivity(actor: any, followActivity: any): any {
+  const domain = config.INSTANCE_DOMAIN;
+  const actorUrl = `https://${domain}/users/${actor.username}`;
+  const activityId = `${actorUrl}/rejects/${Date.now()}`;
+
+  return {
+    '@context': 'https://www.w3.org/ns/activitystreams',
+    id: activityId,
+    type: 'Reject',
+    actor: actorUrl,
+    object: followActivity,
+  };
+}
+
+/**
  * Create a Like activity (for reactions).
  *
  * @param recipientUrls - ActivityPub actor URLs to address the activity to.

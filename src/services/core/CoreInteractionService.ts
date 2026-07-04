@@ -100,7 +100,18 @@ export class CoreInteractionService {
       let following: boolean
       let pending: boolean = false
 
-      if (existingFollow) {
+      // A previously rejected request reads as "not following": clear the
+      // stale row so the re-follow below is a fresh INSERT (the federation
+      // backend's INSERT listener is what sends the outbound Follow).
+      if (existingFollow?.status === 'rejected') {
+        await supabase
+          .from('follows')
+          .delete()
+          .eq('id', existingFollow.id)
+          .eq('follower_id', profileId)
+      }
+
+      if (existingFollow && existingFollow.status !== 'rejected') {
         // Unfollow - secure deletion with ownership verification
         const { error } = await supabase
           .from('follows')
@@ -194,8 +205,9 @@ export class CoreInteractionService {
       // Secure update with authorization verification
       const { data, error } = await supabase
         .from('follows')
-        .update({ 
+        .update({
           status: 'accepted',
+          accepted_at: new Date().toISOString(),
         })
         .eq('follower_id', followerUserId)
         .eq('following_id', profileId) // Security: Ensure we own the target profile
@@ -230,13 +242,15 @@ export class CoreInteractionService {
 
       debug.log(`🔄 Core: Rejecting follow request from: ${followerUserId}`)
 
-      // Secure deletion with authorization verification
+      // Status update (not delete): the federation backend listens for the
+      // pending->rejected transition to deliver a Reject activity; a bare
+      // DELETE is indistinguishable from the remote withdrawing the request.
       const { data, error } = await supabase
         .from('follows')
-        .delete()
+        .update({ status: 'rejected' })
         .eq('follower_id', followerUserId)
         .eq('following_id', profileId) // Security: Ensure we own the target profile
-        .eq('status', 'pending')      // Security: Only delete pending requests
+        .eq('status', 'pending')      // Security: Only update pending requests
         .select('id')
 
       if (error) throw this.createError('REJECT_FAILED', 'Failed to reject follow request', error)

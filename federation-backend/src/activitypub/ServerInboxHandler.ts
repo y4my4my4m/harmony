@@ -13,10 +13,107 @@ import { getSupabaseClient } from '../config/supabase.js';
 import { logger } from '../utils/logger.js';
 import { ActivityProcessor } from './ActivityProcessor.js';
 import { DeliveryQueue } from './DeliveryQueue.js';
+import { SignatureService } from './SignatureService.js';
 import { noteToContent } from './converters/fromActivityPub.js';
 import { decodeHtmlEntities } from '../utils/contentUtils.js';
 import config from '../config/index.js';
 import { harmonyVoiceMessageFromObject } from '../utils/voiceMessageFederation.js';
+
+// Permission bit positions in server_roles.permissions (mirror src/services/RoleService.ts)
+const PERM_ADMINISTRATOR = 0n;
+const PERM_MANAGE_CHANNELS = 2n;
+const PERM_KICK_MEMBERS = 9n;
+const PERM_MANAGE_MESSAGES = 21n;
+
+// Authorization helpers: server inbox authenticates the sender but allows
+// same-domain delegation, so gate each mutating handler on the actor's actual
+// standing (owner/member/role/ownership). See BUGS.md server-inbox authz.
+
+export async function resolveActorProfileId(supabase: any, actorUrl: string): Promise<string | null> {
+  if (!actorUrl) return null;
+  const { data } = await supabase
+    .from('profiles')
+    .select('id')
+    .eq('federated_id', actorUrl)
+    .maybeSingle();
+  return data?.id ?? null;
+}
+
+// True if the actor is an accepted member of the server.
+export async function actorIsAcceptedMember(
+  supabase: any,
+  serverId: string,
+  actorUrl: string,
+): Promise<{ ok: boolean; userId: string | null }> {
+  const userId = await resolveActorProfileId(supabase, actorUrl);
+  if (!userId) return { ok: false, userId: null };
+
+  const { data: membership } = await supabase
+    .from('user_servers')
+    .select('status')
+    .eq('server_id', serverId)
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  return { ok: membership?.status === 'accepted', userId };
+}
+
+// True if actor may moderate: host Group actor (strict), server owner, or a
+// member holding is_admin / the required permission bit.
+export async function actorIsServerModerator(
+  supabase: any,
+  serverId: string,
+  server: any,
+  actorUrl: string,
+  requiredBit: bigint,
+): Promise<boolean> {
+  if (!actorUrl) return false;
+
+  // Host authority: strict match only (legit host CRUD carries actor === ap_id).
+  // Same-domain delegation would let any host user impersonate the Group actor.
+  if (server.ap_id && SignatureService.verifyActorMatch(actorUrl, server.ap_id)) {
+    return true;
+  }
+
+  const profileId = await resolveActorProfileId(supabase, actorUrl);
+  if (!profileId) return false;
+
+  if (server.owner && profileId === server.owner) return true;
+
+  const { data: roles } = await supabase
+    .from('user_roles')
+    .select('server_roles!inner(is_admin, permissions)')
+    .eq('user_id', profileId)
+    .eq('server_id', serverId);
+
+  if (!roles) return false;
+  const adminMask = (1n << PERM_ADMINISTRATOR) | (1n << requiredBit);
+  return roles.some((r: any) => {
+    const role = r.server_roles;
+    if (!role) return false;
+    if (role.is_admin) return true;
+    try {
+      return (BigInt(role.permissions ?? 0) & adminMask) !== 0n;
+    } catch {
+      return false;
+    }
+  });
+}
+
+// True if the actor is the author of the given message (by federated_id).
+export async function actorOwnsMessage(
+  supabase: any,
+  messageId: string,
+  actorUrl: string,
+): Promise<boolean> {
+  const { data } = await supabase
+    .from('messages')
+    .select('profiles:user_id(federated_id)')
+    .eq('id', messageId)
+    .maybeSingle();
+  const ownerUrl = (data as any)?.profiles?.federated_id as string | null | undefined;
+  return !!ownerUrl && SignatureService.verifyActorMatch(actorUrl, ownerUrl);
+}
 
 /**
  * Resolve a thread ID from an AP URL. Tries ap_id match first, then UUID extraction.
@@ -503,6 +600,12 @@ async function processCreateActivity(
 
   // Route ChatThread to dedicated handler
   if (object?.type === 'ChatThread') {
+    // AUTHZ: only accepted members may open threads in this server's channels.
+    const threadActor = typeof activity.actor === 'string' ? activity.actor : activity.actor?.id;
+    if (!(await actorIsAcceptedMember(supabase, serverId, threadActor)).ok) {
+      logger.warn(`🚫 Rejecting Create(ChatThread): ${threadActor} is not an accepted member of server ${serverId}`);
+      return;
+    }
     logger.info(`📋 Routing server inbox Create ChatThread to handler: ${object.id}`);
     const { handleThreadActivity } = await import('./ThreadActivityHandler.js');
     const result = await handleThreadActivity({ ...activity, object });
@@ -934,6 +1037,12 @@ async function processUpdateActivity(
 
   // Handle ChatThread updates
   if (object.type === 'ChatThread') {
+    // AUTHZ: thread updates (incl. membership add/remove) are member-gated.
+    const threadActor = typeof activity.actor === 'string' ? activity.actor : activity.actor?.id;
+    if (!(await actorIsAcceptedMember(supabase, serverId, threadActor)).ok) {
+      logger.warn(`🚫 Rejecting Update(ChatThread): ${threadActor} is not an accepted member of server ${serverId}`);
+      return;
+    }
     logger.info(`📋 Routing server inbox Update ChatThread to handler: ${object.id}`);
     const { handleThreadActivity } = await import('./ThreadActivityHandler.js');
     const result = await handleThreadActivity({ ...activity, object });
@@ -941,6 +1050,16 @@ async function processUpdateActivity(
       logger.warn(`Thread Update via server inbox failed: ${result.error}`);
     }
     return;
+  }
+
+  // AUTHZ: structural updates require host authority or MANAGE_CHANNELS.
+  const structuralTypes = ['harmony:Category', 'harmony:TextChannel', 'harmony:VoiceChannel', 'Group'];
+  if (structuralTypes.includes(object.type) || object['harmony:ChatServer']) {
+    const structActor = typeof activity.actor === 'string' ? activity.actor : activity.actor?.id;
+    if (!(await actorIsServerModerator(supabase, serverId, server, structActor, PERM_MANAGE_CHANNELS))) {
+      logger.warn(`🚫 Rejecting Update(${object.type}): ${structActor} lacks channel-management authority on server ${serverId}`);
+      return;
+    }
   }
 
   // Handle CATEGORY updates - stored in channel_categories table
@@ -1122,6 +1241,13 @@ async function processUpdateActivity(
     return;
   }
 
+  // AUTHZ: message edits are author-only.
+  const editorUrl = typeof activity.actor === 'string' ? activity.actor : activity.actor?.id;
+  if (!(await actorOwnsMessage(supabase, message.id, editorUrl))) {
+    logger.warn(`🚫 Rejecting Update: ${editorUrl} does not own message ${object.id}`);
+    return;
+  }
+
   // Parse updated content
   let messageContent: any[];
   if (object['harmony:rawContent'] && Array.isArray(object['harmony:rawContent'])) {
@@ -1210,24 +1336,41 @@ async function processDeleteActivity(
     return;
   }
 
-  // Find and soft-delete the message
-  const { data: deletedMsg, error } = await supabase
+  const actorUrlDel = typeof activity.actor === 'string' ? activity.actor : activity.actor?.id;
+
+  // Locate the target message first so we can authorize before mutating.
+  const { data: targetMsg } = await supabase
+    .from('messages')
+    .select('id')
+    .eq('metadata->>ap_id', objectUrl)
+    .maybeSingle();
+
+  if (!targetMsg) {
+    logger.warn(`Message not found for delete: ${objectUrl}`);
+    return;
+  }
+
+  // AUTHZ: deleter must own the message or hold MANAGE_MESSAGES / host authority.
+  const ownsMsg = await actorOwnsMessage(supabase, targetMsg.id, actorUrlDel);
+  const canModerate = ownsMsg
+    ? true
+    : await actorIsServerModerator(supabase, serverId, server, actorUrlDel, PERM_MANAGE_MESSAGES);
+  if (!canModerate) {
+    logger.warn(`🚫 Rejecting Delete: ${actorUrlDel} may not delete message ${objectUrl} in server ${serverId}`);
+    return;
+  }
+
+  // Soft-delete the message
+  const { error } = await supabase
     .from('messages')
     .update({ is_deleted: true })
-    .eq('metadata->>ap_id', objectUrl)
-    .select('id')
-    .maybeSingle();
+    .eq('id', targetMsg.id);
 
   if (error) {
     logger.error('Failed to delete message:', error);
     return;
   }
-  
-  if (!deletedMsg) {
-    logger.warn(`Message not found for delete: ${objectUrl}`);
-    return;
-  }
-  
+
   logger.info(`🗑️ Deleted federated message: ${objectUrl}`);
 
   // Re-broadcast delete to other remote instances
@@ -1285,6 +1428,13 @@ async function processReactionActivity(
     .single();
 
   if (!user) {
+    return;
+  }
+
+  // AUTHZ: only accepted members may react in a server's channels.
+  const membership = await actorIsAcceptedMember(supabase, serverId, actorUrl);
+  if (!membership.ok) {
+    logger.warn(`🚫 Rejecting reaction: ${actorUrl} is not an accepted member of server ${serverId}`);
     return;
   }
 
@@ -1451,7 +1601,14 @@ async function processAddActivity(
   }
 
   const objectType = object.type;
-  
+
+  // AUTHZ: channel/category creation requires host authority or MANAGE_CHANNELS.
+  const addActor = typeof activity.actor === 'string' ? activity.actor : activity.actor?.id;
+  if (!(await actorIsServerModerator(supabase, serverId, server, addActor, PERM_MANAGE_CHANNELS))) {
+    logger.warn(`🚫 Rejecting Add(${objectType}): ${addActor} lacks channel-management authority on server ${serverId}`);
+    return;
+  }
+
   // Extract UUID from ap_id if possible
   let entityUuid: string | undefined;
   const match = object.id?.match(/\/channels\/([a-f0-9-]{36})$/i);
@@ -1564,13 +1721,20 @@ async function processRemoveActivity(
   
   // Remove activity: actor removes object from target
   const objectUrl = typeof activity.object === 'string' ? activity.object : activity.object?.id;
-  
+  const removeActor = typeof activity.actor === 'string' ? activity.actor : activity.actor?.id;
+
   if (!objectUrl) {
     return;
   }
 
   // Check if this is a channel/category removal
   if (objectUrl.includes('/channels/')) {
+    // AUTHZ: structural change - require host authority or MANAGE_CHANNELS.
+    if (!(await actorIsServerModerator(supabase, serverId, server, removeActor, PERM_MANAGE_CHANNELS))) {
+      logger.warn(`🚫 Rejecting Remove(channel): ${removeActor} lacks channel-management authority on server ${serverId}`);
+      return;
+    }
+
     // Extract UUID from the URL
     const uuidMatch = objectUrl.match(/\/channels\/([a-f0-9-]{36})$/i);
     const entityUuid = uuidMatch ? uuidMatch[1] : null;
@@ -1609,7 +1773,7 @@ async function processRemoveActivity(
     return;
   }
 
-  // Otherwise, it's a user removal (kick)
+  // Otherwise it's a kick: allow self-removal, else require KICK_MEMBERS / host.
   const { data: user } = await supabase
     .from('profiles')
     .select('id, username')
@@ -1617,6 +1781,13 @@ async function processRemoveActivity(
     .single();
 
   if (!user) {
+    return;
+  }
+
+  const isSelfRemoval = !!removeActor && SignatureService.verifyActorMatch(removeActor, objectUrl);
+  if (!isSelfRemoval &&
+      !(await actorIsServerModerator(supabase, serverId, server, removeActor, PERM_KICK_MEMBERS))) {
+    logger.warn(`🚫 Rejecting Remove(member): ${removeActor} may not kick ${objectUrl} from server ${serverId}`);
     return;
   }
 
@@ -1654,6 +1825,7 @@ async function processUndoActivity(
       break;
 
     case 'Like':
+    case 'EmojiReact':
     case 'EmojiReaction': {
       const actorUrl = typeof activity.actor === 'string' ? activity.actor : activity.actor.id;
       const targetUrl = typeof object.object === 'string' ? object.object : object.object?.id;
