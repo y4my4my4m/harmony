@@ -1,5 +1,12 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import type { Request } from 'express';
+
+vi.mock('../config/index.js', () => ({
+  default: { RATE_LIMIT_WINDOW_MS: 60_000, RATE_LIMIT_MAX_REQUESTS: 100 },
+  config: { RATE_LIMIT_WINDOW_MS: 60_000, RATE_LIMIT_MAX_REQUESTS: 100 },
+}));
+vi.mock('../services/RedisService.js', () => ({ redis: { ready: false } }));
+
 import { instanceKeyFromRequest } from '../middleware/rateLimit.js';
 
 function fakeReq(body: unknown, ip = '203.0.113.7'): Request {
