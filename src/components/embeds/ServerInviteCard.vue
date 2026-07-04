@@ -146,7 +146,6 @@ async function loadInviteData() {
       return;
     }
 
-    // Check if invite is valid (used column means single-use invite was used)
     if (invite.used) {
       error.value = 'This invite has already been used';
       return;
@@ -258,13 +257,10 @@ async function handleJoin() {
 
 async function handleGoToServer() {
   if (serverData.value?.server_id) {
-    // Set the server in the store so ChatLayout knows which server to display
     serverStore.setCurrentServer(serverData.value.server_id);
     
-    // Fetch channels for this server
     await serverStore.fetchCategoriesAndChannels(serverData.value.server_id);
     
-    // Get the default channel
     const defaultChannel = serverStore.getDefaultChannel();
     
     if (defaultChannel) {

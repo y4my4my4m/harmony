@@ -136,9 +136,7 @@ import type { AudioAction } from '@/types'
 import AudioThemeManager from '@/components/settings/AudioThemeManager.vue'
 import Icon from '@/components/common/Icon.vue'
 
-// =============================================================================
 // STATE
-// =============================================================================
 
 const themeStore = useThemeStore()
 
@@ -158,9 +156,7 @@ const testActions = [
   { id: 'ui_click', label: 'Click', icon: 'mouse-pointer', category: 'ui' }
 ] as const
 
-// =============================================================================
 // COMPUTED
-// =============================================================================
 
 const currentTheme = computed(() => themeStore.getCurrentAudioTheme)
 
@@ -176,9 +172,7 @@ const debugInfo = computed(() => ({
   availableThemes: themeStore.audioThemes.map(t => ({ id: t.id, name: t.name }))
 }))
 
-// =============================================================================
 // METHODS
-// =============================================================================
 
 const testAction = async (actionId: string): Promise<void> => {
   try {
@@ -272,9 +266,7 @@ const getToastIcon = (type: string): string => {
   return icons[type] || 'info'
 }
 
-// =============================================================================
 // LIFECYCLE
-// =============================================================================
 
 onMounted(async () => {
   try {

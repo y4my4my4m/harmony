@@ -147,7 +147,6 @@ defineEmits<Emits>()
 const displayLimit = ref(20)
 
 const displayedServers = computed(() => {
-  // Filter out featured servers from the main list if not searching
   let filtered = props.servers
   if (!props.searchQuery && props.featuredServers.length > 0) {
     const featuredIds = new Set(props.featuredServers.map(s => s.id))

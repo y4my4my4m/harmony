@@ -93,7 +93,6 @@ export class MembershipService {
   private async handleUserJoin(event: MembershipEvent): Promise<void> {
     debug.log(`🎉 User ${event.metadata.username || event.user_id} joined server ${event.server_id}`)
     
-    // Refresh the user list to include the new member
     await this.refreshServerUserList(event.server_id)
     
     // Show a toast notification if this is for the current server
@@ -106,7 +105,6 @@ export class MembershipService {
   private async handleUserLeave(event: MembershipEvent): Promise<void> {
     debug.log(`👋 User ${event.metadata.username || event.user_id} left server ${event.server_id}`)
     
-    // Refresh the complete user list to ensure consistency
     await this.refreshServerUserList(event.server_id)
   }
 
@@ -123,10 +121,8 @@ export class MembershipService {
     try {
       debug.log(`🔄 Refreshing user list for server: ${serverId}`)
       
-      // Get current server members
       const userIds = await getUserIdsForServer(serverId)
       
-      // Update the store with fresh user data
       await this.getServerUsersStore().fetchUserProfiles(userIds)
       
       debug.log(`✅ User list refreshed for server ${serverId}. Current members: ${userIds.length}`)

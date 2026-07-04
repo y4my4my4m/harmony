@@ -199,12 +199,14 @@ import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import { debug } from '@/utils/debug'
 import { supabase } from '@/supabase'
 import { userDataService } from '@/services/userDataService'
+import { useConfirmDialog } from '@/composables/useConfirmDialog'
 
 interface Props {
   serverId: string
 }
 
 const props = defineProps<Props>()
+const { confirm } = useConfirmDialog()
 
 // State
 const loading = ref(true)
@@ -218,7 +220,7 @@ const forceKeySetup = ref(false)
 const encryptAttachments = ref(true)
 const originalForceKeySetup = ref(false)
 const originalEncryptAttachments = ref(true)
-// Voice/video E2EE: disabled | required (no per-call "optional" — LiveKit E2EE
+// Voice/video E2EE: disabled | required (no per-call "optional" - LiveKit E2EE
 // is room-wide, so a call is either fully encrypted or not).
 const voiceEncryptionMode = ref<'disabled' | 'required'>('disabled')
 const originalVoiceEncryptionMode = ref<'disabled' | 'required'>('disabled')
@@ -312,7 +314,6 @@ async function loadSettings() {
   error.value = null
 
   try {
-    // Load encryption policy
     const { data: policy, error: policyError } = await supabase
       .from('server_encryption_settings')
       .select('*')
@@ -332,11 +333,9 @@ async function loadSettings() {
       originalEncryptAttachments.value = encryptAttachments.value
       originalVoiceEncryptionMode.value = voiceEncryptionMode.value
     } else {
-      // Create default policy
       await createDefaultPolicy()
     }
 
-    // Load member statistics
     await loadMemberStats()
 
     debug.log('✅ Encryption settings loaded')
@@ -404,19 +403,20 @@ async function saveSettings() {
   successMessage.value = null
 
   try {
-    // Validate required mode
     if (currentMode.value === 'required' && memberStats.value.percentage < 50) {
-      const confirmed = confirm(
-        `Warning: Only ${memberStats.value.percentage}% of members have encryption keys set up. ` +
-        'Required mode will prevent users without keys from participating. Continue?'
-      )
+      const confirmed = await confirm({
+        title: 'Enable required encryption',
+        message: `Warning: Only ${memberStats.value.percentage}% of members have encryption keys set up. ` +
+          'Required mode will prevent users without keys from participating. Continue?',
+        confirmButtonText: 'Continue',
+        dangerAction: true,
+      })
       if (!confirmed) {
         saving.value = false
         return
       }
     }
 
-    // Update or insert policy
     const policyData = {
       server_id: props.serverId,
       encryption_mode: currentMode.value,
@@ -434,7 +434,6 @@ async function saveSettings() {
 
     if (saveError) throw saveError
 
-    // Update original values
     originalMode.value = currentMode.value
     originalForceKeySetup.value = forceKeySetup.value
     originalEncryptAttachments.value = encryptAttachments.value

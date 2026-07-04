@@ -103,7 +103,6 @@ class PerformanceMonitor {
       },
     });
 
-    // Log slow requests
     if (durationMs > 1000) {
       logger.warn(`⚠️ Slow request: ${method} ${path} took ${durationMs}ms`);
     }
@@ -175,7 +174,6 @@ class PerformanceMonitor {
       },
     });
 
-    // Update federation health
     this.updateFederationHealth(targetDomain, success, durationMs);
   }
 

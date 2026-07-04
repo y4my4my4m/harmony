@@ -75,7 +75,6 @@ function transformSupabaseStoragePath(path: string, size: number): string {
  * @returns Normalized URL string, or default icon path if invalid
  */
 export function getServerIconUrl(serverUrl: string | null | undefined, size: number = 96): string {
-  // Handle null/undefined/empty
   if (!serverUrl || typeof serverUrl !== 'string') {
     return DEFAULT_SERVER_ICON
   }

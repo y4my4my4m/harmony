@@ -256,6 +256,7 @@ import { realtimeConnectionManager } from '@/services/RealtimeConnectionManager'
 import type { Message, MessagePart, Emoji, Gif } from '@/types'
 import type { ThreadWithDetails } from '@/services/ThreadService'
 import type { FilePreviewData } from '@/components/FilePreview.vue'
+import { useConfirmDialog } from '@/composables/useConfirmDialog'
 
 // Props
 interface Props {
@@ -264,6 +265,7 @@ interface Props {
 }
 
 const props = defineProps<Props>()
+const { confirm } = useConfirmDialog()
 const route = useRoute()
 const router = useRouter()
 
@@ -307,7 +309,6 @@ const mediaPickerInitialTab = ref<'gifs' | 'emoji'>('gifs')
 const giphyOpen = computed(() => mediaPickerOpen.value && mediaPickerInitialTab.value === 'gifs')
 const emojiListOpen = computed(() => mediaPickerOpen.value && mediaPickerInitialTab.value === 'emoji')
 
-// Trigger element for media picker positioning
 const mediaPickerTriggerElement = computed(() => {
   return messageInputRef.value?.gifTriggerRef || messageInputRef.value?.emojiTriggerRef || null
 })
@@ -327,14 +328,12 @@ const messagesContainer = ref<HTMLElement | null>(null)
 const threadSubscription = ref<(() => void) | null>(null)
 const reactionsSubscription = ref<(() => void) | null>(null)
 
-// Format helpers
 const formatDate = (date: string | Date) => {
   return format(new Date(date), 'MMM d, yyyy \'at\' h:mm a')
 }
 
 
 
-// Load thread
 const loadThread = async () => {
   // Check if we have cached messages - if so, show instantly without loading indicator
   const cachedMessages = threadService.getCachedMessages(props.threadId)
@@ -530,7 +529,7 @@ const unlockThread = async () => {
 const deleteThread = async () => {
   showOptions.value = false
   if (!thread.value) return
-  if (!confirm(`Are you sure you want to delete "${thread.value.name}"? This cannot be undone.`)) return
+  if (!(await confirm({ title: 'Delete thread', message: `Are you sure you want to delete "${thread.value.name}"? This cannot be undone.`, confirmButtonText: 'Delete', dangerAction: true }))) return
   try {
     await threadService.deleteThread(thread.value.id)
     goBack()
@@ -564,7 +563,6 @@ const parseMessageInput = async (input: string): Promise<MessagePart[]> => {
   
   debug.log('🔧 Emoji data map size:', Object.keys(emojiDataMap).length)
   
-  // Parse with unified system (now with emoji data)
   const result = await parseContentToMessageParts(input, userDataMap, emojiDataMap, {}, {}, buildChatParseOptions(false))
   
   debug.log('🔧 Final parsed message parts:', result)
@@ -575,7 +573,6 @@ const handleSendMessage = async (content: string, files: FilePreviewData[] = [],
   // Allow sending if we have content OR files
   if ((!content.trim() && files.length === 0) || sending.value || !thread.value) return
   
-  // Check if all files are uploaded
   const hasUploadingFiles = files.some(file => file.uploadStatus === 'uploading')
   const hasFailedFiles = files.some(file => file.uploadStatus === 'error')
   
@@ -600,7 +597,6 @@ const handleSendMessage = async (content: string, files: FilePreviewData[] = [],
       messageParts.push(...parsedMessage)
     }
     
-    // Add uploaded files as message parts
     for (const fileData of files) {
       if (fileData.uploadStatus === 'completed' && fileData.uploadedUrl) {
         let fileType: 'image' | 'video' | 'audio' | 'file' = 'file'
@@ -640,10 +636,8 @@ const handleSendMessage = async (content: string, files: FilePreviewData[] = [],
       if (sendResult.status === 'ok' && sendResult.result) {
         const newMessage = sendResult.result
         messages.value.push(newMessage)
-        // Update cache
         threadService.addMessageToCache(targetThreadId, newMessage)
         messageText.value = ''
-        // Clear reply state
         replyingToMessageId.value = ''
         replyingToUserName.value = ''
         replyingToUserId.value = ''
@@ -691,7 +685,6 @@ const handleToggleEmojiList = (isReaction: boolean, message?: Message, triggerEl
 
 const handleSendEmoji = async (emoji: Emoji) => {
   if (isPopupForReaction.value && currentUserId.value) {
-    // Add reaction using chat store
     await chatStore.addReaction(selectedMessageId.value, emoji.id, currentUserId.value, emoji)
   }
   closeReactionEmoji()
@@ -740,7 +733,6 @@ watch(mediaPickerOpen, () => {
   }
 })
 
-// Handle sending a voice message
 const handleSendVoiceMessage = async (data: { url: string, duration: number, waveform: number[], mimeType: string }) => {
   if (!thread.value) return
 
@@ -785,7 +777,6 @@ const handleSendVoiceMessage = async (data: { url: string, duration: number, wav
   }
 }
 
-// Handle sending a GIF
 const handleSendGif = async (gif: Gif) => {
   const gifUrl = gif.media_formats.gif.url
   closeMediaPicker()
@@ -812,7 +803,6 @@ const handleSendGif = async (gif: Gif) => {
     if (sendResult.status === 'ok' && sendResult.result) {
       const newMessage = sendResult.result
       messages.value.push(newMessage)
-      // Update cache
       threadService.addMessageToCache(targetThreadId, newMessage)
       replyingToMessageId.value = ''
       replyingToUserName.value = ''
@@ -829,15 +819,12 @@ const handleSendGif = async (gif: Gif) => {
   }
 }
 
-// Handle adding emoji to message input (not reaction)
 const handleSendEmojiToInput = (emoji: Emoji) => {
   closeMediaPicker()
-  // Append emoji to message text
   messageText.value += `:${emoji.name}:`
 }
 
 const handleReplyingTo = (messageId: string, displayName?: string, userId?: string) => {
-  // Set reply state
   replyingToMessageId.value = messageId
   replyingToUserId.value = userId || ''
   
@@ -861,11 +848,9 @@ const handleCancelReply = (value: string) => {
   }
 }
 
-// Setup realtime subscription for thread messages
 const setupRealtimeSubscription = () => {
   if (!thread.value?.id) return
 
-  // Clean up existing subscription
   if (threadSubscription.value) {
     threadSubscription.value()
     threadSubscription.value = null
@@ -878,7 +863,6 @@ const setupRealtimeSubscription = () => {
     table: 'messages',
     filter: `thread_id=eq.${thread.value.id}`,
     
-    // Handle new messages
     onInsert: async (payload) => {
       const payloadNew = payload.new as any
       
@@ -908,7 +892,6 @@ const setupRealtimeSubscription = () => {
         }
         
         messages.value.push(newMessage)
-        // Update cache
         threadService.addMessageToCache(thread.value!.id, newMessage)
         await nextTick()
         scrollToBottom()
@@ -916,16 +899,13 @@ const setupRealtimeSubscription = () => {
       }
     },
     
-    // Handle message updates (edits, soft deletes)
     onUpdate: async (payload) => {
       const payloadNew = payload.new as any
       
-      // Handle soft delete
       if (payloadNew.is_deleted) {
         const index = messages.value.findIndex(m => m.id === payloadNew.id)
         if (index !== -1) {
           messages.value.splice(index, 1)
-          // Update cache
           if (thread.value?.id) {
             threadService.removeMessageFromCache(thread.value.id, payloadNew.id)
           }
@@ -934,7 +914,6 @@ const setupRealtimeSubscription = () => {
         return
       }
       
-      // Handle message edits
       const index = messages.value.findIndex(m => m.id === payloadNew.id)
       if (index !== -1) {
         const updatedMessage: Message = {
@@ -944,7 +923,6 @@ const setupRealtimeSubscription = () => {
           metadata: payloadNew.metadata || null,
         }
         messages.value[index] = updatedMessage
-        // Update cache
         if (thread.value?.id) {
           threadService.updateMessageInCache(thread.value.id, payloadNew.id, updatedMessage)
         }
@@ -952,13 +930,11 @@ const setupRealtimeSubscription = () => {
       }
     },
     
-    // Handle hard deletes
     onDelete: (payload) => {
       const payloadOld = payload.old as any
       const index = messages.value.findIndex(m => m.id === payloadOld.id)
       if (index !== -1) {
         messages.value.splice(index, 1)
-        // Update cache
         if (thread.value?.id) {
           threadService.removeMessageFromCache(thread.value.id, payloadOld.id)
         }
@@ -1056,13 +1032,11 @@ watch(() => props.threadId, () => {
   }
 }, { immediate: true })
 
-// Setup realtime when thread is loaded
 watch(() => thread.value?.id, (threadId) => {
   if (threadId) {
     setupRealtimeSubscription()
     setupReactionsSubscription()
   } else {
-    // Clean up subscription when thread is unloaded
     if (threadSubscription.value) {
       threadSubscription.value()
       threadSubscription.value = null
@@ -1075,7 +1049,6 @@ onMounted(() => {
   // Focus will be handled by MessageInput component
 })
 
-// Cleanup on unmount
 onUnmounted(() => {
   if (threadSubscription.value) {
     threadSubscription.value()

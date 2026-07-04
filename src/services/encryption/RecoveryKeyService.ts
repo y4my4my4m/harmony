@@ -305,9 +305,7 @@ export class RecoveryKeyService {
     return RecoveryKeyService.instance
   }
 
-  // =====================================================
   // MNEMONIC GENERATION
-  // =====================================================
 
   /**
    * Generate a new 12-word recovery mnemonic.
@@ -322,7 +320,6 @@ export class RecoveryKeyService {
    * remain usable, but newly-generated phrases now carry a real checksum.
    */
   async generateMnemonic(wordCount: 12 | 24 = 12): Promise<string[]> {
-    // Generate entropy: 128 bits for 12 words, 256 bits for 24 words.
     const entropyBytes = wordCount === 12 ? 16 : 32
     const entropy = crypto.getRandomValues(new Uint8Array(entropyBytes))
 
@@ -475,9 +472,7 @@ export class RecoveryKeyService {
       .filter(word => word.length > 0)
   }
 
-  // =====================================================
   // KEY DERIVATION
-  // =====================================================
 
   /**
    * Derive encryption keys from mnemonic
@@ -498,12 +493,10 @@ export class RecoveryKeyService {
 
     this.mnemonic = words
 
-    // Convert mnemonic to seed
     const mnemonicString = words.join(' ')
     const encoder = new TextEncoder()
     const seedData = encoder.encode(mnemonicString)
 
-    // Create master key material using PBKDF2
     const keyMaterial = await crypto.subtle.importKey(
       'raw',
       seedData,
@@ -527,7 +520,6 @@ export class RecoveryKeyService {
       512
     )
 
-    // Import master secret as HKDF key
     const masterKey = await crypto.subtle.importKey(
       'raw',
       masterBits,
@@ -623,9 +615,7 @@ export class RecoveryKeyService {
     this.mnemonic = null
   }
 
-  // =====================================================
   // BACKUP ENCRYPTION
-  // =====================================================
 
   /**
    * Encrypt data with the backup key (for server storage)
@@ -676,9 +666,7 @@ export class RecoveryKeyService {
     return decoder.decode(decrypted)
   }
 
-  // =====================================================
   // QR CODE SUPPORT
-  // =====================================================
 
   /**
    * Generate data for QR code (for cross-device sharing)
@@ -687,7 +675,6 @@ export class RecoveryKeyService {
   generateQRData(): string | null {
     if (!this.mnemonic) return null
 
-    // Create a compact JSON structure
     const data = {
       v: 1, // version
       m: this.mnemonic.join(' '),
@@ -720,9 +707,7 @@ export class RecoveryKeyService {
     }
   }
 
-  // =====================================================
   // RECOVERY KEY VERIFICATION
-  // =====================================================
 
   /**
    * Generate a verification code from the mnemonic
@@ -762,9 +747,7 @@ export class RecoveryKeyService {
     return code === expectedCode.toUpperCase()
   }
 
-  // =====================================================
   // UTILITY METHODS
-  // =====================================================
 
   private arrayBufferToBase64(buffer: ArrayBuffer): string {
     const bytes = new Uint8Array(buffer)

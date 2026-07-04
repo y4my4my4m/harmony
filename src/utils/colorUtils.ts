@@ -56,17 +56,14 @@ function linearToSrgb(c: number): number {
  */
 // eslint-disable-next-line unused-imports/no-unused-vars
 function rgbToXyz(r: number, g: number, b: number): { x: number; y: number; z: number } {
-  // Convert to 0-1 range
   r = r / 255
   g = g / 255
   b = b / 255
 
-  // Convert to linear RGB
   r = srgbToLinear(r)
   g = srgbToLinear(g)
   b = srgbToLinear(b)
 
-  // Convert to XYZ using D65 illuminant
   const x = r * 0.4124564 + g * 0.3575761 + b * 0.1804375
   const y = r * 0.2126729 + g * 0.7151522 + b * 0.0721750
   const z = r * 0.0193339 + g * 0.1191920 + b * 0.9503041
@@ -79,17 +76,14 @@ function rgbToXyz(r: number, g: number, b: number): { x: number; y: number; z: n
  */
 // eslint-disable-next-line unused-imports/no-unused-vars
 function xyzToRgb(x: number, y: number, z: number): { r: number; g: number; b: number } {
-  // Convert from XYZ to linear RGB
   let r = x * 3.2404542 + y * -1.5371385 + z * -0.4985314
   let g = x * -0.9692660 + y * 1.8760108 + z * 0.0415560
   let b = x * 0.0556434 + y * -0.2040259 + z * 1.0572252
 
-  // Convert to sRGB
   r = linearToSrgb(r)
   g = linearToSrgb(g)
   b = linearToSrgb(b)
 
-  // Convert to 0-255 range
   return {
     r: Math.max(0, Math.min(255, r * 255)),
     g: Math.max(0, Math.min(255, g * 255)),
@@ -101,7 +95,6 @@ function xyzToRgb(x: number, y: number, z: number): { r: number; g: number; b: n
  * Convert Linear RGB to OKLab
  */
 function linearRgbToOklab(r: number, g: number, b: number): { l: number; a: number; b: number } {
-  // Convert to OKLab using the correct matrix
   const l = 0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b
   const m = 0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b
   const s = 0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b
@@ -145,15 +138,12 @@ export function rgbToOklch(r: number, g: number, b: number): { l: number; c: num
   const gNorm = g / 255
   const bNorm = b / 255
   
-  // Convert to linear RGB
   const rLin = srgbToLinear(rNorm)
   const gLin = srgbToLinear(gNorm)
   const bLin = srgbToLinear(bNorm)
   
-  // Convert to OKLab
   const oklab = linearRgbToOklab(rLin, gLin, bLin)
   
-  // Convert to OKLCH
   const c = Math.sqrt(oklab.a * oklab.a + oklab.b * oklab.b)
   let h = Math.atan2(oklab.b, oklab.a) * 180 / Math.PI
   if (h < 0) h += 360
@@ -169,18 +159,14 @@ export function rgbToOklch(r: number, g: number, b: number): { l: number; c: num
  * Convert OKLCH to RGB (correct implementation)
  */
 export function oklchToRgb(l: number, c: number, h: number): { r: number; g: number; b: number } {
-  // Convert from percentage
   const lNorm = l / 100
   
-  // Convert to OKLab
   const hRad = h * Math.PI / 180
   const a = c * Math.cos(hRad)
   const b = c * Math.sin(hRad)
   
-  // Convert to linear RGB
   const rgb = oklabToLinearRgb(lNorm, a, b)
   
-  // Convert to sRGB
   const r = linearToSrgb(rgb.r)
   const g = linearToSrgb(rgb.g)
   const b255 = linearToSrgb(rgb.b)
@@ -616,7 +602,6 @@ export function applyThemePalette(palette: ThemePalette): void {
     root.style.setProperty('--harmony-primary-alpha-strong', oklchToStringAlpha(primaryOklch.l, primaryOklch.c, primaryOklch.h, 0.25))
   }
   
-  // Convert background colors to OKLCH for proper hue/chroma application
   const bgPrimaryOklch = hexToOklch(palette.bgPrimary)
   const bgSecondaryOklch = hexToOklch(palette.bgSecondary)
   const bgTertiaryOklch = hexToOklch(palette.bgTertiary)
@@ -662,7 +647,6 @@ export function applyThemePalette(palette: ThemePalette): void {
   root.style.setProperty('--border-color', palette.borderPrimary)  // Main border color used by components
   root.style.setProperty('--color-border', palette.borderPrimary)  // Alternative naming
   
-  // Set theme attribute
   root.setAttribute('data-theme', 'custom')
   root.setAttribute('data-theme-type', palette.isLightTheme ? 'light' : 'dark')
   

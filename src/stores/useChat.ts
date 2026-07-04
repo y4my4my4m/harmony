@@ -212,7 +212,6 @@ export const useChatStore = defineStore('chat', {
     async fetchMessages(channelId: string, oldestMessageId: string = '', signal?: AbortSignal) {
       if (this.loadingOlderMessages && oldestMessageId !== '') return;
 
-      // Set currentChannelId immediately so stale-response guards work correctly
       if (oldestMessageId === '' && this.currentChannelId !== channelId) {
         this.currentChannelId = channelId;
       }
@@ -289,7 +288,6 @@ export const useChatStore = defineStore('chat', {
 
         debug.log('✅ Service returned:', { messageCount: messages?.length || 0, hasMore });
 
-        // Process URL embeds asynchronously (non-blocking)
         try {
           ensureMessageEmbeds(messages);
         } catch (error) {
@@ -315,12 +313,10 @@ export const useChatStore = defineStore('chat', {
           this.allMessagesLoaded = true;
           
           // Still set currentChannelId for empty channels!
-          // This ensures real-time messages will be received correctly
           if (oldestMessageId === '' && this.currentChannelId !== channelId) {
             this.currentChannelId = channelId;
             this.messages = []; // Clear any stale messages
             
-            // Create an empty cache entry so real-time messages can be added
             this.messageCache.set(channelId, {
               messages: [],
               lastFetchedAt: new Date(),
@@ -886,10 +882,8 @@ export const useChatStore = defineStore('chat', {
         const reactionsStore = useReactionsStore();
         const result = await reactionsStore.toggleReaction(messageId, emojiId, userId, emojiData);
         
-        if (result.success) {
-          // debug.log('🎯 Reaction successfully toggled');
-        } else if (result.reason === 'duplicate_request') {
-          // debug.log('🎯 Reaction toggle skipped (duplicate request prevented)');
+        if (result.success || result.reason === 'duplicate_request') {
+          // handled
         } else {
           debug.error('🎯 Failed to toggle reaction:', (result as any).message || result.reason);
         }
@@ -1219,7 +1213,6 @@ export const useChatStore = defineStore('chat', {
         const prevDate = new Date(prevMessage.created_at);
         const timeDiff = messageDate.getTime() - prevDate.getTime();
         
-        // Show gap if more than 1 hour difference
         if (timeDiff > 60 * 60 * 1000) {
           return true;
         }
@@ -1230,7 +1223,6 @@ export const useChatStore = defineStore('chat', {
         const nextDate = new Date(nextMessage.created_at);
         const timeDiff = nextDate.getTime() - messageDate.getTime();
         
-        // Show gap if more than 1 hour difference
         if (timeDiff > 60 * 60 * 1000) {
           return true;
         }
@@ -1240,7 +1232,6 @@ export const useChatStore = defineStore('chat', {
     },
 
     highlightMessage(_messageId: string) {
-      // This will be implemented in the component
       // The actual DOM manipulation happens in MessageDisplay component
       // Parameter prefixed with underscore to indicate it's intentionally unused
     },

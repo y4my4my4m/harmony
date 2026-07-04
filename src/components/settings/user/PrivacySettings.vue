@@ -611,7 +611,6 @@ const onUrlStripChange = () => {
 }
 
 const saveSettings = () => {
-  // Save URL tracker stripping setting to localStorage
   setUrlTrackingStrippingEnabled(settings.value.stripUrlTrackers)
   
   emit('update-privacy', settings.value)
@@ -724,7 +723,6 @@ const handlePasswordChange = async () => {
     if (updateError) {
       debug.error('Password update error:', updateError)
       
-      // Handle specific error cases
       if (updateError.message.includes('New password should be different') || 
           updateError.message.includes('same')) {
         passwordErrors.value.newPassword = 'New password must be different from current password'
@@ -746,7 +744,6 @@ const handlePasswordChange = async () => {
       confirmPassword: ''
     }
     
-    // Reset password visibility toggles
     showCurrentPassword.value = false
     showNewPassword.value = false
     showConfirmPassword.value = false
@@ -799,7 +796,6 @@ const startEnroll2FA = async () => {
   showEnroll2FA.value = true
   enrollStep.value = 1
 
-  // Reset 2FA status to ensure it shows as disabled during enrollment
   twoFactorEnabled.value = false
   factorId.value = ''
 
@@ -814,7 +810,6 @@ const startEnroll2FA = async () => {
     totpSecret.value = data.totp.secret
     factorId.value = data.id
 
-    // Generate QR code
     const otpauthUrl = data.totp.uri
     qrCodeDataUrl.value = await QRCode.toDataURL(otpauthUrl, {
       width: 256,
@@ -873,7 +868,6 @@ const verifyAndEnable2FA = async () => {
     }
     recoveryCodes.value = Array.from({ length: 10 }, generateRecoveryCode)
 
-    // Save recovery codes to database
     const userId = authStore.session?.user?.id
     if (userId) {
       const { error: saveError } = await supabase.rpc('save_recovery_codes', {
@@ -893,7 +887,6 @@ const verifyAndEnable2FA = async () => {
     debug.error('2FA verification error:', error)
     twoFactorError.value = error.message || 'Invalid verification code'
     
-    // Clean up unverified factor on error
     if (factorId.value) {
       try {
         const { data: factors } = await supabase.auth.mfa.listFactors()
@@ -915,7 +908,6 @@ const verifyAndEnable2FA = async () => {
 
 const finishEnroll2FA = async () => {
   showEnroll2FA.value = false
-  // Refresh 2FA status to show as enabled now
   await check2FAStatus()
   enrollStep.value = 1
   verificationCode.value = ''
@@ -925,10 +917,8 @@ const finishEnroll2FA = async () => {
 }
 
 const cancelEnroll2FA = async () => {
-  // Clean up enrollment - only unenroll if factor is not verified yet
   if (factorId.value) {
     try {
-      // Check if factor is verified - if not, we can unenroll without AAL2
       const { data: factors } = await supabase.auth.mfa.listFactors()
       const factor = factors?.totp?.find((f: any) => f.id === factorId.value)
       
@@ -952,7 +942,6 @@ const cancelEnroll2FA = async () => {
 }
 
 const onDisable2FACodeInput = () => {
-  // Clear error as the user retypes - same UX as the login MFA modal.
   disable2FAError.value = ''
 }
 
@@ -1104,14 +1093,11 @@ const copyRecoveryCodes = async () => {
   }
 }
 
-// Initialize
 onMounted(async () => {
-  // Load URL tracker stripping setting from localStorage
   settings.value.stripUrlTrackers = isUrlTrackingStrippingEnabled()
 
   const profileId = props.profile?.id
   if (profileId && Date.now() - blocksMutesLastFetchedAt > CACHE_TTL_MS) {
-    // Load blocked users
     try {
       const { data: blocks, error: blocksError } = await supabase
         .from('user_blocks')
@@ -1135,7 +1121,6 @@ onMounted(async () => {
       debug.error('Failed to load blocked users:', e)
     }
 
-    // Load muted users
     try {
       const { data: mutes, error: mutesError } = await supabase
         .from('user_mutes')

@@ -80,13 +80,11 @@ class DMCallSignalingService {
   subscribeToConversation(conversationId: string, onSignal: (signal: CallSignal) => void): () => void {
     const channelName = `dm-call:${conversationId}`
     
-    // Add listener
     if (!this.listeners.has(conversationId)) {
       this.listeners.set(conversationId, new Set())
     }
     this.listeners.get(conversationId)!.add(onSignal)
     
-    // Create channel if doesn't exist
     if (!this.channels.has(conversationId)) {
       const channel = supabase.channel(channelName)
       
@@ -100,7 +98,6 @@ class DMCallSignalingService {
             callType: signal.callType
           })
           
-          // Notify all listeners
           const listeners = this.listeners.get(conversationId)
           if (listeners) {
             debug.log(`📞 Notifying ${listeners.size} listener(s)`)
@@ -116,7 +113,6 @@ class DMCallSignalingService {
       this.channels.set(conversationId, channel)
     }
     
-    // Return unsubscribe function
     return () => {
       const listeners = this.listeners.get(conversationId)
       if (listeners) {
@@ -189,7 +185,6 @@ class DMCallSignalingService {
   ): Promise<void> {
     const startedAt = new Date()
     
-    // Insert system message for the call
     let systemMessageId: string | null = null
     try {
       const { data: msg, error } = await supabase.from('messages').insert({
@@ -222,12 +217,10 @@ class DMCallSignalingService {
       systemMessageId: systemMessageId ?? undefined,
     }
     
-    // Setup timeout timer
     const timeoutTimer = window.setTimeout(() => {
       this.handleCallTimeout(conversationId, callerId)
     }, this.CALL_TIMEOUT_MS)
     
-    // Track active call
     this.setActiveCall(conversationId, {
       conversationId,
       channelId: `dm-${conversationId}`,
@@ -241,7 +234,6 @@ class DMCallSignalingService {
       systemMessageId,
     })
     
-    // Send signal to each receiver's user channel
     for (const receiverId of receiverIds) {
       await this.sendSignalToUser(receiverId, signal)
     }
@@ -289,7 +281,6 @@ class DMCallSignalingService {
     if (call.participants.length === 1 && call.participants[0] === callerId) {
       debug.log('⏰ Call timeout - no answer after 30 seconds')
       
-      // Update system message to show missed call
       await this.finalizeCallMessage(call)
       
       const timeoutSignal: CallSignal = {
@@ -326,7 +317,6 @@ class DMCallSignalingService {
     const call = this.activeCalls.get(conversationId)
     if (!call) return
     
-    // Clear timeout timer since call was answered
     if (call.timeoutTimer) {
       debug.log('⏰ Clearing timeout timer - call accepted')
       clearTimeout(call.timeoutTimer)
@@ -341,7 +331,6 @@ class DMCallSignalingService {
       conversationId
     }
     
-    // Add to participants
     if (!call.participants.includes(userId)) {
       call.participants.push(userId)
     }
@@ -365,7 +354,6 @@ class DMCallSignalingService {
   ): Promise<void> {
     const call = this.activeCalls.get(conversationId)
     
-    // Clear timeout timer if exists
     if (call?.timeoutTimer) {
       clearTimeout(call.timeoutTimer)
     }
@@ -381,7 +369,6 @@ class DMCallSignalingService {
     
     await this.sendSignal(conversationId, signal)
     
-    // Remove from active calls
     this.deleteActiveCall(conversationId)
   }
 
@@ -394,7 +381,6 @@ class DMCallSignalingService {
   ): Promise<void> {
     const call = this.activeCalls.get(conversationId)
     
-    // Clear timeout timer if exists
     if (call?.timeoutTimer) {
       clearTimeout(call.timeoutTimer)
     }
@@ -412,7 +398,6 @@ class DMCallSignalingService {
       conversationId
     }
     
-    // Remove from active calls
     this.deleteActiveCall(conversationId)
     
     await this.sendSignal(conversationId, signal)
@@ -436,7 +421,6 @@ class DMCallSignalingService {
       conversationId
     }
     
-    // Add to participants
     if (!call.participants.includes(userId)) {
       call.participants.push(userId)
     }
@@ -459,7 +443,6 @@ class DMCallSignalingService {
     const call = this.activeCalls.get(conversationId)
     if (!call) return
     
-    // Clear timeout timer
     if (call.timeoutTimer) {
       clearTimeout(call.timeoutTimer)
       call.timeoutTimer = undefined
@@ -470,7 +453,6 @@ class DMCallSignalingService {
       && call.participants.length === 1
       && call.participants[0] === userId
     
-    // Remove from participants
     call.participants = call.participants.filter(id => id !== userId)
     
     if (isCallerCancel) {
@@ -486,7 +468,6 @@ class DMCallSignalingService {
         conversationId
       }
       
-      // Notify on conversation channel
       await this.sendSignal(conversationId, endSignal)
       
       // Notify each receiver on their user channel so GlobalDMCallListener
@@ -642,13 +623,11 @@ class DMCallSignalingService {
         debug.log('📞 Updated local message cache for call system message')
       }
     } catch {
-      // Store not available, realtime will handle it
+      // cache update is best-effort
     }
   }
 
-  // =============================================================================
   // FEDERATED CALL METHODS
-  // =============================================================================
 
   /**
    * Initiate a federated call (to a user on a remote instance)
@@ -664,7 +643,6 @@ class DMCallSignalingService {
     debug.log('📞 [Federated] Initiating federated call to:', calleeFederatedId)
     
     try {
-      // Get LiveKit config from the backend
       const configResponse = await fetch('/api/livekit/config')
       const config = await configResponse.json()
       
@@ -673,10 +651,8 @@ class DMCallSignalingService {
         return null
       }
       
-      // Generate a room name for this federated call
       const roomName = `federated-dm-${conversationId}-${Date.now()}`
       
-      // Get a token for this room
       const { data: { session } } = await supabase.auth.getSession()
       if (!session?.access_token) {
         debug.error('❌ Not authenticated')
@@ -723,7 +699,6 @@ class DMCallSignalingService {
         return null
       }
       
-      // Track as active federated call
       const timeoutTimer = window.setTimeout(() => {
         this.handleFederatedCallTimeout(conversationId, callerId)
       }, this.CALL_TIMEOUT_MS)
@@ -779,25 +754,21 @@ class DMCallSignalingService {
         return null
       }
       
-      // Clear timeout
       if (call.timeoutTimer) {
         clearTimeout(call.timeoutTimer)
         call.timeoutTimer = undefined
       }
       
-      // Add to participants
       if (!call.participants.includes(userId)) {
         call.participants.push(userId)
       }
       
-      // Get federated token from caller's instance
       const { data: { session } } = await supabase.auth.getSession()
       if (!session?.access_token) {
         debug.error('❌ Not authenticated')
         return null
       }
       
-      // Send accept via ActivityPub
       await fetch('/api/livekit/federated-call/accept', {
         method: 'POST',
         headers: {
@@ -810,7 +781,6 @@ class DMCallSignalingService {
         }),
       })
       
-      // Return connection info
       return {
         token: '', // Token will be fetched when connecting
         wsUrl: call.livekitUrl || '',
@@ -838,7 +808,6 @@ class DMCallSignalingService {
         clearTimeout(call.timeoutTimer)
       }
       
-      // Send decline via ActivityPub
       const { data: { session } } = await supabase.auth.getSession()
       if (session?.access_token) {
         await fetch('/api/livekit/federated-call/reject', {
@@ -877,7 +846,6 @@ class DMCallSignalingService {
         clearTimeout(call.timeoutTimer)
       }
       
-      // Send end via ActivityPub
       const { data: { session } } = await supabase.auth.getSession()
       if (session?.access_token) {
         await fetch('/api/livekit/federated-call/end', {
@@ -912,7 +880,6 @@ class DMCallSignalingService {
     if (call.participants.length === 1) {
       this.deleteActiveCall(conversationId)
       
-      // Notify UI of timeout
       const listeners = this.listeners.get(conversationId)
       if (listeners) {
         const signal: CallSignal = {
@@ -956,7 +923,6 @@ class DMCallSignalingService {
       })
       .on('broadcast', { event: 'call-accepted' }, (payload) => {
         debug.log('📞 [Federated] Call accepted:', payload.payload)
-        // Update active call state
         const { callId } = payload.payload
         const call = this.activeCalls.get(callId)
         if (call && call.timeoutTimer) {
@@ -990,7 +956,6 @@ class DMCallSignalingService {
    * Cleanup all channels
    */
   cleanup(): void {
-    // Clear all timeout timers
     this.activeCalls.forEach(call => {
       if (call.timeoutTimer) {
         clearTimeout(call.timeoutTimer)

@@ -216,7 +216,7 @@
 
 <script setup lang="ts">
 // TODO: Consider virtualizing conversation list for users with many DMs
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onUnmounted } from 'vue'
 import Icon from '@/components/common/Icon.vue'
 import { useDMStore, type DMUser, type DMConversation } from '@/stores/useDM'
 import { useActivityPubStore } from '@/stores/useActivityPub'
@@ -292,7 +292,6 @@ const getConversationAvatarUrl = (conversation: DMConversation): string => {
   return getUserAvatarUrl(conversation.other_user.id).value || conversation.other_user.avatar_url || ''
 }
 
-// Get user status for avatar display (presence-aware)
 const getUserStatus = (userId: string): 'online' | 'away' | 'busy' | 'offline' => {
   try {
     const status = getPresenceAwareStatus(userId).value;
@@ -306,7 +305,6 @@ const getUserStatus = (userId: string): 'online' | 'away' | 'busy' | 'offline' =
   }
 }
 
-// Get conversation user status (optimized for placeholder data)
 const getConversationUserStatus = (conversation: DMConversation): 'online' | 'away' | 'busy' | 'offline' => {
   if (!conversation.other_user?.id) {
     debug.log('DMSidebar - No other_user.id for conversation:', conversation.id);
@@ -471,7 +469,6 @@ const handleConversationHover = async (conversationId: string) => {
   hoveredConversations.value.add(conversationId)
   
   try {
-    // Load user profile for this conversation on demand
     const success = await dmStore.loadConversationUserProfile(conversationId)
     
     if (success) {
@@ -487,36 +484,8 @@ const handleConversationHover = async (conversationId: string) => {
   }
 }
 
-// Lifecycle
-onMounted(async () => {
-  const currentUser = getCurrentUser.value
-  if (currentUser?.id) {
-    // Don't initialize DM environment again - BaseLayout already handles it
-    // Just wait for conversations to be available if they're being loaded
-    if (dmStore.loadingConversations) {
-      debug.log('⏳ DMSidebar: Waiting for DM conversations to load...')
-      
-      // Wait for conversations to be loaded
-      const checkConversations = () => {
-        return new Promise<void>((resolve) => {
-          const interval = setInterval(() => {
-            if (!dmStore.loadingConversations) {
-              clearInterval(interval)
-              resolve()
-            }
-          }, 50)
-        })
-      }
-      
-      await checkConversations()
-    }
-    
-    debug.log('✅ DMSidebar: Ready with optimized loading')
-    
-    // Don't load all user presence immediately
-    // User profiles and presence will be loaded on-demand when conversations are hovered
-  }
-})
+// DM environment is initialized by BaseLayout; conversations stream into the
+// store on their own. Profiles/presence load on-demand on hover.
 
 onUnmounted(() => {
   if (searchTimeout.value) {

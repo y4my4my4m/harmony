@@ -29,7 +29,7 @@ import { KLIPY_AD_MAX_HEIGHT } from '@/utils/klipyAdContext';
 export type GifAdLayout = 'banner' | 'inline';
 
 /**
- * Renders a Klipy ad (ad-iframe=0 HTML blob) in a sandboxed iframe — the web
+ * Renders a Klipy ad (ad-iframe=0 HTML blob) in a sandboxed iframe - the web
  * equivalent of Klipy's recommended WebView. `banner` = full-width row in the
  * picker masonry feed; `inline` = wider tile in the /gif horizontal strip.
  */

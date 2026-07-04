@@ -50,7 +50,6 @@ export default defineComponent({
         const fileArray = Array.from(files);
         emit('files-selected', fileArray);
         
-        // Reset the input
         if (target) {
           target.value = '';
         }

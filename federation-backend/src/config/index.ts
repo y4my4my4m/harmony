@@ -1,7 +1,6 @@
 import { config as dotenvConfig } from 'dotenv';
 import { z } from 'zod';
 
-// Load environment variables
 dotenvConfig();
 
 // Environment validation schema
@@ -113,7 +112,6 @@ const envSchema = z.object({
   ),
 });
 
-// Validate and export configuration
 const parseEnv = () => {
   try {
     const parsed = envSchema.parse(process.env);

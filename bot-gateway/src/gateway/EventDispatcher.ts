@@ -47,7 +47,6 @@ export class EventDispatcher {
   
   // Track message versions for edit detection (includes channel_id for delete dispatch)
   private messageVersions: Map<string, { updated_at: string, content: string, channel_id: string, metadata: any }> = new Map()
-  // Track known message IDs for delete detection
   private knownMessageIds: Set<string> = new Set()
 
   // Read-mostly lookup caches - see CHANNEL_TO_SERVER_TTL_MS comment above.
@@ -77,7 +76,6 @@ export class EventDispatcher {
   async start() {
     console.log('🎯 Starting Event Dispatcher...')
     
-    // Initialize known messages for a recent window (for delete detection)
     await this.initializeKnownMessages()
     await this.initializeKnownReactions()
     
@@ -379,7 +377,6 @@ export class EventDispatcher {
               metadata: msg.metadata
             } 
           })
-          // Remove from cache
           this.knownMessageIds.delete(msg.id)
           this.messageVersions.delete(msg.id)
           continue
@@ -419,7 +416,6 @@ export class EventDispatcher {
             console.error(`❌ handleMessageUpdate failed for ${id}:`, err)
           }
           
-          // Update cache with new content
           this.messageVersions.set(id, {
             updated_at: current.updated_at,
             content: current.content,
@@ -442,7 +438,6 @@ export class EventDispatcher {
   
   private async pollMessages() {
     try {
-      // Get messages created since last check
       const { data: messages, error } = await supabase
         .from('messages')
         .select('*')
@@ -467,7 +462,6 @@ export class EventDispatcher {
             this.processedMessageIds.add(message.id)
             this.lastProcessedTimestamp = new Date(message.created_at)
             
-            // Add to version cache for edit/delete tracking
             this.knownMessageIds.add(message.id)
             this.messageVersions.set(message.id, {
               updated_at: message.updated_at,
@@ -517,14 +511,12 @@ export class EventDispatcher {
     // Note: We DO dispatch bot messages so other bots can see them
     // Each bot should filter out its own messages using the author.id
     
-    // Get server ID from channel (cached, see resolveServerId).
     const serverId = await this.resolveServerId(message.channel_id)
     if (!serverId) {
       console.log('⚠️  No server ID found, skipping dispatch');
       return
     }
     
-    // Get bots with permissions in this server (cached).
     const botPermissions = await this.resolveBotPermissions(serverId)
     
     console.log(`🔍 Found ${botPermissions.length} bots with read_messages permission in server ${serverId}`);
@@ -534,7 +526,6 @@ export class EventDispatcher {
       return
     }
     
-    // Format and dispatch event
     const event = {
       op: 0,
       t: 'MESSAGE_CREATE',
@@ -559,7 +550,6 @@ export class EventDispatcher {
     const botPermissions = await this.resolveBotPermissions(serverId)
     if (botPermissions.length === 0) return
     
-    // Format and dispatch event
     const formattedMessage = await this.formatMessage(message)
     const event = {
       op: 0,
@@ -592,7 +582,6 @@ export class EventDispatcher {
       return
     }
     
-    // Format and dispatch event
     const event = {
       op: 0,
       t: 'MESSAGE_DELETE',
@@ -633,7 +622,6 @@ export class EventDispatcher {
       return undefined
     }
     
-    // Remove leading slash if present
     const cleanPath = avatarPath.startsWith('/') ? avatarPath.slice(1) : avatarPath
     
     // Construct full URL with image optimization params
@@ -679,7 +667,6 @@ export class EventDispatcher {
   }
 
   private async formatMessage(message: any) {
-    // Get author info - could be user or bot
     let author = null
 
     // Discord-bridged messages carry the original user's profile inline; no DB hit.

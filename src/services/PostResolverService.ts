@@ -64,7 +64,6 @@ async function loadPostFromDb(postId: string): Promise<TimelinePost | null> {
   if (error || !data) return null
   const post = formatPost(data)
 
-  // Fetch current user's interactions for favorite icon in embeds
   try {
     const { authContextService } = await import('@/services/AuthContextService')
     const profileId = await authContextService.getCurrentProfileId()
@@ -149,7 +148,6 @@ class PostResolverServiceImpl {
       return { post: await loadPostFromDb(existing.id), wasImported: false }
     }
 
-    // Import via federation backend
     const importedId = await importRemotePost(url)
     if (importedId) {
       return { post: await loadPostFromDb(importedId), wasImported: true }

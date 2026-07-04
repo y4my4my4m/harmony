@@ -8,7 +8,7 @@ const PRESENCE_POLL_MS = 60_000
 
 /**
  * Ephemeral bridged (Discord) members for a Harmony channel.
- * Shares cache with mention autocomplete — one fetch per channel per TTL.
+ * Shares cache with mention autocomplete - one fetch per channel per TTL.
  * Polls periodically while mounted so Discord presence stays reasonably fresh.
  */
 export function useBridgedChannelUsers(channelId: MaybeRefOrGetter<string | null | undefined>) {

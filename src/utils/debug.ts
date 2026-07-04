@@ -12,7 +12,6 @@
  * debug.error('Error message') // Always logs in dev, errors are important
  */
 
-// Check if debug logging is enabled
 const isDebugEnabled = (): boolean => {
   // In production, never log debug messages
   // if (!import.meta.env.DEV) return false

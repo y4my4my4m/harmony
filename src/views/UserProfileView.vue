@@ -536,7 +536,6 @@ const userColor = computed(() => {
 const bannerStyle = computed(() => {
   const banner = bannerUrl.value
   if (banner) {
-    // Get optimized banner URL with proper resize (640x350 at 80% quality)
     const optimizedBanner = getBannerUrl(banner, { width: 640, height: 350, quality: 80 })
     return {
       backgroundImage: `url(${optimizedBanner || banner})`,
@@ -674,12 +673,10 @@ const loadUserProfile = async (handle: string, forceRefresh: boolean = false) =>
     
     debug.log(`🔍 Processing handle: ${handle}`);
     
-    // Check if it's a federated handle (contains @) or local handle
     if (handle.includes('@')) {
       debug.log(`🌐 Resolving federated user...${forceRefresh ? ' (force refresh)' : ''}`);
       user.value = await activityPubService.getUserByHandle(handle, forceRefresh);
       
-      // Save outbox URL for remote pagination (if remote user)
       if (user.value && !user.value.is_local && (user.value as any).outbox_url) {
         remoteOutboxUrl.value = (user.value as any).outbox_url;
         debug.log(`📬 Saved outbox URL for remote pagination: ${remoteOutboxUrl.value}`);
@@ -701,12 +698,10 @@ const loadUserProfile = async (handle: string, forceRefresh: boolean = false) =>
         if (currentUser && currentUsername === handle) {
           debug.log('✅ Loading current user profile...');
           
-          // Load current user's profile
           await profileStore.fetchProfile(currentUser.id);
           const profile = profileStore.profile;
           
           if (profile) {
-            // Get accurate post count - use the same consistent approach
             let posts_count = 0;
             try {
               // Try to get a sample of posts to validate the user exists and has posts
@@ -744,7 +739,6 @@ const loadUserProfile = async (handle: string, forceRefresh: boolean = false) =>
           // Try to find user by username in the system
           debug.log('🔎 Searching for user in system...');
           
-          // Create a basic user object for display
           user.value = {
             id: handle,
             username: handle,
@@ -771,7 +765,6 @@ const loadUserProfile = async (handle: string, forceRefresh: boolean = false) =>
         following: user.value.following_count,
         followers: user.value.followers_count
       });
-      // Load posts, pinned posts, following, and followers in parallel
       await Promise.all([
         loadUserPosts(),
         loadPinnedPosts(),
@@ -873,7 +866,6 @@ const loadFollowing = async () => {
     debug.log(`👥 Loading following for user: ${user.value.username} (ID: ${user.value.id})`);
     
     // Use consistent getFollowing method for all users
-    // This ensures the same data structure and behavior regardless of whether it's the current user or not
     const following = await activityPubService.getFollowing(user.value.id, { limit: 50 });
     followingUsers.value = following || [];
     
@@ -894,7 +886,6 @@ const loadFollowers = async () => {
     debug.log(`👥 Loading followers for user: ${user.value.username} (ID: ${user.value.id})`);
     
     // Use consistent getFollowers method for all users
-    // This ensures the same data structure and behavior regardless of whether it's the current user or not
     const followers = await activityPubService.getFollowers(user.value.id, { limit: 50 });
     followerUsers.value = followers || [];
     
@@ -934,7 +925,6 @@ const loadMorePosts = async () => {
       debug.log(`🌐 Fetching more posts from remote outbox...`);
       
       try {
-        // Get oldest post ID for pagination
         const oldestPost = userPosts.value[userPosts.value.length - 1];
         const maxId = oldestPost?.ap_id || oldestRemotePostId.value;
         
@@ -1227,15 +1217,12 @@ watch(currentHandle, async (newHandle, oldHandle) => {
   }
 }, { immediate: true });
 
-// Initialize store on mount (profile loading handled by watcher above)
 onMounted(async () => {
   debug.log(`🔄 UserProfileView mounted with handle: ${currentHandle.value}`);
   
-  // Initialize ActivityPub store to load followed users
   await activityPubStore.initialize();
 });
 
-// Close actions menu when clicking outside
 const handleClickOutside = (event: Event) => {
   if (showActionsMenu.value) {
     const target = event.target as Element;

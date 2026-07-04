@@ -9,10 +9,8 @@ import { EmojiFavoriteService } from '@/services/EmojiFavoriteService';
 import { invalidateEmojiResolverCache } from '@/services/emojiShortcodeResolver';
 
 const cleanFileName = (originalName: string) => {
-    // Remove unwanted characters and trim leading/trailing spaces
     let name = originalName.replace(/[^\w\s.-]/gi, '').trim();
 
-    // Remove leading/trailing periods and extra spaces
     name = name.replace(/^[.]+|[.]+$/g, "").replace(/\s+/g, ' ');
 
     // Handle multiple extensions: keep the last part after splitting by '.'
@@ -20,7 +18,6 @@ const cleanFileName = (originalName: string) => {
     const extension = parts.pop(); // Extract the extension
     let fileNameWithoutExtension = parts.join('.').trim();
 
-    // Remove ALL spaces from the emoji name
     fileNameWithoutExtension = fileNameWithoutExtension.replace(/\s+/g, '');
 
     // Limit to 20 characters
@@ -82,7 +79,6 @@ async function recordEmojiUsage(
     }
 }
 
-// Get detailed emoji analytics for a server
 async function getDetailedEmojiAnalytics(serverId: string, userId?: string, limit = 10) {
     try {
         const { data, error } = await supabase.rpc('get_emoji_usage_analytics', {
@@ -103,7 +99,6 @@ async function getDetailedEmojiAnalytics(serverId: string, userId?: string, limi
     }
 }
 
-// Get user's personal emoji statistics
 async function getUserEmojiStats(userId: string, serverId?: string, limit = 20) {
     try {
         const { data, error } = await supabase.rpc('get_user_emoji_stats', {
@@ -228,7 +223,6 @@ async function uploadEmoji(serverId: string, userId: string, file: File): Promis
 
         const { name: cleanedName, extension } = cleanFileName(file.name);
         
-        // Check if the emoji name already exists and find a unique name
         let uniqueName = cleanedName;
         let counter = 1;
         while (await doesEmojiNameExist(serverId, uniqueName)) {
@@ -246,14 +240,12 @@ async function uploadEmoji(serverId: string, userId: string, file: File): Promis
 
         if (error) throw error;
 
-        // Retrieve the file URL
         const { data } = await supabase.storage
             .from('emojis')
             .getPublicUrl(filePath);
 
         debug.log("Emoji uploaded successfully");
 
-        // Add entry to database
         const newEmoji = {
             name: uniqueName,
             url: data.publicUrl,
@@ -290,7 +282,6 @@ async function deleteEmoji(emojiId: string): Promise<boolean> {
             return false;
         }
 
-        // Delete from storage
         const urlParts = emoji.url.split('/');
         const fileName = urlParts[urlParts.length - 1];
         const filePath = `${emoji.server_id}/${emoji.uploader}/${fileName}`;
@@ -304,7 +295,6 @@ async function deleteEmoji(emojiId: string): Promise<boolean> {
             // Continue with database deletion even if storage fails
         }
 
-        // Delete from database
         const { error: dbError } = await supabase
             .from('emojis')
             .delete()
@@ -331,7 +321,6 @@ async function renameEmoji(emojiId: string, newName: string, serverId: string): 
     const emojiCache = useEmojiCacheStore();
     
     try {
-        // Get current emoji to check if name is actually changing
         const currentEmoji = await getEmoji(emojiId);
         if (!currentEmoji) {
             throw new Error('Emoji not found');
@@ -350,12 +339,10 @@ async function renameEmoji(emojiId: string, newName: string, serverId: string): 
             return true;
         }
         
-        // Check if the new name already exists
         if (await doesEmojiNameExist(serverId, cleanedName)) {
             throw new Error('An emoji with this name already exists');
         }
         
-        // Update the emoji name in the database
         const { error } = await supabase
             .from('emojis')
             .update({ name: cleanedName })
@@ -380,7 +367,6 @@ async function bulkDeleteEmojis(emojiIds: string[]): Promise<{ success: string[]
     
     debug.log(`Starting bulk deletion of ${emojiIds.length} emojis`);
 
-    // Fetch all emojis in one query
     const { data: emojis, error: fetchError } = await supabase
         .from('emojis')
         .select('*')
@@ -393,7 +379,6 @@ async function bulkDeleteEmojis(emojiIds: string[]): Promise<{ success: string[]
 
     const emojiMap = new Map((emojis || []).map(e => [e.id, e]));
 
-    // Build storage paths for batch removal
     const storagePaths: string[] = [];
     for (const emoji of emojis || []) {
         const urlParts = emoji.url.split('/');
@@ -547,12 +532,10 @@ async function searchEmojis(query: string, options: {
     }
 }
 
-// Get emoji analytics for a server
 async function getServerEmojiAnalytics(serverId: string) {
     const emojiCache = useEmojiCacheStore();
     const serverEmojis = emojiCache.getServerEmojis(serverId);
     
-    // Get usage statistics from cache
     const analytics = {
         totalEmojis: serverEmojis.length,
         mostUsedEmojis: serverEmojis
@@ -588,7 +571,6 @@ async function getServerEmojiAnalytics(serverId: string) {
 // Preload frequently used emojis
 async function preloadFrequentEmojis(serverIds: string[] = []) {
     try {
-        // Get most used emojis from analytics
         const { data, error } = await supabase
             .rpc('get_most_used_emojis', { 
                 server_ids: serverIds.length > 0 ? serverIds : null,

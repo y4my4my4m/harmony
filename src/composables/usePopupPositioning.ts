@@ -65,7 +65,6 @@ export function calculatePopupPosition(
   const triggerRect = triggerElement.getBoundingClientRect();
   const { width: popupWidth, height: popupHeight } = popupDimensions;
   
-  // Calculate positions for each direction
   const positions = {
     above: {
       x: triggerRect.left + (triggerRect.width / 2) - (popupWidth / 2),
@@ -89,7 +88,6 @@ export function calculatePopupPosition(
     }
   };
 
-  // Check if position fits within viewport
   const fitsInViewport = (pos: PopupPositionResult) => {
     return pos.x >= viewport.padding &&
            pos.y >= viewport.padding &&

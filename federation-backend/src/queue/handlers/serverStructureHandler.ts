@@ -21,7 +21,6 @@ export async function handleChannelCrudJob(data: FederationJobData): Promise<voi
   logger.info(`📢 Processing channel ${type} job for channel ${channel_id}`);
 
   try {
-    // Import the handlers from DatabaseListener
     const { 
       handleChannelCreated, 
       handleChannelUpdated, 
@@ -37,7 +36,6 @@ export async function handleChannelCrudJob(data: FederationJobData): Promise<voi
       
       if (channel && !channel.is_remote) {
         await handleChannelCreated(channel);
-        // Mark as completed
         await supabase
           .from('channels')
           .update({ federation_status: 'completed' })
@@ -54,7 +52,6 @@ export async function handleChannelCrudJob(data: FederationJobData): Promise<voi
       if (channel && !channel.is_remote) {
         // For update, we pass new and old (old is same as new for sweep-based)
         await handleChannelUpdated(channel, channel);
-        // Mark as completed
         await supabase
           .from('channels')
           .update({ federation_status: 'completed' })
@@ -70,7 +67,6 @@ export async function handleChannelCrudJob(data: FederationJobData): Promise<voi
 
   } catch (error) {
     logger.error(`Failed to federate channel ${type} ${channel_id}:`, error);
-    // Mark as failed
     await supabase
       .from('channels')
       .update({ federation_status: 'failed' })
@@ -105,7 +101,6 @@ export async function handleCategoryCrudJob(data: FederationJobData): Promise<vo
         .single();
       
       if (category) {
-        // Convert category to channel-like format for the handler
         const categoryAsChannel = {
           id: category.id,
           name: category.name,
@@ -115,7 +110,6 @@ export async function handleCategoryCrudJob(data: FederationJobData): Promise<vo
           is_remote: false,
         };
         await handleChannelCreated(categoryAsChannel);
-        // Mark as completed
         await supabase
           .from('channel_categories')
           .update({ federation_status: 'completed' })
@@ -139,7 +133,6 @@ export async function handleCategoryCrudJob(data: FederationJobData): Promise<vo
           is_remote: false,
         };
         await handleChannelUpdated(categoryAsChannel, categoryAsChannel);
-        // Mark as completed
         await supabase
           .from('channel_categories')
           .update({ federation_status: 'completed' })
@@ -160,7 +153,6 @@ export async function handleCategoryCrudJob(data: FederationJobData): Promise<vo
 
   } catch (error) {
     logger.error(`Failed to federate category ${type} ${category_id}:`, error);
-    // Mark as failed
     await supabase
       .from('channel_categories')
       .update({ federation_status: 'failed' })
@@ -179,7 +171,6 @@ export async function handleServerUpdateJob(data: FederationJobData): Promise<vo
   logger.info(`🏠 Processing server update job for server ${server_id}`);
 
   try {
-    // Import the handler from DatabaseListener
     const { handleServerUpdated } = await import('../../listeners/DatabaseListener.js');
 
     const { data: server } = await supabase

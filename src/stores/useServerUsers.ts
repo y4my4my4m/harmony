@@ -429,7 +429,6 @@ export const useServerUsersStore = defineStore('serverUsers', {
         if (this.usersInVoiceChannels[channelId]) {
           this.usersInVoiceChannels[channelId] = this.usersInVoiceChannels[channelId].filter(id => id !== userId);
           
-          // Clear call start time if last user left
           if (this.usersInVoiceChannels[channelId].length === 0) {
             delete this.voiceChannelCallStartTimes[channelId];
             debug.log(`🕐 Cleared call start time for channel ${channelId}`);
@@ -489,7 +488,6 @@ export const useServerUsersStore = defineStore('serverUsers', {
       if (this.usersInVoiceChannels[channelId]) {
         this.usersInVoiceChannels[channelId] = this.usersInVoiceChannels[channelId].filter(id => id !== userId);
         
-        // Clear call start time if last user left
         if (this.usersInVoiceChannels[channelId].length === 0) {
           delete this.voiceChannelCallStartTimes[channelId];
         }

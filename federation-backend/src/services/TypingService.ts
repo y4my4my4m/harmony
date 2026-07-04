@@ -120,7 +120,6 @@ class TypingServiceSingleton {
         }
       }
 
-      // Clean up stale entries
       if (stale.length > 0) {
         redis.hdel(hashKey, ...stale).catch(() => {});
       }

@@ -44,7 +44,6 @@ const emit = defineEmits<{
   unfollowUser: [user: FederatedUser]
 }>()
 
-// Store
 const activityPubStore = useActivityPubStore()
 
 // State
@@ -61,7 +60,6 @@ const hasMoreNotifications = computed(() => {
   return (activityPubStore as any).hasMoreNotifications
 })
 
-// Load notifications
 const loadNotifications = async () => {
   isLoadingNotifications.value = true
   try {

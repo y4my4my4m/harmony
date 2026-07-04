@@ -158,14 +158,12 @@ const handleCreation = async () => {
     return
   }
   
-  // Validate input
   const validationError = validateCategoryName(trimmedName)
   if (validationError) {
     errorMessage.value = validationError
     return
   }
   
-  // Clear any previous errors
   errorMessage.value = ''
   isCreating.value = true
   
@@ -196,7 +194,6 @@ const handleCreation = async () => {
   }
 }
 
-// Clear error when user starts typing
 const clearErrorOnInput = () => {
   if (errorMessage.value) {
     errorMessage.value = ''

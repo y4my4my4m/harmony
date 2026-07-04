@@ -6,7 +6,7 @@ import { ActivityProcessor } from './ActivityProcessor.js';
 import { FederatedInstanceService } from '../services/FederatedInstanceService.js';
 import { logger } from '../utils/logger.js';
 import config from '../config/index.js';
-import { inboxLimiter } from '../middleware/rateLimit.js';
+import { inboxLimiter, instanceInboxLimiter } from '../middleware/rateLimit.js';
 import { pgrstEscape } from '../utils/postgrestFilter.js';
 
 const router = Router();
@@ -43,6 +43,7 @@ async function resolveBearerProfileId(req: Request): Promise<string | null> {
 router.post(
   '/inbox',
   inboxLimiter,
+  instanceInboxLimiter,
   asyncHandler(async (req: Request, res: Response) => {
     logger.info(`📮 POST to /inbox (shared inbox) from ${req.ip}`);
     logger.info(`Headers:`, {
@@ -62,6 +63,7 @@ router.post(
 router.post(
   '/users/:username/inbox',
   inboxLimiter,
+  instanceInboxLimiter,
   asyncHandler(async (req: Request, res: Response) => {
     logger.info(`📮 POST to /users/${req.params.username}/inbox from ${req.ip}`);
     logger.info(`Headers:`, {
@@ -96,7 +98,6 @@ router.get(
     const maxDate = req.query.max_date as string | undefined;
     const supabase = getSupabaseClient();
 
-    // Get user
     const { data: user, error: userError } = await supabase
       .from('profiles')
       .select('id, federated_id')
@@ -124,43 +125,11 @@ router.get(
     const baseUrl = `https://${config.INSTANCE_DOMAIN}`;
     const inboxUrl = `${baseUrl}/users/${username}/inbox`;
 
-    // If no page/cursor, return collection metadata
-    if (!page && !cursor) {
-      // Query activities where user's federated_id is in to_addresses or cc_addresses
-      // Use PostgreSQL array contains operator (cs) via or() filter
-      // Escape double quotes for PostgreSQL array syntax (array values are double-quoted)
-      const escapedId = pgrstEscape(user.federated_id);
-      let countQuery = supabase
-        .from('ap_activities')
-        .select('*', { count: 'exact', head: true })
-        .or(`to_addresses.cs.{"${escapedId}"},cc_addresses.cs.{"${escapedId}"}`)
-        .eq('is_local', false);
-
-      // Apply type filter to count if specified
-      if (activityType) {
-        countQuery = countQuery.eq('ap_type', activityType);
-      }
-
-      const { count } = await countQuery;
-
-      res.setHeader('Content-Type', 'application/activity+json');
-      // Allow caching for 5 minutes
-      res.setHeader('Cache-Control', 'public, max-age=300');
-      res.json({
-        '@context': 'https://www.w3.org/ns/activitystreams',
-        id: inboxUrl,
-        type: 'OrderedCollection',
-        totalItems: count || 0,
-        first: `${inboxUrl}?cursor=start&limit=${limit}`,
-      });
-      return;
-    }
-
-    // AUTHORIZATION: the paginated branch returns full `activity_data`, which is
-    // private inbox content. ActivityPub delivery is POST-based, so remote
-    // servers never need to GET another user's inbox items. Require the caller
-    // to be the inbox owner (or admin). Unauthorized callers get an empty,
-    // owner-only OrderedCollectionPage rather than someone else's activities.
+    // AUTHORIZATION: inbox contents (and their counts) are private. ActivityPub
+    // delivery is POST-based, so remote servers never need to GET another
+    // user's inbox. Only the owner (or an admin) sees real data; everyone else
+    // gets an empty, correctly-shaped collection instead of an error, which
+    // avoids leaking whether the inbox exists or how active it is.
     const authedProfileId = await resolveBearerProfileId(req);
     const isOwner = authedProfileId !== null && authedProfileId === user.id;
     let isAdmin = false;
@@ -172,7 +141,51 @@ router.get(
         .maybeSingle();
       isAdmin = !!adminProfile?.is_admin;
     }
-    if (!isOwner && !isAdmin) {
+    const isAuthorized = isOwner || isAdmin;
+
+    // If no page/cursor, return collection metadata
+    if (!page && !cursor) {
+      if (!isAuthorized) {
+        res.setHeader('Content-Type', 'application/activity+json');
+        res.json({
+          '@context': 'https://www.w3.org/ns/activitystreams',
+          id: inboxUrl,
+          type: 'OrderedCollection',
+          totalItems: 0,
+          first: `${inboxUrl}?cursor=start&limit=${limit}`,
+        });
+        return;
+      }
+      // Query activities where user's federated_id is in to_addresses or cc_addresses
+      // Use PostgreSQL array contains operator (cs) via or() filter
+      // Escape double quotes for PostgreSQL array syntax (array values are double-quoted)
+      const escapedId = pgrstEscape(user.federated_id);
+      let countQuery = supabase
+        .from('ap_activities')
+        .select('*', { count: 'exact', head: true })
+        .or(`to_addresses.cs.{"${escapedId}"},cc_addresses.cs.{"${escapedId}"}`)
+        .eq('is_local', false);
+
+      if (activityType) {
+        countQuery = countQuery.eq('ap_type', activityType);
+      }
+
+      const { count } = await countQuery;
+
+      res.setHeader('Content-Type', 'application/activity+json');
+      // Allow caching for 5 minutes
+      res.setHeader('Cache-Control', 'private, max-age=300');
+      res.json({
+        '@context': 'https://www.w3.org/ns/activitystreams',
+        id: inboxUrl,
+        type: 'OrderedCollection',
+        totalItems: count || 0,
+        first: `${inboxUrl}?cursor=start&limit=${limit}`,
+      });
+      return;
+    }
+
+    if (!isAuthorized) {
       res.setHeader('Content-Type', 'application/activity+json');
       res.json({
         '@context': 'https://www.w3.org/ns/activitystreams',
@@ -197,7 +210,6 @@ router.get(
       .order('created_at', { ascending: false })
       .limit(limit + 1);
 
-    // Apply cursor (timestamp-based for efficient pagination)
     if (cursor && cursor !== 'start') {
       const { data: cursorActivity } = await supabase
         .from('ap_activities')
@@ -215,12 +227,10 @@ router.get(
       query = query.range(offset, offset + limit - 1);
     }
 
-    // Apply type filter
     if (activityType) {
       query = query.eq('ap_type', activityType);
     }
 
-    // Apply date range filters
     if (minDate) {
       query = query.gte('created_at', minDate);
     }
@@ -240,9 +250,7 @@ router.get(
     const items = (activities || []).slice(0, limit);
     const lastItem = items[items.length - 1];
 
-    // Return activities from activity_data (full ActivityPub format)
     const orderedItems = items.map((activity: any) => {
-      // Return the full activity from activity_data, ensuring it has required fields
       const activityData = activity.activity_data || {};
       return {
         '@context': activityData['@context'] || 'https://www.w3.org/ns/activitystreams',
@@ -264,7 +272,6 @@ router.get(
       orderedItems,
     };
 
-    // Add pagination links
     if (hasMore && lastItem?.id) {
       response.next = `${inboxUrl}?cursor=${lastItem.id}&limit=${limit}`;
     }
@@ -276,7 +283,7 @@ router.get(
 
     res.setHeader('Content-Type', 'application/activity+json');
     // Allow caching for 5 minutes
-    res.setHeader('Cache-Control', 'public, max-age=300');
+    res.setHeader('Cache-Control', 'private, max-age=300');
     res.json(response);
   })
 );
@@ -294,7 +301,6 @@ async function handleInbox(
   logger.debug(`handleInbox called for user: ${username || 'shared inbox'}`);
   logger.debug(`Raw body type: ${typeof activity}, is null: ${activity === null}`);
 
-  // Validate activity structure
   if (!activity || !activity.type || !activity.actor) {
     logger.warn(`Invalid activity structure - type: ${activity?.type}, actor: ${activity?.actor}`);
     res.status(400).json({ error: 'Invalid activity' });
@@ -303,7 +309,6 @@ async function handleInbox(
 
   logger.info(`📥 Received ${activity.type} activity from ${activity.actor}`);
 
-  // Check if the sending instance is blocked (O(1) in-memory lookup)
   try {
     const actorUrl = new URL(activity.actor);
     const actorDomain = actorUrl.hostname;
@@ -364,7 +369,6 @@ async function handleInbox(
       }
     } else {
       // Verify the actor in the activity matches the signing key's owner
-      // This prevents someone from signing an activity on behalf of another user
       if (verification.actorUrl && actorUrl) {
         const actorMatch = SignatureService.verifyActorMatch(actorUrl, verification.actorUrl);
         if (!actorMatch) {
@@ -438,7 +442,6 @@ async function handleInbox(
     }
   }
 
-  // Store activity in database (idempotent)
   const supabase = getSupabaseClient();
   // actorUrl already extracted above during signature verification
   let originDomain: string | null = null;
@@ -472,13 +475,39 @@ async function handleInbox(
     return;
   }
 
-  // Process activity
+  // Idempotency: only the first delivery of an activity may run side effects.
+  // Redeliveries (retries, relays) find the row completed/processing and are
+  // acknowledged without re-processing.
+  const { data: claimed, error: claimError } = await supabase.rpc('claim_ap_activity', {
+    p_ap_id: activity.id,
+  });
+  if (claimError) {
+    logger.error('Failed to claim activity for processing:', claimError);
+    res.status(500).json({ error: 'Failed to claim activity' });
+    return;
+  }
+  if (!claimed) {
+    logger.info(`↩️ Skipping already-processed ${activity.type} activity ${activity.id}`);
+    res.status(202).json({ message: 'Activity already processed' });
+    return;
+  }
+
   try {
     await ActivityProcessor.processIncomingActivity(activity);
     logger.info(`✅ Processed ${activity.type} activity`);
+    await supabase.rpc('complete_ap_activity', { p_ap_id: activity.id, p_success: true });
     res.status(202).json({ message: 'Activity accepted' });
   } catch (error) {
     logger.error('Failed to process activity:', error);
+    await supabase
+      .rpc('complete_ap_activity', {
+        p_ap_id: activity.id,
+        p_success: false,
+        p_error: error instanceof Error ? error.message : String(error),
+      })
+      .then(({ error: rpcError }) => {
+        if (rpcError) logger.error('Failed to mark activity failed:', rpcError);
+      });
     // Still return success to sender (we've stored it)
     res.status(202).json({ message: 'Activity accepted' });
   }

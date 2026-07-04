@@ -22,7 +22,6 @@ export function useTypingIndicator(context: TypingContext | null | (() => Typing
   let isSubscribing = false
   let pendingContextKey: string | null = null
 
-  // Handle both computed refs and direct values
   const getContext = () => {
     if (typeof context === 'function') {
       return context()
@@ -30,7 +29,6 @@ export function useTypingIndicator(context: TypingContext | null | (() => Typing
     return context
   }
 
-  // Get serialized context key for comparison
   const getContextKey = (ctx: TypingContext | null): string => {
     if (!ctx) return 'null'
     if ('channelId' in ctx) return `channel:${ctx.channelId}`
@@ -39,7 +37,6 @@ export function useTypingIndicator(context: TypingContext | null | (() => Typing
     return 'unknown'
   }
 
-  // Subscribe to typing updates for a given context
   const subscribeToContext = async (ctx: TypingContext | null, key: string): Promise<void> => {
     // Skip if already subscribed to this exact context
     if (key === currentSubscribedKey && unsubscribe) {
@@ -52,7 +49,6 @@ export function useTypingIndicator(context: TypingContext | null | (() => Typing
       return
     }
     
-    // Cleanup previous subscription
     if (unsubscribe) {
       unsubscribe()
       unsubscribe = null
@@ -114,7 +110,6 @@ export function useTypingIndicator(context: TypingContext | null | (() => Typing
     }
   })
 
-  // Cleanup on unmount
   onUnmounted(() => {
     if (unsubscribe) {
       unsubscribe()

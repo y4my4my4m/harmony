@@ -97,7 +97,6 @@ export function useComposerState(options: ComposerStateOptions = {}) {
     showGiphyPicker.value = false;
     isDraft.value = false;
     
-    // Clean up media attachments
     mediaAttachments.value.forEach(media => {
       if (media.url.startsWith('blob:')) {
         URL.revokeObjectURL(media.url);

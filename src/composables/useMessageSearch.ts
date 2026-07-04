@@ -126,7 +126,6 @@ export function useMessageSearch() {
       searchAbortController.value.abort()
     }
 
-    // Reset offset if starting new search
     if (resetOffset) {
       offset.value = 0
       searchResults.value = []
@@ -140,7 +139,6 @@ export function useMessageSearch() {
       return
     }
 
-    // Create new abort controller
     const abortController = new AbortController()
     searchAbortController.value = abortController
 
@@ -174,7 +172,6 @@ export function useMessageSearch() {
       if (resetOffset) {
         searchResults.value = response.results
       } else {
-        // Append results for pagination
         searchResults.value = [...searchResults.value, ...response.results]
       }
 
@@ -187,7 +184,6 @@ export function useMessageSearch() {
       hasMore.value = response.hasMore
       offset.value += response.results.length
 
-      // Add to recent searches
       if (filters.value.query.trim()) {
         addToRecentSearches(filters.value.query.trim())
       }
@@ -209,12 +205,10 @@ export function useMessageSearch() {
   }
 
   const searchDebounced = () => {
-    // Clear existing timer
     if (debounceTimer) {
       clearTimeout(debounceTimer)
     }
 
-    // Set new timer
     debounceTimer = setTimeout(() => {
       executeSearch(true)
     }, DEBOUNCE_MS)
@@ -233,13 +227,11 @@ export function useMessageSearch() {
       return
     }
 
-    // Remove if already exists
     const index = recentSearches.value.indexOf(query)
     if (index > -1) {
       recentSearches.value.splice(index, 1)
     }
 
-    // Add to beginning
     recentSearches.value.unshift(query)
 
     // Keep only last 10
@@ -275,7 +267,6 @@ export function useMessageSearch() {
     }
   }
 
-  // Initialize recent searches
   loadRecentSearches()
 
   // Watch query changes for debounced search (only if there's actually a query or filters)

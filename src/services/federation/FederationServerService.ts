@@ -84,9 +84,7 @@ export class FederationServerService {
     return this.instance
   }
 
-  // =====================================================
   // DISCOVER REMOTE SERVER
-  // =====================================================
 
   /**
    * Discover a remote server by URL, handle, or invite link
@@ -102,7 +100,6 @@ export class FederationServerService {
     try {
       debug.log(`🔍 Discovering: ${input}`)
 
-      // Check if this is an invite link
       const inviteMatch = input.match(/^https?:\/\/([^/]+)\/invite\/([A-Za-z0-9]+)$/i)
       if (inviteMatch) {
         return await this.resolveInviteLink(input, inviteMatch[1], inviteMatch[2])
@@ -111,7 +108,6 @@ export class FederationServerService {
       // Regular server discovery
       const params = new URLSearchParams()
       
-      // Determine if it's a URL or handle
       if (input.startsWith('http://') || input.startsWith('https://')) {
         params.set('url', input)
       } else {
@@ -145,7 +141,6 @@ export class FederationServerService {
         }
       }
 
-      // Extract instance from server URL
       const serverInstance = new URL(data.server.id).hostname
 
       const server: RemoteServer = {
@@ -172,9 +167,7 @@ export class FederationServerService {
     }
   }
 
-  // =====================================================
   // RESOLVE INVITE LINK
-  // =====================================================
 
   /**
    * Resolve an invite link from a remote instance
@@ -256,9 +249,7 @@ export class FederationServerService {
     }
   }
 
-  // =====================================================
   // JOIN REMOTE SERVER
-  // =====================================================
 
   /**
    * Join a remote server (via direct URL or invite)
@@ -323,9 +314,7 @@ export class FederationServerService {
     }
   }
 
-  // =====================================================
   // LEAVE REMOTE SERVER
-  // =====================================================
 
   /**
    * Leave a remote server
@@ -379,9 +368,7 @@ export class FederationServerService {
     }
   }
 
-  // =====================================================
   // SYNC REMOTE SERVER
-  // =====================================================
 
   /**
    * Sync remote server metadata (channels, icon, etc.)
@@ -422,9 +409,7 @@ export class FederationServerService {
     }
   }
 
-  // =====================================================
   // HELPER: CHECK IF SERVER IS REMOTE
-  // =====================================================
 
   /**
    * Check if a server URL is from a remote instance
@@ -459,7 +444,6 @@ export class FederationServerService {
       }
     }
 
-    // Parse handle format: name@instance
     const match = handle.match(/^([^@]+)@(.+)$/)
     if (match) {
       return {

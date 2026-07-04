@@ -48,7 +48,6 @@ export async function handleMaintenanceJob(data: MaintenanceJobData): Promise<vo
 async function sweepMissingKeys(): Promise<void> {
   const supabase = getSupabaseClient();
 
-  // Find local users without public keys
   const { data: usersWithoutKeys, error: queryError } = await supabase
     .from('profiles')
     .select('id, username, domain')
@@ -91,14 +90,12 @@ async function sweepMissingKeys(): Promise<void> {
         continue;
       }
 
-      // Update profile with public key
       const { error: publicKeyError } = await supabase
         .from('profiles')
         .update({ public_key: keys.publicKey })
         .eq('id', user.id);
 
       if (publicKeyError) {
-        // Clean up orphaned private key
         await supabase
           .from('user_private_keys')
           .delete()
@@ -126,7 +123,6 @@ async function sweepMissingKeys(): Promise<void> {
 async function cleanupOrphanedKeys(): Promise<void> {
   const supabase = getSupabaseClient();
 
-  // Find local users with inconsistent key state
   const { data: inconsistentUsers, error: queryError } = await supabase.rpc('check_key_consistency');
 
   if (queryError) {
@@ -167,7 +163,6 @@ async function cleanupOrphanedKeys(): Promise<void> {
           .delete()
           .eq('user_id', user.user_id);
 
-        // Generate fresh keys
         const keys = await SignatureService.generateKeyPair();
 
         const { error: privateKeyError } = await supabase

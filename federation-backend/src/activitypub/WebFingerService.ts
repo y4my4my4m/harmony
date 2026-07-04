@@ -20,7 +20,6 @@ router.get(
       });
     }
 
-    // Parse resource (format: acct:username@domain)
     const match = resource.match(/^acct:([^@]+)@(.+)$/);
     
     if (!match) {
@@ -31,7 +30,6 @@ router.get(
 
     const [, username, domain] = match;
 
-    // Verify domain matches our instance (case-insensitive per RFC 7033)
     if (domain.toLowerCase() !== config.INSTANCE_DOMAIN.toLowerCase()) {
       return res.status(404).json({
         error: 'User not found on this instance',
@@ -44,7 +42,7 @@ router.get(
     // return one rel="self" link PER matching actor, each tagged with its
     // ActivityStreams type in `properties`. The requester filters by the type
     // it wants (Mastodon-style consumers that ignore properties just take the
-    // first link — fine, since collisions are rare and servers aren't @-mentioned).
+    // first link - fine, since collisions are rare and servers aren't @-mentioned).
     const AS_TYPE = 'https://www.w3.org/ns/activitystreams#type';
     const supabase = getSupabaseClient();
 

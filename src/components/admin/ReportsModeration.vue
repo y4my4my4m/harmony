@@ -219,8 +219,10 @@ import { userDataService } from '@/services/userDataService'
 import { useAuthStore } from '@/stores/auth'
 import { supabase } from '@/supabase'
 import { formatDate } from './adminFormat'
+import { useConfirmDialog } from '@/composables/useConfirmDialog'
 
 const authStore = useAuthStore()
+const { confirm } = useConfirmDialog()
 const router = useRouter()
 const toast = useToast()
 
@@ -304,7 +306,7 @@ const extractStorageUrls = (report: ReportWithDetails): string[] => {
 const deleteReportedMedia = async (report: ReportWithDetails) => {
   const urls = extractStorageUrls(report)
   if (urls.length === 0) return
-  if (!confirm(`Delete ${urls.length} media file(s) from storage? This cannot be undone.\n\n${urls.join('\n')}`)) return
+  if (!(await confirm({ title: 'Delete media', message: `Delete ${urls.length} media file(s) from storage? This cannot be undone.`, confirmButtonText: 'Delete', dangerAction: true }))) return
 
   let deleted = 0
   for (const url of urls) {
@@ -334,7 +336,7 @@ const deleteReportedMedia = async (report: ReportWithDetails) => {
 
 const deleteReportedMessage = async (report: ReportWithDetails) => {
   if (!report.reported_message_id) return
-  if (!confirm('Delete this message? This cannot be undone.')) return
+  if (!(await confirm({ title: 'Delete message', message: 'Delete this message? This cannot be undone.', confirmButtonText: 'Delete', dangerAction: true }))) return
   try {
     await messageService.deleteMessage(report.reported_message_id)
     toast.success('Message deleted')
@@ -395,7 +397,7 @@ const setPostContentWarning = async (report: ReportWithDetails) => {
 
 const deleteReportedPost = async (report: ReportWithDetails) => {
   if (!report.reported_post_id) return
-  if (!confirm('Delete this post? This cannot be undone.')) return
+  if (!(await confirm({ title: 'Delete post', message: 'Delete this post? This cannot be undone.', confirmButtonText: 'Delete', dangerAction: true }))) return
   try {
     await adminService.moderatePost(report.reported_post_id, 'delete')
     toast.success('Post deleted')

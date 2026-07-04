@@ -268,7 +268,6 @@
     return null;
   });
 
-  // Load draft when context changes
   watch(draftKey, (newKey, oldKey) => {
     if (oldKey && messageContent.value.trim()) {
       draftsStore.saveDraft(oldKey, messageContent.value);
@@ -295,7 +294,6 @@
   // Component refs
   const messageInputRef = ref<InstanceType<typeof MessageInput> | null>(null);
   
-  // Trigger element references for positioning
   const reactionTriggerElement = ref<HTMLElement | null>(null);
   
   // Computed trigger refs from MessageInput
@@ -628,7 +626,6 @@
       
       // Thread handlers
       const handleCreateThread = async (messageOrEvent: Message | { thread: any }) => {
-        // Handle case when receiving a thread directly (from ThreadIndicator)
         if ('thread' in messageOrEvent && messageOrEvent.thread) {
           selectedThreadId.value = messageOrEvent.thread.id;
           selectedThread.value = messageOrEvent.thread;
@@ -645,11 +642,9 @@
         }
         
         try {
-          // Check if thread already exists for this message
           const existingThread = await threadService.getThreadForMessage(message.id);
           
           if (existingThread) {
-            // Open existing thread
             selectedThreadId.value = existingThread.id;
             selectedThread.value = existingThread;
             draftParentMessage.value = null;
@@ -687,7 +682,6 @@
         draftParentMessage.value = null;
       };
       
-      // Send a system message for thread creation
       const sendSystemThreadMessage = async (channelId: string, threadName: string, threadId: string) => {
         const { error } = await coreMessageService.sendSystemMessage(
           channelId,
@@ -794,7 +788,7 @@
         if (files.length > 0) {
           debug.log("ChatComponent forwarding", files.length, "files to MessageInput");
           const fileArray = Array.from(files);
-          // This will be handled by MessageInput's drag and drop
+          // MessageInput owns drag-and-drop handling
           // We'll emit an event to trigger file selection in MessageInput
           const messageInputEvent = new CustomEvent('external-file-drop', {
             detail: { files: fileArray }
@@ -869,7 +863,6 @@
           }
         }
 
-        // Check if all files are uploaded
         const hasUploadingFiles = files.some(file => file.uploadStatus === 'uploading');
         const hasFailedFiles = files.some(file => file.uploadStatus === 'error');
 
@@ -888,7 +881,6 @@
         try {
           const messageParts: MessagePart[] = [];
           
-          // Add text content if present
           if (content.trim()) {
             const parsedMessage = await parseMessageInput(content);
             messageParts.push(...parsedMessage);
@@ -916,7 +908,6 @@
             }
           }
 
-          // Send the message with all parts
           if (messageParts.length > 0) {
             // eslint-disable-next-line unused-imports/no-unused-vars
             didAttemptSend = true;
@@ -953,13 +944,13 @@
           const code = (error?.code || '').toString()
           const msg = error?.message || String(error)
           if (code === 'ENCRYPTION_REQUIRED' || msg.includes('ENCRYPTION_REQUIRED')) {
-            // Server mandates encryption — there is no plaintext override. Give
+            // Server mandates encryption - there is no plaintext override. Give
             // the same kinetic rejection as an over-limit send (buzz + toast)
             // instead of (wrongly) offering a "send plaintext" prompt.
             toast.error(msg || 'This server requires end-to-end encryption.')
             messageInputRef.value?.flashRejection?.()
             // The input cleared itself optimistically on send; restore the draft
-            // so the user doesn't lose what they typed — unless they've already
+            // so the user doesn't lose what they typed - unless they've already
             // started typing something new in the meantime.
             if (content && !messageContent.value.trim()) {
               messageContent.value = content
@@ -1158,7 +1149,6 @@
           if (currentUserId.value) {
             themeStore.playAudio('reaction');
             
-            // Track emoji usage when used as reaction
             if (!props.isDM && serverChannelStore.currentServerId) {
               await recordEmojiUsage(
                 emoji.id,
@@ -1169,15 +1159,12 @@
               );
             }
             
-            // Add reaction - works for both DMs and server messages
             await chatStore.addReaction(selectedMessageId.value, emoji.id, currentUserId.value, emoji);
           }
         } else {
-          // Append emoji immediately so it appears in the editor without delay
           messageContent.value += getEmojiShortcodeForInsert(emoji);
           debug.log("Emoji added in Parent:", messageContent.value);
 
-          // Track emoji usage in background (non-blocking)
           if (currentUserId.value && !props.isDM && serverChannelStore.currentServerId) {
             recordEmojiUsage(
               emoji.id,

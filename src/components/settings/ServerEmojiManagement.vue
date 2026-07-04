@@ -254,8 +254,10 @@ import { useInstanceSettingsStore } from '@/stores/useInstanceSettings'
 import { getEmojiUrl } from '@/utils/emojiUtils'
 import { validateImageUpload } from '@/utils/uploadValidation'
 import type { Emoji } from '@/types'
+import { useConfirmDialog } from '@/composables/useConfirmDialog'
 
 const { t } = useI18n()
+const { confirm } = useConfirmDialog()
 const instanceSettings = useInstanceSettingsStore()
 
 // Use instance config limit; 0 = unlimited, fallback to 50 when not loaded
@@ -353,7 +355,6 @@ const handleEmojiUpload = (event: Event) => {
       handleBulkEmojiUpload(fileArray)
     }
   }
-  // Clear input
   if (input) {
     input.value = ''
   }
@@ -402,7 +403,7 @@ const confirmDeleteEmoji = async (emoji: Emoji) => {
     return
   }
 
-  if (!confirm(t('server.confirmDeleteEmoji', { name: emoji.name }))) {
+  if (!(await confirm({ title: t('server.deleteEmoji', 'Delete emoji'), message: t('server.confirmDeleteEmoji', { name: emoji.name }), confirmButtonText: t('common.delete', 'Delete'), dangerAction: true }))) {
     return
   }
 
@@ -432,7 +433,6 @@ const handleBulkEmojiUpload = async (files: File[]) => {
     return
   }
 
-  // Validate files
   const skippedNotImage: string[] = []
   const skippedTooLarge: string[] = []
   const validFiles = files.filter(file => {
@@ -487,7 +487,6 @@ const handleBulkEmojiUpload = async (files: File[]) => {
     const successCount = results.filter(r => r !== null).length
     const failedCount = results.length - successCount
     
-    // Emit successful uploads
     results.forEach(emoji => {
       if (emoji) {
         emit('emoji-uploaded', emoji)
@@ -536,7 +535,7 @@ const bulkDeleteSelected = async () => {
     count: selectedEmojis.value.length, 
     plural: selectedEmojis.value.length > 1 ? 's' : '' 
   })
-  if (!confirm(confirmMessage)) return
+  if (!(await confirm({ title: t('server.deleteEmoji', 'Delete emojis'), message: confirmMessage, confirmButtonText: t('common.delete', 'Delete'), dangerAction: true }))) return
 
   try {
     deletingEmoji.value = 'bulk'
@@ -590,7 +589,6 @@ const saveEmojiRename = async (emoji: Emoji) => {
     const success = await renameEmoji(emoji.id, tempEmojiName.value.trim(), props.serverId)
     
     if (success) {
-      // Update the emoji in the list
       const updatedEmojis = props.emojis.map(e => 
         e.id === emoji.id ? { ...e, name: tempEmojiName.value.trim() } : e
       )

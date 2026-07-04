@@ -21,7 +21,6 @@ function stripEmojiShortcodes(text: string | null | undefined): string {
   return text.replace(/:[a-zA-Z0-9_+-]+(?:@[a-zA-Z0-9.-]+)?:/g, '').replace(/\s+/g, ' ').trim();
 }
 
-// Get admin client instance
 const supabaseAdmin = getSupabaseClient();
 
 // Types for push notification payloads
@@ -149,7 +148,6 @@ class PushNotificationServiceClass {
         if (existingSubs && existingSubs.length > 0) {
           logger.info(`🧹 Cleaning up ${existingSubs.length} old subscription(s) from same device for user ${userId}`);
           
-          // Delete old subscriptions from same device
           const oldIds = existingSubs.map(s => s.id);
           await supabaseAdmin
             .from('push_subscriptions')
@@ -433,7 +431,6 @@ class PushNotificationServiceClass {
         .eq('user_id', notification.user_id)
         .maybeSingle();
 
-      // Check if push is enabled for this notification type
       if (prefs && !prefs.push_notifications) {
         logger.debug('Push notifications disabled for user');
         return;
@@ -446,7 +443,6 @@ class PushNotificationServiceClass {
         return;
       }
 
-      // Extract context from notification data
       const data = notification.data || {};
       const serverId = data.server_id || data.location?.server_id;
       const channelId = data.channel_id || data.location?.channel_id;
@@ -468,7 +464,6 @@ class PushNotificationServiceClass {
         }
       }
 
-      // Check if user has active session (Discord-like behavior)
       const hasActiveSession = await this.hasActiveSession(notification.user_id);
       
       // If push_offline_only is enabled and user has active session, skip
@@ -557,7 +552,6 @@ class PushNotificationServiceClass {
       logger.debug(`📬 Final notification.data.sender: ${JSON.stringify(notification.data.sender)}`);
       logger.debug(`📬 Final notification.data.reaction: ${JSON.stringify(notification.data.reaction)}`);
 
-      // Build payload from notification data
       const payload = this.buildPayloadFromNotification(notification);
 
       await this.sendToUser(notification.user_id, payload, {
@@ -583,7 +577,6 @@ class PushNotificationServiceClass {
     if (!preview) {
       let content = data.message?.content || data.content;
       
-      // Parse JSON string if needed
       if (typeof content === 'string' && content.startsWith('[')) {
         try {
           content = JSON.parse(content);
@@ -593,7 +586,6 @@ class PushNotificationServiceClass {
         }
       }
       
-      // Convert MessagePart[] to plain text
       if (Array.isArray(content)) {
         preview = content
           .map((part: any) => {

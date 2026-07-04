@@ -23,7 +23,6 @@ const dragDirection = ref<'left' | 'right' | null>(null)
 const leftSidebarDragOffset = ref(0)
 const rightSidebarDragOffset = ref(0)
 
-// Track initial sidebar state when drag starts (to know if opening or closing)
 const leftSidebarWasOpen = ref(false)
 const rightSidebarWasOpen = ref(false)
 
@@ -113,7 +112,6 @@ export function useLayoutState() {
     localStorage.setItem(STORAGE_KEY_CHAT_RIGHT_SIDEBAR, String(rightSidebarOpen.value))
   }
 
-  // Initialize mobile detection on mount
   onMounted(() => {
     if (typeof window !== 'undefined') {
       checkMobileDevice()
@@ -167,13 +165,11 @@ export function useLayoutState() {
     }
   })
 
-  // Toggle functions
   const toggleLeftSidebar = () => {
     if (isMobile.value) {
       rightSidebarOpen.value = false
     }
     leftSidebarOpen.value = !leftSidebarOpen.value
-    // Close mobile profile when left sidebar is closed
     if (!leftSidebarOpen.value) {
       mobileProfileOpen.value = false
     }
@@ -223,7 +219,6 @@ export function useLayoutState() {
 
   const closeLeftSidebar = () => {
     leftSidebarOpen.value = false
-    // Close mobile profile when left sidebar is closed
     mobileProfileOpen.value = false
   }
 
@@ -246,7 +241,6 @@ export function useLayoutState() {
     // Remember initial state to determine open/close behavior
     if (direction === 'left') {
       leftSidebarWasOpen.value = leftSidebarOpen.value
-      // Initialize offset based on current state
       leftSidebarDragOffset.value = leftSidebarOpen.value ? SIDEBAR_WIDTH : 0
       rightSidebarOpen.value = false // Close other sidebar
     } else {
@@ -335,7 +329,6 @@ export function useLayoutState() {
       rightSidebarOpen.value = shouldBeOpen
     }
     
-    // Reset drag state
     isDragging.value = false
     dragDirection.value = null
     leftSidebarDragOffset.value = 0
@@ -356,7 +349,6 @@ export function useLayoutState() {
     if (direction === 'left') {
       const progress = leftSidebarDragOffset.value / SIDEBAR_WIDTH
       
-      // Determine final state based on velocity OR position
       let shouldBeOpen: boolean
       if (Math.abs(velocity) > VELOCITY_THRESHOLD) {
         // Fast swipe - use velocity direction
@@ -399,7 +391,6 @@ export function useLayoutState() {
       rightSidebarOpen.value = shouldBeOpen
     }
     
-    // Reset drag state
     isDragging.value = false
     dragDirection.value = null
     leftSidebarDragOffset.value = 0
@@ -504,7 +495,6 @@ export function useLayoutState() {
     SIDEBAR_WIDTH,
     SERVER_SIDEBAR_WIDTH,
 
-    // Toggle functions
     toggleLeftSidebar,
     toggleRightSidebar,
     toggleVoicePanel,

@@ -55,13 +55,10 @@ const selectedLanguage = ref(locale.value)
 const availableLanguages = availableLocales
 
 const onLanguageChange = async () => {
-  // Update i18n locale
   await setLocale(selectedLanguage.value)
   
-  // Emit to parent
   emit('update-language', selectedLanguage.value)
   
-  // Save to Supabase
   const userId = authStore.session?.user?.id
   if (userId) {
     try {
@@ -82,7 +79,6 @@ const onLanguageChange = async () => {
 }
 
 onMounted(async () => {
-  // Load saved language from Supabase
   const userId = authStore.session?.user?.id
   if (userId) {
     try {

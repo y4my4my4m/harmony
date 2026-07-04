@@ -175,14 +175,12 @@ export function useLocalMessageSearch(
         
         if (!text) continue
         
-        // Check if query matches
         const textToSearch = caseSensitive ? text : text.toLowerCase()
         const queryToSearch = caseSensitive ? searchQuery : searchQuery.toLowerCase()
         
         if (textToSearch.includes(queryToSearch)) {
           const matches = findMatchingSnippets(text, searchQuery, caseSensitive)
           
-          // Calculate score based on number of matches and position
           const matchCount = (textToSearch.match(new RegExp(queryToSearch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')) || []).length
           
           results.push({

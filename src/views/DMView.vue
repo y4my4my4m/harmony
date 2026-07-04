@@ -247,15 +247,12 @@ const existingParticipants = computed(() => {
   ] as any
 })
 
-// Load messages when route changes
 const loadMessages = async () => {
   const conversationId = route.params.conversationId as string
   if (conversationId) {
     const currentUser = getCurrentUser.value
     
-    // Check if we have a valid cache for instant loading (no skeleton needed)
     if (dmStore.isCacheValid(conversationId)) {
-      // Load from cache instantly - no loading state needed
       dmStore.loadCachedMessages(conversationId)
       // Still initialize conversation metadata in background
       if (currentUser?.id) {
@@ -274,7 +271,6 @@ const loadMessages = async () => {
     try {
       if (currentUser?.id) {
         // Wait for conversation and user data to be loaded before proceeding
-        // This ensures the DMHeader has user data available when it renders
         const conversation = await dmStore.initializeDMEnvironmentForDirectAccess(currentUser.id, conversationId)
         
         // Only fetch messages if we successfully got the conversation
@@ -299,11 +295,9 @@ const fetchMoreMessages = async () => {
 // Group chat methods
 
 const handleUsersAdded = async (conversationId: string, _userIds: string[]) => {
-  // Refresh conversation data to show new participants
   const currentUser = getCurrentUser.value
   if (currentUser?.id) {
     try {
-      // Refresh conversation details to get updated participant info
       await dmStore.fetchConversationDetails(conversationId, currentUser.id)
       // Optionally reload messages to show the system message about added users
       await dmStore.fetchConversationMessages(conversationId)
@@ -393,7 +387,6 @@ const handleDeclineCall = async () => {
     const profileId = await authContextService.getCurrentProfileId()
     if (!profileId) return
     
-    // Send decline signal
     await dmCallSignaling.declineCall(incomingCall.value.conversationId, profileId)
     toast.info('Call declined')
   } catch (error) {
@@ -418,7 +411,6 @@ const getCallerAvatar = computed(() => {
 // Watch for conversation changes
 watch(() => route.params.conversationId, loadMessages, { immediate: true })
 
-// Track view context in database for notification suppression
 useViewContextTracking()
 
 // Watch for messageId query param to scroll and highlight
@@ -438,10 +430,8 @@ const scrollToMessage = async (messageId: string) => {
   
   const messageElement = document.getElementById(`message-${messageId}`)
   if (messageElement) {
-    // Get the scroll container (message display container)
     const scrollContainer = messageElement.closest('.message-display') as HTMLElement
     if (scrollContainer) {
-      // Calculate scroll position without causing layout shifts
       const elementTop = messageElement.offsetTop
       const elementHeight = messageElement.offsetHeight
       const containerHeight = scrollContainer.clientHeight
@@ -461,7 +451,6 @@ const scrollToMessage = async (messageId: string) => {
       })
     }
     
-    // Mark notification as read
     const notificationStore = useNotificationStore()
     const notification = notificationStore.notifications.find(n => 
       n.data?.message?.id === messageId || n.data?.message_id === messageId
@@ -555,7 +544,6 @@ const highlightSearchText = (messageElement: HTMLElement, query: string) => {
                 const textNode = document.createTextNode(text)
                 mark.parentNode?.replaceChild(textNode, mark)
               })
-              // Clean up empty wrapper
               if (wrapper.parentNode && wrapper.textContent) {
                 const textNode = document.createTextNode(wrapper.textContent)
                 wrapper.parentNode.replaceChild(textNode, wrapper)

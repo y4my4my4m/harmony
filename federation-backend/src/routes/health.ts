@@ -116,10 +116,8 @@ router.get('/key-consistency', requireAuth, async (req: Request, res: Response) 
   }
 
   try {
-    // Get users with inconsistent keys
     const { data: inconsistent, error: inconsistentError } = await supabase.rpc('check_key_consistency');
     
-    // Get count of local users without public keys
     const { count: missingKeysCount, error: countError } = await supabase
       .from('profiles')
       .select('id', { count: 'exact', head: true })

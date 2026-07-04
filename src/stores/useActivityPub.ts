@@ -1129,7 +1129,7 @@ export const useActivityPubStore = defineStore('activitypub', {
       );
     },
 
-    // createFollowNotification removed — DB trigger (handle_unified_notification_processing) handles it.
+    // createFollowNotification removed - DB trigger (handle_unified_notification_processing) handles it.
 
     /**
      * Collect every Post object reference for `postId` that's currently
@@ -1235,8 +1235,7 @@ export const useActivityPubStore = defineStore('activitypub', {
       const context = await authContextService.getCurrentContext();
       const isCurrentUser = context.isAuthenticated && context.authUser?.id === userId;
 
-      // For realtime updates, we need to get accurate server state instead of guessing
-      // This prevents conflicts between manual actions and realtime updates
+      // Realtime updates need accurate server state, not a local guess
       const { data: postCounts, error: countsError } = await supabase
         .from('posts')
         .select('favorites_count, reblogs_count, replies_count')
@@ -2610,9 +2609,7 @@ export const useActivityPubStore = defineStore('activitypub', {
       }
     },
 
-    // =============================================
     // LISTS MANAGEMENT (Mastodon-compatible)
-    // =============================================
 
     /**
      * Load all user lists
@@ -2976,7 +2973,6 @@ export const useActivityPubStore = defineStore('activitypub', {
 
           if (reblogPost) {
             await activityPubService.unreblogPost(reblogPost.id);
-            // Remove ONLY the reblog post from our feeds, NOT the original
             this.removePostFromAllFeeds(reblogPost.id);
           }
 
@@ -3450,9 +3446,7 @@ export const useActivityPubStore = defineStore('activitypub', {
      /**
       * Cleanup store - clean and simple
       */
-     // =============================================
      // CONVERSATION MANAGEMENT
-     // =============================================
 
      /**
       * Get conversation context for a post

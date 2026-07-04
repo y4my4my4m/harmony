@@ -97,7 +97,6 @@ export class SignatureService {
   ): Promise<{ headers: Record<string, string>; digest?: string }> {
     const supabase = getSupabaseClient();
 
-    // Get user profile
     const { data: user, error: userError } = await supabase
       .from('profiles')
       .select('username, domain')
@@ -108,7 +107,6 @@ export class SignatureService {
       throw new AppError(500, 'User not found');
     }
 
-    // Get user's private key from user_private_keys table
     const initialKeyLookup = await supabase
       .from('user_private_keys')
       .select('private_key')
@@ -124,7 +122,6 @@ export class SignatureService {
       try {
         const keys = await this.generateKeyPair();
         
-        // Store private key
         const { error: privateKeyError } = await supabase
           .from('user_private_keys')
           .upsert({
@@ -137,7 +134,6 @@ export class SignatureService {
           throw new AppError(500, 'Failed to store private key');
         }
         
-        // Update profile with public key - THIS IS CRITICAL for signature verification
         const { error: publicKeyError } = await supabase
           .from('profiles')
           .update({ public_key: keys.publicKey })
@@ -170,7 +166,6 @@ export class SignatureService {
 
     let digest: string | undefined;
 
-    // Add digest if there's a body
     if (body && (method === 'POST' || method === 'PUT')) {
       const bodyString = typeof body === 'string' ? body : JSON.stringify(body);
       const hash = crypto.createHash('sha256').update(bodyString).digest('base64');
@@ -178,7 +173,6 @@ export class SignatureService {
       headers['Digest'] = digest;
     }
 
-    // Build signing string including (request-target) for Misskey
     const signedHeaders = ['(request-target)', 'host', 'date'];
     if (digest) {
       signedHeaders.push('digest');
@@ -279,7 +273,6 @@ export class SignatureService {
       // Extract actor URL from keyId (e.g., https://example.com/users/alice#main-key -> https://example.com/users/alice)
       const actorUrl = keyId.split('#')[0];
 
-      // Fetch actor's public key from their server
       const publicKey = await this.fetchActorPublicKey(actorUrl);
 
       if (!publicKey) {
@@ -334,7 +327,6 @@ export class SignatureService {
       
       const signingString = signingParts.join('\n');
 
-      // Verify signature using the actor's public key
       const verify = crypto.createVerify('SHA256');
       verify.update(signingString);
       verify.end();
@@ -532,7 +524,6 @@ export class SignatureService {
         const publicKeyPem = actor.publicKey.publicKeyPem;
         setCachedPublicKey(actorUrl, publicKeyPem);
         
-        // Update the profiles table with the fresh public key
         try {
           const { error: profileUpdateError } = await supabase
             .from('profiles')
@@ -597,7 +588,6 @@ export class SignatureService {
   static async signedApFetch(url: string, timeoutMs = 8000): Promise<Response> {
     const supabase = getSupabaseClient();
 
-    // Find any local user that has a private key
     const { data: signer } = await supabase
       .from('user_private_keys')
       .select('user_id')

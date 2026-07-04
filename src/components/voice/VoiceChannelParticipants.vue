@@ -47,7 +47,6 @@ const props = defineProps<Props>();
 const { getUserDisplayName, getUserAvatarUrl } = useUserData();
 const voiceStore = useUnifiedVoiceChannelStore();
 
-// Call duration timer (tracks overall call duration)
 const sessionDuration = ref<string>('');
 let intervalId: number | null = null;
 

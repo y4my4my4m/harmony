@@ -37,7 +37,7 @@ npm run docs:generate-api
 
 # Update VitePress configuration
 echo "  🔄 Updating VitePress configuration..."
-npm run docs:update-config
+npm run docs:sync-config
 
 # Generate TypeDoc documentation
 echo "  📝 Generating TypeDoc documentation..."

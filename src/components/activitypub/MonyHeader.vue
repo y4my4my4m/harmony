@@ -161,7 +161,6 @@ const allFeedTabs = [
   }
 ]
 
-// Filter tabs based on federation status
 const feedTabs = computed(() => 
   allFeedTabs.filter(tab => 
     !tab.requiresFederation || instanceSettings.isFederationEnabled

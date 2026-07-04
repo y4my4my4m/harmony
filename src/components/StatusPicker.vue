@@ -315,7 +315,6 @@ function getDurationFromExpiresAt(expiresAt: string | undefined): string {
   return 'never'
 }
 
-// Reset form when modal opens (prefill when editing)
 watch(() => props.isVisible, (visible) => {
   if (visible) {
     statusText.value = props.currentStatus?.text || ''

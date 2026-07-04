@@ -117,7 +117,6 @@ const reactions = computed(() => {
   }
 });
 
-// Check if reactions are loading
 const isLoadingReactions = computed(() => 
   reactionsStore.isLoadingReactions(props.message.id)
 );
@@ -146,18 +145,15 @@ const handleReactionClick = async (emoji: Emoji, emojiId: string) => {
   
   const result = await reactionsStore.toggleReaction(props.message.id, emojiId, currentUserId.value, emoji);
   
-  // Log result but don't show error for duplicate requests (they're expected)
   if (!result.success && result.reason !== 'Request already in progress') {
     debug.error('🎯 Failed to toggle reaction:', result.reason);
   }
 };
 
-// Show reaction tooltip
 const showTooltip = (event: MouseEvent, reactionGroup: any) => {
   emit('show-reaction-tooltip', event, reactionGroup);
 };
 
-// Hide reaction tooltip
 const hideTooltip = () => {
   emit('hide-reaction-tooltip');
 };
@@ -177,7 +173,6 @@ const getResolvedEmoji = (reactionGroup: any) => {
   const emoji = reactionGroup.emoji;
   if (!emoji) return null;
   
-  // Get the identifier to resolve
   const identifier = emoji.content || emoji.name || emoji.id || reactionGroup.emoji_id;
   if (!identifier) return null;
   

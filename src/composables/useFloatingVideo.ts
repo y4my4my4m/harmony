@@ -21,7 +21,12 @@ const floatingPosition = ref({ x: 0, y: 0 })
 const isDragging = ref(false)
 const isUserSetting = ref(true) // Default: enabled
 
-// Load user preference
+// Per-element bookkeeping. WeakMaps keyed by the video element so entries
+// vanish with the element instead of living as ad-hoc expando properties.
+const videoObservers = new WeakMap<HTMLElement, IntersectionObserver>()
+const dragState = new WeakMap<HTMLElement, { dragHandle: HTMLElement; onMouseDown: (e: MouseEvent) => void }>()
+const resizeHandleState = new WeakMap<HTMLElement, HTMLElement[]>()
+
 if (typeof localStorage !== 'undefined') {
   const saved = localStorage.getItem('floatingVideoEnabled')
   if (saved !== null) {
@@ -58,7 +63,6 @@ export function useFloatingVideo() {
   ): (() => void) => {
     if (!isEnabled.value) return () => {}
 
-    // Setup intersection observer to detect when video leaves viewport
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
@@ -87,13 +91,10 @@ export function useFloatingVideo() {
     )
 
     // Re-registration (e.g. content re-render) must not stack observers.
-    const previous = (element as any).__floatingVideoObserver as IntersectionObserver | undefined
-    previous?.disconnect()
+    videoObservers.get(element)?.disconnect()
 
     observer.observe(element)
-
-    // Store observer on element for cleanup
-    ;(element as any).__floatingVideoObserver = observer
+    videoObservers.set(element, observer)
 
     // registerVideo is called from async callbacks (nextTick after mount),
     // where onUnmounted() has no component instance and silently no-ops -
@@ -101,8 +102,8 @@ export function useFloatingVideo() {
     // owns the lifecycle: invoke the returned cleanup in its own unmount hook.
     return () => {
       observer.disconnect()
-      if ((element as any).__floatingVideoObserver === observer) {
-        delete (element as any).__floatingVideoObserver
+      if (videoObservers.get(element) === observer) {
+        videoObservers.delete(element)
       }
     }
   }
@@ -115,12 +116,11 @@ export function useFloatingVideo() {
       const video = element.querySelector('video')
       return video ? !video.paused : false
     } else if (type === 'youtube') {
-      // For YouTube, we need to check via postMessage API
+      // YouTube play state comes via the postMessage API
       // This requires the iframe to have enablejsapi=1
       const iframe = element.querySelector('iframe')
       if (!iframe) return false
       
-      // Check if element has data attribute tracking play state
       return element.dataset.isPlaying === 'true'
     }
     return false
@@ -141,12 +141,8 @@ export function useFloatingVideo() {
     }
 
     // Temporarily disconnect observer to prevent feedback loop
-    const observer = (element as any).__floatingVideoObserver
-    if (observer) {
-      observer.disconnect()
-    }
+    videoObservers.get(element)?.disconnect()
 
-    // Get the actual video/iframe element to determine aspect ratio
     const videoEl = element.querySelector('video') || element.querySelector('iframe')
     let aspectRatio = 16 / 9 // Default fallback
     
@@ -157,7 +153,6 @@ export function useFloatingVideo() {
       }
     }
 
-    // Create placeholder skeleton
     const placeholder = document.createElement('div')
     const elementRect = element.getBoundingClientRect()
     placeholder.className = 'floating-video-placeholder'
@@ -176,7 +171,6 @@ export function useFloatingVideo() {
       position: relative;
     `
     
-    // Add a "Video is floating" message to the placeholder
     const message = document.createElement('div')
     message.style.cssText = `
       position: absolute;
@@ -191,7 +185,6 @@ export function useFloatingVideo() {
     message.textContent = '📹 Video is floating'
     placeholder.appendChild(message)
     
-    // Insert placeholder where the element currently is
     element.parentNode?.insertBefore(placeholder, element)
 
     currentFloatingVideo.value = {
@@ -204,7 +197,6 @@ export function useFloatingVideo() {
       aspectRatio
     }
 
-    // Calculate initial position (top-right corner)
     const windowWidth = window.innerWidth
     const videoWidth = Math.min(400, windowWidth * 0.9)
     const videoHeight = videoWidth / aspectRatio
@@ -218,7 +210,6 @@ export function useFloatingVideo() {
     // survives row unmounting by the virtualizer
     document.body.appendChild(element)
 
-    // Add floating class to element
     element.classList.add('floating-video')
     element.style.position = 'fixed'
     element.style.top = `${floatingPosition.value.y}px`
@@ -235,7 +226,6 @@ export function useFloatingVideo() {
     element.style.minWidth = '200px'
     element.style.minHeight = `${200 / aspectRatio}px`
 
-    // Make video/iframe fill the container but not intercept mouse events on edges
     if (videoEl) {
       (videoEl as HTMLElement).style.width = '100%';
       (videoEl as HTMLElement).style.height = '100%';
@@ -244,7 +234,6 @@ export function useFloatingVideo() {
       (videoEl as HTMLElement).style.maxHeight = 'none';
     }
     
-    // Add a transparent overlay for drag/resize interactions
     const interactionOverlay = document.createElement('div')
     interactionOverlay.className = 'floating-video-interaction-overlay'
     interactionOverlay.style.cssText = `
@@ -258,16 +247,10 @@ export function useFloatingVideo() {
     `
     element.appendChild(interactionOverlay)
     
-    // Store message ID on the element
-    ;(element as any).__floatingMessageId = messageId
-
-    // Add close button
     addCloseButton(element)
     
-    // Make draggable
     makeDraggable(element)
     
-    // Make resizable
     makeResizable(element)
   }
 
@@ -302,7 +285,6 @@ export function useFloatingVideo() {
       placeholder.parentNode.removeChild(placeholder)
     }
 
-    // Reset video/iframe styles
     const videoEl = element.querySelector('video') || element.querySelector('iframe')
     if (videoEl) {
       (videoEl as HTMLElement).style.width = '';
@@ -312,14 +294,9 @@ export function useFloatingVideo() {
       (videoEl as HTMLElement).style.maxHeight = '';
     }
     
-    // Remove interaction overlay
     const overlay = element.querySelector('.floating-video-interaction-overlay')
     if (overlay) overlay.remove()
     
-    // Clear floating message ID
-    delete (element as any).__floatingMessageId
-
-    // Remove floating styles
     element.classList.remove('floating-video')
     element.style.position = ''
     element.style.top = ''
@@ -336,21 +313,15 @@ export function useFloatingVideo() {
     element.style.minWidth = ''
     element.style.minHeight = ''
 
-    // Remove close button
     const closeBtn = element.querySelector('.floating-video-close')
     if (closeBtn) closeBtn.remove()
 
-    // Remove resize handles
     removeResizeHandles(element)
 
-    // Remove drag handlers
     removeDragHandlers(element)
 
     // Reconnect observer to continue watching for scroll events
-    const observer = (element as any).__floatingVideoObserver
-    if (observer) {
-      observer.observe(element)
-    }
+    videoObservers.get(element)?.observe(element)
 
     currentFloatingVideo.value = null
   }
@@ -427,7 +398,6 @@ export function useFloatingVideo() {
     // eslint-disable-next-line unused-imports/no-unused-vars
     let hasMoved = false
 
-    // Create a drag handle bar across the entire top
     const dragHandle = document.createElement('div')
     dragHandle.className = 'floating-video-drag-handle'
     dragHandle.style.cssText = `
@@ -453,7 +423,6 @@ export function useFloatingVideo() {
     dragHandle.innerHTML = '<span style="opacity: 0.8;">⋮⋮ Drag to move</span>'
     element.appendChild(dragHandle)
     
-    // Show handle on hover
     element.addEventListener('mouseenter', () => {
       dragHandle.style.opacity = '1'
     })
@@ -524,29 +493,22 @@ export function useFloatingVideo() {
       dragHandle.style.opacity = '0'
     }
 
-    // Make entire element draggable
     element.addEventListener('mousedown', onMouseDown)
     dragHandle.addEventListener('mousedown', onMouseDown)
 
-    // Store handlers for cleanup
-    ;(element as any).__floatingDragHandlers = {
-      dragHandle,
-      onMouseDown
-    }
+    dragState.set(element, { dragHandle, onMouseDown })
   }
 
   /**
    * Remove drag handlers
    */
   const removeDragHandlers = (element: HTMLElement) => {
-    const handlers = (element as any).__floatingDragHandlers
+    const handlers = dragState.get(element)
     if (handlers) {
-      if (handlers.dragHandle) {
-        handlers.dragHandle.remove()
-      }
+      handlers.dragHandle.remove()
       element.removeEventListener('mousedown', handlers.onMouseDown)
       element.style.cursor = ''
-      delete (element as any).__floatingDragHandlers
+      dragState.delete(element)
     }
   }
 
@@ -596,7 +558,6 @@ export function useFloatingVideo() {
       handles.push(handle)
     })
 
-    // Show handles on hover
     element.addEventListener('mouseenter', () => {
       handles.forEach(h => h.style.opacity = '1')
     })
@@ -605,8 +566,7 @@ export function useFloatingVideo() {
       handles.forEach(h => h.style.opacity = '0')
     })
 
-    // Store handles for cleanup
-    ;(element as any).__resizeHandles = handles
+    resizeHandleState.set(element, handles)
   }
 
   /**
@@ -634,7 +594,6 @@ export function useFloatingVideo() {
       let newLeft = startLeft
       let newTop = startTop
 
-      // Determine primary resize direction based on which delta is larger
       const isHorizontalPrimary = Math.abs(deltaX) > Math.abs(deltaY)
 
       if (isHorizontalPrimary) {
@@ -649,7 +608,6 @@ export function useFloatingVideo() {
         // Constrain width
         newWidth = Math.max(200, Math.min(1200, newWidth))
         
-        // Calculate height from width to maintain aspect ratio
         newHeight = newWidth / aspectRatio
         
         // Adjust position for top corners
@@ -665,7 +623,6 @@ export function useFloatingVideo() {
           newTop = startTop + deltaY
         }
         
-        // Calculate width from height to maintain aspect ratio
         newWidth = newHeight * aspectRatio
         
         // Constrain width
@@ -692,14 +649,12 @@ export function useFloatingVideo() {
       newLeft = Math.max(0, Math.min(newLeft, maxX))
       newTop = Math.max(0, Math.min(newTop, maxY))
 
-      // Apply new dimensions
       element.style.width = `${newWidth}px`;
       element.style.height = `${newHeight}px`;
       element.style.left = `${newLeft}px`;
       element.style.top = `${newTop}px`;
       element.style.minHeight = `${200 / aspectRatio}px`;
 
-      // Update floating position
       floatingPosition.value = { x: newLeft, y: newTop }
     }
 
@@ -716,10 +671,10 @@ export function useFloatingVideo() {
    * Remove resize handles
    */
   const removeResizeHandles = (element: HTMLElement) => {
-    const handles = (element as any).__resizeHandles
+    const handles = resizeHandleState.get(element)
     if (handles) {
-      handles.forEach((handle: HTMLElement) => handle.remove())
-      delete (element as any).__resizeHandles
+      handles.forEach(handle => handle.remove())
+      resizeHandleState.delete(element)
     }
   }
 

@@ -284,9 +284,7 @@ import Icon from '@/components/common/Icon.vue';
 import Avatar from '../common/Avatar.vue';
 import DisplayName from '@/components/DisplayName.vue';
 
-// =============================================================================
 // PROPS & EMITS
-// =============================================================================
 
 interface Props {
   isUnderOverlay?: boolean;
@@ -298,9 +296,7 @@ withDefaults(defineProps<Props>(), {
   isUnderDock: false
 });
 
-// =============================================================================
 // STORES & STATE
-// =============================================================================
 
 const spatialStore = useSpatialAudioStore();
 const voiceStore = useUnifiedVoiceChannelStore();
@@ -423,9 +419,7 @@ const localVisualPositions = ref<Map<string, { x: number, y: number }>>(new Map(
 // Local settings for smooth updates
 const localSettings = ref({ ...spatialStore.settings });
 
-// =============================================================================
 // COMPUTED PROPERTIES
-// =============================================================================
 
 const currentUserId = computed(() => authStore.session?.user?.id || '');
 
@@ -435,9 +429,7 @@ const otherParticipants = computed(() =>
   allParticipants.value.filter(p => p.userId !== currentUserId.value)
 );
 
-// =============================================================================
 // POSITION MANAGEMENT
-// =============================================================================
 
 const getPosition = (userId: string) => {
   // During drag, use local visual position for smooth movement
@@ -449,7 +441,6 @@ const getPosition = (userId: string) => {
   const position = spatialStore.getUserPosition(userId);
   if (position) return position;
   
-  // Initialize user if not positioned
   spatialStore.initializeUserPosition(userId);
   return spatialStore.getUserPosition(userId) || { x: 0, y: 0 };
 };
@@ -480,9 +471,7 @@ const getDistanceOpacity = (userId: string): number => {
   return Math.max(0.2, 1 - (distance / maxDistance));
 };
 
-// =============================================================================
 // USER INTERACTION
-// =============================================================================
 
 const isSpeaking = (participant: any): boolean => {
   return participant.isSpeaking || (participant.audioLevel > 20 && !participant.isMuted);
@@ -498,9 +487,7 @@ const getUserProfile = (userId: string) => {
   };
 };
 
-// =============================================================================
 // DRAG & DROP
-// =============================================================================
 
 // Debounce timer for spatial audio updates during drag
 let spatialUpdateTimer: number | null = null;
@@ -542,12 +529,10 @@ const handleGridMouseMove = (event: MouseEvent) => {
   const x = event.clientX - rect.left;
   const y = event.clientY - rect.top;
   
-  // Calculate new position with bounds checking
   const dragOffset = spatialStore.dragOffset;
   const newX = Math.max(20, Math.min(rect.width - 20, x - dragOffset.x));
   const newY = Math.max(20, Math.min(rect.height - 20, y - dragOffset.y));
   
-  // Update LOCAL visual position immediately for 60fps smooth movement
   localVisualPositions.value.set(spatialStore.draggedUserId, { x: newX, y: newY });
   
   // Store position is updated by the debounced timer or on release
@@ -569,7 +554,6 @@ const handleGridMouseUp = () => {
     if (spatialStore.settings.enabled) {
       spatialAudioService.updateSpatialEffects();
       
-      // Show brief "updated" message
       showUpdatedMessage.value = true;
       setTimeout(() => {
         showUpdatedMessage.value = false;
@@ -580,9 +564,7 @@ const handleGridMouseUp = () => {
   }
 };
 
-// =============================================================================
 // TOUCH EVENT HANDLERS (Mobile support)
-// =============================================================================
 
 const handleAvatarTouchStart = (event: TouchEvent, userId: string) => {
   // Prevent sidebar swipe gestures from interfering
@@ -622,12 +604,10 @@ const handleGridTouchMove = (event: TouchEvent) => {
   const x = touch.clientX - rect.left;
   const y = touch.clientY - rect.top;
   
-  // Calculate new position with bounds checking
   const dragOffset = spatialStore.dragOffset;
   const newX = Math.max(20, Math.min(rect.width - 20, x - dragOffset.x));
   const newY = Math.max(20, Math.min(rect.height - 20, y - dragOffset.y));
   
-  // Update LOCAL visual position immediately for smooth movement
   localVisualPositions.value.set(spatialStore.draggedUserId, { x: newX, y: newY });
 };
 
@@ -649,7 +629,6 @@ const startSpatialUpdateTimer = () => {
         spatialStore.setUserPosition(spatialStore.draggedUserId, localPos.x, localPos.y);
       }
       
-      // Update spatial audio effects
       spatialAudioService.updateSpatialEffects();
     }
   }, SPATIAL_UPDATE_INTERVAL);
@@ -675,21 +654,17 @@ const handleAvatarRightClick = (event: MouseEvent, userId: string) => {
   debug.log('Right clicked on user:', userId);
 };
 
-// =============================================================================
 // PANEL ACTIONS
-// =============================================================================
 
 const toggleSettings = () => {
   showSettings.value = !showSettings.value;
 };
 
 const updateSettings = () => {
-  // Clear existing timer
   if (settingsUpdateTimer) {
     clearTimeout(settingsUpdateTimer);
   }
   
-  // Update settings immediately for UI responsiveness
   spatialStore.updateSettings(localSettings.value);
   
   // Debounce the spatial audio updates
@@ -722,9 +697,7 @@ const randomizePositions = () => {
   }
 };
 
-// =============================================================================
 // LIFECYCLE & WATCHERS
-// =============================================================================
 
 const updateGridSize = () => {
   if (gridContainer.value) {
@@ -745,7 +718,6 @@ watch(() => spatialStore.settings.enabled, (enabled) => {
   }
 });
 
-// Track participant IDs to detect joins/leaves without deep watching
 let previousParticipantIds = new Set<string>();
 
 // Initialize positions for new participants (watch by user ID string to avoid deep watching)
@@ -754,14 +726,12 @@ watch(
   () => {
     const currentIds = new Set(allParticipants.value.map(p => p.userId));
     
-    // Initialize positions for new participants
     currentIds.forEach(userId => {
       if (!previousParticipantIds.has(userId)) {
         spatialStore.initializeUserPosition(userId);
       }
     });
     
-    // Remove positions for users who left
     previousParticipantIds.forEach(userId => {
       if (!currentIds.has(userId)) {
         spatialStore.removeUserPosition(userId);
@@ -797,7 +767,6 @@ onMounted(() => {
   nextTick(() => {
     updateGridSize();
     
-    // Initialize positions for current participants
     allParticipants.value.forEach(participant => {
       spatialStore.initializeUserPosition(participant.userId);
     });

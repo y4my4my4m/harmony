@@ -22,7 +22,6 @@ export async function handleChannelMessageJob(data: FederationJobData): Promise<
   logger.info(`📨 Processing channel message job: ${type} for message ${message_id}`);
 
   try {
-    // Get message
     const { data: message } = await supabase
       .from('messages')
       .select('*')
@@ -44,7 +43,6 @@ export async function handleChannelMessageJob(data: FederationJobData): Promise<
       logger.warn(`Link preview enrichment failed for ${message_id}:`, err);
     }
 
-    // Check if already federated
     if (message.metadata?.federated) {
       logger.debug(`Message ${message_id} already federated, skipping`);
       await updateFederationStatus(message_id, 'messages', 'skipped');
@@ -90,7 +88,6 @@ export async function handleChannelMessageEditJob(data: FederationJobData): Prom
   logger.info(`✏️ Processing channel message edit job for message ${message_id}`);
 
   try {
-    // Get message
     const { data: message } = await supabase
       .from('messages')
       .select('*')
@@ -105,10 +102,8 @@ export async function handleChannelMessageEditJob(data: FederationJobData): Prom
 
     await updateFederationStatus(message_id, 'messages', 'processing');
 
-    // Import and use the channel message update handler
     const { handleChannelMessageUpdate } = await import('../../listeners/ChannelMessageHandler.js');
     
-    // Get channel info
     const { data: channel } = await supabase
       .from('channels')
       .select('id, server_id')
@@ -145,7 +140,6 @@ export async function handleChannelMessageDeleteJob(data: FederationJobData): Pr
   try {
     await updateFederationStatus(message_id, 'messages', 'processing');
 
-    // Import and use the channel message delete handler
     const { handleChannelMessageDelete } = await import('../../listeners/ChannelMessageHandler.js');
     
     // Get channel info (message might be soft-deleted so use the passed channel_id)

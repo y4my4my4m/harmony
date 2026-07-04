@@ -126,7 +126,6 @@ export function useTimelineSwipe(options: {
     const atStart = currentIndex.value === 0 && deltaX > 0
     const atEnd = currentIndex.value === TIMELINE_ORDER.length - 1 && deltaX < 0
 
-    // Apply resistance at edges
     const resistance = (atStart || atEnd) ? 0.3 : 1
     swipeOffset.value = deltaX * resistance
     state.currentX = touch.clientX

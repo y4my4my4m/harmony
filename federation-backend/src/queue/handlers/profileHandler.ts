@@ -56,7 +56,6 @@ export async function handleProfileJob(data: FederationJobData): Promise<void> {
     await DeliveryQueue.broadcastToFollowers(profile.id, updateActivity);
 
     // Also broadcast to all remote instances where the user shares servers.
-    // This ensures co-members who don't follow the user still see profile updates.
     const coMemberGroups = await getServerCoMemberInstances(profile.id);
     if (coMemberGroups.length > 0) {
       let deliveredCount = 0;

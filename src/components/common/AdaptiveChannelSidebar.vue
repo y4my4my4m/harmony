@@ -52,6 +52,7 @@
             :src="currentUser?.avatar_url"
             :alt="currentUser?.display_name || currentUser?.username"
             size="md"
+            :fetch-size="256"
             :interactive="true"
             @click="$emit('profile-click')"
           />
@@ -233,7 +234,6 @@ const currentUser = computed(() => {
 const currentUserHandle = computed(() => {
   if (!currentUser.value) return '';
   
-  // Handle case where domain might not be set yet
   const domain = currentUser.value.domain || import.meta.env.VITE_DOMAIN as string;
   const username = currentUser.value.username;
   
@@ -250,7 +250,6 @@ const getUserProfilePath = () => {
   const domain = currentUser.value.domain || import.meta.env.VITE_DOMAIN as string;
   const username = currentUser.value.username;
   
-  // Generate clean handle without @ symbol for URL
   const handle = domain === import.meta.env.VITE_DOMAIN as string 
     ? username 
     : `${username}@${domain}`;
@@ -279,7 +278,6 @@ const navigationItems = computed(() => [
   { id: 'settings', label: t('navigation.settings'), path: '/settings', icon: 'settings' }
 ]);
 
-// Determine if a navigation item should be active
 const isNavItemActive = (navItem: { id: string; path: string }) => {
   const currentPath = route.path;
   
@@ -347,14 +345,12 @@ const navigateToFollowers = () => {
 
 const navigateToProfile = () => {
   if (currentUserHandle.value) {
-    // Remove all @ symbols and use just the username part for local users
     let handle = currentUserHandle.value.replace(/^@/, ''); // Remove leading @
     
     // For local users, remove domain part if present
     if (!handle.includes('@')) {
       // Already clean handle for local user
     } else if (handle.endsWith(`@${import.meta.env.VITE_DOMAIN as string}`)) {
-      // Remove local domain for clean local handle
       handle = handle.replace(`@${import.meta.env.VITE_DOMAIN as string}`, '');
     }
     
@@ -417,18 +413,15 @@ watch(() => activityPubStore.followersCount, (newCount) => {
 
 // Lifecycle
 onMounted(() => {
-  // Initialize previous counts
   previousFollowingCount.value = activityPubStore.followingCount;
   previousFollowersCount.value = activityPubStore.followersCount;
   
-  // Initialize ActivityPub store if in social mode
   if (props.mode === 'activitypub') {
     activityPubStore.initialize();
   }
 });
 
 onUnmounted(() => {
-  // Cleanup if needed
 });
 </script>
 

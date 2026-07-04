@@ -657,7 +657,6 @@ const props = defineProps({
   channelId: String,
   conversationId: String,
   threadId: String,
-  // Hide thread creation button (for use inside thread views)
   hideThreadActions: {
     type: Boolean,
     default: false
@@ -766,7 +765,6 @@ const activityPubStore = useActivityPubStore();
 const reactionsStore = useReactionsStore();
 const postReactionsStore = usePostReactionsStore();
 
-// Track shift key state so delete buttons can show a danger style
 const isShiftHeld = ref(false);
 const onShiftDown = (e: KeyboardEvent) => { if (e.key === 'Shift') isShiftHeld.value = true; };
 const onShiftUp = (e: KeyboardEvent) => { if (e.key === 'Shift') isShiftHeld.value = false; };
@@ -797,7 +795,6 @@ const getDisplayContent = (message: Message): MessagePart[] => {
   return stripLeadingSelfMention(message.content, username);
 };
 
-// Check if a message is from a blocked user (reactive)
 const isMessageFromBlockedUser = (message: Message): boolean => {
   // Access the version to make this reactive to blocked user changes
   blockCheckVersion.value;
@@ -845,7 +842,6 @@ const processedMessages = computed((): ProcessedMessage[] => {
     const isRevealed = currentBlockedGroup && revealedBlockedGroups.value.has(currentBlockedGroup.firstMessageId);
     
     if (isBlocked && !isRevealed) {
-      // Start or continue a blocked group
       if (!currentBlockedGroup) {
         currentBlockedGroup = {
           type: 'blocked-group',
@@ -868,7 +864,6 @@ const processedMessages = computed((): ProcessedMessage[] => {
         currentBlockedGroup = null;
       }
       
-      // Add regular message
       result.push({
         type: 'message',
         message,
@@ -902,7 +897,6 @@ const revealBlockedGroup = (firstMessageId: string) => {
   blockCheckVersion.value++;
 };
 
-// Hide a revealed blocked message group
 const hideBlockedGroup = (firstMessageId: string) => {
   revealedBlockedGroups.value.delete(firstMessageId);
   // Force re-computation
@@ -970,7 +964,6 @@ const displayItems = computed((): DisplayItem[] => {
     const isBlocked = isMessageFromBlockedUser(message);
     
     if (isBlocked) {
-      // Find consecutive blocked messages
       const groupStartIndex = i;
       const groupId = message.id;
       const groupMessages: Message[] = [];
@@ -997,7 +990,6 @@ const displayItems = computed((): DisplayItem[] => {
           });
         });
       } else {
-        // Show as a collapsed group
         result.push({
           type: 'blocked-group',
           key: `blocked-${groupId}`,
@@ -1074,7 +1066,6 @@ const fetchingBots = ref<Set<string>>(new Set());
 const threadsByMessageId = ref<Map<string, ThreadWithDetails>>(new Map());
 const loadingThreads = ref(false);
 
-// Fetch threads for the current channel
 const loadChannelThreads = async () => {
   if (!props.channelId) {
     threadsByMessageId.value.clear();
@@ -1097,7 +1088,6 @@ const loadChannelThreads = async () => {
   }
 };
 
-// Get thread for a message (if this message started a thread)
 const getThreadForMessage = (messageId: string): ThreadWithDetails | undefined => {
   return threadsByMessageId.value.get(messageId);
 };
@@ -1109,7 +1099,6 @@ const openThread = (thread: unknown) => {
   emit('createThread', { thread } as any);
 };
 
-// Open a thread by ID (for system messages)
 const handleOpenThread = async (threadId?: string) => {
   if (!threadId) return;
   
@@ -1126,7 +1115,6 @@ const handleOpenThread = async (threadId?: string) => {
 // Encryption capability check (cached - only updates when service state changes)
 const canDecryptMessages = ref(false);
 
-// Refresh thread indicators when threads change via broadcast
 const handleThreadBroadcast = () => {
   loadChannelThreads();
 };
@@ -1172,7 +1160,6 @@ onMounted(async () => {
   window.addEventListener('bot:updated', handleBotUpdated as EventListener);
 });
 
-// Reload threads when channel changes
 watch(() => props.channelId, () => {
   loadChannelThreads();
 });
@@ -1189,7 +1176,6 @@ const handleBotUpdated = (event: CustomEvent) => {
   });
 };
 
-// Fetch bot data from database
 const fetchBotData = async (botId: string) => {
   if (botDataCache.value.has(botId) || fetchingBots.value.has(botId)) {
     return;
@@ -1227,12 +1213,6 @@ const isMessageFromBot = (message: Message): boolean => {
 // Helper function to check if message is from Discord bridge (has Discord user metadata)
 const hasDiscordUserMetadata = (message: Message): boolean => {
   const hasMetadata = !!message.metadata?.discord_user;
-  // if (message.bot_id && !hasMetadata) {
-  //   debug.log('🔍 Bot message without Discord metadata:', message.id, message.metadata);
-  // }
-  // if (hasMetadata) {
-  //   debug.log('✅ Discord user found:', message.metadata?.discord_user);
-  // }
   return hasMetadata;
 };
 
@@ -1259,7 +1239,6 @@ const getInstanceBadge = (message: Message): ComputedRef<'admin' | 'mod' | null>
 // eslint-disable-next-line unused-imports/no-unused-vars
 const getBotDisplayName = (botId: string): ComputedRef<string> => {
   return computed(() => {
-    // Trigger fetch if not cached
     if (!botDataCache.value.has(botId) && !fetchingBots.value.has(botId)) {
       fetchBotData(botId);
     }
@@ -1461,7 +1440,6 @@ const handleMessageDoubleClick = (messageId: string, event: MouseEvent) => {
   triggerQuickReact(messageId);
 };
 
-// Apply the user's configured quick-react emoji to a message.
 const triggerQuickReact = (messageId: string) => {
   if (!quickReact.enabled.value) return;
   const e = quickReact.emoji.value;
@@ -1494,7 +1472,6 @@ const selectedUser = ref<User | null>(null);
 const showProfileModal = ref(false);
 const showInviteModal = ref(false);
 
-// Delete confirmation modal state
 const showDeleteConfirmModal = ref(false);
 const deleteConfirmConfig = ref({
   messageId: '',
@@ -1629,7 +1606,6 @@ const getReplyUserId = (replyMessageId: string) => {
   return message.user_id;
 };
 
-// Track if we should be at bottom (for initial load and new-message scroll)
 const shouldBeAtBottom = ref(false);
 
 // Track if user was at bottom before last messages update (for scroll-on-new-message)
@@ -1700,7 +1676,6 @@ watch(() => props.messages, (newMessages) => {
   // gives us the exact pre-prepend offset.
   const oldScrollTopForPrepend = messageDisplayContainer.value?.scrollTop ?? 0;
 
-  // Reset embed tracking for new messages
   const newMessageIds = new Set(newMessages.map(m => m.id));
   Object.keys(embedLoaded.value).forEach(messageId => {
     if (!newMessageIds.has(messageId)) {
@@ -1745,7 +1720,6 @@ watch(() => props.messages, (newMessages) => {
 
   // Batch fetch reactions for all messages (avoid N+1 queries)
   if (newMessages.length > 0) {
-    // Filter out temp/optimistic messages
     const realMessageIds = newMessages
       .filter(msg => !msg.id.startsWith('temp-') && !msg.sending)
       .map(msg => msg.id);
@@ -1810,7 +1784,6 @@ watch(() => props.messages, (newMessages) => {
           // catch-up / realtime) so we settle on the real end of the channel.
           openFollowBottomUntil = hasDivider ? 0 : Date.now() + 2500;
           
-          // Find all images in current messages that need to load
           const imageUrlsInMessages = new Set<string>();
           const embedCountsByMessage = new Map<string, number>();
           
@@ -1838,7 +1811,6 @@ watch(() => props.messages, (newMessages) => {
             }
             if (embedCount > 0) {
               embedCountsByMessage.set(message.id, embedCount);
-              // Initialize embed count for this message
               if (!embedLoaded.value[message.id]) {
                 embedLoaded.value[message.id] = 0;
               }
@@ -1930,7 +1902,6 @@ watch(() => props.messages, (newMessages) => {
             // Scroll immediately, then retry after virtualizer renders
             nextTick(() => scrollToTarget());
           } else {
-            // Wait for images and embeds to load, but with a maximum timeout
             const maxWaitTime = 3000; // Maximum 3 seconds (increased for embeds)
             const startTime = Date.now();
             
@@ -2082,7 +2053,6 @@ let hasUnreadUpdatePending = false;
 const setupUnreadObserver = () => {
   if (!props.channelId && !props.conversationId) return;
   
-  // Clean up existing observer
   if (intersectionObserver) {
     intersectionObserver.disconnect();
   }
@@ -2172,7 +2142,6 @@ const clearUnreadCount = async (messageId: string) => {
     if (!ctx.isAuthenticated) return;
     const profileId = ctx.profileId;
 
-    // Get the message to find channel_id or conversation_id
     const message = props.messages.find(m => m.id === messageId);
     if (!message) return;
     
@@ -2181,7 +2150,6 @@ const clearUnreadCount = async (messageId: string) => {
     
     if (!channelId && !conversationId) return;
     
-    // Update unread_counts table to clear unread counts - SINGLE call per channel
     const { error } = await supabase
       .from('unread_counts')
       .update({
@@ -2243,7 +2211,6 @@ watch(virtualRows, () => {
   }, 100);
 });
 
-// Cleanup on unmount
 onUnmounted(() => {
   window.removeEventListener('megolm-key-received', refreshCanDecrypt);
   window.removeEventListener('server-structure:thread-change', handleThreadBroadcast);
@@ -2356,7 +2323,6 @@ onMounted(() => {
     );
     if (idx < 0) return;
     rowVirtualizer.value.scrollToIndex(idx, { align: 'center', behavior: 'smooth' });
-    // Wait for the virtualizer to render the item, then highlight it
     setTimeout(() => {
       nextTick(() => {
         const messageElement = document.getElementById(`message-${messageId}`);
@@ -2408,7 +2374,6 @@ onUnmounted(() => {
 const showTooltip = async (event: MouseEvent, reaction: Reaction) => {
   if (tooltipTimer.value) clearTimeout(tooltipTimer.value);
   
-  // Filter to only Harmony users (those with user_id) for profile lookup
   const harmonyUserIds = reaction.reactions
     .filter(r => r.user_id)
     .map(r => r.user_id);
@@ -2586,11 +2551,9 @@ const formatTimestamp = (timestamp: Date) => {
   return format(date, 'MMM d, yyyy \'at\' p');
 };
 
-// Check if message has been edited
 const isMessageEdited = (message: Message): boolean => {
   if (!message.updated_at || !message.created_at) return false;
   
-  // Parse both timestamps
   const createdAt = new Date(message.created_at).getTime();
   const updatedAt = new Date(message.updated_at).getTime();
   
@@ -2876,16 +2839,13 @@ const openEmojiReactor = (message: Message, event: MouseEvent) => {
   emit('toggleEmojiList', true, message, event.currentTarget as HTMLElement);
 };
 
-// Track messages with shake animation for blocked reaction attempts
 const shakingMessages = ref<Set<string>>(new Set());
 
 const handleToggleReaction = (messageId: string, emoji: Emoji) => {
   if (tooltip.value.visible) hideTooltip();
   
-  // Check if the message is from a blocked user - refuse reaction with shake
   const message = props.messages.find(m => m.id === messageId);
   if (message && isMessageFromBlockedUser(message)) {
-    // Add shake animation
     shakingMessages.value.add(messageId);
     triggerDestructive(); // Haptic feedback
     
@@ -2901,12 +2861,10 @@ const handleToggleReaction = (messageId: string, emoji: Emoji) => {
   emit('sendReaction', messageId, emoji);
 };
 
-// Check if a message is currently shaking (blocked reaction attempt)
 const isMessageShaking = (messageId: string): boolean => {
   return shakingMessages.value.has(messageId);
 };
 
-// Handle opening emoji picker from inline add reaction button
 const handleOpenEmojiPicker = (messageId: string, event: MouseEvent) => {
   hideTooltip();
   
@@ -2916,11 +2874,9 @@ const handleOpenEmojiPicker = (messageId: string, event: MouseEvent) => {
   emit('toggleEmojiList', true, message, event.currentTarget as HTMLElement);
 };
 
-// Handle quick reaction from context menu
 const handleContextMenuReaction = (emoji: { native?: string; name: string; id?: string }) => {
   if (!contextMenuMessage.value) return;
   
-  // Convert to the Emoji type expected by sendReaction
   const emojiForReaction: Emoji = {
     id: emoji.id || emoji.native || emoji.name,
     name: emoji.name,
@@ -2931,7 +2887,6 @@ const handleContextMenuReaction = (emoji: { native?: string; name: string; id?: 
   emit('sendReaction', contextMenuMessage.value.id, emojiForReaction);
 };
 
-// Handle opening emoji picker from context menu
 const handleContextMenuEmojiPicker = (position?: { x: number; y: number }) => {
   if (!contextMenuMessage.value) return;
 
@@ -2946,7 +2901,6 @@ const handleContextMenuEmojiPicker = (position?: { x: number; y: number }) => {
   emit('toggleEmojiList', true, contextMenuMessage.value, anchor);
 };
 
-// Handle reporting a message from context menu
 const handleReportMessage = (message: Message) => {
   const authorId = message.user_id || (message as any).author_id;
   reportTargetUserId.value = authorId;
@@ -3101,7 +3055,6 @@ const handleReactionsLayoutChange = (messageId: string) => {
   });
 };
 
-// Handle embed loaded events
 const handleEmbedLoaded = (messageId: string) => {
   if (!embedLoaded.value[messageId]) {
     embedLoaded.value[messageId] = 0;
@@ -3113,7 +3066,6 @@ const handleEmbedLoaded = (messageId: string) => {
   });
 };
 
-// Handle click-to-decrypt for encrypted messages
 const handleDecryptMessage = async (message: Message) => {
   debug.log('🔓 Attempting to decrypt message on click:', message.id);
   
@@ -3162,7 +3114,6 @@ const handleDecryptMessage = async (message: Message) => {
       } as Message;
     }
     
-    // Build the message object that decryptMessage expects
     const roomId = messageToDecrypt.channel_id || messageToDecrypt.conversation_id || props.channelId || props.conversationId || '';
     debug.log('🔐 Decrypting with roomId:', roomId);
     
@@ -3201,7 +3152,6 @@ const handleDecryptMessage = async (message: Message) => {
         sender_verified: senderVerified,
       };
       
-      // Update the message in the appropriate store
       if (props.channelId || messageToDecrypt.channel_id) {
         chatStore.updateMessageInCache(messageToDecrypt.id, updatedMessage);
       } else if (props.conversationId || messageToDecrypt.conversation_id) {
@@ -3317,7 +3267,6 @@ const closeContextMenu = () => {
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const resolveNonUuidProfile = async (userId: string): Promise<any | null> => {
-  // Handle "unresolved-username@domain" format
   const unresolvedMatch = userId.match(/^unresolved-([^@]+)@(.+)$/);
   if (unresolvedMatch) {
     const [, username, domain] = unresolvedMatch;
@@ -3353,7 +3302,6 @@ const resolveNonUuidProfile = async (userId: string): Promise<any | null> => {
       debug.warn('Failed to resolve federated mention by handle:', userId, e);
     }
   }
-  // Handle ActivityPub URL format (https://domain/users/username)
   if (userId.startsWith('http')) {
     try {
       const url = new URL(userId);

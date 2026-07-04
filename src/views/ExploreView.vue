@@ -71,7 +71,6 @@ const emit = defineEmits<{
   openSearch: []
 }>()
 
-// Store and composables
 const activityPubStore = useActivityPubStore()
 const { followUser, unfollowUser, toggleFavorite, toggleReblog, toggleBookmark } = usePostInteractions()
 const router = useRouter()
@@ -86,7 +85,6 @@ const trendingTags = ref<Array<{ tag: string; count: number }>>([])
 const suggestedUsers = ref<FederatedUser[]>([])
 const instances = ref<Array<{ domain: string; users: number; posts: number }>>([])
 
-// Load explore data based on current view
 const loadExploreData = async () => {
   isLoading.value = true
   try {
@@ -128,11 +126,9 @@ const loadInstances = async () => {
 const handleLoadMore = async () => {
   try {
     if (props.currentView === 'trending') {
-      // Load more trending content (using public feed for now)
       const lastPost = trendingPosts.value[trendingPosts.value.length - 1]
       await activityPubStore.loadPublicFeed(lastPost?.id)
       
-      // Add new posts to trending
       const newPosts = activityPubStore.publicFeed.posts.filter(
         p => !trendingPosts.value.some(tp => tp.id === p.id)
       )

@@ -10,7 +10,7 @@ export function useChannelPermissions() {
   } = useServerPermissions()
 
   // Consistent permission model: owner bypass + isLocalServer check for all channel operations
-  // This ensures semantic coherence - if you can drag, you can create/move/delete
+  // One permission gates drag/create/move/delete so the operations stay coherent
   const hasManageChannelsPermission = computed(() => {
     // For federated servers, no local user can manage channels
     if (!isLocalServer.value) return false
@@ -49,16 +49,6 @@ export function useChannelPermissions() {
   const hasAnyChannelPermissions = computed(() => {
     return hasManageChannelsPermission.value
   })
-
-  const canViewChannel = (_channelId: string) => {
-    // Basic implementation - can be extended with channel-specific permissions
-    return true
-  }
-
-  const canAccessChannel = (_channelId: string) => {
-    // Basic implementation - can be extended with channel-specific permissions
-    return true
-  }
 
   const getDragCursor = (itemType: 'channel' | 'category', isDragging = false) => {
     if (itemType === 'channel') {
@@ -108,9 +98,7 @@ export function useChannelPermissions() {
     canCreateCategories,
     canMoveChannelsBetweenCategories,
     canDragAndDrop,
-    canViewChannel,
-    canAccessChannel,
-    
+
     // Drag & Drop utilities
     getDragCursor,
     validateDragAndDrop,

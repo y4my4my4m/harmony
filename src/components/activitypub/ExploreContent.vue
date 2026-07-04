@@ -311,7 +311,6 @@ interface Props {
 
 const props = defineProps<Props>();
 
-// Define emits
 defineEmits<{
   'switch-feed': [feedType: string];
   'refresh-timeline': [];
@@ -332,7 +331,6 @@ const activityPubStore = useActivityPubStore();
 const isLoading = ref(false);
 const isLoadingMore = ref(false);
 
-// Filter states
 const selectedContentType = ref('all');
 const selectedInstance = ref('all');
 const selectedTimeRange = ref('24h');
@@ -613,7 +611,6 @@ const showInstanceDetails = async (instance: any) => {
   try {
     selectedInstanceDetails.value = instance;
     
-    // Load additional instance stats
     const stats = await activityPubService.getInstanceStats(instance.domain);
     if (stats) {
       selectedInstanceDetails.value = { ...instance, ...stats };
@@ -770,7 +767,6 @@ const loadMore = async () => {
     isLoadingMore.value = true;
     
     if (props.currentView === 'trending') {
-      // Load more trending posts
       const morePosts = await activityPubService.getTrendingPosts({
         limit: 10,
         timeframe: 'daily'
@@ -778,7 +774,6 @@ const loadMore = async () => {
       
       trendingPosts.value.push(...morePosts);
     }
-    // Add more loading logic for other tabs if needed
     
   } catch (error) {
     debug.error('Failed to load more content:', error);

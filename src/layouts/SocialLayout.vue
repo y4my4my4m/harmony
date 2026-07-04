@@ -263,7 +263,6 @@ const emit = defineEmits<{
   refreshTimeline: []
 }>()
 
-// Store
 const activityPubStore = useActivityPubStore()
 const fundingStore = useFundingStore()
 const { config: fundingConfig } = storeToRefs(fundingStore)
@@ -415,7 +414,6 @@ const localInstanceDomain = computed(() => activityPubStore.instanceDomain)
 const localInstanceUserCount = computed(() => activityPubStore.instanceUserCount)
 const localInstancePostCount = computed(() => activityPubStore.instancePostCount)
 
-// Load trending hashtags from TrendingService
 const loadTrendingHashtags = async () => {
   try {
     isLoadingTrending.value = true
@@ -423,7 +421,6 @@ const loadTrendingHashtags = async () => {
     const hashtags = await trendingService.getTrendingHashtags({ limit: 10, days: 7 })
     debug.log('📊 Trending hashtags:', hashtags)
     
-    // Map to simplified format for sidebar
     trendingTopics.value = hashtags.map(h => ({
       tag: h.tag,
       count: h.daily_uses || h.weekly_uses || 0
@@ -441,7 +438,6 @@ const loadTrendingHashtags = async () => {
   }
 }
 
-// Load suggested users (uses cached store with 10-minute TTL)
 const loadSuggestedUsers = async () => {
   await activityPubStore.fetchSuggestedUsers()
 }
@@ -449,7 +445,6 @@ const loadSuggestedUsers = async () => {
 // Instance stats are now cached in the instance store
 // No need to load them here - they're fetched on demand with 5-minute cache
 
-// Load sidebar data on mount
 onMounted(() => {
   loadTrendingHashtags()
   loadSuggestedUsers()
@@ -465,7 +460,6 @@ onMounted(() => {
 // are app-scoped (cleaned up by `auth.logout()` via the auth store), so we
 // no longer tear them down on per-route navigation.
 
-// Track view context in database for notification suppression
 useViewContextTracking()
 
 // Event handlers
@@ -604,7 +598,6 @@ const handleLoadMorePosts = async () => {
 
 const handleFollow = async (user: FederatedUser | string) => {
   try {
-    // Handle both userId string and FederatedUser object
     const userId = typeof user === 'string' ? user : user?.id
     
     if (!userId) {
@@ -621,7 +614,6 @@ const handleFollow = async (user: FederatedUser | string) => {
 
 const handleUnfollow = async (user: FederatedUser | string) => {
   try {
-    // Handle both userId string and FederatedUser object
     const userId = typeof user === 'string' ? user : user?.id
     
     if (!userId) {

@@ -863,6 +863,8 @@ END;
 $$;
 
 -- Add user prekeys
+-- DEPRECATED (July 2026): Signal client stack removed; prekeys are unused by
+-- the Megolm encryption path. Kept for schema stability; DROP planned.
 CREATE OR REPLACE FUNCTION public.add_user_prekeys(
     p_user_id uuid,
     p_device_id text,

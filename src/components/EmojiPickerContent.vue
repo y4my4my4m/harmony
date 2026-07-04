@@ -318,7 +318,7 @@ const searchQuery = ref('');
 const hoveredEmojiName = ref<string | null>(null);
 const favoriteEmojis = ref<EmojiFavorite[]>([]);
 // The instance emoji set can be large and is rarely the user's first choice, so
-// it starts collapsed — its images aren't mounted/fetched until expanded.
+// it starts collapsed - its images aren't mounted/fetched until expanded.
 const collapsedSections = ref(new Set<string>([`server-${PERSONAL_EMOJI_GROUPS.instance}`]));
 
 const toggleSection = (id: string) => {
@@ -545,7 +545,7 @@ const selectFrequentEmoji = (emoji: { id: string; native?: string; name: string;
       server_id: ''
     } as Emoji;
     // Ephemeral (Klipy/remote) emoji use their URL as the id and aren't in the
-    // session cache after a reload — re-register so the :shortcode: resolves.
+    // session cache after a reload - re-register so the :shortcode: resolves.
     if (emoji.id.startsWith('http')) {
       registerEphemeralEmoji(emojiObj);
     }

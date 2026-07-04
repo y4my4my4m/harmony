@@ -377,7 +377,6 @@ const refreshData = async () => {
 
 const fetchOverviewMetrics = async () => {
   try {
-    // Fetch aggregated metrics from the hourly table
     const { data, error } = await supabase
       .from('performance_metrics_hourly')
       .select('*')

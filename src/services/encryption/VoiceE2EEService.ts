@@ -1,5 +1,5 @@
 /**
- * Voice/Video E2EE — shared room key distribution (Model S)
+ * Voice/Video E2EE - shared room key distribution (Model S)
  *
  * LiveKit's `ExternalE2EEKeyProvider` encrypts media frames with ONE shared key
  * for the whole room, but it does NOT solve key distribution. This service is
@@ -30,7 +30,7 @@ import { debug } from '@/utils/debug'
 
 /**
  * Deterministically pick the participant responsible for minting/distributing
- * the room key. Pure function — same input yields the same coordinator on every
+ * the room key. Pure function - same input yields the same coordinator on every
  * client, so all participants agree without negotiation.
  *
  * @param memberIds profile ids (or stable identities) currently in the room
@@ -107,7 +107,7 @@ class VoiceE2EEService {
 
   /**
    * Decrypt a wrapped room key. Returns the raw 32 bytes, or null if the blob
-   * can't be decrypted yet (e.g. the Megolm session hasn't arrived — caller
+   * can't be decrypted yet (e.g. the Megolm session hasn't arrived - caller
    * should retry on the `megolm-key-received` event).
    */
   async unwrapKey(

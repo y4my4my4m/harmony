@@ -211,12 +211,14 @@ import { formatDistanceToNow } from 'date-fns'
 import { useProfileStore } from '@/stores/useProfile'
 import BotAvatar from '@/components/common/BotAvatar.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
+import { useConfirmDialog } from '@/composables/useConfirmDialog'
 
 interface Props {
   serverId: string
 }
 
 const props = defineProps<Props>()
+const { confirm } = useConfirmDialog()
 const profileStore = useProfileStore()
 
 // State
@@ -288,7 +290,6 @@ async function loadBots() {
     if (botsError) throw botsError
     availableBots.value = bots || []
 
-    // Load installed bots for this server
     const { data: installations, error: installError } = await supabase
       .from('bot_server_permissions')
       .select(`
@@ -317,7 +318,6 @@ function isInstalled(botId: string): boolean {
 function showAddModal(bot: any) {
   selectedBot.value = bot
   
-  // Set default permissions
   selectedPermissions.value = {
     read_messages: true,
     send_messages: true,
@@ -381,7 +381,6 @@ async function addBot() {
 function showPermissionsModal(installation: any) {
   selectedInstallation.value = installation
   
-  // Load current permissions
   editingPermissions.value = {
     read_messages: installation.read_messages,
     send_messages: installation.send_messages,
@@ -428,7 +427,7 @@ async function updatePermissions() {
 }
 
 async function removeBot(installation: any) {
-  const confirmed = confirm(`Remove ${installation.bot.username} from this server?`)
+  const confirmed = await confirm({ title: 'Remove bot', message: `Remove ${installation.bot.username} from this server?`, confirmButtonText: 'Remove', dangerAction: true })
   if (!confirmed) return
 
   try {

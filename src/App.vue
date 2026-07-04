@@ -17,6 +17,19 @@
        the app's UI and isn't a native browser alert. -->
   <EncryptionFallbackModal />
 
+  <!-- Single app-wide confirm dialog host. Any component can call
+       `useConfirmDialog().confirm({...})` without mounting its own modal. -->
+  <UnifiedConfirmationModal
+    :model-value="confirmDialogVisible"
+    :title="confirmDialogTitle"
+    :message="confirmDialogMessage"
+    :confirm-button-text="confirmDialogConfirmText"
+    :danger-action="confirmDialogDanger"
+    @update:model-value="(v: boolean) => { if (!v) handleClose() }"
+    @confirm="handleConfirm"
+    @cancel="handleClose"
+  />
+
   <!-- Discord-style "new login - was this you?" device-approval prompt. Gentle,
        non-blocking, and skippable; never a mandatory verification wall. -->
   <DeviceApprovalPrompt v-if="!isAuthRoute" />
@@ -66,6 +79,18 @@ import RunOnLoginPrompt from '@/components/RunOnLoginPrompt.vue'
 import PublicServers from '@/components/PublicServers.vue'
 import AnnouncementPopup from '@/components/announcements/AnnouncementPopup.vue'
 import ThemeCustomizerPanel from '@/components/settings/user/ThemeCustomizerPanel.vue'
+import UnifiedConfirmationModal from '@/components/shared/UnifiedConfirmationModal.vue'
+import { useConfirmDialog } from '@/composables/useConfirmDialog'
+
+const {
+  confirmDialogVisible,
+  confirmDialogTitle,
+  confirmDialogMessage,
+  confirmDialogConfirmText,
+  confirmDialogDanger,
+  handleConfirm,
+  handleClose,
+} = useConfirmDialog()
 import { onMounted, onUnmounted } from 'vue'
 import { hapticManager } from '@/utils/hapticFeedback'
 import { initializeAppSettings } from '@/services/AppInitService'
@@ -105,7 +130,6 @@ const handleSwitchToChat = () => {
   router.push({ name: 'Chat' })
 }
 
-// Initialize haptic feedback for the app
 onMounted(() => {
   // Initialize app settings in background (non-blocking)
   // This loads theme/language settings but doesn't block rendering
@@ -136,7 +160,6 @@ onMounted(() => {
   }
   document.addEventListener('click', hapticClickHandler)
   
-  // Initialize status lifecycle debugger in development
   if (import.meta.env.DEV) {
     import('@/services/StatusLifecycleDebugger').then(({ statusDebugger }) => {
       statusDebugger.startDebugging()

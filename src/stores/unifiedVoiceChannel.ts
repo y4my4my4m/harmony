@@ -825,10 +825,8 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         
         await webrtcManager.leaveChannel();
 
-        // Clean up spatial audio
         this.cleanupSpatialAudio();
         
-        // Clean up Push-to-Talk
         this.cleanupPushToTalk();
         
         if (serverId && channelId) {
@@ -962,7 +960,6 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         themeStore.playAudio(this.localState.isMuted ? 'mic_off' : 'mic_on');
         return this.localState.isMuted;
       } else {
-        // Toggle local state when not connected
         this.localState.isMuted = !this.localState.isMuted;
         debug.log('Setting preemptive mute state:', this.localState.isMuted);
         themeStore.playAudio(this.localState.isMuted ? 'mic_off' : 'mic_on');
@@ -1010,7 +1007,6 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         themeStore.playAudio(deafened ? 'deafen_on' : 'deafen_off');
         return deafened;
       } else {
-        // Toggle local state when not connected
         this.localState.isDeafened = !this.localState.isDeafened;
         
         // Deafening also mutes (Discord behavior)
@@ -1365,7 +1361,6 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
           );
         }
 
-        // Reset call start time if everyone left
         const totalUsers = this.allUsers.length + 1;
         if (totalUsers === 1) {
           debug.log('🕐 Last user left - resetting call start time');
@@ -1420,7 +1415,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
           }
         }
         
-        // Don't auto-open overlay here — fires on every state change.
+        // Don't auto-open overlay here - fires on every state change.
         // Auto-open only happens in user-joined for initial sync when joining
       });
 
@@ -1448,12 +1443,10 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       });
       
       webrtcManager.on('local-stream-changed', (stream: any) => {
-        // debug.log('📹 Local stream changed:', stream);
         this.localStream = stream;
       });
       
       webrtcManager.on('stream-changed', (data: any) => {
-        // debug.log('📡 Stream changed:', data.userId, data.type, data.stream);
         if (data.type === 'local' && data.userId === this.localState.userId) {
           this.localStream = data.stream;
         } else if (data.type === 'remote') {
@@ -1485,9 +1478,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         }
       });
 
-      webrtcManager.on('connection-state-changed', () => {
-        // debug.log('🔗 Connection state changed:', data);
-      });
+      webrtcManager.on('connection-state-changed', () => {});
 
       webrtcManager.on('error', (error: any) => {
         debug.error('❌ WebRTC error:', error);
@@ -1712,7 +1703,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     _spatialAudioDebounceTimers: {} as Record<string, ReturnType<typeof setTimeout>>,
     
     /**
-     * Skips spatial audio during screenshare — screenshare audio should stay stereo.
+     * Skips spatial audio during screenshare - screenshare audio should stay stereo.
      */
     addUserToSpatialAudio(userId: string): void {
       const spatialStore = useSpatialAudioStore();

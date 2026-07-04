@@ -43,7 +43,6 @@ const installing = ref(false)
 const checkInstallAvailability = () => {
   const capabilities = pwaManager.getCapabilities()
   
-  // Show banner if app can be installed and user hasn't dismissed it recently
   if (capabilities.canInstall && !capabilities.isInstalled && !wasRecentlyDismissed()) {
     showBanner.value = true
   }

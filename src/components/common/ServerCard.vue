@@ -150,7 +150,6 @@ watch(() => props.server.banner, (bannerPath) => {
 // Local state to track if we're loading owner data
 const loadingOwnerData = ref(false)
 
-// Fetch owner profile when component mounts
 onMounted(async () => {
   if (!getUser(props.server.owner).value) {
     debug.log('ServerCard: Owner not in cache, fetching from database...')
@@ -174,12 +173,10 @@ const ownerAvatar = computed(() => {
   debug.log('ServerCard: Owner avatar URL:', avatarUrl)
   debug.log('ServerCard: Loading state:', loadingOwnerData.value)
   
-  // Return actual avatar URL if available and not default
   if (avatarUrl && avatarUrl !== '/default_avatar.webp') {
     return avatarUrl
   }
   
-  // Return null to let Avatar component handle defaults
   return null
 })
 

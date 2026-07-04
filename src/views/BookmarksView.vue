@@ -45,7 +45,6 @@ const emit = defineEmits<{
   clearAllBookmarks: []
 }>()
 
-// Store
 const activityPubStore = useActivityPubStore()
 
 // State
@@ -60,7 +59,6 @@ const hasMoreBookmarks = computed(() => {
   return activityPubStore.hasMoreBookmarks
 })
 
-// Load bookmarks
 const loadBookmarks = async () => {
   isLoadingBookmarks.value = true
   try {

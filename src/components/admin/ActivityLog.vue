@@ -40,7 +40,6 @@ import { adminService, type AdminActivity } from '@/services/AdminService'
 const activityFilter = ref('all')
 const recentActivity = ref<any[]>([])
 
-// Filter recent activity by category and format JSON details for display
 const filteredRecentActivity = computed(() => {
   let list = recentActivity.value
   if (activityFilter.value !== 'all') {
@@ -139,7 +138,6 @@ const formatActivityMessage = (event: { type: string; message: string | object; 
       return `${verb || 'Moderated'} ${who}${reason}`.trim()
     }
 
-    // Build human-readable message from common keys
     const parts: string[] = []
     if (obj.domain) parts.push(obj.domain)
     if (obj.reason) parts.push(`- ${obj.reason}`)

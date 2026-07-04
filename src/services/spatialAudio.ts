@@ -45,9 +45,7 @@
 import { useSpatialAudioStore } from '@/stores/spatialAudio';
 import { debug } from '@/utils/debug'
 
-// =============================================================================
 // TYPES
-// =============================================================================
 
 interface SpatialAudioNode {
   userId: string;
@@ -66,9 +64,7 @@ interface ImpulseResponseCache {
   [roomSize: string]: AudioBuffer;
 }
 
-// =============================================================================
 // SPATIAL AUDIO SERVICE
-// =============================================================================
 
 export class SpatialAudioService {
   private audioContext: AudioContext | null = null;
@@ -85,9 +81,7 @@ export class SpatialAudioService {
   private readonly updateThrottleMs = 16; // ~60fps updates
   private animationFrameId: number | null = null;
 
-  // =============================================================================
   // INITIALIZATION
-  // =============================================================================
 
   /**
    * Initialize spatial audio system with optimized audio context
@@ -99,7 +93,6 @@ export class SpatialAudioService {
     try {
       debug.log('🎧 Initializing Spatial Audio Service...');
       
-      // Create AudioContext with optimized settings for low latency
       this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({
         latencyHint: 'interactive', // Prioritize low latency for voice chat
         sampleRate: 48000 // Standard for high-quality audio
@@ -110,7 +103,6 @@ export class SpatialAudioService {
         await this.audioContext.resume();
       }
       
-      // Create professional audio processing chain
       await this.createMasterAudioChain();
       
       this.isInitialized = true;
@@ -158,7 +150,6 @@ export class SpatialAudioService {
     this.compressorNode.connect(this.masterGainNode);
     this.masterGainNode.connect(this.audioContext.destination);
     
-    // Set destination for individual audio chains
     this.destination = this.audioContext.destination;
     
     debug.log('🎛️ Master audio processing chain created with professional dynamics');
@@ -183,9 +174,7 @@ export class SpatialAudioService {
     }
   }
 
-  // =============================================================================
   // USER MANAGEMENT
-  // =============================================================================
 
   /**
    * Set the listener (local user) for spatial audio calculations
@@ -216,7 +205,6 @@ export class SpatialAudioService {
       return;
     }
 
-    // Check if stream has audio tracks
     const audioTracks = mediaStream.getAudioTracks();
     if (audioTracks.length === 0) {
       debug.warn('⚠️ No audio tracks in stream for user:', userId);
@@ -226,10 +214,8 @@ export class SpatialAudioService {
     debug.log('🎧 Setting up professional spatial audio for user:', userId);
     
     try {
-      // Remove existing node if it exists
       this.removeUser(userId);
 
-      // Log all tracks in the stream for debugging
       const audioTracks = mediaStream.getAudioTracks();
       debug.log(`🎧 Stream has ${audioTracks.length} audio tracks:`);
       audioTracks.forEach((track, i) => {
@@ -241,7 +227,6 @@ export class SpatialAudioService {
         return;
       }
       
-      // Check if any tracks are actually live
       const liveTracks = audioTracks.filter(t => t.readyState === 'live' && t.enabled);
       if (liveTracks.length === 0) {
         debug.warn('⚠️ No live/enabled audio tracks for spatial audio!');
@@ -256,7 +241,6 @@ export class SpatialAudioService {
       // (proper equal-power attenuation instead of naive channel summing).
       const processingChain = await this.createAudioProcessingChain(source);
       
-      // Store the complete node configuration
       const spatialNode: SpatialAudioNode = {
         userId,
         gainNode: processingChain.inputGain,
@@ -286,7 +270,6 @@ export class SpatialAudioService {
         audioTracks: audioTracks.length
       });
       
-      // Apply initial spatial effects
       this.updateSpatialEffects();
       
     } catch (error) {
@@ -317,7 +300,6 @@ export class SpatialAudioService {
     const outputGain = this.audioContext.createGain();
     outputGain.gain.value = 1.0;
     
-    // Create panner for spatial positioning
     const panner = this.createPannerNode();
     
     // Optional convolver for reverb
@@ -369,7 +351,6 @@ export class SpatialAudioService {
       // Disconnect all audio nodes safely
       this.disconnectAudioChain(node);
       
-      // Remove from tracking
       this.spatialNodes.delete(userId);
       
       debug.log('✅ Successfully removed spatial audio for user:', userId);
@@ -401,9 +382,7 @@ export class SpatialAudioService {
     }
   }
 
-  // =============================================================================
   // SPATIAL EFFECTS
-  // =============================================================================
 
   /**
    * Update spatial effects for all users with optimized performance
@@ -429,7 +408,6 @@ export class SpatialAudioService {
     this.spatialNodes.forEach((node, userId) => {
       if (userId === this.listenerUserId) return; // Skip self
       
-      // Get actual user positions for accurate positioning
       const listenerPos = spatialStore.getUserPosition(this.listenerUserId!);
       const userPos = spatialStore.getUserPosition(userId);
       
@@ -472,7 +450,6 @@ export class SpatialAudioService {
       this.setUserGain(userId, 1.0); // Full volume
       this.setUserPanning(userId, 0.0); // Center pan
       
-      // Reset 3D position to center if using PannerNode
       if (node.pannerNode instanceof PannerNode) {
         try {
           if (node.pannerNode.positionX) {
@@ -500,7 +477,6 @@ export class SpatialAudioService {
     if (!node || !this.audioContext || !node.isConnected) return;
 
     try {
-      // Apply professional audio curve for natural volume falloff
       const dbGain = gain === 0 ? -Infinity : 20 * Math.log10(gain);
       const linearGain = dbGain === -Infinity ? 0 : Math.pow(10, dbGain / 20);
       
@@ -547,7 +523,6 @@ export class SpatialAudioService {
       // Clamp panning to valid range
       const clampedPanning = Math.max(-1, Math.min(1, panning));
       
-      // Apply exponential curve for more dramatic panning (video game style)
       const dramaticPanning = Math.sign(clampedPanning) * Math.pow(Math.abs(clampedPanning), 0.6);
       
       const currentTime = this.audioContext.currentTime;
@@ -595,7 +570,6 @@ export class SpatialAudioService {
       const centerX = 300; // Center of typical voice overlay
       const centerY = 200;
       
-      // Calculate angle from center
       const dx = x - centerX;
       const dy = y - centerY;
       const angle = Math.atan2(dx, dy); // Angle in radians
@@ -615,7 +589,6 @@ export class SpatialAudioService {
       const currentTime = this.audioContext.currentTime;
       const transitionTime = 0.05;
       
-      // Apply 3D positioning
       if (node.pannerNode.positionX) {
         node.pannerNode.positionX.setTargetAtTime(audioX, currentTime, transitionTime);
         node.pannerNode.positionY.setTargetAtTime(audioY, currentTime, transitionTime);
@@ -632,9 +605,7 @@ export class SpatialAudioService {
     }
   }
 
-  // =============================================================================
   // POSITION MANAGEMENT
-  // =============================================================================
 
   /**
    * Update user position and trigger spatial effects recalculation
@@ -647,7 +618,6 @@ export class SpatialAudioService {
 
     const spatialStore = useSpatialAudioStore();
     
-    // Update position in store
     spatialStore.setUserPosition(userId, x, y);
     
     // Immediately trigger spatial effects update for responsive positioning
@@ -678,9 +648,7 @@ export class SpatialAudioService {
     }
   }
 
-  // =============================================================================
   // AUDIO NODE CREATION
-  // =============================================================================
 
   /**
    * Create optimized panner node based on settings and browser capabilities
@@ -725,11 +693,9 @@ export class SpatialAudioService {
     pannerNode.coneOuterAngle = 360;
     pannerNode.coneOuterGain = 1;
     
-    // Set initial position (center in front of listener)
     pannerNode.setPosition(0, 0, -1);
     pannerNode.setOrientation(0, 0, -1);
     
-    // Set listener position and orientation for proper spatial audio
     if (this.audioContext.listener) {
       if (this.audioContext.listener.positionX) {
         // Modern API
@@ -786,12 +752,10 @@ export class SpatialAudioService {
     const length = Math.floor(sampleRate * roomSize * 0.8); // Reduced from 1.5 for shorter, more natural reverb
     const impulse = this.audioContext.createBuffer(2, length, sampleRate);
     
-    // Generate realistic reverb impulse response for room ambience
     for (let channel = 0; channel < 2; channel++) {
       const channelData = impulse.getChannelData(channel);
       
       for (let i = 0; i < length; i++) {
-        // Create decaying noise with realistic room characteristics
         const normalizedTime = i / length;
         
         // Gentler decay for natural room sound
@@ -802,7 +766,6 @@ export class SpatialAudioService {
         const earlyReflection = normalizedTime < 0.03 ? 
           Math.sin(normalizedTime * Math.PI * 50) * 0.2 : 0; // Reduced from 0.4
         
-        // Generate colored noise with natural frequency response
         const noise = (Math.random() * 2 - 1);
         const highFreqRolloff = 1 - normalizedTime * 0.5; // More natural rolloff
         const filteredNoise = noise * highFreqRolloff;
@@ -838,9 +801,7 @@ export class SpatialAudioService {
     }
   }
 
-  // =============================================================================
   // CONTROL METHODS
-  // =============================================================================
 
   /**
    * Enable spatial audio effects with proper initialization
@@ -849,7 +810,6 @@ export class SpatialAudioService {
   async enableSpatialAudio(): Promise<void> {
     debug.log('🎧 Enabling spatial audio...');
     
-    // Initialize audio context if not already done
     if (!this.isInitialized) {
       await this.initialize();
     }
@@ -911,10 +871,8 @@ export class SpatialAudioService {
       }
     }
     
-    // Start continuous spatial updates
     this.startSpatialUpdates();
     
-    // Apply current spatial effects
     this.updateSpatialEffects();
     debug.log('✅ Spatial audio enabled - WET signal active');
   }
@@ -926,11 +884,10 @@ export class SpatialAudioService {
   disableSpatialAudio(): void {
     debug.log('🎧 Disabling spatial audio...');
     
-    // Stop spatial update loop
     this.stopSpatialUpdates();
     
     // Disconnect ALL spatial audio nodes to prevent hearing WET signal
-    // When disabled, we want ONLY the DRY signal from HTMLAudioElement
+    // When disabled, only the DRY signal from HTMLAudioElement should play
     this.spatialNodes.forEach((node, userId) => {
       try {
         debug.log(`🔇 Disconnecting spatial audio chain for user: ${userId}`);
@@ -957,7 +914,6 @@ export class SpatialAudioService {
           node.source.disconnect();
         }
         
-        // Mark as disconnected but keep the node for re-enabling
         node.isConnected = false;
         
       } catch (error) {
@@ -974,18 +930,15 @@ export class SpatialAudioService {
   async updateSettings(): Promise<void> {
     debug.log('🎧 Updating spatial audio settings...');
     
-    // Update spatial effects with new settings
     this.updateSpatialEffects();
     
     const spatialStore = useSpatialAudioStore();
     
-    // Update reverb nodes if settings changed
     for (const [userId, node] of this.spatialNodes) {
       const shouldHaveReverb = spatialStore.settings.enableReverb;
       const hasReverb = !!node.convolver;
       
       if (shouldHaveReverb && !hasReverb) {
-        // Add reverb
         try {
           const convolver = await this.createReverbNode(spatialStore.settings.roomSize);
           
@@ -1000,7 +953,6 @@ export class SpatialAudioService {
           debug.error('❌ Failed to add reverb for user:', userId, error);
         }
       } else if (!shouldHaveReverb && hasReverb) {
-        // Remove reverb
         try {
           if (node.convolver) {
             node.convolver.disconnect();
@@ -1016,7 +968,6 @@ export class SpatialAudioService {
           debug.error('❌ Failed to remove reverb for user:', userId, error);
         }
       } else if (hasReverb && node.convolver) {
-        // Update existing reverb with new room size
         try {
           const newConvolver = await this.createReverbNode(spatialStore.settings.roomSize);
           const oldConvolver = node.convolver;
@@ -1115,7 +1066,6 @@ export class SpatialAudioService {
     debug.log('- Max distance setting:', spatialStore.settings.maxDistance);
     debug.log('- User positions:', Array.from(spatialStore.userPositions.entries()));
     
-    // Check if traditional audio is muted
     debug.log('\n🔊 Checking traditional audio elements...');
     const { unifiedWebRTC } = require('@/services/unifiedWebRTC');
     const connections = unifiedWebRTC.getAllUsers();
@@ -1124,9 +1074,7 @@ export class SpatialAudioService {
     });
   }
 
-  // =============================================================================
   // CLEANUP
-  // =============================================================================
 
   /**
    * Destroy spatial audio service and cleanup all resources
@@ -1134,19 +1082,16 @@ export class SpatialAudioService {
   async destroy(): Promise<void> {
     debug.log('🎧 Destroying spatial audio service...');
     
-    // Stop update loop
     if (this.animationFrameId) {
       cancelAnimationFrame(this.animationFrameId);
       this.animationFrameId = null;
     }
     
-    // Remove all users and disconnect audio chains
     const userIds = Array.from(this.spatialNodes.keys());
     for (const userId of userIds) {
       this.removeUser(userId);
     }
     
-    // Clear cache
     this.impulseResponseCache = {};
     
     // Disconnect compressor node
@@ -1169,7 +1114,6 @@ export class SpatialAudioService {
       this.masterGainNode = null;
     }
     
-    // Close audio context
     if (this.audioContext && this.audioContext.state !== 'closed') {
       try {
         await this.audioContext.close();
@@ -1179,7 +1123,6 @@ export class SpatialAudioService {
       }
     }
     
-    // Reset all state
     this.audioContext = null;
     this.destination = null;
     this.listenerUserId = null;

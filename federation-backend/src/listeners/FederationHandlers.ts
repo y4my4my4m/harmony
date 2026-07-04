@@ -23,7 +23,6 @@ export async function createPostActivity(post: any, author: any): Promise<any> {
   const activityId = `${authorUrl}/activities/${post.id}`;
   const supabase = getSupabaseClient();
 
-  // Check if this is a quote post and get the quoted post's URL
   let quoteUrl: string | undefined;
   if (post.metadata?.is_quote && post.metadata?.reblog_of) {
     const { data: quotedPost } = await supabase
@@ -86,14 +85,12 @@ export async function createReblogActivity(user: any, reblogPost: any): Promise<
   const domain = config.INSTANCE_DOMAIN;
   const supabase = getSupabaseClient();
   
-  // Get the original post ID from metadata
   const originalPostId = reblogPost.metadata?.reblog_of;
   
   if (!originalPostId) {
     throw new Error('Reblog post missing original post reference');
   }
   
-  // Get the original post's AP ID
   const { data: originalPost } = await supabase
     .from('posts')
     .select('id, ap_id')
@@ -130,14 +127,12 @@ export async function createUndoAnnounceActivity(user: any, reblogPost: any): Pr
   const supabase = getSupabaseClient();
   const userUrl = `https://${domain}/users/${user.username}`;
   
-  // Get the original post ID from metadata
   const originalPostId = reblogPost.metadata?.reblog_of;
   
   if (!originalPostId) {
     throw new Error('Reblog post missing original post reference');
   }
   
-  // Get the original post's AP ID
   const { data: originalPost } = await supabase
     .from('posts')
     .select('id, ap_id')
@@ -146,7 +141,6 @@ export async function createUndoAnnounceActivity(user: any, reblogPost: any): Pr
   
   const objectUrl = originalPost?.ap_id || `https://${domain}/posts/${originalPostId}`;
   
-  // Create the original Announce activity that we're undoing
   const announceActivity = {
     '@context': 'https://www.w3.org/ns/activitystreams',
     id: reblogPost.ap_id || `${userUrl}/announces/${reblogPost.id}`,
@@ -174,7 +168,6 @@ export function createUndoFollowActivity(follower: any, following: any, followRe
   const domain = config.INSTANCE_DOMAIN;
   const followerUrl = `https://${domain}/users/${follower.username}`;
   
-  // Create the original Follow activity that we're undoing
   const followActivity = {
     '@context': 'https://www.w3.org/ns/activitystreams',
     id: followRecord.ap_id || `${followerUrl}/follows/${following.id}`,
@@ -199,7 +192,6 @@ export function createUndoLikeActivity(user: any, objectUrl: string): any {
   const domain = config.INSTANCE_DOMAIN;
   const userUrl = `https://${domain}/users/${user.username}`;
   
-  // Create the original Like activity that we're undoing
   const likeActivity = {
     '@context': 'https://www.w3.org/ns/activitystreams',
     id: `${userUrl}/likes/${Date.now()}`,
@@ -284,7 +276,6 @@ export function createUndoBlockActivity(blocker: any, blocked: any): any {
   const blockerUrl = `https://${domain}/users/${blocker.username}`;
   const blockedUrl = blocked.federated_id || `https://${blocked.domain}/users/${blocked.username}`;
   
-  // Create the original Block activity that we're undoing
   const blockActivity = {
     '@context': 'https://www.w3.org/ns/activitystreams',
     id: `${blockerUrl}/blocks/${blocked.id}`,
@@ -314,7 +305,6 @@ export function createFlagActivity(
   const domain = config.INSTANCE_DOMAIN;
   const reporterUrl = `https://${domain}/users/${reporter.username}`;
   
-  // Build the list of objects being reported
   const objects: string[] = [];
   
   // Always include the user

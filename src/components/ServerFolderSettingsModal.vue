@@ -84,7 +84,6 @@ const isEditMode = computed(() => {
   return props.folder !== null && props.folder !== undefined;
 });
 
-// Reset form when modal opens
 watch(() => props.isOpen, (open) => {
   if (open) {
     if (props.folder) {
@@ -108,7 +107,6 @@ const save = async () => {
 
   try {
     if (isEditMode.value && props.folder) {
-      // Update existing folder
       const success = await serverChannelStore.updateFolder(props.folder.id, {
         name: folderName.value.trim(),
         color: selectedColor.value
@@ -123,7 +121,6 @@ const save = async () => {
         close();
       }
     } else {
-      // Create new folder
       const newFolder = await serverChannelStore.createFolder(
         folderName.value.trim(),
         selectedColor.value

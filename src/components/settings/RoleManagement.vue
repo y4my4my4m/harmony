@@ -331,6 +331,8 @@ import {
   fetchBridgedServerUsers,
   type BridgedChannelUser,
 } from '@/services/bridgedChannelUsersService'
+import { useConfirmDialog } from '@/composables/useConfirmDialog'
+import { useToast } from 'vue-toastification'
 
 interface RoleMemberRow {
   id: string
@@ -345,6 +347,8 @@ interface Props {
 }
 
 const props = defineProps<Props>()
+const toast = useToast()
+const { confirm } = useConfirmDialog()
 
 // State
 const loading = ref(false)
@@ -358,7 +362,6 @@ const loadingMembers = ref(false)
 const serverOwnerId = ref<string | null>(null)
 const serverBridgedUsers = ref<BridgedChannelUser[]>([])
 
-// Add member state
 const addMemberSearch = ref('')
 const searchingMembers = ref(false)
 const availableMembers = ref<any[]>([])
@@ -459,7 +462,6 @@ const ensurePermissionsArray = (perms: unknown): string[] => {
   if (Array.isArray(perms)) {
     return [...perms]
   } else if (typeof perms === 'object' && perms !== null) {
-    // Handle JSONB object format: { 'PERMISSION_NAME': true }
     const obj = perms as Record<string, unknown>
     return Object.entries(obj)
       .filter(([_, value]) => value === true)
@@ -541,7 +543,6 @@ const loadRoles = async () => {
     if (selectedRole.value) {
       const stillThere = roles.value.find(r => r.id === selectedRole.value!.id)
       if (stillThere) {
-        // Refresh the in-rail copy without disturbing the form
         return
       }
     }
@@ -576,7 +577,6 @@ const selectRole = async (role: ServerRole) => {
   activeTab.value = 'display'
   resetForm()
   
-  // Reset add member search
   addMemberSearch.value = ''
   availableMembers.value = []
   
@@ -674,7 +674,6 @@ const saveRole = async () => {
   
   saving.value = true
   try {
-    // Convert permissions array to JSONB object format for database
     const updated = await roleService.updateRole(selectedRole.value.id, {
       name: editForm.value.name,
       color: editForm.value.color,
@@ -684,7 +683,6 @@ const saveRole = async () => {
     })
     
     if (updated) {
-      // Update local state
       const index = roles.value.findIndex(r => r.id === updated.id)
       if (index >= 0) {
         roles.value[index] = updated
@@ -706,7 +704,7 @@ const isProtectedRole = computed(() => {
 const deleteRole = async () => {
   if (!selectedRole.value || isProtectedRole.value) return
   
-  if (!confirm(`Are you sure you want to delete the "${selectedRole.value.name}" role?`)) {
+  if (!(await confirm({ title: 'Delete role', message: `Are you sure you want to delete the "${selectedRole.value.name}" role?`, confirmButtonText: 'Delete', dangerAction: true }))) {
     return
   }
   
@@ -723,7 +721,7 @@ const deleteRole = async () => {
     }
   } catch (error: any) {
     console.error('Failed to delete role:', error)
-    alert(error.message || 'Failed to delete role')
+    toast.error(error.message || 'Failed to delete role')
   }
 }
 
@@ -737,16 +735,14 @@ const removeMember = async (member: RoleMemberRow) => {
     }
   } catch (error: any) {
     console.error('Failed to remove member from role:', error)
-    // Show user-friendly error message
     if (error.message?.includes('server owner')) {
-      alert('Cannot remove Admin role from the server owner')
+      toast.error('Cannot remove Admin role from the server owner')
     } else {
-      alert(error.message || 'Failed to remove member from role')
+      toast.error(error.message || 'Failed to remove member from role')
     }
   }
 }
 
-// Load all server members for the add member search
 const loadServerMembers = async () => {
   try {
     const { data, error } = await supabase
@@ -776,7 +772,6 @@ const loadServerMembers = async () => {
   }
 }
 
-// Handle search input for adding members
 const handleAddMemberSearch = () => {
   if (searchTimeout) {
     clearTimeout(searchTimeout)
@@ -797,7 +792,6 @@ const searchAvailableMembers = () => {
   
   searchingMembers.value = true
   
-  // Filter server members who don't already have this role
   const roleMemberIds = new Set(roleMembers.value.map(m => m.id))
   
   availableMembers.value = allServerMembers.value.filter(member => {
@@ -814,29 +808,25 @@ const searchAvailableMembers = () => {
   searchingMembers.value = false
 }
 
-// Add a member to the current role
 const addMemberToRole = async (memberId: string) => {
   if (!selectedRole.value) return
   
   try {
     const success = await roleService.assignRole(memberId, selectedRole.value.id, props.serverId)
     if (success) {
-      // Find the member in available members and add to role members
       const member = availableMembers.value.find(m => m.id === memberId)
       if (member) {
         roleMembers.value.push(member)
-        // Remove from available members
         availableMembers.value = availableMembers.value.filter(m => m.id !== memberId)
       }
     }
   } catch (error: any) {
     console.error('Failed to add member to role:', error)
-    alert(error.message || 'Failed to add member to role')
+    toast.error(error.message || 'Failed to add member to role')
   }
 }
 
 const handleReorder = async () => {
-  // Update positions based on new order
   const updates = roles.value.map((role, index) => ({
     id: role.id,
     position: roles.value.length - index,
@@ -846,7 +836,6 @@ const handleReorder = async () => {
     await roleService.reorderRoles(props.serverId, updates)
   } catch (error) {
     console.error('Failed to reorder roles:', error)
-    // Reload roles on error
     loadRoles()
   }
 }
@@ -857,7 +846,6 @@ watch(() => props.serverId, () => {
   loadRoles()
 })
 
-// Load server owner info
 const loadServerOwner = async () => {
   try {
     const { data, error } = await supabase
@@ -874,12 +862,10 @@ const loadServerOwner = async () => {
   }
 }
 
-// Check if a member is the server owner
 const isServerOwner = (memberId: string): boolean => {
   return serverOwnerId.value === memberId
 }
 
-// Check if remove button should be shown for a member
 const canRemoveMember = (member: RoleMemberRow): boolean => {
   if (member.isBridged) return false
   if (selectedRole.value?.is_default) return false

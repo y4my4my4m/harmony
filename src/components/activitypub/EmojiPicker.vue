@@ -202,7 +202,6 @@ const currentPackName = computed(() => {
   }
 });
 
-// Get categories from unified service (sorted by order)
 const displayedCategories = computed(() => {
   const cats = getCategories();
   if (cats.length > 0) {
@@ -279,7 +278,6 @@ function selectEmoji(emoji: DisplayEmoji) {
     name: emoji.name
   });
   
-  // Emit in the expected format
   emit('emojiSelected', { 
     content: emoji.unicode, 
     name: emoji.name 
@@ -287,7 +285,6 @@ function selectEmoji(emoji: DisplayEmoji) {
   emit('close');
 }
 
-// Set initial category when data loads
 watch(isLoaded, (loaded) => {
   if (loaded && displayedCategories.value.length > 0) {
     selectedCategory.value = displayedCategories.value[0].id;
@@ -295,7 +292,6 @@ watch(isLoaded, (loaded) => {
 });
 
 onMounted(() => {
-  // Set initial category
   if (displayedCategories.value.length > 0) {
     selectedCategory.value = displayedCategories.value[0].id;
   }

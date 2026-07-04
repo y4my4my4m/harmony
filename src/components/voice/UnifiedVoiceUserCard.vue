@@ -185,9 +185,7 @@ import Icon from '@/components/common/Icon.vue';
 import Avatar from '@/components/common/Avatar.vue';
 import VoiceUserContextMenu from './VoiceUserContextMenu.vue';
 
-// =============================================================================
 // PROPS & EMITS
-// =============================================================================
 
 const props = defineProps<{
   userState: UserMediaState;
@@ -198,16 +196,12 @@ const emit = defineEmits<{
   (e: 'toggle-screen-share'): void;
 }>();
 
-// =============================================================================
 // STORES & COMPOSABLES
-// =============================================================================
 
 const voiceStore = useUnifiedVoiceChannelStore();
 const { getUserProfile } = useUserData();
 
-// =============================================================================
 // REFS
-// =============================================================================
 
 const videoElement = ref<HTMLVideoElement | null>(null);
 
@@ -215,14 +209,11 @@ const videoElement = ref<HTMLVideoElement | null>(null);
 const showContextMenu = ref(false);
 const contextMenuPosition = ref({ x: 0, y: 0 });
 
-// =============================================================================
 // COMPUTED PROPERTIES
-// =============================================================================
 
-// Get user profile data
 const userProfile = computed(() => {
   try {
-    // getUserProfile returns a computed ref, so we need to access .value
+    // getUserProfile returns a computed ref; unwrap .value
     const profileData = getUserProfile(props.userState.userId).value;
     
     // Debug logging for troubleshooting
@@ -248,12 +239,10 @@ const userProfile = computed(() => {
   }
 });
 
-// Get user stream
 const userStream = computed(() => {
   return voiceStore.getUserStream(props.userState.userId);
 });
 
-// Check if this is the current user
 const isSelf = computed(() => {
   return props.userState.userId === voiceStore.localState.userId;
 });
@@ -275,7 +264,6 @@ const effectiveDeafened = computed(() => {
   return props.userState.isDeafened;
 });
 
-// Get connection state
 const connectionState = computed(() => {
   // For self, always connected when in channel
   if (isSelf.value) {
@@ -355,17 +343,14 @@ const userStatus = computed(() => {
   return 'In voice';
 });
 
-// Check if this card is in fullscreen mode
 const isFullscreenActive = computed(() => {
   return voiceStore.viewMode === 'fullscreen' && voiceStore.fullscreenUserId === props.userState.userId;
 });
 
-// Check if PIP is active for this user
 const isPIPActive = computed(() => {
   return voiceStore.pipActive && voiceStore.pipUserId === props.userState.userId;
 });
 
-// Check if this user is locally muted (volume set to 0 by local user)
 const isLocallyMuted = computed(() => {
   return voiceStore.getUserVolume(props.userState.userId) === 0;
 });
@@ -386,15 +371,12 @@ const voiceRingOffset = computed(() => {
   return circumference - progress * circumference;
 });
 
-// =============================================================================
 // METHODS
-// =============================================================================
 
 // Audio bar heights for visualization
 const getBarHeight = (barIndex: number) => {
   const baseHeight = 20;
   const intensity = voiceIntensity.value;
-  // Add some pseudo-random variation to make it look more dynamic
   const variation = Math.sin(Date.now() / 150 + barIndex * 0.5) * 0.4;
   return Math.max(baseHeight + intensity * 80 + variation * 30, 15);
 };
@@ -420,7 +402,6 @@ const handleCardClick = () => {
     return;
   }
   
-  // Toggle fullscreen mode
   if (isFullscreenActive.value) {
     voiceStore.exitFullscreen();
   } else {
@@ -449,9 +430,7 @@ const handleContextMenu = (event: MouseEvent) => {
   showContextMenu.value = true;
 };
 
-// =============================================================================
 // WATCHERS
-// =============================================================================
 
 // Function to attach video to element
 // Track last attached state to prevent unnecessary re-attachments
@@ -482,7 +461,7 @@ const attachVideo = (forceReattach = false) => {
   const shouldShowVideo = state.isVideoEnabled || state.isScreenSharing;
   const currentStreamId = stream?.id || null;
   
-  // Check if we need to reattach - either state changed OR stream changed OR forced
+  // Reattach when state, stream, or the force flag changes
   const stateChanged = 
     lastAttachedVideoState.isVideoEnabled !== state.isVideoEnabled ||
     lastAttachedVideoState.isScreenSharing !== state.isScreenSharing;
@@ -500,7 +479,6 @@ const attachVideo = (forceReattach = false) => {
     // If stream changed OR state changed OR forced, we MUST reattach
     if ((streamChanged || stateChanged || forceReattach) && isVideoAttached) {
       debug.log(`📹 ${forceReattach ? 'Force' : 'State/Stream'} reattachment for ${userId}`);
-      // Clear old attachment
       voiceStore.detachVideoFromElement(userId, videoEl);
       videoElement.value.srcObject = null;
       isVideoAttached = false;
@@ -536,9 +514,7 @@ const attachVideo = (forceReattach = false) => {
       }
     }
   } else if (isVideoAttached) {
-    // Detach video properly when turning off
     voiceStore.detachVideoFromElement(userId, videoEl);
-    // Clear the video element completely
     videoElement.value.srcObject = null;
     videoElement.value.src = '';
     videoElement.value.load(); // Force reload to clear any cached frames

@@ -75,7 +75,6 @@ export function useContentRenderer(
 
   const findEmojiByName = (name: string) => resolveEmojiByShortcode(name) ?? undefined;
 
-  // Convert any content format to MessagePart[]
   const normalizeContent = (rawContent: any): MessagePart[] => {
     if (!rawContent) return [];
     
@@ -141,7 +140,6 @@ export function useContentRenderer(
     let normalized = normalizeContent(content.value);
     normalized = cleanStrayMentionPrefixes(normalized);
     
-    // Apply preview truncation if needed
     if (renderOptions.mode === 'preview' && renderOptions.maxPreviewLength) {
       return truncateContent(normalized, renderOptions.maxPreviewLength);
     }
@@ -159,7 +157,6 @@ export function useContentRenderer(
     // Traditional emoji type
     if (part && part.type === 'emoji') return true;
     
-    // Check if single text part is just one emoji (with optional whitespace)
     if (part && part.type === 'text') {
       const trimmed = part.text?.trim() || '';
       // Unicode emoji regex - must be ONLY an emoji (flags, ZWJ sequences, or standard emojis)
@@ -171,7 +168,6 @@ export function useContentRenderer(
     return false;
   });
 
-  // Format mention display consistently
   const formatMentionDisplay = (mention: MessagePart): string => {
     if (mention.type !== 'mention') return '';
     
@@ -260,7 +256,6 @@ export function useContentRenderer(
     return ft;
   };
 
-  // Check if part is viewable media (image/video) for grid grouping
   const isViewableMediaPart = (p: MessagePart): boolean => {
     if (renderOptions.mode === 'preview') return false;
     const partType = String((p as any).type || '').toLowerCase();
@@ -281,7 +276,6 @@ export function useContentRenderer(
     return false;
   };
 
-  // Render a single media item's HTML (for grid)
   const renderMediaItemHtml = (p: MessagePart): string => {
     const partType = String((p as any).type || '').toLowerCase();
     if (partType === 'file') {
@@ -328,7 +322,6 @@ export function useContentRenderer(
     return '';
   };
 
-  // Generate HTML string for v-html rendering (like MonyContent)
   const formattedHTML = computed(() => {
     const parts = renderableContent.value;
     const chunks: string[] = [];
@@ -373,7 +366,6 @@ export function useContentRenderer(
             text = text.replace(/`(.*?)`/g, '<code>$1</code>');
           }
           
-          // Format hashtags
           text = text.replace(/(?<![&\w])#(\w+)/g, '<span class="hashtag" data-tag="$1">#$1</span>');
           
           return text;

@@ -92,11 +92,9 @@ const promptCopy = (scope: EncryptionFallbackScope, error: any): string => {
   return `${getReasonText(error)}\n\nSend this ${getNounText(scope)} UNENCRYPTED? ${getAudienceText(scope)}`
 }
 
-// ===========================================================================
 // Singleton modal state - read by `EncryptionFallbackModal.vue`.
 // The composable is the only writer; the modal is the only consumer (besides
 // `resolveEncryptionFallbackPrompt`).
-// ===========================================================================
 
 export interface EncryptionFallbackPromptState {
   open: boolean

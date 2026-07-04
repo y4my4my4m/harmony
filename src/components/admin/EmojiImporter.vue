@@ -184,6 +184,7 @@ import { ref, computed, onMounted } from 'vue';
 import { supabase } from '@/supabase';
 import { debug } from '@/utils/debug';
 import Icon from '@/components/common/Icon.vue';
+import { useToast } from 'vue-toastification'
 
 interface RemoteEmoji {
   id: string;
@@ -203,6 +204,7 @@ interface RemoteEmoji {
 
 // State
 const emojis = ref<RemoteEmoji[]>([]);
+const toast = useToast()
 const isLoading = ref(false);
 const selectedDomain = ref('');
 const sortBy = ref('usage_count');
@@ -211,7 +213,6 @@ const uniqueDomains = ref<string[]>([]);
 const totalEmojis = ref(0);
 const importedCount = ref(0);
 
-// Import modal state
 const showImportModal = ref(false);
 const selectedEmoji = ref<RemoteEmoji | null>(null);
 const importName = ref('');
@@ -222,7 +223,6 @@ const importingIds = ref(new Set<string>());
 const filteredEmojis = computed(() => {
   let result = [...emojis.value];
   
-  // Sort
   switch (sortBy.value) {
     case 'usage_count':
       result.sort((a, b) => b.usage_count - a.usage_count);
@@ -272,12 +272,10 @@ const loadEmojis = async () => {
       .order('usage_count', { ascending: false })
       .range(emojiOffset.value, emojiOffset.value + emojiPageSize - 1);
     
-    // Filter by domain
     if (selectedDomain.value) {
       query = query.eq('origin_domain', selectedDomain.value);
     }
     
-    // Filter by import status
     if (importStatus.value === 'not_imported') {
       query = query.is('imported_as', null);
     } else if (importStatus.value === 'imported') {
@@ -296,7 +294,6 @@ const loadEmojis = async () => {
     debug.log(`🎨 Loaded ${data?.length || 0} remote emojis`);
     emojis.value = data || [];
     
-    // Load unique domains for filter
     const { data: domainData, error: domainError } = await supabase
       .from('remote_emojis_cache')
       .select('origin_domain')
@@ -309,7 +306,6 @@ const loadEmojis = async () => {
       debug.log(`🎨 Found ${uniqueDomains.value.length} unique domains:`, uniqueDomains.value);
     }
     
-    // Load stats
     const { count: total, error: countError } = await supabase
       .from('remote_emojis_cache')
       .select('*', { count: 'exact', head: true });
@@ -366,13 +362,12 @@ const confirmImport = async () => {
     
     if (error) {
       debug.error('Failed to import emoji:', error);
-      alert(`Failed to import emoji: ${error.message}`);
+      toast.error(`Failed to import emoji: ${error.message}`);
       return;
     }
     
     debug.log('Emoji imported successfully:', data);
     
-    // Update local state
     const idx = emojis.value.findIndex(e => e.id === selectedEmoji.value!.id);
     if (idx !== -1) {
       emojis.value[idx].imported_as = data;
@@ -384,7 +379,7 @@ const confirmImport = async () => {
     
   } catch (error) {
     debug.error('Error importing emoji:', error);
-    alert('An error occurred while importing the emoji.');
+    toast.error('An error occurred while importing the emoji.');
   } finally {
     isImporting.value = false;
     if (selectedEmoji.value) {

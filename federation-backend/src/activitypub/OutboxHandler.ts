@@ -29,7 +29,6 @@ router.get(
     const maxDate = req.query.max_date as string | undefined;
     const supabase = getSupabaseClient();
 
-    // Get user
     const { data: user, error: userError } = await supabase
       .from('profiles')
       .select('*')
@@ -54,7 +53,6 @@ router.get(
         .eq('is_local', true)
         .eq('is_deleted', false);
 
-      // Apply type filter to count if specified
       if (activityType === 'Announce') {
         countQuery = countQuery.not('metadata->reblog_of', 'is', null);
       } else if (activityType === 'Create') {
@@ -76,7 +74,6 @@ router.get(
       return;
     }
 
-    // Build paginated query
     let query = supabase
       .from('posts')
       .select('*')
@@ -86,7 +83,6 @@ router.get(
       .order('created_at', { ascending: false })
       .limit(limit + 1);
 
-    // Apply cursor (timestamp-based for efficient pagination)
     if (cursor && cursor !== 'start') {
       const { data: cursorPost } = await supabase
         .from('posts')
@@ -104,14 +100,12 @@ router.get(
       query = query.range(offset, offset + limit - 1);
     }
 
-    // Apply type filter
     if (activityType === 'Announce') {
       query = query.not('metadata->reblog_of', 'is', null);
     } else if (activityType === 'Create') {
       query = query.is('metadata->reblog_of', null);
     }
 
-    // Apply date range filters
     if (minDate) {
       query = query.gte('created_at', minDate);
     }
@@ -124,7 +118,6 @@ router.get(
     const items = (posts || []).slice(0, limit);
     const lastItem = items[items.length - 1];
 
-    // Convert posts to ActivityPub activities
     const orderedItems = items.map((post: any) => {
       const isReblog = post.metadata?.reblog_of || post.metadata?.is_reblog;
       
@@ -141,7 +134,6 @@ router.get(
           object: post.metadata?.reblog_of_ap_url || `${baseUrl}/posts/${post.metadata?.reblog_of}`,
         };
       } else {
-        // Create (original post)
         return {
           '@context': 'https://www.w3.org/ns/activitystreams',
           id: `${baseUrl}/activities/${post.id}`,
@@ -165,7 +157,6 @@ router.get(
       orderedItems,
     };
 
-    // Add pagination links
     if (hasMore && lastItem?.id) {
       response.next = `${outboxUrl}?cursor=${lastItem.id}&limit=${limit}`;
     }
