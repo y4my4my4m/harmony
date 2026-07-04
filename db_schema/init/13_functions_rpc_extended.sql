@@ -4146,6 +4146,8 @@ DECLARE
     emoji_url text;
     reactor_profile RECORD;
     follower_profile RECORD;
+    accepter_profile RECORD;
+    follow_notification_type text;
 BEGIN
     -- Handle follows
     IF TG_TABLE_NAME = 'follows' AND TG_OP = 'INSERT' THEN
@@ -4155,10 +4157,24 @@ BEGIN
         WHERE id = NEW.follower_id;
 
         IF follower_profile.id IS NOT NULL THEN
+            follow_notification_type := CASE
+                WHEN NEW.status = 'pending' THEN 'activitypub_follow_request'
+                ELSE 'activitypub_follow'
+            END;
+
             notification_data := jsonb_build_object(
-                'type', 'activitypub_follow',
+                'type', follow_notification_type,
                 'follower_id', NEW.follower_id,
                 'follower', notification_actor_json(
+                    follower_profile.id,
+                    follower_profile.username,
+                    follower_profile.display_name,
+                    follower_profile.avatar_url,
+                    follower_profile.domain,
+                    follower_profile.is_local
+                ),
+                -- 'sender' alias: push payload builder reads data.sender for actor name/avatar
+                'sender', notification_actor_json(
                     follower_profile.id,
                     follower_profile.username,
                     follower_profile.display_name,
@@ -4169,13 +4185,53 @@ BEGIN
             );
 
             PERFORM send_notification_to_user(
-                'activitypub_follow',
+                follow_notification_type,
                 NEW.following_id,
                 notification_data,
                 NULL, NULL, NULL,
                 NEW.follower_id,
                 'normal'
             );
+        END IF;
+
+    -- Follow request approved: notify the requester
+    ELSIF TG_TABLE_NAME = 'follows' AND TG_OP = 'UPDATE'
+        AND OLD.status = 'pending' AND NEW.status = 'accepted' THEN
+        SELECT id, username, display_name, avatar_url, domain, is_local
+        INTO follower_profile
+        FROM profiles
+        WHERE id = NEW.follower_id;
+
+        -- Remote followers are notified by their own instance via the federated Accept
+        IF follower_profile.id IS NOT NULL AND COALESCE(follower_profile.is_local, true) THEN
+            SELECT id, username, display_name, avatar_url, domain, is_local
+            INTO accepter_profile
+            FROM profiles
+            WHERE id = NEW.following_id;
+
+            IF accepter_profile.id IS NOT NULL THEN
+                notification_data := jsonb_build_object(
+                    'type', 'activitypub_follow_accepted',
+                    'followed_id', NEW.following_id,
+                    'sender', notification_actor_json(
+                        accepter_profile.id,
+                        accepter_profile.username,
+                        accepter_profile.display_name,
+                        accepter_profile.avatar_url,
+                        accepter_profile.domain,
+                        accepter_profile.is_local
+                    )
+                );
+
+                PERFORM send_notification_to_user(
+                    'activitypub_follow_accepted',
+                    NEW.follower_id,
+                    notification_data,
+                    NULL, NULL, NULL,
+                    NEW.following_id,
+                    'normal'
+                );
+            END IF;
         END IF;
 
     ELSIF TG_TABLE_NAME = 'reactions' AND TG_OP = 'INSERT' THEN
@@ -4319,7 +4375,7 @@ BEGIN
 END;
 $$;
 
-COMMENT ON FUNCTION public.handle_unified_notification_processing() IS 'Handles notifications for follows (with full profile data), reactions, and ActivityPub emoji reactions. Includes full reactor/sender profile in notification data for proper display.';
+COMMENT ON FUNCTION public.handle_unified_notification_processing() IS 'Handles notifications for follows (follow vs follow_request based on status, follow_accepted on pending->accepted), reactions, and ActivityPub emoji reactions. Includes full reactor/sender profile in notification data for proper display.';
 
 -- ---------------------------------------------------------------------------
 -- clear_orphaned_public_keys - Clear public keys without matching private keys

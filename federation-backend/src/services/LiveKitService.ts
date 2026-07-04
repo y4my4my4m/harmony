@@ -2,6 +2,7 @@ import { AccessToken, RoomServiceClient, VideoGrant } from 'livekit-server-sdk';
 import config from '../config/index.js';
 import { getSupabaseClient } from '../config/supabase.js';
 import { logger } from '../utils/logger.js';
+import { pgrstOrValue } from '../utils/postgrestFilter.js';
 
 // =============================================================================
 // TYPES
@@ -446,7 +447,7 @@ class LiveKitService {
           .eq('room_name', roomName)
           .in('status', ['pending', 'accepted']);
         q = profileId
-          ? q.or(`caller_federated_id.eq.${actorId},recipient_id.eq.${profileId}`)
+          ? q.or(`caller_federated_id.eq.${pgrstOrValue(actorId)},recipient_id.eq.${profileId}`)
           : q.eq('caller_federated_id', actorId);
         const { data: call } = await q.maybeSingle();
         return !!call;

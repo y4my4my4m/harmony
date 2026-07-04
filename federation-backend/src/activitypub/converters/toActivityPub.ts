@@ -14,6 +14,24 @@ function normalizeShortcodeBoundaries(text: string): string {
 }
 
 /**
+ * Media type from a URL's file extension. Storage may serve uploads as
+ * application/octet-stream, so remotes need this hint on icon/image.
+ */
+function imageMediaTypeFromUrl(url: string): string | undefined {
+  const ext = url.split('?')[0].split('.').pop()?.toLowerCase();
+  switch (ext) {
+    case 'jpg':
+    case 'jpeg': return 'image/jpeg';
+    case 'png': return 'image/png';
+    case 'gif': return 'image/gif';
+    case 'webp': return 'image/webp';
+    case 'avif': return 'image/avif';
+    case 'svg': return 'image/svg+xml';
+    default: return undefined;
+  }
+}
+
+/**
  * Convert internal post format to ActivityPub Note
  * Supports quote posts via quoteUrl (Fediverse) and _misskey_quote (Misskey)
  */
@@ -163,6 +181,7 @@ export function profileToActor(profile: any): any {
   if (avatarUrl) {
     actor.icon = {
       type: 'Image',
+      mediaType: imageMediaTypeFromUrl(avatarUrl),
       url: avatarUrl,
     };
   }
@@ -172,6 +191,7 @@ export function profileToActor(profile: any): any {
   if (bannerUrl) {
     actor.image = {
       type: 'Image',
+      mediaType: imageMediaTypeFromUrl(bannerUrl),
       url: bannerUrl,
     };
   }
@@ -307,6 +327,23 @@ export function createAcceptActivity(actor: any, followActivity: any): any {
     '@context': 'https://www.w3.org/ns/activitystreams',
     id: activityId,
     type: 'Accept',
+    actor: actorUrl,
+    object: followActivity,
+  };
+}
+
+/**
+ * Create a Reject activity (for follow requests)
+ */
+export function createRejectActivity(actor: any, followActivity: any): any {
+  const domain = config.INSTANCE_DOMAIN;
+  const actorUrl = `https://${domain}/users/${actor.username}`;
+  const activityId = `${actorUrl}/rejects/${Date.now()}`;
+
+  return {
+    '@context': 'https://www.w3.org/ns/activitystreams',
+    id: activityId,
+    type: 'Reject',
     actor: actorUrl,
     object: followActivity,
   };

@@ -1022,6 +1022,55 @@ BEGIN
 END;
 $$;
 
+-- Maintain posts.replies_count: covers reply insert, late in_reply_to
+-- resolution (federation), soft-delete flips and hard deletes.
+CREATE OR REPLACE FUNCTION public.update_post_reply_count()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF TG_OP = 'INSERT' THEN
+    IF NEW.in_reply_to IS NOT NULL AND (NEW.is_deleted IS DISTINCT FROM true) THEN
+      UPDATE public.posts
+      SET replies_count = COALESCE(replies_count, 0) + 1
+      WHERE id = NEW.in_reply_to;
+    END IF;
+    RETURN NEW;
+
+  ELSIF TG_OP = 'UPDATE' THEN
+    IF OLD.in_reply_to IS NULL AND NEW.in_reply_to IS NOT NULL
+       AND (NEW.is_deleted IS DISTINCT FROM true) THEN
+      UPDATE public.posts
+      SET replies_count = COALESCE(replies_count, 0) + 1
+      WHERE id = NEW.in_reply_to;
+    END IF;
+
+    IF NEW.in_reply_to IS NOT NULL AND OLD.is_deleted IS DISTINCT FROM NEW.is_deleted THEN
+      IF NEW.is_deleted IS TRUE THEN
+        UPDATE public.posts
+        SET replies_count = GREATEST(COALESCE(replies_count, 0) - 1, 0)
+        WHERE id = NEW.in_reply_to;
+      ELSE
+        UPDATE public.posts
+        SET replies_count = COALESCE(replies_count, 0) + 1
+        WHERE id = NEW.in_reply_to;
+      END IF;
+    END IF;
+    RETURN NEW;
+
+  ELSIF TG_OP = 'DELETE' THEN
+    IF OLD.in_reply_to IS NOT NULL AND (OLD.is_deleted IS DISTINCT FROM true) THEN
+      UPDATE public.posts
+      SET replies_count = GREATEST(COALESCE(replies_count, 0) - 1, 0)
+      WHERE id = OLD.in_reply_to;
+    END IF;
+    RETURN OLD;
+  END IF;
+
+  RETURN NULL;
+END;
+$$;
+
 -- Check emoji reaction limit for posts
 CREATE OR REPLACE FUNCTION public.check_emoji_reaction_limit()
 RETURNS trigger
@@ -1174,6 +1223,48 @@ BEGIN
         END IF;
     ELSE
         NEW.federation_status := 'skipped';
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
+-- Queue follow-request response (Accept/Reject) for federation.
+-- Fires when a local user resolves a remote follower's pending request;
+-- the worker handles job type 'respond' in queue/handlers/followHandler.ts.
+-- BEFORE UPDATE so it can stamp federation_status='pending' - the durable
+-- marker the 60s sweep retries from if the pg_notify is lost.
+CREATE OR REPLACE FUNCTION public.trigger_queue_follow_response_federation()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+    v_follower_is_local BOOLEAN;
+    v_following_is_local BOOLEAN;
+BEGIN
+    IF OLD.status = 'pending' AND NEW.status IN ('accepted', 'rejected') THEN
+        SELECT is_local INTO v_follower_is_local FROM public.profiles WHERE id = NEW.follower_id;
+        SELECT is_local INTO v_following_is_local FROM public.profiles WHERE id = NEW.following_id;
+
+        IF COALESCE(v_follower_is_local, true) = false AND v_following_is_local = true THEN
+            NEW.federation_status := 'pending';
+            -- follows has no auto-updated_at trigger; stamp it so the sweep's
+            -- 2-second notify-race guard applies to this transition.
+            NEW.updated_at := now();
+            PERFORM public.queue_federation_job(
+                'federate-follow',
+                jsonb_build_object(
+                    'type', 'respond',
+                    'follow_id', NEW.id,
+                    'follower_id', NEW.follower_id,
+                    'following_id', NEW.following_id,
+                    'status', NEW.status,
+                    'ap_id', NEW.ap_id
+                ), 5, 5, 3600
+            );
+        END IF;
     END IF;
 
     RETURN NEW;

@@ -7,6 +7,7 @@ import { FederatedInstanceService } from '../services/FederatedInstanceService.j
 import { logger } from '../utils/logger.js';
 import config from '../config/index.js';
 import { inboxLimiter } from '../middleware/rateLimit.js';
+import { pgrstEscape } from '../utils/postgrestFilter.js';
 
 const router = Router();
 
@@ -128,7 +129,7 @@ router.get(
       // Query activities where user's federated_id is in to_addresses or cc_addresses
       // Use PostgreSQL array contains operator (cs) via or() filter
       // Escape double quotes for PostgreSQL array syntax (array values are double-quoted)
-      const escapedId = user.federated_id.replace(/"/g, '\\"');
+      const escapedId = pgrstEscape(user.federated_id);
       let countQuery = supabase
         .from('ap_activities')
         .select('*', { count: 'exact', head: true })
@@ -186,8 +187,8 @@ router.get(
     // Build paginated query
     // Query activities where user's federated_id is in to_addresses or cc_addresses
     // Use PostgreSQL array contains operator (cs) via or() filter
-    // Escape double quotes for PostgreSQL array syntax (array values are double-quoted)
-    const escapedId = user.federated_id.replace(/"/g, '\\"');
+    // Escape for PostgreSQL array syntax (array values are double-quoted)
+    const escapedId = pgrstEscape(user.federated_id);
     let query = supabase
       .from('ap_activities')
       .select('id, ap_id, ap_type, activity_data, created_at')

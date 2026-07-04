@@ -256,7 +256,11 @@ export const useActivityPubStore = defineStore('activitypub', {
     },
 
     filteredSuggestedUsers(): any[] {
-      return this.suggestedUsers.filter(user => !this.followedUsers.has(user.id));
+      return this.suggestedUsers.filter(user =>
+        !this.followedUsers.has(user.id) &&
+        !this.mutedUsers.has(user.id) &&
+        !this.blockedUsers.has(user.id)
+      );
     },
 
     isFollowing: (state) => (userId: string) => {
@@ -2322,6 +2326,9 @@ export const useActivityPubStore = defineStore('activitypub', {
           debug.log(`🔄 Updated ${interactionType} state for post ${postId} in feed: ${isActive} (counts will be synced from server)`);
         }
       });
+      // Persist so navigating away and back doesn't restore the pre-toggle
+      // snapshot from the localStorage timeline cache.
+      this.saveTimelineToCache();
     },
 
     /**
@@ -2381,6 +2388,8 @@ export const useActivityPubStore = defineStore('activitypub', {
           post.is_favorited = userFavoriteState;
         }
       });
+
+      this.saveTimelineToCache();
     },
 
     /**

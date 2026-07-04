@@ -222,13 +222,19 @@ const router = createRouter({
           path: 'followers',
           name: 'Followers',
           component: () => import('@/views/FollowersView.vue'),
-          props: { viewType: 'followers' }
+          props: { view: 'followers' }
         },
         {
           path: 'following',
           name: 'Following',
           component: () => import('@/views/FollowersView.vue'),
-          props: { viewType: 'following' }
+          props: { view: 'following' }
+        },
+        {
+          path: 'follow-requests',
+          name: 'FollowRequests',
+          component: () => import('@/views/FollowersView.vue'),
+          props: { view: 'requests' }
         },
         {
           path: 'trending',

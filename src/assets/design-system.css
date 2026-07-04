@@ -1119,16 +1119,8 @@ div.loading:has(> .harmony-spinner) {
    ===================================================== */
 
 .encrypted-glyphs {
-  border-radius: 4px;
-  padding: 2px 6px;
   display: inline-block;
   position: relative;
-  background: linear-gradient(
-    90deg,
-    var(--harmony-primary-alpha-light),
-    var(--harmony-primary-light),
-    var(--harmony-primary-alpha-light)
-  );
 }
 
 /* Clickable encrypted message target */

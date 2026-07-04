@@ -84,12 +84,16 @@
               Scan a QR code from another device to restore your encryption keys.
             </p>
 
-            <div class="qr-scanner-placeholder">
+            <div v-if="isScanning" class="qr-scanner-live">
+              <video ref="scannerVideoRef" class="scanner-video" autoplay playsinline muted></video>
+              <button class="btn btn-secondary btn-sm" @click="stopQRScanner">Stop Scanner</button>
+            </div>
+            <div v-else class="qr-scanner-placeholder">
               <div class="scanner-icon">📷</div>
               <p>QR Scanner</p>
-              <p class="hint">This feature requires camera access</p>
-              <button class="btn btn-secondary" @click="startQRScanner" :disabled="isScanning">
-                {{ isScanning ? 'Scanning...' : 'Start Scanner' }}
+              <p class="hint">{{ scannerSupported ? 'Point your camera at the QR code from your other device' : 'Camera scanning is not supported in this browser - paste the code below instead' }}</p>
+              <button v-if="scannerSupported" class="btn btn-secondary" @click="startQRScanner">
+                Start Scanner
               </button>
             </div>
 
@@ -157,7 +161,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, nextTick, onUnmounted } from 'vue'
 import { debug } from '@/utils/debug'
 import { useToast } from 'vue-toastification'
 import Icon from '@/components/common/Icon.vue'
@@ -253,12 +257,57 @@ function clearWords() {
   isValid.value = false
 }
 
-// Start QR scanner
-function startQRScanner() {
-  // This would integrate with a QR scanning library
-  toast.info('QR scanning coming soon - please paste your recovery phrase for now')
-  isScanning.value = false
+// QR scanning via the native BarcodeDetector API (no library needed).
+// Unsupported browsers (Firefox, older Safari) fall back to the paste box.
+const scannerVideoRef = ref<HTMLVideoElement | null>(null)
+const scannerSupported = typeof window !== 'undefined' && 'BarcodeDetector' in window
+let scannerStream: MediaStream | null = null
+let scannerRafId = 0
+
+async function startQRScanner() {
+  try {
+    scannerStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'environment' },
+      audio: false,
+    })
+    isScanning.value = true
+    await nextTick()
+    const video = scannerVideoRef.value
+    if (!video) return stopQRScanner()
+    video.srcObject = scannerStream
+    await video.play()
+
+    const detector = new (window as any).BarcodeDetector({ formats: ['qr_code'] })
+    const scanFrame = async () => {
+      if (!isScanning.value || !scannerVideoRef.value) return
+      try {
+        const codes = await detector.detect(scannerVideoRef.value)
+        if (codes.length > 0 && codes[0].rawValue) {
+          qrData.value = codes[0].rawValue
+          stopQRScanner()
+          await parseQRData()
+          return
+        }
+      } catch { /* frame not ready yet */ }
+      scannerRafId = requestAnimationFrame(scanFrame)
+    }
+    scannerRafId = requestAnimationFrame(scanFrame)
+  } catch (err: any) {
+    stopQRScanner()
+    toast.error(err?.name === 'NotAllowedError'
+      ? 'Camera access denied - paste the QR data below instead'
+      : 'Could not start the camera - paste the QR data below instead')
+  }
 }
+
+function stopQRScanner() {
+  isScanning.value = false
+  cancelAnimationFrame(scannerRafId)
+  scannerStream?.getTracks().forEach(t => t.stop())
+  scannerStream = null
+}
+
+onUnmounted(stopQRScanner)
 
 // Parse QR data
 async function parseQRData() {
@@ -563,6 +612,23 @@ async function restoreEncryption() {
   text-align: center;
 }
 
+.qr-scanner-live {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.scanner-video {
+  width: 100%;
+  max-width: 320px;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+  background: #000;
+}
+
 .qr-scanner-placeholder {
   padding: 40px;
   background: var(--bg-secondary, #2a2a3e);
@@ -738,8 +804,15 @@ async function restoreEncryption() {
 
 /* Responsive */
 @media (max-width: 600px) {
+  /* 2-up, not 3: three mono inputs overflow narrow viewports */
   .phrase-input-grid {
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px 10px;
+  }
+
+  .word-input input {
+    min-width: 0;
+    width: 100%;
   }
 
   .recovery-tabs {
