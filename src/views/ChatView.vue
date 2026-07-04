@@ -58,6 +58,7 @@ const route = useRoute()
 const isAtBottom = ref(true)
 const isLoading = ref(false)
 let fetchAbortController: AbortController | null = null
+let lastSeenServerId: string | null = null
 
 // Computed
 const chatMessages = computed(() => {
@@ -126,7 +127,18 @@ const loadMessages = async () => {
 
     const channelId = route.params.channelId as string
     const serverId = route.params.serverId as string
-    
+
+    // Server switched but the default channel isn't resolved yet
+    // (/chat/:serverId without :channelId): clear NOW, otherwise the previous
+    // server's messages stay on screen for the whole channel-list round trip.
+    if (serverId && serverId !== lastSeenServerId) {
+      if (lastSeenServerId !== null && !chatStore.isMessageCached(channelId || '')) {
+        chatStore.clearMessages()
+        isLoading.value = true
+      }
+      lastSeenServerId = serverId
+    }
+
     if (serverId && channelId) {
       // Update current channel immediately for responsive sidebar highlighting
       if (serverChannelStore.currentChannelId !== channelId) {
@@ -137,6 +149,7 @@ const loadMessages = async () => {
         chatStore.loadCachedMessages(channelId)
         chatStore.subscribeToMessages(channelId)
         chatStore.fetchMessages(channelId, '', signal)
+        isLoading.value = false
         return
       }
       
