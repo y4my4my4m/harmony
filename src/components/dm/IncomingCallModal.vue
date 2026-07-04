@@ -1,7 +1,12 @@
 <template>
   <Teleport to="body">
-    <div v-if="show" class="incoming-call-overlay">
+    <!-- Full-screen ringing modal; clicking the backdrop minimizes instead of blocking -->
+    <div v-if="show && !isMinimized" class="incoming-call-overlay" @click.self="isMinimized = true">
       <div class="incoming-call-modal" :class="{ 'video-call': callType === 'video' }">
+        <button class="minimize-btn" title="Minimize" @click="isMinimized = true">
+          <Icon name="minimize-2" :size="16" />
+        </button>
+
         <!-- Caller Info -->
         <div class="caller-info">
           <div class="caller-avatar-container">
@@ -15,12 +20,12 @@
               <Icon :name="callType === 'video' ? 'video' : 'phone'" :size="24" />
             </div>
           </div>
-          
+
           <h2 class="caller-name"><DisplayName :user-id="callerId" :fallback="callerName" /></h2>
           <p class="call-type-text">
             {{ callType === 'video' ? 'Incoming video call' : 'Incoming voice call' }}
           </p>
-          
+
           <div class="ringing-text">
             <span class="dot"></span>
             <span class="dot"></span>
@@ -38,7 +43,7 @@
             <Icon name="phone-off" :size="24" />
             <span>Decline</span>
           </button>
-          
+
           <button
             @click="handleAccept('voice')"
             class="call-btn accept-btn voice-accept"
@@ -47,7 +52,7 @@
             <Icon name="phone" :size="24" />
             <span>Accept</span>
           </button>
-          
+
           <button
             v-if="callType === 'video'"
             @click="handleAccept('video')"
@@ -60,11 +65,35 @@
         </div>
       </div>
     </div>
+
+    <!-- Minimized floating card: keeps ringing without blocking the app -->
+    <div v-if="show && isMinimized" class="incoming-call-mini" @click="isMinimized = false">
+      <Avatar
+        :src="callerAvatar"
+        :alt="callerName"
+        size="sm"
+        class="mini-avatar"
+      />
+      <div class="mini-info">
+        <span class="mini-name"><DisplayName :user-id="callerId" :fallback="callerName" /></span>
+        <span class="mini-subtitle">
+          {{ callType === 'video' ? 'Incoming video call' : 'Incoming call' }}
+        </span>
+      </div>
+      <div class="mini-actions" @click.stop>
+        <button class="mini-btn mini-decline" title="Decline" @click="handleDecline">
+          <Icon name="phone-off" :size="16" />
+        </button>
+        <button class="mini-btn mini-accept" title="Accept" @click="handleAccept(callType)">
+          <Icon :name="callType === 'video' ? 'video' : 'phone'" :size="16" />
+        </button>
+      </div>
+    </div>
   </Teleport>
 </template>
 
 <script setup lang="ts">
-import { watch, onUnmounted } from 'vue'
+import { ref, watch, onUnmounted } from 'vue'
 import Avatar from '@/components/common/Avatar.vue'
 import Icon from '@/components/common/Icon.vue'
 import DisplayName from '@/components/DisplayName.vue'
@@ -87,12 +116,13 @@ const emit = defineEmits<{
 }>()
 
 const themeStore = useThemeStore()
+const isMinimized = ref(false)
 let ringtoneInterval: number | null = null
 
 const startRingtone = () => {
   // Play ringtone immediately
   themeStore.playAudio('call_incoming')
-  
+
   // Play ringtone every 3 seconds
   ringtoneInterval = window.setInterval(() => {
     themeStore.playAudio('call_incoming')
@@ -109,6 +139,7 @@ const stopRingtone = () => {
 // Watch for modal showing/hiding
 watch(() => props.show, (isShowing) => {
   if (isShowing) {
+    isMinimized.value = false
     startRingtone()
   } else {
     stopRingtone()
@@ -144,6 +175,7 @@ const handleDecline = () => {
   justify-content: center;
   z-index: 10000;
   animation: fadeIn 0.3s ease;
+  cursor: pointer;
 }
 
 @keyframes fadeIn {
@@ -156,6 +188,7 @@ const handleDecline = () => {
 }
 
 .incoming-call-modal {
+  position: relative;
   background: var(--background-primary);
   border-radius: 16px;
   padding: 48px 32px;
@@ -164,6 +197,7 @@ const handleDecline = () => {
   min-width: 320px;
   max-width: 400px;
   animation: slideUp 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  cursor: default;
 }
 
 @keyframes slideUp {
@@ -175,6 +209,28 @@ const handleDecline = () => {
     transform: translateY(0);
     opacity: 1;
   }
+}
+
+.minimize-btn {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.minimize-btn:hover {
+  background: var(--background-secondary);
+  color: var(--text-primary);
 }
 
 .incoming-call-modal.video-call {
@@ -329,27 +385,133 @@ const handleDecline = () => {
   background: #0284C7;
 }
 
+/* Minimized floating card */
+.incoming-call-mini {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--background-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  cursor: pointer;
+  animation: slideInRight 0.25s ease;
+}
+
+@keyframes slideInRight {
+  from {
+    transform: translateX(24px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.mini-avatar {
+  animation: pulse 2s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+.mini-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  max-width: 160px;
+}
+
+.mini-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mini-subtitle {
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.mini-actions {
+  display: flex;
+  gap: 8px;
+  cursor: default;
+}
+
+.mini-btn {
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: 50%;
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.mini-btn:hover {
+  transform: scale(1.08);
+}
+
+.mini-decline {
+  background: #ed4245;
+}
+
+.mini-decline:hover {
+  background: #c03537;
+}
+
+.mini-accept {
+  background: #43b581;
+}
+
+.mini-accept:hover {
+  background: #369968;
+}
+
 /* Mobile responsive */
 @media (max-width: 768px) {
   .incoming-call-modal {
     padding: 40px 24px;
     min-width: 280px;
   }
-  
+
   .caller-name {
     font-size: 20px;
   }
-  
+
   .call-actions {
     flex-direction: column;
     width: 100%;
   }
-  
+
   .call-btn {
     width: 100%;
     flex-direction: row;
     justify-content: center;
   }
+
+  .incoming-call-mini {
+    top: calc(8px + env(safe-area-inset-top, 0px));
+    right: 8px;
+    left: 8px;
+    justify-content: space-between;
+  }
+
+  .mini-info {
+    max-width: none;
+    flex: 1;
+  }
 }
 </style>
-

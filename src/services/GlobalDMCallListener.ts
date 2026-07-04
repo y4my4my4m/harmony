@@ -220,7 +220,8 @@ class GlobalDMCallListenerService {
         debug.log('⏰ Call timed out - dismissing incoming call modal')
         dmCallSignaling.handleRemoteSignal(signal)
         this.dismissIncomingCall()
-        toast.warning('Missed call')
+        // info: routes to the regular toast corner (warnings go top-center)
+        toast.info('Missed call')
         break
         
       case 'end':

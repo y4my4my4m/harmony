@@ -654,7 +654,7 @@ const handleCallSignal = async (signal: CallSignal) => {
       if (isInVoiceCall.value) {
         voiceStore.leaveVoiceChannel()
       }
-      toast.warning('No answer - call timed out')
+      toast.info('No answer')
       break
   }
 }
