@@ -1022,6 +1022,55 @@ BEGIN
 END;
 $$;
 
+-- Maintain posts.replies_count: covers reply insert, late in_reply_to
+-- resolution (federation), soft-delete flips and hard deletes.
+CREATE OR REPLACE FUNCTION public.update_post_reply_count()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF TG_OP = 'INSERT' THEN
+    IF NEW.in_reply_to IS NOT NULL AND (NEW.is_deleted IS DISTINCT FROM true) THEN
+      UPDATE public.posts
+      SET replies_count = COALESCE(replies_count, 0) + 1
+      WHERE id = NEW.in_reply_to;
+    END IF;
+    RETURN NEW;
+
+  ELSIF TG_OP = 'UPDATE' THEN
+    IF OLD.in_reply_to IS NULL AND NEW.in_reply_to IS NOT NULL
+       AND (NEW.is_deleted IS DISTINCT FROM true) THEN
+      UPDATE public.posts
+      SET replies_count = COALESCE(replies_count, 0) + 1
+      WHERE id = NEW.in_reply_to;
+    END IF;
+
+    IF NEW.in_reply_to IS NOT NULL AND OLD.is_deleted IS DISTINCT FROM NEW.is_deleted THEN
+      IF NEW.is_deleted IS TRUE THEN
+        UPDATE public.posts
+        SET replies_count = GREATEST(COALESCE(replies_count, 0) - 1, 0)
+        WHERE id = NEW.in_reply_to;
+      ELSE
+        UPDATE public.posts
+        SET replies_count = COALESCE(replies_count, 0) + 1
+        WHERE id = NEW.in_reply_to;
+      END IF;
+    END IF;
+    RETURN NEW;
+
+  ELSIF TG_OP = 'DELETE' THEN
+    IF OLD.in_reply_to IS NOT NULL AND (OLD.is_deleted IS DISTINCT FROM true) THEN
+      UPDATE public.posts
+      SET replies_count = GREATEST(COALESCE(replies_count, 0) - 1, 0)
+      WHERE id = OLD.in_reply_to;
+    END IF;
+    RETURN OLD;
+  END IF;
+
+  RETURN NULL;
+END;
+$$;
+
 -- Check emoji reaction limit for posts
 CREATE OR REPLACE FUNCTION public.check_emoji_reaction_limit()
 RETURNS trigger
