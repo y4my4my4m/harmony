@@ -22,7 +22,13 @@ export interface UserConnection {
   peerConnection: RTCPeerConnection;
   mediaState: UserMediaState;
   remoteStream: MediaStream | null;
+  /** The peer's screenshare stream (separate MediaStream so camera + screen can run concurrently) */
+  remoteScreenStream: MediaStream | null;
+  /** Every remote stream seen in ontrack, keyed by stream id, so streams can be (re)classified once the peer announces its screen stream id */
+  knownStreams: Map<string, MediaStream>;
   audioElement: HTMLAudioElement | null;
+  /** Separate playback element for screenshare audio (never spatialized) */
+  screenAudioElement: HTMLAudioElement | null;
   connectionState: RTCPeerConnectionState;
   iceConnectionState: RTCIceConnectionState;
   /**
@@ -56,7 +62,14 @@ export class UnifiedWebRTCService {
   private signalChannel: RealtimeChannel | null = null;
   
   // Local media and state
+  // localStream carries mic + camera; the screenshare gets its own stream so
+  // both video feeds can be published at once and told apart by stream id.
   private localStream: MediaStream | null = null;
+  private localScreenStream: MediaStream | null = null;
+  private cameraVideoTrackId: string | null = null;
+  // Screen stream ids announced by peers (via media-state / state-sync),
+  // used to classify incoming streams as camera/mic vs screenshare
+  private announcedScreenStreamIds = new Map<string, string | null>();
   private localMediaState: UserMediaState = {
     userId: '',
     isAudioEnabled: true,
@@ -334,15 +347,22 @@ export class UnifiedWebRTCService {
         
         if (newVideoTrack) {
           this.localStream.addTrack(newVideoTrack);
-          
+          const previousCameraTrackId = this.cameraVideoTrackId;
+          this.cameraVideoTrackId = newVideoTrack.id;
+
           for (const [userId, conn] of this.connections) {
             try {
               const senders = conn.peerConnection.getSenders();
-              const videoSender = senders.find(s => s.track && s.track.kind === 'video');
-              
+              // Only swap the camera sender - never the screenshare sender
+              const videoSender = senders.find(
+                s => s.track?.kind === 'video' &&
+                     s.track.id !== this.screenShareVideoTrackId &&
+                     (previousCameraTrackId === null || s.track.id === previousCameraTrackId || s.track.readyState === 'ended')
+              );
+
               if (videoSender) {
                 await videoSender.replaceTrack(newVideoTrack);
-                debug.log('🔄 Replaced video track for peer:', userId);
+                debug.log('🔄 Replaced camera track for peer:', userId);
               }
             } catch (error) {
               debug.error('❌ Error updating video track for peer', userId, ':', error);
@@ -472,7 +492,18 @@ export class UnifiedWebRTCService {
       this.localStream.getTracks().forEach(track => track.stop());
       this.localStream = null;
     }
-    
+
+    if (this.localScreenStream) {
+      this.localScreenStream.getTracks().forEach(track => track.stop());
+      this.localScreenStream = null;
+    }
+    this.announcedScreenStreamIds.clear();
+    this.cameraVideoTrackId = null;
+    this.screenShareVideoTrackId = null;
+    this.screenShareAudioTrackId = null;
+    this.localMediaState.isVideoEnabled = false;
+    this.localMediaState.isScreenSharing = false;
+
     if (this.signalChannel) {
       await this.signalChannel.unsubscribe();
       this.signalChannel = null;
@@ -510,13 +541,7 @@ export class UnifiedWebRTCService {
   async toggleVideo(): Promise<boolean> {
     try {
       if (!this.localMediaState.isVideoEnabled) {
-        // Disable screenshare first if active
-        if (this.localMediaState.isScreenSharing) {
-          debug.log('🎥 Disabling screenshare before enabling camera...');
-          await this.toggleScreenShare();
-        }
-        
-        // Enable video
+        // Enable video (screenshare, if active, keeps its own stream/senders)
         debug.log('🎥 Enabling video camera...');
         
         const { videoDevice } = this.getSelectedDevices();
@@ -552,55 +577,27 @@ export class UnifiedWebRTCService {
           });
           
           this.localStream.addTrack(videoTrack);
+          this.cameraVideoTrackId = videoTrack.id;
           this.localMediaState.isVideoEnabled = true;
-          
+
           debug.log('📹 Local stream now has', this.localStream.getTracks().length, 'tracks');
-          
+
           for (const [userId, conn] of this.connections) {
             try {
-              debug.log('📹 Adding video track to peer:', userId);
-              
+              // Never touch the screenshare sender - only reuse a camera sender
               const existingSenders = conn.peerConnection.getSenders();
-              const videoSender = existingSenders.find(s => s.track?.kind === 'video');
-              
-              if (videoSender && videoSender.track) {
-                // Replace existing video track (no renegotiation needed)
-                debug.log('🔄 Replacing existing video track for peer:', userId);
-                await videoSender.replaceTrack(videoTrack);
-                debug.log('✅ Replaced video track for peer:', userId);
+              const cameraSender = existingSenders.find(
+                s => s.track?.kind === 'video' && s.track.id !== this.screenShareVideoTrackId
+              );
+
+              if (cameraSender && cameraSender.track) {
+                // Replace existing camera track (no renegotiation needed)
+                debug.log('🔄 Replacing existing camera track for peer:', userId);
+                await cameraSender.replaceTrack(videoTrack);
               } else {
-                debug.log('➕ Adding new video track for peer:', userId);
+                debug.log('➕ Adding camera track for peer:', userId);
                 conn.peerConnection.addTrack(videoTrack, this.localStream);
-                debug.log('✅ Added new video track for peer:', userId);
-              
-                // Wait for stable state before renegotiation
-                if (conn.peerConnection.signalingState !== 'stable') {
-                  debug.log('⏳ Waiting for stable signaling state before renegotiation...');
-                  await new Promise(resolve => {
-                    const checkState = () => {
-                      if (conn.peerConnection.signalingState === 'stable') {
-                        resolve(true);
-                      } else {
-                        setTimeout(checkState, 100);
-                      }
-                    };
-                    checkState();
-                  });
-                }
-                
-                debug.log('🔄 Creating renegotiation offer for peer:', userId);
-              const offer = await conn.peerConnection.createOffer();
-              await conn.peerConnection.setLocalDescription(offer);
-              
-              this.sendDirectMessage(userId, {
-                type: 'offer',
-                from: this.currentUserId!,
-                to: userId,
-                data: offer,
-                timestamp: Date.now()
-              });
-              
-              debug.log('✅ Video renegotiation offer sent to:', userId);
+                await this.renegotiateWithPeer(userId, conn);
               }
             } catch (error) {
               debug.error('❌ Error adding video track to peer', userId, ':', error);
@@ -617,56 +614,29 @@ export class UnifiedWebRTCService {
         
         if (this.localStream) {
           const videoTracks = this.localStream.getVideoTracks();
-          
+
           for (const track of videoTracks) {
             debug.log('🛑 Stopping video track:', track.id);
             track.stop();
             this.localStream.removeTrack(track);
-            
+
             for (const [userId, conn] of this.connections) {
               try {
                 const senders = conn.peerConnection.getSenders();
                 const videoSender = senders.find(s => s.track === track);
-                
+
                 if (videoSender) {
                   debug.log('📹 Removing video track from peer:', userId);
                   conn.peerConnection.removeTrack(videoSender);
-                  
-                  // Wait for stable state before renegotiation
-                  if (conn.peerConnection.signalingState !== 'stable') {
-                    debug.log('⏳ Waiting for stable signaling state before renegotiation...');
-                    await new Promise(resolve => {
-                      const checkState = () => {
-                        if (conn.peerConnection.signalingState === 'stable') {
-                          resolve(true);
-                        } else {
-                          setTimeout(checkState, 100);
-                        }
-                      };
-                      checkState();
-                    });
-                  }
-                  
-                  debug.log('🔄 Creating renegotiation offer after removing video');
-                  const offer = await conn.peerConnection.createOffer();
-                  await conn.peerConnection.setLocalDescription(offer);
-                  
-                  this.sendDirectMessage(userId, {
-                    type: 'offer',
-                    from: this.currentUserId!,
-                    to: userId,
-                    data: offer,
-                    timestamp: Date.now()
-                  });
-                  
-                  debug.log('✅ Video removal renegotiation offer sent to:', userId);
+                  await this.renegotiateWithPeer(userId, conn);
                 }
               } catch (error) {
                 debug.error('❌ Error removing video track from peer', userId, ':', error);
               }
             }
           }
-          
+
+          this.cameraVideoTrackId = null;
           this.localMediaState.isVideoEnabled = false;
           debug.log('✅ Video disabled, local stream now has', this.localStream.getTracks().length, 'tracks');
           
@@ -720,111 +690,34 @@ export class UnifiedWebRTCService {
           audioLabel: screenAudioTrack?.label
         });
         
-        if (this.localStream && screenVideoTrack) {
-          // If camera was enabled, turn it off first
-          if (this.localMediaState.isVideoEnabled && !this.localMediaState.isScreenSharing) {
-            debug.log('📷 Camera was enabled, disabling before screenshare...');
-            this.localMediaState.isVideoEnabled = false;
-          }
-          
-          const videoTracks = this.localStream.getVideoTracks();
-          videoTracks.forEach(track => {
-            debug.log('🛑 Stopping and removing video track for screenshare:', track.id);
-            track.stop();
-            this.localStream!.removeTrack(track);
-          });
-          
-          this.localStream.addTrack(screenVideoTrack);
-          debug.log('✅ Added screen video track');
-          
+        if (screenVideoTrack) {
+          // Screenshare lives in its own MediaStream: the stream id travels in
+          // the SDP msid, so receivers can tell it apart from the camera feed.
+          // Camera state is untouched - both can be live at once.
+          this.localScreenStream = new MediaStream([screenVideoTrack]);
+          debug.log('✅ Created screen stream:', this.localScreenStream.id);
+
           if (screenAudioTrack) {
-            this.localStream.addTrack(screenAudioTrack);
+            this.localScreenStream.addTrack(screenAudioTrack);
             debug.log('🔊 Screen sharing with system audio enabled');
           }
-          
+
           this.localMediaState.isScreenSharing = true;
-          this.localMediaState.isVideoEnabled = false; // Not camera, it's screenshare!
-          
-          // Replace tracks in peer connections
+
+          // Add both screen tracks to every peer, then renegotiate once
           for (const [userId, conn] of this.connections) {
             try {
-              const senders = conn.peerConnection.getSenders();
-              
-              // Replace video track
-              const videoSender = senders.find(s => s.track && s.track.kind === 'video');
-              if (videoSender) {
-                // Replace existing video track (no renegotiation needed)
-                await videoSender.replaceTrack(screenVideoTrack);
-                debug.log('🔄 Replaced video with screen track for peer:', userId);
-              } else {
-                conn.peerConnection.addTrack(screenVideoTrack, this.localStream!);
-                debug.log('➕ Added screen track to peer:', userId);
-                
-                if (conn.peerConnection.signalingState !== 'stable') {
-                  await new Promise(resolve => {
-                    const checkState = () => {
-                      if (conn.peerConnection.signalingState === 'stable') {
-                        resolve(true);
-                      } else {
-                        setTimeout(checkState, 100);
-                      }
-                    };
-                    checkState();
-                  });
-                }
-                
-                // Renegotiate
-                const offer = await conn.peerConnection.createOffer();
-                await conn.peerConnection.setLocalDescription(offer);
-                
-                this.sendDirectMessage(userId, {
-                  type: 'offer',
-                  from: this.currentUserId!,
-                  to: userId,
-                  data: offer,
-                  timestamp: Date.now()
-                });
-                
-                debug.log('✅ Screen share renegotiation offer sent to:', userId);
-              }
-              
+              conn.peerConnection.addTrack(screenVideoTrack, this.localScreenStream);
               if (screenAudioTrack) {
-                const existingSenders = conn.peerConnection.getSenders();
-                const hasScreenAudio = existingSenders.some(s => s.track?.id === screenAudioTrack.id);
-                
-                if (!hasScreenAudio) {
-                  conn.peerConnection.addTrack(screenAudioTrack, this.localStream!);
-                  debug.log('🔊 Added screen audio track to peer:', userId);
-                  
-                  // Need to renegotiate for the new audio track
-                  // Wait a moment for the track to be added, then send a new offer
-                  setTimeout(async () => {
-                    try {
-                      if (conn.peerConnection.signalingState === 'stable') {
-                        const offer = await conn.peerConnection.createOffer();
-                        await conn.peerConnection.setLocalDescription(offer);
-                        
-                        this.sendDirectMessage(userId, {
-                          type: 'offer',
-                          from: this.currentUserId!,
-                          to: userId,
-                          data: offer,
-                          timestamp: Date.now()
-                        });
-                        
-                        debug.log('✅ Screen audio renegotiation offer sent to:', userId);
-                      }
-                    } catch (error) {
-                      debug.error('❌ Screen audio renegotiation failed:', error);
-                    }
-                  }, 100);
-                }
+                conn.peerConnection.addTrack(screenAudioTrack, this.localScreenStream);
               }
+              debug.log('➕ Added screen track(s) to peer:', userId);
+              await this.renegotiateWithPeer(userId, conn);
             } catch (error) {
               debug.error('❌ Error updating screen share for peer', userId, ':', error);
             }
           }
-          
+
           screenVideoTrack.onended = () => {
             debug.log('📺 Screen video track ended');
             if (this.localMediaState.isScreenSharing) {
@@ -842,58 +735,45 @@ export class UnifiedWebRTCService {
           }
         }
       } else {
-        if (this.localStream) {
-          debug.log('🛑 Stopping screen share, cleaning up tracks:', {
-            videoTrackId: this.screenShareVideoTrackId,
-            audioTrackId: this.screenShareAudioTrackId
+        debug.log('🛑 Stopping screen share, cleaning up tracks:', {
+          videoTrackId: this.screenShareVideoTrackId,
+          audioTrackId: this.screenShareAudioTrackId
+        });
+
+        if (this.localScreenStream) {
+          const screenTrackIds = new Set(
+            this.localScreenStream.getTracks().map(t => t.id)
+          );
+
+          this.localScreenStream.getTracks().forEach(track => {
+            debug.log('🛑 Stopping screen track:', track.kind, track.id);
+            track.stop();
           });
-          
-          const videoTracks = this.localStream.getVideoTracks();
-          videoTracks.forEach(track => {
-            if (!this.screenShareVideoTrackId || track.id === this.screenShareVideoTrackId) {
-              debug.log('🛑 Stopping video track:', track.id);
-              track.stop();
-              this.localStream!.removeTrack(track);
-              
-              this.connections.forEach(conn => {
-                const senders = conn.peerConnection.getSenders();
-                const videoSender = senders.find(s => s.track?.id === track.id);
-                if (videoSender) {
-                  conn.peerConnection.removeTrack(videoSender);
-                  debug.log('🛑 Removed video sender from peer:', conn.userId);
+          this.localScreenStream = null;
+
+          // Remove the screen senders from every peer, then renegotiate once
+          for (const [userId, conn] of this.connections) {
+            try {
+              let removed = false;
+              for (const sender of conn.peerConnection.getSenders()) {
+                if (sender.track && screenTrackIds.has(sender.track.id)) {
+                  conn.peerConnection.removeTrack(sender);
+                  removed = true;
+                  debug.log('🛑 Removed screen sender from peer:', userId, sender.track.kind);
                 }
-              });
-            }
-          });
-          
-          if (this.screenShareAudioTrackId) {
-            const audioTracks = this.localStream.getAudioTracks();
-            const screenAudioTrack = audioTracks.find(t => t.id === this.screenShareAudioTrackId);
-            
-            if (screenAudioTrack) {
-              debug.log('🔇 Stopping screen audio track:', screenAudioTrack.id, screenAudioTrack.label);
-              screenAudioTrack.stop();
-              this.localStream!.removeTrack(screenAudioTrack);
-              
-              this.connections.forEach(conn => {
-                const senders = conn.peerConnection.getSenders();
-                const audioSender = senders.find(s => s.track?.id === this.screenShareAudioTrackId);
-                if (audioSender) {
-                  conn.peerConnection.removeTrack(audioSender);
-                  debug.log('🔇 Removed screen audio sender from peer:', conn.userId);
-                }
-              });
-            } else {
-              debug.warn('⚠️ Screen audio track not found for cleanup:', this.screenShareAudioTrackId);
+              }
+              if (removed) {
+                await this.renegotiateWithPeer(userId, conn);
+              }
+            } catch (error) {
+              debug.error('❌ Error removing screen tracks from peer', userId, ':', error);
             }
           }
-          
-          this.screenShareVideoTrackId = null;
-          this.screenShareAudioTrackId = null;
-          
-          this.localMediaState.isScreenSharing = false;
-          this.localMediaState.isVideoEnabled = false;
         }
+
+        this.screenShareVideoTrackId = null;
+        this.screenShareAudioTrackId = null;
+        this.localMediaState.isScreenSharing = false;
       }
       
       await this.broadcastMediaState();
@@ -988,6 +868,10 @@ export class UnifiedWebRTCService {
         debug.log('🔊 Audio element for', conn.userId, conn.audioElement.muted ? 'muted' : 'unmuted',
                   '(deafened:', this.localMediaState.isDeafened, 'spatialActive:', isSpatialAudioActive, ')');
       }
+      // Screen audio is never spatialized - only deafen affects it
+      if (conn.screenAudioElement) {
+        conn.screenAudioElement.muted = this.localMediaState.isDeafened;
+      }
     });
     
     this.broadcastMediaState();
@@ -1011,6 +895,14 @@ export class UnifiedWebRTCService {
       return this.localStream;
     }
     return this.connections.get(userId)?.remoteStream || null;
+  }
+
+  /** The user's screenshare stream (camera/mic live in getUserStream) */
+  getUserScreenStream(userId: string): MediaStream | null {
+    if (userId === this.currentUserId) {
+      return this.localScreenStream;
+    }
+    return this.connections.get(userId)?.remoteScreenStream || null;
   }
 
   getUserState(userId: string): UserMediaState | null {
@@ -1272,7 +1164,7 @@ export class UnifiedWebRTCService {
         break;
         
       case 'media-state':
-        this.handleMediaStateUpdate(from, data.mediaState);
+        this.handleMediaStateUpdate(from, data.mediaState, data.screenStreamId);
         break;
         
       case 'state-sync':
@@ -1322,15 +1214,30 @@ export class UnifiedWebRTCService {
       connection.peerConnection.close();
       this.connections.delete(userId);
     }
-    
+
     this.allUserStates.delete(userId);
+    this.announcedScreenStreamIds.delete(userId);
     this.emit('user-left', { userId });
   }
 
-  private handleMediaStateUpdate(userId: string, mediaState: UserMediaState): void {
-    debug.log('🎛️ Media state update:', userId, mediaState);
-    
+  private handleMediaStateUpdate(userId: string, mediaState: UserMediaState, screenStreamId?: string | null): void {
+    debug.log('🎛️ Media state update:', userId, mediaState, 'screenStreamId:', screenStreamId);
+
     this.allUserStates.set(userId, mediaState);
+
+    // Screen stream announcement may arrive before or after the tracks do;
+    // re-classify whatever streams we already have from this peer
+    if (screenStreamId !== undefined) {
+      const previous = this.announcedScreenStreamIds.get(userId);
+      this.announcedScreenStreamIds.set(userId, screenStreamId);
+      if (previous !== screenStreamId) {
+        const connection = this.connections.get(userId);
+        if (connection) {
+          this.classifyRemoteStreams(connection);
+        }
+      }
+    }
+
     this.emit('user-state-changed', { userId, mediaState });
   }
 
@@ -1364,6 +1271,7 @@ export class UnifiedWebRTCService {
         data: {
           action: 'response',
           mediaState: this.localMediaState,
+          screenStreamId: this.localScreenStream?.id ?? null,
           allStates: Array.from(this.allUserStates.values())
         },
         timestamp: Date.now()
@@ -1383,9 +1291,17 @@ export class UnifiedWebRTCService {
       if (data.mediaState) {
         this.allUserStates.set(from, data.mediaState);
       }
-      
-      this.emit('channel-state-synced', { 
-        users: Array.from(this.allUserStates.values()) 
+
+      if (data.screenStreamId !== undefined) {
+        this.announcedScreenStreamIds.set(from, data.screenStreamId);
+        const connection = this.connections.get(from);
+        if (connection) {
+          this.classifyRemoteStreams(connection);
+        }
+      }
+
+      this.emit('channel-state-synced', {
+        users: Array.from(this.allUserStates.values())
       });
     }
   }
@@ -1417,14 +1333,17 @@ export class UnifiedWebRTCService {
         audioLevel: 0
       },
       remoteStream: null,
+      remoteScreenStream: null,
+      knownStreams: new Map(),
       audioElement: null,
+      screenAudioElement: null,
       connectionState: pc.connectionState,
       iceConnectionState: pc.iceConnectionState,
       pendingIceCandidates: []
     };
-    
+
     this.connections.set(userId, connection);
-    
+
     if (this.localStream) {
       this.localStream.getTracks().forEach(track => {
         debug.log('🔗 Adding track to peer', userId, ':', track.kind, 'enabled:', track.enabled);
@@ -1432,20 +1351,22 @@ export class UnifiedWebRTCService {
       });
       debug.log('✅ Added', this.localStream.getTracks().length, 'tracks to peer connection with', userId);
     }
-    
+
+    // If we're mid-screenshare when this peer appears, include those tracks too
+    if (this.localScreenStream) {
+      this.localScreenStream.getTracks().forEach(track => {
+        debug.log('🔗 Adding screen track to peer', userId, ':', track.kind);
+        pc.addTrack(track, this.localScreenStream!);
+      });
+    }
+
     pc.ontrack = async (event) => {
       debug.log('📹 Received track from:', userId, event.track.kind, 'Stream ID:', event.streams[0]?.id);
-      
-      if (event.streams[0]) {
-        connection.remoteStream = event.streams[0];
-        debug.log('📡 Setting remote stream for user:', userId, 'Tracks:', event.streams[0].getTracks().length);
-        
-        await this.setupRemoteAudio(connection, event.streams[0]);
-        
-        this.emit('user-stream-changed', { userId, stream: event.streams[0] });
-        
-        // Also emit generic stream change event
-        this.emit('stream-changed', { userId, stream: event.streams[0], type: 'remote' });
+
+      const stream = event.streams[0];
+      if (stream) {
+        connection.knownStreams.set(stream.id, stream);
+        await this.classifyRemoteStreams(connection);
       }
     };
     
@@ -1625,11 +1546,48 @@ export class UnifiedWebRTCService {
     }
   }
 
+  /**
+   * Wait for a stable signaling state, then send a fresh offer to the peer.
+   * Used after addTrack/removeTrack (renegotiation).
+   */
+  private async renegotiateWithPeer(userId: string, conn: UserConnection): Promise<void> {
+    if (conn.peerConnection.signalingState !== 'stable') {
+      debug.log('⏳ Waiting for stable signaling state before renegotiation...');
+      await new Promise(resolve => {
+        const checkState = () => {
+          if (conn.peerConnection.signalingState === 'stable') {
+            resolve(true);
+          } else {
+            setTimeout(checkState, 100);
+          }
+        };
+        checkState();
+      });
+    }
+
+    const offer = await conn.peerConnection.createOffer();
+    await conn.peerConnection.setLocalDescription(offer);
+
+    this.sendDirectMessage(userId, {
+      type: 'offer',
+      from: this.currentUserId!,
+      to: userId,
+      data: offer,
+      timestamp: Date.now()
+    });
+
+    debug.log('✅ Renegotiation offer sent to:', userId);
+  }
+
   private async broadcastMediaState(): Promise<void> {
     this.broadcastMessage({
       type: 'media-state',
       from: this.currentUserId!,
-      data: { mediaState: this.localMediaState },
+      data: {
+        mediaState: this.localMediaState,
+        // Lets receivers classify our streams: camera/mic vs screenshare
+        screenStreamId: this.localScreenStream?.id ?? null,
+      },
       timestamp: Date.now()
     });
   }
@@ -1646,6 +1604,73 @@ export class UnifiedWebRTCService {
         timestamp: Date.now()
       }
     });
+  }
+
+  /**
+   * Sort a peer's known streams into mic/camera vs screenshare using the
+   * screen stream id the peer announced. Called from ontrack (streams may
+   * arrive before the announcement) and from media-state / state-sync
+   * handlers (the announcement may arrive before the streams).
+   */
+  private async classifyRemoteStreams(connection: UserConnection): Promise<void> {
+    const userId = connection.userId;
+    const screenStreamId = this.announcedScreenStreamIds.get(userId) ?? null;
+
+    // Drop streams whose tracks have all ended
+    for (const [id, stream] of connection.knownStreams) {
+      const tracks = stream.getTracks();
+      if (tracks.length > 0 && tracks.every(t => t.readyState === 'ended')) {
+        connection.knownStreams.delete(id);
+      }
+    }
+
+    const previousMicStream = connection.remoteStream;
+    const previousScreenStream = connection.remoteScreenStream;
+
+    connection.remoteScreenStream = screenStreamId
+      ? connection.knownStreams.get(screenStreamId) ?? null
+      : null;
+    connection.remoteStream =
+      [...connection.knownStreams.values()].find(s => s.id !== screenStreamId) ?? null;
+
+    if (connection.remoteStream && connection.remoteStream !== previousMicStream) {
+      debug.log('📡 Mic/camera stream for user:', userId, 'tracks:', connection.remoteStream.getTracks().length);
+      await this.setupRemoteAudio(connection, connection.remoteStream);
+    }
+
+    if (connection.remoteScreenStream !== previousScreenStream) {
+      debug.log('📡 Screen stream for user:', userId, 'present:', !!connection.remoteScreenStream);
+      this.setupScreenAudio(connection);
+    }
+
+    this.emit('user-stream-changed', { userId, stream: connection.remoteStream });
+    this.emit('stream-changed', { userId, stream: connection.remoteStream, type: 'remote' });
+  }
+
+  /**
+   * Screenshare audio plays through its own element - it must never be
+   * spatialized or muted along with the dry mic path.
+   */
+  private setupScreenAudio(connection: UserConnection): void {
+    if (connection.screenAudioElement) {
+      connection.screenAudioElement.pause();
+      connection.screenAudioElement.srcObject = null;
+      connection.screenAudioElement = null;
+    }
+
+    const audioTracks = connection.remoteScreenStream?.getAudioTracks() ?? [];
+    if (audioTracks.length === 0) return;
+
+    const audioElement = new Audio();
+    audioElement.autoplay = true;
+    audioElement.srcObject = new MediaStream(audioTracks);
+    audioElement.muted = this.localMediaState.isDeafened;
+    const sinkCapable = audioElement as any;
+    if (this.selectedOutputDevice && sinkCapable.setSinkId) {
+      sinkCapable.setSinkId(this.selectedOutputDevice).catch(() => { /* best effort */ });
+    }
+    connection.screenAudioElement = audioElement;
+    debug.log('🔊 Screen audio element created for user:', connection.userId);
   }
 
   private async setupRemoteAudio(connection: UserConnection, stream: MediaStream): Promise<void> {
@@ -1720,6 +1745,12 @@ export class UnifiedWebRTCService {
       connection.audioElement.srcObject = null;
       connection.audioElement = null;
       debug.log('🔇 Audio element cleaned up for user:', connection.userId);
+    }
+    if (connection.screenAudioElement) {
+      connection.screenAudioElement.pause();
+      connection.screenAudioElement.srcObject = null;
+      connection.screenAudioElement = null;
+      debug.log('🔇 Screen audio element cleaned up for user:', connection.userId);
     }
   }
 

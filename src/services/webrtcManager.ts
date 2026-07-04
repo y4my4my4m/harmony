@@ -14,7 +14,7 @@
  * - 'hybrid': Try LiveKit first, fallback to P2P
  */
 
-import { livekitWebRTC, type UserMediaState, type LiveKitConfig } from './livekitWebRTC';
+import { livekitWebRTC, type UserMediaState, type LiveKitConfig, type VideoSource } from './livekitWebRTC';
 import { unifiedWebRTC } from './unifiedWebRTC';
 import { VoiceSettingsService } from './VoiceSettingsService';
 import { debug } from '@/utils/debug';
@@ -52,8 +52,8 @@ export interface WebRTCManager {
   getAllUsers(): UserMediaState[];
   
   // Video element attachment (required for LiveKit adaptive streaming)
-  attachVideoToElement(userId: string, videoElement: HTMLVideoElement): boolean;
-  detachVideoFromElement(userId: string, videoElement: HTMLVideoElement): void;
+  attachVideoToElement(userId: string, videoElement: HTMLVideoElement, source?: VideoSource): boolean;
+  detachVideoFromElement(userId: string, videoElement: HTMLVideoElement, source?: VideoSource): void;
   
   // Events
   on(event: string, callback: Function): void;
@@ -472,16 +472,38 @@ class WebRTCManagerService implements WebRTCManager {
   }
 
   /**
+   * Get a user's microphone-only stream for spatial audio processing.
+   * Must exclude screenshare audio - spatializing a movie soundtrack is wrong.
+   */
+  getUserMicStream(userId: string): MediaStream | null {
+    if (this.activeService === 'livekit') {
+      return livekitWebRTC.getUserMicStream(userId);
+    } else if (this.activeService === 'p2p') {
+      // P2P mic/camera stream carries mic audio only (screen audio lives in its own stream)
+      return unifiedWebRTC.getUserStream(userId);
+    }
+    return null;
+  }
+
+  /**
    * Attach video track to element (required for LiveKit adaptive streaming)
    */
-  attachVideoToElement(userId: string, videoElement: HTMLVideoElement): boolean {
+  attachVideoToElement(userId: string, videoElement: HTMLVideoElement, source: VideoSource = 'auto'): boolean {
     if (this.activeService === 'livekit') {
-      return livekitWebRTC.attachVideoToElement(userId, videoElement);
+      return livekitWebRTC.attachVideoToElement(userId, videoElement, source);
     } else if (this.activeService === 'p2p') {
-      // For P2P, just use srcObject directly
-      const stream = unifiedWebRTC.getUserStream(userId);
-      if (stream) {
-        videoElement.srcObject = stream;
+      // P2P keeps camera/mic and screenshare in separate MediaStreams.
+      // Wrap the video track alone so the <video> element never doubles up audio
+      // (audio playback is owned by the service's dedicated audio elements).
+      const screenStream = unifiedWebRTC.getUserScreenStream(userId);
+      const cameraStream = unifiedWebRTC.getUserStream(userId);
+      const stream = source === 'screen' ? screenStream
+        : source === 'camera' ? cameraStream
+        : screenStream || cameraStream;
+
+      const videoTrack = stream?.getVideoTracks()[0];
+      if (videoTrack) {
+        videoElement.srcObject = new MediaStream([videoTrack]);
         return true;
       }
     }
@@ -491,9 +513,9 @@ class WebRTCManagerService implements WebRTCManager {
   /**
    * Detach video from element
    */
-  detachVideoFromElement(userId: string, videoElement: HTMLVideoElement): void {
+  detachVideoFromElement(userId: string, videoElement: HTMLVideoElement, source: VideoSource = 'auto'): void {
     if (this.activeService === 'livekit') {
-      livekitWebRTC.detachVideoFromElement(userId, videoElement);
+      livekitWebRTC.detachVideoFromElement(userId, videoElement, source);
     } else {
       videoElement.srcObject = null;
     }
